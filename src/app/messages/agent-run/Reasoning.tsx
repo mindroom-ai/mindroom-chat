@@ -15,12 +15,19 @@ import { Icon, Icons } from 'folds';
 import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import {
   LIVE_ACTIVITY_KEY,
+  LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_KEY,
   LIVE_REASONING_SEGMENTS_KEY,
 } from '../live/useLiveReplyContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
-import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
+import {
+  ACTIVE_STREAM_STATUSES,
+  getStreamStatusFromContent,
+  hasTerminalStreamMetadata,
+} from '../../matrix/protocol/aiRun';
+import { COMPACTIONS_CONTENT_KEY, readReplyCompactions } from '../../matrix/protocol/compactions';
 import { revealDirectionControls } from '../../ui/directional';
+import { CompactionSeam } from './CompactionSeam';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
 import {
@@ -103,6 +110,30 @@ function ReasoningText({ text, htmlReactParserOptions }: ReasoningTextProps) {
     return <div style={{ whiteSpace: 'pre-wrap' }}>{revealDirectionControls(text)}</div>;
   }
   return <div style={{ whiteSpace: 'normal' }}>{rendered}</div>;
+}
+
+/**
+ * The compactions placed at `anchor` (0 for the top of the reply, else the index of the tool
+ * marker a run of calls ends at), each as its seam. They show whether or not the bulb or the cog
+ * shows what is around them, and before the thinking at the same spot, which the next model
+ * request wrote after the compaction.
+ */
+export function CompactionSeamsAt({ anchor }: { anchor: number }) {
+  const reasoning = useContext(ReasoningSegmentsContext);
+  if (!reasoning) return null;
+  const { compactions, compactionPlacement, replyEnded } = reasoning;
+  return (
+    <>
+      {compactionPlacement.get(anchor)?.map((index) => {
+        const compaction = compactions[index];
+        return (
+          compaction && (
+            <CompactionSeam key={compaction.id} compaction={compaction} interrupted={replyEnded} />
+          )
+        );
+      })}
+    </>
+  );
 }
 
 /**
@@ -201,6 +232,7 @@ function ReasoningHeader({ label, open, thinking, onToggle, bulbRef }: Reasoning
         </button>
         {cog}
       </div>
+      <CompactionSeamsAt anchor={0} />
       <ReasoningSegmentsAt anchor={0} />
     </div>
   );
@@ -304,13 +336,22 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
     () => (text === undefined ? [] : readReasoningSegments(text, recorded)),
     [text, recorded]
   );
+  // While the reply streams its live frames say which compactions ran, ahead of its durable edits.
+  const recordedCompactions = content[LIVE_COMPACTIONS_KEY] ?? content[COMPACTIONS_CONTENT_KEY];
+  const compactions = useMemo(
+    () => readReplyCompactions(recordedCompactions),
+    [recordedCompactions]
+  );
+  const replyEnded = hasTerminalStreamMetadata(content);
   // The tool markers that render as runs of calls, as the body shows them. They place the segments
-  // an open bulb shows after calls, and end the segment the model writes. The body is read for them
-  // only then, and again only when its count of marker icons changes, as a new call's does: not for
-  // each frame of answer text.
+  // an open bulb shows after calls and the compactions after calls, and end the segment the model
+  // writes. The body is read for them only then, and again only when its count of marker icons
+  // changes, as a new call's does: not for each frame of answer text.
   const icons =
     html !== undefined &&
-    ((open && segments.some(({ afterTool }) => afterTool > 0)) || (grew.seen && last))
+    ((open && segments.some(({ afterTool }) => afterTool > 0)) ||
+      compactions.some(({ afterTool }) => afterTool > 0) ||
+      (grew.seen && last))
       ? countToolRefIcons(html)
       : 0;
   const [rendered, setRendered] = useState<{ icons: number; markers: readonly number[] }>({
@@ -338,9 +379,33 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const writing = live !== undefined && grew.seen && !movedOn && !ended;
   const liveIndex = writing && bulb !== 'closed' ? segments.length - 1 : undefined;
   const placement = useMemo(() => placeReasoningSegments(segments, markers), [segments, markers]);
+  const compactionPlacement = useMemo(
+    () => placeReasoningSegments(compactions, markers),
+    [compactions, markers]
+  );
   const reasoning = useMemo(
-    () => ({ segments, placement, open, hide, liveIndex, htmlReactParserOptions }),
-    [segments, placement, open, hide, liveIndex, htmlReactParserOptions]
+    () => ({
+      segments,
+      placement,
+      open,
+      hide,
+      liveIndex,
+      htmlReactParserOptions,
+      compactions,
+      compactionPlacement,
+      replyEnded,
+    }),
+    [
+      segments,
+      placement,
+      open,
+      hide,
+      liveIndex,
+      htmlReactParserOptions,
+      compactions,
+      compactionPlacement,
+      replyEnded,
+    ]
   );
 
   let label: string | undefined;
@@ -359,7 +424,10 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   return (
     <ReasoningSegmentsContext.Provider value={reasoning}>
       {label === undefined ? (
-        <ToolCallsCogRow />
+        <>
+          <ToolCallsCogRow />
+          <CompactionSeamsAt anchor={0} />
+        </>
       ) : (
         <ReasoningHeader
           label={label}
@@ -376,7 +444,9 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
 }
 
 /**
- * Wrap a reply body with the model's reasoning and the runtime's live activity. The reasoning line
+ * Wrap a reply body with the model's reasoning, its history compactions and the runtime's live
+ * activity. Each compaction (`io.mindroom.compactions`, or `io.mindroom.live_compactions` while the
+ * reply streams) shows as a seam where it ran, placed as the reasoning segments are. The reasoning line
  * above the body says how long the model thought, or that it thinks (`io.mindroom.live_reasoning`,
  * `io.mindroom.reasoning`); its bulb shows each reasoning segment where it happened, at the top or
  * after the tool calls of `html` it followed, and while the reply streams the segment being

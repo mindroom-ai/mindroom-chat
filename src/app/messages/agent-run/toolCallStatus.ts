@@ -2,6 +2,7 @@ import { createContext, useContext, useId, useLayoutEffect, type ReactNode } fro
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
+import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 import type { ReasoningSegment } from './reasoningSegments';
 
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired';
@@ -55,8 +56,8 @@ export const ToolCallsFoldContext = createContext<ToolCallsFoldState | undefined
 export const ToolCallsCogContext = createContext<ReactNode>(null);
 
 /**
- * A reply's reasoning segments and where each shows (withReasoning in Reasoning.tsx): under the
- * reply's header, or after the run of tool calls that ends at a marker.
+ * A reply's reasoning segments and compactions, and where each shows (withReasoning in
+ * Reasoning.tsx): under the reply's header, or after the run of tool calls that ends at a marker.
  */
 export type ReasoningSegmentsState = {
   segments: readonly ReasoningSegment[];
@@ -71,6 +72,12 @@ export type ReasoningSegmentsState = {
   liveIndex: number | undefined;
   /** What the segments' Markdown renders with. */
   htmlReactParserOptions: HTMLReactParserOptions;
+  /** The reply's history compactions, in start order; each shows wherever it is placed. */
+  compactions: readonly ReplyCompaction[];
+  /** From an anchor, as `placement`, to its compactions' indices. */
+  compactionPlacement: ReadonlyMap<number, readonly number[]>;
+  /** The reply ended, so a compaction still running in it never finishes. */
+  replyEnded: boolean;
 };
 export const ReasoningSegmentsContext = createContext<ReasoningSegmentsState | undefined>(
   undefined

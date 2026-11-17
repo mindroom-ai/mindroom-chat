@@ -24,7 +24,11 @@ import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
 import { isLongAgentReply, splitFinishedWork } from '../agent-run/finishedWorkSplit';
-import { LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY } from '../live/useLiveReplyContent';
+import {
+  LIVE_COMPACTIONS_KEY,
+  LIVE_REASONING_KEY,
+  LIVE_REASONING_SEGMENTS_KEY,
+} from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
@@ -60,6 +64,19 @@ import { matchesEnum } from '../../lib/matchesEnum';
 
 /** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
 const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
+
+/** The live keys a streaming reply's frames add to its outer content (useLiveReplyContent). */
+const LIVE_WRAPPER_KEYS = [LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY, LIVE_COMPACTIONS_KEY];
+
+/** The live reasoning and compactions of `outer`, moved onto the content a long text resolved. */
+const withLiveWrapperContent = (
+  resolved: Record<string, unknown>,
+  outer: Record<string, unknown>
+): Record<string, unknown> => {
+  const live = LIVE_WRAPPER_KEYS.filter((key) => outer[key] !== undefined);
+  if (live.length === 0) return resolved;
+  return { ...resolved, ...Object.fromEntries(live.map((key) => [key, outer[key]])) };
+};
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -354,14 +371,9 @@ export const renderAgentMessageContent = ({
     renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
-        // The live reasoning rides on the outer content, not on the preview or the sidecar.
-        content[LIVE_REASONING_KEY] === undefined
-          ? resolvedContent
-          : {
-              ...resolvedContent,
-              [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY],
-              [LIVE_REASONING_SEGMENTS_KEY]: content[LIVE_REASONING_SEGMENTS_KEY],
-            },
+        // The live reasoning and compactions ride on the outer content, not on the preview or the
+        // sidecar.
+        withLiveWrapperContent(resolvedContent, content),
         props.customBody,
         (html) => (
           <AgentRenderBody

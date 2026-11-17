@@ -42,7 +42,7 @@ import {
   ToolCallState,
   useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
-import { ReasoningSegmentsAt } from '../agent-run/Reasoning';
+import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/Reasoning';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
 import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
@@ -461,14 +461,16 @@ function ToolRefGroupBlock({
 }
 
 /**
- * A run of tool calls as the parser places it, then the reasoning that followed its last call
- * (Reasoning.tsx), which shows there also while the run itself is hidden.
+ * A run of tool calls as the parser places it, then the compactions and the reasoning that
+ * followed its last call (Reasoning.tsx), which show there also while the run itself is hidden.
  */
 function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
+  const anchor = tools.at(-1)?.index ?? 0;
   return (
     <>
       <ToolRefGroupBlock parsedTools={tools} />
-      <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
+      <CompactionSeamsAt anchor={anchor} />
+      <ReasoningSegmentsAt anchor={anchor} />
     </>
   );
 }
@@ -553,7 +555,7 @@ const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   traceEvents: ToolTraceEvent[] | undefined,
   metadataStatus: ToolMetadataStatus | undefined,
-  // The markers a run of calls ends at, because reasoning shows after them.
+  // The markers a run of calls ends at, because reasoning or a compaction shows after them.
   splitAfter: ReadonlySet<number>
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
@@ -760,20 +762,26 @@ export const useToolTraceMarkerParserOptions = (
 ): HtmlReactParserOptionsSource => {
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
-  // The markers that reasoning shows after (withReasoning in Reasoning.tsx), where a run of calls
-  // ends so that the thinking between two calls shows between them; none while none shows after a
-  // call, and runs then group as they do without reasoning. As text, which stays the same while
-  // they do.
+  // The markers that reasoning or a compaction shows after (withReasoning in Reasoning.tsx), where
+  // a run of calls ends so that the thinking or the compaction between two calls shows between
+  // them; none while none shows after a call, and runs then group as they do without them.
+  // Compactions always show. As text, which stays the same while they do.
   const reasoning = useContext(ReasoningSegmentsContext);
   const splitAfterKey = reasoning
-    ? [...reasoning.placement]
-        .filter(
-          ([anchor, indices]) =>
-            anchor > 0 &&
-            (reasoning.open ||
-              (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex)))
-        )
-        .map(([anchor]) => anchor)
+    ? [
+        ...new Set([
+          ...[...reasoning.placement]
+            .filter(
+              ([, indices]) =>
+                reasoning.open ||
+                (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
+            )
+            .map(([anchor]) => anchor),
+          ...reasoning.compactionPlacement.keys(),
+        ]),
+      ]
+        .filter((anchor) => anchor > 0)
+        .sort((a, b) => a - b)
         .join()
     : '';
   return useMemo(() => {

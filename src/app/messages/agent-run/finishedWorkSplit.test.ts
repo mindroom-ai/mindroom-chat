@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isLongAgentReply, splitFinishedWork } from './finishedWorkSplit';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
+import { getRenderedToolRefs } from './toolRefDom';
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
 
@@ -95,6 +96,21 @@ describe('splitFinishedWork', () => {
       splitFinishedWork(backendBodies['leading and trailing tool calls'].formatted_body)
     ).toBeUndefined();
   });
+
+  // Reasoning segments and compaction seams render after a rendered tool marker, or at the top,
+  // so each one folds with the work only while every rendered marker falls in the head.
+  it.each(Object.entries(backendBodies))(
+    'keeps every rendered tool marker of the backend HTML in the work: %s',
+    (_name, { formatted_body: html }) => {
+      const split = splitFinishedWork(html);
+      if (!split) return;
+      const rendered = getRenderedToolRefs(html).toolBlocks.map(({ index }) => index);
+      expect(getRenderedToolRefs(split.head).toolBlocks.map(({ index }) => index)).toEqual(
+        rendered
+      );
+      expect(getRenderedToolRefs(split.tail).toolBlocks).toEqual([]);
+    }
+  );
 });
 
 describe('isLongAgentReply', () => {
