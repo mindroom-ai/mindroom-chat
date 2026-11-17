@@ -126,6 +126,12 @@ export type PluginPanelControls = {
   openBesideThread: (id: string, threadId: string, request: unknown) => void;
   /** Closes a plugin's panel if the room shows it. */
   close: (id: string) => void;
+  /**
+   * Whether the room shows the plugin's panel `id` with `request`, compared as JSON, beside the
+   * conversation or filling the room; folded to a tab it does not count. It keeps its identity
+   * while the room shows.
+   */
+  showsRequest: (id: string, request: unknown) => boolean;
 };
 
 /** Given by the room's page (src/app/room/Room.tsx) to what it renders. */

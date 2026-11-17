@@ -2,8 +2,10 @@
 import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { MessageLinkCardProps } from '../plugins/messageLinks';
 import type { RegisteredPlugin } from '../plugins/registry';
+import { PluginPanelControlsContext, type PluginPanelControls } from '../plugins/sidePanels';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { MessageLinkCards } from './MessageLinkCards';
 
@@ -62,24 +64,75 @@ function Card({ href, roomId, close }: MessageLinkCardProps) {
   );
 }
 
+// Links to panel.example open the plugin's panel `p` with their path's item; `/throw` has a request
+// that throws.
+const itemOf = (url: URL) => {
+  if (url.pathname === '/throw') throw new Error('no item');
+  return { item: url.pathname.slice(1) };
+};
 const plugin = {
   id: 'pr',
   tag: 'pr@1.0.0',
-  messageLinks: [{ match: (url: URL) => url.host === 'github.com', Component: Card }],
+  sidePanels: [{ id: 'p', label: 'P', Component: () => null }],
+  messageLinks: [
+    { match: (url: URL) => url.host === 'github.com', Component: Card },
+    {
+      match: (url: URL) => url.host === 'panel.example',
+      Component: Card,
+      sidePanel: { id: 'p', request: itemOf },
+    },
+  ],
 } as unknown as RegisteredPlugin;
 
-const renderCards = (roomId = '!a:x') => {
+const panelControls = (showsRequest = false): PluginPanelControls => ({
+  shown: undefined,
+  thread: undefined,
+  open: vi.fn(),
+  openBesideThread: vi.fn(),
+  close: vi.fn(),
+  showsRequest: vi.fn(() => showsRequest),
+});
+
+const renderCards = (
+  roomId = '!a:x',
+  {
+    controls,
+    screenSize = ScreenSize.Desktop,
+  }: { controls?: PluginPanelControls; screenSize?: ScreenSize } = {}
+) => {
   const ui = (id: string) => (
-    <MessageLinkCards roomId={id} plugins={[plugin]}>
-      <CheckedMessageLink href="https://github.com/o/r/pull/1">One</CheckedMessageLink>
-      <CheckedMessageLink href="https://github.com/o/r/pull/2">Two</CheckedMessageLink>
-      <CheckedMessageLink href="https://github.com/o/r/broken">Broken</CheckedMessageLink>
-      <CheckedMessageLink href="https://github.com/o/r/slow">Slow</CheckedMessageLink>
-      <CheckedMessageLink href="https://other.example/page">Other</CheckedMessageLink>
-    </MessageLinkCards>
+    <ScreenSizeProvider value={screenSize}>
+      <PluginPanelControlsContext.Provider value={controls}>
+        <MessageLinkCards roomId={id} plugins={[plugin]}>
+          <CheckedMessageLink href="https://github.com/o/r/pull/1">One</CheckedMessageLink>
+          <CheckedMessageLink href="https://github.com/o/r/pull/2">Two</CheckedMessageLink>
+          <CheckedMessageLink href="https://github.com/o/r/broken">Broken</CheckedMessageLink>
+          <CheckedMessageLink href="https://github.com/o/r/slow">Slow</CheckedMessageLink>
+          <CheckedMessageLink href="https://other.example/page">Other</CheckedMessageLink>
+          <CheckedMessageLink href="https://panel.example/7">Seven</CheckedMessageLink>
+          <CheckedMessageLink href="https://panel.example/throw">Thrower</CheckedMessageLink>
+        </MessageLinkCards>
+      </PluginPanelControlsContext.Provider>
+    </ScreenSizeProvider>
   );
   const view = render(ui(roomId));
   return { ...view, again: (id: string) => view.rerender(ui(id)) };
+};
+
+// Whether a click reaches the document unprevented; the listener then prevents it, so jsdom does
+// not follow the link.
+const goesOn = (link: HTMLElement) => {
+  const seen: boolean[] = [];
+  document.addEventListener(
+    'click',
+    (event) => {
+      seen.push(event.defaultPrevented);
+      event.preventDefault();
+    },
+    { once: true }
+  );
+  fireEvent.click(link);
+  return seen[0] === false;
 };
 
 afterEach(() => {
@@ -167,18 +220,7 @@ describe('MessageLinkCards', () => {
 
   it('a link no plugin takes opens as before', () => {
     renderCards();
-    // The link would be followed; a listener above the cards sees it unprevented, then stops jsdom.
-    const seen: boolean[] = [];
-    document.addEventListener(
-      'click',
-      (event) => {
-        seen.push(event.defaultPrevented);
-        event.preventDefault();
-      },
-      { once: true }
-    );
-    fireEvent.click(screen.getByRole('link', { name: 'Other' }));
-    expect(seen).toEqual([false]);
+    expect(goesOn(screen.getByRole('link', { name: 'Other' }))).toBe(true);
     expect(screen.queryByText(/^card /)).toBeNull();
   });
 
@@ -186,6 +228,81 @@ describe('MessageLinkCards', () => {
     const { again } = renderCards();
     fireEvent.click(screen.getByRole('link', { name: 'One' }));
     again('!b:x');
+    expect(screen.queryByText(/^card /)).toBeNull();
+  });
+
+  it('a link with a side panel opens it with its request and shows no card', () => {
+    const controls = panelControls();
+    renderCards('!a:x', { controls });
+    expect(fireEvent.click(screen.getByRole('link', { name: 'Seven' }))).toBe(false);
+    expect(controls.showsRequest).toHaveBeenCalledWith('pr/p', { item: '7' });
+    expect(controls.open).toHaveBeenCalledWith('pr/p', { item: '7' });
+    expect(screen.queryByText(/^card /)).toBeNull();
+  });
+
+  it('a click while its panel shows the same request goes on as a link click', () => {
+    const controls = panelControls(true);
+    renderCards('!a:x', { controls });
+    expect(goesOn(screen.getByRole('link', { name: 'Seven' }))).toBe(true);
+    expect(controls.open).not.toHaveBeenCalled();
+    expect(screen.queryByText(/^card /)).toBeNull();
+  });
+
+  it('on a phone a link with a side panel shows its card', () => {
+    const controls = panelControls(true);
+    renderCards('!a:x', { controls, screenSize: ScreenSize.Mobile });
+    fireEvent.click(screen.getByRole('link', { name: 'Seven' }));
+    expect(screen.getByText('card https://panel.example/7 in !a:x')).toBeTruthy();
+    expect(controls.open).not.toHaveBeenCalled();
+  });
+
+  it('without panel controls a link with a side panel shows its card', () => {
+    renderCards();
+    fireEvent.click(screen.getByRole('link', { name: 'Seven' }));
+    expect(screen.getByText('card https://panel.example/7 in !a:x')).toBeTruthy();
+  });
+
+  it("a throwing request shows the card and logs the plugin's tag", () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const controls = panelControls();
+    renderCards('!a:x', { controls });
+    fireEvent.click(screen.getByRole('link', { name: 'Thrower' }));
+    expect(screen.getByText('card https://panel.example/throw in !a:x')).toBeTruthy();
+    expect(controls.open).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith(
+      "[plugin pr@1.0.0] its message link's request failed",
+      expect.any(Error)
+    );
+  });
+
+  it("opening the panel closes another link's card", () => {
+    const controls = panelControls();
+    renderCards('!a:x', { controls });
+    fireEvent.click(screen.getByRole('link', { name: 'One' }));
+    expect(screen.getByText('card https://github.com/o/r/pull/1 in !a:x')).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Seven' }));
+    expect(screen.queryByText(/^card /)).toBeNull();
+    expect(controls.open).toHaveBeenCalledWith('pr/p', { item: '7' });
+  });
+
+  it("following the link its panel shows closes another link's card", () => {
+    const controls = panelControls(true);
+    renderCards('!a:x', { controls });
+    fireEvent.click(screen.getByRole('link', { name: 'One' }));
+    expect(screen.getByText('card https://github.com/o/r/pull/1 in !a:x')).toBeTruthy();
+    expect(goesOn(screen.getByRole('link', { name: 'Seven' }))).toBe(true);
+    expect(screen.queryByText(/^card /)).toBeNull();
+    expect(controls.open).not.toHaveBeenCalled();
+  });
+
+  it('Enter on the focused link opens the panel', () => {
+    const controls = panelControls();
+    renderCards('!a:x', { controls });
+    const link = screen.getByRole('link', { name: 'Seven' });
+    link.focus();
+    // A browser makes Enter on a focused link a click with no pointer (detail 0); jsdom does not.
+    expect(fireEvent.click(link, { detail: 0 })).toBe(false);
+    expect(controls.open).toHaveBeenCalledWith('pr/p', { item: '7' });
     expect(screen.queryByText(/^card /)).toBeNull();
   });
 });

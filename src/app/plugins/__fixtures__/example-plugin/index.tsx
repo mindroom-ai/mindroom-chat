@@ -818,6 +818,15 @@ function ParentRooms({ room }: { room: Room }) {
   return <p>Sub-room of {parents.map(({ name }) => name).join(', ')}</p>;
 }
 
+/** The item a click on a link to an example.org panel item opens the panel with. */
+const itemOf = (request: unknown): string | undefined =>
+  typeof request === 'object' &&
+  request !== null &&
+  'item' in request &&
+  typeof request.item === 'string'
+    ? request.item
+    : undefined;
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const client = useMatrixClient();
   const members = useRoomMembers(client, roomId);
@@ -862,6 +871,9 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
       {room && <ParentRooms room={room} />}
       {typeof request === 'string' && (
         <FetchedGreeting key={request} roomId={roomId} eventId={request} />
+      )}
+      {itemOf(request) !== undefined && (
+        <p data-testid="example-panel-item">Example panel item {itemOf(request)}</p>
       )}
       <p draggable onDragStart={(event) => event.dataTransfer.setData(ITEM_TYPE, 'Example item')}>
         Example item
@@ -1252,6 +1264,12 @@ const plugin: ClientPlugin = {
     {
       match: (url) => url.hostname === 'example.org' && /^\/items\/[^/]+$/.test(url.pathname),
       Component: ItemCard,
+    },
+    {
+      // A plain click opens the panel on the item off a phone; there, the card shows.
+      match: (url) => url.hostname === 'example.org' && /^\/panel-items\/[^/]+$/.test(url.pathname),
+      Component: ItemCard,
+      sidePanel: { id: 'panel', request: (url) => ({ item: url.pathname.split('/')[2] }) },
     },
   ],
   threadCardBadges: [{ Component: GreetingBadge }],

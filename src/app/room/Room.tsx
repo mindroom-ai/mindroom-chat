@@ -510,7 +510,15 @@ function RoomContent() {
   // got these, once a save ends, say: they act on the room and the panel shown then, and not at all
   // once this page has gone.
   const shownId = shown?.id;
-  const now = useLatestRef({ roomId, shownId, threadId, mobile, pluginPanels });
+  const now = useLatestRef({
+    roomId,
+    shownId,
+    layout,
+    pluginRequest: pluginPanel?.request,
+    threadId,
+    mobile,
+    pluginPanels,
+  });
   const alive = useAlive();
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
   // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
@@ -582,6 +590,21 @@ function RoomContent() {
     },
     [alive, closePluginPanel, now, roomId]
   );
+  // Folded to a tab, a panel shows nothing of its request, so it does not count. It reads the room
+  // as it is when called, so it keeps its identity while the room shows.
+  const showsPluginRequest = useCallback<PluginPanelControls['showsRequest']>(
+    (id, panelRequest) => {
+      const { roomId: roomNow, shownId: shownNow, layout: layoutNow, pluginRequest } = now.current;
+      if (!alive() || roomNow !== roomId || shownNow !== id || layoutNow === 'folded') return false;
+      try {
+        return JSON.stringify(pluginRequest) === JSON.stringify(panelRequest);
+      } catch {
+        // A request JSON cannot hold, such as one with a BigInt or a cycle, matches nothing.
+        return false;
+      }
+    },
+    [alive, now, roomId]
+  );
   // Known once the room has the event the address names, which may be a reply, and the server has
   // confirmed the root, which a new thread's first message waits for.
   const shownThread = routeReady && isConfirmedMatrixEventId(threadId) ? threadId : undefined;
@@ -592,8 +615,16 @@ function RoomContent() {
       open: openPluginPanel,
       openBesideThread: openPluginPanelBesideThread,
       close: closeShownPluginPanel,
+      showsRequest: showsPluginRequest,
     }),
-    [closeShownPluginPanel, openPluginPanel, openPluginPanelBesideThread, shownId, shownThread]
+    [
+      closeShownPluginPanel,
+      openPluginPanel,
+      openPluginPanelBesideThread,
+      showsPluginRequest,
+      shownId,
+      shownThread,
+    ]
   );
 
   const showCanvas = useCallback(
