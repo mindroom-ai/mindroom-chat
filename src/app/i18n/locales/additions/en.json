@@ -777,7 +777,6 @@
           "expired": "Expired"
         },
         "line": {
-          "expires": "Expires {{time}}",
           "sentKept": "Sent · kept {{duration}}"
         },
         "facts": {

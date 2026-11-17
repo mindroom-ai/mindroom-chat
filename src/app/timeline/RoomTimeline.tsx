@@ -729,12 +729,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
       ) as Record<string, unknown>,
     [threadStateRef]
   );
-  // The edit a row shows, which says when its content changed.
-  const getRowRevision = useCallback(
-    (event: MatrixEvent) =>
-      getEditedEvent(event.getId() ?? '', event, threadStateRef.current.threadTimelineSet)?.getId(),
-    [threadStateRef]
-  );
   const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
     history: {
       sdkLoaded: session.snapshot.open.sdkReady,
@@ -830,9 +824,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   // Secret request cards the open thread's replies draw at their tool calls, rows hidden here.
   const secretRequestTimeline = useInlineSecretRequestPlan({
+    room,
     events: ownThreadEvents,
     getContent: getRowContent,
-    getRevision: getRowRevision,
     ignored: ignoredUsersSet,
     viewerId: mx.getUserId() ?? undefined,
     threadId,
@@ -1851,7 +1845,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
             <ImageSlidesContext.Provider value={getImageSlides}>
-              <InlineSecretRequestsContext.Provider value={secretRequestTimeline.byReply}>
+              <InlineSecretRequestsContext.Provider value={secretRequestTimeline}>
                 {feature.wrapExpansion(
                   <div
                     ref={ledger.virtualInnerRef}

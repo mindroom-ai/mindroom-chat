@@ -795,7 +795,6 @@
           "expired": "Истёк"
         },
         "line": {
-          "expires": "Истекает {{time}}",
           "sentKept": "Отправлено · хранится {{duration}}"
         },
         "facts": {

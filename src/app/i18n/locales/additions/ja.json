@@ -768,7 +768,6 @@
           "expired": "期限切れ"
         },
         "line": {
-          "expires": "期限: {{time}}",
           "sentKept": "送信済み · {{duration}}保持"
         },
         "facts": {

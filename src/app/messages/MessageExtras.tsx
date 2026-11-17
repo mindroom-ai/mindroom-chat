@@ -17,6 +17,7 @@ import {
 } from '../matrix/protocol/messageExtrasData';
 import { sanitizeMessageExtraHtml } from './messageExtrasHtml';
 import { useToolTraceMarkerParserOptions } from './html/HtmlBlocks';
+import { InlineSecretRequestsContext, NO_INLINE_SECRET_REQUESTS } from './inlineSecretRequests';
 import * as css from './MessageExtras.css';
 
 type MessageExtraDetailsProps = React.DetailedHTMLProps<
@@ -118,6 +119,8 @@ export function MessageExtras({
       className={css.Extras}
       aria-label={t('mindroomUi.messages.mindroomMessageExtras.messageExtras')}
     >
+      {/* A secret request takes its call's line in the reply's body only: here the line stays. */}
+      <InlineSecretRequestsContext.Provider value={NO_INLINE_SECRET_REQUESTS}>
       {extras.sections.map((section, index) => {
         const detailsProps: MessageExtraDetailsProps = {
           className: css.Section,
@@ -137,6 +140,7 @@ export function MessageExtras({
           </MessageExtraDetails>
         );
       })}
+      </InlineSecretRequestsContext.Provider>
     </div>
   );
 }

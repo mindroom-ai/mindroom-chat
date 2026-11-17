@@ -768,7 +768,6 @@
           "expired": "已到期"
         },
         "line": {
-          "expires": "{{time}}到期",
           "sentKept": "已傳送 · 保留 {{duration}}"
         },
         "facts": {

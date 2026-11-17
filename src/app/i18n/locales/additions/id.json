@@ -768,7 +768,6 @@
           "expired": "Kedaluwarsa"
         },
         "line": {
-          "expires": "Kedaluwarsa {{time}}",
           "sentKept": "Terkirim · disimpan {{duration}}"
         },
         "facts": {

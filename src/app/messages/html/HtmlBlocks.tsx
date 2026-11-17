@@ -24,7 +24,6 @@ import {
   isToolTraceV2,
 } from '../../matrix/protocol/toolTrace';
 import type { SecretRequest } from '../../matrix/protocol/secretRequest';
-import { useSecretRequestStatuses } from '../../approvals/secretRequestStatus';
 import { useInlineSecretRequests, type InlineSecretRequest } from '../inlineSecretRequests';
 import { SecretRequestLine } from '../../approvals/SecretRequestLine';
 import * as css from './HtmlBlocks.css';
@@ -467,24 +466,26 @@ const SECRET_REQUEST_CALL_STATE = {
   expired: 'expired',
 } as const satisfies Record<SecretRequest['status'], ToolCallState>;
 
-/**
- * A secret request the reply draws at the call that asked, instead of that call's line. While it
- * waits it shows even where the reply's calls are hidden, and the cog counts it as waiting; once
- * done it hides with them.
- */
+/** A done secret request the reply draws at the call that asked, as that call's line. */
 function InlineSecretRequestBlock({ secret }: { secret: InlineSecretRequest }) {
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
-  const { request, agentUserId } = secret;
-  const {
-    statuses: [status = request.status],
-  } = useSecretRequestStatuses([request]);
+  const { eventId, request, agentUserId } = secret;
   const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
-  useFoldedToolCalls(shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[status] }]);
+  useFoldedToolCalls(
+    shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
+  );
   const roomId = message?.roomId;
-  if (!roomId || (status !== 'pending' && !shown && fold && !fold.open)) return null;
-  return <SecretRequestLine request={request} roomId={roomId} agentUserId={agentUserId} />;
+  if (!roomId || (!shown && fold && !fold.open)) return null;
+  return (
+    <SecretRequestLine
+      eventId={eventId}
+      request={request}
+      roomId={roomId}
+      agentUserId={agentUserId}
+    />
+  );
 }
 
 type ToolRunPart =

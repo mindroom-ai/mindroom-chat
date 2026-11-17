@@ -786,7 +786,6 @@
           "expired": "Scaduta"
         },
         "line": {
-          "expires": "Scade {{time}}",
           "sentKept": "Inviato · conservato {{duration}}"
         },
         "facts": {

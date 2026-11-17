@@ -29,8 +29,7 @@ import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
 import { SecretRequestCard } from '../../approvals/SecretRequestCard';
-import { useInlineSecretRequests } from '../inlineSecretRequests';
-import { useSecretRequestStatuses } from '../../approvals/secretRequestStatus';
+import { useSecretRequestWaiting } from '../inlineSecretRequests';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
@@ -143,11 +142,8 @@ function AgentWorkBody({
   renderHtml,
   wrapWithReasoning,
 }: AgentWorkBodyProps) {
-  // A secret request that waits shows in the work, so the work stays open until it is done.
-  const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
-  const waiting = useSecretRequestStatuses(
-    [...secrets.values()].map(({ request }) => request)
-  ).statuses.includes('pending');
+  // While a request of its calls waits, under it, the work stays open: the call it blocks shows.
+  const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
   // reply's own body to change, and for it to finish long.
   const split = useMemo(
@@ -459,6 +455,7 @@ export const renderAgentMessageContent = ({
         request={secretRequest}
         roomId={secretRequestRoomId}
         agentUserId={secretRequestSender}
+        eventId={eventId ?? mEvent?.getId()}
         readOnly={readOnly}
       />
     );

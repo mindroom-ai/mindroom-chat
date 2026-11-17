@@ -13,7 +13,6 @@ import type {
   TemporarySecretRequest,
 } from '../matrix/protocol/secretRequest';
 import { SecretRequestCard } from './SecretRequestCard';
-import { secretRequestAnswersAtom } from './secretRequestStatus';
 import * as css from './SecretRequestCard.css';
 
 const ROOM = '!room:example.org';
@@ -124,7 +123,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   setPersonalServer(null);
-  getDefaultStore().set(secretRequestAnswersAtom, new Map());
 });
 
 const render = (value: SecretRequest = request(), readOnly?: boolean) => {

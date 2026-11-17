@@ -777,7 +777,6 @@
           "expired": "खत्म हो चुका"
         },
         "line": {
-          "expires": "समाप्ति {{time}}",
           "sentKept": "भेजी गई · {{duration}} तक रखी गई"
         },
         "facts": {

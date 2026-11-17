@@ -777,7 +777,6 @@
           "expired": "Süresi doldu"
         },
         "line": {
-          "expires": "Süre doluyor: {{time}}",
           "sentKept": "Gönderildi · {{duration}} saklanır"
         },
         "facts": {

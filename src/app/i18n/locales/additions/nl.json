@@ -777,7 +777,6 @@
           "expired": "Verlopen"
         },
         "line": {
-          "expires": "Verloopt {{time}}",
           "sentKept": "Verstuurd · {{duration}} bewaard"
         },
         "facts": {

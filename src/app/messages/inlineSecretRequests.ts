@@ -2,7 +2,6 @@ import { createContext, useContext } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import {
   MINDROOM_SECRET_REQUEST_KEY,
-  effectiveSecretRequestStatus,
   parseSecretRequestContent,
   type SecretRequest,
 } from '../matrix/protocol/secretRequest';
@@ -11,17 +10,18 @@ import {
   getToolTraceV2Events,
   toolTraceCallId,
 } from '../matrix/protocol/toolTrace';
+import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../matrix/protocol/aiRun';
 import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import { sanitizeCustomHtml } from '../rich-text/sanitize';
 import { MINDROOM_TOOL_REF_ICON, formatMarkdownTextBodyAsHtml } from './html/blocks';
 import { getRenderedToolRefs } from './agent-run/toolRefDom';
 
-/** A secret request drawn in the reply whose tool call asked, at that call's line. */
+/** A done secret request drawn in the reply whose tool call asked, at that call's line. */
 export type InlineSecretRequest = {
   /** The card's event, whose own row the timeline hides. */
   eventId: string;
   request: SecretRequest;
-  /** The card's sender, the agent whose server takes the answer. */
+  /** The card's sender, the agent that asked. */
   agentUserId: string;
 };
 
@@ -32,13 +32,21 @@ export type InlineSecretRequestPlan = {
   /** Cards drawn in their reply, whose rows the timeline hides. */
   hiddenEventIds: ReadonlySet<string>;
   byReply: InlineSecretRequests;
+  /** Replies with a request not done yet (its card a row of its own): their work stays unfolded. */
+  waitingReplyIds: ReadonlySet<string>;
+};
+
+export const NO_INLINE_SECRET_REQUESTS: InlineSecretRequestPlan = {
+  hiddenEventIds: new Set(),
+  byReply: new Map(),
+  waitingReplyIds: new Set(),
 };
 
 /**
  * Where a reply can draw a request: from each call ID of its trace to the index of that call's
  * marker, for the markers its body renders as tool lines (getRenderedToolRefs, the renderer's
- * rule, on the HTML the renderer parses). A reply of long text renders other content than its
- * row's, so it draws none.
+ * rule, on the HTML the renderer parses). None where the reply may show other content than this:
+ * a reply of long text, and one still streaming, which live frames draw over.
  */
 export const secretRequestAttachments = (
   content: Record<string, unknown>
@@ -46,6 +54,7 @@ export const secretRequestAttachments = (
   const attachments = new Map<string, number>();
   const trace = getToolTraceV2Events(content[MINDROOM_TOOL_TRACE_KEY]);
   if (!trace || hasLongTextMetadata(content)) return attachments;
+  if (ACTIVE_STREAM_STATUSES.has(getStreamStatusFromContent(content) ?? '')) return attachments;
   const { formatted_body: formatted, body } = content;
   // As renderAgentMessageContent: a reply without HTML renders its Markdown body.
   const html =
@@ -74,13 +83,13 @@ export const secretRequestCards = (
   );
 
 /**
- * Which secret request cards a thread's replies draw instead of their rows. A card counts when it
- * names a reply loaded in the thread from the card's agent, and that reply renders the marker of
- * the named call (secretRequestAttachments). Every other card keeps its row, as do the thread's
- * root, an ignored sender's card, one the route or a jump opened (`revealed`), and a pending one
- * in `rows`, which already showed as a row: moving it would lose what was typed in its field.
- * Each reply is read once, however many cards name it. Contents are read as their rows show them,
- * latest edit included (`getContent`).
+ * Which secret request cards a thread's replies draw instead of their rows. Only a request the
+ * agent's edit marked done moves: one still open keeps its row, the form in it, right under the
+ * reply its call blocks. A done card moves when it names a reply loaded in the thread from the
+ * card's agent, which the app renders itself (`pluginRenders` false) and whose body renders the
+ * named call's marker (secretRequestAttachments). Every other card keeps its row, as do the
+ * thread's root, an ignored sender's card and one the route or a jump opened (`revealed`). Each
+ * reply is read once, however many cards name it, as its row shows it (`getContent`).
  */
 export const planInlineSecretRequests = ({
   cards,
@@ -88,21 +97,19 @@ export const planInlineSecretRequests = ({
   getContent,
   ignored,
   revealed,
-  rows,
+  pluginRenders,
   threadId,
-  now = Date.now(),
 }: {
   cards: readonly MatrixEvent[];
   getEvent: (eventId: string) => MatrixEvent | undefined;
   getContent: (event: MatrixEvent) => Record<string, unknown>;
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
-  rows: ReadonlySet<string>;
+  pluginRenders?: (event: MatrixEvent, content: Record<string, unknown>) => boolean;
   threadId?: string;
-  now?: number;
-}): InlineSecretRequestPlan & { pending: ReadonlySet<string> } => {
+}): InlineSecretRequestPlan => {
   const hiddenEventIds = new Set<string>();
-  const pending = new Set<string>();
+  const waitingReplyIds = new Set<string>();
   const byReply = new Map<string, Map<number, InlineSecretRequest>>();
   const attachments = new Map<string, ReadonlyMap<string, number>>();
   cards.forEach((card) => {
@@ -110,35 +117,75 @@ export const planInlineSecretRequests = ({
     const agentUserId = card.getSender();
     if (!eventId || !agentUserId || card.isRedacted() || ignored.has(agentUserId)) return;
     const request = parseSecretRequestContent(getContent(card));
-    if (!request) return;
-    const waiting = effectiveSecretRequestStatus(request, now) === 'pending';
-    if (waiting) pending.add(eventId);
-    const anchor = request.anchor;
-    if (!anchor || eventId === threadId || revealed.has(eventId)) return;
-    if (waiting && rows.has(eventId)) return;
-    const reply = getEvent(anchor.responseEventId);
+    const anchor = request?.anchor;
+    if (!request || !anchor || eventId === threadId) return;
+    const replyId = anchor.responseEventId;
+    const reply = getEvent(replyId);
     if (!reply || reply === card || reply.isRedacted() || reply.getSender() !== agentUserId) return;
-    let replyAttachments = attachments.get(anchor.responseEventId);
+    if (request.status === 'pending') {
+      waitingReplyIds.add(replyId);
+      return;
+    }
+    if (revealed.has(eventId)) return;
+    let replyAttachments = attachments.get(replyId);
     if (!replyAttachments) {
-      replyAttachments = secretRequestAttachments(getContent(reply));
-      attachments.set(anchor.responseEventId, replyAttachments);
+      const content = getContent(reply);
+      replyAttachments = pluginRenders?.(reply, content)
+        ? new Map()
+        : secretRequestAttachments(content);
+      attachments.set(replyId, replyAttachments);
     }
     const index = replyAttachments.get(anchor.toolCallId);
     if (index === undefined) return;
-    const calls = byReply.get(anchor.responseEventId) ?? new Map<number, InlineSecretRequest>();
+    const calls = byReply.get(replyId) ?? new Map<number, InlineSecretRequest>();
     // One request per call; another card naming the same call keeps its row.
     if (calls.has(index)) return;
     calls.set(index, { eventId, request, agentUserId });
-    byReply.set(anchor.responseEventId, calls);
+    byReply.set(replyId, calls);
     hiddenEventIds.add(eventId);
   });
-  return { hiddenEventIds, byReply, pending };
+  return { hiddenEventIds, byReply, waitingReplyIds };
 };
 
-const NO_REQUESTS: InlineSecretRequests = new Map();
+/** Plain data the same, as parsed requests are: objects, arrays and primitives. */
+const sameData = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) =>
+      sameData((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+    )
+  );
+};
+
+const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) =>
+  a.size === b.size && [...a].every((id) => b.has(id));
+
+/** Whether two plans draw the same: the timeline keeps the older, so its replies do not redraw. */
+export const sameInlineSecretRequestPlan = (
+  a: InlineSecretRequestPlan,
+  b: InlineSecretRequestPlan
+): boolean =>
+  sameSet(a.hiddenEventIds, b.hiddenEventIds) &&
+  sameSet(a.waitingReplyIds, b.waitingReplyIds) &&
+  a.byReply.size === b.byReply.size &&
+  [...a.byReply].every(([replyId, calls]) => {
+    const others = b.byReply.get(replyId);
+    return (
+      others?.size === calls.size &&
+      [...calls].every(([index, drawn]) => {
+        const other = others.get(index);
+        return other?.eventId === drawn.eventId && sameData(other.request, drawn.request);
+      })
+    );
+  });
 
 /** The timeline's inline secret requests (planInlineSecretRequests), for its replies to draw. */
-export const InlineSecretRequestsContext = createContext<InlineSecretRequests>(NO_REQUESTS);
+export const InlineSecretRequestsContext =
+  createContext<InlineSecretRequestPlan>(NO_INLINE_SECRET_REQUESTS);
 
 const NO_CALLS: ReadonlyMap<number, InlineSecretRequest> = new Map();
 
@@ -146,6 +193,12 @@ const NO_CALLS: ReadonlyMap<number, InlineSecretRequest> = new Map();
 export const useInlineSecretRequests = (
   replyEventId: string | undefined
 ): ReadonlyMap<number, InlineSecretRequest> => {
-  const requests = useContext(InlineSecretRequestsContext);
-  return (replyEventId && requests.get(replyEventId)) || NO_CALLS;
+  const { byReply } = useContext(InlineSecretRequestsContext);
+  return (replyEventId && byReply.get(replyEventId)) || NO_CALLS;
+};
+
+/** Whether a request of the reply's tool calls is not done yet, its card a row under the reply. */
+export const useSecretRequestWaiting = (replyEventId: string | undefined): boolean => {
+  const { waitingReplyIds } = useContext(InlineSecretRequestsContext);
+  return !!replyEventId && waitingReplyIds.has(replyEventId);
 };

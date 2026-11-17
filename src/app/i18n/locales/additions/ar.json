@@ -813,7 +813,6 @@
           "expired": "منتهي الصلاحية"
         },
         "line": {
-          "expires": "تنتهي ⁨{{time}}⁩",
           "sentKept": "تم الإرسال · يُحتفظ به ⁨{{duration}}⁩"
         },
         "facts": {

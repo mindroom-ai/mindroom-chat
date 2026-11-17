@@ -777,7 +777,6 @@
           "expired": "মেয়াদ শেষ"
         },
         "line": {
-          "expires": "মেয়াদ শেষ {{time}}",
           "sentKept": "পাঠানো হয়েছে · {{duration}} রাখা হবে"
         },
         "facts": {

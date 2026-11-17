@@ -1,21 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
-import { Line, Panel } from '../ui/ThreadActivity.css';
-
-/** A pending request's line, which opens nothing: no pointer and no tint on hover. */
-export const StaticLine = style({
-  cursor: 'default',
-  '@media': {
-    '(hover: hover)': {
-      selectors: { [`${Line}&:hover`]: { backgroundColor: 'transparent' } },
-    },
-  },
-});
+import { Panel } from '../ui/ThreadActivity.css';
 
 /** A temporary secret's variable as its name, in code type as the agent's commands see it. */
 export const Mono = style({ fontFamily: 'var(--font-mono)', fontWeight: 500 });
 
-/** The card under the line: the pending form, or the request read-only once it is done. */
+/** The request read-only, under its line. */
 export const Card = style([
   Panel,
   {

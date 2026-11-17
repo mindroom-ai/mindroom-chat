@@ -777,7 +777,6 @@
           "expired": "Abgelaufen"
         },
         "line": {
-          "expires": "Läuft ab {{time}}",
           "sentKept": "Gesendet · {{duration}} aufbewahrt"
         },
         "facts": {
