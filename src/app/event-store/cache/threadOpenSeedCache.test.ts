@@ -365,7 +365,8 @@ describe('saveThreadOpenSeedSnapshot with metadata a newer edit borrows', () => 
 
     expect(shown).toEqual({ body: '$body-later', toolTrace: trace('tool-4') });
     saveThreadOpenSeedSnapshot(room, '$root', compactThenMerge());
-    expect(seedIds()).toEqual(['$root', '$reply', '$traced-4', '$body-later']);
+    // The edit that finished the stream stays too: a receipt on the finished reply names it.
+    expect(seedIds()).toEqual(['$root', '$reply', '$traced-4', '$body-4', '$body-later']);
   });
 
   it('drops older edits whose metadata every newer kept edit carries', () => {
