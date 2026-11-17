@@ -180,11 +180,28 @@ const centre = async (page: Page, target: Locator) => {
   await target.evaluate((element) => element.scrollIntoView({ block: 'center' }));
 };
 
-/** Saves the window, `target` at the middle of the timeline. */
+/** Waits until `target` shows in the window and stays put between two readings of its position. */
+const expectSettled = async (target: Locator) => {
+  await expect(target).toBeInViewport();
+  let last: number | undefined;
+  await expect
+    .poll(
+      async () => {
+        const y = await top(target);
+        const settled = y === last;
+        last = y;
+        return settled;
+      },
+      { intervals: [100, 100, 200], timeout: 10_000 }
+    )
+    .toBe(true);
+};
+
+/** Saves the window, `target` at the middle of the timeline once the timeline stopped moving. */
 const shot = async (page: Page, target: Locator, name: string) => {
   if (!SCREENSHOT) return;
   await centre(page, target);
-  await page.waitForTimeout(400);
+  await expectSettled(target);
   await page.screenshot({ path: `${SCREENSHOT}/compaction-seam-${name}.png` });
 };
 
