@@ -189,7 +189,7 @@ function ThreadSearchBar({
   onSearchQueryChange: (query: string) => void;
 }) {
   const { t } = useTranslation();
-  // Collapsed until asked for, even while a query filters; the sort button shows active filters.
+  // Collapsed until asked for, even while a query filters.
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -288,11 +288,9 @@ export type RoomThreadOverviewProps = {
 
 function ThreadSortControl({
   state,
-  active = false,
   onChange,
 }: {
   state: ThreadFilterState;
-  active?: boolean;
   onChange: () => void;
 }) {
   const { t } = useTranslation();
@@ -315,7 +313,7 @@ function ThreadSortControl({
         <button
           ref={triggerRef}
           type="button"
-          className={classNames(css.SortButton, active && css.SortButtonActive)}
+          className={css.SortButton}
           onClick={onChange}
           aria-label={sortLabel}
           data-sort-by={state.sortBy}
@@ -627,7 +625,7 @@ export function RoomThreadOverview({
           />
         )}
 
-        <ThreadSortControl state={state} active={filtersActive} onChange={handleSort} />
+        <ThreadSortControl state={state} onChange={handleSort} />
         <ThreadSearchBar searchQuery={searchQueryDraft} onSearchQueryChange={handleSearch} />
         {hasMindroomAgents && state.sortBy !== 'natural' && (
           <TooltipProvider

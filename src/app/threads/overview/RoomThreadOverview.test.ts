@@ -324,7 +324,8 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('sort button uses active style when filters are active', () => {
+  // The sort is not a filter: an active filter lights its own control, not the sort button.
+  it('sort button stays plain while a filter is active', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
@@ -333,7 +334,7 @@ describe('RoomThreadOverview', () => {
     );
 
     const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
-    expect(sortBtn.props.className).toContain('SortButtonActive');
+    expect(sortBtn.props.className).not.toContain('SortButtonActive');
 
     renderer.unmount();
   });
