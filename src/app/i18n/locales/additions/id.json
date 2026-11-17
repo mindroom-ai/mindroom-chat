@@ -793,6 +793,9 @@
       "mindroomReplyDetails": {
         "subagents": "Subagen"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Berjalan selama {{duration}}"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul"
       }

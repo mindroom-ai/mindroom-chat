@@ -815,6 +815,9 @@
       "mindroomReplyDetails": {
         "subagents": "Sous-agents"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "En cours depuis {{duration}}"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Paramètres des titres"
       }

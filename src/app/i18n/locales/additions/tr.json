@@ -804,6 +804,9 @@
       "mindroomReplyDetails": {
         "subagents": "Alt ajanlar"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "{{duration}} süredir çalışıyor"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Başlık ayarları"
       }

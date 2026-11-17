@@ -13,6 +13,28 @@ export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired
 export type ToolCallMessage = { eventId?: string; roomId?: string; threadId?: string };
 export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>(undefined);
 
+/**
+ * The clock, in Unix milliseconds, of a view that shows how long its running tool calls have run
+ * (the Sub-agents panel's, which ticks while a run is at it). Without one, calls show no time.
+ */
+export const ToolCallClockContext = createContext<number | undefined>(undefined);
+
+/** A running call shows how long it has run only from this many seconds on. */
+const TOOL_ELAPSED_MIN_SECONDS = 10;
+
+/**
+ * How long a running call has run, in seconds, by the view's clock: none before 10 seconds, nor
+ * without a clock or the call's start.
+ */
+export const runningToolElapsed = (
+  startedAt: number | undefined,
+  now: number | undefined
+): number | undefined => {
+  if (startedAt === undefined || now === undefined) return undefined;
+  const seconds = now / 1000 - startedAt;
+  return seconds >= TOOL_ELAPSED_MIN_SECONDS ? seconds : undefined;
+};
+
 /** A call of a reply's hidden tool calls, as the reply's cog counts it (ToolCallsFold.tsx). */
 export type FoldedToolCall = { toolName: string; state: ToolCallState };
 
@@ -44,7 +66,8 @@ export type ReasoningSegmentsState = {
   open: boolean;
   /** Closes the bulb and gives it the focus, which scrolls it into view. */
   hide: () => void;
-  /** The segment the model is writing, which shows under a closed bulb too. */
+  /** The segment the model is writing, which shows under a closed bulb too until the reader closes
+   * it. */
   liveIndex: number | undefined;
   /** What the segments' Markdown renders with. */
   htmlReactParserOptions: HTMLReactParserOptions;

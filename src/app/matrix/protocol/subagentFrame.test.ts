@@ -6,6 +6,7 @@ import {
   isActiveSubagentStatus,
   parseSubagentFrame,
   SUBAGENT_FRAME_EVENT_TYPE,
+  subagentToolStartedAt,
   type SubagentStatus,
 } from './subagentFrame';
 
@@ -117,6 +118,33 @@ describe('sub-agent frames', () => {
     expect(parseSubagentFrame(frame({ meta: { ...ended, result: 'Done.' } }))?.meta.result).toBe(
       'Done.'
     );
+  });
+
+  it("reads when a tool call started, in Unix seconds as the run's start", () => {
+    const started = fixture.cases.find((testCase) =>
+      testCase.name.startsWith('a tool call starts')
+    );
+    const parsed = parseSubagentFrame(started?.frame);
+    if (!parsed || !('delta' in parsed)) throw new Error('no tool delta in the fixture');
+    const tool = parsed.delta.tools?.set[0]?.[1];
+    expect(tool && subagentToolStartedAt(tool)).toBe(1762790002.5);
+  });
+
+  it('has no tool start from MindRoom before the field', () => {
+    expect(subagentToolStartedAt({ type: 'tool_call_started', tool_name: 'bash' })).toBeUndefined();
+  });
+
+  it.each([
+    ['a string', '1762790002.5'],
+    ['null', null],
+    ['not a number', Number.NaN],
+    ['infinite', Number.POSITIVE_INFINITY],
+  ])('keeps a frame whose tool start is %s, without the start', (_name, startedAt) => {
+    const tool = { type: 'tool_call_started', tool_name: 'bash', started_at: startedAt };
+    const parsed = parseSubagentFrame(frame({ snapshot: { ...docs, tools: [tool] } }));
+    if (!parsed || !('snapshot' in parsed)) throw new Error('the frame was rejected');
+    expect(parsed.snapshot.tools).toHaveLength(1);
+    expect(subagentToolStartedAt(parsed.snapshot.tools[0]!)).toBeUndefined();
   });
 
   it('tolerates unknown keys on the frame and on meta', () => {

@@ -182,6 +182,24 @@ export const RowName = style({
   lineHeight: toRem(22),
 });
 
+// A row's name and, while the call runs long, how long it has run.
+export const RowHead = style({
+  display: 'flex',
+  alignItems: 'baseline',
+  flexWrap: 'wrap',
+  columnGap: config.space.S200,
+  minWidth: 0,
+});
+
+// How long a running call has run: muted, never cut short, its digits one width as it ticks.
+export const Elapsed = style({
+  flexShrink: 0,
+  fontSize: toRem(12),
+  fontVariantNumeric: 'tabular-nums',
+  opacity: config.opacity.P400,
+  whiteSpace: 'nowrap',
+});
+
 export const RowText = style({
   fontSize: toRem(13),
   minWidth: 0,

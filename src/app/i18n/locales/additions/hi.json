@@ -804,6 +804,9 @@
       "mindroomReplyDetails": {
         "subagents": "सब-एजेंट"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "{{duration}} से चल रहा है"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "शीर्षक सेटिंग"
       }

@@ -2,15 +2,20 @@ import { useEffect, useMemo } from 'react';
 import { createClient, Direction, MatrixEvent, Room } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useThreadSession } from './useThreadSession';
 import { useThreadTimelineState } from '../../timeline/useThreadTimelineState';
 import type { ThreadOpenRuntime } from './threadSessionTypes';
 import { loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
+import { hydrateCachedLongText } from '../../event-store/cache/attachmentRepository';
 
 vi.mock('../../event-store/cache/eventRepository', async (original) => ({
   ...(await original<typeof import('../../event-store/cache/eventRepository')>()),
   loadThreadCachedSnapshot: vi.fn(() => new Promise(() => {})),
+}));
+vi.mock('../../event-store/cache/attachmentRepository', async (original) => ({
+  ...(await original<typeof import('../../event-store/cache/attachmentRepository')>()),
+  hydrateCachedLongText: vi.fn(async () => ({})),
 }));
 afterEach(() => vi.restoreAllMocks());
 
@@ -24,13 +29,14 @@ const mountThreadSession = async ({
   eventId?: string;
 }) => {
   let renderer!: ReactTestRenderer;
-  function Harness() {
-    const session = useThreadSession({ roomId: room.roomId, threadId: '$root', eventId });
+  function Harness({ threadId }: { threadId: string }) {
+    const session = useThreadSession({ roomId: room.roomId, threadId, eventId });
     const timeline = useThreadTimelineState({
       room,
-      threadId: '$root',
+      threadId,
       threadInitialCacheHydrated: session.snapshot.open.initialCacheHydrated,
       threadInitialSdkLoaded: session.snapshot.open.sdkReady,
+      threadFirstPaintHeld: session.snapshot.open.firstPaintHeld,
       timelineRevision: session.snapshot.timelineRevision,
     });
     const runtime = useMemo<ThreadOpenRuntime>(
@@ -49,6 +55,7 @@ const mountThreadSession = async ({
         render: {
           reset: timeline.resetThreadRenderState,
           append: timeline.setSupplementalThreadEvents,
+          getEvents: timeline.getThreadRenderEvents,
           invalidateTimeline: () => undefined,
         },
         viewport: {
@@ -57,9 +64,13 @@ const mountThreadSession = async ({
           requestLatestPin: () => undefined,
         },
       }),
-      [timeline.resetThreadRenderState, timeline.setSupplementalThreadEvents]
+      [
+        timeline.resetThreadRenderState,
+        timeline.setSupplementalThreadEvents,
+        timeline.getThreadRenderEvents,
+      ]
     );
-    useEffect(() => session.commands.startOpen(runtime), [session.commands, runtime]);
+    useEffect(() => session.commands.startOpen(runtime), [session.commands, runtime, threadId]);
     return (
       <>
         {timeline.threadEvents.map((event) => (
@@ -69,10 +80,11 @@ const mountThreadSession = async ({
     );
   }
   await act(async () => {
-    renderer = create(<Harness />);
+    renderer = create(<Harness threadId="$root" />);
   });
   return {
     bodies: () => renderer.root.findAllByType('span').map((node) => node.children.join('')),
+    switchTo: (threadId: string) => act(() => renderer.update(<Harness threadId={threadId} />)),
     unmount: () => act(() => renderer.unmount()),
   };
 };
@@ -234,6 +246,7 @@ it.each(['reply', 'root', 'first-page-reply', 'pending-bootstrap'] as const)(
         threadId: '$root',
         threadInitialCacheHydrated: session.snapshot.open.initialCacheHydrated,
         threadInitialSdkLoaded: session.snapshot.open.sdkReady,
+        threadFirstPaintHeld: session.snapshot.open.firstPaintHeld,
         timelineRevision: session.snapshot.timelineRevision,
       });
       const runtime = useMemo<ThreadOpenRuntime>(
@@ -252,6 +265,7 @@ it.each(['reply', 'root', 'first-page-reply', 'pending-bootstrap'] as const)(
           render: {
             reset: timeline.resetThreadRenderState,
             append: timeline.setSupplementalThreadEvents,
+            getEvents: timeline.getThreadRenderEvents,
             invalidateTimeline: () => undefined,
           },
           viewport: {
@@ -260,7 +274,11 @@ it.each(['reply', 'root', 'first-page-reply', 'pending-bootstrap'] as const)(
             requestLatestPin: () => undefined,
           },
         }),
-        [timeline.resetThreadRenderState, timeline.setSupplementalThreadEvents]
+        [
+          timeline.resetThreadRenderState,
+          timeline.setSupplementalThreadEvents,
+          timeline.getThreadRenderEvents,
+        ]
       );
       useEffect(() => session.commands.startOpen(runtime), [session.commands, runtime]);
       return (
@@ -300,3 +318,108 @@ it.each(['reply', 'root', 'first-page-reply', 'pending-bootstrap'] as const)(
     }
   }
 );
+
+describe('a first open without a thread model', () => {
+  // Roots the client knows only from their cards: two replies each on the server, none here. As
+  // notices they are no standalone roots, so the SDK bootstrap renders the relations fallback.
+  const setup = () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+    const room = new Room('!room:example.org', mx, '@alice:example.org', { timelineSupport: true });
+    const makeRoot = (id: string) =>
+      new MatrixEvent({
+        event_id: id,
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        origin_server_ts: 1,
+        content: { body: `Root ${id}`, msgtype: 'm.notice' },
+        unsigned: { 'm.relations': { 'm.thread': { count: 2 } } },
+      });
+    const roots = new Map(['$root', '$other'].map((id) => [id, makeRoot(id)]));
+    vi.spyOn(room, 'findEventById').mockImplementation((id) => roots.get(id));
+    vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(room.getLiveTimeline());
+    vi.mocked(loadThreadCachedSnapshot).mockResolvedValue(undefined);
+    let answer!: () => void;
+    const page = new Promise<object>((resolve) => {
+      answer = () =>
+        resolve({
+          chunk: [3, 2].map((ts) => ({
+            event_id: `$reply-${ts}`,
+            room_id: room.roomId,
+            sender: '@mindroom_dev:example.org',
+            type: 'm.room.message',
+            origin_server_ts: ts,
+            content: {
+              body: `Reply ${ts}`,
+              msgtype: 'm.text',
+              'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+              ...(ts === 2
+                ? {
+                    url: 'mxc://example.org/long',
+                    info: { mimetype: 'application/json' },
+                    'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+                  }
+                : {}),
+            },
+          })),
+        });
+    });
+    vi.spyOn(mx, 'fetchRelations').mockImplementation(((_roomId: string, eventId: string) =>
+      eventId === '$root' ? page : new Promise(() => {})) as never);
+    let finishSidecar!: () => void;
+    vi.mocked(hydrateCachedLongText).mockReturnValue(
+      new Promise((resolve) => {
+        finishSidecar = () => resolve({});
+      })
+    );
+    return { mx, room, answer, finishSidecar: () => finishSidecar() };
+  };
+
+  it('holds the paint until the relations page is in and its long reply has loaded', async () => {
+    const { mx, room, answer, finishSidecar } = setup();
+    const view = await mountThreadSession({ mx, room });
+    try {
+      expect(view.bodies()).toEqual([]);
+      await act(async () => answer());
+      expect(view.bodies()).toEqual([]);
+      expect(vi.mocked(hydrateCachedLongText).mock.calls[0]?.[1].mxcUri).toBe(
+        'mxc://example.org/long'
+      );
+      await act(async () => finishSidecar());
+      expect(view.bodies()).toEqual(['Root $root', 'Reply 2', 'Reply 3']);
+    } finally {
+      await view.unmount();
+    }
+  });
+
+  it('does not let the thread it left release the hold of the thread it switched to', async () => {
+    const { mx, room, answer, finishSidecar } = setup();
+    const view = await mountThreadSession({ mx, room });
+    try {
+      await act(async () => answer());
+      expect(vi.mocked(hydrateCachedLongText)).toHaveBeenCalledTimes(1);
+      expect(view.bodies()).toEqual([]);
+      await view.switchTo('$other');
+      await act(async () => finishSidecar());
+      expect(view.bodies()).toEqual([]);
+      // Its own cap lets it paint what it has.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 650)));
+      expect(view.bodies()).toEqual(['Root $other']);
+    } finally {
+      await view.unmount();
+    }
+  });
+
+  it('publishes nothing when the view unmounts while the long reply loads', async () => {
+    const { mx, room, answer, finishSidecar } = setup();
+    const errors = vi.spyOn(console, 'error');
+    const view = await mountThreadSession({ mx, room });
+    await act(async () => answer());
+    expect(vi.mocked(hydrateCachedLongText)).toHaveBeenCalledTimes(1);
+    expect(view.bodies()).toEqual([]);
+    await view.unmount();
+    await act(async () => finishSidecar());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 650)));
+    expect(errors).not.toHaveBeenCalled();
+  });
+});

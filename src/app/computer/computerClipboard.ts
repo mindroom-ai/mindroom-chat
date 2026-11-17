@@ -1,4 +1,5 @@
 import { getBrowserClipboard } from '../lib/dom';
+import { shortcutLetter } from '../lib/keyboard';
 
 // noVNC 1.7 has no browser clipboard sync. This bridge pastes local text only from a
 // user's paste, and writes the local clipboard only for a copy gesture.
@@ -79,15 +80,6 @@ export function attachComputerClipboard(
 
   const hasPrimaryModifier = (event: KeyboardEvent) =>
     apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
-
-  // From `key`, or from `code` when that is another script's letter (a Cyrillic or Greek
-  // layout, say), as Chromium does for its own shortcuts. Symbols and dead keys on a letter
-  // key, such as BÉPO's period on V, stay with noVNC.
-  const shortcutLetter = (event: KeyboardEvent) => {
-    if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase();
-    if (!/^\p{L}$/u.test(event.key)) return undefined;
-    return event.code.startsWith('Key') ? event.code.slice(3).toLowerCase() : undefined;
-  };
 
   const releaseMappedShift = () => {
     if (!shiftMapped) return;

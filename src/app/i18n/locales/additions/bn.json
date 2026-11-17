@@ -804,6 +804,9 @@
       "mindroomReplyDetails": {
         "subagents": "সাব-এজেন্ট"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "{{duration}} ধরে চলছে"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "শিরোনামের সেটিংস"
       }

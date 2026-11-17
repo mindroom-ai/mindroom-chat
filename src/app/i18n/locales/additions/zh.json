@@ -793,6 +793,9 @@
       "mindroomReplyDetails": {
         "subagents": "子智能体"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "已运行 {{duration}}"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "标题设置"
       }

@@ -301,6 +301,7 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(clearThreadsScopeStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearQuickCaptureRoomStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith('@alice:example.com');
+    expect(removeItem).toHaveBeenCalledWith('recentRooms:@alice:example.com');
     expect(vi.mocked(clearRecentlyOpenedPanelHeightStore)).toHaveBeenCalledWith(
       '@alice:example.com'
     );

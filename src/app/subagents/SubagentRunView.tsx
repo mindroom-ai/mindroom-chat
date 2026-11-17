@@ -10,6 +10,7 @@ import { formatCallDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
+import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
 import { MessageBase, ModernLayout, UsernameBold } from '../messages/layout/layout';
@@ -143,16 +144,20 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
         <RunMessage sender={agent} ts={meta.startedAt * 1000}>
           {wrote && (
             <div className={css.Reply} data-subagent-transcript="">
-              <RenderMessageContent
-                msgType="m.text"
-                displayName={agent.name}
-                roomId={room.roomId}
-                threadId={meta.threadId ?? undefined}
-                ts={meta.startedAt * 1000}
-                getContent={getContent}
-                htmlReactParserOptions={parserOptions}
-                linkifyOpts={LINKIFY_OPTS}
-              />
+              {/* Its running calls show how long they have run while the turn is at it; an
+                  ended turn's call that never completed has no clock to grow on. */}
+              <ToolCallClockContext.Provider value={working ? now : undefined}>
+                <RenderMessageContent
+                  msgType="m.text"
+                  displayName={agent.name}
+                  roomId={room.roomId}
+                  threadId={meta.threadId ?? undefined}
+                  ts={meta.startedAt * 1000}
+                  getContent={getContent}
+                  htmlReactParserOptions={parserOptions}
+                  linkifyOpts={LINKIFY_OPTS}
+                />
+              </ToolCallClockContext.Provider>
             </div>
           )}
           {failed && docs.md !== meta.result && (

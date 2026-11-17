@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import {
   EventStatus,
   EventTimelineSet,
+  type MatrixClient,
   MatrixEvent,
   Room,
   RoomEvent,
@@ -12,6 +13,16 @@ import {
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadRenderState } from './useThreadRenderState';
+import {
+  createThreadFirstPaintGate,
+  getTailLongTextSources,
+} from '../threads/open/threadOpenFirstPaint';
+import { hydrateCachedLongText } from '../event-store/cache/attachmentRepository';
+
+vi.mock('../event-store/cache/attachmentRepository', async (original) => ({
+  ...(await original<typeof import('../event-store/cache/attachmentRepository')>()),
+  hydrateCachedLongText: vi.fn(async () => ({})),
+}));
 
 const makeMessageEvent = (
   eventId: string,
@@ -147,6 +158,7 @@ type HarnessProps = {
   threadId?: string;
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
+  threadFirstPaintHeld?: boolean;
   prefixEvents?: MatrixEvent[];
   forkAt?: string;
   onRender: (snapshot: HookSnapshot) => void;
@@ -273,6 +285,33 @@ describe('useThreadRenderState', () => {
     renderer.unmount();
   });
 
+  it('shows no rows, only the loading state, while the open holds its first paint', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const replyEvent = makeMessageEvent('$reply', 2);
+    const room = makeRoom(rootEvent);
+    const props = {
+      room,
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: null,
+      threadInitialCacheHydrated: false,
+      threadFirstPaintHeld: true,
+    };
+    const { getSnapshot, update, renderer } = renderHookHarness(props);
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [replyEvent]);
+    });
+    expect(getSnapshot().threadInitialRenderMode).toBe('loading');
+    expect(getSnapshot().threadEvents).toEqual([]);
+
+    update({ ...props, threadFirstPaintHeld: false });
+    expect(getSnapshot().threadInitialRenderMode).toBe('cached');
+    expect(getSnapshot().threadEvents).toEqual([replyEvent]);
+
+    renderer.unmount();
+  });
+
   it('keeps the richer fallback event when live thread hydration brings a stale duplicate', () => {
     const rootEvent = makeMessageEvent('$root', 1);
     const staleLiveReply = makeMessageEvent('$reply', 2);
@@ -358,6 +397,110 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
     expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$edit-13');
 
+    renderer.unmount();
+  });
+
+  it('gives the first paint the long text of the newer cached replacement, not the stale live one', () => {
+    const longText = (name: string) => ({
+      body: name,
+      msgtype: 'm.text',
+      url: `mxc://example.org/${name}`,
+      info: { mimetype: 'application/json' },
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const longEdit = (eventId: string, ts: number, name: string) =>
+      new MatrixEvent({
+        content: {
+          body: `* ${name}`,
+          'm.new_content': longText(name),
+          'm.relates_to': { event_id: '$reply', rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        event_id: eventId,
+        origin_server_ts: ts,
+        room_id: '!room:example.org',
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+      });
+    const rootEvent = makeMessageEvent('$root', 1);
+    const staleLiveReply = makeMessageEvent('$reply', 2);
+    staleLiveReply.makeReplaced(longEdit('$edit-8', 8, 'stale'));
+    const cachedReply = makeMessageEvent('$reply', 2);
+    cachedReply.event.unsigned = {
+      'm.relations': { 'm.replace': longEdit('$edit-13', 13, 'shown').event },
+    };
+    const thread = makeThread(rootEvent, [staleLiveReply]);
+    const room = Object.assign(makeRoom(rootEvent), { getThread: () => thread });
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread,
+      threadInitialCacheHydrated: false,
+      threadFirstPaintHeld: true,
+    });
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [cachedReply]);
+    });
+
+    // Held, no rows show; the first paint reads the rows the release will show.
+    expect(getSnapshot().threadEvents).toEqual([]);
+    const rows = getSnapshot().getThreadRenderEvents('$root');
+    expect(rows[1]).toBe(cachedReply);
+    expect(getTailLongTextSources(rows, undefined).map((tail) => tail.mxcUri)).toEqual([
+      'mxc://example.org/shown',
+    ]);
+
+    renderer.unmount();
+  });
+
+  it('reads a thread model made after the last render, so the gate awaits its reply', async () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const longReply = new MatrixEvent({
+      content: {
+        body: 'Long reply',
+        msgtype: 'm.text',
+        url: 'mxc://example.org/long',
+        info: { mimetype: 'application/json' },
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      },
+      event_id: '$long',
+      origin_server_ts: 2,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    let model: MockThread | null = null;
+    const room = Object.assign(makeRoom(rootEvent), { getThread: () => model });
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: null,
+      threadInitialCacheHydrated: false,
+      threadFirstPaintHeld: true,
+    });
+    // The open's bootstrap makes the SDK thread, with the reply, before React renders again.
+    model = makeThread(rootEvent, [longReply]);
+    vi.mocked(hydrateCachedLongText).mockReturnValueOnce(new Promise(() => undefined));
+    const onRelease = vi.fn();
+    const gate = createThreadFirstPaintGate({
+      held: true,
+      mx: {} as MatrixClient,
+      readTail: () =>
+        getTailLongTextSources(getSnapshot().getThreadRenderEvents('$root'), undefined),
+      onRelease,
+    });
+    gate.ready();
+    for (let tick = 0; tick < 5; tick += 1) await Promise.resolve();
+    expect(vi.mocked(hydrateCachedLongText).mock.calls[0]?.[1].mxcUri).toBe(
+      'mxc://example.org/long'
+    );
+    expect(onRelease).not.toHaveBeenCalled();
+    gate.cancel();
     renderer.unmount();
   });
 

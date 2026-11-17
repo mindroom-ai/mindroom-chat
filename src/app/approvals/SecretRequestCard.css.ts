@@ -1,12 +1,32 @@
 import { globalStyle, style, type GlobalStyleRule } from '@vanilla-extract/css';
-import { config, toRem } from 'folds';
-import { SectionTitle } from './ThreadApprovals.css';
+import { color, config, toRem } from 'folds';
+import { SectionHeader, SectionTitle } from './ThreadApprovals.css';
 
 /** "GitHub key": a long service name ends in an ellipsis before it pushes the chip out. */
 export const Title = style([
   SectionTitle,
   { flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
 ]);
+
+/** A card that is done: folded to its header, which opens it as a tool approval's receipt opens. */
+export const Fold = style({ minWidth: 0 });
+
+/** The folded card's header, the same row as the open card's, with the arrow after its status. */
+export const FoldRow = style([
+  SectionHeader,
+  {
+    cursor: 'pointer',
+    listStyle: 'none',
+    borderRadius: config.radii.R300,
+    selectors: {
+      '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 2 },
+    },
+  },
+]);
+globalStyle(`${FoldRow}::-webkit-details-marker`, { display: 'none' });
+
+/** The open fold's details, as far below the header as on the open card. */
+export const FoldBody = style({ marginBlockStart: config.space.S200 });
 
 /** The agent's reason, as it wrote it. */
 export const Reason = style({ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
@@ -65,8 +85,9 @@ export const KeepOption = style({
 });
 
 /**
- * The live region that says what an answer did. It stays mounted while the card is open, so a
- * screen reader announces the text it gets; empty, it takes no room.
+ * The live region that says what an answer did. It stays mounted while the card is open and
+ * through the fold the answer brings, so a screen reader announces the text it gets; empty, it
+ * takes no room.
  */
 export const Status = style({
   selectors: {

@@ -25,6 +25,7 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
+import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
@@ -175,6 +176,11 @@ function RoomContent() {
   const room = useRoom();
   const { eventId, routedThreadId, focusEventInRoom, forkAt } = useRoomRoute();
   const { roomId } = room;
+  // Every room address, a thread's included, opens here: the palette lists this room among the
+  // ones visited last. Messages arriving in it do not count.
+  useEffect(() => {
+    bumpRecentRoom(roomId);
+  }, [roomId]);
   const client = useMatrixClient();
   const ownUserId = client.getSafeUserId();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;

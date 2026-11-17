@@ -804,6 +804,9 @@
       "mindroomReplyDetails": {
         "subagents": "Subagenten"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Loopt al {{duration}}"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titelinstellingen"
       }

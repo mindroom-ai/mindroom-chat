@@ -44,3 +44,14 @@ export const preventScrollWithArrowKey = (event: KeyboardEvent | ReactKeyboardEv
     event.preventDefault();
   }
 };
+
+/**
+ * The letter a shortcut names, lowercased: from `key`, or from `code` when that is another
+ * script's letter (a Cyrillic or Greek layout, say), as Chromium does for its own shortcuts.
+ * Symbols and dead keys on a letter key, such as BÉPO's period on V, name none.
+ */
+export const shortcutLetter = (event: Pick<KeyboardEvent, 'key' | 'code'>): string | undefined => {
+  if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase();
+  if (!/^\p{L}$/u.test(event.key)) return undefined;
+  return event.code.startsWith('Key') ? event.code.slice(3).toLowerCase() : undefined;
+};

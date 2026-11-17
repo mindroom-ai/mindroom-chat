@@ -826,6 +826,9 @@
       "mindroomReplyDetails": {
         "subagents": "Субагенты"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Выполняется уже {{duration}}"
+      },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Настройки названий"
       }

@@ -147,6 +147,16 @@ const title = () =>
   host.querySelector('[data-secret-request-status]')?.previousElementSibling?.textContent;
 const status = () => host.querySelector('[role="status"]');
 const card = () => host.querySelector('[aria-label="Key request"]');
+/** The fold a card that is done sits in, and its row that opens and closes it. */
+const fold = () => host.querySelector('details');
+const row = () => host.querySelector('summary');
+/** What a click on the fold's row does: opens or closes it. jsdom does not toggle it itself. */
+const toggle = () =>
+  act(() => {
+    const details = fold();
+    if (!details) throw new Error('no fold');
+    details.open = !details.open;
+  });
 
 const type = (value: string) => {
   const field = input();
@@ -270,6 +280,120 @@ describe('SecretRequestCard', () => {
     expect(input()).toBeNull();
     expect(button('Save')).toBeUndefined();
     expect(text()).not.toContain('expires');
+  });
+
+  describe('fold', () => {
+    it('opens a pending card with its details and the field, and no fold', () => {
+      render();
+
+      expect(fold()).toBeNull();
+      expect(input()).not.toBeNull();
+      expect(text()).toContain('To open the pull request.');
+    });
+
+    it('opens a pending card in a read-only view or for anyone else, with no fold', () => {
+      render(request(), true);
+      expect(fold()).toBeNull();
+
+      env.viewer = BOB;
+      render();
+      expect(fold()).toBeNull();
+      expect(text()).toContain('Waiting for Alice');
+    });
+
+    it.each([
+      ['saved', ALICE, false],
+      ['declined', ALICE, false],
+      ['expired', ALICE, false],
+      ['saved', BOB, false],
+      ['saved', ALICE, true],
+    ] as const)(
+      'folds a %s card (viewer %s, read-only %s) to its row, which opens and closes it',
+      (value, viewer, readOnly) => {
+        env.viewer = viewer;
+        render(request({ status: value }), readOnly);
+
+        // The row holds the title and the chip; the reason waits in the closed fold.
+        expect(fold()?.open).toBe(false);
+        expect(row()?.contains(host.querySelector('[data-secret-request-status]'))).toBe(true);
+        expect(row()?.textContent).toContain('GitHub key');
+        expect(row()?.textContent).not.toContain('To open the pull request.');
+        expect(card()?.getAttribute('role')).toBe('group');
+
+        toggle();
+        expect(fold()?.open).toBe(true);
+        expect(fold()?.textContent).toContain('To open the pull request.');
+
+        toggle();
+        expect(fold()?.open).toBe(false);
+      }
+    );
+
+    it('leaves a done key card with nothing to reveal unfolded, with no row to open', () => {
+      render(request({ status: 'saved', reason: '', hosts: [] }));
+
+      expect(chip()).toBe('Saved');
+      expect(fold()).toBeNull();
+      expect(row()).toBeNull();
+    });
+
+    it('gives keyboard focus to the card when a done card has nothing to fold', async () => {
+      env.send.mockResolvedValue(answer(204));
+      render(request({ reason: '', hosts: [] }));
+      type('ghp_secret');
+      act(() => input()?.focus());
+
+      await pressEnter();
+      await settle();
+
+      expect(status()?.textContent).toBe('Saved, waiting for the agent');
+      expect(row()).toBeNull();
+      expect(document.activeElement).toBe(card());
+    });
+
+    it('folds a temporary secret once sent, its keep inside the fold', () => {
+      render(temporary({ status: 'saved', kept: 'memory' }));
+
+      expect(fold()?.open).toBe(false);
+      expect(chip()).toBe('Sent');
+      expect(row()?.textContent).not.toContain('Kept for 15 minutes, in memory only.');
+      expect(fold()?.textContent).toContain('Kept for 15 minutes, in memory only.');
+    });
+
+    it('folds the card after Save, with the status region outside the fold saying what it did', async () => {
+      env.send.mockResolvedValue(answer(204));
+      render();
+      expect(status()?.textContent).toBe('');
+
+      await save();
+
+      expect(fold()?.open).toBe(false);
+      expect(chip()).toBe('Saved');
+      expect(status()?.textContent).toBe('Saved, waiting for the agent');
+      expect(fold()?.contains(status())).toBe(false);
+    });
+
+    it('keeps the status region mounted through the fold, so a screen reader announces it', async () => {
+      env.send.mockResolvedValue(answer(204));
+      render();
+      const region = status();
+
+      await save();
+
+      expect(status()).toBe(region);
+    });
+
+    it('stays open through the agent edit once the person opened it', async () => {
+      env.send.mockResolvedValue(answer(204));
+      const value = request();
+      render(value);
+      await save();
+      toggle();
+
+      render({ ...value, status: 'saved' });
+
+      expect(fold()?.open).toBe(true);
+    });
   });
 
   describe('where the key goes', () => {
@@ -479,7 +603,7 @@ describe('SecretRequestCard', () => {
       ['Save', 'Saved, waiting for the agent', 'saved'],
       ['Decline', 'Declined, waiting for the agent', 'declined'],
     ] as const)(
-      'keeps keyboard focus on %s while busy, then gives it to the card through the edit',
+      'keeps keyboard focus on %s while busy, then gives it to the folded row through the edit',
       async (label, waiting, final) => {
         const respond = deferred();
         const focus = vi.spyOn(HTMLElement.prototype, 'focus');
@@ -495,10 +619,10 @@ describe('SecretRequestCard', () => {
         expect(document.activeElement).toBe(button(label));
         await respond(answer(204));
         expect(status()?.textContent).toBe(waiting);
-        expect(document.activeElement).toBe(card());
+        expect(document.activeElement).toBe(row());
         expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
         render({ ...value, status: final });
-        expect(document.activeElement).toBe(card());
+        expect(document.activeElement).toBe(row());
         focus.mockRestore();
       }
     );
@@ -515,7 +639,7 @@ describe('SecretRequestCard', () => {
       expect(env.send).toHaveBeenCalledTimes(1);
     });
 
-    it('gives keyboard focus to the card when the agent edit comes before the response', async () => {
+    it('gives keyboard focus to the folded row when the agent edit comes before the response', async () => {
       const respond = deferred();
       const value = request();
       render(value);
@@ -524,11 +648,11 @@ describe('SecretRequestCard', () => {
       await pressEnter();
 
       render({ ...value, status: 'saved' });
-      expect(document.activeElement).toBe(card());
+      expect(document.activeElement).toBe(row());
       await respond(answer(204));
 
       expect(chip()).toBe('Saved');
-      expect(document.activeElement).toBe(card());
+      expect(document.activeElement).toBe(row());
     });
 
     /** Focuses the field, as typing in it does, and counts the blurs it gets. */
