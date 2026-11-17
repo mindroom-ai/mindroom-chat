@@ -27,6 +27,8 @@ import {
 import * as css from './CompactionSeam.css';
 
 const KEY = 'mindroomUi.messages.compactionSeam';
+/** 14px at the default root font size, scaling with it. */
+const ICON_SIZE = '0.875rem';
 
 type CompactionSeamProps = {
   compaction: ReplyCompaction;
@@ -323,12 +325,13 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
           if (evt.pointerType === 'mouse' && open?.mode === 'hover') setOpen(undefined);
         }}
         onFocus={() => {
-          if (!open) show('focus');
+          // Focus outlasts a hover opening, so a mouse leaving must not close the card under it.
+          if (open?.mode !== 'pinned') show('focus');
         }}
         onClick={() => (open?.mode === 'pinned' ? setOpen(undefined) : show('pinned'))}
         onBlur={() => setOpen(undefined)}
       >
-        <Icon className={css.Icon} size={14} aria-hidden />
+        <Icon className={css.Icon} size={ICON_SIZE} aria-hidden />
         <span>{rest.what}</span>
         {rest.detail !== undefined && (
           <>
@@ -359,7 +362,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
         content={
           <div id={cardId} role="tooltip" className={css.Card} data-state={state}>
             <div className={css.Head}>
-              <Icon size={14} aria-hidden />
+              <Icon size={ICON_SIZE} aria-hidden />
               <span>
                 {title}
                 {state === 'running' && elapsed !== undefined && ` ${elapsed}`}

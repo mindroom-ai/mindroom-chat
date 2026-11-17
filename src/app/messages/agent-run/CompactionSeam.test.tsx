@@ -21,8 +21,10 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('@tabler/icons-react', () => ({
-  IconFold: () => React.createElement('svg', { 'data-icon': 'fold' }),
-  IconAlertTriangle: () => React.createElement('svg', { 'data-icon': 'alert' }),
+  IconFold: ({ size }: any) =>
+    React.createElement('svg', { 'data-icon': 'fold', 'data-size': size }),
+  IconAlertTriangle: ({ size }: any) =>
+    React.createElement('svg', { 'data-icon': 'alert', 'data-size': size }),
 }));
 
 vi.mock('../../preferences/useHour24Clock', () => ({
@@ -196,6 +198,15 @@ describe('CompactionSeam row', () => {
   });
 });
 
+describe('CompactionSeam icons', () => {
+  it('size in rem, so they scale with the root font size', async () => {
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    await open(renderer);
+    const sizes = renderer.root.findAllByType('svg').map((icon) => icon.props['data-size']);
+    expect(sizes).toEqual(['0.875rem', '0.875rem']);
+  });
+});
+
 describe('CompactionSeam while running', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -274,6 +285,22 @@ describe('CompactionSeam card', () => {
     expect(trigger(renderer).props['aria-describedby']).toBe(card(renderer)[0]!.props.id);
 
     await act(() => trigger(renderer).props.onBlur());
+    expect(card(renderer)).toHaveLength(0);
+  });
+
+  it('stays open when focus arrives while hovered and the mouse then leaves', async () => {
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    await act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' }));
+    await act(() => trigger(renderer).props.onFocus());
+    await act(() => trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' }));
+    expect(card(renderer)).toHaveLength(1);
+  });
+
+  it('keeps a pinned card pinned when focus arrives', async () => {
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    await open(renderer);
+    await act(() => trigger(renderer).props.onFocus());
+    await act(() => trigger(renderer).props.onClick());
     expect(card(renderer)).toHaveLength(0);
   });
 
