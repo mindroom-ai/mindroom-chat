@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""A fresh, throwaway MindRoom deployment for trying a change by hand: `just live up`, `down` and `status`.
+"""A fresh, throwaway MindRoom deployment for trying a change by hand: `just live up`, `ask`, `down` and `status`.
 
 Usage: python3 scripts/live.py up [--slot N] [--backend DIR] [--helper-model luna|haiku] [--env-file FILE] [--json]
+       python3 scripts/live.py ask <text> [--slot N] [--screenshot FILE]
        python3 scripts/live.py down [--slot N | --all-mine]
-       python3 scripts/live.py status [--json]
+       python3 scripts/live.py status
 
 `up` picks a free e2e slot in 50-99 (or --slot N) and starts, all on that slot:
   1. its own empty Tuwunel homeserver on 28100+N (`scripts/e2e-slot.sh N up`, e2e/docker-compose.yaml);
@@ -12,25 +13,31 @@ Usage: python3 scripts/live.py up [--slot N] [--backend DIR] [--helper-model lun
      without node_modules gets `npm ci` first;
   3. a MindRoom backend (scripts/agent-stack/stack.py N up --model live): a Helper agent, a normal assistant on GPT-6
      Luna (or Claude Haiku 5.5 with --helper-model haiku; both are in the config's models), and a fresh test account
-     invited to the lobby.
+     invited to the lobby, where a plain message goes to the Helper (no mention needed).
 It then prints the login URL, username, password, agents, lobby, logs and the config file (the backend reloads it:
 edit it to change agents or models), and writes them as JSON to $MINDROOM_LIVE_ROOT/slot-N.json (default
-/tmp/mindroom-live); --json prints that JSON alone. When a step fails, `up` stops what it started and shows that
-step's last log lines.
+/tmp/mindroom-live); --json prints that JSON alone. When a step fails, `up` stops what it started and says which step.
+
+`ask` signs in to the deployment's Chat in Chromium (the only one running, or --slot N), sends the text to the lobby,
+waits until the agent's reply is final, saves a screenshot (default $MINDROOM_LIVE_ROOT/slot-N-reply.png) and prints
+the reply and the screenshot's path (scripts/live-ask.mjs, whose functions a custom browser check imports).
+
+`up` and `ask` need Node 24 (and `ask` the Chromium of CHROMIUM_PATH); outside `nix develop` they run themselves
+again inside it.
 
 The backend comes from --backend DIR, a MindRoom checkout or worktree, with its uncommitted changes to tracked files
 (`git stash create` makes a commit of them without touching a branch, the stash or the index; untracked files are
 left out unless they are `git add`ed); a clean one runs its HEAD. Without --backend it is origin/main of
 $E2E_MINDROOM_CHECKOUT, else the first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists, and `up` says how
-old that commit is (`git fetch` there for a newer one).
+old that commit is.
 
 The helper needs OPENAI_API_KEY (and ANTHROPIC_API_KEY with --helper-model haiku). Keys missing from the environment
 are read from --env-file (default ~/.mindroom-chat/.env when it exists); only those two names are read, and they go
 to the backend's process alone, never to a file this script writes or its output.
 
 `down --slot N` stops slot N's Chat, backend and homeserver and deletes their data (`scripts/e2e-slot.sh N down`);
-without options it stops the one deployment this checkout started, and --all-mine stops every one this checkout
-started. It does nothing for a slot without a deployment. `status` lists every live deployment with its URLs.
+without options it stops the one deployment this checkout started, and --all-mine every one this checkout started.
+`status` lists every live deployment with its URLs.
 
 This is the way to test a change live: never on the lab or production deployments.
 """
@@ -49,27 +56,27 @@ import socket
 import stat
 import subprocess
 import sys
-import threading
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "agent-stack"))
 import stack  # noqa: E402
 
 REPOSITORY = Path(__file__).resolve().parents[1]
+ASK_SCRIPT = REPOSITORY / "scripts" / "live-ask.mjs"
 SLOTS = range(50, 100)
 KEY_NAMES = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
 DEFAULT_ENV_FILE = "~/.mindroom-chat/.env"
 MIN_NODE = 24
+# Set in the `nix develop` run of this script, so it never starts another.
+IN_NIX = "MINDROOM_LIVE_IN_NIX"
 # The ports of slot N beside the stack's (stack.ports): the call service of scripts/e2e-rtc.sh.
 RTC_PORT_BASES = (29200, 29300, 29400, 29500)
 
 
 class LiveError(Exception):
-    """A step of `up` failed; `log` is the file whose last lines say why."""
+    """A step failed; `log` is the file whose last lines say why."""
 
     def __init__(self, message: str, log: Path | None = None) -> None:
         super().__init__(message)
@@ -100,10 +107,10 @@ def read_key_file(text: str, names: tuple[str, ...]) -> dict[str, str]:
     return found
 
 
-def missing_keys(environ: dict[str, str], env_file: Path | None) -> dict[str, str]:
+def missing_keys(environ: dict[str, str], env_file: Path) -> dict[str, str]:
     """The keys of KEY_NAMES that the environment lacks, from the key file when there is one."""
     wanted = tuple(name for name in KEY_NAMES if not environ.get(name))
-    if not wanted or env_file is None or not env_file.is_file():
+    if not wanted or not env_file.is_file():
         return {}
     return read_key_file(env_file.read_text(errors="replace"), wanted)
 
@@ -117,57 +124,59 @@ def pick_slot(candidates, is_taken) -> int | None:
     return next((slot for slot in candidates if not is_taken(slot)), None)
 
 
-def login_url(app_url: str, homeserver: str) -> str:
-    return f"{app_url}/login/{urllib.parse.quote(homeserver, safe='')}"
-
-
-def room_url(app_url: str, room_id: str) -> str:
-    return f"{app_url}/home/{urllib.parse.quote(room_id, safe='')}"
-
-
 def node_major(version: str) -> int:
     """The major version of `node --version` output (v24.1.0 -> 24); 0 when it is not one."""
     match = re.match(r"\s*v?(\d+)", version)
     return int(match.group(1)) if match else 0
 
 
-def live_state(slot: int, stack_state: dict, chat: dict, backend: dict, state_file: Path, seconds: float) -> dict:
+def toolchain_problem(command: str, node_version: str, environ: dict[str, str]) -> str | None:
+    """Why `command` cannot run in this shell, or None: an old or missing Node, or `ask` without Chromium."""
+    if node_major(node_version) < MIN_NODE:
+        return f"node {node_version.strip()} is too old" if node_version.strip() else "node is missing"
+    if command == "ask" and not environ.get("CHROMIUM_PATH"):
+        return "CHROMIUM_PATH is not set"
+    return None
+
+
+def live_state(slot: int, stack_state: dict, chat: dict, backend: dict, seconds: float) -> dict:
     """What `up` prints and writes, from stack.py's state and what this script started."""
     app_url = f"http://127.0.0.1:{stack.ports(slot)['app']}"
     homeserver = stack_state["homeserver"]
     names = stack_state.get("agentNames") or {}
-    helper_model = (stack_state.get("models") or {}).get("first", {}).get("displayName")
+    helper_model = stack_state["models"]["first"]["displayName"]
     agents = [
         {
             "name": name,
             "displayName": names.get(name, name),
             "userId": user_id,
-            **({"model": helper_model} if name != "router" else {"role": "router"}),
+            **({"role": "router"} if name == "router" else {"model": helper_model}),
         }
-        for name, user_id in (stack_state.get("agents") or {}).items()
+        for name, user_id in stack_state["agents"].items()
     ]
     lobby = stack_state["rooms"]["lobby"]
+    tester = stack_state["tester"]
     return {
         "slot": slot,
         "status": "ready",
         "chatUrl": app_url,
-        "loginUrl": login_url(app_url, homeserver),
-        "username": stack_state["tester"]["username"],
-        "userId": stack_state["tester"]["userId"],
-        "password": stack_state["tester"]["password"],
+        "loginUrl": f"{app_url}/login/{urllib.parse.quote(homeserver, safe='')}",
+        "username": tester["username"],
+        "userId": tester["userId"],
+        "password": tester["password"],
+        # The Matrix API token of the same account, for checks from outside the page (scripts/live-ask.mjs).
+        "accessToken": tester["accessToken"],
         "homeserver": homeserver,
-        "serverName": stack_state.get("serverName"),
         "agents": agents,
-        "lobby": {"roomId": lobby, "url": room_url(app_url, lobby)},
+        "lobby": {"roomId": lobby, "url": f"{app_url}/home/{urllib.parse.quote(lobby, safe='')}"},
         "backend": {
             **backend,
             "commit": stack_state["sha"],
-            "apiUrl": stack_state.get("apiUrl"),
-            "log": (stack_state.get("logs") or {}).get("backend"),
+            "log": stack_state["logs"]["backend"],
             "config": str(Path(stack_state["dir"]) / "config.yaml"),
         },
         "chat": chat,
-        "stateFile": str(state_file),
+        "stateFile": str(state_path(slot)),
         "down": f"just live down --slot {slot}",
         "upSeconds": round(seconds),
     }
@@ -186,9 +195,10 @@ def summary(state: dict) -> str:
             f"  Log in:     {state['loginUrl']}",
             f"  Username:   {state['username']}",
             f"  Password:   {state['password']}",
-            f"  Lobby:      {state['lobby']['url']}",
+            f"  Lobby:      {state['lobby']['url']} (a plain message goes to the Helper; no mention needed)",
             f"  Agents:     {agents}",
-            f"  Homeserver: {state['homeserver']} (server name {state['serverName']})",
+            f'  Browser:    just live ask "<text>" --slot {state["slot"]} (signs in, sends, waits, screenshots)',
+            f"  Custom:     import {{ readState, launch, login, ask }} from '{ASK_SCRIPT}'",
             f"  Backend:    MindRoom {backend['commit'][:12]}, {backend['source']}",
             f"              log {backend['log']}",
             f"  Config:     {backend['config']} (the backend reloads it: edit it to change agents or models)",
@@ -213,6 +223,11 @@ def live_root() -> Path:
             f"refusing {root}: it must be a directory (not a symlink) of yours that no one else may write to"
         )
     return root
+
+
+def agent_root() -> Path:
+    """stack.py's root (stack.stack_root), without creating or checking it."""
+    return Path(os.environ.get("E2E_AGENT_STACK_ROOT") or "/tmp/mindroom-client-agents")
 
 
 def state_path(slot: int) -> Path:
@@ -255,13 +270,11 @@ def port_in_use(port: int) -> bool:
 def docker_projects() -> set[str]:
     """The compose projects that have a container or a volume on this machine."""
     projects = set()
-    for command in (
-        ["docker", "ps", "--all", "--format", '{{.Label "com.docker.compose.project"}}'],
-        ["docker", "volume", "ls", "--format", '{{.Label "com.docker.compose.project"}}'],
-    ):
+    for kind in (["ps", "--all"], ["volume", "ls"]):
+        command = ["docker", *kind, "--format", '{{.Label "com.docker.compose.project"}}']
         result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode != 0:
-            raise LiveError(f"`{' '.join(command[:3])}` failed: {result.stderr.strip()}")
+            raise LiveError(f"`docker {' '.join(kind)}` failed: {result.stderr.strip()}")
         projects.update(line.strip() for line in result.stdout.splitlines() if line.strip())
     return projects
 
@@ -269,53 +282,27 @@ def docker_projects() -> set[str]:
 def slot_taken(slot: int, projects: set[str], live: set[int]) -> bool:
     """Whether anything on this machine may use slot N: a live deployment, its homeserver's compose project, an agent
     stack's state, or a listener on any of its ports."""
-    stack_dir = Path(os.environ.get("E2E_AGENT_STACK_ROOT") or "/tmp/mindroom-client-agents") / f"slot-{slot}"
     return (
         slot in live
         or f"mindroom-client-e2e-{slot}" in projects
-        or stack_dir.exists()
+        or (agent_root() / f"slot-{slot}").exists()
         or any(port_in_use(port) for port in slot_ports(slot))
     )
 
 
-def run_logged(command: list[str], log: Path, *, env: dict[str, str] | None = None, cwd: Path = REPOSITORY) -> None:
+def run_logged(command: list[str], log: Path) -> None:
     with log.open("ab") as output:
-        result = subprocess.run(command, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=output, stderr=output)
+        result = subprocess.run(command, cwd=REPOSITORY, stdin=subprocess.DEVNULL, stdout=output, stderr=output)
     if result.returncode != 0:
         raise LiveError(f"`{' '.join(command)}` exited with {result.returncode}", log)
 
 
-def tail(path: Path | None, keys: dict[str, str], lines: int = 30) -> str:
-    if not path:
-        return ""
+def tail(path: Path, lines: int = 30) -> str:
     try:
         text = "\n".join(path.read_text(errors="replace").splitlines()[-lines:])
     except OSError:
         return ""
-    for secret in keys.values():
-        text = text.replace(secret, "[key]")
     return f"--- last lines of {path} ---\n{text}"
-
-
-def page_status(url: str) -> int:
-    """The HTTP status of a page; 0 without an answer."""
-    try:
-        with urllib.request.urlopen(url, timeout=10) as response:
-            return response.status
-    except urllib.error.HTTPError as error:
-        return error.code
-    except (urllib.error.URLError, OSError):
-        return 0
-
-
-def copy_lines(source, log: Path) -> None:
-    """Copies stack.py's progress lines to its log and to this script's stderr."""
-    with log.open("ab") as output:
-        for line in source:
-            output.write(line)
-            output.flush()
-            sys.stderr.write(line.decode(errors="replace"))
-            sys.stderr.flush()
 
 
 def git(checkout: Path, *args: str) -> str:
@@ -334,11 +321,9 @@ def backend_source(backend: str | None) -> tuple[Path, str, str]:
         # A commit of the working tree's tracked changes, on no branch; empty when nothing changed.
         dirty = git(checkout, "stash", "create", "just live up: working tree")
         sha = dirty or git(checkout, "rev-parse", "HEAD")
-        untracked = git(checkout, "ls-files", "--others", "--exclude-standard")
         source = f"the working tree of {checkout}" if dirty else f"HEAD of {checkout} (no uncommitted changes)"
-        if untracked:
-            count = len(untracked.splitlines())
-            source += f"; {count} untracked files left out (`git add` them to include them)"
+        if untracked := git(checkout, "ls-files", "--others", "--exclude-standard"):
+            source += f"; {len(untracked.splitlines())} untracked files left out (`git add` them to include them)"
         return checkout, sha, source
     try:
         sha = git(checkout, "rev-parse", "--verify", "origin/main^{commit}")
@@ -348,13 +333,18 @@ def backend_source(backend: str | None) -> tuple[Path, str, str]:
     return checkout, sha, f"origin/main of {checkout}, committed {age}; `git -C {checkout} fetch` brings a newer one"
 
 
-def check_tools() -> None:
-    for tool in ("docker", "uv", "npm", "npx", "node", "git"):
-        if not shutil.which(tool):
-            raise LiveError(f"`{tool}` is not on PATH; run `nix develop -c just live up`")
-    version = subprocess.run(["node", "--version"], capture_output=True, text=True).stdout
-    if node_major(version) < MIN_NODE:
-        raise LiveError(f"node {version.strip()} is too old (needs {MIN_NODE}+); run `nix develop -c just live up`")
+def ensure_toolchain(command: str, argv: list[str]) -> None:
+    """Runs this script again in the repository's `nix develop` when this shell lacks Node 24 (or Chromium)."""
+    node = shutil.which("node")
+    version = subprocess.run([node, "--version"], capture_output=True, text=True).stdout if node else ""
+    problem = toolchain_problem(command, version, dict(os.environ))
+    if not problem:
+        return
+    if os.environ.get(IN_NIX) or not shutil.which("nix"):
+        raise LiveError(f"{problem}; run it in the repository's `nix develop` (`nix develop -c just live {command}`)")
+    say(f"{problem}; running it again in `nix develop`")
+    nix = ["nix", "develop", str(REPOSITORY), "--option", "warn-dirty", "false", "-c"]
+    os.execvpe("nix", [*nix, "python3", str(Path(__file__).resolve()), *argv], {**os.environ, IN_NIX: "1"})
 
 
 # Commands
@@ -362,9 +352,11 @@ def check_tools() -> None:
 
 def up(args: argparse.Namespace) -> int:
     started = time.monotonic()
-    check_tools()
+    for tool in ("docker", "uv", "git"):
+        if not shutil.which(tool):
+            raise LiveError(f"`{tool}` is not on PATH")
     checkout, sha, source = backend_source(args.backend)
-    env_file = Path(args.env_file).expanduser() if args.env_file else Path(DEFAULT_ENV_FILE).expanduser()
+    env_file = Path(args.env_file or DEFAULT_ENV_FILE).expanduser()
     keys = {name: os.environ[name] for name in KEY_NAMES if os.environ.get(name)}
     keys.update(missing_keys(dict(os.environ), env_file))
     needed = ["OPENAI_API_KEY", *(["ANTHROPIC_API_KEY"] if args.helper_model == "haiku" else [])]
@@ -404,9 +396,7 @@ def up(args: argparse.Namespace) -> int:
     homeserver = f"http://127.0.0.1:{port['matrix']}"
     app_url = f"http://127.0.0.1:{port['app']}"
     chat_log = directory / "chat.log"
-    stack_log = directory / "stack.log"
     step = "homeserver"
-    backend_process: subprocess.Popen | None = None
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         say(f"starting the homeserver on {homeserver}")
@@ -440,63 +430,39 @@ def up(args: argparse.Namespace) -> int:
         write_state(slot, state)
 
         step = "backend"
-        say(f"starting MindRoom {sha[:12]} ({source}); a commit's first start installs it, which takes a few minutes")
-        backend_env = {**{name: value for name, value in os.environ.items() if name not in KEY_NAMES}, **keys}
-        command = [
-            sys.executable,
-            str(REPOSITORY / "scripts" / "agent-stack" / "stack.py"),
-            str(slot),
-            "up",
-            "--model",
-            "live",
-            "--helper-model",
-            args.helper_model,
-            "--client-sessions",
-            "--checkout",
-            str(checkout),
-            "--ref",
-            sha,
-        ]
-        backend_process = subprocess.Popen(
+        cached = (agent_root() / "src" / sha / ".complete").exists()
+        say(f"starting MindRoom {sha[:12]} ({source}){'' if cached else '; its first start installs it (minutes)'}")
+        command = [sys.executable, str(REPOSITORY / "scripts" / "agent-stack" / "stack.py"), str(slot), "up"]
+        command += ["--model", "live", "--helper-model", args.helper_model, "--client-sessions"]
+        command += ["--checkout", str(checkout), "--ref", sha]
+        # Its progress and errors (with the backend log's tail) go straight to this script's stderr.
+        result = subprocess.run(
             command,
             cwd=REPOSITORY,
-            env=backend_env,
+            env={**{name: value for name, value in os.environ.items() if name not in KEY_NAMES}, **keys},
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
         )
-        progress = threading.Thread(target=copy_lines, args=(backend_process.stderr, stack_log), daemon=True)
-        progress.start()
-        assert backend_process.stdout is not None
-        output = backend_process.stdout.read()
-        backend_process.wait()
-        progress.join()
-        if backend_process.returncode != 0:
-            raise LiveError(f"stack.py exited with {backend_process.returncode}", stack_log)
-        stack_state = json.loads(output)
+        if result.returncode != 0:
+            raise LiveError(f"stack.py exited with {result.returncode}")
+        stack_state = json.loads(result.stdout)
 
         step = "chat"
-
-        def page_ready() -> bool:
+        deadline = time.monotonic() + 120
+        while True:
             if not stack.alive(chat_pid, "vite"):
                 raise LiveError("the Chat dev server exited", chat_log)
             status, config = stack.http_json("GET", f"{app_url}/config.json")
-            return status == 200 and config.get("homeserverList") == [homeserver]
-
-        deadline = time.monotonic() + 120
-        while not page_ready():
+            if status == 200 and config.get("homeserverList") == [homeserver]:
+                break
             if time.monotonic() > deadline:
                 raise LiveError(f"{app_url}/config.json did not list {homeserver} within 120 s", chat_log)
             time.sleep(0.5)
-        if page_status(f"{app_url}/login") != 200:
-            raise LiveError(f"{app_url}/login does not answer", chat_log)
     except BaseException as error:
-        if backend_process and backend_process.poll() is None:
-            backend_process.terminate()
-            backend_process.wait()
         if isinstance(error, LiveError):
             say(f"step {step} failed: {error}")
-            print(tail(error.log, keys), file=sys.stderr)
+            if error.log:
+                print(tail(error.log), file=sys.stderr)
         elif isinstance(error, (KeyboardInterrupt, SystemExit)):
             say(f"stopped during step {step}")
         else:
@@ -505,11 +471,26 @@ def up(args: argparse.Namespace) -> int:
         stop_slot(slot)
         return error.code if isinstance(error, SystemExit) and isinstance(error.code, int) else 1
 
-    backend = {"checkout": str(checkout), "source": source, "stackLog": str(stack_log)}
-    full = live_state(slot, stack_state, state["chat"], backend, state_path(slot), time.monotonic() - started)
+    backend = {"checkout": str(checkout), "source": source}
+    full = live_state(slot, stack_state, state["chat"], backend, time.monotonic() - started)
     write_state(slot, full)
     print(json.dumps(full, indent=1) if args.json else summary(full), flush=True)
     return 0
+
+
+def ask(args: argparse.Namespace) -> int:
+    text = " ".join(args.text).strip()
+    if not text:
+        raise LiveError('ask needs the text to send: just live ask "What is 17*23?"')
+    ready = sorted(slot for slot, state in read_states().items() if state.get("status") == "ready")
+    if args.slot is None and len(ready) != 1:
+        found = f"slots {', '.join(map(str, ready))}; pass --slot N" if ready else "none; `just live up` starts one"
+        raise LiveError(f"ask needs exactly one ready live deployment, found {found}")
+    slot = ready[0] if args.slot is None else args.slot
+    if slot not in ready:
+        raise LiveError(f"no ready live deployment on slot {slot} (`just live status`)")
+    screenshot = Path(args.screenshot or live_root() / f"slot-{slot}-reply.png").expanduser().resolve()
+    return subprocess.run(["node", str(ASK_SCRIPT), str(state_path(slot)), text, str(screenshot)]).returncode
 
 
 def stop_slot(slot: int) -> None:
@@ -534,12 +515,6 @@ def stop_slot(slot: int) -> None:
     state_path(slot).unlink(missing_ok=True)
 
 
-def mine(states: dict[int, dict]) -> list[int]:
-    return sorted(
-        slot for slot, state in states.items() if (state.get("chat") or {}).get("checkout") == str(REPOSITORY)
-    )
-
-
 def down(args: argparse.Namespace) -> int:
     states = read_states()
     if args.slot is not None:
@@ -547,7 +522,7 @@ def down(args: argparse.Namespace) -> int:
         if not slots:
             say(f"no live deployment on slot {args.slot}")
     else:
-        slots = mine(states)
+        slots = sorted(slot for slot, state in states.items() if state["chat"]["checkout"] == str(REPOSITORY))
         if not slots:
             say(f"no live deployment from {REPOSITORY}")
         elif len(slots) > 1 and not args.all_mine:
@@ -560,34 +535,30 @@ def down(args: argparse.Namespace) -> int:
     return 0
 
 
-def status(args: argparse.Namespace) -> int:
+def status(_args: argparse.Namespace) -> int:
     states = read_states()
-    rows = []
-    for _slot, state in sorted(states.items()):
+    if not states:
+        print("no live deployments (`just live up` starts one)")
+    for slot, state in sorted(states.items()):
         if state.get("status") == "ready":
-            chat = stack.alive((state.get("chat") or {}).get("pid"), "vite")
+            chat = stack.alive(state["chat"].get("pid"), "vite")
             server = stack.http_json("GET", f"{state['homeserver']}/_matrix/client/versions", timeout=3)[0] == 200
             health = "ready" if chat and server else "broken (Chat or homeserver gone)"
         else:
             health = "starting" if stack.alive(state.get("upPid"), "live.py") else "broken (its start was killed)"
-        rows.append({**state, "health": health})
-    if args.json:
-        print(json.dumps(rows, indent=1))
-        return 0
-    if not rows:
-        print("no live deployments (`just live up` starts one)")
-    for row in rows:
-        print(f"slot {row['slot']}: {row['health']}, Chat from {(row.get('chat') or {}).get('checkout')}")
-        if row.get("loginUrl"):
-            print(f"  {row['loginUrl']}  (username {row['username']}, password {row['password']})")
-        print(f"  stop: just live down --slot {row['slot']}")
+        print(f"slot {slot}: {health}, Chat from {state['chat']['checkout']}")
+        if state.get("loginUrl"):
+            print(f"  {state['loginUrl']}  (username {state['username']}, password {state['password']})")
+        print(f"  stop: just live down --slot {slot}")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("command", choices=["up", "down", "status"])
-    parser.add_argument("--slot", type=int, help="up: this slot instead of a free one; down: stop this slot")
+    parser.add_argument("command", choices=["up", "ask", "down", "status"])
+    parser.add_argument("text", nargs="*", help="ask: the message to send to the lobby")
+    parser.add_argument("--slot", type=int, help="up: this slot instead of a free one; ask, down: this slot's")
     parser.add_argument("--all-mine", action="store_true", help="down: every deployment this checkout started")
     parser.add_argument("--backend", help="up: a MindRoom checkout whose working tree the backend runs")
     parser.add_argument(
@@ -597,17 +568,24 @@ def main(argv: list[str] | None = None) -> int:
         help="up: the helper's model, luna (GPT-6 Luna, default) or haiku (Claude Haiku 5.5)",
     )
     parser.add_argument("--env-file", help=f"up: where to read missing provider keys (default {DEFAULT_ENV_FILE})")
-    parser.add_argument("--json", action="store_true", help="up, status: print only JSON")
+    parser.add_argument("--json", action="store_true", help="up: print only the state's JSON")
+    parser.add_argument(
+        "--screenshot", help="ask: where to save the screenshot (default $MINDROOM_LIVE_ROOT/slot-N-reply.png)"
+    )
     args = parser.parse_args(argv)
     if args.slot is not None and not 1 <= args.slot <= 99:
         parser.error("--slot must be 1-99")
+    if args.text and args.command != "ask":
+        parser.error(f"{args.command} takes no text")
     os.umask(0o077)
     try:
-        return {"up": up, "down": down, "status": status}[args.command](args)
+        if args.command in ("up", "ask"):
+            ensure_toolchain(args.command, argv)
+        return {"up": up, "ask": ask, "down": down, "status": status}[args.command](args)
     except LiveError as error:
         say(str(error))
         if error.log:
-            print(tail(error.log, {}), file=sys.stderr)
+            print(tail(error.log), file=sys.stderr)
         return 1
 
 

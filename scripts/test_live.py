@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import io
-import json
 import os
 import socket
 import sys
@@ -105,7 +104,9 @@ class StateTests(unittest.TestCase):
     def state(self) -> dict:
         chat = {"checkout": "/repo", "pid": 1, "log": "/tmp/mindroom-live/slot-57/chat.log"}
         backend = {"checkout": "/mindroom", "source": "origin/main of /mindroom, committed 2 hours ago"}
-        return live.live_state(57, STACK_STATE, chat, backend, Path("/tmp/mindroom-live/slot-57.json"), 61.4)
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict(os.environ, {"MINDROOM_LIVE_ROOT": directory}):
+                return live.live_state(57, STACK_STATE, chat, backend, 61.4)
 
     def test_the_state_has_the_urls_account_agents_and_files(self) -> None:
         state = self.state()
@@ -134,8 +135,8 @@ class StateTests(unittest.TestCase):
         self.assertEqual(state["backend"]["commit"], STACK_STATE["sha"])
         self.assertEqual(state["down"], "just live down --slot 57")
         self.assertEqual(state["upSeconds"], 61)
-        # The stack's access token stays out.
-        self.assertNotIn('"x"', json.dumps(state))
+        # The tester's token, for Matrix API checks from outside the page (scripts/live-ask.mjs).
+        self.assertEqual(state["accessToken"], "x")
 
     def test_the_summary_names_everything_a_person_needs(self) -> None:
         text = live.summary(self.state())
@@ -148,6 +149,9 @@ class StateTests(unittest.TestCase):
             "MindRoom 0123456789ab, origin/main of /mindroom, committed 2 hours ago",
             "/tmp/mindroom-client-agents/slot-57/config.yaml",
             "just live down --slot 57",
+            "no mention needed",
+            'just live ask "<text>" --slot 57',
+            f"from '{live.ASK_SCRIPT}'",
         ):
             self.assertIn(needed, text)
 
@@ -155,6 +159,45 @@ class StateTests(unittest.TestCase):
         self.assertEqual(live.node_major("v24.21.0\n"), 24)
         self.assertEqual(live.node_major("v22.1.0"), 22)
         self.assertEqual(live.node_major(""), 0)
+
+    def test_an_old_or_missing_node_and_ask_without_chromium_need_nix(self) -> None:
+        chromium = {"CHROMIUM_PATH": "/nix/store/chromium"}
+        self.assertEqual(live.toolchain_problem("up", "v22.23.4\n", chromium), "node v22.23.4 is too old")
+        self.assertEqual(live.toolchain_problem("ask", "", chromium), "node is missing")
+        self.assertIsNone(live.toolchain_problem("up", "v24.21.0", {}))
+        self.assertEqual(live.toolchain_problem("ask", "v24.21.0", {}), "CHROMIUM_PATH is not set")
+        self.assertIsNone(live.toolchain_problem("ask", "v24.21.0", chromium))
+
+
+class ToolchainTests(unittest.TestCase):
+    def run_ensure(self, environ: dict[str, str], nix: bool) -> mock.MagicMock:
+        def which(name: str) -> str | None:
+            return "/usr/bin/node" if name == "node" else ("/usr/bin/nix" if nix and name == "nix" else None)
+
+        old_node = mock.Mock(stdout="v22.23.4\n")
+        with (
+            mock.patch.dict(os.environ, environ, clear=True),
+            mock.patch.object(live.shutil, "which", side_effect=which),
+            mock.patch.object(live.subprocess, "run", return_value=old_node),
+            mock.patch.object(live.os, "execvpe") as execvpe,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            live.ensure_toolchain("up", ["up", "--slot", "60"])
+        return execvpe
+
+    def test_an_old_node_runs_the_same_command_again_in_nix_develop_once(self) -> None:
+        execvpe = self.run_ensure({}, nix=True)
+        program, argv, env = execvpe.call_args.args
+        self.assertEqual(program, "nix")
+        self.assertEqual(argv[:3], ["nix", "develop", str(live.REPOSITORY)])
+        self.assertEqual(argv[-5:], ["python3", str(Path(live.__file__).resolve()), "up", "--slot", "60"])
+        self.assertEqual(env[live.IN_NIX], "1")
+
+    def test_without_nix_or_inside_its_run_it_says_what_to_do(self) -> None:
+        for environ, nix in (({}, False), ({live.IN_NIX: "1"}, True)):
+            with self.assertRaises(live.LiveError) as raised:
+                self.run_ensure(environ, nix)
+            self.assertIn("node v22.23.4 is too old; run it in the repository's `nix develop`", str(raised.exception))
 
 
 class DownTests(unittest.TestCase):
