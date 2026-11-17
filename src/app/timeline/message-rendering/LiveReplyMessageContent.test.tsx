@@ -76,6 +76,7 @@ describe('LiveReplyMessageContent', () => {
             tools: [],
             status: 'streaming',
             activity: '',
+            segments: [],
           },
         },
         Date.now()

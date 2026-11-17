@@ -661,7 +661,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "折りたたむ",
+        "hide": "思考を隠す",
         "thought": "考えました"
       },
       "messageReactionActions": {

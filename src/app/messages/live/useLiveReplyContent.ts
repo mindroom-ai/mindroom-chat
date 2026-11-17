@@ -14,8 +14,10 @@ import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from 
 export const LIVE_CHECKPOINT_KEY = 'io.mindroom.live_checkpoint';
 /** Worker warm-up lines, shown below the body: from live frames or a durable progress edit. */
 export const LIVE_ACTIVITY_KEY = 'io.mindroom.live_activity';
-/** Live content only: the model reasoning so far, shown above the body. */
+/** Live content only: the model reasoning so far, which the reply's bulb shows in segments. */
 export const LIVE_REASONING_KEY = 'io.mindroom.live_reasoning';
+/** Live content only: where each reasoning segment starts, as `LiveDocs.segments`. */
+export const LIVE_REASONING_SEGMENTS_KEY = 'io.mindroom.live_reasoning_segments';
 
 /** On durable progress edits: the warm-up lines after the body, one `<p>` each in the HTML. */
 const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
@@ -72,6 +74,7 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
   if (docs.tools.length > 0) live[MINDROOM_TOOL_TRACE_KEY] = { version: 2, events: docs.tools };
   if (docs.activity) live[LIVE_ACTIVITY_KEY] = docs.activity;
   if (docs.reasoning) live[LIVE_REASONING_KEY] = docs.reasoning;
+  if (docs.segments.length > 0) live[LIVE_REASONING_SEGMENTS_KEY] = docs.segments;
   return live;
 };
 
@@ -208,7 +211,10 @@ export const useLiveReplyContent = (
     const durable = withWarmupActivity(content);
     if (!waitDocs) return durable;
     const covered = withRunningOutput(durable, waitDocs.tools);
-    return waitDocs.reasoning ? { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning } : covered;
+    if (!waitDocs.reasoning) return covered;
+    const { segments } = waitDocs;
+    const segmentsContent = segments.length > 0 ? { [LIVE_REASONING_SEGMENTS_KEY]: segments } : {};
+    return { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning, ...segmentsContent };
   }, [content, liveDocs, markdownReady, waitDocs]);
   return {
     content: liveContent,

@@ -706,7 +706,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "طي",
+        "hide": "إخفاء التفكير",
         "thought": "فكّر"
       },
       "messageReactionActions": {

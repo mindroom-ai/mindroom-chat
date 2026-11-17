@@ -3,7 +3,18 @@ import fixture from '../../messages/live/__fixtures__/live-frames-v1.json';
 import { applyLiveDelta, compareLiveOrder, parseLiveFrame, type LiveDocs } from './liveFrame';
 
 const SID = '1761858000123-0a1b2c3d';
-const docs: LiveDocs = { md: 'Hello', reasoning: '', tools: [], status: 'streaming', activity: '' };
+const docs: LiveDocs = {
+  md: 'Hello',
+  reasoning: '',
+  tools: [],
+  status: 'streaming',
+  activity: '',
+  segments: [],
+};
+const SEGMENTS = [
+  { start: 0, after_tool: 0 },
+  { start: 12, after_tool: 2 },
+];
 const frame = (body: Record<string, unknown>) => ({
   v: 1,
   reply: '$reply',
@@ -23,9 +34,9 @@ describe('live reply frames', () => {
       const after =
         'snapshot' in parsed
           ? parsed.snapshot
-          : applyLiveDelta(testCase.before as LiveDocs, parsed.delta);
+          : applyLiveDelta({ segments: [], ...testCase.before } as LiveDocs, parsed.delta);
 
-      expect(after).toEqual(testCase.after);
+      expect(after).toEqual({ segments: [], ...testCase.after });
     }
   );
 
@@ -52,8 +63,48 @@ describe('live reply frames', () => {
     ],
     ['a negative splice offset', frame({ delta: { md: { at: -1, del: 0, ins: '', len: 5 } } })],
     ['a tool index past the list', frame({ delta: { tools: { len: 1, set: [[1, {}]] } } })],
+    ['segments that are not a list', frame({ snapshot: { ...docs, segments: {} } })],
+    [
+      'a segment with a negative start',
+      frame({ snapshot: { ...docs, segments: [{ start: -1, after_tool: 0 }] } }),
+    ],
+    [
+      'a segment with a fractional tool count',
+      frame({ delta: { segments: [{ start: 0, after_tool: 0.5 }] } }),
+    ],
+    ['a segment that is not an object', frame({ delta: { segments: [0] } })],
   ])('rejects a frame with %s', (_name, content) => {
     expect(parseLiveFrame(content)).toBeNull();
+  });
+
+  it('reads the reasoning segments of a snapshot', () => {
+    const parsed = parseLiveFrame(frame({ snapshot: { ...docs, segments: SEGMENTS } }));
+
+    expect(parsed).toEqual({
+      reply: '$reply',
+      sid: SID,
+      seq: 1,
+      snapshot: { ...docs, segments: SEGMENTS },
+    });
+  });
+
+  it('reads a snapshot without segments, from an older backend, as having none', () => {
+    const { segments: _segments, ...old } = docs;
+    const parsed = parseLiveFrame(frame({ snapshot: old }));
+
+    expect(parsed && 'snapshot' in parsed && parsed.snapshot.segments).toEqual([]);
+  });
+
+  it('replaces the segments with a delta that carries them and keeps them otherwise', () => {
+    const before = { ...docs, segments: [{ start: 0, after_tool: 0 }] };
+    const replacing = parseLiveFrame(frame({ delta: { segments: SEGMENTS } }));
+    const keeping = parseLiveFrame(frame({ delta: { activity: 'x' } }));
+    if (!replacing || !('delta' in replacing) || !keeping || !('delta' in keeping)) {
+      throw new Error('Expected two deltas');
+    }
+
+    expect(applyLiveDelta(before, replacing.delta)).toEqual({ ...before, segments: SEGMENTS });
+    expect(applyLiveDelta(before, keeping.delta)).toEqual({ ...before, activity: 'x' });
   });
 
   it('rejects content that is not an object', () => {
