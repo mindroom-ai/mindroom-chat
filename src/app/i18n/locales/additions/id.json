@@ -670,6 +670,7 @@
           "note": "Judul yang sudah ada tetap memakai kata-katanya sampai diperbarui lagi."
         },
         "save": "Simpan",
+        "saved": "Tersimpan",
         "clear": "Hapus",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",

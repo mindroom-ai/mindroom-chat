@@ -679,6 +679,7 @@
           "note": "Zaten verilmiş başlıklar bir sonraki yenilemeye kadar ifadelerini korur."
         },
         "save": "Kaydet",
+        "saved": "Kaydedildi",
         "clear": "Temizle",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",

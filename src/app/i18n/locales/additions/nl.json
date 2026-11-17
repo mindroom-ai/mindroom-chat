@@ -679,6 +679,7 @@
           "note": "Titels die er al staan, houden hun bewoording tot de volgende verversing."
         },
         "save": "Opslaan",
+        "saved": "Opgeslagen",
         "clear": "Wissen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Alleen wie de instellingen van deze kamer mag wijzigen, kan dit bewerken.",

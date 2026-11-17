@@ -1,5 +1,5 @@
-import { type FormEvent, useId, useState } from 'react';
-import { Box, Button, Text, TextArea, color } from 'folds';
+import { type FormEvent, useEffect, useId, useState } from 'react';
+import { Box, Button, Icon, Icons, Text, TextArea, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { useAlive } from '../../../lib/hooks/useAlive';
@@ -10,8 +10,11 @@ import { useRoomPermissions } from '../../../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../../../matrix/hooks/useStateEvent';
 import { ROOM_SETTINGS_EVENT, readRoomSettingValue } from '../../../matrix/protocol/roomSettings';
 import type { RoomTextSettingDefinition } from './roomSettingDefinitions';
+import * as css from './RoomTextSettingTile.css';
 
 const STRINGS = 'featureUi.roomSettings.mindroom';
+// How long Save reads Saved after a write went through.
+const SAVED_FOR_MS = 2000;
 
 type Saved = { value: string; eventId: string; older: ReadonlySet<string | undefined> };
 
@@ -46,6 +49,14 @@ export function RoomTextSettingTile({
   const [draft, setDraft] = useState<string>();
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Save reads Saved for a moment after a write, until the person types again. Each write sets a
+  // new object, so a second one within the moment restarts the timer even in the same render.
+  const [justSaved, setJustSaved] = useState<object>();
+  useEffect(() => {
+    if (!justSaved) return undefined;
+    const timer = setTimeout(() => setJustSaved(undefined), SAVED_FOR_MS);
+    return () => clearTimeout(timer);
+  }, [justSaved]);
 
   const text = draft ?? baseline;
   const tooLong = text.length > definition.maxLength;
@@ -56,6 +67,7 @@ export function RoomTextSettingTile({
     const before = eventId;
     setSending(true);
     setFailed(false);
+    setJustSaved(undefined);
     const content = value === '' ? {} : { value };
     client
       .sendStateEvent(room.roomId, ROOM_SETTINGS_EVENT as never, content as never, definition.key)
@@ -69,6 +81,7 @@ export function RoomTextSettingTile({
           }));
           setDraft(undefined);
           setSending(false);
+          setJustSaved({});
         },
         () => {
           if (!alive()) return;
@@ -111,6 +124,7 @@ export function RoomTextSettingTile({
           const { value } = evt.currentTarget;
           setDraft(value === baseline ? undefined : value);
           setFailed(false);
+          setJustSaved(undefined);
         }}
         readOnly={!canEdit || sending}
         placeholder={canEdit ? t(definition.placeholder) : undefined}
@@ -144,11 +158,28 @@ export function RoomTextSettingTile({
           </Button>
         )}
         {canEdit && (
-          <Button type="submit" size="300" radii="300" variant="Success" disabled={!canSave}>
-            <Text size="B300">{t(`${STRINGS}.save`)}</Text>
+          <Button
+            type="submit"
+            size="300"
+            radii="300"
+            variant="Success"
+            fill={justSaved ? 'None' : 'Solid'}
+            className={justSaved ? css.Saved : undefined}
+            disabled={!canSave}
+            before={
+              justSaved ? (
+                <Icon className={css.SavedCheck} size="100" src={Icons.Check} aria-hidden />
+              ) : undefined
+            }
+          >
+            <Text size="B300">{t(justSaved ? `${STRINGS}.saved` : `${STRINGS}.save`)}</Text>
           </Button>
         )}
       </Box>
+      {/* A disabled button's new text is not read out; this line says the save went through. */}
+      <span role="status" className={css.VisuallyHidden}>
+        {justSaved ? t(`${STRINGS}.saved`) : ''}
+      </span>
       {failed && (
         <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
           {t(`${STRINGS}.saveFailed`)}

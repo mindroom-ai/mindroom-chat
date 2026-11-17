@@ -670,6 +670,7 @@
           "note": "已有的標題會保留原本的措辭，直到下次重新整理。"
         },
         "save": "儲存",
+        "saved": "已儲存",
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",

@@ -688,6 +688,7 @@
           "note": "Los títulos ya puestos conservan su redacción hasta la próxima actualización."
         },
         "save": "Guardar",
+        "saved": "Guardado",
         "clear": "Borrar",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo quienes pueden cambiar los ajustes de esta sala pueden editar esto.",

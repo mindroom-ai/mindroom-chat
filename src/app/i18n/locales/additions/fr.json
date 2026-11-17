@@ -688,6 +688,7 @@
           "note": "Les titres déjà attribués gardent leur formulation jusqu’à la prochaine actualisation."
         },
         "save": "Enregistrer",
+        "saved": "Enregistré",
         "clear": "Effacer",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Seules les personnes autorisées à modifier les paramètres de ce salon peuvent changer ceci.",

@@ -688,6 +688,7 @@
           "note": "I titoli già assegnati mantengono la loro formulazione fino al prossimo aggiornamento."
         },
         "save": "Salva",
+        "saved": "Salvato",
         "clear": "Cancella",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo chi può modificare le impostazioni di questa stanza può cambiarlo.",

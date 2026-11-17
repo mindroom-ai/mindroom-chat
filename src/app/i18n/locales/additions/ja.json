@@ -670,6 +670,7 @@
           "note": "すでに付いているタイトルは、次に更新されるまで今の表現のままです。"
         },
         "save": "保存",
+        "saved": "保存しました",
         "clear": "クリア",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "このルームの設定を変更できる人だけが編集できます。",
