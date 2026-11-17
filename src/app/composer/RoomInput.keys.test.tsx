@@ -358,6 +358,16 @@ describe('composer', () => {
       expect(alerts()).toEqual([]);
     });
 
+    it('sends another spelling MindRoom reads of a command, as typed', async () => {
+      state.mentionHasSuggestions = false;
+      state.commands = {
+        auto_approve: { name: 'auto_approve', description: 'Auto-approve tool calls.' },
+      } as Record<string, SlashCommand>;
+      const autoApprove = [{ type: 'paragraph', children: [{ text: '/auto-approve off' }] }];
+      expect(await pressEnterAfterMention(autoApprove)).toBe(true);
+      expect(alerts()).toEqual([]);
+    });
+
     it('keeps a /word that is no command unsent, with a notice', async () => {
       withInvite(vi.fn(async () => undefined));
       for (const text of ['/zz', '/list_jobs']) {

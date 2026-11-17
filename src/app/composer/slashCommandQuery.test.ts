@@ -35,6 +35,35 @@ describe('readUnknownCommand', () => {
     );
   });
 
+  it("knows the other spellings MindRoom reads of its commands' names", () => {
+    [
+      '/auto-approve off',
+      '/autoapprove on',
+      '/reload_plugins',
+      '/room-model sonnet',
+      '/roommodel',
+      '/thread-mode room',
+      '/reply-mode',
+      '/cancel-schedule 1',
+      '/edit-schedule 1 in 5 min',
+      '/cancel-job 1',
+      '/list-schedules',
+      '/listschedules',
+      '/listschedule',
+      '/inspect_schedules',
+      '/Inspect-Schedule',
+      '/inspectschedules',
+    ].forEach((text) =>
+      expect(readUnknownCommand([line({ text })], commands), text).toBeUndefined()
+    );
+    // Only `/list_schedules` has other words; a near miss of the others is still no command.
+    expect(readUnknownCommand([line({ text: '/inspect_jobs' })], commands)).toBe('inspect_jobs');
+    expect(readUnknownCommand([line({ text: '/auto-approved' })], commands)).toBe('auto-approved');
+    expect(readUnknownCommand([line({ text: '/list-schedule-all' })], commands)).toBe(
+      'list-schedule-all'
+    );
+  });
+
   it('leaves commands, paths, quotes and text that does not start with a slash alone', () => {
     [
       '/me waves',

@@ -86,11 +86,25 @@ export const readUnknownCommand = (
   if (!run || !Text.isText(run)) return undefined;
   const name = /^\/([a-z][a-z0-9_-]*)(?:\s|$)/i.exec(run.text)?.[1];
   if (name === undefined || Object.hasOwn(commands, name)) return undefined;
-  // MindRoom reads its commands in any case, so `/Schedule` from a phone keyboard that
-  // capitalizes the first word goes out as typed too.
-  const lower = name.toLowerCase();
-  return MINDROOM_COMMANDS.some((command) => command.name === lower) ? undefined : name;
+  return MINDROOM_NAMES.has(mindroomSpelling(name)) ? undefined : name;
 };
+
+/**
+ * A name as MindRoom matches it: in any case, so `/Schedule` from a phone keyboard that
+ * capitalizes the first word goes out as typed too, and with or without the `-` or `_` between
+ * its words (`/auto-approve`, `/reload_plugins`, `/roommodel`). This also lets through a few
+ * spellings MindRoom does not read (`/reloadplugins`, `/auto--approve`), which then go out as a
+ * message, as every `/word` did before the composer refused any.
+ */
+const mindroomSpelling = (name: string): string => name.toLowerCase().replace(/[-_]/g, '');
+
+/** MindRoom's names, and the other spellings of `list_schedules` it reads. */
+const MINDROOM_NAMES = new Set([
+  ...MINDROOM_COMMANDS.map(({ name }) => mindroomSpelling(name)),
+  'listschedule',
+  'inspectschedules',
+  'inspectschedule',
+]);
 
 /** What the composer says when a command did not run: its usage, or the server's reason. */
 export const describeCommandFailure = (

@@ -114,6 +114,7 @@ test('slash commands: the menu, a message command, commands that act, and a refu
   // room's agents; a /word that is no command stays unsent.
   await page.keyboard.type('/sched');
   await expect(page.locator('[data-slash-command="schedule"]')).toContainText('/schedule <task>');
+  await page.screenshot({ path: testInfo.outputPath('slash-menu-mindroom.png') });
   await page.keyboard.press('Tab');
   await page.keyboard.type('in 5 min do x');
   await page.keyboard.press('Enter');
