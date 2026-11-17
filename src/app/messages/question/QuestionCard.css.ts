@@ -4,6 +4,9 @@ import { color, config, toRem } from 'folds';
 const reducedMotion = '(prefers-reduced-motion: reduce)';
 const ease = 'cubic-bezier(.2, .8, .2, 1)';
 
+const accentLine = `color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`;
+const answeredLine = `color-mix(in srgb, ${color.Success.Main} 45%, ${color.SurfaceVariant.ContainerLine})`;
+
 /** An agent's question in its reply: a small card that folds to the chosen option. */
 export const Card = style({
   display: 'flex',
@@ -23,7 +26,7 @@ export const Card = style({
   transition: 'border-color .3s, background-color .3s',
   selectors: {
     '&[data-question-card="answered"]': {
-      borderColor: `color-mix(in srgb, ${color.Success.Main} 45%, ${color.SurfaceVariant.ContainerLine})`,
+      borderColor: answeredLine,
       backgroundColor: 'transparent',
     },
   },
@@ -125,7 +128,7 @@ export const Option = style({
   transition: 'background-color .25s, border-color .25s, opacity .25s',
   selectors: {
     '&:hover:not(:disabled), &:focus-visible': {
-      borderColor: `color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`,
+      borderColor: accentLine,
     },
     '&:focus-visible': {
       outline: `${toRem(2)} solid ${color.Primary.Main}`,
@@ -138,7 +141,7 @@ export const Option = style({
 export const OptionChosen = style({
   selectors: {
     '&&': {
-      borderColor: `color-mix(in srgb, ${color.Primary.Main} 55%, transparent)`,
+      borderColor: accentLine,
       backgroundColor: color.Primary.Container,
       color: color.Primary.OnContainer,
     },
