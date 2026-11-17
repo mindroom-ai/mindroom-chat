@@ -376,6 +376,62 @@ describe('compaction seams in a reply', () => {
     ]);
   });
 
+  it('keeps the seams and the runs they split through the bulb and the cog opening and closing', () => {
+    getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: false });
+    const first = 'Where to start?';
+    const second = 'The search settles it.';
+    render(
+      reply(paragraphs('Intro.', markerLines(1, 5), 'Done.'), [entry('c1', 0), entry('c2', 3)], {
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.reasoning': {
+          text: `${first}\n\n${second}`,
+          duration_ms: 9000,
+          segments: [
+            { start: 0, after_tool: 0, duration_ms: 4000 },
+            { start: first.length + 2, after_tool: 3, duration_ms: 5000 },
+          ],
+        },
+      })
+    );
+    const cog = () => renderer!.root.find((node) => node.type === 'button' && node.props.className === 'Cog');
+    const toggle = (button: () => ReactTestInstance) =>
+      act(() => {
+        button().props.onClick();
+      });
+    const closed = ['bulb', 'seam', 'Intro.', 'seam', 'Done.'];
+    const thinking = ['bulb', 'seam', 'thinking', 'Intro.', 'seam', 'thinking', 'Done.'];
+    const runs = ['tools:t1, t2, t3', 'seam', 'thinking', 'tools:t4, t5'];
+    const both = ['bulb', 'seam', 'thinking', 'Intro.', ...runs, 'Done.'];
+    const runsOnly = ['bulb', 'seam', 'Intro.', 'tools:t1, t2, t3', 'seam', 'tools:t4, t5', 'Done.'];
+    expect(sequence()).toEqual(closed);
+
+    // The bulb, open, closed and open again, with the cog hiding the calls.
+    toggle(bulb);
+    expect(sequence()).toEqual(thinking);
+    toggle(bulb);
+    expect(sequence()).toEqual(closed);
+    toggle(bulb);
+    expect(sequence()).toEqual(thinking);
+
+    // The cog, shown, hidden and shown again, with the thinking open: the seam still splits.
+    toggle(cog);
+    expect(sequence()).toEqual(both);
+    toggle(cog);
+    expect(sequence()).toEqual(thinking);
+    toggle(cog);
+    expect(sequence()).toEqual(both);
+
+    // The bulb closing under shown calls keeps the seam's split; the cog then hides them.
+    toggle(bulb);
+    expect(sequence()).toEqual(runsOnly);
+    toggle(cog);
+    expect(sequence()).toEqual(closed);
+    toggle(bulb);
+    toggle(cog);
+    expect(sequence()).toEqual(both);
+    expect(seamStates()).toEqual(['success', 'success']);
+  });
+
   it('shows a compaction anchored past the rendered tool calls after the last one', () => {
     render(reply(paragraphs('Intro.', markerLines(1, 2), 'Done.'), [entry('c1', 7)]));
 
