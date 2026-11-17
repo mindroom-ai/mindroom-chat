@@ -9,7 +9,7 @@ import {
   phoneNavSlotAtom,
   phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
-import { afterWaitingSlide, slidePhonePage } from '../navigation/phonePageSlide';
+import { afterWaitingSlide, movePhoneNavDrawer } from '../navigation/phonePageSlide';
 import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
 import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import { useSwipeAway } from '../navigation/useSwipeAway';
@@ -56,11 +56,11 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
  */
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpenNow] = useAtom(phoneNavDrawerOpenAtom);
-  // What a person does to the drawer goes through `slidePhonePage`, which slides the page when it
-  // brings the drawer out (putting it away, the drawer slides on its own); what follows a
-  // navigation is part of that navigation's slide.
+  // What a person does to the drawer goes through `movePhoneNavDrawer`: the drawer slides in and
+  // away on its own over the page, which stays put; what follows a navigation is part of that
+  // navigation's slide.
   const setOpen = useCallback(
-    (next: boolean) => slidePhonePage(() => setOpenNow(next)),
+    (next: boolean) => movePhoneNavDrawer(next, setOpenNow),
     [setOpenNow]
   );
   // The section's list portals itself into the slot (`MobileFriendlyPageNav`).
