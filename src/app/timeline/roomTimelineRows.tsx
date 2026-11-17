@@ -323,7 +323,11 @@ export const renderTimelineTiles = ({
   isHiddenByPluginId: (eventId: string) => boolean;
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
   /** Whether a row renders as a quiet marker line, which reply quotes look past. */
-  isQuietMarkerRow: (event: MatrixEvent, data: TimelineMessageData) => boolean;
+  isQuietMarkerRow: (
+    event: MatrixEvent,
+    data: TimelineMessageData,
+    timelineSet: EventTimelineSet
+  ) => boolean;
   /** In a fork, the line between its parent's messages and its first row of its own (`index`). */
   forkDivider?: { index: number; node: ReactNode };
   /** In a fork draft, the line under its fork point (`index`), the last row it shows. */
@@ -356,7 +360,7 @@ export const renderTimelineTiles = ({
     readUptoAbsoluteIndex: threadId ? undefined : readUptoAbsoluteIndex,
     // The fork's first own row starts its group under the divider, whoever wrote the row above.
     groupStartIndex: forkDivider?.index,
-    isQuietMarker: (event) => isQuietMarkerRow(event, messageData),
+    isQuietMarker: (event) => isQuietMarkerRow(event, messageData, timelineSet),
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {

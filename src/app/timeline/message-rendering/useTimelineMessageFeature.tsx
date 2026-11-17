@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Text, color } from 'folds';
 import {
   EventStatus,
+  type EventTimelineSet,
   type MatrixClient,
   type MatrixEvent,
   type Relations,
@@ -795,20 +796,23 @@ export const useTimelineMessageFeature = ({
 
   /**
    * Whether a row renders as a quiet marker line (`readQuietMarker`), for the reply quotes of the
-   * rows below it (timelineRowFold). Reads the event's content, which carries the SDK's edits.
+   * rows below it (timelineRowFold). Reads the content the row shows, edits included, as
+   * `renderMessageRow` does.
    */
   const isQuietMarkerRow = useCallback(
-    (event: MatrixEvent, data: TimelineMessageData): boolean =>
-      !!threadId &&
-      getTimelineMessageKind(event.getType()) === 'message' &&
-      readQuietMarker(
-        event.getId() ?? '',
-        event.getSender() ?? undefined,
-        event.getContent(),
-        data,
-        userId ?? undefined
-      ) !== null,
-    [threadId, userId]
+    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean => {
+      if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return false;
+      const eventId = event.getId() ?? '';
+      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
+      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
+      const content = getLatestMessageContent(
+        event,
+        getEditedEvent(eventId, event, timelineSet)
+      ) as Record<string, unknown>;
+      const sender = event.getSender() ?? undefined;
+      return readQuietMarker(eventId, sender, content, data, userId ?? undefined) !== null;
+    },
+    [room, threadId, userId]
   );
 
   // A thread has no expand-all toggle, so its long messages fold as usual whatever the room's is.
