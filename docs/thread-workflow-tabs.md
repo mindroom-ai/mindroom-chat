@@ -31,7 +31,8 @@ goes by when each thread started, Needs you by when its last run finished or its
 came (a reply still streaming counts from when it was sent), Later by the same return time as the
 sidebar (`threadReturnTs`), and Done by when it was resolved; pins lead each section.
 The switch and the folded sections are stored per account (`compactRoomSections:<userId>`), Done
-folded at first.
+folded at first. A section that shows alone, as under its tab, is open and folds nothing: its
+stored fold is kept for when the other sections come back.
 
 ## Saved filters and search
 

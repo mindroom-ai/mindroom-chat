@@ -163,6 +163,18 @@ describe('the Compact room in sections', () => {
     });
   });
 
+  it('opens a section that shows alone, as the Done tab shows it, and keeps its stored fold', () => {
+    state.sections = [{ id: 'done', rootIds: ['$done'] }];
+    render(view(['$done']));
+
+    expect(rows()).toEqual(['#done 1', '$done']);
+    // Nothing to fold: the header is a label, and the stored fold waits for the other sections.
+    const row = document.querySelector('[data-compact-section="done"]');
+    expect(row?.querySelector('button')).toBeNull();
+    expect(row?.textContent).toBe('thread.workflow.done · 1');
+    expect(localStorage.getItem(`compactRoomSections:${ME}`)).toBeNull();
+  });
+
   it('leads each section with its pinned cards instead of a Pinned list of their own', () => {
     state.pinned = ['$read'];
     render(view(['$read', '$streaming', '$job', '$snoozed', '$done']));

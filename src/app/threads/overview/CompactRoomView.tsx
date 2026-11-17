@@ -77,6 +77,7 @@ const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
     ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
     : undefined;
+const NO_FOLDS: readonly ThreadWorkflowBucket[] = [];
 
 type ThreadActionsMenuState = {
   roomId: string;
@@ -322,7 +323,6 @@ export function CompactRoomView({
   const [sectionsChoice, updateSectionsChoice] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
-  const { folded } = sectionsChoice;
   // While the order is held, the cards keep the sections they showed in and their places there,
   // and the headers stay: in sections, this is the hold, and the hook below holds no order. Only
   // this room's: the view stays mounted when the next room opens under the pointer.
@@ -336,6 +336,10 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
   }, [heldSections, room.roomId]);
+  // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
+  // other sections to come back.
+  const soleSection = heldSections?.length === 1;
+  const folded = soleSection ? NO_FOLDS : sectionsChoice.folded;
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
   const listedRows = useMemo(
     () =>
@@ -536,25 +540,32 @@ export function CompactRoomView({
     const key = sectionRowKey(id);
     const closed = folded.includes(id);
     const count = sectionCounts.get(id) ?? 0;
+    const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
     return (
       <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
-        <Button
-          size="300"
-          variant="Secondary"
-          fill="None"
-          radii="300"
-          aria-expanded={!closed}
-          onClick={() => updateSectionsChoice({ type: 'TOGGLE_FOLD', id })}
-          before={
-            <Icon
-              size="100"
-              src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
-              data-directional={closed || undefined}
-            />
-          }
-        >
-          <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>
-        </Button>
+        {soleSection ? (
+          <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
+            {label}
+          </Button>
+        ) : (
+          <Button
+            size="300"
+            variant="Secondary"
+            fill="None"
+            radii="300"
+            aria-expanded={!closed}
+            onClick={() => updateSectionsChoice({ type: 'TOGGLE_FOLD', id })}
+            before={
+              <Icon
+                size="100"
+                src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
+                data-directional={closed || undefined}
+              />
+            }
+          >
+            {label}
+          </Button>
+        )}
       </div>
     );
   };
