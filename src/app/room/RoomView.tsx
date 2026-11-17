@@ -13,6 +13,7 @@ import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { editableActiveElement } from '../lib/dom';
+import { shortcutLetter } from '../lib/keyboard';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
@@ -78,9 +79,10 @@ const OWNS_TYPING_SELECTOR =
 const focusOwnsTyping = (): boolean =>
   typeof document !== 'undefined' && !!document.activeElement?.closest?.(OWNS_TYPING_SELECTOR);
 
-// Paste (Cmd+V, Ctrl+V), with Shift too for paste as plain text, but no Alt combination.
+// Paste (Cmd+V, Ctrl+V), with Shift too for paste as plain text, but no Alt combination. The V is
+// the layout's (Dvorak's sits on the physical period key), or the key's own on a non-Latin layout.
 const isPasteKey = (evt: KeyboardEvent): boolean =>
-  evt.code === 'KeyV' && (evt.ctrlKey || evt.metaKey) && !evt.altKey;
+  (evt.ctrlKey || evt.metaKey) && !evt.altKey && shortcutLetter(evt) === 'v';
 // A letter or digit without a modifier other than Shift.
 const isTypingKey = (evt: KeyboardEvent): boolean =>
   !evt.ctrlKey && !evt.metaKey && !evt.altKey && /^(Key[A-Z]|Digit\d)$/.test(evt.code ?? '');

@@ -87,6 +87,21 @@ it.each([
   expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
 });
 
+it.each([
+  ['Dvorak, V on the period key', { key: 'v', code: 'Period' }],
+  ['Cyrillic, V by its key', { key: 'м', code: 'KeyV' }],
+])('moves a paste on another layout (%s) to the composer', (_name, keys) => {
+  render(<RoomView room={room} />);
+  fireEvent.keyDown(document.body, { ...keys, ctrlKey: true });
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+});
+
+it("leaves Ctrl+K on Dvorak, whose K sits on QWERTY's V, where it was", () => {
+  render(<RoomView room={room} />);
+  fireEvent.keyDown(document.body, { key: 'k', code: 'KeyV', ctrlKey: true });
+  expect(document.activeElement).toBe(document.body);
+});
+
 it('leaves a paste with Alt held where it was', () => {
   render(<RoomView room={room} />);
   pressPaste(document.body, { metaKey: true, altKey: true });
