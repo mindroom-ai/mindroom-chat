@@ -196,122 +196,75 @@ export const getThumbnail = async (
   return encodeCanvas(canvas, thumbnailMimeType);
 };
 
-/** Loads an image from a URL, for its dimensions or to draw a thumbnail. */
-export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
+/** Points `element` at `url` and settles on its first `readyEvent` or its first `error`. */
+const loadMedia = <T extends HTMLImageElement | HTMLVideoElement>(
+  element: T,
+  readyEvent: 'load' | 'loadeddata',
+  url: string
+): Promise<T> =>
   new Promise((resolve, reject) => {
-    const image = document.createElement('img');
-    image.addEventListener('load', () => resolve(image), { once: true });
-    image.addEventListener('error', () => reject(new Error(`Could not load image ${url}`)), {
-      once: true,
-    });
-    image.src = url;
+    element.addEventListener(readyEvent, () => resolve(element), { once: true });
+    element.addEventListener(
+      'error',
+      () =>
+        reject(
+          new Error(`Could not load ${element.localName === 'img' ? 'image' : 'video'} ${url}`)
+        ),
+      { once: true }
+    );
+    element.src = url;
   });
 
-/** How long a video may take to show its first frame before it is sent without one. */
+/** Loads an image from a URL, for its dimensions or to draw a thumbnail. */
+export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
+  loadMedia(document.createElement('img'), 'load', url);
+
+/** How long a video may take to load before it is sent without its dimensions and thumbnail. */
 export const VIDEO_LOAD_TIMEOUT_MS = 10_000;
 
 /**
- * The times a frame is looked for at, in turn. The first is inside the first frame of a video
- * whose picture starts at zero; a seek to the current time, zero, loads nothing. WebKit shows no
- * frame at a time before the picture starts (B-frames without an edit list, sound that leads the
- * picture), so the later ones look further in.
+ * How long a loaded video may take to show its first frame before it goes on without the
+ * browser's word for one. The picture of a video can start after its sound.
  */
-const FRAME_SEEK_SECONDS = [0.001, 0.1, 0.5];
+export const VIDEO_FRAME_WAIT_MS = 2_000;
 
 /**
- * How long a seek that ended may take to show its frame, and a seek whose frame is shown to end.
- * Safari and Firefox were measured to need under 0.1 s.
+ * Loads a video up to its first frame, for its dimensions or to draw a thumbnail. iOS WebKit
+ * decodes no frame of a video that never plays, so it plays muted until then. WebKit fires
+ * `loadeddata` before the frame can be drawn, so the load also waits until the browser has shown
+ * a frame, for at most `VIDEO_FRAME_WAIT_MS`: a page that is not on screen shows none. A video
+ * that has not loaded after `VIDEO_LOAD_TIMEOUT_MS` rejects, so a send never waits on it.
  */
-export const VIDEO_FRAME_WAIT_MS = 500;
-
-/**
- * Loads a video up to a frame near its start, for its dimensions or to draw a thumbnail. A seek
- * asks for the frame, so the video never plays: WebKit loads only the metadata of a video that
- * neither plays nor seeks, and one that plays until `loadeddata` often has no frame to draw
- * there yet. Rejects on the video's `error`, and when the load has not ended after
- * `VIDEO_LOAD_TIMEOUT_MS`, so a send never waits on it.
- */
-export const loadVideoElement = (url: string): Promise<HTMLVideoElement> => {
+export const loadVideoElement = async (url: string): Promise<HTMLVideoElement> => {
   const video = document.createElement('video');
   Object.assign(video, { preload: 'metadata', playsInline: true, muted: true });
-  return new Promise((resolve, reject) => {
-    const listeners = new AbortController();
-    const on = (event: string, listener: () => void) =>
-      video.addEventListener(event, listener, { signal: listeners.signal });
-    const ready = () => {
-      listeners.abort();
-      resolve(video);
-    };
-    const fail = (reason: string) => {
-      listeners.abort();
-      // Ends the load, so the element no longer holds the file.
-      video.removeAttribute('src');
-      video.load();
-      reject(new Error(`Could not load video ${url}${reason}`));
-    };
-    const timer = setTimeout(
-      () => fail(` within ${VIDEO_LOAD_TIMEOUT_MS} ms`),
-      VIDEO_LOAD_TIMEOUT_MS
-    );
-    let wait: ReturnType<typeof setTimeout> | undefined;
-    listeners.signal.addEventListener('abort', () => {
-      clearTimeout(timer);
-      clearTimeout(wait);
-    });
-
-    // The frame can be drawn once the browser has shown one and the seek has ended. Neither is
-    // enough alone: Safari ends the seek before it has the frame, and Firefox shows a frame it
-    // cannot draw yet while it seeks. A browser that cannot tell when it shows a frame counts as
-    // having shown it.
-    const tellsFrames = 'requestVideoFrameCallback' in video;
-    let frameShown = !tellsFrames;
-    let seeks = 0;
-    const seekOn = () => {
-      const seconds = FRAME_SEEK_SECONDS[seeks];
-      seeks += 1;
-      if (seconds === undefined) {
-        // Nowhere left to look, as in a page that shows no frame because it is not on screen:
-        // the video goes on as it is, with its dimensions.
-        ready();
-        return;
-      }
-      video.currentTime = seconds;
-      // Only the first seek waits on the file to load.
-      if (seeks > 1) settle();
-    };
-    // Runs on each sign of progress. Once the browser has data at the time sought, what is still
-    // missing gets `VIDEO_FRAME_WAIT_MS` to follow. Then the load goes on without it: without
-    // the end of the seek when a frame is shown (WebKit never ends the seek of some WebM files,
-    // yet draws the frame), else with a seek further in.
-    const settle = () => {
-      if (frameShown && !video.seeking) {
-        ready();
-        return;
-      }
-      // No data yet: the seek is still loading it, or the browser cannot decode the file.
-      if (video.readyState < video.HAVE_CURRENT_DATA) return;
-      clearTimeout(wait);
-      wait = setTimeout(frameShown ? ready : seekOn, VIDEO_FRAME_WAIT_MS);
-    };
-    const onFrame = () => {
-      if (listeners.signal.aborted) return;
-      frameShown = true;
-      settle();
-    };
-    on('loadedmetadata', () => {
-      // No picture the browser can decode (only sound): no frame will come.
-      if (video.videoWidth === 0) {
-        ready();
-        return;
-      }
-      if (tellsFrames) video.requestVideoFrameCallback(onFrame);
-      seekOn();
-    });
-    on('seeked', settle);
-    on('loadeddata', settle);
-    on('error', () => fail(''));
-    video.src = url;
+  // A browser that cannot tell when it shows a frame counts as having shown it.
+  const frameShown = new Promise<void>((resolve) => {
+    if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(() => resolve());
+    else resolve();
   });
+  const loaded = loadMedia(video, 'loadeddata', url);
+  // A refused play (Low Power Mode) leaves the timeout to settle the load.
+  video.play()?.catch(() => undefined);
+  const timers: Array<ReturnType<typeof setTimeout>> = [];
+  const after = (ms: number) =>
+    new Promise<void>((resolve) => {
+      timers.push(setTimeout(resolve, ms));
+    });
+  try {
+    await Promise.race([
+      loaded,
+      after(VIDEO_LOAD_TIMEOUT_MS).then(() => {
+        throw new Error(`Could not load video ${url} within ${VIDEO_LOAD_TIMEOUT_MS} ms`);
+      }),
+    ]);
+    // A file with no picture the browser can decode (only sound) shows no frame.
+    if (video.videoWidth > 0) await Promise.race([frameShown, after(VIDEO_FRAME_WAIT_MS)]);
+    return video;
+  } finally {
+    timers.forEach(clearTimeout);
+    video.pause();
+  }
 };
 
 export const getDataTransferFiles = (dataTransfer: DataTransfer): File[] | undefined => {

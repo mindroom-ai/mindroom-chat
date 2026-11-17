@@ -14,11 +14,11 @@ afterEach(() => {
 });
 
 // jsdom never loads media, so the tests fire the element's events by hand.
-const settleLater = (event: 'load' | 'error') => {
+const settleLater = (event: 'load' | 'loadeddata' | 'error') => {
   const create = document.createElement.bind(document);
   vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
     const element = create(tag);
-    if (tag === 'img') {
+    if (tag === 'img' || tag === 'video') {
       Object.defineProperty(element, 'src', {
         configurable: true,
         set: () => queueMicrotask(() => element.dispatchEvent(new Event(event))),
@@ -26,84 +26,6 @@ const settleLater = (event: 'load' | 'error') => {
     }
     return element;
   }) as typeof document.createElement);
-};
-
-type FakeVideoOptions = {
-  /** Whether the browser tells when it shows a frame (`requestVideoFrameCallback`). */
-  tellsFrames?: boolean;
-  /** Zero for a file whose picture the browser cannot decode. */
-  videoWidth?: number;
-  /** False for a browser that drops the seek, as Safari does for some WebM files. */
-  seeks?: boolean;
-};
-
-/**
- * The next video element `loadVideoElement` creates, with the state a browser would give it.
- * `fire` dispatches an event, `showFrame` runs the pending frame callbacks, and `endSeek` ends
- * the seek with data at its time and fires `seeked`.
- */
-const fakeVideo = ({ tellsFrames = false, videoWidth = 1206, seeks = true }: FakeVideoOptions) => {
-  const video = document.createElement('video');
-  const state = {
-    seeking: false,
-    seekedTo: undefined as number | undefined,
-    readyState: video.HAVE_METADATA as number,
-  };
-  const load = vi.fn();
-  let frameCallbacks: Array<() => void> = [];
-  Object.defineProperties(video, {
-    videoWidth: { value: videoWidth },
-    seeking: { get: () => state.seeking },
-    readyState: { get: () => state.readyState },
-    currentTime: {
-      get: () => state.seekedTo ?? 0,
-      set: (seconds: number) => {
-        state.seekedTo = seconds;
-        state.seeking = seeks;
-      },
-    },
-    load: { value: load },
-  });
-  if (tellsFrames) {
-    Object.defineProperty(video, 'requestVideoFrameCallback', {
-      value: (callback: () => void) => frameCallbacks.push(callback),
-    });
-  }
-  const create = document.createElement.bind(document);
-  vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
-    tag === 'video' ? video : create(tag)) as typeof document.createElement);
-  return {
-    video,
-    state,
-    load,
-    fire: (event: string) => video.dispatchEvent(new Event(event)),
-    showFrame: () => {
-      const callbacks = frameCallbacks;
-      frameCallbacks = [];
-      callbacks.forEach((callback) => callback());
-    },
-    endSeek: () => {
-      state.seeking = false;
-      state.readyState = video.HAVE_ENOUGH_DATA;
-      video.dispatchEvent(new Event('seeked'));
-    },
-  };
-};
-
-/** Whether `promise` has settled, after the microtasks queued so far have run. */
-const settled = async (promise: Promise<unknown>): Promise<boolean> => {
-  let done = false;
-  promise.then(
-    () => {
-      done = true;
-    },
-    () => {
-      done = true;
-    }
-  );
-  await Promise.resolve();
-  await Promise.resolve();
-  return done;
 };
 
 describe('loadImageElement', () => {
@@ -122,222 +44,153 @@ describe('loadImageElement', () => {
 });
 
 describe('loadVideoElement', () => {
-  // A browser may refuse to play a video nobody started; a seek needs no such leave.
-  it('creates a muted, inline video that preloads its metadata and never plays', async () => {
-    const play = vi.spyOn(HTMLMediaElement.prototype, 'play');
-    const { video, fire, endSeek } = fakeVideo({});
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-    endSeek();
+  // jsdom implements neither play nor pause.
+  const stubPlayback = (play: () => Promise<void> = () => Promise.resolve()) => ({
+    play: vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play),
+    pause: vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined),
+  });
 
-    await expect(loading).resolves.toBe(video);
+  it('resolves with a muted, inline video with metadata preloading once a frame is ready', async () => {
+    settleLater('loadeddata');
+    const { play, pause } = stubPlayback();
+    const video = await loadVideoElement('blob:video');
     expect(video.preload).toBe('metadata');
     expect(video.playsInline).toBe(true);
     expect(video.muted).toBe(true);
-    expect(video.getAttribute('src')).toBe('blob:video');
-    expect(play).not.toHaveBeenCalled();
+    // iOS WebKit decodes no first frame of a video that never plays.
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(pause).toHaveBeenCalledTimes(1);
   });
 
-  // An iPhone loads only the metadata of a video that does not play: `loadeddata` never comes.
-  it('seeks to the first frame once the metadata is there, without waiting for loadeddata', async () => {
-    const { video, state, fire, endSeek } = fakeVideo({});
-    const loading = loadVideoElement('blob:video');
-    expect(state.seekedTo).toBeUndefined();
-
-    fire('loadedmetadata');
-    expect(state.seekedTo).toBe(0.001);
-    expect(await settled(loading)).toBe(false);
-
-    endSeek();
-    await expect(loading).resolves.toBe(video);
-  });
-
-  // Chrome fires `loadeddata` while the seek for the frame is still going, with nothing to draw.
-  it('does not take loadeddata for the frame while the seek is going', async () => {
-    const { video, fire, endSeek } = fakeVideo({});
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-
-    fire('loadeddata');
-    expect(await settled(loading)).toBe(false);
-
-    endSeek();
-    await expect(loading).resolves.toBe(video);
-  });
-
-  // Safari drops the seek for some WebM files and fires no `seeked`.
-  it('takes loadeddata for the frame when the browser dropped the seek', async () => {
-    const { video, fire } = fakeVideo({ seeks: false });
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-    expect(await settled(loading)).toBe(false);
-
-    fire('loadeddata');
-    await expect(loading).resolves.toBe(video);
-  });
-
-  // Safari ends the seek before it has the frame.
-  it('waits for the browser to show a frame after the seek ended', async () => {
-    const { video, fire, endSeek, showFrame } = fakeVideo({ tellsFrames: true });
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-
-    endSeek();
-    fire('loadeddata');
-    expect(await settled(loading)).toBe(false);
-
-    showFrame();
-    await expect(loading).resolves.toBe(video);
-  });
-
-  // Firefox shows a frame it cannot draw yet while it seeks.
-  it('waits for the seek to end after the browser showed a frame', async () => {
-    const { video, fire, endSeek, showFrame } = fakeVideo({ tellsFrames: true });
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-
-    showFrame();
-    expect(await settled(loading)).toBe(false);
-
-    endSeek();
-    await expect(loading).resolves.toBe(video);
-  });
-
-  // Safari never ends the seek of a WebM file whose picture starts late, yet draws its frame.
-  it('takes the frame the browser showed when the seek does not end in time', async () => {
+  it('rejects when no frame arrives in time, also when playing is refused', async () => {
     vi.useFakeTimers();
-    const { video, state, fire, showFrame } = fakeVideo({ tellsFrames: true });
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-    state.readyState = video.HAVE_CURRENT_DATA;
-    showFrame();
-
-    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS - 1);
-    expect(await settled(loading)).toBe(false);
-
-    vi.advanceTimersByTime(1);
-    await expect(loading).resolves.toBe(video);
-  });
-
-  // Safari shows no frame at a time before the picture starts (B-frames without an edit list).
-  it('seeks further in when the seek ended and no frame shows there', async () => {
-    vi.useFakeTimers();
-    const { video, state, fire, endSeek, showFrame } = fakeVideo({ tellsFrames: true });
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-    endSeek();
-
-    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS - 1);
-    expect(state.seekedTo).toBe(0.001);
-    vi.advanceTimersByTime(1);
-    expect(state.seekedTo).toBe(0.1);
-    expect(await settled(loading)).toBe(false);
-
-    endSeek();
-    showFrame();
-    await expect(loading).resolves.toBe(video);
-  });
-
-  // A page that is not on screen shows no frame at all.
-  it('goes on with the video as it is when no seek shows a frame', async () => {
-    vi.useFakeTimers();
-    const { video, state, load, fire, endSeek } = fakeVideo({ tellsFrames: true });
-    const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-
-    for (const seconds of [0.001, 0.1, 0.5]) {
-      expect(state.seekedTo).toBe(seconds);
-      endSeek();
-      expect(await settled(loading)).toBe(false);
-      vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS);
+    try {
+      stubPlayback(() => Promise.reject(new DOMException('refused', 'NotAllowedError')));
+      const loading = loadVideoElement('blob:silent');
+      const settled = expect(loading).rejects.toThrow(
+        `Could not load video blob:silent within ${VIDEO_LOAD_TIMEOUT_MS} ms`
+      );
+      await vi.advanceTimersByTimeAsync(VIDEO_LOAD_TIMEOUT_MS);
+      await settled;
+    } finally {
+      vi.useRealTimers();
     }
-
-    await expect(loading).resolves.toBe(video);
-    expect(video.getAttribute('src')).toBe('blob:video');
-    expect(load).not.toHaveBeenCalled();
   });
 
-  // Safari, for a WebM file whose picture starts late, on a page that shows no frame.
-  it('does not wait on a seek that never ends once the browser has data', async () => {
-    vi.useFakeTimers();
-    const { video, state, fire } = fakeVideo({ tellsFrames: true });
+  it('rejects naming the url when the video fails', async () => {
+    settleLater('error');
+    stubPlayback();
+    await expect(loadVideoElement('blob:broken')).rejects.toThrow(
+      'Could not load video blob:broken'
+    );
+  });
+
+  /**
+   * The next video `loadVideoElement` creates, in a browser that tells when it shows a frame
+   * (`requestVideoFrameCallback`). `showFrame` runs the pending frame callbacks.
+   */
+  const fakeVideo = (videoWidth = 1206) => {
+    const video = document.createElement('video');
+    let frameCallbacks: Array<() => void> = [];
+    Object.defineProperties(video, {
+      videoWidth: { value: videoWidth },
+      requestVideoFrameCallback: {
+        value: (callback: () => void) => frameCallbacks.push(callback),
+      },
+    });
+    const create = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+      tag === 'video' ? video : create(tag)) as typeof document.createElement);
+    return {
+      video,
+      loaded: () => video.dispatchEvent(new Event('loadeddata')),
+      showFrame: () => {
+        const callbacks = frameCallbacks;
+        frameCallbacks = [];
+        callbacks.forEach((callback) => callback());
+      },
+    };
+  };
+
+  /** Whether `promise` has settled, once the microtasks it waits on have run. */
+  const settled = async (promise: Promise<unknown>): Promise<boolean> => {
+    let done = false;
+    const mark = () => {
+      done = true;
+    };
+    promise.then(mark, mark);
+    for (let tick = 0; tick < 10; tick += 1) {
+      await Promise.resolve();
+    }
+    return done;
+  };
+
+  // Safari fires `loadeddata` before it can draw the frame: the thumbnail came out black.
+  it('waits after loadeddata until the browser has shown a frame', async () => {
+    const { pause } = stubPlayback();
+    const { video, loaded, showFrame } = fakeVideo();
     const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
 
-    // Chrome and Firefox fire `loadeddata` before the seek has loaded its data.
-    fire('loadeddata');
-    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS);
-    expect(state.seekedTo).toBe(0.001);
+    loaded();
+    expect(await settled(loading)).toBe(false);
+    expect(pause).not.toHaveBeenCalled();
 
-    state.readyState = video.HAVE_CURRENT_DATA;
-    fire('loadeddata');
-    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS);
-    expect(state.seekedTo).toBe(0.1);
-    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS);
-    expect(state.seekedTo).toBe(0.5);
+    showFrame();
+    await expect(loading).resolves.toBe(video);
+    expect(pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes a frame the browser showed before loadeddata', async () => {
+    stubPlayback();
+    const { video, loaded, showFrame } = fakeVideo();
+    const loading = loadVideoElement('blob:video');
+
+    showFrame();
     expect(await settled(loading)).toBe(false);
 
-    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS);
+    loaded();
     await expect(loading).resolves.toBe(video);
   });
 
-  it('resolves at once, without a seek, for a file with no picture to decode', async () => {
-    const { video, state, fire } = fakeVideo({ tellsFrames: true, videoWidth: 0 });
-    const loading = loadVideoElement('blob:sound-only');
-    fire('loadedmetadata');
-
-    await expect(loading).resolves.toBe(video);
-    expect(state.seekedTo).toBeUndefined();
-  });
-
-  it('rejects naming the url when the video fails, and lets the file go', async () => {
-    const { video, load, fire } = fakeVideo({});
-    const loading = loadVideoElement('blob:broken');
-    fire('error');
-
-    await expect(loading).rejects.toThrow('Could not load video blob:broken');
-    expect(video.hasAttribute('src')).toBe(false);
-    expect(load).toHaveBeenCalledTimes(1);
-  });
-
-  // Safari ends the seek at once, with no data, for a file it cannot decode.
-  it('rejects when no data came in time, and lets the file go', async () => {
+  // A page that is not on screen shows no frame, and a picture can start long after the sound.
+  it('goes on without a shown frame after the frame wait, as it did at loadeddata before', async () => {
     vi.useFakeTimers();
-    const { video, state, load, fire, showFrame } = fakeVideo({ tellsFrames: true });
-    const loading = loadVideoElement('blob:stuck');
-    fire('loadedmetadata');
-    state.seeking = false;
-    fire('seeked');
+    const { pause } = stubPlayback();
+    const { video, loaded } = fakeVideo();
+    const loading = loadVideoElement('blob:video');
+    loaded();
+    expect(await settled(loading)).toBe(false);
 
-    vi.advanceTimersByTime(VIDEO_LOAD_TIMEOUT_MS - 1);
-    expect(state.seekedTo).toBe(0.001);
+    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS - 1);
     expect(await settled(loading)).toBe(false);
 
     vi.advanceTimersByTime(1);
-    await expect(loading).rejects.toThrow(
-      `Could not load video blob:stuck within ${VIDEO_LOAD_TIMEOUT_MS} ms`
-    );
-    expect(video.hasAttribute('src')).toBe(false);
-    expect(load).toHaveBeenCalledTimes(1);
-
-    // A frame that comes after all starts nothing.
-    showFrame();
+    await expect(loading).resolves.toBe(video);
+    expect(pause).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('stops its timers once the frame is there', async () => {
+  it('does not wait for a frame of a file with no picture to decode', async () => {
+    stubPlayback();
+    const { video, loaded } = fakeVideo(0);
+    const loading = loadVideoElement('blob:sound-only');
+
+    loaded();
+    await expect(loading).resolves.toBe(video);
+  });
+
+  it('stops both timers once the frame is shown', async () => {
     vi.useFakeTimers();
-    const { video, load, fire, endSeek, showFrame } = fakeVideo({ tellsFrames: true });
+    stubPlayback();
+    const { video, loaded, showFrame } = fakeVideo();
     const loading = loadVideoElement('blob:video');
-    fire('loadedmetadata');
-    endSeek();
+    loaded();
+    expect(await settled(loading)).toBe(false);
+    expect(vi.getTimerCount()).toBe(2);
+
     showFrame();
     await expect(loading).resolves.toBe(video);
-
     expect(vi.getTimerCount()).toBe(0);
-    vi.advanceTimersByTime(2 * VIDEO_LOAD_TIMEOUT_MS);
-    expect(video.getAttribute('src')).toBe('blob:video');
-    expect(load).not.toHaveBeenCalled();
   });
 });
 
