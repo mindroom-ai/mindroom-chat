@@ -1015,6 +1015,7 @@
     },
     "sentence": {
       "approval": "{{name}} 需要核准",
+      "approvalUnknown": "背景工作需要核准",
       "question": "{{name}} 向你提問",
       "invite": "{{name}} 邀請了你",
       "inviteUnknown": "你收到了邀請",

@@ -70,7 +70,7 @@ const threadKind = (signals: ThreadSignals, waits: boolean): ActivityThreadRow['
 };
 
 const actorsOf = (kind: ActivityThreadRow['kind'], signals: ThreadSignals): string[] => {
-  if (kind === 'approval') return [signals.pendingApproval?.sender ?? ''];
+  if (kind === 'approval') return signals.pendingApproval ? [signals.pendingApproval.sender] : [];
   if (kind === 'question') return [signals.pendingQuestion?.senderId ?? ''];
   if ((kind === 'finished' || kind === 'stopped') && signals.outcome) {
     return [signals.outcome.senderId];

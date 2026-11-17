@@ -86,6 +86,7 @@ describe('buildActivityRows', () => {
       signals: () => ({ ...quiet, automation: true }),
     });
     expect(kinds(rows)).toEqual(['job:approval']);
+    expect(rows[0]).toMatchObject({ actorIds: [] });
     expect(filterActivityRows(rows, 'needsYou', true)).toEqual(rows);
     expect(unreadCount(rows)).toBe(1);
     expect(hiddenAutomations).toBe(0);

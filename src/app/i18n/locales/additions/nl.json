@@ -1033,6 +1033,7 @@
     },
     "sentence": {
       "approval": "{{name}} vraagt om goedkeuring",
+      "approvalUnknown": "Een achtergrondtaak heeft goedkeuring nodig",
       "question": "{{name}} heeft je iets gevraagd",
       "invite": "{{name}} heeft je uitgenodigd",
       "inviteUnknown": "Je bent uitgenodigd",

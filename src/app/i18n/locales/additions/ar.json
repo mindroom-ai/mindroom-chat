@@ -1105,6 +1105,7 @@
     },
     "sentence": {
       "approval": "يحتاج ⁨{{name}}⁩ إلى موافقة",
+      "approvalUnknown": "تحتاج مهمة في الخلفية إلى موافقة",
       "question": "سألك ⁨{{name}}⁩",
       "invite": "دعاك ⁨{{name}}⁩",
       "inviteUnknown": "تمت دعوتك",
