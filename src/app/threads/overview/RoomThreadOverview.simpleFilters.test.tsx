@@ -54,6 +54,14 @@ const unresolvedToggles = () => byData('data-simple-unresolved-toggle');
 const statusToggles = () => byData('data-filter-state');
 
 describe('thread filter bar modes', () => {
+  it('reserves the width of the total beside the count, so the tabs after it stay put', () => {
+    renderBar(true, { threadCount: 1, totalThreadCount: 527 });
+    const [badge] = byData('data-thread-count');
+    const [count] = badge?.findAll((node) => node.props.className === css.CompactCountValue) ?? [];
+    expect(count?.props['data-reserve']).toBe('527');
+    expect(count?.props.children).toBe('1');
+  });
+
   it('starts with the simple filters', () => {
     expect(getSettings().simpleThreadFilters).toBe(true);
   });

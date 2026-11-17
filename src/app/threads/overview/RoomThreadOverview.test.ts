@@ -45,6 +45,7 @@ vi.mock('./RoomThreadOverview.css', () => ({
   ToolbarHeader: 'ToolbarHeader',
   ToggleButton: 'ToggleButton',
   CompactCount: 'CompactCount',
+  CompactCountValue: 'CompactCountValue',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',
   PauseButtonActive: 'PauseButtonActive',
