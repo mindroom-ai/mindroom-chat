@@ -51,6 +51,7 @@ vi.mock('./RoomThreadOverview.css', () => ({
   FilterDropdown: 'FilterDropdown',
   InfoContainer: 'InfoContainer',
   InfoButton: 'InfoButton',
+  SearchButtonFiltering: 'SearchButtonFiltering',
   InfoPopover: 'InfoPopover',
   InfoStatRow: 'InfoStatRow',
   InfoSectionDivider: 'InfoSectionDivider',
@@ -337,6 +338,26 @@ describe('RoomThreadOverview', () => {
     expect(sortBtn.props.className).not.toContain('SortButtonActive');
 
     renderer.unmount();
+  });
+
+  it('collapsed search button lights up only for filters just the query shows', () => {
+    const searchButtonClass = (state: ThreadFilterState) => {
+      const renderer = create(React.createElement(RoomThreadOverview, { ...defaultProps, state }));
+      const button = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
+      const className = String(button.props.className);
+      renderer.unmount();
+      return className;
+    };
+
+    expect(searchButtonClass(makeDefaultState({ freeText: 'deploy' }))).toContain(
+      'SearchButtonFiltering'
+    );
+    expect(searchButtonClass(makeDefaultState({ unread: 'include' }))).toContain(
+      'SearchButtonFiltering'
+    );
+    expect(searchButtonClass(makeDefaultState({ tab: 'needsYou' }))).not.toContain(
+      'SearchButtonFiltering'
+    );
   });
 
   it('renders compact thread count instead of Threads (N)', () => {

@@ -246,6 +246,18 @@ export const InfoButton = style({
   },
 });
 
+// After InfoButton, whose background and color it overrides.
+export const SearchButtonFiltering = style({
+  backgroundColor: color.Primary.Container,
+  color: color.Primary.OnContainer,
+
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.Primary.ContainerHover } },
+    },
+  },
+});
+
 export const InfoPopover = style({
   position: 'absolute',
   top: `calc(${TOGGLE_SIZE} + ${config.space.S100})`,

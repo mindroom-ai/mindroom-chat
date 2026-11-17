@@ -211,6 +211,23 @@ describe('roomThreadOverviewModel', () => {
       expect(isOrModeStatusChip(workingState, 'streaming')).toBe(true);
       expect(isOrModeStatusChip(workingState, 'resolved')).toBe(false);
     });
+
+    it('counts only the filters that just the search query shows', async () => {
+      const { hasSearchOnlyThreadFilters } = await import('./roomThreadOverviewModel');
+
+      expect(hasSearchOnlyThreadFilters(makeDefaultState({ snoozed: 'exclude' }))).toBe(false);
+      expect(hasSearchOnlyThreadFilters(makeDefaultState({ tab: 'needsYou' }))).toBe(false);
+      expect(
+        hasSearchOnlyThreadFilters(makeDefaultState({ tags: new Map([['review', 'include']]) }))
+      ).toBe(false);
+      expect(hasSearchOnlyThreadFilters(makeDefaultState({ people: ['@a:x'] }))).toBe(false);
+      expect(hasSearchOnlyThreadFilters(makeDefaultState({ freeText: 'deploy' }))).toBe(true);
+      expect(hasSearchOnlyThreadFilters(makeDefaultState({ unsupportedQuery: 'foo:bar' }))).toBe(
+        true
+      );
+      expect(hasSearchOnlyThreadFilters(makeDefaultState({ unread: 'include' }))).toBe(true);
+      expect(hasSearchOnlyThreadFilters(makeDefaultState({ snoozed: 'include' }))).toBe(true);
+    });
   });
 
   describe('tag filter helpers', () => {
