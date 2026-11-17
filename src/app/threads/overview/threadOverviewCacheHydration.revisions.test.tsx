@@ -264,7 +264,7 @@ it('refreshes a cached preview when the reply finishes outside the loaded thread
   let records = new Map([[rootId, buildThreadRecord({ room, threadRootId: rootId })]]);
   let preview: string | undefined;
   function Harness() {
-    const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
+    const cachedMetadata = useThreadOverviewCachedMetadata(room);
     preview = cachedMetadata.latestReplyPreviewMap.get(rootId);
     useThreadOverviewCacheHydration({
       overviewThreadRootIds: roots,

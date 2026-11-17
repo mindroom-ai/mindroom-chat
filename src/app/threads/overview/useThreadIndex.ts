@@ -537,7 +537,7 @@ export const useThreadIndex = ({
     roomThreadListFullyLoaded &&
     !roomThreadListLoading &&
     zeroReplyRootCount > 0;
-  const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
+  const cachedMetadata = useThreadOverviewCachedMetadata(room);
 
   const compactThreadRootBodyMap = useMemo(() => {
     return mergeCompactThreadRootBodyMaps(

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import type { Room } from 'matrix-js-sdk';
 import type { ThreadCacheCoverage } from '../../event-store/threads/types';
 import { hasLikelyIncompleteStreamingBody } from '../../event-store/threads/threadEditBackfill';
 
@@ -179,29 +180,41 @@ export const mergeCompactThreadRootBodyMaps = (
   return bodyMap;
 };
 
+/**
+ * Each room's latest snapshot. Opening a thread unmounts the room's list, and the cache is read
+ * again only some time after it mounts on the way back; until then the cards sorted without what
+ * the cache had added, and traded places once it was read.
+ */
+const roomSnapshots = new WeakMap<Room, ThreadOverviewCachedMetadataSnapshot>();
+
+const snapshotOf = (room: Room): ThreadOverviewCachedMetadataSnapshot =>
+  roomSnapshots.get(room) ?? createEmptyThreadOverviewCachedMetadata();
+
 export const useThreadOverviewCachedMetadata = (
-  roomId: string
+  room: Room
 ): ThreadOverviewCachedMetadataController => {
-  const [snapshot, setSnapshot] = useState(createEmptyThreadOverviewCachedMetadata);
-  const snapshotRoomIdRef = useRef(roomId);
+  const [snapshot, setSnapshot] = useState(() => snapshotOf(room));
+  const snapshotRoomRef = useRef(room);
   const compactRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    // The initial snapshot is already empty; replacing it rebuilds every thread record.
-    if (snapshotRoomIdRef.current === roomId) return;
-    snapshotRoomIdRef.current = roomId;
+    // The initial snapshot is already this room's; replacing it rebuilds every thread record.
+    if (snapshotRoomRef.current === room) return;
+    snapshotRoomRef.current = room;
     compactRootPreviewAttemptCountsRef.current = new Map();
-    setSnapshot(createEmptyThreadOverviewCachedMetadata());
-  }, [roomId]);
+    setSnapshot(snapshotOf(room));
+  }, [room]);
 
   const applyUpdates = useCallback(
     (
       updates: ThreadOverviewCachedMetadataUpdate[],
       options: ApplyThreadOverviewCachedMetadataUpdatesOptions
     ) => {
-      setSnapshot((previous) =>
-        applyThreadOverviewCachedMetadataUpdates(previous, updates, options)
-      );
+      setSnapshot((previous) => {
+        const next = applyThreadOverviewCachedMetadataUpdates(previous, updates, options);
+        roomSnapshots.set(snapshotRoomRef.current, next);
+        return next;
+      });
     },
     []
   );
