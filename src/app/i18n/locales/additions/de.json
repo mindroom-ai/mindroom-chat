@@ -665,6 +665,24 @@
       "noCrossSigning": "Die Watch ist verbunden, aber nicht verifiziert: Richte auf diesem iPhone die Verschlüsselung ein, um sie zu verifizieren.",
       "noBackup": "Die Watch ist verifiziert, kann aber Nachrichten von vor der Verbindung nicht lesen: Aktiviere die Schlüsselsicherung auf diesem iPhone.",
       "timeout": "Die Watch hat die Anmeldung nicht abgeschlossen. Öffne MindRoom auf der Watch und verbinde erneut."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Regeln für Thread-Titel",
+          "description": "Zusätzliche Regeln für die Titel, die die KI von MindRoom den Threads dieses Raums gibt. Sie haben Vorrang vor den üblichen Titelregeln.",
+          "placeholder": "Zum Beispiel: Höchstens 4 Wörter nach dem Emoji",
+          "note": "Bereits vergebene Titel behalten ihren Wortlaut bis zur nächsten Aktualisierung."
+        },
+        "save": "Speichern",
+        "clear": "Löschen",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
+        "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal."
+      }
     }
   },
   "mindroomUi": {
