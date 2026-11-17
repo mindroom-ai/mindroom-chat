@@ -346,8 +346,8 @@ const detectDivergence = (
  * through `persistRepair`. An unopened thread is left alone: loading its first
  * page replaces its timeline and replays its buffered relations.
  *
- * Only events newer than every event an older segment holds go to the live
- * segment. After a sync gap, or once history is joined behind it, older
+ * Only events newer than every event an older segment was given go to the
+ * live segment. After a sync gap, or once history is joined behind it, older
  * segments hold part of the history; anything not newer than them belongs in
  * or behind them, and prepending it to the live segment put it after newer
  * events, which SDK pagination then linked into a segment cycle that froze the
@@ -366,12 +366,12 @@ const addFetchedEventsToThread = (thread: Thread, fetchedEvents: MatrixEvent[]):
   if (events.some((event) => !timelineSet.eventIdToTimeline(event.getId()!))) {
     void thread.flushPendingTimelineReset();
   }
+  // By the newest event each older segment was given, not the events it holds: the room releases
+  // superseded edits from segments, or keeps them out (Relations.releaseFromTimelines).
   let newestElsewhereTs = -Infinity;
   timelineSet.getTimelines().forEach((timeline) => {
     if (timeline === thread.liveTimeline) return;
-    timeline.getEvents().forEach((event) => {
-      newestElsewhereTs = Math.max(newestElsewhereTs, event.getTs());
-    });
+    newestElsewhereTs = Math.max(newestElsewhereTs, timeline.getNewestEventTs() ?? -Infinity);
   });
   const liveEvents = events.filter((event) => event.getTs() > newestElsewhereTs);
   const [earliest] = thread.events;

@@ -292,55 +292,91 @@ describe('reconciler SDK thread injection', () => {
       setReplacementRetentionPolicy(undefined);
     });
 
-    it('keeps the place of an older segment that held only an edit the room released', async () => {
-      const env = setup();
-      const sdkThread = createInitializedThreadForRoot(env.room, env.root);
-      // An older page of the thread, standing alone, with only an edit of a stream in it.
+    /** An older page of the thread, standing alone before the live one, which `events` arrive in. */
+    const olderSegment = (env: ReturnType<typeof setup>, sdkThread: Thread) => {
       const { timelineSet } = sdkThread;
       const older = timelineSet.addTimeline();
-      const olderEdit = env.mapper({ ...edit(1), event_id: '$old-stream', origin_server_ts: 1100 });
-      sdkThread.setEventMetadata(olderEdit);
-      timelineSet.addEventsToTimeline([olderEdit], true, false, older, 'older-page');
-      // The live page: a reply, and a newer edit of the stream, which releases the older one.
-      sdkThread.addEvents(
-        [
-          env.mapper(reply(15)),
-          env.mapper({ ...edit(1), event_id: '$new-stream', origin_server_ts: 2000 }),
-        ],
-        false
-      );
       older.setNeighbouringTimeline(sdkThread.liveTimeline, Direction.Forward);
       sdkThread.liveTimeline.setNeighbouringTimeline(older, Direction.Backward);
+      /** Adds `events`, newest first, as a page of the thread does. */
+      const add = (events: Partial<IEvent>[], token: string) => {
+        const page = events.map(env.mapper);
+        page.forEach((event) => sdkThread.setEventMetadata(event));
+        timelineSet.addEventsToTimeline(page, true, false, older, token);
+      };
+      return { older, add };
+    };
+    /** An edit of a stream that went on: the one at 2000 takes the place of the one at 1100. */
+    const streamEdit = (id: string, ts: number) => ({
+      ...edit(1),
+      event_id: id,
+      origin_server_ts: ts,
+    });
+    const liveReplyAndNewerEdit = (env: ReturnType<typeof setup>, sdkThread: Thread) =>
+      sdkThread.addEvents(
+        [env.mapper(reply(15)), env.mapper(streamEdit('$new-stream', 2000))],
+        false
+      );
+
+    it.each(['the older segment first', 'the live segment first'] as const)(
+      'keeps the place of an older segment whose only edit the room released, with %s',
+      async (order) => {
+        const env = setup();
+        const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+        const older = olderSegment(env, sdkThread);
+        // The older edit leaves the older segment, or never enters it.
+        if (order === 'the older segment first') {
+          older.add([streamEdit('$old-stream', 1100)], 'older-page');
+          liveReplyAndNewerEdit(env, sdkThread);
+        } else {
+          liveReplyAndNewerEdit(env, sdkThread);
+          older.add([streamEdit('$old-stream', 1100)], 'older-page');
+        }
+        await settle();
+        expect(older.older.getEvents()).toEqual([]);
+
+        await reconcile(env, sdkThread, [reply(5), reply(8)]);
+        // Pagination brings the replies before the older page, where they belong.
+        older.add([reply(8), reply(7), reply(5)], 'earlier');
+
+        expect(segmentEventIds(sdkThread)).toEqual([
+          ['$reply-15', '$new-stream'],
+          ['$reply-5', '$reply-7', '$reply-8'],
+        ]);
+        // The segments still lead from the older one to the live one, and back, without a cycle.
+        expect(older.older.getNeighbouringTimeline(Direction.Forward)).toBe(sdkThread.liveTimeline);
+        expect(older.older.getNeighbouringTimeline(Direction.Backward)).toBeNull();
+        const { timelineSet } = sdkThread;
+        expect(timelineSet.compareEventOrdering('$reply-5', '$reply-7')).toBeLessThan(0);
+        expect(timelineSet.compareEventOrdering('$reply-8', '$reply-15')).toBeLessThan(0);
+        // So a later server receipt advances the read position.
+        const receipt = (eventId: string, ts: number) =>
+          sdkThread.addReceiptToStructure(
+            eventId,
+            'm.read' as never,
+            '@bob:example.org',
+            { ts, thread_id: ROOT },
+            false
+          );
+        receipt('$reply-5', 500);
+        receipt('$reply-7', 700);
+        expect(sdkThread.getReadReceiptForUserId('@bob:example.org')?.eventId).toBe('$reply-7');
+      }
+    );
+
+    it('keeps the place of an older segment whose newest event, an edit, the room released', async () => {
+      const env = setup();
+      const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+      const older = olderSegment(env, sdkThread);
+      older.add([streamEdit('$old-stream', 1100), reply(9)], 'older-page');
+      liveReplyAndNewerEdit(env, sdkThread);
       await settle();
+      expect(older.older.getEvents().map((event) => event.getId())).toEqual(['$reply-9']);
 
-      await reconcile(env, sdkThread, [reply(5), reply(8)]);
-      // Pagination brings the replies before the older page, where they belong.
-      const page = [reply(8), reply(7), reply(5)].map(env.mapper);
-      page.forEach((event) => sdkThread.setEventMetadata(event));
-      timelineSet.addEventsToTimeline(page, true, false, older, 'earlier');
+      await reconcile(env, sdkThread, [reply(5), reply(8), reply(10)]);
 
-      // The older segment kept its only event, the place the reconcile put the replies behind.
-      expect(segmentEventIds(sdkThread)).toEqual([
-        ['$reply-15', '$new-stream'],
-        ['$reply-5', '$reply-7', '$reply-8', '$old-stream'],
-      ]);
-      // The segments still lead from the older one to the live one, and back, without a cycle.
-      expect(older.getNeighbouringTimeline(Direction.Forward)).toBe(sdkThread.liveTimeline);
-      expect(older.getNeighbouringTimeline(Direction.Backward)).toBeNull();
-      expect(timelineSet.compareEventOrdering('$reply-5', '$reply-7')).toBeLessThan(0);
-      expect(timelineSet.compareEventOrdering('$reply-8', '$reply-15')).toBeLessThan(0);
-      // So a later server receipt advances the read position.
-      const receipt = (eventId: string, ts: number) =>
-        sdkThread.addReceiptToStructure(
-          eventId,
-          'm.read' as never,
-          '@bob:example.org',
-          { ts, thread_id: ROOT },
-          false
-        );
-      receipt('$reply-5', 500);
-      receipt('$reply-7', 700);
-      expect(sdkThread.getReadReceiptForUserId('@bob:example.org')?.eventId).toBe('$reply-7');
+      // Reply 10 is older than the older segment's newest event: pagination places it.
+      expect(segmentEventIds(sdkThread)).toEqual([['$reply-15', '$new-stream'], ['$reply-9']]);
     });
   });
 });

@@ -116,8 +116,7 @@ const timelineEdits = (room: Room) =>
 /**
  * The edits a timeline of `room` holds that its relations do not: none, but for one redacted or
  * still being decrypted, which the relations have not taken (yet). Nothing reads an edit from a
- * timeline, so one the relations released is gone from the timelines too, unless it was the only
- * event of its timeline then, which it keeps for the timeline's place among the others.
+ * timeline, so one the relations released is gone from the timelines too.
  */
 const unheldTimelineEdits = (room: Room) =>
   timelineEdits(room)
@@ -133,11 +132,8 @@ const unheldTimelineEdits = (room: Room) =>
 describe('the edits a room keeps of a message', () => {
   let support: FeatureSupport;
   let rooms: Room[] = [];
-  /** The released edits a test expects a timeline to keep as its only event. */
-  let keptForPlace: string[] = [];
   beforeEach(() => {
     rooms = [];
-    keptForPlace = [];
     support = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.None;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -145,7 +141,7 @@ describe('the edits a room keeps of a message', () => {
     setReplacementRetentionPolicy(getReleasableEdits);
   });
   afterEach(() => {
-    for (const room of rooms) expect(unheldTimelineEdits(room)).toEqual(keptForPlace);
+    for (const room of rooms) expect(unheldTimelineEdits(room)).toEqual([]);
     setReplacementRetentionPolicy(undefined);
     Thread.hasServerSideSupport = support;
     vi.restoreAllMocks();
@@ -342,7 +338,7 @@ describe('the edits a room keeps of a message', () => {
     expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('older');
   });
 
-  it('keep the only edit of an older segment, which pages on from its place', async () => {
+  it('leave an older segment that held only edits empty, which pages on from its place', async () => {
     const { client, room, thread, reply, serve } = await openedServerThread();
     const { timelineSet } = thread;
     const live = timelineSet.getLiveTimeline();
@@ -361,13 +357,10 @@ describe('the edits a room keeps of a message', () => {
     await room.addLiveEvents([edit('$edit-3', 13)], { addToState: false });
     await tick();
 
-    // Released, the older edit still holds the segment's place.
-    keptForPlace = ['$edit-2'];
-    expect(
-      timelineEdits(room)
-        .map((event) => event.getId())
-        .sort()
-    ).toEqual(['$edit-2', '$edit-3']);
+    expect(timelineEdits(room).map((event) => event.getId())).toEqual(['$edit-3']);
+    expect(segment()).toEqual([]);
+    // The segment still knows how new the events it was given are (the reconciler places by it).
+    expect(older.getNewestEventTs()).toBe(12);
     expect(getEditedEvent(REPLY, reply, timelineSet)?.getId()).toBe('$edit-3');
     // The segment pages back from its token, past the edits the room released.
     const fetched = serve(
@@ -384,7 +377,8 @@ describe('the edits a room keeps of a message', () => {
     await tick();
 
     expect(fetched.mock.lastCall?.[4]).toMatchObject({ from: 'before-older' });
-    expect(segment()).toEqual(['$early', '$edit-2']);
+    expect(segment()).toEqual(['$early']);
+    expect(older.getNewestEventTs()).toBe(12);
     expect(older.getPaginationToken(Direction.Backward)).toBe('before-early');
     expect(timelineSet.compareEventOrdering('$early', REPLY)).toBe(-1);
   });
