@@ -522,6 +522,33 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.send).toHaveBeenCalledTimes(1);
   });
+  it('keeps a cached button and its room cache while local capacity refuses its probe', async () => {
+    const h = setup();
+    (await h.discover())();
+    const busy = Array.from({ length: 8 }, (_, index) =>
+      h.controller.subscribe(h.room, '$busy' + index, () => {})
+    );
+    await flush();
+    h.controller.subscribe(h.room, '$ninth', () => {});
+    await flush();
+    expect(h.snapshot('$ninth')).toMatchObject({ eligible: true, canMutate: false });
+    expect(h.snapshot('$ninth').error).toBeDefined();
+    const asked = h.queued.length;
+    for (let wake = 0; wake < 6; wake += 1) {
+      h.mx.emit(ClientEvent.Sync, SyncState.Reconnecting, SyncState.Syncing);
+      h.mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Reconnecting);
+      await flush();
+    }
+    expect(h.queued.length).toBe(asked);
+    expect(h.snapshot('$ninth').eligible).toBe(true);
+    expect(h.snapshot('$fresh').eligible).toBe(true);
+    busy.forEach((leave) => leave());
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(h.request().thread_id).toBe('$ninth');
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot('$ninth')).toMatchObject({ eligible: true, canMutate: true });
+  });
   it('hides a revalidating button after 5 failed attempts and shows it on a later answer', async () => {
     const h = setup();
     await h.discover();

@@ -269,7 +269,7 @@ export class ModelController {
       return;
     if (this.queries.size >= 8) {
       this.publish(scope, { error: 'Model discovery is busy. Try again.' });
-      this.retryLater(scope);
+      this.retryLater(scope, false);
       return;
     }
     clearTimeout(scope.retry);
@@ -335,7 +335,7 @@ export class ModelController {
           ? { error: 'Model discovery unavailable. Retry or use !model.' }
           : {}),
       });
-      this.retryLater(scope);
+      this.retryLater(scope, query.devices.length > 0);
       return;
     }
     scope.catalogs = query.replies;
@@ -359,18 +359,26 @@ export class ModelController {
     this.showRuntime(scope, runtime);
   }
 
-  /** An attempt failed: ask again later while a composer shows the scope, hiding a stale button. */
-  private retryLater(scope: Scope): void {
+  /**
+   * Asks again later while a composer shows the scope. Only an unanswered request that was sent
+   * (`failed`) counts toward hiding a stale button; a local refusal only waits.
+   */
+  private retryLater(scope: Scope, failed: boolean): void {
     clearTimeout(scope.retry);
     if (!this.active() || !scope.listeners.size) return;
-    scope.failures += 1;
-    if (scope.failures >= STALE_ATTEMPTS && scope.snapshot.eligible && !scope.catalogs.size) {
+    if (failed) scope.failures += 1;
+    if (
+      failed &&
+      scope.failures >= STALE_ATTEMPTS &&
+      scope.snapshot.eligible &&
+      !scope.catalogs.size
+    ) {
       // A room that lost its router keeps no dead button; the retries bring it back.
       this.roomCatalogs.delete(scope.room.roomId);
       scope.kept = undefined;
       this.publish(scope, { ...emptySnapshot(), pending: !!scope.send });
     }
-    const delay = RETRY_DELAYS[Math.min(scope.failures, RETRY_DELAYS.length) - 1];
+    const delay = RETRY_DELAYS[Math.max(Math.min(scope.failures, RETRY_DELAYS.length) - 1, 0)];
     scope.retry = setTimeout(() => {
       scope.retry = undefined;
       if (this.active() && scope.listeners.size) this.refresh(scope.room, scope.threadId);
