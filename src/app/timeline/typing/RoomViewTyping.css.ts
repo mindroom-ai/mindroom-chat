@@ -16,12 +16,15 @@ export const TypingStrip = style([
     display: 'flex',
     alignItems: 'center',
     gap: config.space.S200,
-    // The strip hugs its text, up to the composer's width.
+    // Beside the jobs bar the strip hugs its text, the bar taking nearly all the room left (its
+    // flex-grow is far larger); on a line of its own it spans it, as the jobs bar does.
     inlineSize: 'fit-content',
     maxInlineSize: '100%',
+    flexGrow: 1,
     minWidth: 0,
     marginBlockEnd: config.space.S200,
-    paddingBlock: toRem(2),
+    // As tall as the jobs bar: the same padding around a 24 px line.
+    paddingBlock: config.space.S100,
     paddingInlineStart: config.space.S300,
     paddingInlineEnd: toRem(2),
     borderRadius: config.radii.R400,
@@ -34,8 +37,8 @@ export const TypingStrip = style([
   },
 ]);
 
-// The ✕ that drops the strip: 24 px, 44 by 44 px to a finger. Its area reaches 8 px past the strip
-// on each side, as far as the gaps to the jobs bar beside or above it and to the composer go.
+// The ✕ that drops the strip: 24 px, 44 by 44 px to a finger. Its area reaches 6 px past the strip
+// above and below and 8 px past its end, within the gaps to the jobs bar and to the composer.
 export const DropButton = style(touchTarget('22px'));
 
 export const TypingText = style({

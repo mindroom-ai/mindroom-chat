@@ -50,7 +50,7 @@ export const Footer = style({
 globalStyle(`${Footer} > *`, { pointerEvents: 'auto' });
 // In the dock, the typing strip and the background jobs bar share a line when the conversation
 // is wide enough: the strip first, as wide as its text, the bar taking the rest. Too narrow for
-// both, the bar wraps above the strip. Only the two take clicks, so the timeline beside the strip
+// both, the bar wraps above the strip, and each spans the line. Only the two take clicks, so the timeline beside the strip
 // stays usable.
 export const DockRow = style({
   display: 'flex',

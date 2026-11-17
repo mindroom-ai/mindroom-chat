@@ -245,12 +245,29 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
       stripFirst: strip.x + strip.width < jobs.x,
       sameBottom: Math.abs(strip.y + strip.height - (jobs.y + jobs.height)) < 1,
       barAbove: jobs.y + jobs.height <= strip.y,
+      sameHeight: Math.abs(strip.height - jobs.height) < 0.5,
+      sameWidth: Math.abs(strip.width - jobs.width) < 0.5,
     };
   };
-  await expect.poll(placement).toEqual({ stripFirst: true, sameBottom: true, barAbove: false });
+  await expect.poll(placement).toEqual({
+    stripFirst: true,
+    sameBottom: true,
+    barAbove: false,
+    sameHeight: true,
+    sameWidth: false,
+  });
+  // Beside the bar, the strip stays as wide as its text.
+  const stripText = typingStrip.locator('p');
+  expect(await stripText.evaluate((text) => text.scrollWidth - text.clientWidth)).toBe(0);
   await page.screenshot({ path: testInfo.outputPath('desktop-typing-beside-jobs.png') });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(placement).toEqual({ stripFirst: false, sameBottom: false, barAbove: true });
+  await expect.poll(placement).toEqual({
+    stripFirst: false,
+    sameBottom: false,
+    barAbove: true,
+    sameHeight: true,
+    sameWidth: true,
+  });
   await page.screenshot({ path: testInfo.outputPath('phone-typing-under-jobs.png') });
   await setTyping(false);
   await expect(typingStrip).toHaveCount(0);

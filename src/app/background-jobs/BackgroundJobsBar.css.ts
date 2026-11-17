@@ -3,13 +3,13 @@ import { color, config } from 'folds';
 import * as approvals from '../approvals/ThreadApprovals.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
-// The bar's place in the dock's row, the room beside the typing strip; it goes above the strip
-// when it would get less than 20rem. Given a fixed height while the jobs are listed, it lets the
+// The bar's place in the dock's row, nearly all the room beside the typing strip; it goes above
+// the strip when it would get less than 20rem. Given a fixed height while the jobs are listed, it lets the
 // bar grow upward over the timeline instead of growing the footer.
 export const Anchor = style({
   position: 'relative',
   zIndex: 1,
-  flex: '1 1 20rem',
+  flex: '1000 1 20rem',
   minWidth: 0,
   display: 'flex',
   flexFlow: 'column nowrap',
