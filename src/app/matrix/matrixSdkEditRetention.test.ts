@@ -1,6 +1,7 @@
 import {
   createClient,
   Direction,
+  EventTimeline,
   EventStatus,
   FeatureSupport,
   MatrixEvent,
@@ -117,8 +118,9 @@ const threadTimelineEdits = (room: Room) =>
 /**
  * The edits a thread's timeline holds that the room's relations do not: none, but for one redacted
  * or still being decrypted, which the relations have not taken (yet). Nothing reads an edit from a
- * thread's timeline, so one the relations released is gone from it too. The room's own timelines
- * keep every edit: the app reads receipts on them.
+ * thread's timeline, so one the relations released is gone from it too, unless it was the only
+ * event of its timeline then, which it keeps for the timeline's place among the others. The room's
+ * own timelines keep every edit: the app reads receipts on them.
  */
 const unheldTimelineEdits = (room: Room) =>
   threadTimelineEdits(room)
@@ -134,8 +136,11 @@ const unheldTimelineEdits = (room: Room) =>
 describe('the edits a room keeps of a message', () => {
   let support: FeatureSupport;
   let rooms: Room[] = [];
+  /** The released edits a test expects a timeline to keep as its only event. */
+  let keptForPlace: string[] = [];
   beforeEach(() => {
     rooms = [];
+    keptForPlace = [];
     support = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.None;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -143,7 +148,7 @@ describe('the edits a room keeps of a message', () => {
     setReplacementRetentionPolicy(getReleasableEdits);
   });
   afterEach(() => {
-    for (const room of rooms) expect(unheldTimelineEdits(room)).toEqual([]);
+    for (const room of rooms) expect(unheldTimelineEdits(room)).toEqual(keptForPlace);
     setReplacementRetentionPolicy(undefined);
     Thread.hasServerSideSupport = support;
     vi.restoreAllMocks();
@@ -442,7 +447,7 @@ describe('the edits a room keeps of a message', () => {
     expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('older');
   });
 
-  it('leave an older segment that held only edits empty, which pages on from its place', async () => {
+  it('leave an older segment that held only edits its last one, which pages on from its place', async () => {
     const { client, room, thread, reply, serve } = await openedServerThread();
     const { timelineSet } = thread;
     const live = timelineSet.getLiveTimeline();
@@ -461,9 +466,10 @@ describe('the edits a room keeps of a message', () => {
     await room.addLiveEvents([edit('$edit-3', 13)], { addToState: false });
     await tick();
 
-    expect(threadTimelineEdits(room).map((event) => event.getId())).toEqual(['$edit-3']);
-    expect(segment()).toEqual([]);
-    // The segment still knows how new the events it was given are (the reconciler places by it).
+    // The segment keeps its only event for its place among the others.
+    keptForPlace = ['$edit-2'];
+    expect(segment()).toEqual(['$edit-2']);
+    // The segment knows how new the events it was given are (the reconciler places by it).
     expect(older.getNewestEventTs()).toBe(12);
     expect(getEditedEvent(REPLY, reply, timelineSet)?.getId()).toBe('$edit-3');
     // The segment pages back from its token, past the edits the room released.
@@ -481,10 +487,113 @@ describe('the edits a room keeps of a message', () => {
     await tick();
 
     expect(fetched.mock.lastCall?.[4]).toMatchObject({ from: 'before-older' });
-    expect(segment()).toEqual(['$early']);
+    expect(segment()).toEqual(['$early', '$edit-2']);
     expect(older.getNewestEventTs()).toBe(12);
     expect(older.getPaginationToken(Direction.Backward)).toBe('before-early');
     expect(timelineSet.compareEventOrdering('$early', REPLY)).toBe(-1);
+  });
+
+  describe('page a thread back past a segment that holds only released edits', () => {
+    const early = () =>
+      new MatrixEvent(
+        message('$early', 1, { 'm.relates_to': { rel_type: 'm.thread', event_id: ROOT } })
+      );
+    const older = () =>
+      new MatrixEvent(
+        message('$older', 0, { 'm.relates_to': { rel_type: 'm.thread', event_id: ROOT } })
+      );
+    /** The names of the timelines back from `live`, as `named` names them. */
+    const chainOf = (live: EventTimeline, named: Record<string, EventTimeline>) => {
+      const chain: string[] = [];
+      let at: EventTimeline | null = live;
+      while (at) {
+        const timeline: EventTimeline = at;
+        chain.push(Object.keys(named).find((name) => named[name] === timeline) ?? '?');
+        at = timeline.getNeighbouringTimeline(Direction.Backward);
+      }
+      return chain;
+    };
+    const policies = [
+      ['with the policy', true],
+      ['without a policy', false],
+    ] as const;
+
+    it.each(policies)(
+      'join a segment the stream emptied after it joined an older one (%s)',
+      async (_, withPolicy) => {
+        if (!withPolicy) setReplacementRetentionPolicy(undefined);
+        const { client, room, thread, serve } = await openedServerThread();
+        const { timelineSet } = thread;
+        // A: the thread before a sync gap, holding a reply.
+        const a = timelineSet.addTimeline();
+        const first = early();
+        thread.setEventMetadata(first);
+        timelineSet.addEventsToTimeline([first], true, false, a, 'before-a');
+        // B: the live window after the gap, which saw only the stream's edits, paged back into A.
+        const b = timelineSet.addTimeline();
+        const pageB = [edit('$edit-2', 12), edit('$edit-1', 11)];
+        pageB.forEach((event) => thread.setEventMetadata(event));
+        timelineSet.addEventsToTimeline(pageB, true, false, b, 'before-b');
+        serve([edit('$edit-0', 10), early()], 'before-early');
+        await client.paginateEventTimeline(b, { backwards: true });
+        await tick();
+        expect(b.getNeighbouringTimeline(Direction.Backward)).toBe(a);
+        // A second gap; the stream goes on live and releases B's last edit.
+        const live = timelineSet.getLiveTimeline();
+        live.setPaginationToken('before-live', Direction.Backward);
+        await room.addLiveEvents([edit('$edit-3', 13)], { addToState: false });
+        await tick();
+        if (withPolicy) keptForPlace = ['$edit-2'];
+
+        const fetched = serve([edit('$edit-2', 12), edit('$edit-1', 11), early()], 'past-early');
+        await client.paginateEventTimeline(live, { backwards: true });
+        await tick();
+
+        expect(fetched.mock.lastCall?.[4]).toMatchObject({ from: 'before-live' });
+        expect(live.getPaginationToken(Direction.Backward)).toBeNull();
+        expect(chainOf(live, { L: live, B: b, A: a })).toEqual(['L', 'B', 'A']);
+        // A pages on, into older history.
+        serve([older()], 'start');
+        await client.paginateEventTimeline(a, { backwards: true });
+        await tick();
+        expect(a.getEvents().map((event) => event.getId())).toEqual(['$older', '$early']);
+      }
+    );
+
+    it.each(policies)(
+      'join a segment whose page brought only released edits before an older one (%s)',
+      async (_, withPolicy) => {
+        if (!withPolicy) setReplacementRetentionPolicy(undefined);
+        const { client, room, thread, serve } = await openedServerThread();
+        const { timelineSet } = thread;
+        // The newest edit came live; the older ones come on pages, released as they arrive.
+        await room.addLiveEvents([edit('$edit-3', 13)], { addToState: false });
+        await tick();
+        const a = timelineSet.addTimeline();
+        const first = early();
+        thread.setEventMetadata(first);
+        timelineSet.addEventsToTimeline([first], true, false, a, 'before-a');
+        // T: an empty window between A and the live timeline, which pages back into A.
+        const t = timelineSet.addTimeline();
+        t.setPaginationToken('before-t', Direction.Backward);
+        const page = () => [edit('$edit-2', 12), edit('$edit-1', 11), early()];
+        serve(page(), 'past-early');
+        await client.paginateEventTimeline(t, { backwards: true });
+        await tick();
+        expect(t.getNeighbouringTimeline(Direction.Backward)).toBe(a);
+        if (withPolicy) keptForPlace = ['$edit-2'];
+        const live = timelineSet.getLiveTimeline();
+        live.setPaginationToken('before-live', Direction.Backward);
+
+        const fetched = serve(page(), 'past-early');
+        await client.paginateEventTimeline(live, { backwards: true });
+        await tick();
+
+        expect(fetched.mock.lastCall?.[4]).toMatchObject({ from: 'before-live' });
+        expect(live.getPaginationToken(Direction.Backward)).toBeNull();
+        expect(chainOf(live, { L: live, T: t, A: a })).toEqual(['L', 'T', 'A']);
+      }
+    );
   });
 
   it('keep the edit whose tool trace a final edit without one borrows', async () => {
