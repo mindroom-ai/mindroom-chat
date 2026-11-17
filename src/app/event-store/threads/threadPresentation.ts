@@ -87,7 +87,6 @@ type ResolveThreadPresentationSnapshotOptions = {
   fallbackLatestReplyTs?: number;
   /** Stands in for the cached reply's time when only the thread's activity is known. */
   fallbackLastActivityTs?: number;
-  fallbackLastSenderDisplayName?: string;
   fallbackLastSenderId?: string;
   fallbackLatestReplyPreviewText?: string;
   fallbackMessageCount?: number;
@@ -110,7 +109,6 @@ export const resolveThreadPresentationSnapshot = ({
   preferredRootPreviewText,
   fallbackLatestReplyPreviewText,
   fallbackLastSenderId,
-  fallbackLastSenderDisplayName,
   fallbackMessageCount,
   fallbackParticipantIds,
   visibleReplyEvents,
@@ -168,7 +166,7 @@ export const resolveThreadPresentationSnapshot = ({
     fallbackParticipantIds?.find((candidateId) => !!candidateId);
   const lastSenderDisplayName = lastSenderId
     ? getMemberDisplayName(room, lastSenderId) ?? lastSenderId
-    : fallbackLastSenderDisplayName;
+    : undefined;
   const summaryInfo = resolveThreadSummaryInfo({
     preferredSummaryInfo: pickLatestThreadSummaryInfo(
       bundled.title ? getThreadSummaryEventInfo(bundled.title) : undefined,
