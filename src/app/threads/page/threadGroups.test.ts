@@ -128,7 +128,7 @@ describe('groupThreads', () => {
     expect(shape(groups)).toEqual([['recent', ['new', 'old']]]);
   });
 
-  it('puts a snoozed recent thread in Snoozed, before Automations', () => {
+  it('puts a snoozed recent thread in Later, before Automations', () => {
     const items = [
       item('digest', { rootSenderId: '@mindroom_bot:x', isInvolved: false }, { automation: true }),
       item('later', { snoozedUntilTs: NOW + 1 }),
@@ -136,12 +136,12 @@ describe('groupThreads', () => {
     ];
     expect(shape(groupThreads(items, 'all', ME, '', NOW))).toEqual([
       ['recent', ['talk']],
-      ['snoozed', ['later']],
+      ['later', ['later']],
       ['automations', ['digest']],
     ]);
   });
 
-  it('keeps a snoozed thread that needs you, is unread or has an agent working in its group', () => {
+  it('keeps foreground attention and unread ahead of Later, but snoozes working threads', () => {
     const snoozed = { snoozedUntilTs: NOW + 1 };
     const groups = groupThreads(
       [
@@ -157,14 +157,26 @@ describe('groupThreads', () => {
     expect(shape(groups)).toEqual([
       ['needsYou', ['waits']],
       ['unread', ['unread']],
-      ['working', ['working']],
+      ['later', ['working']],
     ]);
+  });
+
+  it.each([
+    [{ hasBackgroundJob: true }, 'working'],
+    [{ hasBackgroundJob: true, hasBackgroundApproval: true }, 'needsYou'],
+    [{ scheduledTaskCount: 1 }, 'later'],
+    [{ isStreaming: true }, 'recent'],
+    [{ hasBackgroundJob: true, scheduledTaskCount: 1 }, 'recent'],
+  ] as const)('uses workflow status %j for %s', (status, expected) => {
+    const thread = item('job', { isResolved: expected === 'recent' });
+    Object.assign(thread.entry.threadRecord.status, status);
+    expect(shape(groupThreads([thread], 'following', ME, '', NOW))).toEqual([[expected, ['job']]]);
   });
 
   it('returns a snoozed thread to Recent when its time has passed', () => {
     const items = [item('later', { snoozedUntilTs: NOW })];
     expect(shape(groupThreads(items, 'following', ME, '', NOW - 1))).toEqual([
-      ['snoozed', ['later']],
+      ['later', ['later']],
     ]);
     expect(shape(groupThreads(items, 'following', ME, '', NOW))).toEqual([['recent', ['later']]]);
   });

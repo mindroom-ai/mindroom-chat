@@ -88,6 +88,10 @@ describe('tourSample', () => {
     expect(after.messageCount).toBe(before.messageCount + 1);
   });
 
+  it('classifies a snooze against the sample clock', () => {
+    expect(sampleCard('vendor', { snoozed: true }, t, 1000).attentionState).toBe('idle');
+  });
+
   it('counts its times from the clock it is given', () => {
     const now = 1_800_000_000_000;
     THREADS.forEach((id) => {

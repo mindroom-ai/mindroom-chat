@@ -168,6 +168,21 @@ describe('compact card formatting work', () => {
     harness.unmount();
   });
 
+  it('refreshes attention when a snooze expires without a record change', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10000);
+    const snoozed = record('$a');
+    snoozed.status.isStreaming = true;
+    snoozed.status.snoozedUntilTs = 20000;
+    const harness = mount(room, [snoozed]);
+    expect(harness.models[0]!.attentionState).toBe('idle');
+    act(() => vi.advanceTimersByTime(10000));
+    expect(harness.models[0]!.attentionState).toBe('streaming');
+    harness.update([structuredClone(snoozed)]);
+    expect(harness.models[0]!.attentionState).toBe('streaming');
+    harness.unmount();
+  });
+
   it('keeps scheduled countdowns current when record values stay unchanged', () => {
     vi.useFakeTimers();
     vi.setSystemTime(10000);

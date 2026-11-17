@@ -121,6 +121,9 @@ export const sampleCard = (
   const attentionState = getCompactThreadAttentionState({
     isResolved,
     isStreaming,
+    now,
+    scheduledTaskCount: 0,
+    snoozedUntilTs: state.snoozed ? now + SNOOZE_LENGTH : undefined,
     lastSenderId: sampleUserId(lastSender),
     currentUserId: sampleUserId('you'),
   });
