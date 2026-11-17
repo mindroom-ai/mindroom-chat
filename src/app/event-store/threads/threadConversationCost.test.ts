@@ -118,6 +118,24 @@ describe('summarizeThreadConversationCost', () => {
     expect(cost?.byEventId.get('$r2')).toEqual({ usd: 0.76, replyCount: 2 });
   });
 
+  it.each(['cancelled', 'error', 'interrupted'])(
+    "is a lower bound when a reply ended %s with only its subagents' cost",
+    (status) => {
+      const cost = summarizeThreadConversationCost(
+        [
+          message('$r1', AGENT, '0.01'),
+          message('$r2', AGENT, undefined, {
+            'io.mindroom.ai_run': { version: 1, status, cost: { subagents_usd: '0.5' } },
+          }),
+        ],
+        { history: loaded, isTrustedSender }
+      );
+
+      expect(cost?.complete).toBe(false);
+      expect(cost?.byEventId.get('$r2')).toEqual({ usd: 0.51, replyCount: 2 });
+    }
+  );
+
   it('skips replies without cost', () => {
     const cost = summarizeThreadConversationCost(
       [message('$r1', AGENT), message('$r2', AGENT, '0.02')],
