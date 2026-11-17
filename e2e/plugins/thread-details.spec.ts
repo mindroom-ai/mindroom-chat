@@ -29,9 +29,8 @@ import { openThreadsCategory } from '../helpers/threadsCategory';
 
 // The example plugin's details appear in Compact and sidebar hover cards and in the thread's
 // actions menu, reached by right click on desktop or a long press on a phone. A plain thread
-// has no Compact hover card or sidebar plugin group. THREAD_DETAILS_SHOTS=1 saves both themes
-// and the phone menu to test-results/thread-details/, plus the long-title sidebar card to
-// /tmp/sidebar-hover-status-shots/d-plugin-detail.png.
+// has no Compact hover card or sidebar plugin group. THREAD_DETAILS_SHOTS=1 saves both themes,
+// the phone menu and the long-title sidebar card to test-results/thread-details/.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const GREETING = 'Good morning, orchard';
@@ -39,7 +38,7 @@ const PLAIN = 'Which trees need pruning?';
 const LONG_GREETING =
   'Good morning, orchard: review the harvest plan, irrigation schedule and orchard maintenance for the coming season';
 
-test.use({ viewport: { width: 1440, height: 900 }, video: 'off', trace: 'off' });
+test.use({ viewport: { width: 1440, height: 900 }, video: 'off' });
 test.describe.configure({ mode: 'serial' });
 
 type Seed = {
@@ -295,10 +294,36 @@ test('sidebar details mount on hover, span wide cards, reposition after growth a
     await detail.evaluate((element) => {
       element.style.height = '';
     });
-    if (process.env.THREAD_DETAILS_SHOTS === '1') {
-      mkdirSync('/tmp/sidebar-hover-status-shots', { recursive: true });
-      await page.screenshot({ path: '/tmp/sidebar-hover-status-shots/d-plugin-detail.png' });
-    }
+    await screenshot(page, 'sidebar-long-title');
+
+    // The example plugin has one detail: a copy of it stands in for a second plugin's, and the
+    // rule between the two spans the group while each detail's content stays capped.
+    const second = await detail.evaluate((element) => {
+      const first = element.closest<HTMLElement>('[data-thread-detail]')!;
+      const copy = first.cloneNode(true) as HTMLElement;
+      copy.setAttribute('data-thread-detail-copy', '');
+      first.after(copy);
+      const style = getComputedStyle(copy);
+      return {
+        group: first.parentElement!.getBoundingClientRect().width,
+        rule: copy.getBoundingClientRect().width,
+        content: copy.firstElementChild!.getBoundingClientRect().width,
+        border: style.borderBlockStartWidth,
+      };
+    });
+    expect(second.border).toBe('1px');
+    expect(second.group).toBeGreaterThan(320);
+    expect(second.rule).toBeCloseTo(second.group, 0);
+    expect(second.content).toBeLessThanOrEqual(320);
+    await tooltip.locator('[data-thread-detail-copy]').evaluate((element) => element.remove());
+
+    // A listed detail that draws nothing hides the group and its rule.
+    const group = tooltip.locator(`[class=${JSON.stringify(widths.className)}]`);
+    await expect(group).toBeVisible();
+    await detail.evaluate((element) => element.remove());
+    await expect(tooltip).toBeVisible();
+    await expect(group).toBeHidden();
+    expect(await group.evaluate((element) => getComputedStyle(element).display)).toBe('none');
 
     await rows.filter({ hasText: PLAIN }).first().hover();
     await expect(page.locator('[data-example-plugin-details]')).toHaveCount(0);

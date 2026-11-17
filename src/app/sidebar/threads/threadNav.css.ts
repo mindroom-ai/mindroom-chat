@@ -186,4 +186,5 @@ export const EntryTooltipPluginDetails = style({
   },
 });
 
-globalStyle(`${EntryTooltipPluginDetails} > [data-thread-detail]`, { maxWidth: toRem(320) });
+// The cap is on a detail's content, so the rule between two details spans the card.
+globalStyle(`${EntryTooltipPluginDetails} > [data-thread-detail] > *`, { maxWidth: toRem(320) });
