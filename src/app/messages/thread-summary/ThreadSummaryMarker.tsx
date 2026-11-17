@@ -14,6 +14,7 @@ import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { IconSparkles } from '@tabler/icons-react';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../../event-store/threads/threadSummaryTimeline';
+import { OWNS_FOCUS_ATTRIBUTE } from '../../lib/overlayFocus';
 import * as css from './ThreadSummaryMarker.css';
 
 type ThreadSummaryMarkerProps = {
@@ -211,9 +212,12 @@ export function ThreadSummaryMarker({
           the role: on touch screens index.css hides tooltip layers in the body,
           and these details a tap opens. Without a link the card is a tooltip
           the pointer passes through; with one it is a small dialog that takes
-          the pointer and focus. */}
+          the pointer and focus. The marker moves that focus itself, so the
+          app's overlay focus (lib/overlayFocus) must not move it into the
+          link as the card opens, nor keep Tab inside it. */}
       <PopOut
         style={{ pointerEvents: 'none' }}
+        {...(interactive && { [OWNS_FOCUS_ATTRIBUTE]: '' })}
         anchor={open?.anchor}
         position="Top"
         align="Start"

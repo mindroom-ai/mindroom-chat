@@ -143,6 +143,7 @@ describe('ThreadSummaryMarker', () => {
     expect(card.props.style).toBeUndefined();
     expect(renderer.root.findAllByType('button')).toHaveLength(1);
     expect(trigger(renderer).props['aria-haspopup']).toBeUndefined();
+    expect(layer!.props['data-owns-focus']).toBeUndefined();
   });
 
   it('opens while a mouse hovers and closes when it leaves', async () => {
@@ -243,6 +244,9 @@ describe('ThreadSummaryMarker', () => {
       expect(layer!.props.style).toEqual({ pointerEvents: 'none' });
       expect(card(renderer).props.style).toEqual({ pointerEvents: 'auto' });
       expect(card(renderer).props.role).toBe('dialog');
+      // The marker moves this focus itself; the app's overlay focus must not move it into the
+      // link as the card opens from Enter, which made Tab go on from the link (lib/overlayFocus).
+      expect(layer!.props['data-owns-focus']).toBe('');
       expect(card(renderer).props['aria-label']).toBe('AI title updated');
       expect(trigger(renderer).props['aria-haspopup']).toBe('dialog');
       expect(trigger(renderer).props['aria-controls']).toBe(card(renderer).props.id);
