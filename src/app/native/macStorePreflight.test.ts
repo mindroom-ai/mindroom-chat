@@ -63,6 +63,14 @@ describe('Mac Store emitted-artifact preflight', () => {
     expect(problems).toContain('release');
   });
 
+  it('accepts web content of the candidate commit built with client plugins', () => {
+    const input = metadata();
+    input.web.version = `${input.commit}-plugins-0123456789abcdef`;
+    expect(macStoreMetadataProblems(input)).toEqual([]);
+    input.web.version = '2222222222222222222222222222222222222222-plugins-0123456789abcdef';
+    expect(macStoreMetadataProblems(input).join('\n')).toContain('commit');
+  });
+
   it('rejects an iOS package and missing Mac bundle metadata', () => {
     const input = metadata();
     input.app.CFBundleSupportedPlatforms = ['iPhoneOS'];
