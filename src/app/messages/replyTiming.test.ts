@@ -74,7 +74,7 @@ describe('getReplyTimeParts', () => {
 
   it('keeps the finish time of a reply that ends on the next day in the same minute', () => {
     const timing = { startTs: at(4, 23, 58), endTs: at(5, 23, 58, 30), streaming: false };
-    expect(getReplyTimeParts(timing, at(6, 9, 0), options).end).toBe('23:58');
+    expect(getReplyTimeParts(timing, at(6, 9, 0), options)?.end).toBe('23:58');
   });
 
   it('gives only the time of a finish on the next day', () => {
