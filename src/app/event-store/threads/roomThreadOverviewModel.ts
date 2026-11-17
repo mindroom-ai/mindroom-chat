@@ -249,6 +249,18 @@ export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
 export const hasChosenThreadFilters = (state: ThreadFilterState): boolean =>
   hasActiveThreadFilters(state.snoozed === 'exclude' ? { ...state, snoozed: 'any' } : state);
 
+/**
+ * Whether the search query filters by something no other toolbar control shows: free text, a term
+ * the parser keeps unsupported, or a status. Tags, people and the workflow tab have their own
+ * controls, and hiding snoozed threads alone is the default (see hasChosenThreadFilters).
+ */
+export const hasSearchOnlyThreadFilters = (state: ThreadFilterState): boolean =>
+  (state.freeText ?? '').length > 0 ||
+  (state.unsupportedQuery ?? '').length > 0 ||
+  THREAD_FILTER_KEYS.some(
+    (key) => state[key] !== 'any' && !(key === 'snoozed' && state[key] === 'exclude')
+  );
+
 export const isRoomThreadOverviewActive = (
   threadId: string | undefined,
   state: ThreadFilterState

@@ -51,6 +51,7 @@ vi.mock('./RoomThreadOverview.css', () => ({
   FilterDropdown: 'FilterDropdown',
   InfoContainer: 'InfoContainer',
   InfoButton: 'InfoButton',
+  SearchButtonFiltering: 'SearchButtonFiltering',
   InfoPopover: 'InfoPopover',
   InfoStatRow: 'InfoStatRow',
   InfoSectionDivider: 'InfoSectionDivider',
@@ -324,7 +325,8 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('sort button uses active style when filters are active', () => {
+  // The sort is not a filter: an active filter lights its own control, not the sort button.
+  it('sort button stays plain while a filter is active', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
@@ -333,9 +335,29 @@ describe('RoomThreadOverview', () => {
     );
 
     const sortBtn = renderer.root.find((node) => node.props['data-sort-by'] !== undefined);
-    expect(sortBtn.props.className).toContain('SortButtonActive');
+    expect(sortBtn.props.className).not.toContain('SortButtonActive');
 
     renderer.unmount();
+  });
+
+  it('collapsed search button lights up only for filters just the query shows', () => {
+    const searchButtonClass = (state: ThreadFilterState) => {
+      const renderer = create(React.createElement(RoomThreadOverview, { ...defaultProps, state }));
+      const button = renderer.root.find((node) => node.props['data-search-toggle'] === 'true');
+      const className = String(button.props.className);
+      renderer.unmount();
+      return className;
+    };
+
+    expect(searchButtonClass(makeDefaultState({ freeText: 'deploy' }))).toContain(
+      'SearchButtonFiltering'
+    );
+    expect(searchButtonClass(makeDefaultState({ unread: 'include' }))).toContain(
+      'SearchButtonFiltering'
+    );
+    expect(searchButtonClass(makeDefaultState({ tab: 'needsYou' }))).not.toContain(
+      'SearchButtonFiltering'
+    );
   });
 
   it('renders compact thread count instead of Threads (N)', () => {

@@ -32,6 +32,7 @@ import type {
 } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   hasActiveThreadFilters,
+  hasSearchOnlyThreadFilters,
   THREAD_FILTER_KEYS,
   normalizeThreadSearchText,
 } from '../../event-store/threads/roomThreadOverviewModel';
@@ -183,13 +184,16 @@ function ThreadInfoPopover({
 
 function ThreadSearchBar({
   searchQuery,
+  filtering,
   onSearchQueryChange,
 }: {
   searchQuery: string;
+  /** The query filters by something no other control shows, so the button lights up. */
+  filtering: boolean;
   onSearchQueryChange: (query: string) => void;
 }) {
   const { t } = useTranslation();
-  // Collapsed until asked for, even while a query filters; the sort button shows active filters.
+  // Collapsed until asked for, even while a query filters; the button then shows that it does.
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -228,7 +232,7 @@ function ThreadSearchBar({
           <button
             ref={triggerRef}
             type="button"
-            className={css.InfoButton}
+            className={classNames(css.InfoButton, filtering && css.SearchButtonFiltering)}
             onClick={handleToggle}
             aria-label={t('mindroomUi.threads.roomThreadOverview.searchThreads')}
             aria-expanded={expanded}
@@ -288,11 +292,9 @@ export type RoomThreadOverviewProps = {
 
 function ThreadSortControl({
   state,
-  active = false,
   onChange,
 }: {
   state: ThreadFilterState;
-  active?: boolean;
   onChange: () => void;
 }) {
   const { t } = useTranslation();
@@ -315,7 +317,7 @@ function ThreadSortControl({
         <button
           ref={triggerRef}
           type="button"
-          className={classNames(css.SortButton, active && css.SortButtonActive)}
+          className={css.SortButton}
           onClick={onChange}
           aria-label={sortLabel}
           data-sort-by={state.sortBy}
@@ -627,8 +629,12 @@ export function RoomThreadOverview({
           />
         )}
 
-        <ThreadSortControl state={state} active={filtersActive} onChange={handleSort} />
-        <ThreadSearchBar searchQuery={searchQueryDraft} onSearchQueryChange={handleSearch} />
+        <ThreadSortControl state={state} onChange={handleSort} />
+        <ThreadSearchBar
+          searchQuery={searchQueryDraft}
+          filtering={hasSearchOnlyThreadFilters(state)}
+          onSearchQueryChange={handleSearch}
+        />
         {hasMindroomAgents && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"
