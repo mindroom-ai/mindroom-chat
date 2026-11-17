@@ -32,10 +32,12 @@ export type ThreadSignalsReader = {
 };
 
 /**
- * A cache of thread signals. They depend on more than an index entry's `generation` sees: a
- * reaction, an edit the thread holds back, a receipt from another device. So a thread is read
- * again whenever something was heard that it may show (`threadChanges`, a count that goes up for
- * the thread), and once what it waits on lapses (`waitsUntil`).
+ * A cache of thread signals. The index entry's `generation` tells of what the entry shows: the
+ * thread's summary and root as the server gave them, its tags, whether the user takes part. The
+ * signals depend on more than that: a reaction, an edit the thread holds back, a receipt from
+ * another device. So a thread is read again whenever something was heard that it may show
+ * (`threadChanges`, a count that goes up for the thread), and once what it waits on lapses
+ * (`waitsUntil`).
  */
 export const createThreadSignalsReader = (
   threadChanges: (room: Room, threadRootId: string) => number = () => 0
@@ -91,7 +93,9 @@ const clients = new WeakMap<MatrixClient, ClientSignals>();
  * user's receipt outside a thread, a timeline of the room that starts over, and a member who
  * joins or leaves (an agent's presence decides whether a notice is listed). Signals read no one
  * else's receipts and no event without an ID (typing, a live reply frame, account data), so those
- * count for nothing and reach no listener.
+ * count for nothing and reach no listener. One exception: a room's first receipt after the client
+ * starts, anyone's, counts for all its threads, since how old its oldest thread receipt was before
+ * is not known.
  */
 const getClientSignals = (mx: MatrixClient): ClientSignals => {
   let client = clients.get(mx);
@@ -111,7 +115,8 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
     const markEvent = (event: MatrixEvent) => {
       const room = mx.getRoom(event.getRoomId());
       const eventId = event.getId();
-      if (!room || !eventId) return;
+      // A state event starts no thread; what signals read of the room's state is its members.
+      if (!room || !eventId || event.isState()) return;
       const changedId = changedThreadId(room, event);
       mark(room.roomId, changedId);
       // A message of the room that answers another one may be a root itself.

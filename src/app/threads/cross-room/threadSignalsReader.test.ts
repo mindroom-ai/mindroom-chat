@@ -175,11 +175,24 @@ describe('getThreadSignalsReader', () => {
   const A = threadEntry('$a');
   const B = threadEntry('$b');
 
-  type EventInit = { id?: string; roomId?: string; threadRootId?: string; relatesTo?: string };
-  const event = ({ id = '$event', roomId = '!r:x', threadRootId, relatesTo }: EventInit = {}) =>
+  type EventInit = {
+    id?: string;
+    roomId?: string;
+    threadRootId?: string;
+    relatesTo?: string;
+    state?: boolean;
+  };
+  const event = ({
+    id = '$event',
+    roomId = '!r:x',
+    threadRootId,
+    relatesTo,
+    state = false,
+  }: EventInit = {}) =>
     ({
       getId: () => id,
       getRoomId: () => roomId,
+      isState: () => state,
       threadRootId,
       getAssociatedId: () => relatesTo,
       getRelation: () => (relatesTo ? { event_id: relatesTo } : null),
@@ -273,8 +286,26 @@ describe('getThreadSignalsReader', () => {
 
   it('reads no thread for an event without an ID: typing, a live reply frame', () => {
     const { mx, readAgain } = setup();
-    mx.emit(ClientEvent.Event, { getId: () => undefined, getRoomId: () => '!r:x' });
+    mx.emit(ClientEvent.Event, {
+      getId: () => undefined,
+      getRoomId: () => '!r:x',
+      isState: () => false,
+    });
     expect(readAgain()).toEqual([]);
+  });
+
+  it('reads no thread for a state event, such as an agent writing its jobs', () => {
+    const { mx, readAgain } = setup();
+    mx.emit(ClientEvent.Event, event({ id: '$a', state: true }));
+    expect(readAgain()).toEqual([]);
+  });
+
+  it('reads the thread of the reply whose reaction, by then in no thread, is redacted', () => {
+    const { mx, held, readAgain } = setup();
+    held.set('$reply', event({ id: '$reply', threadRootId: '$b' }));
+    held.set('$reaction', event({ id: '$reaction', relatesTo: '$reply' }));
+    mx.emit(ClientEvent.Event, event({ id: '$redaction', relatesTo: '$reaction' }));
+    expect(readAgain()).toEqual(['$b']);
   });
 
   it('reads the thread a redacted event left', () => {
@@ -323,7 +354,7 @@ describe('getThreadSignalsReader', () => {
     expect(readAgain()).toEqual(['$a', '$b']);
   });
 
-  it('tells who listens to a room of each change its threads are read again for', () => {
+  it('tells who listens to a room of an event, a timeline starting over, a receipt and a member change', () => {
     const { mx, room } = setup();
     const onChange = vi.fn();
     const unsubscribe = subscribeRoomSignals(mx as unknown as MatrixClient, '!r:x', onChange);
@@ -332,15 +363,21 @@ describe('getThreadSignalsReader', () => {
 
     mx.emit(ClientEvent.Event, event({ threadRootId: '$a' }));
     mx.emit(RoomEvent.TimelineReset, room, {});
-    expect(onChange).toHaveBeenCalledTimes(2);
+    mx.emit(RoomEvent.Receipt, receipt(ME, '$a'), room);
+    mx.emit(RoomMemberEvent.Membership, {}, { roomId: '!r:x' });
+    expect(onChange).toHaveBeenCalledTimes(4);
     // A live reply frame and someone else's receipt change no thread's signals.
-    mx.emit(ClientEvent.Event, { getId: () => undefined, getRoomId: () => '!r:x' });
+    mx.emit(ClientEvent.Event, {
+      getId: () => undefined,
+      getRoomId: () => '!r:x',
+      isState: () => false,
+    });
     mx.emit(RoomEvent.Receipt, receipt('@other:x', '$a'), room);
-    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenCalledTimes(4);
 
     unsubscribe();
     mx.emit(ClientEvent.Event, event({ threadRootId: '$a' }));
-    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenCalledTimes(4);
     expect(elsewhere).not.toHaveBeenCalled();
   });
 

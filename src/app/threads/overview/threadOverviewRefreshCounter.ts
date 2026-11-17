@@ -19,17 +19,25 @@ import {
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
 
+const relatedIdOf = (mEvent: MatrixEvent): string | undefined =>
+  mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
+
 /**
  * The thread whose record an event of the room may change: the thread it is in, else the thread
- * of the event it relates to, else that event or itself, either of which may be a root. Undefined
- * when it relates to an event the room does not hold, whose thread is then unknown.
+ * of the event it relates to, else that event or itself, either of which may be a root. An edit
+ * or a reaction in no thread (one of a root, or one a redaction took out of its thread) stands
+ * for the event it relates to in turn. Undefined when the room does not hold the event at the end
+ * of that chain, whose thread is then unknown.
  */
 export const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined => {
   if (mEvent.threadRootId) return mEvent.threadRootId;
-  const relatedId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
+  const relatedId = relatedIdOf(mEvent);
   if (!relatedId) return mEvent.getId();
   const related = room.findEventById(relatedId);
-  return related && (related.threadRootId ?? relatedId);
+  const targetId = related && !related.threadRootId ? relatedIdOf(related) : undefined;
+  if (!targetId) return related && (related.threadRootId ?? relatedId);
+  const target = room.findEventById(targetId);
+  return target && (target.threadRootId ?? targetId);
 };
 
 /** How long a kept thread record waits for the mark of the room that has it built again. */

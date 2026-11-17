@@ -66,6 +66,13 @@ const setup = (threadId?: string) => {
   const held = new Map([
     ['$reply', event({ id: '$reply', threadRootId: '$root' })],
     ['$plain', event({ id: '$plain' })],
+    // Relations in no thread: a reaction a redaction took out of the thread, an edit of a plain
+    // message, and an edit of a reply the room does not hold.
+    ['$left', event({ id: '$left', relatesTo: '$reply' })],
+    ['$plainEdit', event({ id: '$plainEdit', relatesTo: '$plain' })],
+    ['$stray', event({ id: '$stray', relatesTo: '$gone' })],
+    // An edit in the thread of a reply the room does not hold.
+    ['$threadEdit', event({ id: '$threadEdit', threadRootId: '$root', relatesTo: '$gone' })],
   ]);
   const client = Object.assign(new EventEmitter(), { getUserId: () => ME });
   const oldest = { ts: Infinity };
@@ -125,6 +132,26 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ],
     ['a message of its own', { id: '$message' }, ['$message']],
     ['an event related to one the room does not hold', { id: '$edit', relatesTo: '$gone' }, 'room'],
+    [
+      'a redaction of a reaction that left its thread',
+      { id: '$redaction', relatesTo: '$left' },
+      ['$redaction', '$root'],
+    ],
+    [
+      'a redaction of an edit in a thread, whatever it edits',
+      { id: '$redaction', relatesTo: '$threadEdit' },
+      ['$redaction', '$root'],
+    ],
+    [
+      'a redaction of an edit of a message outside a thread',
+      { id: '$redaction', relatesTo: '$plainEdit' },
+      ['$redaction', '$plain'],
+    ],
+    [
+      'a redaction of an edit whose message the room does not hold',
+      { id: '$redaction', relatesTo: '$stray' },
+      'room',
+    ],
   ])('marks the thread of a timeline event: %s', (_name, fake, marked) => {
     const { room, told } = setup();
 
