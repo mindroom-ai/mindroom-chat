@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { trimReplyFromBody } from '../../matrix/room';
 
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import {
@@ -297,9 +298,7 @@ export function LongTextText({
   // hydration effect only cover mount and post-paint). Pure read of the
   // module cache for the current source; the effect converges state to the
   // same value.
-  const warmResolvedContent = hydrate
-    ? getCachedLongTextContent(longTextSource, mx)
-    : undefined;
+  const warmResolvedContent = hydrate ? getCachedLongTextContent(longTextSource, mx) : undefined;
   const displayContent = warmResolvedContent ?? resolvedContent;
   const toolMetadataStatus: ToolMetadataStatus =
     !warmResolvedContent && (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
@@ -307,6 +306,13 @@ export function LongTextText({
       : 'unavailable';
 
   const afterBody = renderAfterBody?.(content, displayContent);
+  // Until the whole message is in, the preview shows on its own: link previews come from the
+  // full body, and the loading line only stands in for a preview with no text of its own.
+  // Either would appear and go while the sidecar loads, moving the rows around it.
+  const urlsPreview = toolMetadataStatus === 'loading' ? undefined : renderUrlsPreview;
+  const previewHasText =
+    hasRenderableFormattedBody(displayContent) ||
+    trimReplyFromBody(getStringValue(displayContent, 'body') ?? '').trim().length > 0;
 
   let textContent: ReactNode;
   if (kind === LongTextKind.Emote) {
@@ -318,7 +324,7 @@ export function LongTextText({
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
-        renderUrlsPreview={renderUrlsPreview}
+        renderUrlsPreview={urlsPreview}
       />
     );
   } else if (kind === LongTextKind.Notice) {
@@ -329,7 +335,7 @@ export function LongTextText({
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
-        renderUrlsPreview={renderUrlsPreview}
+        renderUrlsPreview={urlsPreview}
       />
     );
   } else {
@@ -340,7 +346,7 @@ export function LongTextText({
         content={displayContent}
         renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
-        renderUrlsPreview={renderUrlsPreview}
+        renderUrlsPreview={urlsPreview}
       />
     );
   }
@@ -348,7 +354,7 @@ export function LongTextText({
   return (
     <>
       {textContent}
-      {showLoadingIndicator && (
+      {showLoadingIndicator && !previewHasText && (
         <Box alignItems="Center" gap="100" style={{ marginTop: config.space.S100 }}>
           <Spinner size="100" variant="Secondary" />
           <FText size="T200">

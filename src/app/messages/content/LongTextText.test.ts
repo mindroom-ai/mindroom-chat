@@ -64,10 +64,12 @@ vi.mock('./MsgTypeRenderers', () => ({
     content,
     renderAfterBody,
     renderBody,
+    renderUrlsPreview,
   }: {
     content: Record<string, unknown>;
     renderAfterBody?: React.ReactNode;
     renderBody: (props: { body: string; customBody?: string }) => React.ReactNode;
+    renderUrlsPreview?: (urls: string[]) => React.ReactNode;
   }) =>
     React.createElement(
       'div',
@@ -76,7 +78,11 @@ vi.mock('./MsgTypeRenderers', () => ({
         body: trimReplyFromBody(typeof content.body === 'string' ? content.body : ''),
         customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
       }),
-      renderAfterBody
+      renderAfterBody,
+      // As the real text message does, its link previews come from the body it shows.
+      renderUrlsPreview?.(
+        (typeof content.body === 'string' ? content.body : '').match(/https?:\/\/\S+/g) ?? []
+      )
     ),
 }));
 vi.mock('../canvas/InlineCanvasFrame', () => ({ InlineCanvasFrame: () => null }));
@@ -651,6 +657,83 @@ describe('LongTextText hydration identity', () => {
     await act(async () => {
       renderer.unmount();
     });
+  });
+
+  it('shows no link previews and no loading line while the preview text waits for the sidecar', async () => {
+    vi.useFakeTimers();
+    try {
+      const { LongTextKind, LongTextText } = await getLongTextTextModule();
+      const content = {
+        ...createPreviewContent(),
+        body: 'Preview response https://a.example/x https://b.example/y',
+      };
+      const sidecar = createDeferred<Record<string, unknown>>();
+      longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(sidecar.promise);
+      let renderer!: ReactTestRenderer;
+      const urlCards = () => renderer.root.findAll((node) => node.props['data-url-card'] === true);
+      const text = () => JSON.stringify(renderer.toJSON());
+      await act(async () => {
+        renderer = create(
+          React.createElement(LongTextText, {
+            kind: LongTextKind.Text,
+            content,
+            longTextSource: createLongTextSource({ previewContent: content }),
+            renderBody: (_content, props) => props.body,
+            renderUrlsPreview: (urls: string[]) =>
+              urls.map((url) => React.createElement('span', { key: url, 'data-url-card': true })),
+          })
+        );
+      });
+      expect(text()).toContain('Preview response');
+      expect(urlCards()).toHaveLength(0);
+
+      // Long after the loading line's delay, the preview text still stands alone.
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(text()).not.toContain('Loading full response');
+      expect(urlCards()).toHaveLength(0);
+
+      await act(async () => {
+        sidecar.resolve({ msgtype: 'm.text', body: 'Full response https://a.example/x' });
+        await Promise.resolve();
+      });
+      expect(text()).toContain('Full response');
+      expect(urlCards()).toHaveLength(1);
+      act(() => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the loading line while a preview without text of its own waits for the sidecar', async () => {
+    vi.useFakeTimers();
+    try {
+      const { LongTextKind, LongTextText } = await getLongTextTextModule();
+      const content = {
+        ...createPreviewContent(),
+        body: '> <@alice:example.org> Previous reply\n\n',
+      };
+      longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(new Promise(() => undefined));
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          React.createElement(LongTextText, {
+            kind: LongTextKind.Text,
+            content,
+            longTextSource: createLongTextSource({ previewContent: content }),
+            renderBody: (_content, props) => props.body,
+          })
+        );
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(400);
+      });
+      expect(JSON.stringify(renderer.toJSON())).toContain('Loading full response');
+      act(() => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders prewarmed sidecar content on the first paint without a preview flash', async () => {
