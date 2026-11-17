@@ -1280,25 +1280,15 @@
     "commands": {
       "CommandMe": "Actiebericht verzenden",
       "CommandNotice": "Meldingsbericht verzenden",
-      "CommandShrug": "¯\\_(ツ)_/¯ als bericht verzenden",
-      "CommandTableFlip": "{{value1}} als bericht verzenden",
-      "CommandUnFlip": "{{value1}} als bericht verzenden",
       "CommandStartDm": "Direct bericht met gebruiker starten. Voorbeeld: /startdm userId1",
       "CommandJoin": "Deelnemen aan kamer via adres. Voorbeeld: /join address1 address2",
       "CommandLeave": "Huidige kamer verlaten.",
       "CommandInvite": "Gebruiker uitnodigen voor kamer. Voorbeeld: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Uitnodiging van gebruiker voor kamer intrekken. Voorbeeld: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Gebruiker uit kamer verwijderen. Voorbeeld: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Gebruiker uit kamer verbannen. Voorbeeld: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Verbanning van gebruiker uit kamer opheffen. Voorbeeld: /unban userId1 userId2",
       "CommandIgnore": "Gebruiker negeren. Voorbeeld: /ignore userId1 userId2",
-      "CommandUnIgnore": "Gebruiker niet meer negeren. Voorbeeld: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Bijnaam in huidige kamer wijzigen.",
-      "CommandMyRoomAvatar": "Profielfoto in huidige kamer wijzigen. Voorbeeld: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Kamer omzetten in direct bericht",
-      "CommandConvertToRoom": "Direct bericht omzetten in kamer",
-      "CommandDelete": "Berichten van gebruikers verwijderen. Voorbeeld: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Toegangsbeheerlijst van server beheren. Voorbeeld: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Gebruiker niet meer negeren. Voorbeeld: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} emoji"

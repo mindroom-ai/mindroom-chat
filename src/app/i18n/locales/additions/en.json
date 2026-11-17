@@ -144,8 +144,7 @@
       "noCrossSigningKeys": "Your secret storage holds no cross-signing keys, so the recovery key can't verify this session. Verify it from one of your other sessions."
     },
     "commands": {
-      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message",
-      "CommandHtml": "Send a message as HTML, without Markdown. Example: /html message"
+      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "This sign-in was not started here, so it was not used. Sign in again."
@@ -540,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "ownServer": "Nothing changed: this would shut your own server ({{server}}) out of the room.",
         "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
       },
       "jumpToTime": {

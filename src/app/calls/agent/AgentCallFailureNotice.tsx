@@ -10,7 +10,7 @@ import * as css from '../IncomingCalls.css';
 const SHOWN_MS = 12_000;
 
 /**
- * Why an agent call from the header or the phone room menu did not start: the browser cannot
+ * Why an agent call from the header or the command palette did not start: the browser cannot
  * call, the deployment has no call service, another call is on, or starting it failed. It shows
  * where rings show, until closed or for a few seconds.
  */

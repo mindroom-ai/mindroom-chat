@@ -69,9 +69,10 @@ describe('app languages', () => {
 
   it('registers every locale file as a selectable language', () => {
     localeFileCodes.forEach((code) => {
-      expect(APP_LANGUAGE_CODES, `src/app/i18n/locales/${code}.json is not in APP_LANGUAGES`).toContain(
-        code
-      );
+      expect(
+        APP_LANGUAGE_CODES,
+        `src/app/i18n/locales/${code}.json is not in APP_LANGUAGES`
+      ).toContain(code);
     });
   });
 
@@ -147,7 +148,7 @@ describe('locale files', () => {
     });
 
     it(`${code}.json preserves command examples exactly`, () => {
-      expect(commandExamples).toHaveLength(12);
+      expect(commandExamples).toHaveLength(8);
       commandExamples.forEach(([path, value]) => {
         const example = value.match(/\bExample:?\s*(.*)$/)?.[1];
         expect(example, path).toBeDefined();

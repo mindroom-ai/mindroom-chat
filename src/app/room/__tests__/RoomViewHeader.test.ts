@@ -740,7 +740,7 @@ describe('RoomViewHeader', () => {
       }
     );
 
-    // A phone's header holds only Back, the name and More (and a call that is on).
+    // A phone's header holds only Back, the name, the call buttons and More.
     it.each([
       { name: 'was shown', shown: true, open: false },
       { name: 'is open', shown: false, open: true },

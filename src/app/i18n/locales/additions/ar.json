@@ -156,8 +156,7 @@
       "noCrossSigningKeys": "لا يحتوي التخزين السري على مفاتيح التوقيع المتبادل، لذا لا يمكن لمفتاح الاسترداد التحقق من هذه الجلسة. تحقق منها من إحدى جلساتك الأخرى."
     },
     "commands": {
-      "CommandPlain": "إرسال رسالة كنص عادي، بدون Markdown. مثال: /plain message",
-      "CommandHtml": "إرسال رسالة بتنسيق HTML، بدون Markdown. مثال: /html message"
+      "CommandPlain": "إرسال رسالة كنص عادي، بدون Markdown. مثال: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "لم يبدأ تسجيل الدخول هذا من هنا، لذلك لم يُستخدم. سجّل الدخول مرة أخرى."
@@ -576,7 +575,6 @@
       "commandAutocomplete": {
         "failed": "فشل ⁨{{command}}⁩: ⁨{{reason}}⁩",
         "usage": "تعذّر تنفيذ ⁨{{command}}⁩. ⁨{{usage}}⁩",
-        "ownServer": "لم يتغير شيء: هذا سيمنع خادمك (⁨{{server}}⁩) من الغرفة.",
         "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain."
       },
       "jumpToTime": {

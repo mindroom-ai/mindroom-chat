@@ -1296,25 +1296,15 @@
     "commands": {
       "CommandMe": "Отправить сообщение-действие",
       "CommandNotice": "Отправить сообщение-уведомление",
-      "CommandShrug": "Отправить ¯\\_(ツ)_/¯ сообщением",
-      "CommandTableFlip": "Отправить {{value1}} сообщением",
-      "CommandUnFlip": "Отправить {{value1}} сообщением",
       "CommandStartDm": "Начать личную переписку с пользователем. Пример: /startdm userId1",
       "CommandJoin": "Войти в комнату по адресу. Пример: /join address1 address2",
       "CommandLeave": "Покинуть текущую комнату.",
       "CommandInvite": "Пригласить пользователя в комнату. Пример: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Отозвать приглашение пользователя. Пример: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Исключить пользователя из комнаты. Пример: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Забанить пользователя в комнате. Пример: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Снять бан с пользователя. Пример: /unban userId1 userId2",
       "CommandIgnore": "Игнорировать пользователя. Пример: /ignore userId1 userId2",
-      "CommandUnIgnore": "Перестать игнорировать пользователя. Пример: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Изменить псевдоним в текущей комнате.",
-      "CommandMyRoomAvatar": "Изменить аватар в текущей комнате. Пример /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Преобразовать комнату в личную переписку",
-      "CommandConvertToRoom": "Преобразовать личную переписку в комнату",
-      "CommandDelete": "Удалить сообщения пользователей. Пример: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Управлять списком контроля доступа сервера. Пример /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Перестать игнорировать пользователя. Пример: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "Эмодзи {{value1}}"
