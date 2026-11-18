@@ -477,8 +477,13 @@ class CommandLineTests(unittest.TestCase):
         """The config a start writes for a commit with or without the setting that allows shells outside a worker."""
         with self.starting(), mock.patch.object(stack, "commit_mentions", return_value=has_shell_setting) as mentions:
             self.assertEqual(self.main("7", "up"), 0)
-        mentions.assert_called_once_with(
-            Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"
+        # The start also asks whether the commit's models take reasoning levels.
+        self.assertEqual(
+            sorted(call.args for call in mentions.call_args_list),
+            [
+                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
+                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
+            ],
         )
         return (self.slot_dir / "config.yaml").read_text()
 
