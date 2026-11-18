@@ -935,6 +935,28 @@ describe('compaction seams across the edits of a reply', () => {
     }
   });
 
+  it('reads a stream status written as a record, as the other readers do', () => {
+    const regeneration = (streamStatus: Record<string, unknown>) =>
+      withEdits(
+        finished,
+        reply(paragraphs('Again.', markerLine('t1', 1), LONG_ANSWER), [running], {
+          'io.mindroom.stream_status': streamStatus,
+        })
+      ).read();
+    const worked = () =>
+      renderer!.root.findAll((node) => node.type === 'button' && textOf(node).startsWith('Worked'));
+
+    render(regeneration({ state: 'streaming' }));
+    expect(seamStates()).toEqual(['running']);
+    expect(worked()).toHaveLength(0);
+    act(() => renderer?.unmount());
+    renderer = undefined;
+
+    render(regeneration({ status: 'cancelled' }));
+    expect(seamStates()).toEqual(['interrupted']);
+    expect(worked()).toHaveLength(0);
+  });
+
   it('shows the seams a stop write carries, not those of the answer before', () => {
     render(withEdits(finished, stopped([failed])).read());
 

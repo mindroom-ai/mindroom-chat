@@ -19,8 +19,8 @@ import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import {
   getAiRunInfo,
-  getStreamStatusFromContent,
   isAiRunStreaming,
+  readStreamStatus,
   SUCCESSFUL_STREAM_STATUSES,
 } from '../../matrix/protocol/aiRun';
 import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
@@ -311,7 +311,7 @@ export const renderAgentMessageContent = ({
   const foldEventId = eventId ?? mEvent?.getId();
   const status = getAiRunInfo(content)?.status;
   const foldsWork = fromMindroomAgent && highlightRegex === undefined;
-  const streamStatus = getStreamStatusFromContent(content);
+  const streamStatus = readStreamStatus(content);
   const finished =
     !!status &&
     FINISHED_AI_RUN_STATUSES.has(status) &&

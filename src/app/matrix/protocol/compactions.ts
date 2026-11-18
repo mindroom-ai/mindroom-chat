@@ -1,9 +1,5 @@
 import { isRecord } from '../../lib/isRecord';
-import {
-  getStreamStatusFromContent,
-  hasTerminalStreamMetadata,
-  TERMINAL_STREAM_STATUSES,
-} from './aiRun';
+import { hasTerminalStreamMetadata, readStreamStatus, TERMINAL_STREAM_STATUSES } from './aiRun';
 
 /** On an agent's reply and its edits: each history compaction the reply ran, in start order. */
 export const COMPACTIONS_CONTENT_KEY = 'io.mindroom.compactions';
@@ -99,7 +95,7 @@ const readEntry = (entry: unknown): ReplyCompaction | undefined => {
  * reply that streams again can still show the status of its previous answer.
  */
 export const hasReplyEnded = (content: Record<string, unknown>): boolean => {
-  const streamStatus = getStreamStatusFromContent(content);
+  const streamStatus = readStreamStatus(content);
   return streamStatus
     ? TERMINAL_STREAM_STATUSES.has(streamStatus)
     : hasTerminalStreamMetadata(content);
