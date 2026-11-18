@@ -175,28 +175,33 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
     expect(at.textHeight, 'the text box is two lines tall').toBeGreaterThanOrEqual(60);
     expect(Math.round(at.gapBelow), '12 px under the composer').toBe(12);
     expect(at.underIsConversation, 'the conversation scrolls on beneath the gap').toBe(true);
-    const last = await page.getByText(LAST, { exact: true }).first().boundingBox();
-    expect(
-      (last?.y ?? 0) + (last?.height ?? 0),
-      'the last message clears the composer'
-    ).toBeLessThanOrEqual(at.top);
 
     // Who has read the latest message: at the end of the dock's row, above the composer.
     const following = page.locator('[data-room-following="true"]');
     await expect(following).toContainText('ctr_follower', { timeout: 30_000 });
     const pill = await following.boundingBox();
+    if (!pill) throw new Error('no names');
     const after = await geometry(page);
     expect(await following.evaluate((element) => !element.closest('[data-room-footer]'))).toBe(
       true
     );
-    expect(
-      (pill?.y ?? 0) + (pill?.height ?? 0),
-      'the names sit above the composer'
-    ).toBeLessThanOrEqual(after.top);
-    expect(
-      after.areaRight - ((pill?.x ?? 0) + (pill?.width ?? 0)),
-      'at the end of the row'
-    ).toBeLessThan(24);
+    expect(pill.y + pill.height, 'the names sit above the composer').toBeLessThanOrEqual(after.top);
+    expect(after.areaRight - (pill.x + pill.width), 'at the end of the row').toBeLessThan(24);
+    // With the names shown, the last message is in view and clears the whole dock above the
+    // composer (its row is the dock's first child).
+    const dockTop = await following.evaluate(
+      (element) => element.parentElement?.parentElement?.getBoundingClientRect().top ?? NaN
+    );
+    await expect
+      .poll(
+        async () => {
+          const last = await page.getByText(LAST, { exact: true }).first().boundingBox();
+          if (!last) throw new Error('the last message has no box');
+          return { inView: last.y >= 0, clearsDock: last.y + last.height <= dockTop };
+        },
+        { message: 'the last message is in view above the dock' }
+      )
+      .toEqual({ inView: true, clearsDock: true });
     // The names take a press at their centre; a little beside them, the press reaches the
     // conversation, not the dock.
     const hits = await following.evaluate((element) => {
@@ -205,15 +210,16 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
       if (!name || !box) return { centre: false, beside: false };
       const y = box.top + box.height / 2;
       const beside = document.elementFromPoint(box.left - 6, y);
+      // The timeline's scroll container: the room's message list, or the Compact cards.
+      const scroller =
+        document.querySelector('[data-testid="room-virtual-inner"]')?.parentElement
+          ?.parentElement ?? document.querySelector('[data-compact-room-view="true"]');
       return {
         centre: !!document
           .elementFromPoint(box.left + box.width / 2, y)
           ?.closest('button')
           ?.isSameNode(name),
-        beside:
-          !!beside &&
-          !beside.closest('[data-room-following]') &&
-          !beside.closest('[data-room-footer]'),
+        beside: !!beside && !!scroller?.contains(beside),
       };
     });
     expect(hits, 'the names take presses; beside them the conversation does').toEqual({
@@ -341,10 +347,13 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
 
     await tap(textBox(page));
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
-    await page.keyboard.type('Ready for review.');
+    // It ends on an emoji shortcode nothing matches: a query with no menu, which the send
+    // by tap must not leave behind.
+    const sent = 'Ready for review :zzzznomatch';
+    await page.keyboard.type(sent);
     await tap(button(page, 'Send message'));
-    await expect(page.getByText('Ready for review.', { exact: true }).first()).toBeVisible();
-    await expect(textBox(page)).not.toContainText('Ready for review.');
+    await expect(page.getByText(sent, { exact: true }).first()).toBeVisible();
+    await expect(textBox(page)).not.toContainText(sent);
 
     // Focus leaving an empty composer folds it back to one row.
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());

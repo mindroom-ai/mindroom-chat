@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type PointerEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { Editor } from 'slate';
 import { isEmptyEditor } from '../editor/utils';
 
@@ -61,7 +61,7 @@ export const useComposerFocus = (
   focused: boolean;
   pressing: boolean;
   setRoot: (element: HTMLElement | null) => void;
-  onPointerDown: () => void;
+  onPointerDown: (event: PointerEvent<HTMLElement>) => void;
 } => {
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const [focused, setFocused] = useState(false);
@@ -109,11 +109,14 @@ export const useComposerFocus = (
     []
   );
 
-  const onPointerDown = useCallback(() => {
+  // The press that started first holds it; another finger's release does not end it.
+  const onPointerDown = useCallback((event: PointerEvent<HTMLElement>) => {
+    if (pressEnd.current) return;
     clearTimeout(pressTimer.current);
-    pressEnd.current?.();
     setPressing(true);
-    const end = () => {
+    const { pointerId } = event;
+    const end = (ended: globalThis.PointerEvent) => {
+      if (ended.pointerId !== pointerId) return;
       pressEnd.current?.();
       pressTimer.current = setTimeout(() => setPressing(false), PRESS_SETTLE_MS);
     };

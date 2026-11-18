@@ -154,6 +154,31 @@ describe('useComposerFocus', () => {
     expect(state()).toBe('false|false');
   });
 
+  it("ends a press only on its own pointer's release", () => {
+    vi.useFakeTimers();
+    render(<Probe />);
+    const pointer = (type: string, target: EventTarget, pointerId: number) => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperty(event, 'pointerId', { value: pointerId });
+      act(() => {
+        target.dispatchEvent(event);
+      });
+    };
+    pointer('pointerdown', screen.getByTestId('button'), 1);
+    // A second finger lands and lifts: the first press still holds.
+    pointer('pointerdown', screen.getByTestId('text'), 2);
+    pointer('pointerup', window, 2);
+    act(() => {
+      vi.advanceTimersByTime(PRESS_SETTLE_MS * 2);
+    });
+    expect(state()).toBe('false|true');
+    pointer('pointerup', window, 1);
+    act(() => {
+      vi.advanceTimersByTime(PRESS_SETTLE_MS);
+    });
+    expect(state()).toBe('false|false');
+  });
+
   it('ends a press on pointercancel too', () => {
     vi.useFakeTimers();
     render(<Probe />);

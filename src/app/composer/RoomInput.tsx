@@ -596,7 +596,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       attachments.onEditorChange();
       const empty = isEmptyEditor(editor);
       setNoText(holdsNoText(editor));
-      setEmpty(isComposerEmpty(editor));
+      setEmpty(empty);
+      // An empty editor holds no query. The query follows key releases, and a reset (a send by
+      // tap, a cleared draft) comes without one, which would leave it naming text that is gone.
+      if (empty) setAutocompleteQuery(undefined);
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
     }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
 
@@ -662,7 +665,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         !!attachments.board ||
         !!recorder ||
         emojiAnchor !== undefined ||
-        !!autocompleteQuery ||
+        autocompleteMenuOpen ||
         formattingOpen,
     });
 
