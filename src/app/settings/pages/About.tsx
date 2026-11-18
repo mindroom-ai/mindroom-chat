@@ -27,11 +27,7 @@ import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import { isNativeIOS } from '../../native/nativeSso';
 import { MacAppIcon } from '../../native/MacAppIcon';
-import {
-  MAC_APP_BREW_COMMAND,
-  useMacAppDownloadUrl,
-  useOffersMacApp,
-} from '../../native/macApp';
+import { MAC_APP_BREW_COMMAND, useMacAppDownloadUrl, useOffersMacApp } from '../../native/macApp';
 import { saveFile } from '../../native/nativeFileSave';
 import { getFlightRecorderStatus } from '../../diagnostics/flightRecorder';
 import {
