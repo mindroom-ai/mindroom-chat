@@ -15,9 +15,12 @@ const estimate = (index: number) => (index === 1 ? 42 : 30);
 
 const setup = (mountedKeys: string[], detachedKeys: string[] = []) => {
   const virtualizer = {
-    elementsCache: new Map([
-      ...mountedKeys.map((key) => [key, { isConnected: true }] as const),
-      ...detachedKeys.map((key) => [key, { isConnected: false }] as const),
+    elementsCache: new Map<string, { isConnected: boolean }>([
+      ...mountedKeys.map((key): [string, { isConnected: boolean }] => [key, { isConnected: true }]),
+      ...detachedKeys.map((key): [string, { isConnected: boolean }] => [
+        key,
+        { isConnected: false },
+      ]),
     ]),
     resizeItem: vi.fn(),
   } as unknown as Virtualizer<HTMLDivElement, Element>;
