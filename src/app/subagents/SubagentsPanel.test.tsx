@@ -2,6 +2,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { getDefaultStore } from 'jotai';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../config/useClientConfig';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
@@ -11,6 +12,7 @@ import type { SubagentFrame, SubagentMeta, SubagentStatus } from '../matrix/prot
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { loadLiveMarkdown } from '../messages/live/liveMarkdown';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
+import { openSubagentsPanel, subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { SubagentsPanel } from './SubagentsPanel';
 import { showToolCalls } from '../../test/utils/showToolCalls';
 
@@ -173,6 +175,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   getSubagentRunStore(mx).clear();
+  getDefaultStore().set(subagentsPanelAtom, undefined);
   vi.useRealTimers();
 });
 
@@ -728,6 +731,35 @@ describe('SubagentsPanel', () => {
     act(() => button(container, 'Back').click());
     open('loose');
     expect(() => button(container, 'Open thread')).toThrow();
+  });
+
+  it('opens the sub-agent it was opened for, a nested one too, and again after Back', () => {
+    ingest('p', meta('running', { task: 'Plan it.' }), docs('Planning.'));
+    ingest(
+      'c',
+      meta('running', { agent: 'writer', parent: 'p', startedAt: NOW - 10 }),
+      docs('Writing.')
+    );
+    const store = getDefaultStore();
+    act(() => openSubagentsPanel(store, ROOM_ID, '$thread:example.org', 'c'));
+    render();
+    expect(view()?.dataset.subagentView).toBe('c');
+
+    act(() => button(container, 'Back').click());
+    act(() => button(container, 'Back').click());
+    expect(view()).toBeNull();
+    act(() => openSubagentsPanel(store, ROOM_ID, '$thread:example.org', 'c'));
+    expect(view()?.dataset.subagentView).toBe('c');
+  });
+
+  it('shows the list when opened for a sub-agent it does not have, or for another room', () => {
+    ingest('p', meta('running'), docs('Planning.'));
+    const store = getDefaultStore();
+    act(() => openSubagentsPanel(store, ROOM_ID, '$thread:example.org', 'gone'));
+    render();
+    expect(view()).toBeNull();
+    act(() => openSubagentsPanel(store, '!other:example.org', null, 'p'));
+    expect(view()).toBeNull();
   });
 
   it('shows the list again when the open run is gone', () => {
