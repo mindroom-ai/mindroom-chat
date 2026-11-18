@@ -20,6 +20,13 @@ type TimelineRowContext = {
   dayDivider: boolean;
   /** The first row after the reader's read marker. */
   unreadDivider: boolean;
+  /**
+   * The last row of a run of quiet marker rows, which shows the whole run side by side: the
+   * indexes of the run's earlier markers, in order. Each of those has `inQuietRun` and renders
+   * nothing.
+   */
+  quietRunIndexes?: readonly number[];
+  inQuietRun?: boolean;
 };
 
 /** Messages from one sender within this many minutes share one author line. */
@@ -159,9 +166,23 @@ type FoldOptions = {
   groupStartIndex?: number;
   /**
    * A row that renders as a quiet marker line, such as a thread's title: no message between a
-   * message and a reply to it, so the reply's quote looks past it.
+   * message and a reply to it, so the reply's quote looks past it. Consecutive ones show as one
+   * row (`quietRunIndexes`).
    */
   isQuietMarker?: (event: MatrixEvent) => boolean;
+};
+
+/** The next row with output after `index`, or undefined past the loaded events. */
+const nextRowIndex = (
+  getEvent: (index: number) => MatrixEvent | undefined,
+  index: number,
+  isSkipped: (event: MatrixEvent) => boolean
+): number | undefined => {
+  for (let next = index + 1; ; next += 1) {
+    const event = getEvent(next);
+    if (!event) return undefined;
+    if (showsRow(event, isSkipped)) return next;
+  }
 };
 
 /**
@@ -172,6 +193,11 @@ type FoldOptions = {
  * a reaction, or an event of a type the timeline draws nothing for) counts as the row above (it
  * ends a group) but renders nothing, so a day change or the read marker at it shows above the
  * next row with output instead, and a reply quote looks past it, as past a quiet marker row.
+ *
+ * Quiet marker rows with no other row between them, and no divider or group start above one of
+ * them, show as one row: the run's last marker shows them all side by side. A run that crosses an
+ * edge of the window is read from the loaded rows past it, so a row shows or folds the same
+ * wherever the window starts or ends.
  */
 export const foldTimelineRowContexts = ({
   indexes,
@@ -180,21 +206,63 @@ export const foldTimelineRowContexts = ({
   getAbsoluteIndex,
   readUptoAbsoluteIndex,
   groupStartIndex,
-  isQuietMarker = () => false,
+  isQuietMarker: readsAsQuietMarker = () => false,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
   const firstIndex = indexes[0];
-  const lastIndex = indexes.at(-1);
-  if (firstIndex === undefined || lastIndex === undefined) return contexts;
-  // The last row with output above the window. Without one (-1), the row before these rows stands
-  // for it: a read marker above that row puts no unread divider over the first row here.
-  let before = firstIndex - 1;
-  while (before >= 0 && !showsRow(getEvent(before), isSkipped)) before -= 1;
+  const windowLastIndex = indexes.at(-1);
+  if (firstIndex === undefined || windowLastIndex === undefined) return contexts;
+  const quietMarkers = new Map<MatrixEvent, boolean>();
+  const isQuietMarker = (event: MatrixEvent): boolean => {
+    let quiet = quietMarkers.get(event);
+    if (quiet === undefined) {
+      quiet = readsAsQuietMarker(event);
+      quietMarkers.set(event, quiet);
+    }
+    return quiet;
+  };
+  const isMarkerRow = (index: number): boolean => {
+    const event = getEvent(index);
+    return showsRow(event, isSkipped) && isQuietMarker(event);
+  };
+  const previousRowIndex = (index: number): number => {
+    let above = index - 1;
+    while (above >= 0 && !showsRow(getEvent(above), isSkipped)) above -= 1;
+    return above;
+  };
+  // The last row with output above the window, and above the run of markers the window starts
+  // in. Without one (-1), the row before these rows stands for it: a read marker above that row
+  // puts no unread divider over the first row here.
+  let before = previousRowIndex(firstIndex);
+  while (before >= 0 && isMarkerRow(before)) before = previousRowIndex(before);
+  // The window's last row, or the last marker of the run it ends in.
+  let lastIndex = windowLastIndex;
+  for (
+    let next = nextRowIndex(getEvent, lastIndex, isSkipped);
+    next !== undefined && isMarkerRow(next);
+    next = nextRowIndex(getEvent, next, isSkipped)
+  ) {
+    lastIndex = next;
+  }
   let lastRowAbsoluteIndex = getAbsoluteIndex?.(before);
   let above: MatrixEvent | undefined;
   let aboveHasRow = false;
   let dayChanged = false;
   let replyRun = primeReplyRun(getEvent, before, isSkipped, isQuietMarker);
+  let quietRun: number[] = [];
+  const endQuietRun = () => {
+    const shownIndex = quietRun.at(-1);
+    const shown = shownIndex === undefined ? undefined : contexts.get(shownIndex);
+    if (shown && quietRun.length > 1) {
+      const folded = quietRun.slice(0, -1);
+      shown.quietRunIndexes = folded;
+      folded.forEach((index) => {
+        const context = contexts.get(index);
+        if (context) context.inQuietRun = true;
+      });
+    }
+    quietRun = [];
+  };
 
   for (let index = Math.max(before, 0); index <= lastIndex; index += 1) {
     const event = getEvent(index);
@@ -216,13 +284,23 @@ export const foldTimelineRowContexts = ({
           eventAbsoluteIndex: absoluteIndex,
           prevRenderedEventAbsoluteIndex: lastRowAbsoluteIndex,
         });
-      contexts.set(index, {
+      const context: TimelineRowContext = {
         collapse: groupsWithAbove && !unreadDivider,
         inPlaceReplyEventId: hasRow ? inPlaceReplyEventId(replyRun, event) : undefined,
         dayDivider: hasRow && dayChanged,
         unreadDivider,
-      });
+      };
+      contexts.set(index, context);
       if (hasRow) {
+        const marker = isQuietMarker(event);
+        const joinsRun =
+          marker &&
+          quietRun.length > 0 &&
+          !context.dayDivider &&
+          !unreadDivider &&
+          index !== groupStartIndex;
+        if (!joinsRun) endQuietRun();
+        if (marker) quietRun.push(index);
         dayChanged = false;
         lastRowAbsoluteIndex = absoluteIndex;
         replyRun = isQuietMarker(event)
@@ -233,5 +311,6 @@ export const foldTimelineRowContexts = ({
       aboveHasRow = hasRow;
     }
   }
+  endQuietRun();
   return contexts;
 };

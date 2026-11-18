@@ -334,4 +334,105 @@ describe('foldTimelineRowContexts', () => {
       expect(quoting(rows, [3])).toEqual(['$second']);
     });
   });
+
+  describe('quiet marker runs', () => {
+    const row = (id: string, minute: number, more: Partial<Row> = {}): Row => ({
+      id,
+      sender: '@mindroom_helper:x',
+      type: 'm.room.message',
+      minute,
+      ...more,
+    });
+    const marker = (id: string, minute: number) => row(id, minute, { quiet: true });
+    /**
+     * What each row of the window shows: '' for a marker folded into the row of its run, the run's
+     * markers joined by '+' on that row, else the row's own ID.
+     */
+    const shown = (
+      rows: Row[],
+      {
+        indexes = rows.map((_, index) => index),
+        groupStartIndex,
+        readUptoAbsoluteIndex,
+      }: { indexes?: number[]; groupStartIndex?: number; readUptoAbsoluteIndex?: number } = {}
+    ) => {
+      const events = rows.map(toEvent);
+      const quiet = new Set(rows.flatMap((each) => (each.quiet ? [each.id] : [])));
+      const contexts = foldTimelineRowContexts({
+        indexes,
+        getEvent: (index) => events[index],
+        isSkipped: () => false,
+        getAbsoluteIndex: (index) => index,
+        readUptoAbsoluteIndex,
+        groupStartIndex,
+        isQuietMarker: (event) => quiet.has(event.getId() ?? ''),
+      });
+      return indexes.map((index) => {
+        const context = contexts.get(index);
+        if (context?.inQuietRun) return '';
+        const run = context?.quietRunIndexes;
+        return run ? [...run, index].map((each) => rows[each]?.id).join('+') : rows[index]?.id;
+      });
+    };
+
+    it('show two or three markers in a row as one row, on the last of them', () => {
+      expect(shown([row('$reply', 0), marker('$title', 1), marker('$review', 1)])).toEqual([
+        '$reply',
+        '',
+        '$title+$review',
+      ]);
+      expect(
+        shown([row('$reply', 0), marker('$title', 1), marker('$review', 1), marker('$snooze', 2)])
+      ).toEqual(['$reply', '', '', '$title+$review+$snooze']);
+    });
+
+    it('leave a lone marker as it is', () => {
+      expect(shown([marker('$title', 0), row('$reply', 1)])).toEqual(['$title', '$reply']);
+    });
+
+    it('start a new run after a message between markers', () => {
+      expect(shown([marker('$a', 0), row('$reply', 1), marker('$b', 2), marker('$c', 2)])).toEqual([
+        '$a',
+        '$reply',
+        '',
+        '$b+$c',
+      ]);
+    });
+
+    it('join markers past an edit, which has no row', () => {
+      expect(shown([marker('$a', 0), row('$a-edit', 0, { edits: '$a' }), marker('$b', 1)])).toEqual(
+        ['', '$a-edit', '$a+$b']
+      );
+    });
+
+    it('break a run at a day divider, an unread divider or a group start', () => {
+      const rows = [marker('$a', 0), marker('$b', 24 * 60)];
+      expect(shown(rows)).toEqual(['$a', '$b']);
+      const sameDay = [marker('$a', 0), marker('$b', 1), marker('$c', 2)];
+      expect(shown(sameDay, { readUptoAbsoluteIndex: 0 })).toEqual(['$a', '', '$b+$c']);
+      expect(shown(sameDay, { readUptoAbsoluteIndex: 1 })).toEqual(['', '$a+$b', '$c']);
+      expect(shown(sameDay, { groupStartIndex: 1 })).toEqual(['$a', '', '$b+$c']);
+    });
+
+    it('show each row the same wherever the window starts or ends', () => {
+      const rows = [
+        row('$ask', 0),
+        marker('$a', 1),
+        row('$a-edit', 1, { edits: '$a' }),
+        marker('$b', 1),
+        marker('$c', 2),
+        row('$reply', 3),
+        marker('$d', 4),
+        marker('$e', 4),
+      ];
+      const whole = shown(rows);
+      expect(whole).toEqual(['$ask', '', '$a-edit', '', '$a+$b+$c', '$reply', '', '$d+$e']);
+      for (let first = 0; first < rows.length; first += 1) {
+        for (let last = first; last < rows.length; last += 1) {
+          const indexes = rows.map((_, index) => index).slice(first, last + 1);
+          expect(shown(rows, { indexes })).toEqual(whole.slice(first, last + 1));
+        }
+      }
+    });
+  });
 });
