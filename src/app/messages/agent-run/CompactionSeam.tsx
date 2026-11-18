@@ -170,18 +170,21 @@ const historyRow = (
   return [{ term: t(`${KEY}.row.history`), value }];
 };
 
+/** A row of the card, or none without a value. */
+const row = (term: string, value: ReactNode | undefined, className?: string): Row[] =>
+  value === undefined ? [] : [{ term, value, className }];
+
 const budgetRow = ({ historyBudgetTokens: budget }: ReplyCompaction, t: TFunction): Row[] =>
-  budget === undefined
-    ? []
-    : [{ term: t(`${KEY}.row.budget`), value: t(`${KEY}.value.tokens`, { n: budget }) }];
+  row(
+    t(`${KEY}.row.budget`),
+    budget === undefined ? undefined : t(`${KEY}.value.tokens`, { n: budget })
+  );
 
 const modelRow = ({ summaryModel }: ReplyCompaction, t: TFunction): Row[] =>
-  summaryModel === undefined
-    ? []
-    : [{ term: t(`${KEY}.row.summaryModel`), value: revealDirectionControls(summaryModel) }];
+  row(t(`${KEY}.row.summaryModel`), summaryModel && revealDirectionControls(summaryModel));
 
 const timeRow = (term: string, ts: number | undefined, at: RowContext['at']): Row[] =>
-  ts === undefined ? [] : [{ term, value: at(ts) }];
+  row(term, ts === undefined ? undefined : at(ts));
 
 /** When the compaction ended; undefined without a start, or past the latest date. */
 const endTime = ({ startedAt, durationMs }: ReplyCompaction): number | undefined => {
@@ -192,39 +195,29 @@ const endTime = ({ startedAt, durationMs }: ReplyCompaction): number | undefined
 
 const successRows = (c: ReplyCompaction, { t, at }: RowContext): Row[] => {
   const runs = c.compactedRunCount ?? c.runsBefore;
-  const saved =
-    c.beforeTokens !== undefined && c.afterTokens !== undefined && c.afterTokens <= c.beforeTokens
-      ? c.beforeTokens - c.afterTokens
-      : undefined;
-  let summarizedBy: string | undefined;
-  if (c.summaryModel !== undefined && c.durationMs !== undefined) {
-    summarizedBy = t(`${KEY}.value.summarizedBy`, {
-      model: revealDirectionControls(c.summaryModel),
-      duration: formatSeconds(c.durationMs),
-    });
-  } else if (c.summaryModel !== undefined) summarizedBy = revealDirectionControls(c.summaryModel);
+  const { beforeTokens: before, afterTokens: after } = c;
+  const model = c.summaryModel && revealDirectionControls(c.summaryModel);
   return [
     ...historyRow(c, true, t),
-    ...(saved === undefined || c.beforeTokens === undefined
-      ? []
-      : [
-          {
-            term: t(`${KEY}.row.saved`),
-            value: t(`${KEY}.value.saved`, { n: saved, p: percentOf(saved, c.beforeTokens) }),
-          },
-        ]),
+    ...row(
+      t(`${KEY}.row.saved`),
+      before !== undefined && after !== undefined && after <= before
+        ? t(`${KEY}.value.saved`, { n: before - after, p: percentOf(before - after, before) })
+        : undefined
+    ),
     ...budgetRow(c, t),
-    ...(runs === undefined
-      ? []
-      : [
-          {
-            term: t(`${KEY}.row.folded`),
-            value: t(`${KEY}.value.folded`, { runs: t(`${KEY}.value.runs`, { count: runs }) }),
-          },
-        ]),
-    ...(summarizedBy === undefined
-      ? []
-      : [{ term: t(`${KEY}.row.summarizedBy`), value: summarizedBy }]),
+    ...row(
+      t(`${KEY}.row.folded`),
+      runs === undefined
+        ? undefined
+        : t(`${KEY}.value.folded`, { runs: t(`${KEY}.value.runs`, { count: runs }) })
+    ),
+    ...row(
+      t(`${KEY}.row.summarizedBy`),
+      model !== undefined && c.durationMs !== undefined
+        ? t(`${KEY}.value.summarizedBy`, { model, duration: formatSeconds(c.durationMs) })
+        : model
+    ),
     ...timeRow(t(`${KEY}.row.when`), endTime(c), at),
   ];
 };
@@ -241,7 +234,7 @@ const runningRows = (c: ReplyCompaction, { t, at }: RowContext): Row[] => {
   return [
     ...historyRow(c, false, t),
     ...budgetRow(c, t),
-    ...(folding === undefined ? [] : [{ term: t(`${KEY}.row.folding`), value: folding }]),
+    ...row(t(`${KEY}.row.folding`), folding),
     ...modelRow(c, t),
     ...timeRow(t(`${KEY}.row.started`), c.startedAt, at),
   ];
@@ -249,18 +242,18 @@ const runningRows = (c: ReplyCompaction, { t, at }: RowContext): Row[] => {
 
 const unfinishedRows = (c: ReplyCompaction, state: SeamState, { t, at }: RowContext): Row[] => {
   const interrupted = state === 'interrupted';
-  let reason: string | undefined = c.failureReason && revealDirectionControls(c.failureReason);
-  if (interrupted) reason = t(`${KEY}.value.interrupted`);
+  const reason = interrupted
+    ? t(`${KEY}.value.interrupted`)
+    : c.failureReason && revealDirectionControls(c.failureReason);
   return [
-    ...(reason === undefined
-      ? []
-      : [{ term: t(`${KEY}.row.reason`), value: reason, className: css.Reason }]),
+    ...row(t(`${KEY}.row.reason`), reason, css.Reason),
     ...historyRow(c, false, t),
     ...budgetRow(c, t),
     ...modelRow(c, t),
-    ...(interrupted || c.durationMs === undefined
-      ? []
-      : [{ term: t(`${KEY}.row.gaveUpAfter`), value: formatSeconds(c.durationMs) }]),
+    ...row(
+      t(`${KEY}.row.gaveUpAfter`),
+      interrupted || c.durationMs === undefined ? undefined : formatSeconds(c.durationMs)
+    ),
     ...(interrupted
       ? timeRow(t(`${KEY}.row.started`), c.startedAt, at)
       : timeRow(t(`${KEY}.row.when`), endTime(c), at)),

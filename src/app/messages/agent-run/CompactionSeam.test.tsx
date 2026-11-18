@@ -617,6 +617,34 @@ describe('CompactionSeam card', () => {
     expect(tip.findAllByType('b').map(text)).toEqual(['366,804 → 6,336']);
   });
 
+  it('details a success that saved nothing, or whose summary time is unknown', async () => {
+    const renderer = render(
+      <CompactionSeam
+        compaction={compaction({
+          afterTokens: 366804,
+          durationMs: undefined,
+          startedAt: undefined,
+        })}
+      />
+    );
+    await open(renderer);
+    expect(rows(renderer)).toEqual([
+      ['History', '366,804 → 366,804 tokens'],
+      ['Saved', '0 tokens (0%)'],
+      ['Budget', '351,792 tokens'],
+      ['Folded', '24 runs into 1 summary'],
+      ['Summarized by', 'haiku'],
+    ]);
+  });
+
+  it('says how long an unfinished compaction tried only when it gave up', async () => {
+    const renderer = render(
+      <CompactionSeam compaction={running({ durationMs: 5000 })} interrupted />
+    );
+    await open(renderer);
+    expect(rows(renderer).map(([term]) => term)).not.toContain('Gave up after');
+  });
+
   it('tags where it ran', async () => {
     const tagged = async (c: ReplyCompaction) => {
       const renderer = render(<CompactionSeam compaction={c} />);
