@@ -27,6 +27,10 @@ type UseThreadKeysOptions = {
   onFocusThread: () => void;
 };
 
+/** The text box of the room's composer, under the room's own area. */
+export const roomComposerIn = (area: ParentNode | null | undefined): HTMLElement | null =>
+  area?.querySelector<HTMLElement>('[data-room-footer="true"] [contenteditable="true"]') ?? null;
+
 /**
  * The keys that go into a thread and out of it. Alt and the right arrow goes one level in: from
  * the room to its Compact cards (the card of the thread just left, or the first in view), and
@@ -100,14 +104,19 @@ export const useThreadKeys = ({
     leftByKey.current = undefined;
     if (openThreadId || !left || left.threadId !== closed) return;
     const doc = areaRef.current?.ownerDocument;
-    const focused = doc?.activeElement ?? null;
-    if (!doc || (focused && focused !== doc.body && focused !== left.focused)) return;
+    if (!doc) return;
+    const unclaimed = () =>
+      !doc.activeElement || doc.activeElement === doc.body || doc.activeElement === left.focused;
     const focusCard = () =>
       focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
+    if (!unclaimed() || focusCard()) return;
     // A Compact list that takes the place of a thread that filled the page shows its cards a
     // pass after this effect, in the same task (`RoomTimeline`). The card takes the focus then,
-    // also from the composer, which the page gave it meanwhile as what the thread left.
-    if (!focusCard()) queueMicrotask(focusCard);
+    // also from the room's composer, which the page gave it meanwhile as what the thread left;
+    // not from another control that took it.
+    queueMicrotask(() => {
+      if (unclaimed() || doc.activeElement === roomComposerIn(areaRef.current)) focusCard();
+    });
   });
 
   useShortcut('leaveThread', () => {

@@ -42,6 +42,8 @@ const mountList = async (initialViewMode: 'compact' | 'threaded') => {
     firstBuild: builds.invocationCallOrder[0] ?? Infinity,
     /** Builds of every record: those that keep none from a build before. */
     wholeBuilds: builds.calls.filter(([{ previous }]) => !previous).length,
+    /** The maps of those builds. */
+    wholeMaps: builds.results.filter((_, call) => !builds.calls[call]?.[0].previous),
     /** The order of the first listener put on the room: the overview's are the first. */
     firstListener: vi.mocked(room.on).mock.invocationCallOrder[0] ?? Infinity,
   };
@@ -60,6 +62,12 @@ describe("RoomTimeline's first build of the thread records", () => {
     expect(list.firstListener).toBeLessThan(list.firstBuild);
     // The count of the listeners' start lets the list build: it builds nothing over again.
     expect(list.wholeBuilds).toBe(1);
+    // That build makes the record of a thread both of its maps list once.
+    const { normalThreadRecordMap, compactThreadRecordMap } = list.wholeMaps[0]?.value ?? {};
+    expect(compactThreadRecordMap?.get('$root')?.presentation).toBeDefined();
+    expect(compactThreadRecordMap?.get('$root')?.presentation).toBe(
+      normalThreadRecordMap?.get('$root')?.presentation
+    );
     expect(list.renderer.root.findAll((node) => node.type === compactPlaceholderType)).toHaveLength(
       1
     );

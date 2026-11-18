@@ -345,11 +345,27 @@ describe('the Compact records of a build that also builds the normal ones', () =
     expect(built.compactThreadRecordMap.size).toBe(4);
   });
 
-  it('keeps the records of the build before as it did, and takes only what it would build', () => {
-    const options = bothLists();
-    const first = buildThreadIndexRecordMaps(options);
+  it('takes nothing in a later build, whose normal map keeps records from before', () => {
+    // B's root can be redacted in place, as a redaction that no listener marks leaves it.
+    let redacted = false;
+    const rootOfB = {
+      ...makeEvent({ eventId: '$b' }),
+      getContent: () => (redacted ? {} : { body: 'body', msgtype: 'm.text' }),
+      getUnsigned: () => (redacted ? { redacted_because: {} } : undefined),
+      isRedacted: () => redacted,
+    } as unknown as MatrixEvent;
+    const withRoot = new Map([...events, ['$b', rootOfB]]);
+    const options = {
+      ...bothLists(),
+      visibleThreadRootEventMap: withRoot,
+      compactThreadRootEventMap: withRoot,
+      // Compact shows a cached preview of B: its record of B is its own.
+      compactThreadRootBodyMap: new Map([...bodies, ['$b', 'cached preview of $b']]),
+    };
+    const first = expectAsBuiltAlone(options);
+    expect(['$a', '$b', '$c'].map((id) => taken(first, id))).toEqual([true, false, true]);
 
-    // A change of A alone: each map keeps its own records of the other threads.
+    // A change of A alone: each map keeps its own records of the other threads, and builds A's.
     markThreadRecordChange(options.changes, '$a');
     const second = expectAsBuiltAlone(
       options,
@@ -360,32 +376,22 @@ describe('the Compact records of a build that also builds the normal ones', () =
       expect(second.compactThreadRecordMap.get(id)).toBe(first.compactThreadRecordMap.get(id));
     });
     expect(second.normalThreadRecordMap.get('$a')).not.toBe(first.normalThreadRecordMap.get('$a'));
-    expect(taken(second, '$a')).toBe(true);
-    expect(second.compactThreadRecordMap.get('$a')?.presentation).not.toBe(
-      first.compactThreadRecordMap.get('$a')?.presentation
-    );
+    expect(taken(second, '$a')).toBe(false);
 
-    // Another preview for B in Compact alone, and no mark: the normal map keeps B's record, and
-    // the Compact one builds its own.
-    const changed = {
-      ...options,
-      compactThreadRootBodyMap: new Map([...bodies, ['$b', 'cached preview of $b']]),
-    };
-    const third = expectAsBuiltAlone(
-      changed,
-      buildThreadIndexRecordMaps({ ...changed, previous: second })
-    );
-    expect(third.normalThreadRecordMap.get('$b')).toBe(second.normalThreadRecordMap.get('$b'));
+    // B's root is redacted with no mark, and Compact's preview of B becomes the normal one. The
+    // normal map keeps its record of B by its rule; the Compact one has none for these values,
+    // and builds B from the room as it is, not from what the normal map kept.
+    redacted = true;
+    const later = { ...options, compactThreadRootBodyMap: bodies };
+    const third = buildThreadIndexRecordMaps({ ...later, previous: second });
+    const kept = third.normalThreadRecordMap.get('$b');
+    expect(kept).toBe(first.normalThreadRecordMap.get('$b'));
+    expect(kept?.status.isUnread).toBe(true);
+    expect(third.compactThreadRecordMap.get('$b')?.status.isUnread).toBe(false);
+    expect([...third.compactThreadRecordMap]).toEqual([...builtAlone(later).compact]);
     expect(taken(third, '$b')).toBe(false);
-    expect(third.compactThreadRecordMap.get('$a')).toBe(second.compactThreadRecordMap.get('$a'));
-
-    // The same preview again: the normal map's record of B, kept since the first build, stands
-    // for these values, and no change was marked for B since.
-    const fourth = expectAsBuiltAlone(
-      options,
-      buildThreadIndexRecordMaps({ ...options, previous: third })
+    ['$a', '$c', '$d'].forEach((id) =>
+      expect(third.compactThreadRecordMap.get(id)).toBe(second.compactThreadRecordMap.get(id))
     );
-    expect(taken(fourth, '$b')).toBe(true);
-    expect(fourth.compactThreadRecordMap.get('$b')?.absoluteIndex).toBe(2);
   });
 });

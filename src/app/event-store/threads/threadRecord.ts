@@ -141,10 +141,11 @@ const unchangedSince = (
  * change: no mark in `changes` for the thread or the room since its record was built, the same
  * values given for it, and the same answers of the room that every record reads (`roomSources`).
  *
- * `beside` is the map this one is built beside, in the same pass and under the same `changes`
- * (the normal map, for the Compact one). A record this build would build is taken from it
- * instead when it stands by the same rule: the two maps then build the record of a thread they
- * list with the same values once. Nothing of `beside` is kept beyond the records taken.
+ * `beside` is a map built just before this one, in the same pass, under the same `changes` and
+ * with no `previous` of its own, so that all its records are new (the normal map, for the Compact
+ * one). A record this build would build is taken from it instead when it stands by the same
+ * rule: the two maps then build the record of a thread they list with the same values once.
+ * Nothing of `beside` is kept beyond the records taken.
  */
 export type ThreadRecordReuse = {
   previous: ReadonlyMap<string, ThreadRecord> | undefined;

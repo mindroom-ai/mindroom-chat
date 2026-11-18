@@ -42,7 +42,7 @@ import { ThreadView } from './ThreadView';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
-import { useThreadKeys } from './useThreadKeys';
+import { roomComposerIn, useThreadKeys } from './useThreadKeys';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
@@ -197,9 +197,7 @@ export function RoomView({
   useEffect(() => () => engine.clearRoomFocus(roomId), [engine, roomId]);
 
   const focusConversation = useCallback(() => {
-    areaRef.current
-      ?.querySelector<HTMLElement>('[data-room-footer="true"] [contenteditable="true"]')
-      ?.focus();
+    roomComposerIn(areaRef.current)?.focus();
   }, []);
   // Before the effect below that sends the focus of a closed thread column to the composer: the
   // card of a thread the keys left takes it first.

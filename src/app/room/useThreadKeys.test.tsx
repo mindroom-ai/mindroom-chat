@@ -162,35 +162,68 @@ describe('useThreadKeys', () => {
     expect(document.activeElement).toBe(elsewhere);
   });
 
-  it("hands the focus to the left thread's card that shows a pass later in the same task", async () => {
-    // Under a thread that fills the page the room has no cards.
-    const cards = area.innerHTML;
-    area.innerHTML = '';
-    const composer = document.createElement('button');
-    document.body.append(composer);
-    const { rerender } = mount('$b');
-    expect(press('leaveThread')).toBe(true);
-    // The room shows without the thread, and its Compact list still holds its first build.
-    rerender({ threadId: undefined });
-    // The page gives the focus the closed thread left to the composer, and the list shows.
-    composer.focus();
-    area.innerHTML = cards;
-    await Promise.resolve();
-    expect(document.activeElement).toBe(card('$b'));
-  });
+  describe("a left thread's card that shows a pass later in the same task", () => {
+    // Under a thread that fills the page the room has no cards, and its composer stays.
+    let cards: string;
+    let composer: HTMLElement;
+    beforeEach(() => {
+      cards = area.innerHTML;
+      area.innerHTML =
+        '<div data-room-footer="true"><div contenteditable="true" tabindex="0"></div></div>';
+      composer = area.querySelector<HTMLElement>('[contenteditable]')!;
+    });
+    /** The room shows without the thread, its Compact list still holding its first build. */
+    const leave = () => {
+      const { rerender } = mount('$b');
+      expect(press('leaveThread')).toBe(true);
+      rerender({ threadId: undefined });
+    };
+    const showCards = (html = cards) => area.insertAdjacentHTML('afterbegin', html);
 
-  it('leaves the focus where it went when no card of the left thread shows', async () => {
-    area.innerHTML = '';
-    const composer = document.createElement('button');
-    document.body.append(composer);
-    const { rerender } = mount('$b');
-    expect(press('leaveThread')).toBe(true);
-    rerender({ threadId: undefined });
-    composer.focus();
-    area.innerHTML =
-      '<div data-compact-room-view="true"><button data-thread-root-id="$a"></button></div>';
-    await Promise.resolve();
-    expect(document.activeElement).toBe(composer);
+    it('takes the focus the page gave the composer as what the thread left', async () => {
+      leave();
+      composer.focus();
+      showCards();
+      await Promise.resolve();
+      expect(document.activeElement).toBe(card('$b'));
+    });
+
+    it('takes the focus nothing claimed', async () => {
+      leave();
+      showCards();
+      await Promise.resolve();
+      expect(document.activeElement).toBe(card('$b'));
+    });
+
+    it('leaves the focus on another control that took it meanwhile', async () => {
+      const search = document.createElement('input');
+      area.append(search);
+      const menuItem = document.createElement('button');
+      document.body.append(menuItem);
+      leave();
+      search.focus();
+      showCards();
+      await Promise.resolve();
+      expect(document.activeElement).toBe(search);
+
+      area.querySelector('[data-compact-room-view]')?.remove();
+      leave();
+      composer.focus();
+      menuItem.focus();
+      showCards();
+      await Promise.resolve();
+      expect(document.activeElement).toBe(menuItem);
+    });
+
+    it('leaves the focus where it went when no card of the left thread shows', async () => {
+      leave();
+      composer.focus();
+      showCards(
+        '<div data-compact-room-view="true"><button data-thread-root-id="$a"></button></div>'
+      );
+      await Promise.resolve();
+      expect(document.activeElement).toBe(composer);
+    });
   });
 
   it('beside an open thread, starts at the card beside that thread', () => {
