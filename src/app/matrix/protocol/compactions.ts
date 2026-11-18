@@ -5,7 +5,7 @@ export const COMPACTIONS_CONTENT_KEY = 'io.mindroom.compactions';
 /** The older standalone `m.notice` of one compaction, still sent for manual ones. */
 export const COMPACTION_NOTICE_CONTENT_KEY = 'io.mindroom.compaction';
 
-export type CompactionStatus = 'running' | 'success' | 'failed' | 'timeout';
+type CompactionStatus = 'running' | 'success' | 'failed' | 'timeout';
 
 /**
  * One compaction, from a reply's list or an old notice. `afterTool` counts the visible tool calls
@@ -26,7 +26,6 @@ export type ReplyCompaction = {
   historyBudgetTokens?: number;
   runsBefore?: number;
   compactedRunCount?: number;
-  runsRemaining?: number;
   failureReason?: string;
 };
 
@@ -77,7 +76,6 @@ const readOptionalFields = (entry: Record<string, unknown>): OptionalFields => {
   }
   if (isCount(entry.runs_before)) fields.runsBefore = entry.runs_before;
   if (isCount(entry.compacted_run_count)) fields.compactedRunCount = entry.compacted_run_count;
-  if (isCount(entry.runs_remaining)) fields.runsRemaining = entry.runs_remaining;
   if (isText(entry.failure_reason)) fields.failureReason = capReason(entry.failure_reason);
   return fields;
 };
@@ -93,7 +91,7 @@ const readEntry = (entry: unknown): ReplyCompaction | undefined => {
 /**
  * The compactions of a reply's `io.mindroom.compactions` list (the raw value), in start order.
  * An entry without a string id, a known phase and status, a tool count or a token count is
- * dropped, and so is one whose id an earlier entry has; unknown keys are ignored, and a value
+ * dropped, and so is one whose id an earlier kept entry has; unknown keys are ignored, and a value
  * that is not a list gives none.
  */
 export const readReplyCompactions = (value: unknown): ReplyCompaction[] => {

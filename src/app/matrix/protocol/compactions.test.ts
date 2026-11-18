@@ -56,7 +56,6 @@ describe('readReplyCompactions', () => {
         historyBudgetTokens: 351792,
         runsBefore: 24,
         compactedRunCount: 24,
-        runsRemaining: 15,
         failureReason: 'The model timed out.',
       },
     ]);
@@ -110,13 +109,12 @@ describe('readReplyCompactions', () => {
 
   it('leaves out an optional key of the wrong type and keeps the entry', () => {
     const [read] = readReplyCompactions([
-      { ...ENTRY, summary_model: 4, after_tokens: 'many', runs_remaining: -2, started_at: null },
+      { ...ENTRY, summary_model: 4, after_tokens: 'many', started_at: null },
     ]);
 
     expect(read).toMatchObject({ id: '3f9c', beforeTokens: 366804 });
     expect(read).not.toHaveProperty('summaryModel');
     expect(read).not.toHaveProperty('afterTokens');
-    expect(read).not.toHaveProperty('runsRemaining');
     expect(read).not.toHaveProperty('startedAt');
   });
 
