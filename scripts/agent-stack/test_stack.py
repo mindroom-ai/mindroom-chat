@@ -42,6 +42,19 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("thread_summary_model", config)
         self.assertNotIn("anthropic", config)
 
+    def test_a_backend_with_reasoning_levels_gets_a_stub_model_with_levels(self) -> None:
+        plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
+        self.assertNotIn("think", plain)
+        self.assertNotIn("reasoning:", plain)
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, reasoning_levels=True)
+        self.assertIn(
+            "  think:\n    provider: openai\n    id: stub-think\n    display_name: Stub Think\n"
+            "    api: chat_completions\n    context_window: 128000\n"
+            '    reasoning:\n      levels: ["low", "medium", "high"]\n      default: medium\n'
+            f"    extra_kwargs:\n      base_url: {STUB_URL}\n",
+            config,
+        )
+
     def test_extra_agents_are_stub_workers_in_the_lobby(self) -> None:
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, extra_agents=3)
         for number in (1, 2, 3):

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import {
   expect,
@@ -82,6 +83,56 @@ test('a thread switches to another model from the picker, and the choice survive
   // answers for its whole discovery window (MODEL_TIMEOUT, 12 s) before it shows one.
   await openThread(page, stack, rootId);
   await expect(chip).toHaveText(second.displayName, { timeout: 45_000 });
+});
+
+test('a thread runs a model at the reasoning level picked in the effort column', async ({
+  page,
+  stack,
+}) => {
+  const think = stack.reasoningModel;
+  test.skip(!think, 'the backend offers no reasoning levels (MindRoom #4119)');
+  if (!think) return;
+  const { first } = stack.models;
+  await openLobby(page, stack);
+  const word = uniqueWord('effort');
+  const rootId = await startThread(stack, `${word} first question`);
+  await showThread(page, stack, rootId);
+  await waitForAgentReply(stack, rootId, (body) => body.includes('first question'), {
+    modelId: first.id,
+  });
+
+  const chip = page.getByRole('button', { name: 'Choose model' });
+  await expect(chip).toHaveText('Room default', { timeout: 60_000 });
+  await chip.click();
+  const models = page.getByRole('listbox', { name: 'Models' });
+  const row = models.getByRole('option', { name: named(think.displayName) });
+  await expect(row).toBeVisible({ timeout: 60_000 });
+  // The column shows the levels of the row the pointer is on; one pick sends one command.
+  await row.hover();
+  const levels = page.getByRole('radiogroup', { name: `Effort for ${think.displayName}` });
+  await expect(levels.getByRole('radio')).toHaveText(['Low', 'MediumDefault', 'High']);
+  await levels.getByRole('radio', { name: 'High', exact: true }).click();
+  await expect(chip).toHaveText(`${think.displayName} · High`, { timeout: 60_000 });
+  await expect(page.getByText(`This thread now uses ${think.key}@high`)).toBeVisible({
+    timeout: 60_000,
+  });
+  await shot(page, `effort-chip-${test.info().project.name}`);
+
+  await sendFromComposer(page, `${word} second question`);
+  await waitForAgentReply(stack, rootId, (body) => body.includes('second question'), {
+    modelId: think.id,
+  });
+  const requests = readFileSync(stack.stubRequests, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { model: string; user: string; reasoning_effort?: string })
+    .filter((request) => request.model === think.id && request.user.includes(`${word} second`));
+  expect(requests.length).toBeGreaterThan(0);
+  expect(requests.map((request) => request.reasoning_effort)).toContain('high');
+
+  // After a reload the chip learns the level from the router again.
+  await openThread(page, stack, rootId);
+  await expect(chip).toHaveText(`${think.displayName} · High`, { timeout: 45_000 });
 });
 
 test(
