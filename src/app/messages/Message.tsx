@@ -1127,20 +1127,23 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         </div>
       );
 
+      // A follow-up row from the same sender drops the name and time, but an agent reply keeps
+      // them: each reply is its own run, with its own time and details.
+      const showHeader = !collapse || !!aiRunInfo;
       const layout =
         messageLayout === MessageLayout.Compact ? (
           <CompactLayout before={header}>{body}</CompactLayout>
         ) : messageLayout === MessageLayout.Bubble ? (
           <BubbleLayout
             before={renderAvatar(true)}
-            header={!collapse && header}
+            header={showHeader && header}
             own={senderId === client.getUserId()}
           >
             {body}
           </BubbleLayout>
         ) : (
-          <ModernLayout before={collapse && !aiRunInfo ? undefined : renderAvatar(true)}>
-            {!collapse && header}
+          <ModernLayout before={showHeader ? renderAvatar(true) : undefined}>
+            {showHeader && header}
             {body}
           </ModernLayout>
         );
@@ -1151,7 +1154,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           tabIndex={0}
           highlight={highlight}
           className={css.MessageBase}
-          collapse={collapse}
+          collapse={!showHeader}
           space={messageSpacing}
           selected={!!menuAnchor || edit}
           onContextMenu={openMenuAtPointer}
