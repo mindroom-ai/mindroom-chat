@@ -18,7 +18,6 @@ vi.mock('../../messages/reactions/reactionToggle', () => ({
 
 const emptyData = () => ({
   threadRecordMap: new Map(),
-  threadEventMap: new Map(),
   handleOpenReply: vi.fn(),
   approvalTimeline: {
     hiddenEventIds: new Set<string>(),
