@@ -456,7 +456,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             onBlur={onFocusLeave}
           >
             <div className={css.Head}>
-              <Icon size={ICON_SIZE} aria-hidden />
+              <Icon className={css.HeadIcon} size={ICON_SIZE} aria-hidden />
               <span>
                 {title}
                 {elapsed !== undefined && ` ${elapsed}`}

@@ -219,28 +219,28 @@ const expectSettled = async (target: Locator) => {
 };
 
 /**
- * The WCAG contrast of a row's text, at its opacity, on the first opaque background behind it,
- * once its transition ends.
+ * The WCAG contrast of `target`'s color on the first opaque background behind it, faded by the
+ * opacity of every layer between them, once its transition ends.
  */
-const expectReadable = (button: Locator) =>
+const expectContrast = (target: Locator, least: number) =>
   expect
     .poll(() =>
-      button.evaluate((element) => {
+      target.evaluate((element) => {
         // `rgb(…)`/`rgba(…)` in 0-255, or `color(srgb …)` (a color-mix) in 0-1.
         const rgba = (value: string) => {
           const parts = (value.match(/[\d.]+/g) ?? []).map(Number);
           const scale = value.startsWith('color(') ? 255 : 1;
           return [parts[0]! * scale, parts[1]! * scale, parts[2]! * scale, parts[3] ?? 1];
         };
+        const fg = rgba(getComputedStyle(element).color);
+        let alpha = fg[3]!;
         let behind: Element | null = element;
         let bg = rgba(getComputedStyle(element).backgroundColor);
         while (bg[3] === 0 && behind?.parentElement) {
+          alpha *= Number(getComputedStyle(behind).opacity);
           behind = behind.parentElement;
           bg = rgba(getComputedStyle(behind).backgroundColor);
         }
-        const style = getComputedStyle(element);
-        const fg = rgba(style.color);
-        const alpha = fg[3]! * Number(style.opacity);
         const shown = [0, 1, 2].map((i) => fg[i]! * alpha + bg[i]! * (1 - alpha));
         const luminance = (channels: number[]) => {
           const [r, g, b] = channels.map((channel) => {
@@ -253,7 +253,17 @@ const expectReadable = (button: Locator) =>
         return (high! + 0.05) / (low! + 0.05);
       })
     )
-    .toBeGreaterThanOrEqual(4.5);
+    .toBeGreaterThanOrEqual(least);
+
+/** The color an element shows its text in, and the opacity of it and every layer above it. */
+const shownColor = (target: Locator) =>
+  target.evaluate((element) => {
+    let opacity = 1;
+    for (let layer: Element | null = element; layer; layer = layer.parentElement) {
+      opacity *= Number(getComputedStyle(layer).opacity);
+    }
+    return { color: getComputedStyle(element).color, opacity };
+  });
 
 /** Saves the window, `target` at the middle of the timeline once the timeline stopped moving. */
 const shot = async (page: Page, target: Locator, name: string) => {
@@ -504,24 +514,30 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(running).not.toHaveText(before ?? '', { timeout: 5000 });
   await running.getByRole('button').hover();
   await expect(card).toContainText('24 runs, 9 done');
-  await expectReadable(running.getByRole('button'));
   await expect(card).toContainText('before the reply');
   await page.mouse.move(0, 0);
 
-  // A finished, a running and a failed row stay readable at rest and highlighted, and so does
-  // their card's head, in the themes where their colors come closest to their background.
+  // A row's words read as its reply's text does, in every state: its color, faded as the text is.
+  // Its state shows on the icon, which stays visible (3:1) at rest, highlighted and in the card,
+  // in the themes where the state colors come closest to their background.
   for (const themeId of ['catppuccinLatte-theme', 'silver-theme', 'orange-theme', 'dark-theme']) {
     await applySettings(page, themeId, true);
     await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
+    for (const text of [CHECKING, STATES]) {
+      const answer = replyWith(page, text);
+      const words = seamsIn(answer).first().getByRole('button');
+      await centre(page, words);
+      expect(await shownColor(words)).toEqual(await shownColor(answer.getByText(text)));
+    }
     const rows = [CHECKING, STATES].map((text) => seamsIn(replyWith(page, text)).first());
     for (const row of [...rows, seamsIn(pending)]) {
       await centre(page, row);
-      await expectReadable(row.getByRole('button'));
+      const icon = row.locator('svg').first();
+      await expectContrast(icon, 3);
       await row.getByRole('button').hover();
       await expect(card).toBeVisible();
-      await expectReadable(row.getByRole('button'));
-      // The card's head, in the row's state color.
-      await expectReadable(card.locator(':scope > div').first());
+      await expectContrast(icon, 3);
+      await expectContrast(card.locator('svg').first(), 3);
       await page.mouse.move(0, 0);
     }
   }
@@ -535,7 +551,6 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     await centre(page, seam);
     await seam.getByRole('button').hover();
     await expect(card).toBeVisible();
-    await expectReadable(seam.getByRole('button'));
     await shot(page, seam, `${name}-1-mid-card`);
     await page.mouse.move(0, 0);
     await shot(page, seamsIn(replyWith(page, TWO)).nth(1), `${name}-5-two`);

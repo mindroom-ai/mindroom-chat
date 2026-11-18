@@ -40,6 +40,7 @@ vi.mock('./CompactionSeam.css', () => ({
   Rule: 'Rule',
   Card: 'Card',
   Head: 'Head',
+  HeadIcon: 'HeadIcon',
   Tag: 'Tag',
   Subtitle: 'Subtitle',
   Gauge: 'Gauge',

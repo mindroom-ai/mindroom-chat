@@ -18,20 +18,13 @@ const UNFINISHED = ['failed', 'timeout', 'interrupted'];
 // The trigger hovered, focused from the keyboard or with its card open.
 const ACTIVE = ':is(:hover, :focus-visible, [aria-expanded="true"])';
 
-/**
- * A state's color as text, a fifth of the way toward the text color: Primary.Main and Warning.Main
- * alone fall under AA contrast for small text on some palettes (Orange, Silver), on the reply's
- * surface, its bubble or the card.
- */
-const towardText = (stateColor: string) =>
-  `color-mix(in srgb, ${stateColor} 80%, ${color.Surface.OnContainer})`;
-
 /** `scope` with each state a compaction ended in without a summary, around `inner`. */
 const unfinished = (scope: string, inner = '') =>
   UNFINISHED.map((state) => `${scope}[data-state="${state}"]${inner}`).join(', ');
 
 // One quiet row at the spot of the reply where the history was compacted, with a hairline to the
-// row's end: in the text color at rest, colored while it runs or when it failed.
+// row's end: its words in the reply's text color, its icon and rule colored while it runs or when
+// it failed.
 export const Seam = style({
   position: 'relative',
   display: 'flex',
@@ -55,27 +48,19 @@ export const Trigger = style([
     paddingInline: toRem(6),
     marginInlineStart: toRem(-6),
     background: 'transparent',
-    color: color.Surface.OnContainer,
+    // The reply's text color and, from it, its opacity, so the label reads as its text does. A
+    // state's color goes on the icon, the rule and the highlight, never on the words.
+    color: 'inherit',
     font: 'inherit',
     fontSize: toRem(12),
     lineHeight: toRem(20),
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'start',
     cursor: 'pointer',
-    transition: transition(['color', 'background-color']),
+    transition: transition(['background-color']),
     selectors: {
-      // On a container its OnContainer text, which keeps AA contrast on every palette.
-      [`&${ACTIVE}`]: {
-        color: color.Primary.OnContainer,
-        background: color.Primary.Container,
-      },
-      [`${Seam}[data-state="running"] &`]: { color: towardText(color.Primary.Main) },
-      [`${Seam}[data-state="running"] &${ACTIVE}`]: { color: color.Primary.OnContainer },
-      [unfinished(Seam, ' &')]: { color: towardText(color.Warning.Main) },
-      [unfinished(Seam, ` &${ACTIVE}`)]: {
-        color: color.Warning.OnContainer,
-        background: color.Warning.Container,
-      },
+      [`&${ACTIVE}`]: { background: color.Primary.Container },
+      [unfinished(Seam, ` &${ACTIVE}`)]: { background: color.Warning.Container },
       '&:focus-visible': {
         outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
         outlineOffset: toRem(1),
@@ -88,9 +73,11 @@ export const Icon = style({
   flex: 'none',
   selectors: {
     [`${Seam}[data-state="running"] &`]: {
+      color: color.Primary.Main,
       animation: `${squeeze} 1.1s ease-in-out infinite`,
       '@media': stillUnderReducedMotion,
     },
+    [unfinished(Seam, ' &')]: { color: color.Warning.Main },
   },
 });
 
@@ -143,9 +130,14 @@ export const Head = style({
   gap: toRem(6),
   fontSize: toRem(13),
   fontWeight: 600,
+});
+
+/** The head's icon, in the state's color, as the row's is. */
+export const HeadIcon = style({
+  flex: 'none',
   selectors: {
-    [`${Card}[data-state="running"] &`]: { color: towardText(color.Primary.Main) },
-    [unfinished(Card, ' &')]: { color: towardText(color.Warning.Main) },
+    [`${Card}[data-state="running"] &`]: { color: color.Primary.Main },
+    [unfinished(Card, ' &')]: { color: color.Warning.Main },
   },
 });
 
