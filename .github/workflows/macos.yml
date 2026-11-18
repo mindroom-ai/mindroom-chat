@@ -5,9 +5,12 @@
 # - the release event covers a release cut by hand (`just release`). A release that a workflow's
 #   GITHUB_TOKEN creates sends no release event, so the two never both run for one release;
 # - a manual run builds the DMG of the release tag it is given, for a release that has none.
-# A published DMG is never replaced. Once it is up, and while its release is still the newest, the
-# job asks the tap to update its cask. Pull requests that change the Mac build build it unsigned
-# and publish nothing.
+# A published DMG is never replaced. Before it, the job attaches the release's appcast.xml, the
+# update feed item whose DMG is EdDSA-signed (scripts/macos-appcast.sh); once the DMG is up, and while
+# its release is still the newest, the job asks the tap to update its cask. The feed job then copies
+# the appcast.xml to the prerelease mac-appcast, the feed the app reads, unless that names this
+# release or a newer one (docs/ios-release.md "Updates"). Pull requests that change the Mac build
+# build it unsigned and publish nothing.
 name: Mac app
 
 on:
@@ -216,3 +219,29 @@ jobs:
         env:
           DIRECTORY: ${{ steps.profile.outputs.directory }}
         run: rm -rf "$DIRECTORY"
+
+  feed:
+    name: Publish the update feed
+    needs: dmg
+    # Also after a dmg job that failed at the tap: the DMG is up then.
+    if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}
+    # One at a time across every release's run, as the image's `latest` (image.yml). It publishes its
+    # release only above what the feed names, so the order runs finish in does not matter, and a
+    # re-run repairs a failed publication without a rebuild.
+    concurrency:
+      group: mac-appcast
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Point the feed at this release if it is the newest ready one
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/macos-publish-appcast.sh "$RELEASE_TAG"

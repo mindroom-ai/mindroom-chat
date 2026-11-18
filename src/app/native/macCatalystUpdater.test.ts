@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 import { getSingleAppTargetBuildSettingValue } from '../../../scripts/ios-xcode-project.mjs';
 
 // Xcode, Swift and the project file cannot run on Linux: these pin the fewest strings that hold the
@@ -108,6 +109,32 @@ describe('the Mac workflow and the update feed', () => {
     expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeGreaterThan(-1);
     expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(
       upload.indexOf('build/macos/MindRoom.dmg')
+    );
+  });
+
+  it('publishes the feed one run at a time, and writes nothing but for a release tag', () => {
+    type Step = { if?: string; run?: string };
+    const parsed = parse(workflow) as {
+      on: { workflow_dispatch: { inputs: Record<string, unknown> } };
+      jobs: { dmg: { steps: Step[] } };
+    };
+    const feed = workflow.slice(workflow.indexOf('\n  feed:\n'));
+    expect(feed).toContain('needs: dmg');
+    // Also after a dmg job that failed at the tap: the DMG is up then.
+    expect(feed).toContain(
+      "if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}"
+    );
+    expect(feed).toMatch(/concurrency:\n\s+group: mac-appcast\n\s+cancel-in-progress: false/);
+    expect(feed).toContain('scripts/macos-publish-appcast.sh "$RELEASE_TAG"');
+    expect(feed).not.toContain('secrets.');
+    // Nothing but a release tag signs or writes: no other input, and every writing step asks for it.
+    expect(Object.keys(parsed.on.workflow_dispatch.inputs)).toEqual(['tag']);
+    const writing = parsed.jobs.dmg.steps.filter(({ run }) =>
+      /gh release upload|gh release create|homebrew-tap/.test(run ?? '')
+    );
+    expect(writing.length).toBeGreaterThan(1);
+    writing.forEach((step) =>
+      expect(step.if).toMatch(/env\.RELEASE_TAG|steps\.newest\.outputs\.newest/)
     );
   });
 });
