@@ -173,6 +173,10 @@ vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
   usePowerLevelsContext: () => ({}),
 }));
 
+vi.mock('../../matrix/hooks/useStateEvent', () => ({
+  useStateEvent: () => undefined,
+}));
+
 vi.mock('../../matrix/hooks/useRoomCreators', () => ({
   useRoomCreators: () => new Set(),
 }));
@@ -650,7 +654,9 @@ vi.mock('../../event-store/cache/db', async (importOriginal) => {
 // `importOriginal`). Keep the real module intact and only override
 // the comparison helper.
 vi.mock('../../event-store/cache/eventCacheTokenUtils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../event-store/cache/eventCacheTokenUtils')>();
+  const actual = await importOriginal<
+    typeof import('../../event-store/cache/eventCacheTokenUtils')
+  >();
   return {
     ...actual,
     compareCachedPaginationAnchors: () => 0,
@@ -664,7 +670,9 @@ vi.mock('../../event-store/cache/eventCacheEditUtils', () => ({
 }));
 
 vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../event-store/timeline/timelineScrollUtils')>();
+  const actual = await importOriginal<
+    typeof import('../../event-store/timeline/timelineScrollUtils')
+  >();
   return {
     ...actual,
     isScrollNearBottom: () => true,

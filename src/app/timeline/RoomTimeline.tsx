@@ -128,6 +128,9 @@ import {
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
+import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
 import { InlineSecretRequestsContext } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
@@ -861,10 +864,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusId: focusItem?.eventId,
   });
   // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
+  // Only from the router the room's state names, read again when that state or the levels change.
+  const voiceRouterBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const powerLevels = usePowerLevelsContext();
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomRows,
     getContent: getRowContent,
-    viewerId: mx.getUserId() ?? undefined,
+    routerUserId: trustedRouterUserId(voiceRouterBinding, powerLevels),
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
   });

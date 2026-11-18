@@ -1,6 +1,6 @@
 import { KnownMembership } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { hasActiveMindroomAgent, isMindroomRouterUserIdForViewer } from './agentIdentity';
+import { hasActiveMindroomAgent, isMindroomRouterUserId } from './agentIdentity';
 
 describe('hasActiveMindroomAgent', () => {
   it('recognizes joined and invited MindRoom agents', () => {
@@ -28,16 +28,14 @@ describe('hasActiveMindroomAgent', () => {
   });
 });
 
-describe('isMindroomRouterUserIdForViewer', () => {
-  const viewer = '@viewer:example.org';
+describe('isMindroomRouterUserId', () => {
   it.each([
     ['@mindroom_router:example.org', true],
     ['@mindroom_router_lab1:example.org', true],
-    ['@mindroom_router:elsewhere.org', false],
     ['@mindroom_helper:example.org', false],
     ['@mindroom_router_x:example.org', false],
     ['@router:example.org', false],
-  ])('%s is the router: %s', (userId, expected) => {
-    expect(isMindroomRouterUserIdForViewer(userId, viewer)).toBe(expected);
+  ])('%s is named as the router: %s', (userId, expected) => {
+    expect(isMindroomRouterUserId(userId)).toBe(expected);
   });
 });

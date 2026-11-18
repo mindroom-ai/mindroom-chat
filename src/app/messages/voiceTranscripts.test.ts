@@ -11,7 +11,6 @@ import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 
 const ROUTER = '@mindroom_router:example.org';
 const PERSON = '@sam:example.org';
-const VIEWER = '@viewer:example.org';
 const ECHO_KEY = 'com.mindroom.visible_router_voice_echo';
 const SOURCE_KEY = 'com.mindroom.voice_source_event_id';
 
@@ -58,14 +57,18 @@ const replaceWith = (
 
 const plan = (
   events: MatrixEvent[],
-  { ignored = new Set<string>(), revealed = new Set<string>() } = {}
+  {
+    ignored = new Set<string>(),
+    revealed = new Set<string>(),
+    routerUserId = ROUTER as string | undefined,
+  } = {}
 ) =>
   planVoiceTranscripts({
     events,
     // As the timeline reads a row: the latest replacement by the event's own sender.
     getContent: (event) =>
       getLatestMessageContent(event, getEditedEvent(event.getId() ?? '', event, undefined)),
-    viewerId: VIEWER,
+    routerUserId,
     ignored,
     revealed,
   });
@@ -131,15 +134,29 @@ describe('planVoiceTranscripts', () => {
 
   it.each([
     ['another agent', '@mindroom_helper:example.org'],
+    ["another installation's router", '@mindroom_router_lab1:example.org'],
     ['a router of another homeserver', '@mindroom_router:elsewhere.org'],
-    ['an account that only starts like the router', '@mindroom_router_x:example.org'],
-  ])('keeps the row of an echo %s sent', (_case, sender) => {
+  ])('keeps the row of an echo %s sent, the room naming another router', (_case, sender) => {
     expect(plan([voice(), echo('$echo', undefined, { sender })])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 
-  it("pairs an echo from the router of the installation's namespace", () => {
-    const echoEvent = echo('$echo', undefined, { sender: '@mindroom_router_lab1:example.org' });
-    expect(plan([voice(), echoEvent]).byVoiceId.get('$voice')).toBe(echoEvent);
+  it('pairs an echo from whichever account the room names as its router', () => {
+    const sender = '@mindroom_router_lab1:example.org';
+    const echoEvent = echo('$echo', undefined, { sender });
+    expect(plan([voice(), echoEvent], { routerUserId: sender }).byVoiceId.get('$voice')).toBe(
+      echoEvent
+    );
+  });
+
+  it('keeps every row while the room names no trusted router', () => {
+    const result = planVoiceTranscripts({
+      events: [voice(), echo('$echo')],
+      getContent: (event) => event.getContent(),
+      routerUserId: undefined,
+      ignored: new Set(),
+      revealed: new Set(),
+    });
+    expect(result).toBe(NO_VOICE_TRANSCRIPTS);
   });
 
   it("reads no name from another sender's edit of the router's echo", () => {

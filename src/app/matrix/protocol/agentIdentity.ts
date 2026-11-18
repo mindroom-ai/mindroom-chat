@@ -85,13 +85,3 @@ const ROUTER_LOCALPART = /^mindroom_router(?:_[a-z0-9]{4,32})?$/;
 
 export const isMindroomRouterUserId = (userId: string | undefined): boolean =>
   !!userId && ROUTER_LOCALPART.test((getMxIdLocalPart(userId) ?? userId).toLowerCase());
-
-/**
- * Whether a user ID is MindRoom's router on the viewer's homeserver, with the same trust and
- * residual risk as `isMindroomAgentUserIdForViewer`. No other agent passes.
- */
-export const isMindroomRouterUserIdForViewer = (
-  userId: string | undefined,
-  viewerUserId: string | undefined
-): boolean =>
-  isMindroomRouterUserId(userId) && isMindroomAgentUserIdForViewer(userId, viewerUserId);

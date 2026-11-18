@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
-import { isVoiceMessageContent } from './content/MsgTypeRenderers';
-import { isMindroomRouterUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import { isVoiceMessageContent } from './content/voiceMessageContent';
 import {
   getVoiceSourceEventId,
   isVisibleRouterVoiceEcho,
@@ -23,8 +22,8 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
 
 /**
  * Which router voice echoes of `events` show under their voice message instead of their row. An
- * echo moves when the router on the viewer's homeserver sent it (`isMindroomRouterUserIdForViewer`;
- * no other agent or account), it names its voice message (`getVoiceSourceEventId`, read from the
+ * echo moves when the room's router sent it (`routerUserId`, which the room's state names and
+ * `trustedRouterUserId` trusts; no other agent or account, and none while it names none), it names its voice message (`getVoiceSourceEventId`, read from the
  * version its row shows, `getContent`, which counts only the sender's own edits), and that
  * message is among `events`, drawn as a voice message (an `m.audio` that `MAudio` plays as
  * voice, `isVoiceMessageContent`), not redacted and not from an ignored sender. Every other echo
@@ -35,22 +34,23 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
 export const planVoiceTranscripts = ({
   events,
   getContent,
-  viewerId,
+  routerUserId,
   ignored,
   revealed,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
-  viewerId: string | undefined;
+  routerUserId: string | undefined;
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
+  if (!routerUserId) return NO_VOICE_TRANSCRIPTS;
   const echoes = events.filter(
     (event) =>
       isVisibleRouterVoiceEcho(event.getOriginalContent()) &&
       !event.isRedacted() &&
-      isMindroomRouterUserIdForViewer(event.getSender(), viewerId)
+      event.getSender() === routerUserId
   );
   if (echoes.length === 0) return NO_VOICE_TRANSCRIPTS;
   const byId = new Map(events.map((event) => [event.getId(), event]));
