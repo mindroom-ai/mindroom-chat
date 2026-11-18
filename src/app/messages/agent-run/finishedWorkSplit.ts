@@ -153,21 +153,25 @@ const MAX_ANSWER_ROWS_PER_WORK_ROW = 3;
 
 // A tool marker's line, in the plain body (`🔧 \`shell\` [1]`) or in the HTML's text.
 const TOOL_MARKER_LINE = /^🔧 .+ \[\d+\](?: ⏳)?$/u;
-// Elements whose content starts and ends a line.
+// Elements whose content starts and ends a line; a table's cells share their row's.
 const LINE_ELEMENTS = new Set(
   'p div li pre blockquote h1 h2 h3 h4 h5 h6 ul ol table tr br hr details summary'.split(' ')
 );
 
-/** The lines of text the nodes show, blank ones included. */
-const readLines = (nodes: ChildNode[], lines: string[] = ['']): string[] => {
+/**
+ * The lines of text the nodes show, blank ones included. Outside `<pre>`, text of only whitespace
+ * (the newlines between block tags) is no line.
+ */
+const readLines = (nodes: ChildNode[], lines: string[] = [''], inPre = false): string[] => {
   nodes.forEach((node) => {
     if (isText(node)) {
+      if (!inPre && node.data.trim() === '') return;
       const [first = '', ...more] = node.data.split('\n');
       lines.push(`${lines.pop() ?? ''}${first}`, ...more);
     } else if (isDomElementNode(node)) {
       const line = LINE_ELEMENTS.has(node.name);
       if (line) lines.push('');
-      readLines(node.children, lines);
+      readLines(node.children, lines, inPre || node.name === 'pre');
       if (line) lines.push('');
     }
   });

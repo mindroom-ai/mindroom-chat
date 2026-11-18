@@ -228,6 +228,31 @@ describe('foldFinishedWork', () => {
     });
   });
 
+  // A table as the backend's Markdown renderer writes it, a newline between each pair of tags.
+  const table = (rows: number, columns: number) => {
+    const row = (cell: string, n: number) =>
+      `<tr>\n${Array.from(
+        { length: columns },
+        (_, c) => `<${cell}>${cell} ${n}.${c}</${cell}>`
+      ).join('\n')}\n</tr>`;
+    const body = Array.from({ length: rows - 1 }, (_, n) => row('td', n)).join('\n');
+    return `<table>\n<thead>\n${row('th', 0)}\n</thead>\n<tbody>\n${body}\n</tbody>\n</table>`;
+  };
+  const lines = (count: number) => Array.from({ length: count }, (_, n) => `<p>Line ${n}.</p>`);
+  const longBody = 'line\n'.repeat(40);
+
+  it('counts a table in the work as a row per table row', () => {
+    // 3 rows of table and 1 of the call: too little work to fold.
+    const html = `${table(3, 3)}\n${marker('shell', 1)}\n${lines(30).join('\n')}`;
+    expect(foldFinishedWork(longBody, html, baseOpts, {}, true, 0)).toBeUndefined();
+  });
+
+  it('counts a table in the answer as a row per table row', () => {
+    // 8 lines and the call: 9 rows of work, under an answer of 12.
+    const html = `${lines(8).join('\n')}\n${marker('shell', 1)}\n${table(12, 4)}`;
+    expect(foldFinishedWork(longBody, html, baseOpts, {}, true, 0)?.tail).toContain('<table>');
+  });
+
   it('skips the split while the whole body has fewer than 8 rows', () => {
     const html = Array.from({ length: 9 }, (_, n) => `<p>${note(n)}</p>${marker('a', n + 1)}`);
     const fold = (body: string) =>
