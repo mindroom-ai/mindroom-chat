@@ -1,6 +1,6 @@
 import { htmlToDOM, type HTMLReactParserOptions } from 'html-react-parser';
 import { isText, type ChildNode } from 'domhandler';
-import { MINDROOM_TOOL_REF_ICON } from '../html/blocks';
+import { MINDROOM_TOOL_REF_HTML_REG_G, MINDROOM_TOOL_REF_ICON } from '../html/blocks';
 import {
   sanitizeCustomHtml,
   sanitizeText,
@@ -72,11 +72,41 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
 const rendersVisibleContent = (html: string): boolean =>
   hasVisibleContent(htmlToDOM(html) as ChildNode[]);
 
+// A marker the renderer draws from the start of a paragraph, after line breaks or the markers
+// before it (`takeLeadingToolRefs`), and the breaks that follow the last one.
+const LEADING_TOOL_REF = new RegExp(`(?:\\s|<br>)*(?:${MINDROOM_TOOL_REF_HTML_REG_G.source})`, 'y');
+const LEADING_BREAKS = /^(?:\s|<br>)*/;
+
+/**
+ * The top-level node of the last call, cut where its calls end: the work and the answer that
+ * starts in it (empty when nothing shows after its calls); undefined when it cannot be cut there.
+ */
+const cutAfterCalls = (node: ChildNode): [string, string] | undefined => {
+  const html = serializeHtmlNode(node);
+  if (!isDomElementNode(node) || node.name !== 'p') {
+    // Only a paragraph's inline content cuts cleanly in two. Text after the calls of a list item
+    // or a wrapper would hide in the work, so such a reply does not fold.
+    return rendersVisibleContent(html.replace(MINDROOM_TOOL_REF_HTML_REG_G, ''))
+      ? undefined
+      : [html, ''];
+  }
+  const inner = node.children.map(serializeHtmlNode).join('');
+  let end = 0;
+  LEADING_TOOL_REF.lastIndex = 0;
+  while (LEADING_TOOL_REF.exec(inner)) end = LEADING_TOOL_REF.lastIndex;
+  const rest = inner.slice(end).replace(LEADING_BREAKS, '');
+  if (!rendersVisibleContent(rest)) return [html, ''];
+  if (end === 0) return undefined;
+  const open = html.slice(0, html.indexOf('>') + 1);
+  return [`${open}${inner.slice(0, end)}</p>`, `${open}${rest}</p>`];
+};
+
 /**
  * Splits a finished agent reply's HTML, sanitized with the options `RenderBody` renders it with
- * (`useBodySanitizeOptions`), after the top-level node that holds the last call the renderer
- * draws with these base parser options (see `readRenderedToolCalls`), or returns undefined when
- * it draws no call or nothing visible follows the last one.
+ * (`useBodySanitizeOptions`), after the last call the renderer draws with these base parser
+ * options (see `readRenderedToolCalls`): after its top-level node, or inside the paragraph whose
+ * text after the call starts the answer. Returns undefined when it draws no call, nothing visible
+ * follows the last one, or the answer starts inside a node that does not cut cleanly.
  */
 export const splitFinishedWork = (
   html: string,
@@ -100,7 +130,13 @@ export const splitFinishedWork = (
       ? readRenderedToolCalls(tail, baseOpts).lastNode
       : -1;
     if (drawn < 0) {
-      return rendersVisibleContent(tail) ? { head: serialize(0, end), tail } : undefined;
+      const last = nodes[end - 1];
+      const cut = last && cutAfterCalls(last);
+      if (!cut) return undefined;
+      const answer = `${cut[1]}${tail}`;
+      return rendersVisibleContent(answer)
+        ? { head: `${serialize(0, end - 1)}${cut[0]}`, tail: answer }
+        : undefined;
     }
     end += drawn + 1;
   }

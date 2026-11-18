@@ -119,6 +119,18 @@ describe('splitFinishedWork', () => {
     });
   });
 
+  it('starts the answer at the prose that follows the last call in its paragraph', () => {
+    const calls = '<p>🔧 <code>a</code> [1]<br>\n🔧 <code>b</code> [2]';
+    expect(split(`<p>x</p>${calls}<br>Answer <em>here</em>.</p><p>More.</p>`)).toEqual({
+      head: `<p>x</p>${calls}</p>`,
+      tail: '<p>Answer <em>here</em>.</p><p>More.</p>',
+    });
+  });
+
+  it('does not split where the answer starts in a node that does not cut cleanly', () => {
+    expect(split(`<div>🔧 <code>shell</code> [1]<p>Answer</p></div><p>More.</p>`)).toBeUndefined();
+  });
+
   it('splits the backend HTML of a reply with grouped calls after the last one', () => {
     const { formatted_body: html } = backendBodies['grouped and pending tool calls'];
     expect(split(html)).toEqual({
@@ -204,6 +216,16 @@ describe('foldFinishedWork', () => {
     // 5 rows of text and 1 of the call.
     expect(fold(1)).toBeUndefined();
     expect(fold(2)).toEqual({ head: `<p>${long}</p>${marker('shell', 1)}`, tail: '<p>Done.</p>' });
+  });
+
+  it('starts the answer at the prose after the last call in its paragraph', () => {
+    const work = Array.from({ length: 9 }, (_, n) => `<p>${note(n)}</p>${marker('read', n + 1)}`);
+    const html = `${work.join('')}<p>🔧 <code>grep</code> [10]<br>The answer starts here.</p>`;
+    const body = `${'line\n'.repeat(20)}`;
+    expect(foldFinishedWork(body, html, baseOpts, {}, true, 0)).toEqual({
+      head: `${work.join('')}<p>🔧 <code>grep</code> [10]</p>`,
+      tail: '<p>The answer starts here.</p>',
+    });
   });
 
   it('skips the split while the whole body has fewer than 8 rows', () => {
