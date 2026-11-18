@@ -102,7 +102,8 @@ src/
     command-palette/     the command palette
     local-mindroom/      pairing a Local MindRoom backend (Connect page, settings page, provisioning)
     room/                the open room screen: Room, RoomView, RoomViewHeader, header actions and menu, route, topic viewer,
-                         tombstone
+                         tombstone; the second thread a card menu's Open beside shows in a side panel (SecondThreadPanel),
+                         remembered per room for the account (useSecondThread), never on phones
     settings/            the Settings dialog: frame, search, menu, deep link, rail buttons; pages/ (app-wide preferences)
     tour/                the interface tour: its steps, the sample room and each step's scene, the stage and its
                          spotlight, the dialog, the offer card after sign-in, the handoff to the room's composer
