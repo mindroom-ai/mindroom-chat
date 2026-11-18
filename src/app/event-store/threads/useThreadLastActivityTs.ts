@@ -51,59 +51,20 @@ const getBundledThreadLatestEventTs = (rootEvent: MatrixEvent | undefined): numb
   return Math.max(latestEventTs, latestEditTs);
 };
 
-const getThreadActivityEvents = (
-  room: Room | undefined,
-  threadRootId: string | undefined
-): { rootEvent: MatrixEvent | undefined; trackedEvents: MatrixEvent[] } => {
-  if (!room || !threadRootId) {
-    return {
-      rootEvent: undefined,
-      trackedEvents: [],
-    };
-  }
-
-  const thread = room.getThread(threadRootId);
-  const rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId);
-  const trackedEvents: MatrixEvent[] = [];
-  const trackedEventIds = new Set<string>();
-
-  const addTrackedEvent = (mEvent: MatrixEvent | null | undefined) => {
-    if (mEvent == null) return;
-
-    const eventId = mEvent.getId();
-    if (eventId) {
-      if (trackedEventIds.has(eventId)) return;
-      trackedEventIds.add(eventId);
-    } else if (trackedEvents.includes(mEvent)) {
-      return;
-    }
-
-    trackedEvents.push(mEvent);
-  };
-
-  getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT)
-    .filter(isVisibleThreadReplyEvent)
-    .forEach(addTrackedEvent);
-  const lastReply = thread?.lastReply?.() ?? null;
-  if (lastReply && isVisibleThreadReplyEvent(lastReply)) {
-    addTrackedEvent(lastReply);
-  }
-  if (thread?.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)) {
-    addTrackedEvent(thread.replyToEvent);
-  }
-  addTrackedEvent(rootEvent);
-
-  return {
-    rootEvent,
-    trackedEvents,
-  };
-};
-
 export const getThreadLastActivityTs = (
   room: Room | undefined,
   threadRootId: string | undefined
 ): number | undefined => {
-  const { rootEvent, trackedEvents } = getThreadActivityEvents(room, threadRootId);
+  if (!room || !threadRootId) return undefined;
+  const thread = room.getThread(threadRootId);
+  const rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId);
+  // The replies of the loaded tail, the newest one the thread knows and the one its summary names.
+  const replies = [
+    ...getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT),
+    thread?.lastReply?.(),
+    thread?.replyToEvent,
+  ].filter((mEvent): mEvent is MatrixEvent => !!mEvent && isVisibleThreadReplyEvent(mEvent));
+  const trackedEvents = [...replies, rootEvent];
   const liveActivityTs = trackedEvents
     .map((mEvent) => getEventActivityTs(mEvent))
     .reduce<number | undefined>((latestTs, candidateTs) => {

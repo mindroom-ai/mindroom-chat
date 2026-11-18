@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events';
 import { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
@@ -140,17 +139,16 @@ const makeEditEvent = (
     type: 'm.room.message',
   });
 
-type MockThread = Thread &
-  EventEmitter & {
-    setLastReply: (event: MatrixEvent | null) => void;
-    setTimelineEvents: (events: MatrixEvent[]) => void;
-    getUnfilteredTimelineSet: () => {
-      getLiveTimeline: () => {
-        getEvents: () => MatrixEvent[];
-        getNeighbouringTimeline: () => null;
-      };
+type MockThread = Thread & {
+  setLastReply: (event: MatrixEvent | null) => void;
+  setTimelineEvents: (events: MatrixEvent[]) => void;
+  getUnfilteredTimelineSet: () => {
+    getLiveTimeline: () => {
+      getEvents: () => MatrixEvent[];
+      getNeighbouringTimeline: () => null;
     };
   };
+};
 
 const makeThread = ({
   rootEvent,
@@ -163,7 +161,6 @@ const makeThread = ({
   replyToEvent?: MatrixEvent | null;
   timelineEvents?: MatrixEvent[];
 }): MockThread => {
-  const emitter = new EventEmitter();
   let currentLastReply = lastReply ?? null;
   let currentTimelineEvents = timelineEvents ?? [
     rootEvent,
@@ -174,7 +171,7 @@ const makeThread = ({
     getNeighbouringTimeline: () => null,
   };
 
-  return Object.assign(emitter, {
+  return {
     rootEvent,
     replyToEvent,
     lastReply: vi.fn(() => currentLastReply),
@@ -187,7 +184,7 @@ const makeThread = ({
     getUnfilteredTimelineSet: () => ({
       getLiveTimeline: () => liveTimeline,
     }),
-  }) as unknown as MockThread;
+  } as unknown as MockThread;
 };
 
 const makeRoom = (rootEvent: MatrixEvent, thread?: MockThread): Room =>
@@ -311,6 +308,21 @@ describe('getThreadLastActivityTs', () => {
     const getSnapshot = () => getThreadLastActivityTs(room, THREAD_ROOT_ID);
 
     expect(getSnapshot()).toBe(260);
+  });
+
+  it.each([
+    ['the newest reply the thread knows', (reply: MatrixEvent) => ({ lastReply: reply })],
+    ['the reply its summary names', (reply: MatrixEvent) => ({ replyToEvent: reply })],
+  ])('uses %s alone when the loaded thread tail is stale', (_which, held) => {
+    const rootEvent = makeMessageEvent('$root', 100);
+    const olderReply = makeThreadReplyEvent('$reply-old', 180);
+    const thread = makeThread({
+      rootEvent,
+      ...held(makeThreadReplyEvent('$reply-new', 260)),
+      timelineEvents: [rootEvent, olderReply],
+    });
+
+    expect(getThreadLastActivityTs(makeRoom(rootEvent, thread), THREAD_ROOT_ID)).toBe(260);
   });
 
   it('uses bundled latest_event timestamps when the thread model is missing', () => {
