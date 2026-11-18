@@ -606,6 +606,26 @@ describe('CompactionSeam card', () => {
     ]);
   });
 
+  it('says the reply went on with its full history only when no runs were folded', async () => {
+    const kept = 'The reply went on with its full history.';
+    for (const status of ['failed', 'timeout'] as const) {
+      for (const compactedRunCount of [undefined, 0]) {
+        const renderer = render(
+          <CompactionSeam compaction={failed({ status, compactedRunCount })} />
+        );
+        await open(renderer);
+        expect(text(card(renderer)[0]!)).toContain(kept);
+      }
+      const folded = render(
+        <CompactionSeam compaction={failed({ status, compactedRunCount: 3 })} />
+      );
+      await open(folded);
+      const tip = card(folded)[0]!;
+      expect(text(tip)).not.toContain(kept);
+      expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
+    }
+  });
+
   it('gives the reason of an interrupted compaction', async () => {
     const renderer = render(<CompactionSeam compaction={running()} interrupted />);
     await open(renderer);

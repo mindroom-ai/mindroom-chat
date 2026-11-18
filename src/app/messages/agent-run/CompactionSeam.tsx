@@ -94,7 +94,10 @@ const subtitle = (
   t: TFunction
 ): string | undefined => {
   if (place === 'notice') return undefined;
-  if (isUnfinished(state)) return t(`${KEY}.subtitle.unfinished`);
+  if (isUnfinished(state)) {
+    // A compaction that gave up after folding runs did not keep the full history.
+    return compaction.compactedRunCount ? undefined : t(`${KEY}.subtitle.unfinished`);
+  }
   if (place === 'midTurn') {
     return compaction.afterTool > 0
       ? t(`${KEY}.subtitle.midTurn`, { n: compaction.afterTool })
