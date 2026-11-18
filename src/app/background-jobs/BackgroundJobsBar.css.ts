@@ -78,7 +78,8 @@ const grid = {
 
 export const Status = style([
   approvals.BarStatus,
-  { gridArea: 'status', gap: config.space.S100, minHeight: config.size.X500 },
+  // The title line is the rows' size, not the approval bar's.
+  { gridArea: 'status', gap: config.space.S100, minHeight: config.size.X500, fontSize: 'inherit' },
 ]);
 
 export const Action = style({ gridArea: 'action', display: 'flex', alignItems: 'center' });
