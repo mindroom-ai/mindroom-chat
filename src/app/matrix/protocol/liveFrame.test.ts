@@ -10,7 +10,6 @@ const docs: LiveDocs = {
   status: 'streaming',
   activity: '',
   segments: [],
-  compactions: [],
 };
 const SEGMENTS = [
   { start: 0, after_tool: 0 },
@@ -126,8 +125,7 @@ describe('live reply frames', () => {
   });
 
   it('reads a snapshot without compactions, from an older backend, as not saying', () => {
-    const { compactions: _compactions, ...old } = docs;
-    const parsed = parseLiveFrame(frame({ snapshot: old }));
+    const parsed = parseLiveFrame(frame({ snapshot: docs }));
 
     expect(parsed && 'snapshot' in parsed && parsed.snapshot).not.toHaveProperty('compactions');
   });

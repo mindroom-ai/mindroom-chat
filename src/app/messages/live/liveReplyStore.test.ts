@@ -16,7 +16,6 @@ const docs = (md: string): LiveDocs => ({
   activity: '',
 
   segments: [],
-  compactions: [],
 });
 const snapshot = (seq: number, md: string, sid = SID): LiveFrame => ({
   reply: REPLY,

@@ -29,7 +29,6 @@ const docs: LiveDocs = {
   status: 'streaming',
   activity: '',
   segments: [],
-  compactions: [],
 };
 const frame = (body: Record<string, unknown>) => ({
   v: 1,
