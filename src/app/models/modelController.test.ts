@@ -733,6 +733,44 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.snapshot()).toMatchObject({ eligible: true, override: 'reset', canMutate: true });
   });
+  it('drops what no composer shows once one of its agents leaves, not a shown button', async () => {
+    const h = setup();
+    const other = '@mindroom_other:test';
+    h.member(other);
+    const answer = {
+      agent_user_ids: [helper, other],
+      selection: {
+        override: null,
+        inherited: [
+          { entity: 'helper', model: 'fast' },
+          { entity: 'other', model: 'reset' },
+        ],
+      },
+    };
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), answer);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    leave();
+    h.controller.subscribe(h.room, '$shown', () => {});
+    await flush();
+    h.member(other, 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(other)!);
+    expect(h.snapshot('$new')).toMatchObject({ eligible: false, inherited: [] });
+    h.controller.subscribe(h.room, '$root', () => {});
+    expect(h.snapshot()).toMatchObject({ eligible: false, inherited: [] });
+    expect(h.snapshot('$shown')).toMatchObject({ eligible: true, canMutate: false });
+  });
+  it('drops the room cache when a command finds its runtime device gone', async () => {
+    const h = setup();
+    await h.discover();
+    h.devices.set(router, new Map());
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.snapshot('$new').eligible).toBe(false);
+  });
   it('starts counting failures again after an answer', async () => {
     const h = setup();
     await h.discover();

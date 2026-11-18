@@ -128,6 +128,10 @@ const roomCatalogsOf = (catalogs: Iterable<Catalog>): RoomCatalog[] =>
     agentUserIds: catalog.response.agent_user_ids,
     inherited: catalog.response.selection.inherited,
   }));
+/** The runtime and every agent it named stay joined: what a button no composer shows rests on. */
+const everyAgentJoined = (mx: MatrixClient, room: Room, { runtime, agentUserIds }: RoomCatalog) =>
+  hasJoinedModelAgent(mx, room, runtime, agentUserIds) &&
+  agentUserIds.every((id) => joinedModelCandidates(mx, room).includes(id));
 const controllers = new WeakMap<MatrixClient, ModelController>();
 
 /** One listener owner per client; composer subscriptions only select a scope. */
@@ -744,10 +748,10 @@ export class ModelController {
   }
 
   private onMembership = (_event: MatrixEvent, member: RoomMember): void => {
-    // The room cache keeps the runtimes whose agents stay joined, as a shown button does.
+    // The room cache keeps the runtimes whose agents all stay joined, so it names no one gone.
     const room = this.mx.getRoom(member.roomId);
     const joined = (room && this.roomCatalogs.get(member.roomId))?.filter((catalog) =>
-      hasJoinedModelAgent(this.mx, room, catalog.runtime, catalog.agentUserIds)
+      everyAgentJoined(this.mx, room, catalog)
     );
     if (joined?.length) this.roomCatalogs.set(member.roomId, joined);
     else this.roomCatalogs.delete(member.roomId);
@@ -780,13 +784,20 @@ export class ModelController {
 
   /** `keepUnshown`: a membership change, after which a thread no composer shows keeps its button. */
   private invalidateAndRefresh(scope: Scope, keepUnshown = false): void {
-    // Revalidate behind the button while its runtime and one of its agents stay joined.
-    const verified = scope.catalogs.size ? roomCatalogsOf(scope.catalogs.values()) : scope.kept;
-    const kept = (verified ?? []).filter((catalog) =>
-      hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.agentUserIds)
+    // Revalidate behind a shown button while its runtime and one of its agents stay joined, and
+    // behind a button no composer shows while each of its runtimes and all their agents do.
+    const shown = scope.listeners.size > 0;
+    const verified =
+      (scope.catalogs.size ? roomCatalogsOf(scope.catalogs.values()) : scope.kept) ?? [];
+    const kept = verified.filter((catalog) =>
+      shown
+        ? hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.agentUserIds)
+        : everyAgentJoined(this.mx, scope.room, catalog)
     );
     const keep =
-      (keepUnshown || scope.listeners.size > 0) && scope.snapshot.eligible && kept.length > 0;
+      scope.snapshot.eligible &&
+      kept.length > 0 &&
+      (shown || (keepUnshown && kept.length === verified.length));
     this.invalidate(scope, keep ? scope.snapshot : undefined);
     if (keep) scope.kept = kept;
     if (scope.refreshScheduled || !scope.listeners.size) return;
