@@ -81,7 +81,9 @@ describe('MacAppMenuEntry', () => {
   it('opens the disk image of the newest release that has one, once GitHub has named it', async () => {
     fetchReleases.mockResolvedValue(
       new Response(
-        JSON.stringify([{ assets: [{ name: 'MindRoom.dmg', browser_download_url: DMG }] }])
+        JSON.stringify([
+          { assets: [{ name: 'MindRoom.dmg', state: 'uploaded', browser_download_url: DMG }] },
+        ])
       )
     );
     const open = vi.fn();
