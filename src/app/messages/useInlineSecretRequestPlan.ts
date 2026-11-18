@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { MatrixEventEvent, RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMessageRendererTaken } from '../plugins/messageRenderers';
 import {
   NO_INLINE_SECRET_REQUESTS,
@@ -39,6 +40,7 @@ export const useInlineSecretRequestPlan = ({
   // A card the route or a jump opened keeps its row after the highlight ends.
   const revealed = useRef(new Set<string>());
   const [changes, countChange] = useReducer((count: number) => count + 1, 0);
+  const mx = useMatrixClient();
   useEffect(() => {
     if (!threadId) return undefined;
     const inThread = (event: MatrixEvent | undefined, rootId = event?.threadRootId) =>
@@ -49,15 +51,15 @@ export const useInlineSecretRequestPlan = ({
     const redacted = (_redaction: MatrixEvent, _room: Room, rootId?: string) => {
       if (rootId === threadId) countChange();
     };
-    room.client.on(MatrixEventEvent.Decrypted, changed);
-    room.client.on(MatrixEventEvent.Replaced, changed);
+    mx.on(MatrixEventEvent.Decrypted, changed);
+    mx.on(MatrixEventEvent.Replaced, changed);
     room.on(RoomEvent.Redaction, redacted);
     return () => {
-      room.client.off(MatrixEventEvent.Decrypted, changed);
-      room.client.off(MatrixEventEvent.Replaced, changed);
-      room.off(RoomEvent.Redaction, redacted);
+      mx.removeListener(MatrixEventEvent.Decrypted, changed);
+      mx.removeListener(MatrixEventEvent.Replaced, changed);
+      room.removeListener(RoomEvent.Redaction, redacted);
     };
-  }, [room, threadId]);
+  }, [mx, room, threadId]);
   const rendererTaken = useMessageRendererTaken(viewerId);
   const pluginRenders = useCallback(
     (event: MatrixEvent, content: Record<string, unknown>) =>

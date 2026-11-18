@@ -12,6 +12,9 @@ const ROOM = '!room:example.org';
 const NONE = new Set<string>();
 const getContent = (event: MatrixEvent) => event.getContent();
 
+const env = vi.hoisted(() => ({ client: undefined as unknown }));
+vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => env.client }));
+
 let client: EventEmitter;
 let room: Room;
 let plans: InlineSecretRequestPlan[];
@@ -38,7 +41,8 @@ const render = (events: MatrixEvent[]) => act(() => root.render(<Thread events={
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   client = new EventEmitter();
-  room = Object.assign(new EventEmitter(), { roomId: ROOM, client }) as unknown as Room;
+  env.client = client;
+  room = Object.assign(new EventEmitter(), { roomId: ROOM }) as unknown as Room;
   plans = [];
   host = document.createElement('div');
   document.body.append(host);

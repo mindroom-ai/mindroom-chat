@@ -785,10 +785,7 @@ test('a request waits as a row under its reply, then moves into the reply at its
       node.getAttribute('data-message-id')
     )
   );
-  expect(rows.slice(rows.indexOf(replyId!), rows.indexOf(replyId!) + 2)).toEqual([
-    replyId,
-    cardId,
-  ]);
+  expect(rows.slice(rows.indexOf(replyId!), rows.indexOf(replyId!) + 2)).toEqual([replyId, cardId]);
   await expect(reply.locator('[data-secret-request-line]')).toHaveCount(0);
   const cog = reply.locator('[data-tool-calls-fold]');
   await cog.locator('button').click();
@@ -881,6 +878,11 @@ test('a request waiting under its reply fits a phone', async ({ context, page })
   });
   expect(fits).toBe(true);
   if (SHOTS) {
-    await shootRows(page, page.locator(`[data-message-id="${replyId}"]`), 2, `${SHOTS}/inline-pending-phone.png`);
+    await shootRows(
+      page,
+      page.locator(`[data-message-id="${replyId}"]`),
+      2,
+      `${SHOTS}/inline-pending-phone.png`
+    );
   }
 });

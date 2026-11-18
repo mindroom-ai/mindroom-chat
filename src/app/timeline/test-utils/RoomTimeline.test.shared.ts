@@ -691,6 +691,7 @@ vi.mock('../RoomIntro', () => ({
 // test sets one; the real module would load the plugins' translations, and the app's i18n setup.
 vi.mock('../../plugins/messageRenderers', () => ({
   useMessageRowHidden: () => pluginRowHiddenMock.test,
+  useMessageRendererTaken: () => undefined,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({

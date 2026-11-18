@@ -14,7 +14,6 @@ import { isRecord } from '../lib/isRecord';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { formatLifetime } from '../lib/time';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
 import {
   effectiveSecretRequestStatus,
   secretRequestPath,
@@ -474,7 +473,9 @@ export function SecretRequestDetails({
           </Fact>
         )}
         {saved && request.kind === 'key' && request.replaces && (
-          <Fact icon={Icons.Reload}>{t('mindroomUi.messages.secretRequestCard.facts.replaced')}</Fact>
+          <Fact icon={Icons.Reload}>
+            {t('mindroomUi.messages.secretRequestCard.facts.replaced')}
+          </Fact>
         )}
         {saved && apiUrl && (
           <Fact icon={Icons.Server}>
@@ -571,17 +572,17 @@ export function SecretRequestCard({
 
   // Done, its row goes once its reply draws it (inlineSecretRequests.ts): focus in it moves to the
   // request's line there, else to the reply.
-  const replyId = useLatestRef(request.status === 'pending' ? undefined : request.anchor?.responseEventId);
+  const replyId = request.status === 'pending' ? undefined : request.anchor?.responseEventId;
   useLayoutEffect(() => {
     const node = card.current;
+    if (!eventId || !replyId) return undefined;
     return () => {
-      const reply = replyId.current;
-      if (!eventId || !reply || !node?.contains(document.activeElement)) return;
+      if (!node?.contains(document.activeElement)) return;
       focusHandoff = eventId;
       queueMicrotask(() => {
-        if (!takeSecretRequestFocus(eventId)) return;
+        if (!takeSecretRequestFocus(eventId) || document.activeElement !== document.body) return;
         document
-          .querySelector<HTMLElement>(`[data-message-id="${CSS.escape(reply)}"]`)
+          .querySelector<HTMLElement>(`[data-message-id="${CSS.escape(replyId)}"]`)
           ?.focus({ preventScroll: true });
       });
     };

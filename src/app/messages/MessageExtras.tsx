@@ -110,10 +110,7 @@ export function MessageExtras({
   markerContent,
 }: MessageExtrasProps) {
   const { t } = useTranslation();
-  const parserOptions = useToolTraceMarkerParserOptions(
-    htmlReactParserOptions,
-    markerContent
-  );
+  const parserOptions = useToolTraceMarkerParserOptions(htmlReactParserOptions, markerContent);
   return (
     <div
       className={css.Extras}
@@ -121,25 +118,25 @@ export function MessageExtras({
     >
       {/* A secret request takes its call's line in the reply's body only: here the line stays. */}
       <InlineSecretRequestsContext.Provider value={NO_INLINE_SECRET_REQUESTS}>
-      {extras.sections.map((section, index) => {
-        const detailsProps: MessageExtraDetailsProps = {
-          className: css.Section,
-          defaultOpen: !section.collapsed,
-        };
+        {extras.sections.map((section, index) => {
+          const detailsProps: MessageExtraDetailsProps = {
+            className: css.Section,
+            defaultOpen: !section.collapsed,
+          };
 
-        return (
-          <MessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
-            <summary className={css.Summary}>{section.title}</summary>
-            <div className={css.Content}>
-              <MessageExtraSectionContent
-                content={section.content}
-                contentType={section.contentType}
-                htmlReactParserOptions={parserOptions}
-              />
-            </div>
-          </MessageExtraDetails>
-        );
-      })}
+          return (
+            <MessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
+              <summary className={css.Summary}>{section.title}</summary>
+              <div className={css.Content}>
+                <MessageExtraSectionContent
+                  content={section.content}
+                  contentType={section.contentType}
+                  htmlReactParserOptions={parserOptions}
+                />
+              </div>
+            </MessageExtraDetails>
+          );
+        })}
       </InlineSecretRequestsContext.Provider>
     </div>
   );

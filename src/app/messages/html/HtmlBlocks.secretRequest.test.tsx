@@ -149,7 +149,9 @@ describe('a secret request in its reply', () => {
       'Ran 1 tool call',
       'Ran 1 tool call',
     ]);
-    expect(renderer!.root.findAll((node) => node.props['data-secret-line'] !== undefined)).toHaveLength(1);
+    expect(
+      renderer!.root.findAll((node) => node.props['data-secret-line'] !== undefined)
+    ).toHaveLength(1);
   });
 
   it('starts or ends a run without an empty run beside it', () => {
@@ -179,5 +181,4 @@ describe('a secret request in its reply', () => {
     });
     expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
   });
-
 });

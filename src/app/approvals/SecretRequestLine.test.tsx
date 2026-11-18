@@ -95,7 +95,6 @@ const line = () => host.querySelector('[data-secret-request-line]');
 const row = () => line()?.firstElementChild;
 const lineButton = () => line()?.querySelector(':scope > button');
 const receipt = () => host.querySelector('[data-secret-request-receipt]');
-const text = () => host.textContent ?? '';
 const click = (element: Element | null | undefined) =>
   act(() => {
     if (!element) throw new Error('nothing to click');
