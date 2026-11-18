@@ -567,7 +567,8 @@ export function SecretRequestCard({
 
   // Done, its row goes once its reply draws it (inlineSecretRequests.ts): focus in it moves to the
   // request's line there, else to the reply.
-  const replyId = request.status === 'pending' ? undefined : request.anchor?.responseEventId;
+  // Set up while it waits: the render that marks it done is the one that takes its row.
+  const replyId = request.anchor?.responseEventId;
   useLayoutEffect(() => {
     const node = card.current;
     if (!eventId || !replyId) return undefined;

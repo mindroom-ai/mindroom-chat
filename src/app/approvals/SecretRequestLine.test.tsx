@@ -153,21 +153,24 @@ describe('SecretRequestLine', () => {
     expect(opened).toContain('Replaced the key saved before.');
   });
 
-  it("takes the focus that was in the card's row when the row went", async () => {
-    const done = temporary({
-      status: 'saved',
-      anchor: { responseEventId: '$reply', toolCallId: 'call_1' },
-    });
+  it("takes the focus that was in the card's row when the agent's edit took the row", async () => {
+    const anchor = { responseEventId: '$reply', toolCallId: 'call_1' };
+    // The card waits, the focus in its form; the render that marks it done takes its row.
     act(() =>
       root.render(
         <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: CONFIGURED } } }}>
-          <SecretRequestCard request={done} roomId={ROOM} agentUserId={AGENT} eventId="$card" />
+          <SecretRequestCard
+            request={temporary({ anchor })}
+            roomId={ROOM}
+            agentUserId={AGENT}
+            eventId="$card"
+          />
         </ClientConfigProvider>
       )
     );
-    act(() => host.querySelector<HTMLElement>('summary')!.focus());
+    act(() => host.querySelector<HTMLElement>('input:not([type="radio"])')!.focus());
 
-    render(done);
+    render(temporary({ anchor, status: 'saved' }));
     await act(async () => {});
 
     expect(document.activeElement).toBe(lineButton());
