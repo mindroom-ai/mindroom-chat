@@ -53,7 +53,6 @@ vi.mock('./ModelPicker.css', () => ({
   SearchIcon: 'SearchIcon',
   SearchInput: 'SearchInput',
   SearchRow: 'SearchRow',
-  StackedEffortPanel: 'StackedEffortPanel',
   StackedScroll: 'StackedScroll',
   StatusRow: 'StatusRow',
   TextButton: 'TextButton',
@@ -870,49 +869,36 @@ describe('composer model picker', () => {
       expect(radio('Extra high').querySelector('.Check')).not.toBeNull();
     });
 
-    it('follows the highlighted row, with no check on a model the thread does not run', async () => {
-      await open(levelled({ override: 'sol' }));
-      expect(radio('High, default').getAttribute('aria-checked')).toBe('true');
+    it("stays on the thread's model while the pointer and the keys move over other rows", async () => {
+      const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+      await open(state);
 
+      // Luna has levels of its own, Quick helper none: the column shows neither.
       await hover('Luna');
-      expect(header()).toBe('EffortLuna');
-      expect(radios().map((row) => row.getAttribute('aria-label'))).toEqual([
-        'Off',
-        'Low, default',
-        'Medium',
-      ]);
-      expect(radios().every((row) => row.getAttribute('aria-checked') === 'false')).toBe(true);
-
+      expect(optionNamed('Luna').getAttribute('data-active')).toBe('true');
+      expect(header()).toBe('EffortSol');
       await hover('Quick helper');
-      expect(group()).toBeNull();
-      expect(column()?.textContent).toContain('No effort levels');
-
-      await hover('Luna');
-      await keyDown(list()!, 'ArrowUp');
+      expect(group()?.getAttribute('aria-label')).toBe('Effort for Sol');
+      await keyDown(list()!, 'ArrowDown');
+      await keyDown(list()!, 'ArrowDown');
       expect(header()).toBe('EffortSol');
+      expect(radio('Extra high').getAttribute('aria-checked')).toBe('true');
+
+      await click(radio('Low'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
     });
 
-    it('keeps the levels where they are as a finger moves over the rows', async () => {
-      await open(levelled({ override: 'sol' }));
-      const touch = new MouseEvent('pointermove', { bubbles: true });
-      Object.defineProperty(touch, 'pointerType', { value: 'touch' });
-      await act(() => optionNamed('Luna').dispatchEvent(touch));
-      expect(header()).toBe('EffortSol');
-    });
-
-    it('applies the highlighted model at a level with one command', async () => {
+    it("applies a level to the thread's model with one command, then closes", async () => {
       const state = levelled({ override: 'sol' });
       await open(state);
-      await hover('Luna');
       await click(radio('Medium'));
 
       expect(state.selectModel).toHaveBeenCalledTimes(1);
-      expect(state.selectModel).toHaveBeenCalledWith('luna', 'medium');
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'medium');
       expect(state.resetToRoomDefault).not.toHaveBeenCalled();
       act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
-      act(() =>
-        root.render(<ModelPicker state={{ ...state, override: 'luna', reasoning: 'medium' }} />)
-      );
+      act(() => root.render(<ModelPicker state={{ ...state, reasoning: 'medium' }} />));
       expect(list()).toBeNull();
     });
 
@@ -920,6 +906,20 @@ describe('composer model picker', () => {
       const state = levelled({ override: 'sol', reasoning: 'xhigh' });
       await open(state);
       await click(radio('Extra high'));
+
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it('closes without a command for the level of an override that equals the room default', async () => {
+      const state = levelled({
+        override: 'sol',
+        reasoning: 'medium',
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
+      await click(radio('Medium'));
 
       expect(state.selectModel).not.toHaveBeenCalled();
       expect(list()).toBeNull();
@@ -949,27 +949,10 @@ describe('composer model picker', () => {
       expect(list()).toBeNull();
     });
 
-    it('keeps a focused level on its model when the pointer crosses another model', async () => {
-      const state = levelled({ override: 'sol', reasoning: 'low' });
-      await open(state);
-      await keyDown(list()!, 'ArrowRight');
-      await keyDown(document.activeElement!, 'ArrowDown');
-      expect(document.activeElement).toBe(radio('Medium'));
-
-      // Luna offers Medium too; the column stays Sol's while a level has focus.
-      await hover('Luna');
-      expect(header()).toBe('EffortSol');
-      expect(document.activeElement).toBe(radio('Medium'));
-      await click(document.activeElement!);
-      expect(state.selectModel).toHaveBeenCalledTimes(1);
-      expect(state.selectModel).toHaveBeenCalledWith('sol', 'medium');
-    });
-
-    it('keeps a focused level on its model when a refresh puts another model before it', async () => {
+    it("keeps the levels, and a focused one, on the thread's model when a refresh adds a model", async () => {
       const state = levelled({ override: 'sol', reasoning: 'medium' });
       await open(state);
-      // A highlight the pointer moved, which a positional highlight would leave at its index.
-      await hover('Sol');
+      await hover('Luna');
       await keyDown(list()!, 'ArrowRight');
       await keyDown(document.activeElement!, 'ArrowDown');
       expect(document.activeElement).toBe(radio('High, default'));
@@ -979,50 +962,48 @@ describe('composer model picker', () => {
       act(() => root.render(<ModelPicker state={{ ...state, models }} />));
 
       expect(header()).toBe('EffortSol');
-      expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Sol').id);
+      expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
       expect(document.activeElement).toBe(radio('High, default'));
       await click(document.activeElement!);
       expect(state.selectModel).toHaveBeenCalledTimes(1);
       expect(state.selectModel).toHaveBeenCalledWith('sol', 'high');
     });
 
-    it('gives the list the keys when the model of a focused level leaves the catalog', async () => {
+    it('gives the list the keys when the thread moves to another model under a focused level', async () => {
       const state = levelled({ override: 'sol', reasoning: 'medium' });
       await open(state);
-      await hover('Luna');
       await keyDown(list()!, 'ArrowRight');
-      expect(document.activeElement).toBe(radio('Low, default'));
+      expect(document.activeElement).toBe(radio('Medium'));
 
-      act(() =>
-        root.render(<ModelPicker state={{ ...state, models: [...createState().models, sol] }} />)
-      );
+      // Luna offers Medium too: its button is another one, so the focused level never changes model.
+      act(() => root.render(<ModelPicker state={{ ...state, override: 'luna' }} />));
 
+      expect(header()).toBe('EffortLuna');
       expect(document.activeElement).toBe(list());
-      await keyDown(list()!, 'Enter');
-      expect(state.selectModel).not.toHaveBeenCalledWith('luna', expect.anything());
     });
 
-    it("checks the room default's level on its model's own row too, where picking it changes nothing", async () => {
+    it("checks the room default's shared level, where picking it changes nothing", async () => {
       const state = levelled({
         inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
       });
       await open(state);
-      await hover('Sol');
-
+      // Neither the Room default row nor the model's own row changes what the column says.
       expect(header()).toBe('EffortSol');
+      await hover('Sol');
       expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
+
       await click(radio('Medium'));
       expect(state.selectModel).not.toHaveBeenCalled();
       expect(list()).toBeNull();
     });
 
-    it("pins a room default's model and level with a click on another level of its row", async () => {
+    it("pins the room default's model at another level with one pick", async () => {
       const state = levelled({
         inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
       });
       await open(state);
-      await hover('Sol');
       await click(radio('Low'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
       expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
     });
 
@@ -1033,6 +1014,23 @@ describe('composer model picker', () => {
       await open(state);
       await click(optionNamed('Sol'));
       expect(state.selectModel).toHaveBeenCalledWith('sol');
+    });
+
+    it('checks no level while the agents run the shared model at different levels', async () => {
+      const state = levelled({
+        inherited: [
+          { entity: 'assistant', model: 'sol', reasoning: 'low' },
+          { entity: 'reviewer', model: 'sol' },
+        ],
+      });
+      await open(state);
+      expect(header()).toBe('EffortSol');
+      expect(radios().every((row) => row.getAttribute('aria-checked') === 'false')).toBe(true);
+      // The keys enter at the default, and any level is a change.
+      await keyDown(list()!, 'ArrowRight');
+      expect(document.activeElement).toBe(radio('High, default'));
+      await click(radio('Low'));
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
     });
 
     it('checks the default level and still marks it Default', async () => {
@@ -1047,6 +1045,7 @@ describe('composer model picker', () => {
       const state = levelled({ override: 'sol', reasoning: 'xhigh' });
       await open(state);
       await click(optionNamed('Luna'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
       expect(state.selectModel).toHaveBeenCalledWith('luna');
     });
 
@@ -1062,6 +1061,9 @@ describe('composer model picker', () => {
       const state = levelled({ override: 'sol', reasoning: 'medium' });
       await open(state);
 
+      // Whichever row the highlight is on, the keys enter the thread's model's levels.
+      await keyDown(list()!, 'ArrowDown');
+      expect(optionNamed('Luna').getAttribute('data-active')).toBe('true');
       await keyDown(list()!, 'ArrowRight');
       expect(document.activeElement).toBe(radio('Medium'));
       expect(radio('Medium').tabIndex).toBe(0);
@@ -1080,21 +1082,14 @@ describe('composer model picker', () => {
       await keyDown(document.activeElement!, 'Escape');
       expect(document.activeElement).toBe(list());
       expect(list()).not.toBeNull();
-    });
-
-    it("enters a model's default level when the thread does not run it, and Enter applies a level", async () => {
-      const state = levelled();
-      await open(state);
-      await hover('Luna');
-      await keyDown(list()!, 'ArrowRight');
-      expect(document.activeElement).toBe(radio('Low, default'));
-      await keyDown(document.activeElement!, 'ArrowDown');
       // A button's Enter is its click.
+      await keyDown(list()!, 'ArrowRight');
       await click(document.activeElement!);
-      expect(state.selectModel).toHaveBeenCalledWith('luna', 'medium');
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
     });
 
-    it('enters the levels from the filter field only from the end of its text', async () => {
+    it('enters the levels from the filter field only from the end of its text, and returns to it', async () => {
       await open(levelled({ models: [...longCatalog(), sol], override: 'sol' }));
       input(search(), 'sol');
       search().setSelectionRange(0, 0);
@@ -1107,30 +1102,28 @@ describe('composer model picker', () => {
       expect(document.activeElement).toBe(search());
     });
 
-    it('stays in the list on ArrowRight over a model without levels', async () => {
+    it.each(['ArrowLeft', 'Escape'])(
+      'returns from the levels to the list on a phone, where the list had focus (%s)',
+      async (key) => {
+        mocks.touch = true;
+        await open(levelled({ models: [...longCatalog(), sol], override: 'sol' }));
+        expect(document.activeElement).toBe(list());
+        await keyDown(list()!, 'ArrowRight');
+        expect(document.activeElement).toBe(radio('High, default'));
+        await keyDown(document.activeElement!, key);
+        expect(document.activeElement).toBe(list());
+      }
+    );
+
+    it('names a model without levels and stays in the list on ArrowRight', async () => {
       await open(levelled({ override: 'fast' }));
+      // Hovering a model with levels offers none of them: the thread does not run it.
+      await hover('Sol');
+      expect(header()).toBe('EffortQuick helper');
+      expect(group()).toBeNull();
+      expect(column()?.textContent).toContain('No effort levels');
       await keyDown(list()!, 'ArrowRight');
       expect(document.activeElement).toBe(list());
-    });
-
-    it("shows the room default's shared model under Room default, checked at its level", async () => {
-      const state = levelled({
-        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'low' }],
-      });
-      await open(state);
-
-      expect(header()).toBe('EffortSol');
-      expect(radio('Low').getAttribute('aria-checked')).toBe('true');
-      await click(radio('Low'));
-      expect(state.selectModel).not.toHaveBeenCalled();
-    });
-
-    it('changes only the level of the room default with one pick', async () => {
-      const state = levelled({ inherited: [{ entity: 'assistant', model: 'sol' }] });
-      await open(state);
-      expect(radio('High, default').getAttribute('aria-checked')).toBe('true');
-      await click(radio('Extra high'));
-      expect(state.selectModel).toHaveBeenCalledWith('sol', 'xhigh');
     });
 
     it('shows no levels under Room default while the agents fall back to different models', async () => {
@@ -1156,8 +1149,8 @@ describe('composer model picker', () => {
       );
       await click(trigger());
       const dialog = container.querySelector('[role="dialog"]')!;
-      expect(dialog.className).toBe('StackedEffortPanel');
-      // Both panes scroll together in one box, so a short window still reaches every level.
+      expect(dialog.className).toBe('Panel');
+      // Both panes sit in one box, which scrolls them together when a short window fits neither.
       const panes = dialog.querySelector('.StackedScroll')!;
       expect(panes.parentElement).toBe(dialog);
       expect(panes.lastElementChild).toBe(column());

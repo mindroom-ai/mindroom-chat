@@ -5,55 +5,27 @@ import { useTranslation } from 'react-i18next';
 import type { ModelCatalogEntry, ReasoningLevel } from './modelProtocol';
 import * as css from './ModelPicker.css';
 
-/** A model's reasoning levels, as the effort column lists them. */
-export type Effort = {
-  model: ModelCatalogEntry;
-  levels: ReasoningLevel[];
-  /** The level the plain key runs at. */
-  fallback: ReasoningLevel;
-  /** The level that gets the check: the one the thread runs the model at, when it does. */
-  active?: ReasoningLevel;
-  /** Whether `active` is what the thread runs on now, so picking it again changes nothing. */
-  current: boolean;
-};
-
-/** `model`'s levels, or nothing for a model without levels. */
-export const effortOf = (
-  model: ModelCatalogEntry | undefined,
-  active?: ReasoningLevel,
-  current = false
-): Effort | undefined =>
-  model?.reasoning_levels && model.reasoning_default
-    ? {
-        model,
-        levels: model.reasoning_levels,
-        fallback: model.reasoning_default,
-        active,
-        current,
-      }
-    : undefined;
-
-/** The level a column opened by the keys starts on: the checked one, else the default. */
-const tabStop = (effort: Effort): ReasoningLevel => effort.active ?? effort.fallback;
-
 type ModelEffortColumnProps = {
-  /** The levels to list; undefined says the model has none. */
-  effort?: Effort;
-  /** The name in the header: the model the column is for. */
-  modelName?: string;
+  /** The model the thread runs on, when the catalog has it and the room's agents share it. */
+  model?: ModelCatalogEntry;
+  /** The level it runs at, which gets the check; none while the agents' levels differ. */
+  active?: ReasoningLevel;
+  /** The name in the header: the model the thread runs on. */
+  modelName: string;
   disabled: boolean;
   columnRef: RefObject<HTMLDivElement>;
-  onPick: (effort: Effort, level: ReasoningLevel) => void;
+  onPick: (level: ReasoningLevel) => void;
   /** ArrowLeft or Escape: the keys go back to the models. */
   onLeave: () => void;
 };
 
 /**
- * The column beside the models: the levels of the model the highlight is on, each a radio, with a
+ * The column beside the models: the levels of the model the thread runs on, each a radio, with a
  * check on the level it runs at and the model's default marked.
  */
 export function ModelEffortColumn({
-  effort,
+  model,
+  active,
   modelName,
   disabled,
   columnRef,
@@ -86,28 +58,26 @@ export function ModelEffortColumn({
     <div ref={columnRef} className={css.EffortColumn} data-effort-column="">
       <div className={css.EffortHeader}>
         <span>{t('mindroomUi.models.modelPicker.effort')}</span>
-        {modelName && <span className={css.EffortModel}>{modelName}</span>}
+        <span className={css.EffortModel}>{modelName}</span>
       </div>
-      {effort ? (
+      {model?.reasoning_levels ? (
         <div
+          // Another model's levels are other buttons, so a focused level never changes model.
+          key={model.key}
           role="radiogroup"
-          aria-label={t('mindroomUi.models.modelPicker.effortFor', {
-            model: effort.model.display_name,
-          })}
+          aria-label={t('mindroomUi.models.modelPicker.effortFor', { model: model.display_name })}
           className={css.EffortLevels}
           // Focus sits on its radios; the group only takes their keys.
           tabIndex={-1}
           onKeyDown={handleKeyDown}
         >
-          {effort.levels.map((level) => {
+          {model.reasoning_levels.map((level) => {
             const label = levelLabel(level);
-            const isDefault = level === effort.fallback;
-            const checked = level === effort.active;
+            const isDefault = level === model.reasoning_default;
+            const checked = level === active;
             return (
               <button
-                // A level button belongs to one model: another model's levels are other buttons,
-                // so a focused level never turns into another model's.
-                key={`${effort.model.key}:${level}`}
+                key={level}
                 type="button"
                 role="radio"
                 aria-checked={checked}
@@ -117,11 +87,12 @@ export function ModelEffortColumn({
                     : label
                 }
                 aria-disabled={disabled}
-                tabIndex={level === tabStop(effort) ? 0 : -1}
+                // The keys enter on the checked level, else the default.
+                tabIndex={level === (active ?? model.reasoning_default) ? 0 : -1}
                 className={css.EffortRow}
                 data-level={level}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => !disabled && onPick(effort, level)}
+                onClick={() => !disabled && onPick(level)}
               >
                 <span className={css.EffortLabel}>{label}</span>
                 {isDefault && (

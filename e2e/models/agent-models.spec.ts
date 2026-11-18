@@ -107,8 +107,11 @@ test('a thread runs a model at the reasoning level picked in the effort column',
   const models = page.getByRole('listbox', { name: 'Models' });
   const row = models.getByRole('option', { name: named(think.displayName) });
   await expect(row).toBeVisible({ timeout: 60_000 });
-  // The column shows the levels of the row the pointer is on; one pick sends one command.
-  await row.hover();
+  // The column shows the levels of the model the thread runs on, so the model comes first. Each
+  // pick sends one command and closes the menu.
+  await row.click();
+  await expect(chip).toHaveText(`${think.displayName} · Medium`, { timeout: 60_000 });
+  await chip.click();
   const levels = page.getByRole('radiogroup', { name: `Effort for ${think.displayName}` });
   await expect(levels.getByRole('radio')).toHaveText(['Low', 'MediumDefault', 'High']);
   await levels.getByRole('radio', { name: 'High', exact: true }).click();

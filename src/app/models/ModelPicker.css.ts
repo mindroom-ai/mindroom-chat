@@ -64,10 +64,8 @@ export const EffortPanel = style({
   maxWidth: panelMaxWidth,
 });
 
-// On a phone the column sits under the models instead, as wide as they are.
-export const StackedEffortPanel = style([column, { width: pickerWidth, maxWidth: panelMaxWidth }]);
-
-// The two panes under each other. When the window leaves less than their smallest heights, as with
+// On a phone the column sits under the models instead, in the plain menu: the two panes under
+// each other. When the window leaves less than their smallest heights, as with
 // a phone's keyboard up, they scroll together inside the menu's rim, so every level can be reached.
 export const StackedScroll = style([
   column,
