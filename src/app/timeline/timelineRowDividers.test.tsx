@@ -33,11 +33,7 @@ const renderEvent = ({ eventId, quietRun }: TimelineMessageRow) => (
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
-  secretRequestTimeline: {
-    hiddenEventIds: new Set<string>(),
-    byReply: new Map(),
-    waitingReplyIds: new Set<string>(),
-  },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>() },
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and the dividers above its row: `unread`, or the date. */

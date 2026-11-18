@@ -13,6 +13,7 @@ import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import {
   InlineSecretRequestsContext,
   NO_INLINE_SECRET_REQUESTS,
+  createDrawnSecretRequests,
   type InlineSecretRequestPlan,
 } from '../inlineSecretRequests';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
@@ -63,6 +64,7 @@ vi.mock('../html/react-custom-html-parser', () => ({
 vi.mock('../agent-run/StreamingIndicator', () => ({ renderStreamingIndicator: () => null }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () => null }));
 vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => null }));
+vi.mock('../../approvals/SecretRequestLine', () => ({ SecretRequestLine: () => 'secret line' }));
 vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
 
@@ -325,6 +327,47 @@ describe('finished agent work', () => {
 
     render(reply('completed'), true, undefined, NO_INLINE_SECRET_REQUESTS);
     expect(text()).toContain('Worked for 2m 13s');
+  });
+
+  it('leaves a done secret request of the folded work its row, but while the work shows its line', () => {
+    const drawn = createDrawnSecretRequests();
+    const call = {
+      eventId: '$card',
+      agentUserId: '@agent:example.org',
+      request: {
+        kind: 'temporary' as const,
+        requestId: 'req-1',
+        requesterId: '@alice:example.org',
+        env: 'EXAMPLE_TOKEN',
+        keep: { memory: 900 },
+        kept: 'memory' as const,
+        reason: 'To deploy the demo app',
+        status: 'saved' as const,
+        expiresAt: 0,
+      },
+    };
+    const done = {
+      ...NO_INLINE_SECRET_REQUESTS,
+      byReply: new Map([[replyId, new Map([['call_2', call]])]]),
+      drawn,
+    };
+
+    render(reply('completed'), true, undefined, done);
+    expect(text()).toContain('Worked for 2m 13s');
+    expect(text()).not.toContain('secret line');
+    expect([...drawn.getIds()]).toEqual([]);
+
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(text()).toContain('secret line');
+    expect([...drawn.getIds()]).toEqual(['$card']);
+
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(text()).not.toContain('secret line');
+    expect([...drawn.getIds()]).toEqual([]);
   });
 
   it('folds a reply once it finishes on screen', () => {

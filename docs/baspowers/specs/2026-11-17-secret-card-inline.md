@@ -21,7 +21,7 @@ A done secret request is drawn inside the agent's reply, at the tool-call line t
 
 ## Client (`mindroom-chat`)
 
-- A planner (`messages/inlineSecretRequests.ts`) hides a done secret card's row when its `response_event_id` reply is in the same timeline, renders the call's marker and has a trace entry with that `tool_call_id`, and marks replies with a waiting request so their work does not fold.
+- A planner (`messages/inlineSecretRequests.ts`) says which done secret cards a reply may draw (its `response_event_id` reply is in the same timeline, from the same agent) and at which `tool_call_id`, and marks replies with a waiting request so their work does not fold. It does not hide rows: a card's row hides while its line is mounted in the reply, which the line records as it mounts and unmounts (the same file's `DrawnSecretRequests`), so the row and the line cannot disagree, also while the reply streams.
 - The reply's tool-call rendering (`messages/html/HtmlBlocks.tsx`, `ToolRun`) splits the run at the matched call and draws the secret line (`approvals/SecretRequestLine.tsx`) there.
 - `SecretRequestCard` keeps owning the form, answer, focus and live-region logic; the line and its opened card reuse its read-only details.
 - `docs/architecture.md` (Secret request and Tool trace rows).
