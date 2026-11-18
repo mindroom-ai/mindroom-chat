@@ -5,6 +5,7 @@ import { MessageTextBody } from '../layout/layout';
 import { textDirection } from '../../ui/directional';
 import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
 import { voiceTranscriptHtml, voiceTranscriptText } from '../voiceTranscripts';
+import { ShimmerText } from '../agent-run/ShimmerText';
 import * as css from './VoiceTranscript.css';
 
 /**
@@ -31,8 +32,8 @@ export function VoiceTranscript({
           <span className={css.Line} />
           <span className={css.Line} />
         </span>
-        <Text as="span" size="T200" priority="300" aria-hidden="true">
-          {label}
+        <Text as="span" size="T200" priority="300">
+          <ShimmerText>{label}</ShimmerText>
         </Text>
       </div>
     );

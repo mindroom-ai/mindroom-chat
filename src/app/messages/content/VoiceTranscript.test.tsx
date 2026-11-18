@@ -2,6 +2,7 @@
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VoiceTranscript } from './VoiceTranscript';
+import { ShimmerText } from '../agent-run/ShimmerText';
 
 vi.mock('./VoiceTranscript.css', () => ({
   Transcript: 'Transcript',
@@ -70,7 +71,10 @@ describe('VoiceTranscript', () => {
     const status = root.find((node) => node.props.role === 'status');
     expect(status.props['aria-label']).toBe('Transcribing…');
     expect(status.findAllByProps({ className: 'Line' })).toHaveLength(2);
-    expect(text(status)).toBe('Transcribing…');
+    // The label glistens as the thinking placeholder's does, hidden from screen readers.
+    const label = status.findByType(ShimmerText);
+    expect(label.props.children).toBe('Transcribing…');
+    expect(label.findByProps({ 'aria-hidden': 'true' }).type).toBe('span');
     expect(text(status)).not.toContain('Router agent');
   });
 });
