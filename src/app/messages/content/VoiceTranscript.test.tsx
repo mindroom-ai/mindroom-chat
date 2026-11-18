@@ -36,6 +36,30 @@ describe('VoiceTranscript', () => {
     expect(root.findAll((node) => node.props.role === 'status')).toHaveLength(0);
   });
 
+  it('draws the formatted transcript through renderBody, without its microphone', () => {
+    const renderBody = vi.fn(({ customBody }: { body: string; customBody?: string }) => customBody);
+    act(() => {
+      renderer = create(
+        <VoiceTranscript
+          content={{
+            ...ECHO,
+            body: '🎤 @agent:example.org Invented words',
+            format: 'org.matrix.custom.html',
+            formatted_body:
+              '<p>🎤 <a href="https://matrix.to/#/@agent:example.org">@Agent</a> Invented words</p>',
+          }}
+          senderName="Router"
+          renderBody={renderBody}
+        />
+      );
+    });
+    expect(renderBody).toHaveBeenCalledWith({
+      body: '@agent:example.org Invented words',
+      customBody:
+        '<p><a href="https://matrix.to/#/@agent:example.org">@Agent</a> Invented words</p>',
+    });
+  });
+
   it('keeps the transcript in the direction of its own text', () => {
     const root = render({ ...ECHO, body: '🎤 مرحبا' });
     expect(root.findAll((node) => node.props.dir === 'rtl').length).toBeGreaterThan(0);

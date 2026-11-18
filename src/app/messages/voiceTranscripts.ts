@@ -97,3 +97,11 @@ export const voiceTranscriptText = (content: Record<string, unknown>): string =>
   const body = typeof content.body === 'string' ? content.body : '';
   return body.startsWith(TRANSCRIPT_PREFIX) ? body.slice(TRANSCRIPT_PREFIX.length) : body;
 };
+
+/** The echo's formatted body without the microphone, or undefined when it has none. */
+export const voiceTranscriptHtml = (content: Record<string, unknown>): string | undefined => {
+  if (content.format !== 'org.matrix.custom.html' || typeof content.formatted_body !== 'string') {
+    return undefined;
+  }
+  return content.formatted_body.replace(/^(\s*<p>)?\s*🎤 /u, '$1') || undefined;
+};

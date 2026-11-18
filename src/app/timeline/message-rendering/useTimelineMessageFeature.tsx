@@ -41,6 +41,7 @@ import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
 import { useDecryptionRepaint } from './useDecryptionRepaint';
 import {
@@ -707,6 +708,14 @@ export const useTimelineMessageFeature = ({
           senderName={
             room.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
           }
+          renderBody={({ body, customBody }) => (
+            <RenderBody
+              body={body}
+              customBody={customBody}
+              linkifyOpts={linkifyOpts}
+              htmlReactParserOptions={htmlReactParserOptions}
+            />
+          )}
         />
       );
       const relations = getEventReactions(timelineSet, eventId);
