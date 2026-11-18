@@ -626,6 +626,23 @@ describe('CompactionSeam card', () => {
     }
   });
 
+  it('calls the history unchanged only when no runs were folded', async () => {
+    for (const status of ['failed', 'timeout'] as const) {
+      const kept = render(<CompactionSeam compaction={failed({ status, compactedRunCount: 0 })} />);
+      await open(kept);
+      expect(text(card(kept)[0]!)).toContain('104% of budget, unchanged');
+
+      const folded = render(
+        <CompactionSeam compaction={failed({ status, compactedRunCount: 3 })} />
+      );
+      await open(folded);
+      const tip = card(folded)[0]!;
+      expect(text(tip)).not.toContain('unchanged');
+      expect(tip.findAll((node) => node.props.className === 'GaugeLabel')).toHaveLength(0);
+      expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(1);
+    }
+  });
+
   it('gives the reason of an interrupted compaction', async () => {
     const renderer = render(<CompactionSeam compaction={running()} interrupted />);
     await open(renderer);

@@ -47,6 +47,12 @@ type UnfinishedState = Exclude<SeamState, 'running' | 'success'>;
 const isUnfinished = (state: SeamState): state is UnfinishedState =>
   state === 'failed' || state === 'timeout' || state === 'interrupted';
 
+/**
+ * Whether an unfinished compaction left the reply its full history: each summary part is saved
+ * before the next starts, so one that gave up after folding runs did not.
+ */
+const keptFullHistory = (compaction: ReplyCompaction): boolean => !compaction.compactedRunCount;
+
 /** The whole seconds since `startedAt`, once a second while `ticking`; undefined without a start. */
 const useElapsedSeconds = (startedAt: number | undefined, ticking: boolean): number | undefined => {
   const [now, setNow] = useState(() => Date.now());
@@ -71,9 +77,7 @@ const restParts = (
 ): { what: string; detail?: string; tick?: string } => {
   if (state === 'running') return { what: t(`${KEY}.label.running`), tick: elapsed };
   if (isUnfinished(state)) {
-    // Each summary part is saved before the next starts, so one that gave up after folding runs
-    // did not keep the full history.
-    const kept = !compaction.compactedRunCount;
+    const kept = keptFullHistory(compaction);
     return { what: t(`${KEY}.label.${state}`), ...(kept && { detail: t(`${KEY}.keptHistory`) }) };
   }
   const what = t(`${KEY}.label.${place === 'notice' ? 'midTurn' : place}`);
@@ -95,8 +99,7 @@ const subtitle = (
 ): string | undefined => {
   if (place === 'notice') return undefined;
   if (isUnfinished(state)) {
-    // A compaction that gave up after folding runs did not keep the full history.
-    return compaction.compactedRunCount ? undefined : t(`${KEY}.subtitle.unfinished`);
+    return keptFullHistory(compaction) ? t(`${KEY}.subtitle.unfinished`) : undefined;
   }
   if (place === 'midTurn') {
     return compaction.afterTool > 0
@@ -124,6 +127,7 @@ function Gauge({ compaction, state }: { compaction: ReplyCompaction; state: Seam
     );
   }
   if (state === 'success' && !done) label = null;
+  if (isUnfinished(state) && !keptFullHistory(compaction)) label = null;
   return (
     <>
       <span className={css.Gauge} data-state={state} data-over={beforeTokens > budget} aria-hidden>
