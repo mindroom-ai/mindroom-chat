@@ -155,11 +155,13 @@ describe('createThreadSignalsReader', () => {
   it('tells the signals when the thread was resolved, so a request asked before waits no more', () => {
     mocks.read.mockReturnValue(quiet);
     const { room } = makeRoom();
-    const resolved = (resolvedTs?: number) =>
-      ({ ...entry(2), isResolved: true, resolvedTs } as CrossRoomThreadIndexEntry);
-    createThreadSignalsReader().read(room, entry(), '@me:x', NOW);
-    createThreadSignalsReader().read(room, resolved(NOW - 1), '@me:x', NOW);
-    createThreadSignalsReader().read(room, resolved(), '@me:x', NOW);
+    const resolved = (generation: number, resolvedTs?: number) =>
+      ({ ...entry(generation), isResolved: true, resolvedTs } as CrossRoomThreadIndexEntry);
+    // One warm reader: resolving changes the entry's generation, which reads the thread again.
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.read(room, resolved(2, NOW - 1), '@me:x', NOW);
+    reader.read(room, resolved(3), '@me:x', NOW);
     expect(mocks.read.mock.calls.map((call) => call[4])).toEqual([undefined, NOW - 1, Infinity]);
   });
 
