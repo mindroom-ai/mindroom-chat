@@ -278,15 +278,42 @@ describe('the Compact room in sections', () => {
       const release = holdThenRegroup(
         [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
         [
-          { id: 'working', rootIds: ['$a'] },
           { id: 'needsYou', rootIds: ['$b'] },
+          { id: 'later', rootIds: ['$a'] },
         ]
       );
 
       expect(rows()).toEqual(['#needsYou 1', '$a', '$b']);
 
       release();
+      expect(rows()).toEqual(['#needsYou 1', '$b', '#later 1', '$a']);
+    });
+
+    it('moves a card an agent starts working on to Working at once, its header with it', () => {
+      holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+
       expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1', '$b']);
+    });
+
+    it('moves a card an agent starts working on into a shown Working where the live order puts it', () => {
+      holdThenRegroup(
+        [
+          { id: 'working', rootIds: ['$w'] },
+          { id: 'needsYou', rootIds: ['$a', '$b'] },
+        ],
+        [
+          { id: 'working', rootIds: ['$w', '$b'] },
+          { id: 'needsYou', rootIds: ['$a'] },
+        ]
+      );
+
+      expect(rows()).toEqual(['#working 2', '$w', '$b', '#needsYou 1', '$a']);
     });
 
     it('keeps a held section in its shown order while a new section comes in after it', () => {
