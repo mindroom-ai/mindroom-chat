@@ -1113,13 +1113,27 @@ describe('model mutation acknowledgement', () => {
       expect(h.snapshot()).toMatchObject({ pending: false, override: 'sol', reasoning: 'xhigh' });
     });
 
-    it('sends the plain key for the default level, which clears a level', async () => {
+    it('names the default level too, since a stale catalog may name another default', async () => {
       const h = setup();
       await levelled(h, { override: 'sol', reasoning: 'low', inherited: [] });
       h.controller.selectModel(h.room, '$root', 'sol', 'high');
       await flush();
+      expect(sent(h).body).toBe('!model sol@high');
+      expect(sent(h)['io.mindroom.model_selection'].model).toBe('sol@high');
+      h.ack({ model: 'sol', override: 'sol' });
+      await flush();
+      expect(h.snapshot().pending).toBe(true);
+      h.ack({ model: 'sol@high', override: 'sol@high' });
+      await flush();
+      expect(h.snapshot()).toMatchObject({ pending: false, override: 'sol', reasoning: 'high' });
+    });
+
+    it('sends the plain key for a model without a level, which clears the level', async () => {
+      const h = setup();
+      await levelled(h, { override: 'sol', reasoning: 'low', inherited: [] });
+      h.controller.selectModel(h.room, '$root', 'sol');
+      await flush();
       expect(sent(h).body).toBe('!model sol');
-      expect(sent(h)['io.mindroom.model_selection'].model).toBe('sol');
       h.ack({ model: 'sol', override: 'sol' });
       await flush();
       expect(h.snapshot()).toMatchObject({ override: 'sol', reasoning: null });

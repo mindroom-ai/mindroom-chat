@@ -88,7 +88,7 @@ type Command = {
   operation: 'set' | 'reset';
   /** The catalog key, which the selection reports once the runtime applies it. */
   model?: string;
-  /** A level other than the model's default; the command sends `<model>@<level>`. */
+  /** The picked level; the command sends `<model>@<level>`, and the plain key without one. */
   level?: ReasoningLevel;
   eventId?: string;
   generation: number;
@@ -107,7 +107,7 @@ const emptySnapshot = (): ModelPickerSnapshot => ({
   pending: false,
   canMutate: false,
 });
-/** What the command names: the key, with the level after `@` when it is not the default. */
+/** What the command names: the key, with the picked level after `@`. */
 const commandModel = ({ model, level }: Pick<Command, 'model' | 'level'>): string | undefined =>
   model && level ? `${model}@${level}` : model;
 const scopeKey = (room: Room, threadId?: string): string => JSON.stringify([room.roomId, threadId]);
@@ -473,7 +473,7 @@ export class ModelController {
     });
   }
 
-  /** Runs the thread on `model`, at `level` when given, else at the model's default level. */
+  /** Runs the thread on `model`, at `level` when given (as `model@level`), else on the plain key. */
   selectModel = (
     room: Room,
     threadId: string | undefined,
@@ -523,8 +523,8 @@ export class ModelController {
       runtime,
       operation,
       model,
-      // The plain key runs the model at its default, so the command names no level for it.
-      ...(level !== undefined && level !== entry?.reasoning_default ? { level } : {}),
+      // A picked level is always named, the default too: the catalog's default may be stale.
+      ...(level !== undefined ? { level } : {}),
       generation: scope.generation,
       early: [],
       timer: setTimeout(() => this.uncertain(command), MODEL_TIMEOUT),
