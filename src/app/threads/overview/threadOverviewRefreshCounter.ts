@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   ClientEvent,
@@ -26,7 +26,11 @@ import {
 } from '../../event-store/threads/threadRecord';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
-import { threadRecordKeeperOf, type ThreadRecordKeeper } from './threadRecordKeeper';
+import {
+  threadRecordKeeperOf,
+  threadRecordKept,
+  type ThreadRecordKeeper,
+} from './threadRecordKeeper';
 
 /**
  * The thread whose record an event of the room may change: the thread it is in, else the thread
@@ -79,19 +83,29 @@ export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[]
 };
 
 /**
- * Marks in `changes` what each event of `room` may change in its thread records, and calls `count`
- * for those that may change what its overview shows (`useThreadOverviewRefreshCounter`). Without
- * `count` it only marks: for the records a room's page keeps while its list is gone
- * (`ThreadRecordKeeper`), with no timer and no update of a view. Returns the stop.
+ * Marks in `changes` what each event of `room` may change in its thread records, and calls
+ * `target.count` for those that may change what its overview shows
+ * (`useThreadOverviewRefreshCounter`). Both are read at each event. Without a count it only marks,
+ * with no timer, no update of a view and no check of what a view would show: for the records a
+ * room's page keeps while its list is gone (`target.maps`, `ThreadRecordKeeper`). It marks then
+ * only the threads of those records and the whole room; a thread with no record kept is built
+ * anew anyway. Its change still moves the count of marks, which tells a build made before it that
+ * the room changed since. Returns the stop.
  */
 const listenForThreadRecordChanges = (
   room: Room,
   changes: ThreadRecordChanges,
-  count?: () => void
+  target: Pick<ThreadRecordKeeper, 'count' | 'maps'>
 ): (() => void) => {
-  const bump = () => count?.();
-  const markEvent = (mEvent: MatrixEvent) =>
-    changedThreadIds(room, mEvent).forEach((id) => markThreadRecordChange(changes, id));
+  const bump = () => target.count?.();
+  const mark = (threadRootId?: string) => {
+    if (!threadRootId || target.count || threadRecordKept(target, threadRootId)) {
+      markThreadRecordChange(changes, threadRootId);
+    } else {
+      changes.count += 1;
+    }
+  };
+  const markEvent = (mEvent: MatrixEvent) => changedThreadIds(room, mEvent).forEach(mark);
   const handleTimeline = (
     mEvent: MatrixEvent,
     eventRoom: Room | undefined,
@@ -100,7 +114,7 @@ const listenForThreadRecordChanges = (
   ) => {
     if (eventRoom?.roomId !== room.roomId) return;
     markEvent(mEvent);
-    if (!removed && shouldRefreshOverviewForTimelineEvent(room, mEvent)) bump();
+    if (!removed && target.count && shouldRefreshOverviewForTimelineEvent(room, mEvent)) bump();
   };
   // Optional calls: the rooms of some view tests carry a client stand-in without listeners.
   const client: Partial<Pick<MatrixClient, 'on' | 'removeListener' | 'getUserId'>> | undefined =
@@ -114,9 +128,9 @@ const listenForThreadRecordChanges = (
     const threadIds = userId && receipt ? receiptThreadIds(receipt, userId) : undefined;
     const oldest = room.getOldestThreadedReceiptTs?.();
     if (!threadIds || oldest !== oldestThreadedReceiptTs) {
-      markThreadRecordChange(changes);
+      mark();
     } else {
-      threadIds.forEach((id) => markThreadRecordChange(changes, id));
+      threadIds.forEach(mark);
     }
     oldestThreadedReceiptTs = oldest;
     bump();
@@ -127,27 +141,27 @@ const listenForThreadRecordChanges = (
   };
   // By then the redacted event has left its thread, which the room names.
   const handleRedaction = (mEvent: MatrixEvent, _room: Room, threadRootId?: string) => {
-    if (threadRootId) markThreadRecordChange(changes, threadRootId);
+    if (threadRootId) mark(threadRootId);
     markEvent(mEvent);
   };
   // A record names its people and reads who is in the room. The sync repeats member events that
   // change neither, one for the sender of many a batch.
   const handleMember = (_mEvent: MatrixEvent, member: RoomMember) => {
-    if (member.roomId === room.roomId) markThreadRecordChange(changes);
+    if (member.roomId === room.roomId) mark();
   };
   // A record reads whether the room is encrypted.
   const handleState = (mEvent: MatrixEvent, state: RoomState) => {
     if (state.roomId === room.roomId && mEvent.getType() === (EventType.RoomEncryption as string)) {
-      markThreadRecordChange(changes);
+      mark();
     }
   };
   // A thread's timeline that starts over (for its first page, or after a sync with a gap) shows
   // other events of that thread; the room's may have lost events of any. An event a receipt
   // names that the room lost this way is a change of the room's own (`receiptEventsVersion`).
   const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
-    markThreadRecordChange(changes, timelineSet.thread?.id);
+    mark(timelineSet.thread?.id);
   const handleThread = (thread: Thread | undefined) => {
-    markThreadRecordChange(changes, thread?.id);
+    mark(thread?.id);
     bump();
   };
 
@@ -155,7 +169,7 @@ const listenForThreadRecordChanges = (
   const handleDecrypted = (mEvent: MatrixEvent) => {
     if (mEvent.getRoomId() !== room.roomId) return;
     markEvent(mEvent);
-    if (!count || decryptedBump !== undefined) return;
+    if (!target.count || decryptedBump !== undefined) return;
     if (!shouldRefreshOverviewForTimelineEvent(room, mEvent)) return;
     decryptedBump = setTimeout(() => {
       decryptedBump = undefined;
@@ -199,6 +213,28 @@ const listenForThreadRecordChanges = (
 };
 
 /**
+ * A list of the keeper's room shows: the room's listener counts for it from now on, and starts
+ * when none listens (the page's first list, or one after a list that left nothing to keep), with
+ * a mark of the whole room for what happened before. Returns whether it heard the room all along
+ * since the records the keeper keeps.
+ */
+const attachThreadRecordList = (keeper: ThreadRecordKeeper, count: () => void): boolean => {
+  keeper.count = count;
+  if (keeper.stop) return true;
+  keeper.stop = listenForThreadRecordChanges(keeper.room, keeper.changes, keeper);
+  markThreadRecordChange(keeper.changes);
+  return false;
+};
+
+/** The list goes: the listener only marks while the keeper has records, and stops without. */
+const detachThreadRecordList = (keeper: ThreadRecordKeeper): void => {
+  keeper.count = undefined;
+  if (keeper.maps) return;
+  keeper.stop?.();
+  keeper.stop = undefined;
+};
+
+/**
  * A recompute key for the room's thread overview (chips, cards, reply counts, unread marks and
  * sort order), much of which comes from SDK thread objects and read receipts rather than from the
  * view's own timeline state.
@@ -222,10 +258,10 @@ const listenForThreadRecordChanges = (
  * else's receipt changes no record. A build that kept a record is followed within a second
  * (`KEPT_RECORD_CHECK_MS`) by a mark of the whole room and a count, for what no event tells of.
  *
- * With the room page's `keeper` (`ThreadRecordKeeper`) the marks are the keeper's, and outlive the
- * list: when it unmounts while the page keeps records of its room, a listener goes on marking,
- * without a count, until the next list of the room mounts and listens itself. That list marks
- * nothing of the room then, and its first build keeps every record nothing changed.
+ * With the room page's `keeper` (`ThreadRecordKeeper`) the marks are the keeper's, and so is the
+ * listener: it starts with the first list of the room and goes on while no list shows, marking
+ * without a count (`attachThreadRecordList`), until the page lets go of the room. A list that
+ * mounts then marks nothing of the room, and its first build keeps every record nothing changed.
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
@@ -238,7 +274,8 @@ export const useThreadOverviewRefreshCounter = (
 } => {
   const [overviewRefreshCounter, setCounter] = useState(0);
   const [ownChanges] = useState(createThreadRecordChanges);
-  const overviewChanges = keeper?.room === room ? keeper.changes : ownChanges;
+  const kept = threadRecordKeeperOf(keeper, room);
+  const overviewChanges = kept ? kept.changes : ownChanges;
   const setOverviewRefreshCounter = useCallback<Dispatch<SetStateAction<number>>>(
     (count) => {
       markThreadRecordChange(overviewChanges);
@@ -247,19 +284,10 @@ export const useThreadOverviewRefreshCounter = (
     [overviewChanges]
   );
 
-  useEffect(() => {
+  // From the commit, before the first paint: no change after it goes without a count.
+  useLayoutEffect(() => {
     if (threadId) return undefined;
 
-    const kept = threadRecordKeeperOf(keeper, room);
-    const heardAll = !!kept?.stopAway;
-    if (kept?.stopAway) {
-      // Heard while no list showed: the marks hold all that changed since the records it keeps.
-      kept.stopAway();
-      kept.stopAway = undefined;
-    } else {
-      // What happened to the room before these listeners heard it.
-      markThreadRecordChange(overviewChanges);
-    }
     const bump = () => setCounter((count) => count + 1);
     // What no event of the room tells of reaches a kept record within a second: a store that
     // drops its oldest entries, a stream that ends by the clock, an old name of a member who left
@@ -273,19 +301,22 @@ export const useThreadOverviewRefreshCounter = (
         bump();
       }, KEPT_RECORD_CHECK_MS);
     };
-    // The first build kept the records of the list that went, before anyone listened.
-    if (heardAll) overviewChanges.onKept();
-    const stop = listenForThreadRecordChanges(room, overviewChanges, bump);
+    let stop: () => void;
+    if (kept) {
+      // The first build kept the records of the list that went, before anyone listened.
+      if (attachThreadRecordList(kept, bump)) overviewChanges.onKept();
+      stop = () => detachThreadRecordList(kept);
+    } else {
+      // What happened to the room before these listeners heard it.
+      markThreadRecordChange(overviewChanges);
+      stop = listenForThreadRecordChanges(room, overviewChanges, { count: bump, maps: undefined });
+    }
     return () => {
       stop();
       clearTimeout(keptCheck);
       overviewChanges.onKept = undefined;
-      // The list goes while the page keeps its records (a thread fills the page): marks only.
-      if (kept && !kept.disposed && kept.maps) {
-        kept.stopAway = listenForThreadRecordChanges(room, overviewChanges);
-      }
     };
-  }, [room, threadId, overviewChanges, keeper]);
+  }, [room, threadId, overviewChanges, kept]);
 
   return { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges };
 };

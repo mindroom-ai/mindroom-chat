@@ -762,11 +762,14 @@ it("keeps one keeper of the room's records while a thread fills the page, and a 
   rerenderView(rerender);
   expect(screen.queryByTestId('messages')).not.toBeNull();
   expect(state.main?.threadRecordKeeper).toBe(keeper);
-  expect(keeper?.disposed).toBe(false);
 
-  // Another room: the keeper of this one lets go of everything it kept.
+  // Another room: the keeper of this one stops its listener and lets go of everything it kept.
+  const stop = vi.fn();
+  Object.assign(keeper!, { stop, maps: { normalThreadRecordMap: new Map() } });
   const other = new Room('!other:example.org', mx, '@alice:example.org');
   rerender(tree({ room: other }));
   expect(state.main?.threadRecordKeeper?.room).toBe(other);
-  expect(keeper?.disposed).toBe(true);
+  expect(stop).toHaveBeenCalledTimes(1);
+  expect(keeper?.stop).toBeUndefined();
+  expect(keeper?.maps).toBeUndefined();
 });

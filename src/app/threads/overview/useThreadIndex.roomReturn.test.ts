@@ -1,5 +1,15 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react';
+import { act, render, renderHook } from '@testing-library/react';
+import {
+  createElement,
+  Fragment,
+  StrictMode,
+  Suspense,
+  startTransition,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   createClient,
   MatrixEvent,
@@ -43,6 +53,13 @@ vi.mock('../../event-store/threads/threadWriters', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../event-store/threads/threadWriters')>()),
   useThreadWriters: () => state.noWriters,
 }));
+vi.mock('../open/threadBootstrap', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../open/threadBootstrap')>();
+  return {
+    ...actual,
+    shouldRefreshOverviewForTimelineEvent: vi.fn(actual.shouldRefreshOverviewForTimelineEvent),
+  };
+});
 vi.mock('./threadOverviewCacheHydration', () => ({
   useThreadOverviewCacheHydration: () => undefined,
   useThreadOverviewRelationUpdates: () => () => undefined,
@@ -56,8 +73,11 @@ import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter'
 import {
   createThreadRecordKeeper,
   disposeThreadRecordKeeper,
+  useThreadRecordKeeper,
   type ThreadRecordKeeper,
 } from './threadRecordKeeper';
+// eslint-disable-next-line import/first
+import { shouldRefreshOverviewForTimelineEvent } from '../open/threadBootstrap';
 // eslint-disable-next-line import/first
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 
@@ -130,7 +150,7 @@ const mountList = (keeper: ThreadRecordKeeper | undefined, viewMode?: 'compact' 
     return index;
   });
   return {
-    firstBuild: builds[0],
+    firstBuild: builds[0]!,
     records: () => hook.result.current.compactThreadRecordMap,
     unmount: hook.unmount,
   };
@@ -190,7 +210,7 @@ describe('the Compact list back under its room page', () => {
     expect(before.get('$a')?.presentation.rootPreviewText).toBe('First A');
     shown.unmount();
 
-    editRoot(roots[0], 'New A');
+    editRoot(roots[0]!, 'New A');
     const back = mountList(keeper);
 
     expect(back.firstBuild.get('$a')).not.toBe(before.get('$a'));
@@ -263,7 +283,7 @@ describe('the Compact list back under its room page', () => {
   it('only marks while gone: no timer and no count', () => {
     const keeper = createThreadRecordKeeper(room);
     shownList(keeper).unmount();
-    expect(keeper.stopAway).toBeDefined();
+    expect(keeper.stop).toBeDefined();
     const timers = vi.getTimerCount();
 
     const reply = new MatrixEvent({
@@ -294,7 +314,7 @@ describe('the Compact list back under its room page', () => {
     const threaded = mountList(keeper, 'threaded');
     expect(keeper.maps).toBeUndefined();
     threaded.unmount();
-    expect(keeper.stopAway).toBeUndefined();
+    expect(keeper.stop).toBeUndefined();
     expect(listened()).toBe(0);
   });
 
@@ -307,5 +327,191 @@ describe('the Compact list back under its room page', () => {
       expect(back.firstBuild.get(id)).not.toBe(before.get(id))
     );
     back.unmount();
+  });
+});
+
+type Records = Map<string, ThreadRecord>;
+
+/** The list as a component: each build it renders, and the records of the commit that shows. */
+function ListProbe({
+  listRoom = room,
+  keeper,
+  viewMode = 'compact',
+  builds,
+  shown,
+}: {
+  listRoom?: Room;
+  keeper: ThreadRecordKeeper | undefined;
+  viewMode?: 'compact' | 'threaded';
+  builds: Records[];
+  shown: { current?: Records };
+}) {
+  const fixed = useMemo(() => ({ ...options(viewMode), room: listRoom }), [viewMode, listRoom]);
+  const { overviewRefreshCounter, overviewChanges } = useThreadOverviewRefreshCounter(
+    listRoom,
+    undefined,
+    keeper
+  );
+  const index = useThreadIndex({
+    ...fixed,
+    overviewRefreshCounter,
+    overviewChanges,
+    threadRecordKeeper: keeper,
+  });
+  builds.push(index.compactThreadRecordMap);
+  // After the list's own layout effects: what the paint shows.
+  useLayoutEffect(() => {
+    shown.current = index.compactThreadRecordMap;
+  });
+  return null;
+}
+
+/** Runs `run` in its layout effect, which comes before those of the list after it. */
+function BeforeListCommits({ run }: { run: () => void }) {
+  useLayoutEffect(run, [run]);
+  return null;
+}
+
+const never = new Promise<never>(() => undefined);
+function SuspendWhen({ suspend }: { suspend: boolean }) {
+  if (suspend) throw never;
+  return null;
+}
+
+describe('the lifetime of what the room page keeps', () => {
+  it('builds before paint what changed between the build of the list that came back and its commit', () => {
+    const keeper = createThreadRecordKeeper(room);
+    const shown = shownList(keeper);
+    const before = shown.records();
+    shown.unmount();
+
+    const builds: Records[] = [];
+    const painted: { current?: Records } = {};
+    // In the same commit, before the list listens again: an update of thread B.
+    const updateB = () => {
+      room.emit(ThreadEvent.Update, { id: '$b' } as Thread);
+    };
+    const view = render(
+      createElement(
+        Fragment,
+        null,
+        createElement(BeforeListCommits, { run: updateB }),
+        createElement(ListProbe, { keeper, builds, shown: painted })
+      )
+    );
+
+    // The first build kept B from before; the paint shows B built again, the others kept.
+    expect(builds[0]!.get('$b')).toBe(before.get('$b'));
+    expect(painted.current?.get('$b')).not.toBe(before.get('$b'));
+    expect(painted.current?.get('$a')).toBe(before.get('$a'));
+    expect(painted.current?.get('$c')).toBe(before.get('$c'));
+    view.unmount();
+    disposeThreadRecordKeeper(keeper);
+  });
+
+  it('keeps the records of the commit that shows, not those of a render left unshown', () => {
+    const keeper = createThreadRecordKeeper(room);
+    const builds: Records[] = [];
+    const painted: { current?: Records } = {};
+    let setMode: (mode: 'compact' | 'threaded') => void = () => undefined;
+    let setShown: (shown: boolean) => void = () => undefined;
+    function Page() {
+      const [mode, setModeState] = useState<'compact' | 'threaded'>('compact');
+      const [listShown, setShownState] = useState(true);
+      setMode = setModeState;
+      setShown = setShownState;
+      return createElement(
+        Suspense,
+        { fallback: null },
+        listShown && createElement(ListProbe, { keeper, viewMode: mode, builds, shown: painted }),
+        createElement(SuspendWhen, { suspend: mode === 'threaded' })
+      );
+    }
+    const view = render(createElement(Page));
+    act(() => {
+      room.emit(RoomEvent.Receipt, receiptOf('@alice:server'), room);
+    });
+    const before = painted.current!;
+    expect(keeper.maps?.compactThreadRecordMap).toBe(before);
+
+    // A switch out of Compact that suspends: its render builds, and never shows.
+    act(() => startTransition(() => setMode('threaded')));
+    expect(keeper.maps?.compactThreadRecordMap).toBe(before);
+
+    // The list goes (a thread fills the page) and comes back: it keeps the shown records.
+    act(() => setShown(false));
+    const firstAgain = builds.length;
+    act(() => setShown(true));
+    ['$a', '$b', '$c', '$d'].forEach((id) =>
+      expect(builds[firstAgain]!.get(id)).toBe(before.get(id))
+    );
+    view.unmount();
+    disposeThreadRecordKeeper(keeper);
+  });
+
+  it('keeps under StrictMode, and lets go when the page goes or leaves the room', () => {
+    const builds: Records[] = [];
+    const painted: { current?: Records } = {};
+    let keeper: ThreadRecordKeeper | undefined;
+    let setShown: (shown: boolean) => void = () => undefined;
+    function Page({ pageRoom }: { pageRoom: Room }) {
+      keeper = useThreadRecordKeeper(pageRoom);
+      const [listShown, setShownState] = useState(true);
+      setShown = setShownState;
+      return listShown
+        ? createElement(ListProbe, { listRoom: pageRoom, keeper, builds, shown: painted })
+        : null;
+    }
+    const page = (pageRoom: Room) =>
+      createElement(StrictMode, null, createElement(Page, { pageRoom }));
+    const view = render(page(room));
+    act(() => {
+      room.emit(RoomEvent.Receipt, receiptOf('@alice:server'), room);
+    });
+    const before = painted.current!;
+
+    // The first trip into a thread and back keeps the records.
+    act(() => setShown(false));
+    expect(keeper?.stop).toBeDefined();
+    const firstAgain = builds.length;
+    act(() => setShown(true));
+    ['$a', '$b', '$c', '$d'].forEach((id) =>
+      expect(builds[firstAgain]!.get(id)).toBe(before.get(id))
+    );
+
+    // Another room: this room's listener stops, the list now listens to the other.
+    const other = new Room('!other:server', mx, '@me:server');
+    view.rerender(page(other));
+    expect(room.listenerCount(ThreadEvent.Update)).toBe(0);
+    expect(other.listenerCount(ThreadEvent.Update)).toBeGreaterThan(0);
+    // The page goes: nothing listens.
+    view.unmount();
+    expect(other.listenerCount(ThreadEvent.Update)).toBe(0);
+    expect(mx.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
+  });
+
+  it('while no list shows, marks only the threads it keeps and the room, and asks nothing of a view', () => {
+    const keeper = createThreadRecordKeeper(room);
+    shownList(keeper).unmount();
+    vi.mocked(shouldRefreshOverviewForTimelineEvent).mockClear();
+
+    const reply = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: room.roomId,
+      event_id: '$reply',
+      sender: '@alice:server',
+      content: {
+        msgtype: 'm.text',
+        body: 'Reply',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$new' },
+      },
+    });
+    room.emit(RoomEvent.Timeline, reply, room, false, false, {} as never);
+    room.emit(ThreadEvent.Update, { id: '$unseen' } as Thread);
+    room.emit(ThreadEvent.Update, { id: '$b' } as Thread);
+
+    expect(shouldRefreshOverviewForTimelineEvent).not.toHaveBeenCalled();
+    expect([...keeper.changes.threads.keys()]).toEqual(['$b']);
+    disposeThreadRecordKeeper(keeper);
   });
 });
