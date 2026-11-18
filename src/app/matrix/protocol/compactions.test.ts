@@ -157,6 +157,19 @@ describe('readReplyCompactions', () => {
     expect(short!.failureReason).toBe('y'.repeat(300));
   });
 
+  it('keeps only the first entry of an id that repeats', () => {
+    const first = { ...ENTRY, id: 'same', after_tool: 1, phase: 'mid_turn' };
+    const other = { ...ENTRY, id: 'other', after_tool: 2, phase: 'mid_turn' };
+    const again = { ...ENTRY, id: 'same', after_tool: 3, phase: 'mid_turn' };
+
+    expect(
+      readReplyCompactions([first, other, again]).map(({ id, afterTool }) => [id, afterTool])
+    ).toEqual([
+      ['same', 1],
+      ['other', 2],
+    ]);
+  });
+
   it('keeps the start order', () => {
     const first = { ...ENTRY, id: 'first', phase: 'pre_turn', after_tool: 0 };
     const second = { ...ENTRY, id: 'second', phase: 'mid_turn', after_tool: 4 };

@@ -93,10 +93,19 @@ const readEntry = (entry: unknown): ReplyCompaction | undefined => {
 /**
  * The compactions of a reply's `io.mindroom.compactions` list (the raw value), in start order.
  * An entry without a string id, a known phase and status, a tool count or a token count is
- * dropped; unknown keys are ignored, and a value that is not a list gives none.
+ * dropped, and so is one whose id an earlier entry has; unknown keys are ignored, and a value
+ * that is not a list gives none.
  */
-export const readReplyCompactions = (value: unknown): ReplyCompaction[] =>
-  Array.isArray(value) ? value.flatMap((entry: unknown) => readEntry(entry) ?? []) : [];
+export const readReplyCompactions = (value: unknown): ReplyCompaction[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap((raw: unknown) => {
+    const entry = readEntry(raw);
+    if (!entry || seen.has(entry.id)) return [];
+    seen.add(entry.id);
+    return [entry];
+  });
+};
 
 /**
  * The compaction of an old `io.mindroom.compaction` notice, which started when the notice was
