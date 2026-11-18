@@ -217,6 +217,18 @@ describe('MarkdownContent', () => {
     expect(ref.current?.querySelector('img')?.getAttribute('src')).toBe('https://x.example/a.png');
   });
 
+  it("shows an mxc: image of text that is not Matrix's as its alt text, unless the plugin asks", () => {
+    const html = '<p><img src="mxc://evil.example/abc" alt="x"></p>';
+    const plain = render(<MarkdownContent html={html} />, { wrapper: inApp });
+    expect(plain.container.querySelector('img')).toBeNull();
+    expect(plain.container.textContent).toBe('x');
+    plain.unmount();
+    const matrix = render(<MarkdownContent html={html} mxcImages />, { wrapper: inApp });
+    expect(matrix.container.querySelector('img')?.getAttribute('src')).toContain(
+      'evil.example/abc'
+    );
+  });
+
   it('puts the HTML in as it is outside the app, as on a fixture page', () => {
     const { container } = render(<MarkdownContent html={TABLE} />);
     expect(container.querySelector('div > table td code')?.textContent).toBe('ed6eed9');

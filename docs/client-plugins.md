@@ -140,6 +140,7 @@ and `replaceMatrixUserIdsWithDisplayNames(room, text)`, `text` with the Matrix u
 other IDs stay.
 The names it puts in are plain text: in Markdown given to `useMarkdownHtml` afterwards, a name's own Markdown takes effect, and IDs in code or in a link's target are replaced too.
 To draw that HTML as the timeline draws an agent's reply, a plugin renders `<MarkdownContent html={html} className={...} />` (since version 64), a `<div>` whose `ref` the plugin may take: a wide table scrolls in its own box, which a keyboard reaches, with the timeline's "Scroll horizontally" hint; links, mentions, code blocks, math and spoilers show as in a thread; and the `https:` images the sanitizer kept through `imageSource` show as plain images.
+An `mxc://` image (which `useMarkdownHtml` keeps without asking `imageSource`) shows as its alt text unless the plugin passes `mxcImages`, for text that came from Matrix: with it, the image loads from the account's homeserver as in a message, so for text from elsewhere its author could make that homeserver fetch media from a server of theirs for whoever reads it.
 It takes only HTML from `useMarkdownHtml` or `sanitizeHtml`, and does not sanitize it again; outside the app (a fixture page, without an account) it puts the HTML in as it is.
 A plugin that puts the HTML into its own element instead (React's `dangerouslySetInnerHTML`) gets it without what the app adds as it draws a message, such as: links and mentions in it are plain links, without the app's pills or link handling;
 math stays as its `$` text, which the app typesets;
