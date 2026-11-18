@@ -185,7 +185,7 @@ export function SkillReviewMarker({ review }: { review: SkillReviewNotice }) {
         onBlur={() => setTooltip(undefined)}
       >
         <IconNotebook size={14} aria-hidden />
-        <Text as="span" size="T200" className={css.Name}>
+        <Text as="span" size="T200" className={`${css.Name} ${css.Label}`}>
           {label}
         </Text>
       </button>
