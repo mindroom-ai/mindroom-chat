@@ -4,15 +4,37 @@ export const MODEL_SELECTION = 'io.mindroom.model_selection';
 export const MODEL_RESULT = 'io.mindroom.model_selection_result';
 export const MODEL_TIMEOUT = 12000;
 
+/** The reasoning levels a model can offer, from least to most. */
+export const REASONING_LEVELS = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const;
+export type ReasoningLevel = (typeof REASONING_LEVELS)[number];
+
 export type ModelCatalogEntry = {
   key: string;
   display_name: string;
   provider: string;
   id: string;
   icon_url?: string;
+  /** The levels `<key>@<level>` runs the model at, in the backend's order; absent without levels. */
+  reasoning_levels?: ReasoningLevel[];
+  /** The level the plain key runs at; one of `reasoning_levels`, present with them. */
+  reasoning_default?: ReasoningLevel;
 };
-export type ModelInheritedEntry = { entity: string; model: string };
-export type ModelSelection = { override: string | null; inherited: ModelInheritedEntry[] };
+/** `model` is a catalog key; `reasoning` names a level only when the stored choice had one. */
+export type ModelInheritedEntry = { entity: string; model: string; reasoning?: ReasoningLevel };
+export type ModelSelection = {
+  override: string | null;
+  /** The override's level, when it named one; absent means the model's default. */
+  reasoning?: ReasoningLevel;
+  inherited: ModelInheritedEntry[];
+};
 export type ModelCatalogResponse = {
   version: 1;
   request_id: string;
@@ -49,6 +71,34 @@ const bounded = (v: unknown): v is Record<string, unknown> => {
     return false;
   }
 };
+const isLevel = (v: unknown): v is ReasoningLevel =>
+  (REASONING_LEVELS as readonly unknown[]).includes(v);
+/** An entry's levels and default, or nothing when they are absent or malformed. */
+const reasoningOf = (
+  m: Record<string, unknown>
+): Pick<ModelCatalogEntry, 'reasoning_levels' | 'reasoning_default'> => {
+  const levels = m.reasoning_levels;
+  if (
+    !Array.isArray(levels) ||
+    levels.length === 0 ||
+    levels.length > 8 ||
+    !levels.every(isLevel) ||
+    new Set(levels).size !== levels.length ||
+    !isLevel(m.reasoning_default) ||
+    !levels.includes(m.reasoning_default)
+  )
+    return {};
+  return { reasoning_levels: [...levels], reasoning_default: m.reasoning_default };
+};
+/** `reasoning` when it is one of the levels of model `key`, else nothing. */
+const levelOf = (
+  models: ModelCatalogEntry[],
+  key: string,
+  reasoning: unknown
+): { reasoning?: ReasoningLevel } =>
+  isLevel(reasoning) && !!models.find((m) => m.key === key)?.reasoning_levels?.includes(reasoning)
+    ? { reasoning }
+    : {};
 const scope = (v: Record<string, unknown>): boolean =>
   v.version === 1 && str(v.room_id) && (v.thread_id === undefined || str(v.thread_id));
 export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse | undefined => {
@@ -94,9 +144,11 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
       provider: m.provider,
       id: m.id,
       ...(m.icon_url === undefined ? {} : { icon_url: m.icon_url }),
+      ...reasoningOf(m),
     } as ModelCatalogEntry);
   }
-  if (typeof selection.override === 'string' && !keys.has(selection.override)) return undefined;
+  const override = selection.override as string | null;
+  if (override !== null && !keys.has(override)) return undefined;
   return {
     version: 1,
     request_id: value.request_id,
@@ -106,7 +158,15 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
     agent_user_ids: value.agent_user_ids as string[],
     catalog_revision: value.catalog_revision,
     models,
-    selection: selection as ModelSelection,
+    selection: {
+      override,
+      ...(override === null ? {} : levelOf(models, override, selection.reasoning)),
+      inherited: (selection.inherited as Array<Record<string, unknown>>).map((entry) => ({
+        entity: entry.entity as string,
+        model: entry.model as string,
+        ...levelOf(models, entry.model as string, entry.reasoning),
+      })),
+    },
   };
 };
 export const parseModelSelectionResult = (value: unknown): ModelSelectionResult | undefined => {
