@@ -409,7 +409,7 @@
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
         "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
         "debugMode": "Hata ayıklama modu",
-        "debugModeDescription": "Bu cihazda, uygulamanın bellek değerlerini içeren ayrıntılı tanılama izleme dahil tanılama verilerini kaydeder ve bunları bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler."
+        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın."
       }
     },
     "createChat": {

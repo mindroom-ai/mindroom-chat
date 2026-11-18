@@ -409,7 +409,7 @@
         "thirdPartyNotices": "Hinweise zu Drittanbietern",
         "soundsCredit": "Die Benachrichtigungs- und Einladungstöne sind Klänge, die für diese App synthetisiert wurden.",
         "debugMode": "Debug-Modus",
-        "debugModeDescription": "Zeichnet Diagnosedaten auf diesem Gerät auf, darunter eine detaillierte Diagnoseaufzeichnung mit den Speicherwerten der App, und fügt dem +-Menü des Eingabefelds „App-Protokolle anhängen“ hinzu, damit du sie in einer Nachricht senden kannst."
+        "debugModeDescription": "Fügt dem +-Menü des Eingabefelds „App-Protokolle anhängen“ hinzu, damit du die Diagnosedaten dieses Geräts in einer Nachricht senden kannst. Aktiviere unten die detaillierte Diagnoseaufzeichnung, um Speicherwerte und eine ausführliche Aufzeichnung einzuschließen."
       }
     },
     "createChat": {

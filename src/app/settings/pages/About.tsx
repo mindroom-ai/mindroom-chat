@@ -185,10 +185,9 @@ function DeepTraceSetting() {
 }
 
 /**
- * Debug mode, on every platform. On, it turns the deep trace on and adds "Attach app logs" to the
- * composer. In a browser, where the iOS app's diagnostics are off until it is turned on, it also
- * shows the diagnostics export and the deep tracing switch; the iOS app keeps its recorders
- * (`keepRecorders`) whatever debug mode says.
+ * Debug mode, on every platform: on, the composer offers "Attach app logs". In a browser, where the
+ * iOS app's diagnostics are off until it is turned on, it also shows the diagnostics export and the
+ * deep tracing switch; the iOS app keeps its recorders (`keepRecorders`) whatever it says.
  */
 function DebugModeSetting({
   enabled,
@@ -482,8 +481,7 @@ export function About({ requestClose, closeDialog }: AboutProps) {
           onChange={setDebugMode}
         />
         {diagnostics && <DiagnosticsExport />}
-        {/* Debug mode turns the deep trace on and off, so its tile reads the switch again. */}
-        {diagnostics && <DeepTraceSetting key={debugMode ? 'debug' : 'plain'} />}
+        {diagnostics && <DeepTraceSetting />}
         {collectorHost && <ErrorReportsSetting host={collectorHost} />}
       </AboutSection>
       <AboutSection title={t('tour.entries.settingsSection')}>

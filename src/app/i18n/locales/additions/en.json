@@ -409,7 +409,7 @@
         "thirdPartyNotices": "Third-party notices",
         "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
         "debugMode": "Debug mode",
-        "debugModeDescription": "Records diagnostics on this device, including a deep trace with the app's memory figures, and adds “Attach app logs” to the composer's + menu so you can send them in a message."
+        "debugModeDescription": "Adds “Attach app logs” to the composer's + menu, so you can send this device's diagnostics in a message. Turn on deep tracing below to include memory figures and a detailed trace."
       }
     },
     "createChat": {

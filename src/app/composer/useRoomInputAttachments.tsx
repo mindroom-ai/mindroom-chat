@@ -462,12 +462,21 @@ export const useRoomInputAttachments = ({
   const dismissLostPastes = useCallback(() => setLostPastes(false), []);
 
   const stageFiles = useCallback(
-    // `stillWanted` runs right before the files join the board, after their preparation.
-    async (files: File[], stillWanted?: () => boolean) => {
+    // With `asked`, the conversation the files were asked for in: they join its board only if the
+    // composer still shows it once they are prepared.
+    async (files: File[], asked?: { roomId: string; draftKey?: string }) => {
       if (files.length === 0) return;
-      const targetRoomId = current.current.roomId;
+      const targetRoomId = asked?.roomId ?? current.current.roomId;
       const items = await createUploadItems(files);
-      if (!mounted.current || (stillWanted && !stillWanted())) return;
+      if (!mounted.current) return;
+      if (
+        asked &&
+        (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
+      ) {
+        // eslint-disable-next-line no-console
+        console.warn('[composer] files not attached: the conversation changed');
+        return;
+      }
       access.append(targetRoomId, items);
     },
     [access, createUploadItems]
@@ -570,17 +579,13 @@ export const useRoomInputAttachments = ({
   const attachAppLogs = useCallback(() => {
     // The export takes a moment, and this composer can move to another room or thread meanwhile:
     // the logs go only to the conversation they were asked for in.
-    const { roomId: targetRoomId, draftKey: targetDraftKey } = current.current;
-    const stillAsked = () => {
-      const same =
-        current.current.roomId === targetRoomId && current.current.draftKey === targetDraftKey;
-      // eslint-disable-next-line no-console
-      if (!same) console.warn('[composer] app logs not attached: the conversation changed');
-      return same;
-    };
+    const { roomId, draftKey } = current.current;
     buildDiagnosticsExport()
       .then(({ blob, fileName }) =>
-        stageFiles([new File([blob], fileName, { type: 'application/json' })], stillAsked)
+        stageFiles([new File([blob], fileName, { type: 'application/json' })], {
+          roomId,
+          draftKey,
+        })
       )
       .catch((error: unknown) => {
         // eslint-disable-next-line no-console

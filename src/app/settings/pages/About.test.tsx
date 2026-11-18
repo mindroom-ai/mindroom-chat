@@ -233,13 +233,11 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('shows the debug mode switch in the iOS app too, which keeps its recorders when it is off', async () => {
+  it('shows the debug mode switch in the iOS app too, which leaves its diagnostics alone', async () => {
     let debugMode = false;
     mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
     mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {
       debugMode = enabled;
-      // Debug mode turns the deep trace on and off with it.
-      await mocks.setDeepTraceEnabled(enabled);
       return true;
     });
     const renderer = create(<About requestClose={vi.fn()} />);
@@ -248,23 +246,18 @@ describe('About diagnostics export', () => {
     expect(diagnosticsTile(renderer)).toBeDefined();
     expect(deepTraceSwitch(renderer).props.checked).toBe(false);
 
-    await act(async () => {
-      debugSwitch().props.onChange({ target: { checked: true } });
-    });
-    expect(mocks.setDebugModeEnabled).toHaveBeenCalledWith(true, { keepRecorders: true });
-    // The deep trace tile, already on screen, shows the trace debug mode turned on.
-    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
-    expect(deepTraceTile(renderer).props['data-description']).toBe(
-      'Recording a bounded, privacy-safe performance and interaction trace on this device.'
-    );
-
-    await act(async () => {
-      debugSwitch().props.onChange({ target: { checked: false } });
-    });
-    expect(mocks.setDebugModeEnabled).toHaveBeenLastCalledWith(false, { keepRecorders: true });
-    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
-    // The iOS app's diagnostics stay.
-    expect(diagnosticsTile(renderer)).toBeDefined();
+    for (const next of [true, false]) {
+      await act(async () => {
+        debugSwitch().props.onChange({ target: { checked: next } });
+      });
+      expect(mocks.setDebugModeEnabled).toHaveBeenLastCalledWith(next, { keepRecorders: true });
+      expect(debugSwitch().props.checked).toBe(next);
+      // The diagnostics tiles stay, and the deep trace keeps its own switch.
+      expect(diagnosticsTile(renderer)).toBeDefined();
+      expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    }
+    expect(mocks.setDeepTraceEnabled).not.toHaveBeenCalled();
+    expect(mocks.clearDeepTrace).not.toHaveBeenCalled();
     renderer.unmount();
   });
 

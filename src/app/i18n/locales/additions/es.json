@@ -414,7 +414,7 @@
         "thirdPartyNotices": "Avisos de terceros",
         "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación.",
         "debugMode": "Modo de depuración",
-        "debugModeDescription": "Registra diagnósticos en este dispositivo, incluido un seguimiento de diagnóstico detallado con las cifras de memoria de la app, y añade «Adjuntar registros de la app» al menú + del cuadro de mensaje para que puedas enviarlos en un mensaje."
+        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada."
       }
     },
     "createChat": {
