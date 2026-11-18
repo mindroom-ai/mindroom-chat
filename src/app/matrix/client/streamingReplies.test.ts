@@ -1,5 +1,7 @@
 import {
+  ClientEvent,
   createClient,
+  SyncState,
   ThreadEvent,
   type IEvent,
   type MatrixClient,
@@ -793,6 +795,35 @@ describe('streaming replies on thread cards', () => {
         await afterCheckDelay();
         expect(f.requested(`/relations/${rootId}`)).toBe(1);
         expect(f.card().streaming).toBe(false);
+
+        // After an outage, the sync catches up before it runs again: the thread is tried again.
+        f.setServerThread({
+          root: listedRoot(now, 'streaming'),
+          replies: [
+            withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')),
+            title(now - 15_000),
+          ],
+        });
+        f.mx.emit(ClientEvent.Sync, SyncState.Error, SyncState.Syncing);
+        f.mx.emit(ClientEvent.Sync, SyncState.Catchup, SyncState.Error);
+        await f.deliver([chat('$chat-2', now - 1_000)]);
+        await afterCheckDelay();
+        expect(f.requested(`/relations/${rootId}`)).toBe(2);
+      }, 15_000);
+
+      it('loads the first page for a record-form streaming status', async () => {
+        const now = Date.now();
+        const listed = listedRoot(now, 'streaming');
+        const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+        const latestReply = summary['io.mindroom.latest_reply'] as IEvent;
+        const newest = latestReply.unsigned['m.relations']?.['m.replace'] as IEvent;
+        newest.content['m.new_content'] = {
+          msgtype: 'm.text',
+          body: 'The notes',
+          'io.mindroom.stream_status': { state: 'streaming' },
+        };
+        const f = await reloadUnopened(now, listed);
+        expect(f.requested(`/relations/${rootId}`)).toBe(1);
       });
 
       it('loads nothing for a bundled reply that finished', async () => {

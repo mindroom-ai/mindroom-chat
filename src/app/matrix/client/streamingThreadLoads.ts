@@ -1,5 +1,10 @@
 import { ClientEvent, SyncState, type MatrixClient, type Room, type Thread } from 'matrix-js-sdk';
-import { hasTerminalStreamMetadata, isAiRunStreaming } from '../protocol/aiRun';
+import {
+  ACTIVE_STREAM_STATUSES,
+  hasTerminalStreamMetadata,
+  isAiRunStreaming,
+  readStreamStatus,
+} from '../protocol/aiRun';
 import { getSameSenderBundledEdit } from '../editEvent';
 import { isRecord } from '../../lib/isRecord';
 import { watchRoomThreads } from '../watchRoomThreads';
@@ -38,10 +43,14 @@ const hiddenStreamingReply = (room: Room, thread: Thread): string | undefined =>
   // A loaded thread holds the reply; initialize() does nothing for it.
   if (thread.findEventById(reply.event_id)) return undefined;
   const edit = getSameSenderBundledEdit(reply);
-  const newContent = isRecord(edit?.content) ? edit.content['m.new_content'] : undefined;
-  // The renderer's rule, on the reply's newest content.
+  const newContent = edit && isRecord(edit.content) ? edit.content['m.new_content'] : undefined;
+  // An edit without readable new content says nothing about where the reply is.
+  if (edit && !isRecord(newContent)) return undefined;
+  // The card's rule, on the reply's newest content.
   const content = isRecord(newContent) ? newContent : reply.content;
-  if (!isAiRunStreaming(content) || hasTerminalStreamMetadata(content)) return undefined;
+  const status = readStreamStatus(content);
+  const streams = isAiRunStreaming(content) || (!!status && ACTIVE_STREAM_STATUSES.has(status));
+  if (!streams || hasTerminalStreamMetadata(content)) return undefined;
   const ts = Math.max(
     typeof reply.origin_server_ts === 'number' ? reply.origin_server_ts : 0,
     typeof edit?.origin_server_ts === 'number' ? edit.origin_server_ts : 0
@@ -59,6 +68,8 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   /** Per thread, the reply it was loaded for. */
   const tried = new WeakMap<Thread, string>();
   let live = false;
+  /** The sync failed since the last server answer: threads tried meanwhile are tried again. */
+  let interrupted = false;
   let running = false;
   let stopped = false;
 
@@ -95,10 +106,19 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     drain();
   };
 
-  const onSync = (state: SyncState, previous: SyncState | null, data?: { fromCache?: boolean }) => {
-    // The saved sync replays first, and an error or reconnect is no answer from the server.
+  const onSync = (
+    state: SyncState,
+    _previous: SyncState | null,
+    data?: { fromCache?: boolean }
+  ) => {
+    if (state === SyncState.Error || state === SyncState.Reconnecting) {
+      interrupted = true;
+      return;
+    }
+    // The saved sync replays first, and catching up after an error is no answer yet.
     if ((state !== SyncState.Prepared && state !== SyncState.Syncing) || data?.fromCache) return;
-    const recovered = previous === SyncState.Error || previous === SyncState.Reconnecting;
+    const recovered = interrupted;
+    interrupted = false;
     if (live && !recovered) return;
     live = true;
     if (recovered)
