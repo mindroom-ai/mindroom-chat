@@ -316,12 +316,14 @@ function CreditLink({ href, children }: { href: string; children?: ReactNode }) 
 
 function CreditsList() {
   const { t } = useTranslation();
+  // The card gives each row an inline padding of S400, where the other rows' text starts; the
+  // items start 1.25em further in, so their bullets hang inside the card, not on its border.
   return (
     <Box
       as="ul"
       direction="Column"
       gap="200"
-      style={{ margin: 0, paddingInlineStart: config.space.S400 }}
+      style={{ margin: 0, paddingInlineStart: `calc(${config.space.S400} + 1.25em)` }}
     >
       {CREDITS.map(({ i18nKey, tag, project, license }) => {
         const components = {
