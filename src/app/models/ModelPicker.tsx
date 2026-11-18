@@ -17,7 +17,8 @@ import { useTranslation } from 'react-i18next';
 
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { mobileOrTablet } from '../lib/user-agent';
-import { Menu } from '../ui/glass/GlassPrimitives';
+import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
+import { glassExpanded } from '../ui/styles/Glass.css';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EffortGlyph, effortBars } from './EffortGlyph';
 import { ModelEffortColumn } from './ModelEffortColumn';
@@ -560,14 +561,17 @@ export function ModelPicker({
     >
       <IconTooltip position="Top" label={chooseModel} hint={label}>
         {(tooltipRef) => (
-          <button
+          <IconButton
             ref={(element: HTMLButtonElement | null) => {
               triggerRef.current = element;
               tooltipRef(element);
             }}
             type="button"
             id={triggerId}
-            className={css.Trigger}
+            variant="SurfaceVariant"
+            radii="300"
+            size="300"
+            className={`${css.Trigger} ${glassExpanded}`}
             // Named "Choose model" and then the model it stands for, as its tooltip reads.
             aria-label={chooseModel}
             aria-labelledby={`${triggerId} ${triggerLabelId}`}
@@ -580,16 +584,13 @@ export function ModelPicker({
               provider={shownModel?.provider}
               id={shownModel?.id}
               iconUrl={shownModel?.icon_url}
-              size={18}
-              className={css.TriggerIcon}
+              size={20}
             />
-            {bars && bars.count > 0 && (
-              <EffortGlyph count={bars.count} filled={bars.filled} className={css.TriggerIcon} />
-            )}
+            {bars && bars.count > 0 && <EffortGlyph count={bars.count} filled={bars.filled} />}
             <span id={triggerLabelId} className={css.VisuallyHidden}>
               {label}
             </span>
-          </button>
+          </IconButton>
         )}
       </IconTooltip>
     </PopOut>
