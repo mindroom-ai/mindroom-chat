@@ -461,7 +461,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(seamsIn(states).nth(2)).toHaveAttribute('data-state', 'interrupted');
   await expect(seamsIn(states).nth(0)).toHaveText('Compaction failed · kept full history');
   await expect(seamsIn(states).nth(1)).toHaveText('Compaction timed out · kept full history');
-  await expect(seamsIn(states).nth(2)).toHaveText('Compaction interrupted · kept full history');
+  await expect(seamsIn(states).nth(2)).toHaveText('Compaction interrupted');
   await expectInOrder(
     [
       toolRows(states).nth(0),
