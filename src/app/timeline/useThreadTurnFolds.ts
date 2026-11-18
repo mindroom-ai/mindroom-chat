@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { Virtualizer } from '@tanstack/react-virtual';
 import { useThreadApprovals } from '../approvals/ThreadApprovalProvider';
-import { isThreadReplyStreaming } from '../event-store/threads/useThreadStreamingState';
-import type { ThreadWorkflowStatus } from '../event-store/threads/threadWorkflow';
+import { isEventStreaming } from '../event-store/threads/useThreadStreamingState';
+import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
+import { getEventReactions } from '../matrix/room';
 import {
   readInteractiveQuestion,
   readRoomQuestionAnswer,
@@ -13,14 +15,51 @@ import {
   parseSecretRequestContent,
 } from '../matrix/protocol/secretRequest';
 import { rememberManualExpansionState } from '../messages/manualExpansionState';
-import { resolveMinimapSourceKind } from './timelineMinimapViewModel';
 import {
   EMPTY_TURN_FOLD_VIEW,
   planThreadTurnFolds,
+  threadRowAuthor,
   viewThreadTurnFolds,
   type ThreadTurnFold,
   type ThreadTurnFoldView,
 } from './threadTurnFolds';
+
+type TurnRowContext = {
+  room: Room;
+  timelineSet: EventTimelineSet;
+  getContent: (event: MatrixEvent) => Record<string, unknown>;
+  /** The thread's approvals that wait for a decision (ThreadApprovalProvider). */
+  pendingApprovalIds: ReadonlySet<string> | undefined;
+  viewerId: string | undefined;
+  now: number;
+};
+
+/**
+ * Whether a thread row keeps its turn unfolded (`ThreadTurnRules.holdsTurn`): it cannot tell who
+ * wrote it, it is an approval or a secret request that waits for the reader, an agent's reply
+ * that says it streams, or an agent's question no reaction answered.
+ */
+export const turnRowWaits = (
+  event: MatrixEvent,
+  { room, timelineSet, getContent, pendingApprovalIds, viewerId, now }: TurnRowContext
+): boolean => {
+  const eventId = event.getId() ?? '';
+  const author = threadRowAuthor(event);
+  if (author === 'unknown') return true;
+  if (pendingApprovalIds?.has(eventId)) return true;
+  if (MINDROOM_SECRET_REQUEST_KEY in event.getOriginalContent()) {
+    const request = parseSecretRequestContent(getContent(event));
+    if (request && effectiveSecretRequestStatus(request, now) === 'pending') return true;
+  }
+  if (author !== 'agent') return false;
+  // A reply that says it streams has not finished, also while the client has yet to vouch for it
+  // (isStreamingReplyCurrent): its turn folds once it says it ended.
+  if (isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet)) return true;
+  // A question waits until a reaction answers it, as its card reads it (QuestionCard), whatever
+  // the person wrote since.
+  const question = readInteractiveQuestion(getContent(event), event.getOriginalContent());
+  return !!question && !readRoomQuestionAnswer(room, eventId, question, viewerId);
+};
 
 /** Where the timeline keeps the reader's choice for a turn, apart from its messages' folds. */
 const turnFoldKey = (fold: ThreadTurnFold) => `turnFold:${fold.key}`;
@@ -41,8 +80,8 @@ type UseThreadTurnFoldsOptions = {
   isQuietMarker: (event: MatrixEvent) => boolean;
   /** Rows that must stay in view (`ThreadTurnRules.pinnedIds`). */
   pinnedIds: ReadonlySet<string>;
-  /** The thread's workflow state, which tells whether it still works on its newest turn. */
-  threadStatus: ThreadWorkflowStatus | undefined;
+  /** The thread's live background jobs, which work on its newest turn (`threadBackgroundJobs`). */
+  backgroundState: ThreadBackgroundState | undefined;
   /** The timeline's manual expansion state and its expand all baseline (manualExpansionState). */
   manualExpansionState: Map<string, boolean>;
   expandAllInit: boolean | undefined;
@@ -63,7 +102,7 @@ export const useThreadTurnFolds = ({
   isSkipped,
   isQuietMarker,
   pinnedIds,
-  threadStatus,
+  backgroundState,
   manualExpansionState,
   expandAllInit,
 }: UseThreadTurnFoldsOptions): {
@@ -71,39 +110,21 @@ export const useThreadTurnFolds = ({
   toggle: (fold: ThreadTurnFold) => void;
 } => {
   const pendingApprovalIds = useThreadApprovals()?.pendingEventIds;
+  // A reply streaming in the newest turn holds it from its own row (`holdsTurn`).
   const lastTurnBusy =
-    !!threadStatus &&
-    (threadStatus.isStreaming ||
-      !!threadStatus.hasBackgroundJob ||
-      !!threadStatus.hasBackgroundApproval);
+    !!backgroundState?.hasBackgroundJob || !!backgroundState?.hasBackgroundApproval;
   const folds = useMemo(() => {
     if (!threadId) return [];
     const now = Date.now();
-    const isAgentMessage = (event: MatrixEvent) => resolveMinimapSourceKind(event) === 'agent';
+    const isAgentMessage = (event: MatrixEvent) => threadRowAuthor(event) === 'agent';
     return planThreadTurnFolds(events, {
-      isPersonMessage: (event) => {
-        const kind = resolveMinimapSourceKind(event);
-        return kind === 'user' || kind === 'redactedUser';
-      },
+      isPersonMessage: (event) => threadRowAuthor(event) === 'person',
       isSkipped,
       isAnswer: (event) =>
         isAgentMessage(event) && !isQuietMarker(event) && getContent(event).msgtype !== 'm.notice',
       isQuietMarker,
-      holdsTurn: (event, lastTurn) => {
-        const eventId = event.getId() ?? '';
-        if (pendingApprovalIds?.has(eventId)) return true;
-        if (MINDROOM_SECRET_REQUEST_KEY in event.getOriginalContent()) {
-          const request = parseSecretRequestContent(getContent(event));
-          if (request && effectiveSecretRequestStatus(request, now) === 'pending') return true;
-        }
-        if (!isAgentMessage(event)) return false;
-        if (isThreadReplyStreaming(room, event, timelineSet)) return true;
-        // A question waits only in the newest turn: a person's message after it answers it.
-        const question = lastTurn
-          ? readInteractiveQuestion(getContent(event), event.getOriginalContent())
-          : undefined;
-        return !!question && !readRoomQuestionAnswer(room, eventId, question, viewerId);
-      },
+      holdsTurn: (event) =>
+        turnRowWaits(event, { room, timelineSet, getContent, pendingApprovalIds, viewerId, now }),
       pinnedIds,
       lastTurnBusy,
     });
@@ -140,4 +161,32 @@ export const useThreadTurnFolds = ({
     [expandAllInit, manualExpansionState]
   );
   return { view, toggle };
+};
+
+/**
+ * Gives the row that draws a turn's break its estimate again whenever the turn opens or folds, or
+ * the row starts or stops drawing one, while the row is not mounted: the size measured before
+ * would otherwise last (a long first reply, folded, kept its height off screen). A mounted row
+ * measures itself.
+ */
+export const useTurnBreakRowMeasurements = (
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+  events: readonly MatrixEvent[],
+  view: ThreadTurnFoldView,
+  estimate: (index: number) => number
+) => {
+  const previous = useRef<ReadonlyMap<string, boolean>>(new Map());
+  useLayoutEffect(() => {
+    const hosts = new Map([...view.breaks].map(([id, { open }]) => [id, open]));
+    const before = previous.current;
+    previous.current = hosts;
+    const changed = (id: string) =>
+      (hosts.has(id) || before.has(id)) && hosts.get(id) !== before.get(id);
+    events.forEach((event, index) => {
+      const id = event.getId();
+      if (id && changed(id) && !virtualizer.elementsCache.has(id)) {
+        virtualizer.resizeItem(index, estimate(index));
+      }
+    });
+  }, [virtualizer, events, view, estimate]);
 };

@@ -102,17 +102,6 @@ export const isEventStreaming = (
   return !!streamStatus && ACTIVE_STREAM_STATUSES.has(streamStatus) && !terminalMetadata;
 };
 
-/** Whether a thread's reply streams now, as the thread's Working state reads its tail. */
-export const isThreadReplyStreaming = (
-  room: Room,
-  mEvent: MatrixEvent,
-  timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>
-): boolean => {
-  const eventId = mEvent.getId();
-  const relations = eventId ? getEventReactions(timelineSet, eventId) : undefined;
-  return isEventStreaming(mEvent, relations, timelineSet) && isStreamingReplyCurrent(room, mEvent);
-};
-
 const getThreadStreamingSnapshot = (
   room: Room | undefined,
   threadRootId: string | undefined

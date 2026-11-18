@@ -188,6 +188,14 @@ describe('useThreadIndex background updates', () => {
     expect(getThread).not.toHaveBeenCalled();
     expect(baseMaps.normalThreadRecordMap.get('$job')).toBe(original);
     expect(original.status.hasBackgroundJob).toBeUndefined();
+    // An open thread has no overview record; its jobs still show for it (the thread's turn folds).
+    options.threadId = '$job';
+    publish('running');
+    expect(latest.normalThreadRecordMap.get('$job')).toBeUndefined();
+    expect(latest.threadBackgroundStates.get('$job')).toEqual({
+      hasBackgroundJob: true,
+      hasBackgroundApproval: false,
+    });
     act(() => renderer.unmount());
   });
 });

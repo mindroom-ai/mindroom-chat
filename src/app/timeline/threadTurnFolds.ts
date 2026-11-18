@@ -1,5 +1,30 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
+import { getTimelineMessageKind } from '../event-store/timeline/timelineRowTypes';
+import { inSameDay } from '../lib/time';
+import {
+  isMindroomAgentMessageEvent,
+  isMindroomAgentUserId,
+} from '../matrix/protocol/agentIdentity';
 import { isRowlessTimelineEvent } from './timelineRowFold';
+
+/**
+ * Who wrote a thread row, for its turns: a person's message or sticker starts a turn, an agent's
+ * message can answer one, and a row that cannot tell (a message not decrypted, from a sender
+ * that is no agent by name) keeps its turn unfolded. Other rows (approval cards, state notices)
+ * are neither. A redacted message keeps only its sender, as the minimap reads it.
+ */
+export type ThreadRowAuthor = 'person' | 'agent' | 'unknown' | 'none';
+
+export const threadRowAuthor = (event: MatrixEvent): ThreadRowAuthor => {
+  if (event.getStateKey() !== undefined) return 'none';
+  const kind = getTimelineMessageKind(event.getType());
+  if (kind !== 'message' && kind !== 'sticker' && kind !== 'encrypted') return 'none';
+  const byAgentName = isMindroomAgentUserId(event.getSender());
+  if (event.isRedacted()) return byAgentName ? 'agent' : 'person';
+  if (kind === 'encrypted' || event.isDecryptionFailure?.())
+    return byAgentName ? 'agent' : 'unknown';
+  return isMindroomAgentMessageEvent(event) ? 'agent' : 'person';
+};
 
 /**
  * A finished turn of an open thread whose rows between the person's message and the agent's
@@ -25,11 +50,8 @@ export type ThreadTurnRules = {
   isAnswer: (event: MatrixEvent) => boolean;
   /** A row that renders as a quiet marker line, such as the thread's title. */
   isQuietMarker: (event: MatrixEvent) => boolean;
-  /**
-   * A row that keeps its turn unfolded: a reply still streaming, or a request that waits on the
-   * reader (`lastTurn` tells whether the turn is the thread's newest, which no person answered).
-   */
-  holdsTurn: (event: MatrixEvent, lastTurn: boolean) => boolean;
+  /** A row that keeps its turn unfolded: a reply still streaming, a request waiting on the reader. */
+  holdsTurn: (event: MatrixEvent) => boolean;
   /** Rows that must stay in view: one the route or a jump opened, one a fork's line sits on. */
   pinnedIds: ReadonlySet<string>;
   /** The thread still works on its newest turn: a reply streams, a background job runs. */
@@ -44,8 +66,9 @@ export const MIN_FOLDED_MESSAGES = 2;
  * message to the next one. Its answer is its last agent message; the rows after it (quiet markers)
  * stay, and the rows before it fold once at least `MIN_FOLDED_MESSAGES` of them are messages. A
  * turn that is not finished (a row holds it, or it is the newest while the thread works) or that
- * would hide a pinned row stays unfolded. Rows without one of their own (edits, reactions) and rows
- * other plans hide take no part.
+ * would hide a pinned row stays unfolded, as does one that crosses a day, whose date divider would
+ * sit inside the fold. Rows without one of their own (edits, reactions) and rows other plans hide
+ * take no part.
  */
 export const planThreadTurnFolds = (
   events: readonly MatrixEvent[],
@@ -59,13 +82,16 @@ export const planThreadTurnFolds = (
     for (let index = start + 1; index < end; index += 1) {
       const event = events[index];
       if (!event || isRowlessTimelineEvent(event)) continue;
-      if (rules.holdsTurn(event, lastTurn)) return;
+      if (rules.holdsTurn(event)) return;
       if (!rules.isSkipped(event)) rows.push(event);
     }
     let answerAt = rows.length - 1;
     while (answerAt >= 0 && !rules.isAnswer(rows[answerAt]!)) answerAt -= 1;
-    const answerId = rows[answerAt]?.getId();
-    if (!answerId) return;
+    const answer = rows[answerAt];
+    const answerId = answer?.getId();
+    if (!answer || !answerId) return;
+    const askedTs = events[start]!.getTs();
+    if (rows.slice(0, answerAt + 1).some((event) => !inSameDay(askedTs, event.getTs()))) return;
     const hidden = rows.slice(0, answerAt);
     const hiddenIds = hidden.flatMap((event) => event.getId() ?? []);
     if (hiddenIds.length !== hidden.length || hiddenIds.some((id) => rules.pinnedIds.has(id))) {

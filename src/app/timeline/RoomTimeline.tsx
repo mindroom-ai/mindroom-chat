@@ -163,9 +163,10 @@ import {
 } from './roomTimelineUnread';
 import { useMessageRowHidden } from '../plugins/messageRenderers';
 import { isPluginHiddenRow } from './pluginHiddenRows';
-import { useThreadTurnFolds } from './useThreadTurnFolds';
+import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
 import {
   isTimelineRowHidden,
+  isTurnFoldedRow,
   renderTimelineTiles,
   timelineRowSizing,
   useRoomRowEntries,
@@ -887,7 +888,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isSkipped: isTurnRowSkipped,
     isQuietMarker: isTurnQuietMarker,
     pinnedIds: turnPinnedIds,
-    threadStatus: threadId ? threadIndex.threadRecordMap.get(threadId)?.status : undefined,
+    backgroundState: threadId ? threadIndex.threadBackgroundStates.get(threadId) : undefined,
     manualExpansionState: feature.manualExpansionState,
     expandAllInit: feature.expansionBaseline,
   });
@@ -1086,7 +1087,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       ...approvalTimeline.hiddenEventIds,
       ...secretRequestTimeline.hiddenEventIds,
       ...pluginHiddenThreadIds,
-      ...[...turnFoldView.hiddenIds].filter((id) => !turnFoldView.breaks.has(id)),
+      ...[...turnFoldView.hiddenIds].filter((id) => isTurnFoldedRow(turnFoldView, id)),
     ]);
   }, [
     threadId,
@@ -1096,6 +1097,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     turnFoldView,
   ]);
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
+  useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFoldView, estimateSize);
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.

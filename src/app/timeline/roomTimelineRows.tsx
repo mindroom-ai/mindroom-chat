@@ -287,6 +287,10 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
   );
 }
 
+/** Whether a folded turn hides the row `id` without drawing its break there. */
+export const isTurnFoldedRow = (view: ThreadTurnFoldView | undefined, id: string): boolean =>
+  !!view?.hiddenIds.has(id) && !view.breaks.has(id);
+
 /**
  * Whether a row takes no place in the timeline: the thread's plans hide it (approvals, title
  * markers, secret requests), its sender is ignored, it is redacted and hidden events are not
@@ -429,8 +433,11 @@ export const renderTimelineTiles = ({
     if (!event) return null;
     // An edit or a reaction has no row of its own. A height measured before it decrypted keeps
     // its tile mounted until measuring corrects it.
-    if (item.size === 0 && reactionOrEditEvent(event)) return null;
     const id = event.getId() ?? '';
+    // So has a row a folded turn hides, once sized as nothing; the row that draws its break stays.
+    if (item.size === 0 && (reactionOrEditEvent(event) || isTurnFoldedRow(turnFolds, id))) {
+      return null;
+    }
     const context = rowContexts.get(item.index);
     // Outside the row's boundary, so the break keeps its focus when its turn opens or folds.
     const turnBreak = turnFolds?.breaks.get(id);
