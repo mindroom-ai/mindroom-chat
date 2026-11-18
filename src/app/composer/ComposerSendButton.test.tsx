@@ -521,4 +521,66 @@ describe('the Send button', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Queue' }));
     rest(button);
   });
+
+  it('opens on the first return of a mouse that moved off as a dismissed hold menu went', () => {
+    const { button } = setup(true);
+    const box = vi.spyOn(button, 'getBoundingClientRect');
+    box.mockReturnValue(new DOMRect(0, 0, 40, 40));
+    mouseHold(button);
+    escape();
+    // A move on the button, with the layer gone: still the same visit.
+    fireEvent.pointerMove(document.body, { ...mouse, clientX: 20, clientY: 20 });
+    enter(button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // The mouse moves off before the browser told the button it was on it again, so the button
+    // hears of no leave; the move itself ends the visit, and the first return is a rest.
+    fireEvent.pointerMove(document.body, { ...mouse, clientX: 200, clientY: 200 });
+    enter(button);
+    wait(299);
+    expect(screen.queryByRole('menu')).toBeNull();
+    wait(1);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+
+    // Moves are watched only around a hold's menu: not under this one, nor once it has gone.
+    const reads = box.mock.calls.length;
+    fireEvent.pointerMove(document.body, { ...mouse, clientX: 20, clientY: 20 });
+    escape();
+    fireEvent.pointerMove(document.body, { ...mouse, clientX: 200, clientY: 200 });
+    expect(box.mock.calls.length).toBe(reads);
+  });
+
+  it('stops watching the mouse once it has moved off after a hold menu', () => {
+    const { button } = setup(true);
+    const box = vi.spyOn(button, 'getBoundingClientRect');
+    box.mockReturnValue(new DOMRect(0, 0, 40, 40));
+    mouseHold(button);
+    escape();
+    fireEvent.pointerMove(document.body, { ...mouse, clientX: 200, clientY: 200 });
+    const reads = box.mock.calls.length;
+    fireEvent.pointerMove(document.body, { ...mouse, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(document.body, { ...mouse, clientX: 200, clientY: 200 });
+    expect(box.mock.calls.length).toBe(reads);
+  });
+
+  it('starts no rest for a mouse that comes on while the menu may not open', () => {
+    const { replying, emptied, button } = renderAlone();
+    replying(false);
+    enter(button);
+    wait(299);
+    // The reply starts with the mouse long on the button: no rest was counting.
+    replying(true);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    leave(button);
+    emptied(true);
+    enter(button);
+    wait(100);
+    emptied(false);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // A new visit, now that it may open, is a rest.
+    leave(button);
+    rest(button);
+  });
 });

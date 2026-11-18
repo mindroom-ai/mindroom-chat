@@ -1,4 +1,4 @@
-import { type PointerEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type PointerEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
@@ -115,35 +115,28 @@ export function ComposerSendButton({
   const hoverOpen = menu?.hover === true;
   const holdOpen = anchor !== undefined && !hoverOpen;
 
-  // A menu closed with the mouse on the button stays closed until the mouse leaves it and comes
-  // back. Closing a menu a hold opened takes away the full-window layer over the button, and the
-  // browser then tells the button the mouse came onto it, though it never moved (Chrome at once,
-  // Firefox at its next move); without this a dismissed menu would open again as a rest.
-  // `mouseOver` is where the mouse is: the button's own enter and leave say so, except under that
-  // layer, whose coming makes the button's leave and which hides the mouse from it, so while it is
-  // up the mouse's moves and presses are checked against the button's box instead.
-  const mouseOver = useRef(false);
-  const dismissedOver = useRef(false);
-  useLayoutEffect(() => {
-    if (!anchor) return undefined;
-    const track = (event: globalThis.PointerEvent) => {
+  // One rest per visit of the mouse: a menu that closed with the mouse on the button stays closed
+  // until the mouse has left and come back. The button's own enter and leave tell a visit, except
+  // around the full-window layer under a menu a hold opened: its coming makes a leave and its going
+  // an enter though the mouse never moved, and a mouse that moves off just as it goes makes no
+  // leave at all. So while that layer is up, and after it until the mouse has moved off the
+  // button, the mouse's moves anywhere are checked against the button's box instead.
+  const mouseOnSend = useRef(false);
+  useEffect(() => {
+    if (!holdOpen && !mouseOnSend.current) return undefined;
+    const watch = (event: globalThis.PointerEvent) => {
       const box = buttonRef.current?.getBoundingClientRect();
       if (event.pointerType !== 'mouse' || !box) return;
-      mouseOver.current =
+      mouseOnSend.current =
         event.clientX >= box.left &&
-        event.clientX <= box.right &&
+        event.clientX < box.right &&
         event.clientY >= box.top &&
-        event.clientY <= box.bottom;
+        event.clientY < box.bottom;
+      if (!holdOpen && !mouseOnSend.current) window.removeEventListener('pointermove', watch, true);
     };
-    window.addEventListener('pointermove', track, true);
-    window.addEventListener('pointerdown', track, true);
-    return () => {
-      window.removeEventListener('pointermove', track, true);
-      window.removeEventListener('pointerdown', track, true);
-      // Closing, before the browser can send anything the layer's going makes.
-      dismissedOver.current = mouseOver.current;
-    };
-  }, [anchor]);
+    window.addEventListener('pointermove', watch, true);
+    return () => window.removeEventListener('pointermove', watch, true);
+  }, [holdOpen]);
   const menuLabel = t('composer.midTurn.menuLabel');
 
   // Focus goes back once the menu and its focus trap are gone, which a still active trap would undo.
@@ -161,9 +154,9 @@ export function ComposerSendButton({
   const onPointerEnter = (evt: PointerEvent<HTMLElement>) => {
     if (evt.pointerType !== 'mouse') return;
     window.clearTimeout(hoverTimer.current);
-    // A mouse coming on with a button down is mid-press: a hold, or the menu a hold opened going
-    // away from under it, which must not come back as a rest.
-    if (menu || evt.buttons !== 0 || dismissedOver.current) return;
+    // A mouse coming on with a button down is mid-press, and a rest starts only while the menu
+    // may open.
+    if (menu || evt.buttons !== 0 || !hoverAllowed) return;
     const element = evt.currentTarget;
     hoverTimer.current = window.setTimeout(() => {
       if (!canHoverRef.current()) return;
@@ -254,16 +247,15 @@ export function ComposerSendButton({
           press.onPointerDown(evt);
         }}
         onPointerEnter={(evt) => {
-          if (evt.pointerType === 'mouse') mouseOver.current = true;
+          // The same visit still, told again as a hold's layer goes.
+          if (evt.pointerType !== 'mouse' || mouseOnSend.current) return;
+          mouseOnSend.current = true;
           onPointerEnter(evt);
         }}
         onPointerLeave={(evt) => {
           press.onPointerLeave();
           // Under a hold's layer, the layer made this leave, not the mouse.
-          if (evt.pointerType === 'mouse' && !holdOpen) {
-            mouseOver.current = false;
-            dismissedOver.current = false;
-          }
+          if (evt.pointerType === 'mouse' && !holdOpen) mouseOnSend.current = false;
           onPointerLeave(evt);
         }}
         label={label}
