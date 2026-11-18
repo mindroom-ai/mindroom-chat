@@ -86,9 +86,10 @@ const cutAfterCalls = (node: ChildNode): [string, string] | undefined => {
   if (!isDomElementNode(node) || node.name !== 'p') {
     // Only a paragraph's inline content cuts cleanly in two. Text after the calls of a list item
     // or a wrapper would hide in the work, so such a reply does not fold.
-    return rendersVisibleContent(html.replace(MINDROOM_TOOL_REF_HTML_REG_G, ''))
-      ? undefined
-      : [html, ''];
+    // What follows its last marker (`split` starts from the first character, whatever the shared
+    // pattern's `lastIndex`).
+    const after = html.split(MINDROOM_TOOL_REF_HTML_REG_G).at(-1) ?? html;
+    return rendersVisibleContent(after) ? undefined : [html, ''];
   }
   const inner = node.children.map(serializeHtmlNode).join('');
   let end = 0;

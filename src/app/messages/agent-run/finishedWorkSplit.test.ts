@@ -127,6 +127,14 @@ describe('splitFinishedWork', () => {
     });
   });
 
+  it('splits after a wrapper whose text before its calls is work', () => {
+    const work = `<details><summary>Checks</summary>${marker('b', 2)}</details>`;
+    expect(split(`${marker('a', 1)}${work}<p>Answer.</p>`)).toEqual({
+      head: `${marker('a', 1)}${work}`,
+      tail: '<p>Answer.</p>',
+    });
+  });
+
   it('does not split where the answer starts in a node that does not cut cleanly', () => {
     expect(split(`<div>🔧 <code>shell</code> [1]<p>Answer</p></div><p>More.</p>`)).toBeUndefined();
   });
