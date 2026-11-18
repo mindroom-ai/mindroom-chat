@@ -592,13 +592,11 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(card).toHaveCount(0);
   expect(
     await latestWords.evaluate((row) => {
-      const next = document.activeElement;
-      return (
-        !!next &&
-        next !== row &&
-        !!next.closest('[data-message-item]') &&
-        !!(row.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING)
-      );
+      // Focus lands on the control Tab reaches after the row in the page's order.
+      const tabbable = Array.from(
+        document.querySelectorAll<HTMLElement>('button, [href], input, textarea, [tabindex]')
+      ).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+      return document.activeElement === tabbable[tabbable.indexOf(row) + 1];
     })
   ).toBe(true);
   await page.keyboard.press('Shift+Tab');
