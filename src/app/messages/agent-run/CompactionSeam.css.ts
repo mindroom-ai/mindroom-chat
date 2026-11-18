@@ -15,6 +15,9 @@ const stillUnderReducedMotion = {
 
 const UNFINISHED = ['failed', 'timeout', 'interrupted'];
 
+// The trigger hovered, focused from the keyboard or with its card open.
+const ACTIVE = ':is(:hover, :focus-visible, [aria-expanded="true"])';
+
 /** `scope` with each state a compaction ended in without a summary, around `inner`. */
 const unfinished = (scope: string, inner = '') =>
   UNFINISHED.map((state) => `${scope}[data-state="${state}"]${inner}`).join(', ');
@@ -55,14 +58,16 @@ export const Trigger = style([
     cursor: 'pointer',
     transition: transition(['opacity', 'color', 'background-color']),
     selectors: {
-      '&:hover, &:focus-visible, &[aria-expanded="true"]': {
+      // On a container its OnContainer text, which keeps AA contrast on every palette.
+      [`&${ACTIVE}`]: {
         opacity: 1,
-        color: color.Primary.Main,
+        color: color.Primary.OnContainer,
         background: color.Primary.Container,
       },
       [`${Seam}[data-state="running"] &`]: { opacity: 1, color: color.Primary.Main },
+      [`${Seam}[data-state="running"] &${ACTIVE}`]: { color: color.Primary.OnContainer },
       [unfinished(Seam, ' &')]: { opacity: 1, color: color.Warning.Main },
-      [`${unfinished(Seam, ' &:hover')}, ${unfinished(Seam, ' &[aria-expanded="true"]')}`]: {
+      [unfinished(Seam, ` &${ACTIVE}`)]: {
         color: color.Warning.OnContainer,
         background: color.Warning.Container,
       },

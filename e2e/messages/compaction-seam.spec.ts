@@ -218,6 +218,27 @@ const expectSettled = async (target: Locator) => {
     .toBe(true);
 };
 
+/** The WCAG contrast of a row's text on its own (opaque) background, once its transition ends. */
+const expectReadable = (button: Locator) =>
+  expect
+    .poll(() =>
+      button.evaluate((element) => {
+        const luminance = (value: string) => {
+          const [r, g, b] = (value.match(/[\d.]+/g) ?? []).map((part) => {
+            const v = Number(part) / 255;
+            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+        };
+        const style = getComputedStyle(element);
+        const [high, low] = [luminance(style.color), luminance(style.backgroundColor)].sort(
+          (a, b) => b - a
+        );
+        return (high! + 0.05) / (low! + 0.05);
+      })
+    )
+    .toBeGreaterThanOrEqual(4.5);
+
 /** Saves the window, `target` at the middle of the timeline once the timeline stopped moving. */
 const shot = async (page: Page, target: Locator, name: string) => {
   if (!SCREENSHOT) return;
@@ -467,6 +488,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(running).not.toHaveText(before ?? '', { timeout: 5000 });
   await running.getByRole('button').hover();
   await expect(card).toContainText('24 runs, 9 done');
+  await expectReadable(running.getByRole('button'));
   await expect(card).toContainText('before the reply');
   await page.mouse.move(0, 0);
 
@@ -479,6 +501,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     await centre(page, seam);
     await seam.getByRole('button').hover();
     await expect(card).toBeVisible();
+    await expectReadable(seam.getByRole('button'));
     await shot(page, seam, `${name}-1-mid-card`);
     await page.mouse.move(0, 0);
     await shot(page, seamsIn(replyWith(page, TWO)).nth(1), `${name}-5-two`);
