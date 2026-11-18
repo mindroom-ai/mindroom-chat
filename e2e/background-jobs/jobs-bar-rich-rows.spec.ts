@@ -223,7 +223,10 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(child.locator('[data-job-stats]')).toHaveText('7 tool calls · 314K tokens');
   const shell = row(bar, 'tool');
   await expect(shell.locator('[data-job-logo]')).toHaveAttribute('data-job-logo', 'tool');
-  await expect(shell.locator('[data-job-activity]')).toContainText('run_shell_command ssh gce-dev');
+  // A tool job's second line is its call's arguments; its first line names the tool.
+  await expect(shell.locator('[data-job-activity]')).toHaveText(
+    "ssh gce-dev 'cd /work/slot71 && uv run pytest -n 20'"
+  );
   await expect(shell.locator('[data-job-open]')).toHaveCount(0);
   // The rows' order in the list: sub-agents (each child under its parent), then tools.
   await expect(bar.locator('li')).toHaveCount(3);
@@ -236,6 +239,9 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await page.waitForTimeout(1_500);
   await expect(elapsed).not.toHaveText(before ?? '');
   await bar.screenshot({ path: testInfo.outputPath('jobs-bar-rich-desktop.png') });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await bar.screenshot({ path: testInfo.outputPath('jobs-bar-rich-desktop-dark.png') });
+  await page.emulateMedia({ colorScheme: 'light' });
 
   // Open shows that sub-agent's run in the Sub-agents panel.
   await sendRuns(room);
