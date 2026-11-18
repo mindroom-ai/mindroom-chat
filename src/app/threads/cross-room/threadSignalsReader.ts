@@ -66,7 +66,8 @@ export const createThreadSignalsReader = (
       const waitsUntil = previous?.signals.waitsUntil;
       const lapsed = waitsUntil !== undefined && now >= waitsUntil;
       if (previous && previous.key === key && !lapsed) return previous.signals;
-      const read = readThreadSignals(room, entry.threadRootId, userId, now);
+      const resolvedTs = entry.isResolved ? entry.resolvedTs ?? Infinity : undefined;
+      const read = readThreadSignals(room, entry.threadRootId, userId, now, resolvedTs);
       // An agent asks whoever it talks with: in a thread the user takes no part in, not them.
       const { pendingQuestion: _theirs, ...others } = read;
       const signals = entry.isInvolved ? read : others;

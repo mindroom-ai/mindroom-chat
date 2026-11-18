@@ -180,6 +180,13 @@ describe('buildActivityRows', () => {
     expect(kinds(rows)).toEqual(['approval:approval', 'named:mention']);
   });
 
+  it('lists a resolved thread with a background approval for its news, not as waiting', () => {
+    const job = entry('job', { isResolved: true, resolvedTs: NOW - 2 * 3600_000 });
+    job.threadRecord.status.hasBackgroundApproval = true;
+    const news = { newsTs: NOW - 3600_000, newCount: 1, newSenderIds: ['@tom:x'] };
+    expect(kinds(build([[job, news]]).rows)).toEqual(['job:reply']);
+  });
+
   it('calls a thread whose root names the user unread, though no reply is new', () => {
     const { rows } = build([[entry('root'), { mentionedMe: true, newCount: 0 }]]);
     expect(rows.map((row) => [row.key, row.kind, row.unread])).toEqual([['root', 'mention', true]]);
