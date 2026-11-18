@@ -170,6 +170,8 @@ const mountFeature = async (
       messageSpacing: '400' as MessageSpacing,
       hideActivity: false,
     });
+    // As the list does for each row it mounts, on every render.
+    rows.forEach((row) => feature.watchRowEvents(row, data));
     return feature.wrapExpansion(<>{rows.map((row) => feature.renderEvent(row, data))}</>);
   };
   let renderer!: ReturnType<typeof create>;
@@ -334,6 +336,25 @@ describe('timeline message feature', () => {
     expect(
       renderer.root.find((node) => node.props.expansionKey === '$live').props.collapseMode
     ).toBe('default');
+  });
+
+  it('gives the rows another source when a live expansion is marked or consumed, which they read in place', async () => {
+    const event = makeEvent('$live') as unknown as MatrixEvent;
+    const { feature, renderer, update } = await mountFeature([rowFor(event)]);
+    const initial = feature().rowSources;
+    update();
+    expect(feature().rowSources).toEqual(initial);
+
+    act(() => feature().markLiveExpansionCandidate('$live'));
+    const marked = feature().rowSources;
+    expect(marked).not.toEqual(initial);
+
+    // Consuming repaints nothing; the next render of the list gives the row its usual fold.
+    const expanded = renderer.root.find((node) => node.props.expansionKey === '$live');
+    await act(() => expanded.props.onInitialExpandConsumed());
+    update();
+    expect(feature().rowSources).not.toEqual(marked);
+    expect(feature().rowSources).toEqual(initial);
   });
 
   it('places approval history once for message, approval fallback and decrypted approval rows', async () => {

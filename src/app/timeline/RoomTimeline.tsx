@@ -131,6 +131,7 @@ import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/prelo
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
+import { useRoomMemberChanges } from './useRoomMemberChanges';
 import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
   heldListHeight,
@@ -230,6 +231,7 @@ type ScrollToBottomState = { count: number; smooth: boolean };
 
 const EMPTY_EVENTS: MatrixEvent[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
+const EMPTY_EVENT_MAP: ReadonlyMap<string, MatrixEvent> = new Map();
 /** Stand-ins for filter bar handlers a caller leaves out. */
 const ignoreFilterChange = () => undefined;
 const ignoreSortFreezeUpdate: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = () =>
@@ -1189,6 +1191,29 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadId,
     readUptoEventId: unreadInfo?.readUptoEventId,
   });
+  const memberChanges = useRoomMemberChanges(mx, room);
+  // What the rows share; they render again when a part of it is another (`TimelineRow`).
+  const { threadRecordMap } = threadIndex;
+  const messageData = useMemo<TimelineMessageData>(
+    () => ({
+      threadRecordMap,
+      threadEventMap: threadEventMap ?? EMPTY_EVENT_MAP,
+      approvalTimeline,
+      threadSummaryTimeline,
+      secretRequestTimeline,
+      handleOpenReply,
+      forkPrefixEventIds,
+    }),
+    [
+      approvalTimeline,
+      forkPrefixEventIds,
+      handleOpenReply,
+      secretRequestTimeline,
+      threadEventMap,
+      threadRecordMap,
+      threadSummaryTimeline,
+    ]
+  );
   // Jump to Latest also ends the jump to a linked message: until its row rests, that jump scrolls
   // back to it whenever the row or the scroll area resizes, as the latest rows do when they render.
   const handleJumpToLatest = useCallback(() => {
@@ -1718,15 +1743,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
           ),
         }
       : undefined;
-  const messageData: TimelineMessageData = {
-    threadRecordMap: threadIndex.threadRecordMap,
-    threadEventMap: threadState.threadEventMap ?? new Map(),
-    approvalTimeline,
-    threadSummaryTimeline,
-    secretRequestTimeline,
-    handleOpenReply,
-    forkPrefixEventIds,
-  };
   const tiles = renderTimelineTiles({
     virtualItems,
     threadId,
@@ -1745,6 +1761,21 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isHiddenByPlugin,
     isHiddenByPluginId,
     renderEvent: feature.renderEvent,
+    watchRowEvents: feature.watchRowEvents,
+    // What the rows read as they render may have changed when the parent rendered the timeline
+    // again (React then passes other props, also when each one is the same), the room's rows were
+    // painted again (`repaint` of the live render controller: an event or an edit that arrives, a
+    // redaction, a local echo's progress), the overview's counter went up (receipts, members,
+    // threads; it stands still while a thread is open), the open thread's events changed (its
+    // session's revision), a member did, or what the message feature names.
+    rowSources: [
+      props,
+      timeline,
+      session.snapshot.timelineRevision,
+      overviewRefreshCounter,
+      memberChanges,
+      ...feature.rowSources,
+    ],
     isQuietMarkerRow: feature.isQuietMarkerRow,
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     forkDivider,

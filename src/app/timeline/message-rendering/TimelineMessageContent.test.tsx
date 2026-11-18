@@ -62,6 +62,7 @@ const renderRow = async (event: MatrixEvent, threadId?: string) => {
       messageSpacing: '400' as MessageSpacing,
       hideActivity: false,
     });
+    feature.watchRowEvents(row, data);
     return feature.wrapExpansion(<>{feature.renderEvent(row, data)}</>);
   }
   let renderer!: ReturnType<typeof create>;

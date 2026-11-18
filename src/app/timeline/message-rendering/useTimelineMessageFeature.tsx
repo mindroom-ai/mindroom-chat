@@ -256,8 +256,12 @@ const useMessagePermissions = (room: Room, userId: string | null) => {
   const creators = useRoomCreators(room);
   const levels = usePowerLevelsContext();
   const permissions = useRoomPermissions(creators, levels);
-  if (!userId) return { canPinEvent: false, canSendRedaction: false, canRedactOthers: false };
+  const power = { levels, creators };
+  if (!userId) {
+    return { canPinEvent: false, canSendRedaction: false, canRedactOthers: false, ...power };
+  }
   return {
+    ...power,
     canPinEvent: canPinRoomEvents(creators, levels, userId),
     // A redaction needs permission to send `m.room.redaction`; redacting someone else's event also
     // needs the room's `redact` level (Matrix specification, redaction authorization rules).
@@ -428,7 +432,8 @@ export const useTimelineMessageFeature = ({
   const decryptions = useDecryptionRepaint(renderedEventsRef);
 
   const userId = client.getUserId();
-  const { canPinEvent, canSendRedaction, canRedactOthers } = useMessagePermissions(room, userId);
+  const { canPinEvent, canSendRedaction, canRedactOthers, levels, creators } =
+    useMessagePermissions(room, userId);
 
   const { toggle: toggleReaction, failedEventId: reactionFailedEventId } = useReactionToggle(
     room,
@@ -566,7 +571,6 @@ export const useTimelineMessageFeature = ({
         kind === 'message' &&
         (!!editedEvent || !event.isDecryptionFailure?.()) &&
         hasUndecryptedNewerEdit(eventId, event, timelineSet, editedEvent);
-      renderedEventsRef.current?.push(...getPendingEdits(eventId, event, timelineSet));
       const content = (
         kind === 'approval'
           ? getToolApprovalRenderContent(event.getOriginalContent(), editedEvent?.getContent())
@@ -587,18 +591,6 @@ export const useTimelineMessageFeature = ({
         // The run's later markers fold into this row, beside it, each keeping its own ID. A lone
         // marker keeps the same elements, so one that a new marker joins stays mounted.
         const later = (row.quietRun ?? []).flatMap((marker) => {
-          renderedEventsRef.current?.push(
-            marker.event,
-            ...getPendingEdits(
-              marker.eventId,
-              marker.event,
-              rowEditTimelineSet(
-                room,
-                forkPrefixThreadId(marker.event, marker.eventId, data.forkPrefixEventIds),
-                marker.timelineSet
-              )
-            )
-          );
           const node = readRowQuietMarker(
             marker.event,
             data,
@@ -902,10 +894,27 @@ export const useTimelineMessageFeature = ({
           />
         );
       }
-      renderedEventsRef.current?.push(event);
       return renderMessageRow(row, data);
     },
     [decryptions, messageSpacing, renderMessageRow, room]
+  );
+
+  /**
+   * Notes the events whose decryption repaints the rows (`useDecryptionRepaint`): the row's event
+   * and its edits still to decrypt, and those of the quiet markers shown beside it. The list calls
+   * it for each row it mounts on every render, also for a row it does not render again.
+   */
+  const watchRowEvents = useCallback(
+    (row: TimelineMessageRow, data: TimelineMessageData): void => {
+      [row, ...(row.quietRun ?? [])].forEach(({ event, eventId, timelineSet }) => {
+        renderedEventsRef.current.push(event);
+        const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
+        renderedEventsRef.current.push(
+          ...getPendingEdits(eventId, event, rowEditTimelineSet(room, prefixThreadId, timelineSet))
+        );
+      });
+    },
+    [room]
   );
 
   /**
@@ -946,8 +955,15 @@ export const useTimelineMessageFeature = ({
     [expansionBaseline, manualExpansionState, restoreExpansionAnchor]
   );
 
+  // What a row reads in place as it renders, beside what `renderEvent` changes with: the live
+  // expansions (the set changes without a paint when a row consumes its own) and, for the colour
+  // of its sender's name (`getSenderNameTone`), the room's power levels and creators.
+  const rowSources = [[...liveExpansionIds].join('\n'), levels, creators] as const;
+
   return {
     renderEvent,
+    rowSources,
+    watchRowEvents,
     isQuietMarkerRow,
     joinsQuietMarkerRun,
     wrapExpansion,

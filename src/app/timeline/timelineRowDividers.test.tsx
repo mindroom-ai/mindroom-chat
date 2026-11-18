@@ -74,6 +74,8 @@ const tileRows = (
     isHiddenByPlugin: () => false,
     isHiddenByPluginId: () => false,
     renderEvent,
+    watchRowEvents: () => undefined,
+    rowSources: [],
     isQuietMarkerRow: (rowEvent) => quiet.has(rowEvent.getId() ?? ''),
     forkingDivider:
       forkingIndex === undefined

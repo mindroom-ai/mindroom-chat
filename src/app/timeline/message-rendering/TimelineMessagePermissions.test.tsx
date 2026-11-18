@@ -97,6 +97,38 @@ const message = (id: string, opts: { sender?: string; isRedacted?: boolean } = {
 
 importBeforeTests(() => import('./useTimelineMessageFeature'));
 
+describe("the rows' sources", () => {
+  // A row colours its sender's name by their power, which it reads from the room as it renders.
+  it("hold the room's power levels and creators", async () => {
+    const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
+    const room = makeRoom({ liveEvents: [] }) as unknown as Room;
+    const editor = createEditor();
+    const scrollRef = createRef<HTMLDivElement>();
+    permissionState.powerLevels = { users: { [OTHER]: 50 } };
+    permissionState.creators = new Set([OTHER]);
+    let sources: readonly unknown[] = [];
+    function Harness() {
+      sources = useTimelineMessageFeature({
+        room,
+        editor,
+        scrollRef,
+        showThreadRepliesInRoom: false,
+        messageLayout: MessageLayout.Compact,
+        messageSpacing: '400' as MessageSpacing,
+        hideActivity: false,
+      }).rowSources;
+      return null;
+    }
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<Harness />);
+    });
+    expect(sources).toContain(permissionState.powerLevels);
+    expect(sources).toContain(permissionState.creators);
+    act(() => renderer.unmount());
+  });
+});
+
 describe('timeline message permissions', () => {
   beforeEach(() => {
     permissionState.powerLevels = {};

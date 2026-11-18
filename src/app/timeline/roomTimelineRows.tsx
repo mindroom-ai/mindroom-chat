@@ -1,4 +1,5 @@
 import {
+  memo,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -275,6 +276,77 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
   );
 }
 
+type RenderTimelineEvent = (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
+
+type TimelineRowProps = {
+  row: TimelineMessageRow;
+  messageData: TimelineMessageData;
+  renderEvent: RenderTimelineEvent;
+  /** `rowSources` of `renderTimelineTiles`. */
+  sources: readonly unknown[];
+  /** The fork's line above the row, and a fork draft's under it. */
+  forkDivider: ReactNode;
+  forkingDivider: ReactNode;
+  unreadDivider: boolean;
+  dayDivider: boolean;
+  unreadMarkerRef: Ref<HTMLDivElement>;
+};
+
+const sameList = <T,>(
+  a: readonly T[] | undefined,
+  b: readonly T[] | undefined,
+  same: (x: T, y: T) => boolean
+): boolean =>
+  a === b || (!!a && !!b && a.length === b.length && a.every((x, index) => same(x, b[index] as T)));
+
+const sameRow = (a: TimelineMessageRow, b: TimelineMessageRow): boolean =>
+  (Object.keys(a) as (keyof TimelineMessageRow)[]).every((key) =>
+    key === 'quietRun' ? sameList(a.quietRun, b.quietRun, sameRow) : Object.is(a[key], b[key])
+  );
+
+const sameRowProps = (a: TimelineRowProps, b: TimelineRowProps): boolean =>
+  (Object.keys(a) as (keyof TimelineRowProps)[]).every((key) => {
+    if (key === 'row') return sameRow(a.row, b.row);
+    if (key === 'sources') return sameList(a.sources, b.sources, Object.is);
+    return Object.is(a[key], b[key]);
+  });
+
+/**
+ * One row with its dividers. The list renders on every scroll step and measurement, and while a
+ * thread opens some ten times before it shows; a row renders again only when what it is given
+ * changed: the row itself, what all rows share, or one of `sources`.
+ */
+const TimelineRow = memo(function TimelineRow({
+  row,
+  messageData,
+  renderEvent,
+  forkDivider,
+  forkingDivider,
+  unreadDivider,
+  dayDivider,
+  unreadMarkerRef,
+}: TimelineRowProps) {
+  // A row that fails to render shows as broken; the rows around it stay.
+  return (
+    <MessageRowBoundary
+      render={() => {
+        const rendered = renderEvent(row, messageData);
+        if (rendered === null) return null;
+        return (
+          <>
+            {forkDivider}
+            {unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
+            {dayDivider && <DayDivider ts={row.event.getTs()} />}
+            {rendered}
+            {forkingDivider}
+          </>
+        );
+      }}
+    />
+  );
+},
+sameRowProps);
+
 /**
  * The tiles of the rows the virtual list mounts. A row groups with the one above it and gets its
  * date and unread dividers from the fold over the mounted window (timelineRowFold); rows the
@@ -298,6 +370,8 @@ export const renderTimelineTiles = ({
   isHiddenByPlugin,
   isHiddenByPluginId,
   renderEvent,
+  watchRowEvents,
+  rowSources,
   isQuietMarkerRow,
   joinsQuietMarkerRun,
   forkDivider,
@@ -322,7 +396,14 @@ export const renderTimelineTiles = ({
   isHiddenByPlugin: (event: MatrixEvent) => boolean;
   /** The same, of a loaded event by its ID: no row quotes such a message. */
   isHiddenByPluginId: (eventId: string) => boolean;
-  renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
+  renderEvent: RenderTimelineEvent;
+  /** Called for each row with content on every render (`useTimelineMessageFeature`). */
+  watchRowEvents: (row: TimelineMessageRow, data: TimelineMessageData) => void;
+  /**
+   * What tells that the events the rows read as they render may have changed (their edits, send
+   * state, redaction, reactions): when one of these values is another, every row renders again.
+   */
+  rowSources: readonly unknown[];
   /** Whether a row renders as a quiet marker line, which reply quotes look past. */
   isQuietMarkerRow: (
     event: MatrixEvent,
@@ -414,22 +495,18 @@ export const renderTimelineTiles = ({
         forkingDivider !== undefined &&
         (forkingDivider.index === item.index ||
           !!context.quietRunIndexes?.includes(forkingDivider.index));
-      // A row that fails to render shows as broken; the rows around it stay.
+      watchRowEvents(row, messageData);
       content = (
-        <MessageRowBoundary
-          render={() => {
-            const rendered = renderEvent(row, messageData);
-            if (rendered === null) return null;
-            return (
-              <>
-                {forkDivider?.index === item.index && forkDivider.node}
-                {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
-                {context.dayDivider && <DayDivider ts={event.getTs()} />}
-                {rendered}
-                {forkingHere && forkingDivider.node}
-              </>
-            );
-          }}
+        <TimelineRow
+          row={row}
+          messageData={messageData}
+          renderEvent={renderEvent}
+          sources={rowSources}
+          forkDivider={forkDivider?.index === item.index ? forkDivider.node : undefined}
+          forkingDivider={forkingHere ? forkingDivider.node : undefined}
+          unreadDivider={context.unreadDivider}
+          dayDivider={context.dayDivider}
+          unreadMarkerRef={unreadMarkerRef}
         />
       );
     }
