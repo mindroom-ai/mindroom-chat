@@ -17,6 +17,7 @@ import {
 } from './threadOpenSdkBootstrap';
 import { runThreadOpenTargetEvent } from './threadOpenTargetEvent';
 import { createThreadFirstPaintGate, getTailLongTextSources } from './threadOpenFirstPaint';
+import { openProbe } from '../../diagnostics/openProbe';
 import type {
   PendingThreadTarget,
   ThreadOpenRuntime,
@@ -231,6 +232,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           routeRef.current.roomId === room.roomId &&
           routeRef.current.threadId === threadId;
         const pinThreadToBottomOnOpen = () => {
+          openProbe('pin-request', { current: isCurrentThreadOpen() });
           if (isCurrentThreadOpen()) viewport.requestLatestPin();
         };
         const invalidateEvents = () => {
@@ -251,12 +253,20 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                 room.getUnfilteredTimelineSet()
             ),
           onRelease: () => {
+            openProbe('first-paint-release');
             if (!isCurrentThreadOpen()) return;
             publish((current) => ({
               ...current,
               open: { ...current.open, firstPaintHeld: false },
             }));
           },
+        });
+        openProbe('open-start', {
+          latest: shouldScrollToLatestOnOpen,
+          hasGap: threadOpenSeedSession.hasGap(),
+          held: firstPaint.held,
+          sdkEvents: room.getThread(threadId)?.events.length ?? null,
+          renderEvents: render.getEvents(threadId).length,
         });
         threadOpenSeedSession.startUntargetedSeedPrewarmWait(isCurrentThreadOpen);
         if (!shouldScrollToLatestOnOpen) threadOpenSeedSession.applyInitialRoomThreadSeed();
@@ -309,6 +319,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             return page;
           },
           onCacheHydrated: (complete) => {
+            openProbe('cache-hydrated', { complete, renderEvents: render.getEvents(threadId).length });
             cacheComplete = complete;
             // Decided now, not when React applies the update: the server load can finish before
             // that, and then it leaves the tail to this complete cache.
@@ -369,6 +380,10 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                   }));
                 }
               },
+            });
+            openProbe('sdk-bootstrap-done', {
+              shouldContinue,
+              renderEvents: render.getEvents(threadId).length,
             });
             firstPaint.ready();
             if (!isCurrentThreadOpen()) return;
@@ -436,6 +451,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               shouldScrollToLatestOnOpen,
               threadId,
             });
+            openProbe('open-complete', { renderEvents: render.getEvents(threadId).length });
             if (shouldScrollToLatestOnOpen) pinThreadToBottomOnOpen();
             await runThreadOpenTargetEvent({
               eventId,
@@ -448,6 +464,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               threadId,
             });
           } finally {
+            openProbe('open-settled');
             logTimelineDebug(debugTraceId, 'thread-open-settled', {
               current: isCurrentThreadOpen(),
             });
