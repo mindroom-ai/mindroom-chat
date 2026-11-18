@@ -206,6 +206,16 @@ describe('CompactionSeam row', () => {
   });
 });
 
+describe('CompactionSeam direction', () => {
+  it('reads in the interface direction in a reply that reads the other way, as tool rows do', () => {
+    // index.css gives a message disclosure the direction of the page.
+    expect(seam(render(<CompactionSeam compaction={compaction()} />)).props).toHaveProperty(
+      'data-message-disclosure',
+      ''
+    );
+  });
+});
+
 describe('CompactionSeam icons', () => {
   it('size in rem, so they scale with the root font size', async () => {
     const renderer = render(<CompactionSeam compaction={compaction()} />);

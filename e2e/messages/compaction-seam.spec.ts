@@ -462,6 +462,18 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(seamsIn(states).nth(0)).toHaveText('Compaction failed');
   await expect(seamsIn(states).nth(1)).toHaveText('Compaction timed out');
   await expect(seamsIn(states).nth(2)).toHaveText('Compaction interrupted');
+  // In a reply that reads the other way the row keeps the interface's direction, as tool rows do.
+  expect(
+    await seamsIn(states)
+      .nth(0)
+      .evaluate((row) => {
+        const reply = row.parentElement!;
+        reply.setAttribute('dir', 'rtl');
+        const shown = [getComputedStyle(reply).direction, getComputedStyle(row).direction];
+        reply.removeAttribute('dir');
+        return shown;
+      })
+  ).toEqual(['rtl', 'ltr']);
   await expectInOrder(
     [
       toolRows(states).nth(0),
