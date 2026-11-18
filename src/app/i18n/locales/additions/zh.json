@@ -895,6 +895,12 @@
           "summarizedBy": "{{model}}，用时 {{duration}}",
           "interrupted": "摘要完成前回复已结束。"
         }
+      },
+      "uiWidget": {
+        "chart": "图表",
+        "table": "表格",
+        "pointValue": "{{label}}：{{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

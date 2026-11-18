@@ -895,6 +895,12 @@
           "summarizedBy": "{{model}}（{{duration}}）",
           "interrupted": "要約が終わる前に返信が終了しました。"
         }
+      },
+      "uiWidget": {
+        "chart": "グラフ",
+        "table": "表",
+        "pointValue": "{{label}}：{{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

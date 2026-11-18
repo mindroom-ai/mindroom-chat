@@ -909,6 +909,12 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "Het antwoord eindigde voordat de samenvatting klaar was."
         }
+      },
+      "uiWidget": {
+        "chart": "Grafiek",
+        "table": "Tabel",
+        "pointValue": "{{label}}: {{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

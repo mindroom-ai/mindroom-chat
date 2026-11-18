@@ -937,6 +937,12 @@
           "summarizedBy": "{{model}} за {{duration}}",
           "interrupted": "Ответ завершился раньше, чем была готова сводка."
         }
+      },
+      "uiWidget": {
+        "chart": "Диаграмма",
+        "table": "Таблица",
+        "pointValue": "{{label}}: {{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

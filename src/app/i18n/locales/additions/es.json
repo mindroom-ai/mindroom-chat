@@ -923,6 +923,12 @@
           "summarizedBy": "{{model}} en {{duration}}",
           "interrupted": "La respuesta terminó antes de que el resumen estuviera listo."
         }
+      },
+      "uiWidget": {
+        "chart": "Gráfico",
+        "table": "Tabla",
+        "pointValue": "{{label}}: {{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

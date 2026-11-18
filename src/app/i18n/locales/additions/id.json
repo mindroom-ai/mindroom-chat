@@ -895,6 +895,12 @@
           "summarizedBy": "{{model}} dalam {{duration}}",
           "interrupted": "Balasan berakhir sebelum ringkasan selesai."
         }
+      },
+      "uiWidget": {
+        "chart": "Grafik",
+        "table": "Tabel",
+        "pointValue": "{{label}}: {{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

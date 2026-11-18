@@ -909,6 +909,12 @@
           "summarizedBy": "{{model}}, {{duration}}-এ",
           "interrupted": "সারাংশ শেষ হওয়ার আগেই উত্তর শেষ হয়েছে।"
         }
+      },
+      "uiWidget": {
+        "chart": "চার্ট",
+        "table": "সারণি",
+        "pointValue": "{{label}}: {{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

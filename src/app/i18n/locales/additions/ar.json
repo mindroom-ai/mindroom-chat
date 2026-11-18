@@ -965,6 +965,12 @@
           "summarizedBy": "⁨{{model}}⁩ في ⁨{{duration}}⁩",
           "interrupted": "انتهى الرد قبل اكتمال الملخص."
         }
+      },
+      "uiWidget": {
+        "chart": "مخطط",
+        "table": "جدول",
+        "pointValue": "⁨{{label}}⁩: ⁨{{series}}⁩ ⁨{{value}}⁩",
+        "share": "⁨{{value}}⁩ (⁨{{percent}}⁩)"
       }
     },
     "message-search": {

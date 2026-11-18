@@ -909,6 +909,12 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "The reply ended before the summary finished."
         }
+      },
+      "uiWidget": {
+        "chart": "Chart",
+        "table": "Table",
+        "pointValue": "{{label}}: {{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {

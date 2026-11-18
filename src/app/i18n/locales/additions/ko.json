@@ -895,6 +895,12 @@
           "summarizedBy": "{{model}}, {{duration}}",
           "interrupted": "요약이 끝나기 전에 답장이 끝났습니다."
         }
+      },
+      "uiWidget": {
+        "chart": "차트",
+        "table": "표",
+        "pointValue": "{{label}}: {{series}} {{value}}",
+        "share": "{{value}} ({{percent}})"
       }
     },
     "message-search": {
