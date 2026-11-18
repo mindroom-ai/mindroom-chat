@@ -6,9 +6,12 @@ import { isDomElementNode } from './toolRefDom';
 import { readRenderedToolCalls } from '../html/HtmlBlocks';
 
 export type FinishedWorkSplit = {
-  /** The work: everything up to and including the block of the last tool marker. */
+  /**
+   * The work, sanitized: through the top-level node of the last call it draws, alone or in the
+   * answer.
+   */
   head: string;
-  /** What follows the last tool marker: the reply's answer. */
+  /** The answer after it, sanitized. */
   tail: string;
 };
 
@@ -102,13 +105,12 @@ export const splitFinishedWork = (
   // The answer renders on its own, where a marker the whole body shows as text (one naming a call
   // drawn before it) draws as a call: the work takes it in.
   let end = lastNode + 1;
-  let tail = serialize(end);
   for (;;) {
+    const tail = serialize(end);
     const drawn = readRenderedToolCalls(tail, baseOpts).lastNode;
-    if (drawn < 0) break;
+    if (drawn < 0) {
+      return rendersVisibleContent(tail) ? { head: serialize(0, end), tail } : undefined;
+    }
     end += drawn + 1;
-    tail = serialize(end);
   }
-  if (!rendersVisibleContent(tail)) return undefined;
-  return { head: serialize(0, end), tail };
 };

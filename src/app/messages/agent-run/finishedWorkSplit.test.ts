@@ -76,6 +76,12 @@ describe('splitFinishedWork', () => {
     expect(split(`${work}<p>done</p>`)).toEqual({ head: work, tail: '<p>done</p>' });
   });
 
+  it('keeps in the work a marker that would draw as a call in the answer alone', () => {
+    // The whole body shows call 2 as text: its name holds the index of a call drawn before it.
+    const work = `${marker('x', 1)}<p>🔧 <code>a [1] b</code> [2]</p>`;
+    expect(split(`${work}<p>Answer</p>`)).toEqual({ head: work, tail: '<p>Answer</p>' });
+  });
+
   it('ignores marker-like text inside a code block', () => {
     expect(split('<pre><code>🔧 <code>shell</code> [1]</code></pre><p>x</p>')).toBeUndefined();
     expect(split('<pre><code>🔧 `shell` [1]</code></pre><p>x</p>')).toBeUndefined();
