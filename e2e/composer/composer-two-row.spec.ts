@@ -399,7 +399,8 @@ test('the formatting toolbar shares the controls row where the composer is wide 
 }) => {
   test.setTimeout(180_000);
   const world = await seed('fmt_');
-  const desktop = await signIn(browser, baseURL, world, DESKTOP);
+  // Wide enough for one controls row with the members panel open beside the room.
+  const desktop = await signIn(browser, baseURL, world, { viewport: { width: 1600, height: 900 } });
   try {
     const { page } = desktop;
     const formatting = button(page, 'Formatting');
@@ -430,7 +431,9 @@ test('the formatting toolbar shares the controls row where the composer is wide 
     await formatting.click();
     await expect(toolbar).toBeVisible();
     await page.mouse.move(0, 0);
-    console.log(`wide composer widths: ${JSON.stringify(await widths())}`);
+    const wide = await widths();
+    console.log(`wide composer widths: ${JSON.stringify(wide)}`);
+    expect(wide.frame, 'the composer frame is at least 40rem wide').toBeGreaterThanOrEqual(640);
     const opened = await geometry(page);
     const formattingBox = await boxOf('Formatting', formatting);
     const toolbarBox = await boxOf('the toolbar', toolbar);
@@ -453,12 +456,14 @@ test('the formatting toolbar shares the controls row where the composer is wide 
     await page.keyboard.press('Tab');
     await expect(toolbar.getByRole('button').first()).toBeFocused();
 
-    // Too narrow for one row (a tablet's width, not a phone's): the toolbar has a row of its own
-    // above the controls, as before.
-    await page.setViewportSize({ width: 800, height: 800 });
+    // Too narrow for one row (the desktop window beside the members panel): the toolbar has a
+    // row of its own above the controls, as before.
+    await page.setViewportSize(DESKTOP.viewport ?? { width: 1180, height: 800 });
     await expect(button(page, 'Send message')).toBeVisible();
     await expect(toolbar).toBeVisible();
-    console.log(`narrow composer widths: ${JSON.stringify(await widths())}`);
+    const narrowWidths = await widths();
+    console.log(`narrow composer widths: ${JSON.stringify(narrowWidths)}`);
+    expect(narrowWidths.frame, 'the composer frame is under 40rem wide').toBeLessThan(640);
     const narrow = await geometry(page);
     expect(narrow.layout).toBe('stacked');
     const narrowFormatting = await boxOf('Formatting', formatting);
@@ -471,7 +476,7 @@ test('the formatting toolbar shares the controls row where the composer is wide 
     expect(narrowToolbar.y, 'the toolbar sits under the text box').toBeGreaterThanOrEqual(
       text.y + text.height - 1
     );
-    await shot(page, 'tablet-formatting-row');
+    await shot(page, 'desktop-formatting-row');
   } finally {
     await desktop.context.close();
   }
