@@ -29,7 +29,11 @@ const emptyData = () => ({
     hiddenEventIds: new Set<string>(),
     markersByEventId: new Map(),
   },
-  secretRequestTimeline: { hiddenEventIds: new Set<string>(), byReply: new Map() },
+  secretRequestTimeline: {
+    hiddenEventIds: new Set<string>(),
+    byReply: new Map(),
+    waitingReplyIds: new Set<string>(),
+  },
 });
 
 /** Renders one row; `content()` gives the props its message content received last. */
