@@ -928,9 +928,9 @@ export const readRenderedToolCalls = (
 /**
  * The marker parser options for one message, as a function that makes fresh ones for each parse
  * (they keep state while they parse). The function stays the same while the base options, whether
- * the content has markers, its tool trace, the metadata status and the markers that reasoning
- * shows after do, so a memoized parse of a message that did not change is kept when the timeline
- * renders again, as it does for every streamed edit of another message.
+ * the content has markers, its tool trace, the metadata status and the markers that reasoning or
+ * a compaction shows after do, so a memoized parse of a message that did not change is kept when
+ * the timeline renders again, as it does for every streamed edit of another message.
  */
 export const useToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,

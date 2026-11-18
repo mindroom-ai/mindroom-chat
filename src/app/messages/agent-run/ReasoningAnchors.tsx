@@ -12,6 +12,7 @@ import * as css from './Reasoning.css';
 // The seams and reasoning segments a reply's body shows at its tool calls, apart from the reply's
 // reasoning line (Reasoning.tsx), which reads where the body's calls render.
 
+/** The whole seconds a thought took, one at least. */
 export const thoughtSeconds = (durationMs: number): number =>
   Math.max(1, Math.ceil(durationMs / 1000));
 

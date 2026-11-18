@@ -90,8 +90,6 @@ const parseFinalReasoning = (value: unknown): FinalReasoning | undefined => {
   };
 };
 
-/** The whole seconds a thought took, one at least. */
-
 const nonEmptyString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined;
 
