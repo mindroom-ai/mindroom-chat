@@ -237,13 +237,15 @@ html [data-own-direction][data-own-direction='block'] {
   text-align: start;
 }
 
-/* An agent's tool calls inside a message are the interface's, so they keep its direction when
-   the message reads the other way. */
-html[dir='rtl'] [data-message-disclosure] {
+/* An agent's tool calls and compaction seams inside a message are the interface's, so they keep
+   its direction when the message reads the other way. */
+html[dir='rtl'] [data-message-disclosure],
+html[dir='rtl'] [data-compaction-seam] {
   direction: rtl;
 }
 
-html[dir='ltr'] [data-message-disclosure] {
+html[dir='ltr'] [data-message-disclosure],
+html[dir='ltr'] [data-compaction-seam] {
   direction: ltr;
 }
 

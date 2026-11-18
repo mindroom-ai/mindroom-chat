@@ -389,7 +389,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   return (
     // Keeps the interface's direction in a reply that reads the other way (index.css), as the tool
     // rows do: in an Arabic reply an English row still reads `367k → 6k tokens`.
-    <div className={css.Seam} data-compaction-seam data-message-disclosure="" data-state={state}>
+    <div className={css.Seam} data-compaction-seam data-state={state}>
       <button
         ref={triggerRef}
         type="button"
