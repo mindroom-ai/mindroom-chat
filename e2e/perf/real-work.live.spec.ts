@@ -61,7 +61,8 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *   switch          Back, then a thread other than the one just left, 5 times, each timed (the
  *                   thread to its first row and to its settled rows). A step opens a streaming
  *                   thread when another one streams, else an idle one, and the thread just left
- *                   again when the room shows no other card
+ *                   again when no other card counts (with a driver, only the cards of the
+ *                   threads it streams in do)
  *   cold-load       a reload of the room, to its first card, then 5 s
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
@@ -379,7 +380,7 @@ const shownThreads = async (run: Run, of = cards(run.page)): Promise<string[]> =
 /**
  * A thread to press: one whose card shows the app's streaming marker (the word beside the pulsing
  * dot) right now (a heavy thread, when one of them does), waiting up to 10 s under the driver's
- * load for one, else the top card. `except` leaves a thread out.
+ * load for one, else the top card. `except` leaves a thread out, unless no other card counts.
  */
 const pickThread = async (run: Run, except = ''): Promise<{ root: string; streaming: boolean }> => {
   const { page } = run;
@@ -573,7 +574,7 @@ const SCENARIO: Record<
         const backMs = await timeToVisible(page, () => back(page).click(), CARD);
         await expect(page.locator(ROW)).toHaveCount(0);
         timings.push({ name: `back-${turn}`, ms: backMs });
-        // Another thread each time, one that streams when there is one.
+        // Another thread each time when the view has one, one that streams when there is one.
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;

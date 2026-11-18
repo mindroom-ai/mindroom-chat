@@ -438,7 +438,7 @@ describe('timeline message feature', () => {
     expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
   });
 
-  it("repaints for a row's edits still to decrypt, and for those of the quiet markers beside it", async () => {
+  it("listens for the decryption of a row's pending edits, and of those of the quiet markers beside it, until it unmounts", async () => {
     const withPendingEdit = (event: MatrixEvent, edit: MatrixEvent) =>
       Object.assign(event, { __pendingEdits: [edit] });
     const messageEdit = encryptedEvent('$message-edit');
