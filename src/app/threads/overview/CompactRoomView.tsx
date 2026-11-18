@@ -34,9 +34,9 @@ import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 import {
   type CompactFocusRequest,
+  compactFocusPlace,
   isCompactFocusRequestOpen,
   meetCompactFocusRequest,
-  placeCompactFocusRequest,
 } from './compactFocusRequest';
 import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
@@ -516,13 +516,24 @@ export function CompactRoomView({
     }
   }, [error]);
 
-  // A request that comes to the mounted list (a pin's link) places its card once the card shows,
-  // as a mount with that request does; the one the list mounted with had that mount.
+  // Opening a card remounts this view, and threads that got replies meanwhile
+  // sort above the cards that were in view, so restore by those cards.
+  const placeList = useScrollAnchorMemory({
+    memory: compactRoomScrollStateRef.current,
+    memoryKey: room.roomId,
+    scrollRef: viewRef,
+    contentRef,
+    ready: cardViewModels.length > 0,
+  });
+
+  // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
+  // with that request does; the one the list mounted with had that mount. A replaced entry (a
+  // thread beside the list closing) or a step back or forward leaves the list where it is.
   const focusShown = cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
   const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
   const mountRequestKeyRef = useRef(requestKey);
   const arrivedRequestKey =
-    focusRequest &&
+    focusRequest?.pushed &&
     focusShown &&
     requestKey !== mountRequestKeyRef.current &&
     isCompactFocusRequestOpen(compactRoomScrollStateRef.current, focusRequest)
@@ -530,25 +541,12 @@ export function CompactRoomView({
       : undefined;
   useLayoutEffect(() => {
     if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
-    if (arrivedRequestKey && focusRequest && viewRef.current) {
-      placeCompactFocusRequest(
-        compactRoomScrollStateRef.current,
-        room.roomId,
-        focusRequest,
-        viewRef.current
-      );
-    }
-  });
-
-  // Opening a card remounts this view, and threads that got replies meanwhile
-  // sort above the cards that were in view, so restore by those cards.
-  useScrollAnchorMemory({
-    memory: compactRoomScrollStateRef.current,
-    memoryKey: room.roomId,
-    scrollRef: viewRef,
-    contentRef,
-    ready: cardViewModels.length > 0,
-    restoreKey: arrivedRequestKey,
+    const place =
+      arrivedRequestKey &&
+      focusRequest &&
+      viewRef.current &&
+      compactFocusPlace(focusRequest, viewRef.current);
+    if (place) placeList(place);
   });
 
   // The address's request is met once its card shows, which a folded section's does not.

@@ -9,10 +9,15 @@ const focusedPlace = (eventId: string): ScrollAnchorSnapshot => ({
 });
 
 /**
- * An address's request that the room's cards show one of them (`?focusEvent=1`): the card's event
- * and the router's key of the history entry that asks.
+ * An address's request that the room's cards show one of them (`?focusEvent=1`): the card's event,
+ * the router's key of the history entry that asks, and whether the router pushed that entry (a
+ * link followed), which alone moves a list already mounted.
  */
-export type CompactFocusRequest = { eventId: string; entryKey: string | undefined };
+export type CompactFocusRequest = {
+  eventId: string;
+  entryKey: string | undefined;
+  pushed?: boolean;
+};
 
 // The requests a list has met, as `<history entry> <event>`, kept as long as its saved places.
 const metRequests = new WeakMap<ScrollAnchorMemory, Set<string>>();
@@ -48,16 +53,11 @@ export const isCompactFocusRequestOpen = (
   return !!key && !metRequests.get(memory)?.has(key);
 };
 
-/**
- * A request that comes to a mounted list, whose place in `memory` is the one it was left at:
- * the place for the list to take now, its card's, or none while the card shows whole.
- */
-export const placeCompactFocusRequest = (
-  memory: ScrollAnchorMemory,
-  roomId: string,
+/** A request that comes to the mounted list `view`: its card's place, unless it shows whole. */
+export const compactFocusPlace = (
   request: CompactFocusRequest,
   view: HTMLElement
-): void => {
+): ScrollAnchorSnapshot | undefined => {
   const card = Array.from(view.querySelectorAll('[data-scroll-anchor]')).find(
     (row) => row.getAttribute('data-scroll-anchor') === request.eventId
   );
@@ -66,8 +66,9 @@ export const placeCompactFocusRequest = (
   const top = shown.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
   const bottom = shown.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
   const rect = card?.getBoundingClientRect();
-  if (rect && rect.top >= top && rect.bottom <= bottom) memory.delete(roomId);
-  else memory.set(roomId, focusedPlace(request.eventId));
+  return rect && rect.top >= top && rect.bottom <= bottom
+    ? undefined
+    : focusedPlace(request.eventId);
 };
 
 /** The list shows the card `request` asks for. For an effect: a render can be abandoned. */

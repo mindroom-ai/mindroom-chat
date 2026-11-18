@@ -610,20 +610,41 @@ describe('a focus request on the mounted Compact room', () => {
     const { rerender } = render(at());
     scrollTop = 0;
 
-    rerender(at({ eventId: '$card8', entryKey: 'pin' }));
+    rerender(at({ eventId: '$card8', entryKey: 'pin', pushed: true }));
     expect(topOf('$card8')).toBe(160);
 
     // The reader scrolls on; another render of that address keeps their place.
     scrollTop = 100;
-    rerender(at({ eventId: '$card8', entryKey: 'pin' }));
+    rerender(at({ eventId: '$card8', entryKey: 'pin', pushed: true }));
     expect(scrollTop).toBe(100);
 
     // A card in view stays where it is.
-    rerender(at({ eventId: '$card2', entryKey: 'next' }));
+    rerender(at({ eventId: '$card2', entryKey: 'next', pushed: true }));
     expect(scrollTop).toBe(100);
 
     // Back to the first entry keeps the reader's place: its request was met.
     rerender(at({ eventId: '$card8', entryKey: 'pin' }));
     expect(scrollTop).toBe(100);
+  });
+
+  it('stays where the reader is for a request of an entry the router replaced', () => {
+    memory.clear();
+    const { rerender } = render(at({ eventId: '$card1', entryKey: 'pin', pushed: true }));
+    scrollTop = 500;
+
+    // A thread opened beside the list closes: its entry gives way to the pin's address.
+    rerender(at({ eventId: '$card1', entryKey: 'replaced' }));
+    expect(scrollTop).toBe(500);
+  });
+
+  it('keeps the place the list was left at for a card in view', () => {
+    const left = { scrollTop: 100, anchors: [{ key: '$card2', offset: 100 }] };
+    memory.clear();
+    memory.set(ROOM_ID, left);
+    const { rerender } = render(at());
+
+    rerender(at({ eventId: '$card2', entryKey: 'pin', pushed: true }));
+    expect(scrollTop).toBe(100);
+    expect(memory.get(ROOM_ID)).toBe(left);
   });
 });

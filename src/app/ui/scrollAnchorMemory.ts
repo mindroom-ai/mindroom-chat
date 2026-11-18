@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect, useRef } from 'react';
+import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 const SCROLL_ANCHOR_ATTRIBUTE = 'data-scroll-anchor';
 const SCROLL_ANCHOR_SELECTOR = `[${SCROLL_ANCHOR_ATTRIBUTE}]`;
@@ -96,7 +96,6 @@ const keepsRowOrder = (before: string[], after: string[]): boolean => {
 
 type RestoreState = {
   memoryKey: string;
-  restoreKey?: string;
   /** Cleared once the restore is done following late layout. */
   snapshot?: ScrollAnchorSnapshot;
   /** The rows the last write put back in place. */
@@ -116,8 +115,6 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
-  /** A new one restores the place in `memory` again, as a mount does, on the mounted list. */
-  restoreKey?: string;
 };
 
 /**
@@ -126,7 +123,8 @@ type ScrollAnchorMemoryOptions = {
  * the rows in view; the next mount scrolls so those rows sit where they were,
  * even if rows above them were added, removed, or reordered meanwhile.
  * Until the reader scrolls or the rows move apart or change order, it keeps
- * them there as late layout resizes the list.
+ * them there as late layout resizes the list. It returns a function that puts
+ * the mounted list at a place of its own in the same way.
  */
 export function useScrollAnchorMemory({
   memory,
@@ -134,9 +132,9 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
-  restoreKey,
-}: ScrollAnchorMemoryOptions): void {
+}: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
+  const [restarts, setRestarts] = useState(0);
   const readyRef = useRef(ready);
   useLayoutEffect(() => {
     readyRef.current = ready;
@@ -145,13 +143,9 @@ export function useScrollAnchorMemory({
   useLayoutEffect(() => {
     const view = scrollRef.current;
     if (!view || !ready) return undefined;
-    if (
-      restoreRef.current?.memoryKey !== memoryKey ||
-      (restoreKey !== undefined && restoreKey !== restoreRef.current.restoreKey)
-    ) {
+    if (restoreRef.current?.memoryKey !== memoryKey) {
       restoreRef.current = {
         memoryKey,
-        restoreKey,
         snapshot: memory.get(memoryKey),
         placedRows: [],
         rowOrder: [],
@@ -205,7 +199,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, memory, memoryKey, ready, restoreKey, scrollRef]);
+  }, [contentRef, memory, memoryKey, ready, restarts, scrollRef]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -217,4 +211,19 @@ export function useScrollAnchorMemory({
       }
     };
   }, [memory, memoryKey, scrollRef]);
+
+  return useCallback(
+    (place: ScrollAnchorSnapshot) => {
+      const lastAppliedScrollTop = scrollRef.current?.scrollTop ?? 0;
+      restoreRef.current = {
+        memoryKey,
+        snapshot: place,
+        placedRows: [],
+        rowOrder: [],
+        lastAppliedScrollTop,
+      };
+      setRestarts((count) => count + 1);
+    },
+    [memoryKey, scrollRef]
+  );
 }
