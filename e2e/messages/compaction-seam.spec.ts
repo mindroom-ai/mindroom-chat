@@ -10,7 +10,7 @@ import {
 
 // Each history compaction is a quiet seam row in the agent reply, at the spot where it ran
 // (`io.mindroom.compactions`, placed by `after_tool`): it splits a run of tool calls in two,
-// stays between the texts while the cog hides the calls, folds into the work of a long finished
+// stays between the texts while the cog hides the calls, folds into the work of a finished
 // reply, sits at the top of a reply compacted before its first model request (also while the
 // reply is still the pending placeholder), and shows its state. Old and manual
 // `io.mindroom.compaction` notices are the same row, on their own. A hover opens the card.
@@ -30,6 +30,8 @@ const STATES = 'The summary did not finish, so I kept going.';
 const PRE = 'Yes. #503 merged and releases automatically.';
 const WORKED = 'Every caller now passes the offset through.';
 const WORKED_BETWEEN = 'The first half of the callers is fixed; now the rest.';
+// Enough rows of work to fold it (`foldFinishedWork`), however many calls a run holds.
+const WORKED_NOTES = Array.from({ length: 5 }, (_, n) => `Caller ${n + 1} of the rest checked.`);
 
 type Tool = { name: string; args: string; result: string };
 const tool = (name: string, args: string, result: string): Tool => ({ name, args, result });
@@ -353,12 +355,12 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
       compaction('pre', 0, { before_tokens: 348_112, after_tokens: 42_016 }),
     ],
   });
-  // (3) A long finished reply: its work, the seam with it, folds behind "Worked".
+  // (3) A finished reply with many rows of work: it and the seam with it fold behind "Worked".
   const firstHalf = Array.from({ length: 40 }, () => GREP);
   const secondHalf = Array.from({ length: 36 }, () => READ);
   await thread.reply({
     ...agentReply(
-      [...markers(firstHalf), WORKED_BETWEEN, ...markers(secondHalf, 41), WORKED],
+      [...markers(firstHalf), WORKED_BETWEEN, ...WORKED_NOTES, ...markers(secondHalf, 41), WORKED],
       [...firstHalf, ...secondHalf]
     ),
     ...finished,

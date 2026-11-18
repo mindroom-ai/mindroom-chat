@@ -40,4 +40,11 @@ describe('splitFinishedWork in the browser', () => {
     expect(tail).toBeDefined();
     expect(renderedPreText(tail ?? '')).toBe('\nhello');
   });
+
+  it('starts the answer at the prose after the last call in its paragraph', () => {
+    expect(splitFinishedWork('<p>🔧 <code>shell</code> [1]<br>\nThe answer.</p>', {}, {})).toEqual({
+      head: '<p>🔧 <code>shell</code> [1]</p>',
+      tail: '<p>The answer.</p>',
+    });
+  });
 });
