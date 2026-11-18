@@ -32,9 +32,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private var live: (id: String, recorder: AVAudioRecorder)?
-    /// The page this plugin serves; raised when it goes away, so that an answer to its
-    /// microphone prompt records nothing.
-    private var epoch = 0
+    /// Its window closed: it records nothing more.
+    private var closed = false
 
     override public func load() {
         // A recording left behind when the app quit.
@@ -46,11 +45,19 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func start(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            let epoch = self.epoch
-            AVCaptureDevice.requestAccess(for: .audio) { granted in
-                DispatchQueue.main.async {
-                    guard epoch == self.epoch else { return call.reject("The page is gone", "START_FAILED") }
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            DispatchQueue.main.async {
+                guard let webView = self.bridge?.webView else {
+                    return call.reject("The page is gone", "START_FAILED")
+                }
+                // The page names its newest start, and the page loaded now, after the prompt, is
+                // asked for it: an older start of this page, a start of a page that has been
+                // replaced or is being replaced, and one of a closed window record nothing.
+                webView.evaluateJavaScript("window.mindroomVoiceStart") { newest, _ in
+                    guard !self.closed, !webView.isLoading, let newest = newest as? String,
+                          newest == call.getString("nonce") else {
+                        return call.reject("The page is gone", "START_FAILED")
+                    }
                     guard granted else { return call.reject("Microphone access is denied", "PERMISSION_DENIED") }
                     guard AVCaptureDevice.default(for: .audio) != nil else {
                         return call.reject("No microphone", "NO_MICROPHONE")
@@ -156,15 +163,16 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    /// The page is gone (main queue): nothing of it records or stays on disk.
-    func cancelRecording() {
-        epoch += 1
+    /// The page is going (main queue): nothing of it records or stays on disk.
+    @objc private func pageWillLoad() {
         discardLive()
         Self.clearFolder()
     }
 
-    @objc private func pageWillLoad() {
-        cancelRecording()
+    /// The window closed (main queue), for good: a start still on its way records nothing.
+    func close() {
+        closed = true
+        pageWillLoad()
     }
 }
 #endif

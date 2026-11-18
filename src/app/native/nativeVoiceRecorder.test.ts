@@ -93,6 +93,25 @@ describe('native voice recorder', () => {
     expect(recorder.state).toBe('recording');
   });
 
+  it('names each start on the page before it asks, so that the newest one is the one named', async () => {
+    const page = globalThis as { mindroomVoiceStart?: string };
+    const asked: [unknown, unknown][] = [];
+    plugin.start.mockImplementation(async (options: { nonce: string }) => {
+      asked.push([options.nonce, page.mindroomVoiceStart]);
+      return { id: 'a' };
+    });
+    await startNativeVoiceRecorder();
+    await startNativeVoiceRecorder();
+    const [[older, olderOnPage], [newer, newerOnPage]] = asked as [
+      [string, string],
+      [string, string]
+    ];
+    expect([olderOnPage, newerOnPage]).toEqual([older, newer]);
+    expect(older).not.toBe(newer);
+    expect(newer).toMatch(/^[0-9a-f-]{36}$/);
+    expect(page.mindroomVoiceStart).toBe(newer);
+  });
+
   it('starts recording audio/mp4 and reads the newest level', async () => {
     const recorder = await startNativeVoiceRecorder();
     expect([recorder.state, recorder.mimeType, recorder.level()]).toEqual([

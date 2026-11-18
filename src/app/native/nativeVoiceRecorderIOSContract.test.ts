@@ -47,14 +47,29 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(body('cancel')).toMatch(
       /let id = call\.getString\("id"\) \?\? ""\s*if live\?\.id == id \{\s*discardLive\(\)\s*\} else if let url = Self\.file\(of: id\) \{\s*try\? FileManager\.default\.removeItem\(at: url\)\s*\}\s*call\.resolve\(\)/
     );
-    expect(body('cancel')).not.toMatch(/clearFolder|epoch/);
+    expect(body('cancel')).not.toMatch(/clearFolder|closed/);
   });
 
-  it('records nothing for a page that went away under the microphone prompt', () => {
-    expect(body('start')).toMatch(
-      /let epoch = self\.epoch\s*AVCaptureDevice\.requestAccess\(for: \.audio\)[\s\S]*?DispatchQueue\.main\.async \{[\s\S]*?guard epoch == self\.epoch else[\s\S]*?setActive\(true\)/
+  it('records only for the newest start of the page that is still loaded', () => {
+    // The page names its newest start (the wrapper), and the plugin reads the name back from the
+    // page loaded after the prompt: an older start of this page (its answer may come last), a
+    // start of a page since replaced or being replaced, and one of a closed window end here.
+    expect(wrapperSource).toMatch(
+      /Object\.assign\(globalThis, \{ mindroomVoiceStart: nonce \}\);[\s\S]*?\.start\(\{ nonce \}\)/
     );
-    expect(pluginSource).toMatch(/func cancelRecording\(\) \{\s*epoch \+= 1/);
+    const [before, after] = body('start').split(
+      /evaluateJavaScript\("window\.mindroomVoiceStart"\) \{ newest, _ in\s*guard !self\.closed, !webView\.isLoading, let newest = newest as\? String,\s*newest == call\.getString\("nonce"\) else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}/
+    );
+    expect(before).toMatch(
+      /AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
+    );
+    expect(before).not.toMatch(/live|setActive|AVAudioRecorder/);
+    expect(after).toMatch(/self\.discardLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
+  });
+
+  it('records nothing more once its window has closed', () => {
+    expect(pluginSource).toMatch(/func close\(\) \{\s*closed = true\s*pageWillLoad\(\)\s*\}/);
+    expect(pluginSource.match(/\bclosed = \w+/g)).toEqual(['closed = false', 'closed = true']);
   });
 
   it('leaves no file and no active audio session behind a start that fails', () => {
@@ -88,9 +103,12 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('releases the microphone when its page goes away and forgets a recording left behind', () => {
     expect(pluginSource).toContain('name: .capacitorWebViewNavigationStarted');
+    expect(pluginSource).toMatch(
+      /@objc private func pageWillLoad\(\) \{\s*discardLive\(\)\s*Self\.clearFolder\(\)\s*\}/
+    );
     expect(pluginSource).toMatch(/override public func load\(\) \{[\s\S]*?clearFolder\(\)/);
     expect(sceneSource).toMatch(
-      /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.cancelRecording\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/
+      /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.close\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/
     );
   });
 });

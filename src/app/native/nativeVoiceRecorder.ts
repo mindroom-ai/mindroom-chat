@@ -1,10 +1,12 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { randomUuid } from '../lib/randomUuid';
 
-/** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture): start()
- *  resolving { id }; level, pause, resume, stop and cancel({ id }) act on that recording only;
- *  level resolves { level } from 0 to 1, stop { path } of its `.m4a`; rejections carry `code`. */
+/** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture):
+ *  start({ nonce }) resolving { id }; level, pause, resume, stop and cancel({ id }) act on that
+ *  recording only; level resolves { level } from 0 to 1, stop { path } of its `.m4a`; rejections
+ *  carry `code`. */
 type MindRoomVoiceRecorderPlugin = {
-  start(): Promise<{ id: string }>;
+  start(options: { nonce: string }): Promise<{ id: string }>;
   level(options: { id: string }): Promise<{ level: number }>;
   pause(options: { id: string }): Promise<void>;
   resume(options: { id: string }): Promise<void>;
@@ -112,8 +114,12 @@ export class NativeVoiceRecorder extends EventTarget {
 /** Asks for the microphone and starts recording. Rejects with an Error named as getUserMedia
  *  names it. */
 export const startNativeVoiceRecorder = async (): Promise<NativeVoiceRecorder> => {
+  // The plugin reads this name back from the page after the microphone prompt, and records only
+  // for the newest start of the page that is still loaded.
+  const nonce = randomUuid();
+  Object.assign(globalThis, { mindroomVoiceStart: nonce });
   try {
-    const { id } = await getVoiceRecorderPlugin().start();
+    const { id } = await getVoiceRecorderPlugin().start({ nonce });
     return new NativeVoiceRecorder(id);
   } catch (error) {
     const { code, message } = error as { code?: string; message?: string };
