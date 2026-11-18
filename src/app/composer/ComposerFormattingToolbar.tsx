@@ -1,7 +1,7 @@
 import { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSlate } from 'slate-react';
-import { Box, Icon, Icons, IconSrc, Line, config } from 'folds';
+import { Box, Icon, Icons, IconSrc, Line } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
 import { BlockType, MarkType } from '../editor/types';
 import { isMarkActive, toggleMark } from '../editor/keyboard';
@@ -83,10 +83,11 @@ export function ComposerFormattingToolbar() {
     <Box
       role="toolbar"
       aria-label={t('composer.formatting')}
-      wrap="Wrap"
       gap="100"
       alignItems="Center"
-      style={{ padding: `0 ${config.space.S200} ${config.space.S200}` }}
+      // The editor's bottom slot pads it and says whether it wraps: in a row of its own it does,
+      // beside the controls it does not.
+      style={{ flexWrap: 'inherit' }}
     >
       {markControls.map(({ format, icon, labelKey }) => (
         <FormatButton
