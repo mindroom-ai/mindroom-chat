@@ -2,80 +2,79 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: implement this plan task-by-task with the skill named in **Execution**. Steps use checkbox (`- [ ]`) syntax.
 
-**Execution:** baspowers:subagent-driven-development (eight tasks; the trust and wire-format tasks are cheap to get subtly wrong and the chart and form are large, so each task gets its own review).
+**Execution:** baspowers:subagent-driven-development (five tasks; the trust and effective-content tasks are cheap to get subtly wrong and the chart is large, so each task gets its own review).
 
-**Goal:** Draw the chart and form widgets an agent reply carries in `io.mindroom.ui`, in place between its paragraphs, while it streams and afterwards, and send a form's answer as an ordinary thread message.
+**Goal:** Stage 1: draw the chart an agent reply carries in `io.mindroom.ui`, in place between its paragraphs, while it streams and afterwards, and show readable fallback text for anything else. Stage 2 (form) is outlined at the end and built later.
 
-**Architecture:** A protocol reader takes the entries from the reply's shown content; the base HTML parser turns each `mindroom-ui-<id>` code block into a slot, and the slot draws the widget only inside a context that `renderAgentMessageContent` provides for MindRoom agents. Validation, chart and form are one lazy chunk. Live frames feed the same content key, so live and durable replies share the path. Answered state is a per-timeline plan over the loaded events.
+**Architecture:** A protocol reader takes the entries from exactly the content that supplies the reply's shown body. The base HTML parser turns each `mindroom-ui-<id>` code block into a slot, and the slot draws a widget only inside a scope whose provider checks the event's sender against the current account itself. Validation and the chart are one lazy chunk. Live frames feed the same content key, so live and durable replies share the path.
 
 **Tech Stack:** React 18, TypeScript (strict flags), vanilla-extract, folds, matrix-js-sdk, vitest, Playwright. No new dependency.
 
-**Spec:** `docs/baspowers/specs/2026-11-18-genui-widgets-design.md` (sections 5, 7, 8 and 10 are the contract; read it first).
+**Spec:** `docs/baspowers/specs/2026-11-18-genui-widgets-design.md` (sections 5, 7, 8, 9 and 11 are the contract; appendix A says why; read it first).
 
 ## Global Constraints
 
-- Keys: `io.mindroom.ui` (`UI_WIDGETS_KEY`), `io.mindroom.ui_response` (`UI_RESPONSE_KEY`); marker class `language-mindroom-ui-<10 hex>`.
-- Value shape `{version: 1, widgets: [{id, json}], pending?}`; more than 8 entries, a `json` over 16,384 UTF-8 bytes, or another `version` means no widgets at all.
-- Widgets render only inside `UiWidgetsContext`, which only `renderAgentMessageContent` provides, only when `fromMindroomAgent`; `io.mindroom.ui` is in `AGENT_ONLY_CONTENT_KEYS`.
-- The key is read from the content the reply shows; never from `getOriginalContent()` of an edited reply, and it is not added to the metadata borrowed from older edits.
-- Schema bounds are the spec's section 8; string lengths count code points (`[...text].length`), numbers must be finite, booleans are not numbers, unknown keys are rejected.
-- A widget string is only ever rendered as React text; no `dangerouslySetInnerHTML`, no URL from a widget.
-- Everything except the reader, the slot and the skeleton is reachable only through the lazy chunk; `just bundle-report` must stay inside `scripts/perf/bundle-budget.json`.
+- Stage 1 draws `chart` only. An entry of any other `type` (a form from a Stage 2 backend) shows its fallback block; it is not an error.
+- Keys: `io.mindroom.ui` (`UI_WIDGETS_KEY`), `io.mindroom.ui_response` (`UI_RESPONSE_KEY`, read by nothing in Stage 1 but already excluded from edit inheritance); marker class `language-mindroom-ui-<10 hex>`.
+- Value shape `{version: 1, widgets: [{id, json}]}`. Another `version`, more than 8 entries, a repeated id, or more than 16,384 UTF-8 bytes over all `json` strings together means no widgets at all. Chat never computes an id.
+- Trust is decided by the scope provider, at render: the event is not redacted and `isMindroomAgentUserIdForViewer(mEvent.getSender(), mx.getUserId())` holds. Never by a prop, by `isMindroomAgentMessageEvent`, by a display name, a marker or a label. `io.mindroom.ui` is also in `AGENT_ONLY_CONTENT_KEYS`.
+- The value is read only from the content that supplies the shown body: the selected edit's own `m.new_content`, or the event's own content. `copyResolvedEditMetadata` must not copy `io.mindroom.ui` or `io.mindroom.ui_response` from older edits or from an edit's outer content.
+- The validator checks the canonical wire text: spec section 8 bounds, code-point lengths (`[...text].length`), finite numbers, no booleans as numbers, unknown keys rejected, labels must be strings, optional keys absent (not `null`).
+- A widget string is only ever rendered as React text: no `dangerouslySetInnerHTML`, no URL, `href`, `src` or SVG reference from a widget, no request caused by a widget string.
+- Everything except the reader and the slot is reachable only through the lazy chunk; `just bundle-report` must stay inside `scripts/perf/bundle-budget.json`.
 - Card frame: the question card's (`messages/question/QuestionCard.css.ts` `Card`: 12 px radius, `SurfaceVariant.ContainerLine` border, 60% `SurfaceVariant.Container` fill). Colors only from `theme/colors.css.ts` and folds tokens. Logical CSS sides only.
-- Every visible string is translated: keys under `mindroomUi.messages.uiWidget` in all 17 `src/app/i18n/locales/additions/*.json`, added by the task that first uses them, in the same commit. Keys: `chart`, `table`, `receivingChart`, `receivingForm`, `receivingWidget`, `pointValue` (`{{label}}: {{series}} {{value}}`), `share` (`{{value}} ({{percent}})`), `send`, `sendFailed`, `waitForReply`, `required`, `yes`, `no`, `none`, `answered`.
-- The fixture `src/app/messages/widgets/__fixtures__/ui-widgets-v1.json` is copied byte-identical from the backend worktree (`tests/ui_widgets/fixtures/ui-widgets-v1.json`); the backend plan's Tasks 1 and 2 must be done first. Same rule for `live-frames-v1.json`.
+- Every visible string is translated: keys under `mindroomUi.messages.uiWidget` in all 17 `src/app/i18n/locales/additions/*.json`, added by the task that first uses them, in the same commit. Stage 1 keys: `chart`, `table`, `pointValue` (`{{label}}: {{series}} {{value}}`), `share` (`{{value}} ({{percent}})`).
+- Fixtures are copied byte-identical from the backend worktree after its Tasks 1 to 3: `tests/ui_widgets/fixtures/ui-widgets-v1.json` to `src/app/messages/widgets/__fixtures__/`, and `tests/live_frames/fixtures/live-frames-v1.json` to `src/app/messages/live/__fixtures__/`; compare `sha256sum`.
 - Commands run in `nix develop`: `just test <paths>`, `just typecheck`, `just strict`, `just lint`, `just format <paths>`.
 - Placement per `docs/architecture.md`: tests beside their subject, no barrel files. No em dashes in docs, comments or commit messages. Commits unsigned, files added by path.
 - Fixtures, tests and screenshots use invented placeholder data only.
 
 ## Review Focus
 
-- A member who is not a MindRoom agent sends the marker block and a forged `io.mindroom.ui`: a plain code block, nothing to click (Task 3).
-- A later edit of the reply without the key (regenerated into prose, or dropped for size): the widget is gone, not revived from the original or an older edit (Task 3).
-- A form row scrolled out of the virtual timeline and back keeps its draft; after a reload the receipt comes from the timeline alone (Tasks 5 and 6).
-- Chart inputs that break naive scales: all values equal, all zero, negatives, one point, 200 points at 390 px, a pie slice of 0 (Task 4).
-- A slider answer of 2.5 in an unencrypted room: `values` holds `"2.5"`, never a float (Task 5).
-- A label of 120 emoji validates; 121 does not (Task 2).
+- An edit without the key (regenerated into prose, or dropped for size) after an edit with it: the widget must be gone. Today's metadata borrowing would bring it back (Task 1, with real `MatrixEvent` edits).
+- A member who is not a MindRoom agent of the current account sends the marker block and a forged key, with a second signed-in account on another homeserver: a plain code block (Task 3).
+- The original event is redacted while a readable edit or live frames are held: nothing is drawn (Task 3).
+- A chart whose labels are `example.com`, with link previews on: no preview card and no `getUrlPreview` call (Task 3).
+- Chart inputs that break naive scales: all values equal, all zero, negatives, one point, `1e308` beside `-1e308`, `5e-324`, 200 points at 390 px, a pie slice of 0 (Task 4).
 
 ---
 
-### Task 1: Protocol reader, trust key, fixture, live frame field
+### Task 1: Reader, effective content, live frame field
 
 **Files:**
 - Create: `src/app/matrix/protocol/uiWidgets.ts`, `src/app/matrix/protocol/uiWidgets.test.ts`
 - Create: `src/app/messages/widgets/__fixtures__/ui-widgets-v1.json` (copy)
 - Modify: `src/app/matrix/protocol/untrustedContent.ts` (`AGENT_ONLY_CONTENT_KEYS` and its comment), `src/app/matrix/protocol/untrustedContent.test.ts`
-- Modify: `src/app/matrix/protocol/liveFrame.ts`, `src/app/messages/live/__fixtures__/live-frames-v1.json` (copy), `src/app/messages/live/useLiveReplyContent.ts`, `src/app/messages/live/useLiveReplyContent.test.tsx`
+- Modify: `src/app/matrix/protocol/editMetadata.ts`, `src/app/matrix/protocol/editMetadata.test.ts`, `src/app/matrix/room.test.ts`
+- Modify: `src/app/matrix/protocol/liveFrame.ts`, `src/app/matrix/protocol/liveFrame.test.ts`, `src/app/messages/live/__fixtures__/live-frames-v1.json` (copy), `src/app/messages/live/useLiveReplyContent.ts`, `src/app/messages/live/useLiveReplyContent.test.tsx`
 
 **Interfaces:**
 - Produces:
   - `UI_WIDGETS_KEY`, `UI_RESPONSE_KEY`
-  - `type UiPendingKind = 'chart' | 'form' | 'widget'`
-  - `type UiWidgetsContent = { widgets: { id: string; json: string }[]; pending?: UiPendingKind }`
+  - `type UiWidgetsContent = { widgets: { id: string; json: string }[] }`
   - `readUiWidgets(content: Record<string, unknown>): UiWidgetsContent | undefined`
   - `readUiMarkerId(codeClassName: string | undefined): string | undefined`
-  - `type UiResponse = { eventId: string; widget: string; values: Record<string, unknown> }`, `readUiResponse(content: Record<string, unknown>): UiResponse | undefined`
+  - `stripUiFallbackBlocks(body: string): string` (the body without its `mindroom-ui-` fenced blocks)
   - `LiveDocs.ui?: unknown` and `LiveDelta.ui?: unknown` (a delta's `null` clears it)
 
 - [ ] **Step 1: Copy both fixtures from the backend worktree and compare `sha256sum`.**
 - [ ] **Step 2: Write the failing tests.**
 
 ```ts
-it.each(fixture.renders.filter((c) => c.ui))('reads the fixture value: %s', ({ ui, html }) => {
-  const read = readUiWidgets({ [UI_WIDGETS_KEY]: ui });
-  expect(read?.widgets).toEqual(ui.widgets);
-  expect(read?.pending).toBe(ui.pending);
-  read?.widgets.forEach(({ id }) => expect(html).toContain(`class="language-mindroom-ui-${id}"`));
+it.each(fixture.renders.filter((c) => c.ui))('reads the fixture value: %s', ({ ui }) => {
+  expect(readUiWidgets({ [UI_WIDGETS_KEY]: ui })?.widgets).toEqual(ui.widgets);
 });
 it('rejects what the backend never sends', () => {
   const entry = { id: 'df4d729a5d', json: '{}' };
+  const big = { id: 'aaaaaaaaaa', json: 'x'.repeat(9000) };
   const bad = [
     { version: 2, widgets: [entry] },
     { version: 1, widgets: Array.from({ length: 9 }, (_, i) => ({ ...entry, id: `${i}`.repeat(10) })) },
+    { version: 1, widgets: [entry, entry] },
     { version: 1, widgets: [{ ...entry, id: 'DF4D729A5D' }] },
-    { version: 1, widgets: [{ ...entry, json: 'x'.repeat(16385) }] },
-    { version: 1, widgets: [entry], pending: 'map' },
+    { version: 1, widgets: [big, { ...big, id: 'bbbbbbbbbb' }] },
     { version: 1, widgets: [{ id: 'df4d729a5d', json: {} }] },
+    { version: 1, widgets: [] },
   ];
   bad.forEach((value) => expect(readUiWidgets({ [UI_WIDGETS_KEY]: value })).toBeUndefined());
 });
@@ -86,64 +85,79 @@ it('reads the marker id only from the exact class', () => {
 });
 ```
 
-  Plus: a repeated `id` keeps the first entry; `readUiResponse` reads the fixture's `responses[0].content` and rejects a missing `event_id`, a non-object `values` and `version: 2`; `sanitizeContent` drops `io.mindroom.ui` from a sender who is not an agent and keeps `io.mindroom.ui_response` from anyone; the new live-frame fixture cases apply (`applyLiveDelta` sets and clears `ui`); `getLiveContent` writes `docs.ui` to `io.mindroom.ui` and removes a durable one when the frame has none.
-- [ ] **Step 3: Run `just test src/app/matrix/protocol src/app/messages/live`.** Expected: FAIL (module missing).
-- [ ] **Step 4: Implement.** In `liveFrame.ts` a snapshot keeps `ui` when present, a delta with the `ui` key replaces it (`null` becomes absent). `getLiveContent` always deletes `UI_WIDGETS_KEY` from the copied content, then sets it from `docs.ui`.
+  Effective content, in `room.test.ts`, with real `MatrixEvent`s through `getEditedEvent` and `getLatestMessageContent`:
+  - an original with the key, a newer readable edit whose `m.new_content` has the same marker block and no key: the shown content has no key;
+  - two edits, the older with the key and the newer without: no key;
+  - an edit carrying the key only at its outer level: no key;
+  - an edit with the key in `m.new_content`: that value;
+  - a newer edit by another sender with a key: ignored, the sender's own revision stands;
+  - a newer edit that is not decrypted yet: the last readable revision's value as a whole; once it decrypts without a key: none;
+  - the newest edit redacted: the previous revision's own value.
+  And: `copyResolvedEditMetadata` skips both keys from every source; `sanitizeContent` drops `io.mindroom.ui` from a sender who is not an agent; `stripUiFallbackBlocks` removes the 5.4 block and keeps the two paragraphs, and leaves a `python` block alone; the three new live-frame fixture cases apply (`applyLiveDelta` sets and clears `ui`; a snapshot keeps it); `getLiveContent` writes `docs.ui` to `io.mindroom.ui` and removes a durable one when the frame has none; a terminal durable status drops a stale frame's `ui` with the frame (`getLiveVerdict`).
+- [ ] **Step 3: Run `just test src/app/matrix src/app/messages/live`.** Expected: FAIL.
+- [ ] **Step 4: Implement.** `editMetadata.ts` skips the two keys beside `LONG_TEXT_KEY`. In `liveFrame.ts` a snapshot keeps `ui` when present and a delta with the `ui` key replaces it (`null` becomes absent); a delta holding only `ui` is a valid delta. `getLiveContent` always deletes `UI_WIDGETS_KEY` from the copied content, then sets it from `docs.ui`.
 - [ ] **Step 5: Run again, then `just typecheck` and `just lint`.** Expected: PASS.
-- [ ] **Step 6: Commit** (`feat(widgets): read io.mindroom.ui from replies and live frames`).
+- [ ] **Step 6: Commit** (`feat(widgets): read io.mindroom.ui from the shown revision and live frames`).
 
-### Task 2: Strict validator
+### Task 2: Chart validator
 
 **Files:**
-- Create: `src/app/messages/widgets/uiWidgetSchema.ts`, `src/app/messages/widgets/uiWidgetSchema.test.ts`
+- Create: `src/app/messages/widgets/chartSchema.ts`, `src/app/messages/widgets/chartSchema.test.ts`
 
 **Interfaces:**
 - Produces:
   - `type ChartWidget = { type: 'chart'; kind: 'bar' | 'line' | 'area' | 'pie'; title: string; labels: string[]; series: { name: string; data: number[] }[]; x?: string; y?: string }`
-  - `type FormField` = a union on `kind` with the keys of spec section 4 (`name`, `label`, `required?`, and per kind `options`, `value`, `min`, `max`, `step`, `unit`, `placeholder`)
-  - `type FormWidget = { type: 'form'; title: string; fields: FormField[]; submit?: string }`, `type WidgetSpec = ChartWidget | FormWidget`
-  - `parseUiWidget(json: string): WidgetSpec | undefined` (never throws)
+  - `parseChartWidget(json: string): ChartWidget | undefined` (never throws; undefined for any other `type`)
 
 - [ ] **Step 1: Write the failing test.**
 
 ```ts
-it.each(fixture.widgets.map((c) => [c.name, c] as const))('agrees with the backend: %s', (_n, c) => {
-  expect(parseUiWidget(c.json) !== undefined).toBe(c.valid);
-  if (c.valid) expect(parseUiWidget(c.canonical)).toEqual(parseUiWidget(c.json));
+const stage1 = fixture.widgets.filter((c) => c.stage === 1);
+it.each(stage1.filter((c) => c.valid).map((c) => [c.name, c] as const))('accepts the wire text: %s', (_n, c) => {
+  const chart = parseChartWidget(c.canonical);
+  expect(chart?.labels.every((label) => typeof label === 'string')).toBe(true);
+  expect(chart?.series.every((s) => s.data.every(Number.isFinite))).toBe(true);
+});
+it.each(stage1.filter((c) => !c.valid).map((c) => [c.name, c] as const))('rejects: %s', (_n, c) => {
+  expect(parseChartWidget(c.json)).toBeUndefined();
+});
+it.each(fixture.wire_invalid)('rejects what only the wire could carry: %s', (json) => {
+  expect(parseChartWidget(json)).toBeUndefined();
 });
 ```
 
 - [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement** by hand (no schema library): byte limit first, `JSON.parse` in a try, then one reader per shape that copies only known keys and returns undefined on any unknown key, wrong type, bound or cross-field rule. Numeric labels become strings. A date must match `^\d{4}-\d{2}-\d{2}$` and survive a UTC round trip. The secret pattern is the spec's, applied to the label and to the name with `_` read as a space.
+- [ ] **Step 3: Implement** by hand (no schema library): byte limit first, `JSON.parse` in a try, then one reader that copies only known keys and returns undefined on any unknown key, wrong type, bound or cross-field rule (one value per label, unique series names, the pie rules).
 - [ ] **Step 4: Run, typecheck, lint.** Expected: PASS for every fixture case.
-- [ ] **Step 5: Commit** (`feat(widgets): strict chart and form validator`).
+- [ ] **Step 5: Commit** (`feat(widgets): strict chart validator`).
 
-### Task 3: Slot, context, skeleton and the parser hook
+### Task 3: Scope, slot, parser hook, link previews
 
 **Files:**
-- Create: `src/app/messages/widgets/UiWidgetSlot.tsx`, `src/app/messages/widgets/UiWidgetSlot.css.ts`, `src/app/messages/widgets/UiWidgetSlot.test.tsx`, `src/app/messages/widgets/UiWidget.tsx` (the lazy chunk's root; a stub that renders the widget's title until Tasks 4 and 5)
-- Modify: `src/app/messages/html/react-custom-html-parser.tsx` (the `pre` case), `src/app/rich-text/code/codeBlockLanguage.ts` (`getCodeBlockLanguage` returns undefined for a `mindroom-ui-` class), `src/app/messages/content/renderAgentMessageContent.tsx` (`wrapAgentBody`)
-- Test: `src/app/messages/content/renderAgentMessageContent.widgets.test.tsx`, `src/app/messages/live/liveMarkdown.test.ts` (one case)
+- Create: `src/app/messages/widgets/UiWidgetSlot.tsx`, `src/app/messages/widgets/UiWidgetSlot.test.tsx`, `src/app/messages/widgets/UiWidget.tsx` (the lazy chunk's root; renders the chart's title until Task 4)
+- Modify: `src/app/messages/html/react-custom-html-parser.tsx` (the `pre` case), `src/app/rich-text/code/codeBlockLanguage.ts` (`getCodeBlockLanguage` returns undefined for a `mindroom-ui-` class), `src/app/messages/content/renderAgentMessageContent.tsx` (`wrapAgentBody`), `src/app/messages/content/MsgTypeRenderers.tsx` (the `getBodyUrls` input)
+- Test: `src/app/messages/content/renderAgentMessageContent.widgets.test.tsx`, `src/app/messages/content/MsgTypeRenderers.text.test.ts`, `src/app/messages/live/liveMarkdown.test.ts`, `src/app/messages/live/bindLiveReplyFrames.test.ts`
 
 **Interfaces:**
-- Consumes: `readUiWidgets`, `readUiMarkerId`, `UiPendingKind`, `parseUiWidget`.
+- Consumes: `readUiWidgets`, `readUiMarkerId`, `stripUiFallbackBlocks`, `parseChartWidget`.
 - Produces:
-  - `type UiWidgetsScope = { entries: ReadonlyMap<string, string>; eventId: string | undefined; roomId: string | undefined; threadId: string | undefined; agentUserId: string; finished: boolean; readOnly: boolean }`
-  - `UiWidgetsContext` (default `undefined`)
+  - `UiWidgetsScope({ mEvent, content, children })`: the provider. It provides entries (`ReadonlyMap<string, string>`) only when `mEvent` is not redacted, its sender is a MindRoom agent for `useMatrixClient().getUserId()`, and `readUiWidgets(content)` gives a value.
   - `UiWidgetSlot({ id, fallback }: { id: string; fallback: ReactNode })`
-  - `UiWidgetSkeleton({ kind }: { kind: UiPendingKind })`: 325 px high, `role="status"`, translated label
-  - `UiWidget` default export of `UiWidget.tsx` with props `{ id: string; json: string; scope: UiWidgetsScope; fallback: ReactNode }`; it renders `fallback` when `parseUiWidget` fails
+  - `UiWidget` default export of `UiWidget.tsx` with props `{ json: string; fallback: ReactNode }`; it renders `fallback` when `parseChartWidget` fails.
 
-- [ ] **Step 1: Write the failing tests** (jsdom), rendering the fixture's 5.4 content through `renderAgentMessageContent`:
-  - from a MindRoom agent: the widget's title shows and no `<pre>` holds the table;
-  - the same content with `fromMindroomAgent: false`: a code block with the table text, no widget;
-  - agent content whose `io.mindroom.ui` lacks the id: the code block, whose header shows no language label;
-  - an edited reply whose shown content has no key while `getOriginalContent()` has one: the code block;
+- [ ] **Step 1: Write the failing tests** (jsdom), rendering the fixture's 5.4 content through `renderAgentMessageContent` with a real `MatrixEvent` and a mocked client whose `getUserId()` is `@viewer:example.org`:
+  - sender `@mindroom_atlas:example.org`: the chart's title shows and no `<pre>` holds the table;
+  - sender `@alice:example.org`, and sender `@mindroom_atlas:other.org`, each also with `fromMindroomAgent: true` forced and with `trustAgentsOfViewer('@second:other.org')` registered: a code block with the table text, no widget;
+  - a client with no user id: the code block;
+  - a redacted original with the same content passed in: the code block is not replaced by a widget;
+  - agent content whose value lacks the marker's id: the code block, whose header shows no language label;
+  - the Stage 2 fixture case (a form entry): the code block with the form's fallback text;
   - an entry whose `json` is `{"type":"map"}`: the code block;
-  - a streaming reply with `pending: 'chart'`: one `role="status"` skeleton after the body; the same content with `io.mindroom.stream_status: 'completed'`: none;
-  - `renderLiveMarkdown` on the fixture's 5.4 `text` equals its `html`.
+  - through the real frame binder: a frame from another local agent for this reply, and a frame in the wrong room, add no widget; a frame from the reply's sender with `ui` draws it before any durable edit, and a later delta `ui: null` returns the code block;
+  - the sanitized parser and `renderLiveMarkdown` on the fixture's 5.4 `text` each yield one `code.language-mindroom-ui-df4d729a5d` whose text is the table;
+  - `MsgTypeRenderers`: with `renderUrlsPreview` given, a body whose chart labels are `example.com` and whose prose has `https://example.org/a` asks for previews of `https://example.org/a` only, and still so when the content has no `io.mindroom.ui`.
 - [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement.** `pre` case: `const id = readUiMarkerId(<the code child's class>)`; with an id, return `<UiWidgetSlot id={id} fallback={<CodeBlock .../>} />`, else the code block as today. The slot renders `fallback` without a scope or an entry, else `<Suspense fallback={<UiWidgetSkeleton .../>}>` around the lazy `UiWidget`. `wrapAgentBody` wraps its result in the provider when `fromMindroomAgent` and `readUiWidgets(bodyContent)` gives a value, with `finished` = the content's stream status is not `pending` or `streaming`, and appends the skeleton while `pending` is set and not `finished`. Memoize the scope on the entries' ids and JSON, so a streamed edit of another reply redraws nothing.
+- [ ] **Step 3: Implement.** `pre` case: `const id = readUiMarkerId(<the code child's class>)`; with an id, return `<UiWidgetSlot id={id} fallback={<CodeBlock .../>} />`, else the code block as today. The slot renders `fallback` without a scope or an entry, else `<Suspense fallback={fallback}>` around the lazy `UiWidget`. `wrapAgentBody` wraps its result in `UiWidgetsScope` whenever it has an `mEvent`. `MsgTypeRenderers` passes `stripUiFallbackBlocks(trimmedBody)` to `getBodyUrls`.
 - [ ] **Step 4: Run the tests plus `src/app/messages/html` and `src/app/messages/content`.** Expected: PASS, and `HtmlBlocks.parserOptionsIdentity.test.ts` still passes.
 - [ ] **Step 5: Commit** (`feat(widgets): draw a widget in place of its marker block`).
 
@@ -152,14 +166,14 @@ it.each(fixture.widgets.map((c) => [c.name, c] as const))('agrees with the backe
 **Files:**
 - Create: `src/app/messages/widgets/chartGeometry.ts`, `src/app/messages/widgets/chartGeometry.test.ts`
 - Create: `src/app/messages/widgets/UiChart.tsx`, `src/app/messages/widgets/UiChart.css.ts`, `src/app/messages/widgets/UiChart.test.tsx`
-- Modify: `src/app/messages/widgets/UiWidget.tsx`
+- Modify: `src/app/messages/widgets/UiWidget.tsx`, the 17 `src/app/i18n/locales/additions/*.json`
 
 **Interfaces:**
 - Consumes: `ChartWidget`.
 - Produces:
-  - `valueDomain(kind: ChartWidget['kind'], series: number[][]): [number, number]`
-  - `niceTicks(min: number, max: number, target?: number): number[]` (ascending, first <= min, last >= max; the step is the smallest of 1, 2, 5 or 10 times a power of ten that is at least `(max - min) / target`; `target` defaults to 4)
-  - `pieSlices(data: number[]): { start: number; end: number; share: number }[]` (radians from 0 to 2π)
+  - `valueDomain(kind: ChartWidget['kind'], series: number[][]): [number, number] | undefined` (undefined when the span is not finite or cannot be widened)
+  - `niceTicks(min: number, max: number, target?: number): number[]` (ascending, first <= min, last >= max, at most 12; the step is the smallest of 1, 2, 5 or 10 times a power of ten that is at least `(max - min) / target`; `target` defaults to 4; every tick is `start + i * step`, never a running sum)
+  - `pieSlices(data: number[]): { start: number; end: number; share: number }[] | undefined` (radians from 0 to 2π; undefined when the sum is not finite)
   - `labelStep(count: number, plotWidth: number, minGap?: number): number` (show every nth x label; `minGap` defaults to 48)
   - `UiChart({ chart }: { chart: ChartWidget })`
 
@@ -171,121 +185,64 @@ expect(valueDomain('line', [[120, 180.5]])).toEqual([120, 180.5]);
 expect(valueDomain('line', [[7, 7]])).toEqual([6, 8]);
 expect(valueDomain('bar', [[0, 0]])).toEqual([0, 1]);
 expect(valueDomain('area', [[-5, 10]])).toEqual([-5, 10]);
+expect(valueDomain('line', [[1e308, -1e308]])).toBeUndefined();
+expect(valueDomain('line', [[1e300, 1e300]])).toBeUndefined();
 expect(niceTicks(0, 180.5)).toEqual([0, 50, 100, 150, 200]);
 expect(niceTicks(-30, 70)).toEqual([-50, 0, 50, 100]);
 expect(niceTicks(0, 7)).toEqual([0, 2, 4, 6, 8]);
-expect(pieSlices([1, 0, 3]).map((s) => s.share)).toEqual([0.25, 0, 0.75]);
-expect(pieSlices([1, 0, 3])[2]!.end).toBeCloseTo(2 * Math.PI);
+expect(niceTicks(0, 5e-324).length).toBeLessThanOrEqual(12);
+expect(niceTicks(0, 1.5e300).every(Number.isFinite)).toBe(true);
+expect(pieSlices([1, 0, 3])!.map((s) => s.share)).toEqual([0.25, 0, 0.75]);
+expect(pieSlices([1, 0, 3])![2]!.end).toBeCloseTo(2 * Math.PI);
+expect(pieSlices([1e308, 1e308])).toBeUndefined();
 expect(labelStep(6, 600)).toBe(1);
 expect(labelStep(200, 300)).toBe(34);
 ```
 
-- [ ] **Step 2: Write the failing component tests** (jsdom, the 5.4 chart): the title and the `y` subtitle show; two toggle buttons with `aria-pressed`; Table shows a `<table>` with one `th[scope="row"]` per label and `180.5` formatted for the locale; back to Chart shows an `svg[dir="ltr"]`; the plot has `tabIndex=0`, and ArrowRight then moves the announced point from `Jan` to `Feb` in a `aria-live="polite"` region; End jumps to `Mar`; a pie shows a legend row per label with its percent; a 200-point line chart renders without throwing at width 390.
+- [ ] **Step 2: Write the failing component tests** (jsdom, the 5.4 chart): the title and the `y` subtitle show; two toggle buttons with `aria-pressed`; Table shows a `<table>` with one `th[scope="row"]` per label and `180.5` formatted for the locale; back to Chart shows an `svg[dir="ltr"]`; the plot has `tabIndex=0`, and ArrowRight then moves the announced point from `Jan` to `Feb` in an `aria-live="polite"` region; End jumps to `Mar`; a pie shows a legend row per label with its percent; a 200-point line chart renders at width 390; a chart of `[1e308, -1e308]` shows the table and no `svg`; a title of `<img src=x onerror=1>` and a label of `https://example.com` appear as text, with no `img`, `a` or `image` element in the card.
 - [ ] **Step 3: Run.** Expected: FAIL.
-- [ ] **Step 4: Implement.** Measure the card's width with the app's existing element-size hook; bars are grouped per label; line and area draw one path per series; the pie is a donut. Eight series colors as CSS variables in `UiChart.css.ts`, taken from theme tokens, used by the plot, the legend and the tooltip. The toggle shows icons only under 420 px. Variant B frame; the frame is one style so A or C is a change to it alone.
+- [ ] **Step 4: Implement.** Measure the card's width with `lib/hooks/useResizeObserver`; bars are grouped per label; line and area draw one path per series; the pie is a donut. Eight series colors as CSS variables in `UiChart.css.ts`, taken from theme tokens, used by the plot, the legend and the tooltip. The toggle shows icons only under 420 px. The frame is one style (variant B). Parse once per `json` with `useMemo`.
 - [ ] **Step 5: Run, typecheck, strict, lint.** Expected: PASS.
 - [ ] **Step 6: Commit** (`feat(widgets): chart card with table view`).
 
-### Task 5: Form, drafts and the answer message
+### Task 5: Docs, bundle budget, stub scenario, e2e
 
 **Files:**
-- Create: `src/app/messages/widgets/uiResponse.ts`, `src/app/messages/widgets/uiResponse.test.ts`
-- Create: `src/app/messages/widgets/uiFormDrafts.ts`, `src/app/messages/widgets/uiFormDrafts.test.ts`
-- Create: `src/app/messages/widgets/UiForm.tsx`, `src/app/messages/widgets/UiForm.css.ts`, `src/app/messages/widgets/UiForm.test.tsx`
-- Modify: `src/app/messages/widgets/UiWidget.tsx`
-
-**Interfaces:**
-- Consumes: `FormWidget`, `UiWidgetsScope`, `UI_RESPONSE_KEY`, `getMessageRelation` (`matrix/send/composeMessageRelation.ts`).
-- Produces:
-  - `type FormAnswers = Record<string, string | boolean | string[] | number>`
-  - `initialAnswers(form: FormWidget): FormAnswers` (box `false`, multiple choice `[]`, slider `value ?? min`, text `''`; a choice or date only when the widget gives a `value`)
-  - `answerValues(form: FormWidget, answers: FormAnswers): Record<string, string | boolean | string[] | number>` (the wire `values` of spec 5.6)
-  - `answerLines(form: FormWidget, values: Record<string, unknown>): [label: string, value: string][]` (skips a value that does not fit its field)
-  - `type UiResponseTarget = { eventId: string; widgetId: string; threadId?: string; agentUserId: string; agentName: string }`
-  - `buildUiResponseContent(target: UiResponseTarget, form: FormWidget, answers: FormAnswers): Record<string, unknown>`
-  - `readFormDraft(key: string): FormAnswers | undefined`, `writeFormDraft(key: string, answers: FormAnswers): void`, `clearFormDraft(key: string): void` (in memory, the 50 most recently written keys)
-  - `UiForm({ id, form, scope }: { id: string; form: FormWidget; scope: UiWidgetsScope })`
-
-- [ ] **Step 1: Write the failing tests.**
-
-```ts
-it('builds the spec answer event', () => {
-  const [c] = fixture.responses;
-  const form = parseUiWidget(c.form) as FormWidget;
-  const target = { eventId: c.event_id, widgetId: c.content[UI_RESPONSE_KEY].widget, threadId: c.thread_id, agentUserId: c.agent_user_id, agentName: c.agent_name };
-  expect(buildUiResponseContent(target, form, { ...initialAnswers(form), ...c.answers })).toEqual(c.content);
-});
-it('never writes a float', () => {
-  expect(answerValues(sliderForm, { amount: 2.5 })).toEqual({ amount: '2.5' });
-  expect(answerLines(sliderForm, { amount: '2.5' })).toEqual([['Amount', '2.5 USD']]);
-});
-```
-
-  Plus: an agent name with `<b>` is escaped in `formatted_body`; outside a thread the relation is `{'m.in_reply_to': {event_id}}`; no answers gives a body ending in `(no answers)`; a box gives `yes` or `no`, an empty multiple choice `none`; the draft store drops the oldest of 51 keys.
-  Component (jsdom): one labelled native control per field kind; the slider shows its value and unit; with `scope.finished` false there is no Submit button and the wait hint shows; `scope.readOnly` shows no Submit; Submit with a required radio unanswered sends nothing and focuses it; a valid Submit calls `mx.sendMessage(roomId, content, txnId)` once with the built content; typing, unmounting and mounting again restores the draft; a text input stops at 500 characters.
-- [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement.** The draft key is `roomId|eventId|id`. Submit is offered under the question card's rule (`!readOnly`, a room, `isConfirmedMatrixEventId(eventId)`, the viewer is not an agent) plus `scope.finished`. Send as `CanvasPanel`'s `deliver` does: `mx.sendMessage` with a fresh transaction id, the relation in the content, a thrown error shown as a retry hint. The agent's display name comes from `getMemberDisplayName(room, agentUserId)`. One column under 420 px.
-- [ ] **Step 4: Run, typecheck, strict, lint.** Expected: PASS.
-- [ ] **Step 5: Commit** (`feat(widgets): form card that answers with a thread message`).
-
-### Task 6: Answered state and the receipt
-
-**Files:**
-- Modify: `src/app/messages/widgets/uiResponse.ts`, `src/app/messages/widgets/uiResponse.test.ts`, `src/app/messages/widgets/UiForm.tsx`, `src/app/messages/widgets/UiForm.test.tsx`
-- Create: `src/app/messages/widgets/useUiResponses.ts`, `src/app/messages/widgets/UiFormReceipt.tsx`
-- Modify: `src/app/timeline/RoomTimeline.tsx` (beside `useInlineSecretRequestPlan` and its provider)
-
-**Interfaces:**
-- Produces:
-  - `type UiResponseRecord = { values: Record<string, unknown>; sending: boolean }`
-  - `uiResponseKey(eventId: string, widgetId: string): string`
-  - `planUiResponses(events: readonly MatrixEvent[], viewerId: string | undefined): ReadonlyMap<string, UiResponseRecord>`
-  - `sameUiResponsePlan(a, b): boolean`
-  - `UiResponsesContext` (default: an empty map), `useUiResponses({ room, events, viewerId }): ReadonlyMap<string, UiResponseRecord>`
-  - `UiFormReceipt({ form, values, sending }: { form: FormWidget; values: Record<string, unknown>; sending: boolean })`
-
-- [ ] **Step 1: Write the failing tests.** `planUiResponses`: the fixture answer from the viewer gives one record under `uiResponseKey('$form:example.org', '0fd993d70d')`; the same event from another member, a redacted one, one whose `m.in_reply_to` names another event, and one with another `widget` give none; of two answers the earlier `getTs()` wins; an event still sending (`event.status` set) gives `sending: true`. `UiForm` inside a context with a record renders a `<details>` receipt with the title and "Answered", closed, whose body lists `Pace` and `Relaxed`; without the record it is the form again. `sameUiResponsePlan` is true for equal maps.
-- [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement.** `useUiResponses` mirrors `useInlineSecretRequestPlan`: recompute when `events` changes and on decrypt, replace and redaction, and return the previous map when it draws the same. It runs for the room timeline and for threads. The receipt reuses the `Receipt*` styles of `approvals/ThreadApprovals.css.ts`; its status text sits outside the folded body. The plan reads each answer event's own content, not an edit of it.
-- [ ] **Step 4: Run with `src/app/timeline`, typecheck, strict, lint.** Expected: PASS.
-- [ ] **Step 5: Commit** (`feat(widgets): fold an answered form to a receipt`).
-
-### Task 7: Docs and the bundle budget
-
-**Files:**
-- Modify: `docs/architecture.md` ("MindRoom event formats": rows for `io.mindroom.ui` and `io.mindroom.ui_response`; the `messages/` folder list gains `widgets/`)
-
-- [ ] **Step 1: Add the two rows**, each one sentence on the shape and the trust rule, pointing at the backend's `docs/widgets.md`.
-- [ ] **Step 2: Run `just build` and `just bundle-report`.** Expected: inside the budget, with the chart and form in a chunk of their own that a first visit does not download. If initial CSS is over, move styles out of `UiWidgetSlot.css.ts` before touching the budget file.
-- [ ] **Step 3: Run `just check`.** Expected: PASS.
-- [ ] **Step 4: Commit** (`docs(widgets): event formats`).
-
-### Task 8: Stub scenarios, e2e and screenshots
-
-**Files:**
-- Modify: `scripts/agent-stack/stub_model.py` (`#chart`: a sentence, the 5.4 `ui` block, a sentence; `#form`: a sentence and the 5.6 form block; both in `TEXT_SCENARIOS` and the header list), `scripts/agent-stack/stack.py` (`ui_widgets: true` on the helper when the backend checkout's `src/mindroom/config/agent.py` knows the field)
+- Modify: `docs/architecture.md` ("MindRoom event formats": a row for `io.mindroom.ui`; the `messages/` folder list gains `widgets/`)
+- Modify: `scripts/agent-stack/stub_model.py` (`#chart`: a sentence, the 5.4 `ui` block, a sentence; in `TEXT_SCENARIOS` and the header list), `scripts/agent-stack/stack.py` (`ui_widgets: true` on the helper when the backend checkout's `src/mindroom/config/agent.py` knows the field)
 - Create: `e2e/messages/agent-ui-widgets.spec.ts`
 
-- [ ] **Step 1: Write the spec** with the agent-stack fixtures of `e2e/helpers/agentStack.ts`; it skips when the backend checkout has no `ui_widgets`.
-  - `#chart`: the finished reply shows a figure titled `Signups` between its two sentences and no code block; Table shows 3 rows; after a reload the figure is there again.
-  - `#form`: choosing `Relaxed` and pressing `Plan my trip` adds one message by the user whose text lists `Pace: Relaxed`, the card becomes a receipt reading "Answered", and after a reload it still is.
-  - `#chart` at 390 px wide: the card fits the row without horizontal scroll.
-- [ ] **Step 2: Run it on a slot** as the other `agent-*.spec.ts` specs run, with `E2E_MINDROOM_CHECKOUT` set to the backend worktree. Expected: PASS.
-- [ ] **Step 3: Take the pull request's screenshots** at the head commit: chart and form, desktop and 390 px, light and dark, plus the receipt.
-- [ ] **Step 4: Commit** (`test(widgets): agent chart and form e2e`).
+- [ ] **Step 1: Add the docs row**: one sentence on the shape, one on the trust rule (a `mindroom_` account on the viewer's homeserver, so the namespace must be reserved), pointing at the backend's `docs/widgets.md`.
+- [ ] **Step 2: Write the spec** with the agent-stack fixtures of `e2e/helpers/agentStack.ts`. One lifecycle: send `#chart`; the finished reply shows a figure titled `Signups` between its two sentences and no code block; Table shows 3 rows; after a reload the figure is there again; at 390 px wide the card fits the row without horizontal scroll. When the backend checkout has no `ui_widgets` the spec skips with a message naming the checkout; that run is not evidence.
+- [ ] **Step 3: Run it on a slot** as the other `agent-*.spec.ts` specs run, with `E2E_MINDROOM_CHECKOUT` set to the backend worktree. Expected: PASS, not skipped. Record the backend commit in the pull request.
+- [ ] **Step 4: Run `just build` and `just bundle-report`.** Expected: inside the budget, with the chart in a chunk of its own that a first visit does not download.
+- [ ] **Step 5: Run `just check`, then take the pull request's screenshots** at the head commit: bar, line and pie, the table view, desktop and 390 px, one light and one dark.
+- [ ] **Step 6: Commit** (`test(widgets): agent chart e2e; docs`).
 
-The fresh live test (spec section 10, L1 to L10) is the backend plan's Task 6 and needs this plan finished.
+The fresh live test (spec section 11, L1 to L12) is the backend plan's Task 8, a release gate for both pull requests.
 
-## Estimated size
+## Stage 1 estimated size
 
 | Part | Source | Tests, fixtures, translations, docs |
 |---|---|---|
-| Task 1 reader, trust, live field | 95 | 150 + fixture copies |
-| Task 2 validator | 210 | 30 |
-| Task 3 slot and hook | 150 | 170 |
-| Task 4 chart | 520 (190 styles) | 190 + translations 120 |
-| Task 5 form and answer | 470 (110 styles) | 260 + translations 100 |
-| Task 6 answered and receipt | 170 | 150 + translations 20 |
-| Task 7 docs | 0 | 10 |
-| Task 8 stub and e2e | 40 | 150 |
-| **Total** | **about 1,650** | **about 1,350** |
+| Task 1 reader, effective content, live field | 85 | 230 + fixture copies |
+| Task 2 chart validator | 95 | 35 |
+| Task 3 scope, slot, hook, previews | 120 | 240 |
+| Task 4 chart | 480 (170 styles) | 220 + translations 70 |
+| Task 5 docs, stub, e2e | 30 | 110 |
+| **Total** | **about 810** | **about 905** |
+
+## Stage 2 (form): later, its own pull request
+
+Not built now; written here so Stage 1 leaves room for it. No wire change; requirements are spec 5.6 and 7.4.
+
+- **Validator:** `parseFormWidget(json)` for the canonical wire text, with the negated secret filter, dates by arithmetic from year 0001 (not `Date`), and the Stage 2 fixture cases; `UiWidget.tsx` picks chart or form by `type`.
+- **Form card:** native controls, one column under 420 px, the app-owned line under Submit, a required multiple choice needing one box, the slider showing the value the control holds, text capped at 500 characters.
+- **Scope:** the provider gains what the form needs, derived on every render with no hand-written memo: room, original event id, `threadId ?? mEvent.threadRootId`, the event's sender, `readOnly`, and the reply's status (Submit only when absent or `completed`).
+- **Answer:** `buildUiResponseContent` per spec 5.6: every interpolation escaped with `rich-text/sanitize.ts` `sanitizeText`, the mention from the event's sender with a bounded name, non-safe-integer numbers as strings; measured as built, sent without `formatted_body` when over the limit, refused with the draft kept when still over. Pinned by the fixture's `responses` case plus boundary cases (500 double quotes in each of 12 answers).
+- **Send:** as `CanvasPanel`'s `deliver`: one transaction id, the conditions checked again at the click, a second click ignored, offered only when the timeline shown reaches its live end.
+- **Drafts:** in memory, keyed by account, room, event and widget id; cleared on sign-out and on a sent answer; kept on failure.
+- **Answered plan:** `planUiResponses(events, viewerId, roomId)` keyed by event and widget id: the current user's readable, unredacted `m.text` that replies to the form's event and whose own content names it; values revalidated against the form; echo states sending, failed or cancelled, acknowledged; recomputed on local echo updates, decryption, redaction and pagination, in room and thread views.
+- **Receipt:** a `<details>` row from the disclosure styles of `approvals/ThreadApprovals.css.ts`.
+- **Tests:** failed and cancelled echo, echo reconciliation, an answer for another widget, an answer outside the loaded window, redaction, an edited answer, account switch with the same form, read-only and finished transitions with identical JSON, previews and icons on with URLs in labels and answers, and a `#form` e2e with a second session.
+- **Estimate:** about 950 source (220 styles), about 900 tests, translations and e2e.
