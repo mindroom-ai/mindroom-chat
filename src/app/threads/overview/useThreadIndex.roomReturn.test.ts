@@ -219,6 +219,8 @@ describe('the Compact list back under its room page', () => {
     expect(back.firstBuild.get('$b')).toBe(before.get('$b'));
     expect(back.firstBuild.get('$c')).toBe(before.get('$c'));
     expect(back.firstBuild.get('$d')).toBe(before.get('$d'));
+    // Nothing changed between the build and its commit: the paint keeps them too.
+    expect(back.records().get('$b')).toBe(before.get('$b'));
     back.unmount();
   });
 
@@ -244,18 +246,16 @@ describe('the Compact list back under its room page', () => {
     const before = shown.records();
     shown.unmount();
 
-    // While away: the kept edits of C's root are dropped, and D's reply stops streaming by the
-    // clock, which comes as an update of its thread (streamingReplies.ts).
+    // While away: the kept edits of C's root are dropped, which while away stands for the whole
+    // room (the next test), and D's reply stops streaming by the clock, which comes as an update
+    // of its thread (streamingReplies.ts).
     state.forgotten.forEach((listener) => listener('$c'));
     room.emit(ThreadEvent.Update, { id: '$d' } as Thread);
     const builds: Records[] = [];
     const painted: { current?: Records } = {};
     const view = render(createElement(ListProbe, { keeper, builds, shown: painted }));
 
-    expect(builds[0]!.get('$c')).not.toBe(before.get('$c'));
-    expect(builds[0]!.get('$d')).not.toBe(before.get('$d'));
-    expect(builds[0]!.get('$a')).toBe(before.get('$a'));
-    expect(builds[0]!.get('$b')).toBe(before.get('$b'));
+    ['$a', '$b', '$c', '$d'].forEach((id) => expect(builds[0]!.get(id)).not.toBe(before.get(id)));
     // A quiet room rests: no check a second later builds the kept records again.
     const shownBuild = painted.current;
     const rendered = builds.length;
@@ -268,6 +268,28 @@ describe('the Compact list back under its room page', () => {
     expect(state.forgotten.size).toBe(1);
     disposeThreadRecordKeeper(keeper);
     expect(state.forgotten.size).toBe(0);
+  });
+
+  it('while gone, takes a dropped edit of any room as a change of its own, without a scan', () => {
+    const keeper = createThreadRecordKeeper(room);
+    const shown = shownList(keeper);
+    const before = shown.records();
+    shown.unmount();
+
+    // The store of kept edits is shared by every room: the message may be another room's, or the
+    // reply an unopened thread of this room names, which only a look through its threads finds.
+    const threads = vi.spyOn(room, 'getThreads');
+    const found = vi.spyOn(room, 'findEventById');
+    state.forgotten.forEach((listener) => listener('$summary-reply'));
+    expect(threads).not.toHaveBeenCalled();
+    expect(found).not.toHaveBeenCalled();
+
+    const back = mountList(keeper);
+    ['$a', '$b', '$c', '$d'].forEach((id) =>
+      expect(back.firstBuild.get(id)).not.toBe(before.get(id))
+    );
+    back.unmount();
+    disposeThreadRecordKeeper(keeper);
   });
 
   it('builds every record after a change of the whole room while the list was gone', () => {
@@ -431,11 +453,54 @@ describe('the lifetime of what the room page keeps', () => {
       )
     );
 
-    // The first build kept B from before; the paint shows B's new text, the others kept.
+    // The first build kept B from before; the paint shows B's new text, every record built again.
     expect(builds[0]!.get('$b')).toBe(before.get('$b'));
     expect(painted.current?.get('$b')?.presentation.rootPreviewText).toBe('New B');
-    expect(painted.current?.get('$a')).toBe(before.get('$a'));
-    expect(painted.current?.get('$c')).toBe(before.get('$c'));
+    view.unmount();
+    disposeThreadRecordKeeper(keeper);
+  });
+
+  it('shows before paint a reply changed in place during the hand-off, in a thread it kept no record of', async () => {
+    const keeper = createThreadRecordKeeper(room);
+    const shown = shownList(keeper);
+    shown.unmount();
+
+    // A thread listed since, whose reply the room already holds.
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    const rootE = root('$e', 'E');
+    room.getUnfilteredTimelineSet().addLiveEvent(rootE, { addToState: false });
+    const thread = room.createThread('$e', rootE, [], false);
+    const reply = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: room.roomId,
+      event_id: '$e-reply',
+      sender: '@alice:server',
+      origin_server_ts: 3000,
+      content: {
+        msgtype: 'm.text',
+        body: 'Old reply',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$e' },
+      },
+    });
+    thread.addEvents([reply], false);
+    await vi.runAllTimersAsync();
+    state.pinnedEvents = [...roots, rootE];
+
+    const builds: Records[] = [];
+    const painted: { current?: Records } = {};
+    // In the same commit, before the list listens again: the reply is edited in place.
+    const editReply = () => editRoot(reply, 'New reply');
+    const view = render(
+      createElement(
+        Fragment,
+        null,
+        createElement(BeforeListCommits, { run: editReply }),
+        createElement(ListProbe, { keeper, builds, shown: painted })
+      )
+    );
+
+    expect(builds[0]!.get('$e')?.presentation.latestReplyPreviewText).toBe('Old reply');
+    expect(painted.current?.get('$e')?.presentation.latestReplyPreviewText).toBe('New reply');
     view.unmount();
     disposeThreadRecordKeeper(keeper);
   });

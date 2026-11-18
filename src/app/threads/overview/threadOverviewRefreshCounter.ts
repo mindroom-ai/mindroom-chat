@@ -165,8 +165,13 @@ const listenForThreadRecordChanges = (
     mark(timelineSet.thread?.id);
   // The kept edits a record read of a message are gone: no event tells of it. The message is in
   // a timeline, or the reply an unopened thread's summary names, or else perhaps a root no
-  // timeline holds (a pinned one), whose record goes by its own ID.
+  // timeline holds (a pinned one), whose record goes by its own ID. The store is every room's:
+  // while no list shows, a message it drops is a change of the whole room, found without a look.
   const stopForgotten = onSyncedEditForgotten((messageId) => {
+    if (!target.count) {
+      markOnly();
+      return;
+    }
     const held =
       room.findEventById(messageId) ??
       room
@@ -308,7 +313,8 @@ export const useThreadOverviewRefreshCounter = (
     if (threadId) return undefined;
 
     // A mark between the build and this commit (a render React let wait, a list that comes back
-    // before it listens) counts now, before paint, as any change does.
+    // before it listens) may be of a record the build kept or made, which the marks of a list
+    // that is gone do not tell apart: every record is built again before paint.
     const missed = overviewChanges.count !== renderedAt;
     const bump = () => setCounter((count) => count + 1);
     let stop: () => void;
@@ -320,7 +326,10 @@ export const useThreadOverviewRefreshCounter = (
       markThreadRecordChange(overviewChanges);
       stop = listenForThreadRecordChanges(room, overviewChanges, { count: bump, maps: undefined });
     }
-    if (missed) bump();
+    if (missed) {
+      markThreadRecordChange(overviewChanges);
+      bump();
+    }
     return stop;
     // Only the commit that starts the listeners reads `renderedAt`: later ones count as they hear.
     // eslint-disable-next-line react-hooks/exhaustive-deps
