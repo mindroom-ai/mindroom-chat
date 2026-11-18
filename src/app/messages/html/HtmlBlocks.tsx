@@ -1,6 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useContext, useMemo, useState } from 'react';
-import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
+import {
+  Element,
+  HTMLReactParserOptions,
+  Text as DOMText,
+  domToReact,
+  htmlToDOM,
+} from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
@@ -871,6 +877,52 @@ const createToolTraceMarkerParserOptions = (
     },
   };
   return nextOpts;
+};
+
+/** The indexes of the calls the React nodes draw as tool blocks, in the order they draw them. */
+const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
+  if (Array.isArray(node)) node.forEach((child) => collectToolRunIndexes(child, into));
+  if (!React.isValidElement<{ children?: ReactNode; tools?: ToolBlockRenderData[] }>(node)) return;
+  if (node.type === ToolRun) node.props.tools?.forEach(({ index }) => into.push(index));
+  else collectToolRunIndexes(node.props.children, into);
+};
+
+export type RenderedToolCalls = {
+  /** The HTML's top-level nodes, as the renderer parses it. */
+  nodes: ChildNode[];
+  /** The calls drawn as tool blocks, by index, in the order they are drawn. */
+  indexes: number[];
+  /**
+   * The last top-level node that draws a call, or that a run drawn before it takes in and so draws
+   * nothing itself; -1 without a call.
+   */
+  lastNode: number;
+};
+
+/**
+ * The tool calls the renderer draws for this sanitized HTML, read from its own parse with the
+ * message's base parser options, so the reasoning, the compaction seams and the fold of a reply's
+ * work go where its calls show. Where runs split changes which calls a run holds, not which draw.
+ */
+export const readRenderedToolCalls = (
+  html: string,
+  baseOpts: HTMLReactParserOptions
+): RenderedToolCalls => {
+  const nodes = htmlToDOM(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
+  const opts = createToolTraceMarkerParserOptions(baseOpts, undefined, undefined, new Set());
+  const indexes: number[] = [];
+  let lastNode = -1;
+  let inRun = false;
+  nodes.forEach((node, nodeIndex) => {
+    const count = indexes.length;
+    const drawn = domToReact([node], opts);
+    collectToolRunIndexes(drawn, indexes);
+    if (indexes.length > count || (inRun && isDomElementNode(node) && drawn === null)) {
+      lastNode = nodeIndex;
+      inRun = true;
+    } else if (isDomElementNode(node)) inRun = false;
+  });
+  return { nodes, indexes, lastNode };
 };
 
 /**

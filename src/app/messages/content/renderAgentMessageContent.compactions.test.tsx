@@ -468,6 +468,29 @@ describe('compaction seams in a reply', () => {
     }
   );
 
+  it('moves a seam to the top when an edit turns its call into text of the same marker count', () => {
+    render(reply(paragraphs(markerLine('t1', 1), 'Answer'), [entry('c1', 1)]));
+    expect(sequence()).toEqual(['tools:t1', 'seam', 'Answer']);
+
+    // The edit shows the marker in a code block: as many 🔧 as before, no call drawn.
+    render(
+      reply(paragraphs('```', markerLine('t1', 1), '```', 'Answer'), [entry('c1', 1)], {
+        format: 'org.matrix.custom.html',
+        formatted_body: '<pre><code>🔧 `t1` [1]\n</code></pre><p>Answer</p>',
+      })
+    );
+    expect(sequence()).toEqual(['seam', 'Answer']);
+  });
+
+  it('places a compaction after a call whose name holds another index', () => {
+    const { body, formatted_body: html } = backendBodies['tool name containing another index'];
+    render(
+      reply(body, [entry('c1', 1)], { format: 'org.matrix.custom.html', formatted_body: html })
+    );
+
+    expect(sequence().slice(0, 2)).toEqual(['tools:t1', 'seam']);
+  });
+
   it('shows a compaction at the top when its tool call renders as text', () => {
     render(reply(backendBodies['tool call as a list item'].body, [entry('c1', 1)]));
 

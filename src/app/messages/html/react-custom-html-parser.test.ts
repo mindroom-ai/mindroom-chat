@@ -21,7 +21,7 @@ import {
   renderTextWithLatex,
 } from './react-custom-html-parser';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
-import { useToolTraceMarkerParserOptions } from './HtmlBlocks';
+import { readRenderedToolCalls, useToolTraceMarkerParserOptions } from './HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../rich-text/htmlReactParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
@@ -2010,13 +2010,13 @@ describe('copy stripping matches the app renderer', () => {
   });
 });
 
-// Reasoning and compaction seams go after the calls `getRenderedToolRefs(html, true)` reads, so it
-// must read exactly the markers the renderer draws as tool blocks, in the order it draws them.
+// Reasoning and compaction seams go after the calls `readRenderedToolCalls` reads, so it must
+// read exactly the markers the renderer draws as tool blocks, in the order it draws them.
 describe('placement markers match the app renderer', () => {
+  const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+    linkifyOpts: LINKIFY_OPTS,
+  });
   const renderedOrder = async (html: string): Promise<number[]> => {
-    const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
-      linkifyOpts: LINKIFY_OPTS,
-    });
     const opts = markerParserOptions(baseOpts, { body: '', formatted_body: html });
     let renderer!: ReactTestRenderer;
     await act(async () => {
@@ -2030,13 +2030,12 @@ describe('placement markers match the app renderer', () => {
     renderer.unmount();
     return order;
   };
-  const placed = (html: string) =>
-    getRenderedToolRefs(html, true).toolBlocks.map(({ index }) => index);
+  const placed = (html: string) => readRenderedToolCalls(html, baseOpts).indexes;
 
   it.each<readonly [string, string]>([
-    ...Object.entries(backendToolMarkerBodies)
-      .filter(([name]) => name !== 'tool name containing another index')
-      .map(([name, { formatted_body: html }]) => [name, html] as const),
+    ...Object.entries(backendToolMarkerBodies).map(
+      ([name, { formatted_body: html }]) => [name, html] as const
+    ),
     [
       'a direct call, then a call in a paragraph, in one div',
       '<div>🔧 <code>t1</code> [1]<p>🔧 <code>t2</code> [2]</p></div><p>Done</p>',
@@ -2052,6 +2051,14 @@ describe('placement markers match the app renderer', () => {
     [
       'a call in details after a call in its div',
       '<div>🔧 <code>t1</code> [1]<details><p>🔧 <code>t2</code> [2]</p></details></div>',
+    ],
+    [
+      'a call in a list after a call',
+      '<p>🔧 <code>t1</code> [1]</p><ul><li>🔧 <code>t2</code> [2]</li></ul>',
+    ],
+    [
+      'a marker in display math',
+      '<p>🔧 <code>t1</code> [1]</p><div data-mx-maths="🔧 x [2]"></div>',
     ],
   ])('%s', async (_name, rawHtml) => {
     const html = sanitizeCustomHtml(rawHtml);

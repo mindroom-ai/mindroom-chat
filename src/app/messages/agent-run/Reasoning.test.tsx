@@ -834,7 +834,7 @@ describe('MindroomReasoning', () => {
         expect(segmentTexts(root)).toEqual(['ThinkingPlan the search.The cache is stale.']);
       });
 
-      it('reads the tool markers of an open reply again only when a call comes', async () => {
+      it('reads the tool calls of an open reply again for each change of its HTML', async () => {
         const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
         await act(() => header(root).props.onClick());
         // The body sanitized without the link schemes, as the placement reads its markers.
@@ -851,7 +851,8 @@ describe('MindroomReasoning', () => {
           renderer?.update(element(goneOn(twoThoughts, '\n\nStale. Yes.', '<p>Stale. Yes.</p>')))
         );
 
-        expect(markerReads()).toBe(reads);
+        // A text edit can turn a drawn call into text with as many 🔧 as before.
+        expect(markerReads()).toBe(reads + 2);
 
         act(() =>
           renderer?.update(
@@ -865,7 +866,7 @@ describe('MindroomReasoning', () => {
           )
         );
 
-        expect(markerReads()).toBe(reads + 1);
+        expect(markerReads()).toBe(reads + 3);
         // The thought after the first call still sits between the two runs.
         const order = ['read_file', 'The cache is stale.', 'Stale. Yes.', 'grep'].map((part) =>
           text(root).indexOf(part)

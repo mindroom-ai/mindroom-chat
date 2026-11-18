@@ -35,9 +35,12 @@ import {
 } from './reasoningSegments';
 import { ReasoningSegmentsContext, ToolCallsCogContext } from './toolCallStatus';
 import { CogRipple } from './ToolCallsFold.css';
-import { countToolRefIcons, getRenderedToolRefs } from './toolRefDom';
+import { MINDROOM_TOOL_REF_ICON } from '../html/blocks';
+import { readRenderedToolCalls } from '../html/HtmlBlocks';
 import * as css from './Reasoning.css';
 import { CompactionSeamsAt, ReasoningSegmentsAt, thoughtSeconds } from './ReasoningAnchors';
+
+const NO_MARKERS: readonly number[] = [];
 
 /** Final reasoning the runtime stores on a finished reply. */
 const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
@@ -244,31 +247,20 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
     [recordedCompactions]
   );
   const replyEnded = hasTerminalStreamMetadata(content);
-  // The tool markers that render as runs of calls, as the body shows them. They place the segments
-  // an open bulb shows after calls and the compactions after calls, and end the segment the model
-  // writes. The body is read for them only then, and again only when its count of marker icons
-  // changes, as a new call's does: not for each frame of answer text.
-  const icons =
-    html !== undefined &&
-    ((open && segments.some(({ afterTool }) => afterTool > 0)) ||
-      compactions.some(({ afterTool }) => afterTool > 0) ||
-      (grew.seen && last))
-      ? countToolRefIcons(html)
-      : 0;
-  const [rendered, setRendered] = useState<{ icons: number; markers: readonly number[] }>({
-    icons: 0,
-    markers: [],
-  });
-  if (rendered.icons !== icons) {
-    setRendered({
-      icons,
-      markers:
-        icons > 0 && html !== undefined
-          ? getRenderedToolRefs(sanitizeCustomHtml(html), true).toolBlocks.map(({ index }) => index)
-          : [],
-    });
-  }
-  const { markers } = rendered;
+  // The calls the body draws as tool blocks, read from the renderer's own parse of the HTML it
+  // renders. They place the segments an open bulb shows after calls and the compactions after
+  // calls, and end the segment the model writes; the body is read for them only then.
+  const readsCalls =
+    (open && segments.some(({ afterTool }) => afterTool > 0)) ||
+    compactions.some(({ afterTool }) => afterTool > 0) ||
+    (grew.seen && !!last);
+  const markers = useMemo(
+    () =>
+      readsCalls && html?.includes(MINDROOM_TOOL_REF_ICON)
+        ? readRenderedToolCalls(sanitizeCustomHtml(html), htmlReactParserOptions).indexes
+        : NO_MARKERS,
+    [readsCalls, html, htmlReactParserOptions]
+  );
   // The model is writing its last segment from when the live reasoning comes or grows on screen
   // until the reply moves past it. A tool call that began after the segment did ends it, also when
   // its marker came in the frame of the segment's last piece, and so does a segment that has begun
