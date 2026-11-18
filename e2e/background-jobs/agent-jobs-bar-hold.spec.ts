@@ -21,7 +21,9 @@ import { expectRoomCompact } from '../helpers/roomViewSwitch';
 
 // An agent that thinks longer than the jobs bar's 2 s hold between two tool calls of one reply: the
 // bar stays through the pause, showing the call that ended as finished, and goes 2 s after the reply
-// ends. The stub's `#pause` scenario makes two shell calls with 3.5 s of thinking between them.
+// ends. The stub's `#pause` scenario makes two shell calls of 7 s each with 3.5 s of thinking
+// between them: the backend lists a call its reply waits for as a job once it has run 5 s, so the
+// bar shows each call for its last seconds, and the second one 8.5 s after the first ended.
 // In a thread, in the main timeline of a room whose agents answer there (`!thread_mode room`), and
 // in a thread where another agent's reply streams on after the helper's: the bar follows the
 // helper's own reply, not that one.

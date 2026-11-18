@@ -34,7 +34,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const setup = () => {
+const setup = ({ typingBeforeBind = [] as string[] } = {}) => {
   const mx = new MatrixClient({
     baseUrl: 'https://example.org',
     userId: '@me:example.org',
@@ -60,6 +60,9 @@ const setup = () => {
   [AGENT, PERSON].forEach((userId) =>
     mx.reEmitter.reEmit(room.getMember(userId)!, [RoomMemberEvent.Typing])
   );
+  const typingEvent = (userIds: string[]) =>
+    new MatrixEvent({ type: 'm.typing', content: { user_ids: userIds } });
+  if (typingBeforeBind.length > 0) room.addEphemeralEvents([typingEvent(typingBeforeBind)]);
   const store = createStore();
   const Binder = () => {
     useBindRoomIdToTypingMembersAtom(mx, roomIdToTypingMembersAtom);
@@ -74,11 +77,7 @@ const setup = () => {
   });
   // The server's m.typing lists everyone typing in the room.
   const serverTyping = (userIds: string[]) =>
-    act(() =>
-      room.addEphemeralEvents([
-        new MatrixEvent({ type: 'm.typing', content: { user_ids: userIds } }),
-      ])
-    );
+    act(() => room.addEphemeralEvents([typingEvent(userIds)]));
   const shown = () =>
     store
       .get(roomIdToTypingMembersAtom)
@@ -86,6 +85,15 @@ const setup = () => {
       ?.map((r) => r.userId) ?? [];
   return { mx, room, serverTyping, shown };
 };
+
+it('shows a member whose notice arrived before the pages started listening', () => {
+  // The first sync after a start can end before the account's pages mount.
+  const { serverTyping, shown } = setup({ typingBeforeBind: [AGENT] });
+  expect(shown()).toEqual([AGENT]);
+
+  serverTyping([]);
+  expect(shown()).toEqual([]);
+});
 
 it('shows a member until the server stops listing them as typing', async () => {
   const { serverTyping, shown } = setup();
