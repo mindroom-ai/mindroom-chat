@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { globalStyle, style } from '@vanilla-extract/css';
+import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { config } from 'folds';
 import { Viewport } from '../InsetScrollbar.css';
 import { glassFlat, glassFloating, glassSurface } from './Glass.css';
@@ -31,37 +31,57 @@ export const Header = style([
 // The thread banner already offers the way back, so on short screens it is the
 // only bar; the room header returns once the thread closes.
 export const HeaderInThread = style({ '@media': { [shortViewport]: { display: 'none' } } });
-// Read receipts give way to messages on short screens, where the footer keeps a small gap
-// below the composer. The footer ends above the home indicator: its safe area stays outside
-// the composer's box. It shares the z-index of the dock of jobs and approvals above it and
-// comes after it, so what rises from the composer, such as its suggestions, covers the dock.
+// The gap the footer keeps below the composer: 12 px, 8 px on a phone and on a short screen.
+const footerGap = createVar();
+// Of the bottom safe area of an iPhone or iPad, what the composer keeps below it: the home
+// indicator's 13 px and a pixel.
+const homeIndicatorClearance = '14px';
+// The footer ends above the bottom safe area, which holds system buttons on Android. Over an
+// iPhone's or iPad's home indicator, the composer reaches into it instead, down to 14 px above the
+// screen's edge, so it sits low without meeting the indicator. It shares the z-index of the
+// dock of jobs and approvals above it and comes after it, so what rises from the composer, such
+// as its suggestions, covers the dock. The conversation scrolls on beneath it and its gap: only
+// its children take clicks.
 export const Footer = style({
+  vars: { [footerGap]: config.space.S300 },
   position: 'absolute',
   inset: 'auto 0 0',
   zIndex: 5,
   pointerEvents: 'none',
-  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-  '@media': {
-    [shortViewport]: {
-      paddingBottom: `max(${config.space.S200}, env(safe-area-inset-bottom, 0px))`,
+  paddingBottom: `max(${footerGap}, env(safe-area-inset-bottom, 0px))`,
+  // Only iOS WebKit has the property.
+  '@supports': {
+    '(-webkit-touch-callout: none)': {
+      paddingBottom: `max(${footerGap}, min(env(safe-area-inset-bottom, 0px), ${homeIndicatorClearance}))`,
     },
   },
+  '@media': { [shortViewport]: { vars: { [footerGap]: config.space.S200 } } },
 });
+export const FooterOnPhone = style({ vars: { [footerGap]: config.space.S200 } });
 globalStyle(`${Footer} > *`, { pointerEvents: 'auto' });
-// In the dock, the typing strip and the background jobs bar share a line when the conversation
-// is wide enough: the strip first, as wide as its text, the bar taking the rest. Too narrow for
-// both, the bar wraps above the strip, and each spans the line. Only the two take clicks, so the timeline beside the strip
-// stays usable.
+// The dock's row: the typing strip and the background jobs bar (`DockBars`) and, at its end,
+// who has read the latest message. Only the strip, the bar and the names take clicks, so the
+// timeline beside them stays usable.
 export const DockRow = style({
   display: 'flex',
-  flexWrap: 'wrap-reverse',
   alignItems: 'end',
   columnGap: config.space.S300,
   paddingInline: config.space.S400,
   pointerEvents: 'none',
 });
-globalStyle(`${DockRow} > *`, { pointerEvents: 'auto' });
-export const Following = style({ '@media': { [shortViewport]: { display: 'none' } } });
+// The typing strip and the background jobs bar share a line when the conversation is wide
+// enough: the strip first, as wide as its text, the bar taking the rest. Too narrow for both,
+// the bar wraps above the strip, and each spans the line.
+export const DockBars = style({
+  display: 'flex',
+  flex: '1 1 auto',
+  flexWrap: 'wrap-reverse',
+  alignItems: 'end',
+  columnGap: config.space.S300,
+  minWidth: 0,
+  pointerEvents: 'none',
+});
+globalStyle(`${DockBars} > *`, { pointerEvents: 'auto' });
 export const Overview = style({
   position: 'absolute',
   insetInline: 0,

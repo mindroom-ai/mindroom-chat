@@ -148,20 +148,15 @@ const FOLLOWING_KEYS = [
   'featureUi.room.following.many',
 ] as const;
 
-/** The empty row under the composer: it reserves the space the followers line uses. */
-export function RoomViewFollowingPlaceholder() {
-  return <div className={css.FollowingStrip} data-room-following="true" />;
-}
-
 type RoomViewFollowingProps = {
   room: Room;
   threadId?: string;
 };
 
 /**
- * The row under the composer. When other members have read the latest message, it names them,
- * and pressing the names lists everyone who has seen it. It stays empty while the user shares
- * no read receipts of their own.
+ * Who else has read the latest message, at the end of the dock's row above the composer:
+ * pressing the names lists everyone who has seen it. It shows nothing while no one has, or
+ * while the user shares no read receipts of their own.
  */
 export function RoomViewFollowing({ room, threadId }: RoomViewFollowingProps) {
   const mx = useMatrixClient();
@@ -169,15 +164,13 @@ export function RoomViewFollowing({ room, threadId }: RoomViewFollowingProps) {
   const following = useFollowers(room, threadId, mx.getUserId());
   const [readersOf, setReadersOf] = useState<string>();
 
-  if (hideActivity || !following || following.userIds.length === 0) {
-    return <RoomViewFollowingPlaceholder />;
-  }
+  if (hideActivity || !following || following.userIds.length === 0) return null;
   const names = following.userIds.map(
     (userId) => getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId
   );
 
   return (
-    <div className={css.FollowingStrip} data-room-following="true">
+    <div className={css.Following} data-room-following="true">
       <button
         type="button"
         className={css.FollowingButton}

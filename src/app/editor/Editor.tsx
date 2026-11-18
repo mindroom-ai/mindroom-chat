@@ -213,6 +213,8 @@ function RenderPlaceholder({ attributes, children }: RenderPlaceholderProps) {
   );
 }
 
+export type EditorLayout = 'row' | 'stacked';
+
 /** What the editor frames: `top` and `bottom` rows around the text row, `before` and `after` controls beside the text box. */
 type EditorSlots = Partial<Record<'top' | 'bottom' | 'before' | 'after', ReactNode>>;
 
@@ -227,6 +229,12 @@ type CustomEditorProps = EditorSlots & {
   placeholder?: string;
   /** Tallest the text box grows before it scrolls; `50vh` by default. */
   maxHeight?: string;
+  /**
+   * The composer's frame, which can change without remounting the text box: `row` puts the
+   * controls beside the text, `stacked` under it (text at least two lines tall). Without it,
+   * the controls sit beside the text in a plain row.
+   */
+  layout?: EditorLayout;
   className?: string;
   style?: CSSProperties;
   readOnly?: boolean;
@@ -266,10 +274,15 @@ const takenByShortcut = (event: KeyboardEvent): boolean =>
   }) !== undefined;
 
 /** A row of controls beside the text box; renders nothing without controls. */
-function EditorControls({ children }: { children?: ReactNode }) {
+function EditorControls({ children, className }: { children?: ReactNode; className?: string }) {
   if (!children) return null;
   return (
-    <Box shrink="No" gap="100" alignItems="Center" className={css.EditorOptions}>
+    <Box
+      shrink="No"
+      gap="100"
+      alignItems="Center"
+      className={classNames(css.EditorOptions, className)}
+    >
       {children}
     </Box>
   );
@@ -278,7 +291,7 @@ function EditorControls({ children }: { children?: ReactNode }) {
 /** The composer text box: Slate editing between optional leading and trailing controls. */
 export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>((props, ref) => {
   const { editor, onChange, top, bottom, before, after, className, style } = props;
-  const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh' } = props;
+  const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh', layout } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
   const { styleMarkdown, linkSchemes, markdownCommands } = props;
   const decorate = useMemo(
@@ -330,30 +343,48 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       onKeyUp={onKeyUp}
       onKeyDown={handleKeyDown}
       onDOMBeforeInput={handleBeforeInput}
+      style={layout ? css.textMinHeightStyle : undefined}
     />
+  );
+  // The thumb shows whenever the text overflows, not only under a pointer: on a touch screen, or
+  // with the pointer elsewhere, it is the only sign of the lines out of view.
+  const scroll = (scrollClassName?: string) => (
+    <Scroll
+      hideTrack
+      visibility="Always"
+      size="300"
+      variant="SurfaceVariant"
+      style={{ maxHeight }}
+      className={classNames(css.EditorTextareaScroll, scrollClassName)}
+    >
+      {textBox}
+    </Scroll>
   );
 
   return (
     <div ref={ref} style={style} className={classNames(css.Editor, className)}>
       <Slate initialValue={initialValue} editor={editor} onChange={onChange}>
         {top}
-        <Box alignItems="Start">
-          <EditorControls>{before}</EditorControls>
-          {/* The thumb shows whenever the text overflows, not only under a pointer: on a touch
-              screen, or with the pointer elsewhere, it is the only sign of the lines out of view. */}
-          <Scroll
-            hideTrack
-            visibility="Always"
-            size="300"
-            variant="SurfaceVariant"
-            style={{ maxHeight }}
-            className={css.EditorTextareaScroll}
+        {layout ? (
+          <div
+            className={classNames(css.EditorGrid, layout === 'stacked' && css.EditorGridStacked)}
+            data-editor-layout={layout}
           >
-            {textBox}
-          </Scroll>
-          <EditorControls>{after}</EditorControls>
-        </Box>
-        {bottom}
+            {scroll(css.EditorSlotText)}
+            {bottom && <div className={css.EditorSlotBottom}>{bottom}</div>}
+            <EditorControls className={css.EditorSlotBefore}>{before}</EditorControls>
+            <EditorControls className={css.EditorSlotAfter}>{after}</EditorControls>
+          </div>
+        ) : (
+          <>
+            <Box alignItems="Start">
+              <EditorControls>{before}</EditorControls>
+              {scroll()}
+              <EditorControls>{after}</EditorControls>
+            </Box>
+            {bottom}
+          </>
+        )}
       </Slate>
     </div>
   );
