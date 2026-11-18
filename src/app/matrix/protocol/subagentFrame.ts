@@ -17,6 +17,15 @@ const SUBAGENT_STATUSES = [
 
 export type SubagentStatus = (typeof SUBAGENT_STATUSES)[number];
 
+/** What a run has used so far: its own model requests and tool calls, not its sub-agents'. */
+export type SubagentUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  toolCalls: number;
+  /** Left out when the deployment has no price for the run's model. */
+  costUsd?: number;
+};
+
 export type SubagentMeta = {
   agent: string;
   /**
@@ -37,6 +46,8 @@ export type SubagentMeta = {
    * `io.mindroom.ai_run` names it. MindRoom before the field sends none.
    */
   model?: AiRunModelInfo;
+  /** MindRoom before the field sends none. */
+  usage?: SubagentUsage;
   /** Only on snapshots. */
   task?: string;
   /** Only on snapshots of an ended run. */
@@ -61,10 +72,23 @@ const isNullableString = (value: unknown): value is string | null =>
 const isStatus = (value: unknown): value is SubagentStatus =>
   typeof value === 'string' && (SUBAGENT_STATUSES as readonly string[]).includes(value);
 
+const isCount = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+/** The run's usage, or none when it lacks a count; a malformed cost is left out alone. */
+const parseUsage = (value: unknown): SubagentUsage | undefined => {
+  if (!isRecord(value)) return undefined;
+  const { input_tokens: inputTokens, output_tokens: outputTokens, tool_calls: toolCalls } = value;
+  if (!isCount(inputTokens) || !isCount(outputTokens) || !isCount(toolCalls)) return undefined;
+  const { cost_usd: costUsd } = value;
+  return { inputTokens, outputTokens, toolCalls, ...(isCount(costUsd) ? { costUsd } : {}) };
+};
+
 const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
   if (!isRecord(value)) return null;
   const { agent, caller, root, parent, thread_id: threadId, source, status } = value;
   const { subagent = run, started_at: startedAt, ended_at: endedAt, model, task, result } = value;
+  const usage = parseUsage(value.usage);
   if (typeof agent !== 'string' || typeof caller !== 'string' || typeof root !== 'string') {
     return null;
   }
@@ -91,6 +115,7 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
     startedAt,
     endedAt,
     ...(modelInfo ? { model: modelInfo } : {}),
+    ...(usage ? { usage } : {}),
     ...(task === undefined ? {} : { task }),
     ...(typeof result === 'string' ? { result } : {}),
   };
