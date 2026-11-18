@@ -18,7 +18,6 @@ import {
   requestIOSPushPermission,
   resolveIOSPushConfig,
   setIOSPushEnabled,
-  unregisterIOSPush,
 } from './iosPush';
 import { useIOSPushEnabled } from './useIOSPushEnabled';
 
@@ -76,8 +75,8 @@ function IOSPushNotificationTile() {
           return;
         }
         setIOSPushEnabled(false, sessionId);
+        // Only this account's pusher goes: the device stays registered with APNs for the others.
         if (pushConfig) await disableIOSPushPusher(matrixClient, pushConfig, sessionId);
-        await unregisterIOSPush();
       },
       [matrixClient, pushConfig, sessionId]
     )

@@ -300,10 +300,6 @@ export const registerIOSPush = async (): Promise<void> => {
   await PushNotifications.register();
 };
 
-export const unregisterIOSPush = async (): Promise<void> => {
-  await PushNotifications.unregister();
-};
-
 export const getIOSPushEnabled = (sessionId?: string): boolean => {
   const storageKey = resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId);
   const scopedValue = getStoredIOSPushEnabled(storageKey);

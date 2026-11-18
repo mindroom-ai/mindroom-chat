@@ -43,7 +43,9 @@ export function NativeIOSPushFeature() {
   const homeserverUrl = mx.getHomeserverUrl();
   const signInRequired = useCloudflareAccessSignInRequired(homeserverUrl);
   const pushAllowed = cloudflareAccessAllowsPush(homeserverUrl);
-  const pushConfig = resolveIOSPushConfig(clientConfig, sessionId, language);
+  const native = isNativeIOSPlatform();
+  // Only the iOS app reads it: resolving it makes the account's push tag, which browsers never send.
+  const pushConfig = native ? resolveIOSPushConfig(clientConfig, sessionId, language) : undefined;
   const configKey = pushConfig ? JSON.stringify(pushConfig) : undefined;
   const stableConfig = useMemo(
     () => (configKey ? pushConfig : undefined),
@@ -52,7 +54,6 @@ export function NativeIOSPushFeature() {
     [configKey]
   );
   const latest = useLatestRef({ enabled, signInRequired, pushAllowed });
-  const native = isNativeIOSPlatform();
 
   // Tokens can arrive from a registration started earlier, so the listener lives as long as the client.
   useEffect(() => {

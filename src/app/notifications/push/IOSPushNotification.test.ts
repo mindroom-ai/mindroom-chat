@@ -67,7 +67,6 @@ vi.mock('./iosPush', () => ({
   requestIOSPushPermission: vi.fn().mockResolvedValue('prompt'),
   resolveIOSPushConfig: vi.fn(() => (nativeState.native ? {} : undefined)),
   setIOSPushEnabled: vi.fn(),
-  unregisterIOSPush: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('IOSPushNotification', () => {
