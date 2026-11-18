@@ -4,6 +4,7 @@ import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
+import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
@@ -69,14 +70,20 @@ const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 /** The live keys a streaming reply's frames add to its outer content (useLiveReplyContent). */
 const LIVE_WRAPPER_KEYS = [LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY, LIVE_COMPACTIONS_KEY];
 
-/** The live reasoning and compactions of `outer`, moved onto the content a long text resolved. */
+/**
+ * The live reasoning and compactions of `outer`, moved onto the content a long text resolved, and
+ * its own compactions when the download leaves them out.
+ */
 const withLiveWrapperContent = (
   resolved: Record<string, unknown>,
   outer: Record<string, unknown>
 ): Record<string, unknown> => {
-  const live = LIVE_WRAPPER_KEYS.filter((key) => outer[key] !== undefined);
-  if (live.length === 0) return resolved;
-  return { ...resolved, ...Object.fromEntries(live.map((key) => [key, outer[key]])) };
+  const carried = [
+    ...LIVE_WRAPPER_KEYS,
+    ...(resolved[COMPACTIONS_CONTENT_KEY] === undefined ? [COMPACTIONS_CONTENT_KEY] : []),
+  ].filter((key) => outer[key] !== undefined);
+  if (carried.length === 0) return resolved;
+  return { ...resolved, ...Object.fromEntries(carried.map((key) => [key, outer[key]])) };
 };
 
 export type RenderAgentMessageContentOptions = {

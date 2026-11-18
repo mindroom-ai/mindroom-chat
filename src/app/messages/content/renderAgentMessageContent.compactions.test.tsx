@@ -720,6 +720,38 @@ describe('compaction seams in finished and live replies', () => {
     expect(sequence()).toEqual(['Intro.', 'tools:t1', 'seam', 'More.']);
   });
 
+  it('keeps the event’s own compactions when the downloaded sidecar leaves them out', () => {
+    const long = {
+      msgtype: 'm.text',
+      body: 'Intro.',
+      url: 'mxc://example.org/durable',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      'io.mindroom.stream_status': 'completed',
+      [COMPACTIONS_CONTENT_KEY]: [entry('c1', 0)],
+    };
+    // Before the download: the preview, under the event's own list.
+    render(long);
+    expect(seamStates()).toEqual(['success']);
+
+    const { [COMPACTIONS_CONTENT_KEY]: _none, ...withoutList } = reply(
+      paragraphs('Intro.', markerLine('t1', 1), 'More.'),
+      []
+    );
+    sidecars.set(long.url, { ...withoutList, 'io.mindroom.stream_status': 'completed' });
+    render({ ...long });
+    expect(seamStates()).toEqual(['success']);
+
+    // A list of its own in the download is the one shown.
+    sidecars.set(long.url, {
+      ...withoutList,
+      'io.mindroom.stream_status': 'completed',
+      [COMPACTIONS_CONTENT_KEY]: [entry('c2', 1, { status: 'failed', after_tokens: undefined })],
+    });
+    render({ ...long });
+    sidecars.clear();
+    expect(seamStates()).toEqual(['failed']);
+  });
+
   it("shows no seam from a person's downloaded sidecar", () => {
     sidecars.set('mxc://example.org/person', {
       ...reply(paragraphs('Intro.', 'More.'), [entry('c1', 0)]),
