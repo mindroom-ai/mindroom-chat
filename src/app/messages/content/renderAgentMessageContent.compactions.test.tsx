@@ -809,6 +809,8 @@ const afterEdits = (...edits: Record<string, unknown>[]): Record<string, unknown
   const timelineSet = {
     relations: { getChildEventsForEvent: () => ({ getRelations: () => events }) },
   };
+  // Read twice, as every render reads it again after the first wrote what it borrowed.
+  getEditedEvent('$target', target, timelineSet as never);
   return getLatestMessageContent(
     target,
     getEditedEvent('$target', target, timelineSet as never)
@@ -841,6 +843,37 @@ describe('compaction seams across a regenerated reply', () => {
     render(afterEdits(finished, regenerating));
 
     expect(seamStates()).toEqual(['running']);
+  });
+
+  /** A stop, error or interrupt write: its text and stream status alone. */
+  const stopped = (body: string) => ({
+    msgtype: 'm.text',
+    body,
+    'io.mindroom.stream_status': 'cancelled',
+  });
+
+  it('keeps the seams of an answer stopped after a compaction, also over an earlier answer', () => {
+    // The stopped answer's compaction failed; the earlier answer's succeeded.
+    const own = entry('c2', 1, { status: 'failed', after_tokens: undefined });
+    const progress = reply(paragraphs('Again.', markerLine('t1', 1), 'More.'), [own]);
+    render(afterEdits(finished, progress, stopped(paragraphs('Again.', markerLine('t1', 1)))));
+
+    expect(seamStates()).toEqual(['failed']);
+  });
+
+  it('shows a compaction that ran when its answer was stopped as interrupted', () => {
+    const running = entry('c1', 1, { status: 'running', after_tokens: undefined });
+    const progress = reply(paragraphs('Intro.', markerLine('t1', 1)), [running]);
+    render(afterEdits(progress, stopped(paragraphs('Intro.', markerLine('t1', 1)))));
+
+    expect(seamStates()).toEqual(['interrupted']);
+  });
+
+  it("keeps an answer's seams through the agent's later edit by hand", () => {
+    const byHand = { msgtype: 'm.text', body: paragraphs('Intro.', markerLine('t1', 1), 'Fixed.') };
+    render(afterEdits(finished, byHand));
+
+    expect(seamStates()).toEqual(['success']);
   });
 });
 

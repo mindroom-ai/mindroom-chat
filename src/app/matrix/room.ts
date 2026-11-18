@@ -20,7 +20,12 @@ import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './e
 import { copyResolvedEditMetadata, STREAM_STATUS_TS_KEY } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
-import { hasTerminalStreamMetadata, STREAM_STATUS_KEY } from './protocol/aiRun';
+import {
+  getStreamStatusFromContent,
+  hasTerminalStreamMetadata,
+  STREAM_STATUS_KEY,
+  TERMINAL_STREAM_STATUSES,
+} from './protocol/aiRun';
 import { COMPACTIONS_CONTENT_KEY } from './protocol/compactions';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
@@ -407,16 +412,44 @@ const carriesStreamStatus = (edit: MatrixEvent): boolean =>
   edit.getContent()[STREAM_STATUS_KEY] !== undefined;
 
 /**
- * The MindRoom metadata a newer edit may borrow from `contents`, the first one's first. Never a
- * reply's compactions: every write of the reply carries all of its own, so an edit without them
- * is a regenerated answer that ran none.
+ * Of the older edits (newest first), those of the answer `latest` shows: back to the edit that
+ * finished an earlier answer, once a newer edit with a stream status follows it (a regenerated
+ * answer; a stop, error or interrupt write ends the answer it follows). An edit by hand carries no
+ * stream status, so it changes the answer before it.
+ */
+const getOwnAnswerEdits = (latest: MatrixEvent, older: MatrixEvent[]): MatrixEvent[] => {
+  let streamedSince = carriesStreamStatus(latest);
+  const own: MatrixEvent[] = [];
+  for (const edit of older) {
+    const status = getStreamStatusFromContent(edit.getContent());
+    if (streamedSince && status && TERMINAL_STREAM_STATUSES.has(status)) break;
+    streamedSince ||= carriesStreamStatus(edit);
+    own.push(edit);
+  }
+  return own;
+};
+
+/**
+ * The MindRoom metadata `latest` may borrow from its older edits (newest first), the newest one's
+ * first. A reply's compactions come only from edits of its own answer (`getOwnAnswerEdits`): a
+ * regenerated answer that ran none shows none of the previous answer's, and a stop or error write,
+ * which carries none, shows those its answer ran.
  */
 const getBorrowableMetadata = (
-  contents: ReadonlyArray<Record<string, unknown>>
+  latest: MatrixEvent,
+  older: MatrixEvent[]
 ): Record<string, unknown> => {
   const borrowable: Record<string, unknown> = {};
-  copyResolvedEditMetadata(borrowable, contents);
-  delete borrowable[COMPACTIONS_CONTENT_KEY];
+  copyResolvedEditMetadata(
+    borrowable,
+    older.map((edit) => edit.getContent())
+  );
+  const ownAnswer: Record<string, unknown> = {};
+  copyResolvedEditMetadata(
+    ownAnswer,
+    getOwnAnswerEdits(latest, older).map((edit) => edit.getContent())
+  );
+  borrowable[COMPACTIONS_CONTENT_KEY] = ownAnswer[COMPACTIONS_CONTENT_KEY];
   return borrowable;
 };
 
@@ -430,10 +463,10 @@ const getBorrowableMetadata = (
 const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): void => {
   const newContent = getNewContent(latest);
   if (!newContent || older.length === 0) return;
-  const borrowed = getBorrowableMetadata(older.map((edit) => edit.getContent()));
+  const borrowed = getBorrowableMetadata(latest, older);
   const wrapper = latest.getContent();
   Object.entries(borrowed).forEach(([key, value]) => {
-    if (newContent[key] !== undefined || wrapper[key] !== undefined) return;
+    if (value === undefined || newContent[key] !== undefined || wrapper[key] !== undefined) return;
     newContent[key] = value;
     const source = key === STREAM_STATUS_KEY ? older.find(carriesStreamStatus) : undefined;
     if (source) newContent[STREAM_STATUS_TS_KEY] = getEditStreamFinishTs(source);
@@ -521,8 +554,11 @@ export const getEditedEvent = (
 };
 
 /** The MindRoom metadata `getEditedEvent` would borrow from `edit` for a newer edit lacking it. */
-const getBorrowableKeys = (edit: MatrixEvent): string[] =>
-  Object.keys(getBorrowableMetadata([edit.getContent()]));
+const getBorrowableKeys = (edit: MatrixEvent): string[] => {
+  const borrowable: Record<string, unknown> = {};
+  copyResolvedEditMetadata(borrowable, [edit.getContent()]);
+  return Object.keys(borrowable);
+};
 
 /**
  * Of one sender's edits of one message, those `getEditedEvent` can neither show nor borrow from

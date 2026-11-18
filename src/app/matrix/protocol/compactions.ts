@@ -94,12 +94,6 @@ const readEntry = (entry: unknown): ReplyCompaction | undefined => {
 };
 
 /**
- * The compactions of a reply's `io.mindroom.compactions` list (the raw value), in start order.
- * An entry without a string id, a known phase and status, a tool count or a token count is
- * dropped, and so is one whose id an earlier kept entry has; unknown keys are ignored, and a value
- * that is not a list gives none.
- */
-/**
  * Whether the reply a compaction sits in has ended, which cuts off one still running. The reply's
  * own stream status says so; its `ai_run` status counts only without one, since a regenerated
  * reply that streams again can still show the status of its previous answer.
@@ -111,6 +105,12 @@ export const hasReplyEnded = (content: Record<string, unknown>): boolean => {
     : hasTerminalStreamMetadata(content);
 };
 
+/**
+ * The compactions of a reply's `io.mindroom.compactions` list (the raw value), in start order.
+ * An entry without a string id, a known phase and status, a tool count or a token count is
+ * dropped, and so is one whose id an earlier kept entry has; unknown keys are ignored, and a value
+ * that is not a list gives none.
+ */
 export const readReplyCompactions = (value: unknown): ReplyCompaction[] => {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
