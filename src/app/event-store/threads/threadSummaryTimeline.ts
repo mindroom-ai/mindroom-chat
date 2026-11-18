@@ -1,9 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../../matrix/room';
-import {
-  getThreadSummaryInfo,
-  isThreadSummaryEvent,
-} from '../../matrix/protocol/threadSummary';
+import { getThreadSummaryInfo, isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 
 export type ThreadSummaryMarkerPlan = {
   /** The thread's first summary: it titled the thread rather than updating the title. */
@@ -36,6 +33,9 @@ type PlanOptions = {
 // MindRoom posts a summary after the first reply and then every ten messages,
 // and it is meant to stay the same while the thread's topic does. In a thread,
 // a summary that repeats the previous one is hidden; the others become markers.
+// Markers with no other row between them (a provisional title while the reply
+// streams, then the title after it) show as one: the last of the run, which
+// keeps the first marker's place in the thread (`first`, the text it replaces).
 export const planThreadSummaryTimeline = (
   events: readonly MatrixEvent[],
   {
@@ -51,25 +51,44 @@ export const planThreadSummaryTimeline = (
   const hiddenEventIds = new Set<string>();
   const markersByEventId = new Map<string, ThreadSummaryMarkerPlan>();
   let previousSummaryText: string | undefined;
+  // The last marker planned, while no other row has followed it, with the plan
+  // its run started from (`first`, the title before the run).
+  let lastMarker: { eventId: string; run: ThreadSummaryMarkerPlan } | undefined;
 
   events.forEach((event) => {
     const eventId = event.getId();
     // Edits, reactions and ignored senders have no row of their own.
-    if (!eventId || reactionOrEditEvent(event) || !isThreadSummaryEvent(event)) return;
+    if (!eventId || reactionOrEditEvent(event)) return;
     if (ignoredUserIds?.has(event.getSender() ?? '')) return;
     // Parse as the timeline row does, so only rows that would show a marker are planned.
-    const summaryText = getThreadSummaryInfo(getContent(event))?.summaryText;
-    if (!summaryText) return;
+    const summaryText = isThreadSummaryEvent(event)
+      ? getThreadSummaryInfo(getContent(event))?.summaryText
+      : undefined;
+    if (!summaryText) {
+      lastMarker = undefined;
+      return;
+    }
 
     const repeated = summaryText === previousSummaryText;
     if (repeated && !revealedEventIds?.has(eventId)) {
       hiddenEventIds.add(eventId);
       return;
     }
-    markersByEventId.set(eventId, {
+    let run: ThreadSummaryMarkerPlan = {
       first: previousSummaryText === undefined && historyStartLoaded,
       ...(previousSummaryText !== undefined && !repeated ? { previousSummaryText } : {}),
-    });
+    };
+    if (lastMarker && !repeated && !revealedEventIds?.has(lastMarker.eventId)) {
+      hiddenEventIds.add(lastMarker.eventId);
+      markersByEventId.delete(lastMarker.eventId);
+      run = lastMarker.run;
+    }
+    // A run that comes back to the title before it replaces nothing.
+    markersByEventId.set(
+      eventId,
+      run.previousSummaryText === summaryText ? { first: run.first } : run
+    );
+    lastMarker = { eventId, run };
     previousSummaryText = summaryText;
   });
 
