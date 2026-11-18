@@ -15,7 +15,7 @@ import { IconAlertTriangle, IconFold } from '@tabler/icons-react';
 import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { timeHourMinuteSecond } from '../../lib/time';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
-import type { ReplyCompaction } from '../../matrix/protocol/compactions';
+import { MAX_TIME_MS, type ReplyCompaction } from '../../matrix/protocol/compactions';
 import {
   formatSeconds,
   formatTokensShort,
@@ -169,9 +169,6 @@ const modelRow = ({ summaryModel }: ReplyCompaction, t: TFunction): Row[] =>
 
 const timeRow = (term: string, ts: number | undefined, at: RowContext['at']): Row[] =>
   ts === undefined ? [] : [{ term, value: at(ts) }];
-
-/** The latest time a `Date` holds, in ms; date formatting throws past it. */
-const MAX_TIME_MS = 8.64e15;
 
 /** When the compaction ended; undefined without a start, or past the latest date. */
 const endTime = ({ startedAt, durationMs }: ReplyCompaction): number | undefined => {

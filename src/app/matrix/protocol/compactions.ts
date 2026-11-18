@@ -51,7 +51,7 @@ const isAmount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
 /** The latest time a `Date` holds, in ms; date formatting throws past it. */
-const MAX_TIME_MS = 8.64e15;
+export const MAX_TIME_MS = 8.64e15;
 
 /** A time or a duration in ms that a `Date` can hold. */
 const isTime = (value: unknown): value is number => isAmount(value) && value <= MAX_TIME_MS;
