@@ -11,11 +11,14 @@ export const MINDROOM_ROUTER_STATE_EVENT = 'io.mindroom.router';
  * The router the room's state names, trusted only while ordinary members cannot write that state
  * (the level it takes is above `users_default`) and the router wrote it about itself and still
  * holds that level, so a binding written before the room tightened the level does not count.
- * Undefined without the binding, with a malformed one, or when anyone may write it.
+ * A room creator (room version 12 on, `getRoomCreators`) outranks every level, as the router is
+ * in the rooms it creates. Undefined without the binding, with a malformed one, or when anyone
+ * may write it.
  */
 export const trustedRouterUserId = (
   binding: MatrixEvent | undefined,
-  powerLevels: IPowerLevels
+  powerLevels: IPowerLevels,
+  creators: ReadonlySet<string> = new Set()
 ): string | undefined => {
   const userId: unknown = binding?.getContent().user_id;
   if (typeof userId !== 'string' || userId === '' || binding?.getSender() !== userId) {
@@ -23,7 +26,7 @@ export const trustedRouterUserId = (
   }
   const writeLevel = readPowerLevel.state(powerLevels, MINDROOM_ROUTER_STATE_EVENT);
   return writeLevel > (powerLevels.users_default ?? 0) &&
-    readPowerLevel.user(powerLevels, userId) >= writeLevel
+    (creators.has(userId) || readPowerLevel.user(powerLevels, userId) >= writeLevel)
     ? userId
     : undefined;
 };

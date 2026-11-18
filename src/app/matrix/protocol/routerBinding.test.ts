@@ -21,6 +21,25 @@ describe('trustedRouterUserId', () => {
     ).toBe(ROUTER);
   });
 
+  it('names the router that created the room, which outranks every level without one', () => {
+    // Room version 12 on: the creator is in no `users` entry, as in the rooms the router creates.
+    const levels = { users_default: 0, state_default: 50 };
+    expect(trustedRouterUserId(binding({ user_id: ROUTER }), levels, new Set([ROUTER]))).toBe(
+      ROUTER
+    );
+    expect(trustedRouterUserId(binding({ user_id: ROUTER }), levels)).toBeUndefined();
+  });
+
+  it('names none for a creator binding that anyone may write', () => {
+    expect(
+      trustedRouterUserId(
+        binding({ user_id: ROUTER }),
+        { users_default: 0, state_default: 0 },
+        new Set([ROUTER])
+      )
+    ).toBeUndefined();
+  });
+
   it('names none without a binding', () => {
     expect(trustedRouterUserId(undefined, ROUTER_AT_50)).toBeUndefined();
   });
