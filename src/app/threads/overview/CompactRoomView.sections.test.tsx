@@ -3,6 +3,8 @@ import type { Room } from 'matrix-js-sdk';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import { takeCompactFocusRequest } from './compactFocusRequest';
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
@@ -508,6 +510,37 @@ describe('the Compact room in sections', () => {
     // The first screenful of cards, under their headers, and Done stays folded.
     expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
     expect(rows()).not.toContain('$done');
+  });
+
+  it("meets the address's request for a card once the card shows, not while its section is folded", () => {
+    const memory: ScrollAnchorMemory = new Map();
+    // What a return to the entry finds: the place the reader left, unless its request is unmet.
+    const placeOnReturn = (eventId: string) => {
+      const left = { scrollTop: 0, anchors: [] };
+      memory.set(ROOM_ID, left);
+      takeCompactFocusRequest(memory, ROOM_ID, { eventId, entryKey: 'entry' });
+      return memory.get(ROOM_ID) === left ? 'left' : 'focused';
+    };
+    const focusing = (eventId: string) => (
+      <CompactRoomView
+        room={room}
+        threadRootIds={['$read', '$done']}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: memory }}
+        focusRequest={{ eventId, entryKey: 'entry' }}
+        sectionsNow={NOW}
+      />
+    );
+
+    const { rerender } = render(focusing('$done'));
+    expect(rows()).not.toContain('$done');
+    expect(placeOnReturn('$done')).toBe('focused');
+
+    rerender(focusing('$read'));
+    expect(rows()).toContain('$read');
+    expect(placeOnReturn('$read')).toBe('left');
+    expect(placeOnReturn('$done')).toBe('focused');
   });
 
   it('shows the cards as before while Sections are off', () => {

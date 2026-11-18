@@ -197,6 +197,8 @@ export type RoomTimelineProps = {
   threadId?: string;
   /** Show a permalinked thread root in the room instead of opening its thread. */
   focusEventInRoom?: boolean;
+  /** The router's key of the history entry whose address names `eventId`. */
+  entryKey?: string;
   summaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
@@ -286,6 +288,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     eventId,
     threadId,
     focusEventInRoom,
+    entryKey,
     summaryMap,
     onStoreThreadSummary,
     threadFilterState,
@@ -1734,14 +1737,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     // Leaving a thread comes back here focused on its root. One opened from its card finds the
     // place the list saved with that card in view; one opened from a link has none, so its card
     // takes a place below the bar, and the list's memory brings it there as cards render.
-    if (eventId && focusEventInRoom) {
-      takeCompactFocusRequest(
-        compactRoomScrollStateRef.current,
-        room.roomId,
-        eventId,
-        compactRootIds,
-        window.history.state
-      );
+    const focusRequest = eventId && focusEventInRoom ? { eventId, entryKey } : undefined;
+    if (focusRequest) {
+      takeCompactFocusRequest(compactRoomScrollStateRef.current, room.roomId, focusRequest);
     }
     return (
       <Box ref={compactHostRef} grow="Yes" direction="Column" style={roomStyle}>
@@ -1752,6 +1750,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           threadRecordMap={threadIndex.compactThreadRecordMap}
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
+          focusRequest={focusRequest}
           filterBarShown={filterBarShown}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}

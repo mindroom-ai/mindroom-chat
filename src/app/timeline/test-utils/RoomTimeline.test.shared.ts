@@ -1172,7 +1172,6 @@ vi.mock('../../threads/tags/useRoomThreadTags', () => ({
 }));
 
 vi.stubGlobal('window', {
-  history: { state: null },
   addEventListener: vi.fn(),
   dispatchEvent: vi.fn(),
   removeEventListener: vi.fn(),

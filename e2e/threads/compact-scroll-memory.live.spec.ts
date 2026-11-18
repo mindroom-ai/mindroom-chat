@@ -192,17 +192,18 @@ test('the compact overview a focus address opened stays where the reader left it
   const { roomId, roots } = await setUpCompactRoom(page);
   const cards = page.locator(`${COMPACT_VIEW} button[data-thread-root-id]`);
 
-  // A thread left from its link puts this address in its place, and Back from a thread opened
-  // later returns to it. Its card was shown once; the reader has scrolled to the top since.
-  const focusAddress = (rootId: string) =>
-    `/home/${encodeURIComponent(roomId)}/${encodeURIComponent(rootId)}?focusEvent=1`;
-  const openTopCardAfterFocus = async (
-    focusedRootId: string,
-    enter: () => Promise<unknown> = () => page.goto(focusAddress(focusedRootId))
-  ) => {
-    await enter();
+  // A thread left from its link puts the address that focuses its card in its place, and Back
+  // from a thread opened later returns to it. The card was shown once; the reader has scrolled to
+  // the top since.
+  const openTopCardAfterFocus = async (linkedRootId: string) => {
+    await page.goto(
+      `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(linkedRootId)}`
+    );
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
+    await clickThreadExitButton(page);
+    await expect(page).toHaveURL(/focusEvent=1/);
     await expect(
-      page.locator(`${COMPACT_VIEW} button[data-thread-root-id="${focusedRootId}"]`)
+      page.locator(`${COMPACT_VIEW} button[data-thread-root-id="${linkedRootId}"]`)
     ).toBeInViewport();
     await scrollOverviewTo(page, 0);
     expect((await settledCardLayout(page)).scrollTop).toBe(0);
@@ -226,21 +227,6 @@ test('the compact overview a focus address opened stays where the reader left it
   await test.step('thread exit button', async () => {
     await openTopCardAfterFocus(roots[6]!);
     await clickThreadExitButton(page);
-    await expectAtTop();
-  });
-
-  // The address as the app writes it: in place of a thread that was opened from a link.
-  await test.step('browser Back to the address a linked thread left', async () => {
-    const linkedRootId = roots[9]!;
-    await openTopCardAfterFocus(linkedRootId, async () => {
-      await page.goto(
-        `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(linkedRootId)}`
-      );
-      await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
-      await clickThreadExitButton(page);
-      await expect(page).toHaveURL(/focusEvent=1/);
-    });
-    await page.goBack();
     await expectAtTop();
   });
 });
