@@ -4,7 +4,7 @@ import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import { COMPACTIONS_CONTENT_KEY, hasReplyEnded } from '../../matrix/protocol/compactions';
+import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
@@ -17,7 +17,12 @@ import {
 } from '../../matrix/protocol/messageExtrasData';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
-import { getAiRunInfo, isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import {
+  getAiRunInfo,
+  getStreamStatusFromContent,
+  isAiRunStreaming,
+  SUCCESSFUL_STREAM_STATUSES,
+} from '../../matrix/protocol/aiRun';
 import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
 import { getLongTextSource, hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
@@ -301,11 +306,16 @@ export const renderAgentMessageContent = ({
   // A long finished reply folds its work, everything up to its last tool call, behind one row, as
   // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
   // event to its final edit. Search results and highlighted rows show the whole reply. A
-  // regenerated reply keeps its previous answer's run status, so its own stream must have ended too.
+  // regenerated reply keeps its previous answer's run status, so a stream status of its own must
+  // also say it ended well.
   const foldEventId = eventId ?? mEvent?.getId();
   const status = getAiRunInfo(content)?.status;
   const foldsWork = fromMindroomAgent && highlightRegex === undefined;
-  const finished = !!status && FINISHED_AI_RUN_STATUSES.has(status) && hasReplyEnded(content);
+  const streamStatus = getStreamStatusFromContent(content);
+  const finished =
+    !!status &&
+    FINISHED_AI_RUN_STATUSES.has(status) &&
+    (!streamStatus || SUCCESSFUL_STREAM_STATUSES.has(streamStatus));
   const finalEditTs = mEvent?.replacingEvent()?.getTs();
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();

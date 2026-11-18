@@ -340,7 +340,7 @@ describe('compaction seams in a reply', () => {
     render(reply(body, running));
     const trigger = () => seams()[0]!.findByType('button');
     act(() => {
-      trigger().props.onClick();
+      trigger().props.onClick({ detail: 1 });
     });
     expect(trigger().props['aria-expanded']).toBe(true);
 
@@ -915,6 +915,24 @@ describe('compaction seams across the edits of a reply', () => {
     expect(
       renderer!.root.findAll((node) => node.type === 'button' && textOf(node).startsWith('Worked'))
     ).toHaveLength(0);
+  });
+
+  it('keeps the work of a long regenerated reply open when its own stream stopped or failed', () => {
+    for (const streamStatus of ['cancelled', 'error']) {
+      const regenerated = reply(paragraphs('Again.', markerLine('t1', 1), LONG_ANSWER), [running], {
+        'io.mindroom.stream_status': streamStatus,
+      });
+      const content = withEdits(finished, regenerated).read();
+      expect(content['io.mindroom.ai_run']).toEqual({ version: 1, status: 'completed' });
+      render(content);
+
+      expect(seamStates()).toEqual(['interrupted']);
+      expect(
+        renderer!.root.findAll(
+          (node) => node.type === 'button' && textOf(node).startsWith('Worked')
+        )
+      ).toHaveLength(0);
+    }
   });
 
   it('shows the seams a stop write carries, not those of the answer before', () => {
