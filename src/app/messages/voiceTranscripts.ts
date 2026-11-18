@@ -1,5 +1,6 @@
 import { useRef } from 'react';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
+import { isVoiceMessageContent } from './content/MsgTypeRenderers';
 import { isMindroomRouterUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import {
   getVoiceSourceEventId,
@@ -25,10 +26,11 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
  * echo moves when the router on the viewer's homeserver sent it (`isMindroomRouterUserIdForViewer`;
  * no other agent or account), it names its voice message (`getVoiceSourceEventId`, read from the
  * version its row shows, `getContent`, which counts only the sender's own edits), and that
- * message is among `events`, not
- * redacted and not from an ignored sender. Every other echo keeps its row as before: one from
- * an older backend without the name, one whose voice message is not loaded here, one the route
- * or a jump opened (`revealed`), and a second echo naming the same voice message.
+ * message is among `events`, drawn as a voice message (an `m.audio` that `MAudio` plays as
+ * voice, `isVoiceMessageContent`), not redacted and not from an ignored sender. Every other echo
+ * keeps its row as before: one from an older backend without the name, one whose voice message is
+ * not loaded here or is no voice message, one the route or a jump opened (`revealed`), and a
+ * second echo naming the same voice message.
  */
 export const planVoiceTranscripts = ({
   events,
@@ -61,6 +63,8 @@ export const planVoiceTranscripts = ({
     const voice = byId.get(voiceId);
     const voiceSender = voice?.getSender();
     if (!voice || voice.isRedacted() || !voiceSender || ignored.has(voiceSender)) return;
+    const voiceContent = getContent(voice);
+    if (voiceContent.msgtype !== MsgType.Audio || !isVoiceMessageContent(voiceContent)) return;
     byVoiceId.set(voiceId, echo);
     hiddenEventIds.add(echoId);
   });

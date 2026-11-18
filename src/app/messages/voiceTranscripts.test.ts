@@ -15,13 +15,15 @@ const VIEWER = '@viewer:example.org';
 const ECHO_KEY = 'com.mindroom.visible_router_voice_echo';
 const SOURCE_KEY = 'com.mindroom.voice_source_event_id';
 
-const voice = (id = '$voice', sender = PERSON) =>
-  new MatrixEvent({
-    event_id: id,
-    type: 'm.room.message',
-    sender,
-    content: { msgtype: 'm.audio', body: 'voice.ogg', url: 'mxc://example.org/voice' },
-  });
+const VOICE_CONTENT = {
+  msgtype: 'm.audio',
+  body: 'voice.ogg',
+  url: 'mxc://example.org/voice',
+  'org.matrix.msc3245.voice': {},
+};
+
+const voice = (id = '$voice', sender = PERSON, content: Record<string, unknown> = VOICE_CONTENT) =>
+  new MatrixEvent({ event_id: id, type: 'm.room.message', sender, content });
 
 const echo = (
   id: string,
@@ -104,6 +106,14 @@ describe('planVoiceTranscripts', () => {
 
   it('keeps the row of an echo without a name, as older backends send', () => {
     expect(plan([voice(), echo('$echo', {})])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
+  it.each([
+    ['a text message', { msgtype: 'm.text', body: 'Invented words' }],
+    ['an audio file', { msgtype: 'm.audio', body: 'song.ogg', url: 'mxc://example.org/song' }],
+    ['a file marked as voice', { ...VOICE_CONTENT, msgtype: 'm.file' }],
+  ])('keeps the row of an echo that names %s', (_case, content) => {
+    expect(plan([voice('$voice', PERSON, content), echo('$echo')])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 
   it('keeps the row of an echo whose voice message is not loaded', () => {
