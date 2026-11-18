@@ -795,6 +795,10 @@
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"
       },
+      "turnFold": {
+        "earlier_other": "이전 메시지 {{count}}개",
+        "hide_other": "메시지 {{count}}개 숨기기"
+      },
       "questionCard": {
         "title": "질문",
         "waiting": "내 답변 대기 중",

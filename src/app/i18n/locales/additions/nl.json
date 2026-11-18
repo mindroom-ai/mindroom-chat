@@ -806,6 +806,12 @@
         "workedFor": "{{duration}} gewerkt",
         "worked": "Gewerkt"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} eerder bericht",
+        "earlier_other": "{{count}} eerdere berichten",
+        "hide_one": "{{count}} bericht verbergen",
+        "hide_other": "{{count}} berichten verbergen"
+      },
       "questionCard": {
         "title": "Vraag",
         "waiting": "Wacht op jou",

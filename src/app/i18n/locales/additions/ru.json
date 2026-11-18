@@ -828,6 +828,16 @@
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} предыдущее сообщение",
+        "earlier_few": "{{count}} предыдущих сообщения",
+        "earlier_many": "{{count}} предыдущих сообщений",
+        "earlier_other": "{{count}} предыдущего сообщения",
+        "hide_one": "Скрыть {{count}} сообщение",
+        "hide_few": "Скрыть {{count}} сообщения",
+        "hide_many": "Скрыть {{count}} сообщений",
+        "hide_other": "Скрыть {{count}} сообщения"
+      },
       "questionCard": {
         "title": "Вопрос",
         "waiting": "Ждёт вас",

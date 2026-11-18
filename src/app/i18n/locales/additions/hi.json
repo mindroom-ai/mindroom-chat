@@ -806,6 +806,12 @@
         "workedFor": "{{duration}} तक काम किया",
         "worked": "काम किया"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} पिछला संदेश",
+        "earlier_other": "{{count}} पिछले संदेश",
+        "hide_one": "{{count}} संदेश छिपाएँ",
+        "hide_other": "{{count}} संदेश छिपाएँ"
+      },
       "questionCard": {
         "title": "सवाल",
         "waiting": "आपकी प्रतीक्षा में",

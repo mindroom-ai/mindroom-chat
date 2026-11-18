@@ -36,6 +36,8 @@ import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/ti
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
 import { replyNeedingNoQuote } from './pluginHiddenRows';
 import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
+import type { ThreadTurnFold, ThreadTurnFoldView } from './threadTurnFolds';
+import { TurnBreak } from './TurnBreak';
 
 /**
  * The rows of the room timeline: which events the room shows, what each row is priced at until it
@@ -164,6 +166,8 @@ const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 68 } as const;
  */
 const ROOM_ROW_UNMEASURED_PX = 0.5;
 const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
+/** A turn's break (`TurnBreak`): its pill and the padding around it. */
+export const TURN_BREAK_ESTIMATE_PX = 42;
 
 /**
  * The virtual list's row sizes and keys for this render. Room indexes count from the window's
@@ -182,6 +186,7 @@ export const timelineRowSizing = ({
   roomRowsRef,
   activeRangeRef,
   threadRecordMapRef,
+  turnFolds,
 }: {
   threadId: string | undefined;
   compactLayout: boolean;
@@ -192,6 +197,8 @@ export const timelineRowSizing = ({
   roomRowsRef: MutableRefObject<MatrixEvent[]>;
   activeRangeRef: MutableRefObject<Timeline['range']>;
   threadRecordMapRef: MutableRefObject<ReadonlyMap<string, ThreadRecord>>;
+  /** The open thread's folded turns: a break adds its height to its row, which it alone fills. */
+  turnFolds?: ThreadTurnFoldView;
 }) => {
   const estimateSize = (index?: number): number => {
     if (!threadId) {
@@ -216,7 +223,12 @@ export const timelineRowSizing = ({
         ? THREAD_ONE_LINE_ESTIMATE_PX.compact
         : THREAD_ONE_LINE_ESTIMATE_PX.comfortable;
     }
-    return estimateMessageRowHeight(event, { compact: compactLayout });
+    const id = event.getId() ?? '';
+    if (!turnFolds?.breaks.has(id))
+      return estimateMessageRowHeight(event, { compact: compactLayout });
+    return turnFolds.hiddenIds.has(id)
+      ? TURN_BREAK_ESTIMATE_PX
+      : estimateMessageRowHeight(event, { compact: compactLayout }) + TURN_BREAK_ESTIMATE_PX;
   };
   const getItemKey = (index: number): string | number => {
     const event = threadId ? threadEvents[index] : roomWindowRows[index];
@@ -276,11 +288,48 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
 }
 
 /**
+ * Whether a row takes no place in the timeline: the thread's plans hide it (approvals, title
+ * markers, secret requests), its sender is ignored, it is redacted and hidden events are not
+ * shown, or a plugin hides it.
+ */
+export const isTimelineRowHidden = (
+  event: MatrixEvent,
+  {
+    messageData: { approvalTimeline, threadSummaryTimeline, secretRequestTimeline },
+    ignoredUsersSet,
+    showHiddenEvents,
+    isHiddenByPlugin,
+  }: {
+    messageData: Pick<
+      TimelineMessageData,
+      'approvalTimeline' | 'threadSummaryTimeline' | 'secretRequestTimeline'
+    >;
+    ignoredUsersSet: ReadonlySet<string>;
+    showHiddenEvents: boolean;
+    isHiddenByPlugin: (event: MatrixEvent) => boolean;
+  }
+): boolean => {
+  const id = event.getId() ?? '';
+  if (
+    approvalTimeline.hiddenEventIds.has(id) ||
+    threadSummaryTimeline.hiddenEventIds.has(id) ||
+    secretRequestTimeline.hiddenEventIds.has(id)
+  ) {
+    return true;
+  }
+  const sender = event.getSender();
+  if (sender && ignoredUsersSet.has(sender)) return true;
+  if (event.isRedacted()) return !showHiddenEvents;
+  return isHiddenByPlugin(event);
+};
+
+/**
  * The tiles of the rows the virtual list mounts. A row groups with the one above it and gets its
  * date and unread dividers from the fold over the mounted window (timelineRowFold); rows the
  * thread's plans hide, replies a plugin hides, ignored senders and redactions take no place in
  * that walk. A fork's divider goes above the row it names, before that row's own dividers; a fork
- * draft's divider goes under the row it names.
+ * draft's divider goes under the row it names. A thread's folded turn hides its middle rows, and
+ * the first of them draws the turn's break, open or not, above its own dividers.
  */
 export const renderTimelineTiles = ({
   virtualItems,
@@ -302,6 +351,8 @@ export const renderTimelineTiles = ({
   joinsQuietMarkerRun,
   forkDivider,
   forkingDivider,
+  turnFolds,
+  onToggleTurnFold,
   unreadMarkerRef,
   measureElement,
   ledgerPxAtRender,
@@ -339,28 +390,24 @@ export const renderTimelineTiles = ({
   forkDivider?: { index: number; node: ReactNode };
   /** In a fork draft, the line under its fork point (`index`), the last row it shows. */
   forkingDivider?: { index: number; node: ReactNode };
+  /** The open thread's folded turns (`threadTurnFolds.ts`) and what their breaks do on a click. */
+  turnFolds?: ThreadTurnFoldView;
+  onToggleTurnFold?: (fold: ThreadTurnFold) => void;
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
   measureElement: (node: Element | null) => void;
   ledgerPxAtRender: number;
 }): ReactNode[] => {
-  const { approvalTimeline, threadSummaryTimeline, secretRequestTimeline } = messageData;
   const getRowEvent = (index: number): MatrixEvent | undefined =>
     threadId ? threadEvents[index] : roomWindowRows[index];
-  const isRowHidden = (event: MatrixEvent): boolean => {
-    const id = event.getId() ?? '';
-    if (
-      approvalTimeline.hiddenEventIds.has(id) ||
-      threadSummaryTimeline.hiddenEventIds.has(id) ||
-      secretRequestTimeline.hiddenEventIds.has(id)
-    ) {
-      return true;
-    }
-    const sender = event.getSender();
-    if (sender && ignoredUsersSet.has(sender)) return true;
-    if (event.isRedacted()) return !showHiddenEvents;
-    return isHiddenByPlugin(event);
-  };
+  const isRowHidden = (event: MatrixEvent): boolean =>
+    !!turnFolds?.hiddenIds.has(event.getId() ?? '') ||
+    isTimelineRowHidden(event, {
+      messageData,
+      ignoredUsersSet,
+      showHiddenEvents,
+      isHiddenByPlugin,
+    });
   const rowContexts = foldTimelineRowContexts({
     indexes: virtualItems.map((item) => item.index),
     getEvent: getRowEvent,
@@ -385,6 +432,15 @@ export const renderTimelineTiles = ({
     if (item.size === 0 && reactionOrEditEvent(event)) return null;
     const id = event.getId() ?? '';
     const context = rowContexts.get(item.index);
+    // Outside the row's boundary, so the break keeps its focus when its turn opens or folds.
+    const turnBreak = turnFolds?.breaks.get(id);
+    const breakNode = turnBreak && onToggleTurnFold && (
+      <TurnBreak
+        count={turnBreak.fold.count}
+        open={turnBreak.open}
+        onToggle={() => onToggleTurnFold(turnBreak.fold)}
+      />
+    );
     let content: ReactNode = null;
     // A quiet marker folded into the run's first row, which shows it, renders nothing.
     if (context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
@@ -440,7 +496,10 @@ export const renderTimelineTiles = ({
         virtualItem={item}
         style={{ top: item.start + ledgerPxAtRender }}
       >
-        <div data-room-row-index={threadId ? undefined : item.index}>{content}</div>
+        <div data-room-row-index={threadId ? undefined : item.index}>
+          {breakNode}
+          {content}
+        </div>
       </VirtualTile>
     );
   };

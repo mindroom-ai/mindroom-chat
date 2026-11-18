@@ -817,6 +817,14 @@
         "workedFor": "Trabalhou por {{duration}}",
         "worked": "Trabalhou"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} mensagem anterior",
+        "earlier_many": "{{count}} mensagens anteriores",
+        "earlier_other": "{{count}} mensagens anteriores",
+        "hide_one": "Ocultar {{count}} mensagem",
+        "hide_many": "Ocultar {{count}} mensagens",
+        "hide_other": "Ocultar {{count}} mensagens"
+      },
       "questionCard": {
         "title": "Pergunta",
         "waiting": "À sua espera",

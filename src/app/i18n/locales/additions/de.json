@@ -806,6 +806,12 @@
         "workedFor": "{{duration}} gearbeitet",
         "worked": "Gearbeitet"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} frühere Nachricht",
+        "earlier_other": "{{count}} frühere Nachrichten",
+        "hide_one": "{{count}} Nachricht ausblenden",
+        "hide_other": "{{count}} Nachrichten ausblenden"
+      },
       "questionCard": {
         "title": "Frage",
         "waiting": "Wartet auf dich",

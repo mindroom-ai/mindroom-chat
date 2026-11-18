@@ -61,7 +61,11 @@ const compactMinimapPreview = (text: string | null | undefined): string | null =
 
 type MinimapSourceKind = 'user' | 'agent' | 'redactedUser' | 'other';
 
-const resolveMinimapSourceKind = (mEvent: TimelineMinimapEvent): MinimapSourceKind => {
+/**
+ * Who wrote a message, as the minimap pairs a person's message with the agents' replies until the
+ * next one; the open thread's turn folds (`threadTurnFolds.ts`) read turns the same way.
+ */
+export const resolveMinimapSourceKind = (mEvent: TimelineMinimapEvent): MinimapSourceKind => {
   if (!matchesEnum(mEvent.getType(), EventType.RoomMessage)) return 'other';
   if (mEvent.isRedacted?.()) {
     // Redaction strips the content metadata, so only the sender convention is

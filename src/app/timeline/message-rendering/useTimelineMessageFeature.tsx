@@ -108,7 +108,7 @@ import {
 } from '../../event-store/timeline/timelineRowTypes';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
 import type { ThreadRecord } from '../../event-store/threads/types';
-import type { TimelineMessageData, TimelineMessageRow } from './types';
+import type { QuietMarkerData, TimelineMessageData, TimelineMessageRow } from './types';
 
 /**
  * The settings below come from the user's preferences; `hideActivity` keeps read receipts
@@ -332,7 +332,7 @@ const readQuietMarker = (
   eventId: string,
   sender: string | undefined,
   content: Record<string, unknown>,
-  data: TimelineMessageData,
+  data: QuietMarkerData,
   viewerId: string | undefined,
   onOpenTitleSettings?: () => void
 ): ReactNode | null => {
@@ -524,7 +524,7 @@ export const useTimelineMessageFeature = ({
   const readRowQuietMarker = useCallback(
     (
       event: MatrixEvent,
-      data: TimelineMessageData,
+      data: QuietMarkerData,
       rowTimelineSet: EventTimelineSet,
       onOpenTitleSettings?: () => void
     ): ReactNode | null => {
@@ -914,7 +914,7 @@ export const useTimelineMessageFeature = ({
    * `renderMessageRow` does.
    */
   const isQuietMarkerRow = useCallback(
-    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean =>
+    (event: MatrixEvent, data: QuietMarkerData, rowTimelineSet: EventTimelineSet): boolean =>
       readRowQuietMarker(event, data, rowTimelineSet) !== null,
     [readRowQuietMarker]
   );
@@ -924,7 +924,7 @@ export const useTimelineMessageFeature = ({
    * A snooze ending keeps its own row: its note, cut short beside others, has no card to read.
    */
   const joinsQuietMarkerRun = useCallback(
-    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean => {
+    (event: MatrixEvent, data: QuietMarkerData, rowTimelineSet: EventTimelineSet): boolean => {
       const node = readRowQuietMarker(event, data, rowTimelineSet);
       return node !== null && !(isValidElement(node) && node.type === SnoozeEndedMarker);
     },
@@ -956,5 +956,7 @@ export const useTimelineMessageFeature = ({
     setEditingEventId,
     expandAll,
     toggleExpandAll,
+    manualExpansionState,
+    expansionBaseline,
   };
 };
