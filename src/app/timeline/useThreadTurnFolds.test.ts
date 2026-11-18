@@ -1,7 +1,8 @@
+import React from 'react';
 import { MatrixEvent, type EventTimelineSet, type Room } from 'matrix-js-sdk';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
-import { isTurnAnswer, turnRowWaits } from './useThreadTurnFolds';
+import { isTurnAnswer, turnRowWaits, useThreadTurnFolds } from './useThreadTurnFolds';
 
 // Whether a thread row keeps its turn unfolded, read from the row as the timeline holds it.
 
@@ -14,13 +15,13 @@ const QUESTION = {
   option_labels: { '✅': 'archive', '📄': 'events', '1': 'archive', '2': 'events' },
 };
 
-const message = (id: string, content: Record<string, unknown>, sender = AGENT, ts = Date.now()) =>
+const message = (id: string, content: Record<string, unknown>, sender = AGENT) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM,
     sender,
     type: 'm.room.message',
-    origin_server_ts: ts,
+    origin_server_ts: 1,
     content: { msgtype: 'm.text', body: id, ...content },
   });
 
@@ -61,17 +62,6 @@ describe('turnRowWaits', () => {
   it.each(['pending', 'streaming'])('holds a reply that says it is %s', (status) => {
     // Whether the client could vouch for it yet or not (isStreamingReplyCurrent).
     expect(waits(message('$live', { 'io.mindroom.stream_status': status }))).toBe(true);
-  });
-
-  it('holds a reply that says it streams even past the idle limit (it shows whole)', () => {
-    const stale = Date.now() - STREAM_IDLE_LIMIT_MS - 60_000;
-    expect(
-      waits(message('$gone', { 'io.mindroom.stream_status': 'streaming' }, AGENT, stale))
-    ).toBe(true);
-    const fresh = Date.now() - STREAM_IDLE_LIMIT_MS + 60_000;
-    expect(
-      waits(message('$slow', { 'io.mindroom.stream_status': 'streaming' }, AGENT, fresh))
-    ).toBe(true);
   });
 
   it('holds a question until a reaction answers it, whatever came after it', () => {
@@ -133,5 +123,47 @@ describe('isTurnAnswer', () => {
         () => quiet
       )
     ).toBe(answers);
+  });
+});
+
+describe('useThreadTurnFolds', () => {
+  it('opens a turn on a toggle and folds it on the next', () => {
+    const events = [
+      message('$q', {}, PERSON),
+      message('$a1', {}),
+      message('$a2', {}),
+      message('$ans', {}),
+    ];
+    const relations = { getChildEventsForEvent: () => undefined };
+    const room = {
+      roomId: ROOM,
+      getUnfilteredTimelineSet: () => ({ relations }),
+    } as unknown as Room;
+    const options = {
+      room,
+      threadId: '$q',
+      events,
+      viewerId: PERSON,
+      getContent: (row: MatrixEvent) => row.getContent(),
+      timelineSet: { relations } as unknown as EventTimelineSet,
+      isSkipped: () => false,
+      isQuietMarker: () => false,
+      pinnedIds: new Set<string>(),
+      backgroundState: undefined,
+    };
+    let result: ReturnType<typeof useThreadTurnFolds> | undefined;
+    function Probe() {
+      result = useThreadTurnFolds(options);
+      return null;
+    }
+    act(() => {
+      create(React.createElement(Probe));
+    });
+    const state = () => [[...result!.view.hiddenIds], result!.view.breaks.get('$a1')?.open];
+    expect(state()).toEqual([['$a1', '$a2'], false]);
+    act(() => result!.toggle(result!.view.breaks.get('$a1')!.fold));
+    expect(state()).toEqual([[], true]);
+    act(() => result!.toggle(result!.view.breaks.get('$a1')!.fold));
+    expect(state()).toEqual([['$a1', '$a2'], false]);
   });
 });

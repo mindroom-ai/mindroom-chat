@@ -14,9 +14,7 @@ import {
   effectiveSecretRequestStatus,
   parseSecretRequestContent,
 } from '../matrix/protocol/secretRequest';
-import { rememberManualExpansionState } from '../messages/manualExpansionState';
 import {
-  EMPTY_TURN_FOLD_VIEW,
   planThreadTurnFolds,
   threadRowAuthor,
   viewThreadTurnFolds,
@@ -76,9 +74,6 @@ export const isTurnAnswer = (
   !isQuietMarker(event) &&
   getContent(event).msgtype !== 'm.notice';
 
-/** Where the timeline keeps the reader's choice for a turn, apart from its messages' folds. */
-const turnFoldKey = (fold: ThreadTurnFold) => `turnFold:${fold.key}`;
-
 type UseThreadTurnFoldsOptions = {
   room: Room;
   /** Only an open thread folds its turns. */
@@ -97,15 +92,11 @@ type UseThreadTurnFoldsOptions = {
   pinnedIds: ReadonlySet<string>;
   /** The thread's live background jobs, which work on its newest turn (`threadBackgroundJobs`). */
   backgroundState: ThreadBackgroundState | undefined;
-  /** The timeline's manual expansion state and its expand all baseline (manualExpansionState). */
-  manualExpansionState: Map<string, boolean>;
-  expandAllInit: boolean | undefined;
 };
 
 /**
  * The open thread's finished turns folded behind their breaks, each open where the reader opened
- * it. The choice lives in the timeline's manual expansion state, so it lasts while the rows
- * remount, and a turn the reader never chose for follows the timeline's expand all.
+ * it. The choice lives with the timeline, so it lasts while the rows remount.
  */
 export const useThreadTurnFolds = ({
   room,
@@ -118,8 +109,6 @@ export const useThreadTurnFolds = ({
   isQuietMarker,
   pinnedIds,
   backgroundState,
-  manualExpansionState,
-  expandAllInit,
 }: UseThreadTurnFoldsOptions): {
   view: ThreadTurnFoldView;
   toggle: (fold: ThreadTurnFold) => void;
@@ -154,25 +143,19 @@ export const useThreadTurnFolds = ({
     timelineSet,
     viewerId,
   ]);
-  // The reader's choices live in the shared map; a toggle renders the timeline again.
-  const [choices, setChoices] = useState(0);
-  const view = useMemo(() => {
-    void choices;
-    if (folds.length === 0) return EMPTY_TURN_FOLD_VIEW;
-    return viewThreadTurnFolds(
-      folds,
-      (fold) => manualExpansionState.get(turnFoldKey(fold)) ?? expandAllInit ?? false
-    );
-  }, [choices, expandAllInit, folds, manualExpansionState]);
-  const toggle = useCallback(
-    (fold: ThreadTurnFold) => {
-      const key = turnFoldKey(fold);
-      const open = manualExpansionState.get(key) ?? expandAllInit ?? false;
-      rememberManualExpansionState(manualExpansionState, key, !open);
-      setChoices((count) => count + 1);
-    },
-    [expandAllInit, manualExpansionState]
+  // The turns the reader opened, by `ThreadTurnFold.key`.
+  const [openKeys, setOpenKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const view = useMemo(
+    () => viewThreadTurnFolds(folds, (fold) => openKeys.has(fold.key)),
+    [folds, openKeys]
   );
+  const toggle = useCallback((fold: ThreadTurnFold) => {
+    setOpenKeys((keys) => {
+      const next = new Set(keys);
+      if (!next.delete(fold.key)) next.add(fold.key);
+      return next;
+    });
+  }, []);
   return { view, toggle };
 };
 

@@ -956,7 +956,5 @@ export const useTimelineMessageFeature = ({
     setEditingEventId,
     expandAll,
     toggleExpandAll,
-    manualExpansionState,
-    expansionBaseline,
   };
 };

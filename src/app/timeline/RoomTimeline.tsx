@@ -889,8 +889,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isQuietMarker: isTurnQuietMarker,
     pinnedIds: turnPinnedIds,
     backgroundState: threadId ? threadIndex.threadBackgroundStates.get(threadId) : undefined,
-    manualExpansionState: feature.manualExpansionState,
-    expandAllInit: feature.expansionBaseline,
   });
 
   // While the opening room view does not fill the screen, keep paginating. The fill holds the
