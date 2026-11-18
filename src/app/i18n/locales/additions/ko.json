@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "닫기",
       "previous": "이전 이미지",
-      "next": "다음 이미지"
+      "next": "다음 이미지",
+      "wheelZoomHint": "{{key}} + 스크롤로 확대/축소"
     },
     "inviteUserPrompt": {
       "close": "닫기",

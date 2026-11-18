@@ -300,7 +300,6 @@ vi.mock('../../threads/usePinnedThreadEvents', () => ({ usePinnedThreadEvents: (
 
 vi.mock('../../event-store/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
-  useThreadLastActivityTs: () => 0,
 }));
 
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({

@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "Tutup",
       "previous": "Gambar sebelumnya",
-      "next": "Gambar berikutnya"
+      "next": "Gambar berikutnya",
+      "wheelZoomHint": "{{key}} + gulir untuk memperbesar"
     },
     "inviteUserPrompt": {
       "close": "Tutup",

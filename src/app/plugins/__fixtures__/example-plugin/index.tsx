@@ -100,6 +100,7 @@ import {
   Avatar,
   Box,
   Icon,
+  IconButton as FoldsIconButton,
   Icons,
   Overlay,
   OverlayBackdrop,
@@ -127,6 +128,7 @@ import {
   type PluginPageProps,
   type ThreadCardBadgeProps,
   type ThreadDetailProps,
+  type ThreadHeaderSlotComponent,
 } from '@mindroom/client-sdk/core';
 import {
   getMemberDisplayName,
@@ -1147,6 +1149,35 @@ function GreetingDetails({ room, threadId }: ThreadDetailProps) {
 }
 
 /**
+ * Its control in the open thread's banner: for a thread a greeting begins, a button named and
+ * tooltipped with the greeting, which says it again in an alert; nothing for other threads.
+ */
+const GreetingButton: ThreadHeaderSlotComponent = ({ room, threadId }) => {
+  const text = greetingOf(room, threadId);
+  if (text === undefined) return null;
+  const label = `Greeting: ${text}`;
+  return (
+    <IconTooltip label={label}>
+      {(triggerRef) => (
+        // As the banner draws its own buttons: folds' button without a fill, 2rem square.
+        <FoldsIconButton
+          ref={triggerRef}
+          variant="SurfaceVariant"
+          fill="None"
+          style={{ inlineSize: '2rem', blockSize: '2rem', padding: 0 }}
+          aria-label={label}
+          data-example-plugin-thread-button
+          // eslint-disable-next-line no-alert
+          onClick={() => window.alert(label)}
+        >
+          <Icon size="100" src={Icons.Smile} />
+        </FoldsIconButton>
+      )}
+    </IconTooltip>
+  );
+};
+
+/**
  * Its thread card badge: "Greeting" on the card of a thread a greeting begins, on one line and with
  * no control of its own, so a click on it opens the thread as a click on the card does. A greeting
  * stays as it was sent, so the badge reads the thread's root once, as the card shows it.
@@ -1273,6 +1304,7 @@ const plugin: ClientPlugin = {
     },
   ],
   threadCardBadges: [{ Component: GreetingBadge }],
+  threadHeaderSlot: [GreetingButton],
   threadDetails: [
     {
       shows: (room, threadId) => greetingOf(room, threadId) !== undefined,

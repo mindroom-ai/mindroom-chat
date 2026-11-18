@@ -26,6 +26,7 @@ const plugin = (id: string, roomActions: PluginRoomAction[]): RegisteredPlugin =
   messageRenderers: [],
   pages: [],
   roomHeaderSlot: [],
+  threadHeaderSlot: [],
   sidePanels: [],
   headerActions: [],
   slashCommands: [],

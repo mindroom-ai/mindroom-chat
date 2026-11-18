@@ -24,6 +24,7 @@ const SKILL_DIFF = [
   '+description: Use when writing release notes for a tagged version',
   ' ---',
   '+Always link the pull requests.',
+  '+- **Long lines wrap:** a diff line longer than the panel continues under its text instead of hiding past the right edge, the way code blocks wrap.',
   '',
 ].join('\n');
 
@@ -144,6 +145,18 @@ test('a skill review notice is a quiet marker with files on hover and diffs on c
   await expect(panel).toContainText('+One line per change.');
   await page.mouse.move(640, 790);
   await shot('expanded-dark');
+  // Long lines wrap like a code block's, until the reader turns wrapping off to scroll sideways.
+  const diff = panel.getByRole('region', { name: 'Diff of release-notes/SKILL.md' });
+  const wrap = panel.getByRole('button', { name: 'Wrap lines' }).first();
+  const overflows = () => diff.evaluate((node) => node.scrollWidth > node.clientWidth);
+  await expect(wrap).toHaveAttribute('aria-pressed', 'true');
+  expect(await overflows()).toBe(false);
+  await wrap.click();
+  await expect(wrap).toHaveAttribute('aria-pressed', 'false');
+  expect(await overflows()).toBe(true);
+  await page.mouse.move(640, 790);
+  await shot('expanded-unwrapped-dark');
+  await wrap.click();
   await marker.click();
   await expect(panel).toHaveCount(0);
   await expect(marker).toHaveAttribute('aria-expanded', 'false');

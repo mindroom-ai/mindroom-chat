@@ -19,8 +19,9 @@ export const emptySupersededJobsState = (mx: MatrixClient): void => {
     const previousId = previous?.getId();
     if (!previousId || previousId === event.getId()) return;
     // The timeline's event with that ID, which is the replaced state itself unless the server sends
-    // the state apart from the timeline (`state_after`). It is among the timeline's newest: the
-    // agent's write before this one.
+    // the state apart from the timeline (`state_after`). It is the agent's write before this
+    // one, so the search from the newest end passes every event the room took since: few while
+    // the agent streams, all of a quiet agent's silence on its next write.
     const superseded = mx
       .getRoom(state.roomId)
       ?.getUnfilteredTimelineSet()
@@ -28,13 +29,14 @@ export const emptySupersededJobsState = (mx: MatrixClient): void => {
       ?.getEvents()
       .findLast((held) => held.getId() === previousId);
     if (!superseded) return;
-    // Changed in place, with no event announced and nothing drawn again: the jobs are read from
-    // the current state alone (`agentRoomState`), which no longer holds this event, and nothing
-    // reads the list before a jobs state. What tells the event's place stays (ID, time, type,
-    // state key): a read receipt may name the event, and the timeline rows count their places
-    // over every event, so it is not removed. Sync and the event cache save their own copies, and
-    // neither brings a saved event back as state.
-    superseded.event.content = {};
-    delete superseded.event.unsigned?.prev_content;
+    // Emptied with no event announced and nothing drawn again: the jobs are read from the current
+    // state alone (`agentRoomState`), which no longer holds this event, and nothing reads the list
+    // before a jobs state. What tells the event's place stays (ID, time, type, state key): a read
+    // receipt may name the event, and the timeline rows count their places over every event, so
+    // it is not removed. The event gets a new object and the one it was made from stays as the
+    // server sent it: the sync store holds that one as the room's state until it takes this
+    // batch, and a save in between would keep it. The event cache saves its own copies.
+    const { prev_content: _listBefore, ...unsigned } = superseded.event.unsigned ?? {};
+    superseded.event = { ...superseded.event, content: {}, unsigned };
   });
 };

@@ -97,6 +97,7 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
@@ -255,6 +256,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
     // It changes only as it flips, so typing renders nothing more.
     const [noText, setNoText] = useState(() => holdsNoText(editor));
+    // Whether it shows nothing typed, for its layout: a lone `/me` is no text to send but shows.
+    const [empty, setEmpty] = useState(() => isEmptyEditor(editor));
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
     // hides, under a plugin's cover or behind a side panel.
     const conversationHidden = useConversationHidden();
@@ -593,6 +596,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       attachments.onEditorChange();
       const empty = isEmptyEditor(editor);
       setNoText(holdsNoText(editor));
+      setEmpty(empty);
+      // An empty editor holds no query. The query follows key releases, and a reset (a send by
+      // tap, a cleared draft) comes without one, which would leave it naming text that is gone.
+      if (empty) setAutocompleteQuery(undefined);
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
     }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
 
@@ -635,6 +642,32 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       setEmojiAnchor(anchor);
     };
     const toggleFormatting = () => setFormattingOpen((open) => !open);
+    const recorder = voiceActive ? voice.renderRecorder(() => void handleSend()) : null;
+    // Two rows, text over controls; a phone shows one row until the user writes (`isComposerExpanded`).
+    // Only a phone's composer follows focus; elsewhere it always shows two rows.
+    const focus = useComposerFocus(phone);
+    const { setRoot } = focus;
+    const setComposerRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        setRoot(node);
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref, setRoot]
+    );
+    const expanded = isComposerExpanded({
+      phone,
+      focused: focus.focused,
+      pressing: focus.pressing,
+      empty,
+      busy:
+        !!replyDraft ||
+        !!attachments.board ||
+        !!recorder ||
+        emojiAnchor !== undefined ||
+        autocompleteMenuOpen ||
+        formattingOpen,
+    });
 
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
@@ -681,7 +714,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ));
 
     return (
-      <div ref={ref} style={COMPOSER_STYLE}>
+      <div
+        ref={setComposerRef}
+        style={COMPOSER_STYLE}
+        data-composer-expanded={expanded}
+        // Only a press on the expanded composer holds it open (`isComposerExpanded`).
+        onPointerDown={phone && expanded ? focus.onPointerDown : undefined}
+      >
         {autocomplete}
         {attachments.board}
         {/* After the staged files anchor, so that panel floats above the drop hint, not over it. */}
@@ -727,10 +766,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             onDismiss={attachments.dismissLostPastes}
           />
         )}
-        {voiceActive && voice.renderRecorder(() => void handleSend())}
+        {recorder}
         <CustomEditor
           editor={editor}
           editableName="RoomInput"
+          layout={expanded ? 'stacked' : 'row'}
           styleMarkdown={isMarkdown}
           linkSchemes={linkSchemes}
           markdownCommands

@@ -23,6 +23,7 @@ const plugin = (id: string, threadDetails: ThreadDetail[]): RegisteredPlugin => 
   messageRenderers: [],
   pages: [],
   roomHeaderSlot: [],
+  threadHeaderSlot: [],
   sidePanels: [],
   headerActions: [],
   slashCommands: [],

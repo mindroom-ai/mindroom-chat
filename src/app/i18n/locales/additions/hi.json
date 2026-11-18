@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "बंद करें",
       "previous": "पिछली छवि",
-      "next": "अगली छवि"
+      "next": "अगली छवि",
+      "wheelZoomHint": "ज़ूम करने के लिए {{key}} + स्क्रॉल"
     },
     "inviteUserPrompt": {
       "close": "बंद करें",

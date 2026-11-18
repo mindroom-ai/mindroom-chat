@@ -185,4 +185,187 @@ describe('thread summary markers', () => {
       act(() => renderer?.unmount());
     }
   });
+
+  it('shows a title and the skill review notice after it side by side in one row', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { ThreadSummaryMarker } = await import(
+      '../../messages/thread-summary/ThreadSummaryMarker'
+    );
+    const { SkillReviewMarker } = await import('../../messages/SkillReviewMarker');
+    const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
+    const review = makeEvent('$review', {
+      threadRootId: threadId,
+      ts: 4_000,
+      sender: '@mindroom_code:example.org',
+      content: {
+        msgtype: 'm.notice',
+        body: 'Skill review: updated `developing-mindroom-chat`',
+        'io.mindroom.skill_review': { changes: { 'developing-mindroom-chat': 'updated' } },
+      },
+    });
+    const events = [
+      rootEvent,
+      makeEvent('$r1', { threadRootId: threadId, ts: 2_000 }),
+      summary('$s1', 'Push bug', 3_000),
+      review,
+    ];
+    const timeline = makeTimeline(events, { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [rootEvent] });
+    room.getThread = () =>
+      ({
+        rootEvent,
+        events: events.slice(1),
+        getUnfilteredTimelineSet: () => timelineSet,
+      } as never);
+    threadRenderStateMock.threadEvents = events as never;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      events.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = [1, 2, 3];
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, threadId }));
+        await flushAsyncWork();
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual(['$r1', '$s1', '$review']);
+      const runs = renderer!.root.findAll(
+        (node) => node.type === 'div' && node.props['data-quiet-marker-run'] === 'true'
+      );
+      expect(runs).toHaveLength(1);
+      const [run] = runs;
+      expect(
+        run!
+          .findAll((node) => typeof node.props['data-message-id'] === 'string')
+          .map((node) => node.props['data-message-id'] as string)
+      ).toEqual(['$s1', '$review']);
+      expect(run!.findAllByType(ThreadSummaryMarker)).toHaveLength(1);
+      expect(run!.findAllByType(SkillReviewMarker)).toHaveLength(1);
+      // Each marker renders once: the title's own row folds into the run's row.
+      expect(renderer!.root.findAllByType(ThreadSummaryMarker)).toHaveLength(1);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  /** A thread whose events the test may add to before rendering again. */
+  const mountThread = (events: ReturnType<typeof makeEvent>[]) => {
+    const timeline = makeTimeline(events, { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [events[0]!] });
+    room.getThread = () =>
+      ({
+        rootEvent: events[0],
+        events: events.slice(1),
+        getUnfilteredTimelineSet: () => timelineSet,
+      } as never);
+    const show = () => {
+      threadRenderStateMock.threadEvents = [...events] as never;
+      threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+        events.map((event, index) => [event.getId(), index])
+      );
+      roomTimelineVirtualizerState.virtualIndexes = events.slice(1).map((_, index) => index + 1);
+    };
+    return { room, show };
+  };
+  const agentNotice = (id: string, ts: number, content: Record<string, unknown>) =>
+    makeEvent(id, {
+      threadRootId: threadId,
+      ts,
+      sender: '@mindroom_code:example.org',
+      content: { msgtype: 'm.notice', body: id, ...content },
+    });
+  const quietRuns = (renderer: ReturnType<typeof create>) =>
+    renderer.root
+      .findAll((node) => node.type === 'div' && node.props['data-quiet-marker-run'] === 'true')
+      .map((run) =>
+        run
+          .findAll((node) => typeof node.props['data-message-id'] === 'string')
+          .map((node) => node.props['data-message-id'] as string)
+      );
+
+  it('keeps the title marker mounted when a skill review notice joins it', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const events = [
+      makeEvent(threadId, { isThreadRoot: true, ts: 1_000 }),
+      makeEvent('$r1', { threadRootId: threadId, ts: 2_000 }),
+      summary('$s1', 'Push bug', 3_000),
+    ];
+    const { room, show } = mountThread(events);
+    // Each marker trigger the renderer mounts, by the description it points at.
+    const mounted: string[] = [];
+    const createNodeMock = (element: React.ReactElement) => {
+      const props = element.props as Record<string, unknown>;
+      if (element.type === 'button' && typeof props['aria-describedby'] === 'string') {
+        mounted.push(props['aria-describedby']);
+      }
+      // As the renderer does without a mock: no element behind other refs.
+      return null;
+    };
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      show();
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, threadId }), { createNodeMock });
+        await flushAsyncWork();
+      });
+      expect(quietRuns(renderer!)).toEqual([]);
+      expect(mounted).toHaveLength(1);
+
+      events.push(
+        agentNotice('$review', 4_000, {
+          'io.mindroom.skill_review': { changes: { 'developing-mindroom-chat': 'updated' } },
+        })
+      );
+      show();
+      await act(async () => {
+        renderer!.update(React.createElement(Harness, { room, threadId }));
+        await flushAsyncWork();
+      });
+      expect(quietRuns(renderer!)).toEqual([['$s1', '$review']]);
+      // Only the new marker's trigger mounted: the title's stayed in place.
+      expect(mounted).toHaveLength(2);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('keeps a snooze ending on its own row beside a title', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { SnoozeEndedMarker } = await import('../../messages/SnoozeEndedMarker');
+    const events = [
+      makeEvent(threadId, { isThreadRoot: true, ts: 1_000 }),
+      makeEvent('$r1', { threadRootId: threadId, ts: 2_000 }),
+      summary('$s1', 'Push bug', 3_000),
+      agentNotice('$wake', 4_000, {
+        msgtype: 'm.text',
+        'io.mindroom.thread_snooze': { event: 'ended', until: '2026-11-13T09:00:00Z' },
+      }),
+    ];
+    const { room, show } = mountThread(events);
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      show();
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, threadId }));
+        await flushAsyncWork();
+      });
+      expect(getRenderedEventIds(renderer!)).toEqual(['$r1', '$s1', '$wake']);
+      expect(renderer!.root.findAllByType(SnoozeEndedMarker)).toHaveLength(1);
+      expect(quietRuns(renderer!)).toEqual([]);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 });

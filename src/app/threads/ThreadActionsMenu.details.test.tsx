@@ -91,6 +91,7 @@ const pluginWith = (Component: ComponentType<ThreadDetailProps>): RegisteredPlug
   messageRenderers: [],
   pages: [],
   roomHeaderSlot: [],
+  threadHeaderSlot: [],
   sidePanels: [],
   headerActions: [],
   slashCommands: [],

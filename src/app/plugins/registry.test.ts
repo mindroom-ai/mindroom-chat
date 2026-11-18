@@ -29,6 +29,8 @@ const entries = vi.hoisted(() => {
   const messageLink = { match: () => true, Component };
   const banner = (): null => null;
   const headerSlot = [banner];
+  const threadButton = (): null => null;
+  const threadSlot = [threadButton];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
   const badge = { Component };
   const detail = { Component, shows: () => true };
@@ -45,6 +47,8 @@ const entries = vi.hoisted(() => {
     messageLink,
     banner,
     headerSlot,
+    threadButton,
+    threadSlot,
     cover,
     badge,
     detail,
@@ -62,6 +66,7 @@ const entries = vi.hoisted(() => {
           roomActions: roomAction,
           messageLinks: messageLink,
           roomHeaderSlot: banner,
+          threadHeaderSlot: threadButton,
           conversationCovers: cover,
           threadCardBadges: badge,
           threadDetails: detail,
@@ -131,6 +136,7 @@ const entries = vi.hoisted(() => {
             { ...messageLink, match: true },
           ],
           roomHeaderSlot: headerSlot,
+          threadHeaderSlot: threadSlot,
           conversationCovers: [
             cover,
             null,
@@ -195,6 +201,8 @@ describe('registeredPlugins', () => {
     expect(plugins[1]?.messageLinks).toEqual([entries.messageLink]);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
+    expect(plugins[0]?.threadHeaderSlot).toEqual([]);
+    expect(plugins[1]?.threadHeaderSlot).toEqual([entries.threadButton]);
     // A cover needs its condition, a subscription and a component, and Escape's close is a function.
     expect(plugins[0]?.conversationCovers).toEqual([]);
     expect(plugins[1]?.conversationCovers).toEqual([entries.cover]);
@@ -222,12 +230,14 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin.slashCommands)).toBe(true);
       expect(Object.isFrozen(plugin.roomActions)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
+      expect(Object.isFrozen(plugin.threadHeaderSlot)).toBe(true);
       expect(Object.isFrozen(plugin.conversationCovers)).toBe(true);
       expect(Object.isFrozen(plugin.threadCardBadges)).toBe(true);
       expect(Object.isFrozen(plugin.threadDetails)).toBe(true);
     }
     // The plugin's own list stays as it was.
     expect(Object.isFrozen(entries.headerSlot)).toBe(false);
+    expect(Object.isFrozen(entries.threadSlot)).toBe(false);
   });
 
   it('lists none for a load whose address says ?plugins=off', async () => {
