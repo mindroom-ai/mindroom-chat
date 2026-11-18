@@ -9,12 +9,7 @@ import {
   FLIGHT_RECORDER_CURRENT_KEY,
   installFlightRecorder,
 } from './flightRecorder';
-import {
-  clearDeepTrace,
-  getDeepTraceEnabled,
-  initializeDeepTraceRecorder,
-  setDeepTraceEnabled,
-} from './deepTrace';
+import { clearDeepTrace, initializeDeepTraceRecorder, setDeepTraceEnabled } from './deepTrace';
 import { startMemorySampler } from './memorySampler';
 
 /**
@@ -28,6 +23,16 @@ export const DEBUG_MODE_KEY = 'mindroom.diagnostics.debugMode.v1';
 
 let stopFlightRecorder: (() => void) | undefined;
 const listeners = new Set<() => void>();
+// The deep trace work of each change, one after another: an Off still clearing the trace must
+// finish before the next On starts it, or the clear would erase the new session's first events.
+let traceWork: Promise<void> = Promise.resolve();
+
+const queueTraceWork = (work: () => Promise<unknown> | void): void => {
+  traceWork = traceWork.then(work).then(
+    () => undefined,
+    () => undefined
+  );
+};
 
 const notifyListeners = (): void => {
   listeners.forEach((listener) => {
@@ -45,33 +50,21 @@ export const getDebugModeEnabled = (
 ): boolean => getStorageItemSafe(storage, DEBUG_MODE_KEY) === '1';
 
 /**
- * Another tab changed debug mode. Turned on there, this tab records its own deep trace and memory
- * samples too, so logs attached here hold this tab's activity. The flight recorder stays with the
- * tab that started it: the device keeps one live session.
- */
-const onStorage = (event: StorageEvent): void => {
-  if (event.key !== DEBUG_MODE_KEY && event.key !== null) return;
-  if (getDebugModeEnabled()) {
-    initializeDeepTraceRecorder();
-    if (getDeepTraceEnabled()) void setDeepTraceEnabled(true).catch(() => undefined);
-    startMemorySampler();
-  }
-  notifyListeners();
-};
-
-/**
  * Calls the listener after each change of debug mode, in this page or another tab of the app.
- * Returns the unsubscribe function.
+ * Another tab's change starts no recorder here: debug mode records one window (one flight
+ * recorder session per device). Returns the unsubscribe function.
  */
 export const subscribeDebugMode = (listener: () => void): (() => void) => {
-  // Without a window (a worker, a test in Node) only this page's changes arrive.
-  if (listeners.size === 0 && typeof window !== 'undefined') {
-    window.addEventListener('storage', onStorage);
-  }
   listeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === DEBUG_MODE_KEY || event.key === null) listener();
+  };
+  // Without a window (a worker, a test in Node) only this page's changes arrive.
+  const target = typeof window === 'undefined' ? undefined : window;
+  target?.addEventListener('storage', onStorage);
   return () => {
-    if (!listeners.delete(listener) || listeners.size > 0) return;
-    if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage);
+    listeners.delete(listener);
+    target?.removeEventListener('storage', onStorage);
   };
 };
 
@@ -104,11 +97,13 @@ export const setDebugModeEnabled = async (
     // Unsaved, the choice would be off again on the next start, the recorder's session with it.
     if (!setStorageItemSafe(storage, DEBUG_MODE_KEY, '1')) return false;
     if (!keepRecorders) startFlightRecorder();
-    initializeDeepTraceRecorder();
-    startMemorySampler();
     notifyListeners();
-    // Its switch is saved at once; its own tile shows whether it records.
-    void setDeepTraceEnabled(true).catch(() => undefined);
+    // Not awaited: the deep trace's own tile shows whether it records.
+    queueTraceWork(() => {
+      initializeDeepTraceRecorder();
+      startMemorySampler();
+      void setDeepTraceEnabled(true).catch(() => undefined);
+    });
     return true;
   }
   const saved = removeStorageItemSafe(storage, DEBUG_MODE_KEY);
@@ -123,8 +118,10 @@ export const setDebugModeEnabled = async (
     removeStorageItemSafe(storage, FLIGHT_RECORDER_CURRENT_KEY);
     removeStorageItemSafe(storage, FLIGHT_RECORDER_ABNORMAL_KEY);
   }
-  // Both start now, in this order: the trace stops before its store is cleared.
-  void setDeepTraceEnabled(false).catch(() => undefined);
-  void clearDeepTrace().catch(() => undefined);
+  // The trace stops before its store is cleared, and the next On waits for the clear.
+  queueTraceWork(async () => {
+    await setDeepTraceEnabled(false);
+    await clearDeepTrace();
+  });
   return saved;
 };

@@ -15,11 +15,11 @@ const mocks = vi.hoisted(() => ({
   initializeDeepTraceRecorder: vi.fn(),
   setDeepTraceEnabled: vi.fn(),
   clearDeepTrace: vi.fn(),
-  getDeepTraceEnabled: vi.fn(),
   startMemorySampler: vi.fn(),
 }));
 
-const never = () => new Promise<never>(() => undefined);
+/** The deep trace work runs after the switch answers, one change after another. */
+const traceWorkDone = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 vi.mock('./flightRecorder', () => ({
   FLIGHT_RECORDER_CURRENT_KEY: 'mindroom.flight.current.v1',
@@ -33,7 +33,6 @@ vi.mock('./deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
   setDeepTraceEnabled: mocks.setDeepTraceEnabled,
   clearDeepTrace: mocks.clearDeepTrace,
-  getDeepTraceEnabled: mocks.getDeepTraceEnabled,
 }));
 
 describe('debug mode', () => {
@@ -52,12 +51,14 @@ describe('debug mode', () => {
 
     expect(getDebugModeEnabled()).toBe(true);
     expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
+    await traceWorkDone();
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
     expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
   });
 
   it('on turns the deep trace on too, so attached logs hold it', async () => {
     await setDebugModeEnabled(true);
+    await traceWorkDone();
 
     expect(mocks.setDeepTraceEnabled).toHaveBeenCalledWith(true);
   });
@@ -102,6 +103,7 @@ describe('debug mode', () => {
     expect(mocks.stopFlightRecorder).not.toHaveBeenCalled();
     expect(window.localStorage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBe('{}');
     expect(window.localStorage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBe('{}');
+    await traceWorkDone();
     // The deep trace goes off with debug mode, and what it recorded with it.
     expect(mocks.setDeepTraceEnabled).toHaveBeenLastCalledWith(false);
     expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
@@ -115,6 +117,7 @@ describe('debug mode', () => {
     await expect(setDebugModeEnabled(false)).resolves.toBe(true);
 
     expect(window.localStorage.getItem(DEBUG_MODE_KEY)).toBeNull();
+    await traceWorkDone();
     expect(mocks.setDeepTraceEnabled).toHaveBeenCalledWith(false);
     expect(mocks.stopFlightRecorder).toHaveBeenCalledOnce();
     expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
@@ -133,40 +136,27 @@ describe('debug mode', () => {
     expect(window.localStorage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBeNull();
   });
 
-  it('answers with the saved choice at once while the deep trace store never settles', async () => {
-    mocks.setDeepTraceEnabled.mockImplementation(never);
-    mocks.clearDeepTrace.mockImplementation(never);
+  it('answers at once while a clear hangs, and starts the next On only after it', async () => {
+    let releaseClear!: () => void;
+    mocks.clearDeepTrace.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseClear = resolve;
+        })
+    );
+    await setDebugModeEnabled(true);
+    await traceWorkDone();
+    mocks.setDeepTraceEnabled.mockClear();
 
-    await expect(setDebugModeEnabled(true)).resolves.toBe(true);
-    expect(mocks.setDeepTraceEnabled).toHaveBeenCalledWith(true);
     await expect(setDebugModeEnabled(false)).resolves.toBe(true);
-    expect(mocks.setDeepTraceEnabled).toHaveBeenLastCalledWith(false);
-    expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
-    expect(getDebugModeEnabled()).toBe(false);
-  });
+    await expect(setDebugModeEnabled(true)).resolves.toBe(true);
+    await traceWorkDone();
+    expect(getDebugModeEnabled()).toBe(true);
+    expect(mocks.setDeepTraceEnabled.mock.calls).toEqual([[false]]);
 
-  it("starts this tab's deep trace and sampler, not a flight recorder, when another tab turns it on", () => {
-    const listener = vi.fn();
-    const unsubscribe = subscribeDebugMode(listener);
-    mocks.getDeepTraceEnabled.mockReturnValue(true);
-
-    window.localStorage.setItem(DEBUG_MODE_KEY, '1');
-    window.dispatchEvent(new StorageEvent('storage', { key: DEBUG_MODE_KEY, newValue: '1' }));
-
-    expect(listener).toHaveBeenCalledOnce();
-    expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
-    expect(mocks.setDeepTraceEnabled).toHaveBeenCalledWith(true);
-    expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
-    expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
-
-    // Turned off there, this tab starts nothing; the deep trace stops on its own key.
-    vi.clearAllMocks();
-    window.localStorage.removeItem(DEBUG_MODE_KEY);
-    window.dispatchEvent(new StorageEvent('storage', { key: DEBUG_MODE_KEY, newValue: null }));
-    expect(listener).toHaveBeenCalledOnce();
-    expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
-    expect(mocks.startMemorySampler).not.toHaveBeenCalled();
-    unsubscribe();
+    releaseClear();
+    await traceWorkDone();
+    expect(mocks.setDeepTraceEnabled.mock.calls).toEqual([[false], [true]]);
   });
 
   it('starts nothing when the choice cannot be saved', async () => {

@@ -296,26 +296,40 @@ describe('attachment staging ownership', () => {
     expect(harness.feature.access.snapshot().staged[0]!.file).toBe(file);
   });
 
-  it('drops app logs that finish after the composer moved to another thread', async () => {
+  it('drops app logs whose file is still being prepared as the composer moves to another thread', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    let finish!: (built: { fileName: string; blob: Blob }) => void;
-    diagnostics.buildDiagnosticsExport.mockReturnValue(
-      new Promise((resolve) => {
-        finish = resolve;
-      })
+    diagnostics.buildDiagnosticsExport.mockResolvedValue({
+      fileName: 'mindroom-diagnostics-x.json',
+      blob: new Blob(['{}']),
+    });
+    let finishPreparing!: () => void;
+    const prepare = vi.fn(
+      (files: File[]) =>
+        new Promise<TUploadItem[]>((resolve) => {
+          finishPreparing = () =>
+            resolve(
+              files.map((file) => ({
+                file,
+                originalFile: file,
+                encInfo: undefined,
+                metadata: { markedAsSpoiler: false },
+              }))
+            );
+        })
     );
-    const prepare = vi.fn(async () => []);
     const harness = renderHarness(prepare);
     harness.changeThread('$asked');
 
     act(() => harness.feature.attachAppLogs());
+    await act(async () => {
+      await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce());
+    });
     harness.changeThread('$other');
     await act(async () => {
-      finish({ fileName: 'mindroom-diagnostics-x.json', blob: new Blob(['{}']) });
+      finishPreparing();
       await vi.waitFor(() => expect(warn).toHaveBeenCalled());
     });
 
-    expect(prepare).not.toHaveBeenCalled();
     expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
     warn.mockRestore();
   });

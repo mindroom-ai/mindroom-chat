@@ -462,11 +462,12 @@ export const useRoomInputAttachments = ({
   const dismissLostPastes = useCallback(() => setLostPastes(false), []);
 
   const stageFiles = useCallback(
-    async (files: File[]) => {
+    // `stillWanted` runs right before the files join the board, after their preparation.
+    async (files: File[], stillWanted?: () => boolean) => {
       if (files.length === 0) return;
       const targetRoomId = current.current.roomId;
       const items = await createUploadItems(files);
-      if (!mounted.current) return;
+      if (!mounted.current || (stillWanted && !stillWanted())) return;
       access.append(targetRoomId, items);
     },
     [access, createUploadItems]
@@ -570,19 +571,17 @@ export const useRoomInputAttachments = ({
     // The export takes a moment, and this composer can move to another room or thread meanwhile:
     // the logs go only to the conversation they were asked for in.
     const { roomId: targetRoomId, draftKey: targetDraftKey } = current.current;
+    const stillAsked = () => {
+      const same =
+        current.current.roomId === targetRoomId && current.current.draftKey === targetDraftKey;
+      // eslint-disable-next-line no-console
+      if (!same) console.warn('[composer] app logs not attached: the conversation changed');
+      return same;
+    };
     buildDiagnosticsExport()
-      .then(({ blob, fileName }) => {
-        if (!mounted.current) return undefined;
-        if (
-          current.current.roomId !== targetRoomId ||
-          current.current.draftKey !== targetDraftKey
-        ) {
-          // eslint-disable-next-line no-console
-          console.warn('[composer] app logs not attached: the conversation changed meanwhile');
-          return undefined;
-        }
-        return stageFiles([new File([blob], fileName, { type: 'application/json' })]);
-      })
+      .then(({ blob, fileName }) =>
+        stageFiles([new File([blob], fileName, { type: 'application/json' })], stillAsked)
+      )
       .catch((error: unknown) => {
         // eslint-disable-next-line no-console
         console.warn('[composer] could not attach app logs', error);
