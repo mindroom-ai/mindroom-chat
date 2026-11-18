@@ -394,16 +394,11 @@ export const useLatestRowPin = ({
 };
 
 /**
- * Stops a touch flick that still scrolls the timeline, for the reader's own Jump to Latest. Its
- * button is outside the scroll area, so the tap does not end the flick, and a scroll write that
- * lands inside a scroll the compositor still owns can be discarded: the compositor puts its own
- * position back (the offset ledger's discard watch records that for its settle writes), and the
- * jump would rest short of the newest row. An area that cannot scroll has no flick, so it takes
- * `overflow-y: hidden` for the jump's write and has its own value back in the frame after the
- * one that rendered it: the frame callback asked for here still runs ahead of that rendering.
- * Hidden overflow keeps the scroll position, and the pin goes on following the rows meanwhile.
- * Only on iOS (`isIOS`: its app's web view and its browsers scroll alike), and never for a pin
- * the timeline asks for itself: elsewhere the reader's scrollbar would go and the rows reflow.
+ * Asks iOS to stop a touch flick before the reader's own Jump to Latest writes: the button is
+ * outside the scroll area, so its tap does not end the flick, and a write inside a scroll the
+ * compositor still owns can be discarded (see the offset ledger's discard watch). The area takes
+ * `overflow-y: hidden` for the write and gets its own value back two frames later, so one frame
+ * renders it hidden. iOS only; the timeline's own pins never call it.
  */
 export const useFlickStop = (getScrollElement: () => HTMLElement | null): (() => void) => {
   const stoppedRef = useRef<{ element: HTMLElement; overflowY: string; frame: number }>();
