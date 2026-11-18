@@ -65,6 +65,17 @@ const sharedRoomDefault = (state: ModelPickerState): ModelCatalogEntry | undefin
   return state.models.find((model) => model.key === key);
 };
 
+/** Each agent's fallback model by name, "entity: Model, …"; empty before the router names them. */
+const agentModels = (
+  inherited: ModelPickerState['inherited'],
+  models: ModelPickerState['models']
+): string => {
+  const labels = new Map(models.map((model) => [model.key, model.display_name]));
+  return inherited
+    .map(({ entity, model }) => `${entity}: ${labels.get(model) ?? model}`)
+    .join(', ');
+};
+
 /**
  * The model the thread runs on now, its own or else the one every agent falls back to, and the
  * reasoning level it runs it at; no level without such a model, or while the agents' levels differ.
@@ -96,15 +107,12 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
   // A catalog that shrinks under the field (another runtime, a refresh) takes its filter with it.
   const normalizedQuery = filterShown ? query.trim().toLocaleLowerCase() : '';
   // What "Room default" means here: each agent's own model, by name, once the router says.
-  const defaultDetail = useMemo(() => {
-    if (state.inherited.length === 0) {
-      return t('mindroomUi.models.modelPicker.roomDefaultDescription');
-    }
-    const labels = new Map(state.models.map((model) => [model.key, model.display_name]));
-    return state.inherited
-      .map(({ entity, model }) => `${entity}: ${labels.get(model) ?? model}`)
-      .join(', ');
-  }, [state.inherited, state.models, t]);
+  const defaultDetail = useMemo(
+    () =>
+      agentModels(state.inherited, state.models) ||
+      t('mindroomUi.models.modelPicker.roomDefaultDescription'),
+    [state.inherited, state.models, t]
+  );
   // Found by its own words, not by the names of the models it falls back to.
   const defaultVisible =
     !normalizedQuery ||
@@ -483,8 +491,15 @@ export function ModelPicker({
   const sawPendingRef = useRef(false);
   const selectedModel = state.models.find((model) => model.key === state.override);
   const { model: shownModel, level: active } = currentChoice(state);
+  const roomDefault = t('mindroomUi.models.modelPicker.roomDefault');
+  const agents = agentModels(state.inherited, state.models);
+  // Without an override the button names what each agent runs, as Room default in the menu does.
   const modelLabel =
-    selectedModel?.display_name ?? state.override ?? t('mindroomUi.models.modelPicker.roomDefault');
+    selectedModel?.display_name ??
+    state.override ??
+    (agents
+      ? t('mindroomUi.models.modelPicker.roomDefaultWith', { label: roomDefault, models: agents })
+      : roomDefault);
   // A model with levels names the level it runs at too, and shows it as bars after its logo.
   const levels = shownModel?.reasoning_levels;
   const bars = levels && active ? effortBars(levels, active) : undefined;

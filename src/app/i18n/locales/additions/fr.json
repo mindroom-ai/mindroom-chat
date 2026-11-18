@@ -1040,6 +1040,7 @@
         "defaultLevel": "Par défaut",
         "levelIsDefault": "{{level}}, par défaut",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "Désactivé",
           "minimal": "Minimal",

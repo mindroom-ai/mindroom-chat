@@ -1060,6 +1060,7 @@
         "defaultLevel": "По умолчанию",
         "levelIsDefault": "{{level}}, по умолчанию",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "Выкл.",
           "minimal": "Минимальное",
