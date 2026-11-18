@@ -206,8 +206,7 @@ export function BackgroundJobRow({ room, item, viewThreadId, now, onOpen, stop }
           {modelLabel && (
             <Badge
               variant="Secondary"
-              fill="None"
-              outlined
+              fill="Soft"
               radii="Pill"
               className={css.ModelPill}
               title={meta?.model && getAiRunModelLabel(meta.model)}
@@ -238,13 +237,17 @@ export function BackgroundJobRow({ room, item, viewThreadId, now, onOpen, stop }
             </Badge>
           )}
         </span>
-        {(item.activity || elsewhere || usage) && (
+        {((item.activity && (item.subagent || item.activity.preview)) || elsewhere || usage) && (
           <span className={css.JobLine}>
             {item.activity && (
+              // A tool job's line 1 is its tool already: its line 2 is the call's arguments.
               <span className={css.Activity} data-job-activity>
-                <b>{item.activity.tool}</b>
+                {item.subagent && <b>{item.activity.tool}</b>}
                 {item.activity.preview && (
-                  <code className={css.Preview}> {item.activity.preview}</code>
+                  <code className={css.Preview}>
+                    {item.subagent && ' '}
+                    {item.activity.preview}
+                  </code>
                 )}
               </span>
             )}
