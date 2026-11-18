@@ -308,12 +308,31 @@ describe('the Compact room in sections', () => {
           { id: 'needsYou', rootIds: ['$a', '$b'] },
         ],
         [
-          { id: 'working', rootIds: ['$w', '$b'] },
+          { id: 'working', rootIds: ['$b', '$w'] },
           { id: 'needsYou', rootIds: ['$a'] },
         ]
       );
 
-      expect(rows()).toEqual(['#working 2', '$w', '$b', '#needsYou 1', '$a']);
+      expect(rows()).toEqual(['#working 2', '$b', '$w', '#needsYou 1', '$a']);
+    });
+
+    it('keeps a lone section open when a card moving to Working brings a second, until let go', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['needsYou'] })
+      );
+      const release = holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1', '$b']);
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
     });
 
     it('keeps a held section in its shown order while a new section comes in after it', () => {

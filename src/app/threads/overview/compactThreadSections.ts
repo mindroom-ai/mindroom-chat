@@ -118,9 +118,9 @@ export const buildCompactThreadSections = ({
  * the sections shown before (`shown`) stays in the section it showed in, at its place there
  * (`holdOrder`), and each of those sections stays, emptied or not, so no header comes or goes
  * under the pointer. A thread new to the list takes its section in `live`, whose header comes
- * with it, and joins that section where the live order puts it. So does a thread an agent starts
- * working on: Working shows it at once (its "Thinking..." placeholder already streams), because the
- * reader usually just asked, and the pointer resting on a list that fills the view would otherwise
+ * with it, and joins that section where the live order puts it. So does a thread `live` puts under
+ * Working, such as one whose agent posted its "Thinking..." placeholder (it already streams): the
+ * reader usually just asked, and a pointer resting on a list that fills the view would otherwise
  * keep it under Needs you for as long as it rests.
  */
 export const holdCompactThreadSections = (

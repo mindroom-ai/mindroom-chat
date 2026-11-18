@@ -337,9 +337,17 @@ export function CompactRoomView({
     shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
   }, [heldSections, room.roomId]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
-  // other sections to come back.
+  // other sections to come back. A held list keeps it open when a card moving to Working brings a
+  // second section, so the cards under the pointer stay in view until it lets go.
   const soleSection = heldSections?.length === 1;
-  const folded = soleSection ? NO_FOLDS : sectionsChoice.folded;
+  const foldsWaitRef = useRef<{ roomId: string; waiting: boolean }>();
+  const foldsWait =
+    soleSection ||
+    (orderHeld && foldsWaitRef.current?.roomId === room.roomId && foldsWaitRef.current.waiting);
+  useLayoutEffect(() => {
+    foldsWaitRef.current = { roomId: room.roomId, waiting: foldsWait };
+  }, [foldsWait, room.roomId]);
+  const folded = foldsWait ? NO_FOLDS : sectionsChoice.folded;
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
   const listedRows = useMemo(
     () =>

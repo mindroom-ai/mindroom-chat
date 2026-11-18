@@ -106,47 +106,30 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
       'io.mindroom.stream_status': 'pending',
       ...inThread(rootId),
     });
-  const track = async (label: string, rootId: string) => {
-    const seen: string[] = [];
-    for (let i = 0; i < 12; i += 1) {
-      await page.waitForTimeout(500);
-      seen.push(await sectionOf(page, rootId));
-    }
-    test.info().annotations.push({ type: label, description: seen.join(' ') });
-    return seen.at(-1);
-  };
-  const results: Record<string, string | undefined> = {};
+  const card = (rootId: string) => page.locator(`[data-thread-root-id="${rootId}"]`).first();
+  const orderHeld = () => page.locator('[data-order-held]').count();
 
-  // (a) API send, pointer outside the cards.
+  // (a) Pointer outside the cards.
   await page.mouse.move(5, 700);
   const rootA = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
-    body: 'Question A via API',
+    body: 'Question A with the pointer outside',
   });
-  await expect(page.locator(`[data-thread-root-id="${rootA}"]`).first()).toBeVisible({
-    timeout: 30_000,
-  });
-  expect(await sectionOf(page, rootA)).toBe('needsYou');
-  await page.waitForTimeout(1_500);
+  await expect(card(rootA)).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => sectionOf(page, rootA), { timeout: 10_000 }).toBe('needsYou');
   await think(rootA);
-  results.a = await track('A placeholder', rootA);
+  await expect.poll(() => sectionOf(page, rootA), { timeout: 10_000 }).toBe('working');
 
-  // (b) API send while the mouse rests on a card.
-  const oldCard = page.locator(`[data-thread-root-id="${oldRoot}"]`).first();
-  await oldCard.hover();
+  // (b) The mouse rests on another card, which holds every other move.
   const rootB = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
-    body: 'Question B while hovering',
+    body: 'Question B with the mouse resting on a card',
   });
-  await expect(page.locator(`[data-thread-root-id="${rootB}"]`).first()).toBeVisible({
-    timeout: 30_000,
-  });
-  expect(await sectionOf(page, rootB)).toBe('needsYou');
-  await page.waitForTimeout(1_500);
+  await expect(card(rootB)).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('needsYou');
+  await card(oldRoot).hover();
+  await expect.poll(orderHeld, { timeout: 5_000 }).toBe(1);
   await think(rootB);
-  results.b = await track('B placeholder (hovering)', rootB);
-  await page.mouse.move(5, 700);
-  results.bAfterLeave = await track('B after leaving', rootB);
-
-  expect(results).toEqual({ a: 'working', b: 'working', bAfterLeave: 'working' });
+  await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('working');
+  expect(await orderHeld()).toBe(1);
 });
