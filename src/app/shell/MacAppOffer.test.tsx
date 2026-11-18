@@ -11,6 +11,7 @@ import { tourAtom } from '../navigation/tourState';
 import { MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE } from '../preferences/accountSettings';
 import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { MacAppOffer, resetAnsweredMacAppAccountsForTests } from './MacAppOffer';
+import { TourOffer } from '../tour/TourOffer';
 import { NewVersionNotice } from './NewVersionNotice';
 
 const platform = vi.hoisted(() => ({ macBrowser: true }));
@@ -29,6 +30,8 @@ vi.mock('../config/appUpdate', () => ({
 }));
 
 const ALICE = '@alice:example.org';
+const BOB = '@bob:example.org';
+const HOMESERVER = 'https://example.org';
 // An account that has answered the tour's offer, so this one is due.
 const TOURED = { tourOffered: true };
 
@@ -36,7 +39,10 @@ const TOURED = { tourOffered: true };
  * A signed-in account: its `io.mindroom.settings` as the client holds it, and the writes it was
  * asked for. The client reads its stored copy until `sync`.
  */
-const account = (stored: unknown = TOURED) => {
+const account = (
+  stored: unknown = TOURED,
+  { userId = ALICE, homeserver = HOMESERVER }: { userId?: string; homeserver?: string } = {}
+) => {
   const settingsEvent = (content: unknown) => ({
     getType: () => MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
     getContent: () => content,
@@ -45,7 +51,8 @@ const account = (stored: unknown = TOURED) => {
   const setAccountData = vi.fn(async (_type: string, _content: unknown): Promise<void> => {});
   let syncState: SyncState = SyncState.Prepared;
   const client = Object.assign(new EventEmitter(), {
-    getSafeUserId: () => ALICE,
+    getSafeUserId: () => userId,
+    getHomeserverUrl: () => homeserver,
     getSyncState: () => syncState,
     getSyncStateData: () => (syncState === SyncState.Prepared ? { fromCache: true } : undefined),
     getAccountData: (type: string) =>
@@ -81,14 +88,24 @@ const show = (
     synced = true,
     config = {},
     list = false,
+    phone = false,
     withNewVersion = false,
-  }: { synced?: boolean; config?: ClientConfig; list?: boolean; withNewVersion?: boolean } = {}
+    withTourOffer = false,
+  }: {
+    synced?: boolean;
+    config?: ClientConfig;
+    list?: boolean;
+    phone?: boolean;
+    withNewVersion?: boolean;
+    withTourOffer?: boolean;
+  } = {}
 ) => {
   vi.mocked(useMatrixClient).mockReturnValue(
     client as unknown as ReturnType<typeof useMatrixClient>
   );
   const store = createStore();
   const page = document.body.appendChild(document.createElement('div'));
+  if (phone) page.setAttribute('data-phone', '');
   const listPlace = document.body.appendChild(document.createElement('div'));
   store.set(pageNoticeSlotAtom, page);
   if (list) store.set(listNoticeSlotAtom, listPlace);
@@ -97,6 +114,7 @@ const show = (
     <Provider store={store}>
       <ClientConfigProvider value={config}>
         {withNewVersion && <NewVersionNotice />}
+        {withTourOffer && <TourOffer />}
         <MacAppOffer />
       </ClientConfigProvider>
     </Provider>
@@ -228,7 +246,7 @@ describe('MacAppOffer', () => {
     expect(card()).toBeNull();
 
     cleanup();
-    const bob = account();
+    const bob = account(TOURED, { userId: BOB });
     show(bob);
     expect(card()).toBeTruthy();
     bob.deliver({ ...TOURED, macAppOffered: true });
@@ -236,5 +254,56 @@ describe('MacAppOffer', () => {
     expect(card()).toBeNull();
     expect(alice.setAccountData).not.toHaveBeenCalled();
     expect(bob.setAccountData).not.toHaveBeenCalled();
+  });
+
+  it("keeps the one line on a narrow window's page place, which a Mac browser gets", () => {
+    const { page } = show(account(), { phone: true });
+
+    expect(page.contains(card())).toBe(true);
+    expect(card()?.getAttribute('data-mac-app-offer-layout')).toBe('row');
+    expect(card()?.textContent).toContain('Using a Mac? Get the MindRoom app.');
+    expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull();
+  });
+
+  it('keeps an answer to the account that gave it, also for the same user on another server', async () => {
+    vi.useFakeTimers();
+    const here = account(TOURED, { homeserver: 'https://one.example.org' });
+    show(here);
+    fireEvent.click(button('dismiss'));
+    await settle();
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_LEAVE_MS);
+    });
+    cleanup();
+
+    const there = account(TOURED, { homeserver: 'https://two.example.org' });
+    show(there);
+    await settle();
+    expect(card()).toBeTruthy();
+    expect(here.setAccountData).toHaveBeenCalledOnce();
+    expect(there.setAccountData).not.toHaveBeenCalled();
+  });
+
+  it("comes once the tour's offer is answered on this page, though its write was refused", async () => {
+    vi.useFakeTimers();
+    const alice = account({});
+    alice.setAccountData.mockRejectedValue(new Error('offline'));
+    show(alice, { withTourOffer: true });
+    expect(document.querySelector('[data-tour-offer]')).toBeTruthy();
+    expect(card()).toBeNull();
+
+    fireEvent.click(
+      document.querySelector<HTMLElement>('[data-tour-offer-action="dismiss"]') ?? document.body
+    );
+    await settle();
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_LEAVE_MS);
+    });
+
+    expect(document.querySelector('[data-tour-offer]')).toBeNull();
+    expect(card()).toBeTruthy();
+    expect(alice.setAccountData.mock.calls).toEqual([
+      [MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE, { tourOffered: true }],
+    ]);
   });
 });

@@ -8,10 +8,11 @@ import { useAccountData } from '../matrix/hooks/useAccountData';
 import { useSetAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
+import { createSessionId } from '../matrix/session/sessions';
 import { MacAppIcon } from '../native/MacAppIcon';
 import { MAC_APP_DOWNLOAD_URL, offersMacApp } from '../native/macApp';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
-import { tourAtom } from '../navigation/tourState';
+import { tourAtom, tourOfferAnsweredAtom } from '../navigation/tourState';
 import {
   MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
   sanitizeAccountSettings,
@@ -20,8 +21,9 @@ import { Surface } from '../ui/glass/GlassPrimitives';
 import { listNoticeSlotAtom, pageNoticeSlotAtom, useNoticePresence } from '../ui/noticeSlots';
 import * as css from './MacAppOffer.css';
 
-// Accounts that answered the offer since the app started, so that one switched away from and back
-// to is not asked again while its stored answer is on its way; a page load starts it over.
+// Accounts (session IDs) that answered the offer since the app started, so that one switched away
+// from and back to is not asked again while its stored answer is on its way; a page load starts it
+// over.
 const answeredAccounts = new Set<string>();
 
 /** Forgets which accounts answered, as a page load does. */
@@ -30,16 +32,17 @@ export const resetAnsweredMacAppAccountsForTests = () => answeredAccounts.clear(
 /**
  * Offers the Mac app in a browser on a Mac, on a card where the tour's offer shows
  * (tour/TourOffer.tsx): at the foot of the room list while there is one beside the page, else at
- * the top of the page, in one line there. It shows once the client has synced with its server,
- * until the account answers with any of the card's buttons, Download included; the answer is kept
- * for the life of the page and stored as `macAppOffered` in the account's `io.mindroom.settings`,
- * so no other start or device asks again. It waits while the tour's offer is due, so a first
- * sign-in gets one offer at a time, and while a tour is open. The Home menu and Settings, About, keep a way to the download.
+ * the top of the page in one line, which wraps in a narrow window. It shows once the client has
+ * synced with its server, until the account answers with any of the card's buttons, Download
+ * included; the answer is kept for the life of the page and stored as `macAppOffered` in the
+ * account's `io.mindroom.settings`, so no other start or device asks again. It waits while the
+ * tour's offer is due, so a first sign-in gets one offer at a time, and while a tour is open. The
+ * Home menu and Settings, About, keep a way to the download.
  */
 export function MacAppOffer() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const userId = mx.getSafeUserId();
+  const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   // Not the stored copy of the last session, which a start shows first: its account data may
   // lack the answer another device gave since, or the settings a write here would replace.
   const synced = useServerSyncApplied(mx);
@@ -48,12 +51,14 @@ export function MacAppOffer() {
     useAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE)?.getContent()
   );
   const stored = settings.macAppOffered;
-  // The tour's offer goes first: until the account has answered it, this one waits, and it does
-  // not come over a tour that is open.
+  // The tour's offer goes first: until the account has answered it, stored or on this page (a
+  // refused write included), this one waits, and it does not come over a tour that is open.
   const tourOpen = useAtomValue(tourAtom) !== undefined;
-  const tourFirst = (tourOfferedAtStart && !settings.tourOffered) || tourOpen;
+  const tourAnsweredHere = useAtomValue(tourOfferAnsweredAtom).has(sessionId);
+  const tourAnswered = settings.tourOffered || tourAnsweredHere;
+  const tourFirst = (tourOfferedAtStart && !tourAnswered) || tourOpen;
   const setAccountSettings = useSetAccountSettings();
-  const answered = answeredAccounts.has(userId);
+  const answered = answeredAccounts.has(sessionId);
 
   // Stores the answer, never before the client has synced with its server: the write goes over
   // the stored settings, and before they have arrived it would replace the account's other
@@ -76,7 +81,7 @@ export function MacAppOffer() {
 
   /** Answers the offer and plays the card out. */
   const answer = () => {
-    answeredAccounts.add(userId);
+    answeredAccounts.add(sessionId);
     // Leaving is a change of state, so the render that follows reads the answer.
     dismiss();
   };
@@ -101,7 +106,8 @@ export function MacAppOffer() {
     </Button>
   );
 
-  const layout = placement === 'list' || slot.hasAttribute('data-phone') ? 'stacked' : 'row';
+  // The page's place, a narrow window's included, gets the one line, which wraps when it must.
+  const layout = placement === 'list' ? 'stacked' : 'row';
   return createPortal(
     <Surface
       className={css.Card({ placement, layout })}
