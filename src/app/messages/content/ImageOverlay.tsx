@@ -86,13 +86,14 @@ const keepContextMenu = (event: React.MouseEvent) => event.stopPropagation();
 
 /**
  * The image viewer in a modal over the page, for message attachments, inline pictures and link
- * previews. Escape, a click outside, Back, the viewer's back button or, on phones, a swipe from the
- * left edge close it; however many pictures it pages through, it holds one history entry. The dialog's name shows the direction
- * controls of `alt`; the viewer gets it as it is, to save the picture under it.
+ * previews. Escape, a click outside, Back, the viewer's back button or, on phones, a swipe from
+ * the left edge close it; however many pictures it pages through, it holds one history entry. The
+ * dialog's name shows the direction controls of `alt`; the viewer gets it as it is, to save the
+ * picture under it.
  */
 export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverlayProps) {
   const { src, alt, requestClose } = viewer;
-  const { centerStyle, modalStyle } = useViewerFrame();
+  const { centerClassName, modalClassName, modalStyle } = useViewerFrame();
   // The whole modal, its safe-area padding too: on phones it is the viewer's screen.
   const screenRef = useRef<HTMLDivElement>(null);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -102,7 +103,7 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
   if (!open) return null;
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter style={centerStyle}>
+      <OverlayCenter className={centerClassName}>
         <FocusTrap focusTrapOptions={viewerTrapOptions(requestClose)}>
           <Modal
             {...PINCH_SURFACE}
@@ -111,6 +112,7 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
             aria-modal="true"
             aria-label={revealDirectionControls(alt)}
             size="500"
+            className={modalClassName}
             style={modalStyle}
             onContextMenu={keepContextMenu}
           >

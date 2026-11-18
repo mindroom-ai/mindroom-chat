@@ -10,7 +10,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { createSessionId } from '../matrix/session/sessions';
 import { MacAppIcon } from '../native/MacAppIcon';
-import { MAC_APP_DOWNLOAD_URL, useOffersMacApp } from '../native/macApp';
+import { useMacAppDownloadUrl, useOffersMacApp } from '../native/macApp';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { tourAtom, tourOfferAnsweredAtom } from '../navigation/tourState';
 import {
@@ -78,6 +78,7 @@ export function MacAppOffer() {
     offered && synced && !stored && !answered && !tourFirst && hasPlace,
     { open: phoneLayerOpen, slideOutMs: PHONE_SLIDE_OUT_MS }
   );
+  const downloadUrl = useMacAppDownloadUrl(shown);
   if (!shown || !slot) return null;
 
   /** Answers the offer and plays the card out. */
@@ -91,7 +92,7 @@ export function MacAppOffer() {
     <Button
       as="a"
       className={css.Download}
-      href={MAC_APP_DOWNLOAD_URL}
+      href={downloadUrl}
       target="_blank"
       rel="noreferrer noopener"
       size="300"

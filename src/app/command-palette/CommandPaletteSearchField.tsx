@@ -36,7 +36,15 @@ export function CommandPaletteSearchField({ className }: CommandPaletteSearchFie
       </Text>
       {/* Named by aria-keyshortcuts; its glyphs would only lengthen the button's name. Keys read
       left to right in a right-to-left language too, so ⌘ K never turns into K ⌘. */}
-      <Badge as="kbd" variant="Secondary" fill="Soft" radii="300" dir="ltr" aria-hidden>
+      <Badge
+        as="kbd"
+        className={css.ShortcutHint}
+        variant="Secondary"
+        fill="Soft"
+        radii="300"
+        dir="ltr"
+        aria-hidden
+      >
         <Text as="span" size="L400">
           {getCommandPaletteShortcutLabel()}
         </Text>

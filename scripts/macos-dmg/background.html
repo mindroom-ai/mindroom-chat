@@ -1,0 +1,75 @@
+<!doctype html>
+<!--
+  Source of the Mac DMG window background (background.png, background@2x.png).
+  The window is 660 x 400 points with about 370 of them visible below the title bar; settings.py
+  places 128-point icons at (180, 160) and (480, 160). Finder draws their labels in black whatever
+  the appearance, so each label sits on a light plate. Re-render both PNGs after an edit with
+  scripts/macos-dmg/render-background.sh on a Mac.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 660px; height: 400px; overflow: hidden; }
+  body {
+    position: relative;
+    background:
+      radial-gradient(ellipse 380px 260px at 180px 160px, rgba(255, 196, 102, 0.22), transparent 70%),
+      radial-gradient(ellipse 420px 300px at 480px 160px, rgba(92, 176, 196, 0.16), transparent 70%),
+      radial-gradient(ellipse 900px 520px at 50% 30%, #1d4a5b 0%, #122f3c 50%, #091820 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  svg { position: absolute; inset: 0; }
+  .caption {
+    position: absolute; left: 0; right: 0; top: 296px;
+    text-align: center; color: rgba(236, 244, 246, 0.78);
+    font-size: 15px; font-weight: 500; letter-spacing: 0.1px;
+  }
+  .caption b { color: #f4cf86; font-weight: 600; }
+  .hint {
+    position: absolute; left: 0; right: 0; top: 322px;
+    text-align: center; color: rgba(200, 222, 228, 0.45);
+    font-size: 12px; letter-spacing: 0.2px;
+  }
+</style>
+</head>
+<body>
+<svg width="660" height="400" viewBox="0 0 660 400">
+  <defs>
+    <!-- Faint isometric cubes, after the logo. -->
+    <pattern id="cubes" width="48" height="83.14" patternUnits="userSpaceOnUse">
+      <g fill="none" stroke="rgba(150, 210, 222, 0.055)" stroke-width="1">
+        <path d="M24 0 L48 13.86 L48 41.57 L24 55.43 L0 41.57 L0 13.86 Z" />
+        <path d="M24 27.71 L48 13.86 M24 27.71 L0 13.86 M24 27.71 L24 55.43" />
+        <path d="M0 41.57 L0 69.28 L24 83.14 M48 41.57 L48 69.28 L24 83.14 L24 55.43" />
+      </g>
+    </pattern>
+    <radialGradient id="fade" cx="50%" cy="45%" r="65%">
+      <stop offset="0" stop-color="#fff" stop-opacity="1" />
+      <stop offset="1" stop-color="#fff" stop-opacity="0.15" />
+    </radialGradient>
+    <mask id="fadeMask"><rect width="660" height="400" fill="url(#fade)" /></mask>
+    <linearGradient id="arrow" x1="286" x2="376" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f4cf86" stop-opacity="0.2" />
+      <stop offset="1" stop-color="#f4cf86" stop-opacity="0.95" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <rect width="660" height="400" fill="url(#cubes)" mask="url(#fadeMask)" />
+  <g fill="rgba(236, 244, 246, 0.9)">
+    <rect x="114" y="232" width="132" height="26" rx="13" />
+    <rect x="414" y="232" width="132" height="26" rx="13" />
+  </g>
+  <g filter="url(#glow)" fill="none" stroke="url(#arrow)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M286 160 H374" />
+    <path d="M364 150 L376 160 L364 170" />
+  </g>
+</svg>
+<div class="caption">Drag <b>MindRoom</b> into Applications</div>
+<div class="hint">Then open it from Launchpad or Spotlight</div>
+</body>
+</html>

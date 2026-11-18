@@ -29,7 +29,7 @@ export type CompactThreadCardProps = {
    */
   attachment?: ReactNode;
   /**
-   * Shown in the metadata row after the thread's tags, inside the button: marks with no control of
+   * Shown in the metadata row before the thread's tags, inside the button: marks with no control of
    * their own, such as client plugins' thread card badges. Keep the node the same across renders,
    * or the memoized card renders again for it.
    */
@@ -249,33 +249,41 @@ function CompactThreadCardBase({
             ))}
           </Box>
         )}
-        {resolvedByLabel && (
-          <Text
-            as="span"
-            className={css.ResolutionByline}
-            data-compact-card-resolution-byline="true"
-            size="T200"
-          >
-            <span className={css.ResolutionBylineLabel}>{resolvedByLabel}</span>
-          </Text>
-        )}
-        {tags.slice(0, maxTags).map((tagName) => (
-          <ThreadTagPill key={tagName} name={tagName} />
-        ))}
-        {tags.length > maxTags && (
-          <span className={OverflowChip} title={tags.slice(maxTags).join(', ')}>
-            +{tags.length - maxTags}
-          </span>
-        )}
-        {forkedFromLabel && <ThreadForkedBadge label={forkedFromLabel} />}
-        {badges}
-        {isStreaming && (
-          <Text as="span" className={css.StreamingStatus} size="T200" priority="300">
-            <ThreadStreamingDot aria-hidden="true" />
-            {t('mindroomUi.threads.compactThreadCard.streaming')}
-          </Text>
-        )}
+        {/* The marks that can run out of room on a phone: each shows whole or, wrapped onto the
+        row's hidden second line, not at all, so none is squeezed to a blob and none pushes the
+        count under the menu button. A plugin's badges come before the tags, so on a phone the
+        pull request a thread works on keeps its place. */}
+        <span className={css.Chips}>
+          {resolvedByLabel && (
+            <Text
+              as="span"
+              className={css.ResolutionByline}
+              data-compact-card-resolution-byline="true"
+              size="T200"
+            >
+              <span className={css.ResolutionBylineLabel}>{resolvedByLabel}</span>
+            </Text>
+          )}
+          {forkedFromLabel && <ThreadForkedBadge label={forkedFromLabel} />}
+          {badges}
+          {tags.slice(0, maxTags).map((tagName) => (
+            <ThreadTagPill key={tagName} name={tagName} />
+          ))}
+          {tags.length > maxTags && (
+            <span className={OverflowChip} title={tags.slice(maxTags).join(', ')}>
+              +{tags.length - maxTags}
+            </span>
+          )}
+        </span>
         <span className={css.Stats}>
+          {isStreaming && (
+            <Text as="span" className={css.StreamingStatus} size="T200" priority="300">
+              <ThreadStreamingDot aria-hidden="true" />
+              <span className={css.StreamingLabel}>
+                {t('mindroomUi.threads.compactThreadCard.streaming')}
+              </span>
+            </Text>
+          )}
           {snoozedText && (
             <Text
               as="span"

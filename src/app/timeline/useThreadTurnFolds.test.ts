@@ -2,7 +2,12 @@ import React from 'react';
 import { MatrixEvent, type EventTimelineSet, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { isTurnAnswer, turnRowWaits, useThreadTurnFolds } from './useThreadTurnFolds';
+import {
+  isTurnAnswer,
+  turnAnswerRank,
+  turnRowWaits,
+  useThreadTurnFolds,
+} from './useThreadTurnFolds';
 
 // Whether a thread row keeps its turn unfolded, read from the row as the timeline holds it.
 
@@ -123,6 +128,26 @@ describe('isTurnAnswer', () => {
         () => quiet
       )
     ).toBe(answers);
+  });
+});
+
+describe('turnAnswerRank', () => {
+  it('reads the run metadata and the msgtype of the row as it shows now', () => {
+    const reply = message('$reply', {});
+    const shown = (content: Record<string, unknown>) => () => ({ msgtype: 'm.text', ...content });
+    // The run's metadata arrives with the reply's latest edit.
+    expect(
+      turnAnswerRank(reply, shown({ 'io.mindroom.ai_run': { version: 1, status: 'completed' } }))
+    ).toBe(0);
+    expect(turnAnswerRank(reply, shown({}))).toBe(1);
+    expect(turnAnswerRank(message('$img', {}), shown({ msgtype: 'm.image' }))).toBe(2);
+    // A reply too long for one event arrives as a file that keeps its run's metadata.
+    expect(
+      turnAnswerRank(
+        message('$long', {}),
+        shown({ msgtype: 'm.file', 'io.mindroom.ai_run': { version: 1, status: 'completed' } })
+      )
+    ).toBe(0);
   });
 });
 

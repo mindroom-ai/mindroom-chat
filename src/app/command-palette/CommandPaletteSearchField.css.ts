@@ -36,3 +36,8 @@ export const SearchPlaceholder = style({ flexGrow: 1, minInlineSize: 0, opacity:
 
 /** In a sidebar list: the rows' width, a little apart from the first row below it. */
 export const NavSearchField = style({ inlineSize: '100%', marginBlockEnd: config.space.S200 });
+
+/** The shortcut's keys, which a phone or a touch screen has no keyboard for, as the palette hides its key hints. */
+export const ShortcutHint = style({
+  '@media': { '(max-width: 480px), (pointer: coarse)': { display: 'none' } },
+});

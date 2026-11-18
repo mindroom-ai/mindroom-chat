@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
@@ -147,7 +147,7 @@ type PanelEntry = RoomPanel & {
 
 /**
  * What the room's URL asks for: an event, a thread, whether to show the event in place, and the
- * fork point of a fork draft of the thread.
+ * fork point of a fork draft of the thread; and the router's key of the history entry that asks.
  */
 const useRoomRoute = () => {
   const params = useParams();
@@ -156,6 +156,7 @@ const useRoomRoute = () => {
     eventId: params.eventId,
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
+    entryKey: useLocation().key,
     forkAt: search.get('forkAt') ?? undefined,
   };
 };
@@ -175,7 +176,7 @@ export function Room() {
 
 function RoomContent() {
   const room = useRoom();
-  const { eventId, routedThreadId, focusEventInRoom, forkAt } = useRoomRoute();
+  const { eventId, routedThreadId, focusEventInRoom, entryKey, forkAt } = useRoomRoute();
   const { roomId } = room;
   // Every room address, a thread's included, opens here: the palette lists this room among the
   // ones visited last. Messages arriving in it do not count.
@@ -835,6 +836,7 @@ function RoomContent() {
                 threadId={routedThreadId}
                 forkAt={forkAt}
                 focusEventInRoom={focusEventInRoom}
+                entryKey={entryKey}
                 hasMindroomAgents={hasMindroomAgents}
                 joinRequestCount={joinRequestCount}
                 onThreadLoadError={onThreadLoadError}

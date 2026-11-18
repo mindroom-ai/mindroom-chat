@@ -7,12 +7,14 @@ import en from '../app/i18n/englishResources';
 // exercises the real material recipe; unit tests only need its composed class.
 vi.mock('../app/ui/styles/Glass.css', () => ({
   glassShadow: '--glass-shadow',
+  surfaceContainer: '--surface-container',
   glassFloating: 'glass-floating',
   glassInheritTint: 'glass-inherit-tint',
   glassScrollPanel: 'glass-scroll-panel',
   glassFlat: 'glass-flat',
   glassOutline: 'glass-outline',
   glassDenseOverBackdrop: 'glass-dense-over-backdrop',
+  glassExpanded: 'glass-expanded',
   glassSurface: () => 'glass-surface',
 }));
 vi.mock('../app/ui/ThreadActivity.css', () => ({

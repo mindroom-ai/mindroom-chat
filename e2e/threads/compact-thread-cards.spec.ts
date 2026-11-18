@@ -61,7 +61,7 @@ test('compact cards give the title and preview the full width on a phone', async
   );
   await page.screenshot({ path: testInfo.outputPath('compact-thread-cards-phone.png') });
 
-  // A resolver name wider than the row ends in an ellipsis inside the card.
+  // A resolver name wider than the row ends in an ellipsis inside the card, on the row's shown line.
   const byline = await page
     .locator('[data-compact-card-resolution-byline="true"] span')
     .last()
@@ -69,7 +69,12 @@ test('compact cards give the title and preview the full width on a phone', async
       label.textContent = `Resolved by ${'A very long display name '.repeat(6)}`;
       const card = label.closest<HTMLElement>('[data-thread-root-id]')!;
       const style = getComputedStyle(card);
+      const row = card
+        .querySelector('[data-compact-card-metadata="true"]')!
+        .getBoundingClientRect();
+      const labelBox = label.getBoundingClientRect();
       return {
+        onShownLine: labelBox.top >= row.top - 1 && labelBox.bottom <= row.bottom + 1,
         clipped: label.scrollWidth > label.clientWidth,
         textOverflow: getComputedStyle(label).textOverflow,
         labelRight: label.getBoundingClientRect().right,
@@ -79,9 +84,74 @@ test('compact cards give the title and preview the full width on a phone', async
           Number.parseFloat(style.paddingRight),
       };
     });
+  expect(byline.onShownLine).toBe(true);
   expect(byline.clipped).toBe(true);
   expect(byline.textOverflow).toBe('ellipsis');
   expect(byline.labelRight).toBeLessThanOrEqual(byline.contentRight);
+});
+
+// Three writers, tags and a plugin's pull request chips on each card once squeezed the tags to
+// blank ovals and pushed the reply count under the menu button.
+test("a phone card's last row shows each mark whole or not at all, clear of the menu", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/e2e/fixtures/compact-thread-cards.html?crowded=1&theme=dark');
+  await page.locator('body[data-fixture-ready="true"]').waitFor();
+
+  const cards = await page.locator('[data-thread-root-id]').evaluateAll((cards) =>
+    cards.map((card) => {
+      const metadata = card.querySelector('[data-compact-card-metadata="true"]')!;
+      const row = metadata.getBoundingClientRect();
+      const count = card.querySelector('[data-compact-card-reply-count]')!.getBoundingClientRect();
+      const menu = card
+        .parentElement!.querySelector('[aria-label="More options"]')!
+        .getBoundingClientRect();
+      const marks = Array.from(
+        metadata.querySelectorAll('.thread-tag-pill, [data-fixture-plugin-chips]')
+      ).map((mark) => {
+        const rect = mark.getBoundingClientRect();
+        // Shown means painted: a mark on the hidden line is clipped, so its middle hits the card.
+        const hit = document.elementFromPoint(
+          (rect.left + rect.right) / 2,
+          (rect.top + rect.bottom) / 2
+        );
+        // A tag clips its label, not its pill; the plugin's chips clip their group.
+        const clipper = mark.matches('.thread-tag-pill') ? mark.firstElementChild! : mark;
+        return {
+          plugin: mark.matches('[data-fixture-plugin-chips]'),
+          inRow: rect.top >= row.top - 1 && rect.bottom <= row.bottom + 1,
+          shown: hit !== null && mark.contains(hit),
+          squeezed: clipper.scrollWidth > clipper.clientWidth + 1,
+          right: rect.right,
+        };
+      });
+      const scheduled = card.querySelector('[aria-label^="Next task"]') !== null;
+      return { countRight: count.right, menuLeft: menu.left, marks, scheduled };
+    })
+  );
+  expect(cards).toHaveLength(5);
+  cards.forEach(({ countRight, menuLeft, marks }) => {
+    expect(countRight).toBeLessThan(menuLeft);
+    marks.forEach((mark) => {
+      // Only a mark on the row's line is painted.
+      expect(mark.shown).toBe(mark.inRow);
+      if (!mark.shown) return;
+      expect(mark.squeezed).toBe(false);
+      expect(mark.right).toBeLessThan(countRight);
+    });
+  });
+  // The pull request chips come first, so each card keeps them, but for one whose long schedule
+  // leaves no room: the marks give way before the stats.
+  cards
+    .filter(({ scheduled }) => !scheduled)
+    .forEach(({ marks }) =>
+      expect(marks.filter((mark) => mark.plugin).map((mark) => mark.shown)).toEqual([true])
+    );
+  expect(cards.filter(({ scheduled }) => scheduled)).toHaveLength(1);
+  // No keyboard on a phone, so Find anything names no shortcut.
+  await expect(page.getByRole('button', { name: 'Find anything' }).locator('kbd')).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath('compact-thread-cards-crowded-phone.png') });
 });
 
 test.describe('compact card swipe', () => {

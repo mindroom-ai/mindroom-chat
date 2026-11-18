@@ -17,9 +17,16 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
     }),
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mocks.client }));
-vi.mock('../../ui/media/BlurHash', () => ({ BlurHash: () => null, getInfoBlurHash: () => undefined }));
+vi.mock('../../ui/media/BlurHash', () => ({
+  BlurHash: () => null,
+  getInfoBlurHash: () => undefined,
+}));
 vi.mock('../../ui/glass/GlassPrimitives', () => ({ Modal: () => null }));
 vi.mock('focus-trap-react', () => ({ default: () => null }));
+vi.mock('../../ui/Modal500.css', () => ({
+  PhoneModal: 'phone-modal',
+  PhoneOverlayCenter: 'phone-center',
+}));
 vi.mock('folds', async () => {
   const { createElement } = await import('react');
   const tag =

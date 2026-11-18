@@ -3,7 +3,8 @@ import { recipe } from '@vanilla-extract/recipes';
 import { ContainerColor, color } from 'folds';
 import { DARK_THEMES } from '../../preferences/themeNames';
 
-const surfaceContainer = createVar();
+// The surface's own opaque color, for an opaque surface (a phone's full-screen dialog).
+export const surfaceContainer = createVar();
 const surfaceHover = createVar();
 const surfaceActive = createVar();
 const surfaceLine = createVar();
@@ -142,6 +143,31 @@ const material = (
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
         },
+      },
+    },
+  },
+});
+
+// A glass button whose menu or dialog is open looks pressed, as a composer toggle that is on does,
+// while pointed at too. Folds' hover colour outweighs the material's background, so this paints
+// the pressed tint itself in each of the material's cases; the repeated class outweighs both and
+// the material's hover rule, which comes later in its media query.
+const expanded = 'button&&&&&&[aria-expanded="true"]';
+export const glassExpanded = style({
+  selectors: {
+    [expanded]: { vars: { [surfaceContainer]: surfaceActive }, backgroundColor: surfaceActive },
+  },
+  '@supports': {
+    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
+      selectors: {
+        [expanded]: {
+          backgroundColor: `color-mix(in srgb, ${surfaceActive} ${surfaceTint}, transparent)`,
+        },
+      },
+      // Nested: vanilla-extract emits a top-level media query before this one, where it would lose.
+      '@media': {
+        '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)':
+          { selectors: { [expanded]: { backgroundColor: surfaceActive } } },
       },
     },
   },

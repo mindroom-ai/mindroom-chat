@@ -6,7 +6,11 @@ import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { tourAtom } from '../../navigation/tourState';
-import { MAC_APP_BREW_COMMAND, MAC_APP_DOWNLOAD_URL } from '../../native/macApp';
+import {
+  MAC_APP_BREW_COMMAND,
+  MAC_APP_RELEASES_URL,
+  resetMacAppDownloadUrlForTests,
+} from '../../native/macApp';
 import { About } from './About';
 
 const mocks = vi.hoisted(() => ({
@@ -757,10 +761,17 @@ describe('About Mac app', () => {
     vi.clearAllMocks();
     mocks.isNativeIOS.mockReturnValue(false);
     mocks.config = { macApp: { offer: true } };
+    resetMacAppDownloadUrlForTests();
+    // GitHub's list of releases never answers here: the download stays on the releases page.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => undefined))
+    );
   });
 
   afterEach(() => {
     mocks.config = {};
+    vi.unstubAllGlobals();
   });
 
   it('is not shown where the deployment does not offer the app, also on a Mac', () => {
@@ -784,7 +795,7 @@ describe('About Mac app', () => {
     const [tile] = macTile(mac);
     expect(tile?.props['data-setting-title']).toBe('MindRoom for Mac');
     const download = mac.root.findByProps({ 'data-mac-app-download': 'about' });
-    expect(download.props.href).toBe(MAC_APP_DOWNLOAD_URL);
+    expect(download.props.href).toBe(MAC_APP_RELEASES_URL);
     const under = tile?.findByProps({ 'data-slot': 'under' });
     expect(under?.findAllByType('span').map((text) => text.children.join(''))).toContain(
       MAC_APP_BREW_COMMAND

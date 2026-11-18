@@ -23,10 +23,9 @@ const path = require('node:path');
 const command = path.basename(process.argv[1]);
 const args = process.argv.slice(2);
 const record = { command, args, hasNotarySecrets: Boolean(process.env.APPLE_ID || process.env.APPLE_APP_SPECIFIC_PASSWORD) };
-if (command === 'hdiutil') {
-  const stage = args[args.indexOf('-srcfolder') + 1];
-  record.appExists = fs.existsSync(path.join(stage, 'MindRoom.app', 'Contents', 'Info.plist'));
-  record.applications = fs.readlinkSync(path.join(stage, 'Applications'));
+if (command === 'dmgbuild') {
+  const app = args.find((arg) => arg.startsWith('app=')).slice('app='.length);
+  record.appExists = fs.existsSync(path.join(app, 'Contents', 'Info.plist'));
 }
 fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(record) + '\\n');
 if (process.env.TEST_FAIL === command + ':' + args[0]) process.exit(9);
@@ -38,7 +37,12 @@ if (command === 'xcodebuild' && args.includes('-exportArchive')) {
   fs.writeFileSync(path.join(app, 'Info.plist'), 'fixture app');
 }
 if (command === 'ditto' && args.length === 2) fs.cpSync(args[0], args[1], { recursive: true });
-if (command === 'hdiutil') fs.writeFileSync(args[args.length - 1], 'fixture dmg');
+// The dmgbuild environment: its pip and dmgbuild are this stub too.
+if (command === 'python3' && args[0] === '-m' && args[1] === 'venv') {
+  fs.mkdirSync(path.join(args[2], 'bin'), { recursive: true });
+  ['pip', 'dmgbuild'].forEach((tool) => fs.copyFileSync(process.argv[1], path.join(args[2], 'bin', tool)));
+}
+if (command === 'dmgbuild') fs.writeFileSync(args[args.length - 1], 'fixture dmg');
 `;
   [
     'npm',
@@ -48,7 +52,7 @@ if (command === 'hdiutil') fs.writeFileSync(args[args.length - 1], 'fixture dmg'
     'plutil',
     'ditto',
     'xcrun',
-    'hdiutil',
+    'python3',
     'codesign',
   ].forEach((command) => writeFileSync(join(root, 'bin', command), stub, { mode: 0o755 }));
   // The watch SDK download (scripts/watch/build-sdk.sh --fetch) is recorded like the tools.
@@ -87,7 +91,6 @@ if (command === 'hdiutil') fs.writeFileSync(args[args.length - 1], 'fixture dmg'
         command: string;
         args: string[];
         appExists?: boolean;
-        applications?: string;
         hasNotarySecrets?: boolean;
       }[] = [];
       try {
@@ -115,6 +118,23 @@ describe('Mac release build script', () => {
     expect(order.indexOf('build-sdk.sh')).toBeLessThan(order.indexOf('xcodebuild'));
     expect(result.commands.find(({ command }) => command === 'build-sdk.sh')?.args).toEqual([
       '--fetch',
+    ]);
+  });
+
+  it('packs the unsigned archived app into the DMG with the pinned dmgbuild', () => {
+    const { run } = fixture();
+    const result = run([]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.commands.find(({ command }) => command === 'pip')?.args).toEqual(
+      expect.arrayContaining(['--require-hashes', 'scripts/macos-dmg/requirements.txt'])
+    );
+    expect(result.commands.find(({ command }) => command === 'dmgbuild')?.args).toEqual([
+      '-s',
+      'scripts/macos-dmg/settings.py',
+      '-D',
+      'app=build/macos/MindRoomChat.xcarchive/Products/Applications/MindRoom.chat.app',
+      'MindRoom',
+      'build/macos/MindRoom.dmg',
     ]);
   });
 
@@ -179,17 +199,17 @@ describe('Mac release build script', () => {
         .every(({ hasNotarySecrets }) => !hasNotarySecrets)
     ).toBe(true);
     const lifecycle = result.commands.filter(({ command }) =>
-      ['xcrun', 'hdiutil', 'codesign'].includes(command)
+      ['xcrun', 'dmgbuild', 'codesign'].includes(command)
     );
     expect(lifecycle.map(({ command, args }) => [command, ...args.slice(0, 2)])).toEqual([
       ['xcrun', 'notarytool', 'submit'],
       ['xcrun', 'stapler', 'staple'],
-      ['hdiutil', 'create', '-volname'],
+      ['dmgbuild', '-s', 'scripts/macos-dmg/settings.py'],
       ['codesign', '--sign', 'Developer ID Application: Fixture (DNA6966LGZ)'],
       ['xcrun', 'notarytool', 'submit'],
       ['xcrun', 'stapler', 'staple'],
     ]);
-    expect(lifecycle[2]).toMatchObject({ appExists: true, applications: '/Applications' });
+    expect(lifecycle[2]).toMatchObject({ appExists: true });
     expect(lifecycle[0]!.args[2]).toMatch(/\.zip$/);
     expect(lifecycle[4]!.args[2]).toMatch(/MindRoom\.dmg$/);
     expect(readFileSync(join(root, 'build/macos/MindRoom.dmg'), 'utf8')).toBe('fixture dmg');
@@ -198,6 +218,6 @@ describe('Mac release build script', () => {
   it('does not produce a DMG if app notarization fails', () => {
     const result = fixture().run(['--sign'], { TEST_FAIL: 'xcrun:notarytool' });
     expect(result.status).toBe(9);
-    expect(result.commands.some(({ command }) => command === 'hdiutil')).toBe(false);
+    expect(result.commands.some(({ command }) => command === 'dmgbuild')).toBe(false);
   });
 });

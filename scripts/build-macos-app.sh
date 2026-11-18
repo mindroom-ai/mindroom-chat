@@ -92,7 +92,22 @@ xcodebuild archive \
   ${version_args[@]+"${version_args[@]}"} \
   "${signing_args[@]}"
 
-if [[ "$sign" -eq 0 ]]; then exit 0; fi
+# MindRoom.dmg: the app beside an Applications link on a background (scripts/macos-dmg).
+pack_dmg() {
+  # A fresh environment each build, so it always holds exactly the pinned versions.
+  local venv=build/macos/dmgbuild-venv
+  rm -rf "$venv"
+  python3 -m venv "$venv"
+  "$venv/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r scripts/macos-dmg/requirements.txt
+  "$venv/bin/dmgbuild" -s scripts/macos-dmg/settings.py -D "app=$1" MindRoom "$dmg_path"
+}
+dmg_path="build/macos/MindRoom.dmg"
+
+if [[ "$sign" -eq 0 ]]; then
+  # Packs the unsigned app too, so pull requests check the DMG.
+  pack_dmg "$archive_path/Products/Applications/MindRoom.chat.app"
+  exit 0
+fi
 
 xcodebuild -exportArchive \
   -archivePath "$archive_path" \
@@ -112,11 +127,7 @@ ditto -c -k --keepParent "$app" "$scratch/MindRoom.zip"
 notarize "$scratch/MindRoom.zip"
 xcrun stapler staple "$app"
 
-mkdir -p "$scratch/dmg"
-ditto "$app" "$scratch/dmg/MindRoom.app"
-ln -s /Applications "$scratch/dmg/Applications"
-dmg_path="build/macos/MindRoom.dmg"
-hdiutil create -volname 'MindRoom' -srcfolder "$scratch/dmg" -format UDZO -ov "$dmg_path"
+pack_dmg "$app"
 codesign --sign "$CODESIGN_IDENTITY" --timestamp "$dmg_path"
 notarize "$dmg_path"
 xcrun stapler staple "$dmg_path"

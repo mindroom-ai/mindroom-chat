@@ -143,6 +143,10 @@ class QuickCaptureViewController: MindRoomBridgeViewController {
             webView.scrollView.minimumZoomScale = 1
             webView.scrollView.maximumZoomScale = 1
             webView.scrollView.pinchGestureRecognizer?.isEnabled = false
+            // The page's header lies under the window's hidden title bar, where the system draws a
+            // scroll edge effect of what is under it: the room's button, lit when the mouse is on
+            // it, came out as a smeared white blot on gray. Only the page's list scrolls.
+            if #available(macCatalyst 26.0, *) { webView.scrollView.topEdgeEffect.isHidden = true }
         }
 #endif
         super.viewDidLoad()
@@ -319,6 +323,17 @@ enum QuickCapture {
         UIApplication.shared.requestSceneSessionActivation(session, userActivity: nil, options: nil) { error in
             NSLog("[QuickCapture] the main window did not open: %@", error.localizedDescription)
         }
+    }
+
+    /// The mouse's Back (button 3) and Forward (4) buttons over the main window walk its page's
+    /// history on release, as in Chrome; the press does nothing. The page never sees these
+    /// buttons: on the Mac, WebKit passes a web view only the primary and secondary ones.
+    static func walkHistory(in window: NSObject?, button: Int, released: Bool) -> Bool {
+        guard button == 3 || button == 4, let window, let main = mainScene?.windows.first,
+              MacWindowing.hostWindow(of: main) === window,
+              let webView = (main.rootViewController as? MindRoomBridgeViewController)?.webView else { return false }
+        if released { _ = button == 3 ? webView.goBack() : webView.goForward() }
+        return true
     }
 #endif
 }
