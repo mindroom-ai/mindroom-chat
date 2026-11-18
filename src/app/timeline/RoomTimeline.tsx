@@ -93,6 +93,7 @@ import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { useThreadOverviewRefreshCounter } from '../threads/overview/threadOverviewRefreshCounter';
 import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useThreadIndex } from '../threads/overview/useThreadIndex';
+import type { ThreadRecordKeeper } from '../threads/overview/threadRecordKeeper';
 import { useRoomThreadResolutionMap } from '../threads/tags/useRoomThreadTags';
 import { useThreadTimelineState } from './useThreadTimelineState';
 import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
@@ -212,6 +213,8 @@ export type RoomTimelineProps = {
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
   threadReturnPlaceRef?: MutableRefObject<RoomRowsPlace | undefined>;
+  /** The room page's keeper of the Compact list's records while a thread fills the page. */
+  threadRecordKeeper?: ThreadRecordKeeper;
   editor: Editor;
   /** Called when the open thread's root cannot be loaded at all. */
   onThreadLoadError?: (threadId: string) => void;
@@ -272,6 +275,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     onThreadLoadError,
     threadHeader,
     forkAt,
+    threadRecordKeeper,
   } = props;
   const mx = useMatrixClient();
   const alive = useAlive();
@@ -401,7 +405,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
   const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } =
-    useThreadOverviewRefreshCounter(room, threadId);
+    useThreadOverviewRefreshCounter(room, threadId, threadRecordKeeper);
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
   const rederiveRoomRows = useCallback(
@@ -492,6 +496,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadSortFreezeState,
     overviewRefreshCounter,
     overviewChanges,
+    threadRecordKeeper,
     sessionId,
     mx,
     onStoreThreadSummary: onStoreThreadSummary as (

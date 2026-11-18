@@ -43,6 +43,7 @@ import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
 import { useThreadKeys } from './useThreadKeys';
+import { useThreadRecordKeeper } from '../threads/overview/threadRecordKeeper';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
@@ -146,6 +147,8 @@ export function RoomView({
   const pageRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
   const threadReturnPlaceRef = useRef<RoomRowsPlace>();
+  // The Compact list's records, kept while a thread fills the page and the list is gone.
+  const threadRecordKeeper = useThreadRecordKeeper(room);
 
   const myUserId = client.getSafeUserId();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
@@ -306,6 +309,7 @@ export function RoomView({
     viewMode,
     compactRoomScrollStateRef,
     threadReturnPlaceRef,
+    threadRecordKeeper,
     editor,
     onThreadLoadError,
   };

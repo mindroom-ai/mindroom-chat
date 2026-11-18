@@ -747,3 +747,26 @@ it('marks the thread read on Escape in its column, in a menu it opened and on it
   escape(screen.getByRole('textbox', { name: 'Message' }));
   expect(state.read).toEqual(['$thread', '$thread', '$thread', 'messages']);
 });
+
+it("keeps one keeper of the room's records while a thread fills the page, and a new one with another room", () => {
+  state.thread = undefined;
+  const { rerender } = renderView();
+  const keeper = state.main?.threadRecordKeeper;
+  expect(keeper?.room).toBe(room);
+
+  // The thread fills the page and the room's messages go; Back brings them with the same keeper.
+  state.thread = '$thread';
+  rerenderView(rerender);
+  expect(screen.queryByTestId('messages')).toBeNull();
+  state.thread = undefined;
+  rerenderView(rerender);
+  expect(screen.queryByTestId('messages')).not.toBeNull();
+  expect(state.main?.threadRecordKeeper).toBe(keeper);
+  expect(keeper?.disposed).toBe(false);
+
+  // Another room: the keeper of this one lets go of everything it kept.
+  const other = new Room('!other:example.org', mx, '@alice:example.org');
+  rerender(tree({ room: other }));
+  expect(state.main?.threadRecordKeeper?.room).toBe(other);
+  expect(keeper?.disposed).toBe(true);
+});

@@ -64,6 +64,11 @@ import {
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
 import { buildThreadIndexRecordMaps, type ThreadIndexRecordMaps } from './threadIndexRecords';
+import {
+  keptThreadRecordMaps,
+  threadRecordKeeperOf,
+  type ThreadRecordKeeper,
+} from './threadRecordKeeper';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 
 type ThreadResolutionLike = {
@@ -333,6 +338,12 @@ export type UseThreadIndexOptions = {
   overviewRefreshCounter: number;
   /** What each count of `overviewRefreshCounter` may have changed (`ThreadRecordChanges`). */
   overviewChanges: ThreadRecordChanges;
+  /**
+   * The room page's keeper of the list's records (`ThreadRecordKeeper`), whose marks are
+   * `overviewChanges`: a Compact list takes the records its room's last list left, and leaves its
+   * own.
+   */
+  threadRecordKeeper?: ThreadRecordKeeper;
   sessionId: string;
   mx: MatrixClient;
   onStoreThreadSummary: (threadRootId: string, info: ThreadSummaryInfo | undefined) => void;
@@ -358,6 +369,7 @@ export const useThreadIndex = ({
   threadSortFreezeState,
   overviewRefreshCounter,
   overviewChanges,
+  threadRecordKeeper,
   sessionId,
   mx,
   onStoreThreadSummary,
@@ -581,7 +593,8 @@ export const useThreadIndex = ({
   const { jobs } = useRoomBackgroundJobs(room);
   const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
   // Keep base records only: background-job overlays never become reuse inputs.
-  const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>();
+  // A list that mounts again under its room's page starts from the records the last one left.
+  const builtRecordMapsRef = useRef(keptThreadRecordMaps(threadRecordKeeper, room));
   const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
@@ -607,6 +620,8 @@ export const useThreadIndex = ({
     });
     // An open thread has no records, so nothing is kept from before it.
     builtRecordMapsRef.current = built;
+    const keeper = threadRecordKeeperOf(threadRecordKeeper, room);
+    if (keeper) keeper.maps = compactViewRequested && !threadId ? built : undefined;
     return built;
   }, [
     threadId,
@@ -627,6 +642,7 @@ export const useThreadIndex = ({
     scheduledStatusMap,
     overviewRefreshCounter,
     overviewChanges,
+    threadRecordKeeper,
   ]);
   // Base records read SDK timelines. Job-only updates must only overlay their two flags.
   // Weak keys retain unchanged overlays without retaining old record/history snapshots.
