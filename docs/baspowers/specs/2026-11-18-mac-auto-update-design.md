@@ -20,7 +20,7 @@ Bas said: "in the macos app. can we add something such that it self-updates auto
 - **One Info.plist for both apps and iOS.** `App` and `AppStoreMac` both use `App/Info.plist` (`project.pbxproj:1007`, `:1037`, `:1242`, `:1280`). Each target has its own Sources list, and `MindRoomBridgeViewController.swift` is in both.
 - **The browser's update path never fires in the app.** `appUpdate.ts:85-102` compares `version.json` of the page's origin with the running build; in the app that file is bundled (`capacitor.config.ts:7`), so they are always equal. The card (`NewVersionNotice.tsx:36-50`) shows `getReadyVersion()` and its button calls `reloadForNewVersion()`. `PartUnavailable.tsx:35`, `AppErrorBoundary.tsx:27` and `client-sdk/core.ts:46-50` call the same function and all handle its rejection.
 - **The card is mounted above the router** (`App.tsx:106-109`), so the Quick Capture window's page would show it too.
-- **Patterns to follow.** A platform filter on a dependency and an embed (`platformFilter = ios`, `project.pbxproj:36`, `:804`). A pinned download before the build (`scripts/watch/build-sdk.sh --fetch`, `build-macos-app.sh:80`). A native event kept until the page listens (`MindRoomWatchPlugin.swift:29`). A debug acceptance fixture behind an environment variable (`MindRoomBridgeViewController.swift:64-99`). Script tests that run the real script with stubbed tools (`macCatalystRelease.test.ts:13-107`).
+- **Patterns to follow.** A platform filter on a dependency and an embed (`platformFilter = ios`, `project.pbxproj:36`, `:804`). A pinned download before the build (`scripts/watch/build-sdk.sh --fetch`, `build-macos-app.sh:80`). A debug acceptance fixture behind an environment variable (`MindRoomBridgeViewController.swift:64-99`). Script tests that run the real script with stubbed tools (`macCatalystRelease.test.ts:13-107`).
 
 ## Approaches
 
@@ -56,14 +56,14 @@ How Sparkle gets into the project:
 | `scripts/fetch-sparkle.sh` | Downloads the pinned tarball, checks its sha256, unpacks `Sparkle.framework`, `bin/` and `LICENSE` into `ios/MacUpdater/Sparkle/` (git-ignored). A no-op when that version is there. |
 | `ios/MacUpdater/MindRoomMacUpdaterProtocol.swift` | The two calls the app makes: `start(onReady:)` and `install() -> Bool`. Compiled into `App` and the bundle. |
 | `ios/MacUpdater/MindRoomMacUpdater.swift`, `Info.plist` | The bundle (`chat.mindroom.app.mac-updater`, principal class `MindRoomMacUpdater`): owns the `SPUUpdater`, is its delegate, keeps the immediate-install block. |
-| `ios/App/App/MacUpdater.swift` | Catalyst side: loads the bundle from `Contents/PlugIns`, starts it, keeps the ready version, posts a notification. |
+| `ios/App/App/MacUpdater.swift` | Catalyst side: loads the bundle from `Contents/PlugIns`, starts it, keeps the ready version, logs it, posts a notification. |
 | `ios/App/App/MindRoomUpdatePlugin.swift` | Capacitor plugin `MindRoomUpdate`: event `ready` `{ version }`, method `install()`. |
 | `src/app/native/nativeUpdate.ts` | `watchNativeUpdate()`: listens for `ready` and hands the version and the install call to `appUpdate.ts`. |
 | `src/app/config/appUpdate.ts` | `offerAppUpdate(version, install)`; `reloadForNewVersion()` installs when an app update is offered. |
 | `scripts/macos-updater-info-plist.sh` | Build phase of `App`: writes the updater's Info.plist keys into the built Mac app. |
 | `scripts/macos-appcast.sh` | Makes the signed `appcast.xml` for one DMG with Sparkle's `generate_appcast`. |
 
-Data flow: `AppDelegate` calls `MacUpdater.start()` at launch, before any page exists, so a broken page cannot stop an update. Sparkle downloads and stages; its delegate call hands over the version and the install block; `MacUpdater` posts `MindRoomUpdateReady`; the plugin raises `ready` (kept until the page listens); `watchNativeUpdate` calls `offerAppUpdate`; the card shows. Reload calls `reloadForNewVersion()`, which calls the plugin's `install()`, which runs the block: Sparkle asks the app to quit, installs and relaunches.
+Data flow: `AppDelegate` calls `MacUpdater.start()` at launch, before any page exists, so a broken page cannot stop an update. Sparkle downloads and stages; its delegate call hands over the version and the install block; `MacUpdater` posts `MindRoomUpdateReady`; the plugin raises `ready`, and answers every page that starts listening with the version already staged, so a page that loads later or is reloaded hears it too (Capacitor's kept events reach only the first listener, `CAPPlugin.m:44-66`); `watchNativeUpdate` calls `offerAppUpdate`; the card shows. Reload calls `reloadForNewVersion()`, which calls the plugin's `install()`, which runs the block: Sparkle asks the app to quit, installs and relaunches.
 
 ### Where Sparkle links
 
@@ -155,7 +155,7 @@ Fail closed:
 - **Vitest, scripts** (real scripts, stubbed tools, as `macCatalystRelease.test.ts`): the fetch checks the checksum; the Info.plist script writes six keys only for a Mac build with a feed and refuses a bad key; the feed script refuses a feed without a signature; the build script fetches Sparkle, checks the helpers' team and makes no feed unsigned.
 - **Swift contract** (`scripts/test-macos-support.sh`, run by `macos.yml` on pull requests): the updater bundle compiles against the pinned Sparkle, loads through its protocol, and `install()` is false with nothing staged.
 - **Pull request CI:** the unsigned Release archive must contain the bundle, the framework and `SUPublicEDKey`; the Store archive must pass the preflight.
-- **End to end on the MacBook M2** (Debug builds, a throwaway key, `python3 -m http.server`, a scratch folder, `MINDROOM_UPDATE_ACCEPTANCE=1` to press Reload, since ssh cannot click): v1 `2026.11.9` fetches the feed and the DMG without any window, the card appears, Reload ends in a running `2026.11.10`; a second run without the press installs on quit.
+- **End to end on the MacBook M2** (Debug builds, a throwaway key, `python3 -m http.server`, a scratch folder, `MINDROOM_UPDATE_ACCEPTANCE=1` to press Reload, since ssh cannot click): v1 `2026.11.9`, installed under Homebrew's name `MindRoom Chat.app`, fetches the feed and the DMG without any window, the card appears, Reload ends in a running `2026.11.10`; a second run without the press installs on quit.
 - **Not provable without Developer ID:** that Xcode's export signs the helpers inside the plug-in, that notarization accepts the app, that the hardened app loads the bundle and the framework, the Developer ID fallback, and the real feed URL's redirects. The first signed release is the final check. If it fails, the job fails before it publishes anything, that release has no DMG, and the fix is the fallback above or a revert.
 - **No screenshot from the Mac app:** ssh has no Screen Recording permission. The card is the browser's component, unchanged.
 
