@@ -55,7 +55,13 @@ A profile's distributions are {"p50": n, "p90": n, "max": n}; a draw is piecewis
 90th percentile and the maximum. --seed (default 1) fixes the sequence of draws (the replies' shapes and the
 pauses, in the order the run asks for them), not which thread gets which: that follows the order in which the
 backend ends the replies. A profile's `reply.links` (a distribution, default none) is how many links a reply's
-text holds (the stub's `links=` knob).
+text holds (the stub's `links=` knob). Its `reply.toolout` (default none) is how many characters each tool call
+prints (`toolout=`), which makes a tool trace as large as a real one's. Its `reply.bg` and `reply.bgsec`
+(distributions, together, default none) are how many background jobs a live reply starts before its tool calls and
+how many seconds each runs (`bg=` and `bgsec=`; history replies start none): the jobs and sub-agent runs that go on
+after a reply, which the room's jobs state lists until they end and the backend asks the agent to report them. Its
+`live.jobs` (default 0) is how many such jobs the room has under way when the live phase starts: one each, of
+`reply.bgsec` seconds, in the threads after the first `streams`, started at once by a short turn.
 """
 
 from __future__ import annotations
@@ -132,11 +138,22 @@ def check_profile(profile: dict) -> dict:
     count = heavy.get("threads") if isinstance(heavy, dict) else None
     if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= profile["threads"] - resolved:
         raise ValueError("the profile's heavy.threads must be an integer from 0 to the number of its open threads")
-    for name, dist in (("heavy.turns", heavy.get("turns")), ("reply.links", profile["reply"].get("links"))):
-        if name == "reply.links" and dist is None:
+    reply = profile["reply"]
+    optional = (("reply.links", reply.get("links")), ("reply.bg", reply.get("bg")), ("reply.bgsec", reply.get("bgsec")))
+    for name, dist in (("heavy.turns", heavy.get("turns")), *optional):
+        if name != "heavy.turns" and dist is None:
             continue
         if not isinstance(dist, dict) or any(key not in dist for key in DIST_KEYS):
             raise ValueError(f"the profile's {name} must have {', '.join(DIST_KEYS)}")
+    if ("bg" in reply) != ("bgsec" in reply):
+        raise ValueError("the profile's reply.bg and reply.bgsec come together")
+    toolout = reply.get("toolout", 0)
+    if not isinstance(toolout, int) or isinstance(toolout, bool) or toolout < 0:
+        raise ValueError("the profile's reply.toolout must be an integer of 0 or more")
+    # Old profiles start no job of their own when the live phase starts.
+    jobs = profile["live"].setdefault("jobs", 0)
+    if not isinstance(jobs, int) or isinstance(jobs, bool) or jobs < 0 or (jobs > 0 and "bgsec" not in reply):
+        raise ValueError("the profile's live.jobs must be an integer of 0 or more, and more than 0 needs reply.bgsec")
     return profile
 
 
@@ -180,10 +197,22 @@ def work_prompt(reply: dict, rng: random.Random, live: bool, worker: str | None 
     wps = reply["wps"] if live else 0
     # A profile without `reply.links` draws nothing for them, so its prompts stay what they were.
     links = f"links={round(sample(reply['links'], rng))} " if "links" in reply else ""
+    toolout = f"toolout={reply['toolout']} " if "toolout" in reply else ""
+    # Drawn in history too, so a profile's later draws are the same in both; only live replies start the jobs.
+    bg = round(sample(reply["bg"], rng)) if "bg" in reply else 0
+    bgsec = round(sample(reply["bgsec"], rng)) if "bg" in reply else 0
+    jobs = f"bg={bg} bgsec={bgsec} " if live and bg > 0 else ""
     return (
         f"{worker + ' ' if worker else ''}#work words={words} wps={wps:g} reasoning={reasoning} tools={tools} "
-        f"toolsec={toolsec if live else 0:g} {links}seed={seed}"
+        f"toolsec={toolsec if live else 0:g} {links}{toolout}{jobs}seed={seed}"
     )
+
+
+def jobs_prompt(reply: dict, rng: random.Random, worker: str | None = None) -> str:
+    """A `#work` prompt whose reply only starts one background job of `reply.bgsec` seconds and says so in a few
+    words: the jobs a room already has under way when the live phase starts (`live.jobs`)."""
+    seconds = round(sample(reply["bgsec"], rng))
+    return f"{worker + ' ' if worker else ''}#work words=12 wps=0 tools=0 bg=1 bgsec={seconds} seed={rng.randrange(1, 1_000_000)}"
 
 
 # Turns
@@ -705,6 +734,11 @@ def run_live(
     for index, root in enumerate(history["threads"]):
         first = 0.0 if stagger is None else stagger.uniform(0, ramp) if index < streams else ramp
         scheduler.add(root, started + first)
+    # The jobs under way at the start, one each in the threads after those of the first turns: posted at once, they
+    # hold their threads as turns until their short replies end, as any turn does.
+    for root in history["threads"][streams : streams + profile["live"].get("jobs", 0)]:
+        if lobby.post_turn(root, jobs_prompt(profile["reply"], rng, worker=worker_of.get(root))) is not None:
+            scheduler.started(root, started)
     unix_offset = time.time() - started
     window_end = started + WINDOW_SECONDS
     # Live replies times the seconds they were live for, in this window.

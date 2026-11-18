@@ -6,6 +6,7 @@ import contextlib
 import io
 import json
 import random
+import re
 import statistics
 import sys
 import tempfile
@@ -85,6 +86,20 @@ class PromptTest(unittest.TestCase):
         # The other draws are those of the profile without links.
         plain = driver.work_prompt(REPLY, random.Random(1), live=True)
         self.assertEqual(prompt.split(" links=")[0], plain.split(" seed=")[0])
+
+    def test_prompt_with_tool_output_and_background_jobs(self) -> None:
+        jobs = {"bg": {"p50": 2, "p90": 2, "max": 2}, "bgsec": {"p50": 300, "p90": 300, "max": 300}}
+        reply = REPLY | {"toolout": 700} | jobs
+        live = driver.work_prompt(reply, random.Random(1), live=True)
+        self.assertRegex(live, r" toolsec=\d+(\.\d+)? toolout=700 bg=2 bgsec=\d+ seed=\d+$")
+        # History replies print as much but start no job, and draw the same.
+        history = driver.work_prompt(reply, random.Random(1), live=False)
+        self.assertRegex(history, r" toolsec=0 toolout=700 seed=\d+$")
+        self.assertEqual(live.split(" seed=")[1], history.split(" seed=")[1])
+        # The other draws are those of the profile without them.
+        plain = driver.work_prompt(REPLY, random.Random(1), live=True)
+        self.assertEqual(live.split(" toolout=")[0], plain.split(" seed=")[0])
+        self.assertRegex(driver.jobs_prompt(reply, random.Random(1)), r"^#work words=12 wps=0 tools=0 bg=1 bgsec=\d+ seed=")
 
     def test_prompt_live_keeps_the_pace(self) -> None:
         prompt = driver.work_prompt(REPLY, random.Random(1), live=True)
@@ -559,6 +574,18 @@ class RunHistoryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reply.links"):
             driver.check_profile(profile | {"reply": profile["reply"] | {"links": 2}})
 
+    def test_background_jobs_need_their_seconds(self) -> None:
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        self.assertEqual(driver.check_profile(json.loads(json.dumps(profile)))["live"]["jobs"], 0)
+        jobs = {"bg": NO_PAUSE, "bgsec": NO_PAUSE}
+        driver.check_profile(profile | {"reply": profile["reply"] | jobs | {"toolout": 700}})
+        with self.assertRaisesRegex(ValueError, "reply.bg and reply.bgsec"):
+            driver.check_profile(profile | {"reply": profile["reply"] | {"bg": NO_PAUSE}})
+        with self.assertRaisesRegex(ValueError, "reply.toolout"):
+            driver.check_profile(profile | {"reply": profile["reply"] | {"toolout": -1}})
+        with self.assertRaisesRegex(ValueError, "live.jobs"):
+            driver.check_profile(profile | {"live": profile["live"] | {"jobs": 2}})
+
     def test_resolved_threads_leave_one_open(self) -> None:
         profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
         self.assertEqual(driver.check_profile(dict(profile))["resolvedThreads"], 0)
@@ -603,6 +630,25 @@ class RunLiveTest(unittest.TestCase):
             return seen
 
         return answer
+
+    def test_jobs_under_way_start_in_the_threads_after_the_streams(self) -> None:
+        lobby = FakeLobby(tick=0.25)
+        lobby.answer = self.replies(lobby, ends_after=2)
+        bodies: list[str] = []
+        post = lobby.post_turn
+        lobby.post_turn = lambda root, body: bodies.append(body) or post(root, body)  # type: ignore[method-assign]
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        profile["reply"] |= {"bg": NO_PAUSE, "bgsec": {"p50": 300, "p90": 300, "max": 300}}
+        profile["live"] |= {"pauseSeconds": NO_PAUSE, "jobs": 2}
+        history = {"room": ROOM, "threads": ["$r0", "$r1", "$r2", "$r3", "$r4"], "quietRooms": []}
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):
+            driver.run_live(lobby, profile, history, 2, 10, random.Random(1), Path(directory) / "l", clock=lobby.clock)
+        self.assertEqual([root for _, root in lobby.posts[:2]], ["$r2", "$r3"])
+        self.assertTrue(all(re.search(r" tools=0 bg=1 bgsec=\d+ ", body) for body in bodies[:2]), bodies)
+        # They hold their threads as turns, so the streams' first turns wait for their replies to end.
+        self.assertEqual(sorted(root for _, root in lobby.posts[2:4]), ["$r0", "$r1"])
+        self.assertGreater(lobby.posts[2][0], 0)
+        self.assertFalse(any(" bg=" in body for body in bodies[2:]), bodies)
 
     def test_backend_that_keeps_up(self) -> None:
         lobby = FakeLobby(tick=0.25)

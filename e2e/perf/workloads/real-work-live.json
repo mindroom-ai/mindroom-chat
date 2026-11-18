@@ -1,0 +1,71 @@
+{
+  "name": "real-work-live",
+  "agents": 1,
+  "quietRooms": 112,
+  "quietMessages": 10,
+  "threads": 654,
+  "resolvedThreads": 625,
+  "heavy": {
+    "threads": 8,
+    "turns": {
+      "p50": 42,
+      "p90": 72,
+      "max": 101
+    }
+  },
+  "turns": {
+    "p50": 4,
+    "p90": 15,
+    "max": 27
+  },
+  "reply": {
+    "words": {
+      "p50": 313,
+      "p90": 537,
+      "max": 1158
+    },
+    "wps": 30,
+    "reasoning": {
+      "p50": 600,
+      "p90": 3000,
+      "max": 8000
+    },
+    "tools": {
+      "p50": 4,
+      "p90": 24,
+      "max": 50
+    },
+    "toolsec": {
+      "p50": 12,
+      "p90": 73,
+      "max": 110
+    },
+    "links": {
+      "p50": 0,
+      "p90": 1,
+      "max": 5
+    },
+    "toolout": 700,
+    "bg": {
+      "p50": 1,
+      "p90": 3,
+      "max": 10
+    },
+    "bgsec": {
+      "p50": 308,
+      "p90": 1972,
+      "max": 2248
+    }
+  },
+  "live": {
+    "streams": 6,
+    "jobs": 13,
+    "pauseSeconds": {
+      "p50": 266,
+      "p90": 1776,
+      "max": 3551
+    },
+    "stuckSeconds": 3600
+  },
+  "historyStreams": 40
+}
