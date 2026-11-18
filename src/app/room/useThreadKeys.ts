@@ -102,7 +102,12 @@ export const useThreadKeys = ({
     const doc = areaRef.current?.ownerDocument;
     const focused = doc?.activeElement ?? null;
     if (!doc || (focused && focused !== doc.body && focused !== left.focused)) return;
-    focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
+    const focusCard = () =>
+      focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
+    // A Compact list that takes the place of a thread that filled the page shows its cards a
+    // pass after this effect, in the same task (`RoomTimeline`). The card takes the focus then,
+    // also from the composer, which the page gave it meanwhile as what the thread left.
+    if (!focusCard()) queueMicrotask(focusCard);
   });
 
   useShortcut('leaveThread', () => {
