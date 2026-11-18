@@ -904,7 +904,7 @@ test.describe('PERF: real work under the backend load', () => {
       };
 
       for (const throttle of THROTTLES) {
-        test(`scenarios at ${throttle}x CPU`, async ({ page, browserName }) => {
+        test(`scenarios at ${throttle}x CPU @webkit`, async ({ page, browserName }) => {
           test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
           test.skip(throttle !== 1 && browserName !== 'chromium', 'CPU throttling needs Chromium');
           test.setTimeout(scenariosTimeout(throttle));
