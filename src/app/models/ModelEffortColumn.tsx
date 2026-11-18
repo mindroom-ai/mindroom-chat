@@ -105,7 +105,9 @@ export function ModelEffortColumn({
             const checked = level === effort.active;
             return (
               <button
-                key={level}
+                // A level button belongs to one model: another model's levels are other buttons,
+                // so a focused level never turns into another model's.
+                key={`${effort.model.key}:${level}`}
                 type="button"
                 role="radio"
                 aria-checked={checked}

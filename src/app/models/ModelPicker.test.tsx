@@ -948,6 +948,59 @@ describe('composer model picker', () => {
       expect(list()).toBeNull();
     });
 
+    it('keeps a focused level on its model when the pointer crosses another model', async () => {
+      const state = levelled({ override: 'sol', reasoning: 'low' });
+      await open(state);
+      await keyDown(list()!, 'ArrowRight');
+      await keyDown(document.activeElement!, 'ArrowDown');
+      expect(document.activeElement).toBe(radio('Medium'));
+
+      // Luna offers Medium too; the column stays Sol's while a level has focus.
+      await hover('Luna');
+      expect(header()).toBe('EffortSol');
+      expect(document.activeElement).toBe(radio('Medium'));
+      await click(document.activeElement!);
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'medium');
+    });
+
+    it('keeps a focused level on its model when a refresh puts another model before it', async () => {
+      const state = levelled({ override: 'sol', reasoning: 'medium' });
+      await open(state);
+      // A highlight the pointer moved, which a positional highlight would leave at its index.
+      await hover('Sol');
+      await keyDown(list()!, 'ArrowRight');
+      await keyDown(document.activeElement!, 'ArrowDown');
+      expect(document.activeElement).toBe(radio('High, default'));
+
+      const nova: ModelCatalogEntry = { ...sol, key: 'nova', display_name: 'Nova', id: 'gpt-nova' };
+      const models = [...createState().models, nova, sol, luna];
+      act(() => root.render(<ModelPicker state={{ ...state, models }} />));
+
+      expect(header()).toBe('EffortSol');
+      expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Sol').id);
+      expect(document.activeElement).toBe(radio('High, default'));
+      await click(document.activeElement!);
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'high');
+    });
+
+    it('gives the list the keys when the model of a focused level leaves the catalog', async () => {
+      const state = levelled({ override: 'sol', reasoning: 'medium' });
+      await open(state);
+      await hover('Luna');
+      await keyDown(list()!, 'ArrowRight');
+      expect(document.activeElement).toBe(radio('Low, default'));
+
+      act(() =>
+        root.render(<ModelPicker state={{ ...state, models: [...createState().models, sol] }} />)
+      );
+
+      expect(document.activeElement).toBe(list());
+      await keyDown(list()!, 'Enter');
+      expect(state.selectModel).not.toHaveBeenCalledWith('luna', expect.anything());
+    });
+
     it('checks the default level and still marks it Default', async () => {
       await open(levelled({ override: 'sol' }));
       const high = radio('High, default');

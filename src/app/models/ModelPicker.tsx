@@ -50,6 +50,8 @@ const modelMatches = (model: ModelCatalogEntry, query: string): boolean =>
 
 const optionId = (listId: string, key: string): string => `${listId}-${encodeURIComponent(key)}`;
 type PickerItem = { kind: 'default' } | { kind: 'model'; model: ModelCatalogEntry };
+/** A highlight a filter put on its first match, whichever row that is. */
+const FIRST_MATCH = Symbol('first match');
 const pickerItemId = (item: PickerItem): string =>
   item.kind === 'default' ? 'default-action' : `model:${item.model.key}`;
 
@@ -135,10 +137,18 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
   const isCurrent = (item: PickerItem): boolean =>
     item.kind === 'default' ? state.override === null : state.override === item.model.key;
   // The highlight sits on the current choice, also once a late catalog lists it, until the user
-  // moves it with the keys, the pointer or the filter.
-  const [movedIndex, setMovedIndex] = useState<number>();
-  const activeIndex = movedIndex ?? Math.max(items.findIndex(isCurrent), 0);
+  // moves it with the keys, the pointer or the filter. It holds on to the row it was moved to by
+  // that row's key, so a refresh that adds or reorders models leaves it, and the levels beside it,
+  // on the same model; a filter puts it on its first match.
+  const [moved, setMoved] = useState<string | typeof FIRST_MATCH>();
+  const movedIndex =
+    moved === FIRST_MATCH ? 0 : items.findIndex((item) => pickerItemId(item) === moved);
+  const activeIndex = movedIndex >= 0 ? movedIndex : Math.max(items.findIndex(isCurrent), 0);
   const activeItem = items[activeIndex];
+  const moveTo = (index: number) => {
+    const item = items[index];
+    if (item) setMoved(pickerItemId(item));
+  };
   const activeId = activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined;
   const mutationsDisabled = !state.canMutate;
   // The levels of the row the highlight is on, beside the models, once any model has levels.
@@ -171,11 +181,6 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
   useEffect(() => {
     if (document.activeElement === document.body) listRef.current?.focus();
   });
-
-  useEffect(() => {
-    if (movedIndex === undefined || movedIndex < items.length) return;
-    setMovedIndex(Math.max(items.length - 1, 0));
-  }, [movedIndex, items.length]);
 
   useEffect(() => {
     document.getElementById(activeId ?? '')?.scrollIntoView?.({ block: 'nearest' });
@@ -214,12 +219,12 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (items.length) setMovedIndex((activeIndex + 1) % items.length);
+      if (items.length) moveTo((activeIndex + 1) % items.length);
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (items.length) setMovedIndex((activeIndex - 1 + items.length) % items.length);
+      if (items.length) moveTo((activeIndex - 1 + items.length) % items.length);
       return;
     }
     if (event.key === 'Enter' && activeItem) {
@@ -247,7 +252,7 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
 
   const handleQuery: ChangeEventHandler<HTMLInputElement> = (event) => {
     setQuery(event.currentTarget.value);
-    setMovedIndex(0);
+    setMoved(FIRST_MATCH);
     if (resultsRef.current) resultsRef.current.scrollTop = 0;
   };
 
@@ -267,8 +272,11 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
         tabIndex={-1}
         onMouseDown={(event) => event.preventDefault()}
         // A finger has no hover: its touches leave the highlight, and so the levels, where they are.
+        // Nor does the pointer move it while a level has focus: that level stays its model's.
         onPointerMove={(event) => {
-          if (event.pointerType !== 'touch') setMovedIndex(index);
+          if (event.pointerType === 'touch') return;
+          if (columnRef.current?.contains(document.activeElement)) return;
+          setMoved(pickerItemId(item));
         }}
         onClick={() => selectItem(item)}
       >
