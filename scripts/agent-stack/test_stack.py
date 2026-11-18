@@ -1362,7 +1362,7 @@ class StubScenarioTests(unittest.TestCase):
             message = self.answer([], second)
             sleep.assert_awaited_once_with(3.5)
         arguments = json.loads(message["tool_calls"][0]["function"]["arguments"])
-        self.assertEqual(arguments, {"args": "sleep 1; echo second step"})
+        self.assertEqual(arguments, {"args": "sleep 7; echo second step"})
 
     def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:
         broken = self.scenarios("{not json")

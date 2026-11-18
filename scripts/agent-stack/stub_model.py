@@ -13,7 +13,8 @@ The person's latest message picks a scenario by hashtag:
   #error       the provider answers 500
   #ask         a streamed reply that ends in a question with two options, for answering by reaction
   #shell       one shell call         #multi   three shell calls
-  #pause       two shell calls, with 3.5 s of thinking before the second
+  #pause       two shell calls of 7 s each (the backend lists a call as a job once it has run 5 s), with 3.5 s of
+               thinking before the second
   #approve     a shell call that needs approval (the backend's approval script looks for needs-approval)
   #bidi        the same, its command holding a right-to-left override (U+202E ... U+202C)
   #title       set_thread_summary      #tag     tag_thread      #resolve   resolve_thread (needs approval)
@@ -100,10 +101,11 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
         ("run_shell_command", {"args": "sleep 10; echo step two"}),
         ("run_shell_command", {"args": "echo step three"}),
     ],
-    # Longer between the calls than the client's jobs bar holds a finished call.
+    # Longer between the calls than the client's jobs bar holds a finished call. Each call runs longer than the 5 s
+    # after which the backend lists a call its reply still waits for as a job, so the bar shows it.
     "#pause": [
-        ("run_shell_command", {"args": "sleep 1; echo first step"}),
-        ("run_shell_command", {"args": "sleep 1; echo second step", THINK_SECONDS: 3.5}),
+        ("run_shell_command", {"args": "sleep 7; echo first step"}),
+        ("run_shell_command", {"args": "sleep 7; echo second step", THINK_SECONDS: 3.5}),
     ],
     "#approve": [("run_shell_command", {"args": "echo needs-approval: deploy the stub"})],
     "#bidi": [("run_shell_command", {"args": "echo needs-approval hello \u202e; echo pwned-by-bidi #\u202c done"})],
