@@ -44,6 +44,7 @@ const { mx, room, state } = vi.hoisted(() => ({
 }));
 
 vi.mock('react-router-dom', () => ({
+  useLocation: () => ({}),
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams()],
 }));

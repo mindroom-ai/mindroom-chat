@@ -32,6 +32,7 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import { type CompactFocusRequest, meetCompactFocusRequest } from './compactFocusRequest';
 import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
@@ -61,6 +62,8 @@ export type CompactRoomViewProps = {
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
+  /** The card the address asks to show, when it asks for one. */
+  focusRequest?: CompactFocusRequest;
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
@@ -295,6 +298,7 @@ export function CompactRoomView({
   threadRecordMap,
   onThreadClick,
   compactRoomScrollStateRef,
+  focusRequest,
   filterBarShown = false,
   sectionsNow,
 }: CompactRoomViewProps) {
@@ -515,6 +519,14 @@ export function CompactRoomView({
     scrollRef: viewRef,
     contentRef,
     ready: cardViewModels.length > 0,
+  });
+
+  // The address's request is met once its card shows, which a folded section's does not.
+  useLayoutEffect(() => {
+    const shown = cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
+    if (focusRequest && shown) {
+      meetCompactFocusRequest(compactRoomScrollStateRef.current, focusRequest);
+    }
   });
 
   const resolveLabel = t('thread.resolve');

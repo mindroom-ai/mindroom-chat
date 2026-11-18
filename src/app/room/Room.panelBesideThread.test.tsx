@@ -80,6 +80,7 @@ const { mx, room, state, PENDING } = vi.hoisted(() => {
 });
 
 vi.mock('react-router-dom', () => ({
+  useLocation: () => ({}),
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams(state.thread ? { threadId: state.thread } : {})],
 }));

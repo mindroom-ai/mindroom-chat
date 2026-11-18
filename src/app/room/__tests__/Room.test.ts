@@ -148,7 +148,11 @@ vi.mock('focus-trap-react', () => ({
 vi.mock('../../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 vi.mock('../../members/ResizableMembersPanel.css', () => ({ MobileOverlay: 'mobile-overlay' }));
 vi.mock('../../ui/panels/SidePanel.css', () => ({ Panel: 'panel', Header: 'header' }));
-vi.mock('../../members/PhoneMembersSheet.css', () => ({ Layer: 'layer', Scrim: 'scrim', Panel: 'panel' }));
+vi.mock('../../members/PhoneMembersSheet.css', () => ({
+  Layer: 'layer',
+  Scrim: 'scrim',
+  Panel: 'panel',
+}));
 vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
 vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
 // The call panel's failure view draws the window chrome with folds, which this test mocks.
@@ -175,6 +179,7 @@ vi.mock('jotai', async () => {
 });
 
 vi.mock('react-router-dom', () => ({
+  useLocation: () => ({ key: 'entry' }),
   useParams: () => ({ eventId: roomState.eventId }),
   useSearchParams: () => [new URLSearchParams(roomState.search)],
 }));
@@ -391,6 +396,22 @@ describe('Room', { timeout: 30_000 }, () => {
     });
 
     expect(roomState.roomViewProps).toMatchObject({ threadId: '$thread', forkAt: '$point' });
+  });
+
+  it("hands the room view the router's key of the entry whose address focuses an event", async () => {
+    roomState.eventId = '$root';
+    roomState.search = '?focusEvent=1';
+    const { Room } = await import('../Room');
+
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+
+    expect(roomState.roomViewProps).toMatchObject({
+      eventId: '$root',
+      focusEventInRoom: true,
+      entryKey: 'entry',
+    });
   });
 
   it.each(['Desktop', 'Tablet', 'Mobile'])(

@@ -37,6 +37,7 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
+import { takeCompactFocusRequest } from '../threads/overview/compactFocusRequest';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
@@ -197,6 +198,8 @@ export type RoomTimelineProps = {
   threadId?: string;
   /** Show a permalinked thread root in the room instead of opening its thread. */
   focusEventInRoom?: boolean;
+  /** The router's key of the history entry whose address names `eventId`. */
+  entryKey?: string;
   summaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
@@ -258,9 +261,6 @@ const useTimelineDisplaySettings = () => ({
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
 });
 
-/** Where a focused Compact card without a saved place sits: its top this far below the list's. */
-const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
-
 /**
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
  * Full (classic) views show the room timeline, the threaded one with a thread badge under each
@@ -289,6 +289,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     eventId,
     threadId,
     focusEventInRoom,
+    entryKey,
     summaryMap,
     onStoreThreadSummary,
     threadFilterState,
@@ -1744,16 +1745,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     // Leaving a thread comes back here focused on its root. One opened from its card finds the
     // place the list saved with that card in view; one opened from a link has none, so its card
     // takes a place below the bar, and the list's memory brings it there as cards render.
-    const savedPlace = compactRoomScrollStateRef.current.get(room.roomId);
-    if (
-      eventId &&
-      focusEventInRoom &&
-      !savedPlace?.anchors.some((anchor) => anchor.key === eventId)
-    ) {
-      compactRoomScrollStateRef.current.set(room.roomId, {
-        scrollTop: 1,
-        anchors: [{ key: eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
-      });
+    const focusRequest = eventId && focusEventInRoom ? { eventId, entryKey } : undefined;
+    if (focusRequest) {
+      takeCompactFocusRequest(compactRoomScrollStateRef.current, room.roomId, focusRequest);
     }
     return (
       <Box ref={compactHostRef} grow="Yes" direction="Column" style={roomStyle}>
@@ -1764,6 +1758,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           threadRecordMap={threadIndex.compactThreadRecordMap}
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
+          focusRequest={focusRequest}
           filterBarShown={filterBarShown}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
