@@ -129,19 +129,24 @@ const sendLongReply = async (agent: MatrixSession, roomId: string, rootId: strin
 const installFrameSampler = (keys: typeof KEYS) => {
   const win = window as unknown as {
     firstOpenFrames: Frame[];
-    /** When each load of the open's data ended (the thread's replies, the sidecar), in ms. */
-    firstOpenLoads: number[];
+    /**
+     * When the data the first paint waits for reached the page, in ms: the first page of the
+     * thread's replies and the first sidecar. Later loads (more pages, edits) do not hold it.
+     */
+    firstOpenLoads: { replies?: number; sidecar?: number };
     startFirstOpenFrames: () => void;
   };
   let start = performance.now();
   let sampling = false;
   win.firstOpenFrames = [];
-  win.firstOpenLoads = [];
+  win.firstOpenLoads = {};
   new PerformanceObserver((list) =>
     list.getEntries().forEach((entry) => {
       const { name, startTime, responseEnd } = entry as PerformanceResourceTiming;
-      if (startTime >= start && /\/relations\/|\/media\/download\//.test(name))
-        win.firstOpenLoads.push(responseEnd - start);
+      if (startTime < start) return;
+      const loads = win.firstOpenLoads;
+      if (name.includes('/relations/')) loads.replies ??= responseEnd - start;
+      if (name.includes('/media/download/')) loads.sidecar ??= responseEnd - start;
     })
   ).observe({ type: 'resource' });
   const { scheduler } = window as unknown as {
@@ -185,10 +190,11 @@ const installFrameSampler = (keys: typeof KEYS) => {
     const begin = () => {
       start = performance.now();
       win.firstOpenFrames = [];
-      win.firstOpenLoads = [];
+      win.firstOpenLoads = {};
     };
     begin();
-    // The times count from the click that opens the thread, as the client's cap does.
+    // The times count from the click that opens the thread; the client's cap starts with the
+    // open, right after it.
     document.addEventListener('click', begin, { capture: true, once: true });
     sampling = true;
     afterPaint();
@@ -279,8 +285,12 @@ test('a thread opened for the first time paints its replies once, its long reply
   await page.waitForTimeout(SAMPLE_MS);
   await stopScreencast?.();
   const { frames, dataAt } = await page.evaluate(() => {
-    const win = window as unknown as { firstOpenFrames: Frame[]; firstOpenLoads: number[] };
-    return { frames: win.firstOpenFrames, dataAt: Math.round(Math.max(0, ...win.firstOpenLoads)) };
+    const win = window as unknown as {
+      firstOpenFrames: Frame[];
+      firstOpenLoads: { replies?: number; sidecar?: number };
+    };
+    const { replies = 0, sidecar = 0 } = win.firstOpenLoads;
+    return { frames: win.firstOpenFrames, dataAt: Math.round(Math.max(replies, sidecar)) };
   });
   writeFileSync(test.info().outputPath('frames.json'), JSON.stringify({ dataAt, frames }));
 
@@ -296,7 +306,7 @@ test('a thread opened for the first time paints its replies once, its long reply
   ).toEqual([]);
   if (dataAt > FIRST_PAINT_CAP_MS && first.t >= FIRST_PAINT_CAP_MS) {
     // The open's data came after the cap, so the client painted without waiting for all of it.
-    // A paint before the cap waited for nothing: a load that ended later was not one it needed.
+    // A paint before the cap waited for nothing more.
     test.info().annotations.push({
       type: 'capped open',
       description: `the open's data arrived ${dataAt} ms after the click`,
