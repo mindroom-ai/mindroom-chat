@@ -182,6 +182,14 @@ describe('estimateRoomRowHeight', () => {
       content: { msgtype: 'm.text', body: 'hello', 'io.mindroom.ai_run': run },
     });
     expect(estimateRoomRowHeight(reply, first)).toBe(68);
+    const streaming = makeEvent({
+      id: '$streaming',
+      sender: '@mindroom_code:example.org',
+      ts: first.getTs() + 1_000,
+      content: { msgtype: 'm.text', body: 'hello', 'io.mindroom.stream_status': 'streaming' },
+    });
+    const agentFirst = makeEvent({ id: '$agent', sender: '@mindroom_code:example.org' });
+    expect(estimateRoomRowHeight(streaming, agentFirst)).toBe(68);
   });
 
   it('adds the thread badge the threaded view shows under a message', () => {

@@ -1,6 +1,6 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
-import { getAiRunInfo } from '../matrix/protocol/aiRun';
+import { getAiRunInfo, getStreamStatusFromContent } from '../matrix/protocol/aiRun';
 import { hasMessageExtras } from '../matrix/protocol/messageExtrasData';
 import { hasThreadSummary } from '../matrix/protocol/threadSummary';
 import { inSameDay } from '../lib/time';
@@ -195,8 +195,12 @@ export const estimateRoomRowHeight = (
   if (!getTimelineMessageKind(type)) return 0;
   const bodyPx = estimateMessageRowHeight(event, { compact: false });
   if (bodyPx === 0) return 0;
+  const content = event.getContent<Record<string, unknown>>();
+  const ownRun =
+    !!getAiRunInfo(content) ||
+    (isMindroomAgentUserId(event.getSender()) && !!getStreamStatusFromContent(content));
   const rowPx =
-    startsAuthorGroup(above, event) || getAiRunInfo(event.getContent())
+    startsAuthorGroup(above, event) || ownRun
       ? Math.max(AUTHOR_ROW_MIN_PX, bodyPx + AUTHOR_LINE_PX)
       : bodyPx;
   const newDay = !!above && !inSameDay(above.getTs(), event.getTs());

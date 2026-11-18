@@ -1128,8 +1128,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       );
 
       // A follow-up row from the same sender drops the name and time, but an agent reply keeps
-      // them: each reply is its own run, with its own time and details.
-      const showHeader = !collapse || !!aiRunInfo;
+      // them: each reply is its own run, with its own time and details. A streaming reply has its
+      // timing before its run details.
+      const showHeader = !collapse || !!aiRunInfo || !!replyTiming;
       const layout =
         messageLayout === MessageLayout.Compact ? (
           <CompactLayout before={header}>{body}</CompactLayout>

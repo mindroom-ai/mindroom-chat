@@ -177,12 +177,14 @@ describe("an agent reply's header time", () => {
   });
 
   it.each([MessageLayout.Modern, MessageLayout.Bubble])(
-    "stays on a follow-up agent reply, which a person's follow-up drops (%s)",
+    'stays on a follow-up agent reply, with run details or only its timing (%s)',
     async (layout) => {
       expect(await renderMessage(layout, timing, WITH_RUN, true)).not.toBeNull();
       expect(screen.getByRole('button', { name: 'Reply details' })).toBeTruthy();
       cleanup();
-      expect(await renderMessage(layout, timing, PLAIN, true)).toBeNull();
+      expect(await renderMessage(layout, timing, PLAIN, true)).not.toBeNull();
+      cleanup();
+      expect(await renderMessage(layout, undefined, PLAIN, true)).toBeNull();
     }
   );
 
