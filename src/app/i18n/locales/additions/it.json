@@ -414,7 +414,7 @@
         "thirdPartyNotices": "Avvisi di terze parti",
         "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app.",
         "debugMode": "Modalità debug",
-        "debugModeDescription": "Registra la diagnostica su questo dispositivo per poterla esportare e attivare il tracciamento diagnostico approfondito."
+        "debugModeDescription": "Aggiunge «Allega log dell’app» al menu + della casella del messaggio, per poter inviare la diagnostica di questo dispositivo in un messaggio. Attiva qui sotto il tracciamento diagnostico approfondito per includere i dati di memoria e una traccia dettagliata."
       }
     },
     "createChat": {
@@ -944,6 +944,8 @@
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",
+    "attachMenu": "Allega",
+    "attachAppLogs": "Allega log dell’app",
     "lostFiles": "Non conservati con questa bozza: {{files}}. Allegali di nuovo prima di inviare.",
     "lostPastes": "Il testo incollato non è stato conservato con questa bozza. Incollalo di nuovo prima di inviare.",
     "dismissLostFiles": "Ignora",

@@ -5,6 +5,7 @@ import {
   type DeepTraceData,
 } from './deepTrace';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
+import { sampleMemory } from './memorySampler';
 
 const TIMELINE_DEBUG_STORAGE_KEY = 'mindroom.debug.timeline';
 
@@ -77,6 +78,8 @@ export const logTimelineDebug = (
       });
       recordDeepTraceEvent(phaseSchema[0], data);
     }
+    // Memory figures at each thread open, the step after which the iOS app was seen to reload.
+    if (phase === 'thread-open-start') sampleMemory('thread_open');
   }
   if (!traceId || !isTimelineDebugEnabled()) return;
 

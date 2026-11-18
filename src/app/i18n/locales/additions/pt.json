@@ -414,7 +414,7 @@
         "thirdPartyNotices": "Avisos de terceiros",
         "soundsCredit": "Os sons de notificação e de convite são toques sintetizados para este aplicativo.",
         "debugMode": "Modo de depuração",
-        "debugModeDescription": "Regista diagnósticos neste dispositivo para que os possa exportar e ativar o rastreio de diagnóstico detalhado."
+        "debugModeDescription": "Adiciona «Anexar registos da app» ao menu + da caixa de mensagem, para que possa enviar os diagnósticos deste dispositivo numa mensagem. Ative abaixo o rastreio de diagnóstico detalhado para incluir os valores de memória e um rastreio pormenorizado."
       }
     },
     "createChat": {
@@ -944,6 +944,8 @@
     "emoji": "Emoji",
     "cancelReply": "Cancelar resposta",
     "moreActions": "Mais ações",
+    "attachMenu": "Anexar",
+    "attachAppLogs": "Anexar registos da app",
     "lostFiles": "Não mantidos com este rascunho: {{files}}. Anexe-os novamente antes de enviar.",
     "lostPastes": "O texto colado não foi mantido com este rascunho. Cole-o novamente antes de enviar.",
     "dismissLostFiles": "Dispensar",

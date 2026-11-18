@@ -404,7 +404,7 @@
         "thirdPartyNotices": "第三方声明",
         "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。",
         "debugMode": "调试模式",
-        "debugModeDescription": "在此设备上记录诊断信息，以便导出并开启深度诊断追踪。"
+        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。"
       }
     },
     "createChat": {
@@ -910,6 +910,8 @@
     "emoji": "表情符号",
     "cancelReply": "取消回复",
     "moreActions": "更多操作",
+    "attachMenu": "添加",
+    "attachAppLogs": "添加应用日志",
     "lostFiles": "未随此草稿保留：{{files}}。发送前请重新添加附件。",
     "lostPastes": "粘贴的文本未随此草稿保留。发送前请重新粘贴。",
     "dismissLostFiles": "关闭",

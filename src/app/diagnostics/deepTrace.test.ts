@@ -3,6 +3,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { logTimelineDebug } from './timelineDebug';
+import { registerMemoryGauge, sampleMemory } from './memorySampler';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import {
@@ -236,6 +237,39 @@ describe('opt-in deep diagnostic trace', () => {
         data: { reload_ms_ago: 1_500 },
       })
     );
+  });
+
+  it('keeps memory samples with their reason flag and numeric gauges', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const unregister = registerMemoryGauge('room_live_events', () => 1_234);
+
+    sampleMemory('interval');
+    unregister();
+
+    const snapshot = await readDeepTraceSnapshot();
+    const sample = snapshot.events.find((event) => event.name === 'memory.sample');
+    expect(sample?.data).toMatchObject({
+      reason_interval: true,
+      dom_nodes: expect.any(Number) as number,
+      uptime_s: expect.any(Number) as number,
+      room_live_events: 1_234,
+    });
+  });
+
+  it('samples memory as a thread opens', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    logTimelineDebug('thread-open#7#room', 'thread-open-start', {
+      shouldScrollToLatestOnOpen: true,
+    });
+
+    const snapshot = await readDeepTraceSnapshot();
+    const names = snapshot.events.map((event) => event.name);
+    expect(names).toContain('thread.open.start');
+    expect(names.indexOf('memory.sample')).toBeGreaterThan(names.indexOf('thread.open.start'));
+    expect(snapshot.events.find((event) => event.name === 'memory.sample')?.data).toMatchObject({
+      reason_thread_open: true,
+    });
   });
 
   it('records cache database stalls', async () => {

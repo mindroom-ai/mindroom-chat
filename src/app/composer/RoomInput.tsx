@@ -66,6 +66,7 @@ import { hasMatchingReplyDraft } from './roomInputSendSession';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
+import { ComposerAttachButton } from './ComposerAttachButton';
 import { ComposerSendButton } from './ComposerSendButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { composeTextMessage } from './composeTextMessage';
@@ -632,7 +633,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
-    const attachLabel = t('composer.attach');
     const boardOpen = emojiAnchor !== undefined;
 
     const autocomplete =
@@ -760,6 +760,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 <ComposerActionsMenu
                   formattingOpen={formattingOpen}
                   onAttach={attachments.pickFiles}
+                  onAttachAppLogs={attachments.attachAppLogs}
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
@@ -769,10 +770,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             ) : (
               <>
                 {modelPicker}
-                <ComposerIconButton
-                  label={attachLabel}
-                  icon={Icons.PlusCircle}
-                  onPress={attachments.pickFiles}
+                <ComposerAttachButton
+                  onAttach={attachments.pickFiles}
+                  onAttachAppLogs={attachments.attachAppLogs}
                 />
                 {/* A fork draft records no voice: one would start a thread, not the fork. */}
                 {!forkFrom && voice.microphone}

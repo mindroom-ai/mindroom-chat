@@ -409,7 +409,7 @@
         "thirdPartyNotices": "Kennisgevingen van derden",
         "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd.",
         "debugMode": "Debugmodus",
-        "debugModeDescription": "Legt diagnostiek vast op dit apparaat, zodat je die kunt exporteren en uitgebreide diagnostische tracering kunt inschakelen."
+        "debugModeDescription": "Voegt ‘App-logboeken bijvoegen’ toe aan het +-menu van het invoerveld, zodat je de diagnostiek van dit apparaat in een bericht kunt versturen. Schakel hieronder uitgebreide diagnostische tracering in om geheugencijfers en een gedetailleerde tracering mee te sturen."
       }
     },
     "createChat": {
@@ -927,6 +927,8 @@
     "emoji": "Emoji",
     "cancelReply": "Antwoord annuleren",
     "moreActions": "Meer acties",
+    "attachMenu": "Bijvoegen",
+    "attachAppLogs": "App-logboeken bijvoegen",
     "lostFiles": "Niet bewaard bij dit concept: {{files}}. Voeg ze opnieuw toe voordat je verstuurt.",
     "lostPastes": "Geplakte tekst is niet bewaard bij dit concept. Plak hem opnieuw voordat je verstuurt.",
     "dismissLostFiles": "Sluiten",
