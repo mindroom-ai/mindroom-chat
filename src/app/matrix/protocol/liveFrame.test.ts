@@ -39,12 +39,9 @@ describe('live reply frames', () => {
       const after =
         'snapshot' in parsed
           ? parsed.snapshot
-          : applyLiveDelta(
-              { segments: [], compactions: [], ...testCase.before } as LiveDocs,
-              parsed.delta
-            );
+          : applyLiveDelta({ segments: [], ...testCase.before } as LiveDocs, parsed.delta);
 
-      expect(after).toEqual({ segments: [], compactions: [], ...testCase.after });
+      expect(after).toEqual({ segments: [], ...testCase.after });
     }
   );
 
@@ -128,11 +125,11 @@ describe('live reply frames', () => {
     });
   });
 
-  it('reads a snapshot without compactions, from an older backend, as having none', () => {
+  it('reads a snapshot without compactions, from an older backend, as not saying', () => {
     const { compactions: _compactions, ...old } = docs;
     const parsed = parseLiveFrame(frame({ snapshot: old }));
 
-    expect(parsed && 'snapshot' in parsed && parsed.snapshot.compactions).toEqual([]);
+    expect(parsed && 'snapshot' in parsed && parsed.snapshot).not.toHaveProperty('compactions');
   });
 
   it('replaces the whole compaction list with a delta that carries it and keeps it otherwise', () => {

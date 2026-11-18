@@ -57,11 +57,8 @@ describe('sub-agent frames', () => {
       const after =
         'snapshot' in parsed
           ? parsed.snapshot
-          : applyLiveDelta(
-              { segments: [], compactions: [], ...testCase.before } as LiveDocs,
-              parsed.delta
-            );
-      expect(after).toEqual({ segments: [], compactions: [], ...testCase.after });
+          : applyLiveDelta({ segments: [], ...testCase.before } as LiveDocs, parsed.delta);
+      expect(after).toEqual({ segments: [], ...testCase.after });
     }
   );
 

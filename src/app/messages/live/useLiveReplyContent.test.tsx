@@ -129,6 +129,7 @@ describe('useLiveReplyContent', () => {
       'io.mindroom.tool_trace': { version: 2, events: [tool] },
       'io.mindroom.live_activity': 'Preparing isolated worker... 3s elapsed.',
       'io.mindroom.live_reasoning': 'Weighing options',
+      'io.mindroom.live_compactions': [],
       'com.mindroom.message_extras': { sections: [] },
     });
     expect(live()).toBe(true);
@@ -151,8 +152,19 @@ describe('useLiveReplyContent', () => {
     expect(shown()[LIVE_COMPACTIONS_KEY]).toEqual(compactions);
   });
 
-  it('leaves the live compactions out while the frames have none', () => {
+  it('shows an empty live list over a durable one, which then shows no seam', () => {
+    const stale = [
+      { id: 'a', phase: 'pre_turn', after_tool: 0, status: 'running', before_tokens: 366804 },
+    ];
     ingest(snapshot(0));
+    render(durable('streaming', { 'io.mindroom.compactions': stale }));
+
+    expect(shown()[LIVE_COMPACTIONS_KEY]).toEqual([]);
+  });
+
+  it('leaves the live compactions out while the frames, from an older backend, have none', () => {
+    const { compactions: _compactions, ...old } = snapshot(0).snapshot;
+    ingest({ ...snapshot(0), snapshot: old });
     render(durable('streaming'));
 
     expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);

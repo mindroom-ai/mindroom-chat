@@ -541,6 +541,16 @@ describe('compaction seams in finished and live replies', () => {
     expect(sequence()).toEqual(['Intro.', 'tools:t1', 'seam', 'More.']);
   });
 
+  it('shows no seam while the live list is empty, over the event’s', () => {
+    render(
+      reply(paragraphs('Intro.', markerLine('t1', 1), 'More.'), [entry('c1', 1)], {
+        [LIVE_COMPACTIONS_KEY]: [],
+      })
+    );
+
+    expect(seams()).toHaveLength(0);
+  });
+
   it('shows the live compactions of a long reply over its downloaded sidecar', () => {
     sidecars.set('mxc://example.org/long', {
       ...reply(paragraphs('Intro.', markerLine('t1', 1), 'More.'), [entry('c1', 1)]),

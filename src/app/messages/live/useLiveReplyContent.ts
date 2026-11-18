@@ -77,7 +77,8 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
   if (docs.activity) live[LIVE_ACTIVITY_KEY] = docs.activity;
   if (docs.reasoning) live[LIVE_REASONING_KEY] = docs.reasoning;
   if (docs.segments.length > 0) live[LIVE_REASONING_SEGMENTS_KEY] = docs.segments;
-  if (docs.compactions.length > 0) live[LIVE_COMPACTIONS_KEY] = docs.compactions;
+  // An empty list says the reply has none, over a durable list an older edit left.
+  if (docs.compactions) live[LIVE_COMPACTIONS_KEY] = docs.compactions;
   return live;
 };
 

@@ -17,8 +17,11 @@ export type LiveDocs = {
   status: string;
   activity: string;
   segments: LiveReasoningSegment[];
-  /** The reply's `io.mindroom.compactions` entries as sent; `readReplyCompactions` reads them. */
-  compactions: unknown[];
+  /**
+   * The reply's `io.mindroom.compactions` entries as sent; `readReplyCompactions` reads them.
+   * Absent when the backend is older than compactions, so the reply's durable list stands.
+   */
+  compactions?: unknown[];
 };
 
 /** Replaces `del` UTF-16 units at `at` with `ins`; `len` is the document length afterwards. */
@@ -96,10 +99,15 @@ const parseSnapshot = (value: unknown): LiveDocs | null => {
   const tools = parseTools(value.tools);
   // Older backends send no segments.
   const segments = 'segments' in value ? parseSegments(value.segments) : [];
-  const compactions = 'compactions' in value ? parseCompactions(value.compactions) : [];
+  // Older backends send no compactions: the frames then say nothing about them.
+  const compactions = 'compactions' in value ? parseCompactions(value.compactions) : undefined;
   if (typeof md !== 'string' || typeof reasoning !== 'string' || !tools) return null;
-  if (!isStatus(status) || typeof activity !== 'string' || !segments || !compactions) return null;
-  return { md, reasoning, tools, status, activity, segments, compactions };
+  if (!isStatus(status) || typeof activity !== 'string' || !segments || compactions === null) {
+    return null;
+  }
+  const docs: LiveDocs = { md, reasoning, tools, status, activity, segments };
+  if (compactions) docs.compactions = compactions;
+  return docs;
 };
 
 const parseDelta = (value: unknown): LiveDelta | null => {
@@ -184,15 +192,17 @@ export const applyLiveDelta = (docs: LiveDocs, delta: LiveDelta): LiveDocs | nul
   const reasoning = delta.reasoning ? applySplice(docs.reasoning, delta.reasoning) : docs.reasoning;
   const tools = delta.tools ? applyToolsDelta(docs.tools, delta.tools) : docs.tools;
   if (md === null || reasoning === null || tools === null) return null;
-  return {
+  const after: LiveDocs = {
     md,
     reasoning,
     tools,
     status: delta.status ?? docs.status,
     activity: delta.activity ?? docs.activity,
     segments: delta.segments ?? docs.segments,
-    compactions: delta.compactions ?? docs.compactions,
   };
+  const compactions = delta.compactions ?? docs.compactions;
+  if (compactions) after.compactions = compactions;
+  return after;
 };
 
 /** Orders live state of one reply: by publisher generation (`sid`), then by `seq`. */
