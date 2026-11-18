@@ -574,7 +574,7 @@ describe('streaming replies on thread cards', () => {
       expect(f.replyRequests()).toBe(0);
     });
 
-    it('asks nothing about a reply whose thread the list shows with a newer event', async () => {
+    it('asks once about a reply whose thread the list shows with a newer event', async () => {
       const now = Date.now();
       const f = await reload(now);
       f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
@@ -589,10 +589,11 @@ describe('streaming replies on thread cards', () => {
       expect(f.card().streaming).toBe(false);
       await afterCheckDelay();
       expect(f.card().streaming).toBe(false);
-      expect(f.replyRequests()).toBe(0);
+      // A newer event says nothing about an older reply, which may stream on.
+      expect(f.replyRequests()).toBe(1);
     });
 
-    it('asks nothing when a card that still holds the reply is drawn again after the list', async () => {
+    it('asks once when a card that still holds the reply is drawn again after the list', async () => {
       const now = Date.now();
       const f = await reload(now);
       f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
@@ -613,11 +614,41 @@ describe('streaming replies on thread cards', () => {
       openList();
       await listing;
       await settle();
-      // Anything can draw the card again: the list's word about the thread still holds.
+      // Anything can draw the card again: the server's answer about the reply holds.
       expect(f.card().streaming).toBe(false);
       await afterCheckDelay();
       expect(f.card().streaming).toBe(false);
-      expect(f.replyRequests()).toBe(0);
+      expect(f.replyRequests()).toBe(1);
+    });
+
+    it('keeps streaming a reply whose thread got its title while it streamed', async () => {
+      const now = Date.now();
+      const f = await reload(now);
+      // The title notice comes about a minute into the first reply, which streams on.
+      f.setServerReply(withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')));
+      const thread = defined(f.room().getThread(rootId), 'the thread');
+      thread.timelineSet.addEventsToTimeline(
+        [f.mx.getEventMapper()(reply(now - 50_000))],
+        true,
+        false,
+        thread.liveTimeline
+      );
+      const openList = f.holdThreadList([withSummary(root(now - 60_000), title(now - 15_000), 2)]);
+      const listing = loadRoomThreads(f.room());
+      openList();
+      await listing;
+      await settle();
+      f.card();
+      await afterCheckDelay();
+      expect(f.card().streaming).toBe(true);
+      expect(f.replyRequests()).toBe(1);
+
+      // Its next edits come through /sync as usual.
+      await f.deliver([edit('The notes list', now - 1_000, 'streaming')]);
+      expect(f.card().streaming).toBe(true);
+      await f.deliver([edit(finished, now, 'completed')]);
+      expect(f.card().streaming).toBe(false);
+      expect(f.replyRequests()).toBe(1);
     });
 
     it('checks a reply the list did not answer once the list is read', async () => {
