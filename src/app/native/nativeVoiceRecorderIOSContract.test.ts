@@ -7,6 +7,11 @@ const bridgeSource = read('ios/App/App/MindRoomBridgeViewController.swift');
 const sceneSource = read('ios/App/App/SceneDelegate.swift');
 const projectSource = read('ios/App/App.xcodeproj/project.pbxproj');
 const wrapperSource = read('src/app/native/nativeVoiceRecorder.ts');
+/** The body of one plugin method, so that a check of one method cannot be met by another. */
+const body = (method: string) =>
+  pluginSource.match(
+    new RegExp(`@objc func ${method}\\(_ call: CAPPluginCall\\) \\{\n[\\s\\S]*?\n {4}\\}\n`)
+  )?.[0] ?? '';
 
 describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('is the plugin the web side registers, with its methods and its level event', () => {
@@ -27,24 +32,29 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource).toContain('"\\(id).m4a"');
     expect(pluginSource).toContain('UUID(uuidString: id)');
     ['pause', 'resume', 'stop'].forEach((method) =>
-      expect(pluginSource).toMatch(
-        new RegExp(
-          `@objc func ${method}\\(_ call: CAPPluginCall\\) \\{[\\s\\S]*?live\\.id == call\\.getString\\("id"\\)[\\s\\S]*?"NOT_RECORDING"`
-        )
+      expect(body(method), method).toMatch(
+        /^.*\n.*\n\s*guard let live = self\.live, live\.id == call\.getString\("id"\) else \{\s*return call\.reject\("No such recording", "NOT_RECORDING"\)/
       )
     );
-    expect(pluginSource).toMatch(/guard live\.recorder\.record\(\) else \{\s*discardLive\(\)/);
+    expect(body('resume')).toMatch(/guard live\.recorder\.record\(\) else \{\s*discardLive\(\)/);
+  });
+
+  it('cancels the recording of its ID and no other', () => {
+    expect(body('cancel')).toMatch(
+      /let id = call\.getString\("id"\) \?\? ""\s*if live\?\.id == id \{\s*discardLive\(\)\s*\} else if let url = Self\.file\(of: id\) \{\s*try\? FileManager\.default\.removeItem\(at: url\)\s*\}\s*call\.resolve\(\)/
+    );
+    expect(body('cancel')).not.toMatch(/clearFolder|epoch/);
   });
 
   it('records nothing for a page that went away under the microphone prompt', () => {
-    expect(pluginSource).toMatch(
+    expect(body('start')).toMatch(
       /let epoch = self\.epoch\s*AVCaptureDevice\.requestAccess\(for: \.audio\)[\s\S]*?DispatchQueue\.main\.async \{[\s\S]*?guard epoch == self\.epoch else[\s\S]*?setActive\(true\)/
     );
     expect(pluginSource).toMatch(/func cancelRecording\(\) \{\s*epoch \+= 1/);
   });
 
   it('leaves no file and no active audio session behind a start that fails', () => {
-    expect(pluginSource).toMatch(
+    expect(body('start')).toMatch(
       /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)[\s\S]*?setActive\(false[\s\S]*?"START_FAILED"/
     );
   });
