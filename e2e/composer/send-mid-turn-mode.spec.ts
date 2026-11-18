@@ -173,5 +173,20 @@ test('holding Send while an agent replies sends the mode picked', async ({ page 
   await expect(menu).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
+
+  // The mouse moves off Send just as Escape takes the hold's layer away, before the browser has
+  // told Send the mouse is on it again, so Send hears of no leave. Its first return still rests.
+  await page.mouse.move(box.x - 300, box.y + box.height / 2, { steps: 4 });
+  for (let round = 0; round < 3; round += 1) {
+    await holdSend(page);
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.mouse.move(box.x - 300, box.y + box.height / 2);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await page.mouse.move(box.x - 300, box.y + box.height / 2, { steps: 4 });
+  }
   await expect(composer(page)).toContainText('And the buoys.');
 });
