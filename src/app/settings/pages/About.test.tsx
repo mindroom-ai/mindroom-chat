@@ -62,7 +62,7 @@ vi.mock('folds', () => ({
       onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.checked),
     }),
   config: { space: { S100: '0.25rem', S300: '0.75rem', S400: '1rem' }, radii: { R300: '0.5rem' } },
-  color: { Background: { Container: 'background' } },
+  color: { Background: { Container: 'background' }, Critical: { Main: 'critical' } },
   toRem: (value: number) => `${value / 16}rem`,
 }));
 
@@ -775,18 +775,30 @@ describe('About Mac app', () => {
     mac.unmount();
   });
 
-  it('copies the Homebrew command and says so', async () => {
+  it.each([
+    [true, 'Copied'],
+    [false, 'Copy failed'],
+  ])('copies the Homebrew command and says how it went (copied: %s)', async (works, status) => {
     mocks.offersMacApp.mockReturnValue(true);
+    mocks.copyToClipboard.mockResolvedValue(works);
     const renderer = create(<About requestClose={vi.fn()} />);
     const copy = () => renderer.root.findByProps({ 'data-mac-app-copy-brew': '' });
+    const said = () =>
+      String(renderer.root.findByProps({ 'data-mac-app-copy-status': '' }).props.children);
     expect(copy().props['aria-label']).toBe('Copy command');
+    expect(said()).toBe('');
 
     await act(async () => {
       copy().props.onClick();
     });
 
     expect(mocks.copyToClipboard).toHaveBeenCalledWith(MAC_APP_BREW_COMMAND);
-    expect(copy().props['aria-label']).toBe('Copied');
+    expect(said()).toBe(status);
+    // The button keeps its name; the live region beside it says what happened.
+    expect(copy().props['aria-label']).toBe('Copy command');
+    expect(renderer.root.findByProps({ 'data-mac-app-copy-status': '' }).props['aria-live']).toBe(
+      'polite'
+    );
     renderer.unmount();
   });
 });

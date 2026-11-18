@@ -706,6 +706,7 @@
       "menu": "Scarica l’app per Mac",
       "downloadDmg": "Scarica (.dmg)",
       "copyCommand": "Copia il comando",
+      "copyFailed": "Copia non riuscita",
       "keywords": "mac, macos, desktop, app, applicazione, scarica, dmg, homebrew, brew"
     }
   },

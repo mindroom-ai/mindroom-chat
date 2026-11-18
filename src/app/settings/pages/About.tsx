@@ -310,7 +310,17 @@ function MacAppSetting() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   // Undefined until a copy was tried; copyToClipboard resolves false when every clipboard failed.
   const [copied, setCopied] = useState<boolean>();
-  const copyLabel = copied ? t('messageCodeBlock.copied') : t('featureUi.macApp.copyCommand');
+  const copyStatus =
+    copied === undefined
+      ? ''
+      : copied
+      ? t('messageCodeBlock.copied')
+      : t('featureUi.macApp.copyFailed');
+  const copy = () => {
+    // Emptied first, so the live region announces a second copy's outcome again.
+    setCopied(undefined);
+    void copyToClipboard(MAC_APP_BREW_COMMAND).then(setCopied);
+  };
 
   const download = (
     <Button
@@ -363,12 +373,22 @@ function MacAppSetting() {
             radii="300"
             variant="Background"
             fill="None"
-            aria-label={copyLabel}
+            aria-label={t('featureUi.macApp.copyCommand')}
             data-mac-app-copy-brew=""
-            onClick={() => void copyToClipboard(MAC_APP_BREW_COMMAND).then(setCopied)}
+            onClick={copy}
           >
             {copied ? <CheckIcon /> : <CopyIcon />}
           </IconButton>
+          {/* Always there, so a screen reader hears what a copy did; empty until one is tried. */}
+          <Text
+            as="span"
+            size="T200"
+            aria-live="polite"
+            data-mac-app-copy-status=""
+            style={copied === false ? { color: color.Critical.Main } : undefined}
+          >
+            {copyStatus}
+          </Text>
         </Box>
         {phone ? download : null}
       </Box>

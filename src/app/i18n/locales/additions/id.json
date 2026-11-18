@@ -688,6 +688,7 @@
       "menu": "Unduh aplikasi Mac",
       "downloadDmg": "Unduh (.dmg)",
       "copyCommand": "Salin perintah",
+      "copyFailed": "Gagal menyalin",
       "keywords": "mac, macos, desktop, aplikasi, unduh, dmg, homebrew, brew"
     }
   },

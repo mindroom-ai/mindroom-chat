@@ -697,6 +697,7 @@
       "menu": "Mac uygulamasını indir",
       "downloadDmg": "İndir (.dmg)",
       "copyCommand": "Komutu kopyala",
+      "copyFailed": "Kopyalanamadı",
       "keywords": "mac, macos, masaüstü, uygulama, indir, dmg, homebrew, brew"
     }
   },

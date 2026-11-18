@@ -733,6 +733,7 @@
       "menu": "تنزيل تطبيق Mac",
       "downloadDmg": "تنزيل (.dmg)",
       "copyCommand": "نسخ الأمر",
+      "copyFailed": "تعذّر النسخ",
       "keywords": "mac, macos, سطح المكتب, تطبيق, تنزيل, dmg, homebrew, brew"
     }
   },

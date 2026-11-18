@@ -715,6 +715,7 @@
       "menu": "Скачать приложение для Mac",
       "downloadDmg": "Скачать (.dmg)",
       "copyCommand": "Скопировать команду",
+      "copyFailed": "Не удалось скопировать",
       "keywords": "mac, macos, компьютер, приложение, скачать, dmg, homebrew, brew"
     }
   },

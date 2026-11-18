@@ -697,6 +697,7 @@
       "menu": "Mac-app downloaden",
       "downloadDmg": "Downloaden (.dmg)",
       "copyCommand": "Opdracht kopiëren",
+      "copyFailed": "Kopiëren mislukt",
       "keywords": "mac, macos, desktop, app, downloaden, dmg, homebrew, brew"
     }
   },

@@ -697,6 +697,7 @@
       "menu": "Mac অ্যাপ ডাউনলোড",
       "downloadDmg": "ডাউনলোড (.dmg)",
       "copyCommand": "কমান্ড কপি করুন",
+      "copyFailed": "কপি করা যায়নি",
       "keywords": "mac, macos, ডেস্কটপ, অ্যাপ, ডাউনলোড, dmg, homebrew, brew"
     }
   },

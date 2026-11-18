@@ -688,6 +688,7 @@
       "menu": "下載 Mac 應用程式",
       "downloadDmg": "下載 (.dmg)",
       "copyCommand": "複製指令",
+      "copyFailed": "複製失敗",
       "keywords": "mac, macos, 桌面, 應用程式, 下載, dmg, homebrew, brew"
     }
   },

@@ -688,6 +688,7 @@
       "menu": "Mac アプリをダウンロード",
       "downloadDmg": "ダウンロード (.dmg)",
       "copyCommand": "コマンドをコピー",
+      "copyFailed": "コピーできませんでした",
       "keywords": "mac, macos, デスクトップ, アプリ, ダウンロード, dmg, homebrew, brew"
     }
   },

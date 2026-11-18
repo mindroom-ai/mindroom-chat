@@ -697,6 +697,7 @@
       "menu": "Mac ऐप डाउनलोड करें",
       "downloadDmg": "डाउनलोड करें (.dmg)",
       "copyCommand": "कमांड कॉपी करें",
+      "copyFailed": "कॉपी नहीं हो सका",
       "keywords": "mac, macos, डेस्कटॉप, ऐप, डाउनलोड, dmg, homebrew, brew"
     }
   },
