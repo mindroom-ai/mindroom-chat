@@ -994,6 +994,25 @@
       "withCount_one": "{{label}}, {{count}}টি সক্রিয়",
       "withCount_other": "{{label}}, {{count}}টি সক্রিয়",
       "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "প্রচেষ্টা",
+        "effortFor": "{{model}}-এর প্রচেষ্টা",
+        "noEffortLevels": "কোনো প্রচেষ্টার স্তর নেই",
+        "defaultLevel": "ডিফল্ট",
+        "levelIsDefault": "{{level}}, ডিফল্ট",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "বন্ধ",
+          "minimal": "ন্যূনতম",
+          "low": "কম",
+          "medium": "মাঝারি",
+          "high": "বেশি",
+          "xhigh": "অতি বেশি",
+          "max": "সর্বোচ্চ"
+        }
+      }
     }
   },
   "composer": {

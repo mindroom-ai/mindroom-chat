@@ -1012,6 +1012,25 @@
       "withCount_many": "{{label}}, {{count}} activos",
       "withCount_other": "{{label}}, {{count}} activos",
       "resize": "Cambiar el tamaño del panel de subagentes"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Esfuerzo",
+        "effortFor": "Esfuerzo de {{model}}",
+        "noEffortLevels": "Sin niveles de esfuerzo",
+        "defaultLevel": "Predeterminado",
+        "levelIsDefault": "{{level}}, predeterminado",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Desactivado",
+          "minimal": "Mínimo",
+          "low": "Bajo",
+          "medium": "Medio",
+          "high": "Alto",
+          "xhigh": "Muy alto",
+          "max": "Máximo"
+        }
+      }
     }
   },
   "composer": {

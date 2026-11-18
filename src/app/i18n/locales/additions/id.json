@@ -976,6 +976,25 @@
       "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
       "resize": "Ubah ukuran panel subagen"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Upaya",
+        "effortFor": "Upaya untuk {{model}}",
+        "noEffortLevels": "Tidak ada tingkat upaya",
+        "defaultLevel": "Bawaan",
+        "levelIsDefault": "{{level}}, bawaan",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Mati",
+          "minimal": "Minimal",
+          "low": "Rendah",
+          "medium": "Sedang",
+          "high": "Tinggi",
+          "xhigh": "Sangat tinggi",
+          "max": "Maksimum"
+        }
+      }
     }
   },
   "composer": {

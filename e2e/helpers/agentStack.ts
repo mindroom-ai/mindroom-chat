@@ -37,6 +37,8 @@ export type AgentStack = {
   model: 'stub' | 'real';
   /** The room's default model and the one the model picker switches a thread to. */
   models: { first: AgentModel; second: AgentModel };
+  /** A stub model with reasoning levels, on a backend whose models take them (MindRoom #4119), else null. */
+  reasoningModel?: (AgentModel & { levels: string[] }) | null;
   sha: string;
   namespace: string;
   homeserver: string;

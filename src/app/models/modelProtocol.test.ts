@@ -48,6 +48,86 @@ describe('model catalog wire validation', () => {
   });
 });
 
+describe('reasoning levels on the wire', () => {
+  const sol = {
+    key: 'sol',
+    display_name: 'Sol',
+    provider: 'codex',
+    id: 'gpt-sol',
+    reasoning_levels: ['low', 'medium', 'high', 'xhigh'],
+    reasoning_default: 'high',
+  };
+  const withSol = (selection: object, model: object = sol) => ({
+    ...catalog,
+    models: [catalog.models[0], model],
+    selection,
+  });
+
+  it("keeps a model's levels, its default and the levels of the selection", () => {
+    const parsed = parseModelCatalogResponse(
+      withSol({
+        override: 'sol',
+        reasoning: 'xhigh',
+        inherited: [
+          { entity: 'helper', model: 'sol', reasoning: 'low' },
+          { entity: 'scout', model: 'fast' },
+        ],
+      })
+    );
+    expect(parsed?.models[1]).toEqual(sol);
+    expect(parsed?.models[0]).not.toHaveProperty('reasoning_levels');
+    expect(parsed?.selection).toEqual({
+      override: 'sol',
+      reasoning: 'xhigh',
+      inherited: [
+        { entity: 'helper', model: 'sol', reasoning: 'low' },
+        { entity: 'scout', model: 'fast' },
+      ],
+    });
+  });
+
+  it('reads an answer without levels, as an older backend sends, as before', () => {
+    const parsed = parseModelCatalogResponse(catalog);
+    expect(parsed?.models.every((m) => !('reasoning_levels' in m))).toBe(true);
+    expect(parsed?.selection).toEqual(catalog.selection);
+  });
+
+  it.each([
+    { reasoning_levels: 'high' },
+    { reasoning_levels: [] },
+    { reasoning_levels: ['low', 'turbo'] },
+    { reasoning_levels: ['low', 'low'] },
+    { reasoning_levels: Array(9).fill('low') },
+    { reasoning_default: 'max' },
+    { reasoning_default: undefined },
+  ])('drops malformed levels %j but keeps the model', (change) => {
+    const parsed = parseModelCatalogResponse(
+      withSol({ override: 'sol', reasoning: 'high', inherited: [] }, { ...sol, ...change })
+    );
+    expect(parsed?.models[1]).toEqual({
+      key: 'sol',
+      display_name: 'Sol',
+      provider: 'codex',
+      id: 'gpt-sol',
+    });
+    expect(parsed?.selection).toEqual({ override: 'sol', inherited: [] });
+  });
+
+  it('drops a selected level its model does not offer', () => {
+    const parsed = parseModelCatalogResponse(
+      withSol({
+        override: 'fast',
+        reasoning: 'high',
+        inherited: [{ entity: 'helper', model: 'sol', reasoning: 'max' }],
+      })
+    );
+    expect(parsed?.selection).toEqual({
+      override: 'fast',
+      inherited: [{ entity: 'helper', model: 'sol' }],
+    });
+  });
+});
+
 describe('selection result wire validation', () => {
   const result = {
     version: 1,
@@ -64,6 +144,11 @@ describe('selection result wire validation', () => {
   it('distinguishes set reset from reset operation', () => {
     expect(parseModelSelectionResult(result)?.override).toBe('reset');
     expect(parseModelSelectionResult({ ...result, operation: 'reset' })).toBeUndefined();
+  });
+  it('accepts a set of a model at a level that echoes the reference', () => {
+    expect(
+      parseModelSelectionResult({ ...result, model: 'sol@high', override: 'sol@high' })?.override
+    ).toBe('sol@high');
   });
   it.each([{ runtime_device_id: '' }, { override: null }, { status: 'rejected' }, { version: 2 }])(
     'rejects inconsistent result %j',
