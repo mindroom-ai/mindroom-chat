@@ -5,6 +5,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type FocusEvent,
   type PointerEvent,
   type ReactNode,
 } from 'react';
@@ -308,6 +309,13 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   };
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
   const cardRef = useRef<HTMLDivElement>(null);
+  // A press in the card, to select its text, takes focus from the row into it: only focus that
+  // leaves both closes the card.
+  const onFocusLeave = (evt: FocusEvent) => {
+    const next = evt.relatedTarget;
+    const within = (element: Element | null) => next instanceof Node && !!element?.contains(next);
+    if (!within(triggerRef.current) && !within(cardRef.current)) setOpen(undefined);
+  };
 
   const isOpen = !!open;
   useEffect(() => {
@@ -366,7 +374,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
           if (open?.mode !== 'pinned') show('focus');
         }}
         onClick={() => (open?.mode === 'pinned' ? setOpen(undefined) : show('pinned'))}
-        onBlur={() => setOpen(undefined)}
+        onBlur={onFocusLeave}
       >
         <Icon className={css.Icon} size={ICON_SIZE} aria-hidden />
         <span>{rest.what}</span>
@@ -402,6 +410,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             ref={cardRef}
             id={cardId}
             role="tooltip"
+            tabIndex={-1}
             className={css.Card}
             data-state={state}
             style={{ pointerEvents: 'auto' }}
@@ -409,6 +418,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
               if (evt.pointerType === 'mouse') keepHover();
             }}
             onPointerLeave={leaveHover}
+            onBlur={onFocusLeave}
           >
             <div className={css.Head}>
               <Icon size={ICON_SIZE} aria-hidden />

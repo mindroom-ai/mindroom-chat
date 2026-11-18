@@ -2,6 +2,7 @@
 /* eslint-disable react/prop-types */
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
+import { fireEvent, render as renderDom, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 import { timeHourMinuteSecond } from '../../lib/time';
@@ -462,8 +463,29 @@ describe('CompactionSeam card', () => {
     expect(card(renderer)).toHaveLength(1);
     expect(trigger(renderer).props['aria-describedby']).toBe(card(renderer)[0]!.props.id);
 
-    await act(() => trigger(renderer).props.onBlur());
+    await act(() => trigger(renderer).props.onBlur({ relatedTarget: null }));
     expect(card(renderer)).toHaveLength(0);
+  });
+
+  it('stays pinned while focus moves into the card, and closes when it leaves both', () => {
+    const view = renderDom(
+      <>
+        <CompactionSeam compaction={compaction()} />
+        <button type="button">elsewhere</button>
+      </>
+    );
+    const row = view.container.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    act(() => row.focus());
+    fireEvent.click(row);
+    // A press inside the card to select text moves focus there from the row.
+    const tip = screen.getByRole('tooltip');
+    act(() => tip.focus());
+    expect(document.activeElement).toBe(tip);
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+
+    act(() => screen.getByText('elsewhere').focus());
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    view.unmount();
   });
 
   it('stays open when focus arrives while hovered and the mouse then leaves', async () => {
