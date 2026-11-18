@@ -161,6 +161,12 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 |---|---|---|---|
 | `tour.offerAtStart` | boolean | `true` | The app offers the interface tour (how threads work, in a Quick and a Full level) on a card until the account answers it: once the first sync of a start has completed, to an account whose `io.mindroom.settings` account data has no `tourOffered: true`. Either tour button, the dismiss button, or opening the tour from elsewhere answers it for the account on every device; `false` stops the offer. The tour stays in the command palette, in Settings (About), on the welcome page and in a Compact room that has no thread. |
 
+### Mac app
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `macApp.offer` | boolean | `false` | `true` points a browser on a Mac at the Mac app (never the native app, nor an iPad, which reports a Mac): once the first sync of a start has completed, a card at the foot of the room list, or a one-line banner at the top of the page where there is no room list beside it, until the account answers it, which Download, Not now or the dismiss button does for the account on every device (`macAppOffered: true` in its `io.mindroom.settings`); it waits while the tour's offer is due. It also adds Download Mac app to the Home menu and a MindRoom for Mac row to Settings (About), with the disk image and the Homebrew command, which stay after the answer. Anything but `true` leaves all three out. |
+
 ### Copy and branding
 
 | Key | Type | Default | Effect |

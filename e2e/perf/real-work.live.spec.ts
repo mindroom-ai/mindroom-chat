@@ -58,8 +58,8 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *                   rows it settles on, then 5 s
  *   thread-idle     30 s of the open thread left alone
  *   thread-type     10 s of typing in the thread's composer
- *   switch          Back, then another streaming thread, 5 times, each timed (the thread to its
- *                   first row and to its settled rows)
+ *   switch          Back, then another streaming thread than the one just left, 5 times, each
+ *                   timed (the thread to its first row and to its settled rows)
  *   cold-load       a reload of the room, to its first card, then 5 s
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
@@ -358,6 +358,8 @@ type Run = {
   threads?: string[];
   /** Those of them with a real thread's many replies, which the thread scenarios open first. */
   heavy?: string[];
+  /** The thread `showThread` opened last, which the first step of `switch` leaves. */
+  shown?: string;
 };
 
 const cards = (page: Page) => page.locator(CARD);
@@ -414,6 +416,7 @@ const showThread = async (run: Run): Promise<boolean> => {
   const { page } = run;
   await showCompact(page);
   const { root, streaming } = await pickThread(run);
+  run.shown = root;
   await card(page, root).click();
   await expect(banner(page)).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
@@ -563,7 +566,8 @@ const SCENARIO: Record<
       const { page } = run;
       const timings: Timing[] = [];
       let openedStreaming = true;
-      let current = '';
+      // The thread the scenario starts in: the first step opens another one, as the later ones do.
+      let current = run.shown;
       for (let turn = 1; turn <= 5; turn += 1) {
         const backMs = await timeToVisible(page, () => back(page).click(), CARD);
         await expect(page.locator(ROW)).toHaveCount(0);

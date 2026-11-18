@@ -711,6 +711,20 @@
           "mentions": "Только при упоминании"
         }
       }
+    },
+    "macApp": {
+      "title": "MindRoom для Mac",
+      "text": "Быстрая запись по ⌃⌥Space, системные уведомления.",
+      "download": "Скачать",
+      "notNow": "Не сейчас",
+      "dismiss": "Скрыть",
+      "banner": "<b>У вас Mac?</b> Установите приложение MindRoom.",
+      "bannerDownload": "Скачать для Mac",
+      "menu": "Скачать приложение для Mac",
+      "downloadDmg": "Скачать (.dmg)",
+      "copyCommand": "Скопировать команду",
+      "copyFailed": "Не удалось скопировать",
+      "keywords": "mac, macos, компьютер, приложение, скачать, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
