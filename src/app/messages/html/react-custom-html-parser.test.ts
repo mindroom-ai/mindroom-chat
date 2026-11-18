@@ -121,29 +121,8 @@ vi.mock('../agent-run/ToolCallsFold.css', () =>
 vi.mock('../agent-run/OutlineComet.css', () =>
   Object.fromEntries(['Glow', 'Outline', 'Comet', 'CometHead'].map((name) => [name, name]))
 );
-vi.mock('../agent-run/CompactionSeam.css', () =>
-  Object.fromEntries(
-    [
-      'Seam',
-      'Trigger',
-      'Icon',
-      'Separator',
-      'Rule',
-      'Card',
-      'Head',
-      'Tag',
-      'Subtitle',
-      'Gauge',
-      'GaugeWas',
-      'GaugeNow',
-      'GaugeLabel',
-      'Rows',
-      'Term',
-      'Value',
-      'Reason',
-    ].map((name) => [name, name])
-  )
-);
+// No content here carries compactions, so no seam reads its class names.
+vi.mock('../agent-run/CompactionSeam.css', () => ({}));
 vi.mock('../agent-run/Reasoning.css', () =>
   Object.fromEntries(
     [
