@@ -20,7 +20,7 @@ Bas said: "in the macos app. can we add something such that it self-updates auto
 - **One Info.plist for both apps and iOS.** `App` and `AppStoreMac` both use `App/Info.plist` (`project.pbxproj:1007`, `:1037`, `:1242`, `:1280`). Each target has its own Sources list, and `MindRoomBridgeViewController.swift` is in both.
 - **The browser's update path never fires in the app.** `appUpdate.ts:85-102` compares `version.json` of the page's origin with the running build; in the app that file is bundled (`capacitor.config.ts:7`), so they are always equal. The card (`NewVersionNotice.tsx:36-50`) shows `getReadyVersion()` and its button calls `reloadForNewVersion()`. `PartUnavailable.tsx:35`, `AppErrorBoundary.tsx:27` and `client-sdk/core.ts:46-50` call the same function and all handle its rejection.
 - **The card is mounted above the router** (`App.tsx:106-109`), so the Quick Capture window's page would show it too.
-- **Patterns to follow.** A platform filter on a dependency and an embed (`platformFilter = ios`, `project.pbxproj:36`, `:804`). A pinned download before the build (`scripts/watch/build-sdk.sh --fetch`, `build-macos-app.sh:80`). A debug acceptance fixture behind an environment variable (`MindRoomBridgeViewController.swift:64-99`). Script tests that run the real script with stubbed tools (`macCatalystRelease.test.ts:13-107`).
+- **Patterns to follow.** A platform filter on a dependency and an embed (`platformFilter = ios`, `project.pbxproj:36`, `:804`). A pinned download before the build (`scripts/watch/build-sdk.sh --fetch`, `build-macos-app.sh:80`). A job of its own, one at a time across every release's run, that moves a shared pointer to the newest release that is ready (`image.yml:125-187`, the image's `latest`). Script tests that run the real script with stubbed tools (`macCatalystRelease.test.ts:13-107`).
 
 ## Approaches
 
@@ -42,38 +42,42 @@ How Sparkle gets into the project:
 ### Behavior
 
 - The app checks the feed when it starts (if the last check is more than an hour old) and every hour while it runs. Nothing shows while it checks or downloads.
-- A newer release is downloaded, its EdDSA signature is checked before it is unpacked, and Sparkle's installer is staged. Then the card appears in the main window: same text, same Reload button, same dismiss as in the browser.
-- **Reload:** the button spins and says "Updating…", the app quits, the new version is installed and opens. If the app is still running 10 seconds later, the button returns.
-- **Dismiss:** the card stays away until the app restarts. The update installs when the app quits.
-- After an update is staged Sparkle stops checking until the app restarts [2]. So a long-running app installs the staged version, not the newest; the restarted app finds the newest on its next check and shows the card again. With one release every half hour this is the price of downloading at most one 28 MB DMG per run.
+- A newer release is downloaded, the DMG's EdDSA signature is checked before it is opened, and Sparkle's installer is staged. Then the card appears in the main window: same text, same Reload button, same dismiss as in the browser.
+- **Reload:** the button spins and says "Updating…", the app quits, the new version is installed and opens. If the app is still running 10 seconds after the press, whatever the reason, the button returns.
+- **Dismiss:** as in the browser, the card stays away for the life of the page; a page that is loaded again shows it again. Dismissing changes nothing in Sparkle: the update installs when the app quits.
+- While an update is staged Sparkle runs no further checks [2]. So a long-running app installs the staged version, not the newest; the restarted app finds the newest on its next check and shows the card again. With one release every half hour this is the price of downloading at most one 28 MB DMG per run.
+- If Sparkle gives the staged update up (its installer died, say), the card goes away and Reload paths reload the page again, until Sparkle stages an update anew.
 - The Quick Capture window shows no card: it is a 360 by 460 panel, and the main window has it.
-- Debug builds and builds without the feed setting have no updater: a local build (`CFBundleVersion` 33) would otherwise replace itself with the release.
+- A build without the feed setting, every Debug build among them, carries the bundle but never starts it: a local build (`CFBundleVersion` 33) would otherwise replace itself with the release.
 
 ### Architecture
 
 | File | Role |
 |---|---|
 | `scripts/fetch-sparkle.sh` | Downloads the pinned tarball, checks its sha256, unpacks `Sparkle.framework`, `bin/` and `LICENSE` into `ios/MacUpdater/Sparkle/` (git-ignored). A no-op when that version is there. |
-| `ios/MacUpdater/MindRoomMacUpdaterProtocol.swift` | The two calls the app makes: `start(onReady:)` and `install() -> Bool`. Compiled into `App` and the bundle. |
-| `ios/MacUpdater/MindRoomMacUpdater.swift`, `Info.plist` | The bundle (`chat.mindroom.app.mac-updater`, principal class `MindRoomMacUpdater`): owns the `SPUUpdater`, is its delegate, keeps the immediate-install block. |
-| `ios/App/App/MacUpdater.swift` | Catalyst side: loads the bundle from `Contents/PlugIns`, starts it, keeps the ready version, logs it, posts a notification. |
-| `ios/App/App/MindRoomUpdatePlugin.swift` | Capacitor plugin `MindRoomUpdate`: event `ready` `{ version }`, method `install()`. |
-| `src/app/native/nativeUpdate.ts` | `watchNativeUpdate()`: listens for `ready` and hands the version and the install call to `appUpdate.ts`. |
-| `src/app/config/appUpdate.ts` | `offerAppUpdate(version, install)`; `reloadForNewVersion()` installs when an app update is offered. |
+| `ios/MacUpdater/MindRoomMacUpdaterProtocol.swift` | The two calls the app makes: `start(onChange:)` and `install() -> Bool`. Compiled into `App` and the bundle. |
+| `ios/MacUpdater/MindRoomMacUpdater.swift`, `Info.plist` | The bundle (`chat.mindroom.app.mac-updater`, principal class `MindRoomMacUpdater`): owns the `SPUUpdater`, is its delegate, keeps the immediate-install block while its update cycle lives. |
+| `ios/App/App/MacUpdater.swift` | Catalyst side: loads the bundle from `Contents/PlugIns`, starts it, keeps the staged version (main thread only), logs it, posts a notification. |
+| `ios/App/App/MindRoomUpdatePlugin.swift` | Capacitor plugin `MindRoomUpdate`: event `change`, methods `status()` and `install()`. |
+| `src/app/native/nativeUpdate.ts` | `watchNativeUpdate()`: listens for `change`, asks `status()` once, and hands the result to `appUpdate.ts`. |
+| `src/app/config/appUpdate.ts` | `setAppUpdate(update?)`; `reloadForNewVersion()` installs while an app update is set. |
 | `scripts/macos-updater-info-plist.sh` | Build phase of `App`: writes the updater's Info.plist keys into the built Mac app. |
-| `scripts/macos-appcast.sh` | Makes the signed `appcast.xml` for one DMG with Sparkle's `generate_appcast`. |
+| `scripts/macos-appcast.sh` | Makes and checks one release's `appcast.xml`: one item whose DMG enclosure carries the EdDSA signature. |
+| `scripts/macos-appcast-release.mjs` | Picks, from GitHub's list of releases, the newest one whose DMG and `appcast.xml` are both up. |
 
-Data flow: `AppDelegate` calls `MacUpdater.start()` at launch, before any page exists, so a broken page cannot stop an update. Sparkle downloads and stages; its delegate call hands over the version and the install block; `MacUpdater` posts `MindRoomUpdateReady`; the plugin raises `ready`, and answers every page that starts listening with the version already staged, so a page that loads later or is reloaded hears it too (Capacitor's kept events reach only the first listener, `CAPPlugin.m:44-66`); `watchNativeUpdate` calls `offerAppUpdate`; the card shows. Reload calls `reloadForNewVersion()`, which calls the plugin's `install()`, which runs the block: Sparkle asks the app to quit, installs and relaunches.
+Data flow: `AppDelegate` calls `MacUpdater.start()` at launch, before any page exists, so a broken page cannot stop an update. Sparkle downloads and stages; its delegate call hands over the version and the install block; `MacUpdater` posts `MindRoomUpdateChanged`; the plugin raises `change` `{ version }`; `watchNativeUpdate` calls `setAppUpdate`; the card shows. Reload calls `reloadForNewVersion()`, which calls the plugin's `install()`, which runs the block: Sparkle asks the app to quit, installs and relaunches. When the update cycle ends without an install (`updater(_:didFinishUpdateCycleFor:error:)` [2]), the bundle drops the block, which is dead by then (it holds its driver weakly, `SPUAutomaticUpdateDriver.m:112-119`), and the same path carries `change` `{}`.
+
+**A page that loads later.** Capacitor keeps an event only for the first listener (`CAPPlugin.m:44-66`), so a page that starts or reloads after the update was staged asks: it adds its `change` listener, then calls `status()` once. Both answers go through the same function, and setting the same update twice is one notice. The plugin overrides nothing of Capacitor's: plugin methods arrive on the bridge's queue (`CapacitorBridge.swift:524-553`), so `status()` and `install()` hop to the main queue before they touch `MacUpdater`, and events are raised from the main queue as the app's other plugins raise theirs (`MindRoomWatchPlugin.swift:32-34`).
 
 ### Where Sparkle links
 
 A new target `MindRoomMacUpdater` (`com.apple.product-type.bundle`, `SDKROOT = macosx`, deployment target 13.3, like `MindRoomMacSupport`). It links `Sparkle.framework`, embeds it in its own `Contents/Frameworks` (Code Sign On Copy) and has `LD_RUNPATH_SEARCH_PATHS = @loader_path/../Frameworks`. Target `App` depends on it and embeds it in `Contents/PlugIns`, both with `platformFilter = maccatalyst`, so iOS builds skip it. `AppStoreMac` gets neither. Sparkle's host bundle is `Bundle.main`, which inside the plug-in is the app. Sparkle's tools expect this layout: `generate_appcast` looks for the framework "inside another framework or plug-in" (`generate_appcast/ArchiveItem.swift:285`).
 
-The bundle uses `SPUUpdater` with `SPUStandardUserDriver`, not `SPUStandardUpdaterController`: the controller shows a modal alert when the updater cannot start (`SPUStandardUpdaterController.m:78-101`), and here a failed start is only logged.
+The bundle uses `SPUUpdater` with `SPUStandardUserDriver`, as `SPUStandardUpdaterController` itself does (`SPUStandardUpdaterController.m:47-56`), but not the controller: it shows a modal alert when the updater cannot start (`:78-101`), and here a failed start is only logged.
 
 ### Info.plist keys
 
-Only the built Mac `App` gets them. They cannot live in `App/Info.plist`, which the Store app and iOS share. A Run Script phase of `App` runs `scripts/macos-updater-info-plist.sh` after the Info.plist is processed and before signing. It does nothing unless `IS_MACCATALYST = YES` and the build setting `MINDROOM_UPDATE_FEED_URL` is set; then `MINDROOM_UPDATE_PUBLIC_KEY` must be a 44-character base64 key, or the build fails. Both settings exist only in `App`'s Release configuration.
+Only the built Mac `App` gets them. They cannot live in `App/Info.plist`, which the Store app and iOS share. A Run Script phase of `App` runs `scripts/macos-updater-info-plist.sh` after the Info.plist is processed and before signing. It does nothing unless `IS_MACCATALYST = YES` and the build setting `MINDROOM_UPDATE_FEED_URL` is set; then `MINDROOM_UPDATE_PUBLIC_KEY` must be a 44-character base64 key, or the build fails. Both settings exist only in `App`'s Release configuration. The defaults are set here only, never again at run time.
 
 | Key | Value | Why |
 |---|---|---|
@@ -82,55 +86,75 @@ Only the built Mac `App` gets them. They cannot live in `App/Info.plist`, which 
 | `SUEnableAutomaticChecks` | true | No "check automatically?" question on the second launch [3] |
 | `SUAutomaticallyUpdate` | true | Download and stage without asking [3] |
 | `SUScheduledCheckInterval` | 3600 | Sparkle's minimum; releases come many times a day |
-| `SUVerifyUpdateBeforeExtraction` | true | The DMG is not mounted before its signature is checked; a lost key can still be replaced, because the DMG is signed with Developer ID [3] |
+| `SUVerifyUpdateBeforeExtraction` | true | The DMG is not mounted before its signature is checked [3] |
 
 ### Feed
 
-- **What:** a one-item `appcast.xml` for the release's DMG, made by Sparkle's `generate_appcast`. The tool mounts the DMG and reads the item from the app itself: `sparkle:version` from `CFBundleVersion` (`YYYY.M.N`), the short version, `LSMinimumSystemVersion`, the length. It signs the DMG's bytes with the private key, so it runs after the DMG is stapled. The enclosure is `https://github.com/mindroom-ai/mindroom-chat/releases/download/<tag>/MindRoom.dmg`. No release notes.
+- **Each release's own `appcast.xml`,** made by Sparkle's `generate_appcast` and attached to the release beside its DMG. The tool mounts the DMG and reads the item from the app itself: `<sparkle:version>` from `CFBundleVersion` (`YYYY.M.N`), the short version, `LSMinimumSystemVersion`, the length. It signs the DMG's bytes with the private key, so it runs after the DMG is stapled. The enclosure is `https://github.com/mindroom-ai/mindroom-chat/releases/download/<tag>/MindRoom.dmg`. No release notes.
+- **What is signed is the DMG enclosure, not the XML.** `SURequireSignedFeed` stays off, so the feed's own text is trusted as far as HTTPS and GitHub are. A feed that lies can at worst name a DMG, which is then checked against the installed app's key, and Sparkle only offers a version above the running one.
+- **The feed the app reads is a copy of the newest ready release's `appcast.xml`,** on one prerelease, `mac-appcast`. A job of its own, `feed`, publishes it, one at a time across every run (concurrency group `mac-appcast`, the pattern of the image's `latest`, `image.yml:125-187`). Once it holds the group it reads GitHub's list of releases and takes the greatest `vYYYY.M.N` (not a draft, not a prerelease) whose `MindRoom.dmg` and `appcast.xml` are both uploaded; it downloads that `appcast.xml`, replaces the one on `mac-appcast`, and fetches the public URL until it serves the same bytes. It never looks at its own run's tag, so:
+  - an older release's run that finishes last publishes the newer release's feed again, not its own;
+  - a newer release without a DMG (still building, or failed) does not hold the feed back: the newest release that has both files is published;
+  - a failed publication is repaired by **Re-run failed jobs** on that run, or by the next release's run, from files that are already up. It needs no rebuild.
+- **The DMG is the mark that a release is ready.** The `dmg` job uploads `appcast.xml` first (replacing one a failed earlier run left) and `MindRoom.dmg` last; a DMG is never replaced, so a release that has a DMG has the `appcast.xml` that signs it.
+- **Independent of Homebrew.** `feed` runs whenever the run was not cancelled, whether or not the `dmg` job's request to the tap succeeded.
+- **Replacing is not atomic, and that is accepted.** `gh release upload --clobber` deletes the asset and then uploads it [6]; GitHub has no replace. For a 1 KB file that is a moment in which the URL is a 404: a silent failed check for an app that asks just then, and its next check is an hour later. The step tries the upload three times and fails loudly if the URL does not serve the new feed. The repository lets a published release's assets change: every release gets its DMG minutes after it is published.
+- **The feed never goes backwards** as long as releases are not deleted: the greatest ready release only grows, and one job at a time reads it. So the job does not parse the live feed to compare.
 - **Versions order correctly.** Sparkle's comparator compares the numbers between the dots as numbers (`SUStandardVersionComparator.m:196-218`): `2026.11.9 < 2026.11.10 < 2026.12.0`. The e2e updates from `2026.11.9` to `2026.11.10`.
-- **DMG, not zip.** Sparkle takes a DMG [4], and the release's one artifact keeps one checksum for Homebrew. The window layout of #580 is irrelevant to Sparkle: it copies the volume, ignores the Applications link (`Autoupdate/SUInstaller.m:49-73`) and finds the app by file name or, for a renamed app such as Homebrew's `MindRoom Chat.app`, by bundle identifier (`:102-110`).
-- **Where: one prerelease, `mac-appcast`, whose `appcast.xml` is replaced** (`gh release upload --clobber`) once a release's DMG is up and that release is still the newest, the condition the cask update already uses (`macos.yml:154-166`). The job creates the prerelease when it is missing. The feed therefore always names a DMG that exists.
-- **Rejected: `releases/latest/download/appcast.xml`.** Two lines less, but that URL is a 404 from the moment a release is published until its DMG is up: 24% of today, 58% of the afternoon. A failed check is silent (below) and the next one is an hour later, so the app would lag by hours exactly when releases are frequent.
+- **DMG, not zip.** Sparkle takes a DMG [4], and the release's one artifact keeps one checksum for Homebrew. The window layout of #580 is irrelevant to Sparkle: it copies the volume, ignores the Applications link (`Autoupdate/SUInstaller.m:49-73`) and finds the app by file name (the installed app's, or its display name, here `MindRoom.app`) or by bundle identifier (`:81-110`). The installed app keeps its own name, also Homebrew's `MindRoom Chat.app`.
+- **One item.** A release that raises the minimum macOS version leaves Macs below it without updates, also without the last release they could run; if that matters then, the feed must keep that release's item too.
+- **Rejected: `releases/latest/download/appcast.xml`.** Less workflow, but that URL is a 404 from the moment a release is published until its DMG is up: 24% of today, 58% of the afternoon. A failed check is silent (below) and the next one is an hour later, so the app would lag by hours exactly when releases are frequent.
 - **Rejected: the tap repository or chat.mindroom.chat.** Another repository's workflow, or a manual web publish.
-- **A stale or replayed feed is harmless:** Sparkle only offers a version above the running one, and the DMG's signature is what is trusted, not the feed.
 
 ### JS seam
 
 `appUpdate.ts` gains one export and one branch:
 
-- `offerAppUpdate(version, install)` sets `newVersion` and `readyVersion` to `version`, keeps `install`, and notifies. The card appears through the existing `getReadyVersion()`; nothing in `NewVersionNotice.tsx` changes.
-- `reloadForNewVersion()`, when an install is kept: `await install()`, wait `timeoutMs` (10 s), then reject. The app quits within moments of `install()`, so reaching the rejection means the install did not start; every caller already turns a rejection back into a pressable button. Without a kept install the function is unchanged.
+- `setAppUpdate(update?: { version: string; install: () => Promise<void> })`. With an update it sets `newVersion` and `readyVersion` to its version and keeps it; without one it forgets it and that version. It notifies only when something changed. The card appears and leaves through the existing `getReadyVersion()`; nothing in `NewVersionNotice.tsx` changes.
+- `reloadForNewVersion()`, while an update is set, makes one install attempt, which every caller shares until it ends. The attempt is bounded as a whole: 10 s (`timeoutMs`) from the press, whether the bridge never answers or the app does not quit, then it rejects and the update stays set, so a second press tries again (Sparkle's block may be called again after a cancelled quit [2]). An `install()` that rejects (the native side has no update any more, `NOT_READY`) forgets the update and rejects at once: the card leaves, and the next call reloads the page. Without an update set the function is unchanged.
 
-So `PartUnavailable`, `AppErrorBoundary` and the plugin API `reloadForNewVersion` install a staged update when there is one (a restart into the new version is what each of them wants) and reload the page as before when there is none.
+What its callers do with it:
 
-`src/app/native/nativeUpdate.ts` is the only file that knows the plugin; `config` stays below `native` in the layers. `src/index.tsx` calls `watchNativeUpdate()` beside `watchForNewVersion()`. The plugin is registered on the main window's bridge only, so the Quick Capture page finds no plugin and offers nothing.
+- The card and `AppErrorBoundary` give their button back on a rejection, as today.
+- `PartUnavailable` (a part of the app failed to load) shows its "a reload is needed" state on a rejection. Its Retry reloads without asking when the page would lose nothing; with an update set that restarts the whole app. It asks only its own page, the main window; text typed into the Quick Capture window is not asked about. In the app every part comes from the bundle, so this path needs a broken bundle.
+- The plugin API `reloadForNewVersion` (`client-sdk/core.ts:46-50`) passes the rejection on. In a browser it does not reject today; in the Mac app it now can, which `docs/client-plugins.md` will say.
+
+`src/app/native/nativeUpdate.ts` is the only file that knows the plugin; `config` stays below `native` in the layers. `src/index.tsx` calls `watchNativeUpdate()` beside `watchForNewVersion()`. The plugin is registered on the main window's bridge only, so the Quick Capture page finds no plugin, sets nothing and keeps the ordinary reload.
 
 ### Signing
 
-- **What Sparkle checks.** With `SUVerifyUpdateBeforeExtraction`, the DMG must carry a valid EdDSA signature of the installed app's public key before it is opened (`SUUpdateValidator.m:60-98`). The fallback, for a replaced key, is a DMG signed with Developer ID by the installed app's team. After unpacking, an update whose Apple signature is broken is refused (`:193-208`). The Apple signature is a second gate, not a second required one: Sparkle's rule is "Either DSA must be valid, or Apple Code Signing must be valid" (`:371-375`).
-- **Sparkle's helpers.** The framework carries `Autoupdate`, `Updater.app` and two XPC services (unused without a sandbox), ad-hoc signed with the hardened runtime. Embedding re-signs only the framework. "Xcode does re-sign these services and helpers, preserves the Hardened Runtime ... when you Archive and Export an application for notarization" [5], which is what `build-macos-app.sh` does. The framework sits one level deeper than usual (in the plug-in), so the script checks it: after the export, each of the five must be signed by team `DNA6966LGZ`, or the build stops before notarization. `generate_appcast` validates the app's nested signatures again, and notarization is the third gate.
-- **If that check fails on the first signed release:** sign the helpers in a script phase of the bundle target with Sparkle's documented commands [5] (no `--deep`), and release again.
+- **Two checks, of two things.** With `SUVerifyUpdateBeforeExtraction`:
+  1. Before the DMG is opened, its enclosure signature must verify against the *installed* app's `SUPublicEDKey`. Only if that fails, Sparkle accepts a DMG that is itself signed with Developer ID by the installed app's team (`SUUpdateValidator.m:60-98`); `build-macos-app.sh:131` signs the DMG so.
+  2. After unpacking: the new app must still have a key and a code signature (`:274-290`), its Apple signature must be valid (`:193-208`), and after the Developer ID fallback the enclosure signature must verify against the *new* app's key (`:210-232`).
+- **So a lost key is replaced by** a release whose app carries the new public key and whose enclosure is signed with the new private key; the Developer ID signature of the DMG carries the trust across. Developer ID alone never rescues an enclosure without a valid signature.
+- **Sparkle's helpers.** The framework carries `Autoupdate`, `Updater.app` and two XPC services (unused without a sandbox), ad-hoc signed with the hardened runtime. Embedding re-signs only the framework. "Xcode does re-sign these services and helpers, preserves the Hardened Runtime ... when you Archive and Export an application for notarization" [5], which is what `build-macos-app.sh` does. That sentence is about a framework in an app; here it sits one level deeper, in the plug-in, and nothing I read proves Xcode's export walks that far.
+- **The build script checks the exported app before it notarizes:** `codesign --verify --deep --strict` on the app, and for the plug-in's executable, the framework's and each of the four helpers, that `codesign -dv` names team `DNA6966LGZ` and the `runtime` flag. `generate_appcast` validates the nested signatures again, and notarization is the last gate.
+- **A signed smoke run before the merge** proves this without publishing: the **Mac app** workflow, run by hand on the branch with `smoke`, builds, signs, notarizes and staples that branch as the newest release's version, makes and checks its `appcast.xml` (which proves that the secret is the pair of the public key in the project), opens the notarized app on the runner and waits for Sparkle's first check (`SULastCheckTime` in the app's defaults, which only a loaded and started updater writes), and keeps the DMG as a run artifact. It uploads nothing to any release.
+- **If the export leaves a helper unsigned:** sign inside out in the build script after the export, as Sparkle documents [5], never with `--deep`: the two XPC services (the Downloader keeping its entitlements), `Autoupdate`, `Updater.app`, the framework, the plug-in, then the app with its entitlements; then notarize.
 
-### The Store app stays updater-free
+### The Store app and iOS stay free of it
 
 - `AppStoreMac` has no dependency on the updater target, no embed phase and no Info.plist phase. `MacUpdater.swift` and `MindRoomUpdatePlugin.swift` are in `App`'s Sources only, and their contents and every use of them compile only with `targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE`.
 - `scripts/macos-store-preflight.mjs` fails on a Store artifact that has a path containing `Sparkle` or `MindRoomMacUpdater`, an Info.plist key shaped like Sparkle's (`SU` and a capitalized word), or the strings `SPUUpdater` or `MindRoomMacUpdater` in a binary. `macos.yml` already archives the Store app and runs the preflight on every Mac pull request.
+- The real artifacts are compared once, on the M2: the Mac `App` Release archive has the plug-in, the framework and the six keys with their values; the Store archive and an iOS build have no such path and no `SU` key; the preflight rejects a Store app into which the plug-in was copied.
 
 ### Errors
 
 | Case | What happens |
 |---|---|
 | Offline, feed missing, GitHub down, a bad feed | The check fails, Sparkle logs it, nothing shows (the automatic driver has no error UI; the scheduled one shows errors only after it showed an update, `SPUScheduledUpdateDriver.m:104-106`). Next check in an hour. |
-| DMG with a wrong or missing signature | Refused before it is mounted, logged, nothing shows. |
+| DMG whose enclosure signature is wrong or missing | Refused before it is mounted, logged, nothing shows. |
 | The user cannot write the app's folder (a standard account, an app an administrator installed) | Sparkle cannot install silently (`InstallerLauncher/SUInstallerLauncher.m:469-471`) and falls back to its own window, which offers the update and has macOS ask for an administrator. No card. Accepted: an app dragged to `/Applications` or installed by Homebrew is owned by the user. |
 | App opened from the DMG, or translocated by Gatekeeper | Sparkle refuses to update a read-only location (`SPUBasicUpdateDriver.m:70-82`). In the background that is silent: the app works and never updates until it is moved to Applications. |
-| Reload pressed, the app does not quit | After 10 s the button returns. The update still installs on quit. |
+| Reload pressed; the bridge does not answer, or the app does not quit | 10 s after the press the button returns and can be pressed again. The update still installs on quit. |
+| Reload pressed; Sparkle gave the update up meanwhile | The press is refused at once, the card leaves, Reload paths reload the page. Sparkle checks again within the hour. |
 | The install fails after the app quit | Sparkle's installer puts the new app in place only after it validated it; the old app stays. Not exercised by the e2e. |
 | The bundle or Sparkle fails to load or start | One log line; the app runs without updates. |
+| The feed's publication fails | The job fails; the feed is the previous one or, for a failure between delete and upload, missing. Re-run the failed job, or the next release repairs it. |
 
 ### Bootstrap, Homebrew
 
-- Apps installed before this ships have no updater. Each needs the first DMG that carries it installed by hand, once (or `brew upgrade --cask mindroom-chat`).
+- Apps installed before this ships have no updater. Each needs a DMG that carries it installed by hand, once (or `brew upgrade --cask mindroom-chat`). The smoke run's DMG is such a DMG.
 - Follow-up in `mindroom-ai/homebrew-tap` (another repository, not part of this work): `auto_updates true` in the cask, so `brew upgrade` leaves a self-updated app alone.
 
 ### Keys and secrets
@@ -143,25 +167,30 @@ Bas's steps, on his Mac, before the pull request can merge:
 
 Fail closed:
 
-- A signed release without the secret stops in the workflow's first step, before the build.
-- `scripts/macos-appcast.sh` fails unless the feed it made has a `sparkle:edSignature`. `generate_appcast` leaves it out, with only a warning, when the app has no `SUPublicEDKey` or the private key is not its pair (`generate_appcast/Appcast.swift:199-209`). So a missing key, a wrong key and an app without the updater all end without a feed, and the job fails before anything is uploaded.
-- Pull request builds are unsigned and make no feed.
-- The private key reaches only the feed step, on standard input, never an Xcode build.
+- A signed build (a release or a smoke run) without the secret stops in the workflow's first step, before the build.
+- `scripts/macos-appcast.sh` writes into a fresh folder (`generate_appcast` would otherwise extend a feed it finds, `generate_appcast/FeedXML.swift:214-237`) and passes the result on only if it has exactly one enclosure, with this release's DMG URL, this DMG's length, this version, and a non-empty EdDSA signature. `generate_appcast` leaves the signature out, with only a warning, when the app has no `SUPublicEDKey` or the private key is not its pair (`generate_appcast/Appcast.swift:199-209`). So a missing key, a wrong key and an app without the updater all end without an `appcast.xml`, and the job fails before it uploads anything to the release.
+- Only the step that makes the `appcast.xml` gets the secret, and it hands it over on standard input with the variable removed from the script's environment (`env -u`). No Xcode build, and no pull request build, sees it.
+- Pull request builds are unsigned, make no `appcast.xml`, and no step that writes to a release runs for them; the `feed` job does not run.
 
 ## Testing
 
-- **Vitest, JS seam:** `appUpdate.test.ts` (the offer makes the version ready at once; a reload installs and does not reload the page; a reload whose install did not quit rejects; no offer leaves the browser path alone), `nativeUpdate.test.ts` with a fake plugin.
-- **Vitest, contracts:** the plugin's name, method, event and main-bridge registration; the project (the updater target is embedded by `App` only, behind `platformFilter = maccatalyst`; the feed and key settings are in Release only); the Store preflight's new check.
-- **Vitest, scripts** (real scripts, stubbed tools, as `macCatalystRelease.test.ts`): the fetch checks the checksum; the Info.plist script writes six keys only for a Mac build with a feed and refuses a bad key; the feed script refuses a feed without a signature; the build script fetches Sparkle, checks the helpers' team and makes no feed unsigned.
+- **Vitest, JS seam:** `appUpdate.test.ts` (setting an update makes it ready, once; clearing it clears the card; a reload installs and does not reload the page; an install that never answers rejects after the timeout and can be tried again; two reloads share one attempt; a refused install clears the update and the next reload reloads the page; without an update the browser path is untouched), `nativeUpdate.test.ts` with a fake plugin (staged before the page listens, while it listens, withdrawn; no plugin, as in the Quick Capture window).
+- **Vitest, the feed's choice:** `newestUpdateRelease` on lists of releases: the older run finishing last, the newest release without a DMG or without an `appcast.xml`, a failed upload's `starter` asset, drafts, prereleases and `mac-appcast` itself.
+- **Vitest, contracts:** the plugin's name, methods, event and main-bridge registration; the project (the updater target is embedded by `App` only, behind `platformFilter = maccatalyst`; the feed and key settings are in Release only); the Store preflight's new check; the workflow (the feed job's group and condition, the secret in one step).
+- **Vitest, scripts** (real scripts, stubbed tools, as `macCatalystRelease.test.ts`): the fetch checks the checksum; the Info.plist script writes six keys only for a Mac build with a feed and refuses a bad key; the appcast script refuses a missing signature, another version, another URL, a second item and a missing key, and ignores a stale output file; the build script fetches Sparkle, verifies the exported app and makes no `appcast.xml` unsigned.
 - **Swift contract** (`scripts/test-macos-support.sh`, run by `macos.yml` on pull requests): the updater bundle compiles against the pinned Sparkle, loads through its protocol, and `install()` is false with nothing staged.
-- **Pull request CI:** the unsigned Release archive must contain the bundle, the framework and `SUPublicEDKey`; the Store archive must pass the preflight.
-- **End to end on the MacBook M2** (Debug builds, a throwaway key, `python3 -m http.server`, a scratch folder, `MINDROOM_UPDATE_ACCEPTANCE=1` to press Reload, since ssh cannot click): v1 `2026.11.9`, installed under Homebrew's name `MindRoom Chat.app`, fetches the feed and the DMG without any window, the card appears, Reload ends in a running `2026.11.10`; a second run without the press installs on quit.
-- **Not provable without Developer ID:** that Xcode's export signs the helpers inside the plug-in, that notarization accepts the app, that the hardened app loads the bundle and the framework, the Developer ID fallback, and the real feed URL's redirects. The first signed release is the final check. If it fails, the job fails before it publishes anything, that release has no DMG, and the fix is the fallback above or a revert.
-- **No screenshot from the Mac app:** ssh has no Screen Recording permission. The card is the browser's component, unchanged.
+- **Pull request CI:** the unsigned Release archive must contain the bundle, the framework and the six keys with their values; the Store archive must pass the preflight.
+- **End to end on the MacBook M2, functional only** (Debug builds, ad-hoc signed, a throwaway key, a local server, a scratch folder, a test bundle identifier so that neither the defaults nor Sparkle's cache of `chat.mindroom.app` are touched, and a DMG made by the release's own `dmgbuild` recipe). A harness that exists only in the M2's worktree, never on the branch, lets ssh drive the app with signals: evaluate a script in the main page, and quit as the Quit menu item does. Runs, each a sequence of recorded checks:
+  - A: v1 `2026.11.9`, installed as `MindRoom Chat.app`, fetches the feed and the DMG; a sampler of the window list sees no window but the main one from launch to staging; the page shows the card; the page is reloaded and shows it again; Reload is pressed; a new process runs `2026.11.10` from the same path.
+  - B: the same up to staging, then Quit: the app at that path becomes `2026.11.10` and is not opened.
+  - C: a feed whose enclosure signature is another key's: no card, no window, still `2026.11.9`.
+- **The signed smoke run** (above) is the check of production signing, notarization and loading under the hardened runtime. Installed by hand, its DMG then updates itself to the first release after the merge: the signed end-to-end check.
+- **Still unproven until that first release:** the feed job against the real repository, and the Developer ID fallback for a replaced key (never exercised).
+- **No screenshot from the Mac app:** ssh has no Screen Recording permission. The card is the browser's component, unchanged; the e2e records its text from the page.
 
 ## Size
 
-Product lines, without tests and the project file: Swift about 150, TypeScript about 55, shell and the preflight about 115, workflow about 25: about 345. The project file grows by about 140 lines, tests by about 300, docs by about 40. Six tasks, one pull request.
+Product lines, without tests and the project file: Swift about 165, TypeScript about 70, shell about 135, the two `.mjs` about 45, workflow about 65: about 480 (345 before the review; the feed job, the checks of the `appcast.xml` and of the exported app, the smoke run and the status query are the growth). The project file grows by about 140 lines, tests by about 400, docs by about 50. Seven tasks, one pull request.
 
 ## Open questions, with the default taken
 
@@ -169,16 +198,17 @@ Product lines, without tests and the project file: Swift about 150, TypeScript a
 2. **Check interval:** 3600 s, Sparkle's minimum (taken).
 3. **A "Check for Updates…" menu item:** none (taken).
 4. **No write permission:** Sparkle's own window with the administrator prompt (taken), rather than no update at all.
-5. **A signed dry run before merging** (a workflow input that builds, signs and notarizes a branch and publishes nothing): none (taken); the first release is the check.
+5. **A scheduled repair of the feed:** none (taken); the next release's run or a re-run repairs it.
 6. **Homebrew `auto_updates true`:** follow-up in the tap.
-7. **The `mac-appcast` tag:** one tag that is not a version. `scripts/calver.mjs` ignores it; whether an Xcode Cloud workflow starts on it once is not checked.
+7. **The `mac-appcast` tag:** one tag that is not a version. `scripts/calver.mjs`, the image workflow, the tap and the download links ignore prereleases and tags of another form; whether an Xcode Cloud workflow starts on it once is not checked.
 
 ## Sources
 
 1. https://sparkle-project.org/documentation/programmatic-setup/ ("Create an Updater in Mac Catalyst")
-2. https://github.com/sparkle-project/Sparkle/blob/2.10.1/Sparkle/SPUUpdaterDelegate.h (lines 421-440), `Sparkle/SPUAutomaticUpdateDriver.m` (104-129)
+2. https://github.com/sparkle-project/Sparkle/blob/2.10.1/Sparkle/SPUUpdaterDelegate.h (lines 421-440 and 457-475), `Sparkle/SPUAutomaticUpdateDriver.m` (104-129)
 3. https://sparkle-project.org/documentation/customization/
 4. https://sparkle-project.org/documentation/publishing/
 5. https://sparkle-project.org/documentation/sandboxing/ ("Code Signing")
+6. https://cli.github.com/manual/gh_release_upload ("existing assets are deleted before new assets are uploaded")
 
-Source lines of Sparkle are of tag 2.10.1 (https://github.com/sparkle-project/Sparkle/tree/2.10.1).
+Source lines of Sparkle are of tag 2.10.1 (https://github.com/sparkle-project/Sparkle/tree/2.10.1); those of Capacitor of 8.5.2 (https://github.com/ionic-team/capacitor/tree/8.5.2/ios/Capacitor/Capacitor).
