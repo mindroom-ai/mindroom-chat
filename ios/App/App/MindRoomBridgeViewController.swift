@@ -46,6 +46,10 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
             bridge?.registerPluginInstance(MindRoomVoiceRecorderPlugin())
         }
 #endif
+#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
+        // The main window shows the update card; the Quick Capture window does not.
+        if !(self is QuickCaptureViewController) { bridge?.registerPluginInstance(MindRoomUpdatePlugin()) }
+#endif
 #if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
         // Only the main bridge consumes Watch Handoff; the widget must not take its pending event.
         if self is QuickCaptureViewController { return }

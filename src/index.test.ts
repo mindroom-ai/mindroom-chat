@@ -128,6 +128,10 @@ vi.mock('./app/config/appUpdate', () => ({
   watchForNewVersion: vi.fn(),
 }));
 
+vi.mock('./app/native/nativeUpdate', () => ({
+  watchNativeUpdate: vi.fn(),
+}));
+
 // With every startup step mocked and no root element yet, this start does nothing the cases see.
 importBeforeTests(() => import('./index'));
 

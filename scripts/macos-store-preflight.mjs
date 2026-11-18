@@ -108,6 +108,25 @@ const signatureDetails = (file) => {
 };
 
 /**
+ * The Store app must carry no trace of the Developer ID app's updater (Sparkle).
+ * @param {{paths: string[], infoKeys: string[], strings: string[]}} input
+ * @returns {string[]}
+ */
+export const macStoreUpdaterProblems = ({ paths, infoKeys, strings }) => {
+  const problems = [];
+  // The web bundle carries every license text, Sparkle's too.
+  const license = 'Contents/Resources/public/public/licenses/Sparkle-MIT.txt';
+  if (paths.some((file) => file !== license && /Sparkle|MindRoomMacUpdater/.test(file)))
+    problems.push('A Mac Store artifact must not embed the updater or Sparkle.');
+  // Sparkle's keys (SUFeedURL, SUPublicEDKey, ...), not words such as SUPPORTED.
+  if (infoKeys.some((key) => /^SU[A-Z][a-z]/.test(key)))
+    problems.push("A Mac Store artifact must not have Sparkle's Info.plist keys.");
+  if (strings.some((text) => /SPUUpdater|MindRoomMacUpdater/.test(text)))
+    problems.push('A Mac Store binary must not reference the updater.');
+  return problems;
+};
+
+/**
  * Inspect either an xcarchive or its extracted .app. Never uploads or changes the artifact.
  * @param {{artifact: string, version: string, build: string, commit: string, structureOnly?: boolean}} input
  */
@@ -150,11 +169,14 @@ export const inspectMacStoreArtifact = ({
       .filter(Boolean)
   );
   problems.push(...macStoreArchitectureProblems(architectures[0] ?? [], architectures[1] ?? []));
+  /** @type {string[]} */
+  const binaryStrings = [];
   binaries.forEach((binary, index) => {
     const strings = execFileSync('strings', ['-a', binary], {
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
     });
+    binaryStrings.push(strings);
     if (strings.split('\n').includes('uiWindows'))
       problems.push('An emitted binary contains the private uiWindows selector.');
     const platforms = [
@@ -167,6 +189,13 @@ export const inspectMacStoreArtifact = ({
       problems.push(`${path.basename(binary)} must use the ${expected} platform in every slice.`);
     }
   });
+  problems.push(
+    ...macStoreUpdaterProblems({
+      paths: readdirSync(app, { recursive: true, encoding: 'utf8' }),
+      infoKeys: Object.keys(info),
+      strings: binaryStrings,
+    })
+  );
   if (!structureOnly) {
     execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' });
     const mainSignature = signatureDetails(app);

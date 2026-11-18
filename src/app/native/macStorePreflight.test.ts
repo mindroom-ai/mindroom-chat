@@ -3,6 +3,7 @@ import {
   macStoreArchitectureProblems,
   macStoreEntitlementProblems,
   macStoreMetadataProblems,
+  macStoreUpdaterProblems,
 } from '../../../scripts/macos-store-preflight.mjs';
 
 const metadata = () => ({
@@ -38,6 +39,37 @@ const entitlements = () => ({
 });
 
 describe('Mac Store emitted-artifact preflight', () => {
+  it('rejects any trace of the updater', () => {
+    expect(
+      macStoreUpdaterProblems({
+        // The web bundle carries every license text, Sparkle's too.
+        paths: [
+          'Contents/MacOS/MindRoom.chat',
+          'Contents/Resources/public/public/licenses/Sparkle-MIT.txt',
+        ],
+        infoKeys: ['CFBundleName', 'SUPPORTED'],
+        strings: ['uiWindow'],
+      })
+    ).toEqual([]);
+    expect(
+      macStoreUpdaterProblems({
+        paths: [
+          'Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/Frameworks/Sparkle.framework/Sparkle',
+        ],
+        infoKeys: ['SUFeedURL'],
+        strings: ['SPUUpdater'],
+      })
+    ).toHaveLength(3);
+    // Only that license text: an updater copied into the web bundle is still one.
+    expect(
+      macStoreUpdaterProblems({
+        paths: ['Contents/Resources/public/public/Sparkle.framework/Sparkle'],
+        infoKeys: [],
+        strings: [],
+      })
+    ).toHaveLength(1);
+  });
+
   it('accepts matching app, native support and web source metadata', () => {
     expect(macStoreMetadataProblems(metadata())).toEqual([]);
   });

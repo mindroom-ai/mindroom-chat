@@ -32,6 +32,12 @@
 // notice. So when the new worker does not install or take over, and the server answers with
 // another version than this page's, the page unregisters its worker and the reload comes from the
 // server. Offline, the worker stays: the reload needs it.
+//
+// The Mac app's page never differs from its version.json: both are bundled. Its updater downloads
+// each release itself and sets it here instead (setAppUpdate, from src/app/native/nativeUpdate.ts);
+// a reload for it installs the update and restarts the app. If the app is still running after
+// the timeout, the reload rejects so the card gives its button back; it cannot take back a request
+// the app already has.
 
 import {
   APP_BUILD_VERSION,
@@ -58,6 +64,12 @@ const failedModules = new Set<string>();
 let checking: Promise<void> | undefined;
 const listeners = new Set<() => void>();
 
+export type AppUpdate = { version: string; install: () => Promise<void> };
+/** The update the app itself downloaded (see the header); the object identifies the offer. */
+let appUpdate: AppUpdate | undefined;
+/** The running attempt to install it, which every reload shares until it ends. */
+let installing: Promise<void> | undefined;
+
 /** The version the server last published when it was not this page's, once the page asked. */
 export const getNewVersion = (): string | undefined => newVersion;
 
@@ -73,6 +85,45 @@ export const subscribeToNewVersion = (listener: () => void): (() => void) => {
 };
 
 const notify = () => listeners.forEach((listener) => listener());
+
+/** The update the app itself downloaded and can install, or none (any more). */
+export const setAppUpdate = (update?: AppUpdate): void => {
+  if (update?.version === appUpdate?.version) return;
+  const previous = appUpdate;
+  appUpdate = update;
+  if (update) {
+    newVersion = update.version;
+    readyVersion = update.version;
+  } else {
+    if (newVersion === previous?.version) newVersion = undefined;
+    if (readyVersion === previous?.version) readyVersion = undefined;
+  }
+  notify();
+};
+
+/**
+ * One attempt to install `update`, bounded as a whole by `timeoutMs`: an app that installs quits
+ * before it ends. Only the app's own NOT_READY, for the update still offered, forgets the offer.
+ */
+const installAppUpdate = async (update: AppUpdate, timeoutMs: number): Promise<void> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('The app did not restart for its update')),
+      timeoutMs
+    );
+  });
+  try {
+    await Promise.race([timedOut, update.install().then(() => timedOut)]);
+  } catch (error) {
+    if ((error as { code?: unknown } | undefined)?.code === 'NOT_READY' && appUpdate === update) {
+      setAppUpdate();
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 const serviceWorkers = (): ServiceWorkerContainer | undefined =>
   typeof navigator === 'undefined' ? undefined : navigator.serviceWorker;
@@ -280,12 +331,19 @@ const prepareWorkerForReload = async (timeoutMs: number): Promise<void> => {
 
 /**
  * Reloads the page on the newest build the server has: its worker takes over first, and the files
- * that failed to load in this page are fetched again.
+ * that failed to load in this page are fetched again. With an update the app itself downloaded, it
+ * installs that instead and rejects when the app did not restart (see the header).
  */
 export const reloadForNewVersion = async ({
   timeoutMs = TAKE_OVER_TIMEOUT_MS,
   reload = () => window.location.reload(),
 }: { timeoutMs?: number; reload?: () => void } = {}): Promise<void> => {
+  if (appUpdate) {
+    installing ??= installAppUpdate(appUpdate, timeoutMs).finally(() => {
+      installing = undefined;
+    });
+    return installing;
+  }
   try {
     await Promise.all([prepareWorkerForReload(timeoutMs), refetchFailedModules(timeoutMs)]);
   } catch {

@@ -627,3 +627,95 @@ describe('failed modules', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('an update the app itself downloaded', () => {
+  const never = () => new Promise<void>(() => undefined);
+  const notReady = () => Object.assign(new Error('No update is ready'), { code: 'NOT_READY' });
+  const v10 = '2026.11.10';
+
+  it('is ready at once, tells the card once, and leaves when it is withdrawn', async () => {
+    const { getNewVersion, getReadyVersion, setAppUpdate, subscribeToNewVersion } =
+      await loadAppUpdate();
+    const listener = vi.fn();
+    subscribeToNewVersion(listener);
+    setAppUpdate({ version: v10, install: never });
+    setAppUpdate({ version: v10, install: never });
+    expect([getNewVersion(), getReadyVersion()]).toEqual([v10, v10]);
+    expect(listener).toHaveBeenCalledOnce();
+    setAppUpdate();
+    setAppUpdate();
+    expect([getNewVersion(), getReadyVersion()]).toEqual([undefined, undefined]);
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['never answers', never],
+    ['answers, and the app stays', async () => undefined],
+  ])(
+    'bounds the whole attempt when the install %s, shares it, and can try again',
+    async (_name, answer) => {
+      const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
+      const install = vi.fn(answer);
+      const reload = vi.fn();
+      setAppUpdate({ version: v10, install });
+      const started = Date.now();
+      const attempts = [
+        reloadForNewVersion({ timeoutMs: 30, reload }),
+        reloadForNewVersion({ timeoutMs: 30, reload }),
+      ];
+      await expect(Promise.all(attempts)).rejects.toThrow('did not restart');
+      expect(Date.now() - started).toBeLessThan(1000);
+      expect(install).toHaveBeenCalledOnce();
+      expect(getReadyVersion()).toBe(v10);
+      await expect(reloadForNewVersion({ timeoutMs: 30, reload })).rejects.toThrow(
+        'did not restart'
+      );
+      expect(install).toHaveBeenCalledTimes(2);
+      expect(reload).not.toHaveBeenCalled();
+    }
+  );
+
+  it('forgets an update the app says is not ready, and reloads the page from then on', async () => {
+    const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
+    const reload = vi.fn();
+    setAppUpdate({ version: v10, install: () => Promise.reject(notReady()) });
+    await expect(reloadForNewVersion({ timeoutMs: 60_000, reload })).rejects.toThrow(
+      'No update is ready'
+    );
+    expect(getReadyVersion()).toBeUndefined();
+    await reloadForNewVersion({ timeoutMs: 10, reload });
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the update after any other rejection', async () => {
+    const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
+    setAppUpdate({ version: v10, install: () => Promise.reject(new Error('bridge')) });
+    await expect(reloadForNewVersion({ timeoutMs: 60_000, reload: vi.fn() })).rejects.toThrow(
+      'bridge'
+    );
+    expect(getReadyVersion()).toBe(v10);
+  });
+
+  it('lets nothing an old attempt hears clear a newer offer', async () => {
+    const { getReadyVersion, setAppUpdate, reloadForNewVersion } = await loadAppUpdate();
+    const refusals: (() => void)[] = [];
+    const install = () =>
+      new Promise<void>((_, reject) => {
+        refusals.push(() => reject(notReady()));
+      });
+    // Timed out, then replaced, then refused.
+    setAppUpdate({ version: v10, install });
+    await expect(reloadForNewVersion({ timeoutMs: 20, reload: vi.fn() })).rejects.toThrow(
+      'did not restart'
+    );
+    setAppUpdate({ version: '2026.11.11', install: never });
+    refusals[0]!();
+    // Replaced while it ran, then refused before its timeout.
+    setAppUpdate({ version: '2026.11.12', install });
+    const attempt = reloadForNewVersion({ timeoutMs: 60_000, reload: vi.fn() });
+    setAppUpdate({ version: '2026.11.13', install: never });
+    refusals[1]!();
+    await expect(attempt).rejects.toThrow('No update is ready');
+    expect(getReadyVersion()).toBe('2026.11.13');
+  });
+});

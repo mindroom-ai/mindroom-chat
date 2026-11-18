@@ -30,6 +30,8 @@ export function PartUnavailable({ retryLoad, children }: PartLoadRetry & { child
   const wouldLoseWork = useContext(ReloadWouldLoseWorkContext);
   const [state, setState] = useState<ViewState>('failed');
 
+  // In the Mac app with a downloaded update this restarts the app, also from Retry's own reload
+  // when this page would lose nothing; the Quick Capture window is not asked.
   const reload = (asked: boolean) => {
     setState(asked ? 'reloadingAsked' : 'reloading');
     reloadForNewVersion().catch(() => setState('reloadNeeded'));

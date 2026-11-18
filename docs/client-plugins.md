@@ -21,7 +21,7 @@ Each subpath is a module of its own, so a plugin's entry, which loads with the a
 
 ### `core`
 
-`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`, `ThreadCardBadge`, `ThreadCardBadgeProps`, `ThreadDetail`, `ThreadDetailProps`, `ThreadHeaderSlotComponent`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet, and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
+`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`, `ThreadCardBadge`, `ThreadCardBadgeProps`, `ThreadDetail`, `ThreadDetailProps`, `ThreadHeaderSlotComponent`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet (in the Mac app with a downloaded update it restarts the app into it instead, and rejects when the app did not restart), and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
 
 ### `matrix`
 
