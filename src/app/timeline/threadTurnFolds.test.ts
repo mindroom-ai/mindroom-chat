@@ -11,7 +11,7 @@ import {
 /**
  * One row of a thread: `p` a person's message, `a` an agent's message, `m` a quiet marker,
  * `n` an agent's notice, `e` an edit (no row of its own). Flags: `s` streaming or waiting on the
- * reader, `h` hidden by another plan.
+ * reader, `h` hidden by another plan, `r` a run's reply, `i` an attachment.
  */
 type Row = string;
 
@@ -36,6 +36,7 @@ const plan = (rows: Row[], rules: Partial<ThreadTurnRules> = {}) => {
     isPersonMessage: (event) => rowOf(event).startsWith('p'),
     isSkipped: (event) => rowOf(event).includes('h'),
     isAnswer: (event) => rowOf(event).startsWith('a'),
+    answerRank: (event) => (rowOf(event).includes('r') ? 0 : rowOf(event).includes('i') ? 2 : 1),
     isQuietMarker: (event) => rowOf(event).startsWith('m'),
     holdsTurn: (event) => rowOf(event).includes('s'),
     pinnedIds: new Set(),
@@ -82,6 +83,18 @@ describe('planThreadTurnFolds', () => {
       ['4: 5,6 (2)'],
     ],
     ['keeps a turn whose hidden request waits unfolded', ['p', 'a', 'mhs', 'a', 'a'], []],
+    [
+      "answers with the last run's reply, what the run posted after it in view",
+      ['p', 'ar', 'a', 'ar', 'a', 'ai', 'ai'],
+      ['0: 1,2 (2)'],
+    ],
+    ["leaves a turn whose run's reply comes first", ['p', 'ar', 'a', 'ai', 'ai'], []],
+    [
+      'answers without a run with the last message that is not an attachment',
+      ['p', 'a', 'a', 'a', 'ai', 'ai'],
+      ['0: 1,2 (2)'],
+    ],
+    ['answers with the last attachment when all are', ['p', 'ai', 'ai', 'ai'], ['0: 1,2 (2)']],
   ])('%s', (_name, rows, expected) => {
     expect(plan(rows)).toEqual(expected);
   });
