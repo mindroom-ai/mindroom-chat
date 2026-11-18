@@ -171,17 +171,15 @@ export const useTurnBreakRowMeasurements = (
   view: ThreadTurnFoldView,
   estimate: (index: number) => number
 ) => {
-  const previous = useRef<ReadonlyMap<string, boolean>>(new Map());
+  const previous = useRef<ThreadTurnFoldView['breaks']>(new Map());
   useLayoutEffect(() => {
-    const hosts = new Map([...view.breaks].map(([id, { open }]) => [id, open]));
     const before = previous.current;
-    previous.current = hosts;
-    const changed = (id: string) =>
-      (hosts.has(id) || before.has(id)) && hosts.get(id) !== before.get(id);
+    previous.current = view.breaks;
     events.forEach((event, index) => {
       const id = event.getId();
+      const changed = id && view.breaks.get(id)?.open !== before.get(id)?.open;
       // A row unmounted in this commit can still be in the cache, detached.
-      if (id && changed(id) && !virtualizer.elementsCache.get(id)?.isConnected) {
+      if (changed && !virtualizer.elementsCache.get(id)?.isConnected) {
         virtualizer.resizeItem(index, estimate(index));
       }
     });
