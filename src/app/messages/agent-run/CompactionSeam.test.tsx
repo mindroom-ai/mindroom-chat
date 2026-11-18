@@ -183,9 +183,27 @@ describe('CompactionSeam row', () => {
     expect(label(render(<CompactionSeam compaction={failed({ status: 'timeout' })} />))).toBe(
       'Compaction timed out · kept full history'
     );
-    expect(label(render(<CompactionSeam compaction={running()} interrupted />))).toBe(
-      'Compaction interrupted · kept full history'
+    expect(
+      label(
+        render(
+          <CompactionSeam compaction={running({ compactedRunCount: undefined })} interrupted />
+        )
+      )
+    ).toBe('Compaction interrupted · kept full history');
+  });
+
+  it('claims the full history was kept only when no runs were folded', () => {
+    expect(label(render(<CompactionSeam compaction={failed({ compactedRunCount: 0 })} />))).toBe(
+      'Compaction failed · kept full history'
     );
+    expect(label(render(<CompactionSeam compaction={failed({ compactedRunCount: 3 })} />))).toBe(
+      'Compaction failed'
+    );
+    expect(
+      label(
+        render(<CompactionSeam compaction={failed({ status: 'timeout', compactedRunCount: 2 })} />)
+      )
+    ).toBe('Compaction timed out');
   });
 
   it('shows the warning icon only when the compaction did not finish', () => {
@@ -277,7 +295,13 @@ describe('CompactionSeam reason', () => {
 describe('CompactionNoticeSeam', () => {
   const MINUTE = 60_000;
   const notice = (fields: Partial<ReplyCompaction> = {}) =>
-    running({ id: 'notice', phase: 'manual', afterTool: 0, ...fields });
+    running({
+      id: 'notice',
+      phase: 'manual',
+      afterTool: 0,
+      compactedRunCount: undefined,
+      ...fields,
+    });
   const state = (renderer: ReactTestRenderer) => seam(renderer).props['data-state'] as string;
 
   beforeEach(() => {

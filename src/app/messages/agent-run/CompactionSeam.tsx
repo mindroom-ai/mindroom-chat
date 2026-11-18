@@ -69,7 +69,10 @@ const restParts = (
 ): { what: string; detail?: string; tick?: string } => {
   if (state === 'running') return { what: t(`${KEY}.label.running`), tick: elapsed };
   if (isUnfinished(state)) {
-    return { what: t(`${KEY}.label.${state}`), detail: t(`${KEY}.keptHistory`) };
+    // Each summary part is saved before the next starts, so one that gave up after folding runs
+    // did not keep the full history.
+    const kept = !compaction.compactedRunCount;
+    return { what: t(`${KEY}.label.${state}`), ...(kept && { detail: t(`${KEY}.keptHistory`) }) };
   }
   const what = t(`${KEY}.label.${place === 'notice' ? 'midTurn' : place}`);
   const { beforeTokens, afterTokens } = compaction;
