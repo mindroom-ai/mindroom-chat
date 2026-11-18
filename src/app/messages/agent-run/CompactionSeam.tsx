@@ -2,6 +2,7 @@ import {
   Fragment,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
@@ -266,6 +267,16 @@ const cardRows = (c: ReplyCompaction, state: SeamState, context: RowContext): Ro
   return unfinishedRows(c, state, context);
 };
 
+type OpenCard = { mode: OpenMode; anchor: RectCords };
+
+/** The open card with its anchor at `rect`, the same object while the row has not moved. */
+const anchoredAt = (current: OpenCard | undefined, rect: RectCords): OpenCard | undefined => {
+  if (!current) return current;
+  const { x, y, width, height } = current.anchor;
+  const moved = rect.x !== x || rect.y !== y || rect.width !== width || rect.height !== height;
+  return moved ? { ...current, anchor: rect } : current;
+};
+
 /**
  * One history compaction, as a quiet row at the spot of the reply where it ran: what it did in a
  * few words and a hairline to the row's end. Hovering, focusing or tapping the row opens a card
@@ -275,7 +286,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   const { t, i18n } = useTranslation();
   const [hour24Clock] = useHour24Clock();
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState<{ mode: OpenMode; anchor: RectCords }>();
+  const [open, setOpen] = useState<OpenCard>();
   const cardId = useId();
   const state = seamState(compaction, interrupted);
   const place = seamPlace(compaction);
@@ -317,6 +328,15 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   };
 
   const isOpen = !!open;
+  // The card sits at a fixed spot, so it follows the row: when the row moves on a render (a
+  // reasoning line shows above it) and when the timeline scrolls as rows arrive and settle.
+  const follow = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) setOpen((current) => anchoredAt(current, rect));
+  };
+  useLayoutEffect(() => {
+    if (isOpen) follow();
+  });
   useEffect(() => {
     if (!isOpen) return undefined;
     const close = () => setOpen(undefined);
@@ -335,20 +355,13 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
       const target = evt.target as Node;
       if (!triggerRef.current?.contains(target) && !cardRef.current?.contains(target)) close();
     };
-    // The card sits at a fixed spot; the timeline scrolls on its own as rows arrive and settle,
-    // so it follows the row instead of closing.
-    const onScroll = () => {
-      const trigger = triggerRef.current;
-      if (trigger)
-        setOpen((current) => current && { ...current, anchor: trigger.getBoundingClientRect() });
-    };
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('scroll', follow, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('scroll', follow, true);
     };
   }, [isOpen]);
 

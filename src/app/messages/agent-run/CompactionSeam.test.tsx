@@ -615,6 +615,16 @@ describe('CompactionSeam card', () => {
     triggerRect.y = 20;
   });
 
+  it('follows the row when it moves without a scroll, as a line shows above it', async () => {
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    await open(renderer);
+    triggerRect.y = 60;
+    act(() => renderer.update(<CompactionSeam compaction={compaction()} />));
+    const [layer] = renderer.root.findAll((node) => node.props['data-popout'] === true);
+    expect(layer!.props['data-top']).toBe(60);
+    triggerRect.y = 20;
+  });
+
   it('details a successful compaction', async () => {
     const renderer = render(<CompactionSeam compaction={compaction()} />);
     const tip = await open(renderer);
