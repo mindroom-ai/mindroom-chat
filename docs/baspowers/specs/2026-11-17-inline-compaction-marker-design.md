@@ -65,7 +65,7 @@ Detailed wiring with file:line evidence: `~/.mindroom-chat/mindroom_data/agents/
 - `StreamingResponse` adds the key to every durable write (progress and final) and puts the list into `LiveDocs`. Entries ride on the writes the stream makes anyway; a compaction change alone never asks for a durable edit. Live frames carry the running state (the client reads `LiveDocs` compactions over the event's while frames run).
 - Prompt cache: no impact. Content keys never enter the prompt; `COMPACTION_NOTICE_CONTENT_KEY` stays in `_NON_TURN_NOTICE_CONTENT_KEYS`, and the plural key must not make a reply look like a notice.
 - Unchanged: quiet/contact/participation turns and callers without a lifecycle stay silent; run-local summaries never use the lifecycle.
-- Known limits (same as reasoning today): entries are not carried across approval resumes or restart replays; ledger-rendered terminal writes (cancel/error) drop the key.
+- Known limits (same as reasoning today): entries are not carried across approval resumes or restart replays. Terminal writes (Stop, error, interrupt notes) carry the reply's whole list since mindroom#4132; only an older backend's terminal write drops the key, and the client never borrows it from older edits, so such a reply then shows no seam.
 
 ## Client (mindroom-chat)
 
