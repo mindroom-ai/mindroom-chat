@@ -68,6 +68,7 @@ import { QuestionCard } from '../question/QuestionCard';
 import { QuestionReply } from '../question/QuestionReply';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
+import { UiWidgetsScope } from '../widgets/UiWidgetSlot';
 
 /** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
 const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
@@ -348,15 +349,23 @@ export const renderAgentMessageContent = ({
         />
       );
     };
-    if (!question || !renderQuestionCard) return wrap(renderHtml);
+    const wrapped =
+      !question || !renderQuestionCard ? (
+        wrap(renderHtml)
+      ) : (
+        <QuestionReply
+          html={html}
+          question={question}
+          renderCard={renderQuestionCard}
+          renderHtml={renderHtml}
+          renderBody={wrap}
+        />
+      );
+    if (!mEvent) return wrapped;
     return (
-      <QuestionReply
-        html={html}
-        question={question}
-        renderCard={renderQuestionCard}
-        renderHtml={renderHtml}
-        renderBody={wrap}
-      />
+      <UiWidgetsScope mEvent={mEvent} content={bodyContent}>
+        {wrapped}
+      </UiWidgetsScope>
     );
   };
 

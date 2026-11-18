@@ -46,6 +46,8 @@ import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
 import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
 import { PrismCode } from '../../rich-text/code/ReactPrism';
 import { WithKatex } from '../../rich-text/lazyKatex';
+import { readUiMarkerId } from '../../matrix/protocol/uiWidgets';
+import { UiWidgetSlot } from '../widgets/UiWidgetSlot';
 import {
   parseMatrixToRoom,
   parseMatrixToRoomEvent,
@@ -752,12 +754,18 @@ export const getReactCustomHtmlParser = (
               {domToReact(children, parserOptions)}
             </ol>
           );
-        case 'pre':
-          return (
+        case 'pre': {
+          const block = (
             <CodeBlock opts={parserOptions} highlightRegex={params.highlightRegex}>
               {children}
             </CodeBlock>
           );
+          const code = children.find(
+            (child): child is Element => isTag(child) && child.name === 'code'
+          );
+          const widgetId = readUiMarkerId(code?.attribs.class);
+          return widgetId ? <UiWidgetSlot id={widgetId} fallback={block} /> : block;
+        }
         case 'code':
           return (
             <code {...props} className={classNames(css.Code, props.className)}>

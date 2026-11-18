@@ -136,12 +136,12 @@ it.each(fixture.wire_invalid)('rejects what only the wire could carry: %s', (jso
 **Files:**
 - Create: `src/app/messages/widgets/UiWidgetSlot.tsx`, `src/app/messages/widgets/UiWidgetSlot.test.tsx`, `src/app/messages/widgets/UiWidget.tsx` (the lazy chunk's root; renders the chart's title until Task 4)
 - Modify: `src/app/messages/html/react-custom-html-parser.tsx` (the `pre` case), `src/app/rich-text/code/codeBlockLanguage.ts` (`getCodeBlockLanguage` returns undefined for a `mindroom-ui-` class), `src/app/messages/content/renderAgentMessageContent.tsx` (`wrapAgentBody`), `src/app/messages/content/MsgTypeRenderers.tsx` (the `getBodyUrls` input)
-- Test: `src/app/messages/content/renderAgentMessageContent.widgets.test.tsx`, `src/app/messages/content/MsgTypeRenderers.text.test.ts`, `src/app/messages/live/liveMarkdown.test.ts`, `src/app/messages/live/bindLiveReplyFrames.test.ts`
+- Test: `src/app/messages/content/renderAgentMessageContent.widgets.test.tsx` (also the frame binder cases, through `LiveReplyMessageContent`), `src/app/messages/content/MsgTypeRenderers.text.test.ts`, `src/app/messages/live/liveMarkdown.test.ts`, `src/app/rich-text/code/codeBlockLanguage.test.ts`
 
 **Interfaces:**
 - Consumes: `readUiWidgets`, `readUiMarkerId`, `stripUiFallbackBlocks`, `parseChartWidget`.
 - Produces:
-  - `UiWidgetsScope({ mEvent, content, children })`: the provider. It provides entries (`ReadonlyMap<string, string>`) only when `mEvent` is not redacted, its sender is a MindRoom agent for `useMatrixClient().getUserId()`, and `readUiWidgets(content)` gives a value.
+  - `UiWidgetsScope({ mEvent, content, children })`: the provider. It provides entries (`ReadonlyMap<string, string>`) only when `mEvent` is not redacted, its sender is a MindRoom agent for `useOptionalMatrixClient()?.getUserId()` (agent content also renders outside a client provider, as in fixtures, where it draws nothing), and `readUiWidgets(content)` gives a value.
   - `UiWidgetSlot({ id, fallback }: { id: string; fallback: ReactNode })`
   - `UiWidget` default export of `UiWidget.tsx` with props `{ json: string; fallback: ReactNode }`; it renders `fallback` when `parseChartWidget` fails.
 

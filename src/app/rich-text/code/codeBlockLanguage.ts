@@ -119,6 +119,8 @@ export const getCodeBlockLanguage = (className: string | undefined): string | un
   const language = className?.startsWith('language-')
     ? className.slice('language-'.length)
     : className;
+  // A widget's fallback text is no language; its block shows as plain text.
+  if (language?.startsWith('mindroom-ui-')) return undefined;
   return language || undefined;
 };
 

@@ -14,6 +14,7 @@ import { VoiceAudioContent } from './VoiceAudioContent';
 import { MessageTextBody } from '../layout/layout';
 import { isJumboEmojiBody } from './jumboEmoji';
 import { getBodyUrls } from './bodyUrls';
+import { stripUiFallbackBlocks } from '../../matrix/protocol/uiWidgets';
 import * as fileCss from './FileRow.css';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls, textDirection } from '../../ui/directional';
@@ -103,7 +104,8 @@ function TextMessage({
     content.format === 'org.matrix.custom.html' && typeof content.formatted_body === 'string'
       ? content.formatted_body
       : undefined;
-  const urls = renderUrlsPreview ? getBodyUrls(trimmedBody) : [];
+  // A widget's fallback text (chart labels such as `example.com`) is never a link to preview.
+  const urls = renderUrlsPreview ? getBodyUrls(stripUiFallbackBlocks(trimmedBody)) : [];
   // A plain body keeps its line breaks. An HTML body lays out by its markup: the newlines between
   // its paragraphs, list items and tables would otherwise show as blank lines.
   const whiteSpace = customBody ? 'normal' : 'pre-wrap';

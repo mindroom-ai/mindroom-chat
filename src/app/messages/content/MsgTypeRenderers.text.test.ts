@@ -149,3 +149,32 @@ describe('location', () => {
     expect(text).not.toMatch(/[\u202a-\u202e]/);
   });
 });
+
+describe('link previews of a text message', () => {
+  const body = [
+    'See https://example.org/a for the source.',
+    '',
+    '```mindroom-ui-df4d729a5d',
+    'Visits (bar chart)',
+    '              Visits',
+    'example.com       12',
+    '```',
+  ].join('\n');
+
+  it.each([
+    ['with', { 'io.mindroom.ui': { version: 1, widgets: [] } }],
+    ['without', {}],
+  ])("asks for no preview of a widget's labels, %s the widgets key", (_name, extra) => {
+    const renderUrlsPreview = vi.fn(() => null);
+    const renderer = create(
+      React.createElement(MText, {
+        content: { msgtype: MsgType.Text, body, ...extra },
+        renderBody: ({ body: shown }) => shown,
+        renderUrlsPreview,
+      })
+    );
+    renderer.unmount();
+
+    expect(renderUrlsPreview).toHaveBeenCalledWith(['https://example.org/a']);
+  });
+});

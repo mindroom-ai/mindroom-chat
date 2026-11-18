@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import parity from './__fixtures__/live-markdown-parity-v1.json';
 import { loadLiveMarkdown, renderLiveMarkdown } from './liveMarkdown';
 import { cpuNow } from '../../../test/utils/cpuNow';
+import widgetsFixture from '../widgets/__fixtures__/ui-widgets-v1.json';
+import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 
 describe('live reply Markdown', () => {
   beforeAll(async () => {
@@ -25,6 +27,21 @@ describe('live reply Markdown', () => {
     ],
   ])('escapes %s that opens a line', (_name, md, html) => {
     expect(renderLiveMarkdown(md)).toBe(html);
+  });
+
+  it("keeps a widget's fallback block as one marker code element, live and sanitized", () => {
+    const reply = (widgetsFixture.renders as { name: string; text: string; html: string }[]).find(
+      (c) => c.name === "the spec's finished reply"
+    );
+    if (!reply) throw new Error('The fixture lacks the 5.4 reply');
+    const table = /```mindroom-ui-df4d729a5d\n([\s\S]*?)```/.exec(reply.text)?.[1];
+    const markers = (html: string) =>
+      [...html.matchAll(/<code class="language-mindroom-ui-df4d729a5d">([\s\S]*?)<\/code>/g)].map(
+        (match) => match[1]
+      );
+
+    expect(markers(renderLiveMarkdown(reply.text) ?? '')).toEqual([table]);
+    expect(markers(sanitizeCustomHtml(reply.html))).toEqual([table]);
   });
 
   it('keeps HTML openers inside fenced code as code', () => {

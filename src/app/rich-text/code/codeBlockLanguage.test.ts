@@ -6,6 +6,7 @@ describe('getCodeBlockLanguage', () => {
     expect(getCodeBlockLanguage('language-ts')).toBe('ts');
     expect(getCodeBlockLanguage('python')).toBe('python');
     expect(getCodeBlockLanguage('language-')).toBeUndefined();
+    expect(getCodeBlockLanguage('language-mindroom-ui-df4d729a5d')).toBeUndefined();
     expect(getCodeBlockLanguage(undefined)).toBeUndefined();
   });
 });
