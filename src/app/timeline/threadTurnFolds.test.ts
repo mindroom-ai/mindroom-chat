@@ -113,7 +113,7 @@ describe('viewThreadTurnFolds', () => {
 
   it('hides the rows of closed turns and puts every break on its first hidden row', () => {
     const view = viewThreadTurnFolds(folds, (fold) => fold.key === '$q2');
-    expect([...view.hiddenIds]).toEqual(['$1', '$2']);
+    expect([...view.hiddenIds]).toEqual(['$2']);
     expect([...view.breaks].map(([id, { fold, open }]) => [id, fold.key, open])).toEqual([
       ['$1', '$q1', false],
       ['$5', '$q2', true],

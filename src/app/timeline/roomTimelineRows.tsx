@@ -223,12 +223,10 @@ export const timelineRowSizing = ({
         ? THREAD_ONE_LINE_ESTIMATE_PX.compact
         : THREAD_ONE_LINE_ESTIMATE_PX.comfortable;
     }
-    const id = event.getId() ?? '';
-    if (!turnFolds?.breaks.has(id))
-      return estimateMessageRowHeight(event, { compact: compactLayout });
-    return turnFolds.hiddenIds.has(id)
-      ? TURN_BREAK_ESTIMATE_PX
-      : estimateMessageRowHeight(event, { compact: compactLayout }) + TURN_BREAK_ESTIMATE_PX;
+    const open = turnFolds?.breaks.get(event.getId() ?? '')?.open;
+    if (open === false) return TURN_BREAK_ESTIMATE_PX;
+    const row = estimateMessageRowHeight(event, { compact: compactLayout });
+    return open ? row + TURN_BREAK_ESTIMATE_PX : row;
   };
   const getItemKey = (index: number): string | number => {
     const event = threadId ? threadEvents[index] : roomWindowRows[index];
@@ -286,10 +284,6 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
     />
   );
 }
-
-/** Whether a folded turn hides the row `id` without drawing its break there. */
-export const isTurnFoldedRow = (view: ThreadTurnFoldView | undefined, id: string): boolean =>
-  !!view?.hiddenIds.has(id) && !view.breaks.has(id);
 
 /**
  * Whether a row takes no place in the timeline: the thread's plans hide it (approvals, title
@@ -404,8 +398,10 @@ export const renderTimelineTiles = ({
 }): ReactNode[] => {
   const getRowEvent = (index: number): MatrixEvent | undefined =>
     threadId ? threadEvents[index] : roomWindowRows[index];
+  // A folded turn's rows show nothing, the one that draws its break included.
   const isRowHidden = (event: MatrixEvent): boolean =>
     !!turnFolds?.hiddenIds.has(event.getId() ?? '') ||
+    turnFolds?.breaks.get(event.getId() ?? '')?.open === false ||
     isTimelineRowHidden(event, {
       messageData,
       ignoredUsersSet,
@@ -435,7 +431,7 @@ export const renderTimelineTiles = ({
     // its tile mounted until measuring corrects it.
     const id = event.getId() ?? '';
     // So has a row a folded turn hides, once sized as nothing; the row that draws its break stays.
-    if (item.size === 0 && (reactionOrEditEvent(event) || isTurnFoldedRow(turnFolds, id))) {
+    if (item.size === 0 && (reactionOrEditEvent(event) || turnFolds?.hiddenIds.has(id))) {
       return null;
     }
     const context = rowContexts.get(item.index);

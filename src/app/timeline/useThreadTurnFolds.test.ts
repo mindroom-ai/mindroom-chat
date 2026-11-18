@@ -160,10 +160,10 @@ describe('useThreadTurnFolds', () => {
       create(React.createElement(Probe));
     });
     const state = () => [[...result!.view.hiddenIds], result!.view.breaks.get('$a1')?.open];
-    expect(state()).toEqual([['$a1', '$a2'], false]);
+    expect(state()).toEqual([['$a2'], false]);
     act(() => result!.toggle(result!.view.breaks.get('$a1')!.fold));
     expect(state()).toEqual([[], true]);
     act(() => result!.toggle(result!.view.breaks.get('$a1')!.fold));
-    expect(state()).toEqual([['$a1', '$a2'], false]);
+    expect(state()).toEqual([['$a2'], false]);
   });
 });

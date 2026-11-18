@@ -104,7 +104,7 @@ export const planThreadTurnFolds = (
 
 /** What the open thread shows of its folding turns, with the reader's choice for each. */
 export type ThreadTurnFoldView = {
-  /** Rows of closed turns, which render nothing: the first one still draws its turn's break. */
+  /** Rows of closed turns sized as nothing: all but the first, which draws its turn's break. */
   hiddenIds: ReadonlySet<string>;
   /** Each turn's break, under the ID of the row that draws it (its first hidden row). */
   breaks: ReadonlyMap<string, { fold: ThreadTurnFold; open: boolean }>;
@@ -122,7 +122,7 @@ export const viewThreadTurnFolds = (
   const breaks = new Map<string, { fold: ThreadTurnFold; open: boolean }>();
   folds.forEach((fold) => {
     const open = isOpen(fold);
-    if (!open) fold.hiddenIds.forEach((id) => hiddenIds.add(id));
+    if (!open) fold.hiddenIds.slice(1).forEach((id) => hiddenIds.add(id));
     const breakRowId = fold.hiddenIds[0];
     if (breakRowId) breaks.set(breakRowId, { fold, open });
   });

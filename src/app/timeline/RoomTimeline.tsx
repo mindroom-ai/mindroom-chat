@@ -166,7 +166,6 @@ import { isPluginHiddenRow } from './pluginHiddenRows';
 import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
 import {
   isTimelineRowHidden,
-  isTurnFoldedRow,
   renderTimelineTiles,
   timelineRowSizing,
   useRoomRowEntries,
@@ -1085,7 +1084,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       ...approvalTimeline.hiddenEventIds,
       ...secretRequestTimeline.hiddenEventIds,
       ...pluginHiddenThreadIds,
-      ...[...turnFoldView.hiddenIds].filter((id) => isTurnFoldedRow(turnFoldView, id)),
+      ...turnFoldView.hiddenIds,
     ]);
   }, [
     threadId,
