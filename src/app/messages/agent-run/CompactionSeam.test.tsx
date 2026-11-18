@@ -126,7 +126,7 @@ const rows = (renderer: ReactTestRenderer): Array<[string, string]> => {
 };
 
 const open = async (renderer: ReactTestRenderer) => {
-  await act(() => trigger(renderer).props.onClick());
+  await act(() => trigger(renderer).props.onClick({ detail: 1 }));
   const cards = card(renderer);
   expect(cards).toHaveLength(1);
   return cards[0]!;
@@ -441,7 +441,7 @@ describe('CompactionSeam card', () => {
     expect(card(renderer)).toHaveLength(0);
 
     await open(renderer);
-    await act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick({ detail: 1 }));
     expect(card(renderer)).toHaveLength(0);
   });
 
@@ -464,7 +464,7 @@ describe('CompactionSeam card', () => {
     );
     const row = view.container.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
     act(() => row.focus());
-    fireEvent.click(row);
+    fireEvent.click(row, { detail: 1 });
     // A press inside the card to select text moves focus there from the row.
     const tip = screen.getByRole('tooltip');
     act(() => tip.focus());
@@ -476,10 +476,31 @@ describe('CompactionSeam card', () => {
     view.unmount();
   });
 
+  it('moves focus into a card the keyboard opened, so its keys scroll it, and back on Escape', () => {
+    const view = renderDom(<CompactionSeam compaction={compaction()} />);
+    const row = view.container.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    act(() => row.focus());
+    // Enter or Space on the row clicks it with no press count.
+    fireEvent.click(row, { detail: 0 });
+    expect(document.activeElement).toBe(screen.getByRole('tooltip'));
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(document.activeElement).toBe(row);
+
+    // A mouse or touch click leaves focus where it was.
+    fireEvent.click(row, { detail: 1 });
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+    expect(document.activeElement).toBe(row);
+    view.unmount();
+  });
+
   it('takes focus in the card back to the row on Escape, and keeps that Escape from the room', () => {
     const view = renderDom(<CompactionSeam compaction={compaction()} />);
     const row = view.container.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
-    fireEvent.click(row);
+    fireEvent.click(row, { detail: 1 });
     act(() => screen.getByRole('tooltip').focus());
 
     const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
@@ -491,9 +512,9 @@ describe('CompactionSeam card', () => {
     expect(escape.defaultPrevented).toBe(true);
 
     // With focus elsewhere the room's Escape still runs.
-    fireEvent.click(row);
+    fireEvent.click(row, { detail: 1 });
     act(() => row.blur());
-    fireEvent.click(row);
+    fireEvent.click(row, { detail: 1 });
     expect(screen.queryByRole('tooltip')).not.toBeNull();
     const elsewhere = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
     act(() => {
@@ -555,7 +576,7 @@ describe('CompactionSeam card', () => {
     const renderer = render(<CompactionSeam compaction={compaction()} />);
     await open(renderer);
     await act(() => trigger(renderer).props.onFocus());
-    await act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick({ detail: 1 }));
     expect(card(renderer)).toHaveLength(0);
   });
 

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FocusEvent,
+  type MouseEvent,
   type PointerEvent,
   type ReactNode,
 } from 'react';
@@ -301,6 +302,19 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
     setOpen((current) => current && { ...current, mode: 'pinned' });
   };
   const cardRef = useRef<HTMLDivElement>(null);
+  // A card the keyboard pinned takes focus once it shows (the frame loop hands it a new anchor
+  // then), so its keys scroll it; Escape gives focus back to the row.
+  const focusCard = useRef(false);
+  useEffect(() => {
+    if (open?.mode !== 'pinned') {
+      focusCard.current = false;
+      return;
+    }
+    const cardElement = cardRef.current;
+    if (!focusCard.current || !cardElement) return;
+    focusCard.current = false;
+    cardElement.focus({ preventScroll: true });
+  }, [open]);
   // A press in the card, to select its text, takes focus from the row into it: only focus that
   // leaves both closes the card.
   const onFocusLeave = (evt: FocusEvent) => {
@@ -386,7 +400,15 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
           // Focus outlasts a hover opening, so a mouse leaving must not close the card under it.
           if (open?.mode !== 'pinned') show('focus');
         }}
-        onClick={() => (open?.mode === 'pinned' ? setOpen(undefined) : show('pinned'))}
+        onClick={(evt: MouseEvent) => {
+          if (open?.mode === 'pinned') {
+            setOpen(undefined);
+            return;
+          }
+          // Enter and Space click with no press count.
+          focusCard.current = evt.detail === 0;
+          show('pinned');
+        }}
         onBlur={onFocusLeave}
       >
         <Icon className={css.Icon} size={ICON_SIZE} aria-hidden />

@@ -558,6 +558,21 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   expect(box!.y + box!.height).toBeLessThanOrEqual(300);
   expect(await card.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
   await page.mouse.move(0, 0);
+  await expect(card).toHaveCount(0);
+  // From the keyboard the card takes focus, so its keys scroll it to its last row; Escape gives
+  // focus back to the row.
+  const latestWords = latestRow.getByRole('button');
+  await latestWords.focus();
+  await page.keyboard.press('Enter');
+  await expect(card).toBeFocused();
+  const lastRow = card.locator('dd').last();
+  await expect(lastRow).not.toBeInViewport();
+  await page.keyboard.press('PageDown');
+  await page.keyboard.press('End');
+  await expect(lastRow).toBeInViewport();
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+  await expect(latestWords).toBeFocused();
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '';
   });
