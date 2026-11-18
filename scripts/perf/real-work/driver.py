@@ -63,8 +63,9 @@ after a reply, which the room's jobs state lists until they end and the backend 
 `live.jobs` (default 0) is how many such jobs the room has under way when the live phase starts: one each, of
 `reply.bgsec` seconds, in the threads after the first `streams`, started at once by a short turn; a history without
 that many open threads after the streams' threads, or such a turn refused three times, ends the live phase with
-exit 1. A turn's reply is the agent's genuine reply to the turn's post: a report of ended jobs only continues the
-thread, and its frames and edits count in the load but it neither answers nor ends a turn.
+exit 1. A turn's replies are the agents' genuine replies to the turn's post or to one of them (the router's
+handoff, then the agent's reply to it): a report of ended jobs only continues the thread, and its frames and edits
+count in the load but it neither answers nor ends a turn.
 """
 
 from __future__ import annotations
@@ -265,11 +266,13 @@ class Scheduler:
         self._post[thread] = post
 
     def reply_started(self, thread: str, reply: str, now: float, answers: str | None = None) -> None:
-        """An agent's message `reply` came in the thread; it answers the thread's turn under way, if any, unless the
-        turn's post is known and `reply` is no genuine reply to it (`answers`, the post it replies to), as the
-        backend's report of ended background jobs, which only continues the thread."""
+        """An agent's message `reply` came in the thread; it answers the thread's turn under way, if any, when the
+        turn's post is unknown or `reply` genuinely replies (`answers`, the event it replies to) to the post or to a
+        reply of the turn, as an agent's reply does to the router's handoff. A message that only continues the
+        thread, as the backend's report of ended background jobs, is not the turn's."""
         post = self._post.get(thread)
-        if thread in self._busy and (post is None or answers == post):
+        chained = answers is not None and self._thread_of_reply.get(answers) == thread
+        if thread in self._busy and (post is None or answers == post or chained):
             self._thread_of_reply[reply] = thread
             self._active_at[reply] = now
 

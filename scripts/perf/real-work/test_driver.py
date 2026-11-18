@@ -197,6 +197,16 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(scheduler.streaming(2), 1)
         self.assertEqual(scheduler.reply_finished("$reply", 3), "$r0")
 
+    def test_a_reply_to_the_turns_reply_is_the_turns(self) -> None:
+        scheduler = self.scheduler(1, 1)
+        scheduler.started("$r0", 0, post="$turn")
+        # The router hands the post to the agent, whose reply answers the handoff.
+        scheduler.reply_started("$r0", "$handoff", 0, answers="$turn")
+        scheduler.reply_started("$r0", "$reply", 1, answers="$handoff")
+        scheduler.reply_started("$r0", "$report", 1, answers=None)
+        self.assertIsNone(scheduler.reply_finished("$report", 2))
+        self.assertEqual(scheduler.reply_finished("$reply", 3), "$r0")
+
     def test_reply_outside_a_turn_does_not_count(self) -> None:
         scheduler = self.scheduler(1, 1)
         scheduler.reply_started("$r0", "$old", 0)  # no turn under way
