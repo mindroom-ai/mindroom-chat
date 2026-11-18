@@ -127,6 +127,7 @@ const renderList = async () => {
       <SyncEngineProvider engine={engine}>{children}</SyncEngineProvider>
     </MatrixClientProvider>
   );
+  vi.mocked(getThreadUnread).mockClear();
   const hook = renderHook(
     () => {
       const { overviewChanges, overviewRefreshCounter } = useThreadOverviewRefreshCounter(
@@ -139,8 +140,10 @@ const renderList = async () => {
   );
   const unreads = () => hook.result.current.threadUnreads;
   expect(Object.fromEntries(unreads())).toEqual({ $a: true, $b: true, $c: true });
-  // The listener marks the room when it starts, so the first count checks every thread again.
-  expect(await checkedBy(() => room.addReceipt(receipt('$old', 1, '$old')))).toEqual(IDS);
+  // The listener marks the room and counts when it starts, so every thread is checked again after
+  // the first build: the room may have changed before the listener heard it.
+  const checks = vi.mocked(getThreadUnread).mock.calls.map(([thread]) => thread.id);
+  expect(IDS.map((id) => checks.filter((checked) => checked === id).length)).toEqual([2, 2, 2]);
   return unreads;
 };
 

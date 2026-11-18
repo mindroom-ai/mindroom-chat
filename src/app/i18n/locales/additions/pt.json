@@ -786,6 +786,15 @@
           "saved": "Guardada",
           "declined": "Recusada",
           "expired": "Expirada"
+        },
+        "line": {
+          "sentKept": "Enviado · mantido {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Nada foi enviado nem guardado.",
+          "noAnswer": "Sem resposta a tempo, por isso nada foi enviado.",
+          "askedAs": "Pedido para os comandos de {{agent}} nesta conversa como {{variable}}.",
+          "replaced": "Substituiu a chave guardada antes."
         }
       },
       "skillReviewMarker": {

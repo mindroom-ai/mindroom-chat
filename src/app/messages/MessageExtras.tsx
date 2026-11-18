@@ -17,6 +17,8 @@ import {
 } from '../matrix/protocol/messageExtrasData';
 import { sanitizeMessageExtraHtml } from './messageExtrasHtml';
 import { useToolTraceMarkerParserOptions } from './html/HtmlBlocks';
+import { InlineSecretRequestsContext, NO_INLINE_SECRET_REQUESTS } from './inlineSecretRequests';
+import { ToolApprovalsByNameContext } from './agent-run/toolCallStatus';
 import * as css from './MessageExtras.css';
 
 type MessageExtraDetailsProps = React.DetailedHTMLProps<
@@ -109,10 +111,7 @@ export function MessageExtras({
   markerContent,
 }: MessageExtrasProps) {
   const { t } = useTranslation();
-  const parserOptions = useToolTraceMarkerParserOptions(
-    htmlReactParserOptions,
-    markerContent
-  );
+  const parserOptions = useToolTraceMarkerParserOptions(htmlReactParserOptions, markerContent);
   return (
     <div
       className={css.Extras}
@@ -128,11 +127,17 @@ export function MessageExtras({
           <MessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
             <summary className={css.Summary}>{section.title}</summary>
             <div className={css.Content}>
-              <MessageExtraSectionContent
-                content={section.content}
-                contentType={section.contentType}
-                htmlReactParserOptions={parserOptions}
-              />
+              {/* Only the reply's body draws a secret request at its call, and gives
+              approval cards to calls by their tool's name. */}
+              <InlineSecretRequestsContext.Provider value={NO_INLINE_SECRET_REQUESTS}>
+                <ToolApprovalsByNameContext.Provider value={false}>
+                  <MessageExtraSectionContent
+                    content={section.content}
+                    contentType={section.contentType}
+                    htmlReactParserOptions={parserOptions}
+                  />
+                </ToolApprovalsByNameContext.Provider>
+              </InlineSecretRequestsContext.Provider>
             </div>
           </MessageExtraDetails>
         );

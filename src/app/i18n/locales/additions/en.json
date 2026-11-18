@@ -777,6 +777,15 @@
           "saved": "Saved",
           "declined": "Declined",
           "expired": "Expired"
+        },
+        "line": {
+          "sentKept": "Sent · kept {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Nothing was sent or kept.",
+          "noAnswer": "No answer in time, so nothing was sent.",
+          "askedAs": "Asked for {{agent}}'s commands in this conversation as {{variable}}.",
+          "replaced": "Replaced the key saved before."
         }
       },
       "skillReviewMarker": {

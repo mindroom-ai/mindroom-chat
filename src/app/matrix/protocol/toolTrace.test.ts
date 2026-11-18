@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getContentToolTraceEvents, isToolTraceV2, runningToolCalls } from './toolTrace';
+import {
+  getContentToolTraceEvents,
+  isToolTraceV2,
+  runningToolCalls,
+  toolTraceCallId,
+} from './toolTrace';
 
 describe('isToolTraceV2', () => {
   it('returns true only for version 2 traces', () => {
@@ -60,5 +65,15 @@ describe('runningToolCalls', () => {
 
   it('counts none once the reply stopped streaming, even without the completed event', () => {
     expect(runningToolCalls([started('shell')], false)).toEqual({ count: 0, names: [] });
+  });
+});
+
+describe('toolTraceCallId', () => {
+  it('reads a call ID and ignores anything else', () => {
+    expect(toolTraceCallId({ tool_name: 'shell', tool_call_id: 'call_1' })).toBe('call_1');
+    expect(toolTraceCallId({ tool_name: 'shell' })).toBeUndefined();
+    expect(toolTraceCallId({ tool_name: 'shell', tool_call_id: '' })).toBeUndefined();
+    expect(toolTraceCallId({ tool_name: 'shell', tool_call_id: 3 })).toBeUndefined();
+    expect(toolTraceCallId(undefined)).toBeUndefined();
   });
 });

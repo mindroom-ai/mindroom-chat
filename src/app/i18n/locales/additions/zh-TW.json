@@ -768,6 +768,15 @@
           "saved": "已儲存",
           "declined": "已拒絕",
           "expired": "已到期"
+        },
+        "line": {
+          "sentKept": "已傳送 · 保留 {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "沒有傳送或保留任何內容。",
+          "noAnswer": "未及時回答，因此沒有傳送任何內容。",
+          "askedAs": "在此對話中為 {{agent}} 的指令以 {{variable}} 請求。",
+          "replaced": "已取代先前儲存的金鑰。"
         }
       },
       "skillReviewMarker": {

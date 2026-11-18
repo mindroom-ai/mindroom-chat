@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { MESSAGE_COMMANDS } from '../editor/messageCommand';
 import { createMentionElement, withInlineElements } from '../editor/utils';
 import { Command } from './commands/useCommands';
-import { composeTextMessage } from './composeTextMessage';
+import { composeTextMessage, holdsNoText } from './composeTextMessage';
 import { htmlToEditorInput } from '../editor/input';
 
 const ME = '@me:example.org';
@@ -205,6 +205,37 @@ describe('composeTextMessage', () => {
       '[vault](obsidian://open?vault=notes) [js](javascript:alert(1)) ' +
         '<a data-md href="https://example.org">web</a>'
     );
+  });
+});
+
+describe('holdsNoText', () => {
+  const block = (type: string, ...children: unknown[]) => ({ type, children } as Descendant);
+  const drafts: Array<[name: string, document: Descendant[], noText: boolean]> = [
+    ['nothing', [], true],
+    ['an empty line', [line({ text: '' })], true],
+    ['spaces', [line({ text: '  \u00a0 ' })], true],
+    ['blank lines', [line({ text: ' ' }), line({ text: '' }, { text: '\t' })], true],
+    ['a command alone', [line({ text: '/me' })], true],
+    ['a command and blank lines', [line({ text: '/plain   ' }), line({ text: ' ' })], true],
+    ['text', [line({ text: ' a ' })], false],
+    ['text on a later line', [line({ text: '' }), line({ text: 'a' })], false],
+    ['a command with text', [line({ text: '/me waves' })], false],
+    ['another slash word', [line({ text: '/shrug' })], false],
+    [
+      'a mention between spaces',
+      [line({ text: ' ' }, createMentionElement('@ada:example.org', 'Ada', false), { text: ' ' })],
+      false,
+    ],
+    ['an empty heading', [{ ...block('heading', { text: '' }), level: 1 } as Descendant], false],
+    ['an empty code block', [block('code-block', block('code-line', { text: '' }))], false],
+    ['an empty quote', [block('block-quote', block('quote-line', { text: '' }))], false],
+    ['an empty list', [block('unordered-list', block('list-item', { text: '' }))], false],
+  ];
+
+  it.each(drafts)('agrees with composeTextMessage on %s', (_name, document, noText) => {
+    expect(holdsNoText(editorWith(document))).toBe(noText);
+    expect(compose(document) === undefined).toBe(noText);
+    expect(compose(document, false) === undefined).toBe(noText);
   });
 });
 

@@ -52,6 +52,7 @@ vi.mock('../../matrix/session/useSessionStore', async (original) => ({
 vi.mock('../../approvals/ThreadApprovalProvider', () => ({
   useThreadApprovals: () => approvals.current,
 }));
+vi.mock('../../approvals/SecretRequestLine', () => ({ SecretRequestLine: () => null }));
 
 vi.mock('../../lib/dom', async () => {
   const actual = await vi.importActual<typeof import('../../lib/dom')>('../../lib/dom');

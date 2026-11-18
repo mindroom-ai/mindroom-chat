@@ -21,6 +21,8 @@ type ComposerIconButtonProps = Omit<
   alone?: boolean;
   /** A press leaves the focus in the text box, so a phone keeps its keyboard up. */
   keepsTextFocus?: boolean;
+  /** Hides its name's tooltip, under a menu it opened. */
+  tooltipHidden?: boolean;
 };
 
 // Pressing a button moves the focus to it (or, where buttons take no focus, out of the text box),
@@ -40,10 +42,11 @@ export function ComposerIconButton({
   onPress,
   alone,
   keepsTextFocus,
+  tooltipHidden,
   ...buttonProps
 }: ComposerIconButtonProps) {
   return (
-    <IconTooltip position="Top" label={label}>
+    <IconTooltip position="Top" label={label} hidden={tooltipHidden}>
       {(triggerRef) => (
         <IconButton
           {...buttonProps}

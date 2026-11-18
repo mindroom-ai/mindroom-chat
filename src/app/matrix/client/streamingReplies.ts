@@ -58,7 +58,7 @@ const RETRY_DELAYS_MS = [15_000, 60_000, 300_000];
 const SEEN_LIMIT = 5_000;
 
 /** A reply the client vouches for: its room's gap count then, and its newest edit known. */
-type Seen = { roomId: string; gap: number; edit?: MatrixEvent };
+type Seen = { gap: number; edit?: MatrixEvent };
 
 /** The newest event of a thread, as the room's thread list named it. */
 type Listed = { roomId: string; eventId: string; ts: number };
@@ -212,7 +212,6 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     const known = seen.get(eventId)?.edit;
     seen.delete(eventId);
     seen.set(eventId, {
-      roomId,
       gap: gapsOf(roomId),
       edit: edit && (!known || isEventOrderedAfter(edit, known)) ? edit : known,
     });

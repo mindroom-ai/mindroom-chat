@@ -768,6 +768,15 @@
           "saved": "저장됨",
           "declined": "거절됨",
           "expired": "만료됨"
+        },
+        "line": {
+          "sentKept": "보냄 · {{duration}} 보관"
+        },
+        "facts": {
+          "nothingSent": "아무것도 보내거나 보관하지 않았습니다.",
+          "noAnswer": "제때 답이 없어 아무것도 보내지 않았습니다.",
+          "askedAs": "이 대화에서 {{agent}}의 명령을 위해 {{variable}}(으)로 요청되었습니다.",
+          "replaced": "이전에 저장된 키를 대체했습니다."
         }
       },
       "skillReviewMarker": {

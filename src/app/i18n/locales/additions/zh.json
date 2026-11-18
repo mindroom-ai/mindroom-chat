@@ -768,6 +768,15 @@
           "saved": "已保存",
           "declined": "已拒绝",
           "expired": "已到期"
+        },
+        "line": {
+          "sentKept": "已发送 · 保留 {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "没有发送或保留任何内容。",
+          "noAnswer": "未及时回答，因此没有发送任何内容。",
+          "askedAs": "在此对话中为 {{agent}} 的命令以 {{variable}} 请求。",
+          "replaced": "已替换之前保存的密钥。"
         }
       },
       "skillReviewMarker": {

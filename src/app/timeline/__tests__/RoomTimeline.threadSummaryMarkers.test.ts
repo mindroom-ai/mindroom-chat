@@ -144,7 +144,12 @@ describe('thread summary markers', () => {
         }),
       },
     });
-    const events = [rootEvent, summary('$s1', 'Push bug', 2_000), edited];
+    const events = [
+      rootEvent,
+      summary('$s1', 'Push bug', 2_000),
+      makeEvent('$r1', { threadRootId: threadId, ts: 2_500 }),
+      edited,
+    ];
     const timeline = makeTimeline(events, { backwardToken: null });
     const timelineSet = {
       getLiveTimeline: () => timeline,
@@ -161,7 +166,7 @@ describe('thread summary markers', () => {
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
       events.map((event, index) => [event.getId(), index])
     );
-    roomTimelineVirtualizerState.virtualIndexes = [1, 2];
+    roomTimelineVirtualizerState.virtualIndexes = [1, 2, 3];
     const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
     try {
@@ -170,7 +175,7 @@ describe('thread summary markers', () => {
         await flushAsyncWork();
       });
 
-      expect(getRenderedEventIds(renderer!)).toEqual(['$s1', '$s2']);
+      expect(getRenderedEventIds(renderer!)).toEqual(['$s1', '$r1', '$s2']);
       expect(
         renderer!.root
           .findAllByType(ThreadSummaryMarker)

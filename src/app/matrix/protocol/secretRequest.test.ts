@@ -171,7 +171,9 @@ describe('parseSecretRequestContent', () => {
     );
     expect(cut).toMatchObject({ label: 'L'.repeat(80), placeholder: 'P'.repeat(80) });
 
-    const dropped = parseSecretRequestContent(content(temporary({ label: ' \n ', placeholder: 7 })));
+    const dropped = parseSecretRequestContent(
+      content(temporary({ label: ' \n ', placeholder: 7 }))
+    );
     expect(dropped?.kind).toBe('temporary');
     expect(dropped).not.toHaveProperty('label');
     expect(dropped).not.toHaveProperty('placeholder');
@@ -241,6 +243,36 @@ describe('effectiveSecretRequestStatus', () => {
   it('keeps final statuses', () => {
     expect(effectiveSecretRequestStatus(request('saved'), 2_000)).toBe('saved');
     expect(effectiveSecretRequestStatus(request('declined'), 2_000)).toBe('declined');
+  });
+});
+
+describe('the reply and tool call that asked', () => {
+  it('reads them from either kind of card and from an edit', () => {
+    const fields = { response_event_id: '$reply', tool_call_id: 'call_1' };
+    const anchor = { responseEventId: '$reply', toolCallId: 'call_1' };
+    expect(parseSecretRequestContent(content(inner(fields)))?.anchor).toEqual(anchor);
+    expect(parseSecretRequestContent(content(temporary(fields)))?.anchor).toEqual(anchor);
+    expect(
+      parseSecretRequestContent({
+        body: '* Key needed',
+        'm.new_content': content(temporary({ ...fields, status: 'saved', kept: 'memory' })),
+      })?.anchor
+    ).toEqual(anchor);
+  });
+
+  it('reads neither when one is missing or not an ID, and the card still parses', () => {
+    [
+      {},
+      { response_event_id: '$reply' },
+      { tool_call_id: 'call_1' },
+      { response_event_id: '', tool_call_id: 'call_1' },
+      { response_event_id: '$reply', tool_call_id: 7 },
+      { response_event_id: '$reply', tool_call_id: 'x'.repeat(513) },
+    ].forEach((fields) => {
+      const parsed = parseSecretRequestContent(content(temporary(fields)));
+      expect(parsed?.kind).toBe('temporary');
+      expect(parsed).not.toHaveProperty('anchor');
+    });
   });
 });
 
