@@ -15,17 +15,22 @@ type Saved = { value: string; eventId: string; older: ReadonlySet<string | undef
 
 /**
  * One `io.mindroom.room_settings` setting as a tile shows and writes it: `value` is the room's
- * value, `''` while unset, or the tile's own latest save until the room shows something newer.
- * `write` resolves true once the room took the value, while the tile is still shown.
+ * value as `read` takes it from the event's content, `''` while unset, or the tile's own latest
+ * save until the room shows something newer. `write` resolves true once the room took the value,
+ * while the tile is still shown.
  */
-export function useRoomSetting(room: Room, key: string) {
+export function useRoomSetting(
+  room: Room,
+  key: string,
+  read: (content: unknown) => string | undefined = readRoomSettingValue
+) {
   const client = useMatrixClient();
   const alive = useAlive();
   const may = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
   const canEdit = may.stateEvent(ROOM_SETTINGS_EVENT, client.getSafeUserId());
   const event = useStateEvent(room, ROOM_SETTINGS_EVENT, key);
   const eventId = event?.getId();
-  const live = readRoomSettingValue(event?.getContent()) ?? '';
+  const live = read(event?.getContent()) ?? '';
   // The latest save's value and event, and the events older than it: those the room showed when
   // this tile's saves went out, and the saves' own. While the room shows one of those, the save
   // counts; its own echo or anyone else's event ends that.

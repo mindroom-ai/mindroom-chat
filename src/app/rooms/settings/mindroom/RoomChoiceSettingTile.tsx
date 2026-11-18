@@ -9,10 +9,16 @@ import { useRoomSetting } from './useRoomSetting';
 
 const STRINGS = 'featureUi.roomSettings.mindroom';
 
+// The value exactly as sent: agents match a choice exactly, so a padded one is no choice for them.
+const readExactValue = (content: unknown): string | undefined => {
+  const value = (content as { value?: unknown } | undefined)?.value;
+  return typeof value === 'string' ? value : undefined;
+};
+
 /**
- * A room setting with a few values: a menu that saves the choice as soon as it is picked, and
- * shows the unset choice for a value it does not know. Read-only for those who may not send
- * `io.mindroom.room_settings`.
+ * A room setting with a few values: a menu that saves the choice as soon as it is picked, even
+ * the one it shows, and shows the unset choice for a value it does not know. Read-only for those
+ * who may not send `io.mindroom.room_settings`.
  */
 export function RoomChoiceSettingTile({
   room,
@@ -24,7 +30,8 @@ export function RoomChoiceSettingTile({
   const { t } = useTranslation();
   const { canEdit, value, sending, failed, justSaved, write, clearFeedback } = useRoomSetting(
     room,
-    definition.key
+    definition.key,
+    readExactValue
   );
   const label = t(definition.label);
   const known = definition.choices.some((choice) => choice.value === value);
@@ -43,8 +50,10 @@ export function RoomChoiceSettingTile({
               label: t(choice.label),
             }))}
             onChoose={(next) => {
+              // Picking the shown choice writes it too: a room without the event can still have
+              // an override an older MindRoom stored, which Default must clear.
               clearFeedback();
-              if (next !== value) void write(next);
+              void write(next);
             }}
             disabled={!canEdit || sending}
           />

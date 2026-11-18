@@ -695,7 +695,7 @@
         "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo.",
         "replyMode": {
           "label": "Los agentes responden",
-          "description": "Si un mensaje nuevo debe mencionar a un agente o equipo para recibir respuesta. Predeterminado sigue la configuración de MindRoom para esta sala. En un hilo donde un agente ya respondió, los mensajes siguientes siempre reciben respuesta.",
+          "description": "Si un mensaje nuevo debe mencionar a un agente o equipo para recibir respuesta. Predeterminado sigue la configuración de MindRoom para esta sala. Incluso con Solo si los mencionan, los agentes pueden responder a los mensajes siguientes en un hilo donde ya respondieron.",
           "default": "Predeterminado",
           "auto": "A cualquier mensaje",
           "mentions": "Solo si los mencionan"

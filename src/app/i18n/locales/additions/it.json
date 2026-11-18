@@ -695,7 +695,7 @@
         "saveFailed": "Impossibile salvare l’impostazione. Riprova.",
         "replyMode": {
           "label": "Gli agenti rispondono",
-          "description": "Se un nuovo messaggio deve menzionare un agente o un team per ricevere risposta. Predefinito segue la configurazione di MindRoom per questa stanza. In un thread in cui un agente ha già risposto, i messaggi successivi ricevono sempre risposta.",
+          "description": "Se un nuovo messaggio deve menzionare un agente o un team per ricevere risposta. Predefinito segue la configurazione di MindRoom per questa stanza. Anche con Solo se menzionati, gli agenti possono rispondere ai messaggi successivi in un thread in cui hanno già risposto.",
           "default": "Predefinito",
           "auto": "A ogni messaggio",
           "mentions": "Solo se menzionati"

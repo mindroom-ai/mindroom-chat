@@ -695,7 +695,7 @@
         "saveFailed": "Não foi possível guardar a definição. Tente novamente.",
         "replyMode": {
           "label": "Os agentes respondem",
-          "description": "Se uma nova mensagem precisa mencionar um agente ou equipe para receber resposta. Padrão segue a configuração do MindRoom para esta sala. Em uma conversa em que um agente já respondeu, as mensagens seguintes sempre recebem resposta.",
+          "description": "Se uma nova mensagem precisa mencionar um agente ou equipe para receber resposta. Padrão segue a configuração do MindRoom para esta sala. Mesmo com Só quando mencionados, os agentes podem responder às mensagens seguintes em uma conversa em que já responderam.",
           "default": "Padrão",
           "auto": "A qualquer mensagem",
           "mentions": "Só quando mencionados"

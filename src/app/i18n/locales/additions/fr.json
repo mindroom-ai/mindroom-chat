@@ -695,7 +695,7 @@
         "saveFailed": "Impossible d’enregistrer le paramètre. Réessayez.",
         "replyMode": {
           "label": "Les agents répondent",
-          "description": "Indique si un nouveau message doit mentionner un agent ou une équipe pour obtenir une réponse. Par défaut suit la configuration de MindRoom pour ce salon. Dans un fil où un agent a déjà répondu, les messages suivants obtiennent toujours une réponse.",
+          "description": "Indique si un nouveau message doit mentionner un agent ou une équipe pour obtenir une réponse. Par défaut suit la configuration de MindRoom pour ce salon. Même avec Seulement si mentionnés, les agents peuvent répondre aux messages suivants dans un fil où ils ont déjà répondu.",
           "default": "Par défaut",
           "auto": "À tout message",
           "mentions": "Seulement si mentionnés"

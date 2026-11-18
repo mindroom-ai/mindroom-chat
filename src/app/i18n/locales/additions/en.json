@@ -686,7 +686,7 @@
         "saveFailed": "Couldn't save the setting. Try again.",
         "replyMode": {
           "label": "Agents answer",
-          "description": "Whether a new message must mention an agent or team to get an answer. Default follows MindRoom's configuration for this room. In a thread an agent already replied in, follow-ups always get an answer.",
+          "description": "Whether a new message must mention an agent or team to get an answer. Default follows MindRoom's configuration for this room. Even with Only when mentioned, agents can answer follow-ups in a thread they already replied in.",
           "default": "Default",
           "auto": "Any message",
           "mentions": "Only when mentioned"

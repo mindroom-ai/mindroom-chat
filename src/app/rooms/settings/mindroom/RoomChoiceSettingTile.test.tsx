@@ -143,6 +143,8 @@ describe('RoomChoiceSettingTile', () => {
       [{ value: 'auto' }, 'Any message'],
       [{}, 'Default'],
       [{ value: 'paused' }, 'Default'],
+      // Agents match a choice exactly, so a padded one shows as what they do: Default.
+      [{ value: ' mentions ' }, 'Default'],
     ] as const) {
       setLive(content);
       refresh();
@@ -167,6 +169,18 @@ describe('RoomChoiceSettingTile', () => {
     await act(async () => choose(''));
     expect(sentContent(1)).toEqual({});
     expect(shown()).toBe('Default');
+  });
+
+  it('writes the shown choice too, so Default clears a room without the event', async () => {
+    mount();
+    expect(shown()).toBe('Default');
+    await act(async () => choose(''));
+    expect(sentContent(0)).toEqual({});
+
+    setLive({ value: 'auto' }, '$sent0');
+    refresh();
+    await act(async () => choose('auto'));
+    expect(sentContent(1)).toEqual({ value: 'auto' });
   });
 
   it('keeps the saved choice until the room shows its own or a newer event', async () => {
