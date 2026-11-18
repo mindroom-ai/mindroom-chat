@@ -7,6 +7,7 @@ import type { LiveDocs, LiveFrame } from '../../matrix/protocol/liveFrame';
 import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
 import {
+  getDrawnReplyContent,
   LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_SEGMENTS_KEY,
   useLiveReplyContent,
@@ -77,8 +78,13 @@ function Harness({
   content: IContent;
 }) {
   const { content: shown, live } = useLiveReplyContent(mx, event, content);
+  // Readers that must agree with the row, as the secret request plan, read the same.
+  const drawn = JSON.stringify(getDrawnReplyContent(getLiveReplyStore(mx), event, content));
+  if (drawn !== JSON.stringify(shown)) disagreements.push(drawn);
   return <pre data-live={live}>{JSON.stringify(shown)}</pre>;
 }
+
+let disagreements: string[] = [];
 
 describe('useLiveReplyContent', () => {
   let mx: MatrixClient;
@@ -98,6 +104,8 @@ describe('useLiveReplyContent', () => {
     renderer = undefined;
     getLiveReplyStore(mx).clear();
     vi.useRealTimers();
+    expect(disagreements).toEqual([]);
+    disagreements = [];
   });
 
   const store = () => getLiveReplyStore(mx);
@@ -459,6 +467,30 @@ describe('useLiveReplyContent', () => {
     expect(shown().body).toBe('word1 word2 word3 word4');
     update(durable('completed', { body: 'word1' }));
     expect(shown().body).toBe('word1');
+  });
+
+  it('keeps the newest live text in a row drawn after the entry expired, and forgets it at the end', () => {
+    ingest(snapshot(0, 'word1 word2 word3'));
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    render(durable('streaming', { body: 'word1' }));
+    expect(shown().body).toBe('word1 word2 word3');
+
+    act(() => {
+      renderer?.update(
+        <Harness mx={mx} event={replyEvent()} content={durable('completed', { body: 'word1' })} />
+      );
+    });
+    expect(shown().body).toBe('word1');
+    expect(store().getHeld(ROOM, REPLY)).toBeUndefined();
+  });
+
+  it('keeps nothing of an entry from another sender', () => {
+    ingest(snapshot(0, 'word1 word2'), '@mallory:example');
+    render(durable('streaming', { body: 'word1' }));
+    expect(shown().body).toBe('word1');
+    expect(store().getHeld(ROOM, REPLY)).toBeUndefined();
   });
 
   it('keeps the newest live text over the thinking placeholder when the entry expires', () => {

@@ -2,10 +2,18 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   planInlineSecretRequests,
+  SecretRequestAttachmentReader,
   secretRequestAttachments,
   secretRequestCards,
 } from './inlineSecretRequests';
-import { AGENT, cardEvent, markers, replyEvent } from './test-utils/secretRequestEvents';
+import { LiveReplyStore } from './live/liveReplyStore';
+import {
+  AGENT,
+  cardEvent,
+  markers,
+  replyEvent,
+  traceEvents,
+} from './test-utils/secretRequestEvents';
 
 const ROOT = '$root';
 
@@ -18,6 +26,7 @@ const plan = (
     revealed = new Set<string>(),
     getContent = (event: MatrixEvent) => event.getContent(),
     pluginRenders = undefined as ((event: MatrixEvent) => boolean) | undefined,
+    reader = new SecretRequestAttachmentReader(new LiveReplyStore()),
   } = {}
 ) => {
   const byId = new Map(events.map((event) => [event.getId(), event]));
@@ -28,6 +37,7 @@ const plan = (
     ignored,
     revealed,
     pluginRenders,
+    reader,
     threadId: ROOT,
   });
 };
@@ -52,11 +62,83 @@ describe('secretRequestAttachments', () => {
     expect([...secretRequestAttachments(fenced.getContent())]).toEqual([['call_1', 1]]);
   });
 
-  it.each([
-    ['of long text', { 'io.mindroom.long_text': { version: 2 } }],
-    ['still streaming, which live frames draw over', { 'io.mindroom.stream_status': 'streaming' }],
-  ])('maps nothing for a reply %s', (_case, extra) => {
-    expect(secretRequestAttachments({ ...replyEvent().getContent(), ...extra }).size).toBe(0);
+  it('maps nothing for a reply of long text, whose row shows a preview or the sidecar', () => {
+    const content = { ...replyEvent().getContent(), 'io.mindroom.long_text': { version: 2 } };
+    expect(secretRequestAttachments(content).size).toBe(0);
+  });
+
+  it('maps the markers of a streaming reply too, its rows drawing what it has', () => {
+    const content = replyEvent('$r', { status: 'streaming' }).getContent();
+    expect([...secretRequestAttachments(content)]).toEqual([
+      ['call_1', 1],
+      ['call_2', 2],
+    ]);
+  });
+});
+
+describe('SecretRequestAttachmentReader', () => {
+  const ROOM = '!room:example.org';
+  const SID = '1761858000123-0a1b2c3d';
+  const frame = (store: LiveReplyStore, seq: number, md: string, reasoning = '') =>
+    store.ingest(
+      ROOM,
+      AGENT,
+      {
+        reply: '$reply',
+        sid: SID,
+        seq,
+        snapshot: {
+          md,
+          reasoning,
+          tools: traceEvents(['call_1', 'call_2']),
+          status: 'streaming',
+          activity: '',
+          segments: [],
+        },
+      },
+      Date.now()
+    );
+
+  it('reads a streaming reply as its live frames draw it, and its durable edit without them', () => {
+    const store = new LiveReplyStore();
+    const reader = new SecretRequestAttachmentReader(store);
+    const reply = replyEvent('$reply', { body: markers(1), roomId: ROOM, status: 'streaming' });
+    expect([...reader.read(reply, reply.getContent())]).toEqual([['call_1', 1]]);
+
+    frame(store, 0, markers(2));
+    expect([...reader.read(reply, reply.getContent())]).toEqual([
+      ['call_1', 1],
+      ['call_2', 2],
+    ]);
+
+    // Of another sender, the frames draw nothing over the reply.
+    const other = replyEvent('$reply', {
+      body: markers(1),
+      roomId: ROOM,
+      status: 'streaming',
+      sender: '@mindroom_other:example.org',
+    });
+    expect([...reader.read(other, other.getContent())]).toEqual([['call_1', 1]]);
+  });
+
+  it('grows its version only when a frame moves a call the reply read draws', () => {
+    const store = new LiveReplyStore();
+    const reader = new SecretRequestAttachmentReader(store);
+    const reply = replyEvent('$reply', { body: markers(1), roomId: ROOM, status: 'streaming' });
+    frame(store, 0, markers(1));
+    reader.read(reply, reply.getContent());
+    const version = reader.getVersion();
+
+    frame(store, 1, `${markers(1)}\n\nTo deploy`, 'Weighing it');
+    expect(reader.getVersion()).toBe(version);
+    frame(store, 2, markers(2));
+    expect(reader.getVersion()).toBe(version + 1);
+    expect(reader.getVersion()).toBe(version + 1);
+
+    // A reply the last plan did not read is not followed.
+    reader.retain(new Set());
+    frame(store, 3, markers(1));
+    expect(reader.getVersion()).toBe(version + 1);
   });
 });
 

@@ -245,27 +245,37 @@ export const loadLiveMarkdown = (): Promise<void> => {
   return loading;
 };
 
+// The last rendering: a reply's row and the readers that agree with it render each frame once.
+let last: { md: string; html: string } | undefined;
+
 /** The HTML for live Markdown, or undefined until the renderer has loaded. */
-export const renderLiveMarkdown = (md: string): string | undefined =>
-  renderer?.render(
+export const renderLiveMarkdown = (md: string): string | undefined => {
+  if (!renderer) return undefined;
+  if (last?.md === md) return last.html;
+  const html = renderer.render(
     transformOutsideFencedCode(
       transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
       separateSupportedBlockHtml
     )
   );
+  last = { md, html };
+  return html;
+};
 
-const subscribeReady = (listener: () => void) => {
+/** Tells `listener` once `renderLiveMarkdown` renders. */
+export const subscribeLiveMarkdownReady = (listener: () => void) => {
   readyListeners.add(listener);
   return () => {
     readyListeners.delete(listener);
   };
 };
 
-const isReady = () => renderer !== undefined;
+/** Whether `renderLiveMarkdown` renders yet. */
+export const isLiveMarkdownReady = () => renderer !== undefined;
 
 /** Whether `renderLiveMarkdown` renders yet; starts loading it when `wanted`. */
 export const useLiveMarkdownReady = (wanted = true): boolean => {
-  const ready = useSyncExternalStore(subscribeReady, isReady);
+  const ready = useSyncExternalStore(subscribeLiveMarkdownReady, isLiveMarkdownReady);
   useEffect(() => {
     if (wanted && !ready) loadLiveMarkdown().catch(() => undefined);
   }, [ready, wanted]);

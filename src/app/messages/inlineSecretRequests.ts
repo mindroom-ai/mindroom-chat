@@ -10,11 +10,13 @@ import {
   getToolTraceV2Events,
   toolTraceCallId,
 } from '../matrix/protocol/toolTrace';
-import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../matrix/protocol/aiRun';
 import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import { sanitizeCustomHtml } from '../rich-text/sanitize';
 import { MINDROOM_TOOL_REF_ICON, formatMarkdownTextBodyAsHtml } from './html/blocks';
 import { getRenderedToolRefs } from './agent-run/toolRefDom';
+import { isLiveMarkdownReady } from './live/liveMarkdown';
+import type { LiveReplyEntry, LiveReplyStore } from './live/liveReplyStore';
+import { getDrawnReplyContent } from './live/useLiveReplyContent';
 
 /** A done secret request drawn in the reply whose tool call asked, at that call's line. */
 export type InlineSecretRequest = {
@@ -42,19 +44,17 @@ export const NO_INLINE_SECRET_REQUESTS: InlineSecretRequestPlan = {
   waitingReplyIds: new Set(),
 };
 
-/**
- * Where a reply can draw a request: from each call ID of its trace to the index of that call's
- * marker, for the markers its body renders as tool lines (getRenderedToolRefs, the renderer's
- * rule, on the HTML the renderer parses). None where the reply may show other content than this:
- * a reply of long text, and one still streaming, which live frames draw over.
- */
-export const secretRequestAttachments = (
-  content: Record<string, unknown>
-): ReadonlyMap<string, number> => {
-  const attachments = new Map<string, number>();
+type AttachmentSource = {
+  /** The HTML the renderer parses for the reply's tool lines. */
+  html: string;
+  /** The call ID of each entry of the reply's trace. */
+  callIds: (string | undefined)[];
+};
+
+/** What a reply's attachments come from, or nothing where it can draw none. */
+const attachmentSource = (content: Record<string, unknown>): AttachmentSource | undefined => {
   const trace = getToolTraceV2Events(content[MINDROOM_TOOL_TRACE_KEY]);
-  if (!trace || hasLongTextMetadata(content)) return attachments;
-  if (ACTIVE_STREAM_STATUSES.has(getStreamStatusFromContent(content) ?? '')) return attachments;
+  if (!trace || hasLongTextMetadata(content)) return undefined;
   const { formatted_body: formatted, body } = content;
   // As renderAgentMessageContent: a reply without HTML renders its Markdown body.
   const html =
@@ -63,13 +63,133 @@ export const secretRequestAttachments = (
       : typeof body === 'string'
       ? formatMarkdownTextBodyAsHtml(body)
       : undefined;
-  if (!html?.includes(MINDROOM_TOOL_REF_ICON)) return attachments;
-  getRenderedToolRefs(sanitizeCustomHtml(html)).toolBlocks.forEach(({ index }) => {
-    const callId = toolTraceCallId(trace[index - 1]);
+  if (!html?.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
+  return { html, callIds: trace.map(toolTraceCallId) };
+};
+
+const sameSource = (a: AttachmentSource | undefined, b: AttachmentSource | undefined) =>
+  a === b ||
+  (!!a &&
+    !!b &&
+    a.html === b.html &&
+    a.callIds.length === b.callIds.length &&
+    a.callIds.every((id, index) => id === b.callIds[index]));
+
+const NO_ATTACHMENTS: ReadonlyMap<string, number> = new Map();
+
+const indexAttachments = (source: AttachmentSource | undefined): ReadonlyMap<string, number> => {
+  if (!source) return NO_ATTACHMENTS;
+  const attachments = new Map<string, number>();
+  getRenderedToolRefs(sanitizeCustomHtml(source.html)).toolBlocks.forEach(({ index }) => {
+    const callId = source.callIds[index - 1];
     if (callId && !attachments.has(callId)) attachments.set(callId, index);
   });
   return attachments;
 };
+
+/**
+ * Where a reply can draw a request: from each call ID of its trace to the index of that call's
+ * marker, for the markers its body renders as tool lines (getRenderedToolRefs, the renderer's
+ * rule, on the HTML the renderer parses). `content` is what the reply's row draws: a streaming
+ * reply's live frames while they show (getDrawnReplyContent). None for a reply of long text,
+ * whose row shows a preview or the sidecar instead.
+ */
+export const secretRequestAttachments = (
+  content: Record<string, unknown>
+): ReadonlyMap<string, number> => indexAttachments(attachmentSource(content));
+
+const sameAttachments = (a: ReadonlyMap<string, number>, b: ReadonlyMap<string, number>) =>
+  a === b || (a.size === b.size && [...a].every(([callId, index]) => b.get(callId) === index));
+
+type PluginRenders = (event: MatrixEvent, content: Record<string, unknown>) => boolean;
+
+type ReplyReading = {
+  reply: MatrixEvent;
+  content: Record<string, unknown>;
+  pluginRenders: PluginRenders | undefined;
+  entry: LiveReplyEntry | undefined;
+  held: LiveReplyEntry | undefined;
+  markdownReady: boolean;
+  source: AttachmentSource | undefined;
+  attachments: ReadonlyMap<string, number>;
+};
+
+/**
+ * Reads replies' attachments from what their rows draw (getDrawnReplyContent), live frames
+ * included, and keeps each reply's last reading. A reply is read again only when its durable
+ * content, its live entry or the live Markdown renderer changed, and its body parsed again only
+ * when the drawn HTML or the trace's call IDs did, so the frames that grow only the reasoning, the
+ * activity or a call's output cost a few comparisons.
+ */
+export class SecretRequestAttachmentReader {
+  private readonly readings = new Map<string, ReplyReading>();
+
+  private version = 0;
+
+  public constructor(private readonly store: LiveReplyStore) {}
+
+  /** The reply's attachments as its row draws `content` now. */
+  public read(
+    reply: MatrixEvent,
+    content: Record<string, unknown>,
+    pluginRenders?: PluginRenders
+  ): ReadonlyMap<string, number> {
+    const replyId = reply.getId() ?? '';
+    const roomId = reply.getRoomId();
+    const entry = roomId ? this.store.get(roomId, replyId) : undefined;
+    const held = roomId ? this.store.getHeld(roomId, replyId) : undefined;
+    const markdownReady = isLiveMarkdownReady();
+    const last = this.readings.get(replyId);
+    if (
+      last?.reply === reply &&
+      last.content === content &&
+      last.pluginRenders === pluginRenders &&
+      last.entry === entry &&
+      last.held === held &&
+      last.markdownReady === markdownReady
+    ) {
+      return last.attachments;
+    }
+    const drawn = getDrawnReplyContent(this.store, reply, content);
+    const source = pluginRenders?.(reply, drawn) ? undefined : attachmentSource(drawn);
+    const attachments =
+      last && sameSource(last.source, source) ? last.attachments : indexAttachments(source);
+    this.readings.set(replyId, {
+      reply,
+      content,
+      pluginRenders,
+      entry,
+      held,
+      markdownReady,
+      source,
+      attachments,
+    });
+    return attachments;
+  }
+
+  /** Forgets the replies other than `replyIds`, the ones the last plan read. */
+  public retain(replyIds: ReadonlySet<string>): void {
+    [...this.readings.keys()].forEach((replyId) => {
+      if (!replyIds.has(replyId)) this.readings.delete(replyId);
+    });
+  }
+
+  /**
+   * A number that grows when a reply read last draws other attachments than it did, after a frame
+   * or the live Markdown renderer changed what its row draws: the plan's cue to plan again.
+   */
+  public getVersion = (): number => {
+    let changed = false;
+    this.readings.forEach((last) => {
+      const before = last.attachments;
+      if (!sameAttachments(before, this.read(last.reply, last.content, last.pluginRenders))) {
+        changed = true;
+      }
+    });
+    if (changed) this.version += 1;
+    return this.version;
+  };
+}
 
 /** The agent cards among `events` that carry a request, the ones a plan reads. */
 export const secretRequestCards = (
@@ -87,9 +207,10 @@ export const secretRequestCards = (
  * agent's edit marked done moves: one still open keeps its row, the form in it, right under the
  * reply its call blocks. A done card moves when it names a reply loaded in the thread from the
  * card's agent, which the app renders itself (`pluginRenders` false) and whose body renders the
- * named call's marker (secretRequestAttachments). Every other card keeps its row, as do the
- * thread's root, an ignored sender's card and one the route or a jump opened (`revealed`). Each
- * reply is read once, however many cards name it, as its row shows it (`getContent`).
+ * named call's marker (secretRequestAttachments) as its row draws it now, a streaming reply's live
+ * frames included (`reader`). Every other card keeps its row, as do the thread's root, an ignored
+ * sender's card and one the route or a jump opened (`revealed`). Each reply is read once, however
+ * many cards name it, as its row shows it (`getContent`); `reader` keeps the replies read.
  */
 export const planInlineSecretRequests = ({
   cards,
@@ -98,6 +219,7 @@ export const planInlineSecretRequests = ({
   ignored,
   revealed,
   pluginRenders,
+  reader,
   threadId,
 }: {
   cards: readonly MatrixEvent[];
@@ -105,7 +227,8 @@ export const planInlineSecretRequests = ({
   getContent: (event: MatrixEvent) => Record<string, unknown>;
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
-  pluginRenders?: (event: MatrixEvent, content: Record<string, unknown>) => boolean;
+  pluginRenders?: PluginRenders;
+  reader: SecretRequestAttachmentReader;
   threadId?: string;
 }): InlineSecretRequestPlan => {
   const hiddenEventIds = new Set<string>();
@@ -129,10 +252,7 @@ export const planInlineSecretRequests = ({
     if (revealed.has(eventId)) return;
     let replyAttachments = attachments.get(replyId);
     if (!replyAttachments) {
-      const content = getContent(reply);
-      replyAttachments = pluginRenders?.(reply, content)
-        ? new Map()
-        : secretRequestAttachments(content);
+      replyAttachments = reader.read(reply, getContent(reply), pluginRenders);
       attachments.set(replyId, replyAttachments);
     }
     const index = replyAttachments.get(anchor.toolCallId);
@@ -144,6 +264,7 @@ export const planInlineSecretRequests = ({
     byReply.set(replyId, calls);
     hiddenEventIds.add(eventId);
   });
+  reader.retain(new Set(attachments.keys()));
   return { hiddenEventIds, byReply, waitingReplyIds };
 };
 
