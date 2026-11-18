@@ -267,4 +267,21 @@ describe("a secret request card's row in an open thread", () => {
     expect(shows()).toEqual({ row: false, line: true });
     expect(document.activeElement).toBe(line());
   });
+
+  it('takes the focus back from the line when the reply shows the call no longer', async () => {
+    const events = [root$, reply, card('saved')];
+    act(() =>
+      root.render(<Thread events={events} shown={replyContent(4, 'Starting', 'streaming')} />)
+    );
+    line()!.focus();
+    expect(document.activeElement).toBe(line());
+
+    // A newer frame leaves the call out (as folded calls or folded work do): the row is back.
+    await act(async () => {
+      root.render(<Thread events={events} shown={replyContent(2, 'Fetching', 'streaming')} />);
+    });
+
+    expect(shows()).toEqual({ row: true, line: false });
+    expect(cardRow()!.contains(document.activeElement)).toBe(true);
+  });
 });

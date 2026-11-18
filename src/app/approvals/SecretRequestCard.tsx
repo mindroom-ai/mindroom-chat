@@ -482,7 +482,7 @@ export function SecretRequestDetails({
   );
 }
 
-const findByAttribute = (name: string, value: string) =>
+export const findByAttribute = (name: string, value: string) =>
   [...document.querySelectorAll<HTMLElement>(`[${name}]`)].find(
     (element) => element.getAttribute(name) === value
   );
@@ -668,6 +668,8 @@ export function SecretRequestCard({
       gap="200"
       role="group"
       tabIndex={-1}
+      // Where the focus goes when the request's line in the reply goes (SecretRequestLine.tsx).
+      data-secret-request-card={eventId}
       aria-label={t(
         temporary
           ? 'mindroomUi.messages.secretRequestCard.temporary.label'
