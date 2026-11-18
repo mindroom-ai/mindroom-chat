@@ -353,7 +353,6 @@ describe('timeline message feature', () => {
     const expanded = renderer.root.find((node) => node.props.expansionKey === '$live');
     await act(() => expanded.props.onInitialExpandConsumed());
     update();
-    expect(feature().rowSources).not.toEqual(marked);
     expect(feature().rowSources).toEqual(initial);
   });
 

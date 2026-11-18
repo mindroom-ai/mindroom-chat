@@ -31,11 +31,7 @@ const plans = () =>
   ({
     approvalTimeline: { hiddenEventIds: new Set<string>() },
     threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
-    secretRequestTimeline: {
-      hiddenEventIds: new Set<string>(),
-      byReply: new Map(),
-      waitingReplyIds: new Set<string>(),
-    },
+    secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   } as unknown as TimelineMessageData);
 
 type Options = Parameters<typeof renderTimelineTiles>[0];
@@ -50,11 +46,16 @@ const items = (events: MatrixEvent[]): VirtualItem[] =>
     lane: 0,
   }));
 
+/** What the list is given of a room's rows. */
+const roomRows = (events: MatrixEvent[]) => ({
+  virtualItems: items(events),
+  roomWindowRows: events,
+  roomRowEntries: events.map((rowEvent, absoluteIndex) => ({ event: rowEvent, absoluteIndex })),
+});
+
 /** A list of `events` whose rows show their ID and the body their event holds at that render. */
 const mountList = (events: MatrixEvent[], overrides: Partial<Options> = {}) => {
-  const rendered: string[] = [];
   const renderEvent = vi.fn((row: TimelineMessageRow) => {
-    rendered.push(row.eventId);
     return (
       <p data-row={row.eventId}>
         {[String(row.event.getContent().body), ...(row.quietRun ?? []).map((run) => run.eventId)]
@@ -66,11 +67,9 @@ const mountList = (events: MatrixEvent[], overrides: Partial<Options> = {}) => {
   const watchRowEvents = vi.fn();
   const quiet = new Set<string>();
   const options: Options = {
-    virtualItems: items(events),
+    ...roomRows(events),
     threadId: undefined,
     threadEvents: [],
-    roomWindowRows: events,
-    roomRowEntries: events.map((rowEvent, absoluteIndex) => ({ event: rowEvent, absoluteIndex })),
     windowStart: 0,
     readUptoAbsoluteIndex: undefined,
     ignoredUsersSet: new Set(),
@@ -96,16 +95,15 @@ const mountList = (events: MatrixEvent[], overrides: Partial<Options> = {}) => {
     renderer = create(<Host current={options} />);
   });
   return {
-    options,
     quiet,
     renderEvent,
     watchRowEvents,
     /** The IDs of the rows a render of the list with `next` renders again, in order. */
     again: (next: Partial<Options> = {}) => {
-      rendered.length = 0;
+      const before = renderEvent.mock.calls.length;
       Object.assign(options, next);
       act(() => renderer.update(<Host current={{ ...options }} />));
-      return [...rendered];
+      return renderEvent.mock.calls.slice(before).map(([row]) => row.eventId);
     },
     shown: (id: string) =>
       renderer.root
@@ -179,16 +177,7 @@ describe('a render of the list', () => {
     const list = mountList(events);
     const replaced = [events[0]!, event('$b', START + 60_000, '@noor:x'), events[2]!];
     rewrite(replaced[1]!, 'echoed');
-    expect(
-      list.again({
-        virtualItems: items(replaced),
-        roomWindowRows: replaced,
-        roomRowEntries: replaced.map((rowEvent, absoluteIndex) => ({
-          event: rowEvent,
-          absoluteIndex,
-        })),
-      })
-    ).toEqual(['$b']);
+    expect(list.again(roomRows(replaced))).toEqual(['$b']);
     expect(list.shown('$b')).toBe('echoed');
   });
 
@@ -196,16 +185,7 @@ describe('a render of the list', () => {
     const events = three();
     const list = mountList(events);
     const older = [event('$older', START - 60_000, '@noor:x'), ...events];
-    expect(
-      list.again({
-        virtualItems: items(older),
-        roomWindowRows: older,
-        roomRowEntries: older.map((rowEvent, absoluteIndex) => ({
-          event: rowEvent,
-          absoluteIndex,
-        })),
-      })
-    ).toEqual(['$older', '$a', '$b', '$c']);
+    expect(list.again(roomRows(older))).toEqual(['$older', '$a', '$b', '$c']);
   });
 
   it('renders the row a jump highlights, and it alone', () => {
@@ -253,16 +233,7 @@ describe('a render of the list', () => {
     expect(['$a', '$b', '$c'].map(list.separators)).toEqual([0, 0, 2]);
 
     const sameDay = [events[0]!, events[1]!, event('$c', START + 120_000)];
-    expect(
-      list.again({
-        virtualItems: items(sameDay),
-        roomWindowRows: sameDay,
-        roomRowEntries: sameDay.map((rowEvent, absoluteIndex) => ({
-          event: rowEvent,
-          absoluteIndex,
-        })),
-      })
-    ).toEqual(['$c']);
+    expect(list.again(roomRows(sameDay))).toEqual(['$c']);
     expect(list.separators('$c')).toBe(1);
   });
 
@@ -291,12 +262,10 @@ describe('a render of the list', () => {
     expect(list.again()).toEqual(['$b']);
     expect(list.shown('$b')).toBe('$b $c');
     expect(
-      list.watchRowEvents.mock.calls.map(([row]) =>
-        [row as TimelineMessageRow].flatMap((shown) => [
-          shown.eventId,
-          ...(shown.quietRun ?? []).map((run) => run.eventId),
-        ])
-      )
+      (list.watchRowEvents.mock.calls as [TimelineMessageRow][]).map(([row]) => [
+        row.eventId,
+        ...(row.quietRun ?? []).map((run) => run.eventId),
+      ])
     ).toEqual([['$a'], ['$b', '$c']]);
     // The same run, of other event objects.
     const echoed = [events[0]!, events[1]!, event('$c', START + 120_000)];

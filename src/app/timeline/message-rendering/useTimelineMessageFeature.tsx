@@ -907,9 +907,9 @@ export const useTimelineMessageFeature = ({
   const watchRowEvents = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): void => {
       [row, ...(row.quietRun ?? [])].forEach(({ event, eventId, timelineSet }) => {
-        renderedEventsRef.current.push(event);
         const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
         renderedEventsRef.current.push(
+          event,
           ...getPendingEdits(eventId, event, rowEditTimelineSet(room, prefixThreadId, timelineSet))
         );
       });
