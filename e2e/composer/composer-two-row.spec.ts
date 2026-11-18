@@ -350,7 +350,7 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
 
     // A room area the keyboard leaves short keeps one row while focused (upright, so no media
     // query for a sideways phone applies).
-    await page.setViewportSize({ width: 390, height: 300 });
+    await page.setViewportSize({ width: 390, height: 280 });
     await tap(textBox(page));
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
     const short = await geometry(page);
