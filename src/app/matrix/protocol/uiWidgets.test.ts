@@ -85,6 +85,11 @@ describe('stripUiFallbackBlocks', () => {
     expect(stripUiFallbackBlocks(body)).toBe(body);
   });
 
+  it('leaves a marker line inside another code block alone', () => {
+    const body = '~~~md\n```mindroom-ui-df4d729a5d\n~~~\n\nSee https://example.org/a';
+    expect(stripUiFallbackBlocks(body)).toBe(body);
+  });
+
   it('closes only on a fence at least as long as the opening one', () => {
     const body = 'A\n````mindroom-ui-df4d729a5d\nx ```\n```\nexample.com\n````\nB';
     expect(stripUiFallbackBlocks(body)).toBe('A\nB');

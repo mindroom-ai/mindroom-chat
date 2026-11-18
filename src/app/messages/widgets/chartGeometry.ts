@@ -38,7 +38,12 @@ export const niceTicks = (min: number, max: number, target = 4): number[] => {
   const first = Math.floor(min / step);
   const count = Math.ceil(max / step) - first + 1;
   if (!(count >= 2 && count <= MAX_TICKS)) return [min, max];
-  return Array.from({ length: count }, (_, index) => (first + index) * step);
+  const ticks = Array.from({ length: count }, (_, index) => (first + index) * step);
+  // Below a double's spacing the ticks collapse into each other; then just the ends.
+  const slack = step * 1e-6;
+  const ascending = ticks.every((tick, index) => index === 0 || tick > ticks[index - 1]!);
+  const covers = ticks[0]! <= min + slack && ticks[count - 1]! >= max - slack;
+  return ascending && covers ? ticks : [min, max];
 };
 
 /** Each value's slice of the circle, in radians from 0; undefined when the sum is not finite. */

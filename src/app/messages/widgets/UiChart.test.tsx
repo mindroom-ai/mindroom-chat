@@ -120,6 +120,39 @@ describe('UiChart', () => {
     expect(screen.queryByText('Chart')).toBeNull();
   });
 
+  it('keeps small and large values exact enough in the table', () => {
+    const chart: ChartWidget = {
+      ...SPEC_CHART,
+      series: [{ name: 'Tiny', data: [0.00049, 5e-324, 1234.5] }],
+    };
+    const { container } = render(<UiChart chart={chart} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+
+    const cells = [...container.querySelectorAll('td')].map((td) => td.textContent);
+    expect(cells).toEqual(['0.00049', '5E-324', '1,234.5']);
+  });
+
+  it('keeps the highlighted band inside the plot at both ends', () => {
+    const chart: ChartWidget = {
+      ...SPEC_CHART,
+      labels: ['A', 'B'],
+      series: [{ name: 'S', data: [1, 2] }],
+    };
+    const { container } = render(<UiChart chart={chart} />);
+    const plot = container.querySelector('[tabindex="0"]') as HTMLElement;
+    const svg = plot.querySelector('svg')!;
+    const width = Number(svg.getAttribute('width'));
+
+    fireEvent.focus(plot);
+    fireEvent.keyDown(plot, { key: 'End' });
+    const rects = [...svg.querySelectorAll('rect')];
+    rects.forEach((rect) => {
+      const x = Number(rect.getAttribute('x'));
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x + Number(rect.getAttribute('width'))).toBeLessThanOrEqual(width);
+    });
+  });
+
   it('shows only the table when the values cannot be scaled', () => {
     const chart: ChartWidget = {
       ...SPEC_CHART,

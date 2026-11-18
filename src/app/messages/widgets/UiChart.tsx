@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { formatNumber } from '../../lib/localDigits';
 import { useResizeObserver } from '../../lib/hooks/useResizeObserver';
 import type { ChartWidget } from './chartSchema';
 import { labelStep, niceTicks, pieSlices, valueDomain } from './chartGeometry';
@@ -92,8 +91,17 @@ const useFormatters = (): Formatters => {
       maximumSignificantDigits: 3,
     });
     const percent = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 1 });
+    // The table is the chart's text: values keep their digits, extremes read in scientific form.
+    const exact = new Intl.NumberFormat(language, { maximumSignificantDigits: 15 });
+    const extreme = new Intl.NumberFormat(language, {
+      notation: 'scientific',
+      maximumSignificantDigits: 6,
+    });
     return {
-      value: (value) => formatNumber(value, language),
+      value: (value) => {
+        const size = Math.abs(value);
+        return (size >= 1e15 || (size > 0 && size < 1e-6) ? extreme : exact).format(value);
+      },
       tick: (value) => {
         const size = Math.abs(value);
         return (size >= 1e15 || (size > 0 && size < 1e-3) ? scientific : compact).format(value);
@@ -352,6 +360,11 @@ const cartesianLayout = (chart: ChartWidget, scale: Scale, width: number, format
     if (bars) return left + band * (index + 0.5);
     return count === 1 ? left + plotWidth / 2 : left + 6 + index * band;
   };
+  // The band of a label, inside the plot also at its ends.
+  const span = (index: number) => {
+    const start = Math.max(left, x(index) - band / 2);
+    return { x: start, width: Math.min(left + plotWidth, x(index) + band / 2) - start };
+  };
   const y = (value: number) =>
     MARGIN_TOP + plotHeight * (1 - (value - scale.low) / (scale.high - scale.low));
   return {
@@ -360,6 +373,7 @@ const cartesianLayout = (chart: ChartWidget, scale: Scale, width: number, format
     plotHeight,
     band,
     x,
+    span,
     y,
     zero: y(Math.min(scale.high, Math.max(scale.low, 0))),
   };
@@ -373,7 +387,7 @@ function CartesianPlot({
   active,
   onPoint,
 }: PlotProps & { scale: Scale }) {
-  const { left, plotWidth, plotHeight, band, x, y, zero } = cartesianLayout(
+  const { left, plotWidth, plotHeight, band, x, span, y, zero } = cartesianLayout(
     chart,
     scale,
     width,
@@ -407,14 +421,7 @@ function CartesianPlot({
         </g>
       ))}
       {active !== undefined && (
-        <rect
-          className={css.Band}
-          x={x(active) - band / 2}
-          y={MARGIN_TOP}
-          width={band}
-          height={plotHeight}
-          rx={4}
-        />
+        <rect className={css.Band} {...span(active)} y={MARGIN_TOP} height={plotHeight} rx={4} />
       )}
       {chart.kind === 'bar' &&
         chart.series.map((s, seriesIndex) =>
@@ -474,9 +481,8 @@ function CartesianPlot({
         <rect
           // eslint-disable-next-line react/no-array-index-key
           key={index}
-          x={x(index) - band / 2}
+          {...span(index)}
           y={MARGIN_TOP}
-          width={band}
           height={plotHeight}
           fill="transparent"
           onPointerEnter={() => onPoint(index)}

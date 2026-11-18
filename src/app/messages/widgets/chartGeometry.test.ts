@@ -35,6 +35,11 @@ describe('niceTicks', () => {
     expect(niceTicks(0, 5e-324).every(Number.isFinite)).toBe(true);
     expect(niceTicks(0, 1.5e300).every(Number.isFinite)).toBe(true);
     expect(niceTicks(0, 1e-300).length).toBeLessThanOrEqual(12);
+    // Steps below a double's spacing collapse: just the ends.
+    expect(niceTicks(1e16, 1e16 + 2)).toEqual([1e16, 1e16 + 2]);
+    const close = niceTicks(-1, -0.85);
+    expect(close[0]).toBe(-1);
+    expect(close.at(-1)).toBeCloseTo(-0.85);
   });
 });
 
