@@ -19,6 +19,7 @@ enum MacWindowing {
     /// shortcut showed the widget over it, else the last other app that came forward.
     private(set) static var lastFrontProcess: pid_t?
     private static var frontObserver: NSObjectProtocol?
+    private static var mouseMonitor: AnyObject?
 
     // MARK: The runtime
 
@@ -209,6 +210,27 @@ enum MacWindowing {
         let lookup = unsafeBitCast(class_getMethodImplementation(metaclass, selector), to: Lookup.self)
         guard let running = lookup(runningClass, selector, pid)?.takeUnretainedValue() else { return }
         send(running, "activateWithOptions:", 0)
+    }
+
+    // MARK: The mouse
+
+    /// Calls `handler` on each press and release of a mouse button past the second with the
+    /// event's window, its button number and whether it is a release; the event goes no further
+    /// when `handler` returns true.
+    static func monitorMouseButtons(_ handler: @escaping (NSObject?, Int, Bool) -> Bool) {
+        guard mouseMonitor == nil, let eventClass = appKitClass("NSEvent"),
+              let metaclass = object_getClass(eventClass) else { return }
+        typealias Handler = @convention(block) (NSObject) -> NSObject?
+        typealias Add = @convention(c) (AnyClass, Selector, UInt64, Handler) -> Unmanaged<AnyObject>?
+        let selector = NSSelectorFromString("addLocalMonitorForEventsMatchingMask:handler:")
+        let add = unsafeBitCast(class_getMethodImplementation(metaclass, selector), to: Add.self)
+        let monitor: Handler = { event in
+            let button = (event.value(forKey: "buttonNumber") as? NSNumber)?.intValue ?? 0
+            let released = (event.value(forKey: "type") as? NSNumber)?.intValue == 26 // NSEventTypeOtherMouseUp
+            return handler(event.value(forKey: "window") as? NSObject, button, released) ? nil : event
+        }
+        // NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp
+        mouseMonitor = add(eventClass, selector, 1 << 25 | 1 << 26, monitor)?.takeUnretainedValue()
     }
 
     // MARK: The hot key
