@@ -172,6 +172,15 @@ describe('native voice recorder', () => {
     expect(await chunks[0]!.text()).toBe('voice');
   });
 
+  it('delivers a local file that WebKit answers with status 0', async () => {
+    stubFetch({ ...audio(), ok: false, status: 0 });
+    const recorder = await startNativeVoiceRecorder();
+    const { seen, chunks } = watch(recorder);
+    recorder.stop();
+    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
+    expect(await chunks[0]!.text()).toBe('voice');
+  });
+
   it('leaves the next recording alone when a slow stop settles late', async () => {
     const reading = deferred<Response>();
     stubFetch(reading.promise);
@@ -191,7 +200,8 @@ describe('native voice recorder', () => {
 
   it.each([
     ['the native stop fails', () => plugin.stop.mockRejectedValue({ code: 'NOT_RECORDING' })],
-    ['the file cannot be read', () => stubFetch({ ok: false })],
+    ['the file cannot be read', () => stubFetch({ ok: false, status: 404 })],
+    ['a status 0 answer is empty', () => stubFetch({ ...audio(''), ok: false, status: 0 })],
     [
       'the read is given up',
       () =>

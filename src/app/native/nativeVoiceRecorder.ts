@@ -86,7 +86,8 @@ export class NativeVoiceRecorder extends EventTarget {
     const response = await fetch(Capacitor.convertFileSrc(path), {
       signal: AbortSignal.timeout(5_000),
     });
-    if (!response.ok) return;
+    // Capacitor answers a local media file without an HTTP status, which WebKit reports as 0.
+    if (!response.ok && response.status !== 0) return;
     const data = await response.blob();
     if (data.size > 0) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
   }
