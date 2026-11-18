@@ -142,6 +142,16 @@ describe('native voice recorder', () => {
     expect(plugin.remove).toHaveBeenCalledOnce();
   });
 
+  it('records on the start after a failed one', async () => {
+    plugin.start.mockRejectedValueOnce({ code: 'START_FAILED' });
+    await expect(startNativeVoiceRecorder()).rejects.toMatchObject({ name: 'NotReadableError' });
+    const recorder = await startNativeVoiceRecorder();
+    expect(recorder.state).toBe('recording');
+    expect(plugin.remove).toHaveBeenCalledOnce();
+    emitLevel({ level: 0.5 });
+    expect(recorder.level()).toBe(0.5);
+  });
+
   it('starts recording audio/mp4 and reads the newest level', async () => {
     const recorder = await startNativeVoiceRecorder();
     expect(plugin.addListener).toHaveBeenCalledWith('level', expect.any(Function));
@@ -253,7 +263,7 @@ One private ending, used by every way out, runs once: remove the `level` listene
 - [ ] **Step 4: Run the tests**
 
 Run: `nix develop -c just test src/app/native/nativeVoiceRecorder.test.ts`
-Expected: PASS (15 tests).
+Expected: PASS (16 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -531,6 +541,12 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource).toMatch(/func cancelRecording\(\) \{\s*epoch \+= 1/);
   });
 
+  it('leaves no file and no active audio session behind a start that fails', () => {
+    expect(pluginSource).toMatch(
+      /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)[\s\S]*?setActive\(false[\s\S]*?"START_FAILED"/
+    );
+  });
+
   it('rejects with the codes the web side names', () => {
     ['PERMISSION_DENIED', 'NO_MICROPHONE', 'START_FAILED', 'NOT_RECORDING'].forEach((code) =>
       expect(pluginSource).toContain(`"${code}"`)
@@ -622,7 +638,7 @@ DispatchQueue.main.async {
 }
 ```
 
-  After the guard: not granted rejects `PERMISSION_DENIED`; `AVCaptureDevice.default(for: .audio) == nil` rejects `NO_MICROPHONE`; then `discardLive()`, `let id = UUID().uuidString`, the audio session as `Recorder.swift:31-33` (`.record`, `setActive(true)`), the folder created, `AVAudioRecorder(url: file(of: id), settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 32_000])`, `isMeteringEnabled = true`, `record()`. A throw or `record()` returning false: `discardLive()` (the file too) and reject `START_FAILED`. Else set `live`, start `meter` (`Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true)`, `[weak self]`) and `call.resolve(["id": id])`.
+  After the guard: not granted rejects `PERMISSION_DENIED`; `AVCaptureDevice.default(for: .audio) == nil` rejects `NO_MICROPHONE`; then `discardLive()`, `let id = UUID().uuidString`, the audio session as `Recorder.swift:31-33` (`.record`, `setActive(true)`), the folder created, `AVAudioRecorder(url: file(of: id), settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 32_000])`, `isMeteringEnabled = true`, `record()`. `live` is set only after `record()` answers true, so a failed attempt cleans up from local scope, not through `discardLive()`: keep `let url = file(of: id)` and `var attempt: AVAudioRecorder?` outside the `do`; on a throw or `record()` returning false, `attempt?.stop()`, `try? FileManager.default.removeItem(at: url)`, deactivate the audio session (`Recorder.swift:89`), and reject `START_FAILED`. Else set `live`, start `meter` (`Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true)`, `[weak self]`) and `call.resolve(["id": id])`.
 - The timer, only while `live.recorder.isRecording`: `updateMeters()`, `let level = pow(10, recorder.averagePower(forChannel: 0) / 20)`, `notifyListeners("level", data: ["level": level])`.
 - `pause`, `resume`, `stop` start with `guard let live = self.live, live.id == call.getString("id") else { return call.reject("No such recording", "NOT_RECORDING") }`.
 - `pause`: `live.recorder.pause()`, resolve. `resume`: `guard live.recorder.record() else { discardLive(); return call.reject("Could not resume", "NOT_RECORDING") }`, resolve.
@@ -741,6 +757,8 @@ Expected: `ok bytes=` above 2000, and `afinfo` reports `1 ch,  16000 Hz` AAC wit
 | `failed PROMPT_PENDING` | macOS waits for a click on the microphone prompt | report the probe as blocked on the prompt, not as passed; rerun after Bas clicks Allow on the M2 |
 | `failed PERMISSION_DENIED` | denied before | `tccutil reset Microphone chat.mindroom.app`, rerun |
 | anything else | a defect | fix in Task 3's file, commit, rebuild |
+
+After every `failed` answer: `ls "$(getconf DARWIN_USER_TEMP_DIR)voice-recorder"` (or the folder of an earlier run's path) shows no `.m4a`, and the next run of the probe, once its cause is removed, answers `ok`: a failed start leaves no file and does not block the next one.
 
 Then the page that goes away under the prompt: stop the probe's app (below), `tccutil reset Microphone chat.mindroom.app`, launch again with `MINDROOM_VOICE_PROBE=reload`. The prompt appears and the page reloads 2 s later. After a click on Allow, wait 5 s: `ls` of the folder of the first run's path.
 Expected: no `.m4a` in it, and no microphone indicator in the menu bar. A file there means the token failed: a defect. Without a click on the prompt, report this run as not done, not as passed.

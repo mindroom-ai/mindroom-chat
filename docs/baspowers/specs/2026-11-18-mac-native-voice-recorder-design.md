@@ -180,6 +180,9 @@ newest value, so the live glide of `VoiceWaveform` is unchanged.
   the microphone, and compares it on the main queue when the answer arrives, before the audio
   session is activated: an answer for a page that is gone rejects `START_FAILED` and records
   nothing.
+- **A start that fails** after the file was named (the recorder cannot be made, or `record()`
+  answers `false`) is not live yet, so `start` cleans up itself: it stops the half-made recorder,
+  removes that file and deactivates the audio session. The next `start` is unaffected.
 - **Format**: AAC in an `.m4a`, mono, 16 kHz, 32 kbit/s, the Watch's settings
   (`Recorder.swift:36-39`): one proven configuration for every native MindRoom recorder, at the
   bitrate of the web path (`voiceCaptureSession.ts:18`). About 240 KB a minute.
@@ -263,7 +266,7 @@ WebKit has no media capture, and calls are unavailable there for the same reason
   hook test passes untouched.
 - `microphoneAccess.test.ts`: the Mac app gets the system settings text; iPhone keeps its own.
 - `nativeVoiceRecorderIOSContract.test.ts`: the plugin's name, methods, event, codes and settings;
-  a file per recording ID, a UUID; the page's token read before the permission request, compared
+  a file per recording ID, a UUID; a failed start removes its file; the page's token read before the permission request, compared
   before the audio session is activated, raised by `cancelRecording()`; `resume` checks
   `record()`; Mac-only body; registration inside the Catalyst block and off the Quick Capture
   bridge; the window-close cancel; both targets compile the file.
