@@ -20,6 +20,8 @@ import { createRoomInputPasteMarkerElement } from './RoomInputExtensions';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 
+const diagnostics = vi.hoisted(() => ({ buildDiagnosticsExport: vi.fn() }));
+vi.mock('../diagnostics/diagnosticsExport', () => diagnostics);
 vi.mock('./commands/CommandAutocomplete', () => ({
   AgentCommandAutocomplete: () => null,
 }));
@@ -264,6 +266,50 @@ describe('attachment staging ownership', () => {
       harness.onEditorChange();
     });
     expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+  });
+
+  it('attaches app logs as a JSON file, staged like a picked one', async () => {
+    diagnostics.buildDiagnosticsExport.mockResolvedValue({
+      fileName: 'mindroom-diagnostics-2026-11-17T10-00-00-000Z.json',
+      blob: new Blob(['{"metadata":{}}'], { type: 'application/json' }),
+    });
+    const prepare = vi.fn(async (files: File[]) =>
+      files.map((file) => ({
+        file,
+        originalFile: file,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false },
+      }))
+    );
+    const harness = renderHarness(prepare);
+
+    await act(async () => {
+      harness.feature.attachAppLogs();
+      await vi.waitFor(() => expect(harness.feature.access.snapshot().staged).toHaveLength(1));
+    });
+
+    const [file] = prepare.mock.calls[0]![0];
+    expect(file).toBeInstanceOf(File);
+    expect(file!.name).toMatch(/^mindroom-diagnostics-.*\.json$/);
+    expect(file!.type).toBe('application/json');
+    await expect(file!.text()).resolves.toBe('{"metadata":{}}');
+    expect(harness.feature.access.snapshot().staged[0]!.file).toBe(file);
+  });
+
+  it('stages nothing when the app logs cannot be built', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    diagnostics.buildDiagnosticsExport.mockRejectedValue(new Error('storage gone'));
+    const prepare = vi.fn(async () => []);
+    const harness = renderHarness(prepare);
+
+    await act(async () => {
+      harness.feature.attachAppLogs();
+      await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    });
+
+    expect(prepare).not.toHaveBeenCalled();
+    expect(harness.feature.access.snapshot().staged).toHaveLength(0);
+    warn.mockRestore();
   });
 
   it('defers change listeners until publication completes and honors unsubscribe', async () => {

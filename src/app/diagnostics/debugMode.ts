@@ -48,10 +48,12 @@ export const subscribeDebugMode = (listener: () => void): (() => void) => {
   const onStorage = (event: StorageEvent) => {
     if (event.key === DEBUG_MODE_KEY || event.key === null) listener();
   };
-  window.addEventListener('storage', onStorage);
+  // Without a window (a worker, a test in Node) only this page's changes arrive.
+  const target = typeof window === 'undefined' ? undefined : window;
+  target?.addEventListener('storage', onStorage);
   return () => {
     listeners.delete(listener);
-    window.removeEventListener('storage', onStorage);
+    target?.removeEventListener('storage', onStorage);
   };
 };
 

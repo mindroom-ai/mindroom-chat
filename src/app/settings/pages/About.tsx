@@ -185,14 +185,18 @@ function DeepTraceSetting() {
 }
 
 /**
- * Debug mode in a browser, where the iOS app's diagnostics are off until it is turned on. On, it
- * shows the diagnostics export and the deep tracing switch.
+ * Debug mode, on every platform. On, it turns the deep trace on and adds "Attach app logs" to the
+ * composer. In a browser, where the iOS app's diagnostics are off until it is turned on, it also
+ * shows the diagnostics export and the deep tracing switch; the iOS app keeps its recorders
+ * (`keepRecorders`) whatever debug mode says.
  */
 function DebugModeSetting({
   enabled,
+  keepRecorders,
   onChange,
 }: {
   enabled: boolean;
+  keepRecorders: boolean;
   onChange: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -201,7 +205,7 @@ function DebugModeSetting({
   const handleToggle = async (next: boolean) => {
     setPending(true);
     try {
-      await setDebugModeEnabled(next);
+      await setDebugModeEnabled(next, { keepRecorders });
     } catch {
       // The switch shows the saved choice again below.
     } finally {
@@ -458,8 +462,8 @@ function AppIdentity() {
 }
 
 /**
- * App version, diagnostics tools (always in the iOS app, behind debug mode elsewhere), error
- * reports when configured, the interface tour, and credits.
+ * App version, debug mode, diagnostics tools (always in the iOS app, behind debug mode elsewhere),
+ * error reports when configured, the interface tour, and credits.
  */
 export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
@@ -472,9 +476,14 @@ export function About({ requestClose, closeDialog }: AboutProps) {
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
       <AboutSection title={t('featureUi.settings.about.options')}>
-        {!nativeDiagnostics && <DebugModeSetting enabled={debugMode} onChange={setDebugMode} />}
+        <DebugModeSetting
+          enabled={debugMode}
+          keepRecorders={nativeDiagnostics}
+          onChange={setDebugMode}
+        />
         {diagnostics && <DiagnosticsExport />}
-        {diagnostics && <DeepTraceSetting />}
+        {/* Debug mode turns the deep trace on and off, so its tile reads the switch again. */}
+        {diagnostics && <DeepTraceSetting key={debugMode ? 'debug' : 'plain'} />}
         {collectorHost && <ErrorReportsSetting host={collectorHost} />}
       </AboutSection>
       <AboutSection title={t('tour.entries.settingsSection')}>

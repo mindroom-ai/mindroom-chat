@@ -409,7 +409,7 @@
         "thirdPartyNotices": "Third-party notices",
         "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
         "debugMode": "Debug mode",
-        "debugModeDescription": "Records diagnostics on this device so you can export them and turn on deep diagnostic tracing."
+        "debugModeDescription": "Records diagnostics on this device, including a deep trace with the app's memory figures, and adds “Attach app logs” to the composer's + menu so you can send them in a message."
       }
     },
     "createChat": {
@@ -927,6 +927,8 @@
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",
+    "attachMenu": "Attach",
+    "attachAppLogs": "Attach app logs",
     "lostFiles": "Not kept with this draft: {{files}}. Attach them again before sending.",
     "lostPastes": "Pasted text was not kept with this draft. Paste it again before sending.",
     "dismissLostFiles": "Dismiss",

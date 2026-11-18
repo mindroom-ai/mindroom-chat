@@ -233,10 +233,37 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('shows no debug mode switch in the iOS app, which always records', () => {
+  it('shows the debug mode switch in the iOS app too, which keeps its recorders when it is off', async () => {
+    let debugMode = false;
+    mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
+    mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {
+      debugMode = enabled;
+      // Debug mode turns the deep trace on and off with it.
+      await mocks.setDeepTraceEnabled(enabled);
+      return true;
+    });
     const renderer = create(<About requestClose={vi.fn()} />);
+    const debugSwitch = () =>
+      renderer.root.findByProps({ 'data-setting-title': 'Debug mode' }).findByType('input');
+    expect(diagnosticsTile(renderer)).toBeDefined();
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
 
-    expect(renderer.root.findAllByProps({ 'data-setting-title': 'Debug mode' })).toHaveLength(0);
+    await act(async () => {
+      debugSwitch().props.onChange({ target: { checked: true } });
+    });
+    expect(mocks.setDebugModeEnabled).toHaveBeenCalledWith(true, { keepRecorders: true });
+    // The deep trace tile, already on screen, shows the trace debug mode turned on.
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    expect(deepTraceTile(renderer).props['data-description']).toBe(
+      'Recording a bounded, privacy-safe performance and interaction trace on this device.'
+    );
+
+    await act(async () => {
+      debugSwitch().props.onChange({ target: { checked: false } });
+    });
+    expect(mocks.setDebugModeEnabled).toHaveBeenLastCalledWith(false, { keepRecorders: true });
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    // The iOS app's diagnostics stay.
     expect(diagnosticsTile(renderer)).toBeDefined();
     renderer.unmount();
   });
@@ -261,7 +288,7 @@ describe('About diagnostics export', () => {
     await act(async () => {
       debugSwitch().props.onChange({ target: { checked: true } });
     });
-    expect(mocks.setDebugModeEnabled).toHaveBeenCalledWith(true);
+    expect(mocks.setDebugModeEnabled).toHaveBeenCalledWith(true, { keepRecorders: false });
     expect(shown('On-device diagnostics')).toBe(1);
     expect(shown('Deep diagnostic tracing')).toBe(1);
 

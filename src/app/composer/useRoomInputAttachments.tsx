@@ -46,6 +46,7 @@ import {
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import type { AttachmentSnapshot, RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { buildDiagnosticsExport } from '../diagnostics/diagnosticsExport';
 import {
   createRoomInputPasteMarkerElement,
   getRoomInputPasteMarkerFileNames,
@@ -79,6 +80,8 @@ type RoomInputAttachments = {
   /** Drops paste attachments whose marker left the editor. */
   onEditorChange: () => void;
   pickFiles: () => void;
+  /** Stages this device's diagnostics export as a file, sent with the next message. */
+  attachAppLogs: () => void;
   dropZoneVisible: boolean;
   /** A paste chip of the draft lost its text in a reload and left the draft. */
   lostPastes: boolean;
@@ -563,6 +566,17 @@ export const useRoomInputAttachments = ({
     [isMarkdown, pastePlainText, stageFiles]
   );
 
+  const attachAppLogs = useCallback(() => {
+    buildDiagnosticsExport()
+      .then(({ blob, fileName }) =>
+        stageFiles([new File([blob], fileName, { type: 'application/json' })])
+      )
+      .catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn('[composer] could not attach app logs', error);
+      });
+  }, [stageFiles]);
+
   const pickFiles = useFilePicker(
     useCallback((files: File[]) => void stageFiles(files).catch(() => undefined), [stageFiles]),
     true
@@ -649,6 +663,7 @@ export const useRoomInputAttachments = ({
     onPaste,
     onEditorChange,
     pickFiles,
+    attachAppLogs,
     dropZoneVisible,
     lostPastes,
     dismissLostPastes,
