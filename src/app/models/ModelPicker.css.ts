@@ -67,13 +67,17 @@ export const EffortPanel = style({
 // On a phone the column sits under the models instead, as wide as they are.
 export const StackedEffortPanel = style([column, { width: pickerWidth, maxWidth: panelMaxWidth }]);
 
-// The filter, the status and the rows, which scroll inside it.
+// The filter, the status and the rows, which scroll inside it. Stacked on a phone, it takes the
+// height the levels leave, and keeps room for a few rows when the window is short.
 export const Picker = style([
   column,
   {
     flex: '1 1 auto',
     minWidth: 0,
     minHeight: 0,
+    selectors: {
+      [`${StackedEffortPanel} > &`]: { flexBasis: 0, minHeight: toRem(160) },
+    },
   },
 ]);
 
@@ -88,9 +92,11 @@ export const EffortColumn = style([
     borderInlineStart: hairline(color.SurfaceVariant.ContainerLine),
     backgroundColor: effortSurface,
     selectors: {
+      // Under the models it shrinks with a short window down to its header and a row, which scroll.
       [`${StackedEffortPanel} > &`]: {
         width: 'auto',
-        height: toRem(256),
+        flex: `0 1 ${toRem(256)}`,
+        minHeight: toRem(80),
         borderInlineStart: 'none',
         borderBlockStart: hairline(color.SurfaceVariant.ContainerLine),
       },

@@ -276,3 +276,34 @@ for (const theme of ['silver', 'dark']) {
     await expect(suggestions).toBeHidden();
   });
 }
+
+test('a short phone window keeps room for both the models and the effort levels', async ({
+  page,
+}, testInfo) => {
+  // About 240 px above the model button, as with a phone's keyboard up.
+  await page.setViewportSize({ width: 390, height: 304 });
+  await page.goto('/e2e/fixtures/glass-surfaces.html?menus&theme=silver');
+  const trigger = page.getByRole('button', { name: /^Choose model / });
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
+  const menu = (await dialog.boundingBox())!;
+  expect(menu.y).toBeGreaterThanOrEqual(0);
+  expect(menu.y + menu.height).toBeLessThanOrEqual((await trigger.boundingBox())!.y);
+  // The models keep a scrolling list of more than two rows, and the levels a header and rows.
+  const models = (await dialog.getByRole('listbox').locator('..').boundingBox())!;
+  expect(models.height).toBeGreaterThanOrEqual(110);
+  const column = (await dialog.locator('[data-effort-column]').boundingBox())!;
+  expect(column.height).toBeGreaterThanOrEqual(80);
+  expect(column.y + column.height).toBeLessThanOrEqual(menu.y + menu.height + 1);
+  // Both scroll: the last model and the last level come into view.
+  const lastModel = dialog.getByRole('option', { name: /^Studio model 24 / });
+  await lastModel.scrollIntoViewIfNeeded();
+  await expect(lastModel).toBeInViewport({ ratio: 1 });
+  const levels = dialog.getByRole('radio');
+  const lastLevel = levels.last();
+  await lastLevel.scrollIntoViewIfNeeded();
+  const level = (await lastLevel.boundingBox())!;
+  expect(level.y).toBeGreaterThanOrEqual(column.y);
+  expect(level.y + level.height).toBeLessThanOrEqual(column.y + column.height + 1);
+  await page.screenshot({ path: testInfo.outputPath('short-phone.png'), scale: 'css' });
+});
