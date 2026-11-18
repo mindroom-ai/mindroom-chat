@@ -1,5 +1,4 @@
 import { isRecord } from '../../lib/isRecord';
-import { fencedCodeRanges } from '../../lib/markdownFences';
 
 /** On an agent reply: the widgets its body shows as `mindroom-ui-<id>` fallback blocks. */
 export const UI_WIDGETS_KEY = 'io.mindroom.ui';
@@ -12,7 +11,7 @@ const MAX_WIDGETS = 8;
 const MAX_JSON_BYTES = 16384;
 const ID_PATTERN = /^[0-9a-f]{10}$/;
 const MARKER_CLASS_PATTERN = /^language-mindroom-ui-([0-9a-f]{10})$/;
-const MARKER_OPENING = /^(`{3,}|~{3,})mindroom-ui-[0-9a-f]{10}$/;
+const MARKER_OPENING = /^(`{3,}|~{3,})mindroom-ui-[0-9a-f]{10}[ \t]*$/;
 
 const utf8Length = (text: string): number => new TextEncoder().encode(text).length;
 
@@ -47,17 +46,24 @@ export const readUiMarkerId = (codeClassName: string | undefined): string | unde
   codeClassName ? MARKER_CLASS_PATTERN.exec(codeClassName)?.[1] : undefined;
 
 /**
- * `body` without its `mindroom-ui-` fenced blocks, so their labels never become link previews. The
- * fences are the live renderer's, so other code, a marker line inside it included, stays whole.
+ * `body` without its `mindroom-ui-` fenced blocks, so their labels never become link previews. A
+ * marker fence in column 0 always starts one, even where another fence looks open: cutting too much
+ * only loses a preview, and a label never becomes one.
  */
 export const stripUiFallbackBlocks = (body: string): string => {
   if (!body.includes('mindroom-ui-')) return body;
-  let kept = '';
-  let cursor = 0;
-  fencedCodeRanges(body).forEach(([start, end]) => {
-    if (!MARKER_OPENING.test(body.slice(start, end).split('\n', 1)[0]!)) return;
-    kept += body.slice(cursor, start);
-    cursor = end;
+  const kept: string[] = [];
+  let fence: string | undefined;
+  body.split('\n').forEach((line) => {
+    if (fence === undefined) {
+      fence = MARKER_OPENING.exec(line)?.[1];
+      if (fence === undefined) kept.push(line);
+      return;
+    }
+    // A closing fence: the same character, at least as long, indented at most three spaces.
+    const closing = line.trim();
+    const closes = closing.length >= fence.length && closing === fence[0]!.repeat(closing.length);
+    if (closes && /^ {0,3}\S/.test(line)) fence = undefined;
   });
-  return kept + body.slice(cursor);
+  return kept.join('\n');
 };

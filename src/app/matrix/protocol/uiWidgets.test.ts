@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { loadLiveMarkdown, renderLiveMarkdown } from '../../messages/live/liveMarkdown';
 import fixture from '../../messages/widgets/__fixtures__/ui-widgets-v1.json';
 import {
   readUiMarkerId,
@@ -74,6 +75,27 @@ describe('readUiMarkerId', () => {
 });
 
 describe('stripUiFallbackBlocks', () => {
+  beforeAll(loadLiveMarkdown);
+
+  const caseList = fixture.renders as (RenderCase & { text: string; html: string })[];
+  it.each(caseList.map((c) => [c.name, c] as const))(
+    "cuts exactly the blocks the backend's HTML draws as widgets: %s",
+    (_n, c) => {
+      const ids = new Set((c.ui?.widgets ?? []).map(({ id }) => id));
+      const widgetBlock = new RegExp(
+        `<pre><code class="language-mindroom-ui-(${[...ids].join('|') || '-'})">`,
+        'g'
+      );
+      // Code that is not a marker block stays, so its own links still preview.
+      const ordinary = (html: string) =>
+        html.match(/<pre><code(?! class="language-mindroom-ui-)/g)?.length ?? 0;
+      const shown = renderLiveMarkdown(stripUiFallbackBlocks(c.text)) ?? '';
+
+      expect(shown.match(widgetBlock)).toBeNull();
+      expect(ordinary(shown)).toBe(ordinary(c.html));
+    }
+  );
+
   it('removes the fallback block and keeps the paragraphs around it', () => {
     expect(stripUiFallbackBlocks(SECTION_5_4_BODY)).toBe(
       'Signups peaked in February.\n\n\nMarch is still 25% above January.'
@@ -85,9 +107,9 @@ describe('stripUiFallbackBlocks', () => {
     expect(stripUiFallbackBlocks(body)).toBe(body);
   });
 
-  it('leaves a marker line inside another code block alone', () => {
-    const body = '~~~md\n```mindroom-ui-df4d729a5d\n~~~\n\nSee https://example.org/a';
-    expect(stripUiFallbackBlocks(body)).toBe(body);
+  it('cuts from a marker line inside another code block, losing a preview, never a label', () => {
+    const body = '~~~md\n```mindroom-ui-df4d729a5d\nexample.com\n~~~\n\nSee https://example.org/a';
+    expect(stripUiFallbackBlocks(body)).toBe('~~~md');
   });
 
   it('closes only on a fence at least as long as the opening one', () => {

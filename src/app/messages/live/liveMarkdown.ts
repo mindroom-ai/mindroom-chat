@@ -1,11 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type MarkdownIt from 'markdown-it';
 import type { StateBlock, StateInline } from 'markdown-it';
-import {
-  fencedCodeRanges,
-  splitLinesKeepingEnds,
-  stripLeadingSpaces,
-} from '../../lib/markdownFences';
 
 // Renders live reply Markdown the way the MindRoom runtime renders the durable edit
 // (`markdown_to_html` in `src/mindroom/matrix/message_builder.py`), so the overlay and the
@@ -27,6 +22,7 @@ const RAW_HTML_TAG_LINE_START = /^( {0,3})(<\/?([A-Za-z][A-Za-z0-9-]*)(?:\s[^<>]
 const SUPPORTED_BLOCK_LINE_START = new RegExp(`^ {0,3}</?(?:${BLOCK_TAG_ALTERNATION})\\b`, 'i');
 const SUPPORTED_BLOCK_END_TAG = new RegExp(`</(?:${BLOCK_TAG_ALTERNATION})>\\s*$`, 'i');
 const HR_BLOCK_TAG = /^ {0,3}<hr\b[^<>]*\/?>\s*$/i;
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 
 /** Python's `html.escape`, which the runtime uses for escaped openers and preserved math. */
 const escapeLikePython = (text: string): string =>
@@ -39,12 +35,55 @@ const escapeLikePython = (text: string): string =>
 
 // `trimEnd` removes the same characters as `/\s+$/` in linear time; the regex backtracks quadratically.
 const stripTrailingWhitespace = (text: string): string => text.trimEnd();
+const stripLeadingSpaces = (text: string): string => text.replace(/^ +/, '');
+const splitLinesKeepingEnds = (text: string): string[] => text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+
+const countRepeated = (text: string, start: number, character: string): number => {
+  let end = start;
+  while (end < text.length && text[end] === character) end += 1;
+  return end - start;
+};
+
+const isFenceClosingLine = (line: string, character: string, openingLength: number): boolean => {
+  const stripped = stripLeadingSpaces(line);
+  if (line.length - stripped.length > 3 || !stripped.startsWith(character)) return false;
+  const closingLength = countRepeated(stripped, 0, character);
+  return closingLength >= openingLength && stripped.slice(closingLength).trim() === '';
+};
 
 const needsBlockHtmlBoundaryAfterLine = (line: string): boolean => {
   const stripped = stripTrailingWhitespace(line);
   if (!stripped) return false;
   if (HR_BLOCK_TAG.test(stripped)) return true;
   return SUPPORTED_BLOCK_LINE_START.test(stripped) && SUPPORTED_BLOCK_END_TAG.test(stripped);
+};
+
+const fencedCodeRanges = (text: string): [number, number][] => {
+  const ranges: [number, number][] = [];
+  let fenceStart: number | undefined;
+  let fenceCharacter: string | undefined;
+  let openingLength = 0;
+  let offset = 0;
+  splitLinesKeepingEnds(text).forEach((line) => {
+    if (fenceCharacter === undefined) {
+      const fence = FENCE_OPEN.exec(line);
+      if (fence && (fence[1]![0] === '~' || !line.slice(fence[0].length).includes('`'))) {
+        fenceStart = offset;
+        [fenceCharacter] = fence[1]!;
+        openingLength = fence[1]!.length;
+      }
+    } else if (
+      fenceStart !== undefined &&
+      isFenceClosingLine(line, fenceCharacter, openingLength)
+    ) {
+      ranges.push([fenceStart, offset + line.length]);
+      fenceStart = undefined;
+      fenceCharacter = undefined;
+    }
+    offset += line.length;
+  });
+  if (fenceStart !== undefined) ranges.push([fenceStart, text.length]);
+  return ranges;
 };
 
 const transformOutsideFencedCode = (text: string, transform: (prose: string) => string): string => {

@@ -29,19 +29,20 @@ describe('live reply Markdown', () => {
     expect(renderLiveMarkdown(md)).toBe(html);
   });
 
-  it("keeps a widget's fallback block as one marker code element, live and sanitized", () => {
-    const reply = (widgetsFixture.renders as { name: string; text: string; html: string }[]).find(
-      (c) => c.name === "the spec's finished reply"
+  // Marker blocks as the live renderer and the backend's HTML find them, with their ids and text.
+  const markers = (html: string) =>
+    [...html.matchAll(/<code class="language-mindroom-ui-([0-9a-f]{10})">([\s\S]*?)<\/code>/g)].map(
+      ([, id, text]) => `${id}:${text}`
     );
-    if (!reply) throw new Error('The fixture lacks the 5.4 reply');
-    const table = /```mindroom-ui-df4d729a5d\n([\s\S]*?)```/.exec(reply.text)?.[1];
-    const markers = (html: string) =>
-      [...html.matchAll(/<code class="language-mindroom-ui-df4d729a5d">([\s\S]*?)<\/code>/g)].map(
-        (match) => match[1]
-      );
 
-    expect(markers(renderLiveMarkdown(reply.text) ?? '')).toEqual([table]);
-    expect(markers(sanitizeCustomHtml(reply.html))).toEqual([table]);
+  it.each(
+    (widgetsFixture.renders as { name: string; text: string; html: string }[]).map(
+      (c) => [c.name, c] as const
+    )
+  )('finds the marker blocks the backend renders, live and sanitized: %s', (_name, c) => {
+    const backend = markers(c.html);
+    expect(markers(renderLiveMarkdown(c.text) ?? '')).toEqual(backend);
+    expect(markers(sanitizeCustomHtml(c.html))).toEqual(backend);
   });
 
   it('keeps HTML openers inside fenced code as code', () => {
