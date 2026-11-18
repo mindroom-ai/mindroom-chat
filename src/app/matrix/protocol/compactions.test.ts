@@ -197,6 +197,17 @@ describe('readCompactionNotice', () => {
     duration_ms: 8400,
   };
 
+  it.each([
+    ['past the latest date', 8.64e15 + 1],
+    ['negative', -1],
+    ['not a number', Number.NaN],
+  ])('leaves out the start of a notice whose event time is %s', (_name, originTs) => {
+    const read = readCompactionNotice(notice({ ...SUCCESS, status: 'running' }), originTs);
+
+    expect(read).toMatchObject({ status: 'running', beforeTokens: 366804 });
+    expect(read).not.toHaveProperty('startedAt');
+  });
+
   it('reads a v3 success notice, started at the event time', () => {
     expect(readCompactionNotice(notice(SUCCESS), ORIGIN_TS)).toEqual({
       id: 'notice',
