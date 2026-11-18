@@ -13,9 +13,12 @@ const events = ['$q', '$a1', '$a2', '$a3'].map((id) => ({ getId: () => id } as M
 const fold: ThreadTurnFold = { key: '$q', hiddenIds: ['$a1', '$a2'], count: 2, answerId: '$a3' };
 const estimate = (index: number) => (index === 1 ? 42 : 30);
 
-const setup = (mountedKeys: string[]) => {
+const setup = (mountedKeys: string[], detachedKeys: string[] = []) => {
   const virtualizer = {
-    elementsCache: new Map(mountedKeys.map((key) => [key, {}])),
+    elementsCache: new Map([
+      ...mountedKeys.map((key) => [key, { isConnected: true }] as const),
+      ...detachedKeys.map((key) => [key, { isConnected: false }] as const),
+    ]),
     resizeItem: vi.fn(),
   } as unknown as Virtualizer<HTMLDivElement, Element>;
   function Probe({ open }: { open?: boolean }) {
@@ -50,5 +53,11 @@ describe('useTurnBreakRowMeasurements', () => {
     render(false);
     render(true);
     expect(resizeItem).not.toHaveBeenCalled();
+  });
+
+  it('resizes a break row unmounted in the commit its turn folds, still in the cache detached', () => {
+    const { resizeItem, render } = setup([], ['$a1']);
+    render(false);
+    expect(resizeItem.mock.calls).toEqual([[1, 42]]);
   });
 });

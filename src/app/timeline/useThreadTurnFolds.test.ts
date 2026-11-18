@@ -1,6 +1,7 @@
 import { MatrixEvent, type EventTimelineSet, type Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { turnRowWaits } from './useThreadTurnFolds';
+import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
+import { isTurnAnswer, turnRowWaits } from './useThreadTurnFolds';
 
 // Whether a thread row keeps its turn unfolded, read from the row as the timeline holds it.
 
@@ -13,13 +14,13 @@ const QUESTION = {
   option_labels: { '✅': 'archive', '📄': 'events', '1': 'archive', '2': 'events' },
 };
 
-const message = (id: string, content: Record<string, unknown>, sender = AGENT) =>
+const message = (id: string, content: Record<string, unknown>, sender = AGENT, ts = Date.now()) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM,
     sender,
     type: 'm.room.message',
-    origin_server_ts: 1,
+    origin_server_ts: ts,
     content: { msgtype: 'm.text', body: id, ...content },
   });
 
@@ -62,6 +63,17 @@ describe('turnRowWaits', () => {
     expect(waits(message('$live', { 'io.mindroom.stream_status': status }))).toBe(true);
   });
 
+  it('lets a reply fold that says it streams but had no revision for the idle limit', () => {
+    const stale = Date.now() - STREAM_IDLE_LIMIT_MS - 60_000;
+    expect(
+      waits(message('$gone', { 'io.mindroom.stream_status': 'streaming' }, AGENT, stale))
+    ).toBe(false);
+    const fresh = Date.now() - STREAM_IDLE_LIMIT_MS + 60_000;
+    expect(
+      waits(message('$slow', { 'io.mindroom.stream_status': 'streaming' }, AGENT, fresh))
+    ).toBe(true);
+  });
+
   it('holds a question until a reaction answers it, whatever came after it', () => {
     const question = message('$ask', { 'io.mindroom.interactive': QUESTION });
     expect(waits(question)).toBe(true);
@@ -78,15 +90,48 @@ describe('turnRowWaits', () => {
     expect(waits(message('$card', {}), [], new Set(['$card']))).toBe(true);
   });
 
-  it('holds a row that did not decrypt from a sender that is no agent by name', () => {
+  it.each([PERSON, AGENT])('holds a row from %s that did not decrypt', (sender) => {
     const undecrypted = new MatrixEvent({
       event_id: '$enc',
       room_id: ROOM,
-      sender: PERSON,
+      sender,
       type: 'm.room.encrypted',
       origin_server_ts: 1,
       content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'x' },
     });
     expect(waits(undecrypted)).toBe(true);
+  });
+});
+
+describe('isTurnAnswer', () => {
+  const redacted = message('$gone', {});
+  redacted.setUnsigned({ redacted_because: { type: 'm.room.redaction' } } as never);
+  it.each<[string, MatrixEvent, boolean, boolean]>([
+    ["an agent's message", message('$a', {}), false, true],
+    ["a person's message", message('$p', {}, PERSON), false, false],
+    ["an agent's notice", message('$n', { msgtype: 'm.notice' }), false, false],
+    ['a quiet marker', message('$m', {}), true, false],
+    ["an agent's redacted message", redacted, false, false],
+    [
+      "an agent's message not decrypted",
+      new MatrixEvent({
+        event_id: '$enc',
+        room_id: ROOM,
+        sender: AGENT,
+        type: 'm.room.encrypted',
+        origin_server_ts: 1,
+        content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'x' },
+      }),
+      false,
+      false,
+    ],
+  ])('reads %s', (_name, row, quiet, answers) => {
+    expect(
+      isTurnAnswer(
+        row,
+        (event) => event.getContent(),
+        () => quiet
+      )
+    ).toBe(answers);
   });
 });

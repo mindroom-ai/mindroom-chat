@@ -106,7 +106,8 @@ const isFinished = (event: MatrixEvent): boolean => {
   return !!status && TERMINAL_STREAM_STATUSES.has(status);
 };
 
-const isIdle = (event: MatrixEvent): boolean =>
+/** A reply with no revision for `STREAM_IDLE_LIMIT_MS`: its writer is gone, whatever it says. */
+export const isStreamingReplyIdle = (event: MatrixEvent): boolean =>
   Date.now() - newestRevisionTs(event) > STREAM_IDLE_LIMIT_MS;
 
 const isUsableEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
@@ -253,7 +254,10 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   const run = async (check: Check): Promise<boolean> => {
     const room = mx.getRoom(check.roomId);
     // A reply that finished through /sync meanwhile, or went idle while it waited, needs no answer.
-    if (!room || [...check.targets].every((target) => isFinished(target) || isIdle(target)))
+    if (
+      !room ||
+      [...check.targets].every((target) => isFinished(target) || isStreamingReplyIdle(target))
+    )
       return true;
     // The thread list or /sync told about the reply since it was asked.
     const known = seen.get(check.eventId);
@@ -366,7 +370,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       });
       return false;
     }
-    if (isIdle(event)) return false;
+    if (isStreamingReplyIdle(event)) return false;
     if (unknown.has(eventId)) return false;
     if (!vouched || vouched.gap !== gapsOf(room.roomId)) ask(room.roomId, eventId, [event]);
     if (!vouched) return false;

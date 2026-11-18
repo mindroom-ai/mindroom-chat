@@ -9,8 +9,8 @@ import { isRowlessTimelineEvent } from './timelineRowFold';
 
 /**
  * Who wrote a thread row, for its turns: a person's message or sticker starts a turn, an agent's
- * message can answer one, and a row that cannot tell (a message not decrypted, from a sender
- * that is no agent by name) keeps its turn unfolded. Other rows (approval cards, state notices)
+ * message can answer one, and a row that cannot tell (a message not decrypted, whoever sent it: an
+ * agent's could be its answer) keeps its turn unfolded. Other rows (approval cards, state notices)
  * are neither. A redacted message keeps only its sender, as the minimap reads it.
  */
 export type ThreadRowAuthor = 'person' | 'agent' | 'unknown' | 'none';
@@ -21,8 +21,7 @@ export const threadRowAuthor = (event: MatrixEvent): ThreadRowAuthor => {
   if (kind !== 'message' && kind !== 'sticker' && kind !== 'encrypted') return 'none';
   const byAgentName = isMindroomAgentUserId(event.getSender());
   if (event.isRedacted()) return byAgentName ? 'agent' : 'person';
-  if (kind === 'encrypted' || event.isDecryptionFailure?.())
-    return byAgentName ? 'agent' : 'unknown';
+  if (kind === 'encrypted' || event.isDecryptionFailure?.()) return 'unknown';
   return isMindroomAgentMessageEvent(event) ? 'agent' : 'person';
 };
 

@@ -187,7 +187,7 @@ describe('threadRowAuthor', () => {
     [
       "an agent's message not decrypted",
       event({ sender: AGENT, type: 'm.room.encrypted' }),
-      'agent',
+      'unknown',
     ],
     ['a membership notice', event({ type: 'm.room.member', stateKey: '@sam:example.org' }), 'none'],
     ['a tool approval card', event({ type: 'io.mindroom.tool_approval', sender: AGENT }), 'none'],

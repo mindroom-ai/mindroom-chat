@@ -3,6 +3,7 @@ import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { useThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { isEventStreaming } from '../event-store/threads/useThreadStreamingState';
+import { isStreamingReplyIdle } from '../matrix/client/streamingReplies';
 import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
 import { getEventReactions } from '../matrix/room';
 import {
@@ -54,12 +55,32 @@ export const turnRowWaits = (
   if (author !== 'agent') return false;
   // A reply that says it streams has not finished, also while the client has yet to vouch for it
   // (isStreamingReplyCurrent): its turn folds once it says it ended.
-  if (isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet)) return true;
+  // One with no revision for a long while lets it fold: its writer is gone (the Working rule).
+  if (
+    isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet) &&
+    !isStreamingReplyIdle(event)
+  ) {
+    return true;
+  }
   // A question waits until a reaction answers it, as its card reads it (QuestionCard), whatever
   // the person wrote since.
   const question = readInteractiveQuestion(getContent(event), event.getOriginalContent());
   return !!question && !readRoomQuestionAnswer(room, eventId, question, viewerId);
 };
+
+/**
+ * Whether a row can answer its turn (`ThreadTurnRules.isAnswer`): an agent's message, as it shows
+ * now, that is not redacted, not a notice and not a quiet marker.
+ */
+export const isTurnAnswer = (
+  event: MatrixEvent,
+  getContent: (event: MatrixEvent) => Record<string, unknown>,
+  isQuietMarker: (event: MatrixEvent) => boolean
+): boolean =>
+  threadRowAuthor(event) === 'agent' &&
+  !event.isRedacted() &&
+  !isQuietMarker(event) &&
+  getContent(event).msgtype !== 'm.notice';
 
 /** Where the timeline keeps the reader's choice for a turn, apart from its messages' folds. */
 const turnFoldKey = (fold: ThreadTurnFold) => `turnFold:${fold.key}`;
@@ -116,12 +137,10 @@ export const useThreadTurnFolds = ({
   const folds = useMemo(() => {
     if (!threadId) return [];
     const now = Date.now();
-    const isAgentMessage = (event: MatrixEvent) => threadRowAuthor(event) === 'agent';
     return planThreadTurnFolds(events, {
       isPersonMessage: (event) => threadRowAuthor(event) === 'person',
       isSkipped,
-      isAnswer: (event) =>
-        isAgentMessage(event) && !isQuietMarker(event) && getContent(event).msgtype !== 'm.notice',
+      isAnswer: (event) => isTurnAnswer(event, getContent, isQuietMarker),
       isQuietMarker,
       holdsTurn: (event) =>
         turnRowWaits(event, { room, timelineSet, getContent, pendingApprovalIds, viewerId, now }),
@@ -184,7 +203,8 @@ export const useTurnBreakRowMeasurements = (
       (hosts.has(id) || before.has(id)) && hosts.get(id) !== before.get(id);
     events.forEach((event, index) => {
       const id = event.getId();
-      if (id && changed(id) && !virtualizer.elementsCache.has(id)) {
+      // A row unmounted in this commit can still be in the cache, detached.
+      if (id && changed(id) && !virtualizer.elementsCache.get(id)?.isConnected) {
         virtualizer.resizeItem(index, estimate(index));
       }
     });
