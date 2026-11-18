@@ -614,6 +614,7 @@ vi.mock('../../matrix/room', () => ({
   canEditEvent: () => false,
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: (_eventId: string, event: { __editedEvent?: unknown }) => event.__editedEvent,
+  getEditStreamFinishTs: (edit: { getTs: () => number }) => edit.getTs(),
   getEventReactions: () => undefined,
   getLatestMessageContent: (
     event?: { getContent?: () => Record<string, unknown> | undefined },
@@ -662,7 +663,7 @@ vi.mock('../../messages/thread-summary/ThreadSummaryMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
   MarkerDetails: 'MarkerDetails',
-  MarkerSettings: 'MarkerSettings',
+  MarkerSettingsLink: 'MarkerSettingsLink',
 }));
 
 vi.mock('../../messages/reactions/Reactions', () => ({

@@ -76,14 +76,31 @@ vi.mock('folds', () => {
     (tag: string) =>
     ({ as, children, ...props }: { as?: string; children?: React.ReactNode }) =>
       React.createElement(as ?? tag, domProps(props), children);
+  const button = element('button');
   return {
     Box: element('div'),
-    Button: element('button'),
+    Button: ({
+      before,
+      children,
+      ...props
+    }: {
+      before?: React.ReactNode;
+      children?: React.ReactNode;
+    }) =>
+      button({ ...props, children: React.createElement(React.Fragment, null, before, children) }),
+    Icon: () => null,
+    Icons: { Check: 'check' },
     Text: element('span'),
     TextArea: (props: Record<string, unknown>) => React.createElement('textarea', domProps(props)),
     color: { Critical: { Main: 'red' } },
   };
 });
+
+vi.mock('./RoomTextSettingTile.css', () => ({
+  Saved: 'Saved',
+  SavedCheck: 'SavedCheck',
+  VisuallyHidden: 'VisuallyHidden',
+}));
 
 let eventCount = 0;
 /** Sets the room's live `thread_summary_instructions` event to one with `content`. */
@@ -121,7 +138,8 @@ const mount = () => {
 const refresh = () => rerender(tile());
 
 const field = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: LABEL });
-const saveButton = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Save' });
+// Save, or Saved for a moment after a write.
+const saveButton = () => screen.getByRole<HTMLButtonElement>('button', { name: /^Saved?$/ });
 const clearButton = () => screen.queryByRole('button', { name: 'Clear' });
 const type = (value: string) => fireEvent.change(field(), { target: { value } });
 const clickSave = () => fireEvent.click(saveButton());
@@ -351,6 +369,77 @@ describe('RoomTextSettingTile', () => {
     ).toBeTruthy();
   });
 
+  it('reads Saved for two seconds after a write, until the person types again', async () => {
+    vi.useFakeTimers();
+    try {
+      mount();
+      type('Use at most 4 words');
+      await act(async () => clickSave());
+      expect(saveButton().textContent).toBe('Saved');
+      expect(saveButton().disabled).toBe(true);
+      expect(screen.getByRole('status').textContent).toBe('Saved');
+
+      act(() => {
+        vi.advanceTimersByTime(1999);
+      });
+      expect(saveButton().textContent).toBe('Saved');
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(saveButton().textContent).toBe('Save');
+      expect(screen.getByRole('status').textContent).toBe('');
+
+      // Clear confirms the same way, and typing ends it early.
+      await act(async () => fireEvent.click(clearButton()!));
+      expect(saveButton().textContent).toBe('Saved');
+      type('Use at most 5 words');
+      expect(saveButton().textContent).toBe('Save');
+      expect(saveButton().disabled).toBe(false);
+      expect(screen.getByRole('status').textContent).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('counts the two seconds from the latest write, and a failed one ends Saved', async () => {
+    vi.useFakeTimers();
+    const wait = (ms: number) =>
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+    try {
+      mount();
+      type('Use at most 4 words');
+      await act(async () => clickSave());
+      wait(1500);
+      expect(saveButton().textContent).toBe('Saved');
+
+      // A second write inside the window: Saved lasts two seconds from it, not from the first.
+      await act(async () => fireEvent.click(clearButton()!));
+      expect(sentContent(1)).toEqual({});
+      wait(600);
+      expect(saveButton().textContent).toBe('Saved');
+      wait(1399);
+      expect(saveButton().textContent).toBe('Saved');
+      wait(1);
+      expect(saveButton().textContent).toBe('Save');
+
+      // A failed write inside the window takes Saved away and leaves the alert.
+      type('Use at most 5 words');
+      await act(async () => clickSave());
+      wait(500);
+      expect(saveButton().textContent).toBe('Saved');
+      const failed = deferSend();
+      fireEvent.click(clearButton()!);
+      await failed.reject();
+      expect(saveButton().textContent).toBe('Save');
+      expect(screen.getByRole('status').textContent).toBe('');
+      expect(screen.getByRole('alert').textContent).toBe(FAILED);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('says so in an alert when the save fails, and keeps the text', async () => {
     mount();
     type('Use at most 4 words');
@@ -360,7 +449,9 @@ describe('RoomTextSettingTile', () => {
 
     expect(screen.getByRole('alert').textContent).toBe(FAILED);
     expect(field().value).toBe('Use at most 4 words');
+    expect(saveButton().textContent).toBe('Save');
     expect(saveButton().disabled).toBe(false);
+    expect(screen.getByRole('status').textContent).toBe('');
 
     // Typing again takes the error away.
     type('Use at most 4 words.');

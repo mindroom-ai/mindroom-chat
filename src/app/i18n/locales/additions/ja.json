@@ -392,7 +392,8 @@
         "deactivate": "アカウント削除, アカウントの解約",
         "localMindroom": "ペアリング, ペアリングコード, ローカル, デスクトップ",
         "emoji": "絵文字, ステッカー, パック, カスタム絵文字",
-        "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー"
+        "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
+        "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -669,6 +670,7 @@
           "note": "すでに付いているタイトルは、次に更新されるまで今の表現のままです。"
         },
         "save": "保存",
+        "saved": "保存しました",
         "clear": "クリア",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "このルームの設定を変更できる人だけが編集できます。",
@@ -797,7 +799,13 @@
         "toolRunningFor": "{{duration}}実行中"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "タイトルの設定"
+        "titleSettings": "タイトルの設定…"
+      },
+      "replyTime": {
+        "started": "開始 {{value1}}",
+        "finished": "終了 {{value1}}",
+        "stillStreaming": "まだ生成中",
+        "duration": "所要時間 {{value1}}"
       }
     },
     "message-search": {
@@ -904,7 +912,19 @@
     "moreActions": "その他の操作",
     "lostFiles": "この下書きでは保持されませんでした: {{files}}。送信する前にもう一度添付してください。",
     "lostPastes": "貼り付けたテキストはこの下書きに保持されませんでした。送信する前にもう一度貼り付けてください。",
-    "dismissLostFiles": "閉じる"
+    "dismissLostFiles": "閉じる",
+    "midTurn": {
+      "menuLabel": "エージェントの返信中に送信",
+      "steer": "割り込み",
+      "defaultChoice": "{{label}}（デフォルト）",
+      "steerHint": "返信を止めて、このメッセージで続ける",
+      "queue": "待機",
+      "queueHint": "返信が終わってから送信",
+      "auto": "自動",
+      "autoHint": "エージェントに任せる",
+      "settingTitle": "エージェントの返信中に送信",
+      "settingDescription": "送信を長押しすると、1 件ごとに選べます。"
+    }
   },
   "commandPalette": {
     "state": {

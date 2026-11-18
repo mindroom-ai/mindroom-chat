@@ -397,7 +397,8 @@
         "deactivate": "Konto löschen, Konto schließen",
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
-        "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz"
+        "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
+        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -678,6 +679,7 @@
           "note": "Bereits vergebene Titel behalten ihren Wortlaut bis zur nächsten Aktualisierung."
         },
         "save": "Speichern",
+        "saved": "Gespeichert",
         "clear": "Löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
@@ -808,7 +810,13 @@
         "toolRunningFor": "Läuft seit {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Titeleinstellungen"
+        "titleSettings": "Titeleinstellungen…"
+      },
+      "replyTime": {
+        "started": "Begonnen {{value1}}",
+        "finished": "Beendet {{value1}}",
+        "stillStreaming": "Läuft noch",
+        "duration": "Dauer {{value1}}"
       }
     },
     "message-search": {
@@ -921,7 +929,19 @@
     "moreActions": "Weitere Aktionen",
     "lostFiles": "Nicht mit diesem Entwurf behalten: {{files}}. Hänge sie vor dem Senden erneut an.",
     "lostPastes": "Eingefügter Text wurde nicht mit diesem Entwurf behalten. Füge ihn vor dem Senden erneut ein.",
-    "dismissLostFiles": "Ausblenden"
+    "dismissLostFiles": "Ausblenden",
+    "midTurn": {
+      "menuLabel": "Senden, während der Agent antwortet",
+      "steer": "Lenken",
+      "defaultChoice": "{{label}} (Standard)",
+      "steerHint": "Antwort beenden und mit dieser Nachricht weitermachen",
+      "queue": "Einreihen",
+      "queueHint": "Nach Ende der Antwort senden",
+      "auto": "Automatisch",
+      "autoHint": "Den Agenten entscheiden lassen",
+      "settingTitle": "Senden, während ein Agent antwortet",
+      "settingDescription": "Halte Senden gedrückt, um für eine Nachricht anders zu wählen."
+    }
   },
   "commandPalette": {
     "state": {

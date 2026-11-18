@@ -11,3 +11,10 @@ export const Unavailable = style({
     '&&[aria-disabled="true"]': { opacity: '1 !important', height: 'auto' },
   },
 });
+
+/** An entry with a line under its label: the row grows to hold it, as an unavailable one does. */
+export const Described = style({
+  selectors: {
+    '&&': { height: 'auto' },
+  },
+});

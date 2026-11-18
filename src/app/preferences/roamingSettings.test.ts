@@ -46,6 +46,17 @@ describe('readRoamingSettings', () => {
     expect(read(42)).toEqual({});
   });
 
+  it('takes only a known mode for Send while an agent replies', () => {
+    const read = (midTurnSend: unknown) =>
+      readRoamingSettings({ version: ROAMING_SETTINGS_VERSION, midTurnSend });
+    for (const mode of ['steer', 'queue', 'auto']) {
+      expect(read(mode)).toEqual({ midTurnSend: mode });
+    }
+    expect(read('later')).toEqual({});
+    expect(read('')).toEqual({});
+    expect(read(true)).toEqual({});
+  });
+
   it('never reads a setting that stays on the device, whatever the content holds', () => {
     // 🔒 Account data is input the homeserver controls: it may not set the zoom, the theme, link
     // previews in encrypted rooms, error reports or the computer server of this device.
@@ -186,12 +197,14 @@ describe('roamingMigration', () => {
         const value = DEFAULT_SETTINGS[key];
         // The clock has no default (it follows the language), so a choice differs from it.
         if (value === undefined) return [key, true];
+        if (key === 'midTurnSend') return [key, 'queue'];
         return [key, typeof value === 'boolean' ? !value : 'YYYY-MM-DD'];
       })
     );
     const patch = roamingMigration({}, device(flipped), DEFAULT_SETTINGS);
     expect(patch.hideActivity).toBe(true);
     expect(patch.urlPreview).toBe(false);
+    expect(patch.midTurnSend).toBe('queue');
     ROAMING_KEYS.forEach((key) => expect(patch[key], key).not.toBe(DEFAULT_SETTINGS[key]));
     expect(roamingMigration({}, device(), DEFAULT_SETTINGS)).toEqual({});
   });

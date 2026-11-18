@@ -61,6 +61,13 @@ describe('live Chat UI action delivery', () => {
     );
   });
 
+  it('keeps a canvas made for another member passive for this viewer', () => {
+    const fixture = setup();
+    const canvas = { title: 'Chapter 1', html: '<p>Once</p>' };
+    fixture.emit(makeUiEvent({ action: 'show_canvas', canvas, requester_id: '@bob:example.org' }));
+    expect(fixture.onAction).not.toHaveBeenCalled();
+  });
+
   it.each([
     { servers: [] },
     { servers: ['elsewhere.org'] },

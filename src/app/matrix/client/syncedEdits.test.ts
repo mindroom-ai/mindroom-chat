@@ -7,6 +7,7 @@ import {
   hasStreamEnded,
   isStreamingByServer,
   keepSyncedEdits,
+  onSyncedEditForgotten,
 } from './syncedEdits';
 import { isEventStreaming } from '../../event-store/threads/useThreadStreamingState';
 
@@ -239,6 +240,22 @@ describe('a full map of kept edits', () => {
     expect(getSyncedEdit('$other0')).toBeUndefined();
     expect(getSyncedEdit('$other1')?.getId()).toBe('$edit1');
     expect(getSyncedEdit(`$other${LIMIT}`)?.getId()).toBe(`$edit${LIMIT}`);
+  });
+
+  it('tells its listeners each message a full map drops, until they stop listening', () => {
+    const mx = start();
+    const forgotten: string[] = [];
+    const stop = onSyncedEditForgotten((messageId) => forgotten.push(messageId));
+    fill(mx, 0, LIMIT);
+    expect(forgotten).toEqual([]);
+
+    // Three maps keep a finishing edit, and each drops its oldest message.
+    fill(mx, LIMIT, 1);
+    expect(forgotten).toEqual(['$other0', '$other0', '$other0']);
+
+    stop();
+    fill(mx, LIMIT + 1, 1);
+    expect(forgotten).toHaveLength(3);
   });
 
   it('counts a message as new again when it gets a newer edit', () => {

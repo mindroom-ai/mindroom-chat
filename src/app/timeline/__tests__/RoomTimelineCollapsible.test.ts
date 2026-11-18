@@ -419,7 +419,7 @@ vi.mock('../../messages/thread-summary/ThreadSummaryMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
   MarkerDetails: 'MarkerDetails',
-  MarkerSettings: 'MarkerSettings',
+  MarkerSettingsLink: 'MarkerSettingsLink',
 }));
 
 vi.mock('../../messages/reactions/Reactions', () => ({

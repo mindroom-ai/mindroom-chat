@@ -209,7 +209,11 @@ function LoadedInlineCanvas({
   );
 }
 
-/** The latest accepted inline canvas, with no panel side effects or saved state. */
+/**
+ * The latest accepted inline canvas, with no panel side effects or saved state. It runs only for
+ * the member who asked for it; another member opens it with the notice's button, so a page made
+ * for someone else never runs (or loads remote assets) on its own.
+ */
 export function InlineCanvasFrame({ event }: { event: MatrixEvent }) {
   const config = useClientConfig();
   const mx = useMatrixClient();
@@ -228,6 +232,7 @@ export function InlineCanvasFrame({ event }: { event: MatrixEvent }) {
   if (!room) return null;
   const action = readChatUiAction(event, mx.getSafeUserId(), room);
   if (action?.action !== 'show_canvas' || !action.inline) return null;
+  if (action.requesterId !== mx.getSafeUserId()) return null;
   return (
     <LoadedInlineCanvas
       key={action.eventId}

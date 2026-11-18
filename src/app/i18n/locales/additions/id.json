@@ -392,7 +392,8 @@
         "deactivate": "hapus akun, tutup akun",
         "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
         "emoji": "emoji, stiker, paket, emoji kustom",
-        "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi"
+        "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
+        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -669,6 +670,7 @@
           "note": "Judul yang sudah ada tetap memakai kata-katanya sampai diperbarui lagi."
         },
         "save": "Simpan",
+        "saved": "Tersimpan",
         "clear": "Hapus",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
@@ -797,7 +799,13 @@
         "toolRunningFor": "Berjalan selama {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Pengaturan judul"
+        "titleSettings": "Pengaturan judul…"
+      },
+      "replyTime": {
+        "started": "Dimulai {{value1}}",
+        "finished": "Selesai {{value1}}",
+        "stillStreaming": "Masih berjalan",
+        "duration": "Durasi {{value1}}"
       }
     },
     "message-search": {
@@ -904,7 +912,19 @@
     "moreActions": "Tindakan lainnya",
     "lostFiles": "Tidak disimpan bersama draf ini: {{files}}. Lampirkan lagi sebelum mengirim.",
     "lostPastes": "Teks yang ditempel tidak disimpan bersama draf ini. Tempel lagi sebelum mengirim.",
-    "dismissLostFiles": "Tutup"
+    "dismissLostFiles": "Tutup",
+    "midTurn": {
+      "menuLabel": "Kirim saat agen membalas",
+      "steer": "Arahkan",
+      "defaultChoice": "{{label}} (bawaan)",
+      "steerHint": "Hentikan balasan dan lanjutkan dengan pesan ini",
+      "queue": "Antrekan",
+      "queueHint": "Kirim setelah balasan selesai",
+      "auto": "Otomatis",
+      "autoHint": "Biarkan agen memutuskan",
+      "settingTitle": "Kirim saat agen sedang membalas",
+      "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
+    }
   },
   "commandPalette": {
     "state": {

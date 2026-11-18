@@ -3,6 +3,7 @@ import {
   test,
   type Browser,
   type BrowserContextOptions,
+  type FileChooser,
   type Locator,
   type Page,
 } from '@playwright/test';
@@ -148,6 +149,22 @@ type Form = 'desktop' | 'phone';
 const sendComposer = async (page: Page, form: Form) => {
   if (form === 'phone') await page.getByRole('button', { name: 'Send message' }).click();
   else await page.keyboard.press('Enter');
+};
+
+/** Attaches `files` through the composer's attach button, in the More actions menu on a phone. */
+const attachFiles = async (
+  page: Page,
+  form: Form,
+  files: Parameters<FileChooser['setFiles']>[0]
+) => {
+  const chooser = page.waitForEvent('filechooser');
+  if (form === 'phone') {
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: 'Attach files' }).click();
+  } else {
+    await page.getByRole('button', { name: 'Attach files' }).click();
+  }
+  await (await chooser).setFiles(files);
 };
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -358,16 +375,7 @@ const draftAfterReload: Check = async (page, world, { form, tag, where }) => {
   const cancelReply = page.getByRole('button', { name: 'Cancel reply' });
   await expect(cancelReply).toBeVisible();
 
-  const chooser = page.waitForEvent('filechooser');
-  if (form === 'phone') {
-    await page.getByRole('button', { name: 'More actions' }).click();
-    await page.getByRole('menuitem', { name: 'Attach files' }).click();
-  } else {
-    await page.getByRole('button', { name: 'Attach files' }).click();
-  }
-  await (
-    await chooser
-  ).setFiles([
+  await attachFiles(page, form, [
     {
       name: 'notes01.txt',
       mimeType: 'text/plain',
@@ -407,6 +415,42 @@ const draftAfterReload: Check = async (page, world, { form, tag, where }) => {
   await expect(cancelReply).toHaveCount(0);
 };
 
+// Files and their caption go out as one submission: the files first, each saying more of it
+// follows, and the caption last, which ends it.
+const attachmentSubmission: Check = async (page, world, { form, tag, where }) => {
+  const marker = `S${tag}`;
+  const files = [`${marker}-notes.txt`, `${marker}-sample.png`];
+  await attachFiles(page, form, [
+    { name: files[0]!, mimeType: 'text/plain', buffer: Buffer.from('Release notes.') },
+    { name: files[1]!, mimeType: 'image/png', buffer: PNG },
+  ]);
+  for (const file of files) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.getByText(file, { exact: true })).toBeVisible({ timeout: 20_000 });
+  }
+  const caption = `${marker} what is in these?`;
+  await composer(page).click();
+  await page.keyboard.type(caption);
+  await sendComposer(page, form);
+
+  await sentEvent(world.admin.accessToken, world.roomId, caption);
+  const events = (await latestMessages(world.admin.accessToken, world.roomId))
+    .filter((event) => String(event.content.body).startsWith(marker))
+    .reverse();
+  expect(
+    events.map((event) => event.content.body),
+    `${where}: the files go first, the caption last`
+  ).toEqual([...files, caption]);
+  const markers = events.map((event) => event.content['io.mindroom.submission']);
+  const id = (markers[0] as { id?: unknown } | undefined)?.id;
+  expect(typeof id, `${where}: the submission has an id`).toBe('string');
+  expect(markers, `${where}: only the caption ends the submission`).toEqual([
+    { id, more: true },
+    { id, more: true },
+    { id, more: false },
+  ]);
+};
+
 const CHECKS: Array<[string, Check]> = [
   ['keeps the reply and names the lost files of a draft after a reload', draftAfterReload],
   ['offers @room only to who may notify the room, and sends m.mentions.room', roomMention],
@@ -414,6 +458,7 @@ const CHECKS: Array<[string, Check]> = [
   ['sends a Markdown table as a table', markdownTable],
   ['sends Markdown links with the configured extra schemes', configuredLinks],
   ['refuses an unknown slash command and keeps the text', unknownCommand],
+  ['sends files and their caption as one submission the caption ends', attachmentSubmission],
 ];
 
 // Each test has its own accounts and room, so they may run side by side.

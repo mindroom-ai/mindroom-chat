@@ -215,6 +215,13 @@ describe('Canvases', () => {
     expect(cells('Main')[2]).toBe('');
   });
 
+  it("says nothing of sharing for another member's canvas, which shares only their values", async () => {
+    await recordCanvas(SESSION, entry({ shared: true, requesterId: '@bob:example.org' }));
+    await render();
+    expect(container.querySelector('tbody tr')?.textContent).toContain('Plans');
+    expect(container.textContent).not.toContain('Shared with agent');
+  });
+
   it('opens a canvas in its thread, or just its thread or room', async () => {
     await recordCanvas(SESSION, entry({}));
     await recordCanvas(SESSION, entry({ canvasId: '$main', title: 'Main', threadId: undefined }));

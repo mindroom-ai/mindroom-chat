@@ -392,7 +392,8 @@
         "deactivate": "刪除帳號, 關閉帳號",
         "localMindroom": "配對, 配對碼, 本機, 桌面",
         "emoji": "表情符號, 貼圖, 表情包, 自訂表情符號",
-        "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私"
+        "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
+        "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -669,6 +670,7 @@
           "note": "已有的標題會保留原本的措辭，直到下次重新整理。"
         },
         "save": "儲存",
+        "saved": "已儲存",
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",
@@ -797,7 +799,13 @@
         "toolRunningFor": "已執行 {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "標題設定"
+        "titleSettings": "標題設定…"
+      },
+      "replyTime": {
+        "started": "開始 {{value1}}",
+        "finished": "結束 {{value1}}",
+        "stillStreaming": "仍在生成",
+        "duration": "用時 {{value1}}"
       }
     },
     "message-search": {
@@ -904,7 +912,19 @@
     "moreActions": "更多操作",
     "lostFiles": "未隨此草稿保留：{{files}}。傳送前請重新附加。",
     "lostPastes": "貼上的文字未隨此草稿保留。傳送前請重新貼上。",
-    "dismissLostFiles": "關閉"
+    "dismissLostFiles": "關閉",
+    "midTurn": {
+      "menuLabel": "代理程式回覆時傳送",
+      "steer": "轉向",
+      "defaultChoice": "{{label}}（預設）",
+      "steerHint": "停止回覆，以這則訊息繼續",
+      "queue": "排入佇列",
+      "queueHint": "回覆結束後傳送",
+      "auto": "自動",
+      "autoHint": "讓代理程式決定",
+      "settingTitle": "代理程式正在回覆時傳送",
+      "settingDescription": "長按傳送可為單則訊息另選方式。"
+    }
   },
   "commandPalette": {
     "state": {

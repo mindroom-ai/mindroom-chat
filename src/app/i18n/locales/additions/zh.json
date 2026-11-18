@@ -392,7 +392,8 @@
         "deactivate": "删除账号, 注销账号",
         "localMindroom": "配对, 配对码, 本地, 桌面",
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
-        "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私"
+        "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
+        "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -669,6 +670,7 @@
           "note": "已有的标题会保持原有措辞，直到下次刷新。"
         },
         "save": "保存",
+        "saved": "已保存",
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
@@ -797,7 +799,13 @@
         "toolRunningFor": "已运行 {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "标题设置"
+        "titleSettings": "标题设置…"
+      },
+      "replyTime": {
+        "started": "开始 {{value1}}",
+        "finished": "结束 {{value1}}",
+        "stillStreaming": "仍在生成",
+        "duration": "用时 {{value1}}"
       }
     },
     "message-search": {
@@ -904,7 +912,19 @@
     "moreActions": "更多操作",
     "lostFiles": "未随此草稿保留：{{files}}。发送前请重新添加附件。",
     "lostPastes": "粘贴的文本未随此草稿保留。发送前请重新粘贴。",
-    "dismissLostFiles": "关闭"
+    "dismissLostFiles": "关闭",
+    "midTurn": {
+      "menuLabel": "智能体回复时发送",
+      "steer": "转向",
+      "defaultChoice": "{{label}}（默认）",
+      "steerHint": "停止回复，用这条消息继续",
+      "queue": "排队",
+      "queueHint": "回复结束后发送",
+      "auto": "自动",
+      "autoHint": "让智能体决定",
+      "settingTitle": "智能体正在回复时发送",
+      "settingDescription": "长按发送可为单条消息另选方式。"
+    }
   },
   "commandPalette": {
     "state": {

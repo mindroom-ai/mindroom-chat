@@ -219,7 +219,12 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     unknown.delete(eventId);
     if (seen.size > SEEN_LIMIT) {
       const oldest = seen.keys().next().value;
-      if (oldest !== undefined) seen.delete(oldest);
+      if (oldest === undefined) return;
+      seen.delete(oldest);
+      // A card that shows the forgotten reply as streaming is built again, and asks about it.
+      const showing = shown.get(oldest);
+      const room = showing && mx.getRoom(showing.roomId);
+      if (room) announce(room, showing.targets);
     }
   };
 

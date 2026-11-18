@@ -402,7 +402,8 @@
         "deactivate": "eliminar conta, encerrar conta",
         "localMindroom": "emparelhar, código de emparelhamento, local, computador",
         "emoji": "emoji, autocolantes, pacotes, emoji personalizados",
-        "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade"
+        "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
+        "midTurn": "redirecionar, fila, automático, agente, resposta, interromper"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",
@@ -687,6 +688,7 @@
           "note": "Os títulos já atribuídos mantêm a redação até à próxima atualização."
         },
         "save": "Guardar",
+        "saved": "Guardado",
         "clear": "Limpar",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Só quem pode alterar as definições desta sala pode editar isto.",
@@ -819,7 +821,13 @@
         "toolRunningFor": "Em execução há {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Definições de títulos"
+        "titleSettings": "Definições de títulos…"
+      },
+      "replyTime": {
+        "started": "Começou {{value1}}",
+        "finished": "Terminou {{value1}}",
+        "stillStreaming": "Ainda em andamento",
+        "duration": "Duração {{value1}}"
       }
     },
     "message-search": {
@@ -938,7 +946,19 @@
     "moreActions": "Mais ações",
     "lostFiles": "Não mantidos com este rascunho: {{files}}. Anexe-os novamente antes de enviar.",
     "lostPastes": "O texto colado não foi mantido com este rascunho. Cole-o novamente antes de enviar.",
-    "dismissLostFiles": "Dispensar"
+    "dismissLostFiles": "Dispensar",
+    "midTurn": {
+      "menuLabel": "Enviar enquanto o agente responde",
+      "steer": "Redirecionar",
+      "defaultChoice": "{{label}} (padrão)",
+      "steerHint": "Parar a resposta e continuar com esta mensagem",
+      "queue": "Na fila",
+      "queueHint": "Enviar quando a resposta terminar",
+      "auto": "Automático",
+      "autoHint": "Deixar o agente decidir",
+      "settingTitle": "Enviar enquanto um agente responde",
+      "settingDescription": "Mantenha Enviar pressionado para escolher em uma só mensagem."
+    }
   },
   "commandPalette": {
     "state": {
