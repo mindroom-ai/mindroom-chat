@@ -109,7 +109,28 @@ const unfinished = (status: string, reason: string, durationMs: number) => ({
   compacted_run_count: undefined,
 });
 
-/** A thread the reader starts in a room with an agent: `reply` and `notice` send in it. */
+/** A thread the reader starts in a room with an agent: `reply` and `say` send in it. */
+const ROOT = 'Okay, so is everything now addressed from this thread?';
+
+/** Scene 1: a finished reply compacted mid-turn, after tool call 3 of a run of three. */
+const midTurnReply = () => ({
+  ...agentReply(
+    [CHECK, ...markers([BASH_503, BASH_4075, READ]), CHECKING, ...markers([CURL, CURL], 4), TLDR],
+    [BASH_503, BASH_4075, READ, CURL, CURL]
+  ),
+  ...finished,
+  ...thought(7),
+  'io.mindroom.compactions': [compaction('mid', 3)],
+});
+
+/** The screenshots' themes and sizes, in the order they are taken. */
+const SHOTS = [
+  ['desktop-dark', 'dark-theme', DESKTOP],
+  ['phone-dark', 'dark-theme', PHONE],
+  ['desktop-light', 'light-theme', DESKTOP],
+  ['phone-light', 'light-theme', PHONE],
+] as const;
+
 const startThread = async (name: string, rootBody: string) => {
   const username = `cs_${name}_${RUN}`;
   const reader = await registerDisposableUser(username, PASSWORD);
@@ -214,20 +235,9 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
 }) => {
   test.setTimeout(600_000);
   await page.setViewportSize(DESKTOP);
-  const thread = await startThread(
-    'scenes',
-    'Okay, so is everything now addressed from this thread?'
-  );
+  const thread = await startThread('scenes', ROOT);
   // (1) Mid-turn, after tool call 3 of a run of three.
-  await thread.reply({
-    ...agentReply(
-      [CHECK, ...markers([BASH_503, BASH_4075, READ]), CHECKING, ...markers([CURL, CURL], 4), TLDR],
-      [BASH_503, BASH_4075, READ, CURL, CURL]
-    ),
-    ...finished,
-    ...thought(7),
-    'io.mindroom.compactions': [compaction('mid', 3)],
-  });
+  await thread.reply(midTurnReply());
   // (5) Two compactions in one run of eleven calls: after calls 4 and 9.
   const eleven = Array.from({ length: 11 }, (_, index) => (index % 3 === 2 ? READ : BASH_503));
   await thread.reply({
@@ -461,55 +471,38 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await page.mouse.move(0, 0);
 
   if (!SCREENSHOT) return;
-  for (const [theme, themeId] of [
-    ['dark', 'dark-theme'],
-    ['light', 'light-theme'],
-  ] as const) {
-    for (const [device, size] of [
-      ['desktop', DESKTOP],
-      ['phone', PHONE],
-    ] as const) {
-      await page.setViewportSize(size);
-      await applySettings(page, themeId, true);
-      await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
-      const name = `${device}-${theme}`;
-      const seam = seamsIn(replyWith(page, CHECKING));
-      await centre(page, seam);
-      await seam.getByRole('button').hover();
-      await expect(card).toBeVisible();
-      await shot(page, seam, `${name}-1-mid-card`);
-      await page.mouse.move(0, 0);
-      await shot(page, seamsIn(replyWith(page, TWO)).nth(1), `${name}-5-two`);
-      await shot(page, seamsIn(page.locator(`[data-message-id="${oldId}"]`)), `${name}-7-notices`);
-      await shot(page, seamsIn(replyWith(page, STATES)).nth(2), `${name}-6-states`);
-      const failedSeam = seamsIn(replyWith(page, STATES)).nth(0);
-      await centre(page, failedSeam);
-      await failedSeam.getByRole('button').hover();
-      await expect(card).toContainText('529 overloaded');
-      await shot(page, failedSeam, `${name}-6-failed-card`);
-      await page.mouse.move(0, 0);
-      await shot(page, seamsIn(page.locator('[data-message-item]').last()), `${name}-4-pre-turn`);
-      const fold = replyWith(page, WORKED).getByRole('button', { name: /^Worked/ });
-      await fold.click();
-      await shot(page, seamsIn(replyWith(page, WORKED)), `${name}-3-worked-open`);
-      await fold.click();
-    }
+  for (const [name, themeId, size] of SHOTS) {
+    await page.setViewportSize(size);
+    await applySettings(page, themeId, true);
+    await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
+    const seam = seamsIn(replyWith(page, CHECKING));
+    await centre(page, seam);
+    await seam.getByRole('button').hover();
+    await expect(card).toBeVisible();
+    await shot(page, seam, `${name}-1-mid-card`);
+    await page.mouse.move(0, 0);
+    await shot(page, seamsIn(replyWith(page, TWO)).nth(1), `${name}-5-two`);
+    await shot(page, seamsIn(page.locator(`[data-message-id="${oldId}"]`)), `${name}-7-notices`);
+    await shot(page, seamsIn(replyWith(page, STATES)).nth(2), `${name}-6-states`);
+    const failedSeam = seamsIn(replyWith(page, STATES)).nth(0);
+    await centre(page, failedSeam);
+    await failedSeam.getByRole('button').hover();
+    await expect(card).toContainText('529 overloaded');
+    await shot(page, failedSeam, `${name}-6-failed-card`);
+    await page.mouse.move(0, 0);
+    await shot(page, seamsIn(page.locator('[data-message-item]').last()), `${name}-4-pre-turn`);
+    const fold = replyWith(page, WORKED).getByRole('button', { name: /^Worked/ });
+    await fold.click();
+    await shot(page, seamsIn(replyWith(page, WORKED)), `${name}-3-worked-open`);
+    await fold.click();
   }
 });
 
 test('a seam stays between the texts while the cog hides the tool calls', async ({ page }) => {
   test.setTimeout(300_000);
   await page.setViewportSize(DESKTOP);
-  const thread = await startThread('cog', 'Okay, so is everything now addressed from this thread?');
-  await thread.reply({
-    ...agentReply(
-      [CHECK, ...markers([BASH_503, BASH_4075, READ]), CHECKING, ...markers([CURL, CURL], 4), TLDR],
-      [BASH_503, BASH_4075, READ, CURL, CURL]
-    ),
-    ...finished,
-    ...thought(7),
-    'io.mindroom.compactions': [compaction('mid', 3)],
-  });
+  const thread = await startThread('cog', ROOT);
+  await thread.reply(midTurnReply());
 
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -544,19 +537,11 @@ test('a seam stays between the texts while the cog hides the tool calls', async 
   await expect(seam).toBeVisible();
 
   if (!SCREENSHOT) return;
-  for (const [theme, themeId] of [
-    ['dark', 'dark-theme'],
-    ['light', 'light-theme'],
-  ] as const) {
-    for (const [device, size] of [
-      ['desktop', DESKTOP],
-      ['phone', PHONE],
-    ] as const) {
-      await page.setViewportSize(size);
-      await applySettings(page, themeId, false);
-      await expect(seamsIn(replyWith(page, CHECKING))).toBeVisible({ timeout: 60_000 });
-      await page.mouse.move(0, 0);
-      await shot(page, seamsIn(replyWith(page, CHECKING)), `${device}-${theme}-2-cog-hidden`);
-    }
+  for (const [name, themeId, size] of SHOTS) {
+    await page.setViewportSize(size);
+    await applySettings(page, themeId, false);
+    await expect(seamsIn(replyWith(page, CHECKING))).toBeVisible({ timeout: 60_000 });
+    await page.mouse.move(0, 0);
+    await shot(page, seamsIn(replyWith(page, CHECKING)), `${name}-2-cog-hidden`);
   }
 });
