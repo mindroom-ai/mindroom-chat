@@ -14,7 +14,6 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
@@ -1722,12 +1721,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // later (Back, or the way back from a thread opened since) finds the list where it was left.
   const compactFocusRequest =
     compactCards && threadIndex.showCompactRoomView && !!eventId && !!focusEventInRoom;
-  const { state: locationState } = useLocation();
   useEffect(() => {
-    if (compactFocusRequest) {
-      navigateRoom(room.roomId, undefined, { replace: true, state: locationState });
-    }
-  }, [compactFocusRequest, locationState, navigateRoom, room.roomId]);
+    if (compactFocusRequest) navigateRoom(room.roomId, undefined, { replace: true });
+  }, [compactFocusRequest, navigateRoom, room.roomId]);
 
   // Compact mode: the room's threads as cards. A room without any thread waits until it knows
   // it has none (its cache read and the client's first catch-up), then shows its timeline under

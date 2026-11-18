@@ -144,6 +144,9 @@ export const useRoomEventOpenController = ({
   openRoomEventRoute: OpenRoomEventRoute;
 } => {
   const threadJumpGenerationRef = useRef(0);
+  // The last route open that loads its event: what it loads after its route moved on (the room's
+  // own address took its place) is dropped, as it would redirect or move the room for that route.
+  const routeLoadRef = useRef<{ eventId: string; isCurrentRoute: () => boolean }>();
 
   const redirectRoomEventDeepLink = useCallback(
     (targetEventId: string, linkedTimelines?: EventTimeline[]): boolean => {
@@ -186,6 +189,8 @@ export const useRoomEventOpenController = ({
     useCallback(
       (evtId, linkedTimelines, eventAbsoluteIndex) => {
         if (!alive()) return;
+        const routeLoad = routeLoadRef.current;
+        if (routeLoad?.eventId === evtId && !routeLoad.isCurrentRoute()) return;
         if (redirectRoomEventDeepLink(evtId, linkedTimelines)) {
           return;
         }
@@ -499,6 +504,7 @@ export const useRoomEventOpenController = ({
         }
       }
 
+      routeLoadRef.current = { eventId: targetEventId, isCurrentRoute };
       await handleOpenEvent(targetEventId);
     },
     [

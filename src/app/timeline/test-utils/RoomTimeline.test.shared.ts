@@ -1815,6 +1815,7 @@ export {
   makeRoom,
   makeTimeline,
   matrixClientMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
   reactionOrEditEventMock,
   inSameDayMock,

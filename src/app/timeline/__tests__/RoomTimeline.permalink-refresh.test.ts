@@ -14,6 +14,7 @@ import {
   makeRoom,
   makeTimeline,
   matrixClientMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
   roomTimelineVirtualizerState,
   roomThreadListThreadsMock,
@@ -407,6 +408,9 @@ describe('RoomTimeline', () => {
           align: 'center',
           behavior: 'smooth',
         });
+        // The cards took the focus request: the room's own address takes its place, so a later
+        // Back to this entry does not apply it again.
+        expect(navigateRoomMock).toHaveBeenCalledWith(room.roomId, undefined, { replace: true });
       });
 
       it('bypasses room overview filters for synthetic room-focus routes when the focused root is hidden', async () => {
@@ -440,6 +444,8 @@ describe('RoomTimeline', () => {
         expect(getRenderedEventIds(renderer!)).toEqual([threadRoot.getId()]);
         expect(renderer?.root.findAllByType(roomThreadOverviewType)).toHaveLength(1);
         expect(renderer?.root.findAllByType(compactPlaceholderType)).toHaveLength(0);
+        // The Threads view keeps the address that focuses the event.
+        expect(navigateRoomMock).not.toHaveBeenCalled();
       });
 
       it('keeps synthetic room-focus permalinks in room-overview order for visible roots in natural mode', async () => {
