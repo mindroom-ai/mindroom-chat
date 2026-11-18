@@ -10,6 +10,7 @@ import {
   makeRoom,
   makeTimeline,
   roomTimelineVirtualizerState,
+  powerLevelsContextMock,
   stateEventsByTypeMock,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -29,8 +30,10 @@ importBeforeTests(() => import('../RoomTimeline'));
 /** A thread with a voice message and the router's echo of it, the room's state naming `router`. */
 const openThread = async (router?: string) => {
   if (router) {
+    // The router bound itself and holds the level the binding takes.
+    powerLevelsContextMock.levels = { users: { [router]: 50 } };
     stateEventsByTypeMock.set('io.mindroom.router', [
-      makeEvent('$binding', { content: { user_id: router } }),
+      makeEvent('$binding', { sender: router, content: { user_id: router } }),
     ] as never);
   }
   const { RoomTimeline } = await import('../RoomTimeline');
@@ -88,7 +91,10 @@ const transcripts = (renderer: ReturnType<typeof create>) =>
     .map((node) => node.props['data-voice-transcript'] as string);
 
 describe("the router's voice echo in an open thread", () => {
-  afterEach(() => stateEventsByTypeMock.clear());
+  afterEach(() => {
+    stateEventsByTypeMock.clear();
+    powerLevelsContextMock.levels = {};
+  });
 
   it('folds under its voice message when the room names its sender as the router', async () => {
     const renderer = await openThread(ROUTER);
