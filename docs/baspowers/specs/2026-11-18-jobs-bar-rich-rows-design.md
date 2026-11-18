@@ -36,7 +36,7 @@ Bas then picked variant C ("Task-first table") of a visual redesign (`mockups/jo
 ### Title row
 
 - A line sets it off the listed jobs. Its icon (clock, or a check once all finished) sits in the logos' column.
-- **Several jobs:** today's title ("7 background jobs", weight 600), the first 4 sub-agents' logos stacked, then a muted summary "{s} sub-agents · {t} tools" and " · {k} needs approval" in the warning colour when k > 0 (parts with a zero count left out), then the chevron at the toggle's end. Stop all is an icon-and-text button of the same family as Stop. On a phone the icon, the summary and (when something needs approval) the logos leave, so the title reads "N background jobs · k needs approval".
+- **Several jobs:** today's title ("7 background jobs", weight 600), the first 4 sub-agents' logos stacked, then a muted summary "{s} sub-agents · {t} tools" and " · {k} needs approval" in the warning colour when k > 0 (parts with a zero count left out), then the chevron at the toggle's end. Stop all is an icon-and-text button of the same family as Stop. On a phone the icon, the summary and (when something needs approval) the logos leave, so the title reads "N background jobs", then "k needs approval".
 - **One job:** that job on one line: its logo with dot, today's title text, its time, Open (sub-agent with a run only), Stop.
 
 ### Missing data
