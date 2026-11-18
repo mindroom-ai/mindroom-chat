@@ -20,6 +20,7 @@ import {
   checkIOSPushPermission,
   disableIOSPushPusher,
   findIOSPushAccount,
+  getIOSPushEnabled,
   IOS_PUSH_ACCOUNT_KEY,
   isNativeIOSPlatform,
   registerIOSPush,
@@ -65,10 +66,16 @@ export function NativeIOSPushFeature() {
         return;
       }
       if (!state.enabled || state.signInRequired) return;
-      upsertIOSPushPusher(mx, stableConfig, value, sessionId).catch((error: unknown) => {
-        // eslint-disable-next-line no-console
-        console.warn('[ios-push] could not register the pusher', error);
-      });
+      upsertIOSPushPusher(mx, stableConfig, value, sessionId)
+        .then(() => {
+          // Turned off meanwhile, the switch found no token to remove yet.
+          if (getIOSPushEnabled(sessionId)) return undefined;
+          return disableIOSPushPusher(mx, stableConfig, sessionId);
+        })
+        .catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn('[ios-push] could not register the pusher', error);
+        });
     });
     return () => {
       handle.then((listener) => listener.remove()).catch(() => undefined);
