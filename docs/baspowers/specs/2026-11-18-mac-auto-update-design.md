@@ -114,7 +114,7 @@ So `PartUnavailable`, `AppErrorBoundary` and the plugin API `reloadForNewVersion
 ### The Store app stays updater-free
 
 - `AppStoreMac` has no dependency on the updater target, no embed phase and no Info.plist phase. `MacUpdater.swift` and `MindRoomUpdatePlugin.swift` are in `App`'s Sources only, and their contents and every use of them compile only with `targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE`.
-- `scripts/macos-store-preflight.mjs` fails on a Store artifact that has a path containing `Sparkle` or `MindRoomMacUpdater`, an Info.plist key that starts with `SU`, or the strings `SPUUpdater` or `MindRoomMacUpdater` in a binary. `macos.yml` already archives the Store app and runs the preflight on every Mac pull request.
+- `scripts/macos-store-preflight.mjs` fails on a Store artifact that has a path containing `Sparkle` or `MindRoomMacUpdater`, an Info.plist key shaped like Sparkle's (`SU` and a capitalized word), or the strings `SPUUpdater` or `MindRoomMacUpdater` in a binary. `macos.yml` already archives the Store app and runs the preflight on every Mac pull request.
 
 ### Errors
 
