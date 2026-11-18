@@ -77,6 +77,29 @@ describe('resolveToolCallStates with call IDs', () => {
     ).toEqual(['expired', 'denied']);
   });
 
+  it('gives a card to the call of its ID and tool, an ID that a reply may reuse', () => {
+    expect(
+      resolveToolCallStates([named('read_file', 'c1'), named('shell', 'c1')], [denied('c1')])
+    ).toEqual(['done', 'denied']);
+  });
+
+  it('gives the cards of jobs first, then a job without one the card that names its call', () => {
+    const job = (jobId: string) => ({ jobId, status: 'running' });
+    expect(
+      resolveToolCallStates(
+        [
+          named('shell', 'a'),
+          { ...named('shell', 'b'), job: job('j2') },
+          { ...named('shell', 'c'), job: job('j3') },
+        ],
+        [
+          { ...denied('a'), jobId: 'j2' },
+          { ...denied('c'), status: 'expired' },
+        ]
+      )
+    ).toEqual(['done', 'denied', 'expired']);
+  });
+
   it('gives cards only to the calls they name without byName', () => {
     expect(
       resolveToolCallStates(

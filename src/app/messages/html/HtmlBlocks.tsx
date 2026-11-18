@@ -429,16 +429,16 @@ function ToolRefGroupBlock({
   const loadedTools = parsedTools.filter(isLoadedTool);
   const replyStates = useToolCallStates(replyTools);
   const metadataStatus = parsedTools.find((tool) => !isLoadedTool(tool))?.status;
-  const states = loadedTools.map((tool) => replyStates.get(tool.index) ?? 'done');
-  const summary = summarizeToolCalls(parsedTools, states);
   // Calls without their trace details count as done.
+  const stateOf = (tool: ToolBlockRenderData) => replyStates.get(tool.index) ?? 'done';
+  const states = loadedTools.map(stateOf);
+  // A repeated marker shows on each of its lines, but counts as one call.
+  const calls = parsedTools.filter(
+    (tool, position) => parsedTools.findIndex(({ index }) => index === tool.index) === position
+  );
+  const summary = summarizeToolCalls(calls, calls.filter(isLoadedTool).map(stateOf));
   useFoldedToolCalls(
-    shown
-      ? undefined
-      : parsedTools.map((tool) => ({
-          toolName: tool.toolName,
-          state: replyStates.get(tool.index) ?? 'done',
-        }))
+    shown ? undefined : calls.map((tool) => ({ toolName: tool.toolName, state: stateOf(tool) }))
   );
   // Without a cog to open them (no ToolCallsFold), the calls show.
   if (!shown && fold && !fold.open) return null;
@@ -462,7 +462,7 @@ function ToolRefGroupBlock({
       }
       title={
         metadataStatus
-          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: parsedTools.length })
+          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
           : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
       }
       detail={summary.names}

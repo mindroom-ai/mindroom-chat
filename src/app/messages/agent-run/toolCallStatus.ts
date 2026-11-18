@@ -105,10 +105,11 @@ export const TOOL_STATE_TITLE = {
  * What happened to each call. The public trace only says started or completed, and a denied
  * call completes without a result, so calls that needed approval take their state from the
  * approval card MindRoom posted for this reply. A call that went on as a background job takes
- * the card of the job its handle names, and another call the card that names its call ID. While
- * `byName`, the other cards go to the first call of their tool, in order, that no card named and
- * that names no other call ID than the card's: a trace from before call IDs names none. A call
- * whose card still waits has not run, even when the reply went on without it.
+ * the card of the job its handle names first; then each call still without a card takes the one
+ * that names its call ID and its tool (a provider may reuse an ID within a reply). While `byName`,
+ * the other cards go to the first call of their tool, in order, that has no card or job and names
+ * no other call ID than the card's: a trace from before call IDs names none. A call whose card still waits has
+ * not run, even when the reply went on without it.
  */
 export const resolveToolCallStates = (
   calls: readonly {
@@ -130,10 +131,16 @@ export const resolveToolCallStates = (
     const index = unmatched.findIndex(match);
     return index >= 0 ? unmatched.splice(index, 1)[0]!.status : undefined;
   };
-  const named = calls.map(({ job, toolCallId }) => {
-    if (job) return take((approval) => approval.jobId === job.jobId);
-    return toolCallId ? take((approval) => approval.toolCallId === toolCallId) : undefined;
-  });
+  const byJob = calls.map(({ job }) =>
+    job ? take((approval) => approval.jobId === job.jobId) : undefined
+  );
+  const named = calls.map(
+    ({ toolName, toolCallId }, callIndex) =>
+      byJob[callIndex] ??
+      (toolCallId
+        ? take((approval) => approval.toolCallId === toolCallId && approval.toolName === toolName)
+        : undefined)
+  );
   return calls.map(({ toolName, pending, job, toolCallId }, callIndex) => {
     const status =
       named[callIndex] ??

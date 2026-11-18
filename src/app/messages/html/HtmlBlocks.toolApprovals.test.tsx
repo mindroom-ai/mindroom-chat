@@ -230,7 +230,20 @@ describe("a reply's approval cards across its runs of calls", () => {
         ['shell', 'shell']
       )
     );
-    expect(lines()).toEqual(['Denied 2 tool calls', 'Ran 1 tool call']);
+    expect(lines()).toEqual(['Denied 1 tool call', 'Ran 1 tool call']);
+
+    act(() => renderer?.unmount());
+    showToolCalls(false);
+    render(
+      reply(
+        [marker('shell', 1), marker('shell', 1), '<p>Trying again.</p>', marker('shell', 2)],
+        ['shell', 'shell']
+      )
+    );
+    const cog = renderer!.root.findAll(
+      (node) => node.type === 'button' && node.props['aria-expanded'] === false
+    );
+    expect(cog[0]?.props.title).toMatch(/^2 tool calls: /);
   });
 
   it("leaves the cards the body took by tool name to it, not to the extras' markers", () => {
