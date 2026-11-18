@@ -1,6 +1,7 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   create,
   createControlledRoomTimelineHarness,
@@ -13,6 +14,7 @@ import {
   powerLevelsContextMock,
   stateEventsByTypeMock,
   threadRenderStateMock,
+  wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -116,6 +118,69 @@ describe("the router's voice echo in an open thread", () => {
       expect(transcripts(renderer)).toEqual([]);
     } finally {
       act(() => renderer.unmount());
+    }
+  });
+});
+
+describe("the router's voice echo in the room's timeline", () => {
+  afterEach(() => {
+    stateEventsByTypeMock.clear();
+    powerLevelsContextMock.levels = {};
+  });
+
+  it('keeps its own row while its voice message is loaded but outside the rendered window', async () => {
+    powerLevelsContextMock.levels = { users: { [ROUTER]: 50 } };
+    stateEventsByTypeMock.set('io.mindroom.router', [
+      makeEvent('$binding', { sender: ROUTER, content: { user_id: ROUTER } }),
+    ] as never);
+    const voice = makeEvent('$voice', {
+      ts: 1,
+      content: {
+        msgtype: 'm.audio',
+        body: 'voice.ogg',
+        url: 'mxc://example.org/voice',
+        'org.matrix.msc3245.voice': {},
+      },
+    });
+    // The window holds the newest 200 rows, so the voice message is loaded but not drawn.
+    const filler = Array.from({ length: 250 }, (_, index) =>
+      makeEvent(`$filler${index}`, { ts: index + 2 })
+    );
+    const echo = makeEvent('$echo', {
+      ts: 300,
+      sender: ROUTER,
+      content: {
+        msgtype: 'm.text',
+        body: '🎤 Invented words',
+        'com.mindroom.visible_router_voice_echo': true,
+        'com.mindroom.voice_source_event_id': '$voice',
+      },
+    });
+    const { RoomTimeline } = await import('../RoomTimeline');
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        wrapWithSyncEngine(
+          React.createElement(RoomTimeline as never, {
+            room: makeRoom({ liveEvents: [voice, ...filler, echo] }),
+            hasMindroomAgents: false,
+            summaryMap: new Map(),
+            onStoreThreadSummary: vi.fn(),
+            threadFilterState: createDefaultThreadFilterState(),
+            threadSortFreezeState: null,
+            viewMode: 'classic',
+            editor: {} as never,
+          })
+        )
+      );
+      await flushAsyncWork(2);
+    });
+    try {
+      const ids = getRenderedEventIds(renderer!);
+      expect(ids).not.toContain('$voice');
+      expect(ids.at(-1)).toBe('$echo');
+    } finally {
+      act(() => renderer!.unmount());
     }
   });
 });

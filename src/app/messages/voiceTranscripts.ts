@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { isVoiceMessageContent } from './content/voiceMessageContent';
+import { hasLongTextMetadata } from '../matrix/protocol/longText';
 import {
   getVoiceSourceEventId,
   isVisibleRouterVoiceEcho,
@@ -27,7 +28,8 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
  * `trustedRouterUserId` trusts; no other agent or account, none while it names none, and none
  * the viewer ignores), it names its voice message (`getVoiceSourceEventId`, read from the version
  * its row shows, `getContent`, which counts only the sender's own edits), that version is a
- * transcript rather than the fallback text of a failed transcription (`isVoiceRawAudioFallback`),
+ * transcript rather than the fallback text of a failed transcription (`isVoiceRawAudioFallback`)
+ * and holds all of it rather than a preview of a long-text sidecar (`hasLongTextMetadata`),
  * and that message is among `events`, drawn as a voice message (an `m.audio` that `MAudio` plays
  * as voice, `isVoiceMessageContent`), not redacted and not from an ignored sender. Every other
  * echo keeps its row as before: one from an older backend without the name, one whose voice
@@ -64,7 +66,7 @@ export const planVoiceTranscripts = ({
     const echoContent = getContent(echo);
     const voiceId = getVoiceSourceEventId(echoContent);
     if (!echoId || !voiceId || revealed.has(echoId) || byVoiceId.has(voiceId)) return;
-    if (isVoiceRawAudioFallback(echoContent)) return;
+    if (isVoiceRawAudioFallback(echoContent) || hasLongTextMetadata(echoContent)) return;
     const voice = byId.get(voiceId);
     const voiceSender = voice?.getSender();
     if (!voice || voice.isRedacted() || !voiceSender || ignored.has(voiceSender)) return;

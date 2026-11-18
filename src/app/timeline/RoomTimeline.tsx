@@ -129,6 +129,7 @@ import {
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
@@ -869,10 +870,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const voiceRouterBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
   const powerLevels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
+  const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
+  // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
   const voiceTranscripts = useVoiceTranscriptPlan({
-    events: threadId ? threadEvents : roomRows,
+    events: threadId ? threadEvents : roomWindowRows,
     getContent: getRowContent,
-    routerUserId: trustedRouterUserId(voiceRouterBinding, powerLevels, roomCreators),
+    routerUserId: trustedRouterUserId(
+      voiceRouterBinding,
+      powerLevels,
+      roomCreators,
+      rawPowerLevels
+    ),
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
   });

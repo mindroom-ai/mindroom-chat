@@ -83,3 +83,28 @@ describe('trustedRouterUserId', () => {
     expect(trustedRouterUserId(binding(content), ROUTER_AT_50)).toBeUndefined();
   });
 });
+
+describe('trustedRouterUserId with levels the parser drops', () => {
+  it.each([
+    ["the binding's level", { events: { 'io.mindroom.router': '100' } }],
+    ['state_default', { state_default: '100' }],
+    ['users_default', { users_default: '0' }],
+    ["the router's level", { users: { [ROUTER]: '100' } }],
+  ])('names none when %s is not a number', (_case, raw) => {
+    expect(
+      trustedRouterUserId(binding({ user_id: ROUTER }), ROUTER_AT_50, new Set(), {
+        users: { [ROUTER]: 50 },
+        ...raw,
+      })
+    ).toBeUndefined();
+  });
+
+  it('names the router when every level it reads is a number', () => {
+    expect(
+      trustedRouterUserId(binding({ user_id: ROUTER }), ROUTER_AT_50, new Set(), {
+        users_default: 0,
+        users: { [ROUTER]: 50, '@sam:example.org': 'odd' },
+      })
+    ).toBe(ROUTER);
+  });
+});

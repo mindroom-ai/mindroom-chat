@@ -183,6 +183,17 @@ describe('planVoiceTranscripts', () => {
     );
   });
 
+  it('keeps the row of an echo whose text is in a long-text sidecar', () => {
+    const echoEvent = replaceWith(echo('$echo'), {
+      msgtype: 'm.text',
+      body: '🎤 Invented words\n\n[Message continues in attached file]',
+      [ECHO_KEY]: true,
+      [SOURCE_KEY]: '$voice',
+      'io.mindroom.long_text': { version: 2 },
+    });
+    expect(plan([voice(), echoEvent])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
   it('keeps the row of an echo whose latest version is the raw audio fallback', () => {
     // Transcription failed: the router edits its placeholder to the voice message's fallback text.
     const echoEvent = replaceWith(echo('$echo'), {
