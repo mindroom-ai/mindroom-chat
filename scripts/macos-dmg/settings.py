@@ -21,4 +21,5 @@ show_icon_preview = False
 icon_size = 128
 text_size = 13
 icon_locations = {"MindRoom.app": (180, 160), "Applications": (480, 160)}
-hide_extensions = ["MindRoom.app"]
+# No hide_extensions: it sets com.apple.FinderInfo on the app, which `codesign --verify --strict`
+# rejects once the app is copied out of the DMG.
