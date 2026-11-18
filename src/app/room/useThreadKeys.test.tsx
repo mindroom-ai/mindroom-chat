@@ -162,6 +162,58 @@ describe('useThreadKeys', () => {
     expect(document.activeElement).toBe(elsewhere);
   });
 
+  describe("a left thread's card that shows a pass later in the same task", () => {
+    // Under a thread that fills the page the room has no cards.
+    let cards: string;
+    const otherwise = vi.fn();
+    beforeEach(() => {
+      cards = area.innerHTML;
+      area.innerHTML = '';
+    });
+    /** The room shows without the thread, and the page asks for the focus the thread left. */
+    const leave = (byKey = true) => {
+      const { rerender, result } = mount('$b');
+      if (byKey) expect(press('leaveThread')).toBe(true);
+      rerender({ threadId: undefined });
+      result.current(otherwise);
+    };
+
+    it('takes the focus, which the page gives to nothing else', async () => {
+      leave();
+      expect(otherwise).not.toHaveBeenCalled();
+      area.innerHTML = cards;
+      await Promise.resolve();
+      expect(document.activeElement).toBe(card('$b'));
+      expect(otherwise).not.toHaveBeenCalled();
+    });
+
+    it('leaves the focus to the page when it does not show, after its pass', async () => {
+      leave();
+      area.innerHTML =
+        '<div data-compact-room-view="true"><button data-thread-root-id="$a"></button></div>';
+      expect(otherwise).not.toHaveBeenCalled();
+      await Promise.resolve();
+      expect(otherwise).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it('leaves the focus on a control that took it meanwhile', async () => {
+      const search = document.createElement('input');
+      document.body.append(search);
+      leave();
+      search.focus();
+      area.innerHTML = cards;
+      await Promise.resolve();
+      expect(document.activeElement).toBe(search);
+      expect(otherwise).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the focus to the page at once when the keys did not close the thread', () => {
+      leave(false);
+      expect(otherwise).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('beside an open thread, starts at the card beside that thread', () => {
     mount('$b');
     expect(press('nextThread')).toBe(true);

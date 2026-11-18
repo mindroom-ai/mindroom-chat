@@ -19,7 +19,6 @@ export type TimelineMessageRow = Readonly<{
 
 export type TimelineMessageData = {
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
-  threadEventMap: ReadonlyMap<string, MatrixEvent>;
   approvalTimeline: ReturnType<typeof useThreadApprovalTimeline>;
   threadSummaryTimeline: ThreadSummaryTimelinePlan;
   /** Secret request cards the thread's replies draw, whose own rows hide. */

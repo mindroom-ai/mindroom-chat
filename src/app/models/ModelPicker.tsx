@@ -15,10 +15,13 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { mobileOrTablet } from '../lib/user-agent';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../ui/IconTooltip';
-import type { ModelCatalogEntry } from './modelProtocol';
+import { EffortGlyph, effortBars } from './EffortGlyph';
+import { ModelEffortColumn } from './ModelEffortColumn';
+import type { ModelCatalogEntry, ReasoningLevel } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
 import * as css from './ModelPicker.css';
@@ -27,10 +30,15 @@ import * as css from './ModelPicker.css';
 const FILTER_AFTER = 8;
 /** The gap between the menu and its button. */
 const POP_OUT_OFFSET = 8;
+/** The menu's height without the effort column, and its one height beside or above it. */
+const MAX_HEIGHT = 420;
+const EFFORT_HEIGHT = 344;
+const STACKED_EFFORT_HEIGHT = 560;
 
 type ModelPickerPanelProps = {
   state: ModelPickerState;
-  maxHeight: string;
+  /** The height above the button the menu may take, a CSS length. */
+  room: string;
   requestClose: () => void;
   onCommand: () => void;
 };
@@ -56,8 +64,28 @@ const sharedRoomDefault = (state: ModelPickerState): ModelCatalogEntry | undefin
   return state.models.find((model) => model.key === key);
 };
 
-function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPickerPanelProps) {
+/**
+ * The model the thread runs on now, its own or else the one every agent falls back to, and the
+ * reasoning level it runs it at; no level without such a model, or while the agents' levels differ.
+ */
+const currentChoice = (state: ModelPickerState) => {
+  const model =
+    state.override === null
+      ? sharedRoomDefault(state)
+      : state.models.find(({ key }) => key === state.override);
+  const named =
+    state.override === null ? state.inherited.map(({ reasoning }) => reasoning) : [state.reasoning];
+  const levels = new Set(named.map((level) => level ?? model?.reasoning_default));
+  const [level] = levels;
+  return { model, level: model && levels.size === 1 ? level : undefined };
+};
+
+function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerPanelProps) {
   const { t } = useTranslation();
+  const stacked = useScreenSizeContext() === ScreenSize.Mobile;
+  const columnRef = useRef<HTMLDivElement>(null);
+  /** The filter field or the list, whichever the keys left for the levels. */
+  const columnOriginRef = useRef<HTMLElement>();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -111,6 +139,10 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
   const activeItem = items[activeIndex];
   const activeId = activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined;
   const mutationsDisabled = !state.canMutate;
+  // The levels of the model the thread runs on, beside the models, once any model has levels.
+  // They never follow the highlight: a level is picked for the model the thread has.
+  const columnShown = state.models.some((model) => model.reasoning_levels);
+  const current = currentChoice(state);
 
   // A phone's keyboard would come up over the menu, so there the list takes focus, not the filter.
   useEffect(() => {
@@ -134,14 +166,32 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
 
   const selectItem = (item: PickerItem) => {
     if (mutationsDisabled) return;
-    // The current choice needs no command; choosing it again only closes the menu.
-    if (isCurrent(item)) {
+    // The current choice needs no command; choosing it again only closes the menu. A current model
+    // at a named level goes back to its plain key, which runs it at its default.
+    if (isCurrent(item) && (item.kind === 'default' || state.reasoning === null)) {
       requestClose();
       return;
     }
     onCommand();
     if (item.kind === 'default') state.resetToRoomDefault();
     else state.selectModel(item.model.key);
+  };
+
+  const selectLevel = (level: ReasoningLevel) => {
+    if (mutationsDisabled || !current.model) return;
+    // The level the thread already runs at needs no command.
+    if (level === current.level) {
+      requestClose();
+      return;
+    }
+    onCommand();
+    state.selectModel(current.model.key, level);
+  };
+
+  // The keys come back to the control they left, the list when that one is gone.
+  const leaveColumn = () => {
+    const origin = columnOriginRef.current;
+    (origin?.isConnected ? origin : listRef.current)?.focus();
   };
 
   // The filter field or the list holds focus; the arrows move the highlight.
@@ -160,6 +210,19 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
     if (event.key === 'Enter' && activeItem) {
       event.preventDefault();
       selectItem(activeItem);
+      return;
+    }
+    // Right moves into the levels, onto the checked one, else the default; in the filter field
+    // only from the end of its text.
+    const field = event.currentTarget instanceof HTMLInputElement ? event.currentTarget : undefined;
+    if (
+      event.key === 'ArrowRight' &&
+      current.model?.reasoning_levels &&
+      (!field || field.selectionStart === field.value.length)
+    ) {
+      event.preventDefault();
+      columnOriginRef.current = event.currentTarget;
+      columnRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')?.focus();
       return;
     }
     if (event.key === 'Escape') {
@@ -222,13 +285,8 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
 
   const controls = filterShown || state.runtimes.length > 1 || state.loading || state.pending;
 
-  return (
-    <Menu
-      role="dialog"
-      aria-label={t('mindroomUi.models.modelPicker.modelForThread')}
-      className={css.Panel}
-      style={{ maxHeight }}
-    >
+  const picker = (
+    <>
       {(controls || state.error) && (
         <div className={css.Controls}>
           {filterShown && (
@@ -308,6 +366,7 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
       {/* The rows scroll inside the menu's rim, which stays put around them. */}
       <Scroll
         ref={resultsRef}
+        className={css.Rows}
         size="300"
         hideTrack
         visibility="Hover"
@@ -345,6 +404,42 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
           )}
         </div>
       </Scroll>
+    </>
+  );
+
+  const panes = columnShown && (
+    <>
+      <div className={css.Picker}>{picker}</div>
+      <ModelEffortColumn
+        model={current.model}
+        active={current.level}
+        modelName={
+          current.model?.display_name ??
+          state.override ??
+          t('mindroomUi.models.modelPicker.roomDefault')
+        }
+        disabled={mutationsDisabled}
+        columnRef={columnRef}
+        onPick={selectLevel}
+        onLeave={leaveColumn}
+      />
+    </>
+  );
+  // With the column the menu has one height, so a model with more levels never resizes it; on a
+  // phone the levels sit under the models.
+  const limit = toRem(stacked ? STACKED_EFFORT_HEIGHT : EFFORT_HEIGHT);
+  return (
+    <Menu
+      role="dialog"
+      aria-label={t('mindroomUi.models.modelPicker.modelForThread')}
+      className={panes && !stacked ? css.EffortPanel : css.Panel}
+      style={
+        panes
+          ? { height: `min(${limit}, ${room})` }
+          : { maxHeight: `min(${toRem(MAX_HEIGHT)}, ${room})` }
+      }
+    >
+      {panes && stacked ? <div className={css.StackedScroll}>{panes}</div> : panes || picker}
     </Menu>
   );
 }
@@ -386,9 +481,18 @@ export function ModelPicker({
   const commandStartedRef = useRef(false);
   const sawPendingRef = useRef(false);
   const selectedModel = state.models.find((model) => model.key === state.override);
-  const shownModel = state.override === null ? sharedRoomDefault(state) : selectedModel;
-  const label =
+  const { model: shownModel, level: active } = currentChoice(state);
+  const modelLabel =
     selectedModel?.display_name ?? state.override ?? t('mindroomUi.models.modelPicker.roomDefault');
+  // A model with levels names the level it runs at too, and shows it as bars after its logo.
+  const levels = shownModel?.reasoning_levels;
+  const bars = levels && active ? effortBars(levels, active) : undefined;
+  const label = active
+    ? t('mindroomUi.models.modelPicker.withLevel', {
+        model: modelLabel,
+        level: t(`mindroomUi.models.modelPicker.levels.${active}`),
+      })
+    : modelLabel;
   const chooseModel = t('mindroomUi.models.modelPicker.chooseModel');
 
   const close = () => {
@@ -429,12 +533,10 @@ export function ModelPicker({
   };
 
   const anchor = open ? triggerRef.current?.getBoundingClientRect() : undefined;
-  // As tall as the room above the button allows, less a phone's status bar: folds puts a pop-out
-  // that does not fit above beside the button instead.
-  const maxHeight = anchor
-    ? `min(${toRem(420)}, calc(${anchor.y - POP_OUT_OFFSET}px - env(safe-area-inset-top, 0px) - ${
-        config.space.S200
-      }))`
+  // The room above the button, less a phone's status bar: folds puts a pop-out that does not fit
+  // above beside the button instead.
+  const room = anchor
+    ? `calc(${anchor.y - POP_OUT_OFFSET}px - env(safe-area-inset-top, 0px) - ${config.space.S200})`
     : '';
 
   return (
@@ -447,7 +549,7 @@ export function ModelPicker({
         anchor ? (
           <TrappedPanel
             state={state}
-            maxHeight={maxHeight}
+            room={room}
             requestClose={close}
             onCommand={() => {
               commandStartedRef.current = true;
@@ -471,6 +573,7 @@ export function ModelPicker({
             aria-labelledby={`${triggerId} ${triggerLabelId}`}
             aria-haspopup="dialog"
             aria-expanded={open}
+            data-effort={bars && bars.count > 0 ? true : undefined}
             onClick={openPicker}
           >
             <ModelIcon
@@ -480,6 +583,9 @@ export function ModelPicker({
               size={18}
               className={css.TriggerIcon}
             />
+            {bars && bars.count > 0 && (
+              <EffortGlyph count={bars.count} filled={bars.filled} className={css.TriggerIcon} />
+            )}
             <span id={triggerLabelId} className={css.VisuallyHidden}>
               {label}
             </span>

@@ -5,11 +5,13 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_SETTINGS_EVENT } from '../../../matrix/protocol/roomSettings';
-import { ROOM_SETTING_DEFINITIONS } from './roomSettingDefinitions';
+import { ROOM_SETTING_DEFINITIONS, type RoomTextSettingDefinition } from './roomSettingDefinitions';
 import { RoomTextSettingTile } from './RoomTextSettingTile';
 
 const ROOM = { roomId: '!r:example.org' } as Room;
-const [DEFINITION] = ROOM_SETTING_DEFINITIONS;
+const DEFINITION = ROOM_SETTING_DEFINITIONS.find(
+  (definition): definition is RoomTextSettingDefinition => definition.kind === 'text'
+);
 const KEY = 'thread_summary_instructions';
 const LABEL = 'Thread title rules';
 const FAILED = "Couldn't save the setting. Try again.";

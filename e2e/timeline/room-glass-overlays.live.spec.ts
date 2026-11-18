@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
-import { expectClearStrip } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import {
   createDefaultThreadFilterState,
@@ -116,10 +115,10 @@ for (const width of [390, 1280]) {
       const headerSurface = header.locator('xpath=..');
       const filters = page.locator('[data-room-thread-overview="true"]');
       const footer = page.locator('[data-room-footer="true"]');
-      const following = page.locator('[data-room-following="true"]');
       const cards = scroll.locator('button[data-thread-root-id]');
       await expect(cards).toHaveCount(14);
-      await expectClearStrip(following);
+      // Nobody else read the latest message: no names show above the composer.
+      await expect(page.locator('[data-room-following="true"]')).toHaveCount(0);
       expect(
         await headerSurface.evaluate((element) => {
           const css = getComputedStyle(element);
@@ -144,7 +143,7 @@ for (const width of [390, 1280]) {
       await scroll.evaluate((element) => {
         element.scrollTop = 400;
       });
-      for (const surface of [header, filters, footer, following]) {
+      for (const surface of [header, filters, footer]) {
         const box = (await surface.boundingBox())!;
         expect(
           await cards.evaluateAll(

@@ -25,6 +25,8 @@ export type AccountSettings = {
   showLocalMindroomInSidebar: boolean;
   /** The account answered the offer of the interface tour (src/app/tour/TourOffer.tsx). */
   tourOffered: boolean;
+  /** The account answered the offer of the Mac app (src/app/shell/MacAppOffer.tsx). */
+  macAppOffered: boolean;
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
@@ -35,6 +37,7 @@ export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
   showSearchInSidebar: false,
   showLocalMindroomInSidebar: false,
   tourOffered: false,
+  macAppOffered: false,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -67,6 +70,7 @@ export const sanitizeAccountSettings = (content: unknown): AccountSettings => {
     showSearchInSidebar: storedSwitch(content, 'showSearchInSidebar'),
     showLocalMindroomInSidebar: storedSwitch(content, 'showLocalMindroomInSidebar'),
     tourOffered: storedSwitch(content, 'tourOffered'),
+    macAppOffered: storedSwitch(content, 'macAppOffered'),
   };
 };
 

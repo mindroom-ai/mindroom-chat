@@ -42,6 +42,19 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("thread_summary_model", config)
         self.assertNotIn("anthropic", config)
 
+    def test_a_backend_with_reasoning_levels_gets_a_stub_model_with_levels(self) -> None:
+        plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
+        self.assertNotIn("think", plain)
+        self.assertNotIn("reasoning:", plain)
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, reasoning_levels=True)
+        self.assertIn(
+            "  think:\n    provider: openai\n    id: stub-think\n    display_name: Stub Think\n"
+            "    api: chat_completions\n    context_window: 128000\n"
+            '    reasoning:\n      levels: ["low", "medium", "high"]\n      default: medium\n'
+            f"    extra_kwargs:\n      base_url: {STUB_URL}\n",
+            config,
+        )
+
     def test_extra_agents_are_stub_workers_in_the_lobby(self) -> None:
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, extra_agents=3)
         for number in (1, 2, 3):
@@ -464,8 +477,13 @@ class CommandLineTests(unittest.TestCase):
         """The config a start writes for a commit with or without the setting that allows shells outside a worker."""
         with self.starting(), mock.patch.object(stack, "commit_mentions", return_value=has_shell_setting) as mentions:
             self.assertEqual(self.main("7", "up"), 0)
-        mentions.assert_called_once_with(
-            Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"
+        # The start also asks whether the commit's models take reasoning levels.
+        self.assertEqual(
+            sorted(call.args for call in mentions.call_args_list),
+            [
+                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
+                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
+            ],
         )
         return (self.slot_dir / "config.yaml").read_text()
 
@@ -1362,7 +1380,7 @@ class StubScenarioTests(unittest.TestCase):
             message = self.answer([], second)
             sleep.assert_awaited_once_with(3.5)
         arguments = json.loads(message["tool_calls"][0]["function"]["arguments"])
-        self.assertEqual(arguments, {"args": "sleep 1; echo second step"})
+        self.assertEqual(arguments, {"args": "sleep 7; echo second step"})
 
     def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:
         broken = self.scenarios("{not json")

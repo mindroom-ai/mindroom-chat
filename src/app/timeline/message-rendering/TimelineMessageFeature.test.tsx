@@ -112,6 +112,25 @@ const skillReviewEvent = (id: string, sender: string) =>
       'io.mindroom.skill_review': { changes: { 'developing-mindroom-chat': 'updated' } },
     },
   }) as unknown as MatrixEvent;
+const COMPACTION_SENT = 1_794_940_102_256;
+const compactionNoticeEvent = (id: string, sender: string) =>
+  makeEvent(id, {
+    sender,
+    ts: COMPACTION_SENT,
+    threadRootId: '$thread',
+    content: {
+      msgtype: 'm.notice',
+      body: '\u{1f4e6} Compacted 24 runs: 366,804 \u2192 6,336 / 351,792 history budget',
+      'io.mindroom.compaction': {
+        version: 3,
+        mode: 'manual',
+        status: 'success',
+        before_tokens: 366_804,
+        after_tokens: 6336,
+        history_budget_tokens: 351_792,
+      },
+    },
+  }) as unknown as MatrixEvent;
 const summaryMarkers = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll((node) => (node.type as unknown) === 'summary-marker');
 const renderedContent = (renderer: ReturnType<typeof create>) =>
@@ -141,7 +160,6 @@ const mountFeature = async (
   let feature!: ReturnType<typeof useTimelineMessageFeature>;
   const data = {
     threadRecordMap: new Map(),
-    threadEventMap: new Map(),
     handleOpenReply: vi.fn(),
     approvalTimeline: {
       hiddenEventIds: new Set<string>(),
@@ -571,9 +589,37 @@ describe('timeline message feature', () => {
     expect(renderer.root.findAllByType(SkillReviewMarker)).toHaveLength(0);
   });
 
+  it("shows an agent's compaction notice in an open thread as a seam row", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { CompactionNoticeSeam } = await import('../../messages/agent-run/CompactionSeam');
+    const event = compactionNoticeEvent('$compacted', '@mindroom_code:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    const seam = renderer.root.findByType(CompactionNoticeSeam);
+    expect(seam.props.compaction).toMatchObject({
+      phase: 'manual',
+      status: 'success',
+      startedAt: COMPACTION_SENT,
+      beforeTokens: 366_804,
+      afterTokens: 6336,
+    });
+    expect(renderer.root.findAllByType(Message)).toHaveLength(0);
+    expect(renderedContent(renderer)).toHaveLength(0);
+  });
+
+  it("keeps a person's message with the compaction key as a normal message", async () => {
+    const { CompactionNoticeSeam } = await import('../../messages/agent-run/CompactionSeam');
+    const event = compactionNoticeEvent('$fake', '@bob:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    expect(renderedContent(renderer)).toHaveLength(1);
+    expect(renderer.root.findAllByType(CompactionNoticeSeam)).toHaveLength(0);
+  });
+
   it('counts as a quiet marker for reply quotes exactly the rows it draws as one', async () => {
     const { SkillReviewMarker } = await import('../../messages/SkillReviewMarker');
     const { SnoozeEndedMarker } = await import('../../messages/SnoozeEndedMarker');
+    const { CompactionNoticeSeam } = await import('../../messages/agent-run/CompactionSeam');
     // An agent notice that an edit turned into a skill review: only the edit carries the key.
     const edited = makeEvent('$edited', {
       sender: '@mindroom_code:example.org',
@@ -588,6 +634,8 @@ describe('timeline message feature', () => {
       snoozeEndedEvent('$wake', '@mindroom_router:example.org'),
       summaryEvent('$unplanned'),
       edited,
+      compactionNoticeEvent('$compacted', '@mindroom_code:example.org'),
+      compactionNoticeEvent('$person-compacted', '@bob:example.org'),
     ];
     const drawn = (threadId?: string) => {
       const mounted = mountFeature(
@@ -598,6 +646,7 @@ describe('timeline message feature', () => {
         markers: [
           ...renderer.root.findAllByType(SkillReviewMarker),
           ...renderer.root.findAllByType(SnoozeEndedMarker),
+          ...renderer.root.findAllByType(CompactionNoticeSeam),
         ].length,
         quiet: events.filter((event) =>
           feature().isQuietMarkerRow(event, data as never, {} as EventTimelineSet)
@@ -606,8 +655,13 @@ describe('timeline message feature', () => {
     };
 
     const thread = await drawn('$thread');
-    expect(thread.quiet.map((event) => event.getId())).toEqual(['$review', '$wake', '$edited']);
-    expect(thread.markers).toBe(3);
+    expect(thread.quiet.map((event) => event.getId())).toEqual([
+      '$review',
+      '$wake',
+      '$edited',
+      '$compacted',
+    ]);
+    expect(thread.markers).toBe(4);
     // A room draws these as full messages, so none counts there.
     expect(await drawn()).toEqual({ markers: 0, quiet: [] });
   });

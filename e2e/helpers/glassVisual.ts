@@ -1,44 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { expectScrollbarBounds } from './insetScrollbar';
 
-export const expectClearStrip = async (strip: Locator) => {
-  await expect(strip).toHaveText('');
-  await expect
-    .poll(() =>
-      strip.evaluate((element) =>
-        [element, ...element.querySelectorAll('*')].flatMap((node) => {
-          const css = getComputedStyle(node);
-          const borders = [
-            css.borderTopWidth,
-            css.borderRightWidth,
-            css.borderBottomWidth,
-            css.borderLeftWidth,
-          ];
-          const clear =
-            css.backgroundColor === 'rgba(0, 0, 0, 0)' &&
-            css.backgroundImage === 'none' &&
-            css.backdropFilter === 'none' &&
-            css.boxShadow === 'none' &&
-            borders.every((width) => width === '0px');
-          return clear
-            ? []
-            : [
-                {
-                  tag: node.tagName,
-                  className: node.className,
-                  background: css.backgroundColor,
-                  image: css.backgroundImage,
-                  blur: css.backdropFilter,
-                  shadow: css.boxShadow,
-                  borders,
-                },
-              ];
-        })
-      )
-    )
-    .toEqual([]);
-};
-
 export type Rgba = [number, number, number, number];
 
 const composite = (foreground: Rgba, background: Rgba): Rgba => {

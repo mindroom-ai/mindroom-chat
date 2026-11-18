@@ -684,8 +684,29 @@
         "clear": "Löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
-        "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal."
+        "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal.",
+        "replyMode": {
+          "label": "Agents antworten",
+          "description": "Ob eine neue Nachricht einen Agenten oder ein Team erwähnen muss, um eine Antwort zu bekommen. Standard folgt der MindRoom-Konfiguration für diesen Raum. Auch mit Nur bei Erwähnung können Agents Folgenachrichten in einem Thread beantworten, in dem sie schon geantwortet haben.",
+          "default": "Standard",
+          "auto": "Auf jede Nachricht",
+          "mentions": "Nur bei Erwähnung"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom für Mac",
+      "text": "Schnellerfassung mit ⌃⌥Space, native Mitteilungen.",
+      "download": "Herunterladen",
+      "notNow": "Nicht jetzt",
+      "dismiss": "Ausblenden",
+      "banner": "<b>Du nutzt einen Mac?</b> Hol dir die MindRoom-App.",
+      "bannerDownload": "Für Mac herunterladen",
+      "menu": "Mac-App herunterladen",
+      "downloadDmg": "Herunterladen (.dmg)",
+      "copyCommand": "Befehl kopieren",
+      "copyFailed": "Kopieren fehlgeschlagen",
+      "keywords": "Mac, macOS, Desktop, App, Herunterladen, Download, dmg, Homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -833,6 +854,61 @@
         "finished": "Beendet {{value1}}",
         "stillStreaming": "Läuft noch",
         "duration": "Dauer {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} Tokens",
+        "label": {
+          "running": "Kontext wird verdichtet…",
+          "preTurn": "Vor der Antwort verdichtet",
+          "midTurn": "Kontext verdichtet",
+          "manual": "Auf Anfrage verdichtet",
+          "failed": "Verdichtung fehlgeschlagen",
+          "timeout": "Verdichtung abgelaufen",
+          "interrupted": "Verdichtung unterbrochen"
+        },
+        "title": "Kontext verdichtet",
+        "tag": {
+          "preTurn": "vor der Antwort",
+          "midTurn": "mitten im Zug",
+          "manual": "manuell"
+        },
+        "subtitle": {
+          "preTurn": "Vor der ersten Modellanfrage dieser Antwort.",
+          "midTurn": "Zwischen zwei Modellanfragen, nach Tool-Aufruf {{n, number}}.",
+          "midTurnNoTools": "Zwischen zwei Modellanfragen.",
+          "manual": "Mit dem Befehl zum Verdichten angefordert."
+        },
+        "gauge": {
+          "was": "vorher {{p, number}} % des Budgets",
+          "now": "jetzt {{p, number}} %",
+          "used": "{{p, number}} % des Budgets"
+        },
+        "row": {
+          "history": "Verlauf",
+          "saved": "Gespart",
+          "budget": "Budget",
+          "folded": "Zusammengefasst",
+          "folding": "Wird zusammengefasst",
+          "summarizedBy": "Zusammengefasst von",
+          "summaryModel": "Modell der Zusammenfassung",
+          "when": "Wann",
+          "started": "Gestartet",
+          "reason": "Grund",
+          "gaveUpAfter": "Aufgegeben nach"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> Tokens",
+          "history": "<b>{{n, number}}</b> Tokens",
+          "tokens": "{{n, number}} Tokens",
+          "saved": "{{n, number}} Tokens ({{p, number}} %)",
+          "runs_one": "{{count, number}} Durchlauf",
+          "runs_other": "{{count, number}} Durchläufe",
+          "folded": "{{runs}} in 1 Zusammenfassung",
+          "folding": "{{runs}}, {{done, number}} fertig",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "Die Antwort endete, bevor die Zusammenfassung fertig war."
+        }
       }
     },
     "message-search": {
@@ -935,6 +1011,25 @@
       "withCount_one": "{{label}}, {{count}} aktiv",
       "withCount_other": "{{label}}, {{count}} aktiv",
       "resize": "Größe des Sub-Agenten-Bereichs ändern"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Aufwand",
+        "effortFor": "Aufwand für {{model}}",
+        "noEffortLevels": "Keine Aufwandsstufen",
+        "defaultLevel": "Standard",
+        "levelIsDefault": "{{level}}, Standard",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Aus",
+          "minimal": "Minimal",
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch",
+          "xhigh": "Sehr hoch",
+          "max": "Maximal"
+        }
+      }
     }
   },
   "composer": {

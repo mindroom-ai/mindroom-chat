@@ -5,7 +5,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent } from 'matrix-js-sdk';
-import { ClientConfigProvider } from '../../config/useClientConfig';
+import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
@@ -191,6 +191,8 @@ let replyCount = 0;
 let replyId = '$reply';
 
 let renderer: ReactTestRenderer | undefined;
+// The deployment's configuration, as a test sets it.
+let clientConfig: ClientConfig = {};
 const render = (
   content: Record<string, unknown>,
   fromMindroomAgent = true,
@@ -199,7 +201,7 @@ const render = (
 ) =>
   act(() => {
     const tree = (
-      <ClientConfigProvider value={{}}>
+      <ClientConfigProvider value={clientConfig}>
         <InlineSecretRequestsContext.Provider value={secrets}>
           <ToolCallMessageContext.Provider
             value={{ eventId: replyId, roomId: '!room:example.org' }}
@@ -245,6 +247,7 @@ describe('finished agent work', () => {
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
+    clientConfig = {};
   });
 
   it('folds the work of a finished reply and keeps its answer', () => {
@@ -255,6 +258,18 @@ describe('finished agent work', () => {
     expect(text()).not.toContain('Let me look.');
     expect(text()).not.toContain('Now the file.');
     expect(toolCalls()).toEqual([]);
+  });
+
+  it("keeps a link of the deployment's extra scheme in the folded answer", () => {
+    clientConfig = { messageRendering: { additionalAllowedUriSchemes: ['obsidian'] } };
+    const link = '<a href="obsidian://open?vault=Notes">Open notes</a>';
+    render(
+      reply('completed', `<p>Let me look.</p>${marker('web_search', 1)}<p>The answer: ${link}</p>`)
+    );
+
+    expect(text()).not.toContain('Let me look.');
+    const anchor = renderer!.root.find((node) => node.type === 'a');
+    expect(anchor.props.href).toBe('obsidian://open?vault=Notes');
   });
 
   it('shows the work in place when the row is clicked', () => {

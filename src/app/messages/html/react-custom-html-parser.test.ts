@@ -21,7 +21,7 @@ import {
   renderTextWithLatex,
 } from './react-custom-html-parser';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
-import { useToolTraceMarkerParserOptions } from './HtmlBlocks';
+import { readRenderedToolCalls, useToolTraceMarkerParserOptions } from './HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../rich-text/htmlReactParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
@@ -29,6 +29,7 @@ import { withReasoning } from '../agent-run/Reasoning';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from '../agent-run/toolRefDom';
 import { getMessageCopyTexts, scanToolMarkerLines } from '../messageCopyText';
+import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { formatMessageTextBodyAsHtml } from './blocks';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
@@ -120,6 +121,8 @@ vi.mock('../agent-run/ToolCallsFold.css', () =>
 vi.mock('../agent-run/OutlineComet.css', () =>
   Object.fromEntries(['Glow', 'Outline', 'Comet', 'CometHead'].map((name) => [name, name]))
 );
+// No content here carries compactions, so no seam reads its class names.
+vi.mock('../agent-run/CompactionSeam.css', () => ({}));
 vi.mock('../agent-run/Reasoning.css', () =>
   Object.fromEntries(
     [
@@ -1984,6 +1987,74 @@ describe('copy stripping matches the app renderer', () => {
   ])('crafted formatted_body: %s', async (name, body, formattedBody) => {
     expect(scanToolMarkerLines(body, formattedBody, false)).toBeUndefined();
     await expectCopyMatchesRender(name, body, formattedBody, formattedBody);
+  });
+});
+
+// Reasoning and compaction seams go after the calls `readRenderedToolCalls` reads, and the fold of
+// a reply's work ends after them, so it must read exactly the markers the renderer draws as tool
+// blocks, in the order it draws them.
+describe('placement markers and the fold match the app renderer', () => {
+  const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+    linkifyOpts: LINKIFY_OPTS,
+  });
+  const renderedOrder = async (html: string): Promise<number[]> => {
+    const opts = markerParserOptions(baseOpts, { body: '', formatted_body: html });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(React.Fragment, null, parse(html, opts)));
+    });
+    const order = renderer.root
+      .findAll((node) => Array.isArray(node.props?.parsedTools))
+      .flatMap((node) =>
+        (node.props.parsedTools as Array<{ index: number }>).map((tool) => tool.index)
+      );
+    renderer.unmount();
+    return order;
+  };
+  const placed = (html: string) => readRenderedToolCalls(html, baseOpts).indexes;
+
+  it.each<readonly [string, string]>([
+    ...Object.entries(backendToolMarkerBodies).map(
+      ([name, { formatted_body: html }]) => [name, html] as const
+    ),
+    [
+      'a direct call, then a call in a paragraph, in one div',
+      '<div>🔧 <code>t1</code> [1]<p>🔧 <code>t2</code> [2]</p></div><p>Done</p>',
+    ],
+    [
+      'a call in a paragraph after a call in one div',
+      '<div><p>🔧 <code>t1</code> [1]</p><p>text</p><p>🔧 <code>t2</code> [2]</p></div>',
+    ],
+    [
+      'a div in a div after a call',
+      '<div>🔧 <code>t1</code> [1]<div><p>🔧 <code>t2</code> [2]</p></div></div>',
+    ],
+    [
+      'a call in details after a call in its div',
+      '<div>🔧 <code>t1</code> [1]<details><p>🔧 <code>t2</code> [2]</p></details></div>',
+    ],
+    [
+      'a call in a list after a call',
+      '<p>🔧 <code>t1</code> [1]</p><ul><li>🔧 <code>t2</code> [2]</li></ul>',
+    ],
+    [
+      'a marker in display math',
+      '<p>🔧 <code>t1</code> [1]</p><div data-mx-maths="🔧 x [2]"></div>',
+    ],
+    [
+      'a call the sanitizer takes out of a section',
+      '<p>🔧 <code>t1</code> [1]</p><section><p>🔧 <code>t2</code> [2]</p></section><p>Done</p>',
+    ],
+  ])('%s', async (_name, rawHtml) => {
+    const html = sanitizeCustomHtml(rawHtml);
+    const drawn = await renderedOrder(html);
+    expect(placed(html)).toEqual(drawn);
+
+    // The fold keeps every drawn call in the work, each body rendered as RenderBody renders it.
+    const split = splitFinishedWork(rawHtml, baseOpts, {});
+    if (!split) return;
+    expect(await renderedOrder(sanitizeCustomHtml(split.head))).toEqual(drawn);
+    expect(await renderedOrder(sanitizeCustomHtml(split.tail))).toEqual([]);
   });
 });
 

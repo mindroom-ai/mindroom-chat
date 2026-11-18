@@ -684,8 +684,29 @@
         "clear": "Clear",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Only people allowed to change this room's settings can edit this.",
-        "saveFailed": "Couldn't save the setting. Try again."
+        "saveFailed": "Couldn't save the setting. Try again.",
+        "replyMode": {
+          "label": "Agents answer",
+          "description": "Whether a new message must mention an agent or team to get an answer. Default follows MindRoom's configuration for this room. Even with Only when mentioned, agents can answer follow-ups in a thread they already replied in.",
+          "default": "Default",
+          "auto": "Any message",
+          "mentions": "Only when mentioned"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom for Mac",
+      "text": "Quick Capture with ⌃⌥Space, native notifications.",
+      "download": "Download",
+      "notNow": "Not now",
+      "dismiss": "Dismiss",
+      "banner": "<b>Using a Mac?</b> Get the MindRoom app.",
+      "bannerDownload": "Download for Mac",
+      "menu": "Download Mac app",
+      "downloadDmg": "Download (.dmg)",
+      "copyCommand": "Copy command",
+      "copyFailed": "Copy failed",
+      "keywords": "mac, macos, desktop, app, download, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -833,6 +854,61 @@
         "finished": "Finished {{value1}}",
         "stillStreaming": "Still streaming",
         "duration": "Duration {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} tokens",
+        "label": {
+          "running": "Compacting context…",
+          "preTurn": "Compacted before replying",
+          "midTurn": "Compacted context",
+          "manual": "Compacted on request",
+          "failed": "Compaction failed",
+          "timeout": "Compaction timed out",
+          "interrupted": "Compaction interrupted"
+        },
+        "title": "Context compacted",
+        "tag": {
+          "preTurn": "before the reply",
+          "midTurn": "mid-turn",
+          "manual": "manual"
+        },
+        "subtitle": {
+          "preTurn": "Before this reply’s first model request.",
+          "midTurn": "Between two model requests, after tool call {{n, number}}.",
+          "midTurnNoTools": "Between two model requests.",
+          "manual": "Requested with the compact command."
+        },
+        "gauge": {
+          "was": "was {{p, number}}% of budget",
+          "now": "now {{p, number}}%",
+          "used": "{{p, number}}% of budget"
+        },
+        "row": {
+          "history": "History",
+          "saved": "Saved",
+          "budget": "Budget",
+          "folded": "Folded",
+          "folding": "Folding",
+          "summarizedBy": "Summarized by",
+          "summaryModel": "Summary model",
+          "when": "When",
+          "started": "Started",
+          "reason": "Reason",
+          "gaveUpAfter": "Gave up after"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> tokens",
+          "history": "<b>{{n, number}}</b> tokens",
+          "tokens": "{{n, number}} tokens",
+          "saved": "{{n, number}} tokens ({{p, number}}%)",
+          "runs_one": "{{count, number}} run",
+          "runs_other": "{{count, number}} runs",
+          "folded": "{{runs}} into 1 summary",
+          "folding": "{{runs}}, {{done, number}} done",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "The reply ended before the summary finished."
+        }
       }
     },
     "message-search": {
@@ -935,6 +1011,25 @@
       "withCount_one": "{{label}}, {{count}} active",
       "withCount_other": "{{label}}, {{count}} active",
       "resize": "Resize the sub-agents panel"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Effort",
+        "effortFor": "Effort for {{model}}",
+        "noEffortLevels": "No effort levels",
+        "defaultLevel": "Default",
+        "levelIsDefault": "{{level}}, default",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Off",
+          "minimal": "Minimal",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "xhigh": "Extra high",
+          "max": "Max"
+        }
+      }
     }
   },
   "composer": {

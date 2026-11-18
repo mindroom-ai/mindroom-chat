@@ -185,6 +185,9 @@ export const TERMINAL_STREAM_STATUSES = new Set([
   'interrupted',
 ]);
 
+/** The terminal stream statuses of a reply that finished on its own. */
+export const SUCCESSFUL_STREAM_STATUSES = new Set(['complete', 'completed', 'done']);
+
 export const getStreamStatusFromContent = (
   content: Record<string, unknown>
 ): string | undefined => {

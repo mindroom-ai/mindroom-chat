@@ -90,7 +90,11 @@ import { useCompactHistoryAtEnd } from '../threads/overview/useCompactHistoryAtE
 import { useCompactRootEditBackfillController } from '../threads/overview/compactRootEditBackfillController';
 import { useThreadOverviewResumeController } from '../threads/overview/threadOverviewResumeController';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
-import { useThreadOverviewRefreshCounter } from '../threads/overview/threadOverviewRefreshCounter';
+import {
+  useThreadOverviewListenedFirst,
+  useThreadOverviewRefreshCounter,
+  type ThreadOverviewRefresh,
+} from '../threads/overview/threadOverviewRefreshCounter';
 import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useThreadIndex } from '../threads/overview/useThreadIndex';
 import { useRoomThreadResolutionMap } from '../threads/tags/useRoomThreadTags';
@@ -262,8 +266,23 @@ const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
  * thread root and the classic one with the replies inline; inside a thread, the root and its
  * replies. Rows are virtualized, and an offset ledger keeps the reader's rows still when rows
  * land above them.
+ *
+ * A list that mounts in Compact, as when a thread that filled the page closes, renders nothing
+ * in its first pass: the overview's listeners start in that commit, and the list then builds
+ * its cards once, from the room as they hear it, before the paint
+ * (`useThreadOverviewListenedFirst`). Any other list builds in its first render, as it did.
  */
 export function RoomTimeline(props: RoomTimelineProps) {
+  const listened = useThreadOverviewListenedFirst(
+    props.room,
+    props.threadId,
+    props.viewMode === 'compact'
+  );
+  if (listened === 'waiting') return null;
+  return <RoomTimelineRows {...props} listenedOverview={listened} />;
+}
+
+function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: ThreadOverviewRefresh }) {
   const {
     room,
     eventId,
@@ -409,7 +428,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
   const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } =
-    useThreadOverviewRefreshCounter(room, threadId);
+    useThreadOverviewRefreshCounter(room, threadId, props.listenedOverview);
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
   const rederiveRoomRows = useCallback(
@@ -1780,7 +1799,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
       : undefined;
   const messageData: TimelineMessageData = {
     threadRecordMap: threadIndex.threadRecordMap,
-    threadEventMap: threadState.threadEventMap ?? new Map(),
     approvalTimeline,
     threadSummaryTimeline,
     secretRequestTimeline,

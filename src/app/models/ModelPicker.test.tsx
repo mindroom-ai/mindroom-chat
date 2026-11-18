@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelCatalogEntry } from './modelProtocol';
 import type { ModelPickerState } from './useModelPicker';
 import { ModelPicker, ThreadModelPicker } from './ModelPicker';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ModelIcon } from './ModelIcon';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -22,6 +23,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./ModelPicker.css', () => ({
   Check: 'Check',
   Controls: 'Controls',
+  EffortColumn: 'EffortColumn',
+  EffortDefault: 'EffortDefault',
+  EffortHeader: 'EffortHeader',
+  EffortLabel: 'EffortLabel',
+  EffortLevels: 'EffortLevels',
+  EffortModel: 'EffortModel',
+  EffortNone: 'EffortNone',
+  EffortPanel: 'EffortPanel',
+  EffortRow: 'EffortRow',
   Empty: 'Empty',
   Error: 'Error',
   ErrorActions: 'ErrorActions',
@@ -34,14 +44,17 @@ vi.mock('./ModelPicker.css', () => ({
   OptionText: 'OptionText',
   OptionTitle: 'OptionTitle',
   Panel: 'Panel',
+  Picker: 'Picker',
   Results: 'Results',
   RoomDefaultDetail: 'RoomDefaultDetail',
+  Rows: 'Rows',
   RuntimeLabel: 'RuntimeLabel',
   RuntimeRow: 'RuntimeRow',
   RuntimeSelect: 'RuntimeSelect',
   SearchIcon: 'SearchIcon',
   SearchInput: 'SearchInput',
   SearchRow: 'SearchRow',
+  StackedScroll: 'StackedScroll',
   StatusRow: 'StatusRow',
   TextButton: 'TextButton',
   Trigger: 'Trigger',
@@ -50,33 +63,37 @@ vi.mock('./ModelPicker.css', () => ({
   VisuallyHidden: 'VisuallyHidden',
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => {
-      const strings: Record<string, string> = {
-        'mindroomUi.models.modelPicker.chooseModel': 'Choose model',
-        'mindroomUi.models.modelPicker.roomDefault': 'Room default',
-        'mindroomUi.models.modelPicker.modelForThread': 'Model for this thread',
-        'mindroomUi.models.modelPicker.search': 'Search models',
-        'mindroomUi.models.modelPicker.roomDefaultDescription':
-          'Let each agent use its configured model.',
-        'mindroomUi.models.modelPicker.models': 'Models',
-        'mindroomUi.models.modelPicker.runtime': 'Runtime',
-        'mindroomUi.models.modelPicker.chooseRuntime': 'Choose a runtime',
-        'mindroomUi.models.modelPicker.retry': 'Retry',
-        'mindroomUi.models.modelPicker.loading': 'Loading models',
-        'mindroomUi.models.modelPicker.pending': 'Waiting for model change',
-        'mindroomUi.models.modelPicker.noResults': 'No matching models',
-        'mindroomUi.models.modelPicker.commandFallback':
-          'You can still send /model (or !model) with a model key in this thread.',
-        'mindroomUi.models.modelPicker.runtimeLabel': `${String(options?.userId)} on ${String(
-          options?.deviceId
-        )}`,
-      };
-      return strings[key] ?? key;
-    },
-  }),
-}));
+vi.mock('react-i18next', async () => {
+  // The effort column's strings come from the English catalog.
+  const { translateFromEn } = await import('../../test/utils/i18n');
+  return {
+    useTranslation: () => ({
+      t: (key: string, options?: Record<string, unknown>) => {
+        const strings: Record<string, string> = {
+          'mindroomUi.models.modelPicker.chooseModel': 'Choose model',
+          'mindroomUi.models.modelPicker.roomDefault': 'Room default',
+          'mindroomUi.models.modelPicker.modelForThread': 'Model for this thread',
+          'mindroomUi.models.modelPicker.search': 'Search models',
+          'mindroomUi.models.modelPicker.roomDefaultDescription':
+            'Let each agent use its configured model.',
+          'mindroomUi.models.modelPicker.models': 'Models',
+          'mindroomUi.models.modelPicker.runtime': 'Runtime',
+          'mindroomUi.models.modelPicker.chooseRuntime': 'Choose a runtime',
+          'mindroomUi.models.modelPicker.retry': 'Retry',
+          'mindroomUi.models.modelPicker.loading': 'Loading models',
+          'mindroomUi.models.modelPicker.pending': 'Waiting for model change',
+          'mindroomUi.models.modelPicker.noResults': 'No matching models',
+          'mindroomUi.models.modelPicker.commandFallback':
+            'You can still send /model (or !model) with a model key in this thread.',
+          'mindroomUi.models.modelPicker.runtimeLabel': `${String(options?.userId)} on ${String(
+            options?.deviceId
+          )}`,
+        };
+        return strings[key] ?? translateFromEn(key, options);
+      },
+    }),
+  };
+});
 
 vi.mock('folds', async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -183,6 +200,7 @@ const createState = (patch: Partial<ModelPickerState> = {}): ModelPickerState =>
     },
   ],
   override: null,
+  reasoning: null,
   inherited: [{ entity: 'assistant', model: 'fast' }],
   loading: false,
   pending: false,
@@ -791,5 +809,395 @@ describe('composer model picker', () => {
     await act(() => image.dispatchEvent(new Event('error')));
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('svg')).not.toBeNull();
+  });
+
+  describe('effort column', () => {
+    const sol: ModelCatalogEntry = {
+      key: 'sol',
+      display_name: 'Sol',
+      provider: 'Codex',
+      id: 'gpt-sol',
+      reasoning_levels: ['low', 'medium', 'high', 'xhigh'],
+      reasoning_default: 'high',
+    };
+    const luna: ModelCatalogEntry = {
+      key: 'luna',
+      display_name: 'Luna',
+      provider: 'Codex',
+      id: 'gpt-luna',
+      reasoning_levels: ['off', 'low', 'medium'],
+      reasoning_default: 'low',
+    };
+    const levelled = (patch: Partial<ModelPickerState> = {}) =>
+      createState({ models: [...createState().models, sol, luna], ...patch });
+    const column = () => container.querySelector('[data-effort-column]');
+    const group = () => container.querySelector('[role="radiogroup"]');
+    const radios = () => [...container.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+    const radio = (name: string) =>
+      radios().find((row) => row.getAttribute('aria-label') === name)!;
+    const header = () => container.querySelector('.EffortHeader')?.textContent;
+    const hover = async (title: string) => {
+      await act(() =>
+        optionNamed(title).dispatchEvent(new MouseEvent('pointermove', { bubbles: true }))
+      );
+    };
+
+    it('shows no column while no model has levels', async () => {
+      await open(createState());
+      expect(column()).toBeNull();
+      expect(container.querySelector('[role="dialog"]')?.className).toBe('Panel');
+    });
+
+    it("lists the current model's levels with a check on its level and Default on its default", async () => {
+      await open(levelled({ override: 'sol', reasoning: 'xhigh' }));
+
+      expect(container.querySelector('[role="dialog"]')?.className).toBe('EffortPanel');
+      expect(header()).toBe('EffortSol');
+      expect(group()?.getAttribute('aria-label')).toBe('Effort for Sol');
+      expect(radios().map((row) => row.getAttribute('aria-label'))).toEqual([
+        'Low',
+        'Medium',
+        'High, default',
+        'Extra high',
+      ]);
+      expect(radios().map((row) => row.getAttribute('aria-checked'))).toEqual([
+        'false',
+        'false',
+        'false',
+        'true',
+      ]);
+      expect(radio('High, default').textContent).toBe('HighDefault');
+      expect(radio('Extra high').querySelector('.Check')).not.toBeNull();
+    });
+
+    it("stays on the thread's model while the pointer and the keys move over other rows", async () => {
+      const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+      await open(state);
+
+      // Luna has levels of its own, Quick helper none: the column shows neither.
+      await hover('Luna');
+      expect(optionNamed('Luna').getAttribute('data-active')).toBe('true');
+      expect(header()).toBe('EffortSol');
+      await hover('Quick helper');
+      expect(group()?.getAttribute('aria-label')).toBe('Effort for Sol');
+      await keyDown(list()!, 'ArrowDown');
+      await keyDown(list()!, 'ArrowDown');
+      expect(header()).toBe('EffortSol');
+      expect(radio('Extra high').getAttribute('aria-checked')).toBe('true');
+
+      await click(radio('Low'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
+    });
+
+    it("applies a level to the thread's model with one command, then closes", async () => {
+      const state = levelled({ override: 'sol' });
+      await open(state);
+      await click(radio('Medium'));
+
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'medium');
+      expect(state.resetToRoomDefault).not.toHaveBeenCalled();
+      act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
+      act(() => root.render(<ModelPicker state={{ ...state, reasoning: 'medium' }} />));
+      expect(list()).toBeNull();
+    });
+
+    it('closes without a command for the level the thread already runs at', async () => {
+      const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+      await open(state);
+      await click(radio('Extra high'));
+
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it('closes without a command for the level of an override that equals the room default', async () => {
+      const state = levelled({
+        override: 'sol',
+        reasoning: 'medium',
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
+      await click(radio('Medium'));
+
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it("resets the current model's row to its default level with one command", async () => {
+      const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+      await open(state);
+      await click(optionNamed('Sol'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol');
+    });
+
+    it("resets the current model's level with Enter on its row", async () => {
+      const state = levelled({ override: 'sol', reasoning: 'low' });
+      await open(state);
+      await keyDown(list()!, 'Enter');
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol');
+    });
+
+    it('only closes on the current model row while it runs at its default level', async () => {
+      const state = levelled({ override: 'sol' });
+      await open(state);
+      await click(optionNamed('Sol'));
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it("keeps the levels, and a focused one, on the thread's model when a refresh adds a model", async () => {
+      const state = levelled({ override: 'sol', reasoning: 'medium' });
+      await open(state);
+      await hover('Luna');
+      await keyDown(list()!, 'ArrowRight');
+      await keyDown(document.activeElement!, 'ArrowDown');
+      expect(document.activeElement).toBe(radio('High, default'));
+
+      const nova: ModelCatalogEntry = { ...sol, key: 'nova', display_name: 'Nova', id: 'gpt-nova' };
+      const models = [...createState().models, nova, sol, luna];
+      act(() => root.render(<ModelPicker state={{ ...state, models }} />));
+
+      expect(header()).toBe('EffortSol');
+      expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
+      expect(document.activeElement).toBe(radio('High, default'));
+      await click(document.activeElement!);
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'high');
+    });
+
+    it('gives the list the keys when the thread moves to another model under a focused level', async () => {
+      const state = levelled({ override: 'sol', reasoning: 'medium' });
+      await open(state);
+      await keyDown(list()!, 'ArrowRight');
+      expect(document.activeElement).toBe(radio('Medium'));
+
+      // Luna offers Medium too: its button is another one, so the focused level never changes model.
+      act(() => root.render(<ModelPicker state={{ ...state, override: 'luna' }} />));
+
+      expect(header()).toBe('EffortLuna');
+      expect(document.activeElement).toBe(list());
+    });
+
+    it("checks the room default's shared level, where picking it changes nothing", async () => {
+      const state = levelled({
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      // Neither the Room default row nor the model's own row changes what the column says.
+      expect(header()).toBe('EffortSol');
+      await hover('Sol');
+      expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
+
+      await click(radio('Medium'));
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it("pins the room default's model at another level with one pick", async () => {
+      const state = levelled({
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      await click(radio('Low'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
+    });
+
+    it("pins the room default's model with a click on its row", async () => {
+      const state = levelled({
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      await click(optionNamed('Sol'));
+      expect(state.selectModel).toHaveBeenCalledWith('sol');
+    });
+
+    it('checks no level while the agents run the shared model at different levels', async () => {
+      const state = levelled({
+        inherited: [
+          { entity: 'assistant', model: 'sol', reasoning: 'low' },
+          { entity: 'reviewer', model: 'sol' },
+        ],
+      });
+      await open(state);
+      expect(header()).toBe('EffortSol');
+      expect(radios().every((row) => row.getAttribute('aria-checked') === 'false')).toBe(true);
+      // The keys enter at the default, and any level is a change.
+      await keyDown(list()!, 'ArrowRight');
+      expect(document.activeElement).toBe(radio('High, default'));
+      await click(radio('Low'));
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
+    });
+
+    it('checks the default level and still marks it Default', async () => {
+      await open(levelled({ override: 'sol' }));
+      const high = radio('High, default');
+      expect(high.getAttribute('aria-checked')).toBe('true');
+      expect(high.querySelector('.Check')).not.toBeNull();
+      expect(high.querySelector('.EffortDefault')?.textContent).toBe('Default');
+    });
+
+    it('applies a model row at its default level, as before', async () => {
+      const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+      await open(state);
+      await click(optionNamed('Luna'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('luna');
+    });
+
+    it('sends nothing from a level while mutations are blocked', async () => {
+      const state = levelled({ override: 'sol', canMutate: false });
+      await open(state);
+      await click(radio('Low'));
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).not.toBeNull();
+    });
+
+    it('moves into the levels with ArrowRight, between them with Up and Down, and back with Left', async () => {
+      const state = levelled({ override: 'sol', reasoning: 'medium' });
+      await open(state);
+
+      // Whichever row the highlight is on, the keys enter the thread's model's levels.
+      await keyDown(list()!, 'ArrowDown');
+      expect(optionNamed('Luna').getAttribute('data-active')).toBe('true');
+      await keyDown(list()!, 'ArrowRight');
+      expect(document.activeElement).toBe(radio('Medium'));
+      expect(radio('Medium').tabIndex).toBe(0);
+      expect(radio('Low').tabIndex).toBe(-1);
+      await keyDown(document.activeElement!, 'ArrowDown');
+      expect(document.activeElement).toBe(radio('High, default'));
+      await keyDown(document.activeElement!, 'ArrowDown');
+      await keyDown(document.activeElement!, 'ArrowDown');
+      expect(document.activeElement).toBe(radio('Extra high'));
+      await keyDown(document.activeElement!, 'ArrowUp');
+      expect(document.activeElement).toBe(radio('High, default'));
+
+      await keyDown(document.activeElement!, 'ArrowLeft');
+      expect(document.activeElement).toBe(list());
+      await keyDown(list()!, 'ArrowRight');
+      await keyDown(document.activeElement!, 'Escape');
+      expect(document.activeElement).toBe(list());
+      expect(list()).not.toBeNull();
+      // A button's Enter is its click.
+      await keyDown(list()!, 'ArrowRight');
+      await click(document.activeElement!);
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it('enters the levels from the filter field only from the end of its text, and returns to it', async () => {
+      await open(levelled({ models: [...longCatalog(), sol], override: 'sol' }));
+      input(search(), 'sol');
+      search().setSelectionRange(0, 0);
+      await keyDown(search(), 'ArrowRight');
+      expect(document.activeElement).toBe(search());
+      search().setSelectionRange(3, 3);
+      await keyDown(search(), 'ArrowRight');
+      expect(document.activeElement).toBe(radio('High, default'));
+      await keyDown(document.activeElement!, 'ArrowLeft');
+      expect(document.activeElement).toBe(search());
+    });
+
+    it.each(['ArrowLeft', 'Escape'])(
+      'returns from the levels to the list on a phone, where the list had focus (%s)',
+      async (key) => {
+        mocks.touch = true;
+        await open(levelled({ models: [...longCatalog(), sol], override: 'sol' }));
+        expect(document.activeElement).toBe(list());
+        await keyDown(list()!, 'ArrowRight');
+        expect(document.activeElement).toBe(radio('High, default'));
+        await keyDown(document.activeElement!, key);
+        expect(document.activeElement).toBe(list());
+      }
+    );
+
+    it('names a model without levels and stays in the list on ArrowRight', async () => {
+      await open(levelled({ override: 'fast' }));
+      // Hovering a model with levels offers none of them: the thread does not run it.
+      await hover('Sol');
+      expect(header()).toBe('EffortQuick helper');
+      expect(group()).toBeNull();
+      expect(column()?.textContent).toContain('No effort levels');
+      await keyDown(list()!, 'ArrowRight');
+      expect(document.activeElement).toBe(list());
+    });
+
+    it('shows no levels under Room default while the agents fall back to different models', async () => {
+      await open(
+        levelled({
+          // Both name Low, but for different models: the thread runs at no one level.
+          inherited: [
+            { entity: 'assistant', model: 'sol', reasoning: 'low' },
+            { entity: 'reviewer', model: 'luna', reasoning: 'low' },
+          ],
+        })
+      );
+      expect(header()).toBe('EffortRoom default');
+      expect(column()?.textContent).toContain('No effort levels');
+      expect(trigger().querySelector('[data-effort-glyph]')).toBeNull();
+      const [, label] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
+      expect(document.getElementById(label!)?.textContent).toBe('Room default');
+    });
+
+    it('stacks the column under the models on a phone', async () => {
+      act(() =>
+        root.render(
+          <ScreenSizeProvider value={ScreenSize.Mobile}>
+            <ModelPicker state={levelled({ override: 'sol' })} />
+          </ScreenSizeProvider>
+        )
+      );
+      await click(trigger());
+      const dialog = container.querySelector('[role="dialog"]')!;
+      expect(dialog.className).toBe('Panel');
+      // Both panes sit in one box, which scrolls them together when a short window fits neither.
+      const panes = dialog.querySelector('.StackedScroll')!;
+      expect(panes.parentElement).toBe(dialog);
+      expect(panes.lastElementChild).toBe(column());
+      expect(radios()).toHaveLength(4);
+    });
+
+    it('adds bars for the level to the button and names the level', () => {
+      act(() =>
+        root.render(<ModelPicker state={levelled({ override: 'sol', reasoning: 'medium' })} />)
+      );
+
+      const bars = [...trigger().querySelectorAll('[data-effort-glyph] rect')];
+      expect(bars).toHaveLength(4);
+      expect(bars.map((bar) => bar.getAttribute('data-filled'))).toEqual([
+        'true',
+        'true',
+        'false',
+        'false',
+      ]);
+      expect(trigger().getAttribute('data-effort')).toBe('true');
+      const [, label] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
+      expect(document.getElementById(label!)?.textContent).toBe('Sol · Medium');
+      expect(
+        container.querySelector('[data-tooltip-label]')?.getAttribute('data-tooltip-hint')
+      ).toBe('Sol · Medium');
+    });
+
+    it('fills no bar at off, which draws none of its own', () => {
+      act(() =>
+        root.render(<ModelPicker state={levelled({ override: 'luna', reasoning: 'off' })} />)
+      );
+      const bars = [...trigger().querySelectorAll('[data-effort-glyph] rect')];
+      expect(bars).toHaveLength(2);
+      expect(bars.every((bar) => bar.getAttribute('data-filled') === 'false')).toBe(true);
+    });
+
+    it('keeps the button of a model without levels as it was', () => {
+      act(() => root.render(<ModelPicker state={levelled({ override: 'reset' })} />));
+      expect(trigger().querySelector('[data-effort-glyph]')).toBeNull();
+      expect(trigger().hasAttribute('data-effort')).toBe(false);
+      const [, label] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
+      expect(document.getElementById(label!)?.textContent).toBe('Deep reasoning');
+    });
   });
 });
