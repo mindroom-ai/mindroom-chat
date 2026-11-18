@@ -641,6 +641,11 @@ type ReactCustomHtmlParserParams = {
   useAuthentication?: boolean;
   /** Whether links show the icon of their site. */
   showLinkFavicons?: boolean;
+  /**
+   * Whether an image with an `https:` source shows as it is, for HTML whose sanitizer already
+   * decided which such images load (a plugin's `imageSource`); otherwise only `mxc:` images show.
+   */
+  httpsImages?: boolean;
 };
 
 /** Parser options that render message HTML in a room (`roomId`, for member names). */
@@ -784,7 +789,9 @@ export const getReactCustomHtmlParser = (
         case 'img': {
           const { src, alt, title } = attribs;
           // Matrix message HTML may only show images from the homeserver (mxc: URIs).
-          if (!src?.startsWith('mxc://')) return <>{alt ?? ''}</>;
+          if (!src?.startsWith('mxc://')) {
+            return params.httpsImages && src?.startsWith('https://') ? undefined : <>{alt ?? ''}</>;
+          }
           const url = mxcUrlToHttp(mx, src, params.useAuthentication) ?? src;
           if ('data-mx-emoticon' in attribs) {
             return (

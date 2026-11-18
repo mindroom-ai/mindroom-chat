@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
-import { type ComponentType, type ReactNode, useLayoutEffect, useState } from 'react';
+import { type ComponentType, createRef, type ReactNode, useLayoutEffect, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
 import {
   ScreenSizeProvider,
   useScreenSize as useAppScreenSize,
 } from '../app/lib/hooks/useScreenSize';
+import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
 import { withReasoning } from '../app/messages/agent-run/Reasoning';
 import { pdfFrameUrl as appPdfFrameUrl } from '../app/messages/viewers/pdfFrame';
 import { PluginSidePanel } from '../app/room/PluginSidePanel';
@@ -30,6 +31,7 @@ import {
 } from '../app/ui/panels/panelPresence';
 import * as ui from './ui';
 import {
+  MarkdownContent,
   pdfFrameUrl,
   PINCH_CHROME_ATTRIBUTE,
   PINCH_SURFACE_ATTRIBUTE,
@@ -63,7 +65,12 @@ describe('@mindroom/client-sdk/ui', () => {
       NavItemContent,
       PopOut,
     };
-    const text = ['replaceMatrixUserIdsWithDisplayNames', 'sanitizeHtml', 'useMarkdownHtml'];
+    const text = [
+      'MarkdownContent',
+      'replaceMatrixUserIdsWithDisplayNames',
+      'sanitizeHtml',
+      'useMarkdownHtml',
+    ];
     const ownSurface = [
       'PINCH_CHROME_ATTRIBUTE',
       'PINCH_SURFACE_ATTRIBUTE',
@@ -174,6 +181,45 @@ describe('useMarkdownHtml', () => {
     const kept = await image({ imageSource: (src) => src });
     expect(kept?.getAttribute('src')).toBe('https://x.example/a.png');
     expect(kept?.getAttribute('alt')).toBe('a');
+  });
+});
+
+describe('MarkdownContent', () => {
+  const TABLE =
+    '<table><thead><tr><th>Commit</th></tr></thead><tbody><tr><td><code>ed6eed9</code></td></tr></tbody></table>';
+  const client = createClient({ baseUrl: 'https://matrix.example', userId: '@me:matrix.example' });
+  const inApp = ({ children }: { children: ReactNode }) => (
+    <MatrixClientProvider value={client}>{children}</MatrixClientProvider>
+  );
+
+  it("draws a wide table in the timeline's scroll box, as a thread shows one", () => {
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300);
+    const { getByRole } = render(<MarkdownContent html={TABLE} />, { wrapper: inApp });
+    const box = getByRole('region', { name: 'Scrollable table' });
+    expect(box.tabIndex).toBe(0);
+    expect(box.querySelector('table td code')?.textContent).toBe('ed6eed9');
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the https images the plugin's imageSource kept, and hands its element to a ref", () => {
+    const ref = createRef<HTMLDivElement>();
+    const { container } = render(
+      <MarkdownContent
+        ref={ref}
+        className="body"
+        html='<p><img src="https://x.example/a.png" alt="a"></p>'
+      />,
+      { wrapper: inApp }
+    );
+    expect(ref.current).toBe(container.firstChild);
+    expect(ref.current?.className).toBe('body');
+    expect(ref.current?.querySelector('img')?.getAttribute('src')).toBe('https://x.example/a.png');
+  });
+
+  it('puts the HTML in as it is outside the app, as on a fixture page', () => {
+    const { container } = render(<MarkdownContent html={TABLE} />);
+    expect(container.querySelector('div > table td code')?.textContent).toBe('ed6eed9');
   });
 });
 

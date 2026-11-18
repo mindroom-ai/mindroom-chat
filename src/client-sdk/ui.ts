@@ -79,6 +79,9 @@ export const useMarkdownHtml = (
   }, [ready, markdown, schemes, imageSource]);
 };
 
+// Sanitized HTML drawn as the timeline draws an agent's reply, wide tables in their scroll box.
+export { MarkdownContent } from './internal/MarkdownContent';
+
 /**
  * `text` with each Matrix user ID of a member of `room` replaced by their name there, also before
  * trailing punctuation, as the app's thread previews show it; other IDs stay.
