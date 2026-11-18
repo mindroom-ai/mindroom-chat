@@ -46,6 +46,13 @@ describe('parseChartWidget', () => {
     });
   });
 
+  it('rejects a lone surrogate and keeps a surrogate pair', () => {
+    const chart = (title: string) =>
+      `{"kind":"bar","labels":["Q1"],"series":[{"data":[1],"name":"S"}],"title":${title},"type":"chart"}`;
+    expect(parseChartWidget(chart('"\\ud83dx"'))).toBeUndefined();
+    expect(parseChartWidget(chart('"\\ud83d\\ude00"'))?.title).toBe('\u{1F600}');
+  });
+
   it('never throws on text that is not JSON', () => {
     expect(parseChartWidget('{"type":')).toBeUndefined();
   });

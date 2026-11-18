@@ -20,9 +20,11 @@ const SERIES_KEYS = new Set(['name', 'data']);
 const hasOnlyKeys = (value: Record<string, unknown>, keys: Set<string>): boolean =>
   Object.keys(value).every((key) => keys.has(key));
 
-/** A string of 1 to `max` code points. */
+const LONE_SURROGATE = /\p{Cs}/u;
+
+/** A well-formed string of 1 to `max` code points. */
 const isText = (value: unknown, max: number): value is string => {
-  if (typeof value !== 'string') return false;
+  if (typeof value !== 'string' || LONE_SURROGATE.test(value)) return false;
   const length = [...value].length;
   return length >= 1 && length <= max;
 };
