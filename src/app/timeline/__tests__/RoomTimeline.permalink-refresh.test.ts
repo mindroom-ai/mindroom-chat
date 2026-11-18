@@ -308,6 +308,53 @@ describe('RoomTimeline', () => {
         );
       });
 
+      it('drops a late event load once the room address took the focus address place', async () => {
+        const { RoomTimeline } = await import('../RoomTimeline');
+        const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+        const latestRoot = makeEvent('$latest-root', { isThreadRoot: true });
+        const olderRoot = makeEvent('$older-root', { isThreadRoot: true });
+        const room = makeRoom({
+          liveEvents: [latestRoot],
+          threads: [
+            { id: latestRoot.getId(), rootEvent: latestRoot },
+            { id: olderRoot.getId(), rootEvent: olderRoot },
+          ] as never,
+        });
+        let resolveLoad: (timeline: unknown) => void = () => undefined;
+        matrixClientMock.getEventTimeline.mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveLoad = resolve;
+          })
+        );
+        let renderer: ReturnType<typeof create> | undefined;
+
+        await act(async () => {
+          renderer = create(
+            React.createElement(ControlledRoomTimeline, {
+              room,
+              eventId: olderRoot.getId(),
+              focusEventInRoom: true,
+              initialViewMode: 'compact',
+            })
+          );
+          await flushAsyncWork();
+        });
+        expect(matrixClientMock.getEventTimeline).toHaveBeenCalled();
+        await act(async () => {
+          renderer?.update(
+            React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'compact' })
+          );
+          await flushAsyncWork();
+        });
+        await act(async () => {
+          resolveLoad(makeTimeline([olderRoot]));
+          await flushAsyncWork();
+        });
+
+        // Loaded for the focus address, the event would now open its thread in the room's place.
+        expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+      });
+
       const threadAnswer = {
         content: { 'm.relates_to': { rel_type: 'm.thread', event_id: '$thread-root' } },
       };
