@@ -542,15 +542,16 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     }
   }
 
-  // A short window with large text: the card stays inside it, and its rest scrolls.
+  // A short window with large text: the card stays inside it, and its rest scrolls. The latest
+  // reply's seam, as the timeline keeps only the rows near the window.
   await page.setViewportSize({ width: 640, height: 300 });
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%';
   });
-  const failedRow = seamsIn(replyWith(page, STATES)).nth(0);
-  await centre(page, failedRow);
-  await failedRow.getByRole('button').hover();
-  await expect(card).toContainText('529 overloaded');
+  const latestRow = seamsIn(page.locator('[data-message-item]').last());
+  await centre(page, latestRow);
+  await latestRow.getByRole('button').hover();
+  await expect(card).toContainText('History');
   const box = await card.boundingBox();
   expect(box).not.toBeNull();
   expect(box!.y).toBeGreaterThanOrEqual(0);
