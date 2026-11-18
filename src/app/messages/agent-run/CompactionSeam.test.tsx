@@ -432,7 +432,8 @@ describe('CompactionSeam card', () => {
   });
 
   it('clears a pending close when it unmounts', () => {
-    vi.useFakeTimers();
+    // The timeouts alone: an open card also follows its row once a frame.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const renderer = render(<CompactionSeam compaction={compaction()} />);
     act(() => {
       trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' });
@@ -603,26 +604,29 @@ describe('CompactionSeam card', () => {
     expect(card(renderer)).toHaveLength(0);
   });
 
-  it('follows the row when the timeline scrolls', async () => {
+  it('follows the row once a frame while open, however it moved, and stops once closed', async () => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     const renderer = render(<CompactionSeam compaction={compaction()} />);
     await open(renderer);
-    triggerRect.y = 140;
-    act(() => {
-      window.dispatchEvent(new Event('scroll'));
-    });
-    const [layer] = renderer.root.findAll((node) => node.props['data-popout'] === true);
-    expect(layer!.props['data-top']).toBe(140);
-    triggerRect.y = 20;
-  });
-
-  it('follows the row when it moves without a scroll, as a line shows above it', async () => {
-    const renderer = render(<CompactionSeam compaction={compaction()} />);
-    await open(renderer);
+    const top = () =>
+      renderer.root.findAll((node) => node.props['data-popout'] === true)[0]!.props['data-top'];
+    // No render of the seam and no scroll: text above it wrapped, or an image loaded.
     triggerRect.y = 60;
-    act(() => renderer.update(<CompactionSeam compaction={compaction()} />));
-    const [layer] = renderer.root.findAll((node) => node.props['data-popout'] === true);
-    expect(layer!.props['data-top']).toBe(60);
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(top()).toBe(60);
     triggerRect.y = 20;
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(top()).toBe(20);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(card(renderer)).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('details a successful compaction', async () => {

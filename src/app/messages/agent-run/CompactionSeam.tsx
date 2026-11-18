@@ -2,7 +2,6 @@ import {
   Fragment,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
@@ -331,15 +330,6 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   };
 
   const isOpen = !!open;
-  // The card sits at a fixed spot, so it follows the row: when the row moves on a render (a
-  // reasoning line shows above it) and when the timeline scrolls as rows arrive and settle.
-  const follow = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) setOpen((current) => anchoredAt(current, rect));
-  };
-  useLayoutEffect(() => {
-    if (isOpen) follow();
-  });
   useEffect(() => {
     if (!isOpen) return undefined;
     const close = () => setOpen(undefined);
@@ -358,13 +348,21 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
       const target = evt.target as Node;
       if (!triggerRef.current?.contains(target) && !cardRef.current?.contains(target)) close();
     };
+    // The card sits at a fixed spot, so it follows the row once a frame, whatever moved it: a
+    // scroll, a line showing above it, text above it wrapping, an image loading.
+    let frame = 0;
+    const follow = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (rect) setOpen((current) => anchoredAt(current, rect));
+      frame = requestAnimationFrame(follow);
+    };
+    frame = requestAnimationFrame(follow);
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', follow, true);
     return () => {
+      cancelAnimationFrame(frame);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', follow, true);
     };
   }, [isOpen]);
 
