@@ -1016,7 +1016,25 @@
     "backgroundJobs": {
       "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})",
       "finished": "Завершено: {{tool}}",
-      "jobCountFinished": "Завершено фоновых задач: {{count}}"
+      "jobCountFinished": "Завершено фоновых задач: {{count}}",
+      "groupSubagents": "Субагенты · {{number}}",
+      "groupTools": "Инструменты · {{number}}",
+      "tools_one": "{{count}} инструмент",
+      "tools_few": "{{count}} инструмента",
+      "tools_many": "{{count}} инструментов",
+      "tools_other": "{{count}} инструмента",
+      "needApproval_one": "Ждут одобрения: {{count}}",
+      "needApproval_few": "Ждут одобрения: {{count}}",
+      "needApproval_many": "Ждут одобрения: {{count}}",
+      "needApproval_other": "Ждут одобрения: {{count}}",
+      "toolCalls_one": "{{count}} вызов инструмента",
+      "toolCalls_few": "{{count}} вызова инструментов",
+      "toolCalls_many": "{{count}} вызовов инструментов",
+      "toolCalls_other": "{{count}} вызова инструментов",
+      "tokens": "Токенов: {{tokens}}",
+      "started": "Запущено {{time}}",
+      "open": "Открыть",
+      "openFor": "Открыть: {{name}}"
     },
     "subagents": {
       "title": "Субагенты",

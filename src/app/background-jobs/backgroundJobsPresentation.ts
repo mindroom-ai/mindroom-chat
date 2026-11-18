@@ -16,6 +16,10 @@ export type BackgroundJobsBarItem = {
   subagent: boolean;
   // The thread it runs for (its root's ID), or null for the room's own timeline.
   threadId: string | null;
+  // How it stands, as its row's dot shows it.
+  state: JobState;
+  // A sub-agent job's agent: its run's, else the job's tool, which names the agent it delegates to.
+  agent?: string;
   // When it started, in ms; NaN when its time does not parse.
   startedAt: number;
   // A sub-agent's newest turn, joined by the sub-agent the job names; none before its first frame.
@@ -29,6 +33,8 @@ export type BackgroundJobsBarItem = {
 export type JobActivity = { tool: string; preview?: string };
 
 export type JobKind = 'subagent' | 'tool';
+
+export type JobState = 'running' | 'waiting' | 'stopping' | 'finished';
 
 export type BackgroundJobsBarModel = {
   title: string;
@@ -67,11 +73,15 @@ const newestToolCall = (run: SubagentRun | undefined): JobActivity | undefined =
 const joinJob = (
   job: BackgroundJob,
   { runFor, toolCallFor }: BackgroundJobLookups
-): Pick<BackgroundJobsBarItem, 'run' | 'activity'> => {
+): Pick<BackgroundJobsBarItem, 'run' | 'activity' | 'agent'> => {
   if (job.kind === 'subagent') {
     const run = job.subagent === undefined ? undefined : runFor(job.subagent);
     const activity = newestToolCall(run);
-    return { ...(run ? { run } : {}), ...(activity ? { activity } : {}) };
+    return {
+      agent: run?.meta.agent ?? job.tool,
+      ...(run ? { run } : {}),
+      ...(activity ? { activity } : {}),
+    };
   }
   const activity = job.toolCallId === undefined ? undefined : toolCallFor(job.toolCallId);
   return activity ? { activity } : {};
@@ -123,12 +133,18 @@ export const presentBackgroundJobs = (
   const several = jobs.length > 1;
   const listed: BackgroundJobsBarItem[] = jobs.map((job) => {
     const finished = job.status === FINISHED_JOB_STATUS;
+    const stopping = !finished && (job.status === 'cancel_requested' || cancelSent(job.jobId));
+    let state: JobState = 'running';
+    if (finished) state = 'finished';
+    else if (stopping) state = 'stopping';
+    else if (awaitingApproval(job)) state = 'waiting';
     return {
       jobId: job.jobId,
       name: jobName(job, t),
       waiting: !finished && several && awaitingApproval(job),
-      stopping: !finished && (job.status === 'cancel_requested' || cancelSent(job.jobId)),
+      stopping,
       finished,
+      state,
       subagent: job.kind === 'subagent',
       threadId: job.threadId,
       startedAt: Date.parse(job.startedAt),

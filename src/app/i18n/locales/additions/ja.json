@@ -968,7 +968,16 @@
     "backgroundJobs": {
       "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）",
       "finished": "完了: {{tool}}",
-      "jobCountFinished": "バックグラウンドジョブ {{count}} 件が完了"
+      "jobCountFinished": "バックグラウンドジョブ {{count}} 件が完了",
+      "groupSubagents": "サブエージェント · {{number}}",
+      "groupTools": "ツール · {{number}}",
+      "tools_other": "ツール {{count}} 件",
+      "needApproval_other": "承認待ち {{count}} 件",
+      "toolCalls_other": "ツール呼び出し {{count}} 回",
+      "tokens": "{{tokens}} トークン",
+      "started": "{{time}}に開始",
+      "open": "開く",
+      "openFor": "開く: {{name}}"
     },
     "subagents": {
       "title": "サブエージェント",

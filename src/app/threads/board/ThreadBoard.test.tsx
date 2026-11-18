@@ -40,7 +40,7 @@ vi.mock('../overview/CompactRoomView', () => ({
     </ol>
   ),
 }));
-vi.mock('../../background-jobs/useRoomBackgroundJobs', () => ({
+vi.mock('../../matrix/hooks/useRoomBackgroundJobs', () => ({
   useRoomBackgroundJobs: () => ({ jobs: mocks.jobs, total: mocks.jobs.length }),
 }));
 vi.mock('../../schedules/useScheduledTaskEvents', () => ({

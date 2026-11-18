@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { keyframes, style, styleVariants } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import * as approvals from '../approvals/ThreadApprovals.css';
 import { touchTarget } from '../ui/styles/touchTarget';
@@ -92,46 +92,174 @@ export const Chevron = style({
 // The room a focus ring needs inside the scrolling list, which clips what overflows it.
 const ring = '3px';
 
-// Several jobs list above the title, in line with its text past the icon; many scroll inside the bar.
+// Under this width a row drops its model (the logo stays) and what its run used.
+const narrow = 'screen and (max-width: 40rem)';
+const hiddenWhenNarrow = { '@media': { [narrow]: { display: 'none' } } };
+
+// Several jobs list above the title, sub-agents then tools; many scroll inside the bar.
 export const Jobs = style({
   gridArea: 'jobs',
-  listStyle: 'none',
   margin: `-${ring}`,
   padding: ring,
-  paddingInlineStart: `calc(${ring} + ${config.size.X50} + ${config.space.S300})`,
-  maxHeight: 'min(30vh, 160px)',
+  maxHeight: 'min(45vh, 20rem)',
   overflowY: 'auto',
 });
 
-// One job: its name and status give way, and its Stop ends the line, as tall as the typing bar's
-// ✕. On touch, a row's Stop stands apart from the next one, since a stop cannot be undone.
+export const JobList = style({ listStyle: 'none', margin: 0, padding: 0 });
+
+// "Sub-agents · 5" over its group, when tools are listed too.
+export const GroupHeading = style({
+  margin: 0,
+  paddingBlock: `${config.space.S200} ${config.space.S100}`,
+  opacity: config.opacity.P300,
+});
+
+// One job: its logo, its two lines, which give way, then its time, Open and Stop, which end the
+// line. On touch, a row's Stop stands apart from the next one, since a stop cannot be undone.
 export const Job = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S300,
   minHeight: '1.5rem',
   minWidth: 0,
+  paddingBlock: config.space.S100,
   '@media': { '(pointer: coarse)': { minHeight: '2.5rem' } },
 });
 
-// A long tool name and its status both give way, so its Stop stays in view; the full text is its title.
-export const Label = style({ flexGrow: 1, minWidth: 0 });
+export const JobText = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minWidth: 0,
+});
 
-// A text button that opens the Sub-agents panel, underlined to the pointer.
+export const JobLine = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minWidth: 0,
+  whiteSpace: 'nowrap',
+});
+
+// The agent's name gives way after the task does.
+export const Name = style({ flex: '0 1 auto', minWidth: '3rem' });
+
+export const ModelPill = style([{ flexShrink: 0, maxWidth: '10rem' }, hiddenWhenNarrow]);
+
+export const Task = style({ flex: '0 1000 auto', minWidth: 0, opacity: config.opacity.P300 });
+
+export const Pill = style({ flexShrink: 0 });
+
+// What it does now: the tool's name, then its arguments in the code font, cut short.
+export const Activity = style({
+  flex: '0 1 auto',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  fontSize: config.fontSize.T200,
+});
+
+export const Preview = style({
+  fontFamily: 'monospace',
+  opacity: config.opacity.P300,
+});
+
+export const Stats = style([
+  { flexShrink: 0, marginInlineStart: 'auto', opacity: config.opacity.P300 },
+  hiddenWhenNarrow,
+]);
+
+// The status dot's ring takes the bar's own surface, so it stands off the logo.
+const statusDot = {
+  position: 'absolute',
+  insetBlockEnd: '-2px',
+  insetInlineEnd: '-2px',
+  width: '9px',
+  height: '9px',
+  borderRadius: '50%',
+  border: `2px solid ${color.Surface.Container}`,
+} as const;
+
+const pulse = keyframes({ '50%': { opacity: 0.45 } });
+
+export const Dot = styleVariants({
+  running: [
+    statusDot,
+    {
+      background: color.Success.Main,
+      '@media': {
+        '(prefers-reduced-motion: no-preference)': {
+          animation: `${pulse} 2s ease-in-out infinite`,
+        },
+      },
+    },
+  ],
+  waiting: [statusDot, { background: color.Warning.Main }],
+  stopping: [statusDot, { background: color.Critical.Main }],
+  finished: [statusDot, { background: color.SurfaceVariant.OnContainer }],
+});
+
+// Several jobs' title stacks the first sub-agents' logos, each over the one before.
+export const Stack = style({ display: 'inline-flex', flexShrink: 0 });
+
+// The run's model, the agent's picture or a terminal, on a tile of the bar's variant surface.
+export const Logo = style({
+  position: 'relative',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  borderRadius: config.radii.R300,
+  background: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+  selectors: {
+    [`${Stack} > &`]: { boxShadow: `0 0 0 1.5px ${color.Surface.Container}` },
+    [`${Stack} > & + &`]: { marginInlineStart: '-5px' },
+  },
+});
+
+export const Summary = style({ minWidth: 0, opacity: config.opacity.P300 });
+
+export const SummaryWaiting = style({ color: color.Warning.Main });
+
+// The time keeps its width as it ticks.
+export const Elapsed = style({
+  flexShrink: 0,
+  fontVariantNumeric: 'tabular-nums',
+  opacity: config.opacity.P300,
+});
+
+export const VisuallyHidden = style({
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+});
+
+// A text button that opens the Sub-agents panel or a thread, underlined to the pointer.
 const panelLinkSelectors = {
   '&:hover': { textDecoration: 'underline' },
   '&:focus-visible': keyboardRing,
 };
 
-// A sub-agent's name in its row opens the panel: the row's text still.
-export const LabelButton = style([
-  Label,
-  { display: 'flex', ...textButton, selectors: panelLinkSelectors },
-]);
+// A job of another thread names it; pressing it shows that thread.
+export const ThreadChip = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  flex: '0 1 auto',
+  minWidth: 0,
+  maxWidth: '14rem',
+  ...textButton,
+  color: color.Primary.Main,
+  selectors: panelLinkSelectors,
+});
 
-// Beside one sub-agent job's title, the way to the panel: as wide as its words, the title giving
-// way first. To a finger it reaches half the gap toward its neighbours.
-export const TitleLink = style([
+// Open, in a row before its Stop and beside one job's title: as wide as its word, the text before
+// it giving way first. To a finger it reaches half the gap toward its neighbours.
+export const Open = style([
   touchTarget('6px'),
   { flexShrink: 0, ...textButton, selectors: panelLinkSelectors },
 ]);

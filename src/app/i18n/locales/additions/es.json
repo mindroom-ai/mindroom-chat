@@ -1000,7 +1000,22 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tareas en segundo plano (se muestran {{shown}})",
       "finished": "Terminado: {{tool}}",
-      "jobCountFinished": "{{count}} tareas en segundo plano terminadas"
+      "jobCountFinished": "{{count}} tareas en segundo plano terminadas",
+      "groupSubagents": "Subagentes · {{number}}",
+      "groupTools": "Herramientas · {{number}}",
+      "tools_one": "{{count}} herramienta",
+      "tools_many": "{{count}} herramientas",
+      "tools_other": "{{count}} herramientas",
+      "needApproval_one": "{{count}} necesita aprobación",
+      "needApproval_many": "{{count}} necesitan aprobación",
+      "needApproval_other": "{{count}} necesitan aprobación",
+      "toolCalls_one": "{{count}} llamada a herramienta",
+      "toolCalls_many": "{{count}} llamadas a herramientas",
+      "toolCalls_other": "{{count}} llamadas a herramientas",
+      "tokens": "{{tokens}} tokens",
+      "started": "Iniciado {{time}}",
+      "open": "Abrir",
+      "openFor": "Abrir {{name}}"
     },
     "subagents": {
       "title": "Subagentes",

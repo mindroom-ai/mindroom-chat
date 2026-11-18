@@ -14,7 +14,7 @@ import { summarizeLoadedThreadCost } from '../event-store/threads/threadConversa
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { getLiveVerdict } from '../messages/live/useLiveReplyContent';
 import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
-import { useRoomBackgroundJobs } from '../background-jobs/useRoomBackgroundJobs';
+import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader, subscribeRoomSignals } from './cross-room/threadSignalsReader';
 import { useSnoozeNow } from './tags/useSnoozeNow';

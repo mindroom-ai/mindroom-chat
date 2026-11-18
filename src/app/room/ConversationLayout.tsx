@@ -9,7 +9,6 @@ import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { FailedSendActions } from '../messages/FailedSendActions';
-import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { RoomViewFollowing } from '../timeline/RoomViewFollowing';
 import { RoomViewTyping } from '../timeline/typing/RoomViewTyping';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
@@ -165,7 +164,6 @@ export function ConversationLayout({
   const headerRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
-  const subagentRuns = useRoomSubagentCounts(room.roomId).total > 0;
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const shownHeader = !collapsed && header;
   useOverlayInsets(
@@ -213,7 +211,6 @@ export function ConversationLayout({
                       room={room}
                       threadId={threadId ?? null}
                       canCancel={canCancelJobs && !readOnly}
-                      subagentRuns={subagentRuns}
                     />
                   </div>
                   <RoomViewFollowing room={room} threadId={threadId} />

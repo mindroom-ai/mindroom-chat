@@ -968,7 +968,16 @@
     "backgroundJobs": {
       "jobCountShowing": "백그라운드 작업 {{count}}개 ({{shown}}개 표시)",
       "finished": "완료됨: {{tool}}",
-      "jobCountFinished": "백그라운드 작업 {{count}}개 완료됨"
+      "jobCountFinished": "백그라운드 작업 {{count}}개 완료됨",
+      "groupSubagents": "하위 에이전트 · {{number}}",
+      "groupTools": "도구 · {{number}}",
+      "tools_other": "도구 {{count}}개",
+      "needApproval_other": "승인 대기 {{count}}개",
+      "toolCalls_other": "도구 호출 {{count}}회",
+      "tokens": "토큰 {{tokens}}개",
+      "started": "{{time}} 시작",
+      "open": "열기",
+      "openFor": "열기: {{name}}"
     },
     "subagents": {
       "title": "하위 에이전트",

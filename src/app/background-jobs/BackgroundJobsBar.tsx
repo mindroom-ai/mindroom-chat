@@ -18,19 +18,18 @@ import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
+import { BackgroundJobRow, BackgroundJobsSummary, JobElapsed, JobLogo } from './BackgroundJobRow';
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';
 import { forgetCancel, keepCancelsOf, markCancelSent, useSentCancels } from './sentCancels';
-import { useRoomBackgroundJobs } from './useRoomBackgroundJobs';
+import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import { useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
+import { useJobLookups } from './useJobLookups';
 
 type BackgroundJobsBarProps = {
   room: Room;
   threadId: string | null;
   // Whether the viewer may send the cancel event here; without it the jobs show without controls.
   canCancel: boolean;
-  // Whether the room's Sub-agents panel has runs; only then do sub-agent jobs link to it, since
-  // older backends announce the jobs without sending the panel's frames.
-  subagentRuns: boolean;
 };
 
 // The last failed cancel of a job, with the view it was sent from, where it shows.
@@ -43,12 +42,7 @@ type OpenMode = 'hover' | 'pinned';
  * The view's background jobs above the composer, on one line: one job with Stop, or several with
  * Stop all, which list each job with its own Stop on hover or when the title is pressed.
  */
-export function BackgroundJobsBar({
-  room,
-  threadId,
-  canCancel,
-  subagentRuns,
-}: BackgroundJobsBarProps) {
+export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const store = useStore();
@@ -56,6 +50,7 @@ export function BackgroundJobsBar({
   const sent = useSentCancels(room.roomId);
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId), room);
+  const { now, lookups } = useJobLookups(room, jobs);
   const [failures, setFailures] = useState<ReadonlyMap<string, Failure>>(new Map());
   const bar = useRef<HTMLDivElement>(null);
   const several = jobs.length > 1;
@@ -141,7 +136,7 @@ export function BackgroundJobsBar({
 
   // The agents count their live jobs per room, so only the main timeline knows of jobs they do not list.
   const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
-  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total);
+  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups);
   if (!model) return null;
   const stoppable = model.items.filter((item) => !item.stopping && !item.finished);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
@@ -208,10 +203,20 @@ export function BackgroundJobsBar({
     ));
   const [single] = model.items;
   const finished = model.items.every((item) => item.finished);
+  // A sub-agent job whose run the Sub-agents panel has opens it there, on that run.
+  const openRun = (item: BackgroundJobsBarItem) => {
+    const subagent = item.run?.meta.subagent;
+    return subagent && (() => openSubagentsPanel(store, room.roomId, item.threadId, subagent));
+  };
+  const openSingle = single && openRun(single);
   // Only the title text is live, so a change is announced once, not with the button around it.
   const status = (
     <>
-      <Icon src={finished ? Icons.Check : Icons.Clock} size="50" aria-hidden />
+      {several ? (
+        <Icon src={finished ? Icons.Check : Icons.Clock} size="50" aria-hidden />
+      ) : (
+        <JobLogo room={room} item={single!} size={20} />
+      )}
       <Text as="span" size="T200" truncate role="status" title={model.title}>
         {model.title}
       </Text>
@@ -278,20 +283,24 @@ export function BackgroundJobsBar({
               onClick={() => (open === 'pinned' ? hide() : show('pinned'))}
             >
               {status}
+              <BackgroundJobsSummary room={room} model={model} />
               <Icon src={Icons.ChevronTop} size="50" className={css.Chevron} aria-hidden />
             </button>
           ) : (
             <>
               {status}
-              {single?.subagent && subagentRuns && (
+              <JobElapsed startedAt={single!.startedAt} now={now} />
+              {openSingle && (
                 // Beside the title, which stays the live status, not inside a button around it.
                 <button
                   type="button"
-                  className={css.TitleLink}
-                  onClick={() => openSubagentsPanel(store, room.roomId, single.threadId)}
+                  className={css.Open}
+                  aria-label={t('mindroomUi.backgroundJobs.openFor', { name: single.name })}
+                  onClick={openSingle}
+                  data-job-open
                 >
                   <Text as="span" size="B300">
-                    {t('mindroomUi.subagents.show')}
+                    {t('mindroomUi.backgroundJobs.open')}
                   </Text>
                 </button>
               )}
@@ -301,38 +310,47 @@ export function BackgroundJobsBar({
         {expanded && (
           // Shown above the title, so the title and Stop all stay under the pointer, but read and
           // reached right after the title, before Stop all. Focus in the list keeps it listed.
-          // Lists without bullets keep their role in WebKit only when it is stated.
-          // eslint-disable-next-line jsx-a11y/no-redundant-roles
-          <ul id={listId} role="list" className={css.Jobs} onFocus={() => setOpen('pinned')}>
-            {model.items.map((item) => (
-              <li key={item.jobId} className={css.Job}>
-                {item.subagent && subagentRuns ? (
-                  // A sub-agent's run shows in the room's Sub-agents panel, which its name opens;
-                  // its title says so, while its name stays the job's.
-                  <button
-                    type="button"
-                    className={css.LabelButton}
-                    title={t('mindroomUi.subagents.showFor', { name: item.name })}
-                    onClick={() => openSubagentsPanel(store, room.roomId, item.threadId)}
+          // Sub-agents and tools are lists of their own, headed when both show.
+          <div id={listId} className={css.Jobs} onFocus={() => setOpen('pinned')}>
+            {model.groups.map((group) => (
+              <React.Fragment key={group.kind}>
+                {model.groups.length > 1 && (
+                  <Text
+                    as="h3"
+                    size="L400"
+                    className={css.GroupHeading}
+                    id={`${listId}-${group.kind}`}
                   >
-                    <Text as="span" size="T200" truncate>
-                      {item.name}
-                    </Text>
-                  </button>
-                ) : (
-                  <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
-                    {item.name}
+                    {t(
+                      group.kind === 'subagent'
+                        ? 'mindroomUi.backgroundJobs.groupSubagents'
+                        : 'mindroomUi.backgroundJobs.groupTools',
+                      { number: group.items.length }
+                    )}
                   </Text>
                 )}
-                {item.waiting && !item.stopping && (
-                  <Text as="span" size="T200" truncate className={css.Muted}>
-                    {t('mindroomUi.backgroundJobs.waiting')}
-                  </Text>
-                )}
-                {stop(item, true)}
-              </li>
+                {/* Lists without bullets keep their role in WebKit only when it is stated. */}
+                {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
+                <ul
+                  role="list"
+                  className={css.JobList}
+                  aria-labelledby={model.groups.length > 1 ? `${listId}-${group.kind}` : undefined}
+                >
+                  {group.items.map((item) => (
+                    <BackgroundJobRow
+                      key={item.jobId}
+                      room={room}
+                      item={item}
+                      viewThreadId={threadId}
+                      now={now}
+                      onOpen={openRun(item) || undefined}
+                      stop={stop(item, true)}
+                    />
+                  ))}
+                </ul>
+              </React.Fragment>
             ))}
-          </ul>
+          </div>
         )}
         <div className={css.Action}>
           {several

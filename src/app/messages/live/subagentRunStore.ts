@@ -28,19 +28,23 @@ export type SubagentRun = LiveReplyEntry & {
 
 const NO_RUNS: readonly SubagentRun[] = [];
 
-/**
- * How many sub-agents are still at it (their newest turn running, waiting for approval or paused):
- * the count the room header's badge and the Sub-agents panel's own header show. A sub-agent takes
- * one turn at a time, so an older turn still at it only missed its last frame.
- */
-export const countActiveSubagents = (runs: readonly SubagentRun[]): number => {
+/** Each sub-agent's newest turn, by the sub-agent; a sub-agent takes one turn at a time. */
+export const newestTurns = (runs: readonly SubagentRun[]): Map<string, SubagentRun> => {
   const newest = new Map<string, SubagentRun>();
   runs.forEach((run) => {
     const held = newest.get(run.meta.subagent);
     if (!held || run.meta.startedAt >= held.meta.startedAt) newest.set(run.meta.subagent, run);
   });
-  return [...newest.values()].filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
+  return newest;
 };
+
+/**
+ * How many sub-agents are still at it (their newest turn running, waiting for approval or paused):
+ * the count the room header's badge and the Sub-agents panel's own header show. A sub-agent takes
+ * one turn at a time, so an older turn still at it only missed its last frame.
+ */
+export const countActiveSubagents = (runs: readonly SubagentRun[]): number =>
+  [...newestTurns(runs).values()].filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
 
 /**
  * The conversation on screen, as the Sub-agents toggle and panel take it: the open thread, or while

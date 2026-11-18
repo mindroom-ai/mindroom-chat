@@ -984,7 +984,19 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} background jobs (showing {{shown}})",
       "finished": "Finished: {{tool}}",
-      "jobCountFinished": "{{count}} background jobs finished"
+      "jobCountFinished": "{{count}} background jobs finished",
+      "groupSubagents": "Sub-agents · {{number}}",
+      "groupTools": "Tools · {{number}}",
+      "tools_one": "{{count}} tool",
+      "tools_other": "{{count}} tools",
+      "needApproval_one": "{{count}} needs approval",
+      "needApproval_other": "{{count}} need approval",
+      "toolCalls_one": "{{count}} tool call",
+      "toolCalls_other": "{{count}} tool calls",
+      "tokens": "{{tokens}} tokens",
+      "started": "Started {{time}}",
+      "open": "Open",
+      "openFor": "Open {{name}}"
     },
     "subagents": {
       "title": "Sub-agents",

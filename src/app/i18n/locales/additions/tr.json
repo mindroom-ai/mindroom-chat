@@ -984,7 +984,19 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)",
       "finished": "Tamamlandı: {{tool}}",
-      "jobCountFinished": "{{count}} arka plan işi tamamlandı"
+      "jobCountFinished": "{{count}} arka plan işi tamamlandı",
+      "groupSubagents": "Alt ajanlar · {{number}}",
+      "groupTools": "Araçlar · {{number}}",
+      "tools_one": "{{count}} araç",
+      "tools_other": "{{count}} araç",
+      "needApproval_one": "{{count}} onay bekliyor",
+      "needApproval_other": "{{count}} onay bekliyor",
+      "toolCalls_one": "{{count}} araç çağrısı",
+      "toolCalls_other": "{{count}} araç çağrısı",
+      "tokens": "{{tokens}} token",
+      "started": "Başladı: {{time}}",
+      "open": "Aç",
+      "openFor": "Aç: {{name}}"
     },
     "subagents": {
       "title": "Alt ajanlar",
