@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 import { useLayoutEffect, useMemo } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
 import {
@@ -19,6 +20,8 @@ import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import { createSyncEngine } from '../../event-store/engine/syncEngine';
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
+import { saveThreadEventsToCache } from '../../event-store/cache/db';
+import { hydrateThreadFromCache } from '../open/threadOpenCacheController';
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
 import { markThreadAsRead } from '../../notifications/readReceipts';
 
@@ -63,6 +66,7 @@ import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter'
 import {
   createThreadRecordKeeper,
   disposeThreadRecordKeeper,
+  useThreadRecordKeeper,
   type ThreadRecordKeeper,
 } from './threadRecordKeeper';
 
@@ -206,6 +210,42 @@ const mountList = (
     firstBuild: probe.builds[0]!,
     painted: () => probe.painted!,
     unmount: view.unmount,
+  };
+};
+
+/** The room page: its list, or the thread that fills it in the list's place. */
+function Page({ thread, probe }: { thread?: string; probe: Probe }) {
+  const keeper = useThreadRecordKeeper(room, thread);
+  return thread ? null : <List keeper={keeper} probe={probe} />;
+}
+
+/**
+ * The room page with its list, shown a while. `open` puts a thread in the list's place, and
+ * `back` brings the list again and gives the records of its first build.
+ */
+const shownPage = async () => {
+  const probe: Probe = { builds: [] };
+  const engine = createSyncEngine({ mx });
+  const tree = (thread?: string) => (
+    <MatrixClientProvider value={mx}>
+      <SyncEngineProvider engine={engine}>
+        <Page thread={thread} probe={probe} />
+      </SyncEngineProvider>
+    </MatrixClientProvider>
+  );
+  const view = render(tree());
+  await settle();
+  act(() => {
+    room.emit(RoomEvent.Receipt, receipt(BOB, '$other', 1), room);
+  });
+  return {
+    records: () => probe.painted!,
+    open: (thread: string) => view.rerender(tree(thread)),
+    back: () => {
+      probe.builds = [];
+      view.rerender(tree());
+      return probe.builds[0]!;
+    },
   };
 };
 
@@ -370,5 +410,106 @@ describe('the Compact list of a room without threads', () => {
     expect(keeper.maps).toBeUndefined();
     expect(keeper.stop).toBeUndefined();
     expect(listeners()).toBe(withoutList);
+  });
+});
+
+describe('the Compact list back after threads filled the page', () => {
+  /** A root as the server sends it, with its thread's summary: the newest reply, by Bob. */
+  const rawRoot = (id: string, ts: number, count: number, participated: boolean) => ({
+    ...message(id, ts).event,
+    unsigned: {
+      'm.relations': {
+        [RelationType.Thread]: {
+          count,
+          current_user_participated: participated,
+          latest_event: message(`${id}-reply${count}`, ts + count, id).event,
+        },
+      },
+    },
+  });
+
+  /** A thread the room knows by its root's summary: one reply, none of the reader's. */
+  const addListedThread = (id: string, ts: number) => {
+    const root = new MatrixEvent(rawRoot(id, ts, 1, false));
+    room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
+    return room.createThread(id, root, [], false);
+  };
+
+  const people = (records: Records, id: string) => records.get(id)?.presentation.peopleIds;
+
+  beforeEach(async () => {
+    ['$a', '$b', '$c'].forEach((id, index) => addListedThread(id, 1000 * (index + 1)));
+    await settle();
+  });
+
+  it('builds again the record of each thread opened: its cached root says the reader took part', async () => {
+    // The cache holds a newer copy of A's and B's roots than the room: the reader replied since.
+    const cache = (id: string, ts: number) => {
+      const root = rawRoot(id, ts, 1, true);
+      const reply = root.unsigned['m.relations'][RelationType.Thread].latest_event;
+      return saveThreadEventsToCache('session', ROOM_ID, id, [reply], root);
+    };
+    await cache('$a', 1000);
+    await cache('$b', 2000);
+    const page = await shownPage();
+    const before = page.records();
+    expect(ids(before)).toEqual(['$a', '$b', '$c']);
+    expect(people(before, '$a')).toEqual([BOB]);
+
+    // A fills the page, then B: each thread's view reads its cached events, which writes what
+    // the cached root knows into the room's own. No event tells of it.
+    const runtime = { mx, room, sessionId: 'session', isCurrentThread: () => true };
+    page.open('$a');
+    await act(() => hydrateThreadFromCache(runtime, '$a'));
+    page.open('$b');
+    await act(() => hydrateThreadFromCache(runtime, '$b'));
+    const summary = room.findEventById('$a')?.getServerAggregatedRelation(RelationType.Thread);
+    expect(summary).toMatchObject({ current_user_participated: true });
+    const first = page.back();
+
+    expect(people(first, '$a')).toEqual([BOB, ME]);
+    expect(people(first, '$b')).toEqual([BOB, ME]);
+    expect(first.get('$c')).toBe(before.get('$c'));
+    expect(page.records().get('$c')).toBe(before.get('$c'));
+  });
+
+  it('builds again the record of a thread opened whose root the SDK read again, before its first page is in', async () => {
+    // The server has a second reply of A. The first page of A's replies does not arrive yet.
+    let pageIn = (): void => undefined;
+    const firstPage = new Promise<object>((resolve) => {
+      pageIn = () => resolve({ chunk: [] });
+    });
+    let pageAsked = false;
+    vi.mocked(mx.http.authedRequest).mockImplementation((_method, path) => {
+      if (path.endsWith('/event/%24a')) return Promise.resolve(rawRoot('$a', 1000, 2, false));
+      if (path.includes('/relations/%24a')) {
+        pageAsked = true;
+        return firstPage;
+      }
+      return Promise.resolve({ chunk: [] });
+    });
+    const page = await shownPage();
+    const before = page.records();
+    expect(before.get('$a')?.status.replyCount).toBe(1);
+    expect(before.get('$a')?.presentation.latestReplyPreviewText).toBe('$a-reply1');
+
+    // A fills the page: the SDK reads its root again and asks for its first page of replies,
+    // and tells of both only once the page is in.
+    const heard = vi.fn();
+    room.on(ThreadEvent.Update, heard);
+    page.open('$a');
+    const initializing = room.getThread('$a')!.initialize();
+    await vi.waitFor(() => expect(pageAsked).toBe(true));
+    expect(heard).not.toHaveBeenCalled();
+    const first = page.back();
+
+    expect(first.get('$a')?.status.replyCount).toBe(2);
+    expect(first.get('$a')?.presentation.latestReplyPreviewText).toBe('$a-reply2');
+    expect(first.get('$b')).toBe(before.get('$b'));
+    expect(first.get('$c')).toBe(before.get('$c'));
+    pageIn();
+    await act(async () => {
+      await initializing;
+    });
   });
 });
