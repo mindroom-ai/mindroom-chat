@@ -21,9 +21,10 @@ type TimelineRowContext = {
   /** The first row after the reader's read marker. */
   unreadDivider: boolean;
   /**
-   * The last row of a run of quiet marker rows, which shows the whole run side by side: the
-   * indexes of the run's earlier markers, in order. Each of those has `inQuietRun` and renders
-   * nothing.
+   * The first row of a run of quiet marker rows, which shows the whole run side by side: the
+   * indexes of the run's later markers, in order. Each of those has `inQuietRun` and renders
+   * nothing. The first row owns the dividers above the run, and a marker that joins the run
+   * adds to that row without moving the markers already in it.
    */
   quietRunIndexes?: readonly number[];
   inQuietRun?: boolean;
@@ -166,10 +167,13 @@ type FoldOptions = {
   groupStartIndex?: number;
   /**
    * A row that renders as a quiet marker line, such as a thread's title: no message between a
-   * message and a reply to it, so the reply's quote looks past it. Consecutive ones show as one
-   * row (`quietRunIndexes`).
+   * message and a reply to it, so the reply's quote looks past it.
    */
   isQuietMarker?: (event: MatrixEvent) => boolean;
+  /** Of the quiet marker rows, those that show beside others (`quietRunIndexes`). */
+  joinsQuietRun?: (event: MatrixEvent) => boolean;
+  /** A row that ends a run of markers: something goes under it, such as a fork draft's line. */
+  quietRunEndIndex?: number;
 };
 
 /** The next row with output after `index`, or undefined past the loaded events. */
@@ -195,7 +199,7 @@ const nextRowIndex = (
  * next row with output instead, and a reply quote looks past it, as past a quiet marker row.
  *
  * Quiet marker rows with no other row between them, and no divider or group start above one of
- * them, show as one row: the run's last marker shows them all side by side. A run that crosses an
+ * them (nor a fork draft's line under one), show as one row: the run's first marker shows them all side by side. A run that crosses an
  * edge of the window is read from the loaded rows past it, so a row shows or folds the same
  * wherever the window starts or ends.
  */
@@ -207,6 +211,8 @@ export const foldTimelineRowContexts = ({
   readUptoAbsoluteIndex,
   groupStartIndex,
   isQuietMarker: readsAsQuietMarker = () => false,
+  joinsQuietRun = () => true,
+  quietRunEndIndex,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
   const firstIndex = indexes[0];
@@ -221,9 +227,18 @@ export const foldTimelineRowContexts = ({
     }
     return quiet;
   };
+  const runMarkers = new Map<MatrixEvent, boolean>();
+  const isRunMarker = (event: MatrixEvent): boolean => {
+    let joins = runMarkers.get(event);
+    if (joins === undefined) {
+      joins = isQuietMarker(event) && joinsQuietRun(event);
+      runMarkers.set(event, joins);
+    }
+    return joins;
+  };
   const isMarkerRow = (index: number): boolean => {
     const event = getEvent(index);
-    return showsRow(event, isSkipped) && isQuietMarker(event);
+    return showsRow(event, isSkipped) && isRunMarker(event);
   };
   const previousRowIndex = (index: number): number => {
     let above = index - 1;
@@ -251,10 +266,9 @@ export const foldTimelineRowContexts = ({
   let replyRun = primeReplyRun(getEvent, before, isSkipped, isQuietMarker);
   let quietRun: number[] = [];
   const endQuietRun = () => {
-    const shownIndex = quietRun.at(-1);
+    const [shownIndex, ...folded] = quietRun;
     const shown = shownIndex === undefined ? undefined : contexts.get(shownIndex);
-    if (shown && quietRun.length > 1) {
-      const folded = quietRun.slice(0, -1);
+    if (shown && folded.length > 0) {
       shown.quietRunIndexes = folded;
       folded.forEach((index) => {
         const context = contexts.get(index);
@@ -292,10 +306,11 @@ export const foldTimelineRowContexts = ({
       };
       contexts.set(index, context);
       if (hasRow) {
-        const marker = isQuietMarker(event);
+        const marker = isRunMarker(event);
         const joinsRun =
           marker &&
           quietRun.length > 0 &&
+          quietRun.at(-1) !== quietRunEndIndex &&
           !context.dayDivider &&
           !unreadDivider &&
           index !== groupStartIndex;

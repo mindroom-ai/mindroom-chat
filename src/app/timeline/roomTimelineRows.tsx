@@ -299,6 +299,7 @@ export const renderTimelineTiles = ({
   isHiddenByPluginId,
   renderEvent,
   isQuietMarkerRow,
+  joinsQuietMarkerRun,
   forkDivider,
   forkingDivider,
   unreadMarkerRef,
@@ -324,6 +325,12 @@ export const renderTimelineTiles = ({
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
   /** Whether a row renders as a quiet marker line, which reply quotes look past. */
   isQuietMarkerRow: (
+    event: MatrixEvent,
+    data: TimelineMessageData,
+    timelineSet: EventTimelineSet
+  ) => boolean;
+  /** Of those, whether it shows beside the quiet markers next to it, in one row. */
+  joinsQuietMarkerRun?: (
     event: MatrixEvent,
     data: TimelineMessageData,
     timelineSet: EventTimelineSet
@@ -365,6 +372,11 @@ export const renderTimelineTiles = ({
     // The fork's first own row starts its group under the divider, whoever wrote the row above.
     groupStartIndex: forkDivider?.index,
     isQuietMarker: (event) => isQuietMarkerRow(event, messageData, timelineSet),
+    joinsQuietRun: joinsQuietMarkerRun
+      ? (event) => joinsQuietMarkerRun(event, messageData, timelineSet)
+      : undefined,
+    // A fork draft's line goes under its fork point: no marker below it joins that row.
+    quietRunEndIndex: forkingDivider?.index,
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
@@ -376,7 +388,7 @@ export const renderTimelineTiles = ({
     const id = event.getId() ?? '';
     const context = rowContexts.get(item.index);
     let content: ReactNode = null;
-    // A quiet marker folded into the run's last row, which shows it, renders nothing.
+    // A quiet marker folded into the run's first row, which shows it, renders nothing.
     if (context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
       const quietRun = context.quietRunIndexes?.flatMap((index): TimelineMessageRow[] => {
         const marker = getRowEvent(index);

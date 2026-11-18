@@ -14,7 +14,7 @@ export function SnoozeEndedMarker({ note }: SnoozeEndedMarkerProps) {
   return (
     <div className={css.Marker} data-thread-snooze-ended="true">
       <IconClock size={14} aria-hidden />
-      <Text as="span" size="T200" priority="300" className={css.Label}>
+      <Text as="span" size="T200" priority="300">
         {t('thread.snoozeEnded')}
         {note && (
           <>

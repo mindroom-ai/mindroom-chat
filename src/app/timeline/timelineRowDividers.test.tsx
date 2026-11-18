@@ -25,8 +25,10 @@ const event = (id: string, type: string, ts: number, stateKey?: string) =>
     ...(stateKey === undefined ? {} : { state_key: stateKey }),
   });
 
-/** Draws every event it is given: the tiles ask it only about events with a row. */
-const renderEvent = ({ eventId }: TimelineMessageRow) => <p>{eventId}</p>;
+/** Draws every event it is given, and the quiet markers its row shows beside it, joined by '+'. */
+const renderEvent = ({ eventId, quietRun }: TimelineMessageRow) => (
+  <p data-row="true">{[eventId, ...(quietRun ?? []).map((marker) => marker.eventId)].join('+')}</p>
+);
 
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
@@ -39,7 +41,12 @@ const messageData = {
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and the dividers above its row: `unread`, or the date. */
-const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: number) => {
+const tileRows = (
+  events: MatrixEvent[],
+  indexes: number[],
+  readUptoAbsoluteIndex: number,
+  quiet: ReadonlySet<string> = new Set()
+) => {
   const tiles = renderTimelineTiles({
     virtualItems: indexes.map(
       (index) =>
@@ -66,7 +73,7 @@ const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: 
     isHiddenByPlugin: () => false,
     isHiddenByPluginId: () => false,
     renderEvent,
-    isQuietMarkerRow: () => false,
+    isQuietMarkerRow: (rowEvent) => quiet.has(rowEvent.getId() ?? ''),
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
     ledgerPxAtRender: 0,
@@ -81,13 +88,22 @@ const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: 
     .findAll((node) => node.type === 'div' && typeof node.props['data-index'] === 'number')
     .map((tile) => {
       const separators = tile.findAll((node) => node.props.role === 'separator');
-      return [
-        events[tile.props['data-index'] as number]!.getId(),
-        separators.map((node) => (/new ?messages/i.test(text(node)) ? 'unread' : 'date')),
-        tile.findAll((node) => node.type === 'p').length > 0,
-      ];
+      return {
+        id: events[tile.props['data-index'] as number]!.getId(),
+        separators: separators.map((node) =>
+          /new ?messages/i.test(text(node)) ? 'unread' : 'date'
+        ),
+        shown: tile.findAll((node) => node.props['data-row'] === 'true').map(text),
+      };
     });
 };
+
+const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: number) =>
+  tileRows(events, indexes, readUptoAbsoluteIndex).map(({ id, separators, shown }) => [
+    id,
+    separators,
+    shown.length > 0,
+  ]);
 
 describe('the dividers above a row that renders nothing', () => {
   const rowless = [
@@ -113,4 +129,25 @@ describe('the dividers above a row that renders nothing', () => {
       expect(mount(events, [2], 0)).toEqual([next]);
     }
   );
+});
+
+describe('the dividers above a run of quiet markers', () => {
+  const quiet = new Set(['$title', '$review']);
+  const events = [
+    event('$read', 'm.room.message', START),
+    event('$title', 'm.room.message', START + DAY),
+    event('$review', 'm.room.message', START + DAY + 60_000),
+  ];
+
+  it('show once, above the row that shows the run, wherever the window starts', () => {
+    const run = { id: '$title', separators: ['unread', 'date'], shown: ['$title+$review'] };
+    const folded = { id: '$review', separators: [], shown: [] };
+    expect(tileRows(events, [0, 1, 2], 0, quiet)).toEqual([
+      { id: '$read', separators: [], shown: ['$read'] },
+      run,
+      folded,
+    ]);
+    expect(tileRows(events, [1, 2], 0, quiet)).toEqual([run, folded]);
+    expect(tileRows(events, [1], 0, quiet)).toEqual([run]);
+  });
 });
