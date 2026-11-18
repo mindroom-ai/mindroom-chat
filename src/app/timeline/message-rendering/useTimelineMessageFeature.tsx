@@ -83,12 +83,7 @@ import { toggleReaction as sendReactionToggle } from '../../messages/reactions/r
 import { ApprovalHistory } from '../../approvals/ThreadApprovalControls';
 import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
-import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
-import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
-import { SkillReviewMarker } from '../../messages/SkillReviewMarker';
-import { readCompactionNotice } from '../../matrix/protocol/compactions';
-import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
+import { readAgentNoticeMarker } from '../../messages/agentNoticeMarker';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
@@ -326,12 +321,7 @@ const readQuietMarker = (
     );
   }
   if (!isMindroomAgentUserIdForViewer(sender, viewerId)) return null;
-  const snoozeEndedNote = readSnoozeEndedNote(content);
-  if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
-  const skillReview = readSkillReviewNotice(content);
-  if (skillReview) return <SkillReviewMarker review={skillReview} />;
-  const compaction = readCompactionNotice(content, originTs);
-  return compaction ? <CompactionNoticeSeam compaction={compaction} /> : null;
+  return readAgentNoticeMarker(content, originTs);
 };
 
 /**
