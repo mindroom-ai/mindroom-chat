@@ -451,13 +451,8 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
   // One height, so a model with more levels never resizes the menu; on a phone the levels sit
   // under the models.
   const height = `min(${toRem(stacked ? STACKED_EFFORT_HEIGHT : EFFORT_HEIGHT)}, ${room})`;
-  return (
-    <Menu
-      role="dialog"
-      aria-label={label}
-      className={stacked ? css.StackedEffortPanel : css.EffortPanel}
-      style={{ height }}
-    >
+  const panes = (
+    <>
       <div className={css.Picker}>{picker}</div>
       <ModelEffortColumn
         effort={effort}
@@ -467,6 +462,16 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
         onPick={selectLevel}
         onLeave={leaveColumn}
       />
+    </>
+  );
+  return (
+    <Menu
+      role="dialog"
+      aria-label={label}
+      className={stacked ? css.StackedEffortPanel : css.EffortPanel}
+      style={{ height }}
+    >
+      {stacked ? <div className={css.StackedScroll}>{panes}</div> : panes}
     </Menu>
   );
 }

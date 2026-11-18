@@ -54,6 +54,7 @@ vi.mock('./ModelPicker.css', () => ({
   SearchInput: 'SearchInput',
   SearchRow: 'SearchRow',
   StackedEffortPanel: 'StackedEffortPanel',
+  StackedScroll: 'StackedScroll',
   StatusRow: 'StatusRow',
   TextButton: 'TextButton',
   Trigger: 'Trigger',
@@ -1156,7 +1157,10 @@ describe('composer model picker', () => {
       await click(trigger());
       const dialog = container.querySelector('[role="dialog"]')!;
       expect(dialog.className).toBe('StackedEffortPanel');
-      expect(dialog.lastElementChild).toBe(column());
+      // Both panes scroll together in one box, so a short window still reaches every level.
+      const panes = dialog.querySelector('.StackedScroll')!;
+      expect(panes.parentElement).toBe(dialog);
+      expect(panes.lastElementChild).toBe(column());
       expect(radios()).toHaveLength(4);
     });
 

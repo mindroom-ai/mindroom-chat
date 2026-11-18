@@ -307,3 +307,38 @@ test('a short phone window keeps room for both the models and the effort levels'
   expect(level.y + level.height).toBeLessThanOrEqual(column.y + column.height + 1);
   await page.screenshot({ path: testInfo.outputPath('short-phone.png'), scale: 'css' });
 });
+
+for (const height of [248, 200]) {
+  test(`a level can be tapped and applied with ${height - 64} px above the model button`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height });
+    await page.goto('/e2e/fixtures/glass-surfaces.html?menus&theme=silver');
+    const trigger = page.getByRole('button', { name: /^Choose model / });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
+    const menu = (await dialog.boundingBox())!;
+    expect(menu.y).toBeGreaterThanOrEqual(0);
+    expect(menu.y + menu.height).toBeLessThanOrEqual((await trigger.boundingBox())!.y);
+    // The room default runs Studio model 01 at Extra high; Low is the column's first level.
+    // It may sit below the fold: the person scrolls the menu, as a wheel or a swipe does (a
+    // script's scrollIntoView would also scroll a box that clips its overflow).
+    const low = dialog.getByRole('radio', { name: 'Low', exact: true });
+    const shown = async () => {
+      const box = (await low.boundingBox())!;
+      return box.y >= menu.y && box.y + box.height <= menu.y + menu.height + 1;
+    };
+    await page.mouse.move(menu.x + menu.width / 2, menu.y + menu.height - 6);
+    await expect
+      .poll(async () => {
+        if (await shown()) return true;
+        await page.mouse.wheel(0, 120);
+        return shown();
+      })
+      .toBe(true);
+    const row = (await low.boundingBox())!;
+    // A tap where the row shows reaches the row: nothing covers or clips it.
+    await page.mouse.click(row.x + row.width / 2, row.y + row.height / 2);
+    await expect(page.locator('output')).toHaveText('model-1@low');
+  });
+}
