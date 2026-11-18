@@ -693,6 +693,20 @@
           "mentions": "Alleen als ze genoemd worden"
         }
       }
+    },
+    "macApp": {
+      "title": "MindRoom voor Mac",
+      "text": "Snelle invoer met ⌃⌥Space, systeemmeldingen.",
+      "download": "Downloaden",
+      "notNow": "Niet nu",
+      "dismiss": "Sluiten",
+      "banner": "<b>Gebruik je een Mac?</b> Haal de MindRoom-app.",
+      "bannerDownload": "Downloaden voor Mac",
+      "menu": "Mac-app downloaden",
+      "downloadDmg": "Downloaden (.dmg)",
+      "copyCommand": "Opdracht kopiëren",
+      "copyFailed": "Kopiëren mislukt",
+      "keywords": "mac, macos, desktop, app, downloaden, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

@@ -81,6 +81,7 @@ type Loaded = {
   settings: typeof import('../preferences/settings');
   membersDrawer: typeof import('../members/useMembersDrawer');
   spaceTabs: typeof import('../sidebar/rail/SpaceTabs');
+  tourState: typeof import('../navigation/tourState');
 };
 
 let loaded: Loaded;
@@ -116,6 +117,7 @@ beforeAll(async () => {
     settings: await import('../preferences/settings'),
     membersDrawer: await import('../members/useMembersDrawer'),
     spaceTabs: await import('../sidebar/rail/SpaceTabs'),
+    tourState: await import('../navigation/tourState'),
   };
 }, 600_000);
 
@@ -137,6 +139,10 @@ const keptAtoms = (): Map<object, string> =>
     [
       loaded.spaceTabs.openFoldersAtom,
       "keyed by folder ID, random for each folder of one account's rail",
+    ],
+    [
+      loaded.tourState.tourOfferAnsweredAtom,
+      'keyed by session ID: an account switched back to keeps its answer to the tour offer',
     ],
   ]);
 

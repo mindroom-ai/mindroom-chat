@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { ClientEvent, SyncState } from 'matrix-js-sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { PHONE_SLIDE_OUT_MS, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
@@ -11,7 +11,7 @@ import { tourAtom } from '../navigation/tourState';
 import { MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE } from '../preferences/accountSettings';
 import { NewVersionNotice } from '../shell/NewVersionNotice';
 import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
-import { resetAnsweredAccountsForTests, TourOffer } from './TourOffer';
+import { TourOffer } from './TourOffer';
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
 // A new version is known, for the test that shows both cards.
@@ -40,6 +40,7 @@ const account = (userId: string, stored?: unknown) => {
   let syncState: SyncState = SyncState.Prepared;
   const client = Object.assign(new EventEmitter(), {
     getSafeUserId: () => userId,
+    getHomeserverUrl: () => 'https://example.org',
     getSyncState: () => syncState,
     getSyncStateData: () => (syncState === SyncState.Prepared ? { fromCache: true } : undefined),
     getAccountData: (type: string) =>
@@ -85,7 +86,10 @@ const show = (
     list = false,
     phone = false,
     withNewVersion = false,
+    store = createStore(),
   }: {
+    /** The page's store, which keeps the accounts that answered for the life of the page. */
+    store?: ReturnType<typeof createStore>;
     synced?: boolean;
     config?: ClientConfig;
     places?: boolean;
@@ -97,7 +101,6 @@ const show = (
   vi.mocked(useMatrixClient).mockReturnValue(
     client as unknown as ReturnType<typeof useMatrixClient>
   );
-  const store = createStore();
   const page = document.body.appendChild(document.createElement('div'));
   if (phone) page.setAttribute('data-phone', '');
   const listPlace = document.body.appendChild(document.createElement('div'));
@@ -147,10 +150,6 @@ const playOut = () =>
   act(() => {
     vi.advanceTimersByTime(NOTICE_LEAVE_MS);
   });
-
-beforeEach(() => {
-  resetAnsweredAccountsForTests();
-});
 
 afterEach(() => {
   vi.useRealTimers();
@@ -316,17 +315,17 @@ describe('TourOffer', () => {
   it('remembers an answered account for the life of the page, also after another account', async () => {
     vi.useFakeTimers();
     const alice = account(ALICE);
-    show(alice);
+    const { store } = show(alice);
     fireEvent.click(button('dismiss'));
     await settle();
     playOut();
     cleanup();
 
-    expect(card(show(account(BOB)).page)).toBeTruthy();
+    expect(card(show(account(BOB), { store }).page)).toBeTruthy();
     cleanup();
 
     // Alice's settings still lack the answer: the write's echo has not come.
-    const { everShown } = show(alice);
+    const { everShown } = show(alice, { store });
     await settle();
     expect(everShown()).toBe(false);
   });

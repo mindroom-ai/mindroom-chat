@@ -684,6 +684,20 @@
           "mentions": "メンションされたときだけ"
         }
       }
+    },
+    "macApp": {
+      "title": "Mac 版 MindRoom",
+      "text": "⌃⌥Space でクイックキャプチャ、ネイティブ通知。",
+      "download": "ダウンロード",
+      "notNow": "今はしない",
+      "dismiss": "閉じる",
+      "banner": "<b>Mac をお使いですか?</b> MindRoom アプリを入手しましょう。",
+      "bannerDownload": "Mac 版をダウンロード",
+      "menu": "Mac アプリをダウンロード",
+      "downloadDmg": "ダウンロード (.dmg)",
+      "copyCommand": "コマンドをコピー",
+      "copyFailed": "コピーできませんでした",
+      "keywords": "mac, macos, デスクトップ, アプリ, ダウンロード, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

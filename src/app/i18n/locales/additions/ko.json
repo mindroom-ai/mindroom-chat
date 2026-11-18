@@ -684,6 +684,20 @@
           "mentions": "멘션될 때만"
         }
       }
+    },
+    "macApp": {
+      "title": "Mac용 MindRoom",
+      "text": "⌃⌥Space로 빠른 캡처, 기본 알림.",
+      "download": "다운로드",
+      "notNow": "나중에",
+      "dismiss": "닫기",
+      "banner": "<b>Mac을 쓰시나요?</b> MindRoom 앱을 받으세요.",
+      "bannerDownload": "Mac용 다운로드",
+      "menu": "Mac 앱 다운로드",
+      "downloadDmg": "다운로드 (.dmg)",
+      "copyCommand": "명령어 복사",
+      "copyFailed": "복사하지 못했습니다",
+      "keywords": "mac, macos, 데스크톱, 앱, 다운로드, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

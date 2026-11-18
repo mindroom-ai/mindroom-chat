@@ -3,9 +3,10 @@
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { tourAtom } from '../../navigation/tourState';
+import { MAC_APP_BREW_COMMAND, MAC_APP_DOWNLOAD_URL } from '../../native/macApp';
 import { About } from './About';
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   saveFile: vi.fn(),
   getDebugModeEnabled: vi.fn(),
   setDebugModeEnabled: vi.fn(),
+  isMacOS: vi.fn(() => false),
+  config: {} as Record<string, unknown>,
+  copyToClipboard: vi.fn(async () => true),
 }));
 
 vi.mock('folds', () => ({
@@ -58,7 +62,8 @@ vi.mock('folds', () => ({
       disabled,
       onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.checked),
     }),
-  config: { space: { S400: '1rem' } },
+  config: { space: { S100: '0.25rem', S300: '0.75rem', S400: '1rem' }, radii: { R300: '0.5rem' } },
+  color: { Background: { Container: 'background' }, Critical: { Main: 'critical' } },
   toRem: (value: number) => `${value / 16}rem`,
 }));
 
@@ -117,7 +122,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../config/useClientConfig', () => ({
-  useClientConfig: () => ({ welcome: undefined }),
+  useClientConfig: () => ({ welcome: undefined, ...mocks.config }),
 }));
 
 vi.mock('../../ui/branding/clientBranding', () => ({
@@ -132,6 +137,18 @@ vi.mock('../../ui/branding/clientBranding', () => ({
 
 vi.mock('../../native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
+  isNativeApp: () => false,
+}));
+
+vi.mock('../../lib/user-agent', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/user-agent')>()),
+  isMacOS: mocks.isMacOS,
+}));
+
+vi.mock('../../lib/dom', () => ({ copyToClipboard: mocks.copyToClipboard }));
+vi.mock('../../rich-text/code/CodeBlockIcons', () => ({
+  CopyIcon: () => null,
+  CheckIcon: () => null,
 }));
 
 vi.mock('../../native/nativeFileSave', () => ({
@@ -728,6 +745,77 @@ describe('About tour', () => {
     expect(store.get(tourAtom)).toEqual({ level });
     expect(closeDialog).toHaveBeenCalledOnce();
     expect(requestClose).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+});
+
+describe('About Mac app', () => {
+  const macTile = (renderer: ReactTestRenderer) =>
+    renderer.root.findAllByProps({ 'data-setting-id': 'macApp' });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isNativeIOS.mockReturnValue(false);
+    mocks.config = { macApp: { offer: true } };
+  });
+
+  afterEach(() => {
+    mocks.config = {};
+  });
+
+  it('is not shown where the deployment does not offer the app, also on a Mac', () => {
+    mocks.isMacOS.mockReturnValue(true);
+    for (const config of [{}, { macApp: { offer: false } }]) {
+      mocks.config = config;
+      const renderer = create(<About requestClose={vi.fn()} />);
+      expect(macTile(renderer)).toHaveLength(0);
+      renderer.unmount();
+    }
+  });
+
+  it('is shown only in a browser on a Mac', () => {
+    mocks.isMacOS.mockReturnValue(false);
+    const elsewhere = create(<About requestClose={vi.fn()} />);
+    expect(macTile(elsewhere)).toHaveLength(0);
+    elsewhere.unmount();
+
+    mocks.isMacOS.mockReturnValue(true);
+    const mac = create(<About requestClose={vi.fn()} />);
+    const [tile] = macTile(mac);
+    expect(tile?.props['data-setting-title']).toBe('MindRoom for Mac');
+    const download = mac.root.findByProps({ 'data-mac-app-download': 'about' });
+    expect(download.props.href).toBe(MAC_APP_DOWNLOAD_URL);
+    const under = tile?.findByProps({ 'data-slot': 'under' });
+    expect(under?.findAllByType('span').map((text) => text.children.join(''))).toContain(
+      MAC_APP_BREW_COMMAND
+    );
+    mac.unmount();
+  });
+
+  it.each([
+    [true, 'Copied'],
+    [false, 'Copy failed'],
+  ])('copies the Homebrew command and says how it went (copied: %s)', async (works, status) => {
+    mocks.isMacOS.mockReturnValue(true);
+    mocks.copyToClipboard.mockResolvedValue(works);
+    const renderer = create(<About requestClose={vi.fn()} />);
+    const copy = () => renderer.root.findByProps({ 'data-mac-app-copy-brew': '' });
+    const said = () =>
+      String(renderer.root.findByProps({ 'data-mac-app-copy-status': '' }).props.children);
+    expect(copy().props['aria-label']).toBe('Copy command');
+    expect(said()).toBe('');
+
+    await act(async () => {
+      copy().props.onClick();
+    });
+
+    expect(mocks.copyToClipboard).toHaveBeenCalledWith(MAC_APP_BREW_COMMAND);
+    expect(said()).toBe(status);
+    // The button keeps its name; the live region beside it says what happened.
+    expect(copy().props['aria-label']).toBe('Copy command');
+    expect(renderer.root.findByProps({ 'data-mac-app-copy-status': '' }).props['aria-live']).toBe(
+      'polite'
+    );
     renderer.unmount();
   });
 });

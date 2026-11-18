@@ -693,6 +693,20 @@
           "mentions": "सिर्फ़ उल्लेख होने पर"
         }
       }
+    },
+    "macApp": {
+      "title": "Mac के लिए MindRoom",
+      "text": "⌃⌥Space से क्विक कैप्चर, नेटिव सूचनाएँ।",
+      "download": "डाउनलोड करें",
+      "notNow": "अभी नहीं",
+      "dismiss": "हटाएँ",
+      "banner": "<b>Mac इस्तेमाल करते हैं?</b> MindRoom ऐप पाएँ।",
+      "bannerDownload": "Mac के लिए डाउनलोड करें",
+      "menu": "Mac ऐप डाउनलोड करें",
+      "downloadDmg": "डाउनलोड करें (.dmg)",
+      "copyCommand": "कमांड कॉपी करें",
+      "copyFailed": "कॉपी नहीं हो सका",
+      "keywords": "mac, macos, डेस्कटॉप, ऐप, डाउनलोड, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
