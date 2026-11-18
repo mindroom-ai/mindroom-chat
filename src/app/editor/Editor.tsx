@@ -231,8 +231,9 @@ type CustomEditorProps = EditorSlots & {
   maxHeight?: string;
   /**
    * The composer's frame, which can change without remounting the text box: `row` puts the
-   * controls beside the text, `stacked` under it (text at least two lines tall). Without it,
-   * the controls sit beside the text in a plain row.
+   * controls beside the text, `stacked` under it (text at least two lines tall), with the
+   * `bottom` row between the leading and trailing controls where the frame is wide enough.
+   * Without it, the controls sit beside the text in a plain row.
    */
   layout?: EditorLayout;
   className?: string;
@@ -362,7 +363,11 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
   );
 
   return (
-    <div ref={ref} style={style} className={classNames(css.Editor, className)}>
+    <div
+      ref={ref}
+      style={style}
+      className={classNames(css.Editor, layout && css.EditorFrame, className)}
+    >
       <Slate initialValue={initialValue} editor={editor} onChange={onChange}>
         {top}
         {layout ? (
@@ -370,9 +375,11 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
             className={classNames(css.EditorGrid, layout === 'stacked' && css.EditorGridStacked)}
             data-editor-layout={layout}
           >
+            {/* The text box first, so no layout moves it; the bottom row after the leading
+                controls, so Tab reaches a toolbar right after the button that showed it. */}
             {scroll(css.EditorSlotText)}
-            {bottom && <div className={css.EditorSlotBottom}>{bottom}</div>}
             <EditorControls className={css.EditorSlotBefore}>{before}</EditorControls>
+            {bottom && <div className={css.EditorSlotBottom}>{bottom}</div>}
             <EditorControls className={css.EditorSlotAfter}>{after}</EditorControls>
           </div>
         ) : (

@@ -5,6 +5,7 @@ import {
   test,
   type Browser,
   type BrowserContextOptions,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
@@ -24,6 +25,8 @@ import {
 // the bottom, and expands to two rows while the user writes; a tap on a control of the expanded
 // composer reaches that control even when the press takes focus from the text, as iOS does.
 // Who has read the latest message shows at the end of the dock's row above the composer. Set
+// The formatting toolbar sits on the controls row, after the Formatting button, where the
+// composer is wide enough, and in a row of its own above the controls where it is not. Set
 // COMPOSER_TWO_ROW_SHOTS=<directory> to save the bottom of the screen in the dark theme.
 const PASSWORD = 'composer-two-row-spec-password';
 const RUN = Date.now().toString(36);
@@ -54,9 +57,9 @@ test.use({
 });
 
 /** A room the author wrote in, which a second member has read to its latest message. */
-const seed = async () => {
-  const author = await registerDisposableUser(`ctr_author_${RUN}`, PASSWORD);
-  const follower = await registerDisposableUser(`ctr_follower_${RUN}`, PASSWORD);
+const seed = async (tag = '') => {
+  const author = await registerDisposableUser(`ctr_author_${tag}${RUN}`, PASSWORD);
+  const follower = await registerDisposableUser(`ctr_follower_${tag}${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, author.accessToken, {
     name: 'Launch planning',
     preset: 'public_chat',
@@ -387,5 +390,89 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
     expect(short.sendBelowText, 'one row in a short area').toBe(false);
   } finally {
     await phone.context.close();
+  }
+});
+
+test('the formatting toolbar shares the controls row where the composer is wide enough', async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(180_000);
+  const world = await seed('fmt_');
+  const desktop = await signIn(browser, baseURL, world, DESKTOP);
+  try {
+    const { page } = desktop;
+    const formatting = button(page, 'Formatting');
+    const toolbar = page.getByRole('toolbar', { name: 'Formatting' });
+    const boxOf = async (what: string, locator: Locator) => {
+      const box = await locator.boundingBox();
+      if (!box) throw new Error(`no box for ${what}`);
+      return box;
+    };
+    // The widths the threshold in Editor.css.ts sums: the frame, its three slots and the
+    // toolbar's own content.
+    const widths = () =>
+      page.evaluate(() => {
+        const grid = document.querySelector<HTMLElement>('[data-room-footer] [data-editor-layout]');
+        const width = (element: Element | null | undefined) =>
+          element ? Math.round(element.getBoundingClientRect().width * 10) / 10 : null;
+        const slots = Array.from(grid?.children ?? []);
+        const toolbarBox = grid?.querySelector('[role="toolbar"]');
+        return {
+          frame: width(grid?.parentElement),
+          slots: slots.map(width),
+          toolbar: toolbarBox?.scrollWidth ?? null,
+        };
+      });
+
+    const closed = await geometry(page);
+    expect(closed.layout).toBe('stacked');
+    await formatting.click();
+    await expect(toolbar).toBeVisible();
+    await page.mouse.move(0, 0);
+    console.log(`wide composer widths: ${JSON.stringify(await widths())}`);
+    const opened = await geometry(page);
+    const formattingBox = await boxOf('Formatting', formatting);
+    const toolbarBox = await boxOf('the toolbar', toolbar);
+    const centre = (box: { y: number; height: number }) => box.y + box.height / 2;
+    expect(
+      Math.abs(centre(toolbarBox) - centre(formattingBox)),
+      'the toolbar is centred on the controls row'
+    ).toBeLessThanOrEqual(2);
+    expect(toolbarBox.x, 'the toolbar follows the Formatting button').toBeGreaterThan(
+      formattingBox.x + formattingBox.width
+    );
+    expect(
+      Math.abs(opened.height - closed.height),
+      'the composer keeps its height with the toolbar open'
+    ).toBeLessThanOrEqual(0.5);
+    await shot(page, 'desktop-formatting-inline');
+
+    // Tab goes from the Formatting button into the toolbar it showed.
+    await formatting.focus();
+    await page.keyboard.press('Tab');
+    await expect(toolbar.getByRole('button').first()).toBeFocused();
+
+    // Too narrow for one row (a tablet's width, not a phone's): the toolbar has a row of its own
+    // above the controls, as before.
+    await page.setViewportSize({ width: 800, height: 800 });
+    await expect(button(page, 'Send message')).toBeVisible();
+    await expect(toolbar).toBeVisible();
+    console.log(`narrow composer widths: ${JSON.stringify(await widths())}`);
+    const narrow = await geometry(page);
+    expect(narrow.layout).toBe('stacked');
+    const narrowFormatting = await boxOf('Formatting', formatting);
+    const narrowToolbar = await boxOf('the toolbar', toolbar);
+    const text = await boxOf('the text box', textBox(page));
+    expect(
+      narrowToolbar.y + narrowToolbar.height,
+      'the toolbar sits above the controls row'
+    ).toBeLessThanOrEqual(narrowFormatting.y);
+    expect(narrowToolbar.y, 'the toolbar sits under the text box').toBeGreaterThanOrEqual(
+      text.y + text.height - 1
+    );
+    await shot(page, 'tablet-formatting-row');
+  } finally {
+    await desktop.context.close();
   }
 });
