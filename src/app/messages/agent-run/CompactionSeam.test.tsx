@@ -251,6 +251,17 @@ describe('CompactionSeam while running', () => {
   });
 });
 
+describe('CompactionSeam end time', () => {
+  it('shows no When row when the start and the duration end past the latest date', async () => {
+    const renderer = render(
+      <CompactionSeam compaction={compaction({ startedAt: 8.64e15 - 1000, durationMs: 8.64e15 })} />
+    );
+    await open(renderer);
+
+    expect(rows(renderer).map(([term]) => term)).not.toContain('When');
+  });
+});
+
 describe('CompactionSeam reason', () => {
   it('clamps the failure reason, and only it, to a few lines', async () => {
     const renderer = render(<CompactionSeam compaction={failed()} />);

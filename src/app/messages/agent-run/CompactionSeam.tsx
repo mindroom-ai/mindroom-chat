@@ -170,8 +170,15 @@ const modelRow = ({ summaryModel }: ReplyCompaction, t: TFunction): Row[] =>
 const timeRow = (term: string, ts: number | undefined, at: RowContext['at']): Row[] =>
   ts === undefined ? [] : [{ term, value: at(ts) }];
 
-const endTime = ({ startedAt, durationMs }: ReplyCompaction): number | undefined =>
-  startedAt === undefined ? undefined : startedAt + (durationMs ?? 0);
+/** The latest time a `Date` holds, in ms; date formatting throws past it. */
+const MAX_TIME_MS = 8.64e15;
+
+/** When the compaction ended; undefined without a start, or past the latest date. */
+const endTime = ({ startedAt, durationMs }: ReplyCompaction): number | undefined => {
+  if (startedAt === undefined) return undefined;
+  const end = startedAt + (durationMs ?? 0);
+  return end <= MAX_TIME_MS ? end : undefined;
+};
 
 const successRows = (c: ReplyCompaction, { t, at }: RowContext): Row[] => {
   const runs = c.compactedRunCount ?? c.runsBefore;
