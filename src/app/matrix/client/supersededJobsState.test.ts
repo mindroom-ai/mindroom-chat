@@ -10,6 +10,7 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../protocol/backgroundJobsContract';
+import { startClient } from './clientSyncPolicy';
 import { emptySupersededJobsState } from './supersededJobsState';
 
 const ROOM_ID = '!room:example.org';
@@ -59,7 +60,7 @@ const joinedRoom = async (keep = true) => {
   mx.store.storeRoom(room);
   // As sync does for each room it creates.
   mx.reEmitter.reEmit(room, [RoomEvent.Timeline, RoomStateEvent.Events]);
-  const stop = keep ? emptySupersededJobsState(mx) : () => undefined;
+  if (keep) emptySupersededJobsState(mx);
   await room.addLiveEvents([stateEvent(EventType.RoomCreate, '', '$create'), message('$first')], {
     addToState: true,
   });
@@ -76,7 +77,7 @@ const joinedRoom = async (keep = true) => {
       ]);
   const currentJobs = (agent = AGENT) =>
     room.currentState.getStateEvents(MINDROOM_BACKGROUND_JOBS_EVENT, agent)?.getId();
-  return { mx, room, live, timelineEvents, currentJobs, stop };
+  return { mx, room, live, timelineEvents, currentJobs };
 };
 
 describe('emptySupersededJobsState', () => {
@@ -131,7 +132,7 @@ describe('emptySupersededJobsState', () => {
   });
 
   it('keeps each agent its own current jobs state', async () => {
-    const { live, timelineEvents, currentJobs } = await joinedRoom();
+    const { room, live, timelineEvents, currentJobs } = await joinedRoom();
 
     await live(jobs('$a1'), jobs('$b1', OTHER_AGENT), jobs('$a2'));
 
@@ -142,6 +143,17 @@ describe('emptySupersededJobsState', () => {
     ]);
     expect(currentJobs()).toBe('$a2');
     expect(currentJobs(OTHER_AGENT)).toBe('$b1');
+    expect(room.findEventById('$b1')?.getContent()).toEqual({ jobs: [{ job_id: '$b1-0' }] });
+  });
+
+  it('starts with the client, before its first sync', async () => {
+    const { mx, room, live } = await joinedRoom(false);
+    // The SDK's first sync delivers both.
+    vi.spyOn(mx, 'startClient').mockImplementation(() => live(jobs('$jobs1'), jobs('$jobs2')));
+    await startClient(mx);
+
+    expect(room.findEventById('$jobs1')?.getContent()).toEqual({});
+    mx.stopClient();
   });
 
   it('leaves a jobs state whole when sync brings it again', async () => {
@@ -218,9 +230,10 @@ describe('emptySupersededJobsState', () => {
   });
 
   it('empties the state in the timeline before a sync gap as well', async () => {
-    const { room, live, timelineEvents } = await joinedRoom();
+    const { room, live, timelineEvents, currentJobs } = await joinedRoom();
     await live(jobs('$before'));
 
+    const beforeGap = room.getLiveTimeline();
     room.resetLiveTimeline('back', 'forward');
     await live(message('$after'), jobs('$after-jobs'));
 
@@ -229,17 +242,29 @@ describe('emptySupersededJobsState', () => {
       ['$after', false],
       ['$after-jobs', true],
     ]);
-  });
 
-  it('stops when told to', async () => {
-    const { live, timelineEvents, stop } = await joinedRoom();
-    stop();
-
-    await live(jobs('$jobs1'), jobs('$jobs2'));
+    // A page that fills the gap changes the state at the end of the older timeline.
+    room.addEventsToTimeline([jobs('$gap1'), jobs('$gap2')], false, true, beforeGap);
 
     expect(timelineEvents().slice(2)).toEqual([
-      ['$jobs1', true],
-      ['$jobs2', true],
+      ['$before', false],
+      ['$gap1', true],
+      ['$gap2', true],
+      ['$after', false],
+      ['$after-jobs', true],
     ]);
+    expect(currentJobs()).toBe('$after-jobs');
+  });
+
+  it('keeps the current jobs state when the event cache restores an emptied copy of an older one', async () => {
+    const { room, live, currentJobs } = await joinedRoom();
+    await live(jobs('$jobs1'), jobs('$jobs2'));
+    const restored = stateEvent(MINDROOM_BACKGROUND_JOBS_EVENT, AGENT, '$restored', {});
+
+    // As `insertCachedRoomTimeline` does: live, from the cache, not as state.
+    await room.addLiveEvents([restored], { fromCache: true, addToState: false });
+
+    expect(currentJobs()).toBe('$jobs2');
+    expect(room.findEventById('$jobs2')?.getContent()).toHaveProperty('jobs');
   });
 });
