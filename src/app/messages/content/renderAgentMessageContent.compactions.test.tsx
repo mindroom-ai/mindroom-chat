@@ -16,6 +16,7 @@ import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { LIVE_COMPACTIONS_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
 
@@ -771,6 +772,75 @@ describe('compaction seams in finished and live replies', () => {
       )
     );
     expect(seamStates()).toEqual(['failed', 'running']);
+  });
+});
+
+/**
+ * The content a reply shows after its edits, read as the timeline reads it (`getEditedEvent`).
+ * Each edit carries its MindRoom metadata twice, in its wrapper and its new content, as the
+ * backend writes it.
+ */
+const afterEdits = (...edits: Record<string, unknown>[]): Record<string, unknown> => {
+  const sender = '@agent:example.org';
+  const target = new MatrixEvent({
+    event_id: '$target',
+    type: 'm.room.message',
+    room_id: '!room:example.org',
+    sender,
+    origin_server_ts: 1000,
+    content: { msgtype: 'm.text', body: 'Thinking…' },
+  });
+  const events = edits.map(
+    (newContent, index) =>
+      new MatrixEvent({
+        event_id: `$edit${index}`,
+        type: 'm.room.message',
+        room_id: '!room:example.org',
+        sender,
+        origin_server_ts: 2000 + index * 1000,
+        content: {
+          ...newContent,
+          body: `* ${newContent.body}`,
+          'm.new_content': newContent,
+          'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+        },
+      })
+  );
+  const timelineSet = {
+    relations: { getChildEventsForEvent: () => ({ getRelations: () => events }) },
+  };
+  return getLatestMessageContent(
+    target,
+    getEditedEvent('$target', target, timelineSet as never)
+  ) as Record<string, unknown>;
+};
+
+describe('compaction seams across a regenerated reply', () => {
+  const finished = reply(paragraphs('Intro.', markerLine('t1', 1), 'Done.'), [entry('c1', 1)], {
+    'io.mindroom.stream_status': 'completed',
+    'io.mindroom.ai_run': { version: 1, status: 'completed' },
+  });
+
+  it('shows no seam of the previous answer on a regenerated one that did not compact', () => {
+    const { [COMPACTIONS_CONTENT_KEY]: _none, ...regenerated } = reply(
+      paragraphs('Again.', markerLine('t1', 1), 'Done again.'),
+      [],
+      { 'io.mindroom.stream_status': 'completed' }
+    );
+    render(afterEdits(finished, regenerated));
+
+    expect(sequence()).toEqual(['Again.', 'tools:t1', 'Done again.']);
+  });
+
+  it('keeps a running seam of a regenerated reply running, whatever the previous answer said', () => {
+    const regenerating = reply(
+      paragraphs('Again.', markerLine('t1', 1)),
+      [entry('c2', 1, { status: 'running', after_tokens: undefined })],
+      { 'io.mindroom.stream_status': 'streaming' }
+    );
+    render(afterEdits(finished, regenerating));
+
+    expect(seamStates()).toEqual(['running']);
   });
 });
 

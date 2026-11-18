@@ -21,6 +21,7 @@ import { copyResolvedEditMetadata, STREAM_STATUS_TS_KEY } from './protocol/editM
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
 import { hasTerminalStreamMetadata, STREAM_STATUS_KEY } from './protocol/aiRun';
+import { COMPACTIONS_CONTENT_KEY } from './protocol/compactions';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from '../lib/matchesEnum';
@@ -406,19 +407,30 @@ const carriesStreamStatus = (edit: MatrixEvent): boolean =>
   edit.getContent()[STREAM_STATUS_KEY] !== undefined;
 
 /**
+ * The MindRoom metadata a newer edit may borrow from `contents`, the first one's first. Never a
+ * reply's compactions: every write of the reply carries all of its own, so an edit without them
+ * is a regenerated answer that ran none.
+ */
+const getBorrowableMetadata = (
+  contents: ReadonlyArray<Record<string, unknown>>
+): Record<string, unknown> => {
+  const borrowable: Record<string, unknown> = {};
+  copyResolvedEditMetadata(borrowable, contents);
+  delete borrowable[COMPACTIONS_CONTENT_KEY];
+  return borrowable;
+};
+
+/**
  * A large streamed reply may leave its tool trace in an earlier edit (later ones carry it only in
  * a sidecar), so the newest edit borrows MindRoom metadata it lacks from the sender's older edits,
- * newest first. What the newest edit's wrapper carries already stays as it is. A borrowed stream
- * status remembers when the edit that carries it was sent (`getEditStreamFinishTs`).
+ * newest first (`getBorrowableMetadata`). What the newest edit's wrapper carries already stays as
+ * it is. A borrowed stream status remembers when the edit that carries it was sent
+ * (`getEditStreamFinishTs`).
  */
 const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): void => {
   const newContent = getNewContent(latest);
   if (!newContent || older.length === 0) return;
-  const borrowed: Record<string, unknown> = {};
-  copyResolvedEditMetadata(
-    borrowed,
-    older.map((edit) => edit.getContent())
-  );
+  const borrowed = getBorrowableMetadata(older.map((edit) => edit.getContent()));
   const wrapper = latest.getContent();
   Object.entries(borrowed).forEach(([key, value]) => {
     if (newContent[key] !== undefined || wrapper[key] !== undefined) return;
@@ -509,11 +521,8 @@ export const getEditedEvent = (
 };
 
 /** The MindRoom metadata `getEditedEvent` would borrow from `edit` for a newer edit lacking it. */
-const getBorrowableKeys = (edit: MatrixEvent): string[] => {
-  const borrowable: Record<string, unknown> = {};
-  copyResolvedEditMetadata(borrowable, [edit.getContent()]);
-  return Object.keys(borrowable);
-};
+const getBorrowableKeys = (edit: MatrixEvent): string[] =>
+  Object.keys(getBorrowableMetadata([edit.getContent()]));
 
 /**
  * Of one sender's edits of one message, those `getEditedEvent` can neither show nor borrow from
@@ -581,8 +590,7 @@ export const getPendingEdits = (
   eventId: string,
   mEvent: MatrixEvent,
   timelineSet: Pick<EventTimelineSet, 'relations'> | undefined
-): MatrixEvent[] =>
-  getEditCandidates(eventId, mEvent, timelineSet).filter(isUnreadableYet);
+): MatrixEvent[] => getEditCandidates(eventId, mEvent, timelineSet).filter(isUnreadableYet);
 
 /**
  * The event's own content. The SDK's `getContent` gives the `m.new_content` of the edit it

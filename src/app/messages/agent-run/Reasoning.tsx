@@ -19,13 +19,10 @@ import {
   LIVE_REASONING_SEGMENTS_KEY,
 } from '../live/useLiveReplyContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
-import {
-  ACTIVE_STREAM_STATUSES,
-  getStreamStatusFromContent,
-  hasTerminalStreamMetadata,
-} from '../../matrix/protocol/aiRun';
+import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import {
   COMPACTIONS_CONTENT_KEY,
+  hasReplyEnded,
   readReplyCompactions,
   type ReplyCompaction,
 } from '../../matrix/protocol/compactions';
@@ -259,7 +256,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
     () => readReplyCompactions(recordedCompactions),
     [recordedCompactions]
   );
-  const replyEnded = hasTerminalStreamMetadata(content);
+  const replyEnded = hasReplyEnded(content);
   // The calls the body draws as tool blocks, read from the renderer's own parse of the HTML it
   // renders. They place the segments an open bulb shows after calls and the compactions after
   // calls, and end the segment the model writes; the body is read for them only then.
