@@ -27,8 +27,9 @@ import {
 // A person asks in a thread; the agent posts five progress messages and then its answer. That
 // finished turn folds its five messages behind a break ("5 earlier messages"), which shows them
 // on a click and folds them again from "Hide 5 messages". The person asks again, and the agent's
-// second turn still streams: it shows every message and no break. Set TURN_FOLD_SHOTS=<directory>
-// to save each state.
+// second turn still streams: it shows every message and no break. A run's reply answers its turn
+// though the run posted a caption and two images after it: they stay in view under the reply.
+// Set TURN_FOLD_SHOTS=<directory> to save each state.
 const PASSWORD = 'turn-fold-break-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.TURN_FOLD_SHOTS;
@@ -50,6 +51,25 @@ const WORKING = [
   'The migration runs in 3 seconds on the copy.',
   'Now checking the other nightly jobs',
 ];
+
+const REQUEST = 'Can you write up a summary of the change?';
+const DRAFT = 'First draft of the summary';
+const NOTE = 'Checking the draft against the diff.';
+const SUMMARY = 'Final summary of the change';
+const CAPTION = 'Before and after:';
+// A run's reply carries its metadata, as getAiRunInfo reads it.
+const AI_RUN = {
+  'io.mindroom.ai_run': {
+    version: 1,
+    status: 'completed',
+    usage: { input_tokens: 1200, output_tokens: 80 },
+  },
+};
+// A 1x1 PNG.
+const PICTURE = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+);
 
 type Seed = {
   reader: DisposableUser;
@@ -76,7 +96,7 @@ const inThread = (rootId: string, previousId: string) => ({
   },
 });
 
-const seed = async (name: string): Promise<Seed> => {
+const seedRoom = async (name: string) => {
   const reader = await registerDisposableUser(`tfb_${name}_${RUN}`, PASSWORD);
   await setDisplayName(reader, 'Sam Lee');
   const agent = await registerAgentAccount(HOMESERVER, `ops_${name}`);
@@ -89,6 +109,11 @@ const seed = async (name: string): Promise<Seed> => {
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
   const send = (session: MatrixSession, content: Record<string, unknown>) =>
     sendRoomMessage(HOMESERVER, session.accessToken, roomId, content);
+  return { reader, agent, roomId, send };
+};
+
+const seed = async (name: string): Promise<Seed> => {
+  const { reader, agent, roomId, send } = await seedRoom(name);
   const agentSays = async (rootId: string, previousId: string, body: string, status: string) =>
     send(agent, {
       msgtype: 'm.text',
@@ -117,6 +142,46 @@ const seed = async (name: string): Promise<Seed> => {
     workingIds.push(previousId);
   }
   return { reader, roomId, rootId, progressIds, answerId, workingIds };
+};
+
+/**
+ * A finished turn whose run's reply, as MindRoom sends it when the run starts, comes before what
+ * the run posted as it worked: a caption and two images. An earlier run's reply and a note fold.
+ */
+const seedAttachments = async (name: string) => {
+  const { reader, agent, roomId, send } = await seedRoom(`${name}_att`);
+  const rootId = await send(reader, { msgtype: 'm.text', body: REQUEST });
+  let previousId = rootId;
+  const agentSends = async (content: Record<string, unknown>) => {
+    previousId = await send(agent, {
+      'io.mindroom.stream_status': 'completed',
+      ...content,
+      ...inThread(rootId, previousId),
+    });
+    return previousId;
+  };
+  const foldedIds = [
+    await agentSends({ msgtype: 'm.text', body: DRAFT, ...AI_RUN }),
+    await agentSends({ msgtype: 'm.text', body: NOTE }),
+  ];
+  const summaryId = await agentSends({ msgtype: 'm.text', body: SUMMARY, ...AI_RUN });
+  const captionId = await agentSends({ msgtype: 'm.text', body: CAPTION });
+  const imageIds: string[] = [];
+  for (const body of ['before.png', 'after.png']) {
+    const response = await fetch(
+      `${HOMESERVER}/_matrix/media/v3/upload?filename=${encodeURIComponent(body)}`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${agent.accessToken}`, 'Content-Type': 'image/png' },
+        body: PICTURE,
+      }
+    );
+    expect(response.ok, `uploading ${body}`).toBe(true);
+    const url = ((await response.json()) as { content_uri: string }).content_uri;
+    const info = { mimetype: 'image/png', w: 120, h: 80, size: PICTURE.length };
+    imageIds.push(await agentSends({ msgtype: 'm.image', body, url, info }));
+  }
+  return { reader, roomId, rootId, foldedIds, summaryId, captionId, imageIds };
 };
 
 const shot = async (page: Page, name: string) => {
@@ -179,6 +244,43 @@ const check = async (
   }
 };
 
+const checkAttachments = async (
+  browser: Browser,
+  options: BrowserContextOptions,
+  baseURL: string | undefined,
+  name: string
+) => {
+  const { reader, roomId, rootId, foldedIds, summaryId, captionId, imageIds } =
+    await seedAttachments(name);
+  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
+    await seedRoomOverviewState({ page, roomId, userId: reader.userId, viewMode: 'threaded' });
+    await page.goto(`/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`);
+
+    const row = (id: string) => page.locator(`[data-message-id="${id}"]`);
+    await expect(row(rootId)).toContainText(REQUEST, { timeout: 60_000 });
+    await expect(row(imageIds[1]!)).toBeVisible({ timeout: 60_000 });
+    const breaks = page.locator('[data-turn-break]');
+    await expect(breaks).toHaveCount(1);
+    await shot(page, `${name}-attachments-after-reply`);
+
+    // Only the earlier run's reply and the note fold; the reply and what came after it show.
+    await expect(breaks.getByRole('button')).toHaveText('···2 earlier messages···');
+    for (const id of foldedIds) await expect(row(id)).toHaveCount(0);
+    await expect(row(summaryId)).toContainText(SUMMARY);
+    await expect(row(captionId)).toContainText(CAPTION);
+    for (const id of imageIds) await expect(row(id)).toBeVisible();
+  } finally {
+    await context.close();
+  }
+};
+
 const DESKTOP: BrowserContextOptions = {
   viewport: { width: 1280, height: 800 },
   colorScheme: 'dark',
@@ -213,5 +315,12 @@ for (const [form, options] of [
     baseURL,
   }) => {
     await check(browser, options, baseURL, form);
+  });
+
+  test(`a run's reply answers its turn, the attachments posted after it in view (Chromium, ${form})`, async ({
+    browser,
+    baseURL,
+  }) => {
+    await checkAttachments(browser, options, baseURL, form);
   });
 }
