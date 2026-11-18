@@ -808,7 +808,7 @@ test.describe('PERF: real work under the backend load', () => {
   let historyFile = '';
 
   test.beforeAll(async ({ agentStackOrSkip }) => {
-    test.setTimeout(55 * 60_000);
+    test.setTimeout(85 * 60_000);
     test.skip(typeof agentStackOrSkip === 'string', String(agentStackOrSkip));
     stack = agentStackOrSkip as AgentStack;
     // The driver posts as the tester, whose token the state holds.
@@ -837,7 +837,7 @@ test.describe('PERF: real work under the backend load', () => {
         '--out',
         historyFile,
       ],
-      { encoding: 'utf8', timeout: 30 * 60_000 }
+      { encoding: 'utf8', timeout: 60 * 60_000 }
     );
     if (history.status !== 0) {
       rmSync(historyFile, { force: true });
