@@ -105,9 +105,7 @@ const parseSnapshot = (value: unknown): LiveDocs | null => {
   if (!isStatus(status) || typeof activity !== 'string' || !segments || compactions === null) {
     return null;
   }
-  const docs: LiveDocs = { md, reasoning, tools, status, activity, segments };
-  if (compactions) docs.compactions = compactions;
-  return docs;
+  return { md, reasoning, tools, status, activity, segments, ...(compactions && { compactions }) };
 };
 
 const parseDelta = (value: unknown): LiveDelta | null => {
@@ -192,17 +190,16 @@ export const applyLiveDelta = (docs: LiveDocs, delta: LiveDelta): LiveDocs | nul
   const reasoning = delta.reasoning ? applySplice(docs.reasoning, delta.reasoning) : docs.reasoning;
   const tools = delta.tools ? applyToolsDelta(docs.tools, delta.tools) : docs.tools;
   if (md === null || reasoning === null || tools === null) return null;
-  const after: LiveDocs = {
+  const compactions = delta.compactions ?? docs.compactions;
+  return {
     md,
     reasoning,
     tools,
     status: delta.status ?? docs.status,
     activity: delta.activity ?? docs.activity,
     segments: delta.segments ?? docs.segments,
+    ...(compactions && { compactions }),
   };
-  const compactions = delta.compactions ?? docs.compactions;
-  if (compactions) after.compactions = compactions;
-  return after;
 };
 
 /** Orders live state of one reply: by publisher generation (`sid`), then by `seq`. */
