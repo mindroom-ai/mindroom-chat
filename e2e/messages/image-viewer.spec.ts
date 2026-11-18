@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 async function transform(image: Locator) {
   return image.evaluate((element) => {
@@ -53,6 +53,48 @@ test.describe('image viewer touch gestures', () => {
 
     await page.getByText('200%', { exact: true }).click();
     await expect.poll(() => transform(image)).toEqual({ scale: 1, x: 0, y: 0 });
+  });
+});
+
+test.describe('image viewer left-edge close on phones', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  /** One finger from `fromX` to `toX` at mid-height, in moves of 16 px as a finger makes them. */
+  const swipe = async (page: Page, fromX: number, toX: number) => {
+    const session = await page.context().newCDPSession(page);
+    const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number) =>
+      session.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: x === undefined ? [] : [{ id: 1, x, y: 420 }],
+      });
+    await send('touchStart', fromX);
+    for (let x = fromX + 16; x <= toX; x += 16) await send('touchMove', x);
+    await send('touchEnd');
+    await session.detach();
+  };
+  const state = (page: Page) => page.locator('#viewer-state');
+
+  test('a swipe from the left edge closes it, and does not also step back', async ({ page }) => {
+    await page.goto('/e2e/fixtures/image-viewer.html?phone');
+    await expect(page.getByRole('img', { name: 'Test image' })).toBeVisible();
+    await swipe(page, 4, 200);
+    await expect(state(page)).toHaveText('closed 1');
+    await expect(page.locator('[data-image-viewer]')).toHaveCount(0);
+  });
+
+  test('a swipe away from the edge still steps, and zoomed in an edge drag pans', async ({
+    page,
+  }) => {
+    await page.goto('/e2e/fixtures/image-viewer.html?phone');
+    await expect(page.getByRole('img', { name: 'Test image' })).toBeVisible();
+    await swipe(page, 120, 320);
+    await expect(state(page)).toHaveText('open 0');
+
+    await page.getByText('100%', { exact: true }).click();
+    await expect(page.getByText('200%', { exact: true })).toBeVisible();
+    await swipe(page, 4, 200);
+    await expect(state(page)).toHaveText('open 0');
+    await expect(page.locator('[data-image-viewer]')).toHaveCount(1);
   });
 });
 
