@@ -40,11 +40,6 @@ const writeAfterThisTask =
     setTimeout(() => write(...args), 0);
   };
 
-const nextTask = (): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-
 const initialState = {
   open: {
     loadError: false,
@@ -391,18 +386,6 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             firstPaint.ready();
             if (!isCurrentThreadOpen()) return;
             if (!shouldContinue) return;
-            // A thread whose timeline is already loaded gets here in the task of the press that
-            // opened it, where React renders each update at once, one render of every row per
-            // step below. In a later task the steps render together, and the press's task ends
-            // without them: the first paint of a thread that opens at its newest reply needs
-            // none of them. An open at an event goes on at once: its first paint is the jump to
-            // that event, queued below, and nothing may move the rows before it.
-            if (shouldScrollToLatestOnOpen) {
-              await nextTask();
-              if (!isCurrentThreadOpen()) return;
-            }
-            // Only now, in one step with the look at the cache result below: a complete cache
-            // that lands while the task above is awaited still sets the tail itself.
             liveProgressed = true;
             publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
             const cachedPage = cacheResult?.hydratedCachedPage;

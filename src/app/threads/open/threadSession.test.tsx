@@ -23,14 +23,6 @@ vi.mock('../../event-store/cache/eventRepository', async (original) => ({
   loadThreadCachedSnapshot: vi.fn(),
 }));
 
-/** The open's steps after its SDK load run in the next task. */
-const afterOpenTask = () =>
-  act(async () => {
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
-  });
-
 const deferred = <T,>() => {
   let resolve!: (value: T) => void;
   let reject!: (error: Error) => void;
@@ -298,7 +290,6 @@ describe('thread session opening', () => {
         await act(async () => undefined);
         expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
         await act(async () => bootstrap.resolve(false));
-        await afterOpenTask();
         expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBeNull();
         expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
       } finally {
@@ -374,7 +365,6 @@ describe('thread session opening', () => {
       });
       try {
         await act(async () => undefined);
-        await afterOpenTask();
         const history = view.session.snapshot.history;
         expect(history).toEqual({ hasMoreCachedBack: true, tailLoaded: true });
         await act(async () => pending.resolve(fixture.cache(complete)));
@@ -464,7 +454,6 @@ describe('thread session opening', () => {
     });
     try {
       await act(async () => undefined);
-      await afterOpenTask();
       expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
       expect(view.session.snapshot.open.latestPending).toBe(false);
       expect(view.session.snapshot.history.tailLoaded).toBe(true);
@@ -474,7 +463,7 @@ describe('thread session opening', () => {
     }
   });
 
-  it('writes the cache and reports the loaded thread in tasks after the press that opened it', async () => {
+  it('writes the cache in a task after the press that opened the thread', async () => {
     const fixture = openFixture();
     vi.mocked(loadThreadCachedSnapshot)
       .mockReset()
@@ -489,8 +478,8 @@ describe('thread session opening', () => {
       // Everything the open can do without waiting for a request or a later task.
       await act(async () => undefined);
       expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+      expect(view.session.snapshot.open.sdkReady).toBe(true);
       expect(fixture.persist).not.toHaveBeenCalled();
-      expect(view.session.snapshot.open.sdkReady).toBe(false);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1);
@@ -500,31 +489,6 @@ describe('thread session opening', () => {
         [fixture.reply],
         fixture.root,
       ]);
-      expect(view.session.snapshot.open.sdkReady).toBe(true);
-    } finally {
-      view.unmount();
-      vi.useRealTimers();
-    }
-  });
-
-  it('has the tail when a complete cache lands between the SDK load and the task after it', async () => {
-    const fixture = openFixture();
-    const pending = deferred<ReturnType<typeof fixture.cache>>();
-    vi.mocked(loadThreadCachedSnapshot).mockReset().mockReturnValue(pending.promise);
-    const view = renderOpen(fixture.runtime, {
-      roomId: fixture.runtime.room.roomId,
-      threadId: '$a',
-    });
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      // The SDK load is done and waits for the next task; the cache read finishes first.
-      await act(async () => undefined);
-      await act(async () => pending.resolve(fixture.cache()));
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-      });
-      expect(view.session.snapshot.open.sdkReady).toBe(true);
-      expect(view.session.snapshot.history.tailLoaded).toBe(true);
     } finally {
       view.unmount();
       vi.useRealTimers();
@@ -793,7 +757,6 @@ describe('thread session opening', () => {
         expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
         expect(view.session.snapshot.history.hasMoreCachedBack).toBe(true);
       }
-      // An open at an event takes its steps after the SDK load at once, not in a later task.
       await act(async () => sdk.resolve(false));
       expect(view.session.snapshot.history.tailLoaded).toBe(true);
       expect(view.session.targets.getPending()?.eventId).toBe('$reply');

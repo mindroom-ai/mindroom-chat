@@ -25,10 +25,10 @@ type ThreadOpeningRevealOptions = {
   /** How far measurement corrections have moved the scroll position up so far, in px (0 or less). */
   measurementCorrectionPx: () => number;
   /**
-   * Whether the open has its newest replies: its tail is loaded, or it ended without one (a
-   * request failed). Until then the rows the client holds may end before the thread does.
+   * Whether the open asked for its pin to the newest reply, which it does once it has the
+   * thread's newest replies. Until then the rows the client holds may end before the thread does.
    */
-  openSettled: boolean;
+  openAskedForLatest: () => boolean;
 };
 
 /** An edit or a reaction has no tile once it measures to no height. */
@@ -44,11 +44,11 @@ const atEndOf = (scrollArea: HTMLElement): boolean =>
  * end before the thread's newest replies, which the open then brings.
  *
  * While the rows are hidden, every commit leaves the view at the end of its scroll range. The
- * rows show once the open has its newest replies and a commit rests at that end with the list's
- * last tile mounted, at the sizes measured so far, and with rows up to the top of the view, below
- * the sticky header (or the thread's first row): a list measured shorter than estimated leaves
- * the top of the view empty until the rows above mount. Checked after every commit, after the
- * pins.
+ * rows show once the open asked for its pin to the newest reply and a commit rests at that end
+ * with the list's last tile mounted, at the sizes measured so far, and with rows up to the top of
+ * the view, below the sticky header (or the thread's first row): a list measured shorter than
+ * estimated leaves the top of the view empty until the rows above mount. Checked after every
+ * commit, after the pins.
  *
  * The rows also show when the reader takes over, whose scroll then stands (a gesture, or a move
  * up that no measurement made), or after THREAD_REVEAL_AFTER_MS. Once shown, they stay shown for
@@ -64,7 +64,7 @@ export const useThreadOpeningReveal = ({
   readerTookOver,
   rowsAtMeasuredSizes,
   measurementCorrectionPx,
-  openSettled,
+  openAskedForLatest,
 }: ThreadOpeningRevealOptions): boolean => {
   const [revealed, setRevealed] = useViewScopedState(viewKey, () => !opensAtLatest);
   // Where the last commit left the hidden rows, with the corrections applied until then.
@@ -106,7 +106,7 @@ export const useThreadOpeningReveal = ({
       !!scrollArea.querySelector(`[data-index="${lastTileIndex}"]`) &&
       filled &&
       rowsAtMeasuredSizes() &&
-      openSettled
+      openAskedForLatest()
     ) {
       setRevealed(true);
     }

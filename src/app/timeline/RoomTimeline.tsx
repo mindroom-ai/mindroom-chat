@@ -611,6 +611,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     }),
     [setTimeline, threadStateRef]
   );
+  // The open asks for its pin to the newest reply once it has the thread's newest replies: an
+  // opening thread's rows show from then on (useThreadOpeningReveal).
+  const openAskedForLatestRef = useViewScopedFlag(viewKey);
   const viewportPort = useMemo<ThreadOpenViewportPort>(
     () => ({
       resetForOpen: () => {
@@ -621,9 +624,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
       // Queued: the next commit applies it, unless the reader scrolls first.
       requestLatestPin: () => {
         backController.requestOpenBottomPin(scrollToBottomRef);
+        openAskedForLatestRef.current.value = true;
       },
     }),
-    [backController, viewKeyRef]
+    [backController, openAskedForLatestRef, viewKeyRef]
   );
   const priorityTargets = windowState.priorityThreadSeedPrewarmRoots;
   const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
@@ -1155,8 +1159,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
     rowsAtMeasuredSizes: () => !beforePaint && virtualizerRef.current.getTotalSize() === listHeight,
     measurementCorrectionPx: ledger.readMeasurementCorrectionPx,
-    // The tail is loaded, or the open that was pending ended without one.
-    openSettled: threadTailLoaded || (threadOpenedAtLatest && !threadLatestOpenPending),
+    openAskedForLatest: () => openAskedForLatestRef.current.value,
   });
   // Once the thread shows, the rows kept ready around its view mount, in a render that gives way
   // to the reader's input and to the replies that stream.

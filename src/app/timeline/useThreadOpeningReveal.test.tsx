@@ -85,7 +85,7 @@ function Harness({
     readerTookOver: () => tookOver,
     rowsAtMeasuredSizes: () => measured,
     measurementCorrectionPx: () => correction,
-    openSettled: settled,
+    openAskedForLatest: () => settled,
   });
   return null;
 }
@@ -207,7 +207,7 @@ describe('useThreadOpeningReveal', () => {
     expect(shown.hidden).toBe(false);
   });
 
-  it('keeps the rows hidden until the open has its newest replies', () => {
+  it('keeps the rows hidden until the open asked for its pin to the newest reply', () => {
     // At the end of the rows the client holds, which may end before the thread does.
     render({ geometry: AT_END, settled: false });
     expect(shown.hidden).toBe(true);
