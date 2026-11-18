@@ -60,9 +60,7 @@ type Props = {
   geometry: Geometry;
   tookOver?: boolean;
   measured?: boolean;
-  /** How far measurement corrections moved the scroll position up so far. */
-  correction?: number;
-  settled?: boolean;
+  pinAsked?: boolean;
 };
 
 const shown: { hidden?: boolean } = {};
@@ -74,8 +72,7 @@ function Harness({
   geometry,
   tookOver = false,
   measured = true,
-  correction = 0,
-  settled = true,
+  pinAsked = true,
 }: Props) {
   shown.hidden = useThreadOpeningReveal({
     viewKey,
@@ -84,8 +81,7 @@ function Harness({
     scrollRef: { current: scrollArea(geometry) },
     readerTookOver: () => tookOver,
     rowsAtMeasuredSizes: () => measured,
-    measurementCorrectionPx: () => correction,
-    openAskedForLatest: () => settled,
+    openingPinAsked: () => pinAsked,
   });
   return null;
 }
@@ -131,42 +127,11 @@ describe('useThreadOpeningReveal', () => {
     expect(scrolledTo).toEqual([]);
   });
 
-  it('leaves the hidden rows at the end of the range after a commit moved it', () => {
-    // The rows measured in this commit made the list longer: the view is no longer at its end.
-    render({ geometry: { ...AT_END, scrollHeight: 2600, mounted: [0, 1, 2] } });
-    expect(scrolledTo).toEqual([1800]);
-    expect(shown.hidden).toBe(true);
-
-    // Put there, a commit that holds the last rows shows them.
-    render({ geometry: { scrollHeight: 2600, clientHeight: 800, scrollTop: 1800 } });
-    expect(scrolledTo).toEqual([1800]);
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('leaves the position to a reader who took it over, and shows the rows', () => {
+  it('shows the rows of a reader who took the position over, where they are', () => {
     // Already in the first commit: no earlier position tells of the move.
     render({ geometry: AT_TOP, tookOver: true });
     expect(scrolledTo).toEqual([]);
     expect(shown.hidden).toBe(false);
-  });
-
-  it('leaves the position to a move up that came without a gesture, and shows the rows', () => {
-    render({ geometry: { ...AT_END, mounted: [0, 1, 2] } });
-    // A script or assistive technology scrolled up: no measurement accounts for the move.
-    render({ geometry: { ...AT_END, scrollTop: 1400, mounted: [0, 1, 2] } });
-    expect(scrolledTo).toEqual([]);
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('puts the rows back at the end after a measurement moved the view up', () => {
-    render({ geometry: { ...AT_END, mounted: [0, 1, 2] } });
-    // virtual-core moved the view up by the 200 px a row above it shrank, and the list grew.
-    render({
-      geometry: { ...AT_END, scrollHeight: 2500, scrollTop: 1400, mounted: [0, 1, 2] },
-      correction: -200,
-    });
-    expect(scrolledTo).toEqual([1700]);
-    expect(shown.hidden).toBe(true);
   });
 
   it('keeps the rows hidden while the top of the view has no row', () => {
@@ -207,9 +172,9 @@ describe('useThreadOpeningReveal', () => {
     expect(shown.hidden).toBe(false);
   });
 
-  it('keeps the rows hidden until the open asked for its pin to the newest reply', () => {
-    // At the end of the rows the client holds, which may end before the thread does.
-    render({ geometry: AT_END, settled: false });
+  it('keeps the rows hidden until the opening pin was asked for', () => {
+    // At its estimated end only because the list starts there: nothing pins it there yet.
+    render({ geometry: AT_END, pinAsked: false });
     expect(shown.hidden).toBe(true);
 
     render({ geometry: AT_END });

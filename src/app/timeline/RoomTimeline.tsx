@@ -611,9 +611,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     }),
     [setTimeline, threadStateRef]
   );
-  // The open asks for its pin to the newest reply once it has the thread's newest replies: an
+  // Whether the thread's opening pin was asked for, by the open or by the focus controller: an
   // opening thread's rows show from then on (useThreadOpeningReveal).
-  const openAskedForLatestRef = useViewScopedFlag(viewKey);
+  const openingPinAskedRef = useViewScopedFlag(viewKey);
   const viewportPort = useMemo<ThreadOpenViewportPort>(
     () => ({
       resetForOpen: () => {
@@ -623,11 +623,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
       resetAfterLeave: () => backController.reset(),
       // Queued: the next commit applies it, unless the reader scrolls first.
       requestLatestPin: () => {
-        backController.requestOpenBottomPin(scrollToBottomRef);
-        openAskedForLatestRef.current.value = true;
+        if (backController.requestOpenBottomPin(scrollToBottomRef)) {
+          openingPinAskedRef.current.value = true;
+        }
       },
     }),
-    [backController, openAskedForLatestRef, viewKeyRef]
+    [backController, openingPinAskedRef, viewKeyRef]
   );
   const priorityTargets = windowState.priorityThreadSeedPrewarmRoots;
   const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
@@ -1046,10 +1047,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
     () => backController.suppressOpenBottomPin(),
     [backController]
   );
-  const requestThreadOpenBottomPin = useCallback(
-    () => backController.requestOpenBottomPin(scrollToBottomRef),
-    [backController]
-  );
+  const requestThreadOpenBottomPin = useCallback(() => {
+    const asked = backController.requestOpenBottomPin(scrollToBottomRef);
+    if (asked) openingPinAskedRef.current.value = true;
+    return asked;
+  }, [backController, openingPinAskedRef]);
   const gesturePins = useGestureBottomPins({
     backController,
     scrollToBottomRef,
@@ -1158,8 +1160,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
     rowsAtMeasuredSizes: () => !beforePaint && virtualizerRef.current.getTotalSize() === listHeight,
-    measurementCorrectionPx: ledger.readMeasurementCorrectionPx,
-    openAskedForLatest: () => openAskedForLatestRef.current.value,
+    openingPinAsked: () => openingPinAskedRef.current.value,
   });
   // Once the thread shows, the rows kept ready around its view mount, in a render that gives way
   // to the reader's input and to the replies that stream.

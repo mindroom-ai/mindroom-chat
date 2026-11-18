@@ -1,7 +1,6 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef } from 'react';
+import { type RefObject, useEffect, useLayoutEffect } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../matrix/room';
-import { scrollToBottom } from '../lib/dom';
 import { useViewScopedState } from './roomTimelineViewScope';
 
 /** The longest a thread's rows stay hidden while it opens, whatever holds them back. */
@@ -22,13 +21,12 @@ type ThreadOpeningRevealOptions = {
    * of this commit replaced, and not at a list height held back for the next render.
    */
   rowsAtMeasuredSizes: () => boolean;
-  /** How far measurement corrections have moved the scroll position up so far, in px (0 or less). */
-  measurementCorrectionPx: () => number;
   /**
-   * Whether the open asked for its pin to the newest reply, which it does once it has the
-   * thread's newest replies. Until then the rows the client holds may end before the thread does.
+   * Whether the thread's opening pin to its newest reply was asked for. The timeline's opening
+   * pin owns the position from then on, and pins again after rows measure; before it, the list
+   * rests at its estimated end only because it starts there.
    */
-  openAskedForLatest: () => boolean;
+  openingPinAsked: () => boolean;
 };
 
 /** An edit or a reaction has no tile once it measures to no height. */
@@ -40,21 +38,18 @@ const atEndOf = (scrollArea: HTMLElement): boolean =>
 /**
  * Whether an opening thread keeps its rows hidden. A thread that opens at its newest reply starts
  * its list at its end with the rows near its view, at estimated sizes: measured, they move the
- * end, and painted then they would jump there a moment later. The rows the client holds can also
- * end before the thread's newest replies, which the open then brings.
+ * end, and painted then they would jump there a moment later.
  *
- * While the rows are hidden, every commit leaves the view at the end of its scroll range. The
- * rows show once the open asked for its pin to the newest reply and a commit rests at that end
- * with the list's last tile mounted, at the sizes measured so far, and with rows up to the top of
- * the view, below the sticky header (or the thread's first row): a list measured shorter than
- * estimated leaves the top of the view empty until the rows above mount. Checked after every
- * commit, after the pins.
+ * The rows show once the thread's opening pin was asked for and a commit rests at the end of the
+ * scroll range with the list's last tile mounted, at the sizes measured so far, and with rows up
+ * to the top of the view, below the sticky header (or the thread's first row): a list measured
+ * shorter than estimated leaves the top of the view empty until the rows above mount. Checked
+ * after every commit, after the pins, which belong to the timeline's opening pin.
  *
- * The rows also show when the reader takes over, whose scroll then stands (a gesture, or a move
- * up that no measurement made), or after THREAD_REVEAL_AFTER_MS. Once shown, they stay shown for
- * the view. The last tile is the last row's that is not an edit or a reaction: those have no tile
- * once they measure to no height (renderTimelineTiles), and a streamed reply leaves its edits at
- * the end of the list.
+ * The rows also show when the reader takes over, or after THREAD_REVEAL_AFTER_MS. Once shown,
+ * they stay shown for the view. The last tile is the last row's that is not an edit or a
+ * reaction: those have no tile once they measure to no height (renderTimelineTiles), and a
+ * streamed reply leaves its edits at the end of the list.
  */
 export const useThreadOpeningReveal = ({
   viewKey,
@@ -63,12 +58,9 @@ export const useThreadOpeningReveal = ({
   scrollRef,
   readerTookOver,
   rowsAtMeasuredSizes,
-  measurementCorrectionPx,
-  openAskedForLatest,
+  openingPinAsked,
 }: ThreadOpeningRevealOptions): boolean => {
   const [revealed, setRevealed] = useViewScopedState(viewKey, () => !opensAtLatest);
-  // Where the last commit left the hidden rows, with the corrections applied until then.
-  const leftAtRef = useRef<{ viewKey: string; top: number; correction: number }>();
 
   useLayoutEffect(() => {
     if (revealed) return;
@@ -78,18 +70,6 @@ export const useThreadOpeningReveal = ({
     }
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
-    const correction = measurementCorrectionPx();
-    if (!atEndOf(scrollArea)) {
-      // Something other than a measurement moved the view up since the last commit: a script or
-      // assistive technology scrolls without the gestures that mark the reader. It stands too.
-      const leftAt = leftAtRef.current?.viewKey === viewKey ? leftAtRef.current : undefined;
-      if (leftAt && scrollArea.scrollTop < leftAt.top + correction - leftAt.correction - 1) {
-        setRevealed(true);
-        return;
-      }
-      scrollToBottom(scrollArea);
-    }
-    leftAtRef.current = { viewKey, top: scrollArea.scrollTop, correction };
     const lastTileIndex = rows.findLastIndex(isTile);
     const firstTile = scrollArea.querySelector('[data-index]');
     // The reader's view starts below the sticky header (scroll-padding-top).
@@ -106,7 +86,7 @@ export const useThreadOpeningReveal = ({
       !!scrollArea.querySelector(`[data-index="${lastTileIndex}"]`) &&
       filled &&
       rowsAtMeasuredSizes() &&
-      openAskedForLatest()
+      openingPinAsked()
     ) {
       setRevealed(true);
     }

@@ -32,29 +32,18 @@ vi.mock('../timelineScrollLedgerController', async (importOriginal) => {
   };
 });
 
-/** What an open's cache read and SDK load wait for, while a test holds the open. */
-const openGate = vi.hoisted(() => ({ wait: undefined as Promise<void> | undefined }));
-vi.mock('../../threads/open/threadOpenCacheFirst', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../threads/open/threadOpenCacheFirst')>();
+/** While set, the thread's opening pin is refused, as before anything asks for it. */
+const openingPin = vi.hoisted(() => ({ refused: false }));
+vi.mock('../threadBackPaginationController', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../threadBackPaginationController')>();
   return {
     ...actual,
-    runThreadOpenCacheFirst: async (
-      options: Parameters<typeof actual.runThreadOpenCacheFirst>[0]
-    ) => {
-      await openGate.wait;
-      return actual.runThreadOpenCacheFirst(options);
-    },
-  };
-});
-vi.mock('../../threads/open/threadOpenSdkBootstrap', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../threads/open/threadOpenSdkBootstrap')>();
-  return {
-    ...actual,
-    runThreadOpenSdkBootstrap: async (
-      options: Parameters<typeof actual.runThreadOpenSdkBootstrap>[0]
-    ) => {
-      await openGate.wait;
-      return actual.runThreadOpenSdkBootstrap(options);
+    useThreadBackPaginationController: () => {
+      const controller = actual.useThreadBackPaginationController();
+      const { requestOpenBottomPin } = controller;
+      controller.requestOpenBottomPin = (...args) =>
+        !openingPin.refused && requestOpenBottomPin(...args);
+      return controller;
     },
   };
 });
@@ -151,22 +140,14 @@ describe('RoomTimeline thread opening', () => {
     await unmount();
   });
 
-  it('keeps an opening thread hidden until its open has ended', async () => {
-    // The open waits for its cache and the server: the rows the client holds may end before
-    // the thread does.
-    let answer!: () => void;
-    openGate.wait = new Promise((resolve) => {
-      answer = resolve;
-    });
+  it('keeps an opening thread hidden until its opening pin was asked for', async () => {
+    // The rows are mounted at the list's estimated end, where it starts; nothing pins them yet.
+    openingPin.refused = true;
     const { scroll, render, unmount } = await setup({ threadId: '$root' });
     scroll.mounted.rows = true;
     await render();
     expect(listOptions().overscan).toBe(1);
-
-    openGate.wait = undefined;
-    answer();
-    await render();
-    expect(listOptions().overscan).toBe(10);
+    openingPin.refused = false;
     await unmount();
   });
 
