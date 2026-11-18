@@ -41,6 +41,19 @@ const runFrame = (time: number) => {
 
 const offset = () => host.querySelector('g')!.getAttribute('transform');
 
+const renderSamples = (waveform: number[], liveSampleCount: number) =>
+  act(() => {
+    root.render(<VoiceWaveform waveform={waveform} liveSampleCount={liveSampleCount} compact />);
+  });
+
+// Where a bar is drawn: its x plus the glide's offset.
+const drawnX = (index: number) =>
+  Number(host.querySelectorAll('rect')[index]!.getAttribute('x')) +
+  Number(/translate\(([\d.]+)/.exec(offset() ?? '')?.[1] ?? 0);
+
+const samples = (length: number, first = 0) =>
+  Array.from({ length }, (_value, index) => (first + index) % 1000);
+
 beforeEach(() => {
   now = 1000;
   frames = new Map();
@@ -98,6 +111,48 @@ describe('VoiceWaveform live glide', () => {
     render(0);
     expect(offset()).toBeNull();
     expect(frames.size).toBe(0);
+  });
+
+  it('keeps a bar where it was as a new sample glides in, then rests it a step left', () => {
+    renderSamples(samples(100), 100);
+    const before = drawnX(50);
+
+    renderSamples(samples(101), 101);
+    expect(drawnX(50)).toBe(before);
+    runFrame(1080);
+    expect(offset()).toBeNull();
+    expect(drawnX(50)).toBe(before - 3);
+  });
+
+  it('glides a full rolling buffer, whose bars move to the index before them', () => {
+    renderSamples(samples(1200), 1200);
+    const before = drawnX(600);
+
+    // The buffer keeps its last 1200 samples: the bar at 600 is now at 599.
+    renderSamples(samples(1200, 1), 1201);
+    expect(drawnX(599)).toBe(before);
+
+    // A frame long after the glide's end, as in a tab coming back, puts the bars at rest.
+    runFrame(5000);
+    expect(offset()).toBeNull();
+    expect(drawnX(599)).toBe(before - 3);
+    expect(frames.size).toBe(0);
+  });
+
+  it('stops a glide when the count goes away, and starts afresh from the next one', () => {
+    render(1);
+    render(2);
+    expect(offset()).toBe('translate(3 0)');
+
+    // Paused: the capsule passes no count.
+    render(undefined);
+    expect(offset()).toBeNull();
+    expect(frames.size).toBe(0);
+
+    render(9);
+    expect(offset()).toBeNull();
+    render(10);
+    expect(offset()).toBe('translate(3 0)');
   });
 
   it('stops asking for frames when unmounted mid-glide', () => {
