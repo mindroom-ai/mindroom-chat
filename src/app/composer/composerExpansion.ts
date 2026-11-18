@@ -1,6 +1,4 @@
 import { type PointerEvent, useCallback, useEffect, useRef, useState } from 'react';
-import type { Editor } from 'slate';
-import { isEmptyEditor } from '../editor/utils';
 
 /** How long after a press inside the composer ends it still counts, so its click lands first. */
 export const PRESS_SETTLE_MS = 300;
@@ -15,7 +13,10 @@ export type ComposerExpansionInputs = {
    * composer listens for presses only then (`useComposerFocus`'s `onPointerDown`).
    */
   pressing: boolean;
-  /** The composer shows nothing typed (`isComposerEmpty`). */
+  /**
+   * The composer shows nothing typed (`isEmptyEditor`): any visible text counts, also a command
+   * such as `/me` with nothing to send after it, which Send treats as empty.
+   */
   empty: boolean;
   /** Something the composer shows asks for its room: files, a reply, a recording, a board, suggestions. */
   busy: boolean;
@@ -38,12 +39,6 @@ export const isComposerExpanded = ({
   empty,
   busy,
 }: ComposerExpansionInputs): boolean => !phone || focused || pressing || !empty || busy;
-
-/**
- * Whether the composer shows nothing typed: for its layout, any visible text counts, also a
- * command such as `/me` with nothing to send after it (which Send treats as empty).
- */
-export const isComposerEmpty = (editor: Editor): boolean => isEmptyEditor(editor);
 
 /** A control of the composer whose menu is open; the menus themselves render elsewhere. */
 const OPEN_MENU = '[aria-expanded="true"]';

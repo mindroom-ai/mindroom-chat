@@ -3,11 +3,11 @@ import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createEditor, type Descendant } from 'slate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { isEmptyEditor } from '../editor/utils';
 import { holdsNoText } from './composeTextMessage';
 import {
   type ComposerExpansionInputs,
   PRESS_SETTLE_MS,
-  isComposerEmpty,
   isComposerExpanded,
   useComposerFocus,
 } from './composerExpansion';
@@ -42,7 +42,7 @@ describe('isComposerExpanded', () => {
   });
 });
 
-describe('isComposerEmpty', () => {
+describe('isEmptyEditor as the layout reads it', () => {
   const editorWith = (text: string) => {
     const editor = createEditor();
     editor.children = [{ type: 'paragraph', children: [{ text }] }] as Descendant[];
@@ -50,14 +50,14 @@ describe('isComposerEmpty', () => {
   };
 
   it('is empty with one empty line only', () => {
-    expect(isComposerEmpty(editorWith(''))).toBe(true);
-    expect(isComposerEmpty(editorWith('a'))).toBe(false);
+    expect(isEmptyEditor(editorWith(''))).toBe(true);
+    expect(isEmptyEditor(editorWith('a'))).toBe(false);
   });
 
   it('counts a command with nothing to send as shown text', () => {
     const editor = editorWith('/me ');
     expect(holdsNoText(editor)).toBe(true);
-    expect(isComposerEmpty(editor)).toBe(false);
+    expect(isEmptyEditor(editor)).toBe(false);
   });
 });
 

@@ -97,7 +97,7 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
-import { isComposerEmpty, isComposerExpanded, useComposerFocus } from './composerExpansion';
+import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
@@ -257,7 +257,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // It changes only as it flips, so typing renders nothing more.
     const [noText, setNoText] = useState(() => holdsNoText(editor));
     // Whether it shows nothing typed, for its layout: a lone `/me` is no text to send but shows.
-    const [empty, setEmpty] = useState(() => isComposerEmpty(editor));
+    const [empty, setEmpty] = useState(() => isEmptyEditor(editor));
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
     // hides, under a plugin's cover or behind a side panel.
     const conversationHidden = useConversationHidden();

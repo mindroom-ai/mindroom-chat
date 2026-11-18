@@ -52,7 +52,7 @@ export const Footer = style({
   // Only iOS WebKit has the property.
   '@supports': {
     '(-webkit-touch-callout: none)': {
-      paddingBottom: `max(${footerGap}, env(safe-area-inset-bottom, 0px) - ${homeIndicatorClearance}, min(env(safe-area-inset-bottom, 0px), ${homeIndicatorClearance}))`,
+      paddingBottom: `max(${footerGap}, min(env(safe-area-inset-bottom, 0px), ${homeIndicatorClearance}))`,
     },
   },
   '@media': { [shortViewport]: { vars: { [footerGap]: config.space.S200 } } },
