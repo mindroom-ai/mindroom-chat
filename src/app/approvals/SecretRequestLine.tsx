@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Icon, Icons } from 'folds';
@@ -8,11 +8,7 @@ import { formatLifetime } from '../lib/time';
 import { ActivityIcon, type ActivityTone } from '../ui/ThreadActivity';
 import * as activityCss from '../ui/ThreadActivity.css';
 import { IsolatedText } from '../ui/directional';
-import {
-  SecretRequestChip,
-  SecretRequestDetails,
-  takeSecretRequestFocus,
-} from './SecretRequestCard';
+import { SecretRequestChip, SecretRequestDetails } from './SecretRequestCard';
 import * as css from './SecretRequestLine.css';
 
 const STATUS_TONE = {
@@ -65,7 +61,7 @@ export function SecretRequestLine({
   roomId,
   agentUserId,
 }: {
-  /** The card's event. */
+  /** The card's event, whose row hid. */
   eventId: string;
   request: SecretRequest;
   roomId: string;
@@ -73,14 +69,10 @@ export function SecretRequestLine({
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const temporary = request.kind === 'temporary';
   const { status } = request;
   const detail = useLineStatus(request);
-  useLayoutEffect(() => {
-    if (takeSecretRequestFocus(eventId)) button.current?.focus({ preventScroll: true });
-  }, [eventId]);
   return (
     // Keeps the interface's direction in a message that reads the other way (index.css).
     <div
@@ -95,8 +87,9 @@ export function SecretRequestLine({
       )}
     >
       <button
-        ref={button}
         type="button"
+        // Where the focus goes when the card's row goes with it (SecretRequestCard.tsx).
+        data-secret-request-for={eventId}
         className={activityCss.Line}
         aria-expanded={expanded}
         aria-controls={expanded ? panelId : undefined}

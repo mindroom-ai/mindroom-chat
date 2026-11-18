@@ -153,7 +153,7 @@ describe('SecretRequestLine', () => {
     expect(opened).toContain('Replaced the key saved before.');
   });
 
-  it("takes the focus that was in the card's row when the row went", () => {
+  it("takes the focus that was in the card's row when the row went", async () => {
     const done = temporary({
       status: 'saved',
       anchor: { responseEventId: '$reply', toolCallId: 'call_1' },
@@ -168,6 +168,7 @@ describe('SecretRequestLine', () => {
     act(() => host.querySelector<HTMLElement>('summary')!.focus());
 
     render(done);
+    await act(async () => {});
 
     expect(document.activeElement).toBe(lineButton());
   });

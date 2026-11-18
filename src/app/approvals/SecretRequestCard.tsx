@@ -487,15 +487,10 @@ export function SecretRequestDetails({
   );
 }
 
-/** A done card whose row went with the focus in it, for its line in the reply to take. */
-let focusHandoff: string | undefined;
-
-/** Whether the card of `eventId` handed its focus on, for its line to take (once). */
-export const takeSecretRequestFocus = (eventId: string): boolean => {
-  if (focusHandoff !== eventId) return false;
-  focusHandoff = undefined;
-  return true;
-};
+const findByAttribute = (name: string, value: string) =>
+  [...document.querySelectorAll<HTMLElement>(`[${name}]`)].find(
+    (element) => element.getAttribute(name) === value
+  );
 
 /**
  * An agent's request for a secret (`io.mindroom.secret_request`), with a field for the person
@@ -578,12 +573,13 @@ export function SecretRequestCard({
     if (!eventId || !replyId) return undefined;
     return () => {
       if (!node?.contains(document.activeElement)) return;
-      focusHandoff = eventId;
+      // Once the commit that took the row is done, if the focus went with it.
       queueMicrotask(() => {
-        if (!takeSecretRequestFocus(eventId) || document.activeElement !== document.body) return;
-        document
-          .querySelector<HTMLElement>(`[data-message-id="${CSS.escape(replyId)}"]`)
-          ?.focus({ preventScroll: true });
+        if (document.activeElement && document.activeElement !== document.body) return;
+        (
+          findByAttribute('data-secret-request-for', eventId) ??
+          findByAttribute('data-message-id', replyId)
+        )?.focus({ preventScroll: true });
       });
     };
   }, [eventId, replyId]);
