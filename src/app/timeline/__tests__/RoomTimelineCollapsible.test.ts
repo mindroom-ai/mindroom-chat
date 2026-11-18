@@ -305,6 +305,7 @@ vi.mock('../../event-store/threads/useThreadLastActivityTs', () => ({
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
   getThreadStreamingState: () => false,
   useThreadStreamingState: () => false,
+  isThreadReplyStreaming: () => false,
 }));
 
 vi.mock('../../matrix/protocol/scheduledTaskContract', () => ({

@@ -54,7 +54,9 @@ describe('TurnBreak', () => {
   it('toggles on a click', () => {
     const onToggle = vi.fn();
     const button = render(3, false, onToggle);
-    act(() => button.props.onClick());
+    act(() => {
+      button.props.onClick();
+    });
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
