@@ -6,7 +6,7 @@ import { ClientEvent, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { MAC_APP_DOWNLOAD_URL } from '../native/macApp';
+import { MAC_APP_RELEASES_URL, resetMacAppDownloadUrlForTests } from '../native/macApp';
 import { tourAtom } from '../navigation/tourState';
 import { MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE } from '../preferences/accountSettings';
 import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
@@ -132,12 +132,19 @@ const button = (action: 'download' | 'later' | 'dismiss') => {
 };
 const settle = () => act(async () => {});
 
+// GitHub's list of releases never answers here: the links stay on the releases page.
+const fetchReleases = vi.fn(() => new Promise<Response>(() => undefined));
+
 beforeEach(() => {
   platform.macBrowser = true;
   resetAnsweredMacAppAccountsForTests();
+  resetMacAppDownloadUrlForTests();
+  fetchReleases.mockClear();
+  vi.stubGlobal('fetch', fetchReleases);
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   cleanup();
   vi.mocked(useMatrixClient).mockReset();
@@ -156,7 +163,8 @@ describe('MacAppOffer', () => {
     expect(card()?.getAttribute('data-mac-app-offer-layout')).toBe('row');
     expect(card()?.textContent).toContain('Using a Mac? Get the MindRoom app.');
     const download = screen.getByRole('link', { name: 'Download for Mac' });
-    expect(download.getAttribute('href')).toBe(MAC_APP_DOWNLOAD_URL);
+    expect(download.getAttribute('href')).toBe(MAC_APP_RELEASES_URL);
+    expect(fetchReleases).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBe(button('dismiss'));
   });
 
@@ -191,6 +199,7 @@ describe('MacAppOffer', () => {
     await settle();
     expect(card()).toBeNull();
     expect(alice.setAccountData).not.toHaveBeenCalled();
+    expect(fetchReleases).not.toHaveBeenCalled();
   });
 
   it('shows nothing to an account that has answered', async () => {
