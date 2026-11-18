@@ -762,6 +762,38 @@ describe('shared model discovery', () => {
     expect(h.snapshot()).toMatchObject({ eligible: false, inherited: [] });
     expect(h.snapshot('$shown')).toMatchObject({ eligible: true, canMutate: false });
   });
+  it('keeps a shown button through an agent leaving without naming that agent', async () => {
+    const h = setup();
+    const other = '@mindroom_other:test';
+    h.member(other);
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), {
+      agent_user_ids: [helper, other],
+      selection: {
+        override: null,
+        inherited: [
+          { entity: 'helper', model: 'fast' },
+          { entity: 'other', model: 'reset' },
+        ],
+      },
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    h.member(other, 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(other)!);
+    const gone = { eligible: true, override: null, inherited: [], canMutate: false };
+    expect(h.snapshot()).toMatchObject(gone);
+    expect(h.snapshot().models).toHaveLength(2);
+    // Closed and opened again before discovery answers, it still names no one who left.
+    leave();
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.snapshot()).toMatchObject(gone);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ inherited: [{ entity: 'helper', model: 'fast' }] });
+  });
   it('drops the room cache when a command finds its runtime device gone', async () => {
     const h = setup();
     await h.discover();

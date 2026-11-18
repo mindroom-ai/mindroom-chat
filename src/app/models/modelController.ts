@@ -790,15 +790,15 @@ export class ModelController {
     const verified =
       (scope.catalogs.size ? roomCatalogsOf(scope.catalogs.values()) : scope.kept) ?? [];
     const kept = verified.filter((catalog) =>
-      shown
-        ? hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.agentUserIds)
-        : everyAgentJoined(this.mx, scope.room, catalog)
+      hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.agentUserIds)
     );
-    const keep =
-      scope.snapshot.eligible &&
-      kept.length > 0 &&
-      (shown || (keepUnshown && kept.length === verified.length));
-    this.invalidate(scope, keep ? scope.snapshot : undefined);
+    const intact = verified.every((catalog) => everyAgentJoined(this.mx, scope.room, catalog));
+    const keep = scope.snapshot.eligible && kept.length > 0 && (shown || (keepUnshown && intact));
+    // A kept button never names an agent that left: the room default waits for discovery then.
+    this.invalidate(
+      scope,
+      keep ? { ...scope.snapshot, ...(!intact && { inherited: [] }) } : undefined
+    );
     if (keep) scope.kept = kept;
     if (scope.refreshScheduled || !scope.listeners.size) return;
     scope.refreshScheduled = true;
