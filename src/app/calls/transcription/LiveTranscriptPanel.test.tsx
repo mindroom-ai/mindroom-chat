@@ -155,15 +155,33 @@ describe('LiveTranscriptPanel', () => {
 
     // The room's names come first: they tell apart members who share one.
     expect(text('[data-live-transcript-name]')).toEqual(['Ann', 'Bob']);
+    // One person's lines in a row are one text, as in the transcript posted after the call.
     expect(text('[data-live-transcript-text]')).toEqual([
-      'Shall we start?',
-      'The release is on Friday.',
+      'Shall we start? The release is on Friday.',
       'I will write the notes.',
     ]);
     expect(text('[data-live-transcript-gap]')).toEqual(['Paused', 'Not transcribed']);
     expect(text('[data-live-transcript-member]')).toEqual(['Ann', 'Bob']);
     expect(container.textContent).toContain('This call is transcribed.');
     expect(container.querySelector('[role="log"]')).not.toBeNull();
+  });
+
+  it('joins the pieces speech-to-text cut a sentence into, punctuation without a space', () => {
+    render(
+      inCall({
+        call: CALL,
+        lines: [
+          line('f1', BOB, '2026-11-07T09:30:00Z', { text: 'Booking' }),
+          line('f2', BOB, '2026-11-07T09:30:01Z', { text: 'the' }),
+          line('f3', BOB, '2026-11-07T09:30:02Z', { text: 'room' }),
+          line('f4', BOB, '2026-11-07T09:30:03Z', { text: '.' }),
+          line('f5', ANN, '2026-11-07T09:30:04Z', { text: 'Thanks' }),
+        ],
+        names: {},
+      })
+    );
+    expect(text('[data-live-transcript-name]')).toEqual(['Bob', 'Ann']);
+    expect(text('[data-live-transcript-text]')).toEqual(['Booking the room.', 'Thanks']);
   });
 
   it("has Pause in its header while it shows this device's call", () => {
@@ -236,7 +254,7 @@ describe('LiveTranscriptPanel', () => {
       })
     );
     expect(text('[data-live-transcript-name]')).toEqual(['carol']);
-    expect(text('[data-live-transcript-text]')).toEqual(['Hello all.', 'Joining late, sorry.']);
+    expect(text('[data-live-transcript-text]')).toEqual(['Hello all. Joining late, sorry.']);
     expect(text('[data-live-transcript-member]')).toEqual(['Ann', 'Bob']);
     // Pause is for the call this device is in.
     expect(container.querySelector('header [aria-label="Pause transcription"]')).toBeNull();
@@ -244,7 +262,7 @@ describe('LiveTranscriptPanel', () => {
     // A failed read keeps what was read, and says transcripts are unavailable.
     act(() => state.polls[0]?.onFailure?.());
     expect(container.textContent).toContain('Transcripts are unavailable');
-    expect(text('[data-live-transcript-text]')).toHaveLength(2);
+    expect(text('[data-live-transcript-text]')).toEqual(['Hello all. Joining late, sorry.']);
 
     act(() => root.unmount());
     expect(state.polls[0]?.signal.aborted).toBe(true);
