@@ -92,8 +92,25 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
 
   it('leaves no file and no active audio session behind a start that fails', () => {
     expect(body('start')).toMatch(
-      /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)[\s\S]*?setActive\(false[\s\S]*?"START_FAILED"/
+      /attempt\?\.stop\(\)\s*try\? FileManager\.default\.removeItem\(at: url\)\s*self\.releaseAudioSession\(\)\s*return call\.reject\("Could not start recording", "START_FAILED"\)/
     );
+  });
+
+  it('gives the audio session back as it was after every recording, so that the page plays again', () => {
+    // A session left in the record category would keep the page's audio silent.
+    expect(body('start')).toMatch(
+      /self\.sessionBefore = \(session\.category, session\.mode, session\.categoryOptions\)\s*try session\.setCategory\(\.record, mode: \.default\)/
+    );
+    expect(pluginSource).toMatch(
+      /private func releaseAudioSession\(\) \{[\s\S]*?setActive\(false, options: \.notifyOthersOnDeactivation\)\s*if let before = sessionBefore \{\s*try\? session\.setCategory\(before\.category, mode: before\.mode, options: before\.options\)\s*\}\s*sessionBefore = nil\s*\}/
+    );
+    expect(body('stop')).toMatch(/live\.recorder\.stop\(\)\s*releaseAudioSession\(\)/);
+    expect(pluginSource).toMatch(
+      /private func discardLive\(\) \{[\s\S]*?deleteRecording\(\)\s*releaseAudioSession\(\)\s*\}/
+    );
+    // Only the release ends the session, and nothing else sets a category.
+    expect(pluginSource.match(/setActive\(false/g)).toHaveLength(1);
+    expect(pluginSource.match(/setCategory\(/g)).toHaveLength(2);
   });
 
   it('rejects with the codes the web side names', () => {
