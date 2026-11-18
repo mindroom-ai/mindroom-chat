@@ -43,6 +43,9 @@ export const useZoom = (
 ) => {
   const [zoom, setZoomState] = useState(1);
   const [isZooming, setIsZooming] = useState(false);
+  // The last zoom aimed at the cursor or fingers: the owner shows it at once, without easing, so
+  // the next one aims at what is on screen.
+  const [aimed, setAimed] = useState(false);
   const [target, setTarget] = useState<HTMLElement | null>(null);
   // Ahead of the state, so wheel events between two renders each start where the last one left.
   const zoomRef = useRef(zoom);
@@ -55,9 +58,12 @@ export const useZoom = (
       const wanted = clampZoom(typeof next === 'function' ? next(from) : next, min, max);
       // Rounded, so steps back from 2 land on exactly 1 (fit), not 1.0000000000000002.
       const to = Math.round(wanted * 1e6) / 1e6;
-      if (to === from) return;
+      // Fingers that slide at the same spread still pan a zoomed image.
+      const moved = !!at && !!before && (at.x !== before.x || at.y !== before.y);
+      if (to === from && (!moved || to === 1)) return;
       zoomRef.current = to;
       setZoomState(to);
+      setAimed(!!at);
       if (at && before) zoomAroundRef.current?.({ from, to, at, before });
     },
     [min, max]
@@ -125,5 +131,5 @@ export const useZoom = (
     };
   }, [target, setZoom, step]);
 
-  return { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming };
+  return { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming, aimed };
 };

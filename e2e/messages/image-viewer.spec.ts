@@ -80,8 +80,11 @@ test('ctrl with the wheel zooms toward the cursor, which the hint tells of', asy
   await page.goto('/e2e/fixtures/image-viewer.html');
   const image = page.getByRole('img', { name: 'Test image' });
   await expect(image).toBeVisible();
+  // Measured once laid out at its decoded size, which a cold dev server can lag behind.
+  await image.evaluate((element: HTMLImageElement) => element.decode());
   // Chromium plays a Mac on a Mac, where the viewer names the command key.
-  const hint = page.getByText(/^(Ctrl|⌘) \+ scroll to zoom$/);
+  const key = process.platform === 'darwin' ? '⌘' : 'Ctrl';
+  const hint = page.getByText(`${key} + scroll to zoom`, { exact: true });
   await expect(hint).toBeVisible();
 
   const start = (await image.boundingBox())!;

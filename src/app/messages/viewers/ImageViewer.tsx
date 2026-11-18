@@ -148,7 +148,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const hintId = useId();
     // A wheel or pinch zoom keeps the picture under the cursor or fingers still. Only events
     // call it, so `panning` is set by then.
-    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(
+    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming, aimed } = useZoom(
       ZOOM_STEP,
       undefined,
       undefined,
@@ -319,7 +319,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
                 <img
                   ref={imageRef}
                   className={css.ImageViewerImg}
-                  data-gesture={isZooming || isPanning}
+                  data-gesture={isZooming || isPanning || aimed}
                   style={{ transform: imageTransform }}
                   src={src}
                   alt={shownAlt}

@@ -163,6 +163,7 @@ describe('useZoom', () => {
 
     const at = { x: 50, y: -20 };
     expect(zoomState.zoom).toBe(1.4);
+    expect(zoomState.aimed).toBe(true);
     expect(onZoomAround.mock.calls).toEqual([
       [{ from: 1, to: 1.2, at, before: at }],
       [{ from: 1.2, to: 1.4, at, before: at }],
@@ -183,9 +184,11 @@ describe('useZoom', () => {
     act(() => zoomState.setZoom(2));
     for (let i = 0; i < 5; i += 1) act(() => zoomState.zoomOut());
     expect(zoomState.zoom).toBe(1);
+    // A button zoom is not aimed, so the owner eases it.
+    expect(zoomState.aimed).toBe(false);
   });
 
-  it('aims a pinch at the middle of the fingers, and stays quiet at the limit', () => {
+  it('aims a pinch at the middle of the fingers, and only pans at the limit', () => {
     const zoomSurface = new MockEventTarget();
     const onZoomAround = vi.fn<ZoomAround>();
     let zoomState!: ReturnType<typeof useZoom>;
@@ -237,7 +240,42 @@ describe('useZoom', () => {
       } as unknown as TouchEvent);
     });
     expect(zoomState.zoom).toBe(5);
-    expect(onZoomAround).toHaveBeenCalledTimes(2);
+    // Past the limit the spread grows, so the midpoint still moves: a pan-only step.
+    expect(onZoomAround).toHaveBeenCalledTimes(3);
+    expect(onZoomAround).toHaveBeenLastCalledWith({
+      from: 5,
+      to: 5,
+      at: { x: -80, y: 210 },
+      before: { x: -80, y: 160 },
+    });
+
+    // Both fingers slide 20 px at the limit: a pan-only step.
+    const slid = createTouchList([
+      { clientX: 140, clientY: 60 },
+      { clientX: 140, clientY: 560 },
+    ]);
+    act(() => {
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: slid,
+      } as unknown as TouchEvent);
+    });
+    expect(onZoomAround).toHaveBeenLastCalledWith({
+      from: 5,
+      to: 5,
+      at: { x: -60, y: 210 },
+      before: { x: -80, y: 210 },
+    });
+    // Fingers that hold still at the limit change nothing.
+    act(() => {
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: slid,
+      } as unknown as TouchEvent);
+    });
+    expect(onZoomAround).toHaveBeenCalledTimes(4);
   });
 
   it('clamps touch pinch zoom to the configured maximum', () => {
