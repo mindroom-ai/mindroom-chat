@@ -1,4 +1,4 @@
-import { type CSSProperties, type KeyboardEvent, useRef } from 'react';
+import { type CSSProperties, type KeyboardEvent, useLayoutEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { editableActiveElement } from '../lib/dom';
@@ -12,12 +12,27 @@ import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 /** The thread column's own width, at first. */
 const DEFAULT_WIDTH = 480;
 const MAX_WIDTH = 4096;
+const TEST_ID = 'second-thread-panel';
 const COLUMN_STYLE: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   minHeight: 0,
   minWidth: 0,
 };
+
+/**
+ * Tells `onGone` as B's view goes whether it held the focus: rendered before the view, its cleanup
+ * runs while the view's nodes are still on the page.
+ */
+function FocusProbe({ onGone }: { onGone: (hadFocus: boolean) => void }) {
+  const gone = useRef(onGone);
+  gone.current = onGone;
+  useLayoutEffect(
+    () => () => gone.current(!!document.activeElement?.closest(`[data-testid="${TEST_ID}"]`)),
+    []
+  );
+  return null;
+}
 
 /**
  * A second thread (B) beside the one the room page shows, in a side panel of its own: its banner
@@ -31,12 +46,15 @@ export function SecondThreadPanel({
   threadId,
   autoFocus,
   onClose,
+  onGone,
   widthKey,
 }: {
   room: Room;
   threadId: string;
   autoFocus: boolean;
   onClose: () => void;
+  /** As B's view goes (closed, or no longer the room's second thread): whether it held the focus. */
+  onGone: (hadFocus: boolean) => void;
   widthKey: string;
 }) {
   const { t } = useTranslation();
@@ -63,10 +81,11 @@ export function SecondThreadPanel({
       resizeLabel={t('thread.resizeSecond')}
       collapseLabel={t('thread.close')}
       onCollapse={onClose}
-      testId="second-thread-panel"
+      testId={TEST_ID}
       onKeyDown={handleKeyDown}
     >
       <div ref={columnRef} style={COLUMN_STYLE} role="region" aria-label={t('thread.second')}>
+        {!closing && <FocusProbe onGone={onGone} />}
         {!closing && (
           <ThreadView
             key={threadId}

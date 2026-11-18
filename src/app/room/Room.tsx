@@ -236,6 +236,8 @@ function RoomContent() {
     open: openSecond,
     close: closeSecond,
   } = useSecondThread(roomId, ownUserId, threadId);
+  // Whether B's view held the focus as it went (SecondThreadPanel), for the handoff below.
+  const secondHadFocus = useRef(false);
   useInitializeOpenThread(room, threadId);
   const routeReady = isThreadRouteReady(room, routedThreadId);
   const conversation = `${roomId}\n${routedThreadId ?? ''}`;
@@ -520,6 +522,9 @@ function RoomContent() {
             threadId={secondId}
             autoFocus={secondFocus}
             onClose={closeSecond}
+            onGone={(hadFocus) => {
+              secondHadFocus.current = hadFocus;
+            }}
             widthKey={secondThreadWidthStorageKey(ownUserId)}
           />
         ),
@@ -820,17 +825,20 @@ function RoomContent() {
   const behindPanel = (!!shown?.covers && !(shown.ownFrame && folded)) || layout === 'filled';
   const conversationRef = useRef<HTMLDivElement>(null);
   useInert(conversationRef, behindPanel);
-  // B gone however it closed (its Close, another panel or a call in its place), the focus it held,
-  // now on the page's body or in the panel moving out, goes to the main composer: the open
-  // thread's, else the room's. Focus already taken elsewhere stays.
+  // B gone however it closed (its Close, another panel or a call in its place) with the focus in
+  // it hands the focus to the main composer: the open thread's, else the room's. Focus left on the
+  // page's body or in the panel moving out moves; focus taken elsewhere stays.
   const secondWasShown = useRef(secondShown);
   useEffect(() => {
     const was = secondWasShown.current;
     secondWasShown.current = secondShown;
+    const hadFocus = secondHadFocus.current;
+    secondHadFocus.current = false;
     const box = conversationRef.current;
     const focused = box?.ownerDocument.activeElement;
     if (!was || secondShown || !box || !focused) return;
-    if (focused !== box.ownerDocument.body && !focused.closest(SECOND_THREAD_PANEL)) return;
+    const inShell = !!focused.closest(SECOND_THREAD_PANEL);
+    if (!inShell && !(hadFocus && focused === box.ownerDocument.body)) return;
     MAIN_COMPOSERS.map((selector) => box.querySelector<HTMLElement>(selector))
       .find(Boolean)
       ?.focus();

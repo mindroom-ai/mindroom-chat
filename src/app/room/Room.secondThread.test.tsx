@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { type MutableRefObject, useContext } from 'react';
+import { type MutableRefObject, useContext, useEffect, useRef, useState } from 'react';
 import { getDefaultStore } from 'jotai';
 import { ThreadEvent } from 'matrix-js-sdk';
 import { callPanelRoomAtom } from '../calls/callStore';
@@ -107,10 +107,17 @@ vi.mock('./ThreadView', () => ({
     autoFocus?: boolean;
   }) => {
     focusRef.current = state.focusComposer;
+    // As ThreadView, it reads autoFocus as it mounts.
+    const [focusOnMount] = useState(!!autoFocus);
+    const composer = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (focusOnMount) composer.current?.focus();
+    }, [focusOnMount]);
     return (
-      <div data-thread-view={threadId} data-auto-focus={String(!!autoFocus)}>
+      <div data-thread-view={threadId} data-auto-focus={String(focusOnMount)}>
         {header}
         <div
+          ref={composer}
           contentEditable
           role="textbox"
           tabIndex={0}
@@ -179,8 +186,10 @@ const storageKey = secondThreadStorageKey('@alice:example.org');
 const panel = () => screen.queryByTestId('second-thread-panel');
 
 let rerenderRoom: (() => Promise<void>) | undefined;
-const renderRoom = async (thread?: string, size: ScreenSize = ScreenSize.Desktop) => {
+let size = ScreenSize.Desktop;
+const renderRoom = async (thread?: string, screenSize: ScreenSize = ScreenSize.Desktop) => {
   state.thread = thread;
+  size = screenSize;
   const { Room } = await import('./Room');
   const ui = () => (
     <ScreenSizeProvider value={size}>
@@ -348,6 +357,34 @@ describe('the second thread beside the open one', () => {
     elsewhere.focus();
     await act(async () => screen.getByRole('button', { name: 'Close thread' }).click());
     expect(document.activeElement).toBe(elsewhere);
+  });
+
+  it('a restored B that never had the focus leaves it on the page when a call replaces it', async () => {
+    localStorage.setItem(storageKey, JSON.stringify({ '!r': '$b' }));
+    await renderRoom('$a');
+    expect(panel()).not.toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    await act(async () => {
+      getDefaultStore().set(getCallWindowSettingsAtom('@alice:example.org'), { mode: 'docked' });
+      getDefaultStore().set(callPanelRoomAtom, room.roomId);
+    });
+    expect(panel()).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('a phone width and back does not take the focus from A again', async () => {
+    await renderRoom('$a');
+    await openBeside('$b');
+    expect(document.activeElement).toBe(screen.getByTestId('b-composer'));
+    screen.getByTestId('a-composer').focus();
+    size = ScreenSize.Mobile;
+    await rerenderRoom?.();
+    size = ScreenSize.Desktop;
+    await rerenderRoom?.();
+    expect(panel()?.querySelector('[data-thread-view="$b"]')?.getAttribute('data-auto-focus')).toBe(
+      'false'
+    );
+    expect(document.activeElement).toBe(screen.getByTestId('a-composer'));
   });
 
   it('only an explicit Open beside takes the focus, not a restored B', async () => {

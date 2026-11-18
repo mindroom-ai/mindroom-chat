@@ -58,10 +58,18 @@ describe('useSecondThread', () => {
 
   it('takes the focus only for an explicit open, not a restored B', () => {
     localStorage.setItem(key, JSON.stringify({ '!r1': '$b' }));
-    const { result } = renderHook(() => useSecondThread('!r1', user, undefined));
+    const focus: boolean[] = [];
+    const { result } = renderHook(() => {
+      const second = useSecondThread('!r1', user, undefined);
+      focus.push(second.focus);
+      return second;
+    });
     expect(result.current).toMatchObject({ threadId: '$b', focus: false });
+    focus.length = 0;
     act(() => result.current.open('$c'));
-    expect(result.current).toMatchObject({ threadId: '$c', focus: true });
+    // Asked for in the render that opens it, then spent: a later mount of B does not take it.
+    expect(focus[0]).toBe(true);
+    expect(result.current).toMatchObject({ threadId: '$c', focus: false });
   });
 
   it('closes B when it becomes the main thread', () => {
