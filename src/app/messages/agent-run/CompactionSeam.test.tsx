@@ -747,6 +747,14 @@ describe('CompactionSeam card', () => {
     expect(rows(renderer)[0]).toEqual(['Reason', 'The reply ended before the summary finished.']);
   });
 
+  it('labels no gauge of a success without its count after', async () => {
+    const renderer = render(<CompactionSeam compaction={compaction({ afterTokens: undefined })} />);
+    await open(renderer);
+    const tip = card(renderer)[0]!;
+    expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(1);
+    expect(tip.findAll((node) => node.props.className === 'GaugeLabel')).toHaveLength(0);
+  });
+
   it('draws no gauge without a budget', async () => {
     const renderer = render(
       <CompactionSeam compaction={compaction({ historyBudgetTokens: undefined })} />

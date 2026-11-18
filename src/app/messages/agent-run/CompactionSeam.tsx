@@ -117,8 +117,7 @@ function Gauge({ compaction, state }: { compaction: ReplyCompaction; state: Seam
   const was = percentOf(beforeTokens, budget);
   const done = state === 'success' && afterTokens !== undefined;
   const now = done ? Math.min(100, (afterTokens / budget) * 100) : 0;
-  let label: ReactNode = <span>{t(`${KEY}.gauge.unchanged`, { p: was })}</span>;
-  if (state === 'running') label = <span>{t(`${KEY}.gauge.used`, { p: was })}</span>;
+  let label: ReactNode = null;
   if (done) {
     label = (
       <>
@@ -126,9 +125,10 @@ function Gauge({ compaction, state }: { compaction: ReplyCompaction; state: Seam
         <span>{t(`${KEY}.gauge.now`, { p: percentOf(afterTokens, budget) })}</span>
       </>
     );
+  } else if (state === 'running') label = <span>{t(`${KEY}.gauge.used`, { p: was })}</span>;
+  else if (isUnfinished(state) && keptFullHistory(compaction)) {
+    label = <span>{t(`${KEY}.gauge.unchanged`, { p: was })}</span>;
   }
-  if (state === 'success' && !done) label = null;
-  if (isUnfinished(state) && !keptFullHistory(compaction)) label = null;
   return (
     <>
       <span className={css.Gauge} data-state={state} data-over={beforeTokens > budget} aria-hidden>
