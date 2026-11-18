@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import i18next from 'i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChartWidget } from './chartSchema';
 import { UiChart } from './UiChart';
@@ -38,6 +39,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const live = (container: HTMLElement) => container.querySelector('[aria-live="polite"]');
@@ -66,10 +68,10 @@ describe('UiChart', () => {
       'Mar',
     ]);
     expect(within(table!).getByText('180.5')).toBeTruthy();
-    expect(container.querySelector('[dir="ltr"] svg')).toBeNull();
+    expect(container.querySelector('[tabindex="0"] svg')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Chart' }));
-    expect(container.querySelector('[dir="ltr"] svg')).toBeTruthy();
+    expect(container.querySelector('[tabindex="0"] svg')).toBeTruthy();
   });
 
   it('moves between points with the keyboard and announces them politely', () => {
@@ -112,7 +114,7 @@ describe('UiChart', () => {
     };
     const { container } = render(<UiChart chart={chart} />);
 
-    const svg = container.querySelector('[dir="ltr"] svg');
+    const svg = container.querySelector('[tabindex="0"] svg');
     expect(svg?.getAttribute('width')).toBe('390');
     const shown = [...svg!.querySelectorAll('text')].filter((t) => /^D\d+$/.test(t.textContent!));
     expect(shown.length).toBeGreaterThan(1);
@@ -165,6 +167,28 @@ describe('UiChart', () => {
     });
   });
 
+  it('keeps 200 groups of eight bars apart at 390 pixels', () => {
+    cardWidth = 390;
+    const labels = Array.from({ length: 200 }, (_, index) => `D${index + 1}`);
+    const series = Array.from({ length: 8 }, (_, number) => ({
+      name: `S${number}`,
+      data: labels.map((_, index) => index + number + 1),
+    }));
+    const { container } = render(
+      <UiChart chart={{ type: 'chart', kind: 'bar', title: 'Dense', labels, series }} />
+    );
+
+    const bars = [...container.querySelectorAll('[tabindex="0"] svg rect[fill]')]
+      .filter((rect) => rect.getAttribute('fill') !== 'transparent')
+      .map((rect) => [Number(rect.getAttribute('x')), Number(rect.getAttribute('width'))])
+      .sort(([a], [b]) => a! - b!);
+    expect(bars).toHaveLength(1600);
+    bars.slice(1).forEach(([x], index) => {
+      const [previousX, previousWidth] = bars[index]!;
+      expect(previousX! + previousWidth!).toBeLessThanOrEqual(x! + 1e-9);
+    });
+  });
+
   it('shows only the table when the values cannot be scaled', () => {
     const chart: ChartWidget = {
       ...SPEC_CHART,
@@ -175,6 +199,30 @@ describe('UiChart', () => {
     expect(container.querySelector('svg')).toBeNull();
     expect(container.querySelector('table')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Chart' })).toBeNull();
+  });
+
+  it('lays the card out in the interface direction, its plot left to right', () => {
+    vi.spyOn(i18next, 'dir').mockReturnValue('rtl');
+    const { container } = render(<UiChart chart={SPEC_CHART} />);
+
+    const figure = container.querySelector('figure')!;
+    expect(figure.getAttribute('dir')).toBe('rtl');
+    expect(figure.firstElementChild?.tagName).toBe('FIGCAPTION');
+    expect(figure.querySelector('figcaption [dir="auto"]')?.textContent).toBe('Signups');
+    expect(container.querySelector('[tabindex="0"]')?.getAttribute('dir')).toBe('ltr');
+  });
+
+  it('shows direction controls in authored text as code points', () => {
+    const chart: ChartWidget = {
+      ...SPEC_CHART,
+      title: 'Sign\u202Eups',
+      labels: ['J\u2066an', 'Feb', 'Mar'],
+    };
+    const { container } = render(<UiChart chart={chart} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+
+    expect(container.querySelector('figcaption')?.textContent).toContain('Sign<U+202E>ups');
+    expect(container.querySelector('th[scope="row"]')?.textContent).toBe('J<U+2066>an');
   });
 
   it('renders every widget string as text', () => {

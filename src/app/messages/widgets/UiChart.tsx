@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type ReactN
 import { useTranslation } from 'react-i18next';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useResizeObserver } from '../../lib/hooks/useResizeObserver';
+import { revealDirectionControls } from '../../ui/directional';
 import type { ChartWidget } from './chartSchema';
 import { labelStep, niceTicks, pieSlices, valueDomain } from './chartGeometry';
 import * as css from './UiChart.css';
@@ -118,9 +119,20 @@ const useFormatters = (): Formatters => {
   }, [language]);
 };
 
+/** The chart's authored text with its direction controls shown as code points, as message text is. */
+const revealChart = (chart: ChartWidget): ChartWidget => ({
+  ...chart,
+  title: revealDirectionControls(chart.title),
+  labels: chart.labels.map(revealDirectionControls),
+  series: chart.series.map((s) => ({ ...s, name: revealDirectionControls(s.name) })),
+  ...(chart.x !== undefined && { x: revealDirectionControls(chart.x) }),
+  ...(chart.y !== undefined && { y: revealDirectionControls(chart.y) }),
+});
+
 /** A chart widget: a bordered card with the plot, or the same numbers as a table. */
-export function UiChart({ chart }: { chart: ChartWidget }) {
-  const { t } = useTranslation();
+export function UiChart({ chart: authored }: { chart: ChartWidget }) {
+  const chart = useMemo(() => revealChart(authored), [authored]);
+  const { t, i18n } = useTranslation();
   const format = useFormatters();
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const [width, setWidth] = useState<number>();
@@ -134,10 +146,9 @@ export function UiChart({ chart }: { chart: ChartWidget }) {
   const geometry = useMemo(() => getGeometry(chart), [chart]);
   const plotWidth = width ?? DEFAULT_WIDTH;
   const compact = plotWidth + CARD_PADDING < COMPACT_CARD;
-  const shown = geometry ? view : 'table';
   const slices = geometry?.kind === 'pie' ? geometry.slices : undefined;
   const cell: Cell = (seriesIndex, index) => {
-    const value = format.value(chart.series[seriesIndex]?.data[index] ?? 0);
+    const value = format.value(chart.series[seriesIndex]!.data[index]!);
     const share = slices?.[index]?.share;
     return share === undefined
       ? value
@@ -157,22 +168,25 @@ export function UiChart({ chart }: { chart: ChartWidget }) {
   );
 
   return (
-    <figure ref={cardRef} className={css.Card}>
-      <div className={css.Header}>
-        <figcaption className={css.Heading}>
-          <div className={css.Title}>{chart.title}</div>
-          {chart.y && <div className={css.Subtitle}>{chart.y}</div>}
-        </figcaption>
-        {geometry && (
-          <div className={css.Toggle}>
-            {toggle('chart', ChartIcon)}
-            {toggle('table', TableIcon)}
+    // The card reads in the interface's direction, its authored text in its own, the plot LTR.
+    <figure ref={cardRef} className={css.Card} dir={i18n.dir()}>
+      <figcaption className={css.Heading}>
+        <div className={css.Title} dir="auto">
+          {chart.title}
+        </div>
+        {chart.y && (
+          <div className={css.Subtitle} dir="auto">
+            {chart.y}
           </div>
         )}
-      </div>
-      {shown === 'table' || !geometry ? (
-        <ChartTable chart={chart} cell={cell} />
-      ) : (
+      </figcaption>
+      {geometry && (
+        <div className={css.Toggle}>
+          {toggle('chart', ChartIcon)}
+          {toggle('table', TableIcon)}
+        </div>
+      )}
+      {geometry && view === 'chart' ? (
         <ChartPlot
           chart={chart}
           geometry={geometry}
@@ -180,6 +194,8 @@ export function UiChart({ chart }: { chart: ChartWidget }) {
           format={format}
           cell={cell}
         />
+      ) : (
+        <ChartTable chart={chart} cell={cell} />
       )}
     </figure>
   );
@@ -200,7 +216,7 @@ function ChartTable({ chart, cell }: { chart: ChartWidget; cell: Cell }) {
             <th scope="col">{chart.x}</th>
             {chart.series.map((s) => (
               <th key={s.name} scope="col">
-                {s.name}
+                <bdi>{s.name}</bdi>
               </th>
             ))}
           </tr>
@@ -210,7 +226,9 @@ function ChartTable({ chart, cell }: { chart: ChartWidget; cell: Cell }) {
             // Labels may repeat; the row's place is its identity.
             // eslint-disable-next-line react/no-array-index-key
             <tr key={index}>
-              <th scope="row">{label}</th>
+              <th scope="row">
+                <bdi>{label}</bdi>
+              </th>
               {chart.series.map((s, seriesIndex) => (
                 <td key={s.name}>{cell(seriesIndex, index)}</td>
               ))}
@@ -299,7 +317,7 @@ function ChartPlot({
           {chart.series.map((s, index) => (
             <li key={s.name} className={css.LegendItem}>
               <i className={css.Swatch} style={{ background: color(index) }} />
-              {s.name}
+              <bdi>{s.name}</bdi>
             </li>
           ))}
         </ul>
@@ -331,11 +349,11 @@ function ChartPlot({
               transform: tooltipX > width / 2 ? 'translateX(-100%)' : undefined,
             }}
           >
-            <div className={css.TooltipLabel}>{chart.labels[active]}</div>
+            <bdi className={css.TooltipLabel}>{chart.labels[active]}</bdi>
             {values(active).map(({ name, color: swatch, text }) => (
               <div key={name} className={css.TooltipRow}>
                 <i className={css.Swatch} style={{ background: swatch }} />
-                {name}
+                <bdi>{name}</bdi>
                 <span className={css.TooltipValue}>{text}</span>
               </div>
             ))}
@@ -438,7 +456,7 @@ function CartesianPlot({
               key={`${s.name}:${index}`}
               x={x(index) - group / 2 + seriesIndex * barWidth}
               y={Math.min(y(value), zero)}
-              width={Math.max(1, barWidth - (seriesCount > 1 ? 1 : 0))}
+              width={seriesCount > 1 ? barWidth * 0.86 : barWidth}
               height={Math.abs(y(value) - zero)}
               rx={Math.min(3, barWidth / 3)}
               fill={color(seriesIndex)}
@@ -569,7 +587,7 @@ function DonutPlot({
           // eslint-disable-next-line react/no-array-index-key
           <li key={index} className={css.LegendItem} onPointerEnter={() => onPoint(index)}>
             <i className={css.Swatch} style={{ background: color(index) }} />
-            {label}
+            <bdi>{label}</bdi>
             <span className={css.LegendValue}>{cell(0, index)}</span>
           </li>
         ))}

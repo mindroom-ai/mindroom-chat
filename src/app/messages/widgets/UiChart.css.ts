@@ -34,17 +34,23 @@ export const Card = style({
   color: color.SurfaceVariant.OnContainer,
   overflowWrap: 'anywhere',
   whiteSpace: 'normal',
+  // Caption and toggle share the first row; everything else spans it.
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  columnGap: toRem(10),
+  alignItems: 'start',
 });
 
-export const Header = style({ display: 'flex', alignItems: 'flex-start', gap: toRem(10) });
+globalStyle(`${Card} > *`, { gridColumn: '1 / -1' });
 
-export const Heading = style({ flex: 1, minWidth: 0 });
+export const Heading = style({ gridColumn: 1, minWidth: 0 });
 
 export const Title = style({ fontSize: toRem(14.5), fontWeight: 600, lineHeight: 1.35 });
 
 export const Subtitle = style({ fontSize: toRem(12.5), lineHeight: 1.4, color: muted });
 
 export const Toggle = style({
+  gridColumn: 2,
   display: 'inline-flex',
   flexShrink: 0,
   padding: toRem(2),
@@ -174,7 +180,11 @@ export const Tooltip = style({
   pointerEvents: 'none',
 });
 
-export const TooltipLabel = style({ fontWeight: 600, marginBlockEnd: toRem(2) });
+export const TooltipLabel = style({
+  display: 'block',
+  fontWeight: 600,
+  marginBlockEnd: toRem(2),
+});
 
 export const TooltipRow = style({
   display: 'flex',

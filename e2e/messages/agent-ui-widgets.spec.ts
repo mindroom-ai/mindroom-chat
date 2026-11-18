@@ -52,7 +52,7 @@ test('an agent reply draws its chart between its sentences, after a reload and o
 
   await page.reload();
   await expect(figure).toBeVisible({ timeout: 90_000 });
-  await expect(figure.locator('[dir="ltr"] svg')).toBeVisible();
+  await expect(figure.locator('[tabindex="0"] svg')).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(figure).toBeVisible();
