@@ -7,6 +7,7 @@ import en from '../app/i18n/englishResources';
 // exercises the real material recipe; unit tests only need its composed class.
 vi.mock('../app/ui/styles/Glass.css', () => ({
   glassShadow: '--glass-shadow',
+  surfaceContainer: '--surface-container',
   glassFloating: 'glass-floating',
   glassInheritTint: 'glass-inherit-tint',
   glassScrollPanel: 'glass-scroll-panel',

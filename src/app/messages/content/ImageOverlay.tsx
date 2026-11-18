@@ -91,14 +91,14 @@ const keepContextMenu = (event: React.MouseEvent) => event.stopPropagation();
  */
 export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverlayProps) {
   const { src, alt, requestClose } = viewer;
-  const { centerStyle, modalStyle } = useViewerFrame();
+  const { centerClassName, modalClassName, modalStyle } = useViewerFrame();
   const open = openWhileLoading || !!src;
   useViewerHistoryEntry(open, requestClose);
   useImageViewerOpenFlag(open);
   if (!open) return null;
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter style={centerStyle}>
+      <OverlayCenter className={centerClassName}>
         <FocusTrap focusTrapOptions={viewerTrapOptions(requestClose)}>
           <Modal
             {...PINCH_SURFACE}
@@ -106,6 +106,7 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
             aria-modal="true"
             aria-label={revealDirectionControls(alt)}
             size="500"
+            className={modalClassName}
             style={modalStyle}
             onContextMenu={keepContextMenu}
           >

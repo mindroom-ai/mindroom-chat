@@ -3,7 +3,8 @@ import { recipe } from '@vanilla-extract/recipes';
 import { ContainerColor, color } from 'folds';
 import { DARK_THEMES } from '../../preferences/themeNames';
 
-const surfaceContainer = createVar();
+// The surface's own opaque color, for an opaque surface (a phone's full-screen dialog).
+export const surfaceContainer = createVar();
 const surfaceHover = createVar();
 const surfaceActive = createVar();
 const surfaceLine = createVar();

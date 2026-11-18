@@ -44,7 +44,7 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
   ),
 }));
 vi.mock('./viewerFrame', () => ({
-  useViewerFrame: () => ({ centerStyle: undefined, modalStyle: {} }),
+  useViewerFrame: () => ({}),
   viewerTrapOptions: () => ({}),
 }));
 vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['picture']) }));

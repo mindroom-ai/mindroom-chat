@@ -5,6 +5,10 @@ import { FileContent } from './FileContent';
 
 vi.mock('../../ui/glass/GlassPrimitives', () => ({ Modal: () => null }));
 vi.mock('focus-trap-react', () => ({ default: () => null }));
+vi.mock('../../ui/Modal500.css', () => ({
+  PhoneModal: 'phone-modal',
+  PhoneOverlayCenter: 'phone-center',
+}));
 vi.mock('folds', async () => {
   const { createElement } = await import('react');
   const tag =
