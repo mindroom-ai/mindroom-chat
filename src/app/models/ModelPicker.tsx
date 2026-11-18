@@ -66,7 +66,7 @@ const sharedRoomDefault = (state: ModelPickerState): ModelCatalogEntry | undefin
 
 /**
  * The model the thread runs on now, its own or else the one every agent falls back to, and the
- * reasoning level it runs it at; no level while the agents' levels differ.
+ * reasoning level it runs it at; no level without such a model, or while the agents' levels differ.
  */
 const currentChoice = (state: ModelPickerState) => {
   const model =
@@ -77,7 +77,7 @@ const currentChoice = (state: ModelPickerState) => {
     state.override === null ? state.inherited.map(({ reasoning }) => reasoning) : [state.reasoning];
   const levels = new Set(named.map((level) => level ?? model?.reasoning_default));
   const [level] = levels;
-  return { model, level: levels.size === 1 ? level : undefined };
+  return { model, level: model && levels.size === 1 ? level : undefined };
 };
 
 function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerPanelProps) {

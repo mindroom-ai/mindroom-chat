@@ -1130,14 +1130,18 @@ describe('composer model picker', () => {
     it('shows no levels under Room default while the agents fall back to different models', async () => {
       await open(
         levelled({
+          // Both name Low, but for different models: the thread runs at no one level.
           inherited: [
-            { entity: 'assistant', model: 'sol' },
-            { entity: 'reviewer', model: 'luna' },
+            { entity: 'assistant', model: 'sol', reasoning: 'low' },
+            { entity: 'reviewer', model: 'luna', reasoning: 'low' },
           ],
         })
       );
       expect(header()).toBe('EffortRoom default');
       expect(column()?.textContent).toContain('No effort levels');
+      expect(trigger().querySelector('[data-effort-glyph]')).toBeNull();
+      const [, label] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
+      expect(document.getElementById(label!)?.textContent).toBe('Room default');
     });
 
     it('stacks the column under the models on a phone', async () => {
