@@ -261,8 +261,8 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 ## Page zoom
 
 The app's Page Zoom setting (`src/app/theme/usePageZoom.ts`) scales the root font size, and the app sizes its interface in `rem`, so it grows or shrinks with it.
-A plugin sizes its text and controls in `rem` too (font sizes, line heights, control heights, paddings, gaps and icons), or they keep their size while the app around them zooms; text that inherits its size and unitless line heights follow anyway, and `px` stays for hairline borders, outlines, shadow offsets and media queries.
-A layout number a plugin computes in code from a size in `rem`, such as a virtualized list's row height, multiplies it by the root font size (`parseFloat(getComputedStyle(document.documentElement).fontSize)`) and computes it again when Page Zoom changes: the app renders no plugin component again then, so the plugin watches for it itself, for example with a `ResizeObserver` on an element sized in `rem`, or measures its rendered rows instead (`getBoundingClientRect()` already gives the zoomed size).
+A plugin sizes its text and controls in `rem` too (font sizes, line heights, control heights, paddings, gaps and icons): what it sizes in `px` keeps its size while the app around it zooms, while text that inherits its size, `em` sizes below it and unitless line heights follow; `px` stays for hairline borders, outlines, shadow offsets and media queries.
+A layout number a plugin computes in code from a size in `rem`, such as a virtualized list's row height, multiplies it by the root font size (`parseFloat(getComputedStyle(document.documentElement).fontSize)`) and computes it again when Page Zoom changes: a plugin cannot count on a render then, so it watches for it itself, for example with a `ResizeObserver` on an element sized in `rem`, or measures its rendered rows instead and again when they resize, as a virtualizer's `measureElement` does (`getBoundingClientRect()` already gives the zoomed size).
 
 ## Pinches
 
