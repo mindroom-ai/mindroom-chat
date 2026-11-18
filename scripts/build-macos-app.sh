@@ -94,12 +94,11 @@ xcodebuild archive \
 
 # MindRoom.dmg: the app beside an Applications link on a background (scripts/macos-dmg).
 pack_dmg() {
+  # A fresh environment each build, so it always holds exactly the pinned versions.
   local venv=build/macos/dmgbuild-venv
-  if [[ ! -x "$venv/bin/dmgbuild" ]]; then
-    python3 -m venv "$venv"
-    "$venv/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r scripts/macos-dmg/requirements.txt
-  fi
-  rm -f "$dmg_path"
+  rm -rf "$venv"
+  python3 -m venv "$venv"
+  "$venv/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r scripts/macos-dmg/requirements.txt
   "$venv/bin/dmgbuild" -s scripts/macos-dmg/settings.py -D "app=$1" MindRoom "$dmg_path"
 }
 dmg_path="build/macos/MindRoom.dmg"
