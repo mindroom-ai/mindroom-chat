@@ -128,7 +128,7 @@ const fixture = () => {
   let listedRoots: IEvent[] = [];
   let listGate: Promise<void> = Promise.resolve();
   /** The thread as the server holds it, for a thread loading its first page. */
-  let serverThread: { root: IEvent; replies: IEvent[] } | undefined;
+  let serverThread: { root: IEvent; replies: IEvent[]; fail?: boolean } | undefined;
   const mx = createClient({
     baseUrl: 'https://example.org',
     userId: readerId,
@@ -157,7 +157,9 @@ const fixture = () => {
       }
       if (serverThread && path.endsWith(`/event/${rootId}`)) return json(serverThread.root);
       if (serverThread && path.includes(`/relations/${rootId}`))
-        return json({ chunk: [...serverThread.replies].reverse() });
+        return serverThread.fail
+          ? json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500)
+          : json({ chunk: [...serverThread.replies].reverse() });
       if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
           ? json({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, serverReply)
@@ -217,7 +219,7 @@ const fixture = () => {
     });
     return open;
   };
-  const setServerThread = (value: { root: IEvent; replies: IEvent[] }) => {
+  const setServerThread = (value: { root: IEvent; replies: IEvent[]; fail?: boolean }) => {
     serverThread = value;
   };
   const requested = (fragment: string) => requests.filter((path) => path.includes(fragment)).length;
@@ -740,18 +742,19 @@ describe('streaming replies on thread cards', () => {
     });
 
     describe('an unopened thread whose summary names its title', () => {
-      const listedRoot = (now: number, status: string, replyTs = now - 50_000) => {
+      const listedRoot = (now: number, status: string) => {
         const listed = withSummary(root(now - 60_000), title(now - 15_000), 2);
         const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
         summary['io.mindroom.latest_reply'] = withEdit(
-          reply(replyTs),
+          reply(now - 50_000),
           edit('The notes', now - 3_000, status)
         );
         return listed;
       };
-      const reloadUnopened = async (now: number, listed: IEvent) => {
+      const reloadUnopened = async (now: number, listed: IEvent, fail = false) => {
         const f = fixture();
         f.setServerThread({
+          fail,
           root: listed,
           replies: [
             withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')),
@@ -784,6 +787,14 @@ describe('streaming replies on thread cards', () => {
         expect(f.card()).toEqual({ preview: finished, streaming: false });
       });
 
+      it('asks for the first page once when it fails', async () => {
+        const now = Date.now();
+        const f = await reloadUnopened(now, listedRoot(now, 'streaming'), true);
+        await afterCheckDelay();
+        expect(f.requested(`/relations/${rootId}`)).toBe(1);
+        expect(f.card().streaming).toBe(false);
+      });
+
       it('loads nothing for a bundled reply that finished', async () => {
         const now = Date.now();
         const f = await reloadUnopened(now, listedRoot(now, 'completed'));
@@ -792,7 +803,7 @@ describe('streaming replies on thread cards', () => {
 
       it('loads nothing for a bundled reply that went idle', async () => {
         const now = Date.now();
-        const listed = listedRoot(now, 'streaming', now - 40 * MINUTE);
+        const listed = listedRoot(now, 'streaming');
         const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
         summary['io.mindroom.latest_reply'] = reply(now - 40 * MINUTE);
         const f = await reloadUnopened(now, listed);
