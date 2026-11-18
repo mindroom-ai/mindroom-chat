@@ -128,7 +128,6 @@ import {
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
-import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { InlineSecretRequestsContext } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
@@ -862,11 +861,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusId: focusItem?.eventId,
   });
   // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
-  const viewerId = mx.getUserId() ?? undefined;
   const voiceTranscripts = useVoiceTranscriptPlan({
     events: threadId ? threadEvents : roomRows,
     getContent: getRowContent,
-    isAgent: (userId) => isMindroomAgentUserIdForViewer(userId, viewerId),
+    viewerId: mx.getUserId() ?? undefined,
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
   });

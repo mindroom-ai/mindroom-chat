@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
+import { isMindroomRouterUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import {
   getVoiceSourceEventId,
   isVisibleRouterVoiceEcho,
@@ -21,8 +22,10 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
 
 /**
  * Which router voice echoes of `events` show under their voice message instead of their row. An
- * echo moves when an agent sent it, it names its voice message (`getVoiceSourceEventId`, read
- * from the version its row shows, `getContent`), and that message is among `events`, not
+ * echo moves when the router on the viewer's homeserver sent it (`isMindroomRouterUserIdForViewer`;
+ * no other agent or account), it names its voice message (`getVoiceSourceEventId`, read from the
+ * version its row shows, `getContent`, which counts only the sender's own edits), and that
+ * message is among `events`, not
  * redacted and not from an ignored sender. Every other echo keeps its row as before: one from
  * an older backend without the name, one whose voice message is not loaded here, one the route
  * or a jump opened (`revealed`), and a second echo naming the same voice message.
@@ -30,13 +33,13 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
 export const planVoiceTranscripts = ({
   events,
   getContent,
-  isAgent,
+  viewerId,
   ignored,
   revealed,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
-  isAgent: (userId: string | undefined) => boolean;
+  viewerId: string | undefined;
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
 }): VoiceTranscriptPlan => {
@@ -45,7 +48,7 @@ export const planVoiceTranscripts = ({
     (event) =>
       isVisibleRouterVoiceEcho(event.getOriginalContent()) &&
       !event.isRedacted() &&
-      isAgent(event.getSender())
+      isMindroomRouterUserIdForViewer(event.getSender(), viewerId)
   );
   if (echoes.length === 0) return NO_VOICE_TRANSCRIPTS;
   const byId = new Map(events.map((event) => [event.getId(), event]));
