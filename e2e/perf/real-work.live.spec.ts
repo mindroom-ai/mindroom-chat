@@ -59,9 +59,9 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *   thread-idle     30 s of the open thread left alone
  *   thread-type     10 s of typing in the thread's composer
  *   switch          Back, then a card that counts (with a driver, only the cards of the threads
- *                   it streams in do): another one than the thread just left that streams, else
- *                   another one that is idle, else the one just left; 5 times, each timed (the
- *                   thread to its first row and to its settled rows)
+ *                   it streams in do): another one than the thread just left whose card shows
+ *                   the streaming marker, else the first other one, else the one just left;
+ *                   5 times, each timed (the thread to its first row and to its settled rows)
  *   cold-load       a reload of the room, to its first card, then 5 s
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
