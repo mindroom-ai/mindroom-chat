@@ -842,14 +842,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
   // opened, and the rows a fork's lines sit on, keep their turn unfolded.
-  const turnQuietMarkerData = useMemo(
-    () => ({ threadSummaryTimeline, forkPrefixEventIds }),
-    [forkPrefixEventIds, threadSummaryTimeline]
-  );
   const { isQuietMarkerRow } = feature;
   const isTurnQuietMarker = useCallback(
-    (event: MatrixEvent) => isQuietMarkerRow(event, turnQuietMarkerData, rowTimelineSet),
-    [isQuietMarkerRow, rowTimelineSet, turnQuietMarkerData]
+    (event: MatrixEvent) =>
+      isQuietMarkerRow(event, { threadSummaryTimeline, forkPrefixEventIds }, rowTimelineSet),
+    [forkPrefixEventIds, isQuietMarkerRow, rowTimelineSet, threadSummaryTimeline]
   );
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
