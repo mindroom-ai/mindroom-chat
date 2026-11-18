@@ -47,7 +47,12 @@ export const signedModelDevices = async (
         deviceId,
         curveKey,
       });
-      if (devices.length > 256) return [];
+      if (devices.length > 256) {
+        // Hiding the model button on this cap was silent; say why (stale agent devices pile up).
+        const agents = users.join(', ');
+        console.warn(`[models] ${agents} have over 256 signed devices; discovery skipped.`);
+        return [];
+      }
     }
   }
   return devices;
