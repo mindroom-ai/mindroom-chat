@@ -141,11 +141,12 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
   recording is cancelled, and `stop` is raised without audio, which the session reports as
   "Voice recording stopped unexpectedly. Please record again." (`voiceCaptureSession.ts:272-284`).
   The session's clock and the native recorder can then never disagree in silence.
-- `stop()` sets `state` to `inactive` at once and removes the `level` listener, then: plugin `stop`
-  resolves `{ path }`; the file is fetched from `Capacitor.convertFileSrc(path)` with
-  `AbortSignal.timeout(5_000)`, the length of the session's stop deadline; a non-empty answer is
-  raised as `dataavailable` with `data` (a `Blob`); then, also after any failure, plugin `cancel`
-  deletes this recording's file, and `stop` is raised. A second `stop()` does nothing.
+- `stop()` sets `state` to `inactive` at once, then: plugin `stop` resolves `{ path }`; the file
+  is fetched from `Capacitor.convertFileSrc(path)` with `AbortSignal.timeout(5_000)`, the length
+  of the session's stop deadline; a non-empty answer is raised as `dataavailable` with `data` (a
+  `Blob`); then, also after any failure, the one ending every way out shares: the `level`
+  listener is removed, plugin `cancel` deletes this recording's file, and `stop` is raised. A
+  second `stop()` does nothing.
 
 Discard takes the same road: the session stops the recorder and drops the chunk. Reading a local
 file of at most a few megabytes to drop it costs less than a second stop method.
