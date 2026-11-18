@@ -130,6 +130,33 @@ describe('emptySupersededJobsState', () => {
     expect(current?.getPrevContent()).toEqual({ jobs: [{ job_id: 'before-$jobs2' }] });
   });
 
+  it("empties the timeline's own event of a replaced jobs state, when sync brings state apart from the timeline", async () => {
+    const { room, timelineEvents, currentJobs } = await joinedRoom();
+    // As sync does with `state_after`: the state first, then the timeline, which sets no state.
+    const synced = async (eventId: string, agent = AGENT) => {
+      const inTimeline = jobs(eventId, agent);
+      room.currentState.setStateEvents([new MatrixEvent(structuredClone(inTimeline.event))]);
+      await room.addLiveEvents([inTimeline], { addToState: false });
+    };
+
+    await synced('$jobs1');
+    await synced('$other1', OTHER_AGENT);
+    await synced('$jobs2');
+
+    expect(timelineEvents().slice(2)).toEqual([
+      ['$jobs1', false],
+      ['$other1', true],
+      ['$jobs2', true],
+    ]);
+    expect(room.findEventById('$jobs1')?.getUnsigned()).toEqual({ age: 1 });
+    expect(room.findEventById('$jobs2')?.getContent()).toEqual({ jobs: [{ job_id: '$jobs2-0' }] });
+    expect(room.findEventById('$jobs2')?.getPrevContent()).toHaveProperty('jobs');
+    expect(currentJobs()).toBe('$jobs2');
+    expect(
+      room.currentState.getStateEvents(MINDROOM_BACKGROUND_JOBS_EVENT, AGENT)?.getContent()
+    ).toEqual({ jobs: [{ job_id: '$jobs2-0' }] });
+  });
+
   it('keeps each agent its own current jobs state', async () => {
     const { room, live, timelineEvents, currentJobs } = await joinedRoom();
 

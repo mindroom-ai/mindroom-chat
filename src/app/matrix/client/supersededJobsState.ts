@@ -14,16 +14,27 @@ import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../protocol/backgroundJobsContra
  * the state of an older time, empties nothing.
  */
 export const emptySupersededJobsState = (mx: MatrixClient): void => {
-  mx.on(RoomStateEvent.Events, (event, _state, previous) => {
+  mx.on(RoomStateEvent.Events, (event, state, previous) => {
     if (event.getType() !== MINDROOM_BACKGROUND_JOBS_EVENT) return;
-    if (!previous || previous.getId() === event.getId()) return;
+    const previousId = previous?.getId();
+    if (!previousId || previousId === event.getId()) return;
+    // The timeline's event with that ID, which is the replaced state itself unless the server sends
+    // the state apart from the timeline (`state_after`). It is among the timeline's newest: the
+    // agent's write before this one.
+    const superseded = mx
+      .getRoom(state.roomId)
+      ?.getUnfilteredTimelineSet()
+      .getTimelineForEvent(previousId)
+      ?.getEvents()
+      .findLast((held) => held.getId() === previousId);
+    if (!superseded) return;
     // Changed in place, with no event announced and nothing drawn again: the jobs are read from
     // the current state alone (`agentRoomState`), which no longer holds this event, and nothing
     // reads the list before a jobs state. What tells the event's place stays (ID, time, type,
     // state key): a read receipt may name the event, and the timeline rows count their places
     // over every event, so it is not removed. Sync and the event cache save their own copies, and
     // neither brings a saved event back as state.
-    previous.event.content = {};
-    delete previous.event.unsigned?.prev_content;
+    superseded.event.content = {};
+    delete superseded.event.unsigned?.prev_content;
   });
 };
