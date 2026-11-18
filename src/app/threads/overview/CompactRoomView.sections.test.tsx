@@ -335,6 +335,52 @@ describe('the Compact room in sections', () => {
       expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
     });
 
+    it('keeps only the lone section open: other stored folds still apply while held', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['working', 'done'] })
+      );
+      holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+          { id: 'done', rootIds: ['$d'] },
+        ],
+        ['$d']
+      );
+
+      expect(rows()).toEqual(['#working 1', '#needsYou 1', '$b', '#done 1']);
+    });
+
+    it('folds the held-open section from its header at once, and keeps it folded after', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['needsYou'] })
+      );
+      const release = holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('true');
+
+      act(() => {
+        fireEvent.click(header('needsYou'));
+      });
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
+        on: true,
+        folded: ['needsYou'],
+      });
+    });
+
     it('keeps a held section in its shown order while a new section comes in after it', () => {
       const release = holdThenRegroup(
         [
