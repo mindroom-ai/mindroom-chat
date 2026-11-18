@@ -203,6 +203,7 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   const title = bar.getByRole('button', { name: /^3 background jobs/ });
   await expect(title).toContainText('2 sub-agents · 1 tool');
   await expect(title.locator('[data-job-logo]')).toHaveCount(2);
+  await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-collapsed.png') });
   await title.click();
   await expect(bar.getByRole('heading')).toHaveText(['Sub-agents · 2', 'Tools · 1']);
 
@@ -215,12 +216,15 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(lead.locator('[data-job-activity]')).toHaveText(
     `run_shell_command ${LEAD_TOOL.args_preview}`
   );
-  await expect(lead.locator('[data-job-stats]')).toHaveText('31 tool calls · 1.9M tokens · $1.30');
+  // The group heading names the number columns, so the cells hold bare numbers.
+  await expect(bar.getByText('Calls', { exact: true })).toBeVisible();
+  await expect(lead.locator('[data-job-stat]')).toHaveText(['31', '1.9M', '$1.30']);
+  await expect(lead.locator('[data-job-stat="calls"]')).toHaveAttribute('title', '31 tool calls');
   const child = row(bar, 'subagent', 1);
   await expect(child.locator('[data-job-logo]')).toHaveAttribute('data-model-provider', 'openai');
   await expect(child.locator('[data-job-model]')).toHaveText('Sol · GPT-6.2');
   // An unpriced run shows its tokens without a cost.
-  await expect(child.locator('[data-job-stats]')).toHaveText('7 tool calls · 314K tokens');
+  await expect(child.locator('[data-job-stat]')).toHaveText(['7', '314K', '']);
   const shell = row(bar, 'tool');
   await expect(shell.locator('[data-job-logo]')).toHaveAttribute('data-job-logo', 'tool');
   // A tool job's second line is its call's arguments; its first line names the tool.
@@ -238,9 +242,11 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   const before = await elapsed.textContent();
   await page.waitForTimeout(1_500);
   await expect(elapsed).not.toHaveText(before ?? '');
-  await bar.screenshot({ path: testInfo.outputPath('jobs-bar-rich-desktop.png') });
+  // It reads minutes and seconds, so it visibly ticks past the first minute.
+  await expect(elapsed).toHaveText(/^\d+s$|^\d+m \d+s$/);
+  await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-light.png') });
   await page.emulateMedia({ colorScheme: 'dark' });
-  await bar.screenshot({ path: testInfo.outputPath('jobs-bar-rich-desktop-dark.png') });
+  await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
 
   // Open shows that sub-agent's run in the Sub-agents panel.
@@ -248,6 +254,9 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await child.locator('[data-job-open]').click();
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
+  // Beside the panel the bar is narrower: the columns stay, and a thread chip is its icon.
+  await expect(lead.locator('[data-job-stat="calls"]')).toBeVisible();
+  await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-panel.png') });
 
   // On a phone the rows drop the model and the usage; the logos stay.
   await page.keyboard.press('Escape');
@@ -264,6 +273,10 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(phoneLead.locator('[data-job-activity]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-logo]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-model]')).toBeHidden();
-  await expect(phoneLead.locator('[data-job-stats]')).toBeHidden();
-  await phoneBar.screenshot({ path: testInfo.outputPath('jobs-bar-rich-phone.png') });
+  await expect(phoneLead.locator('[data-job-stat]')).toHaveCount(3);
+  for (const cell of await phoneLead.locator('[data-job-stat]').all())
+    await expect(cell).toBeHidden();
+  await expect(phoneLead.locator('[data-job-elapsed]')).toBeVisible();
+  await expect(phoneLead.locator('[data-job-open]')).toBeVisible();
+  await phoneBar.screenshot({ path: testInfo.outputPath('jobs-bar-c-phone.png') });
 });
