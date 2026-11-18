@@ -240,10 +240,12 @@ describe('getThreadSignalsReader', () => {
     const held = new Map<string, MatrixEvent>();
     /** The replies the summaries of unopened threads name, which no timeline holds. */
     const summarized: MatrixEvent[] = [];
+    /** The roots of unopened threads that only their thread holds. */
+    const rootOnly = new Set<string>();
     const receipts = { oldest: Infinity };
     const room = {
       roomId: '!r:x',
-      getThread: () => ({ events: [] }),
+      getThread: (threadId: string) => (rootOnly.has(threadId) ? { events: [] } : null),
       getThreadUnreadNotificationCount: () => 0,
       findEventById: (eventId: string) => held.get(eventId),
       getThreads: () => summarized.map((replyToEvent) => ({ replyToEvent })),
@@ -251,7 +253,10 @@ describe('getThreadSignalsReader', () => {
     } as unknown as Room;
     const mx = Object.assign(new EventEmitter(), {
       getRoom: (roomId: string) => (roomId === room.roomId ? room : null),
-      getRooms: () => [{ findEventById: () => undefined, getThreads: () => [] }, room],
+      getRooms: () => [
+        { findEventById: () => undefined, getThreads: () => [], getThread: () => null },
+        room,
+      ],
       getSafeUserId: () => ME,
     });
     const reader = getThreadSignalsReader(mx as unknown as MatrixClient);
@@ -262,7 +267,7 @@ describe('getThreadSignalsReader', () => {
     };
     expect(readAgain()).toEqual(['$a', '$b']);
     expect(readAgain()).toEqual([]);
-    return { mx, room, held, summarized, receipts, readAgain };
+    return { mx, room, held, summarized, rootOnly, receipts, readAgain };
   };
 
   it('keeps one reader per client', () => {
@@ -340,7 +345,7 @@ describe('getThreadSignalsReader', () => {
   });
 
   it('reads the thread of a message whose kept edits a full store drops', () => {
-    const { held, summarized, readAgain } = setup();
+    const { held, summarized, rootOnly, readAgain } = setup();
     held.set('$card', event({ id: '$card', threadRootId: '$a' }));
     summarized.push(event({ id: '$latest', threadRootId: '$b' }));
     const forget = (messageId: string) =>
@@ -351,6 +356,10 @@ describe('getThreadSignalsReader', () => {
     // Signals also read the reply an unopened thread's summary names, which no timeline holds.
     forget('$latest');
     expect(readAgain()).toEqual(['$b']);
+    // And the root of an unopened thread, which only its thread may hold.
+    rootOnly.add('$a');
+    forget('$a');
+    expect(readAgain()).toEqual(['$a']);
     // A message no room holds or names is in no thread whose signals were read.
     forget('$unheld');
     expect(readAgain()).toEqual([]);

@@ -187,9 +187,26 @@ describe('emptySupersededJobsState', () => {
     const event = jobs('$jobs1');
     await live(event);
 
-    room.currentState.setStateEvents([event]);
+    // Another object for the same event, as a second delivery makes.
+    room.currentState.setStateEvents([new MatrixEvent(structuredClone(event.event))]);
 
     expect(event.getContent()).toHaveProperty('jobs');
+    expect(event.getPrevContent()).toHaveProperty('jobs');
+  });
+
+  // The sync store holds the object a synced event was made from as the room's state, until it
+  // takes the batch that replaces it; a save in between must not find it emptied.
+  it('leaves the object a replaced jobs state was made from as the server sent it', async () => {
+    const { room, live } = await joinedRoom();
+    const first = jobs('$jobs1');
+    const sent = first.event;
+    const asSent = structuredClone(sent);
+
+    await live(first);
+    await live(jobs('$jobs2'));
+
+    expect(room.findEventById('$jobs1')?.getContent()).toEqual({});
+    expect(sent).toEqual(asSent);
   });
 
   it('leaves other state events alone', async () => {

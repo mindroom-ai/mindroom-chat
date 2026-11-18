@@ -142,17 +142,11 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
       if (threadIds) threadIds.forEach((threadId) => mark(room.roomId, threadId));
       else mark(room.roomId);
     });
-    // The kept edit a thread's signals read of a card is gone, and no event tells of it. Every
-    // client shares the store of kept edits, so this listener must not keep its client alive: it
-    // holds the client weakly, and stops once the client is gone.
-    const heard = new WeakRef(mx);
-    const stopForgotten = onSyncedEditForgotten((messageId) => {
-      const rooms = heard.deref()?.getRooms();
-      if (!rooms) {
-        stopForgotten();
-        return;
-      }
-      for (const room of rooms) {
+    // The kept edit a thread's signals read of a message is gone, and no event tells of it. Never
+    // stopped, like the listeners above; but every client shares the store of kept edits, so this
+    // one keeps its client in memory after a sign-out without a reload.
+    onSyncedEditForgotten((messageId) => {
+      for (const room of mx.getRooms()) {
         // In a timeline, or the reply an unopened thread's summary names, which signals read too.
         const held =
           room.findEventById(messageId) ??
@@ -160,6 +154,11 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
             ?.replyToEvent;
         if (held) {
           changedThreadIds(room, held).forEach((threadId) => mark(room.roomId, threadId));
+          return;
+        }
+        // Or the root of an unopened thread, which only its thread may hold.
+        if (room.getThread(messageId)) {
+          mark(room.roomId, messageId);
           return;
         }
       }

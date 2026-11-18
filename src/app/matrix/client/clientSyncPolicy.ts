@@ -1,4 +1,4 @@
-import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
+import { Filter, MatrixClient } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../cachedSpecVersions';
 import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
@@ -78,27 +78,31 @@ export const clearSyncFilterIds = (userId: string): void => {
   );
 };
 
-const countedClients = new WeakSet<MatrixClient>();
+/** Each started client, with what stops its saves of the sync store. */
+const startedClients = new WeakMap<MatrixClient, () => void>();
+
+/**
+ * Stops the saves of the sync store a started client asks for, for a client the page is done
+ * with (`closeClient`). They listen to the page as well as to the client (it may be hidden while
+ * a save waits), and so would keep the client in memory, and save its store once more.
+ */
+export const stopSavedSync = (mx: MatrixClient): void => startedClients.get(mx)?.();
 
 /** Starts syncing: bounded timelines, lazy-loaded members, threads and live reply frames. */
-export const startClient = async (
-  mx: MatrixClient,
-  options: Partial<IStartClientOpts> = {}
-): Promise<void> => {
+export const startClient = async (mx: MatrixClient): Promise<void> => {
   await seedCachedServerVersions(mx);
   // Before the saved sync is replayed, which brings thread roots together with their replies
   // and edits, bundled ones among them. Only an SDK client has rooms whose threads count replies
   // and hold edits. A deleted message is saved at once, so the next replay does not bring it back.
   // Messages the last page left unsent come back as Not sent rows once the rooms are known.
-  if (mx instanceof MatrixClient && !countedClients.has(mx)) {
-    countedClients.add(mx);
+  if (mx instanceof MatrixClient && !startedClients.has(mx)) {
     keepBundledEditsInTheirRoom(mx);
     keepNewerEditsOnMappedCopies(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
     keepStreamingRepliesChecked(mx);
     relistThreadsAfterGaps(mx);
-    keepRedactionsInSavedSync(mx);
+    startedClients.set(mx, keepRedactionsInSavedSync(mx));
     dropRoomsForgottenElsewhere(mx);
     keepSyncedEdits(mx);
     emptySupersededJobsState(mx);
@@ -108,11 +112,10 @@ export const startClient = async (
     // Before the first sync, whose rings may come before the pages that watch for them load.
     recordRecentLiveEvents(mx);
   }
-  const policy: Partial<IStartClientOpts> = {
+  await mx.startClient({
     threadSupport: true,
     lazyLoadMembers: true,
     initialSyncLimit: STARTUP_SYNC_TIMELINE_LIMIT,
     filter: buildSyncFilter(mx),
-  };
-  await mx.startClient({ ...policy, ...options });
+  });
 };

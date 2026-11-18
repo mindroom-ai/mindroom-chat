@@ -49,15 +49,15 @@ const read = (userId: string, storage = getSafeLocalStorage()): SeenRoots | unde
 const cache = new Map<string, SeenRoots>();
 let changes = 0;
 
-/** A count of this device's changes to the records, for caches of what they decide. */
+/** A count of the changes to the records this tab read, for caches of what they decide. */
 export const seenThreadRootsVersion = (): number => changes;
 
 const changeListeners = new Set<(roomId: string) => void>();
 
 /**
- * Calls `listener` with the room of each change this device makes to a room's record: no event
- * of the room tells of it. Returns a function that stops it. A sign-out tells no one: the
- * account's views close.
+ * Calls `listener` with the room of each change to a room's record, made in this tab or in
+ * another one: no event of the room tells of it. Returns a function that stops it. A sign-out in
+ * this tab tells no one: the account's views close.
  */
 export const onSeenThreadRootsChange = (listener: (roomId: string) => void): (() => void) => {
   changeListeners.add(listener);
@@ -74,6 +74,28 @@ const cached = (userId: string): SeenRoots => {
   }
   return roots;
 };
+
+const sameRecord = (a: Record<string, number> = {}, b: Record<string, number> = {}): boolean =>
+  Object.keys(a).length === Object.keys(b).length &&
+  Object.entries(a).every(([eventId, ts]) => b[eventId] === ts);
+
+// Another tab wrote an account's record (`key`, or every key when the storage was cleared): what
+// this tab read of it is read again, and the rooms whose records changed are told of.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', ({ key, newValue }: StorageEvent) => {
+    [...cache].forEach(([userId, before]) => {
+      if (key !== null && key !== storageKey(userId)) return;
+      const after = key === null ? {} : parse(newValue);
+      const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+        (roomId) => !sameRecord(before[roomId], after[roomId])
+      );
+      if (changed.length === 0) return;
+      cache.set(userId, after);
+      changes += 1;
+      changed.forEach((roomId) => changeListeners.forEach((listener) => listener(roomId)));
+    });
+  });
+}
 
 /** Changes one room's record, starting from the stored one, which another tab may have written. */
 const update = (
