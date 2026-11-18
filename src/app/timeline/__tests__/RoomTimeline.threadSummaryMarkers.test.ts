@@ -185,4 +185,72 @@ describe('thread summary markers', () => {
       act(() => renderer?.unmount());
     }
   });
+
+  it('shows a title and the skill review notice after it side by side in one row', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { ThreadSummaryMarker } = await import(
+      '../../messages/thread-summary/ThreadSummaryMarker'
+    );
+    const { SkillReviewMarker } = await import('../../messages/SkillReviewMarker');
+    const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
+    const review = makeEvent('$review', {
+      threadRootId: threadId,
+      ts: 4_000,
+      sender: '@mindroom_code:example.org',
+      content: {
+        msgtype: 'm.notice',
+        body: 'Skill review: updated `developing-mindroom-chat`',
+        'io.mindroom.skill_review': { changes: { 'developing-mindroom-chat': 'updated' } },
+      },
+    });
+    const events = [
+      rootEvent,
+      makeEvent('$r1', { threadRootId: threadId, ts: 2_000 }),
+      summary('$s1', 'Push bug', 3_000),
+      review,
+    ];
+    const timeline = makeTimeline(events, { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [rootEvent] });
+    room.getThread = () =>
+      ({
+        rootEvent,
+        events: events.slice(1),
+        getUnfilteredTimelineSet: () => timelineSet,
+      } as never);
+    threadRenderStateMock.threadEvents = events as never;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      events.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = [1, 2, 3];
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, threadId }));
+        await flushAsyncWork();
+      });
+
+      expect(getRenderedEventIds(renderer!)).toEqual(['$r1', '$s1', '$review']);
+      const runs = renderer!.root.findAll(
+        (node) => node.type === 'div' && node.props['data-quiet-marker-run'] === 'true'
+      );
+      expect(runs).toHaveLength(1);
+      const [run] = runs;
+      expect(
+        run!
+          .findAll((node) => typeof node.props['data-message-id'] === 'string')
+          .map((node) => node.props['data-message-id'] as string)
+      ).toEqual(['$s1', '$review']);
+      expect(run!.findAllByType(ThreadSummaryMarker)).toHaveLength(1);
+      expect(run!.findAllByType(SkillReviewMarker)).toHaveLength(1);
+      // Each marker renders once: the title's own row folds into the run's row.
+      expect(renderer!.root.findAllByType(ThreadSummaryMarker)).toHaveLength(1);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 });

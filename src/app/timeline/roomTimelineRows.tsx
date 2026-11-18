@@ -376,7 +376,15 @@ export const renderTimelineTiles = ({
     const id = event.getId() ?? '';
     const context = rowContexts.get(item.index);
     let content: ReactNode = null;
-    if (context && !isRowlessTimelineEvent(event)) {
+    // A quiet marker folded into the run's last row, which shows it, renders nothing.
+    if (context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
+      const quietRun = context.quietRunIndexes?.flatMap((index): TimelineMessageRow[] => {
+        const marker = getRowEvent(index);
+        const eventId = marker?.getId();
+        return marker && eventId
+          ? [{ eventId, event: marker, index, timelineSet, collapse: false, highlighted: false }]
+          : [];
+      });
       const row: TimelineMessageRow = {
         eventId: id,
         event,
@@ -389,6 +397,7 @@ export const renderTimelineTiles = ({
           context.inPlaceReplyEventId,
           isHiddenByPluginId
         ),
+        quietRun,
       };
       // A row that fails to render shows as broken; the rows around it stay.
       content = (

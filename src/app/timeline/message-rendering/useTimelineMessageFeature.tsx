@@ -10,7 +10,7 @@ import React, {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, color } from 'folds';
+import { Text, color, config } from 'folds';
 import {
   EventStatus,
   type EventTimelineSet,
@@ -297,6 +297,16 @@ const useLiveExpansion = () => {
 /** Lines a failed send's Not sent row and reason up with the end of an own bubble. */
 const endAligned = { alignItems: 'flex-end' } as const;
 
+/** A run of quiet markers side by side, wrapping onto the next line where they do not fit. */
+const quietRunStyle = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  columnGap: config.space.S400,
+  rowGap: config.space.S100,
+} as const;
+const quietRunItemStyle = { minWidth: 0, maxWidth: '100%' } as const;
+
 /**
  * Inside a thread, the thread's title and the backend's snooze-ended and skill review messages
  * render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title shows
@@ -491,6 +501,36 @@ export const useTimelineMessageFeature = ({
     [navigateRoomThread, room.roomId]
   );
 
+  /**
+   * The quiet marker line a row renders as (`readQuietMarker`), or null. Reads the content the row
+   * shows, edits included, as `renderMessageRow` does.
+   */
+  const readRowQuietMarker = useCallback(
+    (
+      event: MatrixEvent,
+      data: TimelineMessageData,
+      rowTimelineSet: EventTimelineSet,
+      onOpenTitleSettings?: () => void
+    ): ReactNode | null => {
+      if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return null;
+      const eventId = event.getId() ?? '';
+      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
+      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
+      const editedEvent = getEditedEvent(eventId, event, timelineSet);
+      const content = getLatestMessageContent(event, editedEvent) as Record<string, unknown>;
+      const sender = event.getSender() ?? undefined;
+      return readQuietMarker(
+        eventId,
+        sender,
+        content,
+        data,
+        userId ?? undefined,
+        onOpenTitleSettings
+      );
+    },
+    [room, threadId, userId]
+  );
+
   /** The row of a message, approval, sticker or undecryptable event. */
   const renderMessageRow = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
@@ -527,6 +567,46 @@ export const useTimelineMessageFeature = ({
               openTitleSettings
             )
           : null;
+      if (quietMarker && row.quietRun?.length) {
+        // The run's earlier markers fold into this row, beside it, each keeping its own ID.
+        const markers = row.quietRun.flatMap((earlier) => {
+          renderedEventsRef.current?.push(
+            earlier.event,
+            ...getPendingEdits(
+              earlier.eventId,
+              earlier.event,
+              rowEditTimelineSet(
+                room,
+                forkPrefixThreadId(earlier.event, earlier.eventId, data.forkPrefixEventIds),
+                earlier.timelineSet
+              )
+            )
+          );
+          const node = readRowQuietMarker(
+            earlier.event,
+            data,
+            earlier.timelineSet,
+            openTitleSettings
+          );
+          return node ? [{ eventId: earlier.eventId, node }] : [];
+        });
+        markers.push({ eventId, node: quietMarker });
+        return (
+          <MessageAside key={eventId} data-message-item={row.index} spaced>
+            <div style={quietRunStyle} data-quiet-marker-run="true">
+              {markers.map((marker) => (
+                <div
+                  key={marker.eventId}
+                  data-message-id={marker.eventId}
+                  style={quietRunItemStyle}
+                >
+                  {marker.node}
+                </div>
+              ))}
+            </div>
+          </MessageAside>
+        );
+      }
       if (quietMarker) {
         return (
           <MessageAside
@@ -784,6 +864,7 @@ export const useTimelineMessageFeature = ({
       navigateRoomThread,
       openTitleSettings,
       reactionFailedEventId,
+      readRowQuietMarker,
       room,
       showThreadRepliesInRoom,
       showUrlPreview,
@@ -824,19 +905,9 @@ export const useTimelineMessageFeature = ({
    * `renderMessageRow` does.
    */
   const isQuietMarkerRow = useCallback(
-    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean => {
-      if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return false;
-      const eventId = event.getId() ?? '';
-      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
-      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
-      const content = getLatestMessageContent(
-        event,
-        getEditedEvent(eventId, event, timelineSet)
-      ) as Record<string, unknown>;
-      const sender = event.getSender() ?? undefined;
-      return readQuietMarker(eventId, sender, content, data, userId ?? undefined) !== null;
-    },
-    [room, threadId, userId]
+    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean =>
+      readRowQuietMarker(event, data, rowTimelineSet) !== null,
+    [readRowQuietMarker]
   );
 
   // A thread has no expand-all toggle, so its long messages fold as usual whatever the room's is.
