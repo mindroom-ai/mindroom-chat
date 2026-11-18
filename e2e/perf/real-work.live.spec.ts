@@ -58,8 +58,10 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *                   rows it settles on, then 5 s
  *   thread-idle     30 s of the open thread left alone
  *   thread-type     10 s of typing in the thread's composer
- *   switch          Back, then another streaming thread than the one just left, 5 times, each
- *                   timed (the thread to its first row and to its settled rows)
+ *   switch          Back, then a card that counts (with a driver, only the cards of the threads
+ *                   it streams in do): another one than the thread just left whose card shows
+ *                   the streaming marker, else the first other one, else the one just left;
+ *                   5 times, each timed (the thread to its first row and to its settled rows)
  *   cold-load       a reload of the room, to its first card, then 5 s
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
@@ -172,7 +174,6 @@ const COLD_LOAD_FLAG = 'perf:real-work-cold-load';
 type Timing = { name: string; ms: number; rows?: number };
 type DriverLine = {
   t: number;
-  target: number;
   streaming: number;
   frames: number;
   edits: number;
@@ -378,7 +379,7 @@ const shownThreads = async (run: Run, of = cards(run.page)): Promise<string[]> =
 /**
  * A thread to press: one whose card shows the app's streaming marker (the word beside the pulsing
  * dot) right now (a heavy thread, when one of them does), waiting up to 10 s under the driver's
- * load for one, else the top card. `except` leaves a thread out.
+ * load for one, else the top card. `except` leaves a thread out, unless no other card counts.
  */
 const pickThread = async (run: Run, except = ''): Promise<{ root: string; streaming: boolean }> => {
   const { page } = run;
@@ -566,13 +567,12 @@ const SCENARIO: Record<
       const { page } = run;
       const timings: Timing[] = [];
       let openedStreaming = true;
-      // The thread the scenario starts in: the first step opens another one, as the later ones do.
+      // The thread the scenario starts in, which the first step leaves.
       let current = run.shown;
       for (let turn = 1; turn <= 5; turn += 1) {
         const backMs = await timeToVisible(page, () => back(page).click(), CARD);
         await expect(page.locator(ROW)).toHaveCount(0);
         timings.push({ name: `back-${turn}`, ms: backMs });
-        // Another thread each time, one that streams when there is one.
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;
@@ -1087,7 +1087,6 @@ test.describe('PERF: real work on an external account', () => {
   for (const throttle of THROTTLES) {
     test(`scenarios at ${throttle}x CPU`, async ({ browser, browserName, baseURL }) => {
       test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
-      test.skip(throttle !== 1 && browserName !== 'chromium', 'CPU throttling needs Chromium');
       test.setTimeout(scenariosTimeout(throttle));
       const page = await externalPage(browser, baseURL);
       try {
