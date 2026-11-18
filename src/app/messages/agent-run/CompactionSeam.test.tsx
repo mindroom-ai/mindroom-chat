@@ -622,6 +622,14 @@ describe('CompactionSeam card', () => {
     });
     expect(top()).toBe(20);
 
+    // A row not displayed (its reply folded away) measures all zeros: the card stays put.
+    Object.assign(triggerRect, { x: 0, y: 0, width: 0, height: 0 });
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect(top()).toBe(20);
+    Object.assign(triggerRect, { x: 10, y: 20, width: 100, height: 16 });
+
     act(() => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });

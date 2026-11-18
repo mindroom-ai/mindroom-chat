@@ -353,7 +353,9 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
     let frame = 0;
     const follow = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setOpen((current) => anchoredAt(current, rect));
+      // A row not displayed measures all zeros; the card then stays where the row last was.
+      const shown = rect && (rect.x || rect.y || rect.width || rect.height);
+      if (shown) setOpen((current) => anchoredAt(current, rect));
       frame = requestAnimationFrame(follow);
     };
     frame = requestAnimationFrame(follow);
