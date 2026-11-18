@@ -53,6 +53,13 @@ describe('the Mac updater in the Xcode project', () => {
     expect(project).toMatch(
       /\/\* MindRoomMacUpdater\.bundle in Embed Mac Updater \*\/ = \{[^\n]*platformFilter = maccatalyst;/
     );
+    // iOS compiles none of it: the shared protocol is filtered too (the rest is behind #if).
+    const appSources = object(
+      ids(app, 'buildPhases').find((id) => object(id).includes('isa = PBXSourcesBuildPhase;')) ?? ''
+    );
+    const protocolFile =
+      /(\w{24}) \/\* MindRoomMacUpdaterProtocol\.swift in Sources \*\//.exec(appSources)?.[1] ?? '';
+    expect(project).toMatch(new RegExp(`\\t${protocolFile} [^\\n]*platformFilter = maccatalyst;`));
   });
 
   it('names the feed in the Release App only, with a placeholder key until the real one', () => {
@@ -112,6 +119,20 @@ describe('the Mac workflow and the update feed', () => {
     );
   });
 
+  it('signs only a published, stable release, and backfills a pre-updater tag with its DMG alone', () => {
+    type Step = { name?: string; if?: string; run?: string };
+    const steps = (parse(workflow) as { jobs: { dmg: { steps: Step[] } } }).jobs.dmg.steps;
+    const named = (name: string) => steps.find((step) => step.name === name)!;
+    expect(named('Check the release').run).toContain('--json isDraft,isPrerelease');
+    // A tag from before the updater has no appcast script, and its app no key to sign for.
+    expect(named('Make the appcast').if).toBe(
+      "env.RELEASE_TAG && hashFiles('scripts/macos-appcast.sh') != ''"
+    );
+    expect(named('Attach the appcast and the DMG to the release').run).toContain(
+      'if [[ -f build/macos/appcast.xml ]]; then'
+    );
+  });
+
   it('publishes the feed one run at a time, and writes nothing but for a release tag', () => {
     type Step = { if?: string; run?: string };
     const parsed = parse(workflow) as {
@@ -124,7 +145,9 @@ describe('the Mac workflow and the update feed', () => {
     expect(feed).toContain(
       "if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}"
     );
-    expect(feed).toMatch(/concurrency:\n\s+group: mac-appcast\n\s+cancel-in-progress: false/);
+    // Every waiting run keeps its place: a run that finishes late may be older than one waiting.
+    expect(feed).toMatch(/concurrency:\n\s+group: mac-appcast\n\s+queue: max\n/);
+    expect(feed).not.toContain('cancel-in-progress');
     expect(feed).toContain('scripts/macos-publish-appcast.sh "$RELEASE_TAG"');
     expect(feed).not.toContain('secrets.');
     // Nothing but a release tag signs or writes: no other input, and every writing step asks for it.

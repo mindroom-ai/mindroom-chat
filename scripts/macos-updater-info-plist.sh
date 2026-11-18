@@ -6,21 +6,23 @@
 # release.
 set -euo pipefail
 
-if [[ "${IS_MACCATALYST:-}" != YES || -z "${MINDROOM_UPDATE_FEED_URL:-}" ]]; then
-  exit 0
-fi
+[[ "${IS_MACCATALYST:-}" == YES ]] || exit 0
+plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
 key=${MINDROOM_UPDATE_PUBLIC_KEY:-}
-# Until the real key replaces the placeholder in the project, no updater ships: without
-# SUPublicEDKey a release's appcast gets no signature, and scripts/macos-appcast.sh refuses it.
-if [[ "$key" == PLACEHOLDER* ]]; then
-  echo "warning: MINDROOM_UPDATE_PUBLIC_KEY is still the placeholder: this app gets no updater keys."
+# Without the feed, or until the real key replaces the placeholder in the project, no updater
+# starts: Xcode may reuse a plist an earlier build wrote the keys into, so they are removed. A
+# signed release then fails at its appcast (no SUPublicEDKey, no signature).
+if [[ -z "${MINDROOM_UPDATE_FEED_URL:-}" || "$key" == PLACEHOLDER* ]]; then
+  for name in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUAutomaticallyUpdate \
+    SUScheduledCheckInterval SUVerifyUpdateBeforeExtraction; do
+    plutil -remove "$name" "$plist" 2> /dev/null || true
+  done
   exit 0
 fi
 if [[ ! "$key" =~ ^[A-Za-z0-9+/]{43}=$ ]]; then
   echo "error: MINDROOM_UPDATE_PUBLIC_KEY must be Sparkle's 44-character base64 EdDSA public key." >&2
   exit 1
 fi
-plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
 plutil -replace SUFeedURL -string "$MINDROOM_UPDATE_FEED_URL" "$plist"
 plutil -replace SUPublicEDKey -string "$key" "$plist"
 plutil -replace SUEnableAutomaticChecks -bool YES "$plist"

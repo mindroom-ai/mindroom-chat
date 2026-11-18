@@ -114,9 +114,9 @@ const signatureDetails = (file) => {
  */
 export const macStoreUpdaterProblems = ({ paths, infoKeys, strings }) => {
   const problems = [];
-  // The web bundle (Contents/Resources/public) carries every license text, Sparkle's too.
-  const native = paths.filter((file) => !file.startsWith('Contents/Resources/public/'));
-  if (native.some((file) => /Sparkle|MindRoomMacUpdater/.test(file)))
+  // The web bundle carries every license text, Sparkle's too.
+  const license = 'Contents/Resources/public/public/licenses/Sparkle-MIT.txt';
+  if (paths.some((file) => file !== license && /Sparkle|MindRoomMacUpdater/.test(file)))
     problems.push('A Mac Store artifact must not embed the updater or Sparkle.');
   // Sparkle's keys (SUFeedURL, SUPublicEDKey, ...), not words such as SUPPORTED.
   if (infoKeys.some((key) => /^SU[A-Z][a-z]/.test(key)))
@@ -176,7 +176,7 @@ export const inspectMacStoreArtifact = ({
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
     });
-    binaryStrings.push(...strings.split('\n'));
+    binaryStrings.push(strings);
     if (strings.split('\n').includes('uiWindows'))
       problems.push('An emitted binary contains the private uiWindows selector.');
     const platforms = [

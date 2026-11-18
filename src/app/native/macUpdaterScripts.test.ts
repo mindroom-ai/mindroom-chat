@@ -128,14 +128,36 @@ describe('scripts/macos-updater-info-plist.sh', () => {
     ]);
   });
 
-  it.each([{ IS_MACCATALYST: 'NO' }, { IS_MACCATALYST: '' }, { MINDROOM_UPDATE_FEED_URL: '' }])(
-    'writes nothing for %o',
+  const keys = [
+    'SUFeedURL',
+    'SUPublicEDKey',
+    'SUEnableAutomaticChecks',
+    'SUAutomaticallyUpdate',
+    'SUScheduledCheckInterval',
+    'SUVerifyUpdateBeforeExtraction',
+  ];
+
+  it.each([{ IS_MACCATALYST: 'NO' }, { IS_MACCATALYST: '' }])(
+    'touches nothing for %o',
     (override) => {
       const result = fixture().run('scripts/macos-updater-info-plist.sh', { ...env, ...override });
       expect(result.status).toBe(0);
       expect(result.commands).toEqual([]);
     }
   );
+
+  it.each([
+    ['no feed', { MINDROOM_UPDATE_FEED_URL: '' }],
+    ['the placeholder key', { MINDROOM_UPDATE_PUBLIC_KEY: 'PLACEHOLDER-the-Sparkle-public-key' }],
+  ])('removes the keys an earlier build of the same app wrote, for %s', (_name, override) => {
+    const { run } = fixture();
+    run('scripts/macos-updater-info-plist.sh', env);
+    const result = run('scripts/macos-updater-info-plist.sh', { ...env, ...override });
+    expect(result.status).toBe(0);
+    expect(result.commands.slice(6).map(({ args }) => args)).toEqual(
+      keys.map((key) => ['-remove', key, plist])
+    );
+  });
 
   it('fails the build for a feed without a valid public key', () => {
     const result = fixture().run('scripts/macos-updater-info-plist.sh', {
@@ -144,16 +166,6 @@ describe('scripts/macos-updater-info-plist.sh', () => {
     });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('MINDROOM_UPDATE_PUBLIC_KEY');
-    expect(result.commands).toEqual([]);
-  });
-
-  it('starts no updater while the key is the placeholder, so no release signs its appcast', () => {
-    const result = fixture().run('scripts/macos-updater-info-plist.sh', {
-      ...env,
-      MINDROOM_UPDATE_PUBLIC_KEY: 'PLACEHOLDER-the-Sparkle-public-key',
-    });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('warning: MINDROOM_UPDATE_PUBLIC_KEY');
     expect(result.commands).toEqual([]);
   });
 });

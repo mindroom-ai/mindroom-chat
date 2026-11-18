@@ -66,17 +66,30 @@ if (command === 'gh') {
       console.error('release not found');
       process.exit(1);
     }
-    fs.readdirSync(folder).forEach((name) => console.log(name));
+    // What GitHub answers for --json, filtered by the script's own --jq (jq stands in for gh's).
+    const flags = path.join(folder, '.flags');
+    const kind = fs.existsSync(flags) ? fs.readFileSync(flags, 'utf8') : '';
+    const json = JSON.stringify({
+      isDraft: kind === 'draft',
+      isPrerelease: kind === 'prerelease',
+      assets: fs.readdirSync(folder).filter((name) => !name.startsWith('.')).map((name) => ({ name, state: 'uploaded' })),
+    });
+    const filter = args[args.indexOf('--jq') + 1];
+    process.stdout.write(require('node:child_process').execFileSync('jq', ['-r', filter], { input: json }));
   }
   if (action === 'download') {
     fs.copyFileSync(path.join(folder, 'appcast.xml'), path.join(args[args.indexOf('--dir') + 1], 'appcast.xml'));
   }
-  if (action === 'create') fs.mkdirSync(folder);
+  if (action === 'create') {
+    fs.mkdirSync(folder);
+    fs.writeFileSync(path.join(folder, '.flags'), 'prerelease');
+  }
   if (action === 'upload') {
     const file = args[3];
     fs.rmSync(path.join(folder, path.basename(file)), { force: true });
     if (early('upload', process.env.TEST_UPLOAD_FAILS)) process.exit(1);
     fs.copyFileSync(file, path.join(folder, path.basename(file)));
+    if (early('landed', process.env.TEST_UPLOAD_LANDS_FAILING)) process.exit(1);
   }
 }
 `;
@@ -84,8 +97,9 @@ if (command === 'gh') {
     writeFileSync(join(root, 'bin', command), stub, { mode: 0o755 })
   );
   const log = join(root, 'commands.jsonl');
-  const release = (tag: string, assets: string[]) => {
+  const release = (tag: string, assets: string[], kind = '') => {
     mkdirSync(join(github, tag));
+    if (kind) writeFileSync(join(github, tag, '.flags'), kind);
     assets.forEach((asset) =>
       writeFileSync(
         join(github, tag, asset),
@@ -95,10 +109,12 @@ if (command === 'gh') {
   };
   return {
     release,
+    asset: (release: string, name: string) => join(github, release, name),
     ready: (tag: string) => release(tag, ['MindRoom.dmg', 'appcast.xml']),
-    live: (version?: string) => {
+    live: (version?: string, text = version && appcast(version)) => {
       mkdirSync(join(github, 'mac-appcast'));
-      if (version) writeFileSync(join(github, 'mac-appcast', 'appcast.xml'), appcast(version));
+      writeFileSync(join(github, 'mac-appcast', '.flags'), 'prerelease');
+      if (text) writeFileSync(join(github, 'mac-appcast', 'appcast.xml'), text);
     },
     feedNow: () => {
       const file = join(github, 'mac-appcast', 'appcast.xml');
@@ -128,6 +144,8 @@ if (command === 'gh') {
         .length,
   };
 };
+
+type Github = ReturnType<typeof fixture>;
 
 it.each([
   ['the first feed, on a prerelease it creates', undefined, 'v2026.11.10', {}, 1, '2026.11.10'],
@@ -164,6 +182,59 @@ it.each([
   github.release('v2026.11.10', assets);
   const result = github.run('v2026.11.10');
   expect(result.status).toBe(0);
+  expect(github.uploads(result)).toBe(0);
+});
+
+it.each([['draft'], ['prerelease']])('writes nothing for a %s, also with both assets', (kind) => {
+  const github = fixture();
+  github.live('2026.11.9');
+  github.release('v2026.11.10', ['MindRoom.dmg', 'appcast.xml'], kind);
+  const result = github.run('v2026.11.10');
+  expect(result.status).toBe(0);
+  expect(github.uploads(result)).toBe(0);
+  expect(github.feedNow()).toBe(appcast('2026.11.9'));
+});
+
+it('checks the public URL again when the feed already has these bytes', () => {
+  const github = fixture();
+  github.live('2026.11.10');
+  github.ready('v2026.11.10');
+  const result = github.run('v2026.11.10', { TEST_URL_LAGS: '999' });
+  expect(result.status).toBe(1);
+  expect(github.uploads(result)).toBe(0);
+});
+
+it('uploads no more once a failed upload turns out to have landed', () => {
+  const github = fixture();
+  github.live('2026.11.9');
+  github.ready('v2026.11.10');
+  const result = github.run('v2026.11.10', { TEST_UPLOAD_LANDS_FAILING: '1' });
+  expect(result.status, result.stderr).toBe(0);
+  expect(github.uploads(result)).toBe(1);
+  expect(github.feedNow()).toBe(appcast('2026.11.10'));
+});
+
+it.each([
+  ['a tag that is not a calendar version', 'v2026.13.1', () => undefined],
+  [
+    'an appcast of another version than its tag',
+    'v2026.11.10',
+    (github: Github) =>
+      writeFileSync(github.asset('v2026.11.10', 'appcast.xml'), appcast('2026.11.11')),
+  ],
+  [
+    'a live feed whose version cannot be read',
+    'v2026.11.10',
+    (github: Github) => writeFileSync(github.asset('mac-appcast', 'appcast.xml'), 'not xml'),
+  ],
+])('fails without a write for %s', (_name, tag, spoil) => {
+  const github = fixture();
+  github.live('2026.11.12');
+  github.ready('v2026.11.10');
+  spoil(github);
+  const result = github.run(tag);
+  expect(result.status).toBe(1);
+  expect(result.stdout + result.stderr).toContain('::error::');
   expect(github.uploads(result)).toBe(0);
 });
 

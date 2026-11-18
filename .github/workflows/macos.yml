@@ -81,6 +81,13 @@ jobs:
             echo "::error::'$RELEASE_TAG' is not a release tag vYYYY.M.N"
             exit 1
           fi
+          # A draft's DMG is not public, and a prerelease is not for stable apps or their feed.
+          kind=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease \
+            --jq 'if .isDraft or .isPrerelease then "unpublished" else "published" end')
+          if [[ $kind != published ]]; then
+            echo "::error::$RELEASE_TAG is a draft or prerelease, not a published release"
+            exit 1
+          fi
           # Its bytes and the cask's checksum stay fixed: changes ship in a new release.
           published=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
             --jq '[.assets[] | select(.name == "MindRoom.dmg")] | length')
@@ -163,7 +170,8 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: scripts/build-macos-app.sh --sign
       - name: Make the appcast
-        if: env.RELEASE_TAG
+        # A tag from before the updater has neither this script nor a key in its app: its DMG alone.
+        if: env.RELEASE_TAG && hashFiles('scripts/macos-appcast.sh') != ''
         env:
           # This step alone gets the key, and the script reads it from standard input only.
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
@@ -180,7 +188,9 @@ jobs:
         # it. --clobber replaces an appcast.xml a failed earlier run left.
         run: |
           set -euo pipefail
-          gh release upload "$RELEASE_TAG" build/macos/appcast.xml --clobber --repo "$GITHUB_REPOSITORY"
+          if [[ -f build/macos/appcast.xml ]]; then
+            gh release upload "$RELEASE_TAG" build/macos/appcast.xml --clobber --repo "$GITHUB_REPOSITORY"
+          fi
           gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
       - name: Check that the release is the newest
         if: env.RELEASE_TAG
@@ -225,12 +235,13 @@ jobs:
     needs: dmg
     # Also after a dmg job that failed at the tap: the DMG is up then.
     if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}
-    # One at a time across every release's run, as the image's `latest` (image.yml). It publishes its
-    # release only above what the feed names, so the order runs finish in does not matter, and a
-    # re-run repairs a failed publication without a rebuild.
+    # One at a time across every release's run, every waiting run kept (queue: max), since a run
+    # that finishes late may be older than one waiting. It publishes its release only above what the
+    # feed names, so the order runs finish in does not matter, and a re-run repairs a failed
+    # publication without a rebuild.
     concurrency:
       group: mac-appcast
-      cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

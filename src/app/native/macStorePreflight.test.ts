@@ -60,6 +60,14 @@ describe('Mac Store emitted-artifact preflight', () => {
         strings: ['SPUUpdater'],
       })
     ).toHaveLength(3);
+    // Only that license text: an updater copied into the web bundle is still one.
+    expect(
+      macStoreUpdaterProblems({
+        paths: ['Contents/Resources/public/public/Sparkle.framework/Sparkle'],
+        infoKeys: [],
+        strings: [],
+      })
+    ).toHaveLength(1);
   });
 
   it('accepts matching app, native support and web source metadata', () => {
