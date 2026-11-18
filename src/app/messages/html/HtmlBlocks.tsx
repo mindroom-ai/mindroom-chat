@@ -362,39 +362,58 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
     }));
 };
 
+const isLoadedTool = (tool: ToolBlockRenderData): boolean =>
+  tool.status !== 'loading' && tool.status !== 'unavailable';
+
 /**
- * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts),
- * the run counts its calls on the cog at the top of the reply (ToolCallsFold.tsx) and shows only
- * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
- * without parsing the replies again.
+ * The state of each of the reply's calls with trace details, by its index. They resolve together,
+ * in call order, so that a card that matches calls by tool name goes to one call of the reply, not
+ * to one in every run of them.
  */
-function ToolRefGroupBlock({ parsedTools }: { parsedTools: ToolBlockRenderData[] }) {
-  const { t } = useTranslation();
-  const message = useContext(ToolCallMessageContext);
-  const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
-  const fold = useContext(ToolCallsFoldContext);
-  const loadedTools = parsedTools.filter(
-    (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
-  );
-  const calls = loadedTools.map((tool) => ({
+const useToolCallStates = (
+  replyTools: readonly ToolBlockRenderData[]
+): ReadonlyMap<number, ToolCallState> => {
+  const loaded = replyTools.filter(isLoadedTool).sort((a, b) => a.index - b.index);
+  const calls = loaded.map((tool) => ({
     toolName: tool.toolName,
     pending: tool.status === 'pending',
     job: parseToolJobHandle(tool.result),
   }));
   const approvals = useToolCallApprovals(calls.flatMap(({ job }) => (job ? [job.jobId] : [])));
-  const metadataStatus = parsedTools.find(
-    (tool) => tool.status === 'loading' || tool.status === 'unavailable'
-  )?.status;
   const states = resolveToolCallStates(calls, approvals);
+  return new Map(loaded.map((tool, index) => [tool.index, states[index]!]));
+};
+
+/**
+ * A run of tool calls, of the reply's calls `replyTools`. While the reply's thread or room hides
+ * tool calls (toolCallVisibility.ts), the run counts its calls on the cog at the top of the reply
+ * (ToolCallsFold.tsx) and shows only while that cog is open. Each block reads the choice itself,
+ * so changing it redraws the blocks without parsing the replies again.
+ */
+function ToolRefGroupBlock({
+  parsedTools,
+  replyTools,
+}: {
+  parsedTools: ToolBlockRenderData[];
+  replyTools: readonly ToolBlockRenderData[];
+}) {
+  const { t } = useTranslation();
+  const message = useContext(ToolCallMessageContext);
+  const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
+  const fold = useContext(ToolCallsFoldContext);
+  const loadedTools = parsedTools.filter(isLoadedTool);
+  const replyStates = useToolCallStates(replyTools);
+  const metadataStatus = parsedTools.find((tool) => !isLoadedTool(tool))?.status;
+  const states = loadedTools.map((tool) => replyStates.get(tool.index) ?? 'done');
   const summary = summarizeToolCalls(parsedTools, states);
   // Calls without their trace details count as done.
   useFoldedToolCalls(
     shown
       ? undefined
-      : parsedTools.map((tool) => {
-          const loadedIndex = loadedTools.indexOf(tool);
-          return { toolName: tool.toolName, state: states[loadedIndex] ?? 'done' };
-        })
+      : parsedTools.map((tool) => ({
+          toolName: tool.toolName,
+          state: replyStates.get(tool.index) ?? 'done',
+        }))
   );
   // Without a cog to open them (no ToolCallsFold), the calls show.
   if (!shown && fold && !fold.open) return null;
@@ -517,9 +536,16 @@ const splitToolRunAtSecretRequests = (
 /**
  * A run of tool calls as the parser places it, then the reasoning that followed its last call
  * (Reasoning.tsx), which shows there also while the run itself is hidden. A secret request for
- * one of its calls splits it, drawn on its own line where that call was.
+ * one of its calls splits it, drawn on its own line where that call was. `replyTools` are all the
+ * calls of the parse, which it fills before any run renders.
  */
-function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
+function ToolRun({
+  tools,
+  replyTools,
+}: {
+  tools: ToolBlockRenderData[];
+  replyTools: readonly ToolBlockRenderData[];
+}) {
   const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
   return (
     <>
@@ -527,7 +553,11 @@ function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
         part.secret ? (
           <InlineSecretRequestBlock key={`secret-${part.index}`} secret={part.secret} />
         ) : (
-          <ToolRefGroupBlock key={`tools-${part.tools[0]!.index}`} parsedTools={part.tools} />
+          <ToolRefGroupBlock
+            key={`tools-${part.tools[0]!.index}`}
+            parsedTools={part.tools}
+            replyTools={replyTools}
+          />
         )
       )}
       <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
@@ -622,6 +652,8 @@ const createToolTraceMarkerParserOptions = (
   const baseTransform = baseOpts.transform;
   const consumedToolIndexes = new Set<number>();
   const groupRootIndexes = new Set<number>();
+  // Every call the parse draws, for the states its runs resolve together (useToolCallStates).
+  const replyTools: ToolBlockRenderData[] = [];
   const nextOpts: HTMLReactParserOptions = {
     ...baseOpts,
     replace: (domNode) => {
@@ -728,12 +760,16 @@ const createToolTraceMarkerParserOptions = (
             normalizeLeadingToolRefBoundaryInPlace(boundaryFollower);
           }
 
-          items.forEach((item) => consumedToolIndexes.add(item.data.index));
+          items.forEach((item) => {
+            consumedToolIndexes.add(item.data.index);
+            replyTools.push(item.data);
+          });
           groupRootIndexes.add(firstItem.data.index);
           const toolBlock = (
             <ToolRun
               key={`tool-group-${firstItem.data.index}`}
               tools={items.map((item) => item.data)}
+              replyTools={replyTools}
             />
           );
           if (!trailingElement) return toolBlock;
@@ -752,15 +788,16 @@ const createToolTraceMarkerParserOptions = (
               return false;
             }
 
+            const data = buildToolRefRenderData(
+              toolRef,
+              traceEvents?.[toolRef.index - 1],
+              metadataStatus
+            );
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
+            replyTools.push(data);
             chainedToolBlocks.push(
-              <ToolRun
-                key={`tool-group-${toolRef.index}`}
-                tools={[
-                  buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1], metadataStatus),
-                ]}
-              />
+              <ToolRun key={`tool-group-${toolRef.index}`} tools={[data]} replyTools={replyTools} />
             );
             return true;
           });
