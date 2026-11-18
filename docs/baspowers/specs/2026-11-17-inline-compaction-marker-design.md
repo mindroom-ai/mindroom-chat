@@ -16,7 +16,7 @@ Variant C, "Seam", from the mockup `~/.mindroom-chat/mindroom_data/agents/mindro
 3. Finished long reply folded behind "Worked for": the seam is part of the folded work and shows only when the fold is opened. No extra mark on the Worked-for row.
 4. Pre-turn: while the reply is still the pending placeholder, the seam shows "Compacting context… 12 s" at the top; the finished reply keeps "Compacted before replying · 348k → 42k tokens" at its top.
 5. Two compactions in one reply: one seam per compaction, each at its own spot.
-6. States: running (ticking seconds, animated hairline), success, failed, timed out (amber, dashed hairline, "kept full history").
+6. States: running (ticking seconds, animated hairline), success, failed, timed out (amber, dashed hairline). Unfinished states claim nothing about the history: the client cannot know whether the reply kept it.
 7. Manual compaction and every old `io.mindroom.compaction` notice in history: drawn as the same quiet seam row in place of the italic notice text.
 
 Not in v1 (Bas left these optional extras unticked): "Read the summary" (the card has no summary row), the mark on the Worked-for row, the header chip, the 📦 emoji instead of the line icon, keeping the separate notice for automatic compactions.
@@ -53,7 +53,7 @@ New key on the agent's reply event, on the original send and on every `m.replace
 - Split (segmented) replies carry the key on the first segment only.
 - The old key `io.mindroom.compaction` (singular) keeps its meaning: a standalone `m.notice`. It is still sent for `mode == "manual"` compactions, and old events keep it.
 
-Client tolerance: parse defensively. Drop an entry that lacks a string `id`, a known `status`, a non-negative integer `after_tool`, or a number `before_tokens`; ignore unknown keys; a missing or malformed list means no seams. An entry still `running` on a reply whose `io.mindroom.stream_status` is terminal (or no longer streaming) renders as interrupted (failed styling, label "Compaction interrupted · kept full history", card reason "The reply ended before the summary finished."), never ticking forever.
+Client tolerance: parse defensively. Drop an entry that lacks a string `id`, a known `status`, a non-negative integer `after_tool`, or a number `before_tokens`; ignore unknown keys; a missing or malformed list means no seams. An entry still `running` on a reply whose `io.mindroom.stream_status` is terminal (or no longer streaming) renders as interrupted (failed styling, label "Compaction interrupted", card reason "The reply ended before the summary finished."), never ticking forever.
 
 ## Backend (mindroom)
 
@@ -76,9 +76,9 @@ Detailed wiring with file:line evidence: `~/.mindroom-chat/mindroom_data/agents/
 
 ### Copy (from the mockup; put in `locales/additions/en.json` and every other overlay)
 
-Rest label: running "Compacting context… {n} s"; success "Compacted context · {before} → {after} tokens" (mid-turn), "Compacted before replying · …" (pre-turn), "Compacted on request · …" (manual notice); failed "Compaction failed · kept full history"; timeout "Compaction timed out · kept full history"; interrupted (see contract). Token counts at rest use `k` rounding (`367k`), in the card full grouping (`366,804`).
+Rest label: running "Compacting context… {n} s"; success "Compacted context · {before} → {after} tokens" (mid-turn), "Compacted before replying · …" (pre-turn), "Compacted on request · …" (manual notice); failed "Compaction failed"; timeout "Compaction timed out"; interrupted "Compaction interrupted". Token counts at rest use `k` rounding (`367k`), in the card full grouping (`366,804`).
 
-Card title: "Context compacted" / "Compacting context… {n} s" / "Compaction failed" / "Compaction timed out" / "Compaction interrupted". Tag: "before the reply" / "mid-turn" / "manual". A `pre_turn` entry with `after_tool > 0` (a continuation attempt re-prepared after earlier tools) uses the mid-turn tag and subtitle, since it did not happen before the reply's first request. Subtitle: mid-turn "Between two model requests, after tool call {n}."; pre-turn "Before this reply's first model request."; manual "Requested with the compact command."; failure states "The reply went on with its full history." Gauge plus label: success "was {p}% of budget" / "now {q}%"; running "{p}% of budget"; failure "{p}% of budget, unchanged"; no gauge without a budget. Rows: success History, Saved ("{n} tokens ({p}%)"), Budget, Folded ("{n} runs into 1 summary"), Summarized by ("{model} in {secs}"), When; running History, Budget, Folding ("{n} runs, {done} done" with n = runs_before and done = compacted_run_count when present), Summary model, Started; failure Reason, History, Budget, Summary model, Gave up after, When. Times use the app's time format with seconds.
+Card title: "Context compacted" / "Compacting context… {n} s" / "Compaction failed" / "Compaction timed out" / "Compaction interrupted". Tag: "before the reply" / "mid-turn" / "manual". A `pre_turn` entry with `after_tool > 0` (a continuation attempt re-prepared after earlier tools) uses the mid-turn tag and subtitle, since it did not happen before the reply's first request. Subtitle: mid-turn "Between two model requests, after tool call {n}."; pre-turn "Before this reply's first model request."; manual "Requested with the compact command."; none for failure states Gauge plus label: success "was {p}% of budget" / "now {q}%"; running "{p}% of budget"; no label for failure states; no gauge without a budget. Rows: success History, Saved ("{n} tokens ({p}%)"), Budget, Folded ("{n} runs into 1 summary"), Summarized by ("{model} in {secs}"), When; running History, Budget, Folding ("{n} runs, {done} done" with n = runs_before and done = compacted_run_count when present), Summary model, Started; failure Reason, History, Budget, Summary model, Gave up after, When. Times use the app's time format with seconds.
 
 ## Testing
 

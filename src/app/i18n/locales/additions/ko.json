@@ -826,7 +826,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}}초",
-        "keptHistory": "전체 기록 유지",
         "tokensShort": "{{before}} → {{after}} 토큰",
         "label": {
           "running": "컨텍스트 압축 중…",
@@ -847,14 +846,12 @@
           "preTurn": "이 답장의 첫 모델 요청 전.",
           "midTurn": "두 모델 요청 사이, 도구 호출 {{n, number}} 이후.",
           "midTurnNoTools": "두 모델 요청 사이.",
-          "manual": "압축 명령으로 요청됨.",
-          "unfinished": "답장은 전체 기록을 유지한 채 계속되었습니다."
+          "manual": "압축 명령으로 요청됨."
         },
         "gauge": {
           "was": "이전 예산의 {{p, number}}%",
           "now": "현재 {{p, number}}%",
-          "used": "예산의 {{p, number}}%",
-          "unchanged": "예산의 {{p, number}}%, 변화 없음"
+          "used": "예산의 {{p, number}}%"
         },
         "row": {
           "history": "기록",

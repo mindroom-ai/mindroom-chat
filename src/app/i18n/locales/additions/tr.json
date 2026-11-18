@@ -837,7 +837,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} sn",
-        "keptHistory": "tüm geçmiş korundu",
         "tokensShort": "{{before}} → {{after}} token",
         "label": {
           "running": "Bağlam sıkıştırılıyor…",
@@ -858,14 +857,12 @@
           "preTurn": "Bu yanıtın modele ilk isteğinden önce.",
           "midTurn": "İki model isteği arasında, {{n, number}}. araç çağrısından sonra.",
           "midTurnNoTools": "İki model isteği arasında.",
-          "manual": "Sıkıştırma komutuyla istendi.",
-          "unfinished": "Yanıt tüm geçmişiyle devam etti."
+          "manual": "Sıkıştırma komutuyla istendi."
         },
         "gauge": {
           "was": "önce bütçenin %{{p, number}} kadarıydı",
           "now": "şimdi %{{p, number}}",
-          "used": "bütçenin %{{p, number}} kadarı",
-          "unchanged": "bütçenin %{{p, number}} kadarı, değişmedi"
+          "used": "bütçenin %{{p, number}} kadarı"
         },
         "row": {
           "history": "Geçmiş",

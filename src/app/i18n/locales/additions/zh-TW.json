@@ -826,7 +826,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} 秒",
-        "keptHistory": "保留了完整歷史",
         "tokensShort": "{{before}} → {{after}} 個權杖",
         "label": {
           "running": "正在壓縮上下文…",
@@ -847,14 +846,12 @@
           "preTurn": "在此回覆的第一個模型請求之前。",
           "midTurn": "在兩個模型請求之間，第 {{n, number}} 次工具呼叫之後。",
           "midTurnNoTools": "在兩個模型請求之間。",
-          "manual": "透過壓縮指令要求。",
-          "unfinished": "回覆保留完整歷史繼續進行。"
+          "manual": "透過壓縮指令要求。"
         },
         "gauge": {
           "was": "之前佔預算的 {{p, number}}%",
           "now": "現在 {{p, number}}%",
-          "used": "佔預算的 {{p, number}}%",
-          "unchanged": "佔預算的 {{p, number}}%，未變"
+          "used": "佔預算的 {{p, number}}%"
         },
         "row": {
           "history": "歷史",

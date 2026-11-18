@@ -848,7 +848,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} s",
-        "keptHistory": "cronologia completa mantenuta",
         "tokensShort": "{{before}} → {{after}} token",
         "label": {
           "running": "Compattazione del contesto…",
@@ -869,14 +868,12 @@
           "preTurn": "Prima della prima richiesta al modello di questa risposta.",
           "midTurn": "Tra due richieste al modello, dopo la chiamata allo strumento {{n, number}}.",
           "midTurnNoTools": "Tra due richieste al modello.",
-          "manual": "Richiesto con il comando di compattazione.",
-          "unfinished": "La risposta è proseguita con tutta la cronologia."
+          "manual": "Richiesto con il comando di compattazione."
         },
         "gauge": {
           "was": "era il {{p, number}}% del budget",
           "now": "ora {{p, number}}%",
-          "used": "{{p, number}}% del budget",
-          "unchanged": "{{p, number}}% del budget, invariato"
+          "used": "{{p, number}}% del budget"
         },
         "row": {
           "history": "Cronologia",

@@ -826,7 +826,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} dtk",
-        "keptHistory": "riwayat lengkap dipertahankan",
         "tokensShort": "{{before}} → {{after}} token",
         "label": {
           "running": "Memadatkan konteks…",
@@ -847,14 +846,12 @@
           "preTurn": "Sebelum permintaan model pertama balasan ini.",
           "midTurn": "Di antara dua permintaan model, setelah panggilan alat {{n, number}}.",
           "midTurnNoTools": "Di antara dua permintaan model.",
-          "manual": "Diminta dengan perintah pemadatan.",
-          "unfinished": "Balasan berlanjut dengan riwayat lengkapnya."
+          "manual": "Diminta dengan perintah pemadatan."
         },
         "gauge": {
           "was": "tadinya {{p, number}}% dari anggaran",
           "now": "sekarang {{p, number}}%",
-          "used": "{{p, number}}% dari anggaran",
-          "unchanged": "{{p, number}}% dari anggaran, tidak berubah"
+          "used": "{{p, number}}% dari anggaran"
         },
         "row": {
           "history": "Riwayat",

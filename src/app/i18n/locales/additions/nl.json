@@ -837,7 +837,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} s",
-        "keptHistory": "volledige geschiedenis behouden",
         "tokensShort": "{{before}} → {{after}} tokens",
         "label": {
           "running": "Context wordt gecomprimeerd…",
@@ -858,14 +857,12 @@
           "preTurn": "Vóór de eerste modelaanvraag van dit antwoord.",
           "midTurn": "Tussen twee modelaanvragen, na toolaanroep {{n, number}}.",
           "midTurnNoTools": "Tussen twee modelaanvragen.",
-          "manual": "Aangevraagd met het compact-commando.",
-          "unfinished": "Het antwoord ging verder met de volledige geschiedenis."
+          "manual": "Aangevraagd met het compact-commando."
         },
         "gauge": {
           "was": "was {{p, number}}% van het budget",
           "now": "nu {{p, number}}%",
-          "used": "{{p, number}}% van het budget",
-          "unchanged": "{{p, number}}% van het budget, ongewijzigd"
+          "used": "{{p, number}}% van het budget"
         },
         "row": {
           "history": "Geschiedenis",

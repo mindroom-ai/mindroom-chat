@@ -837,7 +837,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} s",
-        "keptHistory": "voller Verlauf behalten",
         "tokensShort": "{{before}} → {{after}} Tokens",
         "label": {
           "running": "Kontext wird verdichtet…",
@@ -858,14 +857,12 @@
           "preTurn": "Vor der ersten Modellanfrage dieser Antwort.",
           "midTurn": "Zwischen zwei Modellanfragen, nach Tool-Aufruf {{n, number}}.",
           "midTurnNoTools": "Zwischen zwei Modellanfragen.",
-          "manual": "Mit dem Befehl zum Verdichten angefordert.",
-          "unfinished": "Die Antwort lief mit ihrem vollen Verlauf weiter."
+          "manual": "Mit dem Befehl zum Verdichten angefordert."
         },
         "gauge": {
           "was": "vorher {{p, number}} % des Budgets",
           "now": "jetzt {{p, number}} %",
-          "used": "{{p, number}} % des Budgets",
-          "unchanged": "{{p, number}} % des Budgets, unverändert"
+          "used": "{{p, number}} % des Budgets"
         },
         "row": {
           "history": "Verlauf",

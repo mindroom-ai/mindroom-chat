@@ -881,7 +881,6 @@
       },
       "compactionSeam": {
         "elapsed": "⁨{{n, number}}⁩ ث",
-        "keptHistory": "احتُفظ بالسجل الكامل",
         "tokensShort": "⁨{{before}}⁩ ← ⁨{{after}}⁩ رمز",
         "label": {
           "running": "جارٍ ضغط السياق…",
@@ -902,14 +901,12 @@
           "preTurn": "قبل أول طلب لهذا الرد إلى النموذج.",
           "midTurn": "بين طلبين إلى النموذج، بعد استدعاء الأداة ⁨{{n, number}}⁩.",
           "midTurnNoTools": "بين طلبين إلى النموذج.",
-          "manual": "طُلب بأمر الضغط.",
-          "unfinished": "تابع الرد بسجله الكامل."
+          "manual": "طُلب بأمر الضغط."
         },
         "gauge": {
           "was": "كان ⁨{{p, number}}⁩٪ من الميزانية",
           "now": "الآن ⁨{{p, number}}⁩٪",
-          "used": "⁨{{p, number}}⁩٪ من الميزانية",
-          "unchanged": "⁨{{p, number}}⁩٪ من الميزانية، دون تغيير"
+          "used": "⁨{{p, number}}⁩٪ من الميزانية"
         },
         "row": {
           "history": "السجل",

@@ -26,7 +26,7 @@ const CHECK = 'I’ll check what is merged and what is live before I answer.';
 const CHECKING = 'All four client PRs and both backend PRs are merged. Checking what is live now.';
 const TLDR = 'TL;DR: All fixes are merged. The backend ones need your prod restart.';
 const TWO = 'Yes. #503 merged as cd4613d6f and releases automatically.';
-const STATES = 'The summary did not finish, so I kept going with the full history.';
+const STATES = 'The summary did not finish, so I kept going.';
 const PRE = 'Yes. #503 merged and releases automatically.';
 const WORKED = 'Every caller now passes the offset through.';
 const WORKED_BETWEEN = 'The first half of the callers is fixed; now the rest.';
@@ -459,8 +459,8 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(seamsIn(states).nth(0)).toHaveAttribute('data-state', 'failed');
   await expect(seamsIn(states).nth(1)).toHaveAttribute('data-state', 'timeout');
   await expect(seamsIn(states).nth(2)).toHaveAttribute('data-state', 'interrupted');
-  await expect(seamsIn(states).nth(0)).toHaveText('Compaction failed · kept full history');
-  await expect(seamsIn(states).nth(1)).toHaveText('Compaction timed out · kept full history');
+  await expect(seamsIn(states).nth(0)).toHaveText('Compaction failed');
+  await expect(seamsIn(states).nth(1)).toHaveText('Compaction timed out');
   await expect(seamsIn(states).nth(2)).toHaveText('Compaction interrupted');
   await expectInOrder(
     [

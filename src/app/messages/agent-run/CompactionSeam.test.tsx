@@ -182,27 +182,17 @@ describe('CompactionSeam row', () => {
     ).toBe('Compacted context');
   });
 
-  it('says the reply kept its full history when the compaction did not finish', () => {
-    expect(label(render(<CompactionSeam compaction={failed()} />))).toBe(
-      'Compaction failed · kept full history'
-    );
-    expect(label(render(<CompactionSeam compaction={failed({ status: 'timeout' })} />))).toBe(
-      'Compaction timed out · kept full history'
-    );
-  });
-
-  it('claims the full history was kept only when no runs were folded', () => {
-    expect(label(render(<CompactionSeam compaction={failed({ compactedRunCount: 0 })} />))).toBe(
-      'Compaction failed · kept full history'
-    );
-    expect(label(render(<CompactionSeam compaction={failed({ compactedRunCount: 3 })} />))).toBe(
-      'Compaction failed'
-    );
-    expect(
-      label(
-        render(<CompactionSeam compaction={failed({ status: 'timeout', compactedRunCount: 2 })} />)
-      )
-    ).toBe('Compaction timed out');
+  it('names only what happened when the compaction did not finish, whatever it folded', () => {
+    for (const compactedRunCount of [undefined, 0, 3]) {
+      expect(label(render(<CompactionSeam compaction={failed({ compactedRunCount })} />))).toBe(
+        'Compaction failed'
+      );
+      expect(
+        label(
+          render(<CompactionSeam compaction={failed({ status: 'timeout', compactedRunCount })} />)
+        )
+      ).toBe('Compaction timed out');
+    }
   });
 
   it('shows the warning icon only when the compaction did not finish', () => {
@@ -757,8 +747,6 @@ describe('CompactionSeam card', () => {
     const tip = await open(renderer);
 
     expect(text(tip)).toContain('Compaction failed');
-    expect(text(tip)).toContain('The reply went on with its full history.');
-    expect(text(tip)).toContain('104% of budget, unchanged');
     expect(rows(renderer)).toEqual([
       ['Reason', 'The summary model returned an error (529 overloaded).'],
       ['History', '366,804 tokens'],
@@ -769,66 +757,30 @@ describe('CompactionSeam card', () => {
     ]);
   });
 
-  it('says the reply went on with its full history only when no runs were folded', async () => {
-    const kept = 'The reply went on with its full history.';
-    for (const status of ['failed', 'timeout'] as const) {
-      for (const compactedRunCount of [undefined, 0]) {
-        const renderer = render(
-          <CompactionSeam compaction={failed({ status, compactedRunCount })} />
-        );
-        expect(text(await open(renderer))).toContain(kept);
-      }
-      const folded = render(
-        <CompactionSeam compaction={failed({ status, compactedRunCount: 3 })} />
-      );
-      const tip = await open(folded);
-      expect(text(tip)).not.toContain(kept);
-      expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
-    }
-  });
-
-  it('claims nothing about the history for an interrupted compaction, whose count is unknown', async () => {
-    // It was still running when its reply ended: a missing count does not say none was folded.
-    for (const compactedRunCount of [undefined, 0]) {
-      const renderer = render(
-        <CompactionSeam compaction={running({ compactedRunCount })} interrupted />
-      );
-      expect(label(renderer)).toBe('Compaction interrupted');
+  it('claims nothing about the history of a compaction that did not finish', async () => {
+    // The client cannot know whether the reply kept its full history, whatever the folded count.
+    const cases = [
+      ...(['failed', 'timeout'] as const).flatMap((status) =>
+        (['pre_turn', 'mid_turn', 'manual', 'notice'] as const).flatMap((phase) =>
+          [undefined, 0, 3].map((compactedRunCount) => ({
+            compaction: failed({ status, phase, compactedRunCount }),
+            interrupted: false,
+          }))
+        )
+      ),
+      ...[undefined, 0].map((compactedRunCount) => ({
+        compaction: running({ compactedRunCount }),
+        interrupted: true,
+      })),
+    ];
+    for (const { compaction: c, interrupted } of cases) {
+      const renderer = render(<CompactionSeam compaction={c} interrupted={interrupted} />);
       const tip = await open(renderer);
+      expect(text(tip)).not.toContain('full history');
+      expect(text(tip)).not.toContain('unchanged');
       expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
-      expect(text(tip)).not.toContain('unchanged');
-    }
-  });
-
-  it('calls the history unchanged only when no runs were folded', async () => {
-    for (const status of ['failed', 'timeout'] as const) {
-      const kept = render(<CompactionSeam compaction={failed({ status, compactedRunCount: 0 })} />);
-      expect(text(await open(kept))).toContain('104% of budget, unchanged');
-
-      const folded = render(
-        <CompactionSeam compaction={failed({ status, compactedRunCount: 3 })} />
-      );
-      const tip = await open(folded);
-      expect(text(tip)).not.toContain('unchanged');
       expect(tip.findAll((node) => node.props.className === 'GaugeLabel')).toHaveLength(0);
       expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(1);
-    }
-  });
-
-  it('claims no kept history for a notice, which cannot show that nothing was folded', async () => {
-    for (const phase of ['manual', 'notice'] as const) {
-      for (const status of ['failed', 'timeout'] as const) {
-        const renderer = render(
-          <CompactionSeam compaction={failed({ phase, status, afterTool: 0 })} />
-        );
-        expect(label(renderer)).toBe(
-          status === 'failed' ? 'Compaction failed' : 'Compaction timed out'
-        );
-        const tip = await open(renderer);
-        expect(text(tip)).not.toContain('full history');
-        expect(text(tip)).not.toContain('unchanged');
-        expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
-      }
     }
   });
 

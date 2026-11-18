@@ -848,7 +848,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} s",
-        "keptHistory": "histórico completo mantido",
         "tokensShort": "{{before}} → {{after}} tokens",
         "label": {
           "running": "Compactando o contexto…",
@@ -869,14 +868,12 @@
           "preTurn": "Antes da primeira solicitação ao modelo desta resposta.",
           "midTurn": "Entre duas solicitações ao modelo, após a chamada de ferramenta {{n, number}}.",
           "midTurnNoTools": "Entre duas solicitações ao modelo.",
-          "manual": "Solicitado com o comando de compactação.",
-          "unfinished": "A resposta continuou com todo o histórico."
+          "manual": "Solicitado com o comando de compactação."
         },
         "gauge": {
           "was": "era {{p, number}}% do orçamento",
           "now": "agora {{p, number}}%",
-          "used": "{{p, number}}% do orçamento",
-          "unchanged": "{{p, number}}% do orçamento, sem alteração"
+          "used": "{{p, number}}% do orçamento"
         },
         "row": {
           "history": "Histórico",

@@ -826,7 +826,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} 秒",
-        "keptHistory": "保留了完整历史",
         "tokensShort": "{{before}} → {{after}} 个令牌",
         "label": {
           "running": "正在压缩上下文…",
@@ -847,14 +846,12 @@
           "preTurn": "在此回复的第一个模型请求之前。",
           "midTurn": "在两个模型请求之间，第 {{n, number}} 次工具调用之后。",
           "midTurnNoTools": "在两个模型请求之间。",
-          "manual": "通过压缩命令请求。",
-          "unfinished": "回复保留完整历史继续进行。"
+          "manual": "通过压缩命令请求。"
         },
         "gauge": {
           "was": "之前占预算的 {{p, number}}%",
           "now": "现在 {{p, number}}%",
-          "used": "占预算的 {{p, number}}%",
-          "unchanged": "占预算的 {{p, number}}%，未变"
+          "used": "占预算的 {{p, number}}%"
         },
         "row": {
           "history": "历史",

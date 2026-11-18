@@ -837,7 +837,6 @@
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} s",
-        "keptHistory": "kept full history",
         "tokensShort": "{{before}} → {{after}} tokens",
         "label": {
           "running": "Compacting context…",
@@ -858,14 +857,12 @@
           "preTurn": "Before this reply’s first model request.",
           "midTurn": "Between two model requests, after tool call {{n, number}}.",
           "midTurnNoTools": "Between two model requests.",
-          "manual": "Requested with the compact command.",
-          "unfinished": "The reply went on with its full history."
+          "manual": "Requested with the compact command."
         },
         "gauge": {
           "was": "was {{p, number}}% of budget",
           "now": "now {{p, number}}%",
-          "used": "{{p, number}}% of budget",
-          "unchanged": "{{p, number}}% of budget, unchanged"
+          "used": "{{p, number}}% of budget"
         },
         "row": {
           "history": "History",

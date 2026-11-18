@@ -48,18 +48,6 @@ type UnfinishedState = Exclude<SeamState, 'running' | 'success'>;
 const isUnfinished = (state: SeamState): state is UnfinishedState =>
   state === 'failed' || state === 'timeout' || state === 'interrupted';
 
-/**
- * Whether an unfinished compaction provably left the reply its full history: each summary part is
- * saved before the next starts, so one that gave up after folding runs did not. Only a reply's own
- * entries count their folded runs to the end; a notice's last edit can leave the count out, and so
- * does an interrupted one, still running when its reply ended.
- */
-const keptFullHistory = (
-  { phase, compactedRunCount }: ReplyCompaction,
-  state: SeamState
-): boolean =>
-  state !== 'interrupted' && (phase === 'pre_turn' || phase === 'mid_turn') && !compactedRunCount;
-
 /** The whole seconds since `startedAt`, once a second while `ticking`; undefined without a start. */
 const useElapsedSeconds = (startedAt: number | undefined, ticking: boolean): number | undefined => {
   const [now, setNow] = useState(() => Date.now());
@@ -81,10 +69,7 @@ const restParts = (
   t: TFunction
 ): { what: string; detail?: string } => {
   if (state === 'running') return { what: t(`${KEY}.label.running`) };
-  if (isUnfinished(state)) {
-    const kept = keptFullHistory(compaction, state);
-    return { what: t(`${KEY}.label.${state}`), ...(kept && { detail: t(`${KEY}.keptHistory`) }) };
-  }
+  if (isUnfinished(state)) return { what: t(`${KEY}.label.${state}`) };
   const what = t(`${KEY}.label.${place === 'notice' ? 'midTurn' : place}`);
   const { beforeTokens, afterTokens } = compaction;
   if (beforeTokens === undefined || afterTokens === undefined) return { what };
@@ -95,17 +80,14 @@ const restParts = (
   return { what, detail };
 };
 
-/** The card's line under its title: where the compaction ran, or that the reply kept it all. */
+/** The card's line under its title: where a compaction that finished or still runs took place. */
 const subtitle = (
   compaction: ReplyCompaction,
   state: SeamState,
   place: SeamPlace,
   t: TFunction
 ): string | undefined => {
-  if (place === 'notice') return undefined;
-  if (isUnfinished(state)) {
-    return keptFullHistory(compaction, state) ? t(`${KEY}.subtitle.unfinished`) : undefined;
-  }
+  if (place === 'notice' || isUnfinished(state)) return undefined;
   if (place === 'midTurn') {
     return compaction.afterTool > 0
       ? t(`${KEY}.subtitle.midTurn`, { n: compaction.afterTool })
@@ -130,9 +112,6 @@ function Gauge({ compaction, state }: { compaction: ReplyCompaction; state: Seam
       </>
     );
   } else if (state === 'running') label = <span>{t(`${KEY}.gauge.used`, { p: was })}</span>;
-  else if (isUnfinished(state) && keptFullHistory(compaction, state)) {
-    label = <span>{t(`${KEY}.gauge.unchanged`, { p: was })}</span>;
-  }
   return (
     <>
       <span className={css.Gauge} data-state={state} data-over={beforeTokens > budget} aria-hidden>
