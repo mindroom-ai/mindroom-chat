@@ -37,6 +37,8 @@ export type SettingsContext = {
   errorReporting: boolean;
   /** The sidebar buttons the deployment offers a switch for. */
   railButtons: Readonly<Record<string, boolean>>;
+  /** The deployment offers the Mac app and this is a browser on a Mac (native/macApp.ts). */
+  macApp: boolean;
 };
 
 export const SETTINGS_GROUPS = [
@@ -733,6 +735,16 @@ export const SETTINGS = [
     keywordsKey: `${KEYWORDS}.developer`,
     scope: 'account',
     hidden: (context) => !context.developerTools,
+  },
+  {
+    id: 'macApp',
+    page: 'about',
+    group: `${ABOUT}.options`,
+    labelKey: 'featureUi.macApp.title',
+    descriptionKey: 'featureUi.macApp.text',
+    keywordsKey: 'featureUi.macApp.keywords',
+    scope: 'device',
+    hidden: (context) => !context.macApp,
   },
   {
     id: 'debugMode',

@@ -51,6 +51,7 @@ import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 import { useHomeRooms } from '../../matrix/state/useHomeRooms';
 import { HiddenRailPages } from './HiddenRailPages';
+import { MacAppMenuEntry } from './MacAppMenuEntry';
 
 const ROOM_ROW_HEIGHT = 36;
 
@@ -90,6 +91,7 @@ function HomeHeader({ roomIds, onSortByName }: HomeHeaderProps) {
                 )}
               </MenuGroup>
               <HiddenRailPages onClose={close} />
+              <MacAppMenuEntry onClose={close} />
             </>
           )}
         </NavOptionsMenu>

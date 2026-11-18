@@ -702,6 +702,20 @@
           "mentions": "Só quando mencionados"
         }
       }
+    },
+    "macApp": {
+      "title": "MindRoom para Mac",
+      "text": "Captura rápida com ⌃⌥Space, notificações nativas.",
+      "download": "Baixar",
+      "notNow": "Agora não",
+      "dismiss": "Ignorar",
+      "banner": "<b>Usa um Mac?</b> Baixe o app do MindRoom.",
+      "bannerDownload": "Baixar para Mac",
+      "menu": "Baixar o app para Mac",
+      "downloadDmg": "Baixar (.dmg)",
+      "copyCommand": "Copiar comando",
+      "copyFailed": "Falha ao copiar",
+      "keywords": "mac, macos, desktop, app, aplicativo, baixar, download, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

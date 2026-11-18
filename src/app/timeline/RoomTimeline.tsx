@@ -1572,6 +1572,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
     pendingListShrinkPx,
+    takeSettledScrollTop: ledger.takeSettledScrollTop,
   });
 
   const minimap = useRoomTimelineMinimap({
@@ -1746,7 +1747,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       : undefined;
   const messageData: TimelineMessageData = {
     threadRecordMap: threadIndex.threadRecordMap,
-    threadEventMap: threadState.threadEventMap ?? new Map(),
     approvalTimeline,
     threadSummaryTimeline,
     secretRequestTimeline,

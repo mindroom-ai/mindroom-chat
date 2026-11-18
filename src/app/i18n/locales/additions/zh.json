@@ -684,6 +684,20 @@
           "mentions": "仅在被提及时"
         }
       }
+    },
+    "macApp": {
+      "title": "MindRoom Mac 版",
+      "text": "用 ⌃⌥Space 快速捕捉，原生通知。",
+      "download": "下载",
+      "notNow": "以后再说",
+      "dismiss": "关闭",
+      "banner": "<b>在用 Mac？</b>获取 MindRoom 应用。",
+      "bannerDownload": "下载 Mac 版",
+      "menu": "下载 Mac 应用",
+      "downloadDmg": "下载 (.dmg)",
+      "copyCommand": "复制命令",
+      "copyFailed": "复制失败",
+      "keywords": "mac, macos, 桌面, 应用, 下载, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

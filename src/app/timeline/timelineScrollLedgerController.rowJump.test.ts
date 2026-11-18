@@ -137,6 +137,7 @@ const mountRoomLedger = ({ settle = true } = {}) => {
     scrollTo,
     applyCorrection,
     endSettleDiscardWatch: () => controller?.endSettleDiscardWatch(),
+    takeSettledScrollTop: () => controller?.takeSettledScrollTop(),
     /** The room shows other rows: emptied for an event it has not loaded, say. */
     replaceRows: () =>
       act(() => {
@@ -150,6 +151,14 @@ const mountRoomLedger = ({ settle = true } = {}) => {
 describe('the offset ledger after a settle', () => {
   afterEach(() => {
     virtualizer.setOptions.mockClear();
+  });
+
+  it('names the position its settle wrote, once', () => {
+    const ledger = mountRoomLedger();
+    expect([ledger.takeSettledScrollTop(), ledger.takeSettledScrollTop()]).toEqual([
+      959,
+      undefined,
+    ]);
   });
 
   it('folds the settle back in when the view returns to where it was before it', () => {
