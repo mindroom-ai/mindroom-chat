@@ -2,6 +2,8 @@ import { createInstance, type TFunction } from 'i18next';
 import { beforeAll, describe, expect, it } from 'vitest';
 import en from '../i18n/englishResources';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
+import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
+import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { presentBackgroundJobs } from './backgroundJobsPresentation';
 
 let t: TFunction;
@@ -125,5 +127,182 @@ describe('presentBackgroundJobs', () => {
     ]);
     // A sub-agent's row opens the Sub-agents panel.
     expect(presented?.items.map((item) => item.subagent)).toEqual([true, false]);
+  });
+});
+
+const subagentJob = (jobId: string, subagent?: string, run = subagent && `run-${subagent}`) =>
+  job(jobId, {
+    kind: 'subagent',
+    tool: 'mindroom_dev',
+    ...(subagent ? { subagent } : {}),
+    ...(run ? { run } : {}),
+  });
+
+const subagentRun = (
+  subagent: string,
+  { parent = null, tools = [] }: { parent?: string | null; tools?: ToolTraceEvent[] } = {}
+): SubagentRun => ({
+  roomId: '!room:example.org',
+  run: `run-${subagent}`,
+  sender: '@mindroom_lead:example.org',
+  sid: 'sid',
+  seq: 0,
+  lastFrameAt: 0,
+  stale: false,
+  docs: { md: '', reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
+  meta: {
+    agent: 'mindroom_dev',
+    subagent,
+    caller: 'mindroom_lead',
+    root: 'mindroom_lead',
+    parent,
+    threadId: '$thread',
+    source: 'delegate',
+    status: 'running',
+    startedAt: 1,
+    endedAt: null,
+  },
+});
+
+const lookups = (
+  runs: SubagentRun[],
+  calls: Record<string, { tool: string; preview?: string }> = {}
+) => ({
+  runFor: (subagent: string) => runs.find((run) => run.meta.subagent === subagent),
+  toolCallFor: (toolCallId: string) => calls[toolCallId],
+});
+
+const present = (jobs: BackgroundJob[], found: ReturnType<typeof lookups>) =>
+  presentBackgroundJobs(jobs, none, t, jobs.length, found);
+
+describe('presentBackgroundJobs, rich rows', () => {
+  it('joins a sub-agent job to its run by its sub-agent only', () => {
+    const runs = [subagentRun('s1')];
+    const [joined, unjoined] = present(
+      [subagentJob('job_1', 's1'), subagentJob('job_2')],
+      lookups(runs)
+    )!.items;
+    expect(joined).toMatchObject({
+      run: runs[0],
+      startedAt: Date.parse('2026-10-11T00:00:01+00:00'),
+    });
+    // An older backend names no sub-agent: no join by agent name or thread.
+    expect(unjoined).not.toHaveProperty('run');
+    expect(presentBackgroundJobs([subagentJob('job_1')], none, t)?.items[0]).not.toHaveProperty(
+      'run'
+    );
+  });
+
+  it('keeps a job whose run has no frame yet, without a run', () => {
+    const [item] = present([subagentJob('job_1', 's1')], lookups([]))!.items;
+    expect(item).toMatchObject({ name: 'mindroom_dev (subagent)', depth: 0 });
+    expect(item).not.toHaveProperty('run');
+    expect(item).not.toHaveProperty('activity');
+  });
+
+  it("takes a sub-agent's activity from its run's newest tool, with its preview when sent", () => {
+    const tools = [
+      { type: 'tool_call_completed', tool_name: 'read_file', args_preview: 'a.ts' },
+      { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
+    ];
+    const withPreview = present(
+      [subagentJob('job_1', 's1')],
+      lookups([subagentRun('s1', { tools })])
+    );
+    expect(withPreview?.items[0]!.activity).toEqual({
+      tool: 'run_shell_command',
+      preview: 'just test',
+    });
+    // With `show_tool_calls` off the frame carries no previews.
+    const bare = [{ type: 'tool_call_started', tool_name: 'run_shell_command' }];
+    const withoutPreview = present(
+      [subagentJob('job_1', 's1')],
+      lookups([subagentRun('s1', { tools: bare })])
+    );
+    expect(withoutPreview?.items[0]!.activity).toEqual({ tool: 'run_shell_command' });
+    const none = present([subagentJob('job_1', 's1')], lookups([subagentRun('s1')]));
+    expect(none?.items[0]).not.toHaveProperty('activity');
+  });
+
+  it("takes a tool job's activity from its reply's call, and none without the call's ID", () => {
+    const calls = { call_1: { tool: 'run_shell_command', preview: 'pytest -x' } };
+    const presented = present(
+      [job('job_1', { toolCallId: 'call_1' }), job('job_2')],
+      lookups([], calls)
+    );
+    expect(presented?.items[0]!.activity).toEqual(calls.call_1);
+    expect(presented?.items[1]).not.toHaveProperty('activity');
+  });
+
+  it('nests a child job right under its parent, and keeps one whose parent is not listed on top', () => {
+    const runs = [
+      subagentRun('s1'),
+      subagentRun('s2', { parent: 'run-s1' }),
+      subagentRun('s3', { parent: 'run-gone' }),
+    ];
+    const jobs = [
+      subagentJob('job_1', 's1'),
+      subagentJob('job_2', 's3'),
+      subagentJob('job_3', 's2'),
+    ];
+    const items = present(jobs, lookups(runs))!.items;
+    expect(items.map((item) => [item.jobId, item.depth])).toEqual([
+      ['job_1', 0],
+      ['job_3', 1],
+      ['job_2', 0],
+    ]);
+  });
+
+  it('lists jobs whose runs name each other as parents on top', () => {
+    const runs = [subagentRun('s1', { parent: 'run-s2' }), subagentRun('s2', { parent: 'run-s1' })];
+    const items = present(
+      [subagentJob('job_1', 's1'), subagentJob('job_2', 's2')],
+      lookups(runs)
+    )!.items;
+    expect(items.map((item) => [item.jobId, item.depth])).toEqual([
+      ['job_1', 0],
+      ['job_2', 0],
+    ]);
+  });
+
+  it('caps the nesting at three steps', () => {
+    const ids = ['s1', 's2', 's3', 's4', 's5'];
+    const runs = ids.map((id, index) =>
+      subagentRun(id, { parent: index ? `run-${ids[index - 1]}` : null })
+    );
+    const items = present(
+      ids.map((id, index) => subagentJob(`job_${index + 1}`, id)),
+      lookups(runs)
+    )!.items;
+    expect(items.map((item) => item.depth)).toEqual([0, 1, 2, 3, 3]);
+  });
+
+  it('groups sub-agents before tools, oldest first in each, and counts them', () => {
+    const jobs = [
+      job('job_1'),
+      subagentJob('job_2', 's2'),
+      job('job_3', { status: 'awaiting_approval' }),
+      subagentJob('job_4', 's4'),
+    ];
+    const presented = present(jobs, lookups([]));
+    expect(
+      presented?.groups.map(({ kind, items }) => [kind, items.map((item) => item.jobId)])
+    ).toEqual([
+      ['subagent', ['job_2', 'job_4']],
+      ['tool', ['job_1', 'job_3']],
+    ]);
+    expect(presented?.items.map((item) => item.jobId)).toEqual([
+      'job_2',
+      'job_4',
+      'job_1',
+      'job_3',
+    ]);
+    expect(presented?.summary).toEqual({ subagents: 2, tools: 2, waiting: 1 });
+  });
+
+  it('has one group and no summary for a single job', () => {
+    const presented = present([job('job_1')], lookups([]));
+    expect(presented?.groups.map(({ kind }) => kind)).toEqual(['tool']);
+    expect(presented).not.toHaveProperty('summary');
   });
 });
