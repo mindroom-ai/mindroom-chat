@@ -91,17 +91,24 @@ const useFormatters = (): Formatters => {
       maximumSignificantDigits: 3,
     });
     const percent = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 1 });
-    // The table is the chart's text: values keep their digits, extremes read in scientific form.
-    const exact = new Intl.NumberFormat(language, { maximumSignificantDigits: 15 });
-    const extreme = new Intl.NumberFormat(language, {
-      notation: 'scientific',
-      maximumSignificantDigits: 6,
-    });
+    // The table is the chart's text: a value keeps every digit of its shortest round-trip form
+    // (`toExponential()`), and extremes read in scientific form.
+    const formats = new Map<string, Intl.NumberFormat>();
+    const value = (number: number) => {
+      const size = Math.abs(number);
+      const notation = size >= 1e15 || (size > 0 && size < 1e-6) ? 'scientific' : 'standard';
+      const digits = number.toExponential().replace(/^-|e.*$|\./g, '').length;
+      const key = `${notation}:${digits}`;
+      if (!formats.has(key)) {
+        formats.set(
+          key,
+          new Intl.NumberFormat(language, { notation, maximumSignificantDigits: digits })
+        );
+      }
+      return formats.get(key)!.format(number);
+    };
     return {
-      value: (value) => {
-        const size = Math.abs(value);
-        return (size >= 1e15 || (size > 0 && size < 1e-6) ? extreme : exact).format(value);
-      },
+      value,
       tick: (value) => {
         const size = Math.abs(value);
         return (size >= 1e15 || (size > 0 && size < 1e-3) ? scientific : compact).format(value);

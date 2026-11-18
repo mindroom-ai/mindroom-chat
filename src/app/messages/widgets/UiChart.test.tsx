@@ -132,6 +132,18 @@ describe('UiChart', () => {
     expect(cells).toEqual(['0.00049', '5E-324', '1,234.5']);
   });
 
+  it('tells adjacent large values apart in the table', () => {
+    const chart: ChartWidget = {
+      ...SPEC_CHART,
+      series: [{ name: 'Big', data: [1234567000000000, 1234567000000001, 0.1] }],
+    };
+    const { container } = render(<UiChart chart={chart} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+
+    const cells = [...container.querySelectorAll('td')].map((td) => td.textContent);
+    expect(cells).toEqual(['1.234567E15', '1.234567000000001E15', '0.1']);
+  });
+
   it('keeps the highlighted band inside the plot at both ends', () => {
     const chart: ChartWidget = {
       ...SPEC_CHART,
