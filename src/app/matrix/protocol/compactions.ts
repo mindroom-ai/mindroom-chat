@@ -110,10 +110,10 @@ export const readReplyCompactions = (value: unknown): ReplyCompaction[] => {
 /**
  * The compaction of an old `io.mindroom.compaction` notice, which started when the notice was
  * sent (`originTs`; left out when unknown or a `Date` cannot hold it, which leaves the notice no
- * start, so a running one counts no seconds and never goes stale). Notices before version 3 carry no status and were sent only after success;
- * a failure notice carries no token count, so it has no `beforeTokens`. Undefined when the
- * content is not a compaction notice, its status is unknown, or a running or successful one has
- * no token count.
+ * start, so a running one counts no seconds and never goes stale). Notices before version 3
+ * carry no status and were sent only after success; a failure notice carries no token count, so
+ * it has no `beforeTokens`. Undefined when the content is not a compaction notice, its status is
+ * unknown, or a running or successful one has no token count.
  */
 export const readCompactionNotice = (
   content: Record<string, unknown>,
