@@ -839,7 +839,7 @@ test('a request waits as a row under its reply, then moves into the reply at its
   await lineButton.click();
   await expect(receipt).toContainText('To restart the web server.');
   await expect(receipt).toContainText('Kept for 15 minutes, in memory only.');
-  await expect(receipt).toContainText('Sent to 127.0.0.1:29597');
+  await expect(receipt).not.toContainText('Sent to');
   await expect(receipt.locator('input, button')).toHaveCount(0);
   if (SHOTS) await reply.screenshot({ path: `${SHOTS}/inline-opened.png` });
   await lineButton.click();
