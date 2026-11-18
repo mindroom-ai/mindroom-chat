@@ -1,14 +1,13 @@
-import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import { useId, useState, type PointerEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Text, Tooltip, type RectCords } from 'folds';
+import { Text, Tooltip } from 'folds';
 import { IconNotebook } from '@tabler/icons-react';
 import { PopOut, revealDirectionControls } from '../ui/directional';
+import { useAnchoredCard } from '../ui/useAnchoredCard';
 import { WrapTextIcon } from '../rich-text/code/CodeBlockIcons';
 import { CodeBlockAction } from '../rich-text/CustomHtml.css';
 import type { SkillReviewFile, SkillReviewNotice } from '../matrix/protocol/skillReview';
 import * as css from './SkillReviewMarker.css';
-
-type OpenMode = 'hover' | 'pinned';
 
 const KEY = 'mindroomUi.messages.skillReviewMarker';
 
@@ -90,42 +89,11 @@ function FileDiff({ file }: { file: SkillReviewFile }) {
 // without files (an older backend) shows its list on a tap instead.
 export function SkillReviewMarker({ review }: { review: SkillReviewNotice }) {
   const { t } = useTranslation();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const [tooltip, setTooltip] = useState<{ mode: OpenMode; anchor: RectCords }>();
+  const { open, triggerRef, close, toggle, hover } = useAnchoredCard();
   const [expanded, setExpanded] = useState(false);
   const descriptionId = useId();
   const panelId = useId();
   const expandable = review.files.length > 0;
-
-  const show = (mode: OpenMode) => {
-    const trigger = triggerRef.current;
-    if (trigger) setTooltip({ mode, anchor: trigger.getBoundingClientRect() });
-  };
-
-  const tooltipOpen = !!tooltip;
-  useEffect(() => {
-    if (!tooltipOpen) return undefined;
-    const close = () => setTooltip(undefined);
-    const onKeyDown = (evt: KeyboardEvent) => {
-      if (evt.key === 'Escape') close();
-    };
-    const onPointerDown = (evt: Event) => {
-      if (!triggerRef.current?.contains(evt.target as Node)) close();
-    };
-    const onScroll = () => {
-      const trigger = triggerRef.current;
-      if (trigger)
-        setTooltip((current) => current && { ...current, anchor: trigger.getBoundingClientRect() });
-    };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [tooltipOpen]);
 
   const [first] = review.changes;
   const label =
@@ -166,23 +134,22 @@ export function SkillReviewMarker({ review }: { review: SkillReviewNotice }) {
         ref={triggerRef}
         type="button"
         className={css.MarkerTrigger}
-        aria-expanded={expandable ? expanded : tooltipOpen}
+        aria-expanded={expandable ? expanded : !!open}
         aria-controls={expandable ? panelId : undefined}
         aria-describedby={descriptionId}
         onPointerEnter={(evt: PointerEvent) => {
-          if (evt.pointerType === 'mouse' && !tooltip && !expanded) show('hover');
+          if (!expanded) hover.onPointerEnter(evt);
         }}
-        onPointerLeave={(evt: PointerEvent) => {
-          if (evt.pointerType === 'mouse' && tooltip?.mode === 'hover') setTooltip(undefined);
-        }}
+        onPointerLeave={hover.onPointerLeave}
         onClick={() => {
-          if (expandable) {
-            setTooltip(undefined);
-            setExpanded((open) => !open);
-          } else if (tooltip?.mode === 'pinned') setTooltip(undefined);
-          else show('pinned');
+          if (!expandable) {
+            toggle();
+            return;
+          }
+          close();
+          setExpanded((value) => !value);
         }}
-        onBlur={() => setTooltip(undefined)}
+        onBlur={close}
       >
         <IconNotebook size={14} aria-hidden />
         <Text as="span" size="T200" className={`${css.Name} ${css.Label}`}>
@@ -196,7 +163,7 @@ export function SkillReviewMarker({ review }: { review: SkillReviewNotice }) {
           tooltip inside, not the layer, has the role. */}
       <PopOut
         style={{ pointerEvents: 'none' }}
-        anchor={tooltip?.anchor}
+        anchor={open?.anchor}
         position="Top"
         align="Start"
         offset={4}

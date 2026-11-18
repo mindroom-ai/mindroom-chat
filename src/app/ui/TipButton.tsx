@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode, type PointerEvent } from 'react';
-import { Text, Tooltip, type RectCords } from 'folds';
+import { type ReactNode, type PointerEvent } from 'react';
+import { Text, Tooltip } from 'folds';
 import { PopOut } from './directional';
+import { useAnchoredCard } from './useAnchoredCard';
 
 type TipButtonProps = {
   /** The text the tip shows. */
@@ -13,51 +14,26 @@ type TipButtonProps = {
 /**
  * A small button whose tip shows while a mouse rests on it, while it has focus, and after a tap,
  * which touch screens need since they have no hover; a tap elsewhere or Escape hides it, and it
- * follows the button as the page scrolls. For a short label whose whole text does not fit, such as
+ * follows the button as the page moves. For a short label whose whole text does not fit, such as
  * an agent's model name.
  */
 export function TipButton({ tip, children, ...props }: TipButtonProps) {
-  const button = useRef<HTMLButtonElement>(null);
-  const [anchor, setAnchor] = useState<RectCords>();
-  const show = () => setAnchor(button.current?.getBoundingClientRect());
-  const hide = () => setAnchor(undefined);
-
-  const open = !!anchor;
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') hide();
-    };
-    // A tap on iOS focuses no button, so no blur comes when the next tap lands elsewhere.
-    const onPointerDown = (event: Event) => {
-      if (!button.current?.contains(event.target as Node)) hide();
-    };
-    const follow = () => setAnchor(button.current?.getBoundingClientRect());
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('scroll', follow, true);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('scroll', follow, true);
-    };
-  }, [open]);
+  const { open, triggerRef, show, close, hover } = useAnchoredCard();
 
   return (
     <>
       <button
         {...props}
-        ref={button}
+        ref={triggerRef}
         type="button"
-        onPointerEnter={(event: PointerEvent) => {
-          if (event.pointerType === 'mouse') show();
-        }}
+        onPointerEnter={hover.onPointerEnter}
         onPointerLeave={(event: PointerEvent) => {
-          if (event.pointerType === 'mouse' && document.activeElement !== button.current) hide();
+          if (event.pointerType === 'mouse' && document.activeElement !== triggerRef.current)
+            close();
         }}
-        onFocus={show}
-        onBlur={hide}
-        onClick={show}
+        onFocus={() => show('focus')}
+        onBlur={close}
+        onClick={() => show('pinned')}
       >
         {children}
       </button>
@@ -66,7 +42,7 @@ export function TipButton({ tip, children, ...props }: TipButtonProps) {
           in the body, the hover tips a tap would leave behind, and this one a tap opens. */}
       <PopOut
         style={{ pointerEvents: 'none' }}
-        anchor={anchor}
+        anchor={open?.anchor}
         position="Top"
         align="Start"
         offset={4}
