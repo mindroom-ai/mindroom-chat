@@ -32,6 +32,12 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import {
+  type CompactFocusRequest,
+  compactFocusPlace,
+  isCompactFocusRequestOpen,
+  meetCompactFocusRequest,
+} from './compactFocusRequest';
 import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
@@ -61,6 +67,8 @@ export type CompactRoomViewProps = {
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
+  /** The card the address asks to show, when it asks for one. */
+  focusRequest?: CompactFocusRequest;
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
   /**
@@ -295,6 +303,7 @@ export function CompactRoomView({
   threadRecordMap,
   onThreadClick,
   compactRoomScrollStateRef,
+  focusRequest,
   filterBarShown = false,
   sectionsNow,
 }: CompactRoomViewProps) {
@@ -509,12 +518,42 @@ export function CompactRoomView({
 
   // Opening a card remounts this view, and threads that got replies meanwhile
   // sort above the cards that were in view, so restore by those cards.
-  useScrollAnchorMemory({
+  const placeList = useScrollAnchorMemory({
     memory: compactRoomScrollStateRef.current,
     memoryKey: room.roomId,
     scrollRef: viewRef,
     contentRef,
     ready: cardViewModels.length > 0,
+  });
+
+  // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
+  // with that request does; the one the list mounted with had that mount. A replaced entry (a
+  // thread beside the list closing) or a step back or forward leaves the list where it is.
+  const focusShown = cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
+  const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
+  const mountRequestKeyRef = useRef(requestKey);
+  const arrivedRequestKey =
+    focusRequest?.pushed &&
+    focusShown &&
+    requestKey !== mountRequestKeyRef.current &&
+    isCompactFocusRequestOpen(compactRoomScrollStateRef.current, focusRequest)
+      ? requestKey
+      : undefined;
+  useLayoutEffect(() => {
+    if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
+    const place =
+      arrivedRequestKey &&
+      focusRequest &&
+      viewRef.current &&
+      compactFocusPlace(focusRequest, viewRef.current);
+    if (place) placeList(place);
+  });
+
+  // The address's request is met once its card shows, which a folded section's does not.
+  useLayoutEffect(() => {
+    if (focusRequest && focusShown) {
+      meetCompactFocusRequest(compactRoomScrollStateRef.current, focusRequest);
+    }
   });
 
   const resolveLabel = t('thread.resolve');

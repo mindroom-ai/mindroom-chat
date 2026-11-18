@@ -1024,6 +1024,7 @@
         "defaultLevel": "डिफ़ॉल्ट",
         "levelIsDefault": "{{level}}, डिफ़ॉल्ट",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "बंद",
           "minimal": "न्यूनतम",

@@ -9,7 +9,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import {
+  NavigationType,
+  useLocation,
+  useNavigationType,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
@@ -27,6 +33,7 @@ import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
@@ -146,7 +153,8 @@ type PanelEntry = RoomPanel & {
 
 /**
  * What the room's URL asks for: an event, a thread, whether to show the event in place, and the
- * fork point of a fork draft of the thread.
+ * fork point of a fork draft of the thread; and the router's key of the history entry that asks,
+ * and whether the router pushed that entry.
  */
 const useRoomRoute = () => {
   const params = useParams();
@@ -155,6 +163,8 @@ const useRoomRoute = () => {
     eventId: params.eventId,
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
+    entryKey: useLocation().key,
+    entryPushed: useNavigationType() === NavigationType.Push,
     forkAt: search.get('forkAt') ?? undefined,
   };
 };
@@ -174,7 +184,8 @@ export function Room() {
 
 function RoomContent() {
   const room = useRoom();
-  const { eventId, routedThreadId, focusEventInRoom, forkAt } = useRoomRoute();
+  const { eventId, routedThreadId, focusEventInRoom, entryKey, entryPushed, forkAt } =
+    useRoomRoute();
   const { roomId } = room;
   // Every room address, a thread's included, opens here: the palette lists this room among the
   // ones visited last. Messages arriving in it do not count.
@@ -766,6 +777,12 @@ function RoomContent() {
     if (focused && box?.contains(focused)) (focused as HTMLElement).blur();
     return () => setBehindPanel(false);
   }, [behindPanel, setBehindPanel]);
+  // Covered, the thread's back swipe is off, and a plugin's panel has no swipe of its own, so the
+  // left edge would open the room list (the drawer) instead of leaving the panel.
+  useEdgeSwipeBack(
+    closePluginPanel,
+    mobile && behindPanel && !!shown && shown.id === pluginPanel?.id
+  );
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -828,6 +845,8 @@ function RoomContent() {
                 threadId={routedThreadId}
                 forkAt={forkAt}
                 focusEventInRoom={focusEventInRoom}
+                entryKey={entryKey}
+                entryPushed={entryPushed}
                 hasMindroomAgents={hasMindroomAgents}
                 joinRequestCount={joinRequestCount}
                 onThreadLoadError={onThreadLoadError}

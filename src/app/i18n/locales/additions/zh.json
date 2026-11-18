@@ -1004,6 +1004,7 @@
         "defaultLevel": "默认",
         "levelIsDefault": "{{level}}，默认",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "关闭",
           "minimal": "最低",

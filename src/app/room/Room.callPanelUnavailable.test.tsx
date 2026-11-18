@@ -33,6 +33,7 @@ const { mx, room } = vi.hoisted(() => {
 
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigationType: () => 'POP',
   useLocation: () => ({ pathname: '/home/', search: '', hash: '' }),
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams()],

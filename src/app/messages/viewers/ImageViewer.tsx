@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, Icons, Spinner, Text, as } from 'folds';
@@ -11,6 +11,7 @@ import { DOWNLOAD_MIME_TYPE } from '../content/attachmentDownload';
 import { documentIsRightToLeft, revealDirectionControls } from '../../ui/directional';
 import { isMacOS } from '../../lib/user-agent';
 import { KeySymbol } from '../../lib/key-symbol';
+import { EDGE_START_MAX_X, useEdgeSwipe } from '../../navigation/useEdgeSwipe';
 import * as css from './ImageViewer.css';
 
 const ZOOM_STEP = 0.2;
@@ -69,6 +70,8 @@ type ImageViewerProps = {
    * may have arrived since: the owner stops at the real ends. The arrows stop at the known ones.
    */
   onStep?: (delta: StepDelta) => void;
+  /** On phones, the viewer's screen: a swipe from its left edge closes the viewer at fit. */
+  edgeSwipeArea?: RefObject<Element>;
 };
 
 // Keys typed into a field, or into another dialog over the viewer (Settings), are not for it.
@@ -90,9 +93,10 @@ const arrowStep = (rightward: boolean): StepDelta =>
 
 /**
  * A one-finger sideways swipe across the image area, `onSwipe(leftward)`. A second finger (a
- * pinch) cancels it until every finger is up.
+ * pinch) cancels it until every finger is up. While `edgeCloses`, a touch from the left edge is
+ * the edge close's, not a step back.
  */
-const useSwipe = (enabled: boolean, onSwipe: (leftward: boolean) => void) => {
+const useSwipe = (enabled: boolean, edgeCloses: boolean, onSwipe: (leftward: boolean) => void) => {
   const pointersRef = useRef(new Set<number>());
   const startRef = useRef<{ pointerId: number; x: number; y: number }>();
 
@@ -100,8 +104,10 @@ const useSwipe = (enabled: boolean, onSwipe: (leftward: boolean) => void) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     const pointers = pointersRef.current;
     pointers.add(event.pointerId);
+    const fromEdge =
+      edgeCloses && event.pointerType !== 'mouse' && event.clientX <= EDGE_START_MAX_X;
     startRef.current =
-      pointers.size === 1
+      pointers.size === 1 && !fromEdge
         ? { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
         : undefined;
   };
@@ -133,11 +139,23 @@ const zoomTone = (active: boolean): 'Success' | 'Surface' => (active ? 'Success'
 /**
  * Shows an image full size with zoom, pan, and a download that can be retried. Given a
  * `position` among several pictures, its arrows, the arrow keys and a swipe at fit step to the
- * previous or next one; the ends stop.
+ * previous or next one; the ends stop. Given an `edgeSwipeArea`, a swipe from its left edge at fit
+ * closes it.
  */
 export const ImageViewer = as<'div', ImageViewerProps>(
   (
-    { requestClose, alt, src, onRetry, onImageError, position, onStep, className, ...props },
+    {
+      requestClose,
+      alt,
+      src,
+      onRetry,
+      onImageError,
+      position,
+      onStep,
+      edgeSwipeArea,
+      className,
+      ...props
+    },
     ref
   ) => {
     const { t } = useTranslation();
@@ -190,7 +208,16 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [paging]);
 
-    const swipe = useSwipe(paging && zoom === 1 && !isZooming, (leftward) =>
+    const atFit = zoom === 1 && !isZooming;
+    // Zoomed in, a drag from the edge pans.
+    const edgeCloses = !!edgeSwipeArea && atFit;
+    useEdgeSwipe({
+      direction: 'back',
+      enabled: edgeCloses,
+      onSwipe: requestClose,
+      within: edgeSwipeArea,
+    });
+    const swipe = useSwipe(paging && atFit, edgeCloses, (leftward) =>
       stepRef.current?.(arrowStep(leftward))
     );
 

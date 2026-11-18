@@ -1132,7 +1132,7 @@ describe('composer model picker', () => {
       expect(document.activeElement).toBe(list());
     });
 
-    it('shows no levels under Room default while the agents fall back to different models', async () => {
+    it("shows no levels under Room default, and names each agent's model, while they differ", async () => {
       await open(
         levelled({
           // Both name Low, but for different models: the thread runs at no one level.
@@ -1146,7 +1146,11 @@ describe('composer model picker', () => {
       expect(column()?.textContent).toContain('No effort levels');
       expect(trigger().querySelector('[data-effort-glyph]')).toBeNull();
       const [, label] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
-      expect(document.getElementById(label!)?.textContent).toBe('Room default');
+      const named = 'Room default · assistant: Sol, reviewer: Luna';
+      expect(document.getElementById(label!)?.textContent).toBe(named);
+      expect(
+        container.querySelector('[data-tooltip-label]')?.getAttribute('data-tooltip-hint')
+      ).toBe(named);
     });
 
     it('stacks the column under the models on a phone', async () => {

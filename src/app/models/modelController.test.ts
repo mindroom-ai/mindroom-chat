@@ -611,8 +611,8 @@ describe('shared model discovery', () => {
     expect(h.snapshot().error).toBeDefined();
     await vi.advanceTimersByTimeAsync(60000 + 12000);
     expect(h.snapshot().eligible).toBe(false);
-    // The membership change cleared the room cache, so another thread starts hidden too.
-    expect(h.snapshot('$second').eligible).toBe(false);
+    // The join kept the router and its agent, so the room cache stays for another thread.
+    expect(h.snapshot('$second').eligible).toBe(true);
     await vi.advanceTimersByTimeAsync(60000);
     expect(h.snapshot().loading).toBe(true);
     h.response(h.request());
@@ -650,6 +650,158 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.request().request_id).not.toBe(asked);
     expect(h.snapshot('$b')).toMatchObject({ eligible: true, loading: true, canMutate: false });
+  });
+  it('shows a revisited thread its last selection at once after a membership change while away', async () => {
+    const h = setup();
+    const inherited = [{ entity: 'helper', model: 'fast' }];
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), { selection: { override: 'reset', inherited } });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    leave();
+    h.member('@someone:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.snapshot()).toMatchObject({
+      eligible: true,
+      override: 'reset',
+      inherited,
+      loading: true,
+      canMutate: false,
+    });
+    expect(h.snapshot().models).toHaveLength(2);
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    expect(h.send).not.toHaveBeenCalled();
+    h.response(h.request(), { selection: { override: 'fast', inherited } });
+    await flush();
+    expect(h.snapshot()).toMatchObject({ override: 'fast', canMutate: true });
+  });
+  it('shows a thread first opened from the room cache the room default at once', async () => {
+    const h = setup();
+    (await h.discover())();
+    h.controller.subscribe(h.room, '$second', () => {});
+    await flush();
+    expect(h.snapshot('$second')).toMatchObject({
+      eligible: true,
+      override: null,
+      inherited: [{ entity: 'helper', model: 'fast' }],
+      loading: true,
+      canMutate: false,
+    });
+    expect(h.snapshot('$second').models).toHaveLength(2);
+    h.response(h.request(), {
+      selection: { override: 'reset', inherited: [{ entity: 'helper', model: 'fast' }] },
+    });
+    await flush();
+    expect(h.snapshot('$second')).toMatchObject({ override: 'reset', canMutate: true });
+  });
+  it('keeps the room cache through a membership change that keeps its agents, not a departure', async () => {
+    const h = setup();
+    (await h.discover())();
+    h.member('@someone:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
+    h.controller.subscribe(h.room, '$second', () => {});
+    await flush();
+    expect(h.snapshot('$second')).toMatchObject({
+      eligible: true,
+      inherited: [{ entity: 'helper', model: 'fast' }],
+    });
+    h.member(helper, 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(helper)!);
+    expect(h.snapshot()).toMatchObject({ eligible: false, inherited: [] });
+    expect(h.snapshot('$second')).toMatchObject({ eligible: false, inherited: [] });
+    h.member(helper);
+    expect(h.snapshot('$third')).toMatchObject({ eligible: false, inherited: [] });
+  });
+  it('does not show a thread left before its runtime devices changed the old selection', async () => {
+    const h = setup();
+    const inherited = [{ entity: 'helper', model: 'fast' }];
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), { selection: { override: 'reset', inherited } });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    leave();
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: false, override: null, inherited: [] });
+    h.response(h.request(), { selection: { override: 'reset', inherited } });
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, override: 'reset', canMutate: true });
+  });
+  it('drops what no composer shows once one of its agents leaves, not a shown button', async () => {
+    const h = setup();
+    const other = '@mindroom_other:test';
+    h.member(other);
+    const answer = {
+      agent_user_ids: [helper, other],
+      selection: {
+        override: null,
+        inherited: [
+          { entity: 'helper', model: 'fast' },
+          { entity: 'other', model: 'reset' },
+        ],
+      },
+    };
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), answer);
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    leave();
+    h.controller.subscribe(h.room, '$shown', () => {});
+    await flush();
+    h.member(other, 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(other)!);
+    expect(h.snapshot('$new')).toMatchObject({ eligible: false, inherited: [] });
+    h.controller.subscribe(h.room, '$root', () => {});
+    expect(h.snapshot()).toMatchObject({ eligible: false, inherited: [] });
+    expect(h.snapshot('$shown')).toMatchObject({ eligible: true, canMutate: false });
+  });
+  it('keeps a shown button through an agent leaving without naming that agent', async () => {
+    const h = setup();
+    const other = '@mindroom_other:test';
+    h.member(other);
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), {
+      agent_user_ids: [helper, other],
+      selection: {
+        override: null,
+        inherited: [
+          { entity: 'helper', model: 'fast' },
+          { entity: 'other', model: 'reset' },
+        ],
+      },
+    });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    h.member(other, 'leave');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(other)!);
+    const gone = { eligible: true, override: null, inherited: [], canMutate: false };
+    expect(h.snapshot()).toMatchObject(gone);
+    expect(h.snapshot().models).toHaveLength(2);
+    // Closed and opened again before discovery answers, it still names no one who left.
+    leave();
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.snapshot()).toMatchObject(gone);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ inherited: [{ entity: 'helper', model: 'fast' }] });
+  });
+  it('drops the room cache when a command finds its runtime device gone', async () => {
+    const h = setup();
+    await h.discover();
+    h.devices.set(router, new Map());
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.snapshot('$new').eligible).toBe(false);
   });
   it('starts counting failures again after an answer', async () => {
     const h = setup();

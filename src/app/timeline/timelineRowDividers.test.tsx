@@ -34,11 +34,7 @@ const renderEvent = ({ eventId, quietRun }: TimelineMessageRow) => (
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
-  secretRequestTimeline: {
-    hiddenEventIds: new Set<string>(),
-    byReply: new Map(),
-    waitingReplyIds: new Set<string>(),
-  },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
 } as unknown as TimelineMessageData;
 

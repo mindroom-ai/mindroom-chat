@@ -179,11 +179,7 @@ const mountFeature = async (
       hiddenEventIds: new Set<string>(),
       markersByEventId: new Map(),
     },
-    secretRequestTimeline: {
-      hiddenEventIds: new Set<string>(),
-      byReply: new Map(),
-      waitingReplyIds: new Set<string>(),
-    },
+    secretRequestTimeline: { hiddenEventIds: new Set<string>() },
     voiceTranscripts: NO_VOICE_TRANSCRIPTS,
     forkPrefixEventIds,
   };

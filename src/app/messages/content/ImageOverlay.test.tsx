@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { ImageOverlay } from './ImageOverlay';
 
 const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
@@ -39,12 +40,25 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
       {children}
     </button>
   ),
-  Modal: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div {...props}>{children}</div>
+  Modal: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+    ({ children, ...props }, ref) => (
+      <div ref={ref} {...props}>
+        {children}
+      </div>
+    )
   ),
 }));
+const edgeSwipe = vi.hoisted(() => ({
+  last: undefined as { enabled?: boolean; onSwipe: () => void; within?: unknown } | undefined,
+}));
+vi.mock('../../navigation/useEdgeSwipe', () => ({
+  EDGE_START_MAX_X: 28,
+  useEdgeSwipe: (options: NonNullable<typeof edgeSwipe.last>) => {
+    edgeSwipe.last = options;
+  },
+}));
 vi.mock('./viewerFrame', () => ({
-  useViewerFrame: () => ({ centerStyle: undefined, modalStyle: {} }),
+  useViewerFrame: () => ({}),
   viewerTrapOptions: () => ({}),
 }));
 vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['picture']) }));
@@ -180,11 +194,13 @@ function Opener({ strict = false }: { strict?: boolean }) {
 describe('ImageOverlay history', () => {
   let renderer: ReactTestRenderer | undefined;
 
-  const mount = ({ strict = false } = {}) => {
+  const mount = ({ strict = false, size = ScreenSize.Desktop } = {}) => {
     const store = createStore();
     const element = (
       <Provider store={store}>
-        <Opener strict={strict} />
+        <ScreenSizeProvider value={size}>
+          <Opener strict={strict} />
+        </ScreenSizeProvider>
       </Provider>
     );
     act(() => {
@@ -230,7 +246,9 @@ describe('ImageOverlay history', () => {
     act(() => {
       tree.update(
         <Provider store={store}>
-          <Opener />
+          <ScreenSizeProvider value={ScreenSize.Desktop}>
+            <Opener />
+          </ScreenSizeProvider>
         </Provider>
       );
     });
@@ -247,6 +265,24 @@ describe('ImageOverlay history', () => {
     expect(mockWindow.history.back).toHaveBeenCalledOnce();
     expect(mockWindow.historyIndex).toBe(0);
     expect(dialogs(tree)).toHaveLength(0);
+  });
+
+  it('closes on phones with a swipe from the left edge of its screen, which consumes its entry', () => {
+    const { tree } = mount({ size: ScreenSize.Mobile });
+    open(tree);
+    expect(edgeSwipe.last?.enabled).toBe(true);
+    expect(edgeSwipe.last?.within).toEqual({ current: null });
+    act(() => edgeSwipe.last?.onSwipe());
+    expect(dialogs(tree)).toHaveLength(0);
+    expect(mockWindow.history.back).toHaveBeenCalledOnce();
+    expect(mockWindow.historyIndex).toBe(0);
+  });
+
+  it('has no edge close off phones', () => {
+    const { tree } = mount();
+    open(tree);
+    expect(edgeSwipe.last?.enabled).toBe(false);
+    expect(edgeSwipe.last?.within).toBeUndefined();
   });
 
   it('closes on Back without a second history.back call', () => {

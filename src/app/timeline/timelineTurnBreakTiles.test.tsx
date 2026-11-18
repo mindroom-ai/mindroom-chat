@@ -38,11 +38,7 @@ const fold: ThreadTurnFold = { key: ROOT, hiddenIds: ['$a1', '$a2'], count: 2 };
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
-  secretRequestTimeline: {
-    hiddenEventIds: new Set<string>(),
-    byReply: new Map(),
-    waitingReplyIds: new Set<string>(),
-  },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
 } as unknown as TimelineMessageData;
 

@@ -118,16 +118,17 @@ type ViewerOverlayProps = {
 /** A viewer in a modal over the page, closed by Escape or a click outside. */
 export function ViewerOverlay({ label, onClose, children }: ViewerOverlayProps) {
   const trapOptions: TrapOptions = { ...DISMISSIBLE, initialFocus: false, onDeactivate: onClose };
-  const { centerStyle, modalStyle } = useViewerFrame();
+  const { centerClassName, modalClassName, modalStyle } = useViewerFrame();
   return (
     <Overlay backdrop={<OverlayBackdrop />} open>
-      <OverlayCenter style={centerStyle}>
+      <OverlayCenter className={centerClassName}>
         <FocusTrap focusTrapOptions={trapOptions}>
           <Modal
             role="dialog"
             aria-modal="true"
             aria-label={revealDirectionControls(label)}
             size="500"
+            className={modalClassName}
             style={modalStyle}
             // The message under the viewer has its own context menu; keep right-clicks here.
             onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}

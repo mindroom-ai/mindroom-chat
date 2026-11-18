@@ -3,6 +3,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import {
   buildIOSPushPusherRequest,
   clearIOSPushState,
+  disableIOSPushPusher,
   findIOSPushAccount,
   getIOSPushEnabled,
   getStoredIOSPushToken,
@@ -411,6 +412,74 @@ describe('buildIOSPushPusherRequest', () => {
 });
 
 describe('upsertIOSPushPusher', () => {
+  it("writes an account's pushers in order: off during a registration removes it, on again keeps it", async () => {
+    const storage = new Map<string, string>();
+    const localStorageMock = {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        storage.delete(key);
+      },
+    };
+    Object.defineProperty(globalThis, 'window', {
+      value: { localStorage: localStorageMock, dispatchEvent: () => true },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    const pending: (() => void)[] = [];
+    const requests: unknown[] = [];
+    const mx = {
+      getHomeserverUrl: () => 'https://matrix.example',
+      setPusher: vi.fn(
+        (request: unknown) =>
+          new Promise<Record<string, never>>((resolve) => {
+            pending.push(() => {
+              requests.push(request);
+              resolve({});
+            });
+          })
+      ),
+    };
+    const pushConfig = {
+      appId: 'chat.example',
+      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+      appDisplayName: 'Chat',
+      deviceDisplayName: 'iPhone',
+      profileTag: 'profile-1',
+      append: true,
+      format: 'full' as const,
+      lang: 'en',
+    };
+    const settle = async () => {
+      for (let round = 0; round < 10; round += 1) {
+        pending.shift()?.();
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+      }
+    };
+
+    // The registration is still sending when push goes off, then on again.
+    const first = upsertIOSPushPusher(mx, pushConfig, 'apns-token', 'session-a');
+    const off = disableIOSPushPusher(mx, pushConfig, 'session-a');
+    const again = upsertIOSPushPusher(mx, pushConfig, 'apns-token', 'session-a');
+    await settle();
+    await Promise.all([first, off, again]);
+
+    expect(requests.map((request) => (request as { kind: unknown }).kind)).toEqual([
+      'http',
+      null,
+      'http',
+    ]);
+    expect(getStoredIOSPushToken('session-a')).toBe('apns-token');
+  });
+
   it("tags the pushes with the account's own random tag, whatever profile tag is configured", async () => {
     const storage = new Map<string, string>([
       [

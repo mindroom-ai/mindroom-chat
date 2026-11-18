@@ -300,10 +300,6 @@ export const registerIOSPush = async (): Promise<void> => {
   await PushNotifications.register();
 };
 
-export const unregisterIOSPush = async (): Promise<void> => {
-  await PushNotifications.unregister();
-};
-
 export const getIOSPushEnabled = (sessionId?: string): boolean => {
   const storageKey = resolveScopedStorageKey(PUSH_ENABLED_STORAGE_KEY, sessionId);
   const scopedValue = getStoredIOSPushEnabled(storageKey);
@@ -345,7 +341,29 @@ export const clearIOSPushState = (sessionId?: string) => {
   storageKeys.forEach(removeStorage);
 };
 
-export const upsertIOSPushPusher = async (
+/** Each account's last pusher write, so its writes reach the homeserver in the order they start. */
+const pusherWrites = new Map<string, Promise<void>>();
+
+/**
+ * Runs an account's pusher write after the ones before it: turned off while its registration is
+ * still sending, an account removes the pusher that registration sets, and turned on again, it
+ * keeps the new one, since each write reads the stored token only when its turn comes.
+ */
+const inOrder = (sessionId: string | undefined, write: () => Promise<void>): Promise<void> => {
+  const key = sessionId ?? getActiveSession()?.sessionId ?? '';
+  const next = (pusherWrites.get(key) ?? Promise.resolve()).catch(() => undefined).then(write);
+  pusherWrites.set(key, next);
+  return next;
+};
+
+export const upsertIOSPushPusher = (
+  mx: MatrixPusherClient,
+  pushConfig: IOSPushConfig,
+  token: string,
+  sessionId?: string
+) => inOrder(sessionId, () => setIOSPushPusher(mx, pushConfig, token, sessionId));
+
+const setIOSPushPusher = async (
   mx: MatrixPusherClient,
   pushConfig: IOSPushConfig,
   token: string,
@@ -374,14 +392,15 @@ export const upsertIOSPushPusher = async (
   setStoredIOSPushToken(normalizedToken, sessionId);
 };
 
-export const disableIOSPushPusher = async (
+export const disableIOSPushPusher = (
   mx: MatrixPusherClient,
   pushConfig: IOSPushConfig,
   sessionId?: string
-) => {
-  const storedToken = getStoredIOSPushToken(sessionId);
-  if (!storedToken) return;
+) =>
+  inOrder(sessionId, async () => {
+    const storedToken = getStoredIOSPushToken(sessionId);
+    if (!storedToken) return;
 
-  await disablePusherByToken(mx, pushConfig.appId, storedToken);
-  clearStoredIOSPushToken(sessionId);
-};
+    await disablePusherByToken(mx, pushConfig.appId, storedToken);
+    clearStoredIOSPushToken(sessionId);
+  });
