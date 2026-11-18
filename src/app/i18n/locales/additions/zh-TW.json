@@ -1000,6 +1000,7 @@
         "defaultLevel": "預設",
         "levelIsDefault": "{{level}}，預設",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "關閉",
           "minimal": "最低",
