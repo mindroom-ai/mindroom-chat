@@ -306,6 +306,9 @@ vi.mock('../../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomState.viewMode, setViewMode: roomState.setViewMode }),
 }));
 
+// A window swipe listener; this suite renders without a DOM.
+vi.mock('../../navigation/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: () => undefined }));
+
 vi.mock('../../matrix/hooks/useRoomMembers', () => ({
   useRoomMembers: () => roomState.members,
 }));
