@@ -1,5 +1,7 @@
 import {
+  ClientEvent,
   createClient,
+  SyncState,
   ThreadEvent,
   type IEvent,
   type MatrixClient,
@@ -127,6 +129,8 @@ const fixture = () => {
   /** The roots the room's thread list holds, and a gate its pages wait for. */
   let listedRoots: IEvent[] = [];
   let listGate: Promise<void> = Promise.resolve();
+  /** The thread as the server holds it, for a thread loading its first page. */
+  let serverThread: { root: IEvent; replies: IEvent[]; fail?: boolean } | undefined;
   const mx = createClient({
     baseUrl: 'https://example.org',
     userId: readerId,
@@ -153,6 +157,11 @@ const fixture = () => {
         await listGate;
         return json({ chunk: url.searchParams.get('include') === 'all' ? listedRoots : [] });
       }
+      if (serverThread && path.endsWith(`/event/${rootId}`)) return json(serverThread.root);
+      if (serverThread && path.includes(`/relations/${rootId}`))
+        return serverThread.fail
+          ? json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500)
+          : json({ chunk: [...serverThread.replies].reverse() });
       if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
           ? json({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, serverReply)
@@ -212,7 +221,22 @@ const fixture = () => {
     });
     return open;
   };
-  return { mx, deliver, start, room, card, replyRequests, setServerReply, holdThreadList };
+  const setServerThread = (value: { root: IEvent; replies: IEvent[]; fail?: boolean }) => {
+    serverThread = value;
+  };
+  const requested = (fragment: string) => requests.filter((path) => path.includes(fragment)).length;
+  return {
+    mx,
+    deliver,
+    start,
+    room,
+    card,
+    replyRequests,
+    requested,
+    setServerReply,
+    setServerThread,
+    holdThreadList,
+  };
 };
 
 const threadNamespaces = [
@@ -739,6 +763,105 @@ describe('streaming replies on thread cards', () => {
       await settle();
       expect(f.card().streaming).toBe(true);
       expect(f.replyRequests()).toBe(0);
+    });
+
+    describe('an unopened thread whose summary names its title', () => {
+      const listedRoot = (now: number, status: string) => {
+        const listed = withSummary(root(now - 60_000), title(now - 15_000), 2);
+        const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+        summary['io.mindroom.latest_reply'] = withEdit(
+          reply(now - 50_000),
+          edit('The notes', now - 3_000, status)
+        );
+        return listed;
+      };
+      const reloadUnopened = async (now: number, listed: IEvent, fail = false) => {
+        const f = fixture();
+        f.setServerThread({
+          fail,
+          root: listed,
+          replies: [
+            withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')),
+            title(now - 15_000),
+          ],
+        });
+        f.setServerReply(
+          withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming'))
+        );
+        await f.start();
+        await f.deliver([chat('$chat-1', now - 10_000)]);
+        // The cache restores the root as the list had it: the reply is in no timeline.
+        restoreCachedRoomThreads(f.room(), [{ rootEvent: f.mx.getEventMapper()(listed) }]);
+        await afterCheckDelay();
+        return f;
+      };
+
+      it('loads its first page while its bundled reply streams, and the card streams', async () => {
+        const now = Date.now();
+        const f = await reloadUnopened(now, listedRoot(now, 'streaming'));
+        expect(f.requested(`/relations/${rootId}`)).toBe(1);
+        // The loaded reply is checked as any restored reply that says it streams.
+        f.card();
+        await afterCheckDelay();
+        expect(f.card().streaming).toBe(true);
+        expect(f.replyRequests()).toBe(1);
+
+        // Its next edits come through /sync as usual.
+        await f.deliver([edit(finished, now, 'completed')]);
+        expect(f.card()).toEqual({ preview: finished, streaming: false });
+      });
+
+      it('asks for the first page once when it fails', async () => {
+        const now = Date.now();
+        const f = await reloadUnopened(now, listedRoot(now, 'streaming'), true);
+        await afterCheckDelay();
+        expect(f.requested(`/relations/${rootId}`)).toBe(1);
+        expect(f.card().streaming).toBe(false);
+
+        // After an outage, the sync catches up before it runs again: the thread is tried again.
+        f.setServerThread({
+          root: listedRoot(now, 'streaming'),
+          replies: [
+            withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')),
+            title(now - 15_000),
+          ],
+        });
+        f.mx.emit(ClientEvent.Sync, SyncState.Error, SyncState.Syncing);
+        f.mx.emit(ClientEvent.Sync, SyncState.Catchup, SyncState.Error);
+        await f.deliver([chat('$chat-2', now - 1_000)]);
+        await afterCheckDelay();
+        expect(f.requested(`/relations/${rootId}`)).toBe(2);
+      }, 15_000);
+
+      it('loads the first page for a record-form streaming status', async () => {
+        const now = Date.now();
+        const listed = listedRoot(now, 'streaming');
+        const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+        const latestReply = summary['io.mindroom.latest_reply'] as IEvent;
+        const newest = latestReply.unsigned['m.relations']?.['m.replace'] as IEvent;
+        newest.content['m.new_content'] = {
+          msgtype: 'm.text',
+          body: 'The notes',
+          'io.mindroom.stream_status': { state: 'streaming' },
+        };
+        const f = await reloadUnopened(now, listed);
+        expect(f.requested(`/relations/${rootId}`)).toBe(1);
+      });
+
+      it('loads nothing for a bundled reply that finished', async () => {
+        const now = Date.now();
+        const f = await reloadUnopened(now, listedRoot(now, 'completed'));
+        expect(f.requested(`/relations/${rootId}`)).toBe(0);
+      });
+
+      it('loads nothing for a bundled reply that went idle', async () => {
+        const now = Date.now();
+        const listed = listedRoot(now, 'streaming');
+        const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+        summary['io.mindroom.latest_reply'] = reply(now - 40 * MINUTE);
+        const f = await reloadUnopened(now, listed);
+        expect(f.requested(`/relations/${rootId}`)).toBe(0);
+      });
     });
 
     it('checks a reply the list did not answer once the list is read', async () => {
