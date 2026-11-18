@@ -23,6 +23,7 @@ import {
   MODEL_TIMEOUT,
   parseModelCatalogResponse,
   parseModelSelectionResult,
+  ReasoningLevel,
 } from './modelProtocol';
 import {
   ModelRuntime,
@@ -40,6 +41,8 @@ export type ModelPickerSnapshot = {
   runtime?: ModelRuntime;
   models: ModelCatalogEntry[];
   override: string | null;
+  /** The override's reasoning level when it names one; null runs the model at its default. */
+  reasoning: ReasoningLevel | null;
   inherited: ModelInheritedEntry[];
   loading: boolean;
   pending: boolean;
@@ -83,7 +86,10 @@ type Command = {
   scope: Scope;
   runtime: ModelRuntime;
   operation: 'set' | 'reset';
+  /** The catalog key, which the selection reports once the runtime applies it. */
   model?: string;
+  /** A level other than the model's default; the command sends `<model>@<level>`. */
+  level?: ReasoningLevel;
   eventId?: string;
   generation: number;
   early: ModelSelectionResult[];
@@ -95,11 +101,15 @@ const emptySnapshot = (): ModelPickerSnapshot => ({
   runtimes: [],
   models: [],
   override: null,
+  reasoning: null,
   inherited: [],
   loading: false,
   pending: false,
   canMutate: false,
 });
+/** What the command names: the key, with the level after `@` when it is not the default. */
+const commandModel = ({ model, level }: Pick<Command, 'model' | 'level'>): string | undefined =>
+  model && level ? `${model}@${level}` : model;
 const scopeKey = (room: Room, threadId?: string): string => JSON.stringify([room.roomId, threadId]);
 /** Discovery asks again after these delays while a composer shows the scope, the last repeating. */
 const RETRY_DELAYS = [3000, 10000, 30000, 60000];
@@ -458,12 +468,19 @@ export class ModelController {
       runtime,
       models: catalog ? catalog.response.models : [],
       override: catalog ? catalog.response.selection.override : null,
+      reasoning: catalog?.response.selection.reasoning ?? null,
       inherited: catalog ? catalog.response.selection.inherited : [],
     });
   }
 
-  selectModel = (room: Room, threadId: string | undefined, model: string): void => {
-    this.mutate(this.scope(room, threadId), 'set', model);
+  /** Runs the thread on `model`, at `level` when given, else at the model's default level. */
+  selectModel = (
+    room: Room,
+    threadId: string | undefined,
+    model: string,
+    level?: ReasoningLevel
+  ): void => {
+    this.mutate(this.scope(room, threadId), 'set', model, level);
   };
 
   resetToRoomDefault = (room: Room, threadId?: string): void => {
@@ -485,10 +502,17 @@ export class ModelController {
     );
   }
 
-  private mutate(scope: Scope, operation: 'set' | 'reset', model?: string): void {
+  private mutate(
+    scope: Scope,
+    operation: 'set' | 'reset',
+    model?: string,
+    level?: ReasoningLevel
+  ): void {
+    const entry = scope.snapshot.models.find((m) => m.key === model);
     if (
       !this.canMutate(scope) ||
-      (operation === 'set' && !scope.snapshot.models.some((m) => m.key === model))
+      (operation === 'set' && !entry) ||
+      (level !== undefined && !entry?.reasoning_levels?.includes(level))
     )
       return;
     const runtime = scope.snapshot.runtime!;
@@ -499,6 +523,8 @@ export class ModelController {
       runtime,
       operation,
       model,
+      // The plain key runs the model at its default, so the command names no level for it.
+      ...(level !== undefined && level !== entry?.reasoning_default ? { level } : {}),
       generation: scope.generation,
       early: [],
       timer: setTimeout(() => this.uncertain(command), MODEL_TIMEOUT),
@@ -518,7 +544,8 @@ export class ModelController {
   }
 
   private async sendCommand(command: Command): Promise<void> {
-    const { scope, runtime, operation, model } = command;
+    const { scope, runtime, operation } = command;
+    const model = commandModel(command);
     try {
       if (!(await isCurrentModelRuntime(this.mx, runtime))) {
         if (this.currentCommand(command)) this.invalidate(scope);
@@ -619,7 +646,7 @@ export class ModelController {
       result.runtime_user_id !== command.runtime.userId ||
       result.runtime_device_id !== command.runtime.deviceId ||
       result.operation !== command.operation ||
-      result.model !== command.model
+      result.model !== commandModel(command)
     )
       return;
     const catalog = scope?.catalogs.get(command.runtime.id);
@@ -653,14 +680,20 @@ export class ModelController {
     command.acknowledged = true;
     scope.command = undefined;
     if (result.status === 'applied') {
-      const override = result.override ?? null;
+      // The result echoes the command's reference; the selection keeps the key and the level apart.
+      const override = command.model ?? null;
+      const reasoning = command.level ?? null;
       const catalog = scope.catalogs.get(command.runtime.id);
       if (catalog)
         catalog.response = {
           ...catalog.response,
-          selection: { ...catalog.response.selection, override },
+          selection: {
+            override,
+            ...(reasoning ? { reasoning } : {}),
+            inherited: catalog.response.selection.inherited,
+          },
         };
-      this.publish(scope, { pending: !!scope.send, override, error: undefined });
+      this.publish(scope, { pending: !!scope.send, override, reasoning, error: undefined });
     } else {
       this.publish(scope, {
         pending: !!scope.send,
