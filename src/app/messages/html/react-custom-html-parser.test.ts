@@ -29,6 +29,7 @@ import { withReasoning } from '../agent-run/Reasoning';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from '../agent-run/toolRefDom';
 import { getMessageCopyTexts, scanToolMarkerLines } from '../messageCopyText';
+import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { formatMessageTextBodyAsHtml } from './blocks';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
@@ -2010,9 +2011,10 @@ describe('copy stripping matches the app renderer', () => {
   });
 });
 
-// Reasoning and compaction seams go after the calls `readRenderedToolCalls` reads, so it must
-// read exactly the markers the renderer draws as tool blocks, in the order it draws them.
-describe('placement markers match the app renderer', () => {
+// Reasoning and compaction seams go after the calls `readRenderedToolCalls` reads, and the fold of
+// a reply's work ends after them, so it must read exactly the markers the renderer draws as tool
+// blocks, in the order it draws them.
+describe('placement markers and the fold match the app renderer', () => {
   const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
     linkifyOpts: LINKIFY_OPTS,
   });
@@ -2060,9 +2062,20 @@ describe('placement markers match the app renderer', () => {
       'a marker in display math',
       '<p>🔧 <code>t1</code> [1]</p><div data-mx-maths="🔧 x [2]"></div>',
     ],
+    [
+      'a call the sanitizer takes out of a section',
+      '<p>🔧 <code>t1</code> [1]</p><section><p>🔧 <code>t2</code> [2]</p></section><p>Done</p>',
+    ],
   ])('%s', async (_name, rawHtml) => {
     const html = sanitizeCustomHtml(rawHtml);
-    expect(placed(html)).toEqual(await renderedOrder(html));
+    const drawn = await renderedOrder(html);
+    expect(placed(html)).toEqual(drawn);
+
+    // The fold keeps every drawn call in the work, each body rendered as RenderBody renders it.
+    const split = splitFinishedWork(rawHtml, baseOpts);
+    if (!split) return;
+    expect(await renderedOrder(sanitizeCustomHtml(split.head))).toEqual(drawn);
+    expect(await renderedOrder(sanitizeCustomHtml(split.tail))).toEqual([]);
   });
 });
 

@@ -1,8 +1,9 @@
-import { htmlToDOM } from 'html-react-parser';
+import { htmlToDOM, type HTMLReactParserOptions } from 'html-react-parser';
 import { isText, type ChildNode } from 'domhandler';
 import { MINDROOM_TOOL_REF_ICON, parseToolRefText } from '../html/blocks';
 import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
-import { isDomElementNode, visitRenderedToolBlocks } from './toolRefDom';
+import { isDomElementNode } from './toolRefDom';
+import { readRenderedToolCalls } from '../html/HtmlBlocks';
 
 export type FinishedWorkSplit = {
   /** The work: everything up to and including the block of the last tool marker. */
@@ -29,18 +30,6 @@ export const isLongAgentReply = (body: string): boolean =>
         length + (parseToolRefText(line) ? TOOL_MARKER_LINE_LENGTH - line.length : 0),
       body.length
     ) >= LONG_AGENT_REPLY_LENGTH;
-
-/**
- * Whether the renderer shows a tool block in this top-level node, by the rule that places seams
- * and thinking after calls (nested markers included), so no seam anchors past the work.
- */
-const holdsToolBlock = (node: ChildNode): boolean => {
-  let found = false;
-  visitRenderedToolBlocks(node, true, () => {
-    found = true;
-  });
-  return found;
-};
 
 const VOID_ELEMENTS = new Set([
   'area',
@@ -96,28 +85,30 @@ const rendersVisibleContent = (html: string): boolean =>
   hasVisibleContent(htmlToDOM(sanitizeCustomHtml(html)) as ChildNode[]);
 
 /**
- * Splits a finished agent reply's HTML after the top-level block that holds its last tool marker,
- * or returns undefined when it has no marker or nothing visible follows the last one. The backend
- * writes every marker as a paragraph of its own, so the split falls between blocks.
+ * Splits a finished agent reply's HTML, sanitized as `RenderBody` renders it, after the top-level
+ * node that holds the last call the renderer draws with these base parser options (see
+ * `readRenderedToolCalls`), or returns undefined when it draws no call or nothing visible follows
+ * the last one.
  */
-export const splitFinishedWork = (html: string): FinishedWorkSplit | undefined => {
+export const splitFinishedWork = (
+  html: string,
+  baseOpts: HTMLReactParserOptions
+): FinishedWorkSplit | undefined => {
   if (!html.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
-  const nodes = htmlToDOM(html) as ChildNode[];
-  let last = -1;
-  nodes.forEach((node, index) => {
-    if (holdsToolBlock(node)) last = index;
-  });
-  if (last < 0) return undefined;
-  const tail = nodes
-    .slice(last + 1)
-    .map(serializeHtmlNode)
-    .join('');
+  const { nodes, lastNode } = readRenderedToolCalls(sanitizeCustomHtml(html), baseOpts);
+  if (lastNode < 0) return undefined;
+  const serialize = (from: number, to?: number) =>
+    nodes.slice(from, to).map(serializeHtmlNode).join('');
+  // The answer renders on its own, where a marker the whole body shows as text (one naming a call
+  // drawn before it) draws as a call: the work takes it in.
+  let end = lastNode + 1;
+  let tail = serialize(end);
+  for (;;) {
+    const drawn = readRenderedToolCalls(tail, baseOpts).lastNode;
+    if (drawn < 0) break;
+    end += drawn + 1;
+    tail = serialize(end);
+  }
   if (!rendersVisibleContent(tail)) return undefined;
-  return {
-    head: nodes
-      .slice(0, last + 1)
-      .map(serializeHtmlNode)
-      .join(''),
-    tail,
-  };
+  return { head: serialize(0, end), tail };
 };

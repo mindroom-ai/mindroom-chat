@@ -205,36 +205,6 @@ export const parseToolBlockMarker = (html: string): ToolRefParseResult | undefin
   return toolRef && parseToolRefIndexFromTextPrefix(html) === toolRef.index ? toolRef : undefined;
 };
 
-/** Elements the renderer applies its tool rule inside, as it does at the top level. */
-const NESTING_WRAPPERS = new Set(['div', 'details']);
-
-/**
- * Calls `take` for each marker in a top-level node that the renderer shows as a tool block, in
- * the order it draws them: the node's leading markers, then with `nested`, in a `div` or
- * `details`, those in the children after them, which the renderer draws with the same rule. The
- * one rule for where tool blocks render, for `getRenderedToolRefs` and the fold.
- */
-export const visitRenderedToolBlocks = (
-  node: ChildNode,
-  nested: boolean,
-  take: (toolRef: ToolRefParseResult, markerHtml: string) => void
-): void => {
-  if (!isDomElementNode(node)) return;
-  let rest = node.children;
-  // Necessary for a match, and far cheaper than the prefix scan.
-  if (extractTextFromChildren(node.children).trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) {
-    rest = takeLeadingToolRefs(node, (markerHtml) => {
-      const toolRef = parseToolBlockMarker(markerHtml);
-      if (!toolRef) return false;
-      take(toolRef, markerHtml);
-      return true;
-    });
-  }
-  if (nested && NESTING_WRAPPERS.has(node.name)) {
-    rest.forEach((child) => visitRenderedToolBlocks(child, nested, take));
-  }
-};
-
 export type RenderedToolRefs = {
   /** Markers shown as tool blocks, in document order. */
   toolBlocks: ToolRefParseResult[];
@@ -253,17 +223,26 @@ export type RenderedToolRefs = {
  * HTML. The renderer applies its tool rule to top-level containers and to the
  * content it re-wraps after a marker. The base parser renders lists, quotes,
  * and headings with its own options, so markers there stay text; wrappers it
- * leaves alone (`div`, `details`) do show nested markers, which this skips
- * unless `nested` asks for them (copying cannot prove those, placing can).
+ * leaves alone (`div`, `details`) do show nested markers, which this skips.
  */
-export const getRenderedToolRefs = (html: string, nested = false): RenderedToolRefs => {
+export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
   const toolBlocks: ToolRefParseResult[] = [];
   let toolBlockIconCount = 0;
-  const visit = (node: ChildNode) =>
-    visitRenderedToolBlocks(node, nested, (toolRef, markerHtml) => {
+  const visit = (node: ChildNode) => {
+    if (!isDomElementNode(node)) return;
+    // Necessary for a match, and far cheaper than the prefix scan.
+    const text = extractTextFromChildren(node.children);
+    if (!text.trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) return;
+
+    takeLeadingToolRefs(node, (html) => {
+      const toolRef = parseToolBlockMarker(html);
+      if (!toolRef) return false;
+
       toolBlocks.push(toolRef);
-      toolBlockIconCount += countToolRefIcons(markerHtml);
+      toolBlockIconCount += countToolRefIcons(html);
+      return true;
     });
+  };
 
   const countAttributeIcons = (nodes: ChildNode[]): number =>
     nodes.reduce(

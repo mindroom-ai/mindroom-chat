@@ -146,6 +146,8 @@ type AgentWorkBodyProps = {
   renderHtml: (customBody: string | undefined) => ReactNode;
   /** The reasoning header and tool-call cog around a body. */
   wrapWithReasoning: (body: ReactNode) => ReactNode;
+  /** The base parser options the body renders with, which decide where its work ends. */
+  htmlReactParserOptions: HTMLReactParserOptions;
 };
 
 /**
@@ -161,6 +163,7 @@ function AgentWorkBody({
   durationMs,
   renderHtml,
   wrapWithReasoning,
+  htmlReactParserOptions,
 }: AgentWorkBodyProps) {
   // While a request of its calls waits, under it, the work stays open: the call it blocks shows.
   const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
@@ -169,9 +172,9 @@ function AgentWorkBody({
   const split = useMemo(
     () =>
       finished && !waiting && html !== undefined && isLongAgentReply(body)
-        ? splitFinishedWork(html)
+        ? splitFinishedWork(html, htmlReactParserOptions)
         : undefined,
-    [finished, waiting, body, html]
+    [finished, waiting, body, html, htmlReactParserOptions]
   );
   return (
     <FinishedWorkFold
@@ -312,6 +315,7 @@ export const renderAgentMessageContent = ({
           durationMs={workDurationMs}
           renderHtml={render}
           wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, bodyHtml, body)}
+          htmlReactParserOptions={htmlReactParserOptions}
         />
       );
     };

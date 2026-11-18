@@ -626,6 +626,30 @@ describe('compaction seams in finished and live replies', () => {
     expect(seams().map(inWork)).toEqual([true, true]);
   });
 
+  it('folds a call the sanitizer takes out of a section with the work, its seam too', () => {
+    const answer = 'The answer.'.padEnd(6000, ' More.');
+    const html =
+      '<p>🔧 <code>t1</code> [1]</p>' +
+      `<section><p>🔧 <code>t2</code> [2]</p></section><p>${answer}</p>`;
+    render(
+      reply(
+        paragraphs(markerLine('t1', 1), markerLine('t2', 2), answer),
+        [entry('c1', 1), entry('c2', 2)],
+        {
+          'io.mindroom.ai_run': { version: 1, status: 'completed' },
+          format: 'org.matrix.custom.html',
+          formatted_body: html,
+        }
+      )
+    );
+    expect(sequence()).toEqual([answer]);
+
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(sequence()).toEqual(['tools:t1', 'seam', 'tools:t2', 'seam', answer]);
+  });
+
   it('shows the live compactions over the event’s while the reply streams', () => {
     render(
       reply(paragraphs('Intro.', markerLine('t1', 1), 'More.'), [entry('c1', 1)], {

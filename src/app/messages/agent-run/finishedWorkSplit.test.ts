@@ -1,53 +1,61 @@
 import { describe, expect, it } from 'vitest';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { isLongAgentReply, splitFinishedWork } from './finishedWorkSplit';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
-import { getRenderedToolRefs } from './toolRefDom';
-import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../html/react-custom-html-parser';
+
+const mx = {
+  getHomeserverUrl: () => 'https://example.org',
+  mxcUrlToHttp: () => 'https://example.org/a',
+} as unknown as MatrixClient;
+// The app's base parser, which decides where the renderer draws calls (lists draw none).
+const baseOpts = getReactCustomHtmlParser(mx, undefined, {
+  linkifyOpts: LINKIFY_OPTS,
+});
+const split = (html: string) => splitFinishedWork(html, baseOpts);
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
 
 describe('splitFinishedWork', () => {
   it('returns undefined without a tool marker', () => {
-    expect(splitFinishedWork('<p>hi</p>')).toBeUndefined();
+    expect(split('<p>hi</p>')).toBeUndefined();
   });
 
   it('returns undefined when the reply ends in a tool marker', () => {
-    expect(splitFinishedWork(`<p>a</p>${marker('shell', 1)}`)).toBeUndefined();
+    expect(split(`<p>a</p>${marker('shell', 1)}`)).toBeUndefined();
   });
 
   it('returns undefined when only whitespace follows', () => {
-    expect(splitFinishedWork(`${marker('shell', 1)}\n  `)).toBeUndefined();
+    expect(split(`${marker('shell', 1)}\n  `)).toBeUndefined();
   });
 
   it('returns undefined when only an empty paragraph follows', () => {
-    expect(splitFinishedWork(`${marker('shell', 1)}<p> </p>`)).toBeUndefined();
+    expect(split(`${marker('shell', 1)}<p> </p>`)).toBeUndefined();
   });
 
   it('returns undefined when only the pending mark follows', () => {
-    expect(splitFinishedWork(`${marker('shell', 1)}<p>⏳</p>`)).toBeUndefined();
+    expect(split(`${marker('shell', 1)}<p>⏳</p>`)).toBeUndefined();
   });
 
   it('returns undefined when only content the renderer drops follows', () => {
-    expect(splitFinishedWork(`${marker('shell', 1)}<script>x</script>`)).toBeUndefined();
+    expect(split(`${marker('shell', 1)}<script>x</script>`)).toBeUndefined();
   });
 
   it('splits before an answer that is only an image', () => {
     const image = '<p><img src="mxc://example.org/a" alt="Answer"></p>';
-    expect(splitFinishedWork(`${marker('shell', 1)}${image}`)?.tail).toBe(image);
+    expect(split(`${marker('shell', 1)}${image}`)?.tail).toBe(image);
   });
 
   it('drops comments, which are not text', () => {
-    expect(splitFinishedWork(`${marker('shell', 1)}<!-- note -->`)).toBeUndefined();
-    expect(splitFinishedWork(`<p>a</p><!-- b -->${marker('shell', 1)}<!-- c --><p>x</p>`)).toEqual({
+    expect(split(`${marker('shell', 1)}<!-- note -->`)).toBeUndefined();
+    expect(split(`<p>a</p><!-- b -->${marker('shell', 1)}<!-- c --><p>x</p>`)).toEqual({
       head: `<p>a</p>${marker('shell', 1)}`,
       tail: '<p>x</p>',
     });
   });
 
   it('splits after the last marker', () => {
-    expect(
-      splitFinishedWork(`<p>a</p>${marker('shell', 1)}<p>b</p>${marker('grep', 2)}<p>done</p>`)
-    ).toEqual({
+    expect(split(`<p>a</p>${marker('shell', 1)}<p>b</p>${marker('grep', 2)}<p>done</p>`)).toEqual({
       head: `<p>a</p>${marker('shell', 1)}<p>b</p>${marker('grep', 2)}`,
       tail: '<p>done</p>',
     });
@@ -56,7 +64,7 @@ describe('splitFinishedWork', () => {
   it('splits after a last marker the renderer shows inside a div or details', () => {
     for (const wrapper of ['div', 'details']) {
       const nested = `<${wrapper}>${marker('grep', 2)}</${wrapper}>`;
-      expect(splitFinishedWork(`${marker('shell', 1)}<p>b</p>${nested}<p>done</p>`)).toEqual({
+      expect(split(`${marker('shell', 1)}<p>b</p>${nested}<p>done</p>`)).toEqual({
         head: `${marker('shell', 1)}<p>b</p>${nested}`,
         tail: '<p>done</p>',
       });
@@ -65,29 +73,27 @@ describe('splitFinishedWork', () => {
 
   it('splits after a div holding a direct call, then a call in a paragraph', () => {
     const work = `<div>🔧 <code>shell</code> [1]${marker('grep', 2)}</div>`;
-    expect(splitFinishedWork(`${work}<p>done</p>`)).toEqual({ head: work, tail: '<p>done</p>' });
+    expect(split(`${work}<p>done</p>`)).toEqual({ head: work, tail: '<p>done</p>' });
   });
 
   it('ignores marker-like text inside a code block', () => {
-    expect(
-      splitFinishedWork('<pre><code>🔧 <code>shell</code> [1]</code></pre><p>x</p>')
-    ).toBeUndefined();
-    expect(splitFinishedWork('<pre><code>🔧 `shell` [1]</code></pre><p>x</p>')).toBeUndefined();
+    expect(split('<pre><code>🔧 <code>shell</code> [1]</code></pre><p>x</p>')).toBeUndefined();
+    expect(split('<pre><code>🔧 `shell` [1]</code></pre><p>x</p>')).toBeUndefined();
   });
 
   it('ignores a marker inside a paragraph', () => {
-    expect(splitFinishedWork('<p>text<br>🔧 <code>search</code> [1]<br>more</p>')).toBeUndefined();
+    expect(split('<p>text<br>🔧 <code>search</code> [1]<br>more</p>')).toBeUndefined();
   });
 
   it('treats a pending marker as a marker', () => {
-    expect(
-      splitFinishedWork(`${marker('shell', 1).replace('</p>', ' ⏳</p>')}<p>x</p>`)?.tail
-    ).toBe('<p>x</p>');
+    expect(split(`${marker('shell', 1).replace('</p>', ' ⏳</p>')}<p>x</p>`)?.tail).toBe(
+      '<p>x</p>'
+    );
   });
 
   it('keeps entities, attributes and void elements', () => {
     expect(
-      splitFinishedWork(
+      split(
         `<p>a &amp; &lt;b&gt;</p>${marker(
           'shell',
           1
@@ -95,38 +101,22 @@ describe('splitFinishedWork', () => {
       )
     ).toEqual({
       head: `<p>a &amp; &lt;b&gt;</p>${marker('shell', 1)}`,
-      tail: '<p><a href="https://x.test/?a=1&amp;b=&quot;2&quot;">l</a><br>c</p>',
+      // Sanitized as the body renders it, which opens links in a new tab.
+      tail: '<p><a href="https://x.test/?a=1&amp;b=&quot;2&quot;" target="_blank" rel="noreferrer noopener">l</a><br>c</p>',
     });
   });
 
   it('splits the backend HTML of a reply with grouped calls after the last one', () => {
     const { formatted_body: html } = backendBodies['grouped and pending tool calls'];
-    expect(splitFinishedWork(html)).toEqual({
+    expect(split(html)).toEqual({
       head: '<p>Let me check.</p>\n<p>🔧 <code>search_web</code> [1]</p>\n<p>🔧 <code>read_file</code> [2] ⏳</p>',
       tail: '\n<p>It is sunny.</p>\n',
     });
   });
 
   it('does not split the backend HTML of a reply that ends in a tool call', () => {
-    expect(
-      splitFinishedWork(backendBodies['leading and trailing tool calls'].formatted_body)
-    ).toBeUndefined();
+    expect(split(backendBodies['leading and trailing tool calls'].formatted_body)).toBeUndefined();
   });
-
-  // Reasoning segments and compaction seams render after a rendered tool marker, or at the top,
-  // so each one folds with the work only while every rendered marker falls in the head.
-  it.each(Object.entries(backendBodies))(
-    'keeps every rendered tool marker of the backend HTML in the work: %s',
-    (_name, { formatted_body: html }) => {
-      const split = splitFinishedWork(html);
-      if (!split) return;
-      // As `Reasoning` reads the markers it places seams and thinking after.
-      const placed = (part: string) =>
-        getRenderedToolRefs(sanitizeCustomHtml(part), true).toolBlocks.map(({ index }) => index);
-      expect(placed(split.head)).toEqual(placed(html));
-      expect(placed(split.tail)).toEqual([]);
-    }
-  );
 });
 
 describe('isLongAgentReply', () => {
