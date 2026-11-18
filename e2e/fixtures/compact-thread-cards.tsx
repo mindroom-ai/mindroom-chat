@@ -60,6 +60,7 @@ type Sample = {
   isStreaming?: boolean;
   isResolved?: boolean;
   scheduled?: string;
+  snoozedUntilTs?: number;
   /** A client plugin's chips on the card (the pull request plugin's), and a count of the rest. */
   pullRequest?: { repo: string; number: number; more?: number };
 };
@@ -160,6 +161,8 @@ const crowdedSamples: Sample[] = [
     lastActivityTs: minutes(27),
     participants: crowd,
     tags: ['zeta', 'eta'],
+    scheduled: 'every weekday at 09:00, at 12:00 and at 17:00 local time',
+    snoozedUntilTs: days(-400),
     pullRequest: { repo: 'example-other', number: 303, more: 10 },
   },
   {
@@ -247,6 +250,7 @@ const toViewModel = (sample: Sample, index: number): CompactThreadCardViewModel 
     isUnread: sample.isUnread === true,
     isStreaming: sample.isStreaming === true,
     scheduledDisplayText: sample.scheduled,
+    snoozedUntilTs: sample.snoozedUntilTs,
     scheduledTaskLabel: sample.scheduled ? `Next task ${sample.scheduled}` : undefined,
     lastActivityTs: sample.lastActivityTs,
     lastActivityTitle: new Date(sample.lastActivityTs).toLocaleString(i18n.language),

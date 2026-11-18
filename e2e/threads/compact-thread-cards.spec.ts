@@ -111,30 +111,46 @@ test("a phone card's last row shows each mark whole or not at all, clear of the 
         metadata.querySelectorAll('.thread-tag-pill, [data-fixture-plugin-chips]')
       ).map((mark) => {
         const rect = mark.getBoundingClientRect();
+        // Shown means painted: a mark on the hidden line is clipped, so its middle hits the card.
+        const hit = document.elementFromPoint(
+          (rect.left + rect.right) / 2,
+          (rect.top + rect.bottom) / 2
+        );
+        // A tag clips its label, not its pill; the plugin's chips clip their group.
+        const clipper = mark.matches('.thread-tag-pill') ? mark.firstElementChild! : mark;
         return {
           plugin: mark.matches('[data-fixture-plugin-chips]'),
-          shown: rect.top >= row.top - 1 && rect.bottom <= row.bottom + 1,
-          squeezed: mark.scrollWidth > mark.clientWidth + 1,
+          inRow: rect.top >= row.top - 1 && rect.bottom <= row.bottom + 1,
+          shown: hit !== null && mark.contains(hit),
+          squeezed: clipper.scrollWidth > clipper.clientWidth + 1,
           right: rect.right,
         };
       });
-      return { countRight: count.right, menuLeft: menu.left, marks };
+      const scheduled = card.querySelector('[aria-label^="Next task"]') !== null;
+      return { countRight: count.right, menuLeft: menu.left, marks, scheduled };
     })
   );
   expect(cards).toHaveLength(5);
   cards.forEach(({ countRight, menuLeft, marks }) => {
     expect(countRight).toBeLessThan(menuLeft);
-    marks
-      .filter((mark) => mark.shown)
-      .forEach((mark) => {
-        expect(mark.squeezed).toBe(false);
-        expect(mark.right).toBeLessThan(countRight);
-      });
+    marks.forEach((mark) => {
+      // Only a mark on the row's line is painted.
+      expect(mark.shown).toBe(mark.inRow);
+      if (!mark.shown) return;
+      expect(mark.squeezed).toBe(false);
+      expect(mark.right).toBeLessThan(countRight);
+    });
   });
-  // The pull request chips come first, so each card keeps them.
-  cards.forEach(({ marks }) =>
-    expect(marks.filter((mark) => mark.plugin).map((mark) => mark.shown)).toEqual([true])
-  );
+  // The pull request chips come first, so each card keeps them, but for one whose long schedule
+  // leaves no room: the marks give way before the stats.
+  cards
+    .filter(({ scheduled }) => !scheduled)
+    .forEach(({ marks }) =>
+      expect(marks.filter((mark) => mark.plugin).map((mark) => mark.shown)).toEqual([true])
+    );
+  expect(cards.filter(({ scheduled }) => scheduled)).toHaveLength(1);
+  // No keyboard on a phone, so Find anything names no shortcut.
+  await expect(page.getByRole('button', { name: 'Find anything' }).locator('kbd')).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('compact-thread-cards-crowded-phone.png') });
 });
 

@@ -315,11 +315,13 @@ export const MetadataRow = style({
 
 // The row's marks after the writers (the resolver's byline, a plugin's badges, the tags): one line
 // of them, and a second, hidden one for those that do not fit, so a mark shows whole or not at
-// all. The participants before them and the count after them keep their size. A mark alone on the
-// line and wider than it (a long byline) shrinks and ends in an ellipsis.
+// all. They take only the room the writers and the stats leave (a zero basis), so they give way
+// first. A mark wider than the whole line is hidden too, but for the resolver's byline, which is
+// capped at the line's width and ends in an ellipsis. A badge must fit the row's height: one taller
+// loses its bottom.
 export const Chips = style({
   display: 'flex',
-  flex: '1 1 auto',
+  flex: '1 1 0',
   flexWrap: 'wrap',
   alignItems: 'center',
   alignContent: 'flex-start',
@@ -334,8 +336,6 @@ export const Chips = style({
     marginInlineEnd: `calc(-1 * ${config.space.S200})`,
   },
 });
-
-globalStyle(`${Chips} > .thread-tag-pill`, { minWidth: 0 });
 
 // Room for the menu button that sits at the end of this row on touch; only
 // the compact view's card shell has that button.
@@ -395,13 +395,13 @@ export const Stats = style({
   display: 'inline-flex',
   alignItems: 'center',
   columnGap: config.space.S200,
-  flexShrink: 0,
+  // Past the marks, a long snooze or schedule label gives way to the count, which keeps its size.
+  minWidth: 0,
   marginInlineStart: 'auto',
 });
 
 export const ScheduledIndicator = style({
   minWidth: 0,
-  flexShrink: 0,
   whiteSpace: 'nowrap',
 });
 
@@ -415,6 +415,7 @@ export const SnoozedIndicator = style({
 
 export const ReplyCount = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'center',
   gap: toRem(3),
   whiteSpace: 'nowrap',
