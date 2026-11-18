@@ -134,7 +134,8 @@ const options = (): UseThreadIndexOptions => ({
 
 /** What one commit of the list shows: its cards in order, each with its latest reply. */
 type Shown = Array<[id: string, latestReply: string | undefined]>;
-type Probe = { commits: Shown[] };
+type Probe = { commits: Shown[]; mounts: number; unmounts: number };
+const newProbe = (): Probe => ({ commits: [], mounts: 0, unmounts: 0 });
 
 /** The index and the cards under it, which `RoomTimeline` renders once the list may build. */
 function Cards({ listened, probe }: { listened?: ThreadOverviewRefresh; probe: Probe }) {
@@ -153,6 +154,13 @@ function Cards({ listened, probe }: { listened?: ThreadOverviewRefresh; probe: P
       ])
     );
   });
+  // As the cards' scroll memory, which puts the list where the reader left it as it mounts.
+  useLayoutEffect(() => {
+    probe.mounts += 1;
+    return () => {
+      probe.unmounts += 1;
+    };
+  }, [probe]);
   return null;
 }
 
@@ -186,7 +194,7 @@ const page = (children: ReactNode) => (
  * and before the list builds.
  */
 const comeBack = (during: { beforeListeners?: () => void; onceListening?: () => void } = {}) => {
-  const probe: Probe = { commits: [] };
+  const probe = newProbe();
   vi.mocked(buildThreadIndexRecordMaps).mockClear();
   const view = render(
     page(
@@ -198,6 +206,7 @@ const comeBack = (during: { beforeListeners?: () => void; onceListening?: () => 
   );
   return {
     commits: probe.commits,
+    probe,
     builds: () => vi.mocked(buildThreadIndexRecordMaps).mock.calls,
     unmount: view.unmount,
   };
@@ -249,6 +258,8 @@ describe('the Compact list that comes back when a thread that filled the page cl
         ['$a', 'reply in $a'],
       ],
     ]);
+    // The cards mount once, with that build: no list of an earlier pass to place the scroll by.
+    expect([back.probe.mounts, back.probe.unmounts]).toEqual([1, 0]);
     back.unmount();
   });
 
@@ -335,7 +346,7 @@ describe('the Compact list that comes back when a thread that filled the page cl
   });
 
   it('shows nothing before that build, and the build before the paint', async () => {
-    const probe: Probe = { commits: [] };
+    const probe = newProbe();
     const atPaint: Shown[][] = [];
     const container = document.body.appendChild(document.createElement('div'));
     const root = createRoot(container);
@@ -388,7 +399,7 @@ describe('the Compact list that comes back when a thread that filled the page cl
 
   it('shows nothing older under StrictMode either, and stops listening when it goes', () => {
     const before = listeners();
-    const probe: Probe = { commits: [] };
+    const probe = newProbe();
     const newer = () => {
       room.getThread('$a')!.addEvents([message('$a-newer', 4000, 'newer in $a', '$a')], false);
     };
@@ -416,7 +427,7 @@ describe('the Compact list that comes back when a thread that filled the page cl
 
 describe('a list that does not wait for its listeners', () => {
   it('builds in its first render and starts its listeners after the paint, as before', () => {
-    const probe: Probe = { commits: [] };
+    const probe = newProbe();
     const before = listeners();
     const inCommit: number[][] = [];
     vi.mocked(buildThreadIndexRecordMaps).mockClear();
