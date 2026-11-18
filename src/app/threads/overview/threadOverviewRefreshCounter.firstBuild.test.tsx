@@ -63,7 +63,11 @@ import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 // eslint-disable-next-line import/first
 import { useThreadIndex, type UseThreadIndexOptions } from './useThreadIndex';
 // eslint-disable-next-line import/first
-import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
+import {
+  useThreadOverviewListenedFirst,
+  useThreadOverviewRefreshCounter,
+  type ThreadOverviewRefresh,
+} from './threadOverviewRefreshCounter';
 
 const ROOM_ID = '!list:example.org';
 const ME = '@me:example.org';
@@ -131,11 +135,11 @@ const options = (): UseThreadIndexOptions => ({
 /** What one commit of the list shows: its cards in order, each with its latest reply. */
 type Shown = Array<[id: string, latestReply: string | undefined]>;
 type Probe = { commits: Shown[] };
-type Overview = ReturnType<typeof useThreadOverviewRefreshCounter>;
 
 /** The index and the cards under it, which `RoomTimeline` renders once the list may build. */
-function Cards({ overview, probe }: { overview: Overview; probe: Probe }) {
+function Cards({ listened, probe }: { listened?: ThreadOverviewRefresh; probe: Probe }) {
   const fixed = useMemo(options, []);
+  const overview = useThreadOverviewRefreshCounter(room, undefined, listened);
   const index = useThreadIndex({
     ...fixed,
     overviewRefreshCounter: overview.overviewRefreshCounter,
@@ -153,10 +157,10 @@ function Cards({ overview, probe }: { overview: Overview; probe: Probe }) {
 }
 
 /** The list as `RoomTimeline` mounts it: nothing until its first build may start. */
-function List({ probe, hold = true }: { probe: Probe; hold?: boolean }) {
-  const overview = useThreadOverviewRefreshCounter(room, undefined, hold);
-  if (overview.firstBuildHeld) return null;
-  return <Cards overview={overview} probe={probe} />;
+function List({ probe, wait = true }: { probe: Probe; wait?: boolean }) {
+  const listened = useThreadOverviewListenedFirst(room, undefined, wait);
+  if (listened === 'waiting') return null;
+  return <Cards listened={listened} probe={probe} />;
 }
 
 /** Runs its effects before those of the list after it: a part of the page that mounts with it. */
@@ -417,7 +421,7 @@ describe('a list that does not wait for its listeners', () => {
     const view = render(
       page(
         <>
-          <List probe={probe} hold={false} />
+          <List probe={probe} wait={false} />
           <BesideList inLayout={() => inCommit.push(listeners())} />
         </>
       )
