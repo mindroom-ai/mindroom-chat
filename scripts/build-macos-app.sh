@@ -118,6 +118,21 @@ xcodebuild -exportArchive \
 app="$scratch/export/MindRoom.chat.app"
 test -d "$app"
 
+# Xcode's export should re-sign Sparkle's helpers with the hardened runtime; this proves it did, in
+# the updater plug-in too, before Apple is asked.
+codesign --verify --deep --strict "$app"
+sparkle=Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/Frameworks/Sparkle.framework/Versions/B
+for path in Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/MacOS/MindRoomMacUpdater \
+  "$sparkle/Sparkle" "$sparkle/Autoupdate" "$sparkle/Updater.app" \
+  "$sparkle/XPCServices/Installer.xpc" "$sparkle/XPCServices/Downloader.xpc"; do
+  details=$(codesign -dv --verbose=4 "$app/$path" 2>&1)
+  if ! grep -qx 'TeamIdentifier=DNA6966LGZ' <<<"$details" ||
+    [[ "$(sed -n 's/.* flags=\([^ ]*\).*/\1/p' <<<"$details")" != *runtime* ]]; then
+    echo "$path is not signed by team DNA6966LGZ with the hardened runtime" >&2
+    exit 1
+  fi
+done
+
 notarize() {
   xcrun notarytool submit "$1" \
     --apple-id "$notary_apple_id" \

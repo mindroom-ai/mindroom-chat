@@ -31,6 +31,10 @@ fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(record) + '\\n');
 if (process.env.TEST_FAIL === command + ':' + args[0]) process.exit(9);
 if (command === 'security') console.log('fixture decoded profile');
 if (command === 'plutil') console.log('11111111-2222-3333-4444-555555555555');
+if (command === 'codesign' && args[0] === '-dv') {
+  console.error('TeamIdentifier=' + (process.env.TEST_TEAM ?? 'DNA6966LGZ'));
+  console.error('CodeDirectory v=20500 size=1 flags=' + (process.env.TEST_FLAGS ?? '0x10000(runtime)') + ' hashes=1+0');
+}
 if (command === 'xcodebuild' && args.includes('-exportArchive')) {
   const app = path.join(args[args.indexOf('-exportPath') + 1], 'MindRoom.chat.app', 'Contents');
   fs.mkdirSync(app, { recursive: true });
@@ -63,11 +67,13 @@ if (command === 'dmgbuild') fs.writeFileSync(args[args.length - 1], 'fixture dmg
       mode: 0o755,
     }
   );
-  // So is the Sparkle download (scripts/fetch-sparkle.sh).
-  writeFileSync(
-    join(root, 'scripts/fetch-sparkle.sh'),
-    stub.replace('path.basename(process.argv[1])', "'fetch-sparkle.sh'"),
-    { mode: 0o755 }
+  // So are the Sparkle download and the appcast, which only the workflow makes.
+  ['fetch-sparkle.sh', 'macos-appcast.sh'].forEach((script) =>
+    writeFileSync(
+      join(root, 'scripts', script),
+      stub.replace('path.basename(process.argv[1])', `'${script}'`),
+      { mode: 0o755 }
+    )
   );
   const env = {
     ...process.env,
@@ -161,7 +167,9 @@ describe('Mac release build script', () => {
       ])
     );
     expect(
-      result.commands.some(({ command }) => command === 'security' || command === 'xcrun')
+      result.commands.some(({ command }) =>
+        ['security', 'xcrun', 'macos-appcast.sh'].includes(command)
+      )
     ).toBe(false);
   });
 
@@ -207,9 +215,33 @@ describe('Mac release build script', () => {
         .filter(({ command }) => ['npm', 'npx', 'xcodebuild'].includes(command))
         .every(({ hasNotarySecrets }) => !hasNotarySecrets)
     ).toBe(true);
-    const lifecycle = result.commands.filter(({ command }) =>
+    const all = result.commands.filter(({ command }) =>
       ['xcrun', 'dmgbuild', 'codesign'].includes(command)
     );
+    // Before Apple is asked: the export's signature, and Sparkle's executables in the updater
+    // bundle signed by the team with the hardened runtime.
+    const checks = all.slice(0, 7);
+    expect(checks[0]?.args.slice(0, 3)).toEqual(['--verify', '--deep', '--strict']);
+    expect(checks[0]?.args.at(-1)).toMatch(/\/export\/MindRoom\.chat\.app$/);
+    const sparkle =
+      'Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/Frameworks/Sparkle.framework/Versions/B/';
+    expect(
+      checks
+        .slice(1)
+        .map(({ args }) => [args[0], args.at(-1)!.replace(/^.*\/MindRoom\.chat\.app\//, '')])
+    ).toEqual(
+      [
+        'Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/MacOS/MindRoomMacUpdater',
+        ...[
+          'Sparkle',
+          'Autoupdate',
+          'Updater.app',
+          'XPCServices/Installer.xpc',
+          'XPCServices/Downloader.xpc',
+        ].map((file) => sparkle + file),
+      ].map((path) => ['-dv', path])
+    );
+    const lifecycle = all.slice(7);
     expect(lifecycle.map(({ command, args }) => [command, ...args.slice(0, 2)])).toEqual([
       ['xcrun', 'notarytool', 'submit'],
       ['xcrun', 'stapler', 'staple'],
@@ -222,6 +254,16 @@ describe('Mac release build script', () => {
     expect(lifecycle[0]!.args[2]).toMatch(/\.zip$/);
     expect(lifecycle[4]!.args[2]).toMatch(/MindRoom\.dmg$/);
     expect(readFileSync(join(root, 'build/macos/MindRoom.dmg'), 'utf8')).toBe('fixture dmg');
+  });
+
+  it.each([
+    ['another team', { TEST_TEAM: 'OTHER' }],
+    ['no hardened runtime', { TEST_FLAGS: '0x0(none)' }],
+    ['an export that does not verify', { TEST_FAIL: 'codesign:--verify' }],
+  ])('asks Apple nothing for an export with %s', (_name, env) => {
+    const result = fixture().run(['--sign'], env);
+    expect(result.status).not.toBe(0);
+    expect(result.commands.some(({ command }) => command === 'xcrun')).toBe(false);
   });
 
   it('does not produce a DMG if app notarization fails', () => {

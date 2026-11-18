@@ -92,3 +92,22 @@ describe('the Mac updater in the Xcode project', () => {
     );
   });
 });
+
+describe('the Mac workflow and the update feed', () => {
+  const workflow = read('.github/workflows/macos.yml');
+
+  it('hands the private key to the appcast step alone, and puts the DMG up last', () => {
+    // The private key is named in the check that it exists and in one step's environment.
+    expect(workflow.match(/secrets\.SPARKLE_ED_PRIVATE_KEY/g)).toHaveLength(2);
+    expect(workflow).toContain("HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}");
+    expect(workflow).toContain('| env -u SPARKLE_ED_PRIVATE_KEY scripts/macos-appcast.sh ');
+    // The DMG goes up last: a release that has it has the appcast.xml that signs it.
+    const upload = workflow.slice(
+      workflow.indexOf('- name: Attach the appcast and the DMG to the release\n')
+    );
+    expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeGreaterThan(-1);
+    expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(
+      upload.indexOf('build/macos/MindRoom.dmg')
+    );
+  });
+});

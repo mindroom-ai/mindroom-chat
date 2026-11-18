@@ -29,7 +29,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const command = path.basename(process.argv[1]);
 const args = process.argv.slice(2);
-fs.appendFileSync(process.env.TEST_LOG, JSON.stringify({ command, args }) + '\\n');
+const record = { command, args };
+if (command === 'generate_appcast') {
+  record.stdin = fs.readFileSync(0, 'utf8');
+  fs.writeFileSync(args[args.indexOf('-o') + 1], process.env.TEST_FEED);
+}
+fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(record) + '\\n');
 if (command === 'curl') fs.writeFileSync(args[args.indexOf('-o') + 1], 'garbage');
 if (command === 'shasum') console.log('0000  file');
 `;
@@ -39,11 +44,23 @@ if (command === 'shasum') console.log('0000  file');
   const log = join(root, 'commands.jsonl');
   return {
     root,
-    run: (script: string, env: Record<string, string> = {}) => {
+    run: (script: string, env: Record<string, string> = {}, args: string[] = [], input = '') => {
       mkdirSync(dirname(join(root, script)), { recursive: true });
       copyFileSync(resolve(script), join(root, script));
-      const result = spawnSync('bash', [join(root, script)], {
+      // Other scripts find Sparkle fetched: its download and its tool are stubs too.
+      if (script !== 'scripts/fetch-sparkle.sh') {
+        const tools = join(root, 'ios/MacUpdater/Sparkle/bin');
+        mkdirSync(tools, { recursive: true });
+        writeFileSync(join(tools, 'generate_appcast'), stub, { mode: 0o755 });
+        writeFileSync(
+          join(root, 'scripts/fetch-sparkle.sh'),
+          stub.replace('path.basename(process.argv[1])', "'fetch-sparkle.sh'"),
+          { mode: 0o755 }
+        );
+      }
+      const result = spawnSync('bash', [join(root, script), ...args], {
         cwd: root,
+        input,
         env: {
           ...process.env,
           PATH: `${join(root, 'bin')}:${process.env.PATH}`,
@@ -138,5 +155,66 @@ describe('scripts/macos-updater-info-plist.sh', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('warning: MINDROOM_UPDATE_PUBLIC_KEY');
     expect(result.commands).toEqual([]);
+  });
+});
+
+describe('scripts/macos-appcast.sh', () => {
+  const args = [
+    'MindRoom.dmg',
+    'https://example.invalid/v2026.11.10/',
+    '2026.11.10',
+    'appcast.xml',
+  ];
+  const item = ({
+    version = '2026.11.10',
+    url = 'https://example.invalid/v2026.11.10/MindRoom.dmg',
+    length = 3,
+    signature = 's1g=',
+  } = {}) =>
+    `<item><title>${version}</title><sparkle:version>${version}</sparkle:version><enclosure url="${url}" length="${length}" type="application/octet-stream" sparkle:edSignature="${signature}"/></item>`;
+  // What generate_appcast writes: RSS with Sparkle's namespace.
+  const feed = (...items: string[]) =>
+    `<?xml version="1.0" standalone="yes"?>\n<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><title>MindRoom</title>${items.join(
+      ''
+    )}</channel></rss>\n`;
+  const withDmg = () => {
+    const github = fixture();
+    writeFileSync(join(github.root, 'MindRoom.dmg'), 'dmg');
+    return github;
+  };
+
+  it('makes the feed in a fresh folder, with the key from standard input only', () => {
+    const { root, run } = withDmg();
+    writeFileSync(join(root, 'appcast.xml'), 'stale');
+    const result = run('scripts/macos-appcast.sh', { TEST_FEED: feed(item()) }, args, 'KEY');
+    expect(result.status, result.stderr).toBe(0);
+    const tool = result.commands.find(({ command }) => command === 'generate_appcast')!;
+    expect(tool.args.slice(0, 4)).toEqual(['--ed-key-file', '-', '--download-url-prefix', args[1]]);
+    expect(tool.args[tool.args.indexOf('-o') + 1]).not.toBe(join(root, 'appcast.xml'));
+    expect(tool.stdin).toBe('KEY');
+    expect(result.stdout + result.stderr).not.toContain('KEY');
+    expect(readFileSync(join(root, 'appcast.xml'), 'utf8')).toBe(feed(item()));
+  });
+
+  it.each([
+    ['no signature (no SUPublicEDKey, or another key)', feed(item({ signature: '' }))],
+    ['another version', feed(item({ version: '2026.11.9' }))],
+    ['another URL', feed(item({ url: 'https://example.invalid/v2026.11.9/MindRoom.dmg' }))],
+    ['another length', feed(item({ length: 4 }))],
+    ['a second item', feed(item(), item({ version: '2026.11.9' }))],
+    ['no item', feed()],
+    ['no XML', 'Warning: could not sign'],
+  ])('refuses %s and leaves no appcast', (_name, text) => {
+    const { root, run } = withDmg();
+    const result = run('scripts/macos-appcast.sh', { TEST_FEED: text }, args, 'KEY');
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('appcast');
+    expect(existsSync(join(root, 'appcast.xml'))).toBe(false);
+  });
+
+  it('refuses to run without a key', () => {
+    const result = withDmg().run('scripts/macos-appcast.sh', {}, args, '');
+    expect(result.status).not.toBe(0);
+    expect(result.commands.some(({ command }) => command === 'generate_appcast')).toBe(false);
   });
 });

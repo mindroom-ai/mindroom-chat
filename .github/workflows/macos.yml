@@ -33,6 +33,10 @@ on:
       - scripts/build-macos-store.sh
       - scripts/macos-store-preflight.mjs
       - scripts/test-macos-support.sh
+      - scripts/fetch-sparkle.sh
+      - scripts/macos-appcast.sh
+      - scripts/macos-publish-appcast.sh
+      - scripts/macos-updater-info-plist.sh
       - .github/workflows/macos.yml
 
 permissions:
@@ -54,6 +58,15 @@ jobs:
       # Empty for a pull request: an unsigned build.
       RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
     steps:
+      - name: Check the update key
+        if: env.RELEASE_TAG
+        env:
+          HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
+        run: |
+          if [[ $HAS_SPARKLE_KEY != true ]]; then
+            echo '::error::The secret SPARKLE_ED_PRIVATE_KEY is missing: a release must not ship without its update feed'
+            exit 1
+          fi
       - name: Check the release
         if: env.RELEASE_TAG
         id: release
@@ -146,11 +159,26 @@ jobs:
           MINDROOM_RELEASE_VERSION: ${{ env.RELEASE_TAG }}
           NODE_OPTIONS: --max-old-space-size=6144
         run: scripts/build-macos-app.sh --sign
-      - name: Attach the DMG to the release
+      - name: Make the appcast
+        if: env.RELEASE_TAG
+        env:
+          # This step alone gets the key, and the script reads it from standard input only.
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | env -u SPARKLE_ED_PRIVATE_KEY scripts/macos-appcast.sh build/macos/MindRoom.dmg \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/" "$VERSION" build/macos/appcast.xml
+      - name: Attach the appcast and the DMG to the release
         if: env.RELEASE_TAG
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
+        # The DMG, never replaced, goes last: a release that has it has the appcast.xml that signs
+        # it. --clobber replaces an appcast.xml a failed earlier run left.
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" build/macos/appcast.xml --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
       - name: Check that the release is the newest
         if: env.RELEASE_TAG
         id: newest
