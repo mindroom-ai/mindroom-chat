@@ -71,6 +71,7 @@ vi.mock('../../plugins/registry', () => ({
       messageRenderers: [],
       pages: [],
       roomHeaderSlot: [],
+      threadHeaderSlot: [],
       sidePanels: [],
       headerActions: [],
       slashCommands: [],

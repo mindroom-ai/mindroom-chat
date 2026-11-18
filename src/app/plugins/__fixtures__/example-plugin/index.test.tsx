@@ -939,6 +939,23 @@ describe('example plugin', () => {
     ]);
   });
 
+  it('draws a button in the banner of a thread a greeting begins, and of no other thread', async () => {
+    const [Button] = plugin.threadHeaderSlot ?? [];
+    if (!Button) throw new Error('the example plugin has no thread header control');
+    const room = greetingRoom();
+    const greeted = await renderPluginComponent(<Button room={room} threadId="$greeting" />, {
+      id: 'example',
+      plugin,
+    });
+    expect(greeted.getByRole('button', { name: 'Greeting: Hello' })).toBeTruthy();
+    greeted.unmount();
+    const plain = await renderPluginComponent(<Button room={room} threadId="$plain" />, {
+      id: 'example',
+      plugin,
+    });
+    expect(plain.container.querySelector('[data-example-plugin-thread-button]')).toBeNull();
+  });
+
   it('gives the details of a thread a greeting begins, and of no other thread', async () => {
     const [details] = plugin.threadDetails ?? [];
     if (!details) throw new Error('the example plugin has no thread details');

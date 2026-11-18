@@ -24,6 +24,7 @@ const plugin = (id: string, slashCommands: PluginSlashCommand[]): RegisteredPlug
   messageRenderers: [],
   pages: [],
   roomHeaderSlot: [],
+  threadHeaderSlot: [],
   sidePanels: [],
   headerActions: [],
   slashCommands,
