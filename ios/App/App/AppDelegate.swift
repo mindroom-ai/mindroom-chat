@@ -9,6 +9,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         MacScreenshot.clearFolder()
         MacWindowing.installHotKey { QuickCapture.toggle() }
         MacWindowing.followFrontProcess()
+        MacWindowing.monitorMouseButtons(QuickCapture.walkHistory)
         // The Dock, or a launch that restores only the widget, brings back a main window, once the
         // scenes UIKit restores have connected.
         NotificationCenter.default.addObserver(

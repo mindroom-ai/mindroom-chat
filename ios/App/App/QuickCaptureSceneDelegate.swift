@@ -320,5 +320,16 @@ enum QuickCapture {
             NSLog("[QuickCapture] the main window did not open: %@", error.localizedDescription)
         }
     }
+
+    /// The mouse's Back (button 3) and Forward (4) buttons over the main window walk its page's
+    /// history on release, as in Chrome; the press does nothing. The page never sees these
+    /// buttons: on the Mac, WebKit passes a web view only the primary and secondary ones.
+    static func walkHistory(in window: NSObject?, button: Int, released: Bool) -> Bool {
+        guard button == 3 || button == 4, let window, let main = mainScene?.windows.first,
+              MacWindowing.hostWindow(of: main) === window,
+              let webView = (main.rootViewController as? MindRoomBridgeViewController)?.webView else { return false }
+        if released { _ = button == 3 ? webView.goBack() : webView.goForward() }
+        return true
+    }
 #endif
 }

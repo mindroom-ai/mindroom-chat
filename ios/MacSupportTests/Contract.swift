@@ -80,6 +80,17 @@ struct Contract {
         require(window.contentView?.superview?.subviews.filter { $0 is NSVisualEffectView }.count == 1, "restyling must not duplicate the material")
         support.hideWidget(window)
         require(!window.isVisible, "hiding a widget leaves no visible window")
-        print("PASS: native bundle loading, title isolation, point conversion, floating chrome and hidden-window behavior")
+        var buttons: [String] = []
+        support.monitorMouseButtons { _, button, released in
+            buttons.append("\(button) \(released ? "up" : "down")")
+            return button == 3
+        }
+        for (type, button) in [(CGEventType.otherMouseDown, 3), (.otherMouseUp, 3), (.otherMouseUp, 2)] {
+            let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: .zero,
+                                mouseButton: CGMouseButton(rawValue: UInt32(button))!).flatMap(NSEvent.init(cgEvent:))
+            app.sendEvent(event!)
+        }
+        require(buttons == ["3 down", "3 up", "2 up"], "report each extra mouse button's number and release: \(buttons)")
+        print("PASS: native bundle loading, mouse buttons, title isolation, point conversion, floating chrome and hidden-window behavior")
     }
 }
