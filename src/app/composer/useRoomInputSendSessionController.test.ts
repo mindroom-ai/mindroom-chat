@@ -1,6 +1,6 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
-import { EventStatus, MatrixError } from 'matrix-js-sdk';
+import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
@@ -110,6 +110,14 @@ const prepErrorUpload = (file: File): Upload & { error: MatrixError } => ({
   error: toMatrixUploadError(new Error(`failed to prepare ${file.name}`), 'create'),
 });
 
+type BuildUploadMessageContent = (fileItem: TUploadItem, mxc: string) => Promise<IContent>;
+
+const buildFileContent: BuildUploadMessageContent = async (fileItem, mxc) => ({
+  msgtype: 'm.file',
+  body: fileItem.file.name,
+  url: mxc,
+});
+
 const TestHarness = ({
   onReady,
   onRoomMessageSent,
@@ -122,6 +130,7 @@ const TestHarness = ({
   threadId,
   forkFrom,
   roomId = '!room:example.org',
+  buildUploadMessageContent = buildFileContent,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -140,6 +149,7 @@ const TestHarness = ({
   threadId?: string;
   forkFrom?: ThreadForkRef;
   roomId?: string;
+  buildUploadMessageContent?: BuildUploadMessageContent;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -211,11 +221,7 @@ const TestHarness = ({
     sendTypingStatus,
     attachments,
     mountedRef,
-    buildUploadMessageContent: async (fileItem, mxc) => ({
-      msgtype: 'm.file',
-      body: fileItem.file.name,
-      url: mxc,
-    }),
+    buildUploadMessageContent,
     restoreComposerFallbackForRoom,
     onRoomMessageSent,
   });
@@ -240,6 +246,7 @@ const renderHarness = (
     forkFrom?: ThreadForkRef;
     onRoomMessageSent?: (eventId: string) => boolean | void;
     replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
+    buildUploadMessageContent?: BuildUploadMessageContent;
   } = {}
 ) => {
   let sentEvents = 0;
@@ -278,6 +285,7 @@ const renderHarness = (
     restoreComposerFallbackForRoom,
     onRoomMessageSent: options.onRoomMessageSent,
     forkFrom: options.forkFrom,
+    buildUploadMessageContent: options.buildUploadMessageContent,
     onReady: (nextApi: HarnessApi) => {
       api = nextApi;
     },
@@ -2172,6 +2180,47 @@ describe('useRoomInputSendSessionController submission markers', () => {
     });
     expect(sentBodies(mx)).toEqual(['first.png', 'second.png', 'Caption']);
     expect([markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('holds a built file back while another file it waits for uploads again', async () => {
+    const photoBuild = createDeferred<IContent>();
+    const { api, mx } = renderHarness({
+      buildUploadMessageContent: (fileItem, mxc) =>
+        fileItem.file.name === 'photo.png' ? photoBuild.promise : buildFileContent(fileItem, mxc),
+    });
+    const photo = createFile('photo.png');
+    const clip = createFile('clip.mp4');
+    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+    api.uploadsRef.current = [successUpload(photo), prepErrorUpload(clip)];
+
+    let sending!: Promise<void>;
+    act(() => {
+      sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
+    });
+    // The video's upload is retried while the photo's content builds.
+    api.uploadsRef.current = [successUpload(photo), loadingUpload(clip)];
+    await act(async () => {
+      photoBuild.resolve({
+        msgtype: 'm.image',
+        body: 'photo.png',
+        url: 'mxc://mindroom/photo.png',
+      });
+      await sending;
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4', 'Look']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
       { id, more: true },
       { id, more: false },
     ]);

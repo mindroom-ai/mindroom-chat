@@ -43,6 +43,7 @@ import {
   getUploadRelationForSendSession,
   hasRoomInputSendFailures,
   isRoomInputSendSessionStalled,
+  isRoomInputSendSessionUploading,
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
 } from './roomInputSendSession';
@@ -571,6 +572,9 @@ export const useRoomInputSendSessionController = ({
       }
 
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
+      // An upload retried while this file built holds it back, as resolveRoomInputSendStep does:
+      // the file stays unsent, and the session builds it again once nothing uploads.
+      if (isRoomInputSendSessionUploading(session, ...getSessionUploads(session))) return;
       const {
         content: contentWithRelation,
         relation,

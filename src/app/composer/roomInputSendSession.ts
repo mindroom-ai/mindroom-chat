@@ -135,6 +135,22 @@ const getPendingFiles = (
   );
 };
 
+/**
+ * Whether a file of the session still to go is uploading: MindRoom holds a submission for only a
+ * few seconds after its last event, so a photo sent at once would be answered alone while a long
+ * video uploads. An upload not started (its card is on a closed board) does not count.
+ */
+export const isRoomInputSendSessionUploading = (
+  session: RoomInputSendSessionState,
+  uploads: Upload[],
+  activeFiles: TUploadContent[]
+): boolean => {
+  const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
+  return getPendingFiles(session, activeFiles).some(
+    (file) => uploadMap.get(file)?.status === UploadStatus.Loading
+  );
+};
+
 const isUploadSuccess = (
   upload: Upload | undefined
 ): upload is Extract<Upload, { status: UploadStatus.Success }> =>
@@ -153,11 +169,8 @@ export const resolveRoomInputSendStep = (
   const pendingFiles = getPendingFiles(session, activeFiles);
   const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
 
-  // No file goes out, the root included, while another one still uploads: MindRoom holds a
-  // submission for only a few seconds after its last event, so a photo sent at once would be
-  // answered alone while a long video uploads. An upload not started (its card is on a closed
-  // board) does not hold the others back.
-  if (pendingFiles.some((file) => uploadMap.get(file)?.status === UploadStatus.Loading)) {
+  // No file goes out, the root included, while another one still uploads.
+  if (isRoomInputSendSessionUploading(session, uploads, activeFiles)) {
     return { kind: 'wait' };
   }
 
