@@ -246,13 +246,15 @@ const namesUser = (content: Record<string, unknown>, userId: string): boolean =>
 /**
  * Reads one thread's newest messages (`SIGNAL_EVENT_LIMIT`) for what it has for `userId`, each as
  * its newest edit shows it. Only MindRoom agents of the person's own homeserver can ask, need
- * approval or run. The root is never a reply.
+ * approval or run. The root is never a reply. Resolving a thread at `resolvedTs` answers what it
+ * asked until then: only an approval or a question that comes after waits for the person.
  */
 export const readThreadSignals = (
   room: Room,
   rootId: string,
   userId: string,
-  now = Date.now()
+  now = Date.now(),
+  resolvedTs?: number
 ): ThreadSignals => {
   const { thread, all, root, replies } = threadEvents(room, rootId);
   const isAgent = (senderId: string | undefined) =>
@@ -288,6 +290,8 @@ export const readThreadSignals = (
       : event.getSender() !== userId;
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
+  const answeredByResolve = (askedTs: number | undefined) =>
+    resolvedTs !== undefined && (askedTs ?? 0) <= resolvedTs;
 
   // MindRoom answers a card by editing it, which a thread not opened holds back: the edits the
   // sync brought count too.
@@ -308,6 +312,7 @@ export const readThreadSignals = (
       (record) =>
         isAgent(record.sender) &&
         isPendingApproval(record, now) &&
+        !answeredByResolve(all.find((event) => event.getId() === record.eventId)?.getTs()) &&
         canSubmitApprovalDecision(record, userId, undefined, now)
     )
     .at(-1);
@@ -330,6 +335,7 @@ export const readThreadSignals = (
       wroteSince ||
       askedSomeoneElse ||
       now - askedAt >= QUESTION_WAITS_MS ||
+      answeredByResolve(askedAt) ||
       // One answer per question: anyone's answer closes it, as the question card shows.
       readRoomQuestionAnswer(room, pendingQuestion.eventId, pendingQuestion, userId)
     ) {

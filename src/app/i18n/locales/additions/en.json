@@ -409,7 +409,7 @@
         "thirdPartyNotices": "Third-party notices",
         "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
         "debugMode": "Debug mode",
-        "debugModeDescription": "Records diagnostics on this device so you can export them and turn on deep diagnostic tracing."
+        "debugModeDescription": "Adds “Attach app logs” to the composer's + menu, so you can send this device's diagnostics in a message. Turn on deep tracing below to include memory figures and a detailed trace."
       }
     },
     "createChat": {
@@ -777,6 +777,15 @@
           "saved": "Saved",
           "declined": "Declined",
           "expired": "Expired"
+        },
+        "line": {
+          "sentKept": "Sent · kept {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Nothing was sent or kept.",
+          "noAnswer": "No answer in time, so nothing was sent.",
+          "askedAs": "Asked for {{agent}}'s commands in this conversation as {{variable}}.",
+          "replaced": "Replaced the key saved before."
         }
       },
       "skillReviewMarker": {
@@ -927,6 +936,8 @@
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",
+    "attachMenu": "Attach",
+    "attachAppLogs": "Attach app logs",
     "lostFiles": "Not kept with this draft: {{files}}. Attach them again before sending.",
     "lostPastes": "Pasted text was not kept with this draft. Paste it again before sending.",
     "dismissLostFiles": "Dismiss",

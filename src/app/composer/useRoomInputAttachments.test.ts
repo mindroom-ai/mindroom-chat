@@ -20,6 +20,8 @@ import { createRoomInputPasteMarkerElement } from './RoomInputExtensions';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 
+const diagnostics = vi.hoisted(() => ({ buildDiagnosticsExport: vi.fn() }));
+vi.mock('../diagnostics/diagnosticsExport', () => diagnostics);
 vi.mock('./commands/CommandAutocomplete', () => ({
   AgentCommandAutocomplete: () => null,
 }));
@@ -87,15 +89,15 @@ const renderHarness = (
   } as Room;
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   let saveDraft!: () => void;
-  const Harness = ({ threadId }: { threadId?: string }) => {
-    saveDraft = useRoomInputDraft(editor, '@tester:example.org', ROOM_ID, threadId);
+  const Harness = ({ threadId, roomId = ROOM_ID }: { threadId?: string; roomId?: string }) => {
+    saveDraft = useRoomInputDraft(editor, '@tester:example.org', roomId, threadId);
     feature = useRoomInputAttachments({
       mx: mx as never,
       userId: '@tester:example.org',
       room,
-      roomId: ROOM_ID,
+      roomId,
       draftKey: threadId
-        ? getRoomInputDraftKey('@tester:example.org', ROOM_ID, threadId)
+        ? getRoomInputDraftKey('@tester:example.org', roomId, threadId)
         : undefined,
       editor,
       isMarkdown: true,
@@ -121,6 +123,13 @@ const renderHarness = (
       act(() =>
         renderer.update(
           React.createElement(Provider, { store }, React.createElement(Harness, { threadId }))
+        )
+      );
+    },
+    changeRoom: (roomId: string) => {
+      act(() =>
+        renderer.update(
+          React.createElement(Provider, { store }, React.createElement(Harness, { roomId }))
         )
       );
     },
@@ -264,6 +273,135 @@ describe('attachment staging ownership', () => {
       harness.onEditorChange();
     });
     expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+  });
+
+  it('attaches app logs as a JSON file, staged like a picked one', async () => {
+    diagnostics.buildDiagnosticsExport.mockResolvedValue({
+      fileName: 'mindroom-diagnostics-2026-11-17T10-00-00-000Z.json',
+      blob: new Blob(['{"metadata":{}}'], { type: 'application/json' }),
+    });
+    const prepare = vi.fn(async (files: File[]) =>
+      files.map((file) => ({
+        file,
+        originalFile: file,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false },
+      }))
+    );
+    const harness = renderHarness(prepare);
+
+    await act(async () => {
+      harness.feature.attachAppLogs();
+      await vi.waitFor(() => expect(harness.feature.access.snapshot().staged).toHaveLength(1));
+    });
+
+    const [file] = prepare.mock.calls[0]![0];
+    expect(file).toBeInstanceOf(File);
+    expect(file!.name).toMatch(/^mindroom-diagnostics-.*\.json$/);
+    expect(file!.type).toBe('application/json');
+    await expect(file!.text()).resolves.toBe('{"metadata":{}}');
+    expect(harness.feature.access.snapshot().staged[0]!.file).toBe(file);
+  });
+
+  it('drops app logs whose file is still being prepared as the composer moves to another thread', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    diagnostics.buildDiagnosticsExport.mockResolvedValue({
+      fileName: 'mindroom-diagnostics-x.json',
+      blob: new Blob(['{}']),
+    });
+    let finishPreparing!: () => void;
+    const prepare = vi.fn(
+      (files: File[]) =>
+        new Promise<TUploadItem[]>((resolve) => {
+          finishPreparing = () =>
+            resolve(
+              files.map((file) => ({
+                file,
+                originalFile: file,
+                encInfo: undefined,
+                metadata: { markedAsSpoiler: false },
+              }))
+            );
+        })
+    );
+    const harness = renderHarness(prepare);
+    harness.changeThread('$asked');
+
+    act(() => harness.feature.attachAppLogs());
+    await act(async () => {
+      await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce());
+    });
+    harness.changeThread('$other');
+    await act(async () => {
+      finishPreparing();
+      await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    });
+
+    expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+    warn.mockRestore();
+  });
+
+  it('attaches app logs only in the room they were asked for in, never in another', async () => {
+    let finishExport!: (built: { fileName: string; blob: Blob }) => void;
+    diagnostics.buildDiagnosticsExport.mockReturnValue(
+      new Promise((resolve) => {
+        finishExport = resolve;
+      })
+    );
+    let finishPreparing!: () => void;
+    const prepare = vi.fn(
+      (files: File[]) =>
+        new Promise<TUploadItem[]>((resolve) => {
+          finishPreparing = () =>
+            resolve(
+              files.map((file) => ({
+                file,
+                originalFile: file,
+                encInfo: undefined,
+                metadata: { markedAsSpoiler: false },
+              }))
+            );
+        })
+    );
+    const harness = renderHarness(prepare);
+    const OTHER_ROOM = '!other:example.org';
+
+    // Asked in A, the composer moves to B while the export runs, then back to A while the file
+    // is prepared.
+    act(() => harness.feature.attachAppLogs());
+    harness.changeRoom(OTHER_ROOM);
+    await act(async () => {
+      finishExport({ fileName: 'mindroom-diagnostics-x.json', blob: new Blob(['{}']) });
+      await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce());
+    });
+    harness.changeRoom(ROOM_ID);
+    await act(async () => {
+      finishPreparing();
+      await vi.waitFor(() =>
+        expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(1)
+      );
+    });
+
+    expect(harness.feature.access.snapshot(OTHER_ROOM).staged).toHaveLength(0);
+    expect(harness.feature.access.snapshot(ROOM_ID).staged[0]!.file.name).toBe(
+      'mindroom-diagnostics-x.json'
+    );
+  });
+
+  it('stages nothing when the app logs cannot be built', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    diagnostics.buildDiagnosticsExport.mockRejectedValue(new Error('storage gone'));
+    const prepare = vi.fn(async () => []);
+    const harness = renderHarness(prepare);
+
+    await act(async () => {
+      harness.feature.attachAppLogs();
+      await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    });
+
+    expect(prepare).not.toHaveBeenCalled();
+    expect(harness.feature.access.snapshot().staged).toHaveLength(0);
+    warn.mockRestore();
   });
 
   it('defers change listeners until publication completes and honors unsubscribe', async () => {

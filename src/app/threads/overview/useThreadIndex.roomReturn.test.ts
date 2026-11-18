@@ -224,6 +224,21 @@ describe('the Compact list back under its room page', () => {
     back.unmount();
   });
 
+  it("counts once when the page's first list starts the room's listener, not when a list comes back", () => {
+    const keeper = createThreadRecordKeeper(room);
+    // The start: every record is built again, for what the room heard before the listener.
+    const first = mountList(keeper);
+    expect(first.records().get('$a')).not.toBe(first.firstBuild.get('$a'));
+    first.unmount();
+
+    // The listener heard the room all along: the list that comes back builds once.
+    const back = mountList(keeper);
+    expect(back.records()).toBe(back.firstBuild);
+    expect(back.firstBuild.get('$a')).toBe(first.records().get('$a'));
+    back.unmount();
+    disposeThreadRecordKeeper(keeper);
+  });
+
   it('builds again the record of a thread the SDK changed while the list was gone', () => {
     const keeper = createThreadRecordKeeper(room);
     const shown = shownList(keeper);

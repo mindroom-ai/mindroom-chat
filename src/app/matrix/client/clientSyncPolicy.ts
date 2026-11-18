@@ -13,6 +13,7 @@ import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { keepStreamingRepliesChecked } from './streamingReplies';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepSyncedEdits } from './syncedEdits';
+import { emptySupersededJobsState } from './supersededJobsState';
 import { keepUnsentMessages } from './unsentMessages';
 import { recordRecentLiveEvents } from './recentLiveEvents';
 
@@ -100,6 +101,7 @@ export const startClient = async (
     keepRedactionsInSavedSync(mx);
     dropRoomsForgottenElsewhere(mx);
     keepSyncedEdits(mx);
+    emptySupersededJobsState(mx);
     keepUnthreadedReceiptEvents(mx);
     keepEncryptedRoomCounts(mx);
     keepUnsentMessages(mx);

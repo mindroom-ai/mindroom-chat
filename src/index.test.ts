@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   readSnapshot: vi.fn(),
   waitForServiceWorkerControl: vi.fn(),
   forgetAvatars: vi.fn(),
+  startMemorySampler: vi.fn(),
 }));
 
 vi.mock('react-dom/client', () => ({
@@ -41,6 +42,10 @@ vi.mock('./app/diagnostics/flightRecorder', () => ({
 vi.mock('./app/diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
   recordDeepTraceEvent: mocks.recordDeepTraceEvent,
+}));
+
+vi.mock('./app/diagnostics/memorySampler', () => ({
+  startMemorySampler: mocks.startMemorySampler,
 }));
 
 vi.mock('./app/account/lifecycle/indexedDbLossRecovery', () => ({
@@ -165,6 +170,7 @@ describe('application bootstrap', () => {
 
     expect(mocks.installFlightRecorder).toHaveBeenCalledTimes(installs);
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledTimes(installs);
+    expect(mocks.startMemorySampler).toHaveBeenCalledTimes(installs);
     expect(mocks.createRoot).toHaveBeenCalledOnce();
   });
 
@@ -202,6 +208,7 @@ describe('application bootstrap', () => {
 
     expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
     expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+    expect(mocks.startMemorySampler).not.toHaveBeenCalled();
     expect(mocks.createRoot).toHaveBeenCalledOnce();
   });
 

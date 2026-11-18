@@ -35,7 +35,7 @@ const groupOf = (
   scope: ThreadsScope,
   now: number
 ): ThreadGroupId | undefined => {
-  if (isWaitingOnYou(signals, entry.threadRecord.status)) return 'needsYou';
+  if (isWaitingOnYou(signals, entry)) return 'needsYou';
   if (signals.automation && !entry.isInvolved) return scope === 'all' ? 'automations' : undefined;
   if (signals.newCount > 0 || signals.mentionedMe) return 'unread';
   const bucket = classifyThreadWorkflow(

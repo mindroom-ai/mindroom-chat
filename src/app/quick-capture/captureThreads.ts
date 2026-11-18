@@ -202,7 +202,7 @@ export const readCaptureThreads = (
         reply: () => readReply(mx, room, entry, signals, t),
         pinned: isThreadPinned(room, entry.threadRootId),
         streaming: entry.threadRecord.status.isStreaming,
-        needsYou: isWaitingOnYou(signals, entry.threadRecord.status),
+        needsYou: isWaitingOnYou(signals, entry),
         unread: entry.isUnread,
         resolved: entry.isResolved,
         ...(entry.resolvedTs === undefined ? {} : { resolvedTs: entry.resolvedTs }),

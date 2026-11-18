@@ -414,7 +414,7 @@
         "thirdPartyNotices": "Avisos de terceros",
         "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación.",
         "debugMode": "Modo de depuración",
-        "debugModeDescription": "Registra diagnósticos en este dispositivo para que puedas exportarlos y activar el seguimiento de diagnóstico detallado."
+        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada."
       }
     },
     "createChat": {
@@ -786,6 +786,15 @@
           "saved": "Guardada",
           "declined": "Rechazada",
           "expired": "Caducada"
+        },
+        "line": {
+          "sentKept": "Enviado · se conserva {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "No se envió ni se conservó nada.",
+          "noAnswer": "No hubo respuesta a tiempo, así que no se envió nada.",
+          "askedAs": "Se pidió para los comandos de {{agent}} en esta conversación como {{variable}}.",
+          "replaced": "Reemplazó la clave guardada antes."
         }
       },
       "skillReviewMarker": {
@@ -944,6 +953,8 @@
     "emoji": "Emoji",
     "cancelReply": "Cancelar respuesta",
     "moreActions": "Más acciones",
+    "attachMenu": "Adjuntar",
+    "attachAppLogs": "Adjuntar registros de la app",
     "lostFiles": "No se conservaron con este borrador: {{files}}. Vuelve a adjuntarlos antes de enviar.",
     "lostPastes": "El texto pegado no se conservó con este borrador. Vuelve a pegarlo antes de enviar.",
     "dismissLostFiles": "Descartar",

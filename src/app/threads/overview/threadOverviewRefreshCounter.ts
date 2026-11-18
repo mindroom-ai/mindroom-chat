@@ -26,6 +26,7 @@ import {
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
+import { onSeenThreadRootsChange } from '../../matrix/seenThreadRoots';
 import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
 import {
   threadRecordKeeperOf,
@@ -181,6 +182,14 @@ const listenForThreadRecordChanges = (
     if (held) markEvent(held);
     else mark(messageId);
   });
+  // A root this device takes for read, or forgets, sends no receipt and so no event. While no
+  // list shows, each record reads it of its own root when the list comes back (`rootSeen`): only
+  // the count of marks moves, for a build made before it.
+  const stopSeenRoots = onSeenThreadRootsChange((roomId) => {
+    if (roomId !== room.roomId) return;
+    if (target.count) mark();
+    else changes.count += 1;
+  });
   // The room's thread list reads the room's threads again with this count (`useRoomThreadList`).
   const handleThread = (thread: Thread | undefined) => {
     changes.threadList += 1;
@@ -230,6 +239,7 @@ const listenForThreadRecordChanges = (
     clearTimeout(decryptedBump);
     changes.listened = false;
     stopForgotten();
+    stopSeenRoots();
     room.removeListener(ThreadEvent.New, handleThread);
     room.removeListener(ThreadEvent.Update, handleThread);
     room.removeListener(ThreadEvent.NewReply, handleThread);
@@ -239,14 +249,11 @@ const listenForThreadRecordChanges = (
 
 /**
  * A list of the keeper's room shows: the room's listener counts for it from now on, and starts
- * when none listens (the page's first list, or one after a list that left nothing to keep), with
- * a mark of the whole room for what happened before.
+ * when none listens (the page's first list, or one after a list that left nothing to keep).
  */
 const attachThreadRecordList = (keeper: ThreadRecordKeeper, count: () => void): void => {
   keeper.count = count;
-  if (keeper.stop) return;
-  markThreadRecordChange(keeper.changes);
-  keeper.stop = listenForThreadRecordChanges(keeper.room, keeper.changes, keeper);
+  keeper.stop ??= listenForThreadRecordChanges(keeper.room, keeper.changes, keeper);
 };
 
 /** The list goes: the listener only marks while the keeper has records, and stops without. */
@@ -268,8 +275,10 @@ const detachThreadRecordList = (keeper: ThreadRecordKeeper): void => {
  * event, a local echo's progress, a redaction, a timeline that starts over, every read receipt of
  * the room, every thread that is created, updated, deleted or gets a new reply (a reply that stops
  * streaming by the clock, or that the streaming checks forget, comes as such an update:
- * streamingReplies.ts), a member's new name or membership, the room's encryption, and a message
- * whose kept edits a full store drops (`onSyncedEditForgotten`). An event that decrypts later
+ * streamingReplies.ts), a member's new name or membership, the room's encryption, a message
+ * whose kept edits a full store drops (`onSyncedEditForgotten`), and a root of the room this
+ * device takes for read or forgets (`onSeenThreadRootsChange`). It goes up once when the listeners
+ * start, for what the room heard before them. An event that decrypts later
  * counts too, once per batch: until then a card can only show an older reply, and WebKit often
  * decrypts after the cards are drawn (P2-e2ee-F005). Inside a thread nothing listens and the count
  * keeps its value. The listeners change only with the room or the thread: the setter, which
@@ -279,15 +288,19 @@ const detachThreadRecordList = (keeper: ThreadRecordKeeper): void => {
  * count to the next (`ThreadRecordReuse`): the thread of the event, thread update, dropped message
  * or reader's thread receipt, or the whole room (the reader's other receipts, a caller's request,
  * an event whose thread is unknown, the room's own timeline that starts over, a member's change
- * or a member event a timeline takes, which may bring the name a member had before they left, and
- * the room's encryption). Someone else's receipt changes no record. Every mark comes with a
- * count: a mark alone would leave the record as it was until something else counted. While these
- * listeners hear the room, `overviewChanges.listened` says so.
+ * or a member event a timeline takes or loses, which may bring the name a member had before they
+ * left, the room's encryption, a root this device takes for read or forgets, and the start of the
+ * listeners). Someone else's receipt changes no record. Every mark comes with a count: a mark
+ * alone would leave the record as it was until something else counted. While these listeners hear
+ * the room, `overviewChanges.listened` says so.
  *
  * With the room page's `keeper` (`ThreadRecordKeeper`) the marks are the keeper's, and so is the
  * listener: it starts with the first list of the room and goes on while no list shows, marking
  * without a count (`attachThreadRecordList`), until the page lets go of the room. A list that
- * mounts then marks nothing of the room, and its first build keeps every record nothing changed.
+ * mounts then is no start of the listener: it marks nothing of the room and counts nothing, and
+ * its first build keeps every record nothing changed. While no list shows, a root this device
+ * takes for read or forgets marks nothing either: each record reads that of its own root when it
+ * is built (`ThreadRecordReuse`).
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
@@ -316,21 +329,23 @@ export const useThreadOverviewRefreshCounter = (
   useLayoutEffect(() => {
     if (threadId) return undefined;
 
-    // A mark between the build and this commit (a render React let wait, a list that comes back
-    // before it listens) may be of a record the build kept or made, which the marks of a list
-    // that is gone do not tell apart: every record is built again before paint.
-    const missed = overviewChanges.count !== renderedAt;
+    // The room's listener heard the room since the build (the page's keeper, while a thread filled
+    // the page) and marked nothing after it: the build is as the room is.
+    const heard = !!kept?.stop && overviewChanges.count === renderedAt;
     const bump = () => setCounter((count) => count + 1);
     let stop: () => void;
     if (kept) {
       attachThreadRecordList(kept, bump);
       stop = () => detachThreadRecordList(kept);
     } else {
-      // What happened to the room before these listeners heard it.
-      markThreadRecordChange(overviewChanges);
       stop = listenForThreadRecordChanges(room, overviewChanges, { count: bump, maps: undefined });
     }
-    if (missed) {
+    // What happened to the room before these listeners heard it, since the render that built the
+    // records shown. Or a mark between the build and this commit (a render React let wait, a list
+    // that comes back before it listens), which may be of a record the build kept or made: the
+    // marks of a list that is gone do not tell them apart. Every record is built again before
+    // paint.
+    if (!heard) {
       markThreadRecordChange(overviewChanges);
       bump();
     }

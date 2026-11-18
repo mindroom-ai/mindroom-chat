@@ -12,7 +12,9 @@ import { defined } from '../../../test/utils/defined';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const reactionMocks = vi.hoisted(() => ({ toggleReaction: vi.fn(async () => undefined) }));
-vi.mock('../../messages/reactions/reactionToggle', () => ({ toggleReaction: reactionMocks.toggleReaction }));
+vi.mock('../../messages/reactions/reactionToggle', () => ({
+  toggleReaction: reactionMocks.toggleReaction,
+}));
 
 const emptyData = () => ({
   threadRecordMap: new Map(),
@@ -26,6 +28,11 @@ const emptyData = () => ({
   threadSummaryTimeline: {
     hiddenEventIds: new Set<string>(),
     markersByEventId: new Map(),
+  },
+  secretRequestTimeline: {
+    hiddenEventIds: new Set<string>(),
+    byReply: new Map(),
+    waitingReplyIds: new Set<string>(),
   },
 });
 

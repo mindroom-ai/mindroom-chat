@@ -1,137 +1,71 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
-import isHotkey from 'is-hotkey';
-import { Icon, Icons, toRem, type RectCords } from 'folds';
-import { PopOut } from '../ui/directional';
-import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
-import { IconTooltip } from '../ui/IconTooltip';
-import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
-import { useConversationHidden } from '../navigation/conversationView';
+import { Icons, type RectCords } from 'folds';
+import { MenuEntry } from '../ui/MenuEntry';
+import { useDebugMode } from '../diagnostics/useDebugMode';
+import { ComposerMenuButton } from './ComposerMenuButton';
 import * as css from './RoomInput.css';
 
 type ComposerActionsMenuProps = {
   formattingOpen: boolean;
   onAttach(): void;
+  /** Stages this device's diagnostics as a file; offered while debug mode is on. */
+  onAttachAppLogs(): void;
   onToggleFormatting(): void;
   /** Opens the emoji board at the given place, the "More actions" button. */
   onEmoji(anchor: RectCords): void;
 };
 
-const arrowKey = (name: 'arrowdown' | 'arrowup') => (event: KeyboardEvent) => isHotkey(name, event);
-
 /**
  * The phone composer's "More actions" button and its menu: Attach files, Formatting and Emoji,
- * the controls a phone row has no room for. Escape closes the menu and focus returns to the button.
+ * the controls a phone row has no room for, and Attach app logs while debug mode is on.
  */
 export function ComposerActionsMenu({
   formattingOpen,
   onAttach,
+  onAttachAppLogs,
   onToggleFormatting,
   onEmoji,
 }: ComposerActionsMenuProps) {
   const { t } = useTranslation();
-  const [anchor, setAnchor] = useState<RectCords>();
-  // The menu closes as the conversation hides, under a plugin's cover or behind a side panel.
-  const conversationHidden = useConversationHidden();
-  if (conversationHidden && anchor) setAnchor(undefined);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const refocusRef = useRef(false);
-  const label = t('composer.moreActions');
-
-  // Focus goes back once the menu and its focus trap are gone, which a still active trap would undo.
-  useEffect(() => {
-    if (anchor || !refocusRef.current) return;
-    refocusRef.current = false;
-    buttonRef.current?.focus();
-  }, [anchor]);
-
-  const close = () => {
-    setAnchor(undefined);
-    return true;
-  };
-  const choose = (action: () => void) => () => {
-    setAnchor(undefined);
-    action();
-  };
+  const debugMode = useDebugMode();
 
   return (
-    <PopOut
-      anchor={anchor}
-      position="Top"
-      align="Start"
-      offset={8}
-      content={
-        <FocusTrap
-          focusTrapOptions={{
-            initialFocus: false,
-            returnFocusOnDeactivate: false,
-            isKeyForward: arrowKey('arrowdown'),
-            isKeyBackward: arrowKey('arrowup'),
-            // A press on the button closes the menu here too; the shared Menu drops the click
-            // that ends it (ui/glass/menuBehaviour.ts).
-            clickOutsideDeactivates: close,
-            escapeDeactivates: () => {
-              refocusRef.current = true;
-              return close();
-            },
-          }}
-        >
-          <Menu role="menu" aria-label={label} style={{ minWidth: toRem(200) }}>
-            <MenuGroup>
-              <MenuEntry
-                role="menuitem"
-                className={css.ComposerMenuItem}
-                label={t('composer.attach')}
-                icon={Icons.Attachment}
-                onSelect={choose(onAttach)}
-              />
-              <MenuEntry
-                role="menuitemcheckbox"
-                aria-checked={formattingOpen}
-                className={css.ComposerMenuItem}
-                label={t('composer.formatting')}
-                icon={Icons.Text}
-                onSelect={choose(onToggleFormatting)}
-              />
-              <MenuEntry
-                role="menuitem"
-                className={css.ComposerMenuItem}
-                label={t('composer.emoji')}
-                icon={Icons.Smile}
-                onSelect={() => {
-                  const at = buttonRef.current?.getBoundingClientRect() ?? anchor;
-                  setAnchor(undefined);
-                  if (at) onEmoji(at);
-                }}
-              />
-            </MenuGroup>
-          </Menu>
-        </FocusTrap>
-      }
-    >
-      <IconTooltip position="Top" label={label}>
-        {(triggerRef) => (
-          <IconButton
-            ref={(element: HTMLButtonElement | null) => {
-              buttonRef.current = element;
-              triggerRef(element);
-            }}
-            onClick={(event: MouseEvent<HTMLButtonElement>) =>
-              setAnchor(anchor ? undefined : event.currentTarget.getBoundingClientRect())
-            }
-            aria-label={label}
-            aria-haspopup="menu"
-            aria-expanded={anchor !== undefined}
-            variant="SurfaceVariant"
-            radii="300"
-            size="300"
-            className={css.ComposerIconButton}
-          >
-            <Icon src={Icons.PlusCircle} />
-          </IconButton>
-        )}
-      </IconTooltip>
-    </PopOut>
+    <ComposerMenuButton label={t('composer.moreActions')} icon={Icons.PlusCircle}>
+      {({ choose, chooseAt }) => (
+        <>
+          <MenuEntry
+            role="menuitem"
+            className={css.ComposerMenuItem}
+            label={t('composer.attach')}
+            icon={Icons.Attachment}
+            onSelect={choose(onAttach)}
+          />
+          {debugMode && (
+            <MenuEntry
+              role="menuitem"
+              className={css.ComposerMenuItem}
+              label={t('composer.attachAppLogs')}
+              icon={Icons.File}
+              onSelect={choose(onAttachAppLogs)}
+            />
+          )}
+          <MenuEntry
+            role="menuitemcheckbox"
+            aria-checked={formattingOpen}
+            className={css.ComposerMenuItem}
+            label={t('composer.formatting')}
+            icon={Icons.Text}
+            onSelect={choose(onToggleFormatting)}
+          />
+          <MenuEntry
+            role="menuitem"
+            className={css.ComposerMenuItem}
+            label={t('composer.emoji')}
+            icon={Icons.Smile}
+            onSelect={chooseAt(onEmoji)}
+          />
+        </>
+      )}
+    </ComposerMenuButton>
   );
 }

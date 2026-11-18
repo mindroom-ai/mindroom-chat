@@ -116,6 +116,7 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
       runningTools,
       activeSubagents,
       jobs,
+      resolved: entry.isResolved,
       // The agents count their live jobs per room, as the jobs bar reads them, not per thread.
       jobsUnlisted: roomTotal > roomJobs.length,
       cost,

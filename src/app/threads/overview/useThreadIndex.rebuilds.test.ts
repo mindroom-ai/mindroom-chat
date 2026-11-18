@@ -153,21 +153,22 @@ describe('useThreadIndex record builds', () => {
   const renderListeningIndex = () => {
     state.pinnedEvents = [root('$a'), root('$b')];
     const fixed = options();
+    let first: ReadonlyMap<string, unknown> | undefined;
     const hook = renderHook(() => {
       const { overviewRefreshCounter, overviewChanges } = useThreadOverviewRefreshCounter(
         room,
         undefined
       );
-      return useThreadIndex({ ...fixed, overviewRefreshCounter, overviewChanges });
+      const index = useThreadIndex({ ...fixed, overviewRefreshCounter, overviewChanges });
+      first ??= index.compactThreadRecordMap;
+      return index;
     });
     const records = () => hook.result.current.compactThreadRecordMap;
     expect([...records().keys()]).toEqual(['$b', '$a']);
-    // The first count builds every record: the room may have changed before the index listened.
-    const first = records();
-    act(() => {
-      room.emit(RoomEvent.Receipt, receiptOf('@alice:server'), room);
-    });
-    expect(records().get('$b')).not.toBe(first.get('$b'));
+    // The listeners count once when they start, which builds every record again: the room may
+    // have changed between the first build and the listeners.
+    expect(first?.get('$b')).toBeDefined();
+    expect(records().get('$b')).not.toBe(first?.get('$b'));
     return records;
   };
   const receiptOf = (userId: string) =>

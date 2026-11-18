@@ -12,6 +12,8 @@ export type IconTooltipProps = {
   shortcut?: ShortcutId;
   position?: Position;
   align?: Align;
+  /** Keeps the tooltip out of sight, as under a menu the button opened. */
+  hidden?: boolean;
   children: (triggerRef: RefCallback<HTMLElement | SVGElement>) => ReactNode;
 };
 
@@ -24,6 +26,7 @@ export function IconTooltip({
   shortcut,
   position = 'Bottom',
   align,
+  hidden,
   children,
 }: IconTooltipProps) {
   return (
@@ -31,6 +34,7 @@ export function IconTooltip({
       position={position}
       align={align}
       offset={4}
+      style={hidden ? { display: 'none' } : undefined}
       tooltip={
         <Tooltip>
           <Box direction="Column">

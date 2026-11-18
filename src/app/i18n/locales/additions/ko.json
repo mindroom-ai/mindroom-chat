@@ -404,7 +404,7 @@
         "thirdPartyNotices": "타사 고지 사항",
         "soundsCredit": "알림음과 초대음은 이 앱을 위해 합성한 차임입니다.",
         "debugMode": "디버그 모드",
-        "debugModeDescription": "이 기기에서 진단 정보를 기록하여 내보내고 상세 진단 추적을 켤 수 있게 합니다."
+        "debugModeDescription": "이 기기의 진단 정보를 메시지로 보낼 수 있도록 입력란의 + 메뉴에 ‘앱 로그 첨부’를 추가합니다. 메모리 수치와 자세한 추적을 포함하려면 아래에서 상세 진단 추적을 켜세요."
       }
     },
     "createChat": {
@@ -768,6 +768,15 @@
           "saved": "저장됨",
           "declined": "거절됨",
           "expired": "만료됨"
+        },
+        "line": {
+          "sentKept": "보냄 · {{duration}} 보관"
+        },
+        "facts": {
+          "nothingSent": "아무것도 보내거나 보관하지 않았습니다.",
+          "noAnswer": "제때 답이 없어 아무것도 보내지 않았습니다.",
+          "askedAs": "이 대화에서 {{agent}}의 명령을 위해 {{variable}}(으)로 요청되었습니다.",
+          "replaced": "이전에 저장된 키를 대체했습니다."
         }
       },
       "skillReviewMarker": {
@@ -910,6 +919,8 @@
     "emoji": "이모지",
     "cancelReply": "답장 취소",
     "moreActions": "추가 작업",
+    "attachMenu": "첨부",
+    "attachAppLogs": "앱 로그 첨부",
     "lostFiles": "이 초안에 보관되지 않음: {{files}}. 보내기 전에 다시 첨부하세요.",
     "lostPastes": "붙여넣은 텍스트가 이 초안에 보관되지 않았습니다. 보내기 전에 다시 붙여넣으세요.",
     "dismissLostFiles": "닫기",
