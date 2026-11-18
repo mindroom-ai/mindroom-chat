@@ -1,6 +1,5 @@
 import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
 
 const slide = keyframes({
@@ -54,7 +53,7 @@ export const Trigger = style([
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'start',
     cursor: 'pointer',
-    transition: transition(['opacity', 'color', 'background-color'], motion.duration.Fast),
+    transition: transition(['opacity', 'color', 'background-color']),
     selectors: {
       '&:hover, &:focus-visible, &[aria-expanded="true"]': {
         opacity: 1,
@@ -88,7 +87,7 @@ export const Icon = style({
 export const Separator = style({ opacity: 0.7 });
 
 // A plain line at rest, a light running along it while the summary is written, and an amber
-// dashed one when the reply kept its full history.
+// dashed one when the compaction did not finish.
 export const Rule = style({
   flex: 1,
   minWidth: toRem(16),
