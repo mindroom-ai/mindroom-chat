@@ -1,13 +1,23 @@
-import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import type { ScrollAnchorMemory, ScrollAnchorSnapshot } from '../../ui/scrollAnchorMemory';
 
 /** Where a focused Compact card without a saved place sits: its top this far below the list's. */
 const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
 
+const focusedPlace = (eventId: string): ScrollAnchorSnapshot => ({
+  scrollTop: 1,
+  anchors: [{ key: eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
+});
+
 /**
- * An address's request that the room's cards show one of them (`?focusEvent=1`): the card's event
- * and the router's key of the history entry that asks.
+ * An address's request that the room's cards show one of them (`?focusEvent=1`): the card's event,
+ * the router's key of the history entry that asks, and whether the router pushed that entry (a
+ * link followed), which alone moves a list already mounted.
  */
-export type CompactFocusRequest = { eventId: string; entryKey: string | undefined };
+export type CompactFocusRequest = {
+  eventId: string;
+  entryKey: string | undefined;
+  pushed?: boolean;
+};
 
 // The requests a list has met, as `<history entry> <event>`, kept as long as its saved places.
 const metRequests = new WeakMap<ScrollAnchorMemory, Set<string>>();
@@ -30,11 +40,35 @@ export const takeCompactFocusRequest = (
   const key = metKey(request);
   if (key && metRequests.get(memory)?.has(key)) return;
   if (!memory.get(roomId)?.anchors.some((anchor) => anchor.key === request.eventId)) {
-    memory.set(roomId, {
-      scrollTop: 1,
-      anchors: [{ key: request.eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
-    });
+    memory.set(roomId, focusedPlace(request.eventId));
   }
+};
+
+/** Whether the list has still to show the card `request` asks for. */
+export const isCompactFocusRequestOpen = (
+  memory: ScrollAnchorMemory,
+  request: CompactFocusRequest
+): boolean => {
+  const key = metKey(request);
+  return !!key && !metRequests.get(memory)?.has(key);
+};
+
+/** A request that comes to the mounted list `view`: its card's place, unless it shows whole. */
+export const compactFocusPlace = (
+  request: CompactFocusRequest,
+  view: HTMLElement
+): ScrollAnchorSnapshot | undefined => {
+  const card = Array.from(view.querySelectorAll('[data-scroll-anchor]')).find(
+    (row) => row.getAttribute('data-scroll-anchor') === request.eventId
+  );
+  const style = getComputedStyle(view);
+  const shown = view.getBoundingClientRect();
+  const top = shown.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
+  const bottom = shown.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
+  const rect = card?.getBoundingClientRect();
+  return rect && rect.top >= top && rect.bottom <= bottom
+    ? undefined
+    : focusedPlace(request.eventId);
 };
 
 /** The list shows the card `request` asks for. For an effect: a render can be abandoned. */

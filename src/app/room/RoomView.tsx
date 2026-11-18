@@ -71,6 +71,8 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   focusEventInRoom?: boolean;
   /** The router's key of the history entry whose address this is. */
   entryKey?: string;
+  /** Whether the router pushed that entry (a link followed), not replaced or returned to it. */
+  entryPushed?: boolean;
   onThreadLoadError?: (threadId: string) => void;
 };
 
@@ -134,6 +136,7 @@ export function RoomView({
   forkAt,
   focusEventInRoom,
   entryKey,
+  entryPushed,
   hasMindroomAgents,
   onThreadLoadError,
   ...headerProps
@@ -290,6 +293,7 @@ export function RoomView({
     eventId: openThreadId && !focusEventInRoom ? undefined : eventId,
     focusEventInRoom,
     entryKey,
+    entryPushed,
     hasMindroomAgents,
     summaryMap: threadState.summaryMap,
     onStoreThreadSummary: threadState.storeThreadSummary,
