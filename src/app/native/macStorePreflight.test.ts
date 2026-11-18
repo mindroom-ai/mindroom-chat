@@ -3,6 +3,7 @@ import {
   macStoreArchitectureProblems,
   macStoreEntitlementProblems,
   macStoreMetadataProblems,
+  macStoreUpdaterProblems,
 } from '../../../scripts/macos-store-preflight.mjs';
 
 const metadata = () => ({
@@ -38,6 +39,25 @@ const entitlements = () => ({
 });
 
 describe('Mac Store emitted-artifact preflight', () => {
+  it('rejects any trace of the updater', () => {
+    expect(
+      macStoreUpdaterProblems({
+        paths: ['Contents/MacOS/MindRoom.chat'],
+        infoKeys: ['CFBundleName', 'SUPPORTED'],
+        strings: ['uiWindow'],
+      })
+    ).toEqual([]);
+    expect(
+      macStoreUpdaterProblems({
+        paths: [
+          'Contents/PlugIns/MindRoomMacUpdater.bundle/Contents/Frameworks/Sparkle.framework/Sparkle',
+        ],
+        infoKeys: ['SUFeedURL'],
+        strings: ['SPUUpdater'],
+      })
+    ).toHaveLength(3);
+  });
+
   it('accepts matching app, native support and web source metadata', () => {
     expect(macStoreMetadataProblems(metadata())).toEqual([]);
   });

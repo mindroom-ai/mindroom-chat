@@ -84,3 +84,59 @@ describe('scripts/fetch-sparkle.sh', () => {
     expect(result.commands).toEqual([]);
   });
 });
+
+describe('scripts/macos-updater-info-plist.sh', () => {
+  const KEY = `${'A'.repeat(42)}Q=`;
+  const plist = '/b/A.app/Contents/Info.plist';
+  const env = {
+    IS_MACCATALYST: 'YES',
+    MINDROOM_UPDATE_FEED_URL: 'https://example.invalid/appcast.xml',
+    MINDROOM_UPDATE_PUBLIC_KEY: KEY,
+    TARGET_BUILD_DIR: '/b',
+    INFOPLIST_PATH: 'A.app/Contents/Info.plist',
+  };
+
+  it('writes the six keys into the built Mac app, also a second time', () => {
+    const { run } = fixture();
+    run('scripts/macos-updater-info-plist.sh', env);
+    const result = run('scripts/macos-updater-info-plist.sh', env);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.commands.slice(-6).map(({ args }) => args)).toEqual([
+      ['-replace', 'SUFeedURL', '-string', env.MINDROOM_UPDATE_FEED_URL, plist],
+      ['-replace', 'SUPublicEDKey', '-string', KEY, plist],
+      ['-replace', 'SUEnableAutomaticChecks', '-bool', 'YES', plist],
+      ['-replace', 'SUAutomaticallyUpdate', '-bool', 'YES', plist],
+      ['-replace', 'SUScheduledCheckInterval', '-integer', '3600', plist],
+      ['-replace', 'SUVerifyUpdateBeforeExtraction', '-bool', 'YES', plist],
+    ]);
+  });
+
+  it.each([{ IS_MACCATALYST: 'NO' }, { IS_MACCATALYST: '' }, { MINDROOM_UPDATE_FEED_URL: '' }])(
+    'writes nothing for %o',
+    (override) => {
+      const result = fixture().run('scripts/macos-updater-info-plist.sh', { ...env, ...override });
+      expect(result.status).toBe(0);
+      expect(result.commands).toEqual([]);
+    }
+  );
+
+  it('fails the build for a feed without a valid public key', () => {
+    const result = fixture().run('scripts/macos-updater-info-plist.sh', {
+      ...env,
+      MINDROOM_UPDATE_PUBLIC_KEY: 'short',
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('MINDROOM_UPDATE_PUBLIC_KEY');
+    expect(result.commands).toEqual([]);
+  });
+
+  it('starts no updater while the key is the placeholder, so no release signs its appcast', () => {
+    const result = fixture().run('scripts/macos-updater-info-plist.sh', {
+      ...env,
+      MINDROOM_UPDATE_PUBLIC_KEY: 'PLACEHOLDER-the-Sparkle-public-key',
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('warning: MINDROOM_UPDATE_PUBLIC_KEY');
+    expect(result.commands).toEqual([]);
+  });
+});

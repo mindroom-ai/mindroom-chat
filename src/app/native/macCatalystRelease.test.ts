@@ -63,6 +63,12 @@ if (command === 'dmgbuild') fs.writeFileSync(args[args.length - 1], 'fixture dmg
       mode: 0o755,
     }
   );
+  // So is the Sparkle download (scripts/fetch-sparkle.sh).
+  writeFileSync(
+    join(root, 'scripts/fetch-sparkle.sh'),
+    stub.replace('path.basename(process.argv[1])', "'fetch-sparkle.sh'"),
+    { mode: 0o755 }
+  );
   const env = {
     ...process.env,
     HOME: join(root, 'home'),
@@ -107,7 +113,7 @@ if (command === 'dmgbuild') fs.writeFileSync(args[args.length - 1], 'fixture dmg
 };
 
 describe('Mac release build script', () => {
-  it('fetches the watch SDK the Xcode project references before Capacitor syncs', () => {
+  it('fetches the watch SDK and Sparkle the Xcode project references before Capacitor syncs', () => {
     const { run } = fixture();
     const result = run([]);
     expect(result.status, result.stderr).toBe(0);
@@ -116,6 +122,9 @@ describe('Mac release build script', () => {
     // `npx cap sync ios` runs `pod install`, which resolves the project's packages already.
     expect(order.indexOf('build-sdk.sh')).toBeLessThan(order.indexOf('npx'));
     expect(order.indexOf('build-sdk.sh')).toBeLessThan(order.indexOf('xcodebuild'));
+    // The updater bundle links Sparkle.
+    expect(order.indexOf('fetch-sparkle.sh')).toBeGreaterThan(-1);
+    expect(order.indexOf('fetch-sparkle.sh')).toBeLessThan(order.indexOf('npx'));
     expect(result.commands.find(({ command }) => command === 'build-sdk.sh')?.args).toEqual([
       '--fetch',
     ]);

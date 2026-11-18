@@ -78,6 +78,8 @@ npm run build:ios
 # The Xcode project references the watch app's SDK package, which Xcode resolves on every platform,
 # first when `pod install` reads the project.
 scripts/watch/build-sdk.sh --fetch
+# The updater bundle links Sparkle.
+scripts/fetch-sparkle.sh
 # Also runs `pod install`.
 npx cap sync ios
 
