@@ -37,12 +37,14 @@ import { findReply } from './unopenedThreadEdits';
 // A room's thread list answers for 30 threads per request: each listed root bundles its thread's
 // newest event with that event's newest edit. So a check waits a moment before it asks (a room's
 // cards ask before its list starts reading) and then while the room's thread list is read (a
-// reload of a room with hundreds of threads asked once per finished thread before), a listed
-// reply counts as the server's answer, and a reply older than the event its listed thread names
-// as the newest needs no answer, then or later: the client keeps that answer, because a card whose
-// loaded events still end with the reply (a reload restores them) would ask again whenever it is
-// drawn. What the list leaves open is checked when the read ends.
+// reload of a room with hundreds of threads asked once per finished thread before), and a listed
+// reply counts as the server's answer. The list answers only for the event it names: a newer event
+// in a thread says nothing about an older reply, which streams on while MindRoom titles its thread,
+// the user queues a message or another agent answers. What the list leaves open is checked when
+// the read ends.
 
+/** Where MindRoom's homeserver bundles a thread's newest reply that is not its title. */
+const LATEST_REPLY_KEY = 'io.mindroom.latest_reply';
 /** A reply whose newest revision is older than this is not streaming. */
 export const STREAM_IDLE_LIMIT_MS = 30 * 60_000;
 /** Server checks in flight at once. */
@@ -60,13 +62,9 @@ const SEEN_LIMIT = 5_000;
 /** A reply the client vouches for: its room's gap count then, and its newest edit known. */
 type Seen = { gap: number; edit?: MatrixEvent };
 
-/** The newest event of a thread, as the room's thread list named it. */
-type Listed = { roomId: string; eventId: string; ts: number };
-
 type Check = {
   roomId: string;
   eventId: string;
-  threadId?: string;
   /** The copies of the reply that records showed, which get the server's newest edit. */
   targets: Set<MatrixEvent>;
   attempts: number;
@@ -107,6 +105,9 @@ const isFinished = (event: MatrixEvent): boolean => {
   const status = getStreamStatusFromContent(event.getContent());
   return !!status && TERMINAL_STREAM_STATUSES.has(status);
 };
+
+const isIdle = (event: MatrixEvent): boolean =>
+  Date.now() - newestRevisionTs(event) > STREAM_IDLE_LIMIT_MS;
 
 const isUsableEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
   const newContent = edit.getContent()['m.new_content'];
@@ -166,8 +167,6 @@ const heldReply = (
  */
 export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   const seen = new Map<string, Seen>();
-  /** Per thread root, the newest event the room's thread list named; the oldest go first. */
-  const listed = new Map<string, Listed>();
   /** Per room, how many sync gaps it had. */
   const gaps = new Map<string, number>();
   /** The first batch's replies until the SDK says whether they came from its saved sync. */
@@ -195,18 +194,6 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   };
 
   const gapsOf = (roomId: string) => gaps.get(roomId) ?? 0;
-
-  /** The room's thread list named a newer event of the reply's thread. */
-  const isOlderThanListed = (roomId: string, event: MatrixEvent): boolean => {
-    const threadId = threadOf(event);
-    const newest = threadId ? listed.get(threadId) : undefined;
-    return (
-      !!newest &&
-      newest.roomId === roomId &&
-      newest.eventId !== event.getId() &&
-      event.getTs() < newest.ts
-    );
-  };
 
   const vouch = (roomId: string, eventId: string, edit?: MatrixEvent) => {
     const known = seen.get(eventId)?.edit;
@@ -265,8 +252,9 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   /** Asks the server about one reply; false when it should be asked again later. */
   const run = async (check: Check): Promise<boolean> => {
     const room = mx.getRoom(check.roomId);
-    // A reply that finished through /sync meanwhile needs no answer.
-    if (!room || [...check.targets].every(isFinished)) return true;
+    // A reply that finished through /sync meanwhile, or went idle while it waited, needs no answer.
+    if (!room || [...check.targets].every((target) => isFinished(target) || isIdle(target)))
+      return true;
     // The thread list or /sync told about the reply since it was asked.
     const known = seen.get(check.eventId);
     if (known && known.gap === gapsOf(check.roomId)) {
@@ -332,13 +320,10 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       [...targets].forEach((target) => existing.targets.add(target));
       return;
     }
-    const targetSet = new Set(targets);
-    const [first] = targetSet;
     const check: Check = {
       roomId,
       eventId,
-      threadId: first && threadOf(first),
-      targets: targetSet,
+      targets: new Set(targets),
       attempts: 0,
     };
     checks.set(eventId, check);
@@ -370,15 +355,10 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     const eventId = event.getId();
     // A local echo is the user's own message on its way.
     if (!eventId || eventId.startsWith('~')) return true;
-    if (Date.now() - newestRevisionTs(event) > STREAM_IDLE_LIMIT_MS) return false;
-    if (unknown.has(eventId)) return false;
     const vouched = seen.get(eventId);
-    // A reply never vouched for does not stream, and the list's word about its thread answers it.
-    if (!vouched && isOlderThanListed(room.roomId, event)) return false;
-    if (!vouched || vouched.gap !== gapsOf(room.roomId)) ask(room.roomId, eventId, [event]);
-    if (!vouched) return false;
-    // Another copy of the reply (a summary's, the cache's) may lack the edit the client knows.
-    const known = vouched.edit && newerEdit(event, vouched.edit);
+    // Another copy of the reply (a summary's, the cache's) may lack the edit the client knows,
+    // which may be newer than the idle limit the copy alone has passed.
+    const known = vouched?.edit && newerEdit(event, vouched.edit);
     if (known) {
       queueMicrotask(() => {
         putEdit(event, known);
@@ -386,6 +366,10 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       });
       return false;
     }
+    if (isIdle(event)) return false;
+    if (unknown.has(eventId)) return false;
+    if (!vouched || vouched.gap !== gapsOf(room.roomId)) ask(room.roomId, eventId, [event]);
+    if (!vouched) return false;
     const showing = shown.get(eventId) ?? { roomId: room.roomId, targets: new Set<MatrixEvent>() };
     showing.targets.add(event);
     shown.set(eventId, showing);
@@ -415,36 +399,31 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     return true;
   };
 
-  /** A thread list page: each root bundles its thread's newest event, with that event's newest edit. */
+  /**
+   * A thread list page: each root bundles its thread's newest event, with that event's newest edit.
+   * MindRoom's homeserver also bundles the thread's newest reply that is not its title.
+   */
   const onListed = async (roomId: string, roots: Partial<IEvent>[]) => {
     const room = mx.getRoom(roomId);
     if (!room) return;
+    const listedEvents = roots.flatMap((root) => {
+      const summary = root.unsigned?.['m.relations']?.['m.thread'] as
+        | Record<string, unknown>
+        | undefined;
+      const events = [summary?.latest_event, summary?.[LATEST_REPLY_KEY]] as Array<
+        Partial<IEvent> | undefined
+      >;
+      return events.filter(
+        (event, index): event is Partial<IEvent> =>
+          !!root.event_id &&
+          typeof event?.event_id === 'string' &&
+          events.findIndex((other) => other?.event_id === event.event_id) === index
+      );
+    });
     await Promise.all(
-      roots.map(async (root) => {
-        const latest = root.unsigned?.['m.relations']?.['m.thread']?.latest_event as
-          | Partial<IEvent>
-          | undefined;
-        const latestId = latest?.event_id;
-        if (!root.event_id || !latestId) return;
-        const latestTs = latest?.origin_server_ts;
-        if (typeof latestTs === 'number') {
-          listed.delete(root.event_id);
-          listed.set(root.event_id, { roomId, eventId: latestId, ts: latestTs });
-          if (listed.size > SEEN_LIMIT) {
-            const oldest = listed.keys().next().value;
-            if (oldest !== undefined) listed.delete(oldest);
-          }
-        }
-        const stale = [...checks.values()].filter(
-          (check) =>
-            check.roomId === roomId &&
-            check.threadId === root.event_id &&
-            check.eventId !== latestId
-        );
-        // The list names another event as the thread's newest: these checks need no answer.
-        stale.forEach((check) => {
-          if (drop(check)) announce(room, check.targets);
-        });
+      listedEvents.map(async (latest) => {
+        const latestId = latest.event_id;
+        if (!latestId) return;
         const rawEdit = getSameSenderBundledEdit(latest);
         const listedMayStream = [latest, rawEdit].some(
           (event) =>
