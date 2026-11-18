@@ -324,6 +324,18 @@ describe('streaming replies on thread cards', () => {
     expect(f.card()).toEqual({ preview: finished, streaming: false });
   });
 
+  it('does not ask about a reply that went idle while its check waited', async () => {
+    const now = Date.now();
+    const f = fixture();
+    f.setServerReply(withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')));
+    await f.start();
+    await f.deliver([withSummary(root(now - 31 * MINUTE), reply(now - 30 * MINUTE + 1_000))]);
+    expect(f.card().streaming).toBe(false);
+
+    await afterCheckDelay();
+    expect(f.replyRequests()).toBe(0);
+  });
+
   it('does not stream a reply the server no longer has, and does not ask again', async () => {
     const now = Date.now();
     const f = fixture();
@@ -546,6 +558,7 @@ describe('streaming replies on thread cards', () => {
       message('$title', ts, {
         msgtype: 'm.notice',
         body: 'Release notes',
+        'io.mindroom.thread_summary': { summary: 'Release notes', version: 1 },
         'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
       });
 
@@ -649,6 +662,32 @@ describe('streaming replies on thread cards', () => {
       await f.deliver([edit(finished, now, 'completed')]);
       expect(f.card().streaming).toBe(false);
       expect(f.replyRequests()).toBe(1);
+    });
+
+    it('lets the reply MindRoom bundles beside a newer title answer for it', async () => {
+      const now = Date.now();
+      const f = await reload(now);
+      const streaming = withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming'));
+      const thread = defined(f.room().getThread(rootId), 'the thread');
+      thread.timelineSet.addEventsToTimeline(
+        [f.mx.getEventMapper()(reply(now - 50_000))],
+        true,
+        false,
+        thread.liveTimeline
+      );
+      const listedRoot = withSummary(root(now - 60_000), title(now - 15_000), 2);
+      const summary = listedRoot.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+      summary['io.mindroom.latest_reply'] = streaming;
+      const openList = f.holdThreadList([listedRoot]);
+      expect(f.card().streaming).toBe(false);
+      const listing = loadRoomThreads(f.room());
+      openList();
+      await listing;
+      await settle();
+      expect(f.card().streaming).toBe(true);
+      await afterCheckDelay();
+      expect(f.card().streaming).toBe(true);
+      expect(f.replyRequests()).toBe(0);
     });
 
     it('checks a reply the list did not answer once the list is read', async () => {

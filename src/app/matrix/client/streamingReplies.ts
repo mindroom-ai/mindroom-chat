@@ -43,6 +43,8 @@ import { findReply } from './unopenedThreadEdits';
 // the user queues a message or another agent answers. What the list leaves open is checked when
 // the read ends.
 
+/** Where MindRoom's homeserver bundles a thread's newest reply that is not its title. */
+const LATEST_REPLY_KEY = 'io.mindroom.latest_reply';
 /** A reply whose newest revision is older than this is not streaming. */
 export const STREAM_IDLE_LIMIT_MS = 30 * 60_000;
 /** Server checks in flight at once. */
@@ -103,6 +105,9 @@ const isFinished = (event: MatrixEvent): boolean => {
   const status = getStreamStatusFromContent(event.getContent());
   return !!status && TERMINAL_STREAM_STATUSES.has(status);
 };
+
+const isIdle = (event: MatrixEvent): boolean =>
+  Date.now() - newestRevisionTs(event) > STREAM_IDLE_LIMIT_MS;
 
 const isUsableEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
   const newContent = edit.getContent()['m.new_content'];
@@ -243,8 +248,9 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   /** Asks the server about one reply; false when it should be asked again later. */
   const run = async (check: Check): Promise<boolean> => {
     const room = mx.getRoom(check.roomId);
-    // A reply that finished through /sync meanwhile needs no answer.
-    if (!room || [...check.targets].every(isFinished)) return true;
+    // A reply that finished through /sync meanwhile, or went idle while it waited, needs no answer.
+    if (!room || [...check.targets].every((target) => isFinished(target) || isIdle(target)))
+      return true;
     // The thread list or /sync told about the reply since it was asked.
     const known = seen.get(check.eventId);
     if (known && known.gap === gapsOf(check.roomId)) {
@@ -345,7 +351,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     const eventId = event.getId();
     // A local echo is the user's own message on its way.
     if (!eventId || eventId.startsWith('~')) return true;
-    if (Date.now() - newestRevisionTs(event) > STREAM_IDLE_LIMIT_MS) return false;
+    if (isIdle(event)) return false;
     if (unknown.has(eventId)) return false;
     const vouched = seen.get(eventId);
     if (!vouched || vouched.gap !== gapsOf(room.roomId)) ask(room.roomId, eventId, [event]);
@@ -388,17 +394,31 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     return true;
   };
 
-  /** A thread list page: each root bundles its thread's newest event, with that event's newest edit. */
+  /**
+   * A thread list page: each root bundles its thread's newest event, with that event's newest edit.
+   * MindRoom's homeserver also bundles the thread's newest reply that is not its title.
+   */
   const onListed = async (roomId: string, roots: Partial<IEvent>[]) => {
     const room = mx.getRoom(roomId);
     if (!room) return;
+    const listedEvents = roots.flatMap((root) => {
+      const summary = root.unsigned?.['m.relations']?.['m.thread'] as
+        | Record<string, unknown>
+        | undefined;
+      const events = [summary?.latest_event, summary?.[LATEST_REPLY_KEY]] as Array<
+        Partial<IEvent> | undefined
+      >;
+      return events.filter(
+        (event, index): event is Partial<IEvent> =>
+          !!root.event_id &&
+          typeof event?.event_id === 'string' &&
+          events.findIndex((other) => other?.event_id === event.event_id) === index
+      );
+    });
     await Promise.all(
-      roots.map(async (root) => {
-        const latest = root.unsigned?.['m.relations']?.['m.thread']?.latest_event as
-          | Partial<IEvent>
-          | undefined;
-        const latestId = latest?.event_id;
-        if (!root.event_id || !latestId) return;
+      listedEvents.map(async (latest) => {
+        const latestId = latest.event_id;
+        if (!latestId) return;
         const rawEdit = getSameSenderBundledEdit(latest);
         const listedMayStream = [latest, rawEdit].some(
           (event) =>
