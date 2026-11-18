@@ -15,7 +15,7 @@ A done secret request is drawn inside the agent's reply, at the tool-call line t
 
 1. `io.mindroom.secret_request` content (initial card and every `m.replace` edit) gains:
    - `response_event_id`: the event id of the agent reply whose tool call asked (the reply that carries the `🔧 ... ⏳` line), like `io.mindroom.tool_approval` carries for paused replies.
-   - `tool_call_id`: the id of the tool call whose line shows the request. For a call made through the CLI/bash wrapper, the visible line is the outer call's, so this is the outer (`parent_bash_call_id`) call's id.
+   - `tool_call_id`: the id of the tool call whose line shows the request. For a call made through the CLI/bash wrapper, this is the inner call's id (the `request_secret` or `request_temporary_secret` call the command ran), not the outer shell call's: the client draws the request only at a trace entry with this id whose tool is one of those two, so the outer call's line never shows it.
    Both are omitted when unknown (e.g. no streaming reply); the client then falls back to today's separate row.
 2. `io.mindroom.tool_trace` events in Matrix metadata gain `tool_call_id` (public; provider call ids carry no secret). Update the comment at `tool_system/events.py:48` and `docs/streaming.md`.
 

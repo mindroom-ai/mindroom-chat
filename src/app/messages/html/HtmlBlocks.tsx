@@ -219,8 +219,6 @@ type ToolBlockRenderData = {
   progress?: string;
   /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
   startedAt?: number;
-  /** Its marker sits in a `<details>`, which hides it while closed. */
-  inDetails?: boolean;
 };
 
 // How many of a running call's last output lines show under its tool calls.
@@ -376,10 +374,8 @@ const SECRET_REQUEST_TOOLS = ['request_secret', 'request_temporary_secret'];
 
 /**
  * The marker each of the reply's secret requests may draw at, by its index: the first call with
- * the ID the request names that asks for a secret, as that tool or as the command line call that
- * ran it, whose arguments name the tool. The ID alone does not say: providers reuse call IDs
- * within a reply. Not a marker in a `<details>`, which would hide the line while the card's row
- * hides for it.
+ * the ID the request names whose tool asks for a secret. The ID alone does not say: providers
+ * reuse call IDs within a reply.
  */
 const secretRequestMarkers = (
   reply: ReplyToolCalls,
@@ -392,11 +388,7 @@ const secretRequestMarkers = (
     .sort((a, b) => a.index - b.index)
     .forEach((tool) => {
       const secret = secrets.get(tool.toolCallId ?? '');
-      if (!secret || placed.has(secret) || tool.inDetails) return;
-      const asks = SECRET_REQUEST_TOOLS.some(
-        (name) => tool.toolName === name || tool.argsPreview?.includes(name)
-      );
-      if (!asks) return;
+      if (!secret || placed.has(secret) || !SECRET_REQUEST_TOOLS.includes(tool.toolName)) return;
       placed.add(secret);
       markers.set(tool.index, secret);
     });
@@ -559,8 +551,8 @@ const SECRET_REQUEST_CALL_STATE = {
  * A done secret request the reply draws at the call that asked (`tool`), as that call's line.
  * The card's row hides while this line is mounted and at no other time (useSecretRequestLine): a
  * reply that hides its calls counts the request with them and leaves the card its row, and where
- * another place has the card's line (a repeated marker, the reply drawn twice) the call keeps its
- * own line.
+ * another place has the card's line (the reply drawn twice) or the place is in a `<details>`, the
+ * call keeps its own line.
  */
 function InlineSecretRequestBlock({
   secret,
@@ -577,7 +569,10 @@ function InlineSecretRequestBlock({
   const { eventId, request, agentUserId } = secret;
   const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
   const roomId = message?.roomId;
-  const { line, taken } = useSecretRequestLine(eventId, !!roomId && (shown || !fold || fold.open));
+  const { line, taken, lineRef } = useSecretRequestLine(
+    eventId,
+    !!roomId && (shown || !fold || fold.open)
+  );
   useFoldedToolCalls(
     shown || taken ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
   );
@@ -585,6 +580,7 @@ function InlineSecretRequestBlock({
   if (!roomId || !line) return null;
   return (
     <SecretRequestLine
+      lineRef={lineRef}
       eventId={eventId}
       request={request}
       roomId={roomId}
@@ -660,12 +656,6 @@ function ToolRun({
     </>
   );
 }
-
-const isInDetails = (node: ChildNode): boolean => {
-  let { parent } = node;
-  while (parent && !(isDomElementNode(parent) && parent.name === 'details')) ({ parent } = parent);
-  return !!parent;
-};
 
 const cloneDomChildNode = (node: ChildNode): ChildNode => {
   if (isDomTextNode(node)) {
@@ -796,7 +786,6 @@ const createToolTraceMarkerParserOptions = (
             traceEvents?.[toolRef.index - 1],
             metadataStatus
           );
-          data.inDetails = isInDetails(element);
           const trailingElement =
             toolRefPrefix.trailingChildren.length > 0
               ? new Element(element.name, { ...element.attribs }, toolRefPrefix.trailingChildren)
@@ -898,7 +887,6 @@ const createToolTraceMarkerParserOptions = (
               traceEvents?.[toolRef.index - 1],
               metadataStatus
             );
-            data.inDetails = firstItem.data.inDetails;
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
             addReplyTool(data);

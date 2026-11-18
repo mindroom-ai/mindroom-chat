@@ -90,14 +90,17 @@ const request = (status: SecretRequestStatus): SecretRequest => ({
 /** A plan that lets the reply draw the card at its call `index`, with no line mounted yet. */
 const secrets = (
   status: SecretRequestStatus,
-  index = 3,
+  index: number | string = 3,
   value: SecretRequest = request(status)
 ): InlineSecretRequestPlan => ({
   byReply: new Map([
     [
       '$reply',
       new Map([
-        [`call_${index}`, { eventId: '$card', request: value, agentUserId: '@mindroom_dev:x' }],
+        [
+          typeof index === 'string' ? index : `call_${index}`,
+          { eventId: '$card', request: value, agentUserId: '@mindroom_dev:x' },
+        ],
       ]),
     ],
   ]),
@@ -336,32 +339,24 @@ describe("a secret request card's row", () => {
     expect(hiddenRows(plan)).toEqual([]);
   });
 
-  it('moves to the command line call that ran the request, whose arguments name the tool', () => {
-    const plan = secrets('saved');
-    const shells = NAMES.map(() => 'shell');
-    const wrapped = reply(
-      [1, 2, 3, 4].map((at) => marker(at, shells)),
-      undefined,
-      shells,
-      (at) =>
-        at === 3
-          ? { args_preview: 'command=mindroom-agent tools call request_temporary_secret' }
-          : {}
-    );
-    render(plan, <Reply shown={wrapped} />);
+  it('never moves to the command line call that ran the request: the card names the inner call', () => {
+    const plan = secrets('saved', 'inner');
+    const names = ['shell', 'shell', 'request_temporary_secret', 'shell'];
+    const ids = ['call_1', 'outer', 'inner', 'call_4'];
+    const entry = (at: number) => ({
+      tool_call_id: ids[at - 1],
+      ...(at === 2 ? { args_preview: 'command=mindroom-agent request_temporary_secret' } : {}),
+    });
+    const markers = [1, 2, 3, 4].map((at) => marker(at, names));
 
+    // Only the outer call shows yet: its line stays a tool line, and the card a row.
+    render(plan, <Reply shown={reply(markers.slice(0, 2), 'streaming', names, entry)} />);
+    expect(lines()).toEqual(['Ran 2 tool calls']);
+    expect(hiddenRows(plan)).toEqual([]);
+
+    render(plan, <Reply shown={reply(markers, undefined, names, entry)} />);
     expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
     expect(hiddenRows(plan)).toEqual(['$card']);
-  });
-
-  it('stays when the call sits in a <details>, which would hide the line while closed', () => {
-    const plan = secrets('saved');
-    const folded = reply([marker(1), `<details>${marker(3)}</details>`, '<p>Done.</p>']);
-    render(plan, <Reply shown={folded} />);
-
-    expect(lines()).toEqual(['Ran 1 tool call', 'Ran 1 tool call']);
-    expect(env.mounts).toBe(0);
-    expect(hiddenRows(plan)).toEqual([]);
   });
 
   it('goes for one line: a second place that draws the reply keeps the call’s own line', () => {

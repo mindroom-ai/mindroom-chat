@@ -482,8 +482,12 @@ export function SecretRequestDetails({
   );
 }
 
-export const findByAttribute = (name: string, value: string) =>
-  [...document.querySelectorAll<HTMLElement>(`[${name}]`)].find(
+/** The timeline `node` is a row of (RoomTimeline.tsx): another beside it may show the same events. */
+export const timelineOf = (node: Element | null | undefined): ParentNode =>
+  node?.closest('[data-timeline-rows]') ?? document;
+
+export const findByAttribute = (timeline: ParentNode, name: string, value: string) =>
+  [...timeline.querySelectorAll<HTMLElement>(`[${name}]`)].find(
     (element) => element.getAttribute(name) === value
   );
 
@@ -566,6 +570,7 @@ export function SecretRequestCard({
   const replyId = request.anchor?.responseEventId;
   useLayoutEffect(() => {
     const node = card.current;
+    const timeline = timelineOf(node);
     if (!eventId || !replyId) return undefined;
     return () => {
       if (!node?.contains(document.activeElement)) return;
@@ -573,8 +578,8 @@ export function SecretRequestCard({
       queueMicrotask(() => {
         if (document.activeElement && document.activeElement !== document.body) return;
         (
-          findByAttribute('data-secret-request-for', eventId) ??
-          findByAttribute('data-message-id', replyId)
+          findByAttribute(timeline, 'data-secret-request-for', eventId) ??
+          findByAttribute(timeline, 'data-message-id', replyId)
         )?.focus({ preventScroll: true });
       });
     };

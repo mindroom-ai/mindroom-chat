@@ -3,8 +3,10 @@ import {
   useContext,
   useLayoutEffect,
   useReducer,
+  useRef,
   useState,
   useSyncExternalStore,
+  type RefObject,
 } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import {
@@ -202,25 +204,33 @@ export const useDrawnSecretRequestIds = ({ drawn }: InlineSecretRequestPlan): Re
   useSyncExternalStore(drawn.subscribe, drawn.getIds);
 
 /**
- * For the place a reply would draw a card's line (`wanted`): whether to mount the line, and
- * whether another place has it mounted (`taken`), which leaves this one an ordinary tool line. The
- * line is the card's from the commit that mounts it to the one that unmounts it; of two that mount
- * in one commit the first keeps it and the other gives way before the paint.
+ * For the place a reply would draw a card's line (`wanted`): whether to mount the line, on
+ * `lineRef`, and whether the place is not the line's (`taken`), which leaves it an ordinary tool
+ * line: another place has the line mounted, or this one is in a `<details>` of the page, which
+ * would hide the line while closed and the card's row with it. The line is the card's from the
+ * commit that mounts it to the one that unmounts it; of two that mount in one commit the first
+ * keeps it, and the other, as one in a `<details>`, gives way before the paint.
  */
 export const useSecretRequestLine = (
   cardId: string,
   wanted: boolean
-): { line: boolean; taken: boolean } => {
+): { line: boolean; taken: boolean; lineRef: RefObject<HTMLDivElement> } => {
   const { drawn } = useContext(InlineSecretRequestsContext);
   const [self] = useState(() => ({}));
+  const lineRef = useRef<HTMLDivElement>(null);
+  const [inDetails, setInDetails] = useState(false);
   const [, giveWay] = useReducer((count: number) => count + 1, 0);
   const drawer = useSyncExternalStore(drawn.subscribe, () => drawn.drawerOf(cardId));
-  const taken = drawer !== undefined && drawer !== self;
+  const taken = inDetails || (drawer !== undefined && drawer !== self);
   const line = wanted && !taken;
   useLayoutEffect(() => {
     if (!line) return undefined;
+    if (lineRef.current?.closest('details')) {
+      setInDetails(true);
+      return undefined;
+    }
     if (!drawn.take(cardId, self)) giveWay();
     return () => drawn.release(cardId, self);
   }, [cardId, drawn, line, self]);
-  return { line, taken };
+  return { line, taken, lineRef };
 };

@@ -166,7 +166,7 @@ function Thread({ events, shown }: { events: MatrixEvent[]; shown: Record<string
   return (
     <ClientConfigProvider value={{}}>
       <InlineSecretRequestsContext.Provider value={plan}>
-        {tiles}
+        <div data-timeline-rows="">{tiles}</div>
       </InlineSecretRequestsContext.Provider>
     </ClientConfigProvider>
   );
@@ -270,18 +270,46 @@ describe("a secret request card's row in an open thread", () => {
 
   it('takes the focus back from the line when the reply shows the call no longer', async () => {
     const events = [root$, reply, card('saved')];
-    act(() =>
-      root.render(<Thread events={events} shown={replyContent(4, 'Starting', 'streaming')} />)
+    // Another timeline before this one shows the card too, as Classic does beside a thread.
+    const beside = (shown: Record<string, unknown>) => (
+      <>
+        <div data-timeline-rows="">
+          <div data-secret-request-card="$card" tabIndex={-1} />
+        </div>
+        <Thread events={events} shown={shown} />
+      </>
     );
+    act(() => root.render(beside(replyContent(4, 'Starting', 'streaming'))));
     line()!.focus();
     expect(document.activeElement).toBe(line());
 
     // A newer frame leaves the call out (as folded calls or folded work do): the row is back.
     await act(async () => {
-      root.render(<Thread events={events} shown={replyContent(2, 'Fetching', 'streaming')} />);
+      root.render(beside(replyContent(2, 'Fetching', 'streaming')));
     });
 
     expect(shows()).toEqual({ row: true, line: false });
     expect(cardRow()!.contains(document.activeElement)).toBe(true);
+  });
+
+  it('stays when the call sits in a <details> of the page, wherever the parser found it', () => {
+    // The second call, in a details after a call in its div, is the one that asked: a closed
+    // details would hide its line while the card's row hid for it.
+    const shown = {
+      ...replyContent(0, ''),
+      formatted_body:
+        '<div>🔧 <code>shell</code> [1]<details><p>🔧 <code>request_secret</code> [2]</p></details></div>',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          { type: 'tool_call_completed', tool_name: 'shell', tool_call_id: 'call_1' },
+          { type: 'tool_call_completed', tool_name: 'request_secret', tool_call_id: 'call_3' },
+        ],
+      },
+    };
+    act(() => root.render(<Thread events={[root$, reply, card('saved')]} shown={shown} />));
+
+    expect(shows()).toEqual({ row: true, line: false });
+    expect(host.querySelector('details [data-message-disclosure]')).not.toBeNull();
   });
 });

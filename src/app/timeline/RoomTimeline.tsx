@@ -1944,6 +1944,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               {feature.wrapExpansion(
                 <div
                   ref={ledger.virtualInnerRef}
+                  // This timeline's rows, for a row that looks for another (SecretRequestCard.tsx).
+                  data-timeline-rows=""
                   data-thread-count={threadId ? threadEvents.length : undefined}
                   data-testid={threadId ? undefined : 'room-virtual-inner'}
                   style={{
