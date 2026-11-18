@@ -46,6 +46,16 @@ const DOCK_STYLE: CSSProperties = {
   pointerEvents: 'none',
 };
 const APPROVALS_STYLE: CSSProperties = { pointerEvents: 'auto' };
+// The footer starts with an empty box where a selection can end. A triple click selects up to the
+// start of the next paragraph; on the conversation's last text, with nothing in between, that
+// start was in the composer, and Chrome moved the selection and the focus there as the held drag
+// went back up. Without text, the box copies nothing.
+const SELECTION_STOP_STYLE: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  pointerEvents: 'none',
+};
 // Where the composer would be: why it is not there; or above it, what to do about the unsent root.
 const NOTICE_GAP = config.space.S400;
 const NOTICE_STYLE: CSSProperties = {
@@ -232,6 +242,7 @@ export function ConversationLayout({
               data-room-footer="true"
               data-footer-of={threadId ? 'thread' : 'room'}
             >
+              <div aria-hidden style={SELECTION_STOP_STYLE} />
               {notice}
               {composer}
             </div>
