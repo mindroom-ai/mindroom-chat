@@ -1,7 +1,7 @@
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 
 /** What a seam shows: the compaction's status, or `interrupted` when its reply ended first. */
-export type SeamState = 'running' | 'success' | 'failed' | 'timeout' | 'interrupted';
+export type SeamState = ReplyCompaction['status'] | 'interrupted';
 
 /**
  * Where the compaction ran, which picks its wording: before the reply's first model request,
