@@ -27,8 +27,10 @@ export const parseMacAppDownloadUrl = (releases: unknown): string | undefined =>
     if (draft === true || prerelease === true || !Array.isArray(assets)) continue;
     for (const asset of assets as unknown[]) {
       if (typeof asset !== 'object' || asset === null) continue;
-      const { name, browser_download_url: url } = asset as Record<string, unknown>;
-      if (name === MAC_APP_DMG && typeof url === 'string' && url.startsWith('https://')) return url;
+      const { name, state, browser_download_url: url } = asset as Record<string, unknown>;
+      // A failed upload can leave a `starter` asset of that name, which has nothing to download.
+      const uploaded = name === MAC_APP_DMG && state === 'uploaded';
+      if (uploaded && typeof url === 'string' && url.startsWith('https://')) return url;
     }
   }
   return undefined;

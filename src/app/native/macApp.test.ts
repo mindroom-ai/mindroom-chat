@@ -78,12 +78,18 @@ describe('useOffersMacApp', () => {
 const dmg = (tag: string) =>
   `https://github.com/mindroom-ai/mindroom-chat/releases/download/${tag}/MindRoom.dmg`;
 
-const release = (tag: string, assets: string[], extra: Record<string, unknown> = {}) => ({
+const release = (
+  tag: string,
+  assets: string[],
+  extra: Record<string, unknown> = {},
+  state = 'uploaded'
+) => ({
   tag_name: tag,
   draft: false,
   prerelease: false,
   assets: assets.map((name) => ({
     name,
+    state,
     browser_download_url: name === 'MindRoom.dmg' ? dmg(tag) : `https://example.org/${name}`,
   })),
   ...extra,
@@ -96,6 +102,15 @@ describe('parseMacAppDownloadUrl', () => {
         release('v3', ['MindRoom.ipa']),
         release('v2', ['notes.txt', 'MindRoom.dmg']),
         release('v1', ['MindRoom.dmg']),
+      ])
+    ).toBe(dmg('v2'));
+  });
+
+  it('passes over an image whose upload never finished (`starter`)', () => {
+    expect(
+      parseMacAppDownloadUrl([
+        release('v3', ['MindRoom.dmg'], {}, 'starter'),
+        release('v2', ['MindRoom.dmg']),
       ])
     ).toBe(dmg('v2'));
   });
@@ -119,7 +134,9 @@ describe('parseMacAppDownloadUrl', () => {
       parseMacAppDownloadUrl([null, 'v1', { assets: 'MindRoom.dmg' }, { assets: [null] }])
     ).toBeUndefined();
     expect(
-      parseMacAppDownloadUrl([{ assets: [{ name: 'MindRoom.dmg', browser_download_url: 7 }] }])
+      parseMacAppDownloadUrl([
+        { assets: [{ name: 'MindRoom.dmg', state: 'uploaded', browser_download_url: 7 }] },
+      ])
     ).toBeUndefined();
   });
 });
