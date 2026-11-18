@@ -692,7 +692,14 @@
         "clear": "Borrar",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo quienes pueden cambiar los ajustes de esta sala pueden editar esto.",
-        "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo."
+        "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo.",
+        "replyMode": {
+          "label": "Los agentes responden",
+          "description": "Si un mensaje nuevo debe mencionar a un agente o equipo para recibir respuesta. Predeterminado sigue la configuración de MindRoom para esta sala. En un hilo donde un agente ya respondió, los mensajes siguientes siempre reciben respuesta.",
+          "default": "Predeterminado",
+          "auto": "A cualquier mensaje",
+          "mentions": "Solo si los mencionan"
+        }
       }
     }
   },

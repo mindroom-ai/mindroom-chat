@@ -674,7 +674,14 @@
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",
-        "saveFailed": "無法儲存設定，請再試一次。"
+        "saveFailed": "無法儲存設定，請再試一次。",
+        "replyMode": {
+          "label": "代理回覆",
+          "description": "新訊息是否需要提及某個代理或團隊才會得到回覆。「預設」依照 MindRoom 對此聊天室的設定。在代理已回覆過的討論串中，後續訊息一定會得到回覆。",
+          "default": "預設",
+          "auto": "任何訊息",
+          "mentions": "僅在被提及時"
+        }
       }
     }
   },

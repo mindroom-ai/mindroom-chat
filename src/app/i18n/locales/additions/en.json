@@ -683,7 +683,14 @@
         "clear": "Clear",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Only people allowed to change this room's settings can edit this.",
-        "saveFailed": "Couldn't save the setting. Try again."
+        "saveFailed": "Couldn't save the setting. Try again.",
+        "replyMode": {
+          "label": "Agents answer",
+          "description": "Whether a new message must mention an agent or team to get an answer. Default follows MindRoom's configuration for this room. In a thread an agent already replied in, follow-ups always get an answer.",
+          "default": "Default",
+          "auto": "Any message",
+          "mentions": "Only when mentioned"
+        }
       }
     }
   },

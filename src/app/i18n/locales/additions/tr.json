@@ -683,7 +683,14 @@
         "clear": "Temizle",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
-        "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin."
+        "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin.",
+        "replyMode": {
+          "label": "Ajanlar yanıtlar",
+          "description": "Yeni bir mesajın yanıt alması için bir ajandan veya ekipten bahsetmesi gerekip gerekmediği. Varsayılan, bu oda için MindRoom yapılandırmasını izler. Bir ajanın zaten yanıt verdiği bir ileti dizisinde sonraki mesajlar her zaman yanıt alır.",
+          "default": "Varsayılan",
+          "auto": "Her mesaja",
+          "mentions": "Yalnızca bahsedilince"
+        }
       }
     }
   },

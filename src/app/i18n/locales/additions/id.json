@@ -674,7 +674,14 @@
         "clear": "Hapus",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
-        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi."
+        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi.",
+        "replyMode": {
+          "label": "Agen menjawab",
+          "description": "Apakah pesan baru harus menyebut agen atau tim agar mendapat jawaban. Default mengikuti konfigurasi MindRoom untuk ruangan ini. Di utas yang sudah dibalas agen, pesan lanjutan selalu mendapat jawaban.",
+          "default": "Default",
+          "auto": "Setiap pesan",
+          "mentions": "Hanya saat disebut"
+        }
       }
     }
   },
