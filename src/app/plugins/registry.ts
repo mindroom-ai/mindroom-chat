@@ -23,6 +23,12 @@ export type RoomHeaderSlotComponent = ComponentType<{
   headerRef: RefObject<HTMLElement>;
 }>;
 
+/**
+ * A control in the open thread's banner, given the thread's room and the ID of its root, which the
+ * server confirmed; it renders there, icon-sized, or nothing.
+ */
+export type ThreadHeaderSlotComponent = ComponentType<{ room: Room; threadId: string }>;
+
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   conversationCovers?: readonly ConversationCover[];
@@ -38,6 +44,7 @@ export type ClientPlugin = {
   messageLinks?: readonly MessageLink[];
   threadCardBadges?: readonly ThreadCardBadge[];
   threadDetails?: readonly ThreadDetail[];
+  threadHeaderSlot?: readonly ThreadHeaderSlotComponent[];
   translations?: PluginTranslations;
 };
 
@@ -57,6 +64,7 @@ export type RegisteredPlugin = {
   readonly messageLinks: readonly MessageLink[];
   readonly threadCardBadges: readonly ThreadCardBadge[];
   readonly threadDetails: readonly ThreadDetail[];
+  readonly threadHeaderSlot: readonly ThreadHeaderSlotComponent[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
@@ -71,6 +79,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const links = isRecord(plugin) ? plugin.messageLinks : undefined;
   const badges = isRecord(plugin) ? plugin.threadCardBadges : undefined;
   const details = isRecord(plugin) ? plugin.threadDetails : undefined;
+  const threadSlot = isRecord(plugin) ? plugin.threadHeaderSlot : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -108,6 +117,8 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     messageLinks: Object.freeze(Array.isArray(links) ? links.filter(isMessageLink) : []),
     threadCardBadges: Object.freeze(Array.isArray(badges) ? badges.filter(isThreadCardBadge) : []),
     threadDetails: Object.freeze(Array.isArray(details) ? details.filter(isThreadDetail) : []),
+    // As the room header slot's: its slot renders each entry in a boundary.
+    threadHeaderSlot: Object.freeze(Array.isArray(threadSlot) ? [...threadSlot] : []),
   });
 };
 

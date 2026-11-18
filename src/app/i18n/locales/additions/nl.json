@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "Sluiten",
       "previous": "Vorige afbeelding",
-      "next": "Volgende afbeelding"
+      "next": "Volgende afbeelding",
+      "wheelZoomHint": "{{key}} + scrollen om te zoomen"
     },
     "inviteUserPrompt": {
       "close": "Sluiten",
@@ -409,7 +410,7 @@
         "thirdPartyNotices": "Kennisgevingen van derden",
         "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd.",
         "debugMode": "Debugmodus",
-        "debugModeDescription": "Legt diagnostiek vast op dit apparaat, zodat je die kunt exporteren en uitgebreide diagnostische tracering kunt inschakelen."
+        "debugModeDescription": "Voegt ‘App-logboeken bijvoegen’ toe aan het +-menu van het invoerveld, zodat je de diagnostiek van dit apparaat in een bericht kunt versturen. Schakel hieronder uitgebreide diagnostische tracering in om geheugencijfers en een gedetailleerde tracering mee te sturen."
       }
     },
     "createChat": {
@@ -679,11 +680,33 @@
           "note": "Titels die er al staan, houden hun bewoording tot de volgende verversing."
         },
         "save": "Opslaan",
+        "saved": "Opgeslagen",
         "clear": "Wissen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Alleen wie de instellingen van deze kamer mag wijzigen, kan dit bewerken.",
-        "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw."
+        "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw.",
+        "replyMode": {
+          "label": "Agents antwoorden",
+          "description": "Of een nieuw bericht een agent of team moet noemen om antwoord te krijgen. Standaard volgt de configuratie van MindRoom voor deze kamer. Ook met Alleen als ze genoemd worden kunnen agents vervolgberichten beantwoorden in een thread waarin ze al antwoordden.",
+          "default": "Standaard",
+          "auto": "Op elk bericht",
+          "mentions": "Alleen als ze genoemd worden"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom voor Mac",
+      "text": "Snelle invoer met ⌃⌥Space, systeemmeldingen.",
+      "download": "Downloaden",
+      "notNow": "Niet nu",
+      "dismiss": "Sluiten",
+      "banner": "<b>Gebruik je een Mac?</b> Haal de MindRoom-app.",
+      "bannerDownload": "Downloaden voor Mac",
+      "menu": "Mac-app downloaden",
+      "downloadDmg": "Downloaden (.dmg)",
+      "copyCommand": "Opdracht kopiëren",
+      "copyFailed": "Kopiëren mislukt",
+      "keywords": "mac, macos, desktop, app, downloaden, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -776,6 +799,15 @@
           "saved": "Opgeslagen",
           "declined": "Geweigerd",
           "expired": "Verlopen"
+        },
+        "line": {
+          "sentKept": "Verstuurd · {{duration}} bewaard"
+        },
+        "facts": {
+          "nothingSent": "Er is niets verstuurd of bewaard.",
+          "noAnswer": "Geen antwoord op tijd, dus er is niets verstuurd.",
+          "askedAs": "Gevraagd voor de opdrachten van {{agent}} in dit gesprek als {{variable}}.",
+          "replaced": "Heeft de eerder opgeslagen sleutel vervangen."
         }
       },
       "skillReviewMarker": {
@@ -809,13 +841,68 @@
         "toolRunningFor": "Loopt al {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Titelinstellingen"
+        "titleSettings": "Titelinstellingen…"
       },
       "replyTime": {
         "started": "Begonnen {{value1}}",
         "finished": "Klaar {{value1}}",
         "stillStreaming": "Nog bezig",
         "duration": "Duur {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} tokens",
+        "label": {
+          "running": "Context wordt gecomprimeerd…",
+          "preTurn": "Gecomprimeerd vóór het antwoord",
+          "midTurn": "Context gecomprimeerd",
+          "manual": "Op verzoek gecomprimeerd",
+          "failed": "Comprimeren mislukt",
+          "timeout": "Comprimeren duurde te lang",
+          "interrupted": "Comprimeren onderbroken"
+        },
+        "title": "Context gecomprimeerd",
+        "tag": {
+          "preTurn": "vóór het antwoord",
+          "midTurn": "midden in de beurt",
+          "manual": "handmatig"
+        },
+        "subtitle": {
+          "preTurn": "Vóór de eerste modelaanvraag van dit antwoord.",
+          "midTurn": "Tussen twee modelaanvragen, na toolaanroep {{n, number}}.",
+          "midTurnNoTools": "Tussen twee modelaanvragen.",
+          "manual": "Aangevraagd met het compact-commando."
+        },
+        "gauge": {
+          "was": "was {{p, number}}% van het budget",
+          "now": "nu {{p, number}}%",
+          "used": "{{p, number}}% van het budget"
+        },
+        "row": {
+          "history": "Geschiedenis",
+          "saved": "Bespaard",
+          "budget": "Budget",
+          "folded": "Samengevoegd",
+          "folding": "Wordt samengevoegd",
+          "summarizedBy": "Samengevat door",
+          "summaryModel": "Samenvattingsmodel",
+          "when": "Wanneer",
+          "started": "Gestart",
+          "reason": "Reden",
+          "gaveUpAfter": "Opgegeven na"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> tokens",
+          "history": "<b>{{n, number}}</b> tokens",
+          "tokens": "{{n, number}} tokens",
+          "saved": "{{n, number}} tokens ({{p, number}}%)",
+          "runs_one": "{{count, number}} run",
+          "runs_other": "{{count, number}} runs",
+          "folded": "{{runs}} tot 1 samenvatting",
+          "folding": "{{runs}}, {{done, number}} klaar",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "Het antwoord eindigde voordat de samenvatting klaar was."
+        }
       }
     },
     "message-search": {
@@ -918,6 +1005,25 @@
       "withCount_one": "{{label}}, {{count}} actief",
       "withCount_other": "{{label}}, {{count}} actief",
       "resize": "Formaat van het subagentenpaneel wijzigen"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Inspanning",
+        "effortFor": "Inspanning voor {{model}}",
+        "noEffortLevels": "Geen inspanningsniveaus",
+        "defaultLevel": "Standaard",
+        "levelIsDefault": "{{level}}, standaard",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Uit",
+          "minimal": "Minimaal",
+          "low": "Laag",
+          "medium": "Gemiddeld",
+          "high": "Hoog",
+          "xhigh": "Extra hoog",
+          "max": "Maximaal"
+        }
+      }
     }
   },
   "composer": {
@@ -926,6 +1032,8 @@
     "emoji": "Emoji",
     "cancelReply": "Antwoord annuleren",
     "moreActions": "Meer acties",
+    "attachMenu": "Bijvoegen",
+    "attachAppLogs": "App-logboeken bijvoegen",
     "lostFiles": "Niet bewaard bij dit concept: {{files}}. Voeg ze opnieuw toe voordat je verstuurt.",
     "lostPastes": "Geplakte tekst is niet bewaard bij dit concept. Plak hem opnieuw voordat je verstuurt.",
     "dismissLostFiles": "Sluiten",

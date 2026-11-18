@@ -37,6 +37,80 @@ describe('resolveToolCallStates', () => {
   });
 });
 
+describe('resolveToolCallStates with call IDs', () => {
+  const named = (toolName: string, toolCallId?: string) => ({
+    toolName,
+    pending: false,
+    toolCallId,
+  });
+  const denied = (toolCallId: string | null) => ({
+    toolName: 'shell',
+    status: 'denied' as const,
+    toolCallId,
+  });
+
+  it('gives a card to the call it names, before any call of its tool', () => {
+    expect(
+      resolveToolCallStates([named('shell', 'a'), named('shell', 'b')], [denied('b')])
+    ).toEqual(['done', 'denied']);
+  });
+
+  it('never gives a card that names a call to a call that names another', () => {
+    expect(
+      resolveToolCallStates([named('shell', 'a'), named('shell', 'b')], [denied('c')])
+    ).toEqual(['done', 'done']);
+  });
+
+  it('gives a card that names a call by its tool to a call from before call IDs', () => {
+    expect(resolveToolCallStates([named('shell'), named('shell')], [denied('b')])).toEqual([
+      'denied',
+      'done',
+    ]);
+  });
+
+  it('gives a card that names no call to the first call of its tool that no card named', () => {
+    expect(
+      resolveToolCallStates(
+        [named('shell', 'a'), named('shell', 'b')],
+        [denied(null), { ...denied('a'), status: 'expired' }]
+      )
+    ).toEqual(['expired', 'denied']);
+  });
+
+  it('gives a card to the call of its ID and tool, an ID that a reply may reuse', () => {
+    expect(
+      resolveToolCallStates([named('read_file', 'c1'), named('shell', 'c1')], [denied('c1')])
+    ).toEqual(['done', 'denied']);
+  });
+
+  it('gives the cards of jobs first, then a job without one the card that names its call', () => {
+    const job = (jobId: string) => ({ jobId, status: 'running' });
+    expect(
+      resolveToolCallStates(
+        [
+          named('shell', 'a'),
+          { ...named('shell', 'b'), job: job('j2') },
+          { ...named('shell', 'c'), job: job('j3') },
+        ],
+        [
+          { ...denied('a'), jobId: 'j2' },
+          { ...denied('c'), status: 'expired' },
+        ]
+      )
+    ).toEqual(['done', 'denied', 'expired']);
+  });
+
+  it('gives cards only to the calls they name without byName', () => {
+    expect(
+      resolveToolCallStates(
+        [named('shell', 'a'), named('shell')],
+        [denied(null), denied('a')],
+        false
+      )
+    ).toEqual(['denied', 'done']);
+  });
+});
+
 describe('resolveToolCallStates with background jobs', () => {
   const job = (jobId: string) => ({ jobId, status: 'awaiting_approval' });
 

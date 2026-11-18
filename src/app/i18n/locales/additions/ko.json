@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "닫기",
       "previous": "이전 이미지",
-      "next": "다음 이미지"
+      "next": "다음 이미지",
+      "wheelZoomHint": "{{key}} + 스크롤로 확대/축소"
     },
     "inviteUserPrompt": {
       "close": "닫기",
@@ -404,7 +405,7 @@
         "thirdPartyNotices": "타사 고지 사항",
         "soundsCredit": "알림음과 초대음은 이 앱을 위해 합성한 차임입니다.",
         "debugMode": "디버그 모드",
-        "debugModeDescription": "이 기기에서 진단 정보를 기록하여 내보내고 상세 진단 추적을 켤 수 있게 합니다."
+        "debugModeDescription": "이 기기의 진단 정보를 메시지로 보낼 수 있도록 입력란의 + 메뉴에 ‘앱 로그 첨부’를 추가합니다. 메모리 수치와 자세한 추적을 포함하려면 아래에서 상세 진단 추적을 켜세요."
       }
     },
     "createChat": {
@@ -670,11 +671,33 @@
           "note": "이미 붙은 제목은 다음에 새로 고칠 때까지 지금 문구를 유지합니다."
         },
         "save": "저장",
+        "saved": "저장됨",
         "clear": "지우기",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "이 방의 설정을 바꿀 수 있는 사람만 편집할 수 있습니다.",
-        "saveFailed": "설정을 저장하지 못했습니다. 다시 시도하세요."
+        "saveFailed": "설정을 저장하지 못했습니다. 다시 시도하세요.",
+        "replyMode": {
+          "label": "에이전트 응답",
+          "description": "새 메시지가 답을 받으려면 에이전트나 팀을 멘션해야 하는지 정합니다. 기본값은 이 방에 대한 MindRoom 설정을 따릅니다. 멘션될 때만으로 두어도 에이전트는 이미 답한 스레드의 이어지는 메시지에 답할 수 있습니다.",
+          "default": "기본값",
+          "auto": "모든 메시지",
+          "mentions": "멘션될 때만"
+        }
       }
+    },
+    "macApp": {
+      "title": "Mac용 MindRoom",
+      "text": "⌃⌥Space로 빠른 캡처, 기본 알림.",
+      "download": "다운로드",
+      "notNow": "나중에",
+      "dismiss": "닫기",
+      "banner": "<b>Mac을 쓰시나요?</b> MindRoom 앱을 받으세요.",
+      "bannerDownload": "Mac용 다운로드",
+      "menu": "Mac 앱 다운로드",
+      "downloadDmg": "다운로드 (.dmg)",
+      "copyCommand": "명령어 복사",
+      "copyFailed": "복사하지 못했습니다",
+      "keywords": "mac, macos, 데스크톱, 앱, 다운로드, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -767,6 +790,15 @@
           "saved": "저장됨",
           "declined": "거절됨",
           "expired": "만료됨"
+        },
+        "line": {
+          "sentKept": "보냄 · {{duration}} 보관"
+        },
+        "facts": {
+          "nothingSent": "아무것도 보내거나 보관하지 않았습니다.",
+          "noAnswer": "제때 답이 없어 아무것도 보내지 않았습니다.",
+          "askedAs": "이 대화에서 {{agent}}의 명령을 위해 {{variable}}(으)로 요청되었습니다.",
+          "replaced": "이전에 저장된 키를 대체했습니다."
         }
       },
       "skillReviewMarker": {
@@ -798,13 +830,67 @@
         "toolRunningFor": "{{duration}} 동안 실행 중"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "제목 설정"
+        "titleSettings": "제목 설정…"
       },
       "replyTime": {
         "started": "시작 {{value1}}",
         "finished": "종료 {{value1}}",
         "stillStreaming": "아직 진행 중",
         "duration": "소요 시간 {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}}초",
+        "tokensShort": "{{before}} → {{after}} 토큰",
+        "label": {
+          "running": "컨텍스트 압축 중…",
+          "preTurn": "답장 전에 압축됨",
+          "midTurn": "컨텍스트 압축됨",
+          "manual": "요청으로 압축됨",
+          "failed": "압축 실패",
+          "timeout": "압축 시간 초과",
+          "interrupted": "압축 중단됨"
+        },
+        "title": "컨텍스트가 압축됨",
+        "tag": {
+          "preTurn": "답장 전",
+          "midTurn": "턴 중간",
+          "manual": "수동"
+        },
+        "subtitle": {
+          "preTurn": "이 답장의 첫 모델 요청 전.",
+          "midTurn": "두 모델 요청 사이, 도구 호출 {{n, number}} 이후.",
+          "midTurnNoTools": "두 모델 요청 사이.",
+          "manual": "압축 명령으로 요청됨."
+        },
+        "gauge": {
+          "was": "이전 예산의 {{p, number}}%",
+          "now": "현재 {{p, number}}%",
+          "used": "예산의 {{p, number}}%"
+        },
+        "row": {
+          "history": "기록",
+          "saved": "절약",
+          "budget": "예산",
+          "folded": "묶음",
+          "folding": "묶는 중",
+          "summarizedBy": "요약 모델",
+          "summaryModel": "요약 모델",
+          "when": "시각",
+          "started": "시작",
+          "reason": "이유",
+          "gaveUpAfter": "중단까지"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> 토큰",
+          "history": "<b>{{n, number}}</b> 토큰",
+          "tokens": "{{n, number}} 토큰",
+          "saved": "{{n, number}} 토큰 ({{p, number}}%)",
+          "runs_other": "실행 {{count, number}}개",
+          "folded": "{{runs}}를 요약 1개로",
+          "folding": "{{runs}}, {{done, number}}개 완료",
+          "summarizedBy": "{{model}}, {{duration}}",
+          "interrupted": "요약이 끝나기 전에 답장이 끝났습니다."
+        }
       }
     },
     "message-search": {
@@ -901,6 +987,25 @@
       "showFor": "하위 에이전트 표시: {{name}}",
       "withCount_other": "{{label}}, {{count}}개 활성",
       "resize": "하위 에이전트 패널 크기 조정"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "추론 수준",
+        "effortFor": "{{model}}의 추론 수준",
+        "noEffortLevels": "추론 수준 없음",
+        "defaultLevel": "기본값",
+        "levelIsDefault": "{{level}}, 기본값",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "끄기",
+          "minimal": "최소",
+          "low": "낮음",
+          "medium": "보통",
+          "high": "높음",
+          "xhigh": "매우 높음",
+          "max": "최대"
+        }
+      }
     }
   },
   "composer": {
@@ -909,6 +1014,8 @@
     "emoji": "이모지",
     "cancelReply": "답장 취소",
     "moreActions": "추가 작업",
+    "attachMenu": "첨부",
+    "attachAppLogs": "앱 로그 첨부",
     "lostFiles": "이 초안에 보관되지 않음: {{files}}. 보내기 전에 다시 첨부하세요.",
     "lostPastes": "붙여넣은 텍스트가 이 초안에 보관되지 않았습니다. 보내기 전에 다시 붙여넣으세요.",
     "dismissLostFiles": "닫기",

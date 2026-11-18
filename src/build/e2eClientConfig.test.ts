@@ -9,9 +9,9 @@ type Middleware = (
   next: () => void
 ) => void;
 
-const installMiddleware = (provisioningUrl: string | undefined) => {
+const installMiddleware = (provisioningUrl: string | undefined, homeserver?: string) => {
   const middlewares: Middleware[] = [];
-  const plugin = e2eClientConfig(provisioningUrl);
+  const plugin = e2eClientConfig(provisioningUrl, homeserver);
   plugin.configureServer({ middlewares: { use: (fn: Middleware) => middlewares.push(fn) } });
   return middlewares;
 };
@@ -48,6 +48,15 @@ describe('e2e client config', () => {
       encryptionRecovery: undefined,
       tour: undefined,
     });
+  });
+
+  it('lists only the given homeserver, as the default, so /login opens on it', () => {
+    const [middleware] = installMiddleware('http://127.0.0.1:4350', 'http://127.0.0.1:28150');
+
+    const served = JSON.parse(request(middleware!, '/config.json').res.end.mock.calls[0]![0]);
+
+    expect(served.homeserverList).toEqual(['http://127.0.0.1:28150']);
+    expect(served.defaultHomeserver).toBe(0);
   });
 
   it('leaves other requests and non-e2e servers alone', () => {

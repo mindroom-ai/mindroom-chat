@@ -48,7 +48,6 @@ const rowFor = (event: MatrixEvent): TimelineMessageRow => ({
 
 const emptyData = {
   threadRecordMap: new Map(),
-  threadEventMap: new Map(),
   handleOpenReply: vi.fn(),
   approvalTimeline: {
     hiddenEventIds: new Set<string>(),
@@ -56,6 +55,11 @@ const emptyData = {
     fallbackGroupsByEventId: new Map(),
   },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>(), markersByEventId: new Map() },
+  secretRequestTimeline: {
+    hiddenEventIds: new Set<string>(),
+    byReply: new Map(),
+    waitingReplyIds: new Set<string>(),
+  },
 } as never;
 
 const emptyEditor = () => {

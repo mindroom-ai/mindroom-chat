@@ -57,7 +57,7 @@ beforeEach(() => {
   room = new Room(ROOM_ID, mx, ME);
   threads = [thread('$a'), thread('$b')];
   changes = createThreadRecordChanges();
-  changes.onKept = vi.fn();
+  changes.listened = true;
 });
 
 const build = (previous?: ReadonlyMap<string, boolean>, userId = ME) =>
@@ -71,23 +71,21 @@ const checkedBy = <T>(run: () => T): [T, string[]] => {
 };
 
 describe('buildThreadUnreadMap reuse', () => {
-  it('keeps the map itself when no mark changed, and tells the listener it kept one', () => {
+  it('keeps the map itself when no mark changed', () => {
     const first = build();
     expect(Object.fromEntries(first)).toEqual({ $a: true, $b: true });
-    expect(changes.onKept).not.toHaveBeenCalled();
 
     const [second, checked] = checkedBy(() => build(first));
 
     expect(second).toBe(first);
     expect(checked).toEqual([]);
-    expect(changes.onKept).toHaveBeenCalledTimes(1);
     // A thread marked again whose mark stays is checked, and the map is still the same.
     markThreadRecordChange(changes, '$a');
     expect(checkedBy(() => build(second))).toEqual([first, ['$a']]);
   });
 
-  it('checks every thread while no one listens, who would check a kept mark again', () => {
-    changes.onKept = undefined;
+  it('checks every thread while no one hears the room, who would mark its changes', () => {
+    changes.listened = false;
     const first = build();
 
     expect(checkedBy(() => build(first))[1]).toEqual(['$a', '$b']);

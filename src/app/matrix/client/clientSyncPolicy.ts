@@ -1,8 +1,9 @@
-import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
+import { Filter, MatrixClient } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../cachedSpecVersions';
 import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
+import { onClientClose } from './closeClient';
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepBundledEditsInTheirRoom } from './bundledEditRoom';
 import { keepNewerEditsOnMappedCopies } from './mappedCopyEdits';
@@ -11,8 +12,10 @@ import { keepThreadReplyCounts } from './threadReplyCounts';
 import { relistThreadsAfterGaps } from './threadListGaps';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { keepStreamingRepliesChecked } from './streamingReplies';
+import { keepStreamingThreadsLoaded } from './streamingThreadLoads';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepSyncedEdits } from './syncedEdits';
+import { emptySupersededJobsState } from './supersededJobsState';
 import { keepUnsentMessages } from './unsentMessages';
 import { recordRecentLiveEvents } from './recentLiveEvents';
 
@@ -80,10 +83,7 @@ export const clearSyncFilterIds = (userId: string): void => {
 const countedClients = new WeakSet<MatrixClient>();
 
 /** Starts syncing: bounded timelines, lazy-loaded members, threads and live reply frames. */
-export const startClient = async (
-  mx: MatrixClient,
-  options: Partial<IStartClientOpts> = {}
-): Promise<void> => {
+export const startClient = async (mx: MatrixClient): Promise<void> => {
   await seedCachedServerVersions(mx);
   // Before the saved sync is replayed, which brings thread roots together with their replies
   // and edits, bundled ones among them. Only an SDK client has rooms whose threads count replies
@@ -96,21 +96,24 @@ export const startClient = async (
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
     keepStreamingRepliesChecked(mx);
+    keepStreamingThreadsLoaded(mx);
     relistThreadsAfterGaps(mx);
-    keepRedactionsInSavedSync(mx);
+    // These saves listen to the page as well (it may be hidden while one waits), which would keep
+    // a closed client in memory and save its store once more.
+    onClientClose(mx, keepRedactionsInSavedSync(mx));
     dropRoomsForgottenElsewhere(mx);
     keepSyncedEdits(mx);
+    emptySupersededJobsState(mx);
     keepUnthreadedReceiptEvents(mx);
     keepEncryptedRoomCounts(mx);
     keepUnsentMessages(mx);
     // Before the first sync, whose rings may come before the pages that watch for them load.
     recordRecentLiveEvents(mx);
   }
-  const policy: Partial<IStartClientOpts> = {
+  await mx.startClient({
     threadSupport: true,
     lazyLoadMembers: true,
     initialSyncLimit: STARTUP_SYNC_TIMELINE_LIMIT,
     filter: buildSyncFilter(mx),
-  };
-  await mx.startClient({ ...policy, ...options });
+  });
 };

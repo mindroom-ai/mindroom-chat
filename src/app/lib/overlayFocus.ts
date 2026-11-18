@@ -17,6 +17,10 @@
  * - A layer that closes after a key press (Escape, or Enter on one of its items) would leave focus
  *   on `<body>`; focus goes back to the control it came from. A dialog gives focus back however it
  *   closed. After a pointer press on a menu nothing moves, so a click elsewhere keeps its own focus.
+ * - A layer marked `data-owns-focus` (`OWNS_FOCUS_ATTRIBUTE`) moves focus itself, as the thread
+ *   title marker's card does (Tab reaches it from the marker, Escape gives focus back): it is
+ *   never focused, kept or wrapped by this module as it opens; focus still returns to its opener
+ *   when it closes leaving focus on the body.
  */
 
 const PORTAL_CONTAINER_ID = 'portalContainer';
@@ -60,6 +64,22 @@ type Doc = Document & { defaultView: (Window & typeof globalThis) | null };
  */
 export const LAYER_HOST_ATTRIBUTE = 'data-layer-host';
 
+/** Marks a layer that moves focus itself, which this module then leaves alone. */
+export const OWNS_FOCUS_ATTRIBUTE = 'data-owns-focus';
+
+/**
+ * Tab in a card that lives in the body goes on from the control that opened it: focus moves to
+ * `opener`, where a plain Tab then runs, while Shift+Tab stops there, the control before the card.
+ */
+export const tabFromCardToOpener = (
+  evt: { key: string; shiftKey: boolean; preventDefault: () => void },
+  opener: HTMLElement | null
+): void => {
+  if (evt.key !== 'Tab') return;
+  if (evt.shiftKey) evt.preventDefault();
+  opener?.focus();
+};
+
 const isLayerParent = (doc: Document, parent: Element | null): boolean =>
   !!parent &&
   (parent === doc.body ||
@@ -91,6 +111,7 @@ const isPassiveLayer = (layer: Element): boolean =>
   layer.getAttribute('aria-hidden') === 'true' ||
   PASSIVE_ROLES.has(layer.getAttribute('role') ?? '') ||
   layer.hasAttribute('aria-live') ||
+  layer.hasAttribute(OWNS_FOCUS_ATTRIBUTE) ||
   ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(layer.tagName) ||
   !(layer instanceof (layer.ownerDocument.defaultView?.HTMLElement ?? HTMLElement)) ||
   // A hover or focus tooltip, which pops out like a menu but holds no controls of its own.

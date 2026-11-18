@@ -42,6 +42,19 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("thread_summary_model", config)
         self.assertNotIn("anthropic", config)
 
+    def test_a_backend_with_reasoning_levels_gets_a_stub_model_with_levels(self) -> None:
+        plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
+        self.assertNotIn("think", plain)
+        self.assertNotIn("reasoning:", plain)
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, reasoning_levels=True)
+        self.assertIn(
+            "  think:\n    provider: openai\n    id: stub-think\n    display_name: Stub Think\n"
+            "    api: chat_completions\n    context_window: 128000\n"
+            '    reasoning:\n      levels: ["low", "medium", "high"]\n      default: medium\n'
+            f"    extra_kwargs:\n      base_url: {STUB_URL}\n",
+            config,
+        )
+
     def test_extra_agents_are_stub_workers_in_the_lobby(self) -> None:
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, extra_agents=3)
         for number in (1, 2, 3):
@@ -87,6 +100,50 @@ class ConfigTests(unittest.TestCase):
             "#slow", "#stopme", "#long", "#multi", "#pause", "#approve", "#title", "#tag", "#expire", "#job", "#terminal"
         ):
             self.assertIn(f"{tag}:", script)
+
+    def test_live_config_runs_a_plain_helper_on_luna_with_haiku_beside_it(self) -> None:
+        config = stack.config_yaml("live", TESTER, STUB_URL, 0.0003)
+        self.assertIn("  default:\n    provider: openai\n    id: gpt-6-luna\n", config)
+        self.assertIn("  haiku:\n    provider: anthropic\n    id: claude-haiku-5-5\n", config)
+        self.assertIn("router:\n  model: default\n", config)
+        self.assertIn("  thread_summary_model: default\n", config)
+        self.assertIn('      - "You are a helpful assistant in a throwaway MindRoom test deployment."\n', config)
+        self.assertIn("      - thread_model\n", config)
+        # No hashtag script, no stub.
+        self.assertNotIn("#slow", config)
+        self.assertNotIn(STUB_URL, config)
+        self.assertNotIn("  scout:", config)
+
+    def test_a_live_stack_needs_only_the_openai_key(self) -> None:
+        args = up_args(checkout=None, ref=None, transcription="stub", model="live")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, "ANTHROPIC_API_KEY": "a"}, clear=True),
+            mock.patch.object(stack, "resolve_checkout", return_value=Path("/checkout")),
+            mock.patch.object(stack, "resolve_commit", return_value="abc"),
+            mock.patch.object(stack, "commit_has", return_value=False),
+            mock.patch.object(stack, "http_json", return_value=(200, {})),
+            self.assertRaises(stack.StackError) as raised,
+        ):
+            stack.up(5, args)
+        self.assertEqual(raised.exception.code, stack.EXIT_NO_KEYS)
+        self.assertIn("--model live needs OPENAI_API_KEY", str(raised.exception))
+
+    def test_a_live_stacks_default_model_is_priced_as_luna(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            line = 'LLM usage {"model_name": "default", "model_id": "gpt-6-luna", "uncached_input_tokens": 1000000}'
+            (Path(directory) / "backend.log").write_text(line + "\n")
+            summary = stack.usage_summary({"model": "live"}, Path(directory))
+        self.assertEqual(summary["models"]["default"]["usd"], 0.1)
+
+    def test_the_default_checkout_is_the_first_that_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            second = Path(directory) / "b"
+            second.mkdir()
+            with mock.patch.object(stack, "CHECKOUT_CANDIDATES", (str(Path(directory) / "a"), str(second))):
+                self.assertEqual(stack.default_checkout(), str(second))
+                second.rmdir()
+                self.assertEqual(stack.default_checkout(), str(Path(directory) / "a"))
 
     def test_a_key_in_the_environment_never_reaches_the_config(self) -> None:
         with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-secret", "OPENAI_API_KEY": "sk-two"}):
@@ -420,8 +477,13 @@ class CommandLineTests(unittest.TestCase):
         """The config a start writes for a commit with or without the setting that allows shells outside a worker."""
         with self.starting(), mock.patch.object(stack, "commit_mentions", return_value=has_shell_setting) as mentions:
             self.assertEqual(self.main("7", "up"), 0)
-        mentions.assert_called_once_with(
-            Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"
+        # The start also asks whether the commit's models take reasoning levels.
+        self.assertEqual(
+            sorted(call.args for call in mentions.call_args_list),
+            [
+                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
+                (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
+            ],
         )
         return (self.slot_dir / "config.yaml").read_text()
 
@@ -1318,7 +1380,7 @@ class StubScenarioTests(unittest.TestCase):
             message = self.answer([], second)
             sleep.assert_awaited_once_with(3.5)
         arguments = json.loads(message["tool_calls"][0]["function"]["arguments"])
-        self.assertEqual(arguments, {"args": "sleep 1; echo second step"})
+        self.assertEqual(arguments, {"args": "sleep 7; echo second step"})
 
     def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:
         broken = self.scenarios("{not json")

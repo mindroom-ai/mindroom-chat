@@ -45,6 +45,7 @@ import {
   removeSessionAndReload,
 } from '../account/lifecycle/sessionLifecycle';
 import { startClient } from '../matrix/client/clientSyncPolicy';
+import { registerMatrixMemoryGauges } from '../matrix/client/memoryGauges';
 import { getLoginPath, getOriginBaseUrl } from '../routes/pathUtils';
 import { withAddAccountSearchIf } from '../navigation/addAccount';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
@@ -508,6 +509,9 @@ function ClientSession({ session, children }: ClientSessionProps) {
       mx.removeListener(HttpApiEvent.SessionLoggedOut, leaveAfterServerLogout);
     };
   }, [mx]);
+
+  // The deep trace's memory samples count this client's rooms and events while it runs.
+  useEffect(() => (mx ? registerMatrixMemoryGauges(mx) : undefined), [mx]);
 
   useEffect(() => {
     if (!mx) return undefined;

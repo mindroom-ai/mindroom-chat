@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "बंद करें",
       "previous": "पिछली छवि",
-      "next": "अगली छवि"
+      "next": "अगली छवि",
+      "wheelZoomHint": "ज़ूम करने के लिए {{key}} + स्क्रॉल"
     },
     "inviteUserPrompt": {
       "close": "बंद करें",
@@ -409,7 +410,7 @@
         "thirdPartyNotices": "तृतीय-पक्ष सूचनाएँ",
         "soundsCredit": "सूचना और आमंत्रण की ध्वनियाँ इस ऐप के लिए संश्लेषित की गई झंकारें हैं।",
         "debugMode": "डीबग मोड",
-        "debugModeDescription": "इस डिवाइस पर डायग्नोस्टिक्स रिकॉर्ड करता है, ताकि आप उन्हें एक्सपोर्ट कर सकें और गहन निदान अनुरेखण चालू कर सकें।"
+        "debugModeDescription": "संदेश बॉक्स के + मेनू में “ऐप लॉग संलग्न करें” जोड़ता है, ताकि आप इस डिवाइस के डायग्नोस्टिक्स संदेश में भेज सकें। मेमोरी के आंकड़े और विस्तृत अनुरेखण शामिल करने के लिए नीचे गहन निदान अनुरेखण चालू करें।"
       }
     },
     "createChat": {
@@ -679,11 +680,33 @@
           "note": "जो शीर्षक पहले से दिए जा चुके हैं, वे अगली बार रीफ़्रेश होने तक अपने शब्द बनाए रखते हैं।"
         },
         "save": "सहेजें",
+        "saved": "सहेजा गया",
         "clear": "साफ़ करें",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "इसे सिर्फ़ वही लोग बदल सकते हैं जिन्हें इस रूम की सेटिंग बदलने की अनुमति है।",
-        "saveFailed": "सेटिंग सहेजी नहीं जा सकी। फिर से कोशिश करें।"
+        "saveFailed": "सेटिंग सहेजी नहीं जा सकी। फिर से कोशिश करें।",
+        "replyMode": {
+          "label": "एजेंट जवाब देते हैं",
+          "description": "क्या किसी नए संदेश को जवाब पाने के लिए किसी एजेंट या टीम का उल्लेख करना होगा। डिफ़ॉल्ट इस रूम के लिए MindRoom के कॉन्फ़िगरेशन का पालन करता है। सिर्फ़ उल्लेख होने पर चुनने पर भी, एजेंट उस थ्रेड में आगे के संदेशों का जवाब दे सकते हैं जिसमें वे पहले जवाब दे चुके हैं।",
+          "default": "डिफ़ॉल्ट",
+          "auto": "हर संदेश पर",
+          "mentions": "सिर्फ़ उल्लेख होने पर"
+        }
       }
+    },
+    "macApp": {
+      "title": "Mac के लिए MindRoom",
+      "text": "⌃⌥Space से क्विक कैप्चर, नेटिव सूचनाएँ।",
+      "download": "डाउनलोड करें",
+      "notNow": "अभी नहीं",
+      "dismiss": "हटाएँ",
+      "banner": "<b>Mac इस्तेमाल करते हैं?</b> MindRoom ऐप पाएँ।",
+      "bannerDownload": "Mac के लिए डाउनलोड करें",
+      "menu": "Mac ऐप डाउनलोड करें",
+      "downloadDmg": "डाउनलोड करें (.dmg)",
+      "copyCommand": "कमांड कॉपी करें",
+      "copyFailed": "कॉपी नहीं हो सका",
+      "keywords": "mac, macos, डेस्कटॉप, ऐप, डाउनलोड, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -776,6 +799,15 @@
           "saved": "सहेजी गई",
           "declined": "अस्वीकृत",
           "expired": "खत्म हो चुका"
+        },
+        "line": {
+          "sentKept": "भेजी गई · {{duration}} तक रखी गई"
+        },
+        "facts": {
+          "nothingSent": "कुछ भी भेजा या रखा नहीं गया।",
+          "noAnswer": "समय पर कोई जवाब नहीं मिला, इसलिए कुछ नहीं भेजा गया।",
+          "askedAs": "इस बातचीत में {{agent}} के कमांड के लिए {{variable}} के रूप में मांगी गई थी।",
+          "replaced": "पहले सहेजी गई कुंजी को बदल दिया।"
         }
       },
       "skillReviewMarker": {
@@ -809,13 +841,68 @@
         "toolRunningFor": "{{duration}} से चल रहा है"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "शीर्षक सेटिंग"
+        "titleSettings": "शीर्षक सेटिंग…"
       },
       "replyTime": {
         "started": "शुरू {{value1}}",
         "finished": "समाप्त {{value1}}",
         "stillStreaming": "अभी चल रहा है",
         "duration": "अवधि {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} से",
+        "tokensShort": "{{before}} → {{after}} टोकन",
+        "label": {
+          "running": "संदर्भ संक्षिप्त हो रहा है…",
+          "preTurn": "जवाब से पहले संक्षिप्त किया",
+          "midTurn": "संदर्भ संक्षिप्त किया",
+          "manual": "अनुरोध पर संक्षिप्त किया",
+          "failed": "संक्षेपण विफल रहा",
+          "timeout": "संक्षेपण का समय समाप्त",
+          "interrupted": "संक्षेपण बीच में रुका"
+        },
+        "title": "संदर्भ संक्षिप्त किया गया",
+        "tag": {
+          "preTurn": "जवाब से पहले",
+          "midTurn": "बारी के बीच",
+          "manual": "मैन्युअल"
+        },
+        "subtitle": {
+          "preTurn": "इस जवाब के पहले मॉडल अनुरोध से पहले।",
+          "midTurn": "दो मॉडल अनुरोधों के बीच, टूल कॉल {{n, number}} के बाद।",
+          "midTurnNoTools": "दो मॉडल अनुरोधों के बीच।",
+          "manual": "संक्षेपण कमांड से अनुरोध किया गया।"
+        },
+        "gauge": {
+          "was": "पहले बजट का {{p, number}}%",
+          "now": "अब {{p, number}}%",
+          "used": "बजट का {{p, number}}%"
+        },
+        "row": {
+          "history": "इतिहास",
+          "saved": "बचत",
+          "budget": "बजट",
+          "folded": "समेटे गए",
+          "folding": "समेटे जा रहे हैं",
+          "summarizedBy": "सारांश बनाया",
+          "summaryModel": "सारांश मॉडल",
+          "when": "कब",
+          "started": "शुरू हुआ",
+          "reason": "कारण",
+          "gaveUpAfter": "इसके बाद छोड़ा"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> टोकन",
+          "history": "<b>{{n, number}}</b> टोकन",
+          "tokens": "{{n, number}} टोकन",
+          "saved": "{{n, number}} टोकन ({{p, number}}%)",
+          "runs_one": "{{count, number}} रन",
+          "runs_other": "{{count, number}} रन",
+          "folded": "{{runs}} 1 सारांश में",
+          "folding": "{{runs}}, {{done, number}} पूरे",
+          "summarizedBy": "{{model}}, {{duration}} में",
+          "interrupted": "सारांश पूरा होने से पहले जवाब खत्म हो गया।"
+        }
       }
     },
     "message-search": {
@@ -918,6 +1005,25 @@
       "withCount_one": "{{label}}, {{count}} सक्रिय",
       "withCount_other": "{{label}}, {{count}} सक्रिय",
       "resize": "सब-एजेंट पैनल का आकार बदलें"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "प्रयास",
+        "effortFor": "{{model}} के लिए प्रयास",
+        "noEffortLevels": "कोई प्रयास स्तर नहीं",
+        "defaultLevel": "डिफ़ॉल्ट",
+        "levelIsDefault": "{{level}}, डिफ़ॉल्ट",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "बंद",
+          "minimal": "न्यूनतम",
+          "low": "कम",
+          "medium": "मध्यम",
+          "high": "उच्च",
+          "xhigh": "बहुत उच्च",
+          "max": "अधिकतम"
+        }
+      }
     }
   },
   "composer": {
@@ -926,6 +1032,8 @@
     "emoji": "इमोजी",
     "cancelReply": "जवाब रद्द करें",
     "moreActions": "और कार्रवाइयाँ",
+    "attachMenu": "संलग्न करें",
+    "attachAppLogs": "ऐप लॉग संलग्न करें",
     "lostFiles": "इस ड्राफ़्ट के साथ नहीं रखे गए: {{files}}। भेजने से पहले उन्हें फिर से अटैच करें।",
     "lostPastes": "चिपकाया गया टेक्स्ट इस ड्राफ़्ट के साथ नहीं रखा गया। भेजने से पहले उसे फिर से चिपकाएँ।",
     "dismissLostFiles": "हटाएँ",

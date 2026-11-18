@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { isDeepTraceRecording, recordDeepTraceEvent } from '../../../../diagnostics/deepTrace';
 import { deleteCacheStoreDb, openCacheStore } from '../cacheStoreDb';
 import { CACHE_STALL_MS } from '../cacheStoreTrace';
+import { sampleMemory } from '../../../../diagnostics/memorySampler';
 
 vi.mock('../../../../diagnostics/deepTrace', () => ({
   isDeepTraceRecording: vi.fn(() => true),
@@ -49,6 +50,43 @@ it('records cache transactions still open after the stall threshold and how they
     ],
     ['storage.cache.transaction_settled', { readwrite: false, events: true, ...duration }],
   ]);
+});
+
+it("counts the newest connection's open transactions in memory samples", async () => {
+  const db = (await openCacheStore(sessionId))!;
+  const read = db.transaction('events', 'readonly');
+  const openCount = () => {
+    record.mockClear();
+    sampleMemory('interval');
+    return record.mock.calls.find(([name]) => name === 'memory.sample')?.[1]
+      ?.cache_open_transactions;
+  };
+
+  expect(openCount()).toBe(1);
+  await settled(read);
+  expect(openCount()).toBe(0);
+});
+
+it("drops a connection's count from memory samples once it closes or is deleted", async () => {
+  const sampledCount = () => {
+    record.mockClear();
+    sampleMemory('interval');
+    return record.mock.calls.find(([name]) => name === 'memory.sample')?.[1]
+      ?.cache_open_transactions;
+  };
+  const db = (await openCacheStore(sessionId))!;
+  expect(sampledCount()).toBe(0);
+  const closed = new Promise<void>((resolve) => {
+    db.addEventListener('close', () => resolve(), { once: true });
+  });
+  forceCloseDatabase(db as unknown as Parameters<typeof forceCloseDatabase>[0]);
+  await closed;
+  expect(sampledCount()).toBeUndefined();
+
+  await openCacheStore(otherSessionId);
+  expect(sampledCount()).toBe(0);
+  await deleteCacheStoreDb(otherSessionId);
+  expect(sampledCount()).toBeUndefined();
 });
 
 it('records nothing for cache transactions that finish in time', async () => {

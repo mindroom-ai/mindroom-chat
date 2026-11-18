@@ -92,7 +92,8 @@
     "imageViewer": {
       "close": "Fermer",
       "previous": "Image précédente",
-      "next": "Image suivante"
+      "next": "Image suivante",
+      "wheelZoomHint": "{{key}} + molette pour zoomer"
     },
     "inviteUserPrompt": {
       "close": "Fermer",
@@ -414,7 +415,7 @@
         "thirdPartyNotices": "Avis de tiers",
         "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
         "debugMode": "Mode débogage",
-        "debugModeDescription": "Enregistre des diagnostics sur cet appareil pour que vous puissiez les exporter et activer le traçage de diagnostic approfondi."
+        "debugModeDescription": "Ajoute « Joindre les journaux de l’app » au menu + de la zone de saisie, pour que vous puissiez envoyer les diagnostics de cet appareil dans un message. Activez le traçage de diagnostic approfondi ci-dessous pour inclure les chiffres de mémoire et une trace détaillée."
       }
     },
     "createChat": {
@@ -688,11 +689,33 @@
           "note": "Les titres déjà attribués gardent leur formulation jusqu’à la prochaine actualisation."
         },
         "save": "Enregistrer",
+        "saved": "Enregistré",
         "clear": "Effacer",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Seules les personnes autorisées à modifier les paramètres de ce salon peuvent changer ceci.",
-        "saveFailed": "Impossible d’enregistrer le paramètre. Réessayez."
+        "saveFailed": "Impossible d’enregistrer le paramètre. Réessayez.",
+        "replyMode": {
+          "label": "Les agents répondent",
+          "description": "Indique si un nouveau message doit mentionner un agent ou une équipe pour obtenir une réponse. Par défaut suit la configuration de MindRoom pour ce salon. Même avec Seulement si mentionnés, les agents peuvent répondre aux messages suivants dans un fil où ils ont déjà répondu.",
+          "default": "Par défaut",
+          "auto": "À tout message",
+          "mentions": "Seulement si mentionnés"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom pour Mac",
+      "text": "Capture rapide avec ⌃⌥Space, notifications natives.",
+      "download": "Télécharger",
+      "notNow": "Plus tard",
+      "dismiss": "Ignorer",
+      "banner": "<b>Vous utilisez un Mac ?</b> Installez l’app MindRoom.",
+      "bannerDownload": "Télécharger pour Mac",
+      "menu": "Télécharger l’app Mac",
+      "downloadDmg": "Télécharger (.dmg)",
+      "copyCommand": "Copier la commande",
+      "copyFailed": "Échec de la copie",
+      "keywords": "mac, macos, bureau, app, application, télécharger, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -785,6 +808,15 @@
           "saved": "Enregistrée",
           "declined": "Refusée",
           "expired": "Expirée"
+        },
+        "line": {
+          "sentKept": "Envoyé · conservé {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Rien n'a été envoyé ni conservé.",
+          "noAnswer": "Pas de réponse à temps, donc rien n'a été envoyé.",
+          "askedAs": "Demandé pour les commandes de {{agent}} dans cette conversation sous le nom {{variable}}.",
+          "replaced": "A remplacé la clé enregistrée auparavant."
         }
       },
       "skillReviewMarker": {
@@ -820,13 +852,69 @@
         "toolRunningFor": "En cours depuis {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Paramètres des titres"
+        "titleSettings": "Paramètres des titres…"
       },
       "replyTime": {
         "started": "Commencé {{value1}}",
         "finished": "Terminé {{value1}}",
         "stillStreaming": "Toujours en cours",
         "duration": "Durée {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} jetons",
+        "label": {
+          "running": "Compactage du contexte…",
+          "preTurn": "Compacté avant de répondre",
+          "midTurn": "Contexte compacté",
+          "manual": "Compacté sur demande",
+          "failed": "Échec du compactage",
+          "timeout": "Compactage expiré",
+          "interrupted": "Compactage interrompu"
+        },
+        "title": "Contexte compacté",
+        "tag": {
+          "preTurn": "avant la réponse",
+          "midTurn": "en cours de tour",
+          "manual": "manuel"
+        },
+        "subtitle": {
+          "preTurn": "Avant la première requête au modèle de cette réponse.",
+          "midTurn": "Entre deux requêtes au modèle, après l’appel d’outil {{n, number}}.",
+          "midTurnNoTools": "Entre deux requêtes au modèle.",
+          "manual": "Demandé avec la commande de compactage."
+        },
+        "gauge": {
+          "was": "était à {{p, number}} % du budget",
+          "now": "maintenant {{p, number}} %",
+          "used": "{{p, number}} % du budget"
+        },
+        "row": {
+          "history": "Historique",
+          "saved": "Économisé",
+          "budget": "Budget",
+          "folded": "Regroupé",
+          "folding": "Regroupement",
+          "summarizedBy": "Résumé par",
+          "summaryModel": "Modèle de résumé",
+          "when": "Quand",
+          "started": "Démarré",
+          "reason": "Raison",
+          "gaveUpAfter": "Abandon après"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> jetons",
+          "history": "<b>{{n, number}}</b> jetons",
+          "tokens": "{{n, number}} jetons",
+          "saved": "{{n, number}} jetons ({{p, number}} %)",
+          "runs_one": "{{count, number}} exécution",
+          "runs_many": "{{count, number}} d’exécutions",
+          "runs_other": "{{count, number}} exécutions",
+          "folded": "{{runs}} en 1 résumé",
+          "folding": "{{runs}}, {{done, number}} terminées",
+          "summarizedBy": "{{model}} en {{duration}}",
+          "interrupted": "La réponse s’est terminée avant la fin du résumé."
+        }
       }
     },
     "message-search": {
@@ -935,6 +1023,25 @@
       "withCount_many": "{{label}}, {{count}} actifs",
       "withCount_other": "{{label}}, {{count}} actifs",
       "resize": "Redimensionner le panneau des sous-agents"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Effort",
+        "effortFor": "Effort pour {{model}}",
+        "noEffortLevels": "Aucun niveau d'effort",
+        "defaultLevel": "Par défaut",
+        "levelIsDefault": "{{level}}, par défaut",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Désactivé",
+          "minimal": "Minimal",
+          "low": "Faible",
+          "medium": "Moyen",
+          "high": "Élevé",
+          "xhigh": "Très élevé",
+          "max": "Maximal"
+        }
+      }
     }
   },
   "composer": {
@@ -943,6 +1050,8 @@
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse",
     "moreActions": "Plus d’actions",
+    "attachMenu": "Joindre",
+    "attachAppLogs": "Joindre les journaux de l’app",
     "lostFiles": "Non conservés avec ce brouillon : {{files}}. Joignez-les à nouveau avant l’envoi.",
     "lostPastes": "Le texte collé n’a pas été conservé avec ce brouillon. Collez-le à nouveau avant l’envoi.",
     "dismissLostFiles": "Ignorer",

@@ -2,6 +2,7 @@
  * Who is typing in each room. The server's `m.typing` lists everyone typing, and the SDK reports
  * only changes, so a member stays listed until a list without them arrives, or until a message of
  * theirs arrives: a server may keep the notice to its timeout and never announce that it ended.
+ * Members who type when the account's pages start are read from the rooms once.
  * While anyone is listed, a check every `TYPING_TIMEOUT_MS` drops members of rooms that no longer
  * receive `m.typing` (for example a room the user left).
  */
@@ -122,7 +123,7 @@ export const useBindRoomIdToTypingMembersAtom = (
       }, TYPING_TIMEOUT_MS);
     };
 
-    const handleTyping = (_event: MatrixEvent, member: RoomMember) => {
+    const handleTyping = (_event: MatrixEvent | undefined, member: RoomMember) => {
       const { roomId, userId } = member;
       if (userId === mx.getUserId()) return;
       if (member.typing) {
@@ -169,6 +170,13 @@ export const useBindRoomIdToTypingMembersAtom = (
 
     mx.on(RoomMemberEvent.Typing, handleTyping);
     mx.on(RoomEvent.Timeline, handleTimeline);
+    // Whoever types already is read from the rooms: their notice came with a sync that ran before
+    // this started listening, and the SDK reports it again only when it changes.
+    mx.getRooms().forEach((room) =>
+      room.currentState.getMembers().forEach((member) => {
+        if (member.typing) handleTyping(undefined, member);
+      })
+    );
     return () => {
       mx.removeListener(RoomMemberEvent.Typing, handleTyping);
       mx.removeListener(RoomEvent.Timeline, handleTimeline);

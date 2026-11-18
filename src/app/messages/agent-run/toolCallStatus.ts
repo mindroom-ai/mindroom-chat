@@ -2,6 +2,7 @@ import { createContext, useContext, useId, useLayoutEffect, type ReactNode } fro
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
+import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 import type { ReasoningSegment } from './reasoningSegments';
 
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired';
@@ -55,8 +56,8 @@ export const ToolCallsFoldContext = createContext<ToolCallsFoldState | undefined
 export const ToolCallsCogContext = createContext<ReactNode>(null);
 
 /**
- * A reply's reasoning segments and where each shows (withReasoning in Reasoning.tsx): under the
- * reply's header, or after the run of tool calls that ends at a marker.
+ * A reply's reasoning segments and compactions, and where each shows (withReasoning in
+ * Reasoning.tsx): under the reply's header, or after the run of tool calls that ends at a marker.
  */
 export type ReasoningSegmentsState = {
   segments: readonly ReasoningSegment[];
@@ -71,6 +72,10 @@ export type ReasoningSegmentsState = {
   liveIndex: number | undefined;
   /** What the segments' Markdown renders with. */
   htmlReactParserOptions: HTMLReactParserOptions;
+  /** From an anchor, as `placement`, to the reply's history compactions there, in start order. */
+  compactionsAt: ReadonlyMap<number, readonly ReplyCompaction[]>;
+  /** The reply ended, so a compaction still running in it never finishes. */
+  replyEnded: boolean;
 };
 export const ReasoningSegmentsContext = createContext<ReasoningSegmentsState | undefined>(
   undefined
@@ -105,27 +110,62 @@ export const TOOL_STATE_TITLE = {
  * What happened to each call. The public trace only says started or completed, and a denied
  * call completes without a result, so calls that needed approval take their state from the
  * approval card MindRoom posted for this reply. A call that went on as a background job takes
- * the card of the job its handle names; other cards match calls by tool name, in order. A call
- * whose card still waits has not run, even when the reply went on without it.
+ * the card of the job its handle names first; then each call still without a card takes the one
+ * that names its call ID and its tool (a provider may reuse an ID within a reply). While `byName`,
+ * the other cards go to the first call of their tool, in order, that has no card or job and names
+ * no other call ID than the card's: a trace from before call IDs names none. A call whose card still waits has
+ * not run, even when the reply went on without it.
  */
 export const resolveToolCallStates = (
-  calls: readonly { toolName: string; pending: boolean; job?: ToolJobHandle }[],
-  approvals: readonly { toolName: string; status: ToolApprovalStatus; jobId?: string | null }[]
+  calls: readonly {
+    toolName: string;
+    pending: boolean;
+    job?: ToolJobHandle;
+    toolCallId?: string;
+  }[],
+  approvals: readonly {
+    toolName: string;
+    status: ToolApprovalStatus;
+    jobId?: string | null;
+    toolCallId?: string | null;
+  }[],
+  byName = true
 ): ToolCallState[] => {
   const unmatched = [...approvals];
-  const take = (index: number) => (index >= 0 ? unmatched.splice(index, 1)[0]!.status : undefined);
+  const take = (match: (approval: (typeof approvals)[number]) => boolean) => {
+    const index = unmatched.findIndex(match);
+    return index >= 0 ? unmatched.splice(index, 1)[0]!.status : undefined;
+  };
   const byJob = calls.map(({ job }) =>
-    job ? take(unmatched.findIndex((approval) => approval.jobId === job.jobId)) : undefined
+    job ? take((approval) => approval.jobId === job.jobId) : undefined
   );
-  return calls.map(({ toolName, pending, job }, callIndex) => {
-    const status = job
-      ? byJob[callIndex]
-      : take(unmatched.findIndex((approval) => approval.toolName === toolName));
+  const named = calls.map(
+    ({ toolName, toolCallId }, callIndex) =>
+      byJob[callIndex] ??
+      (toolCallId
+        ? take((approval) => approval.toolCallId === toolCallId && approval.toolName === toolName)
+        : undefined)
+  );
+  return calls.map(({ toolName, pending, job, toolCallId }, callIndex) => {
+    const status =
+      named[callIndex] ??
+      (job || !byName
+        ? undefined
+        : take(
+            (approval) => approval.toolName === toolName && !(approval.toolCallId && toolCallId)
+          ));
     if (status === 'denied' || status === 'expired') return status;
     if (status === 'pending' || (!status && job?.status === 'awaiting_approval')) return 'waiting';
     return pending ? 'running' : 'done';
   });
 };
+
+/**
+ * Whether a reply's calls take approval cards by their tool's name (`byName` of
+ * resolveToolCallStates); not in the reply's extras (MessageExtras.tsx), whose markers repeat
+ * calls of its body, which take those cards there.
+ */
+export const ToolApprovalsByNameContext = createContext(true);
 
 export type ToolCallSummary = {
   state: ToolCallState;

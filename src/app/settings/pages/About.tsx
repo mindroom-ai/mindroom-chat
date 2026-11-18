@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
-import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config, toRem } from 'folds';
+import {
+  Box,
+  Button,
+  Icon,
+  IconButton,
+  Icons,
+  Spinner,
+  Switch,
+  Text,
+  color,
+  config,
+  toRem,
+} from 'folds';
 import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
 import { ViewerOverlay } from '../../messages/content/FileContent';
@@ -8,10 +20,14 @@ import { SettingTile } from '../../ui/SettingTile';
 import { TextViewer } from '../../messages/viewers/TextViewer';
 import { useClientConfig } from '../../config/useClientConfig';
 import { appUrl } from '../../lib/basePath';
+import { copyToClipboard } from '../../lib/dom';
+import { CheckIcon, CopyIcon } from '../../rich-text/code/CodeBlockIcons';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import { isNativeIOS } from '../../native/nativeSso';
+import { MacAppIcon } from '../../native/MacAppIcon';
+import { MAC_APP_BREW_COMMAND, MAC_APP_DOWNLOAD_URL, useOffersMacApp } from '../../native/macApp';
 import { saveFile } from '../../native/nativeFileSave';
 import { getFlightRecorderStatus } from '../../diagnostics/flightRecorder';
 import {
@@ -185,14 +201,17 @@ function DeepTraceSetting() {
 }
 
 /**
- * Debug mode in a browser, where the iOS app's diagnostics are off until it is turned on. On, it
- * shows the diagnostics export and the deep tracing switch.
+ * Debug mode, on every platform: on, the composer offers "Attach app logs". In a browser, where the
+ * iOS app's diagnostics are off until it is turned on, it also shows the diagnostics export and the
+ * deep tracing switch; the iOS app keeps its recorders (`keepRecorders`) whatever it says.
  */
 function DebugModeSetting({
   enabled,
+  keepRecorders,
   onChange,
 }: {
   enabled: boolean;
+  keepRecorders: boolean;
   onChange: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -201,7 +220,7 @@ function DebugModeSetting({
   const handleToggle = async (next: boolean) => {
     setPending(true);
     try {
-      await setDebugModeEnabled(next);
+      await setDebugModeEnabled(next, { keepRecorders });
     } catch {
       // The switch shows the saved choice again below.
     } finally {
@@ -281,6 +300,102 @@ function TourSetting({ onStart }: { onStart: () => void }) {
   );
 }
 
+/**
+ * The Mac app, in a browser on a Mac: its disk image, and the Homebrew command that installs it,
+ * with a button that copies it. A phone's tile has no room beside its text for the download, which
+ * goes under the command there.
+ */
+function MacAppSetting() {
+  const { t } = useTranslation();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  // Undefined until a copy was tried; copyToClipboard resolves false when every clipboard failed.
+  const [copied, setCopied] = useState<boolean>();
+  const copyStatus =
+    copied === undefined
+      ? ''
+      : copied
+      ? t('messageCodeBlock.copied')
+      : t('featureUi.macApp.copyFailed');
+  const copy = () => {
+    // Emptied first, so the live region announces a second copy's outcome again.
+    setCopied(undefined);
+    void copyToClipboard(MAC_APP_BREW_COMMAND).then(setCopied);
+  };
+
+  const download = (
+    <Button
+      as="a"
+      href={MAC_APP_DOWNLOAD_URL}
+      target="_blank"
+      rel="noreferrer noopener"
+      size="300"
+      radii="300"
+      variant="Primary"
+      fill="Solid"
+      before={<Icon size="100" src={Icons.Download} />}
+      data-mac-app-download="about"
+    >
+      <Text size="B300">{t('featureUi.macApp.downloadDmg')}</Text>
+    </Button>
+  );
+
+  return (
+    <SettingTile
+      focusId="macApp"
+      before={<Icon size="200" src={MacAppIcon} />}
+      title={t('featureUi.macApp.title')}
+      description={t('featureUi.macApp.text')}
+      after={phone ? undefined : download}
+    >
+      <Box direction="Column" alignItems="Start" gap="200">
+        <Box
+          alignItems="Center"
+          gap="200"
+          style={{
+            maxWidth: '100%',
+            paddingInlineStart: config.space.S300,
+            paddingInlineEnd: config.space.S100,
+            paddingBlock: config.space.S100,
+            borderRadius: config.radii.R300,
+            backgroundColor: color.Background.Container,
+          }}
+        >
+          <Text
+            as="code"
+            size="T200"
+            className="selectable"
+            style={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}
+          >
+            {MAC_APP_BREW_COMMAND}
+          </Text>
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Background"
+            fill="None"
+            aria-label={t('featureUi.macApp.copyCommand')}
+            data-mac-app-copy-brew=""
+            onClick={copy}
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+          </IconButton>
+          {/* Always there, so a screen reader hears what a copy did; empty until one is tried. */}
+          <Text
+            as="span"
+            size="T200"
+            aria-live="polite"
+            data-mac-app-copy-status=""
+            style={copied === false ? { color: color.Critical.Main } : undefined}
+          >
+            {copyStatus}
+          </Text>
+        </Box>
+        {phone ? download : null}
+      </Box>
+    </SettingTile>
+  );
+}
+
 type AboutProps = {
   requestClose: () => void;
   /**
@@ -316,12 +431,14 @@ function CreditLink({ href, children }: { href: string; children?: ReactNode }) 
 
 function CreditsList() {
   const { t } = useTranslation();
+  // The card gives each row an inline padding of S400, where the other rows' text starts; the
+  // items start 1.25em further in, so their bullets hang inside the card, not on its border.
   return (
     <Box
       as="ul"
       direction="Column"
       gap="200"
-      style={{ margin: 0, paddingInlineStart: config.space.S400 }}
+      style={{ margin: 0, paddingInlineStart: `calc(${config.space.S400} + 1.25em)` }}
     >
       {CREDITS.map(({ i18nKey, tag, project, license }) => {
         const components = {
@@ -458,8 +575,8 @@ function AppIdentity() {
 }
 
 /**
- * App version, diagnostics tools (always in the iOS app, behind debug mode elsewhere), error
- * reports when configured, the interface tour, and credits.
+ * App version, debug mode, diagnostics tools (always in the iOS app, behind debug mode elsewhere),
+ * error reports when configured, the interface tour, and credits.
  */
 export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
@@ -467,12 +584,18 @@ export function About({ requestClose, closeDialog }: AboutProps) {
   const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
   const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
+  const macApp = useOffersMacApp();
 
   return (
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
       <AboutSection title={t('featureUi.settings.about.options')}>
-        {!nativeDiagnostics && <DebugModeSetting enabled={debugMode} onChange={setDebugMode} />}
+        {macApp && <MacAppSetting />}
+        <DebugModeSetting
+          enabled={debugMode}
+          keepRecorders={nativeDiagnostics}
+          onChange={setDebugMode}
+        />
         {diagnostics && <DiagnosticsExport />}
         {diagnostics && <DeepTraceSetting />}
         {collectorHost && <ErrorReportsSetting host={collectorHost} />}

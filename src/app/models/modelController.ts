@@ -23,6 +23,7 @@ import {
   MODEL_TIMEOUT,
   parseModelCatalogResponse,
   parseModelSelectionResult,
+  ReasoningLevel,
 } from './modelProtocol';
 import {
   ModelRuntime,
@@ -40,6 +41,8 @@ export type ModelPickerSnapshot = {
   runtime?: ModelRuntime;
   models: ModelCatalogEntry[];
   override: string | null;
+  /** The override's reasoning level when it names one; null runs the model at its default. */
+  reasoning: ReasoningLevel | null;
   inherited: ModelInheritedEntry[];
   loading: boolean;
   pending: boolean;
@@ -58,6 +61,11 @@ type Scope = {
   needsRefresh: boolean;
   chosenRuntimeId?: string;
   refreshScheduled?: boolean;
+  /** Discovery attempts that ended without an answer since the last accepted one. */
+  failures: number;
+  retry?: ReturnType<typeof setTimeout>;
+  /** The verified runtimes a button shown without catalogs (cached or revalidating) rests on. */
+  kept?: RoomCatalog[];
   /** A `!model` typed in the thread, whose answer changes the selection without a result. */
   typedCommand?: boolean;
   query?: Query;
@@ -78,7 +86,10 @@ type Command = {
   scope: Scope;
   runtime: ModelRuntime;
   operation: 'set' | 'reset';
+  /** The catalog key, which the selection reports once the runtime applies it. */
   model?: string;
+  /** The picked level; the command sends `<model>@<level>`, and the plain key without one. */
+  level?: ReasoningLevel;
   eventId?: string;
   generation: number;
   early: ModelSelectionResult[];
@@ -90,12 +101,26 @@ const emptySnapshot = (): ModelPickerSnapshot => ({
   runtimes: [],
   models: [],
   override: null,
+  reasoning: null,
   inherited: [],
   loading: false,
   pending: false,
   canMutate: false,
 });
+/** What the command names: the key, with the picked level after `@`. */
+const commandModel = ({ model, level }: Pick<Command, 'model' | 'level'>): string | undefined =>
+  model && level ? `${model}@${level}` : model;
 const scopeKey = (room: Room, threadId?: string): string => JSON.stringify([room.roomId, threadId]);
+/** Discovery asks again after these delays while a composer shows the scope, the last repeating. */
+const RETRY_DELAYS = [3000, 10000, 30000, 60000];
+/** Failed attempts after which a button shown without a confirmed catalog hides. */
+const STALE_ATTEMPTS = 5;
+const roomCatalogsOf = (catalogs: Iterable<Catalog>): RoomCatalog[] =>
+  [...catalogs].map((catalog) => ({
+    runtime: catalog.runtime,
+    models: catalog.response.models,
+    agentUserIds: catalog.response.agent_user_ids,
+  }));
 const controllers = new WeakMap<MatrixClient, ModelController>();
 
 /** One listener owner per client; composer subscriptions only select a scope. */
@@ -147,6 +172,8 @@ export class ModelController {
     mx.on(RoomMemberEvent.Membership, this.onMembership);
     mx.on(CryptoEvent.DevicesUpdated, this.onDevices);
     mx.on(ClientEvent.Sync, this.onSync);
+    if (typeof document !== 'undefined')
+      document.addEventListener('visibilitychange', this.onVisibility);
     this.scopes.forEach((scope) => {
       if (scope.listeners.size) this.refresh(scope.room, scope.threadId);
     });
@@ -188,6 +215,8 @@ export class ModelController {
         catalogs: new Map(),
         generation: 0,
         needsRefresh: false,
+        failures: 0,
+        kept: cached,
       };
       this.scopes.set(key, scope);
     }
@@ -212,6 +241,8 @@ export class ModelController {
       scope.listeners.delete(listener);
       if (!scope.listeners.size) {
         this.cancelQuery(scope);
+        clearTimeout(scope.retry);
+        scope.failures = 0;
         this.publish(scope, { loading: false });
       }
     };
@@ -247,9 +278,11 @@ export class ModelController {
     )
       return;
     if (this.queries.size >= 8) {
-      this.publish(scope, { error: 'Model discovery is busy. Try again.' });
+      this.publish(scope, { loading: false, error: 'Model discovery is busy. Try again.' });
+      this.retryLater(scope, false);
       return;
     }
+    clearTimeout(scope.retry);
     scope.generation += 1;
     const query: Query = {
       id: randomUuid(),
@@ -312,20 +345,14 @@ export class ModelController {
           ? { error: 'Model discovery unavailable. Retry or use !model.' }
           : {}),
       });
+      this.retryLater(scope, true);
       return;
     }
     scope.catalogs = query.replies;
     if (this.roomCatalogs.size >= 64 && !this.roomCatalogs.has(scope.room.roomId)) {
       this.roomCatalogs.delete(this.roomCatalogs.keys().next().value);
     }
-    this.roomCatalogs.set(
-      scope.room.roomId,
-      [...query.replies.values()].map((catalog) => ({
-        runtime: catalog.runtime,
-        models: catalog.response.models,
-        agentUserIds: catalog.response.agent_user_ids,
-      }))
-    );
+    this.roomCatalogs.set(scope.room.roomId, roomCatalogsOf(query.replies.values()));
     scope.needsRefresh = !!scope.send;
     const runtimes = [...scope.catalogs.values()].map((c) => c.runtime);
     const runtime =
@@ -340,6 +367,32 @@ export class ModelController {
       error: scope.send ? scope.snapshot.error : undefined,
     });
     this.showRuntime(scope, runtime);
+  }
+
+  /**
+   * Asks again later while a composer shows the scope. A discovery that ran and got no answer
+   * (`failed`) counts toward hiding a stale button; a local capacity refusal only waits.
+   */
+  private retryLater(scope: Scope, failed: boolean): void {
+    clearTimeout(scope.retry);
+    if (!this.active() || !scope.listeners.size) return;
+    if (failed) scope.failures += 1;
+    if (
+      failed &&
+      scope.failures >= STALE_ATTEMPTS &&
+      scope.snapshot.eligible &&
+      !scope.catalogs.size
+    ) {
+      // This thread keeps no dead button; the retries bring it back. The room cache stays: only
+      // answers and membership or device invalidation change it, as another thread may be fine.
+      scope.kept = undefined;
+      this.publish(scope, { ...emptySnapshot(), pending: !!scope.send });
+    }
+    const delay = RETRY_DELAYS[Math.max(Math.min(scope.failures, RETRY_DELAYS.length) - 1, 0)];
+    scope.retry = setTimeout(() => {
+      scope.retry = undefined;
+      if (this.active() && scope.listeners.size) this.refresh(scope.room, scope.threadId);
+    }, delay);
   }
 
   private onResponse = (payload: ReceivedToDeviceMessage): void => {
@@ -379,6 +432,7 @@ export class ModelController {
     )
       return;
     query.replies.set(runtime.id, { runtime, response });
+    query.scope.failures = 0;
     // Keep collecting: another signed device may represent a distinct runtime.
     // The shown runtime's answer is the thread's selection now, so show it at once.
     const { scope } = query;
@@ -414,12 +468,19 @@ export class ModelController {
       runtime,
       models: catalog ? catalog.response.models : [],
       override: catalog ? catalog.response.selection.override : null,
+      reasoning: catalog?.response.selection.reasoning ?? null,
       inherited: catalog ? catalog.response.selection.inherited : [],
     });
   }
 
-  selectModel = (room: Room, threadId: string | undefined, model: string): void => {
-    this.mutate(this.scope(room, threadId), 'set', model);
+  /** Runs the thread on `model`, at `level` when given (as `model@level`), else on the plain key. */
+  selectModel = (
+    room: Room,
+    threadId: string | undefined,
+    model: string,
+    level?: ReasoningLevel
+  ): void => {
+    this.mutate(this.scope(room, threadId), 'set', model, level);
   };
 
   resetToRoomDefault = (room: Room, threadId?: string): void => {
@@ -441,10 +502,17 @@ export class ModelController {
     );
   }
 
-  private mutate(scope: Scope, operation: 'set' | 'reset', model?: string): void {
+  private mutate(
+    scope: Scope,
+    operation: 'set' | 'reset',
+    model?: string,
+    level?: ReasoningLevel
+  ): void {
+    const entry = scope.snapshot.models.find((m) => m.key === model);
     if (
       !this.canMutate(scope) ||
-      (operation === 'set' && !scope.snapshot.models.some((m) => m.key === model))
+      (operation === 'set' && !entry) ||
+      (level !== undefined && !entry?.reasoning_levels?.includes(level))
     )
       return;
     const runtime = scope.snapshot.runtime!;
@@ -455,6 +523,8 @@ export class ModelController {
       runtime,
       operation,
       model,
+      // A picked level is always named, the default too: the catalog's default may be stale.
+      ...(level !== undefined ? { level } : {}),
       generation: scope.generation,
       early: [],
       timer: setTimeout(() => this.uncertain(command), MODEL_TIMEOUT),
@@ -474,7 +544,8 @@ export class ModelController {
   }
 
   private async sendCommand(command: Command): Promise<void> {
-    const { scope, runtime, operation, model } = command;
+    const { scope, runtime, operation } = command;
+    const model = commandModel(command);
     try {
       if (!(await isCurrentModelRuntime(this.mx, runtime))) {
         if (this.currentCommand(command)) this.invalidate(scope);
@@ -575,7 +646,7 @@ export class ModelController {
       result.runtime_user_id !== command.runtime.userId ||
       result.runtime_device_id !== command.runtime.deviceId ||
       result.operation !== command.operation ||
-      result.model !== command.model
+      result.model !== commandModel(command)
     )
       return;
     const catalog = scope?.catalogs.get(command.runtime.id);
@@ -609,14 +680,20 @@ export class ModelController {
     command.acknowledged = true;
     scope.command = undefined;
     if (result.status === 'applied') {
-      const override = result.override ?? null;
+      // The result echoes the command's reference; the selection keeps the key and the level apart.
+      const override = command.model ?? null;
+      const reasoning = command.level ?? null;
       const catalog = scope.catalogs.get(command.runtime.id);
       if (catalog)
         catalog.response = {
           ...catalog.response,
-          selection: { ...catalog.response.selection, override },
+          selection: {
+            override,
+            ...(reasoning ? { reasoning } : {}),
+            inherited: catalog.response.selection.inherited,
+          },
         };
-      this.publish(scope, { pending: !!scope.send, override, error: undefined });
+      this.publish(scope, { pending: !!scope.send, override, reasoning, error: undefined });
     } else {
       this.publish(scope, {
         pending: !!scope.send,
@@ -638,15 +715,22 @@ export class ModelController {
     this.refresh(scope.room, scope.threadId);
   }
 
-  private invalidate(scope: Scope): void {
+  /** Drops what the scope verified; `shown` keeps an old button up, unable to mutate, meanwhile. */
+  private invalidate(scope: Scope, shown?: ModelPickerSnapshot): void {
     this.cancelQuery(scope);
+    clearTimeout(scope.retry);
     scope.generation += 1;
     if (scope.command) clearTimeout(scope.command.timer);
     scope.command = undefined;
     scope.catalogs.clear();
+    scope.kept = undefined;
     this.roomCatalogs.delete(scope.room.roomId);
     scope.needsRefresh = true;
-    scope.snapshot = { ...emptySnapshot(), pending: !!scope.send };
+    scope.snapshot = {
+      ...emptySnapshot(),
+      ...(shown && { ...shown, loading: true, error: undefined, canMutate: false }),
+      pending: !!scope.send,
+    };
     scope.listeners.forEach((listener) => listener());
   }
 
@@ -670,11 +754,24 @@ export class ModelController {
         .map((c) => c.runtime)
         .concat(scope.query?.devices ?? [], scope.snapshot.runtimes);
       if (known.some((d) => users.includes(d.userId))) this.invalidateAndRefresh(scope);
+      else if (
+        this.waiting(scope) &&
+        joinedModelCandidates(this.mx, scope.room).some((id) => users.includes(id))
+      )
+        // A candidate's keys arrived, possibly after a probe found none of its devices signed.
+        this.refresh(scope.room, scope.threadId);
     });
   };
 
   private invalidateAndRefresh(scope: Scope): void {
-    this.invalidate(scope);
+    // Revalidate behind the shown button while its runtime and one of its agents stay joined.
+    const verified = scope.catalogs.size ? roomCatalogsOf(scope.catalogs.values()) : scope.kept;
+    const kept = (verified ?? []).filter((catalog) =>
+      hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.agentUserIds)
+    );
+    const keep = scope.listeners.size > 0 && scope.snapshot.eligible && kept.length > 0;
+    this.invalidate(scope, keep ? scope.snapshot : undefined);
+    if (keep) scope.kept = kept;
     if (scope.refreshScheduled || !scope.listeners.size) return;
     scope.refreshScheduled = true;
     void Promise.resolve().then(() => {
@@ -683,8 +780,25 @@ export class ModelController {
     });
   }
 
-  private onSync = (state: SyncState): void => {
+  /** A shown scope with no confirmed button, or with an error, that a wake-up asks again for. */
+  private waiting(scope: Scope): boolean {
+    return scope.listeners.size > 0 && (!scope.snapshot.eligible || !!scope.snapshot.error);
+  }
+
+  private wake(): void {
+    if (!this.active()) return;
+    this.scopes.forEach((scope) => {
+      if (this.waiting(scope)) this.refresh(scope.room, scope.threadId);
+    });
+  }
+
+  private onSync = (state: SyncState, previous?: SyncState | null): void => {
     if (state === SyncState.Stopped) this.dispose();
+    else if (state === SyncState.Syncing && previous !== SyncState.Syncing) this.wake();
+  };
+
+  private onVisibility = (): void => {
+    if (document.visibilityState === 'visible') this.wake();
   };
 
   dispose = (): void => {
@@ -698,6 +812,8 @@ export class ModelController {
     this.mx.removeListener(RoomMemberEvent.Membership, this.onMembership);
     this.mx.removeListener(CryptoEvent.DevicesUpdated, this.onDevices);
     this.mx.removeListener(ClientEvent.Sync, this.onSync);
+    if (typeof document !== 'undefined')
+      document.removeEventListener('visibilitychange', this.onVisibility);
   };
 }
 

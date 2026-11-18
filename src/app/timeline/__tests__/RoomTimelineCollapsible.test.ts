@@ -300,7 +300,6 @@ vi.mock('../../threads/usePinnedThreadEvents', () => ({ usePinnedThreadEvents: (
 
 vi.mock('../../event-store/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
-  useThreadLastActivityTs: () => 0,
 }));
 
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
@@ -419,7 +418,7 @@ vi.mock('../../messages/thread-summary/ThreadSummaryMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
   MarkerDetails: 'MarkerDetails',
-  MarkerSettings: 'MarkerSettings',
+  MarkerSettingsLink: 'MarkerSettingsLink',
 }));
 
 vi.mock('../../messages/reactions/Reactions', () => ({
@@ -450,7 +449,10 @@ vi.mock('../RoomIntro', () => ({
 }));
 
 // No plugin hides a row here (MessageRenderer.hidden); the real module would load the app's i18n.
-vi.mock('../../plugins/messageRenderers', () => ({ useMessageRowHidden: () => undefined }));
+vi.mock('../../plugins/messageRenderers', () => ({
+  useMessageRowHidden: () => undefined,
+  useMessageRendererTaken: () => undefined,
+}));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
   RenderMessageContent: passthrough,

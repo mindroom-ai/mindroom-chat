@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "Tutup",
       "previous": "Gambar sebelumnya",
-      "next": "Gambar berikutnya"
+      "next": "Gambar berikutnya",
+      "wheelZoomHint": "{{key}} + gulir untuk memperbesar"
     },
     "inviteUserPrompt": {
       "close": "Tutup",
@@ -404,7 +405,7 @@
         "thirdPartyNotices": "Pemberitahuan pihak ketiga",
         "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini.",
         "debugMode": "Mode debug",
-        "debugModeDescription": "Merekam diagnostik di perangkat ini agar Anda dapat mengekspornya dan mengaktifkan pelacakan diagnostik mendalam."
+        "debugModeDescription": "Menambahkan “Lampirkan log aplikasi” ke menu + di kolom pesan, agar Anda dapat mengirim diagnostik perangkat ini dalam pesan. Aktifkan pelacakan diagnostik mendalam di bawah untuk menyertakan angka memori dan jejak terperinci."
       }
     },
     "createChat": {
@@ -670,11 +671,33 @@
           "note": "Judul yang sudah ada tetap memakai kata-katanya sampai diperbarui lagi."
         },
         "save": "Simpan",
+        "saved": "Tersimpan",
         "clear": "Hapus",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
-        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi."
+        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi.",
+        "replyMode": {
+          "label": "Agen menjawab",
+          "description": "Apakah pesan baru harus menyebut agen atau tim agar mendapat jawaban. Default mengikuti konfigurasi MindRoom untuk ruangan ini. Bahkan dengan Hanya saat disebut, agen tetap bisa menjawab pesan lanjutan di utas yang sudah mereka balas.",
+          "default": "Default",
+          "auto": "Setiap pesan",
+          "mentions": "Hanya saat disebut"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom untuk Mac",
+      "text": "Tangkapan Cepat dengan ⌃⌥Space, notifikasi native.",
+      "download": "Unduh",
+      "notNow": "Nanti saja",
+      "dismiss": "Tutup",
+      "banner": "<b>Pakai Mac?</b> Dapatkan aplikasi MindRoom.",
+      "bannerDownload": "Unduh untuk Mac",
+      "menu": "Unduh aplikasi Mac",
+      "downloadDmg": "Unduh (.dmg)",
+      "copyCommand": "Salin perintah",
+      "copyFailed": "Gagal menyalin",
+      "keywords": "mac, macos, desktop, aplikasi, unduh, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -767,6 +790,15 @@
           "saved": "Tersimpan",
           "declined": "Ditolak",
           "expired": "Kedaluwarsa"
+        },
+        "line": {
+          "sentKept": "Terkirim · disimpan {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Tidak ada yang dikirim atau disimpan.",
+          "noAnswer": "Tidak ada jawaban tepat waktu, jadi tidak ada yang dikirim.",
+          "askedAs": "Diminta untuk perintah {{agent}} dalam percakapan ini sebagai {{variable}}.",
+          "replaced": "Menggantikan kunci yang tersimpan sebelumnya."
         }
       },
       "skillReviewMarker": {
@@ -798,13 +830,67 @@
         "toolRunningFor": "Berjalan selama {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Pengaturan judul"
+        "titleSettings": "Pengaturan judul…"
       },
       "replyTime": {
         "started": "Dimulai {{value1}}",
         "finished": "Selesai {{value1}}",
         "stillStreaming": "Masih berjalan",
         "duration": "Durasi {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} dtk",
+        "tokensShort": "{{before}} → {{after}} token",
+        "label": {
+          "running": "Memadatkan konteks…",
+          "preTurn": "Dipadatkan sebelum membalas",
+          "midTurn": "Konteks dipadatkan",
+          "manual": "Dipadatkan atas permintaan",
+          "failed": "Pemadatan gagal",
+          "timeout": "Pemadatan melewati batas waktu",
+          "interrupted": "Pemadatan terputus"
+        },
+        "title": "Konteks dipadatkan",
+        "tag": {
+          "preTurn": "sebelum balasan",
+          "midTurn": "di tengah giliran",
+          "manual": "manual"
+        },
+        "subtitle": {
+          "preTurn": "Sebelum permintaan model pertama balasan ini.",
+          "midTurn": "Di antara dua permintaan model, setelah panggilan alat {{n, number}}.",
+          "midTurnNoTools": "Di antara dua permintaan model.",
+          "manual": "Diminta dengan perintah pemadatan."
+        },
+        "gauge": {
+          "was": "tadinya {{p, number}}% dari anggaran",
+          "now": "sekarang {{p, number}}%",
+          "used": "{{p, number}}% dari anggaran"
+        },
+        "row": {
+          "history": "Riwayat",
+          "saved": "Dihemat",
+          "budget": "Anggaran",
+          "folded": "Digabung",
+          "folding": "Menggabungkan",
+          "summarizedBy": "Diringkas oleh",
+          "summaryModel": "Model ringkasan",
+          "when": "Kapan",
+          "started": "Dimulai",
+          "reason": "Alasan",
+          "gaveUpAfter": "Menyerah setelah"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> token",
+          "history": "<b>{{n, number}}</b> token",
+          "tokens": "{{n, number}} token",
+          "saved": "{{n, number}} token ({{p, number}}%)",
+          "runs_other": "{{count, number}} proses",
+          "folded": "{{runs}} menjadi 1 ringkasan",
+          "folding": "{{runs}}, {{done, number}} selesai",
+          "summarizedBy": "{{model}} dalam {{duration}}",
+          "interrupted": "Balasan berakhir sebelum ringkasan selesai."
+        }
       }
     },
     "message-search": {
@@ -901,6 +987,25 @@
       "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
       "resize": "Ubah ukuran panel subagen"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Upaya",
+        "effortFor": "Upaya untuk {{model}}",
+        "noEffortLevels": "Tidak ada tingkat upaya",
+        "defaultLevel": "Bawaan",
+        "levelIsDefault": "{{level}}, bawaan",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Mati",
+          "minimal": "Minimal",
+          "low": "Rendah",
+          "medium": "Sedang",
+          "high": "Tinggi",
+          "xhigh": "Sangat tinggi",
+          "max": "Maksimum"
+        }
+      }
     }
   },
   "composer": {
@@ -909,6 +1014,8 @@
     "emoji": "Emoji",
     "cancelReply": "Batalkan balasan",
     "moreActions": "Tindakan lainnya",
+    "attachMenu": "Lampirkan",
+    "attachAppLogs": "Lampirkan log aplikasi",
     "lostFiles": "Tidak disimpan bersama draf ini: {{files}}. Lampirkan lagi sebelum mengirim.",
     "lostPastes": "Teks yang ditempel tidak disimpan bersama draf ini. Tempel lagi sebelum mengirim.",
     "dismissLostFiles": "Tutup",

@@ -92,7 +92,8 @@
     "imageViewer": {
       "close": "Cerrar",
       "previous": "Imagen anterior",
-      "next": "Imagen siguiente"
+      "next": "Imagen siguiente",
+      "wheelZoomHint": "{{key}} + desplazar para hacer zoom"
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
@@ -414,7 +415,7 @@
         "thirdPartyNotices": "Avisos de terceros",
         "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación.",
         "debugMode": "Modo de depuración",
-        "debugModeDescription": "Registra diagnósticos en este dispositivo para que puedas exportarlos y activar el seguimiento de diagnóstico detallado."
+        "debugModeDescription": "Añade «Adjuntar registros de la app» al menú + del cuadro de mensaje, para que puedas enviar los diagnósticos de este dispositivo en un mensaje. Activa abajo el seguimiento de diagnóstico detallado para incluir las cifras de memoria y una traza detallada."
       }
     },
     "createChat": {
@@ -688,11 +689,33 @@
           "note": "Los títulos ya puestos conservan su redacción hasta la próxima actualización."
         },
         "save": "Guardar",
+        "saved": "Guardado",
         "clear": "Borrar",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Solo quienes pueden cambiar los ajustes de esta sala pueden editar esto.",
-        "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo."
+        "saveFailed": "No se pudo guardar el ajuste. Inténtalo de nuevo.",
+        "replyMode": {
+          "label": "Los agentes responden",
+          "description": "Si un mensaje nuevo debe mencionar a un agente o equipo para recibir respuesta. Predeterminado sigue la configuración de MindRoom para esta sala. Incluso con Solo si los mencionan, los agentes pueden responder a los mensajes siguientes en un hilo donde ya respondieron.",
+          "default": "Predeterminado",
+          "auto": "A cualquier mensaje",
+          "mentions": "Solo si los mencionan"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom para Mac",
+      "text": "Captura rápida con ⌃⌥Space, notificaciones nativas.",
+      "download": "Descargar",
+      "notNow": "Ahora no",
+      "dismiss": "Descartar",
+      "banner": "<b>¿Usas un Mac?</b> Consigue la app de MindRoom.",
+      "bannerDownload": "Descargar para Mac",
+      "menu": "Descargar la app para Mac",
+      "downloadDmg": "Descargar (.dmg)",
+      "copyCommand": "Copiar comando",
+      "copyFailed": "No se pudo copiar",
+      "keywords": "mac, macos, escritorio, app, aplicación, descargar, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -785,6 +808,15 @@
           "saved": "Guardada",
           "declined": "Rechazada",
           "expired": "Caducada"
+        },
+        "line": {
+          "sentKept": "Enviado · se conserva {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "No se envió ni se conservó nada.",
+          "noAnswer": "No hubo respuesta a tiempo, así que no se envió nada.",
+          "askedAs": "Se pidió para los comandos de {{agent}} en esta conversación como {{variable}}.",
+          "replaced": "Reemplazó la clave guardada antes."
         }
       },
       "skillReviewMarker": {
@@ -820,13 +852,69 @@
         "toolRunningFor": "En ejecución desde hace {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Ajustes de títulos"
+        "titleSettings": "Ajustes de títulos…"
       },
       "replyTime": {
         "started": "Empezó {{value1}}",
         "finished": "Terminó {{value1}}",
         "stillStreaming": "Aún en curso",
         "duration": "Duración {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} tokens",
+        "label": {
+          "running": "Compactando el contexto…",
+          "preTurn": "Compactado antes de responder",
+          "midTurn": "Contexto compactado",
+          "manual": "Compactado a petición",
+          "failed": "La compactación falló",
+          "timeout": "La compactación agotó el tiempo",
+          "interrupted": "Compactación interrumpida"
+        },
+        "title": "Contexto compactado",
+        "tag": {
+          "preTurn": "antes de la respuesta",
+          "midTurn": "a mitad del turno",
+          "manual": "manual"
+        },
+        "subtitle": {
+          "preTurn": "Antes de la primera solicitud al modelo de esta respuesta.",
+          "midTurn": "Entre dos solicitudes al modelo, después de la llamada a herramienta {{n, number}}.",
+          "midTurnNoTools": "Entre dos solicitudes al modelo.",
+          "manual": "Solicitado con el comando de compactación."
+        },
+        "gauge": {
+          "was": "era el {{p, number}} % del presupuesto",
+          "now": "ahora {{p, number}} %",
+          "used": "{{p, number}} % del presupuesto"
+        },
+        "row": {
+          "history": "Historial",
+          "saved": "Ahorrado",
+          "budget": "Presupuesto",
+          "folded": "Agrupado",
+          "folding": "Agrupando",
+          "summarizedBy": "Resumido por",
+          "summaryModel": "Modelo de resumen",
+          "when": "Cuándo",
+          "started": "Iniciado",
+          "reason": "Motivo",
+          "gaveUpAfter": "Se rindió tras"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> tokens",
+          "history": "<b>{{n, number}}</b> tokens",
+          "tokens": "{{n, number}} tokens",
+          "saved": "{{n, number}} tokens ({{p, number}} %)",
+          "runs_one": "{{count, number}} ejecución",
+          "runs_many": "{{count, number}} de ejecuciones",
+          "runs_other": "{{count, number}} ejecuciones",
+          "folded": "{{runs}} en 1 resumen",
+          "folding": "{{runs}}, {{done, number}} listas",
+          "summarizedBy": "{{model}} en {{duration}}",
+          "interrupted": "La respuesta terminó antes de que el resumen estuviera listo."
+        }
       }
     },
     "message-search": {
@@ -935,6 +1023,25 @@
       "withCount_many": "{{label}}, {{count}} activos",
       "withCount_other": "{{label}}, {{count}} activos",
       "resize": "Cambiar el tamaño del panel de subagentes"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Esfuerzo",
+        "effortFor": "Esfuerzo de {{model}}",
+        "noEffortLevels": "Sin niveles de esfuerzo",
+        "defaultLevel": "Predeterminado",
+        "levelIsDefault": "{{level}}, predeterminado",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Desactivado",
+          "minimal": "Mínimo",
+          "low": "Bajo",
+          "medium": "Medio",
+          "high": "Alto",
+          "xhigh": "Muy alto",
+          "max": "Máximo"
+        }
+      }
     }
   },
   "composer": {
@@ -943,6 +1050,8 @@
     "emoji": "Emoji",
     "cancelReply": "Cancelar respuesta",
     "moreActions": "Más acciones",
+    "attachMenu": "Adjuntar",
+    "attachAppLogs": "Adjuntar registros de la app",
     "lostFiles": "No se conservaron con este borrador: {{files}}. Vuelve a adjuntarlos antes de enviar.",
     "lostPastes": "El texto pegado no se conservó con este borrador. Vuelve a pegarlo antes de enviar.",
     "dismissLostFiles": "Descartar",

@@ -100,16 +100,17 @@ export type ThreadRecordChanges = {
   /** The count at the last change of each thread, by root, since the room's last. */
   threads: Map<string, number>;
   /**
-   * Called by a build that kept a record. The listener answers with a mark of the room soon
-   * after, for what a record reads that no event tells of.
+   * Whether the listener hears the room now. Without it nothing is marked, so no unread mark may
+   * be kept.
    */
-  onKept?: () => void;
+  listened: boolean;
 };
 
 export const createThreadRecordChanges = (): ThreadRecordChanges => ({
   count: 0,
   room: 0,
   threads: new Map(),
+  listened: false,
 });
 
 /** Marks a change of one thread, or without `threadRootId` one that any thread's record may show. */
@@ -139,10 +140,17 @@ const unchangedSince = (
  * Lets a build keep the records of the build before it (`previous`) for the threads that did not
  * change: no mark in `changes` for the thread or the room since its record was built, the same
  * values given for it, and the same answers of the room that every record reads (`roomSources`).
+ *
+ * `beside` is a map built just before this one, in the same pass, under the same `changes` and
+ * with no `previous` of its own, so that all its records are new (the normal map, for the Compact
+ * one). A record this build would build is taken from it instead when it stands by the same
+ * rule: the two maps then build the record of a thread they list with the same values once.
+ * Nothing of `beside` is kept beyond the records taken.
  */
 export type ThreadRecordReuse = {
   previous: ReadonlyMap<string, ThreadRecord> | undefined;
   changes: ThreadRecordChanges;
+  beside?: ReadonlyMap<string, ThreadRecord>;
 };
 
 type ThreadRecordSources = {
@@ -511,7 +519,6 @@ export const buildThreadRecordMap = ({
   const records = new Map<string, ThreadRecord>();
   const roomSources = getRoomSources(room);
   const builtAt = reuse?.changes.count ?? 0;
-  let keptAny = false;
 
   threadRootIds.forEach((threadRootId) => {
     const options: BuildThreadRecordOptions = {
@@ -534,33 +541,35 @@ export const buildThreadRecordMap = ({
       cacheCoverage: cacheCoverageMap?.get(threadRootId),
       absoluteIndex: absoluteIndexMap?.get(threadRootId),
     };
-    const kept = reuse?.previous?.get(threadRootId);
-    const keptFrom = kept && recordSources.get(kept);
-    if (
-      reuse &&
-      kept &&
-      keptFrom &&
-      unchangedSince(reuse.changes, threadRootId, keptFrom.builtAt) &&
-      sameOption(keptFrom.roomSources, roomSources) &&
-      sameOptions(keptFrom.options, options)
-    ) {
+    /** `held` if it still stands for these values, with their place. */
+    const standing = (held: ThreadRecord | undefined): ThreadRecord | undefined => {
+      const heldFrom = held && recordSources.get(held);
+      if (
+        !reuse ||
+        !held ||
+        !heldFrom ||
+        !unchangedSince(reuse.changes, threadRootId, heldFrom.builtAt) ||
+        !sameOption(heldFrom.roomSources, roomSources) ||
+        !sameOptions(heldFrom.options, options)
+      ) {
+        return undefined;
+      }
       // The room's threads trade places with every reply; a thread that only moved keeps its
       // record, with its new place.
       const index = options.absoluteIndex ?? 0;
-      let record = kept;
-      if (kept.absoluteIndex !== index) {
-        record = { ...kept, absoluteIndex: index };
-        recordSources.set(record, keptFrom);
-      }
-      records.set(threadRootId, record);
-      keptAny = true;
-      return;
+      if (held.absoluteIndex === index) return held;
+      const moved = { ...held, absoluteIndex: index };
+      recordSources.set(moved, heldFrom);
+      return moved;
+    };
+    let record =
+      standing(reuse?.previous?.get(threadRootId)) ?? standing(reuse?.beside?.get(threadRootId));
+    if (!record) {
+      record = buildThreadRecord(options);
+      if (reuse) recordSources.set(record, { options, builtAt, roomSources });
     }
-    const record = buildThreadRecord(options);
-    if (reuse) recordSources.set(record, { options, builtAt, roomSources });
     records.set(threadRootId, record);
   });
-  if (keptAny) reuse?.changes.onKept?.();
 
   return records;
 };
@@ -579,8 +588,8 @@ const unreadSources = new WeakMap<ReadonlyMap<string, boolean>, ThreadUnreadSour
  * Whether each of `threads` is unread for `userId` (`getThreadUnread`), by root. With `reuse`, the
  * marks of `previous` are kept as `buildThreadRecordMap` keeps records: for the same thread, with
  * no mark in `changes` for it or the room since, for the same reader and the same answers of the
- * room. Only while someone listens (`onKept`), who checks a kept mark again soon after. A build
- * that changes no mark gives `previous` itself.
+ * room. Only while the listener hears the room (`listened`). A build that changes no mark gives
+ * `previous` itself.
  */
 export const buildThreadUnreadMap = (
   room: Room,
@@ -589,14 +598,13 @@ export const buildThreadUnreadMap = (
   reuse?: { previous: ReadonlyMap<string, boolean> | undefined; changes: ThreadRecordChanges }
 ): ReadonlyMap<string, boolean> => {
   const roomSources = getRoomSources(room);
-  const previous = reuse?.changes.onKept ? reuse.previous : undefined;
+  const previous = reuse?.changes.listened ? reuse.previous : undefined;
   const from = previous && unreadSources.get(previous);
   const keptFrom =
     from && from.userId === userId && sameOption(from.roomSources, roomSources) ? from : undefined;
   const unreads = new Map<string, boolean>();
   const checked = new Map<string, Thread>();
   let changed = false;
-  let keptAny = false;
   threads.forEach((thread) => {
     checked.set(thread.id, thread);
     const kept = previous?.get(thread.id);
@@ -608,14 +616,12 @@ export const buildThreadUnreadMap = (
       unchangedSince(reuse.changes, thread.id, keptFrom.builtAt)
     ) {
       unreads.set(thread.id, kept);
-      keptAny = true;
       return;
     }
     const unread = getThreadUnread(thread, userId);
     if (unread !== kept) changed = true;
     unreads.set(thread.id, unread);
   });
-  if (keptAny) reuse?.changes.onKept?.();
   const built = !previous || changed || previous.size !== unreads.size ? unreads : previous;
   if (reuse) {
     unreadSources.set(built, {

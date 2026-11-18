@@ -64,6 +64,16 @@ describe('buildCaptureItems', () => {
     expect(result).toEqual(['fresh']);
   });
 
+  it('lists a resolved thread that asked something after the resolve as open, however old', () => {
+    const old = { resolved: true, resolvedTs: NOW - 2 * RESOLVED_SHOWN_MS };
+    const result = ids([
+      thread('quiet', old),
+      thread('asks', { ...old, needsYou: true, ts: 1 }),
+      thread('u', { ts: 2 }),
+    ]);
+    expect(result).toEqual(['u', 'asks']);
+  });
+
   it('does not count resolved threads against the 30 rows', () => {
     const threads = [
       ...Array.from({ length: 30 }, (_, index) => thread(`u${index}`, { ts: index })),
@@ -91,8 +101,12 @@ describe('buildCaptureItems', () => {
     expect(chip({ unread: true })).toBe('new');
     expect(chip({})).toBeUndefined();
     expect(
-      chip({ streaming: true, needsYou: true, unread: true, resolved: true, resolvedTs: NOW })
+      chip({ streaming: true, unread: true, resolved: true, resolvedTs: NOW })
     ).toBeUndefined();
+    // Asked after the resolve: the signals call that waiting.
+    expect(
+      chip({ streaming: true, needsYou: true, unread: true, resolved: true, resolvedTs: NOW })
+    ).toBe('needs-you');
   });
 
   it('omits the chip key when there is none', () => {

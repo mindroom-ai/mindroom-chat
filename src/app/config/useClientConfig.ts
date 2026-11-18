@@ -175,6 +175,15 @@ export type ClientConfig = {
     offerAtStart?: boolean;
   };
 
+  macApp?: {
+    /**
+     * `true` makes a browser on a Mac offer the Mac app: a card until the account answers
+     * (src/app/shell/MacAppOffer.tsx), an entry in Home's menu and a row in Settings, About.
+     * Off unless `true`.
+     */
+    offer?: boolean;
+  };
+
   /** Messages the loading screen rotates through while the client starts. */
   splash?: {
     loadingMessages?: string[];

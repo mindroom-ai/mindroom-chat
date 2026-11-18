@@ -87,3 +87,19 @@ test('the credits name the matrix-js-sdk and the chimes made for the app, nothin
   await expect(dialog).not.toContainText('Twemoji');
   await expect(dialog).not.toContainText('Material sound');
 });
+
+test("the credit bullets sit inside the card, past where the rows' text starts", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const dialog = await openAbout(page);
+  const credits = dialog.getByRole('list').filter({ hasText: 'matrix-js-sdk' });
+  const notices = dialog.getByRole('button', { name: 'Third-party notices', exact: true });
+  const rowTextStart = (await notices.boundingBox())!.x;
+  const itemStarts = await credits
+    .getByRole('listitem')
+    .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().left));
+  // An outside marker hangs about 1em before its item, so an item that starts where the rows' text
+  // does puts its bullet on the card's border.
+  for (const itemStart of itemStarts) expect(itemStart - rowTextStart).toBeGreaterThanOrEqual(14);
+});

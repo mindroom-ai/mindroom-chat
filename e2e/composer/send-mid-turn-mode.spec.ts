@@ -8,7 +8,8 @@ import {
 } from '../helpers/disposableAccounts';
 import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 
-// While an agent replies in a thread, holding Send opens Steer, Queue and Auto; the message goes
+// While an agent replies in a thread, holding Send, or resting a mouse on it, opens Steer, Queue
+// and Auto; the message goes
 // out with the mode picked as `io.mindroom.mid_turn` (mindroom#4074), and a tap sends the Chats
 // setting's default, Auto, which the backend also takes for a message without the key. Against the disposable homeserver of a slot (scripts/e2e-slot.sh):
 //   scripts/e2e-slot.sh <slot> npx playwright test e2e/composer/send-mid-turn-mode.spec.ts
@@ -119,4 +120,77 @@ test('holding Send while an agent replies sends the mode picked', async ({ page 
   await sendButton(page).click();
   const tapped = await sentContent(reader.accessToken, roomId, 'And the south breakwater.');
   expect(tapped['io.mindroom.mid_turn']).toBe('auto');
+
+  // A mouse resting on Send opens the menu; it stays as the mouse crosses to it, and a pick sends.
+  await composer(page).click();
+  await page.keyboard.type('Then the lighthouse lamp.');
+  await expect(sendButton(page)).toHaveAttribute('aria-haspopup', 'menu', { timeout: 30_000 });
+  const box = await sendButton(page).boundingBox();
+  if (!box) throw new Error('Send is not on the page');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(menu).toBeVisible();
+  // Typing goes on in the text box under it.
+  await page.keyboard.type(' Soon.');
+  await expect(composer(page)).toContainText('Then the lighthouse lamp. Soon.');
+  const steer = menu.getByRole('menuitem', { name: 'Steer' });
+  const row = await steer.boundingBox();
+  if (!row) throw new Error('Steer is not on the page');
+  await page.mouse.move(box.x + box.width / 2, row.y + row.height / 2, { steps: 8 });
+  await page.mouse.move(row.x + row.width / 2, row.y + row.height / 2, { steps: 8 });
+  await steer.click();
+  await expect(menu).toBeHidden();
+  const steered = await sentContent(reader.accessToken, roomId, 'Then the lighthouse lamp. Soon.');
+  expect(steered['io.mindroom.mid_turn']).toBe('steer');
+
+  // A click on Send while a resting mouse opened the menu sends with the default; leaving closes it.
+  await composer(page).click();
+  await page.keyboard.type('Last, the fog horn.');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(menu).toBeVisible();
+  await page.mouse.move(box.x - 300, box.y + box.height / 2, { steps: 4 });
+  await expect(menu).toBeHidden();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await expect(menu).toBeVisible();
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(menu).toBeHidden();
+  const clicked = await sentContent(reader.accessToken, roomId, 'Last, the fog horn.');
+  expect(clicked['io.mindroom.mid_turn']).toBe('auto');
+
+  // A hold the mouse lets go of without moving, then Escape: the menu's layer goes from over Send
+  // and the browser tells Send the mouse is on it, which must not open the menu as a rest.
+  await composer(page).click();
+  await page.keyboard.type('And the buoys.');
+  await holdSend(page);
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await page.waitForTimeout(600);
+  await expect(menu).toBeHidden();
+  // Leaving and coming back is a rest again.
+  await page.mouse.move(box.x - 300, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+
+  // The mouse moves off Send just as Escape takes the hold's layer away, before the browser has
+  // told Send the mouse is on it again, so Send hears of no leave. Its first return still rests.
+  // The key and the move go to the browser together: one after the other leaves it time to tell.
+  await page.mouse.move(box.x - 300, box.y + box.height / 2, { steps: 4 });
+  for (let round = 0; round < 3; round += 1) {
+    await holdSend(page);
+    await expect(menu).toBeVisible();
+    await Promise.all([
+      page.keyboard.press('Escape'),
+      page.mouse.move(box.x - 300, box.y + box.height / 2),
+    ]);
+    await expect(menu).toBeHidden();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(menu).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await page.mouse.move(box.x - 300, box.y + box.height / 2, { steps: 4 });
+  }
+  await expect(composer(page)).toContainText('And the buoys.');
 });

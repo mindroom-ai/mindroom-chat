@@ -90,7 +90,11 @@ import { useCompactHistoryAtEnd } from '../threads/overview/useCompactHistoryAtE
 import { useCompactRootEditBackfillController } from '../threads/overview/compactRootEditBackfillController';
 import { useThreadOverviewResumeController } from '../threads/overview/threadOverviewResumeController';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
-import { useThreadOverviewRefreshCounter } from '../threads/overview/threadOverviewRefreshCounter';
+import {
+  useThreadOverviewListenedFirst,
+  useThreadOverviewRefreshCounter,
+  type ThreadOverviewRefresh,
+} from '../threads/overview/threadOverviewRefreshCounter';
 import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useThreadIndex } from '../threads/overview/useThreadIndex';
 import { useRoomThreadResolutionMap } from '../threads/tags/useRoomThreadTags';
@@ -122,6 +126,8 @@ import {
   useThreadApprovalRowMeasurements,
   useThreadApprovalTimeline,
 } from '../approvals/useThreadApprovalTimeline';
+import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
+import { InlineSecretRequestsContext } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
@@ -254,8 +260,23 @@ const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
  * thread root and the classic one with the replies inline; inside a thread, the root and its
  * replies. Rows are virtualized, and an offset ledger keeps the reader's rows still when rows
  * land above them.
+ *
+ * A list that mounts in Compact, as when a thread that filled the page closes, renders nothing
+ * in its first pass: the overview's listeners start in that commit, and the list then builds
+ * its cards once, from the room as they hear it, before the paint
+ * (`useThreadOverviewListenedFirst`). Any other list builds in its first render, as it did.
  */
 export function RoomTimeline(props: RoomTimelineProps) {
+  const listened = useThreadOverviewListenedFirst(
+    props.room,
+    props.threadId,
+    props.viewMode === 'compact'
+  );
+  if (listened === 'waiting') return null;
+  return <RoomTimelineRows {...props} listenedOverview={listened} />;
+}
+
+function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: ThreadOverviewRefresh }) {
   const {
     room,
     eventId,
@@ -401,7 +422,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
   const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } =
-    useThreadOverviewRefreshCounter(room, threadId);
+    useThreadOverviewRefreshCounter(room, threadId, props.listenedOverview);
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
   const rederiveRoomRows = useCallback(
@@ -820,6 +841,17 @@ export function RoomTimeline(props: RoomTimelineProps) {
     eventId,
     focusItem?.eventId
   );
+  // Secret request cards the open thread's replies draw at their tool calls, rows hidden here.
+  const secretRequestTimeline = useInlineSecretRequestPlan({
+    room,
+    events: ownThreadEvents,
+    getContent: getRowContent,
+    ignored: ignoredUsersSet,
+    viewerId: mx.getUserId() ?? undefined,
+    threadId,
+    routeId: eventId,
+    focusId: focusItem?.eventId,
+  });
 
   // While the opening room view does not fill the screen, keep paginating. The fill holds the
   // last row still while the rows above it measure, so a view whose newest row is its first
@@ -1003,10 +1035,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
     () =>
       !threadId
         ? EMPTY_IDS
-        : pluginHiddenThreadIds.size === 0
+        : pluginHiddenThreadIds.size === 0 && secretRequestTimeline.hiddenEventIds.size === 0
         ? approvalTimeline.hiddenEventIds
-        : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
-    [threadId, approvalTimeline.hiddenEventIds, pluginHiddenThreadIds]
+        : new Set([
+            ...approvalTimeline.hiddenEventIds,
+            ...secretRequestTimeline.hiddenEventIds,
+            ...pluginHiddenThreadIds,
+          ]),
+    [
+      threadId,
+      approvalTimeline.hiddenEventIds,
+      secretRequestTimeline.hiddenEventIds,
+      pluginHiddenThreadIds,
+    ]
   );
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
 
@@ -1698,9 +1739,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
       : undefined;
   const messageData: TimelineMessageData = {
     threadRecordMap: threadIndex.threadRecordMap,
-    threadEventMap: threadState.threadEventMap ?? new Map(),
     approvalTimeline,
     threadSummaryTimeline,
+    secretRequestTimeline,
     handleOpenReply,
     forkPrefixEventIds,
   };
@@ -1723,6 +1764,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isHiddenByPluginId,
     renderEvent: feature.renderEvent,
     isQuietMarkerRow: feature.isQuietMarkerRow,
+    joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     forkDivider,
     forkingDivider,
     unreadMarkerRef: setUnreadMarker,
@@ -1836,7 +1878,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   }}
                 >
                   {latestAtTop ? frontSentinel : backSentinel}
-                  {tiles}
+                  <InlineSecretRequestsContext.Provider value={secretRequestTimeline}>
+                    {tiles}
+                  </InlineSecretRequestsContext.Provider>
                 </div>
               )}
             </ImageSlidesContext.Provider>

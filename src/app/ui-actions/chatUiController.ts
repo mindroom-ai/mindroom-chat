@@ -62,7 +62,13 @@ export const listenForChatUiActions = ({
     if (!ready() || !fresh(event)) return;
     const action = readChatUiAction(event, mx.getSafeUserId(), room);
     if (!action || action.threadId !== threadId) return;
-    if (action.action === 'show_canvas' && action.inline) return;
+    // A canvas opens on its own only for the member who asked for it; the others open it by its button.
+    if (
+      action.action === 'show_canvas' &&
+      (action.inline || action.requesterId !== mx.getSafeUserId())
+    ) {
+      return;
+    }
     const senderServer = getMxIdServer(action.agentUserId);
     if (
       senderServer &&

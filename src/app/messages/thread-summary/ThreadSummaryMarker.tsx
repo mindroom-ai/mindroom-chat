@@ -1,24 +1,42 @@
-import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+} from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Text, Tooltip, type RectCords } from 'folds';
-import { PopOut, TooltipProvider, revealDirectionControls } from '../../ui/directional';
-import { IconSettings, IconSparkles } from '@tabler/icons-react';
+import { PopOut, revealDirectionControls } from '../../ui/directional';
+import { IconSparkles } from '@tabler/icons-react';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../../event-store/threads/threadSummaryTimeline';
+import { OWNS_FOCUS_ATTRIBUTE, tabFromCardToOpener } from '../../lib/overlayFocus';
 import * as css from './ThreadSummaryMarker.css';
 
 type ThreadSummaryMarkerProps = {
   summaryInfo: ThreadSummaryInfo;
   plan?: ThreadSummaryMarkerPlan;
-  /** Opens the room's title settings; without it the marker has no settings button. */
+  /** Opens the room's title settings; with it the details card holds a link that calls it. */
   onOpenSettings?: () => void;
 };
 
 type OpenMode = 'hover' | 'pinned';
 
+/** How long the details card stays after the pointer leaves the marker, so it can reach the card. */
+export const MARKER_DETAILS_CLOSE_DELAY_MS = 150;
+
+const within = (element: Element | null, target: EventTarget | null) =>
+  !!element && target instanceof Node && element.contains(target);
+
 // Inside a thread the banner already shows the current summary, so a summary
 // event shrinks to one quiet line under the reply before it. Hovering it, or
-// tapping it on a phone, shows the full title and the one it replaced.
+// tapping it on a phone, shows the full title and the one it replaced. With
+// `onOpenSettings` the details take the pointer and focus too, for their
+// "Title settings…" link.
 export function ThreadSummaryMarker({
   summaryInfo,
   plan,
@@ -26,23 +44,68 @@ export function ThreadSummaryMarker({
 }: ThreadSummaryMarkerProps) {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const linkRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
   const [open, setOpen] = useState<{ mode: OpenMode; anchor: RectCords }>();
   const descriptionId = useId();
+  const cardId = useId();
+  const interactive = !!onOpenSettings;
 
+  const cancelClose = () => {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = undefined;
+  };
+  const close = () => {
+    cancelClose();
+    setOpen(undefined);
+  };
   const show = (mode: OpenMode) => {
+    cancelClose();
     const trigger = triggerRef.current;
     if (trigger) setOpen({ mode, anchor: trigger.getBoundingClientRect() });
   };
+  // The keyboard or focus reached the card: the pointer leaving must not take it, nor a close
+  // the pointer already started, or the focus in it would drop to the page.
+  const pin = () => {
+    cancelClose();
+    setOpen((current) => current && { ...current, mode: 'pinned' });
+  };
+  // The pointer left the marker or its card: a card it can enter waits for it a moment.
+  const leave = (evt: PointerEvent) => {
+    if (evt.pointerType !== 'mouse' || open?.mode !== 'hover') return;
+    if (!interactive) {
+      close();
+      return;
+    }
+    cancelClose();
+    closeTimer.current = setTimeout(close, MARKER_DETAILS_CLOSE_DELAY_MS);
+  };
+  const onFocusLeave = (evt: FocusEvent) => {
+    const next = evt.relatedTarget;
+    if (!within(triggerRef.current, next) && !within(cardRef.current, next)) close();
+  };
+
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
 
   const isOpen = !!open;
   useEffect(() => {
     if (!isOpen) return undefined;
-    const close = () => setOpen(undefined);
-    const onKeyDown = (evt: KeyboardEvent) => {
-      if (evt.key === 'Escape') close();
+    const onKeyDown = (evt: globalThis.KeyboardEvent) => {
+      if (evt.key !== 'Escape') return;
+      // Focus in the card would fall to the page once it is gone, so it goes back to the marker,
+      // and the room's Escape (focus the composer, ShortcutRoot on the window), which skips a key
+      // whose default was prevented, must not take it from there. With focus elsewhere that
+      // Escape still runs, as it did for the plain tooltip.
+      if (within(cardRef.current, document.activeElement)) {
+        evt.preventDefault();
+        triggerRef.current?.focus();
+      }
+      close();
     };
     const onPointerDown = (evt: Event) => {
-      if (!triggerRef.current?.contains(evt.target as Node)) close();
+      if (within(cardRef.current, evt.target)) return;
+      if (!within(triggerRef.current, evt.target)) close();
     };
     // The details sit at a fixed spot; the timeline scrolls on its own as rows
     // arrive and settle, so they follow the marker instead of closing.
@@ -59,13 +122,13 @@ export function ThreadSummaryMarker({
       document.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('scroll', onScroll, true);
     };
+    // close only clears refs and state, the same on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   let label = t('mindroomUi.messages.mindroomThreadSummaryMarker.updated');
   if (summaryInfo.isManual) label = t('mindroomUi.messages.mindroomThreadSummaryMarker.edited');
   else if (plan?.first) label = t('mindroomUi.messages.mindroomThreadSummaryMarker.titled');
-
-  const settingsLabel = t('mindroomUi.messages.mindroomThreadSummaryMarker.titleSettings');
 
   let provenance = t('sharedUi.threadSummary.provenance');
   if (summaryInfo.isManual) provenance = t('sharedUi.threadSummary.manual');
@@ -83,6 +146,34 @@ export function ThreadSummaryMarker({
     />
   );
 
+  const details = (
+    <div className={css.MarkerDetails} data-thread-summary-details="true">
+      <Text size="T200" priority="300">
+        {provenance}
+      </Text>
+      <Text size="T300">{revealDirectionControls(summaryInfo.summaryText ?? '')}</Text>
+      {previous && (
+        <Text size="T200" priority="300">
+          {previous}
+        </Text>
+      )}
+      {onOpenSettings && (
+        <button
+          ref={linkRef}
+          type="button"
+          className={css.MarkerSettingsLink}
+          onClick={() => {
+            close();
+            onOpenSettings();
+          }}
+          onKeyDown={(evt: KeyboardEvent) => tabFromCardToOpener(evt, triggerRef.current)}
+        >
+          {t('mindroomUi.messages.mindroomThreadSummaryMarker.titleSettings')}
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className={css.Marker}>
       <button
@@ -91,70 +182,70 @@ export function ThreadSummaryMarker({
         className={css.MarkerTrigger}
         aria-expanded={isOpen}
         aria-describedby={descriptionId}
+        aria-haspopup={interactive ? 'dialog' : undefined}
+        aria-controls={interactive && isOpen ? cardId : undefined}
         onPointerEnter={(evt: PointerEvent) => {
-          if (evt.pointerType === 'mouse' && !open) show('hover');
+          if (evt.pointerType !== 'mouse') return;
+          cancelClose();
+          if (!open) show('hover');
         }}
-        onPointerLeave={(evt: PointerEvent) => {
-          if (evt.pointerType === 'mouse' && open?.mode === 'hover') setOpen(undefined);
+        onPointerLeave={leave}
+        onClick={() => (open?.mode === 'pinned' ? close() : show('pinned'))}
+        onKeyDown={(evt: KeyboardEvent) => {
+          // The card lives in the body, so Tab would skip it; send it to the card's link.
+          if (evt.key !== 'Tab' || evt.shiftKey || !open || !linkRef.current) return;
+          evt.preventDefault();
+          pin();
+          linkRef.current.focus();
         }}
-        onClick={() => (open?.mode === 'pinned' ? setOpen(undefined) : show('pinned'))}
-        onBlur={() => setOpen(undefined)}
+        onBlur={onFocusLeave}
       >
         <IconSparkles size={14} aria-hidden />
         <Text as="span" size="T200">
           {label}
         </Text>
       </button>
-      {onOpenSettings && (
-        <TooltipProvider
-          position="Top"
-          offset={4}
-          tooltip={
-            <Tooltip>
-              <Text size="T200">{settingsLabel}</Text>
-            </Tooltip>
-          }
-        >
-          {(tooltipRef) => (
-            <button
-              ref={tooltipRef}
-              type="button"
-              className={css.MarkerSettings}
-              aria-label={settingsLabel}
-              onClick={onOpenSettings}
-            >
-              <IconSettings size={14} aria-hidden />
-            </button>
-          )}
-        </TooltipProvider>
-      )}
       <span id={descriptionId} hidden>
         {revealDirectionControls(summaryInfo.summaryText ?? '')} {previous}
       </span>
-      {/* folds' PopOut layer covers the screen; as a tooltip it must let the
-          pointer through to the marker and the timeline. The tooltip inside,
-          not the layer, has the role: on touch screens index.css hides tooltip
-          layers in the body, and these details a tap opens. */}
+      {/* folds' PopOut layer covers the screen; it must let the pointer through
+          to the marker and the timeline. The card inside, not the layer, has
+          the role: on touch screens index.css hides tooltip layers in the body,
+          and these details a tap opens. Without a link the card is a tooltip
+          the pointer passes through; with one it is a small dialog that takes
+          the pointer and focus. The marker moves that focus itself, so the
+          app's overlay focus (lib/overlayFocus) must not move it into the
+          link as the card opens, nor keep Tab inside it. */}
       <PopOut
         style={{ pointerEvents: 'none' }}
+        {...(interactive && { [OWNS_FOCUS_ATTRIBUTE]: '' })}
         anchor={open?.anchor}
         position="Top"
         align="Start"
         offset={4}
         content={
-          <Tooltip role="tooltip">
-            <div className={css.MarkerDetails} data-thread-summary-details="true">
-              <Text size="T200" priority="300">
-                {provenance}
-              </Text>
-              <Text size="T300">{revealDirectionControls(summaryInfo.summaryText ?? '')}</Text>
-              {previous && (
-                <Text size="T200" priority="300">
-                  {previous}
-                </Text>
-              )}
-            </div>
-          </Tooltip>
+          interactive ? (
+            <Tooltip
+              ref={cardRef}
+              id={cardId}
+              role="dialog"
+              aria-label={label}
+              style={{ pointerEvents: 'auto' }}
+              onPointerEnter={(evt: PointerEvent) => {
+                if (evt.pointerType === 'mouse') cancelClose();
+              }}
+              onPointerLeave={leave}
+              // A press in the card keeps focus where it is (Safari focuses no pressed button,
+              // so the marker would blur to nothing and close the card under the press).
+              onMouseDown={(evt: MouseEvent) => evt.preventDefault()}
+              onFocus={pin}
+              onBlur={onFocusLeave}
+            >
+              {details}
+            </Tooltip>
+          ) : (
+            <Tooltip role="tooltip">{details}</Tooltip>
+          )
         }
       />
     </div>

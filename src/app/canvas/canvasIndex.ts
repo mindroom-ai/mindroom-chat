@@ -38,7 +38,7 @@ export const canvasSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
 /**
- * Lists a canvas made for this user, applies an update of a listed one, forgets a deleted one, or
+ * Lists a canvas this user can open, applies an update of a listed one, forgets a deleted one, or
  * notes a conversation where an agent showed the computer; other events are ignored. Updates and
  * deletions can arrive long after their canvas left memory, where no timeline takes them, so they
  * are applied to the listed entry.
@@ -76,7 +76,8 @@ export const recordCanvasEvent = (
       const version = readCanvasEdit(event, known.agentUserId, {
         version: 1,
         action: 'show_canvas',
-        requester_id: mx.getSafeUserId(),
+        // A row listed before the list took other members' canvases has none: it was this user's.
+        requester_id: known.requesterId ?? mx.getSafeUserId(),
         agent_user_id: known.agentUserId,
         room_id: known.roomId,
         thread_id: known.threadId ?? null,
@@ -98,7 +99,7 @@ export const recordCanvasEvent = (
   return entry && recordCanvas(canvasSessionId(mx), entry);
 };
 
-/** The row for a canvas request made for this user, at the version it shows. */
+/** The row for a canvas request this user can open, at the version it shows. */
 const readCanvasEntry = (mx: MatrixClient, event: MatrixEvent): CanvasListEntry | undefined => {
   const room = mx.getRoom(event.getRoomId());
   const action = room ? readChatUiAction(event, mx.getSafeUserId(), room) : undefined;
@@ -109,6 +110,7 @@ const readCanvasEntry = (mx: MatrixClient, event: MatrixEvent): CanvasListEntry 
     roomId: room.roomId,
     ...(action.threadId ? { threadId: action.threadId } : {}),
     agentUserId: action.agentUserId,
+    requesterId: action.requesterId,
     title: action.canvas.title,
     revisionId: action.revisionEventId,
     createdTs: event.getTs(),

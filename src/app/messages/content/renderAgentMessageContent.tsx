@@ -1,11 +1,13 @@
-import { useMemo, type ComponentProps, type ReactNode } from 'react';
+import { useContext, useMemo, type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
+import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
+import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
 import { MessageExtras } from '../MessageExtras';
@@ -15,7 +17,12 @@ import {
 } from '../../matrix/protocol/messageExtrasData';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
-import { getAiRunInfo, isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import {
+  getAiRunInfo,
+  isAiRunStreaming,
+  readStreamStatus,
+  SUCCESSFUL_STREAM_STATUSES,
+} from '../../matrix/protocol/aiRun';
 import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
 import { getLongTextSource, hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
@@ -24,11 +31,17 @@ import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
 import { isLongAgentReply, splitFinishedWork } from '../agent-run/finishedWorkSplit';
-import { LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY } from '../live/useLiveReplyContent';
+import {
+  LIVE_COMPACTIONS_KEY,
+  LIVE_REASONING_KEY,
+  LIVE_REASONING_SEGMENTS_KEY,
+} from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
 import { SecretRequestCard } from '../../approvals/SecretRequestCard';
+import { useSecretRequestWaiting } from '../inlineSecretRequests';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
@@ -39,10 +52,8 @@ import {
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
-import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
-import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
-import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
-import { SkillReviewMarker } from '../SkillReviewMarker';
+import { readAgentNoticeMarker } from '../agentNoticeMarker';
+import { sanitizeContent } from '../../matrix/protocol/untrustedContent';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
@@ -60,6 +71,31 @@ import { matchesEnum } from '../../lib/matchesEnum';
 
 /** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
 const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
+
+/** The live keys a streaming reply's frames add to its outer content (useLiveReplyContent). */
+const LIVE_WRAPPER_KEYS = [LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY, LIVE_COMPACTIONS_KEY];
+
+/**
+ * The live reasoning and compactions of `outer`, moved onto the content a long text resolved, and
+ * its own compactions when the download leaves them out.
+ */
+const withLiveWrapperContent = (
+  resolved: Record<string, unknown>,
+  outer: Record<string, unknown>
+): Record<string, unknown> => {
+  const carried = [
+    ...LIVE_WRAPPER_KEYS,
+    ...(resolved[COMPACTIONS_CONTENT_KEY] === undefined ? [COMPACTIONS_CONTENT_KEY] : []),
+  ].filter((key) => outer[key] !== undefined);
+  if (carried.length === 0) return resolved;
+  return { ...resolved, ...Object.fromEntries(carried.map((key) => [key, outer[key]])) };
+};
+
+const withoutCompactions = (content: Record<string, unknown>): Record<string, unknown> => {
+  if (!(COMPACTIONS_CONTENT_KEY in content) && !(LIVE_COMPACTIONS_KEY in content)) return content;
+  const { [COMPACTIONS_CONTENT_KEY]: _list, [LIVE_COMPACTIONS_KEY]: _live, ...rest } = content;
+  return rest;
+};
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -124,6 +160,8 @@ type AgentWorkBodyProps = {
   renderHtml: (customBody: string | undefined) => ReactNode;
   /** The reasoning header and tool-call cog around a body. */
   wrapWithReasoning: (body: ReactNode) => ReactNode;
+  /** The base parser options the body renders with, which decide where its work ends. */
+  htmlReactParserOptions: HTMLReactParserOptions;
 };
 
 /**
@@ -139,15 +177,19 @@ function AgentWorkBody({
   durationMs,
   renderHtml,
   wrapWithReasoning,
+  htmlReactParserOptions,
 }: AgentWorkBodyProps) {
+  // While a request of its calls waits, under it, the work stays open: the call it blocks shows.
+  const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
+  const sanitizeOptions = useBodySanitizeOptions();
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
   // reply's own body to change, and for it to finish long.
   const split = useMemo(
     () =>
-      finished && html !== undefined && isLongAgentReply(body)
-        ? splitFinishedWork(html)
+      finished && !waiting && html !== undefined && isLongAgentReply(body)
+        ? splitFinishedWork(html, htmlReactParserOptions, sanitizeOptions)
         : undefined,
-    [finished, body, html]
+    [finished, waiting, body, html, htmlReactParserOptions, sanitizeOptions]
   );
   return (
     <FinishedWorkFold
@@ -248,19 +290,33 @@ export const renderAgentMessageContent = ({
   };
 
   // The reply's HTML goes along whole: its tool markers place the reasoning segments.
+  // A reply's compactions count only from an agent for this viewer, as a compaction notice does.
   const wrapWithReasoning = (
     bodyContent: Record<string, unknown>,
     html: string | undefined,
     body: ReactNode
-  ) => withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts, html);
+  ) =>
+    withReasoning(
+      fromMindroomAgent ? bodyContent : withoutCompactions(bodyContent),
+      body,
+      htmlReactParserOptions,
+      linkifyOpts,
+      html
+    );
 
   // A long finished reply folds its work, everything up to its last tool call, behind one row, as
   // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
-  // event to its final edit. Search results and highlighted rows show the whole reply.
+  // event to its final edit. Search results and highlighted rows show the whole reply. A
+  // regenerated reply keeps its previous answer's run status, so a stream status of its own must
+  // also say it ended well.
   const foldEventId = eventId ?? mEvent?.getId();
   const status = getAiRunInfo(content)?.status;
   const foldsWork = fromMindroomAgent && highlightRegex === undefined;
-  const finished = !!status && FINISHED_AI_RUN_STATUSES.has(status);
+  const streamStatus = readStreamStatus(content);
+  const finished =
+    !!status &&
+    FINISHED_AI_RUN_STATUSES.has(status) &&
+    (!streamStatus || SUCCESSFUL_STREAM_STATUSES.has(streamStatus));
   const finalEditTs = mEvent?.replacingEvent()?.getTs();
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
@@ -288,6 +344,7 @@ export const renderAgentMessageContent = ({
           durationMs={workDurationMs}
           renderHtml={render}
           wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, bodyHtml, body)}
+          htmlReactParserOptions={htmlReactParserOptions}
         />
       );
     };
@@ -347,21 +404,19 @@ export const renderAgentMessageContent = ({
   };
 
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
-    resolvedContent,
+    downloadedContent,
     props,
     metadataStatus
-  ) =>
-    renderLongCallTranscript(
+  ) => {
+    // A sidecar is downloaded after the event's own content was cleaned, so the agent-only keys
+    // are dropped here too unless an agent sent it.
+    const resolvedContent = sanitizeContent(downloadedContent, fromMindroomAgent);
+    return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
-        // The live reasoning rides on the outer content, not on the preview or the sidecar.
-        content[LIVE_REASONING_KEY] === undefined
-          ? resolvedContent
-          : {
-              ...resolvedContent,
-              [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY],
-              [LIVE_REASONING_SEGMENTS_KEY]: content[LIVE_REASONING_SEGMENTS_KEY],
-            },
+        // The live reasoning and compactions ride on the outer content, not on the preview or the
+        // sidecar.
+        withLiveWrapperContent(resolvedContent, content),
         props.customBody,
         (html) => (
           <AgentRenderBody
@@ -379,6 +434,7 @@ export const renderAgentMessageContent = ({
         !hasLongTextMetadata(resolvedContent)
       )
     );
+  };
 
   const renderMessageExtras = (
     extrasContent: Record<string, unknown>,
@@ -435,10 +491,8 @@ export const renderAgentMessageContent = ({
 
   // An open thread shows these as marker rows of their own (useTimelineMessageFeature); other
   // views, such as threads shown in the room, keep the message row with the marker as its body.
-  const snoozeEndedNote = fromMindroomAgent ? readSnoozeEndedNote(content) : null;
-  if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
-  const skillReview = fromMindroomAgent ? readSkillReviewNotice(content) : null;
-  if (skillReview) return <SkillReviewMarker review={skillReview} />;
+  const notice = fromMindroomAgent ? readAgentNoticeMarker(content, mEvent?.getTs()) : null;
+  if (notice) return notice;
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
   // The answer goes to the sender's own MindRoom server.
@@ -451,6 +505,7 @@ export const renderAgentMessageContent = ({
         request={secretRequest}
         roomId={secretRequestRoomId}
         agentUserId={secretRequestSender}
+        eventId={eventId ?? mEvent?.getId()}
         readOnly={readOnly}
       />
     );

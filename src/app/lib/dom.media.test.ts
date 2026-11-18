@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getThumbnail, loadImageElement, loadVideoElement, VIDEO_LOAD_TIMEOUT_MS } from './dom';
+import {
+  getThumbnail,
+  loadImageElement,
+  loadVideoElement,
+  VIDEO_FRAME_WAIT_MS,
+  VIDEO_LOAD_TIMEOUT_MS,
+} from './dom';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 // jsdom never loads media, so the tests fire the element's events by hand.
@@ -76,6 +83,124 @@ describe('loadVideoElement', () => {
     await expect(loadVideoElement('blob:broken')).rejects.toThrow(
       'Could not load video blob:broken'
     );
+  });
+
+  /**
+   * The next video `loadVideoElement` creates, with a picture unless `videoWidth` is 0. With
+   * `tellsFrames` the browser tells when it shows a frame (`requestVideoFrameCallback`), and
+   * `showFrame` runs the pending frame callbacks.
+   */
+  const fakeVideo = ({ tellsFrames = true, videoWidth = 1206 } = {}) => {
+    const video = document.createElement('video');
+    let frameCallbacks: Array<() => void> = [];
+    Object.defineProperty(video, 'videoWidth', { value: videoWidth });
+    if (tellsFrames) {
+      Object.defineProperty(video, 'requestVideoFrameCallback', {
+        value: (callback: () => void) => frameCallbacks.push(callback),
+      });
+    }
+    const create = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+      tag === 'video' ? video : create(tag)) as typeof document.createElement);
+    return {
+      video,
+      loaded: () => video.dispatchEvent(new Event('loadeddata')),
+      showFrame: () => {
+        const callbacks = frameCallbacks;
+        frameCallbacks = [];
+        callbacks.forEach((callback) => callback());
+      },
+    };
+  };
+
+  /** Whether `promise` has settled, once the microtasks it waits on have run. No timer runs. */
+  const settled = async (promise: Promise<unknown>): Promise<boolean> => {
+    let done = false;
+    const mark = () => {
+      done = true;
+    };
+    promise.then(mark, mark);
+    for (let tick = 0; tick < 10; tick += 1) {
+      await Promise.resolve();
+    }
+    return done;
+  };
+
+  // The tests below hold the clock still, so a load that settles did not wait for a timer.
+
+  // Safari fires `loadeddata` before it can draw the frame: the thumbnail came out black.
+  it('waits after loadeddata until the browser has shown a frame', async () => {
+    vi.useFakeTimers();
+    const { pause } = stubPlayback();
+    const { video, loaded, showFrame } = fakeVideo();
+    const loading = loadVideoElement('blob:video');
+
+    loaded();
+    expect(await settled(loading)).toBe(false);
+    expect(pause).not.toHaveBeenCalled();
+
+    showFrame();
+    expect(await settled(loading)).toBe(true);
+    await expect(loading).resolves.toBe(video);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // Chrome sometimes shows the frame before it fires `loadeddata`.
+  it('takes a frame the browser showed before loadeddata', async () => {
+    vi.useFakeTimers();
+    stubPlayback();
+    const { video, loaded, showFrame } = fakeVideo();
+    const loading = loadVideoElement('blob:video');
+
+    showFrame();
+    expect(await settled(loading)).toBe(false);
+
+    loaded();
+    expect(await settled(loading)).toBe(true);
+    await expect(loading).resolves.toBe(video);
+  });
+
+  // A page that is not on screen shows no frame, and a picture can start long after the sound.
+  it('goes on without a shown frame after the frame wait, as it did at loadeddata before', async () => {
+    vi.useFakeTimers();
+    const { pause } = stubPlayback();
+    const { video, loaded } = fakeVideo();
+    const loading = loadVideoElement('blob:video');
+    loaded();
+    expect(await settled(loading)).toBe(false);
+
+    vi.advanceTimersByTime(VIDEO_FRAME_WAIT_MS - 1);
+    expect(await settled(loading)).toBe(false);
+
+    vi.advanceTimersByTime(1);
+    expect(await settled(loading)).toBe(true);
+    await expect(loading).resolves.toBe(video);
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('does not wait for a frame of a file with no picture to decode', async () => {
+    vi.useFakeTimers();
+    stubPlayback();
+    const { video, loaded } = fakeVideo({ videoWidth: 0 });
+    const loading = loadVideoElement('blob:sound-only');
+
+    loaded();
+    expect(await settled(loading)).toBe(true);
+    await expect(loading).resolves.toBe(video);
+  });
+
+  it('does not wait for a frame in a browser that cannot tell when it shows one', async () => {
+    vi.useFakeTimers();
+    stubPlayback();
+    const { video, loaded } = fakeVideo({ tellsFrames: false });
+    const loading = loadVideoElement('blob:video');
+    expect(await settled(loading)).toBe(false);
+
+    loaded();
+    expect(await settled(loading)).toBe(true);
+    await expect(loading).resolves.toBe(video);
   });
 });
 

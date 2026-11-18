@@ -33,6 +33,7 @@ type ShowCanvas = {
   agentUserId: string;
   threadId?: string;
   canvas: ChatUiCanvas;
+  requesterId: string;
   shareState?: true;
 };
 
@@ -73,7 +74,9 @@ function LoadedCanvasPanel({
   );
   const page = useCanvasPage(mx, room.roomId, shown.revisionEventId, shown.canvas, attempt);
   const saved = useCanvasSavedState(mx, action.eventId);
-  const share = useCanvasStateShare(mx, room, action.eventId, !!action.shareState);
+  // Only the requester's copy reaches the agent; another member's page state stays on their devices.
+  const shared = !!action.shareState && action.requesterId === mx.getSafeUserId();
+  const share = useCanvasStateShare(mx, room, action.eventId, shared);
   // The page waits until its saved state is read, so it starts from it.
   const loaded = page.status === 'ready' && saved.ready ? page : undefined;
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
@@ -115,7 +118,7 @@ function LoadedCanvasPanel({
         // What the page saves before the user works in it (its defaults on another device) is not theirs to share.
         if (byUser) share(saved.read());
       }}
-      shared={!!action.shareState}
+      shared={shared}
       onSelectVersion={(number) => {
         const picked = versions[number - 1]?.revisionEventId;
         setChosen(picked === action.revisionEventId ? undefined : picked);

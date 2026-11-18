@@ -299,6 +299,7 @@ export const renderTimelineTiles = ({
   isHiddenByPluginId,
   renderEvent,
   isQuietMarkerRow,
+  joinsQuietMarkerRun,
   forkDivider,
   forkingDivider,
   unreadMarkerRef,
@@ -328,6 +329,12 @@ export const renderTimelineTiles = ({
     data: TimelineMessageData,
     timelineSet: EventTimelineSet
   ) => boolean;
+  /** Of those, whether it shows beside the quiet markers next to it, in one row. */
+  joinsQuietMarkerRun?: (
+    event: MatrixEvent,
+    data: TimelineMessageData,
+    timelineSet: EventTimelineSet
+  ) => boolean;
   /** In a fork, the line between its parent's messages and its first row of its own (`index`). */
   forkDivider?: { index: number; node: ReactNode };
   /** In a fork draft, the line under its fork point (`index`), the last row it shows. */
@@ -337,12 +344,16 @@ export const renderTimelineTiles = ({
   measureElement: (node: Element | null) => void;
   ledgerPxAtRender: number;
 }): ReactNode[] => {
-  const { approvalTimeline, threadSummaryTimeline } = messageData;
+  const { approvalTimeline, threadSummaryTimeline, secretRequestTimeline } = messageData;
   const getRowEvent = (index: number): MatrixEvent | undefined =>
     threadId ? threadEvents[index] : roomWindowRows[index];
   const isRowHidden = (event: MatrixEvent): boolean => {
     const id = event.getId() ?? '';
-    if (approvalTimeline.hiddenEventIds.has(id) || threadSummaryTimeline.hiddenEventIds.has(id)) {
+    if (
+      approvalTimeline.hiddenEventIds.has(id) ||
+      threadSummaryTimeline.hiddenEventIds.has(id) ||
+      secretRequestTimeline.hiddenEventIds.has(id)
+    ) {
       return true;
     }
     const sender = event.getSender();
@@ -361,6 +372,9 @@ export const renderTimelineTiles = ({
     // The fork's first own row starts its group under the divider, whoever wrote the row above.
     groupStartIndex: forkDivider?.index,
     isQuietMarker: (event) => isQuietMarkerRow(event, messageData, timelineSet),
+    joinsQuietRun: joinsQuietMarkerRun
+      ? (event) => joinsQuietMarkerRun(event, messageData, timelineSet)
+      : undefined,
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
@@ -372,7 +386,15 @@ export const renderTimelineTiles = ({
     const id = event.getId() ?? '';
     const context = rowContexts.get(item.index);
     let content: ReactNode = null;
-    if (context && !isRowlessTimelineEvent(event)) {
+    // A quiet marker folded into the run's first row, which shows it, renders nothing.
+    if (context && !context.inQuietRun && !isRowlessTimelineEvent(event)) {
+      const quietRun = context.quietRunIndexes?.flatMap((index): TimelineMessageRow[] => {
+        const marker = getRowEvent(index);
+        const eventId = marker?.getId();
+        return marker && eventId
+          ? [{ eventId, event: marker, index, timelineSet, collapse: false, highlighted: false }]
+          : [];
+      });
       const row: TimelineMessageRow = {
         eventId: id,
         event,
@@ -385,7 +407,13 @@ export const renderTimelineTiles = ({
           context.inPlaceReplyEventId,
           isHiddenByPluginId
         ),
+        quietRun,
       };
+      // A fork draft's line goes under its fork point, or under the run of markers it is in.
+      const forkingHere =
+        forkingDivider !== undefined &&
+        (forkingDivider.index === item.index ||
+          !!context.quietRunIndexes?.includes(forkingDivider.index));
       // A row that fails to render shows as broken; the rows around it stay.
       content = (
         <MessageRowBoundary
@@ -398,7 +426,7 @@ export const renderTimelineTiles = ({
                 {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
                 {context.dayDivider && <DayDivider ts={event.getTs()} />}
                 {rendered}
-                {forkingDivider?.index === item.index && forkingDivider.node}
+                {forkingHere && forkingDivider.node}
               </>
             );
           }}

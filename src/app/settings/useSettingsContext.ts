@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
+import { useOffersMacApp } from '../native/macApp';
 import { isNativeIOS } from '../native/nativeSso';
 import { getDebugModeEnabled } from '../diagnostics/debugMode';
 import { useOfferedRailButtons } from './railButtons';
@@ -21,6 +22,7 @@ export const useSettingsContext = (): SettingsContext => {
   const { useSystemTheme } = useAtomValue(themeSettingsAtom);
   const errorReporting = parseDsn(useClientConfig().errorReporting?.dsn) !== undefined;
   const serverAdmin = isServerAdmin(useCapabilities());
+  const macApp = useOffersMacApp();
   return {
     native: Capacitor.isNativePlatform(),
     nativeIOS: isNativeIOS(),
@@ -31,5 +33,6 @@ export const useSettingsContext = (): SettingsContext => {
     developerTools,
     errorReporting,
     railButtons,
+    macApp,
   };
 };

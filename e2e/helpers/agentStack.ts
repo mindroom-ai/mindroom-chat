@@ -22,9 +22,10 @@ import { matrixFetch, sendRoomMessage } from './matrix';
  *
  * The first spec of a run starts the stack (a minute, several the first time a MindRoom commit is installed);
  * later specs reuse it until `python3 scripts/agent-stack/stack.py <slot> down` or `scripts/e2e-slot.sh <slot> down`.
- * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default
- * /home/basnijholt/Work/dev/mindroom) or no homeserver on the slot's port. E2E_PLUGIN_DIRS adds plugin
- * directories to the stack (stack.py's docstring), and a stack started with other ones restarts.
+ * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default the
+ * first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) or no homeserver on the slot's port.
+ * E2E_PLUGIN_DIRS adds plugin directories to the stack (stack.py's docstring), and a stack started with other ones
+ * restarts.
  */
 
 /** One of the thread's two models: its config key, provider model ID and the name clients show. */
@@ -36,6 +37,8 @@ export type AgentStack = {
   model: 'stub' | 'real';
   /** The room's default model and the one the model picker switches a thread to. */
   models: { first: AgentModel; second: AgentModel };
+  /** A stub model with reasoning levels, on a backend whose models take them (MindRoom #4119), else null. */
+  reasoningModel?: (AgentModel & { levels: string[] }) | null;
   sha: string;
   namespace: string;
   homeserver: string;

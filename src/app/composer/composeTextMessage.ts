@@ -1,6 +1,7 @@
 import { type IContent, MsgType } from 'matrix-js-sdk';
-import type { Editor } from 'slate';
+import { type Descendant, type Editor, Text } from 'slate';
 import { type MessageCommand, sendsAsTyped, takeMessageCommand } from '../editor/messageCommand';
+import { BlockType } from '../editor/types';
 import { getMentions } from '../editor/utils';
 import {
   customHtmlEqualsPlainText,
@@ -14,6 +15,19 @@ const MSGTYPE_BY_COMMAND: ReadonlyMap<MessageCommand, MsgType> = new Map([
   ['me', MsgType.Emote],
   ['notice', MsgType.Notice],
 ]);
+
+const isBlankLine = (node: Descendant): boolean =>
+  'type' in node &&
+  node.type === BlockType.Paragraph &&
+  node.children.every((child) => Text.isText(child) && child.text.trim() === '');
+
+/**
+ * Whether the composer holds only blank lines once any message command is off its start, a draft
+ * `composeTextMessage` makes no message of. It stops at the first line that holds anything, so
+ * it is cheap enough to ask at every change, which composing the message is not.
+ */
+export const holdsNoText = (editor: Editor): boolean =>
+  takeMessageCommand(editor.children).document.every(isBlankLine);
 
 /**
  * The message the composer holds, or undefined when no text is left to send: the plain body,

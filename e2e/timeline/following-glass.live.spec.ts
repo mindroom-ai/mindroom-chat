@@ -6,7 +6,6 @@ import {
   hasPrimaryCredentials,
 } from '../env';
 import { loginWithPassword } from '../helpers/auth';
-import { expectClearStrip } from '../helpers/glassVisual';
 import {
   createPrivateRoom,
   joinRoom,
@@ -140,9 +139,8 @@ test('following glass appears only while another reader follows the latest messa
     });
 
     const following = page.locator('[data-room-following="true"]');
-    await expectClearStrip(following);
-    const emptyHeight = (await following.boundingBox())!.height;
-    expect(emptyHeight).toBeGreaterThanOrEqual(28);
+    // Nobody else has read the latest message: nothing shows, and nothing is kept for it.
+    await expect(following).toHaveCount(0);
     const scroll = page.getByTestId('room-virtual-inner').locator('xpath=../..');
     await expect
       .poll(() =>
@@ -160,10 +158,26 @@ test('following glass appears only while another reader follows the latest messa
         )
       )
       .toBeGreaterThan(100);
+    // The names, when they show, and the gap below the composer float over the messages.
+    const gapBelowComposer = () =>
+      page.locator('[data-room-footer="true"]').evaluate((footer) => {
+        const frame = footer.querySelector('[data-editor-layout]')?.parentElement;
+        const box = frame?.getBoundingClientRect();
+        const bottom = footer.getBoundingClientRect().bottom;
+        return {
+          x: box?.x ?? 0,
+          y: box?.bottom ?? 0,
+          width: box?.width ?? 0,
+          height: bottom - (box?.bottom ?? 0),
+        };
+      });
     const expectMessagesBehindStrip = async () => {
       await expect
         .poll(async () => {
-          const strip = (await following.boundingBox())!;
+          const strip =
+            (await following.count()) > 0
+              ? (await following.boundingBox())!
+              : await gapBelowComposer();
           return scroll.locator('[data-message-item]').evaluateAll(
             (messages, area) =>
               messages.some((message) => {
@@ -247,7 +261,7 @@ test('following glass appears only while another reader follows the latest messa
       msgtype: 'm.text',
       body: nextBody,
     });
-    await expectClearStrip(following);
+    await expect(following).toHaveCount(0);
     await jumpToLatest.click();
     await expect(page.getByText(nextBody, { exact: true })).toBeVisible();
     await markRead(reader.accessToken, nextEvent);
@@ -259,8 +273,7 @@ test('following glass appears only while another reader follows the latest messa
     });
     await page.reload();
     await expect(page.getByText(nextBody, { exact: true })).toBeVisible();
-    await expectClearStrip(following);
-    expect((await following.boundingBox())!.height).toBeCloseTo(emptyHeight, 0);
+    await expect(following).toHaveCount(0);
   } finally {
     const sessions = readerJoined ? [reader, author] : [author];
     const results = await Promise.allSettled([

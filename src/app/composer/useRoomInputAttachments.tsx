@@ -46,6 +46,7 @@ import {
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import type { AttachmentSnapshot, RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { buildDiagnosticsExport } from '../diagnostics/diagnosticsExport';
 import {
   createRoomInputPasteMarkerElement,
   getRoomInputPasteMarkerFileNames,
@@ -79,6 +80,8 @@ type RoomInputAttachments = {
   /** Drops paste attachments whose marker left the editor. */
   onEditorChange: () => void;
   pickFiles: () => void;
+  /** Stages this device's diagnostics export as a file, sent with the next message. */
+  attachAppLogs: () => void;
   dropZoneVisible: boolean;
   /** A paste chip of the draft lost its text in a reload and left the draft. */
   lostPastes: boolean;
@@ -459,11 +462,21 @@ export const useRoomInputAttachments = ({
   const dismissLostPastes = useCallback(() => setLostPastes(false), []);
 
   const stageFiles = useCallback(
-    async (files: File[]) => {
+    // With `asked`, the conversation the files were asked for in: they join its board only if the
+    // composer still shows it once they are prepared.
+    async (files: File[], asked?: { roomId: string; draftKey?: string }) => {
       if (files.length === 0) return;
-      const targetRoomId = current.current.roomId;
+      const targetRoomId = asked?.roomId ?? current.current.roomId;
       const items = await createUploadItems(files);
       if (!mounted.current) return;
+      if (
+        asked &&
+        (current.current.roomId !== asked.roomId || current.current.draftKey !== asked.draftKey)
+      ) {
+        // eslint-disable-next-line no-console
+        console.warn('[composer] files not attached: the conversation changed');
+        return;
+      }
       access.append(targetRoomId, items);
     },
     [access, createUploadItems]
@@ -563,6 +576,23 @@ export const useRoomInputAttachments = ({
     [isMarkdown, pastePlainText, stageFiles]
   );
 
+  const attachAppLogs = useCallback(() => {
+    // The export takes a moment, and this composer can move to another room or thread meanwhile:
+    // the logs go only to the conversation they were asked for in.
+    const { roomId, draftKey } = current.current;
+    buildDiagnosticsExport()
+      .then(({ blob, fileName }) =>
+        stageFiles([new File([blob], fileName, { type: 'application/json' })], {
+          roomId,
+          draftKey,
+        })
+      )
+      .catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.warn('[composer] could not attach app logs', error);
+      });
+  }, [stageFiles]);
+
   const pickFiles = useFilePicker(
     useCallback((files: File[]) => void stageFiles(files).catch(() => undefined), [stageFiles]),
     true
@@ -649,6 +679,7 @@ export const useRoomInputAttachments = ({
     onPaste,
     onEditorChange,
     pickFiles,
+    attachAppLogs,
     dropZoneVisible,
     lostPastes,
     dismissLostPastes,

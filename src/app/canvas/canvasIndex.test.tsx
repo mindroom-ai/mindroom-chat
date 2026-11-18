@@ -177,6 +177,7 @@ describe('recordCanvasEvent', () => {
         roomId: ROOM_ID,
         threadId: '$thread',
         agentUserId: AGENT,
+        requesterId: VIEWER,
         title: 'Plans',
         revisionId: '$canvas',
         createdTs: 1,
@@ -197,12 +198,48 @@ describe('recordCanvasEvent', () => {
       content: { msgtype: 'm.text', body: 'Hello' },
     });
     expect(recordCanvasEvent(mx, plain)).toBeUndefined();
-    expect(
-      recordCanvasEvent(mx, request({ extra: { requester_id: '@bob:example.org' } }))
-    ).toBeUndefined();
     const echo = request();
     echo.setStatus('sending' as never);
     expect(recordCanvasEvent(mx, echo)).toBeUndefined();
+  });
+
+  it("lists another member's canvas and holds its updates against that member", async () => {
+    const { mx } = fixture();
+    const bob = '@bob:example.org';
+    await recordCanvasEvent(mx, request({ extra: { requester_id: bob, share_state: true } }));
+    expect((await listCanvases(SESSION))[0]).toMatchObject({ requesterId: bob, shared: true });
+    // An update cannot turn the canvas into this viewer's.
+    await recordCanvasEvent(
+      mx,
+      edit('Mine', { id: '$mine', ts: 4, extra: { requester_id: VIEWER, share_state: true } })
+    );
+    expect((await listCanvases(SESSION))[0]).toMatchObject({ title: 'Plans', updatedTs: 1 });
+    await recordCanvasEvent(
+      mx,
+      edit('Plans v2', { ts: 5, extra: { requester_id: bob, share_state: true } })
+    );
+    expect((await listCanvases(SESSION))[0]).toMatchObject({
+      title: 'Plans v2',
+      requesterId: bob,
+      updatedTs: 5,
+    });
+  });
+
+  it('applies updates to a row listed before rows named their requester', async () => {
+    const { mx } = fixture();
+    await recordCanvas(SESSION, {
+      canvasId: '$canvas',
+      roomId: ROOM_ID,
+      threadId: '$thread',
+      agentUserId: AGENT,
+      title: 'Plans',
+      revisionId: '$canvas',
+      createdTs: 1,
+      updatedTs: 1,
+      shared: false,
+    });
+    await recordCanvasEvent(mx, edit('Plans v2', { ts: 5 }));
+    expect((await listCanvases(SESSION))[0]).toMatchObject({ title: 'Plans v2', updatedTs: 5 });
   });
 
   it('lists the update a loaded request shows', async () => {

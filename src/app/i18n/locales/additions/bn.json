@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "বন্ধ করুন",
       "previous": "আগের ছবি",
-      "next": "পরের ছবি"
+      "next": "পরের ছবি",
+      "wheelZoomHint": "জুম করতে {{key}} + স্ক্রল"
     },
     "inviteUserPrompt": {
       "close": "বন্ধ করুন",
@@ -409,7 +410,7 @@
         "thirdPartyNotices": "তৃতীয় পক্ষের বিজ্ঞপ্তি",
         "soundsCredit": "বিজ্ঞপ্তি ও আমন্ত্রণের শব্দগুলো এই অ্যাপের জন্য সংশ্লেষণ করে তৈরি করা সুর।",
         "debugMode": "ডিবাগ মোড",
-        "debugModeDescription": "এই ডিভাইসে ডায়াগনস্টিক তথ্য রেকর্ড করে, যাতে আপনি সেগুলো এক্সপোর্ট করতে এবং গভীর ডায়গনিস্টিক ট্রেসিং চালু করতে পারেন।"
+        "debugModeDescription": "বার্তা বাক্সের + মেনুতে “অ্যাপের লগ সংযুক্ত করুন” যোগ করে, যাতে আপনি এই ডিভাইসের ডায়াগনস্টিক তথ্য বার্তায় পাঠাতে পারেন। মেমরির পরিসংখ্যান ও বিস্তারিত ট্রেস যোগ করতে নিচে গভীর ডায়গনিস্টিক ট্রেসিং চালু করুন।"
       }
     },
     "createChat": {
@@ -679,11 +680,33 @@
           "note": "যেসব শিরোনাম আগেই দেওয়া হয়েছে, পরের রিফ্রেশ পর্যন্ত সেগুলোর ভাষা একই থাকে।"
         },
         "save": "সংরক্ষণ করুন",
+        "saved": "সংরক্ষিত",
         "clear": "সাফ করুন",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "শুধু যাঁরা এই রুমের সেটিংস বদলাতে পারেন, তাঁরাই এটি সম্পাদনা করতে পারেন।",
-        "saveFailed": "সেটিংটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"
+        "saveFailed": "সেটিংটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+        "replyMode": {
+          "label": "এজেন্টরা উত্তর দেয়",
+          "description": "নতুন বার্তায় উত্তর পেতে কোনো এজেন্ট বা দলের উল্লেখ করতে হবে কি না। ডিফল্ট এই রুমের জন্য MindRoom-এর কনফিগারেশন অনুসরণ করে। শুধু উল্লেখ করলে বেছে নিলেও, এজেন্টরা যে থ্রেডে আগেই উত্তর দিয়েছে সেখানে পরের বার্তাগুলোর উত্তর দিতে পারে।",
+          "default": "ডিফল্ট",
+          "auto": "যেকোনো বার্তায়",
+          "mentions": "শুধু উল্লেখ করলে"
+        }
       }
+    },
+    "macApp": {
+      "title": "Mac-এর জন্য MindRoom",
+      "text": "⌃⌥Space দিয়ে কুইক ক্যাপচার, নেটিভ নোটিফিকেশন।",
+      "download": "ডাউনলোড",
+      "notNow": "এখন নয়",
+      "dismiss": "সরিয়ে দিন",
+      "banner": "<b>Mac ব্যবহার করছেন?</b> MindRoom অ্যাপটি নিন।",
+      "bannerDownload": "Mac-এর জন্য ডাউনলোড",
+      "menu": "Mac অ্যাপ ডাউনলোড",
+      "downloadDmg": "ডাউনলোড (.dmg)",
+      "copyCommand": "কমান্ড কপি করুন",
+      "copyFailed": "কপি করা যায়নি",
+      "keywords": "mac, macos, ডেস্কটপ, অ্যাপ, ডাউনলোড, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -776,6 +799,15 @@
           "saved": "সংরক্ষিত",
           "declined": "প্রত্যাখ্যাত",
           "expired": "মেয়াদ শেষ"
+        },
+        "line": {
+          "sentKept": "পাঠানো হয়েছে · {{duration}} রাখা হবে"
+        },
+        "facts": {
+          "nothingSent": "কিছুই পাঠানো বা রাখা হয়নি।",
+          "noAnswer": "সময়মতো উত্তর আসেনি, তাই কিছুই পাঠানো হয়নি।",
+          "askedAs": "এই কথোপকথনে {{agent}}-এর কমান্ডগুলোর জন্য {{variable}} হিসেবে চাওয়া হয়েছিল।",
+          "replaced": "আগে সংরক্ষিত কী-টি প্রতিস্থাপন করেছে।"
         }
       },
       "skillReviewMarker": {
@@ -809,13 +841,68 @@
         "toolRunningFor": "{{duration}} ধরে চলছে"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "শিরোনামের সেটিংস"
+        "titleSettings": "শিরোনামের সেটিংস…"
       },
       "replyTime": {
         "started": "শুরু {{value1}}",
         "finished": "শেষ {{value1}}",
         "stillStreaming": "এখনও চলছে",
         "duration": "সময়কাল {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} সে",
+        "tokensShort": "{{before}} → {{after}} টোকেন",
+        "label": {
+          "running": "প্রসঙ্গ সংক্ষিপ্ত হচ্ছে…",
+          "preTurn": "উত্তরের আগে সংক্ষিপ্ত হয়েছে",
+          "midTurn": "প্রসঙ্গ সংক্ষিপ্ত হয়েছে",
+          "manual": "অনুরোধে সংক্ষিপ্ত হয়েছে",
+          "failed": "সংক্ষিপ্তকরণ ব্যর্থ হয়েছে",
+          "timeout": "সংক্ষিপ্তকরণের সময় শেষ",
+          "interrupted": "সংক্ষিপ্তকরণ থেমে গেছে"
+        },
+        "title": "প্রসঙ্গ সংক্ষিপ্ত হয়েছে",
+        "tag": {
+          "preTurn": "উত্তরের আগে",
+          "midTurn": "পালার মাঝে",
+          "manual": "ম্যানুয়াল"
+        },
+        "subtitle": {
+          "preTurn": "এই উত্তরের প্রথম মডেল অনুরোধের আগে।",
+          "midTurn": "দুটি মডেল অনুরোধের মাঝে, টুল কল {{n, number}}-এর পরে।",
+          "midTurnNoTools": "দুটি মডেল অনুরোধের মাঝে।",
+          "manual": "সংক্ষিপ্ত করার কমান্ড দিয়ে অনুরোধ করা হয়েছে।"
+        },
+        "gauge": {
+          "was": "আগে বাজেটের {{p, number}}%",
+          "now": "এখন {{p, number}}%",
+          "used": "বাজেটের {{p, number}}%"
+        },
+        "row": {
+          "history": "ইতিহাস",
+          "saved": "সাশ্রয়",
+          "budget": "বাজেট",
+          "folded": "গুটানো হয়েছে",
+          "folding": "গুটানো হচ্ছে",
+          "summarizedBy": "সারাংশ করেছে",
+          "summaryModel": "সারাংশ মডেল",
+          "when": "কখন",
+          "started": "শুরু হয়েছে",
+          "reason": "কারণ",
+          "gaveUpAfter": "যতক্ষণ পরে ছেড়ে দিয়েছে"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> টোকেন",
+          "history": "<b>{{n, number}}</b> টোকেন",
+          "tokens": "{{n, number}} টোকেন",
+          "saved": "{{n, number}} টোকেন ({{p, number}}%)",
+          "runs_one": "{{count, number}}টি রান",
+          "runs_other": "{{count, number}}টি রান",
+          "folded": "{{runs}} ১টি সারাংশে",
+          "folding": "{{runs}}, {{done, number}}টি শেষ",
+          "summarizedBy": "{{model}}, {{duration}}-এ",
+          "interrupted": "সারাংশ শেষ হওয়ার আগেই উত্তর শেষ হয়েছে।"
+        }
       }
     },
     "message-search": {
@@ -918,6 +1005,25 @@
       "withCount_one": "{{label}}, {{count}}টি সক্রিয়",
       "withCount_other": "{{label}}, {{count}}টি সক্রিয়",
       "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "প্রচেষ্টা",
+        "effortFor": "{{model}}-এর প্রচেষ্টা",
+        "noEffortLevels": "কোনো প্রচেষ্টার স্তর নেই",
+        "defaultLevel": "ডিফল্ট",
+        "levelIsDefault": "{{level}}, ডিফল্ট",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "বন্ধ",
+          "minimal": "ন্যূনতম",
+          "low": "কম",
+          "medium": "মাঝারি",
+          "high": "বেশি",
+          "xhigh": "অতি বেশি",
+          "max": "সর্বোচ্চ"
+        }
+      }
     }
   },
   "composer": {
@@ -926,6 +1032,8 @@
     "emoji": "ইমোজি",
     "cancelReply": "উত্তর বাতিল করুন",
     "moreActions": "আরও অ্যাকশন",
+    "attachMenu": "সংযুক্ত করুন",
+    "attachAppLogs": "অ্যাপের লগ সংযুক্ত করুন",
     "lostFiles": "এই খসড়ার সাথে রাখা হয়নি: {{files}}। পাঠানোর আগে আবার সংযুক্ত করুন।",
     "lostPastes": "পেস্ট করা টেক্সট এই খসড়ার সাথে রাখা হয়নি। পাঠানোর আগে আবার পেস্ট করুন।",
     "dismissLostFiles": "সরিয়ে দিন",

@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "关闭",
       "previous": "上一张图片",
-      "next": "下一张图片"
+      "next": "下一张图片",
+      "wheelZoomHint": "{{key}} + 滚动以缩放"
     },
     "inviteUserPrompt": {
       "close": "关闭",
@@ -404,7 +405,7 @@
         "thirdPartyNotices": "第三方声明",
         "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。",
         "debugMode": "调试模式",
-        "debugModeDescription": "在此设备上记录诊断信息，以便导出并开启深度诊断追踪。"
+        "debugModeDescription": "在输入框的 + 菜单中加入“添加应用日志”，以便在消息中发送此设备的诊断信息。如需包含内存数据和详细追踪，请在下方开启深度诊断追踪。"
       }
     },
     "createChat": {
@@ -670,11 +671,33 @@
           "note": "已有的标题会保持原有措辞，直到下次刷新。"
         },
         "save": "保存",
+        "saved": "已保存",
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
-        "saveFailed": "无法保存该设置，请重试。"
+        "saveFailed": "无法保存该设置，请重试。",
+        "replyMode": {
+          "label": "智能体回复",
+          "description": "新消息是否需要提及某个智能体或团队才会得到回复。“默认”遵循 MindRoom 对此房间的配置。即使选择“仅在被提及时”，智能体仍可回复它们已回复过的话题中的后续消息。",
+          "default": "默认",
+          "auto": "任何消息",
+          "mentions": "仅在被提及时"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom Mac 版",
+      "text": "用 ⌃⌥Space 快速捕捉，原生通知。",
+      "download": "下载",
+      "notNow": "以后再说",
+      "dismiss": "关闭",
+      "banner": "<b>在用 Mac？</b>获取 MindRoom 应用。",
+      "bannerDownload": "下载 Mac 版",
+      "menu": "下载 Mac 应用",
+      "downloadDmg": "下载 (.dmg)",
+      "copyCommand": "复制命令",
+      "copyFailed": "复制失败",
+      "keywords": "mac, macos, 桌面, 应用, 下载, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -767,6 +790,15 @@
           "saved": "已保存",
           "declined": "已拒绝",
           "expired": "已到期"
+        },
+        "line": {
+          "sentKept": "已发送 · 保留 {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "没有发送或保留任何内容。",
+          "noAnswer": "未及时回答，因此没有发送任何内容。",
+          "askedAs": "在此对话中为 {{agent}} 的命令以 {{variable}} 请求。",
+          "replaced": "已替换之前保存的密钥。"
         }
       },
       "skillReviewMarker": {
@@ -798,13 +830,67 @@
         "toolRunningFor": "已运行 {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "标题设置"
+        "titleSettings": "标题设置…"
       },
       "replyTime": {
         "started": "开始 {{value1}}",
         "finished": "结束 {{value1}}",
         "stillStreaming": "仍在生成",
         "duration": "用时 {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} 秒",
+        "tokensShort": "{{before}} → {{after}} 个令牌",
+        "label": {
+          "running": "正在压缩上下文…",
+          "preTurn": "回复前已压缩",
+          "midTurn": "已压缩上下文",
+          "manual": "按请求压缩",
+          "failed": "压缩失败",
+          "timeout": "压缩超时",
+          "interrupted": "压缩已中断"
+        },
+        "title": "上下文已压缩",
+        "tag": {
+          "preTurn": "回复前",
+          "midTurn": "轮次中途",
+          "manual": "手动"
+        },
+        "subtitle": {
+          "preTurn": "在此回复的第一个模型请求之前。",
+          "midTurn": "在两个模型请求之间，第 {{n, number}} 次工具调用之后。",
+          "midTurnNoTools": "在两个模型请求之间。",
+          "manual": "通过压缩命令请求。"
+        },
+        "gauge": {
+          "was": "之前占预算的 {{p, number}}%",
+          "now": "现在 {{p, number}}%",
+          "used": "占预算的 {{p, number}}%"
+        },
+        "row": {
+          "history": "历史",
+          "saved": "节省",
+          "budget": "预算",
+          "folded": "已合并",
+          "folding": "正在合并",
+          "summarizedBy": "摘要模型",
+          "summaryModel": "摘要模型",
+          "when": "时间",
+          "started": "开始",
+          "reason": "原因",
+          "gaveUpAfter": "放弃于"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> 个令牌",
+          "history": "<b>{{n, number}}</b> 个令牌",
+          "tokens": "{{n, number}} 个令牌",
+          "saved": "{{n, number}} 个令牌（{{p, number}}%）",
+          "runs_other": "{{count, number}} 次运行",
+          "folded": "{{runs}}合并为 1 个摘要",
+          "folding": "{{runs}}，已完成 {{done, number}} 次",
+          "summarizedBy": "{{model}}，用时 {{duration}}",
+          "interrupted": "摘要完成前回复已结束。"
+        }
       }
     },
     "message-search": {
@@ -901,6 +987,25 @@
       "showFor": "显示子智能体：{{name}}",
       "withCount_other": "{{label}}，{{count}} 个活跃",
       "resize": "调整子智能体面板大小"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "推理强度",
+        "effortFor": "{{model}} 的推理强度",
+        "noEffortLevels": "无推理强度级别",
+        "defaultLevel": "默认",
+        "levelIsDefault": "{{level}}，默认",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "关闭",
+          "minimal": "最低",
+          "low": "低",
+          "medium": "中",
+          "high": "高",
+          "xhigh": "超高",
+          "max": "最高"
+        }
+      }
     }
   },
   "composer": {
@@ -909,6 +1014,8 @@
     "emoji": "表情符号",
     "cancelReply": "取消回复",
     "moreActions": "更多操作",
+    "attachMenu": "添加",
+    "attachAppLogs": "添加应用日志",
     "lostFiles": "未随此草稿保留：{{files}}。发送前请重新添加附件。",
     "lostPastes": "粘贴的文本未随此草稿保留。发送前请重新粘贴。",
     "dismissLostFiles": "关闭",

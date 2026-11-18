@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "閉じる",
       "previous": "前の画像",
-      "next": "次の画像"
+      "next": "次の画像",
+      "wheelZoomHint": "{{key}} + スクロールでズーム"
     },
     "inviteUserPrompt": {
       "close": "閉じる",
@@ -404,7 +405,7 @@
         "thirdPartyNotices": "サードパーティ通知",
         "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。",
         "debugMode": "デバッグモード",
-        "debugModeDescription": "このデバイスで診断情報を記録し、エクスポートや詳細な診断トレースの有効化ができるようにします。"
+        "debugModeDescription": "メッセージでこのデバイスの診断情報を送れるように、入力欄の＋メニューに「アプリのログを添付」を追加します。メモリ値と詳細なトレースを含めるには、下の詳細な診断トレースをオンにしてください。"
       }
     },
     "createChat": {
@@ -670,11 +671,33 @@
           "note": "すでに付いているタイトルは、次に更新されるまで今の表現のままです。"
         },
         "save": "保存",
+        "saved": "保存しました",
         "clear": "クリア",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "このルームの設定を変更できる人だけが編集できます。",
-        "saveFailed": "設定を保存できませんでした。もう一度お試しください。"
+        "saveFailed": "設定を保存できませんでした。もう一度お試しください。",
+        "replyMode": {
+          "label": "エージェントの応答",
+          "description": "新しいメッセージに応答を得るには、エージェントやチームへのメンションが必要かどうかです。「デフォルト」はこのルームの MindRoom の設定に従います。「メンションされたときだけ」でも、エージェントはすでに返信したスレッドの続くメッセージに応答できます。",
+          "default": "デフォルト",
+          "auto": "すべてのメッセージ",
+          "mentions": "メンションされたときだけ"
+        }
       }
+    },
+    "macApp": {
+      "title": "Mac 版 MindRoom",
+      "text": "⌃⌥Space でクイックキャプチャ、ネイティブ通知。",
+      "download": "ダウンロード",
+      "notNow": "今はしない",
+      "dismiss": "閉じる",
+      "banner": "<b>Mac をお使いですか?</b> MindRoom アプリを入手しましょう。",
+      "bannerDownload": "Mac 版をダウンロード",
+      "menu": "Mac アプリをダウンロード",
+      "downloadDmg": "ダウンロード (.dmg)",
+      "copyCommand": "コマンドをコピー",
+      "copyFailed": "コピーできませんでした",
+      "keywords": "mac, macos, デスクトップ, アプリ, ダウンロード, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -767,6 +790,15 @@
           "saved": "保存済み",
           "declined": "拒否済み",
           "expired": "期限切れ"
+        },
+        "line": {
+          "sentKept": "送信済み · {{duration}}保持"
+        },
+        "facts": {
+          "nothingSent": "何も送信も保持もされていません。",
+          "noAnswer": "時間内に回答がなかったため、何も送信されていません。",
+          "askedAs": "この会話で {{agent}} のコマンド用に {{variable}} として求められました。",
+          "replaced": "以前保存されていたキーを置き換えました。"
         }
       },
       "skillReviewMarker": {
@@ -798,13 +830,67 @@
         "toolRunningFor": "{{duration}}実行中"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "タイトルの設定"
+        "titleSettings": "タイトルの設定…"
       },
       "replyTime": {
         "started": "開始 {{value1}}",
         "finished": "終了 {{value1}}",
         "stillStreaming": "まだ生成中",
         "duration": "所要時間 {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} 秒",
+        "tokensShort": "{{before}} → {{after}} トークン",
+        "label": {
+          "running": "コンテキストを圧縮中…",
+          "preTurn": "返信前に圧縮",
+          "midTurn": "コンテキストを圧縮",
+          "manual": "リクエストにより圧縮",
+          "failed": "圧縮に失敗",
+          "timeout": "圧縮がタイムアウト",
+          "interrupted": "圧縮が中断"
+        },
+        "title": "コンテキストを圧縮しました",
+        "tag": {
+          "preTurn": "返信前",
+          "midTurn": "ターン途中",
+          "manual": "手動"
+        },
+        "subtitle": {
+          "preTurn": "この返信の最初のモデルリクエストの前。",
+          "midTurn": "2 つのモデルリクエストの間、ツール呼び出し {{n, number}} の後。",
+          "midTurnNoTools": "2 つのモデルリクエストの間。",
+          "manual": "圧縮コマンドでリクエストされました。"
+        },
+        "gauge": {
+          "was": "以前は予算の {{p, number}}%",
+          "now": "現在 {{p, number}}%",
+          "used": "予算の {{p, number}}%"
+        },
+        "row": {
+          "history": "履歴",
+          "saved": "削減",
+          "budget": "予算",
+          "folded": "まとめた数",
+          "folding": "まとめ中",
+          "summarizedBy": "要約したモデル",
+          "summaryModel": "要約モデル",
+          "when": "日時",
+          "started": "開始",
+          "reason": "理由",
+          "gaveUpAfter": "中止までの時間"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> トークン",
+          "history": "<b>{{n, number}}</b> トークン",
+          "tokens": "{{n, number}} トークン",
+          "saved": "{{n, number}} トークン ({{p, number}}%)",
+          "runs_other": "{{count, number}} 回の実行",
+          "folded": "{{runs}}を 1 つの要約に",
+          "folding": "{{runs}}、{{done, number}} 件完了",
+          "summarizedBy": "{{model}}（{{duration}}）",
+          "interrupted": "要約が終わる前に返信が終了しました。"
+        }
       }
     },
     "message-search": {
@@ -901,6 +987,25 @@
       "showFor": "サブエージェントを表示: {{name}}",
       "withCount_other": "{{label}}、{{count}} 件がアクティブ",
       "resize": "サブエージェントパネルのサイズを変更"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "推論レベル",
+        "effortFor": "{{model}} の推論レベル",
+        "noEffortLevels": "推論レベルなし",
+        "defaultLevel": "デフォルト",
+        "levelIsDefault": "{{level}}、デフォルト",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "オフ",
+          "minimal": "最小",
+          "low": "低",
+          "medium": "中",
+          "high": "高",
+          "xhigh": "最高",
+          "max": "最大"
+        }
+      }
     }
   },
   "composer": {
@@ -909,6 +1014,8 @@
     "emoji": "絵文字",
     "cancelReply": "返信をキャンセル",
     "moreActions": "その他の操作",
+    "attachMenu": "添付",
+    "attachAppLogs": "アプリのログを添付",
     "lostFiles": "この下書きでは保持されませんでした: {{files}}。送信する前にもう一度添付してください。",
     "lostPastes": "貼り付けたテキストはこの下書きに保持されませんでした。送信する前にもう一度貼り付けてください。",
     "dismissLostFiles": "閉じる",

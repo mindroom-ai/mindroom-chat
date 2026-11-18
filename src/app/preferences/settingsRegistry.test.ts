@@ -24,6 +24,7 @@ const WEB: SettingsContext = {
   developerTools: false,
   errorReporting: false,
   railButtons: { threads: true, canvases: true, explore: true },
+  macApp: false,
 };
 
 const translated = (key: string | undefined) => !!key && translateFromEn(key) !== key;
@@ -116,14 +117,14 @@ describe('settings registry', () => {
     expect(getShownSettings({ ...WEB, errorReporting: true }).map((s) => s.id)).toContain(
       'errorReports'
     );
-    // Debug mode outside the iOS app; the diagnostics wherever they record.
+    // Debug mode everywhere, the iOS app included; the diagnostics wherever they record.
     expect(webSettings).toContain('debugMode');
     expect(webSettings).not.toContain('diagnosticsExport');
     expect(getShownSettings({ ...WEB, diagnostics: true }).map((s) => s.id)).toEqual(
       expect.arrayContaining(['debugMode', 'diagnosticsExport', 'deepTrace'])
     );
-    expect(getShownSettings({ ...app, diagnostics: true }).map((s) => s.id)).not.toContain(
-      'debugMode'
+    expect(getShownSettings({ ...app, diagnostics: true }).map((s) => s.id)).toEqual(
+      expect.arrayContaining(['debugMode', 'diagnosticsExport', 'deepTrace'])
     );
   });
 
@@ -136,6 +137,16 @@ describe('settings registry', () => {
     expect(tour?.location).toEqual(['About', 'Tour']);
     expect(others).toEqual([]);
     expect(found('tutorial').map(({ setting }) => setting.id)).toEqual(['tour']);
+  });
+
+  it('lists the Mac app on About only in a browser on a Mac, where search finds it by "mac"', () => {
+    const found = (context: SettingsContext, query: string) =>
+      searchSettings(query, getShownSettings(context), (key, values) =>
+        translateFromEn(key, values)
+      ).map(({ setting }) => setting.id);
+    expect(getShownSettings(WEB).map((setting) => setting.id)).not.toContain('macApp');
+    expect(found({ ...WEB, macApp: true }, 'mac')).toContain('macApp');
+    expect(found({ ...WEB, macApp: true }, 'homebrew')).toEqual(['macApp']);
   });
 
   it('labels the roaming settings with the account and keeps every other app setting on the device', () => {

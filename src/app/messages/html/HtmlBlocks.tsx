@@ -1,13 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useContext, useMemo, useState } from 'react';
-import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
+import {
+  Element,
+  HTMLReactParserOptions,
+  Text as DOMText,
+  domToReact,
+  htmlToDOM,
+} from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
-import {
-  MINDROOM_TOOL_REF_ICON,
-  ToolRefParseResult,
-  parseToolRefHtml,
-} from './blocks';
+import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
 import {
   extractTextFromChildren,
   getToolRefPrefixFromElement,
@@ -26,10 +28,19 @@ import {
   ToolMetadataStatus,
   getToolTraceV2Events,
   isToolTraceV2,
+  toolTraceCallId,
 } from '../../matrix/protocol/toolTrace';
+import type { SecretRequest } from '../../matrix/protocol/secretRequest';
+import { useInlineSecretRequests, type InlineSecretRequest } from '../inlineSecretRequests';
+import { SecretRequestLine } from '../../approvals/SecretRequestLine';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
-import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../../ui/ThreadActivity';
+import {
+  ActivityIcon,
+  ActivityResult,
+  ActivityTone,
+  ThreadActivity,
+} from '../../ui/ThreadActivity';
 import {
   ReasoningSegmentsContext,
   resolveToolCallStates,
@@ -39,12 +50,16 @@ import {
   ToolCallClockContext,
   ToolCallMessageContext,
   ToolCallsFoldContext,
+  ToolApprovalsByNameContext,
   ToolCallState,
   useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
-import { ReasoningSegmentsAt } from '../agent-run/Reasoning';
+import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
-import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
+import {
+  getEffectiveToolApprovalStatus,
+  parseToolApprovalExpiryTimestamp,
+} from '../../matrix/protocol/toolApproval';
 import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
@@ -185,11 +200,7 @@ function NamedBlock({
   );
 }
 
-type ToolBlockStatus =
-  | 'pending'
-  | 'completed'
-  | 'completed_with_result'
-  | ToolMetadataStatus;
+type ToolBlockStatus = 'pending' | 'completed' | 'completed_with_result' | ToolMetadataStatus;
 
 type ToolBlockRenderData = {
   index: number;
@@ -197,6 +208,8 @@ type ToolBlockRenderData = {
   command: string;
   toolName: string;
   argsPreview?: string;
+  /** The call's ID from its trace entry, which an approval card may name. */
+  toolCallId?: string;
   result?: string;
   resultInline: boolean;
   progress?: string;
@@ -246,6 +259,7 @@ const buildToolRefRenderData = (
     return {
       index: toolRef.index,
       status: 'pending',
+      toolCallId: toolTraceCallId(eventRaw),
       command,
       toolName: traceToolName,
       argsPreview,
@@ -259,6 +273,7 @@ const buildToolRefRenderData = (
     return {
       index: toolRef.index,
       status: 'completed_with_result',
+      toolCallId: toolTraceCallId(eventRaw),
       command,
       toolName: traceToolName,
       argsPreview,
@@ -270,6 +285,7 @@ const buildToolRefRenderData = (
   return {
     index: toolRef.index,
     status: 'completed',
+    toolCallId: toolTraceCallId(eventRaw),
     command,
     toolName: traceToolName,
     argsPreview,
@@ -335,67 +351,100 @@ function ToolRefGroupItem({
   );
 }
 
-// Calls that needed approval take their state from the cards MindRoom posted for this reply: a
-// paused reply's cards name it, and a job's card names the job or replies to this message.
-const useToolCallApprovals = (jobIds: readonly string[]) => {
-  const eventId = useContext(ToolCallMessageContext)?.eventId;
-  const context = useThreadApprovals();
-  if (!eventId || !context) return [];
-  return context.records
-    .filter(({ approval }) =>
-      approval.responseEventId
-        ? approval.responseEventId === eventId
-        : approval.replyToEventId === eventId ||
-          (!!approval.jobId && jobIds.includes(approval.jobId))
-    )
-    .map(({ approval }) => ({
-      toolName: approval.toolName,
-      jobId: approval.jobId,
-      status: getEffectiveToolApprovalStatus(
-        approval.status,
-        parseToolApprovalExpiryTimestamp(approval.expiresAt),
-        context.now
-      ),
-    }));
+const isLoadedTool = (tool: ToolBlockRenderData): boolean =>
+  tool.status !== 'loading' && tool.status !== 'unavailable';
+
+/**
+ * The calls one parse of a reply draws, by marker index (a repeated marker once), which the parse
+ * fills before any of its runs renders. Their states resolve together, so that a card goes to one
+ * call of the reply and not to one in every run, and the runs share them while what they resolve
+ * from stays the same (`last`).
+ */
+type ReplyToolCalls = {
+  tools: Map<number, ToolBlockRenderData>;
+  last?: { inputs: readonly unknown[]; states: ReadonlyMap<number, ToolCallState> };
 };
 
 /**
- * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts),
- * the run counts its calls on the cog at the top of the reply (ToolCallsFold.tsx) and shows only
- * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
- * without parsing the replies again.
+ * The state of each of the reply's calls with trace details, by its index. Calls that needed
+ * approval take theirs from the cards MindRoom posted for this reply: a paused reply's cards name
+ * it, and a job's card names the job or replies to this message. A call whose secret request
+ * draws in its place (ToolRun) takes no card.
+ */
+const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallState> => {
+  const eventId = useContext(ToolCallMessageContext)?.eventId;
+  const context = useThreadApprovals();
+  const secrets = useInlineSecretRequests(eventId);
+  const byName = useContext(ToolApprovalsByNameContext);
+  const inputs = [eventId, context?.records, context?.now, secrets, byName];
+  if (reply.last?.inputs.every((input, index) => input === inputs[index])) return reply.last.states;
+
+  const loaded = [...reply.tools.values()]
+    .filter((tool) => isLoadedTool(tool) && !secrets.has(tool.index))
+    .sort((a, b) => a.index - b.index);
+  const calls = loaded.map((tool) => ({
+    toolName: tool.toolName,
+    pending: tool.status === 'pending',
+    job: parseToolJobHandle(tool.result),
+    toolCallId: tool.toolCallId,
+  }));
+  const jobIds = calls.flatMap(({ job }) => (job ? [job.jobId] : []));
+  const approvals =
+    eventId && context
+      ? context.records
+          .filter(({ approval }) =>
+            approval.responseEventId
+              ? approval.responseEventId === eventId
+              : approval.replyToEventId === eventId ||
+                (!!approval.jobId && jobIds.includes(approval.jobId))
+          )
+          .map(({ approval }) => ({
+            toolName: approval.toolName,
+            jobId: approval.jobId,
+            toolCallId: approval.toolCallId,
+            status: getEffectiveToolApprovalStatus(
+              approval.status,
+              parseToolApprovalExpiryTimestamp(approval.expiresAt),
+              context.now
+            ),
+          }))
+      : [];
+  const resolved = resolveToolCallStates(calls, approvals, byName);
+  const states = new Map(loaded.map((tool, index) => [tool.index, resolved[index]!]));
+  reply.last = { inputs, states };
+  return states;
+};
+
+/**
+ * A run of tool calls, of the reply's calls `replyTools`. While the reply's thread or room hides
+ * tool calls (toolCallVisibility.ts), the run counts its calls on the cog at the top of the reply
+ * (ToolCallsFold.tsx) and shows only while that cog is open. Each block reads the choice itself,
+ * so changing it redraws the blocks without parsing the replies again.
  */
 function ToolRefGroupBlock({
   parsedTools,
+  replyTools,
 }: {
   parsedTools: ToolBlockRenderData[];
+  replyTools: ReplyToolCalls;
 }) {
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
-  const loadedTools = parsedTools.filter(
-    (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
-  );
-  const calls = loadedTools.map((tool) => ({
-    toolName: tool.toolName,
-    pending: tool.status === 'pending',
-    job: parseToolJobHandle(tool.result),
-  }));
-  const approvals = useToolCallApprovals(calls.flatMap(({ job }) => (job ? [job.jobId] : [])));
-  const metadataStatus = parsedTools.find(
-    (tool) => tool.status === 'loading' || tool.status === 'unavailable'
-  )?.status;
-  const states = resolveToolCallStates(calls, approvals);
-  const summary = summarizeToolCalls(parsedTools, states);
+  const loadedTools = parsedTools.filter(isLoadedTool);
+  const replyStates = useToolCallStates(replyTools);
+  const metadataStatus = parsedTools.find((tool) => !isLoadedTool(tool))?.status;
   // Calls without their trace details count as done.
+  const stateOf = (tool: ToolBlockRenderData) => replyStates.get(tool.index) ?? 'done';
+  const states = loadedTools.map(stateOf);
+  // A repeated marker shows on each of its lines, but counts as one call.
+  const calls = parsedTools.filter(
+    (tool, position) => parsedTools.findIndex(({ index }) => index === tool.index) === position
+  );
+  const summary = summarizeToolCalls(calls, calls.filter(isLoadedTool).map(stateOf));
   useFoldedToolCalls(
-    shown
-      ? undefined
-      : parsedTools.map((tool) => {
-          const loadedIndex = loadedTools.indexOf(tool);
-          return { toolName: tool.toolName, state: states[loadedIndex] ?? 'done' };
-        })
+    shown ? undefined : calls.map((tool) => ({ toolName: tool.toolName, state: stateOf(tool) }))
   );
   // Without a cog to open them (no ToolCallsFold), the calls show.
   if (!shown && fold && !fold.open) return null;
@@ -419,7 +468,7 @@ function ToolRefGroupBlock({
       }
       title={
         metadataStatus
-          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: parsedTools.length })
+          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
           : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
       }
       detail={summary.names}
@@ -460,15 +509,90 @@ function ToolRefGroupBlock({
   );
 }
 
+const SECRET_REQUEST_CALL_STATE = {
+  pending: 'waiting',
+  saved: 'done',
+  declined: 'denied',
+  expired: 'expired',
+} as const satisfies Record<SecretRequest['status'], ToolCallState>;
+
+/** A done secret request the reply draws at the call that asked, as that call's line. */
+function InlineSecretRequestBlock({ secret }: { secret: InlineSecretRequest }) {
+  const message = useContext(ToolCallMessageContext);
+  const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
+  const fold = useContext(ToolCallsFoldContext);
+  const { eventId, request, agentUserId } = secret;
+  const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
+  useFoldedToolCalls(
+    shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
+  );
+  const roomId = message?.roomId;
+  if (!roomId || (!shown && fold && !fold.open)) return null;
+  return (
+    <SecretRequestLine
+      eventId={eventId}
+      request={request}
+      roomId={roomId}
+      agentUserId={agentUserId}
+    />
+  );
+}
+
+type ToolRunPart =
+  | { tools: ToolBlockRenderData[]; secret?: undefined }
+  | { secret: InlineSecretRequest; index: number };
+
+/** A run of calls, split at each call a secret request names, which takes that call's place. */
+const splitToolRunAtSecretRequests = (
+  tools: ToolBlockRenderData[],
+  secrets: ReadonlyMap<number, InlineSecretRequest>
+): ToolRunPart[] => {
+  if (secrets.size === 0) return [{ tools }];
+  const parts: ToolRunPart[] = [];
+  let run: ToolBlockRenderData[] = [];
+  tools.forEach((tool) => {
+    const secret = secrets.get(tool.index);
+    if (!secret) {
+      run.push(tool);
+      return;
+    }
+    if (run.length > 0) parts.push({ tools: run });
+    run = [];
+    parts.push({ secret, index: tool.index });
+  });
+  if (run.length > 0) parts.push({ tools: run });
+  return parts;
+};
+
 /**
- * A run of tool calls as the parser places it, then the reasoning that followed its last call
- * (Reasoning.tsx), which shows there also while the run itself is hidden.
+ * A run of tool calls as the parser places it, then the compactions and the reasoning that
+ * followed its last call (Reasoning.tsx), which show there also while the run itself is hidden. A
+ * secret request for one of its calls splits it, drawn on its own line where that call was.
  */
-function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
+function ToolRun({
+  tools,
+  replyTools,
+}: {
+  tools: ToolBlockRenderData[];
+  replyTools: ReplyToolCalls;
+}) {
+  const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
+  const anchor = tools.at(-1)?.index ?? 0;
   return (
     <>
-      <ToolRefGroupBlock parsedTools={tools} />
-      <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
+      {splitToolRunAtSecretRequests(tools, secrets).map((part) =>
+        part.secret ? (
+          <InlineSecretRequestBlock key={`secret-${part.index}`} secret={part.secret} />
+        ) : (
+          <ToolRefGroupBlock
+            key={`tools-${part.tools[0]!.index}`}
+            parsedTools={part.tools}
+            replyTools={replyTools}
+          />
+        )
+      )}
+      <CompactionSeamsAt anchor={anchor} />
+      <ReasoningSegmentsAt anchor={anchor} />
     </>
   );
 }
@@ -553,13 +677,17 @@ const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   traceEvents: ToolTraceEvent[] | undefined,
   metadataStatus: ToolMetadataStatus | undefined,
-  // The markers a run of calls ends at, because reasoning shows after them.
+  // The markers a run of calls ends at, because reasoning or a compaction shows after them.
   splitAfter: ReadonlySet<number>
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
   const consumedToolIndexes = new Set<number>();
   const groupRootIndexes = new Set<number>();
+  const replyTools: ReplyToolCalls = { tools: new Map() };
+  const addReplyTool = (tool: ToolBlockRenderData) => {
+    if (!replyTools.tools.has(tool.index)) replyTools.tools.set(tool.index, tool);
+  };
   const nextOpts: HTMLReactParserOptions = {
     ...baseOpts,
     replace: (domNode) => {
@@ -666,12 +794,16 @@ const createToolTraceMarkerParserOptions = (
             normalizeLeadingToolRefBoundaryInPlace(boundaryFollower);
           }
 
-          items.forEach((item) => consumedToolIndexes.add(item.data.index));
+          items.forEach((item) => {
+            consumedToolIndexes.add(item.data.index);
+            addReplyTool(item.data);
+          });
           groupRootIndexes.add(firstItem.data.index);
           const toolBlock = (
             <ToolRun
               key={`tool-group-${firstItem.data.index}`}
               tools={items.map((item) => item.data)}
+              replyTools={replyTools}
             />
           );
           if (!trailingElement) return toolBlock;
@@ -690,15 +822,16 @@ const createToolTraceMarkerParserOptions = (
               return false;
             }
 
+            const data = buildToolRefRenderData(
+              toolRef,
+              traceEvents?.[toolRef.index - 1],
+              metadataStatus
+            );
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
+            addReplyTool(data);
             chainedToolBlocks.push(
-              <ToolRun
-                key={`tool-group-${toolRef.index}`}
-                tools={[
-                  buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1], metadataStatus),
-                ]}
-              />
+              <ToolRun key={`tool-group-${toolRef.index}`} tools={[data]} replyTools={replyTools} />
             );
             return true;
           });
@@ -746,12 +879,61 @@ const createToolTraceMarkerParserOptions = (
   return nextOpts;
 };
 
+/** The indexes of the calls the React nodes draw as tool blocks, in the order they draw them. */
+const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
+  if (Array.isArray(node)) node.forEach((child) => collectToolRunIndexes(child, into));
+  if (!React.isValidElement<{ children?: ReactNode; tools?: ToolBlockRenderData[] }>(node)) return;
+  if (node.type === ToolRun) node.props.tools?.forEach(({ index }) => into.push(index));
+  else collectToolRunIndexes(node.props.children, into);
+};
+
+/** The HTML's top-level nodes, as the renderer parses it. */
+export const parseRenderedHtml = (html: string, baseOpts: HTMLReactParserOptions): ChildNode[] =>
+  htmlToDOM(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
+
+type RenderedToolCalls = {
+  /** The calls drawn as tool blocks, by index, in the order they are drawn. */
+  indexes: number[];
+  /**
+   * The last top-level node that draws a call, or that a run drawn before it takes in and so draws
+   * nothing itself; -1 without a call.
+   */
+  lastNode: number;
+};
+
+/**
+ * The tool calls the renderer draws for this sanitized HTML, read from its own parse with the
+ * message's base parser options, so the reasoning, the compaction seams and the fold of a reply's
+ * work go where its calls show. Where runs split changes which calls a run holds, not which draw.
+ */
+export const readRenderedToolCalls = (
+  html: string,
+  baseOpts: HTMLReactParserOptions
+): RenderedToolCalls => {
+  // Its own parse, which drawing changes (a marker's leading line break goes).
+  const nodes = parseRenderedHtml(html, baseOpts);
+  const opts = createToolTraceMarkerParserOptions(baseOpts, undefined, undefined, new Set());
+  const indexes: number[] = [];
+  let lastNode = -1;
+  let inRun = false;
+  nodes.forEach((node, nodeIndex) => {
+    const count = indexes.length;
+    const drawn = domToReact([node], opts);
+    collectToolRunIndexes(drawn, indexes);
+    if (indexes.length > count || (inRun && isDomElementNode(node) && drawn === null)) {
+      lastNode = nodeIndex;
+      inRun = true;
+    } else if (isDomElementNode(node)) inRun = false;
+  });
+  return { indexes, lastNode };
+};
+
 /**
  * The marker parser options for one message, as a function that makes fresh ones for each parse
  * (they keep state while they parse). The function stays the same while the base options, whether
- * the content has markers, its tool trace, the metadata status and the markers that reasoning
- * shows after do, so a memoized parse of a message that did not change is kept when the timeline
- * renders again, as it does for every streamed edit of another message.
+ * the content has markers, its tool trace, the metadata status and the markers that reasoning or
+ * a compaction shows after do, so a memoized parse of a message that did not change is kept when
+ * the timeline renders again, as it does for every streamed edit of another message.
  */
 export const useToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
@@ -760,20 +942,26 @@ export const useToolTraceMarkerParserOptions = (
 ): HtmlReactParserOptionsSource => {
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
-  // The markers that reasoning shows after (withReasoning in Reasoning.tsx), where a run of calls
-  // ends so that the thinking between two calls shows between them; none while none shows after a
-  // call, and runs then group as they do without reasoning. As text, which stays the same while
-  // they do.
+  // The markers that reasoning or a compaction shows after (withReasoning in Reasoning.tsx), where
+  // a run of calls ends so that the thinking or the compaction between two calls shows between
+  // them; none while none shows after a call, and runs then group as they do without them.
+  // Compactions always show. As text, which stays the same while they do.
   const reasoning = useContext(ReasoningSegmentsContext);
   const splitAfterKey = reasoning
-    ? [...reasoning.placement]
-        .filter(
-          ([anchor, indices]) =>
-            anchor > 0 &&
-            (reasoning.open ||
-              (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex)))
-        )
-        .map(([anchor]) => anchor)
+    ? [
+        ...new Set([
+          ...[...reasoning.placement]
+            .filter(
+              ([, indices]) =>
+                reasoning.open ||
+                (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
+            )
+            .map(([anchor]) => anchor),
+          ...reasoning.compactionsAt.keys(),
+        ]),
+      ]
+        .filter((anchor) => anchor > 0)
+        .sort((a, b) => a - b)
         .join()
     : '';
   return useMemo(() => {

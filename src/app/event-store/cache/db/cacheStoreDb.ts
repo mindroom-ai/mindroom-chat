@@ -138,6 +138,9 @@ const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction, oldVersion: 
 // `cacheStoreLegacyWipe` module directly via `vi.mock`, so no runtime
 // hook indirection is needed.
 
+/** Stops each open connection's transaction trace (its memory sample count) as it closes. */
+const stopTracingByConnection = new WeakMap<IDBDatabase, () => void>();
+
 export const openCacheStore = (
   sessionId: string,
   allowRecovery = true
@@ -184,7 +187,10 @@ export const openCacheStore = (
         return;
       }
 
+      const stopTracing = traceCacheTransactions(db);
+      stopTracingByConnection.set(db, stopTracing);
       const invalidateConnection = (versionChange: boolean) => {
+        stopTracing();
         traceCacheStoreClose(versionChange);
         if (dbPromiseByName.get(dbName) === dbPromise) dbPromiseByName.delete(dbName);
         // Also settle an open interrupted during the legacy migration.
@@ -196,7 +202,6 @@ export const openCacheStore = (
         db.close();
         invalidateConnection(true);
       };
-      traceCacheTransactions(db);
       // D8 wipe runs after the schema is confirmed and before we hand
       // the DB out to callers.
       performLegacyDbWipe(sessionId, db)
@@ -235,6 +240,8 @@ export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
 
   const dbName = getCacheStoreDbName(sessionId);
   const currentDb = await dbPromiseByName.get(dbName)?.catch(() => undefined);
+  // Closing it here fires no close event, so its trace stops here too.
+  if (currentDb) stopTracingByConnection.get(currentDb)?.();
   currentDb?.close();
   dbPromiseByName.delete(dbName);
   await deleteIndexedDb(dbName);

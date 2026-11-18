@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run a real MindRoom backend, driven by a stub model or a real one, against one end-to-end slot's homeserver.
 
-Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--model stub|real]
+Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--model stub|real|live]
        [--transcription stub|real] [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions]
        [--computers [--computer-image IMAGE] [--computer-tools LIST]] [--terminals] [--checkout DIR] [--ref REV]
 
@@ -19,9 +19,9 @@ mindroom-tuwunel v1.9.4-mindroom.47 lets one sender send 30 live frames a second
 homeserver of e2e/docker-compose.yaml among them, 600). A real model cannot be routed by name, so --model real
 refuses it.
 
-The backend comes from a MindRoom checkout (--checkout, $E2E_MINDROOM_CHECKOUT, default
-/home/basnijholt/Work/dev/mindroom) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's origin/main
-when it has one, otherwise HEAD). The checkout is only read: `git archive` copies the commit to
+The backend comes from a MindRoom checkout (--checkout, $E2E_MINDROOM_CHECKOUT, default the first of
+~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's
+origin/main when it has one, otherwise HEAD). The checkout is only read: `git archive` copies the commit to
 $E2E_AGENT_STACK_ROOT/src/<sha> (default /tmp/mindroom-client-agents), where `uv sync` makes its environment.
 
 Each start gets a new MindRoom namespace, so the agents (@mindroom_<agent>_<namespace>), their rooms and the
@@ -40,6 +40,12 @@ environment only: the caller sources them into the command that runs it (`set -a
 they reach the backend's process environment and nothing else; no file this script writes holds one. The backend may
 still put them in its own state, so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down`
 writes the stack's model calls and tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
+
+--model live is a normal assistant for trying things by hand (a live deployment, the dev repo's scripts/live.py in
+mindroom-ai/dev, starts it): the helper has the real helper's tools and one plain instruction, no script. GPT-6 Luna
+(the `default` model, which needs OPENAI_API_KEY) runs the helper, the router, the thread summaries and the notes of
+real call transcripts. Claude Haiku 5.5 is defined as `haiku`, so the thread's model picker or an edit of the config
+(which the backend reloads) switches to it; it then needs ANTHROPIC_API_KEY.
 
 --calls SERVICE_URL makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
 service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime OpenAI voice model: gpt-realtime-2.1-mini
@@ -127,18 +133,20 @@ from matrix_http import http_json, register
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[1]
-DEFAULT_CHECKOUT = "/home/basnijholt/Work/dev/mindroom"
+# The first of these that exists is the default MindRoom checkout.
+CHECKOUT_CANDIDATES = ("~/repos/dev/mindroom", "~/Work/dev/mindroom")
 SERVER_NAME = "matrix.localhost"
 EXIT_NO_CHECKOUT = 3
 EXIT_NO_HOMESERVER = 4
 EXIT_NO_KEYS = 5
 EXIT_NO_TERMINALS = 6
-MODES = ("stub", "real")
+MODES = ("stub", "real", "live")
 # The agents of each mode. A real model runs only the helper, so the router never needs a model to pick one and the
 # helper gets the person's own message, not the router's handoff.
 AGENTS = {
     "stub": {"helper": "Helper", "scout": "Scout"},
     "real": {"helper": "Helper"},
+    "live": {"helper": "Helper"},
 }
 # The thread's two models in each mode: the room default and the one the model picker switches to.
 MODELS = {
@@ -150,14 +158,20 @@ MODELS = {
         "first": {"key": "default", "id": "claude-haiku-5-5", "displayName": "Claude Haiku 5.5"},
         "second": {"key": "luna", "id": "gpt-6-luna", "displayName": "GPT-6 Luna"},
     },
+    "live": {
+        "first": {"key": "default", "id": "gpt-6-luna", "displayName": "GPT-6 Luna"},
+        "second": {"key": "haiku", "id": "claude-haiku-5-5", "displayName": "Claude Haiku 5.5"},
+    },
 }
 # USD per million tokens, from the providers' price pages; the backend prices each reply with them.
 REAL_PRICING = {
     "default": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.2},
     "luna": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.125},
 }
+LIVE_PRICING = {"default": REAL_PRICING["luna"], "haiku": REAL_PRICING["default"]}
 PROVIDER_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY")
 REQUIRED_REAL_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+LIVE_INSTRUCTIONS = ["You are a helpful assistant in a throwaway MindRoom test deployment."]
 # The voice models a calls stack can give the helper, as MindRoom call profiles (docs/voice-calls.md).
 CALL_PROFILES = {
     "realtime": {"backend": "realtime", "model": "gpt-realtime-2.1-mini"},
@@ -180,6 +194,10 @@ TERMINAL_TOOLKIT = "src/mindroom/tools/terminal.py"
 # The setting a commit has when its shell refuses commands outside a worker unless the config allows them
 # (MindRoom #3923); an older commit refuses the setting as an unknown key.
 SHELL_WITHOUT_WORKER = ("src/mindroom/config/models.py", "allow_shell_without_worker")
+# A commit whose models take a `reasoning` block (MindRoom #4119); a stub stack on it gets a third model with levels.
+REASONING_LEVELS = ("src/mindroom/config/models.py", "class ReasoningConfig")
+# The stub model with reasoning levels, which the model picker's effort column runs a thread on.
+REASONING_MODEL = {"key": "think", "id": "stub-think", "displayName": "Stub Think", "levels": ["low", "medium", "high"]}
 TRANSCRIPTION_MODES = ("stub", "real")
 # The model that writes a call's notes when a stub-model stack transcribes with OpenAI. With the stand-in the stub
 # model writes them, and a real-model stack has its own GPT-6 Luna write them.
@@ -290,8 +308,16 @@ def wait_until(description: str, check, timeout: float, interval: float = 1.0, o
 # The MindRoom source and its environment
 
 
+def default_checkout() -> str:
+    """The first of CHECKOUT_CANDIDATES that exists, else the first (whose absence the caller reports)."""
+    for candidate in CHECKOUT_CANDIDATES:
+        if Path(candidate).expanduser().is_dir():
+            return candidate
+    return CHECKOUT_CANDIDATES[0]
+
+
 def resolve_checkout(arg: str | None) -> Path:
-    checkout = Path(arg or os.environ.get("E2E_MINDROOM_CHECKOUT") or DEFAULT_CHECKOUT).expanduser()
+    checkout = Path(arg or os.environ.get("E2E_MINDROOM_CHECKOUT") or default_checkout()).expanduser()
     pyproject = checkout / "pyproject.toml"
     if not pyproject.is_file() or 'name = "mindroom"' not in pyproject.read_text():
         raise StackError(f"no MindRoom checkout at {checkout}", EXIT_NO_CHECKOUT)
@@ -559,7 +585,24 @@ uvicorn.run(app, host='127.0.0.1', port=int(sys.argv[1]))
 """
 
 
-def stub_models_yaml(stub_url: str) -> str:
+def stub_models_yaml(stub_url: str, reasoning_levels: bool = False) -> str:
+    think = (
+        f"""  {REASONING_MODEL['key']}:
+    provider: openai
+    id: {REASONING_MODEL['id']}
+    display_name: {REASONING_MODEL['displayName']}
+    api: chat_completions
+    context_window: 128000
+    reasoning:
+      levels: {json.dumps(REASONING_MODEL['levels'])}
+      default: medium
+    extra_kwargs:
+      base_url: {stub_url}
+      api_key: stub-key-no-model-is-called
+"""
+        if reasoning_levels
+        else ""
+    )
     return f"""models:
   default:
     provider: openai
@@ -579,7 +622,7 @@ def stub_models_yaml(stub_url: str) -> str:
     extra_kwargs:
       base_url: {stub_url}
       api_key: stub-key-no-model-is-called
-"""
+{think}"""
 
 
 def real_models_yaml() -> str:
@@ -601,6 +644,25 @@ def real_models_yaml() -> str:
     display_name: {second["displayName"]}
     context_window: 1050000
     pricing: {pricing(second["key"])}
+"""
+
+
+def live_models_yaml() -> str:
+    """The models of --model live: GPT-6 Luna as `default`, Claude Haiku 5.5 beside it as `haiku`."""
+    luna, haiku = MODELS["live"]["first"], MODELS["live"]["second"]
+    return f"""models:
+  default:
+    provider: openai
+    id: {luna["id"]}
+    display_name: {luna["displayName"]}
+    context_window: 1050000
+    pricing: {json.dumps(LIVE_PRICING["default"])}
+  haiku:
+    provider: anthropic
+    id: {haiku["id"]}
+    display_name: {haiku["displayName"]}
+    context_window: 200000
+    pricing: {json.dumps(LIVE_PRICING["haiku"])}
 """
 
 
@@ -643,7 +705,7 @@ REAL_INSTRUCTIONS = [
     "Then reply 'Finished multi after 3 tool calls. Last result:' followed by the last call's output in a code "
     "block, and nothing about the other calls.",
     "#pause: call run_shell_command twice, one call at a time, the second only after the first result arrived: "
-    "first with args 'sleep 1; echo first step', then with args 'sleep 1; echo second step'. Then reply 'Finished "
+    "first with args 'sleep 7; echo first step', then with args 'sleep 7; echo second step'. Then reply 'Finished "
     "pause after 2 tool calls. Last result:' followed by the last call's output in a code block.",
     "#narrate (a real model's usual shape, which the stub has no scenario for): first write one sentence saying "
     "you will run a command, then call run_shell_command once with args 'echo narrated', then write two sentences "
@@ -748,6 +810,7 @@ def config_yaml(
     terminals: bool = False,
     shell_without_worker: bool = False,
     extra_agents: int = 0,
+    reasoning_levels: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -799,8 +862,27 @@ def config_yaml(
         router_model = second
         summary_model = f"  thread_summary_model: {second}\n"
         header = "# Written by scripts/agent-stack/stack.py --model real; the helper follows a script keyed by hashtags."
+    elif mode == "live":
+        instructions = "\n".join(f"      - {json.dumps(line)}" for line in LIVE_INSTRUCTIONS)
+        models = live_models_yaml()
+        agents = f"""  helper:
+    display_name: Helper
+    role: A helpful assistant
+    model: default
+    rooms: [lobby]
+    instructions:
+{instructions}
+    tools:
+{agent_tools}
+{helper_terminals}"""
+        router_model = "default"
+        summary_model = "  thread_summary_model: default\n"
+        header = (
+            "# Written by scripts/agent-stack/stack.py --model live: a normal assistant on real models. The backend\n"
+            "# reloads this file when it changes, so edit it to change the agents or their models."
+        )
     else:
-        models = stub_models_yaml(stub_url)
+        models = stub_models_yaml(stub_url, reasoning_levels)
         agents = f"""  helper:
     display_name: Helper
     role: Test agent driven by a stub model
@@ -878,7 +960,7 @@ def running(state: dict | None, slot_dir: Path) -> bool:
         return False
     marker = str(slot_dir)
     pids = state.get("pids") or {}
-    stub_ok = state.get("model") == "real" or alive(pids.get("stub"), marker)
+    stub_ok = state.get("model") in ("real", "live") or alive(pids.get("stub"), marker)
     runner_ok = not state.get("terminals") or alive(pids.get("runner"), marker)
     return alive(pids.get("backend"), marker) and stub_ok and runner_ok
 
@@ -961,7 +1043,7 @@ def usage_summary(state: dict, slot_dir: Path) -> dict:
     total_usd = 0.0
     real_notes = (state.get("transcription") or {}).get("stt") == "real"
     for name, entry in models.items():
-        price = REAL_PRICING.get(name) if state.get("model") == "real" else None
+        price = {"real": REAL_PRICING, "live": LIVE_PRICING}.get(state.get("model"), {}).get(name)
         if name == NOTES_MODEL["key"] and real_notes:
             price = NOTES_PRICING
         if not price:
@@ -1039,7 +1121,7 @@ def voice_usage(slot_dir: Path) -> list[dict]:
 def paid(state: dict) -> bool:
     """Whether the stack calls paid models: a real model, voice calls or real call transcripts."""
     return bool(
-        state.get("model") == "real" or state.get("calls") or (state.get("transcription") or {}).get("stt") == "real"
+        state.get("model") in ("real", "live") or state.get("calls") or (state.get("transcription") or {}).get("stt") == "real"
     )
 
 
@@ -1086,6 +1168,8 @@ def transcription_setting(args: argparse.Namespace, checkout: Path, sha: str) ->
     if args.model == "real":
         # Its own Luna writes the notes: a second entry of the same model would list it twice in the model picker.
         return {"stt": "real", "notesModel": MODELS["real"]["second"]["key"]}
+    if args.model == "live":
+        return {"stt": "real", "notesModel": "default"}
     notes = NOTES_MODEL["key"] if args.transcription == "real" else MODELS["stub"]["first"]["key"]
     return {"stt": args.transcription, "notesModel": notes}
 
@@ -1161,13 +1245,22 @@ def up(slot: int, args: argparse.Namespace) -> dict:
             "restarting it"
         )
     real = args.model == "real"
+    live = args.model == "live"
     real_transcription = bool(transcription and transcription["stt"] == "real")
-    keys = provider_keys() if real or calls or real_transcription else {}
+    keys = provider_keys() if real or live or calls or real_transcription else {}
     # A voice call speaks through OpenAI's realtime models; real call transcripts go to OpenAI's speech-to-text.
-    required = (*(REQUIRED_REAL_KEYS if real else ()), *(("OPENAI_API_KEY",) if calls or real_transcription else ()))
+    required = (
+        *(REQUIRED_REAL_KEYS if real else ()),
+        *(("OPENAI_API_KEY",) if live or calls or real_transcription else ()),
+    )
     missing = [name for name in dict.fromkeys(required) if name not in keys]
     if missing:
-        options = {"--model real": real, "--transcription real": real_transcription and not real, "--calls": calls}
+        options = {
+            "--model real": real,
+            "--model live": live,
+            "--transcription real": real_transcription and not real and not live,
+            "--calls": calls,
+        }
         needs = " and ".join(option for option, on in options.items() if on)
         raise StackError(
             f"{needs} needs {' and '.join(missing)} in the environment; source the key file into the command",
@@ -1201,7 +1294,8 @@ def start(
     computers = computers_setting(args, sha)
     if computers and not args.computer_image:
         build_worker_image(checkout, sha, computers["image"])
-    real = args.model == "real"
+    # Only the stub mode runs the stub model.
+    real = args.model in ("real", "live")
     agents = {**AGENTS[args.model], **worker_names(args.agents)}
     slot_dir.mkdir(parents=True)
     namespace = "t" + secrets.token_hex(4)
@@ -1221,6 +1315,7 @@ def start(
     (slot_dir / "stub").mkdir()
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
+    reasoning_levels = args.model == "stub" and commit_mentions(checkout, sha, *REASONING_LEVELS)
     config_path.write_text(
         config_yaml(
             args.model,
@@ -1234,6 +1329,7 @@ def start(
             args.terminals,
             commit_mentions(checkout, sha, *SHELL_WITHOUT_WORKER),
             args.agents,
+            reasoning_levels,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
@@ -1276,6 +1372,7 @@ def start(
         "slot": slot,
         "model": args.model,
         "models": MODELS[args.model],
+        "reasoningModel": REASONING_MODEL if reasoning_levels else None,
         "calls": calls,
         "transcription": transcription,
         "clientSessions": args.client_sessions,
@@ -1504,8 +1601,8 @@ def main() -> int:
         "--model",
         choices=MODES,
         default=os.environ.get("E2E_AGENT_MODEL") or "stub",
-        help="stub (default, or $E2E_AGENT_MODEL) or real: Claude Haiku 5.5 and GPT-6 Luna, with the keys of the "
-        "environment",
+        help="stub (default, or $E2E_AGENT_MODEL), real: Claude Haiku 5.5 and GPT-6 Luna following the specs' "
+        "script, or live: a normal assistant on GPT-6 Luna (the dev repo's scripts/live.py), with the keys of the environment",
     )
     parser.add_argument(
         "--transcription",
@@ -1566,7 +1663,9 @@ def main() -> int:
         "when a message names one (the real-work load spreads its streams over them; default 0)",
     )
     parser.add_argument(
-        "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
+        "--checkout",
+        help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT, else the first of {', '.join(CHECKOUT_CANDIDATES)} "
+        "that exists)",
     )
     parser.add_argument(
         "--ref", help="commit to run (default $E2E_MINDROOM_REF, else origin/main, else HEAD)"
@@ -1586,7 +1685,7 @@ def main() -> int:
         parser.error("slot must be 0-99")
     if args.agents < 0:
         parser.error("--agents must be 0 or more")
-    if args.agents and args.model == "real":
+    if args.agents and args.model != "stub":
         log("--agents needs the stub model: a real model cannot be routed to an agent by name")
         return 1
     if args.terminals and args.computers:

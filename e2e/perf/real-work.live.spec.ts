@@ -54,14 +54,20 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *
  *   compact-idle    30 s of the Compact view left alone
  *   compact-scroll  the wheel in 600 px steps, 10 s down and 10 s up
- *   thread-open     a press on a streaming thread's card to its first message row, then 5 s
+ *   thread-open     a press on a streaming thread's card to its first message row, and to the
+ *                   rows it settles on, then 5 s
  *   thread-idle     30 s of the open thread left alone
  *   thread-type     10 s of typing in the thread's composer
- *   switch          Back, then another streaming thread, 5 times, each timed
+ *   switch          Back, then another streaming thread than the one just left, 5 times, each
+ *                   timed (the thread to its first row and to its settled rows)
  *   cold-load       a reload of the room, to its first card, then 5 s
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
- * probe's result plus `timings` ({ name, ms } of the open, each switch and the cold load),
+ * probe's result plus `timings` ({ name, ms } of the open, each switch and the cold load; an open
+ * or a switch to a thread also has `<name>-settled`: the time from the same press to the last
+ * frame in which a message row came into view for the first time, once 1 s passed without
+ * another, with `rows`, how many were in view then. A thread shows its first row before its
+ * history is there, so the first row alone can come early on an open that keeps changing),
  * `typing` (key latency), `target` (the streams asked for) and `achieved` (what the driver saw in
  * its 5 s reports that overlap the window: replies streaming on average, live frames, edits and
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
@@ -163,7 +169,7 @@ const CARD = '[data-compact-room-view] [data-thread-root-id]';
 const ROW = '[data-message-id]';
 const COLD_LOAD_FLAG = 'perf:real-work-cold-load';
 
-type Timing = { name: string; ms: number };
+type Timing = { name: string; ms: number; rows?: number };
 type DriverLine = {
   t: number;
   target: number;
@@ -352,6 +358,8 @@ type Run = {
   threads?: string[];
   /** Those of them with a real thread's many replies, which the thread scenarios open first. */
   heavy?: string[];
+  /** The thread `showThread` opened last, which the first step of `switch` leaves. */
+  shown?: string;
 };
 
 const cards = (page: Page) => page.locator(CARD);
@@ -408,10 +416,99 @@ const showThread = async (run: Run): Promise<boolean> => {
   const { page } = run;
   await showCompact(page);
   const { root, streaming } = await pickThread(run);
+  run.shown = root;
   await card(page, root).click();
   await expect(banner(page)).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
   return streaming;
+};
+
+/** How long no new row may come into view for the rows to count as settled. */
+const SETTLED_QUIET_MS = 1_000;
+type SettledOutcome = { ms?: number; rows?: number; error?: string };
+type SettledWindow = { __realWorkSettled?: Promise<SettledOutcome> };
+
+/**
+ * Watches, from the next press on, which message rows are in view (shown, and inside the scroll
+ * area that holds them: a list also mounts rows beside its view), once per animation frame, on
+ * the clock of `timeToVisible`. The promise it returns gives the time from the press to the last
+ * frame in which a row came into view for the first time, once SETTLED_QUIET_MS passed without
+ * another, and how many rows were in view in that frame. A row that leaves the view is no
+ * change: a reply that streams pushes rows out at the top. Call it before the press, and the
+ * function it returns after it. Fails when no row came into view within 30 s of the press, or
+ * rows still come into view then.
+ */
+const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise<Timing>> => {
+  await page.evaluate(
+    ({ selector, quietMs }) => {
+      let area: Element | null = null;
+      const scrollAreaOf = (row: Element) => {
+        if (area?.contains(row)) return area;
+        area = row.parentElement;
+        while (area && !/^(auto|scroll)$/.test(getComputedStyle(area).overflowY)) {
+          area = area.parentElement;
+        }
+        return area;
+      };
+      const inView = () =>
+        Array.from(document.querySelectorAll(selector)).flatMap((row) => {
+          const hidden =
+            row.checkVisibility &&
+            !row.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+          if (hidden) return [];
+          const within = (scrollAreaOf(row) ?? document.documentElement).getBoundingClientRect();
+          const box = row.getBoundingClientRect();
+          return box.bottom > within.top + 1 && box.top < within.bottom - 1
+            ? [row.getAttribute('data-message-id') ?? '']
+            : [];
+        });
+      (window as unknown as SettledWindow).__realWorkSettled = new Promise<SettledOutcome>(
+        (resolve) => {
+          const start = (event: Event) => {
+            const now = performance.now();
+            const age = now - event.timeStamp;
+            const startedAt = age >= 0 && age < 60_000 ? event.timeStamp : now;
+            const seen = new Set<string>();
+            let rows = 0;
+            let changedAt = now;
+            const tick = () => {
+              const at = performance.now();
+              const shown = inView();
+              if (shown.some((id) => !seen.has(id))) {
+                shown.forEach((id) => seen.add(id));
+                rows = shown.length;
+                changedAt = at;
+              }
+              if (seen.size > 0 && at - changedAt >= quietMs) {
+                resolve({ ms: changedAt - startedAt, rows });
+              } else if (at - startedAt > 30_000) {
+                resolve({
+                  error:
+                    seen.size === 0
+                      ? 'no message row came into view within 30 s of the press'
+                      : 'rows still came into view 30 s after the press',
+                });
+              } else {
+                requestAnimationFrame(tick);
+              }
+            };
+            requestAnimationFrame(tick);
+          };
+          document.addEventListener('pointerdown', start, { capture: true, once: true });
+        }
+      );
+    },
+    { selector: ROW, quietMs: SETTLED_QUIET_MS }
+  );
+  return async () => {
+    const outcome = await page.evaluate(
+      () => (window as unknown as SettledWindow).__realWorkSettled
+    );
+    if (outcome?.ms === undefined) {
+      throw new Error(`${name}: ${outcome?.error ?? 'the page loaded again before rows settled'}`);
+    }
+    return { name, ms: round(outcome.ms), rows: outcome.rows };
+  };
 };
 
 type Measured = { timings?: Timing[]; typing?: Stats; openedStreaming?: boolean };
@@ -447,11 +544,13 @@ const SCENARIO: Record<
     measure: async (run) => {
       const { page } = run;
       const { root, streaming } = await pickThread(run);
+      const settled = await watchRowsSettled(page, 'open-settled');
       const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
       await expect(banner(page)).toBeVisible();
-      // The rest of the thread arrives and settles inside the window.
-      await page.waitForTimeout(5_000);
-      return { timings: [{ name: 'open', ms }], openedStreaming: streaming };
+      // The rest of the thread arrives and settles inside the window, which lasts 5 s as before,
+      // or until the rows settled when that takes longer.
+      const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(5_000)]);
+      return { timings: [{ name: 'open', ms }, settledTiming], openedStreaming: streaming };
     },
   },
   'thread-idle': { prepare: showThread, measure: idle },
@@ -467,7 +566,8 @@ const SCENARIO: Record<
       const { page } = run;
       const timings: Timing[] = [];
       let openedStreaming = true;
-      let current = '';
+      // The thread the scenario starts in: the first step opens another one, as the later ones do.
+      let current = run.shown;
       for (let turn = 1; turn <= 5; turn += 1) {
         const backMs = await timeToVisible(page, () => back(page).click(), CARD);
         await expect(page.locator(ROW)).toHaveCount(0);
@@ -476,10 +576,13 @@ const SCENARIO: Record<
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;
+        const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
         const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
         await expect(banner(page)).toBeVisible();
         timings.push({ name: `switch-${turn}`, ms });
-        await page.waitForTimeout(1_000);
+        // As long as before when the rows settle at once: 1 s after the first row.
+        const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(1_000)]);
+        timings.push(settledTiming);
       }
       return { timings, openedStreaming };
     },

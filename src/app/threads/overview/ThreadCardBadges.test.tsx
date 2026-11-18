@@ -36,6 +36,7 @@ const plugin = (id: string, threadCardBadges: ThreadCardBadge[]): RegisteredPlug
   messageRenderers: [],
   pages: [],
   roomHeaderSlot: [],
+  threadHeaderSlot: [],
   sidePanels: [],
   headerActions: [],
   slashCommands: [],

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
@@ -8,8 +8,9 @@ import { useAccountData } from '../matrix/hooks/useAccountData';
 import { useSetAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
+import { createSessionId } from '../matrix/session/sessions';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
-import { tourAtom, type TourLevel } from '../navigation/tourState';
+import { tourAtom, tourOfferAnsweredAtom, type TourLevel } from '../navigation/tourState';
 import {
   MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
   sanitizeAccountSettings,
@@ -17,13 +18,6 @@ import {
 import { Surface } from '../ui/glass/GlassPrimitives';
 import { listNoticeSlotAtom, pageNoticeSlotAtom, useNoticePresence } from '../ui/noticeSlots';
 import * as css from './TourOffer.css';
-
-// Accounts that answered the offer since the app started, so that one switched away from and back
-// to is not asked again while its stored answer is on its way; a page load starts it over.
-const answeredAccounts = new Set<string>();
-
-/** Forgets which accounts answered, as a page load does. */
-export const resetAnsweredAccountsForTests = () => answeredAccounts.clear();
 
 /**
  * Offers the interface tour, in a Quick and a Full level, on a card where the new version notice
@@ -37,7 +31,7 @@ export const resetAnsweredAccountsForTests = () => answeredAccounts.clear();
 export function TourOffer() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const userId = mx.getSafeUserId();
+  const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   // Not the stored copy of the last session, which a start shows first: its account data may
   // lack the answer another device gave since, or the settings a write here would replace.
   const synced = useServerSyncApplied(mx);
@@ -48,12 +42,22 @@ export function TourOffer() {
   const setAccountSettings = useSetAccountSettings();
   const [tour, setTour] = useAtom(tourAtom);
   const tourOpen = tour !== undefined;
-  const answered = tourOpen || answeredAccounts.has(userId);
+  // Accounts that answered since the page loaded, so that one switched away from and back to is
+  // not asked again while its stored answer is on its way; a page load starts it over.
+  const [answeredSessions, setAnsweredSessions] = useAtom(tourOfferAnsweredAtom);
+  const answered = tourOpen || answeredSessions.has(sessionId);
+  const noteAnswer = useCallback(
+    () =>
+      setAnsweredSessions((sessions) =>
+        sessions.has(sessionId) ? sessions : new Set([...sessions, sessionId])
+      ),
+    [setAnsweredSessions, sessionId]
+  );
 
   // The tour opened from anywhere, the card or another entry, is an answer.
   useEffect(() => {
-    if (tourOpen) answeredAccounts.add(userId);
-  }, [tourOpen, userId]);
+    if (tourOpen) noteAnswer();
+  }, [tourOpen, noteAnswer]);
 
   // Stores the answer, never before the client has synced with its server: the write goes over
   // the stored settings, and before they have arrived it would replace the account's other
@@ -78,7 +82,7 @@ export function TourOffer() {
 
   /** Answers the offer and plays the card out; with a level, opens the tour. */
   const answer = (level?: TourLevel) => {
-    answeredAccounts.add(userId);
+    noteAnswer();
     // Leaving is a change of state, so the render that follows reads the answer.
     dismiss();
     if (level) setTour({ level });

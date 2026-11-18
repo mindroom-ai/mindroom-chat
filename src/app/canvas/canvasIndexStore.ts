@@ -1,16 +1,19 @@
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore } from 'idb';
 
-/** A canvas made for this user, as the Canvases page lists it. */
+/** A canvas this user can open, also one made for another member, as the Canvases page lists it. */
 export type CanvasListEntry = {
   canvasId: string;
   roomId: string;
   threadId?: string;
   agentUserId: string;
+  /** Who asked for it; a row listed before the list took other members' canvases leaves it out, being this user's. */
+  requesterId?: string;
   title: string;
   createdTs: number;
   /** The event the shown version comes from, the latest update or the request, and when it was sent. */
   revisionId: string;
   updatedTs: number;
+  /** The request shares the requester's state with the agent. */
   shared: boolean;
 };
 

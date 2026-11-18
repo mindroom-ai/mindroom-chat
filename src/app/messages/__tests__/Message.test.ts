@@ -49,6 +49,7 @@ vi.mock('../MessageCopyActions.css', () => ({
 }));
 
 vi.mock('../MessageControls.css', () => ({
+  AiRunDetailsTarget: 'AiRunDetailsTarget',
   AiRunInfoButton: 'AiRunInfoButton',
   ReplyDetailsScroll: 'ReplyDetailsScroll',
 }));

@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "Close",
       "previous": "Previous image",
-      "next": "Next image"
+      "next": "Next image",
+      "wheelZoomHint": "{{key}} + scroll to zoom"
     },
     "inviteUserPrompt": {
       "close": "Close",
@@ -409,7 +410,7 @@
         "thirdPartyNotices": "Third-party notices",
         "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
         "debugMode": "Debug mode",
-        "debugModeDescription": "Records diagnostics on this device so you can export them and turn on deep diagnostic tracing."
+        "debugModeDescription": "Adds “Attach app logs” to the composer's + menu, so you can send this device's diagnostics in a message. Turn on deep tracing below to include memory figures and a detailed trace."
       }
     },
     "createChat": {
@@ -679,11 +680,33 @@
           "note": "Titles already set keep their wording until the next refresh."
         },
         "save": "Save",
+        "saved": "Saved",
         "clear": "Clear",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Only people allowed to change this room's settings can edit this.",
-        "saveFailed": "Couldn't save the setting. Try again."
+        "saveFailed": "Couldn't save the setting. Try again.",
+        "replyMode": {
+          "label": "Agents answer",
+          "description": "Whether a new message must mention an agent or team to get an answer. Default follows MindRoom's configuration for this room. Even with Only when mentioned, agents can answer follow-ups in a thread they already replied in.",
+          "default": "Default",
+          "auto": "Any message",
+          "mentions": "Only when mentioned"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom for Mac",
+      "text": "Quick Capture with ⌃⌥Space, native notifications.",
+      "download": "Download",
+      "notNow": "Not now",
+      "dismiss": "Dismiss",
+      "banner": "<b>Using a Mac?</b> Get the MindRoom app.",
+      "bannerDownload": "Download for Mac",
+      "menu": "Download Mac app",
+      "downloadDmg": "Download (.dmg)",
+      "copyCommand": "Copy command",
+      "copyFailed": "Copy failed",
+      "keywords": "mac, macos, desktop, app, download, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -776,6 +799,15 @@
           "saved": "Saved",
           "declined": "Declined",
           "expired": "Expired"
+        },
+        "line": {
+          "sentKept": "Sent · kept {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Nothing was sent or kept.",
+          "noAnswer": "No answer in time, so nothing was sent.",
+          "askedAs": "Asked for {{agent}}'s commands in this conversation as {{variable}}.",
+          "replaced": "Replaced the key saved before."
         }
       },
       "skillReviewMarker": {
@@ -809,13 +841,68 @@
         "toolRunningFor": "Running for {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Title settings"
+        "titleSettings": "Title settings…"
       },
       "replyTime": {
         "started": "Started {{value1}}",
         "finished": "Finished {{value1}}",
         "stillStreaming": "Still streaming",
         "duration": "Duration {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} tokens",
+        "label": {
+          "running": "Compacting context…",
+          "preTurn": "Compacted before replying",
+          "midTurn": "Compacted context",
+          "manual": "Compacted on request",
+          "failed": "Compaction failed",
+          "timeout": "Compaction timed out",
+          "interrupted": "Compaction interrupted"
+        },
+        "title": "Context compacted",
+        "tag": {
+          "preTurn": "before the reply",
+          "midTurn": "mid-turn",
+          "manual": "manual"
+        },
+        "subtitle": {
+          "preTurn": "Before this reply’s first model request.",
+          "midTurn": "Between two model requests, after tool call {{n, number}}.",
+          "midTurnNoTools": "Between two model requests.",
+          "manual": "Requested with the compact command."
+        },
+        "gauge": {
+          "was": "was {{p, number}}% of budget",
+          "now": "now {{p, number}}%",
+          "used": "{{p, number}}% of budget"
+        },
+        "row": {
+          "history": "History",
+          "saved": "Saved",
+          "budget": "Budget",
+          "folded": "Folded",
+          "folding": "Folding",
+          "summarizedBy": "Summarized by",
+          "summaryModel": "Summary model",
+          "when": "When",
+          "started": "Started",
+          "reason": "Reason",
+          "gaveUpAfter": "Gave up after"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> tokens",
+          "history": "<b>{{n, number}}</b> tokens",
+          "tokens": "{{n, number}} tokens",
+          "saved": "{{n, number}} tokens ({{p, number}}%)",
+          "runs_one": "{{count, number}} run",
+          "runs_other": "{{count, number}} runs",
+          "folded": "{{runs}} into 1 summary",
+          "folding": "{{runs}}, {{done, number}} done",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "The reply ended before the summary finished."
+        }
       }
     },
     "message-search": {
@@ -918,6 +1005,25 @@
       "withCount_one": "{{label}}, {{count}} active",
       "withCount_other": "{{label}}, {{count}} active",
       "resize": "Resize the sub-agents panel"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Effort",
+        "effortFor": "Effort for {{model}}",
+        "noEffortLevels": "No effort levels",
+        "defaultLevel": "Default",
+        "levelIsDefault": "{{level}}, default",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Off",
+          "minimal": "Minimal",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "xhigh": "Extra high",
+          "max": "Max"
+        }
+      }
     }
   },
   "composer": {
@@ -926,6 +1032,8 @@
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",
+    "attachMenu": "Attach",
+    "attachAppLogs": "Attach app logs",
     "lostFiles": "Not kept with this draft: {{files}}. Attach them again before sending.",
     "lostPastes": "Pasted text was not kept with this draft. Paste it again before sending.",
     "dismissLostFiles": "Dismiss",

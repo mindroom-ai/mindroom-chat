@@ -101,7 +101,8 @@
     "imageViewer": {
       "close": "إغلاق",
       "previous": "الصورة السابقة",
-      "next": "الصورة التالية"
+      "next": "الصورة التالية",
+      "wheelZoomHint": "⁨{{key}}⁩ + التمرير للتكبير"
     },
     "inviteUserPrompt": {
       "close": "إغلاق",
@@ -429,7 +430,7 @@
         "thirdPartyNotices": "إشعارات الجهات الخارجية",
         "soundsCredit": "أصوات الإشعارات والدعوات نغمات مُركَّبة صُنعت لهذا التطبيق.",
         "debugMode": "وضع التصحيح",
-        "debugModeDescription": "يسجّل التشخيصات على هذا الجهاز لتتمكن من تصديرها وتفعيل التتبع التشخيصي المفصل."
+        "debugModeDescription": "يضيف «إرفاق سجلات التطبيق» إلى قائمة + في مربع الكتابة لتتمكن من إرسال تشخيصات هذا الجهاز في رسالة. فعّل التتبع التشخيصي المفصل أدناه لتضمين أرقام الذاكرة وتتبع مفصل."
       }
     },
     "createChat": {
@@ -715,11 +716,33 @@
           "note": "تحتفظ العناوين الموجودة بصياغتها حتى تحديثها التالي."
         },
         "save": "حفظ",
+        "saved": "تم الحفظ",
         "clear": "مسح",
         "characterCount": "⁨{{length, number}}⁩ / ⁨{{max, number}}⁩",
         "readOnly": "لا يمكن تعديل هذا إلا لمن يُسمح لهم بتغيير إعدادات هذه الغرفة.",
-        "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى."
+        "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى.",
+        "replyMode": {
+          "label": "ردود الوكلاء",
+          "description": "هل يجب أن تذكر الرسالة الجديدة وكيلًا أو فريقًا لتحصل على رد. «الافتراضي» يتبع إعدادات MindRoom لهذه الغرفة. حتى مع «فقط عند الإشارة إليهم»، يمكن للوكلاء الرد على الرسائل التالية في سلسلة ردوا فيها بالفعل.",
+          "default": "الافتراضي",
+          "auto": "أي رسالة",
+          "mentions": "فقط عند الإشارة إليهم"
+        }
       }
+    },
+    "macApp": {
+      "title": "MindRoom لنظام Mac",
+      "text": "الالتقاط السريع بـ ⌃⌥Space، وإشعارات أصلية.",
+      "download": "تنزيل",
+      "notNow": "ليس الآن",
+      "dismiss": "إخفاء",
+      "banner": "<b>تستخدم Mac؟</b> احصل على تطبيق MindRoom.",
+      "bannerDownload": "تنزيل لنظام Mac",
+      "menu": "تنزيل تطبيق Mac",
+      "downloadDmg": "تنزيل (.dmg)",
+      "copyCommand": "نسخ الأمر",
+      "copyFailed": "تعذّر النسخ",
+      "keywords": "mac, macos, سطح المكتب, تطبيق, تنزيل, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -812,6 +835,15 @@
           "saved": "تم الحفظ",
           "declined": "مرفوض",
           "expired": "منتهي الصلاحية"
+        },
+        "line": {
+          "sentKept": "تم الإرسال · يُحتفظ به ⁨{{duration}}⁩"
+        },
+        "facts": {
+          "nothingSent": "لم يُرسل أو يُحفظ أي شيء.",
+          "noAnswer": "لم تصل إجابة في الوقت المحدد، لذا لم يُرسل أي شيء.",
+          "askedAs": "طُلب لأوامر ⁨{{agent}}⁩ في هذه المحادثة باسم ⁨{{variable}}⁩.",
+          "replaced": "استبدل المفتاح المحفوظ سابقًا."
         }
       },
       "skillReviewMarker": {
@@ -853,13 +885,72 @@
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "إعدادات العناوين"
+        "titleSettings": "إعدادات العناوين…"
       },
       "replyTime": {
         "started": "بدأ ⁨{{value1}}⁩",
         "finished": "انتهى ⁨{{value1}}⁩",
         "stillStreaming": "لا يزال يُبث",
         "duration": "المدة ⁨{{value1}}⁩"
+      },
+      "compactionSeam": {
+        "elapsed": "⁨{{n, number}}⁩ ث",
+        "tokensShort": "⁨{{before}}⁩ ← ⁨{{after}}⁩ رمز",
+        "label": {
+          "running": "جارٍ ضغط السياق…",
+          "preTurn": "ضُغط قبل الرد",
+          "midTurn": "ضُغط السياق",
+          "manual": "ضُغط عند الطلب",
+          "failed": "فشل الضغط",
+          "timeout": "انتهت مهلة الضغط",
+          "interrupted": "انقطع الضغط"
+        },
+        "title": "ضُغط السياق",
+        "tag": {
+          "preTurn": "قبل الرد",
+          "midTurn": "أثناء الدور",
+          "manual": "يدوي"
+        },
+        "subtitle": {
+          "preTurn": "قبل أول طلب لهذا الرد إلى النموذج.",
+          "midTurn": "بين طلبين إلى النموذج، بعد استدعاء الأداة ⁨{{n, number}}⁩.",
+          "midTurnNoTools": "بين طلبين إلى النموذج.",
+          "manual": "طُلب بأمر الضغط."
+        },
+        "gauge": {
+          "was": "كان ⁨{{p, number}}⁩٪ من الميزانية",
+          "now": "الآن ⁨{{p, number}}⁩٪",
+          "used": "⁨{{p, number}}⁩٪ من الميزانية"
+        },
+        "row": {
+          "history": "السجل",
+          "saved": "الموفَّر",
+          "budget": "الميزانية",
+          "folded": "المطويّ",
+          "folding": "قيد الطي",
+          "summarizedBy": "لخّصه",
+          "summaryModel": "نموذج التلخيص",
+          "when": "متى",
+          "started": "البدء",
+          "reason": "السبب",
+          "gaveUpAfter": "توقف بعد"
+        },
+        "value": {
+          "historyChange": "<b>⁨{{before, number}}⁩ ← ⁨{{after, number}}⁩</b> رمز",
+          "history": "<b>⁨{{n, number}}⁩</b> رمز",
+          "tokens": "⁨{{n, number}}⁩ رمز",
+          "saved": "⁨{{n, number}}⁩ رمز (⁨{{p, number}}⁩٪)",
+          "runs_zero": "⁨{{count, number}}⁩ تشغيل",
+          "runs_one": "تشغيل واحد (⁨{{count, number}}⁩)",
+          "runs_two": "تشغيلان (⁨{{count, number}}⁩)",
+          "runs_few": "⁨{{count, number}}⁩ تشغيلات",
+          "runs_many": "⁨{{count, number}}⁩ تشغيلًا",
+          "runs_other": "⁨{{count, number}}⁩ تشغيل",
+          "folded": "⁨{{runs}}⁩ في ملخص واحد",
+          "folding": "⁨{{runs}}⁩، اكتمل ⁨{{done, number}}⁩",
+          "summarizedBy": "⁨{{model}}⁩ في ⁨{{duration}}⁩",
+          "interrupted": "انتهى الرد قبل اكتمال الملخص."
+        }
       }
     },
     "message-search": {
@@ -986,6 +1077,25 @@
       "withCount_many": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_other": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "resize": "تغيير حجم لوحة الوكلاء الفرعيين"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "الجهد",
+        "effortFor": "الجهد لـ ⁨{{model}}⁩",
+        "noEffortLevels": "لا توجد مستويات جهد",
+        "defaultLevel": "افتراضي",
+        "levelIsDefault": "⁨{{level}}⁩، افتراضي",
+        "withLevel": "⁨{{model}}⁩ · ⁨{{level}}⁩",
+        "levels": {
+          "off": "إيقاف",
+          "minimal": "أدنى",
+          "low": "منخفض",
+          "medium": "متوسط",
+          "high": "مرتفع",
+          "xhigh": "مرتفع جدًا",
+          "max": "أقصى"
+        }
+      }
     }
   },
   "composer": {
@@ -994,6 +1104,8 @@
     "emoji": "رمز تعبيري",
     "cancelReply": "إلغاء الرد",
     "moreActions": "مزيد من الإجراءات",
+    "attachMenu": "إرفاق",
+    "attachAppLogs": "إرفاق سجلات التطبيق",
     "lostFiles": "لم يُحتفظ بها مع هذه المسودة: ⁨{{files}}⁩. أرفقها مرة أخرى قبل الإرسال.",
     "lostPastes": "لم يُحتفظ بالنص الملصق مع هذه المسودة. الصقه مرة أخرى قبل الإرسال.",
     "dismissLostFiles": "إخفاء",

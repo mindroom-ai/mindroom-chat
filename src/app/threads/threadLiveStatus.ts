@@ -13,6 +13,8 @@ export type ThreadLiveStatus = {
   activeSubagents: number;
   /** Its live background jobs. */
   jobs: readonly Pick<BackgroundJob, 'status'>[];
+  /** Resolved: its jobs are still counted, but none waits for the person any more. */
+  resolved?: boolean;
   /** The room has live jobs its agents do not list, so the thread can have more than `jobs`. */
   jobsUnlisted?: boolean;
   /** What its loaded replies cost; undefined when none is priced. */
@@ -66,7 +68,9 @@ export const threadLiveStatusRows = (
 
   if (status.jobs.length > 0) {
     const jobs = t('threadNav.live.jobs', { count: status.jobs.length });
-    const waiting = status.jobs.filter((job) => job.status === 'awaiting_approval').length;
+    const waiting = status.resolved
+      ? 0
+      : status.jobs.filter((job) => job.status === 'awaiting_approval').length;
     const value = waiting > 0 ? t('threadNav.live.jobsWaiting', { count: waiting, jobs }) : jobs;
     rows.push({
       key: 'background',

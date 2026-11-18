@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "Kapat",
       "previous": "Önceki görsel",
-      "next": "Sonraki görsel"
+      "next": "Sonraki görsel",
+      "wheelZoomHint": "Yakınlaştırmak için {{key}} + kaydırma"
     },
     "inviteUserPrompt": {
       "close": "Kapat",
@@ -409,7 +410,7 @@
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
         "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
         "debugMode": "Hata ayıklama modu",
-        "debugModeDescription": "Bu cihazda tanılama verilerini kaydeder; böylece bunları dışa aktarabilir ve ayrıntılı tanılama izlemeyi açabilirsiniz."
+        "debugModeDescription": "Bu cihazın tanılama verilerini bir mesajla gönderebilmeniz için yazma alanının + menüsüne “Uygulama günlüklerini ekle” seçeneğini ekler. Bellek değerlerini ve ayrıntılı bir izi eklemek için aşağıdan ayrıntılı tanılama izlemeyi açın."
       }
     },
     "createChat": {
@@ -679,11 +680,33 @@
           "note": "Zaten verilmiş başlıklar bir sonraki yenilemeye kadar ifadelerini korur."
         },
         "save": "Kaydet",
+        "saved": "Kaydedildi",
         "clear": "Temizle",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
-        "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin."
+        "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin.",
+        "replyMode": {
+          "label": "Ajanlar yanıtlar",
+          "description": "Yeni bir mesajın yanıt alması için bir ajandan veya ekipten bahsetmesi gerekip gerekmediği. Varsayılan, bu oda için MindRoom yapılandırmasını izler. Yalnızca bahsedilince seçiliyken bile ajanlar, zaten yanıt verdikleri bir ileti dizisindeki sonraki mesajları yanıtlayabilir.",
+          "default": "Varsayılan",
+          "auto": "Her mesaja",
+          "mentions": "Yalnızca bahsedilince"
+        }
       }
+    },
+    "macApp": {
+      "title": "Mac için MindRoom",
+      "text": "⌃⌥Space ile Hızlı Yakalama, yerel bildirimler.",
+      "download": "İndir",
+      "notNow": "Şimdi değil",
+      "dismiss": "Kapat",
+      "banner": "<b>Mac mi kullanıyorsunuz?</b> MindRoom uygulamasını edinin.",
+      "bannerDownload": "Mac için indir",
+      "menu": "Mac uygulamasını indir",
+      "downloadDmg": "İndir (.dmg)",
+      "copyCommand": "Komutu kopyala",
+      "copyFailed": "Kopyalanamadı",
+      "keywords": "mac, macos, masaüstü, uygulama, indir, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
@@ -776,6 +799,15 @@
           "saved": "Kaydedildi",
           "declined": "Geri çevrildi",
           "expired": "Süresi doldu"
+        },
+        "line": {
+          "sentKept": "Gönderildi · {{duration}} saklanır"
+        },
+        "facts": {
+          "nothingSent": "Hiçbir şey gönderilmedi veya saklanmadı.",
+          "noAnswer": "Zamanında yanıt gelmedi, bu yüzden hiçbir şey gönderilmedi.",
+          "askedAs": "Bu konuşmada {{agent}} adlı ajanın komutları için {{variable}} olarak istendi.",
+          "replaced": "Önceden kayıtlı anahtarın yerini aldı."
         }
       },
       "skillReviewMarker": {
@@ -809,13 +841,68 @@
         "toolRunningFor": "{{duration}} süredir çalışıyor"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Başlık ayarları"
+        "titleSettings": "Başlık ayarları…"
       },
       "replyTime": {
         "started": "Başladı {{value1}}",
         "finished": "Bitti {{value1}}",
         "stillStreaming": "Hâlâ sürüyor",
         "duration": "Süre {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} sn",
+        "tokensShort": "{{before}} → {{after}} token",
+        "label": {
+          "running": "Bağlam sıkıştırılıyor…",
+          "preTurn": "Yanıttan önce sıkıştırıldı",
+          "midTurn": "Bağlam sıkıştırıldı",
+          "manual": "İstek üzerine sıkıştırıldı",
+          "failed": "Sıkıştırma başarısız oldu",
+          "timeout": "Sıkıştırma zaman aşımına uğradı",
+          "interrupted": "Sıkıştırma yarıda kaldı"
+        },
+        "title": "Bağlam sıkıştırıldı",
+        "tag": {
+          "preTurn": "yanıttan önce",
+          "midTurn": "tur ortasında",
+          "manual": "elle"
+        },
+        "subtitle": {
+          "preTurn": "Bu yanıtın modele ilk isteğinden önce.",
+          "midTurn": "İki model isteği arasında, {{n, number}}. araç çağrısından sonra.",
+          "midTurnNoTools": "İki model isteği arasında.",
+          "manual": "Sıkıştırma komutuyla istendi."
+        },
+        "gauge": {
+          "was": "önce bütçenin %{{p, number}} kadarıydı",
+          "now": "şimdi %{{p, number}}",
+          "used": "bütçenin %{{p, number}} kadarı"
+        },
+        "row": {
+          "history": "Geçmiş",
+          "saved": "Kazanılan",
+          "budget": "Bütçe",
+          "folded": "Birleştirilen",
+          "folding": "Birleştiriliyor",
+          "summarizedBy": "Özetleyen",
+          "summaryModel": "Özet modeli",
+          "when": "Ne zaman",
+          "started": "Başladı",
+          "reason": "Neden",
+          "gaveUpAfter": "Vazgeçildi"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> token",
+          "history": "<b>{{n, number}}</b> token",
+          "tokens": "{{n, number}} token",
+          "saved": "{{n, number}} token (%{{p, number}})",
+          "runs_one": "{{count, number}} çalıştırma",
+          "runs_other": "{{count, number}} çalıştırma",
+          "folded": "{{runs}} 1 özette",
+          "folding": "{{runs}}, {{done, number}} tamamlandı",
+          "summarizedBy": "{{model}}, {{duration}} içinde",
+          "interrupted": "Yanıt, özet bitmeden sona erdi."
+        }
       }
     },
     "message-search": {
@@ -918,6 +1005,25 @@
       "withCount_one": "{{label}}, {{count}} etkin",
       "withCount_other": "{{label}}, {{count}} etkin",
       "resize": "Alt ajan panelini yeniden boyutlandır"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Çaba",
+        "effortFor": "{{model}} için çaba",
+        "noEffortLevels": "Çaba düzeyi yok",
+        "defaultLevel": "Varsayılan",
+        "levelIsDefault": "{{level}}, varsayılan",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Kapalı",
+          "minimal": "Minimum",
+          "low": "Düşük",
+          "medium": "Orta",
+          "high": "Yüksek",
+          "xhigh": "Çok yüksek",
+          "max": "Maksimum"
+        }
+      }
     }
   },
   "composer": {
@@ -926,6 +1032,8 @@
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et",
     "moreActions": "Diğer işlemler",
+    "attachMenu": "Ekle",
+    "attachAppLogs": "Uygulama günlüklerini ekle",
     "lostFiles": "Bu taslakla saklanmadı: {{files}}. Göndermeden önce yeniden ekleyin.",
     "lostPastes": "Yapıştırılan metin bu taslakla saklanmadı. Göndermeden önce yeniden yapıştırın.",
     "dismissLostFiles": "Kapat",
