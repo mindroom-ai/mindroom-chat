@@ -619,6 +619,136 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
   });
+  it('keeps the button through a burst of membership changes', async () => {
+    const h = setup();
+    await h.discover();
+    const join = (userId: string) => {
+      h.member(userId);
+      h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(userId)!);
+    };
+    join('@one:test');
+    join('@two:test');
+    join('@three:test');
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: false });
+    await flush();
+    join('@four:test');
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: false });
+    await flush();
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+  });
+  it('keeps a button opened from the room cache through its first membership change', async () => {
+    const h = setup();
+    (await h.discover())();
+    h.controller.subscribe(h.room, '$b', () => {});
+    await flush();
+    expect(h.snapshot('$b')).toMatchObject({ eligible: true, canMutate: false });
+    const asked = h.request().request_id;
+    h.member('@someone:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
+    await flush();
+    expect(h.request().request_id).not.toBe(asked);
+    expect(h.snapshot('$b')).toMatchObject({ eligible: true, loading: true, canMutate: false });
+  });
+  it('starts counting failures again after an answer', async () => {
+    const h = setup();
+    await h.discover();
+    const invalidate = (userId: string) => {
+      h.member(userId);
+      h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember(userId)!);
+    };
+    invalidate('@one:test');
+    await flush();
+    // Four unanswered attempts, then the fifth, 60 s later, is answered.
+    for (const delay of [3000, 10000, 30000]) await vi.advanceTimersByTimeAsync(12000 + delay);
+    await vi.advanceTimersByTimeAsync(12000 + 60000);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+    // Invalidate while the answered query's window is still open, so the reset must come from the answer.
+    invalidate('@two:test');
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({ eligible: true, loading: false, canMutate: false });
+    const asked = h.request().request_id;
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(h.request().request_id).toBe(asked);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.request().request_id).not.toBe(asked);
+  });
+  it('resets the failure count on the answer itself, not on a later invalidation', async () => {
+    const h = setup();
+    await h.discover();
+    h.member('@one:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@one:test')!);
+    await flush();
+    // Four unanswered attempts, then the fifth, 60 s later, is answered.
+    for (const delay of [3000, 10000, 30000]) await vi.advanceTimersByTimeAsync(12000 + delay);
+    await vi.advanceTimersByTimeAsync(12000 + 60000);
+    h.response(h.request());
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    // A plain refresh (no invalidation) goes unanswered: it is the first failure, so retry after 3 s.
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+    const asked = h.request().request_id;
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(h.request().request_id).toBe(asked);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.request().request_id).not.toBe(asked);
+  });
+  it('does not probe again on a sync that stays syncing', async () => {
+    const h = setup();
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    const asked = h.request().request_id;
+    h.mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+    await flush();
+    expect(h.request().request_id).toBe(asked);
+  });
+  it('keeps a verified button through 5 unanswered refreshes', async () => {
+    const h = setup();
+    await h.discover();
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    const attempts = new Set([h.request().request_id]);
+    for (const delay of [3000, 10000, 30000, 60000]) {
+      await vi.advanceTimersByTimeAsync(12000 + delay);
+      attempts.add(h.request().request_id);
+    }
+    expect(attempts.size).toBe(5);
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({ eligible: true, loading: false });
+    expect(h.snapshot().models).toHaveLength(2);
+  });
+  it('stops the spinner of a kept button when local capacity refuses its probe', async () => {
+    const h = setup();
+    // These scopes come first, so their probes take the capacity before the shown thread asks.
+    const threads = Array.from({ length: 8 }, (_, index) => '$busy' + index);
+    threads.forEach((thread) => h.snapshot(thread));
+    await h.discover();
+    const busy = threads.map((thread) => h.controller.subscribe(h.room, thread, () => {}));
+    await flush();
+    h.member('@someone:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
+    await flush();
+    expect(h.snapshot()).toMatchObject({
+      eligible: true,
+      loading: false,
+      canMutate: false,
+      error: 'Model discovery is busy. Try again.',
+    });
+    busy.forEach((leave) => leave());
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(h.request().thread_id).toBe('$root');
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+  });
   it('invalidates membership and device changes immediately', async () => {
     const h = setup();
     await h.discover();

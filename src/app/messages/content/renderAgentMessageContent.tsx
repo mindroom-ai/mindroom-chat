@@ -1,4 +1,4 @@
-import { useMemo, type ComponentProps, type ReactNode } from 'react';
+import { useContext, useMemo, type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
@@ -29,6 +29,8 @@ import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
 import { SecretRequestCard } from '../../approvals/SecretRequestCard';
+import { useSecretRequestWaiting } from '../inlineSecretRequests';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
@@ -140,14 +142,16 @@ function AgentWorkBody({
   renderHtml,
   wrapWithReasoning,
 }: AgentWorkBodyProps) {
+  // While a request of its calls waits, under it, the work stays open: the call it blocks shows.
+  const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
   // reply's own body to change, and for it to finish long.
   const split = useMemo(
     () =>
-      finished && html !== undefined && isLongAgentReply(body)
+      finished && !waiting && html !== undefined && isLongAgentReply(body)
         ? splitFinishedWork(html)
         : undefined,
-    [finished, body, html]
+    [finished, waiting, body, html]
   );
   return (
     <FinishedWorkFold
@@ -451,6 +455,7 @@ export const renderAgentMessageContent = ({
         request={secretRequest}
         roomId={secretRequestRoomId}
         agentUserId={secretRequestSender}
+        eventId={eventId ?? mEvent?.getId()}
         readOnly={readOnly}
       />
     );

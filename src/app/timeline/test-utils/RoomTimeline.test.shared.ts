@@ -692,6 +692,7 @@ vi.mock('../RoomIntro', () => ({
 // test sets one; the real module would load the plugins' translations, and the app's i18n setup.
 vi.mock('../../plugins/messageRenderers', () => ({
   useMessageRowHidden: () => pluginRowHiddenMock.test,
+  useMessageRendererTaken: () => undefined,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
@@ -1156,7 +1157,6 @@ vi.mock('../../threads/overview/useRoomThreadList', () => ({
 vi.mock('../../event-store/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: (_room: unknown, threadRootId: string) =>
     threadLastActivityTsMapMock.get(threadRootId) ?? 0,
-  useThreadLastActivityTs: () => 0,
 }));
 
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({

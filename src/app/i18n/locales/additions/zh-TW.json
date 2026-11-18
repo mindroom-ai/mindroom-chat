@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "關閉",
       "previous": "上一張圖片",
-      "next": "下一張圖片"
+      "next": "下一張圖片",
+      "wheelZoomHint": "{{key}} + 捲動以縮放"
     },
     "inviteUserPrompt": {
       "close": "關閉",
@@ -404,7 +405,7 @@
         "thirdPartyNotices": "第三方聲明",
         "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。",
         "debugMode": "除錯模式",
-        "debugModeDescription": "在此裝置上記錄診斷資訊，以便匯出並開啟深度診斷追蹤。"
+        "debugModeDescription": "在輸入框的 + 選單中加入「附加應用程式記錄」，以便在訊息中傳送此裝置的診斷資訊。如需包含記憶體數據和詳細追蹤，請在下方開啟深度診斷追蹤。"
       }
     },
     "createChat": {
@@ -768,6 +769,15 @@
           "saved": "已儲存",
           "declined": "已拒絕",
           "expired": "已到期"
+        },
+        "line": {
+          "sentKept": "已傳送 · 保留 {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "沒有傳送或保留任何內容。",
+          "noAnswer": "未及時回答，因此沒有傳送任何內容。",
+          "askedAs": "在此對話中為 {{agent}} 的指令以 {{variable}} 請求。",
+          "replaced": "已取代先前儲存的金鑰。"
         }
       },
       "skillReviewMarker": {
@@ -910,6 +920,8 @@
     "emoji": "表情符號",
     "cancelReply": "取消回覆",
     "moreActions": "更多操作",
+    "attachMenu": "附加",
+    "attachAppLogs": "附加應用程式記錄",
     "lostFiles": "未隨此草稿保留：{{files}}。傳送前請重新附加。",
     "lostPastes": "貼上的文字未隨此草稿保留。傳送前請重新貼上。",
     "dismissLostFiles": "關閉",

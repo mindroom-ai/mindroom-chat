@@ -741,7 +741,6 @@ export const SETTINGS = [
     labelKey: `${ABOUT}.debugMode`,
     descriptionKey: `${ABOUT}.debugModeDescription`,
     scope: 'device',
-    hidden: (context) => context.nativeIOS,
   },
   {
     id: 'diagnosticsExport',

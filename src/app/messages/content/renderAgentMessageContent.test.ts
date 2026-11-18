@@ -718,6 +718,7 @@ describe('renderAgentMessageContent', () => {
         request: expect.objectContaining({ requestId: 'req-1', displayName: 'GitHub' }),
         roomId: '!room:example.org',
         agentUserId: '@mindroom_assistant:example.org',
+        eventId: '$card',
       });
     });
 

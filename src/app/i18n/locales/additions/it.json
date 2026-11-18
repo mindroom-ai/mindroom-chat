@@ -92,7 +92,8 @@
     "imageViewer": {
       "close": "Chiudi",
       "previous": "Immagine precedente",
-      "next": "Immagine successiva"
+      "next": "Immagine successiva",
+      "wheelZoomHint": "{{key}} + scorri per ingrandire"
     },
     "inviteUserPrompt": {
       "close": "Chiudi",
@@ -414,7 +415,7 @@
         "thirdPartyNotices": "Avvisi di terze parti",
         "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app.",
         "debugMode": "Modalità debug",
-        "debugModeDescription": "Registra la diagnostica su questo dispositivo per poterla esportare e attivare il tracciamento diagnostico approfondito."
+        "debugModeDescription": "Aggiunge «Allega log dell’app» al menu + della casella del messaggio, per poter inviare la diagnostica di questo dispositivo in un messaggio. Attiva qui sotto il tracciamento diagnostico approfondito per includere i dati di memoria e una traccia dettagliata."
       }
     },
     "createChat": {
@@ -786,6 +787,15 @@
           "saved": "Salvata",
           "declined": "Rifiutata",
           "expired": "Scaduta"
+        },
+        "line": {
+          "sentKept": "Inviato · conservato {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Non è stato inviato né conservato nulla.",
+          "noAnswer": "Nessuna risposta in tempo, quindi non è stato inviato nulla.",
+          "askedAs": "Richiesto per i comandi di {{agent}} in questa conversazione come {{variable}}.",
+          "replaced": "Ha sostituito la chiave salvata prima."
         }
       },
       "skillReviewMarker": {
@@ -944,6 +954,8 @@
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",
+    "attachMenu": "Allega",
+    "attachAppLogs": "Allega log dell’app",
     "lostFiles": "Non conservati con questa bozza: {{files}}. Allegali di nuovo prima di inviare.",
     "lostPastes": "Il testo incollato non è stato conservato con questa bozza. Incollalo di nuovo prima di inviare.",
     "dismissLostFiles": "Ignora",

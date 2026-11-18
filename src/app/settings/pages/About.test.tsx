@@ -233,11 +233,31 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('shows no debug mode switch in the iOS app, which always records', () => {
+  it('shows the debug mode switch in the iOS app too, which leaves its diagnostics alone', async () => {
+    let debugMode = false;
+    mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
+    mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {
+      debugMode = enabled;
+      return true;
+    });
     const renderer = create(<About requestClose={vi.fn()} />);
-
-    expect(renderer.root.findAllByProps({ 'data-setting-title': 'Debug mode' })).toHaveLength(0);
+    const debugSwitch = () =>
+      renderer.root.findByProps({ 'data-setting-title': 'Debug mode' }).findByType('input');
     expect(diagnosticsTile(renderer)).toBeDefined();
+    expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+
+    for (const next of [true, false]) {
+      await act(async () => {
+        debugSwitch().props.onChange({ target: { checked: next } });
+      });
+      expect(mocks.setDebugModeEnabled).toHaveBeenLastCalledWith(next, { keepRecorders: true });
+      expect(debugSwitch().props.checked).toBe(next);
+      // The diagnostics tiles stay, and the deep trace keeps its own switch.
+      expect(diagnosticsTile(renderer)).toBeDefined();
+      expect(deepTraceSwitch(renderer).props.checked).toBe(false);
+    }
+    expect(mocks.setDeepTraceEnabled).not.toHaveBeenCalled();
+    expect(mocks.clearDeepTrace).not.toHaveBeenCalled();
     renderer.unmount();
   });
 
@@ -261,7 +281,7 @@ describe('About diagnostics export', () => {
     await act(async () => {
       debugSwitch().props.onChange({ target: { checked: true } });
     });
-    expect(mocks.setDebugModeEnabled).toHaveBeenCalledWith(true);
+    expect(mocks.setDebugModeEnabled).toHaveBeenCalledWith(true, { keepRecorders: false });
     expect(shown('On-device diagnostics')).toBe(1);
     expect(shown('Deep diagnostic tracing')).toBe(1);
 

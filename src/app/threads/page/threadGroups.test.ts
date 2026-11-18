@@ -183,6 +183,25 @@ describe('groupThreads', () => {
     expect(shape(groupThreads([job], 'all', ME, '', NOW))).toEqual([['needsYou', ['job']]]);
   });
 
+  it('leaves a resolved thread with only a background approval out of Needs you', () => {
+    // The signals hold only requests asked after the resolve (readThreadSignals' resolvedTs).
+    const question = { eventId: '$q', senderId: 'a', text: 'q', options: [] };
+    const resolved = { isResolved: true, resolvedTs: 2000 };
+    const job = item('job', resolved);
+    job.entry.threadRecord.status.hasBackgroundApproval = true;
+    const groups = groupThreads(
+      [job, item('askedAfter', resolved, { pendingQuestion: question })],
+      'following',
+      ME,
+      '',
+      NOW
+    );
+    expect(shape(groups)).toEqual([
+      ['needsYou', ['askedAfter']],
+      ['recent', ['job']],
+    ]);
+  });
+
   it('returns a snoozed thread to Recent when its time has passed', () => {
     const items = [item('later', { snoozedUntilTs: NOW })];
     expect(shape(groupThreads(items, 'following', ME, '', NOW - 1))).toEqual([

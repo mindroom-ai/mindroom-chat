@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import {
+  ClientEvent,
   createClient,
   MatrixEvent,
   ReceiptType,
   RelationType,
   Room,
+  RoomEvent,
   ThreadEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
@@ -16,10 +18,9 @@ import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import { createSyncEngine } from '../../event-store/engine/syncEngine';
 import { getThreadUnread } from '../../event-store/threads/roomThreadList';
-import {
-  KEPT_RECORD_CHECK_MS,
-  useThreadOverviewRefreshCounter,
-} from './threadOverviewRefreshCounter';
+import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { keepUnthreadedReceiptEvents } from '../../matrix/receiptReadTs';
+import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 import { useRoomThreadList } from './useRoomThreadList';
 
 vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => {
@@ -112,6 +113,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  // A list of an earlier test would hear the store of kept edits, which every client shares.
+  cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
   Thread.hasServerSideListSupport = originalListSupport;
@@ -124,6 +127,7 @@ const renderList = async () => {
       <SyncEngineProvider engine={engine}>{children}</SyncEngineProvider>
     </MatrixClientProvider>
   );
+  vi.mocked(getThreadUnread).mockClear();
   const hook = renderHook(
     () => {
       const { overviewChanges, overviewRefreshCounter } = useThreadOverviewRefreshCounter(
@@ -136,8 +140,10 @@ const renderList = async () => {
   );
   const unreads = () => hook.result.current.threadUnreads;
   expect(Object.fromEntries(unreads())).toEqual({ $a: true, $b: true, $c: true });
-  // The listener marks the room when it starts, so the first count checks every thread again.
-  expect(await checkedBy(() => room.addReceipt(receipt('$old', 1, '$old')))).toEqual(IDS);
+  // The listener marks the room and counts when it starts, so every thread is checked again after
+  // the first build: the room may have changed before the listener heard it.
+  const checks = vi.mocked(getThreadUnread).mock.calls.map(([thread]) => thread.id);
+  expect(IDS.map((id) => checks.filter((checked) => checked === id).length)).toEqual([2, 2, 2]);
   return unreads;
 };
 
@@ -189,16 +195,50 @@ describe('useRoomThreadList unread marks', () => {
     expect([...unreads().keys()].sort()).toEqual(['$a', '$c', '$d']);
   });
 
-  it('checks every kept mark again a second after a build kept one', async () => {
+  it('checks every thread when history brings the event a receipt names, in a room where nothing more happens', async () => {
+    const stop = keepUnthreadedReceiptEvents(mx);
     const unreads = await renderList();
-    await checkedBy(() => room.addReceipt(receipt('$a-reply', 2000, '$a')));
-    // What no event tells of: the thread's receipt reads further without a receipt event.
-    vi.spyOn(room.getThread('$b')!, 'getEventReadUpTo').mockReturnValue('$b-reply');
-    expect(unreads().get('$b')).toBe(true);
+    // The reader's receipt names an event the room does not hold yet, so it reads up to when the
+    // server took it: after every reply.
+    const read = receipt('$named', 3000);
+    await checkedBy(() => {
+      mx.emit(RoomEvent.Receipt, read, room);
+      room.addReceipt(read);
+    });
+    expect(Object.fromEntries(unreads())).toEqual({ $a: false, $b: false, $c: false });
 
-    expect(await checkedBy(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS))).toEqual(IDS);
-    expect(unreads().get('$b')).toBe(false);
-    // That build kept none, so the room rests.
-    expect(await checkedBy(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS))).toEqual([]);
+    // The event is older than the replies: the receipt reads none of them.
+    expect(
+      await checkedBy(() =>
+        room.addEventsToTimeline([message('$named', 500)], true, false, room.getLiveTimeline())
+      )
+    ).toEqual(IDS);
+    expect(Object.fromEntries(unreads())).toEqual({ $a: true, $b: true, $c: true });
+    stop();
+  });
+
+  it('checks the thread of a reply whose kept edits a full store drops, which no event tells of', async () => {
+    const stop = keepSyncedEdits(mx);
+    const editOf = (messageId: string, roomId: string) =>
+      new MatrixEvent({
+        event_id: `$edit-of-${messageId}`,
+        room_id: roomId,
+        sender: BOB,
+        type: 'm.room.message',
+        origin_server_ts: 3000,
+        content: { 'm.relates_to': { rel_type: RelationType.Replace, event_id: messageId } },
+      });
+    await renderList();
+    await checkedBy(() => mx.emit(ClientEvent.Event, editOf('$b-reply', ROOM_ID)));
+
+    // The store keeps 5,000 messages: the edits of as many of another room push this one out.
+    expect(
+      await checkedBy(() => {
+        for (let i = 0; i < 5000; i += 1) {
+          mx.emit(ClientEvent.Event, editOf(`$other${i}`, '!other:example.org'));
+        }
+      })
+    ).toEqual(['$b']);
+    stop();
   });
 });

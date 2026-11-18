@@ -66,9 +66,10 @@ import { hasMatchingReplyDraft } from './roomInputSendSession';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
+import { ComposerAttachButton } from './ComposerAttachButton';
 import { ComposerSendButton } from './ComposerSendButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { composeTextMessage } from './composeTextMessage';
+import { composeTextMessage, holdsNoText } from './composeTextMessage';
 import {
   type ActingCommand,
   describeCommandFailure,
@@ -251,6 +252,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const [submitPending, setSubmitPending] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
+    // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
+    // It changes only as it flips, so typing renders nothing more.
+    const [noText, setNoText] = useState(() => holdsNoText(editor));
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
     // hides, under a plugin's cover or behind a side panel.
     const conversationHidden = useConversationHidden();
@@ -587,7 +591,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       const draftBefore = store.get(draftAtom);
       saveDraft();
       attachments.onEditorChange();
-      if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!isEmptyEditor(editor));
+      const empty = isEmptyEditor(editor);
+      setNoText(holdsNoText(editor));
+      if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
     }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
@@ -632,7 +638,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
-    const attachLabel = t('composer.attach');
     const boardOpen = emojiAnchor !== undefined;
 
     const autocomplete =
@@ -760,6 +765,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 <ComposerActionsMenu
                   formattingOpen={formattingOpen}
                   onAttach={attachments.pickFiles}
+                  onAttachAppLogs={attachments.attachAppLogs}
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
@@ -769,10 +775,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             ) : (
               <>
                 {modelPicker}
-                <ComposerIconButton
-                  label={attachLabel}
-                  icon={Icons.PlusCircle}
-                  onPress={attachments.pickFiles}
+                <ComposerAttachButton
+                  onAttach={attachments.pickFiles}
+                  onAttachAppLogs={attachments.attachAppLogs}
                 />
                 {/* A fork draft records no voice: one would start a thread, not the fork. */}
                 {!forkFrom && voice.microphone}
@@ -830,6 +835,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 alone={phone}
                 agentReplying={agentReplying}
                 hasText={() => buildTextContent(midTurnSend) !== undefined}
+                empty={noText}
                 defaultMode={midTurnSend}
                 onSend={handleSend}
               />

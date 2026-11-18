@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useZoom } from './useZoom';
+import { useZoom, type ZoomAround } from './useZoom';
 
 type Listener = (event: Event) => void;
 
@@ -39,6 +39,11 @@ class MockEventTarget {
     }
   }
 
+  // A 200 x 100 surface at (100, 50): its centre is (200, 100).
+  getBoundingClientRect() {
+    return { left: 100, top: 50, width: 200, height: 100 } as DOMRect;
+  }
+
   dispatch(type: string, event: Event) {
     this.listeners.get(type)?.forEach((listener) => listener(event));
   }
@@ -46,10 +51,12 @@ class MockEventTarget {
 
 function HookHarness({
   onUpdate,
+  onZoomAround,
 }: {
   onUpdate: (state: ReturnType<typeof useZoom>) => void;
+  onZoomAround?: ZoomAround;
 }) {
-  onUpdate(useZoom(0.2));
+  onUpdate(useZoom(0.2, undefined, undefined, onZoomAround));
   return null;
 }
 
@@ -126,6 +133,149 @@ describe('useZoom', () => {
     });
 
     expect(zoomState.isZooming).toBe(false);
+  });
+
+  it('aims a modifier wheel zoom at the cursor, step after step between renders', () => {
+    const zoomSurface = new MockEventTarget();
+    const onZoomAround = vi.fn<ZoomAround>();
+    let zoomState!: ReturnType<typeof useZoom>;
+    act(() => {
+      renderer = create(
+        React.createElement(HookHarness, {
+          onUpdate: (state) => {
+            zoomState = state;
+          },
+          onZoomAround,
+        })
+      );
+    });
+    act(() => {
+      zoomState.zoomTargetRef(zoomSurface as unknown as HTMLElement);
+    });
+    const wheel = (deltaY: number, modifier: Partial<WheelEvent>) =>
+      ({ deltaY, clientX: 250, clientY: 80, preventDefault: vi.fn(), ...modifier } as WheelEvent);
+
+    act(() => {
+      zoomSurface.dispatch('wheel', wheel(-100, { metaKey: true }));
+      zoomSurface.dispatch('wheel', wheel(-100, { ctrlKey: true }));
+      zoomSurface.dispatch('wheel', wheel(-100, {}));
+    });
+
+    const at = { x: 50, y: -20 };
+    expect(zoomState.zoom).toBe(1.4);
+    expect(zoomState.aimed).toBe(true);
+    expect(onZoomAround.mock.calls).toEqual([
+      [{ from: 1, to: 1.2, at, before: at }],
+      [{ from: 1.2, to: 1.4, at, before: at }],
+    ]);
+  });
+
+  it('lands on exactly 1 when stepping back to fit', () => {
+    let zoomState!: ReturnType<typeof useZoom>;
+    act(() => {
+      renderer = create(
+        React.createElement(HookHarness, {
+          onUpdate: (state) => {
+            zoomState = state;
+          },
+        })
+      );
+    });
+    act(() => zoomState.setZoom(2));
+    for (let i = 0; i < 5; i += 1) act(() => zoomState.zoomOut());
+    expect(zoomState.zoom).toBe(1);
+    // A button zoom is not aimed, so the owner eases it.
+    expect(zoomState.aimed).toBe(false);
+  });
+
+  it('aims a pinch at the middle of the fingers, and only pans at the limit', () => {
+    const zoomSurface = new MockEventTarget();
+    const onZoomAround = vi.fn<ZoomAround>();
+    let zoomState!: ReturnType<typeof useZoom>;
+    act(() => {
+      renderer = create(
+        React.createElement(HookHarness, {
+          onUpdate: (state) => {
+            zoomState = state;
+          },
+          onZoomAround,
+        })
+      );
+    });
+    act(() => {
+      zoomState.zoomTargetRef(zoomSurface as unknown as HTMLElement);
+    });
+    // The first finger stays put; the second moves away from it.
+    const touches = (spread: number) =>
+      createTouchList([
+        { clientX: 120, clientY: 60 },
+        { clientX: 120, clientY: 60 + spread },
+      ]);
+
+    act(() => {
+      zoomSurface.dispatch('touchstart', { touches: touches(20) } as unknown as TouchEvent);
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: touches(40),
+      } as unknown as TouchEvent);
+    });
+    expect(onZoomAround).toHaveBeenLastCalledWith({
+      from: 1,
+      to: 2,
+      at: { x: -80, y: -20 },
+      before: { x: -80, y: -30 },
+    });
+
+    act(() => {
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: touches(400),
+      } as unknown as TouchEvent);
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: touches(500),
+      } as unknown as TouchEvent);
+    });
+    expect(zoomState.zoom).toBe(5);
+    // Past the limit the spread grows, so the midpoint still moves: a pan-only step.
+    expect(onZoomAround).toHaveBeenCalledTimes(3);
+    expect(onZoomAround).toHaveBeenLastCalledWith({
+      from: 5,
+      to: 5,
+      at: { x: -80, y: 210 },
+      before: { x: -80, y: 160 },
+    });
+
+    // Both fingers slide 20 px at the limit: a pan-only step.
+    const slid = createTouchList([
+      { clientX: 140, clientY: 60 },
+      { clientX: 140, clientY: 560 },
+    ]);
+    act(() => {
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: slid,
+      } as unknown as TouchEvent);
+    });
+    expect(onZoomAround).toHaveBeenLastCalledWith({
+      from: 5,
+      to: 5,
+      at: { x: -60, y: 210 },
+      before: { x: -80, y: 210 },
+    });
+    // Fingers that hold still at the limit change nothing.
+    act(() => {
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: slid,
+      } as unknown as TouchEvent);
+    });
+    expect(onZoomAround).toHaveBeenCalledTimes(4);
   });
 
   it('clamps touch pinch zoom to the configured maximum', () => {

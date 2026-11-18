@@ -92,7 +92,8 @@
     "imageViewer": {
       "close": "Fermer",
       "previous": "Image précédente",
-      "next": "Image suivante"
+      "next": "Image suivante",
+      "wheelZoomHint": "{{key}} + molette pour zoomer"
     },
     "inviteUserPrompt": {
       "close": "Fermer",
@@ -414,7 +415,7 @@
         "thirdPartyNotices": "Avis de tiers",
         "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
         "debugMode": "Mode débogage",
-        "debugModeDescription": "Enregistre des diagnostics sur cet appareil pour que vous puissiez les exporter et activer le traçage de diagnostic approfondi."
+        "debugModeDescription": "Ajoute « Joindre les journaux de l’app » au menu + de la zone de saisie, pour que vous puissiez envoyer les diagnostics de cet appareil dans un message. Activez le traçage de diagnostic approfondi ci-dessous pour inclure les chiffres de mémoire et une trace détaillée."
       }
     },
     "createChat": {
@@ -786,6 +787,15 @@
           "saved": "Enregistrée",
           "declined": "Refusée",
           "expired": "Expirée"
+        },
+        "line": {
+          "sentKept": "Envoyé · conservé {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Rien n'a été envoyé ni conservé.",
+          "noAnswer": "Pas de réponse à temps, donc rien n'a été envoyé.",
+          "askedAs": "Demandé pour les commandes de {{agent}} dans cette conversation sous le nom {{variable}}.",
+          "replaced": "A remplacé la clé enregistrée auparavant."
         }
       },
       "skillReviewMarker": {
@@ -944,6 +954,8 @@
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse",
     "moreActions": "Plus d’actions",
+    "attachMenu": "Joindre",
+    "attachAppLogs": "Joindre les journaux de l’app",
     "lostFiles": "Non conservés avec ce brouillon : {{files}}. Joignez-les à nouveau avant l’envoi.",
     "lostPastes": "Le texte collé n’a pas été conservé avec ce brouillon. Collez-le à nouveau avant l’envoi.",
     "dismissLostFiles": "Ignorer",

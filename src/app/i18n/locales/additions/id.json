@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "Tutup",
       "previous": "Gambar sebelumnya",
-      "next": "Gambar berikutnya"
+      "next": "Gambar berikutnya",
+      "wheelZoomHint": "{{key}} + gulir untuk memperbesar"
     },
     "inviteUserPrompt": {
       "close": "Tutup",
@@ -404,7 +405,7 @@
         "thirdPartyNotices": "Pemberitahuan pihak ketiga",
         "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini.",
         "debugMode": "Mode debug",
-        "debugModeDescription": "Merekam diagnostik di perangkat ini agar Anda dapat mengekspornya dan mengaktifkan pelacakan diagnostik mendalam."
+        "debugModeDescription": "Menambahkan “Lampirkan log aplikasi” ke menu + di kolom pesan, agar Anda dapat mengirim diagnostik perangkat ini dalam pesan. Aktifkan pelacakan diagnostik mendalam di bawah untuk menyertakan angka memori dan jejak terperinci."
       }
     },
     "createChat": {
@@ -768,6 +769,15 @@
           "saved": "Tersimpan",
           "declined": "Ditolak",
           "expired": "Kedaluwarsa"
+        },
+        "line": {
+          "sentKept": "Terkirim · disimpan {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Tidak ada yang dikirim atau disimpan.",
+          "noAnswer": "Tidak ada jawaban tepat waktu, jadi tidak ada yang dikirim.",
+          "askedAs": "Diminta untuk perintah {{agent}} dalam percakapan ini sebagai {{variable}}.",
+          "replaced": "Menggantikan kunci yang tersimpan sebelumnya."
         }
       },
       "skillReviewMarker": {
@@ -910,6 +920,8 @@
     "emoji": "Emoji",
     "cancelReply": "Batalkan balasan",
     "moreActions": "Tindakan lainnya",
+    "attachMenu": "Lampirkan",
+    "attachAppLogs": "Lampirkan log aplikasi",
     "lostFiles": "Tidak disimpan bersama draf ini: {{files}}. Lampirkan lagi sebelum mengirim.",
     "lostPastes": "Teks yang ditempel tidak disimpan bersama draf ini. Tempel lagi sebelum mengirim.",
     "dismissLostFiles": "Tutup",

@@ -24,6 +24,11 @@ type SecretRequestBase = {
   url?: string;
   /** The agent's hint for the empty field, one short line. */
   placeholder?: string;
+  /**
+   * The agent reply whose tool call asked, and that call's ID in the reply's tool trace: where
+   * the reply draws the request instead of a row of its own. Both or neither.
+   */
+  anchor?: { responseEventId: string; toolCallId: string };
 };
 
 /** A request for a service's API key, which MindRoom stores for the agent. */
@@ -63,6 +68,8 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 // What the backend cuts a label or a field hint to, and the longest link it posts.
 const MAX_LINE_LENGTH = 80;
 const MAX_LINK_LENGTH = 2000;
+// Longer than any event ID or provider call ID.
+const MAX_ID_LENGTH = 512;
 
 /** A label or a field hint as the card shows it: one line, cut to its limit; undefined without text. */
 const readLine = (value: unknown): string | undefined => {
@@ -89,10 +96,23 @@ const readLink = (value: unknown): string | undefined => {
 };
 
 /** What the agent chose to show on either kind of card, each only when the card has it. */
-const readShown = (value: Record<string, unknown>): Pick<SecretRequestBase, 'url' | 'placeholder'> => {
+const readShown = (
+  value: Record<string, unknown>
+): Pick<SecretRequestBase, 'url' | 'placeholder'> => {
   const url = readLink(value.url);
   const placeholder = readLine(value.placeholder);
   return { ...(url && { url }), ...(placeholder && { placeholder }) };
+};
+
+const isId = (value: unknown): value is string =>
+  typeof value === 'string' && value !== '' && value.length <= MAX_ID_LENGTH;
+
+/** The reply and tool call that asked, when the card names both. */
+const readAnchor = (value: Record<string, unknown>): Pick<SecretRequestBase, 'anchor'> => {
+  const { response_event_id: responseEventId, tool_call_id: toolCallId } = value;
+  return isId(responseEventId) && isId(toolCallId)
+    ? { anchor: { responseEventId, toolCallId } }
+    : {};
 };
 
 const isStatus = (value: unknown): value is SecretRequestStatus =>
@@ -138,7 +158,15 @@ const readRequest = (value: unknown): SecretRequest | null => {
   ) {
     return null;
   }
-  const base = { requestId, requesterId, reason, status, expiresAt, ...readShown(value) };
+  const base = {
+    requestId,
+    requesterId,
+    reason,
+    status,
+    expiresAt,
+    ...readShown(value),
+    ...readAnchor(value),
+  };
   if (env !== undefined) {
     // A temporary secret names no service: a card with both is neither kind.
     const keep = readKeep(value.keep);

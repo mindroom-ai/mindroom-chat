@@ -74,6 +74,7 @@ import {
   DownloadOriginalMenuItem,
   useMessageControls,
 } from './MessageControls';
+import { AiRunDetailsTarget as aiRunDetailsTarget } from './MessageControls.css';
 import {
   getMessageCopyTexts,
   getMessageCopyTextSource,
@@ -692,6 +693,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
       selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
     };
+    // The kind of pointer that last pressed on the header's time: a touch there unfolds the time,
+    // other pointers open the reply details. A touchscreen laptop's primary pointer hovers too.
+    const timePointer = useRef<string>();
     const toolbarRef = useRef<HTMLDivElement>(null);
     // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
     // of the row's controls, such as a streaming reply's Stop, does not: the focus stayed in the
@@ -853,7 +857,12 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               <UsernameBold>{senderDisplayName}</UsernameBold>
             </Text>
           </Username>
-          <Box shrink="No" alignItems="Center" gap="100">
+          <Box
+            className={controls ? aiRunDetailsTarget : undefined}
+            shrink="No"
+            alignItems="Center"
+            gap="100"
+          >
             {controls && <AiRunInfoButton open={controls.open} onOpen={openAiRun} />}
             <Time
               ts={mEvent.getTs()}
@@ -861,6 +870,19 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               timing={replyTiming}
               hour24Clock={hour24Clock}
               dateFormatString={dateFormatString}
+              // With a hovering pointer the time, whose unfolding moves the small button, opens
+              // the details too. A tap keeps unfolding it.
+              onPointerDown={(evt: PointerEvent<HTMLTimeElement>) => {
+                timePointer.current = evt.pointerType;
+              }}
+              onClick={
+                controls &&
+                ((evt: MouseEvent<HTMLTimeElement>) => {
+                  if (!canHover() || timePointer.current === 'touch') return;
+                  evt.preventDefault();
+                  openAiRun();
+                })
+              }
             />
           </Box>
         </Box>
@@ -1105,20 +1127,24 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         </div>
       );
 
+      // A follow-up row from the same sender drops the name and time, but an agent reply keeps
+      // them: each reply is its own run, with its own time and details. A streaming reply has its
+      // timing before its run details.
+      const showHeader = !collapse || !!aiRunInfo || !!replyTiming;
       const layout =
         messageLayout === MessageLayout.Compact ? (
           <CompactLayout before={header}>{body}</CompactLayout>
         ) : messageLayout === MessageLayout.Bubble ? (
           <BubbleLayout
             before={renderAvatar(true)}
-            header={!collapse && header}
+            header={showHeader && header}
             own={senderId === client.getUserId()}
           >
             {body}
           </BubbleLayout>
         ) : (
-          <ModernLayout before={collapse && !aiRunInfo ? undefined : renderAvatar(true)}>
-            {!collapse && header}
+          <ModernLayout before={showHeader ? renderAvatar(true) : undefined}>
+            {showHeader && header}
             {body}
           </ModernLayout>
         );
@@ -1129,7 +1155,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           tabIndex={0}
           highlight={highlight}
           className={css.MessageBase}
-          collapse={collapse}
+          collapse={!showHeader}
           space={messageSpacing}
           selected={!!menuAnchor || edit}
           onContextMenu={openMenuAtPointer}

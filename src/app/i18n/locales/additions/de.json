@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "Schließen",
       "previous": "Vorheriges Bild",
-      "next": "Nächstes Bild"
+      "next": "Nächstes Bild",
+      "wheelZoomHint": "{{key}} + Scrollen zum Zoomen"
     },
     "inviteUserPrompt": {
       "close": "Schließen",
@@ -409,7 +410,7 @@
         "thirdPartyNotices": "Hinweise zu Drittanbietern",
         "soundsCredit": "Die Benachrichtigungs- und Einladungstöne sind Klänge, die für diese App synthetisiert wurden.",
         "debugMode": "Debug-Modus",
-        "debugModeDescription": "Zeichnet Diagnosedaten auf diesem Gerät auf, damit du sie exportieren und die detaillierte Diagnoseaufzeichnung aktivieren kannst."
+        "debugModeDescription": "Fügt dem +-Menü des Eingabefelds „App-Protokolle anhängen“ hinzu, damit du die Diagnosedaten dieses Geräts in einer Nachricht senden kannst. Aktiviere unten die detaillierte Diagnoseaufzeichnung, um Speicherwerte und eine ausführliche Aufzeichnung einzuschließen."
       }
     },
     "createChat": {
@@ -777,6 +778,15 @@
           "saved": "Gespeichert",
           "declined": "Abgelehnt",
           "expired": "Abgelaufen"
+        },
+        "line": {
+          "sentKept": "Gesendet · {{duration}} aufbewahrt"
+        },
+        "facts": {
+          "nothingSent": "Nichts wurde gesendet oder aufbewahrt.",
+          "noAnswer": "Keine Antwort rechtzeitig, daher wurde nichts gesendet.",
+          "askedAs": "Angefragt für die Befehle von {{agent}} in dieser Unterhaltung als {{variable}}.",
+          "replaced": "Hat den zuvor gespeicherten Schlüssel ersetzt."
         }
       },
       "skillReviewMarker": {
@@ -927,6 +937,8 @@
     "emoji": "Emoji",
     "cancelReply": "Antwort abbrechen",
     "moreActions": "Weitere Aktionen",
+    "attachMenu": "Anhängen",
+    "attachAppLogs": "App-Protokolle anhängen",
     "lostFiles": "Nicht mit diesem Entwurf behalten: {{files}}. Hänge sie vor dem Senden erneut an.",
     "lostPastes": "Eingefügter Text wurde nicht mit diesem Entwurf behalten. Füge ihn vor dem Senden erneut ein.",
     "dismissLostFiles": "Ausblenden",

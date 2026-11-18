@@ -40,13 +40,17 @@ import {
 // then carries that title and hint, and a button that names the page's host and opens it in a tab
 // of its own, which knows nothing of the page it came from. A host too long for the button's line
 // wraps, so the person reads all of it, its end too, which says whose page it is.
+// A card that names the agent's reply and the tool call that asked waits as its own row, right
+// under the reply. Once the agent marks it done it moves into the reply, in place of that call's
+// line: a line like a tool call's that opens the request read-only, with the focus the row had.
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 /** Another origin, where a redirect from the MindRoom server points. */
 const ELSEWHERE = 'http://127.0.0.1:29598';
 const CORS = { 'Access-Control-Allow-Origin': '*' };
 const PASSWORD = 'secret-request-spec-password';
-// Set SECRET_REQUEST_SHOTS=<directory> to save screenshots of the folded and the opened card.
+// Set SECRET_REQUEST_SHOTS=<directory> to save screenshots of the folded and the opened card, and
+// of a request for a reply's tool call: waiting under the reply, then done in it, folded and opened.
 const SHOTS = process.env.SECRET_REQUEST_SHOTS;
 
 test.beforeEach(async () => {
@@ -99,7 +103,8 @@ const openThread = async (
   context: BrowserContext,
   page: Page,
   user: DisposableUser,
-  room: ThreadFixture
+  room: ThreadFixture,
+  showToolCalls = true
 ) => {
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
@@ -114,7 +119,7 @@ const openThread = async (
       },
     });
   });
-  await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...user, showToolCalls });
   await page.goto(
     `/home/${encodeURIComponent(room.roomId)}?threadId=${encodeURIComponent(room.rootId)}`
   );
@@ -136,14 +141,25 @@ const expectSaved = async (page: Page) => {
   await expect(keyCard(page).locator('input')).toHaveCount(0);
 };
 
-/** A fresh run's accounts, a thread the agent joined, and the agent's pending card in it. */
+const THREAD = (rootId: string) => ({
+  rel_type: 'm.thread',
+  event_id: rootId,
+  is_falling_back: true,
+  'm.in_reply_to': { event_id: rootId },
+});
+
+/**
+ * A fresh run's accounts, a thread the agent joined, and the agent's pending card in it; with
+ * `inline`, after the agent's reply `inline.reply`, which the card names with `inline.toolCallId`.
+ */
 const seedCard = async (
   withOther: boolean,
   content: (
     requesterId: string,
     requestId: string,
     status: 'pending'
-  ) => Record<string, unknown> = cardContent
+  ) => Record<string, unknown> = cardContent,
+  inline?: { reply: Record<string, unknown>; toolCallId: string }
 ) => {
   // Fresh for each run, so a repeat in the same worker registers its own accounts.
   const run = randomUUID().replaceAll('-', '').slice(0, 10);
@@ -161,19 +177,28 @@ const seedCard = async (
   });
   await joinRoom(HOMESERVER, agent.accessToken, room.roomId);
   if (other) await joinRoom(HOMESERVER, other.accessToken, room.roomId);
+  const replyId = inline
+    ? await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
+        ...inline.reply,
+        'm.relates_to': THREAD(room.rootId),
+      })
+    : undefined;
+  const card = content(requester.userId, requestId, 'pending');
   const cardId = await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
-    ...content(requester.userId, requestId, 'pending'),
-    'm.relates_to': {
-      rel_type: 'm.thread',
-      event_id: room.rootId,
-      is_falling_back: true,
-      'm.in_reply_to': { event_id: room.rootId },
-    },
+    ...card,
+    ...(inline && {
+      'io.mindroom.secret_request': {
+        ...(card['io.mindroom.secret_request'] as Record<string, unknown>),
+        response_event_id: replyId,
+        tool_call_id: inline.toolCallId,
+      },
+    }),
+    'm.relates_to': THREAD(room.rootId),
   });
   const answerUrl = `${MINDROOM_API}/api/rooms/${encodeURIComponent(
     room.roomId
   )}/secret-requests/${requestId}`;
-  return { requester, other, agent, room, requestId, cardId, answerUrl };
+  return { requester, other, agent, room, requestId, cardId, replyId, answerUrl };
 };
 
 /** The MindRoom server's sign-in, which gives `requester` the session `sessionToken`. */
@@ -677,4 +702,187 @@ test('a host too long for one line wraps on the button, so its end stays readabl
     };
   });
   expect(fit).toEqual({ cut: false, lines: true, inside: true });
+});
+
+/** An agent reply that ran two commands, asked for a secret, and ran one more. */
+const CALLS = [
+  ['shell', "cmd='git -C /srv/provision status -sb'"],
+  ['shell', "cmd='git -C /srv/provision fetch'"],
+  ['request_temporary_secret', "env='SUDO_PASSWORD'"],
+  ['shell', "cmd='sudo systemctl start git-checkout-mindroom'"],
+] as const;
+const toolReply = () => {
+  const lines = [
+    'Pulling the provisioning checkout. First a look at how far behind it is.',
+    ...CALLS.map(([name], index) => `🔧 \`${name}\` [${index + 1}]`),
+    'Done. The checkout is at b0e64d34e.',
+  ];
+  return {
+    msgtype: 'm.text',
+    body: lines.join('\n\n'),
+    format: 'org.matrix.custom.html',
+    formatted_body: [
+      `<p>${lines[0]}</p>`,
+      ...CALLS.map(([name], index) => `<p>🔧 <code>${name}</code> [${index + 1}]</p>`),
+      `<p>${lines.at(-1)}</p>`,
+    ].join('\n'),
+    'io.mindroom.tool_trace': {
+      version: 2,
+      events: CALLS.map(([name, args], index) => ({
+        type: 'tool_call_completed',
+        tool_name: name,
+        tool_call_id: `call_${index + 1}`,
+        args_preview: args,
+        result_preview: 'ok',
+      })),
+    },
+  };
+};
+
+/** The reply and the rows under it, `count` in all, as one picture. */
+const shootRows = async (page: Page, first: Locator, count: number, path: string) => {
+  const box = await first.evaluate((element, rows) => {
+    const all = [...document.querySelectorAll('[data-message-id]')];
+    const start = all.indexOf(element);
+    const boxes = all.slice(start, start + rows).map((node) => node.getBoundingClientRect());
+    const top = Math.min(...boxes.map(({ top: y }) => y));
+    const bottom = Math.max(...boxes.map(({ bottom: y }) => y));
+    const left = Math.min(...boxes.map(({ left: x }) => x));
+    const right = Math.max(...boxes.map(({ right: x }) => x));
+    return { x: left, y: top, width: right - left, height: bottom - top };
+  }, count);
+  await page.screenshot({ path, clip: box });
+};
+
+test('a request waits as a row under its reply, then moves into the reply at its tool call', async ({
+  context,
+  page,
+}) => {
+  test.slow();
+  const secret = `pw-${randomUUID().replaceAll('-', '')}`;
+  const { requester, agent, room, requestId, cardId, replyId, answerUrl } = await seedCard(
+    false,
+    temporaryContent,
+    { reply: toolReply(), toolCallId: 'call_3' }
+  );
+  await routeSignIn(context, requester, `session-${randomUUID()}`);
+  const answers: { url: string; body: string | null }[] = [];
+  await context.route(`${MINDROOM_API}/api/rooms/**`, async (route) => {
+    answers.push({ url: route.request().url(), body: route.request().postData() });
+    await route.fulfill({ status: 204, headers: CORS });
+  });
+  const leaks = watchLeaks(context, secret, answerUrl);
+
+  // As a reader who never showed tool calls.
+  await openThread(context, page, requester, room, false);
+  const reply = page.locator(`[data-message-id="${replyId}"]`);
+  const card = page.locator(`[data-message-id="${cardId}"]`);
+  const field = card.getByLabel('Secret for SUDO_PASSWORD', { exact: true });
+  await expect(field).toBeVisible({ timeout: 30_000 });
+  // Waiting, the card is the row right under the reply, which draws no line for it.
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-message-id]')].map((node) =>
+      node.getAttribute('data-message-id')
+    )
+  );
+  expect(rows.slice(rows.indexOf(replyId!), rows.indexOf(replyId!) + 2)).toEqual([replyId, cardId]);
+  await expect(reply.locator('[data-secret-request-line]')).toHaveCount(0);
+  const cog = reply.locator('[data-tool-calls-fold]');
+  await cog.locator('button').click();
+  await expect(reply.getByText('Ran 4 tool calls')).toBeVisible();
+  if (SHOTS) await shootRows(page, reply, 2, `${SHOTS}/inline-pending.png`);
+
+  // Sent from the keyboard, the card folds and keeps the focus.
+  await field.fill(secret);
+  await field.press('Enter');
+  await expect(card.getByRole('status')).toHaveText('Sent, waiting for the agent');
+  await expect(card.locator('input')).toHaveCount(0);
+  await expect(card.locator('summary')).toBeFocused();
+  expect(JSON.parse(answers[0]?.body ?? 'null')).toEqual({ secret, keep: 'memory' });
+
+  // The agent's edit: the card's row goes, and the reply draws the request at its call, a line
+  // like a tool call's with what became of the secret, which takes the focus.
+  const saved = temporaryContent(requester.userId, requestId, 'saved', 'memory');
+  const savedContent = {
+    ...saved,
+    'io.mindroom.secret_request': {
+      ...saved['io.mindroom.secret_request'],
+      response_event_id: replyId,
+      tool_call_id: 'call_3',
+    },
+  };
+  await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
+    ...savedContent,
+    body: '* 🔑 Secret received.',
+    'm.new_content': { ...savedContent, body: '🔑 Secret received.' },
+    'm.relates_to': { rel_type: 'm.replace', event_id: cardId },
+  });
+  const line = reply.locator('[data-secret-request-line]');
+  await expect(line).toHaveAttribute('data-secret-request-line', 'saved', { timeout: 30_000 });
+  await expect(card).toHaveCount(0);
+  const lineButton = line.locator(':scope > button');
+  await expect(lineButton).toBeFocused();
+  await expect(lineButton).toHaveText('SUDO_PASSWORDSent · kept 15 minutes');
+  const order = await reply.evaluate((element) =>
+    [...element.querySelectorAll('[data-secret-request-line], button[aria-controls]')].map((node) =>
+      node.hasAttribute('data-secret-request-line')
+        ? 'secret'
+        : (node.textContent ?? '').replace(/shell.*$/, '').trim()
+    )
+  );
+  expect(order).toEqual(['Ran 2 tool calls', 'secret', 'Ran 1 tool call']);
+  await expect(cog).toHaveAttribute('data-state', 'done');
+  if (SHOTS) await reply.screenshot({ path: `${SHOTS}/inline-done.png` });
+
+  // A click opens the request read-only, another folds it.
+  const receipt = line.locator('[data-secret-request-receipt]');
+  await lineButton.click();
+  await expect(receipt).toContainText('To restart the web server.');
+  await expect(receipt).toContainText('Kept for 15 minutes, in memory only.');
+  await expect(receipt).not.toContainText('Sent to');
+  await expect(receipt.locator('input, button')).toHaveCount(0);
+  if (SHOTS) await reply.screenshot({ path: `${SHOTS}/inline-opened.png` });
+  await lineButton.click();
+  await expect(receipt).toHaveCount(0);
+
+  // Done, it hides with the other calls when the cog closes.
+  await cog.locator('button').click();
+  await expect(line).toHaveCount(0);
+  await expect(reply.getByText('Ran 2 tool calls')).toHaveCount(0);
+
+  expect(answers).toHaveLength(1);
+  expect(leaks).toEqual([]);
+});
+
+test('a request waiting under its reply fits a phone', async ({ context, page }) => {
+  test.slow();
+  const { requester, room, cardId, replyId } = await seedCard(false, temporaryContent, {
+    reply: toolReply(),
+    toolCallId: 'call_3',
+  });
+  await routeSignIn(context, requester, `session-${randomUUID()}`);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await openThread(context, page, requester, room, false);
+  const card = page.locator(`[data-message-id="${cardId}"]`);
+  await expect(card.locator('input:not([type="radio"])')).toBeVisible({ timeout: 30_000 });
+  // Nothing of the form sticks out of the card.
+  const fits = await card.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return (
+      [...element.querySelectorAll('input, button')].every((node) => {
+        const own = node.getBoundingClientRect();
+        return own.left >= box.left - 1 && own.right <= box.right + 1;
+      }) && box.right <= window.innerWidth
+    );
+  });
+  expect(fits).toBe(true);
+  if (SHOTS) {
+    await shootRows(
+      page,
+      page.locator(`[data-message-id="${replyId}"]`),
+      2,
+      `${SHOTS}/inline-pending-phone.png`
+    );
+  }
 });

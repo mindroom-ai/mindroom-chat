@@ -185,14 +185,17 @@ function DeepTraceSetting() {
 }
 
 /**
- * Debug mode in a browser, where the iOS app's diagnostics are off until it is turned on. On, it
- * shows the diagnostics export and the deep tracing switch.
+ * Debug mode, on every platform: on, the composer offers "Attach app logs". In a browser, where the
+ * iOS app's diagnostics are off until it is turned on, it also shows the diagnostics export and the
+ * deep tracing switch; the iOS app keeps its recorders (`keepRecorders`) whatever it says.
  */
 function DebugModeSetting({
   enabled,
+  keepRecorders,
   onChange,
 }: {
   enabled: boolean;
+  keepRecorders: boolean;
   onChange: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -201,7 +204,7 @@ function DebugModeSetting({
   const handleToggle = async (next: boolean) => {
     setPending(true);
     try {
-      await setDebugModeEnabled(next);
+      await setDebugModeEnabled(next, { keepRecorders });
     } catch {
       // The switch shows the saved choice again below.
     } finally {
@@ -316,12 +319,14 @@ function CreditLink({ href, children }: { href: string; children?: ReactNode }) 
 
 function CreditsList() {
   const { t } = useTranslation();
+  // The card gives each row an inline padding of S400, where the other rows' text starts; the
+  // items start 1.25em further in, so their bullets hang inside the card, not on its border.
   return (
     <Box
       as="ul"
       direction="Column"
       gap="200"
-      style={{ margin: 0, paddingInlineStart: config.space.S400 }}
+      style={{ margin: 0, paddingInlineStart: `calc(${config.space.S400} + 1.25em)` }}
     >
       {CREDITS.map(({ i18nKey, tag, project, license }) => {
         const components = {
@@ -458,8 +463,8 @@ function AppIdentity() {
 }
 
 /**
- * App version, diagnostics tools (always in the iOS app, behind debug mode elsewhere), error
- * reports when configured, the interface tour, and credits.
+ * App version, debug mode, diagnostics tools (always in the iOS app, behind debug mode elsewhere),
+ * error reports when configured, the interface tour, and credits.
  */
 export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
@@ -472,7 +477,11 @@ export function About({ requestClose, closeDialog }: AboutProps) {
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
       <AboutSection title={t('featureUi.settings.about.options')}>
-        {!nativeDiagnostics && <DebugModeSetting enabled={debugMode} onChange={setDebugMode} />}
+        <DebugModeSetting
+          enabled={debugMode}
+          keepRecorders={nativeDiagnostics}
+          onChange={setDebugMode}
+        />
         {diagnostics && <DiagnosticsExport />}
         {diagnostics && <DeepTraceSetting />}
         {collectorHost && <ErrorReportsSetting host={collectorHost} />}

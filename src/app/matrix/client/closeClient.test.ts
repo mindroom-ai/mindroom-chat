@@ -1,6 +1,6 @@
 import { createClient, MemoryStore } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { closeClient } from './closeClient';
+import { closeClient, onClientClose } from './closeClient';
 
 describe('closeClient', () => {
   it('stops the client and then closes its sync store', () => {
@@ -13,6 +13,18 @@ describe('closeClient', () => {
     closeClient(client as never);
 
     expect(calls).toEqual(['stop', 'close store']);
+  });
+
+  it('first stops what listens to the client from outside it, once', () => {
+    const calls: string[] = [];
+    const client = { stopClient: vi.fn(() => calls.push('stop')), store: {} };
+    onClientClose(client as never, () => calls.push('page listener'));
+    onClientClose(client as never, () => calls.push('store listener'));
+
+    closeClient(client as never);
+    closeClient(client as never);
+
+    expect(calls).toEqual(['page listener', 'store listener', 'stop', 'stop']);
   });
 
   it('logs a store that fails to close instead of throwing', async () => {

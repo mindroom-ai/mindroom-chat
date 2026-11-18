@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import {
   ClientEvent,
   MatrixEventEvent,
@@ -8,18 +8,18 @@ import {
   RoomMemberEvent,
   RoomStateEvent,
   ThreadEvent,
+  type MatrixClient,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
-import {
-  KEPT_RECORD_CHECK_MS,
-  useThreadOverviewRefreshCounter,
-} from './threadOverviewRefreshCounter';
+import { afterEach, describe, expect, it } from 'vitest';
+import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { rememberSeenThreadRoot } from '../../matrix/seenThreadRoots';
+import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 // What the room's thread records are told of each event: the thread it may have changed, or the
 // whole room. The records of the other threads are kept (`ThreadRecordReuse`), so each source a
-// record reads has to be told here, also the ones that raise no count.
+// record reads has to be told here, each with its count.
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
 
@@ -75,6 +75,10 @@ const setup = (threadId?: string) => {
     client,
     findEventById: (eventId: string) => held.get(eventId),
     getThread: () => null,
+    // An unopened thread, whose summary names a reply no timeline holds.
+    getThreads: () => [
+      { id: '$unopened', replyToEvent: event({ id: '$summarized', threadRootId: '$unopened' }) },
+    ],
   });
   const hook = renderHook(() => useThreadOverviewRefreshCounter(room as unknown as Room, threadId));
   const state = () => hook.result.current;
@@ -88,16 +92,21 @@ const setup = (threadId?: string) => {
       after.room > before
         ? 'room'
         : [...after.threads].filter(([, count]) => count > before).map(([id]) => id);
-    return { marked, counted: state().overviewRefreshCounter - overviewRefreshCounter };
+    return { marked, counted: state().overviewRefreshCounter > overviewRefreshCounter };
   };
   return { room, client, state, told, oldest, unmount: hook.unmount };
 };
 
+// A hook of an earlier test would hear the store of kept edits, which every client shares.
+afterEach(cleanup);
+
 describe('useThreadOverviewRefreshCounter changes', () => {
-  it('marks the room when it starts to listen', () => {
+  it('marks the room and counts when it starts to listen', () => {
     const { state } = setup();
 
+    // What the room heard between the render that built the records and these listeners.
     expect(state().overviewChanges.room).toBe(1);
+    expect(state().overviewRefreshCounter).toBe(1);
   });
 
   it('marks nothing while a thread is open', () => {
@@ -133,13 +142,13 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ).toEqual(marked);
   });
 
-  it('marks the thread of an event a timeline loses, which raises no count', () => {
+  it('marks the thread of an event a timeline loses, and counts', () => {
     const { room, told } = setup();
     const lost = event({ id: '$new', threadRootId: '$root' });
 
     expect(told(() => room.emit(RoomEvent.Timeline, lost, room, undefined, true))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
   });
 
@@ -148,7 +157,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => room.emit(ThreadEvent.Update, { id: '$root' }))).toEqual({
       marked: ['$root'],
-      counted: 1,
+      counted: true,
     });
     expect(told(() => room.emit(ThreadEvent.NewReply, { id: '$other' })).marked).toEqual([
       '$other',
@@ -164,12 +173,12 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf('@alice:example.org'), room))).toEqual(
       {
         marked: [],
-        counted: 1,
+        counted: true,
       }
     );
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME), room))).toEqual({
       marked: 'room',
-      counted: 1,
+      counted: true,
     });
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, 'main'), room)).marked).toBe(
       'room'
@@ -182,7 +191,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, '$root'), room))).toEqual({
       marked: ['$root'],
-      counted: 1,
+      counted: true,
     });
     // Someone else's receipt for the main timeline in the same event changes nothing.
     const mixed = event({
@@ -218,7 +227,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => state().setOverviewRefreshCounter((count) => count + 1))).toEqual({
       marked: 'room',
-      counted: 1,
+      counted: true,
     });
   });
 
@@ -233,7 +242,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
         client.emit(MatrixEventEvent.Decrypted, first);
         client.emit(MatrixEventEvent.Decrypted, second);
       })
-    ).toEqual({ marked: ['$a', '$b'], counted: 0 });
+    ).toEqual({ marked: ['$a', '$b'], counted: false });
     await act(async () => {
       await new Promise((resolve) => {
         setTimeout(resolve, 0);
@@ -243,14 +252,13 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     expect(stateOf().overviewRefreshCounter).toBe(counter + 1);
   });
 
-  // Sources a record reads that raise no count: each shows at the next count of any event.
-  it('marks the thread of a local echo that moves on without a count', () => {
+  it('marks the thread of a local echo that moves on, and counts', () => {
     const { room, told } = setup();
     const echo = event({ id: '$new', threadRootId: '$root' });
 
     expect(told(() => room.emit(RoomEvent.LocalEchoUpdated, echo, room))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
   });
 
@@ -261,7 +269,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => room.emit(RoomEvent.Redaction, redaction, room, '$root'))).toEqual({
       marked: ['$root', '$redaction', '$plain'],
-      counted: 0,
+      counted: true,
     });
     expect(told(() => room.emit(RoomEvent.Redaction, redaction, room, undefined)).marked).toEqual([
       '$redaction',
@@ -269,12 +277,12 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ]);
   });
 
-  it('marks the room for a timeline of the room that starts over, without a count', () => {
+  it('marks the room for a timeline of the room that starts over, and counts', () => {
     const { room, told } = setup();
 
     expect(told(() => room.emit(RoomEvent.TimelineReset, room, {}))).toEqual({
       marked: 'room',
-      counted: 0,
+      counted: true,
     });
   });
 
@@ -283,7 +291,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(
       told(() => room.emit(RoomEvent.TimelineReset, room, { thread: { id: '$root' } }))
-    ).toEqual({ marked: ['$root'], counted: 0 });
+    ).toEqual({ marked: ['$root'], counted: true });
   });
 
   it('marks the thread of an event an edit is put on or taken off', () => {
@@ -292,53 +300,93 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(emit({ id: '$reply', threadRootId: '$root' }))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
     expect(
       told(emit({ id: '$reply', threadRootId: '$root', roomId: '!other:example.org' })).marked
     ).toEqual([]);
   });
 
-  it('marks the room and counts once, a second after a build kept a record', () => {
-    vi.useFakeTimers();
-    const { state, told } = setup();
-    const kept = () => state().overviewChanges.onKept?.();
+  // A member who left shows the name of their newest member event the room has loaded.
+  it.each([
+    ['takes, as a page of history brings', true, false],
+    ['loses', undefined, true],
+  ])('marks the room and counts for a member event a timeline %s', (_what, toStart, removed) => {
+    const { room, told } = setup();
+    const member = event({ id: '$member', type: 'm.room.member' });
 
-    // Two builds that kept records wait for one check.
-    expect(told(kept)).toEqual({ marked: [], counted: 0 });
-    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS - 1)).counted).toBe(0);
-    kept();
-    expect(told(() => vi.advanceTimersByTime(1))).toEqual({ marked: 'room', counted: 1 });
-    // The build that follows keeps none, so nothing more comes.
-    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS)).counted).toBe(0);
-    // A later kept build is checked again.
-    kept();
-    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS)).marked).toBe('room');
-    vi.useRealTimers();
+    expect(told(() => room.emit(RoomEvent.Timeline, member, room, toStart, removed))).toEqual({
+      marked: 'room',
+      counted: true,
+    });
   });
 
-  it('checks no kept record once it stops listening', () => {
-    vi.useFakeTimers();
+  it('marks the room and counts for a root of this room this device takes for read', () => {
+    const { told, unmount } = setup();
+    const root = { getId: () => '$root', getTs: () => 1 } as unknown as MatrixEvent;
+    const see = (roomId: string) => () => rememberSeenThreadRoot(ME, roomId, root, 0);
+
+    // No receipt is sent for it, so no event of the room tells of it.
+    expect(told(see(ROOM_ID))).toEqual({ marked: 'room', counted: true });
+    expect(told(see('!other:example.org'))).toEqual({ marked: [], counted: false });
+    unmount();
+    expect(told(see(ROOM_ID))).toEqual({ marked: [], counted: false });
+  });
+
+  it('marks the thread of a message whose kept edits a full store drops, and counts', () => {
+    const { client, told, unmount } = setup();
+    const stop = keepSyncedEdits(
+      Object.assign(client, { getRoom: () => null }) as unknown as MatrixClient
+    );
+    const editOf = (messageId: string) =>
+      ({
+        getId: () => `$edit-of-${messageId}`,
+        getRoomId: () => '!other:example.org',
+        getTs: () => 1,
+        isRedacted: () => false,
+        getWireContent: () => ({ 'm.relates_to': { rel_type: 'm.replace', event_id: messageId } }),
+        getContent: () => ({}),
+      } as unknown as MatrixEvent);
+    /** The store keeps 5,000 messages: one more drops the one it heard of longest ago. */
+    const fill = (from: number) => () => {
+      for (let i = from; i < from + 5000; i += 1) client.emit(ClientEvent.Event, editOf(`$m${i}`));
+    };
+    client.emit(ClientEvent.Event, editOf('$reply'));
+
+    // The store holds `$reply` and 4,999 more: the next message drops `$reply`.
+    expect(told(fill(0))).toEqual({ marked: ['$root'], counted: true });
+    const dropped = told(() => {
+      client.emit(ClientEvent.Event, editOf('$summarized'));
+      fill(5000)();
+    });
+    expect(dropped.marked).toContain('$unopened');
+    // A message the room does not find may be a root no timeline holds, such as a pinned one.
+    expect(dropped.marked).toContain('$m4999');
+    expect(dropped.counted).toBe(true);
+    unmount();
+    client.emit(ClientEvent.Event, editOf('$reply'));
+    expect(told(fill(10000)).marked).toEqual([]);
+    stop();
+  });
+
+  it('says that it hears the room while it does', () => {
     const { state, unmount } = setup();
     const changes = state().overviewChanges;
-    changes.onKept?.();
+    expect(changes.listened).toBe(true);
 
     unmount();
-    const before = changes.count;
-    vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS);
 
-    expect(changes.count).toBe(before);
-    expect(changes.onKept).toBeUndefined();
-    vi.useRealTimers();
+    expect(changes.listened).toBe(false);
+    expect(setup('$open').state().overviewChanges.listened).toBe(false);
   });
 
-  it('marks the thread of each event the client hears of this room, without a count', () => {
+  it('marks the thread of each event the client hears of this room, and counts', () => {
     const { client, told } = setup();
     const emit = (fake: FakeEvent) => () => client.emit(ClientEvent.Event, event(fake));
 
     expect(told(emit({ id: '$edit', threadRootId: '$root' }))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
     expect(told(emit({ id: '$edit', relatesTo: '$gone' })).marked).toBe('room');
     expect(
@@ -349,7 +397,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   });
 
   it.each([
-    ['marks the room for', 'its encryption', 'm.room.encryption', 'room'],
+    ['marks the room and counts for', 'its encryption', 'm.room.encryption', 'room'],
     // The sync repeats member events that change nothing; a member's change has its own events.
     ['marks nothing for', 'a member event', 'm.room.member', []],
     ['marks nothing for', 'its topic', 'm.room.topic', []],
@@ -358,19 +406,19 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     const emit = (roomId: string) => () =>
       client.emit(RoomStateEvent.Events, event({ id: '$state', type }), { roomId });
 
-    expect(told(emit(ROOM_ID))).toEqual({ marked, counted: 0 });
-    expect(told(emit('!other:example.org')).marked).toEqual([]);
+    expect(told(emit(ROOM_ID))).toEqual({ marked, counted: marked === 'room' });
+    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: false });
   });
 
   it.each([
     ['name', RoomMemberEvent.Name],
     ['membership', RoomMemberEvent.Membership],
-  ])("marks the room for a member's new %s", (_name, name) => {
+  ])("marks the room and counts for a member's new %s", (_name, name) => {
     const { client, told } = setup();
     const emit = (roomId: string) => () =>
       client.emit(name, event({ id: '$member', type: 'm.room.member' }), { roomId });
 
-    expect(told(emit(ROOM_ID))).toEqual({ marked: 'room', counted: 0 });
-    expect(told(emit('!other:example.org')).marked).toEqual([]);
+    expect(told(emit(ROOM_ID))).toEqual({ marked: 'room', counted: true });
+    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: false });
   });
 });

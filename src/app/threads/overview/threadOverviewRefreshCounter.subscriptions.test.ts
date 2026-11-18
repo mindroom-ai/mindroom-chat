@@ -58,6 +58,7 @@ type FakeRoom = ReturnType<typeof fakeRoom>;
 const fakeEvent = (eventId: string, threadRootId?: string, roomId = '!room:example.org') => ({
   getId: () => eventId,
   getRoomId: () => roomId,
+  getType: () => 'm.room.message',
   isThreadRoot: false,
   threadRootId,
   getAssociatedId: () => undefined,
@@ -112,7 +113,7 @@ const renderCounter = async (room: FakeRoom, threadId?: string) => {
 describe('useThreadOverviewRefreshCounter subscriptions', () => {
   // Regression (P2-e2ee-F005): WebKit decrypted a thread's newest reply after the cards were drawn,
   // and the card kept an older reply's preview for good.
-  it('counts a thread event of this room that decrypts, once per batch', async () => {
+  it('counts an event of this room that decrypts, once per batch', async () => {
     const room = fakeRoom('!room:example.org');
     const view = await renderCounter(room);
 
@@ -123,7 +124,7 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
         setTimeout(resolve, 0);
       });
     });
-    expect(view.counter()).toBe(1);
+    expect(view.counter()).toBe(2);
 
     await act(async () => {
       room.client.emit(MatrixEventEvent.Decrypted, fakeEvent('$plain'));
@@ -135,30 +136,45 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
         setTimeout(resolve, 0);
       });
     });
-    expect(view.counter()).toBe(1);
+    // A message outside any thread may be the event a receipt names; another room's is not heard.
+    expect(view.counter()).toBe(3);
+    await act(async () => {
+      room.client.emit(
+        MatrixEventEvent.Decrypted,
+        fakeEvent('$other', '$root', '!other:example.org')
+      );
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(view.counter()).toBe(3);
 
     await view.unmount();
     expect(room.client.count(MatrixEventEvent.Decrypted)).toBe(0);
   });
 
-  it('counts added timeline events of this room that concern a thread', async () => {
+  it('counts the events a timeline of this room takes or loses', async () => {
     const room = fakeRoom('!room:example.org');
     const other = fakeRoom('!other:example.org');
     const view = await renderCounter(room);
     const reply = fakeEvent('$reply', '$root');
 
     await view.emit(room, RoomEvent.Timeline, reply, room, false, false, {});
-    expect(view.counter()).toBe(1);
+    expect(view.counter()).toBe(2);
 
-    await view.emit(room, RoomEvent.Timeline, reply, room, false, true, {});
     await view.emit(room, RoomEvent.Timeline, reply, other, false, false, {});
     await view.emit(room, RoomEvent.Timeline, reply, undefined, false, false, {});
+    expect(view.counter()).toBe(2);
+
+    // One a timeline loses, and a message outside any thread: a receipt may name either.
+    await view.emit(room, RoomEvent.Timeline, reply, room, false, true, {});
+    expect(view.counter()).toBe(3);
     await view.emit(room, RoomEvent.Timeline, fakeEvent('$plain'), room, false, false, {});
-    expect(view.counter()).toBe(1);
+    expect(view.counter()).toBe(4);
 
     // Older events that pagination adds at the start count like live ones.
     await view.emit(room, RoomEvent.Timeline, fakeEvent('$older', '$root'), room, true, false, {});
-    expect(view.counter()).toBe(2);
+    expect(view.counter()).toBe(5);
 
     await view.unmount();
   });
@@ -169,10 +185,10 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
 
     await view.emit(room, RoomEvent.Receipt, {}, fakeRoom('!other:example.org'));
     await view.emit(room, RoomEvent.Receipt);
-    expect(view.counter()).toBe(0);
+    expect(view.counter()).toBe(1);
 
     await view.emit(room, RoomEvent.Receipt, {}, room);
-    expect(view.counter()).toBe(1);
+    expect(view.counter()).toBe(2);
 
     await view.unmount();
   });
@@ -182,23 +198,23 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
     const view = await renderCounter(room);
 
     await view.emit(room, ThreadEvent.New);
-    expect(view.counter()).toBe(1);
-    await view.emit(room, ThreadEvent.NewReply);
     expect(view.counter()).toBe(2);
-    await view.emit(room, ThreadEvent.Delete);
+    await view.emit(room, ThreadEvent.NewReply);
     expect(view.counter()).toBe(3);
+    await view.emit(room, ThreadEvent.Delete);
+    expect(view.counter()).toBe(4);
 
     await act(async () => {
       room.emit(ThreadEvent.New);
       room.emit(ThreadEvent.Update);
       room.emit(ThreadEvent.NewReply);
     });
-    expect(view.counter()).toBe(6);
+    expect(view.counter()).toBe(7);
 
     await view.unmount();
   });
 
-  it('stops listening inside a thread and resumes from the same count after it', async () => {
+  it('stops listening inside a thread and counts once when it listens again after it', async () => {
     const room = fakeRoom('!room:example.org');
     const view = await renderCounter(room);
     expect(room.listenerCounts()).toEqual([1, 1, 1, 1, 1, 1]);
@@ -209,18 +225,20 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
 
     await view.emit(room, ThreadEvent.Update);
     await view.emit(room, RoomEvent.Receipt, {}, room);
-    expect(view.counter()).toBe(1);
+    expect(view.counter()).toBe(2);
 
+    // What the room heard while the thread was open.
     await view.rerender(room, undefined);
     expect(room.listenerCounts()).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(view.counter()).toBe(3);
     await view.emit(room, ThreadEvent.Update);
-    expect(view.counter()).toBe(2);
+    expect(view.counter()).toBe(4);
 
     await view.unmount();
     expect(room.listenerCounts()).toEqual([0, 0, 0, 0, 0, 0]);
   });
 
-  it('moves the listeners to a new room and keeps the count', async () => {
+  it('moves the listeners to a new room and counts once for it', async () => {
     const first = fakeRoom('!first:example.org');
     const second = fakeRoom('!second:example.org');
     const view = await renderCounter(first);
@@ -229,12 +247,12 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
     await view.rerender(second);
     expect(first.listenerCounts()).toEqual([0, 0, 0, 0, 0, 0]);
     expect(second.listenerCounts()).toEqual([1, 1, 1, 1, 1, 1]);
-    expect(view.counter()).toBe(1);
+    expect(view.counter()).toBe(3);
 
     await view.emit(first, ThreadEvent.NewReply);
-    expect(view.counter()).toBe(1);
+    expect(view.counter()).toBe(3);
     await view.emit(second, RoomEvent.Receipt, {}, second);
-    expect(view.counter()).toBe(2);
+    expect(view.counter()).toBe(4);
 
     await view.unmount();
   });
@@ -252,7 +270,7 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
     await act(async () => {
       setter?.((value) => value + 1);
     });
-    expect(view.counter()).toBe(2);
+    expect(view.counter()).toBe(4);
 
     await view.unmount();
   });

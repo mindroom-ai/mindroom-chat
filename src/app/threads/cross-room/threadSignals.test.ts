@@ -594,6 +594,39 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     expect(threadRootPluginEvent(room, { ...entry(), threadRootId: '$gone' })).toBeUndefined();
   });
 
+  it('takes what a thread asked before it was resolved for answered, not what it asked after', async () => {
+    const { room } = await setup(ME, [approval('$ask', 2000, null), question('$q', 3000)]);
+    expect(readThreadSignals(room, ROOT, ME, NOW, 3000)).toMatchObject({ newsTs: 3000 });
+    expect(readThreadSignals(room, ROOT, ME, NOW, 3000).pendingApproval).toBeUndefined();
+    expect(readThreadSignals(room, ROOT, ME, NOW, 3000).pendingQuestion).toBeUndefined();
+    expect(readThreadSignals(room, ROOT, ME, NOW, 2500)).toMatchObject({
+      pendingQuestion: { eventId: '$q' },
+    });
+    expect(readThreadSignals(room, ROOT, ME, NOW, 2500).pendingApproval).toBeUndefined();
+    expect(readThreadSignals(room, ROOT, ME, NOW, 1500)).toMatchObject({
+      pendingApproval: { eventId: '$ask' },
+      pendingQuestion: { eventId: '$q' },
+    });
+  });
+
+  it('asks after a resolve when the edit that finishes the stream adds the question then', async () => {
+    const { 'io.mindroom.interactive': prompt } = question('$q', 2000).getContent();
+    const { room } = await setup(
+      ME,
+      [
+        event({ id: '$q', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } }),
+        edit('$q-done', '$q', 3000, {
+          body: 'Which deck should I polish?',
+          'io.mindroom.stream_status': 'completed',
+          'io.mindroom.interactive': prompt,
+        }),
+      ],
+      { opened: true }
+    );
+    expect(readThreadSignals(room, ROOT, ME, NOW, 2500).pendingQuestion?.eventId).toBe('$q');
+    expect(readThreadSignals(room, ROOT, ME, NOW, 3000).pendingQuestion).toBeUndefined();
+  });
+
   it('asks from the edit that finished the stream, so a message written meanwhile is no answer', async () => {
     const { 'io.mindroom.interactive': prompt } = question('$q', 2000).getContent();
     const { room } = await setup(

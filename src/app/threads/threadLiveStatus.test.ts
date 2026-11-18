@@ -78,6 +78,9 @@ describe('threadLiveStatusRows', () => {
         jobs: [{ status: 'running' }, { status: 'awaiting_approval' }, { status: 'running' }],
       })
     ).toEqual([['Background', '3 jobs, 1 waiting for approval']]);
+    expect(rows({ jobs: [{ status: 'awaiting_approval' }], resolved: true })).toEqual([
+      ['Background', '1 job'],
+    ]);
   });
 
   it('gives the jobs as a lower bound when the room has jobs no agent lists', () => {

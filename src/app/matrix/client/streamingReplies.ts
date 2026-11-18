@@ -60,7 +60,7 @@ const RETRY_DELAYS_MS = [15_000, 60_000, 300_000];
 const SEEN_LIMIT = 5_000;
 
 /** A reply the client vouches for: its room's gap count then, and its newest edit known. */
-type Seen = { roomId: string; gap: number; edit?: MatrixEvent };
+type Seen = { gap: number; edit?: MatrixEvent };
 
 type Check = {
   roomId: string;
@@ -199,14 +199,18 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     const known = seen.get(eventId)?.edit;
     seen.delete(eventId);
     seen.set(eventId, {
-      roomId,
       gap: gapsOf(roomId),
       edit: edit && (!known || isEventOrderedAfter(edit, known)) ? edit : known,
     });
     unknown.delete(eventId);
     if (seen.size > SEEN_LIMIT) {
       const oldest = seen.keys().next().value;
-      if (oldest !== undefined) seen.delete(oldest);
+      if (oldest === undefined) return;
+      seen.delete(oldest);
+      // A card that shows the forgotten reply as streaming is built again, and asks about it.
+      const showing = shown.get(oldest);
+      const room = showing && mx.getRoom(showing.roomId);
+      if (room) announce(room, showing.targets);
     }
   };
 
