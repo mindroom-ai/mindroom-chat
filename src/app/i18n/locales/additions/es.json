@@ -786,6 +786,15 @@
           "saved": "Guardada",
           "declined": "Rechazada",
           "expired": "Caducada"
+        },
+        "line": {
+          "sentKept": "Enviado · se conserva {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "No se envió ni se conservó nada.",
+          "noAnswer": "No hubo respuesta a tiempo, así que no se envió nada.",
+          "askedAs": "Se pidió para los comandos de {{agent}} en esta conversación como {{variable}}.",
+          "replaced": "Reemplazó la clave guardada antes."
         }
       },
       "skillReviewMarker": {

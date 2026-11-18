@@ -10,6 +10,12 @@ import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import {
+  InlineSecretRequestsContext,
+  NO_INLINE_SECRET_REQUESTS,
+  type InlineSecretRequestPlan,
+} from '../inlineSecretRequests';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 
 // The folded work shows its tool calls once open, so these tests show them.
@@ -125,7 +131,11 @@ const marker = (name: string, index: number) => `<p>🔧 <code>${name}</code> [$
 
 const toolTrace = (...toolNames: string[]) => ({
   version: 2,
-  events: toolNames.map((name) => ({ type: 'tool_call_completed', tool_name: name })),
+  events: toolNames.map((name, index) => ({
+    type: 'tool_call_completed',
+    tool_name: name,
+    tool_call_id: `call_${index + 1}`,
+  })),
 });
 
 /** The plain body of a reply with two tool calls, `length` characters long with its markers. */
@@ -184,22 +194,29 @@ let renderer: ReactTestRenderer | undefined;
 const render = (
   content: Record<string, unknown>,
   fromMindroomAgent = true,
-  highlightRegex?: RegExp
+  highlightRegex?: RegExp,
+  secrets: InlineSecretRequestPlan = NO_INLINE_SECRET_REQUESTS
 ) =>
   act(() => {
     const tree = (
       <ClientConfigProvider value={{}}>
-        {renderAgentMessageContent({
-          mEvent,
-          eventId: replyId,
-          fromMindroomAgent,
-          highlightRegex,
-          displayName: 'Agent',
-          msgType: 'm.text',
-          content,
-          htmlReactParserOptions,
-          linkifyOpts,
-        })}
+        <InlineSecretRequestsContext.Provider value={secrets}>
+          <ToolCallMessageContext.Provider
+            value={{ eventId: replyId, roomId: '!room:example.org' }}
+          >
+            {renderAgentMessageContent({
+              mEvent,
+              eventId: replyId,
+              fromMindroomAgent,
+              highlightRegex,
+              displayName: 'Agent',
+              msgType: 'm.text',
+              content,
+              htmlReactParserOptions,
+              linkifyOpts,
+            })}
+          </ToolCallMessageContext.Provider>
+        </InlineSecretRequestsContext.Provider>
       </ClientConfigProvider>
     );
     if (renderer) renderer.update(tree);
@@ -283,6 +300,16 @@ describe('finished agent work', () => {
 
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
+  });
+
+  it('keeps the work open while a secret request of its calls waits, and folds it once done', () => {
+    const waiting = { ...NO_INLINE_SECRET_REQUESTS, waitingReplyIds: new Set([replyId]) };
+    render(reply('completed'), true, undefined, waiting);
+    expect(text()).not.toContain('Worked');
+    expect(text()).toContain('Now the file.');
+
+    render(reply('completed'), true, undefined, NO_INLINE_SECRET_REQUESTS);
+    expect(text()).toContain('Worked for 2m 13s');
   });
 
   it('folds a reply once it finishes on screen', () => {

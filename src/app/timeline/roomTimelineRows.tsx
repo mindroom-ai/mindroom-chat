@@ -337,12 +337,16 @@ export const renderTimelineTiles = ({
   measureElement: (node: Element | null) => void;
   ledgerPxAtRender: number;
 }): ReactNode[] => {
-  const { approvalTimeline, threadSummaryTimeline } = messageData;
+  const { approvalTimeline, threadSummaryTimeline, secretRequestTimeline } = messageData;
   const getRowEvent = (index: number): MatrixEvent | undefined =>
     threadId ? threadEvents[index] : roomWindowRows[index];
   const isRowHidden = (event: MatrixEvent): boolean => {
     const id = event.getId() ?? '';
-    if (approvalTimeline.hiddenEventIds.has(id) || threadSummaryTimeline.hiddenEventIds.has(id)) {
+    if (
+      approvalTimeline.hiddenEventIds.has(id) ||
+      threadSummaryTimeline.hiddenEventIds.has(id) ||
+      secretRequestTimeline.hiddenEventIds.has(id)
+    ) {
       return true;
     }
     const sender = event.getSender();

@@ -3,11 +3,7 @@ import React, { ReactNode, useContext, useMemo, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
-import {
-  MINDROOM_TOOL_REF_ICON,
-  ToolRefParseResult,
-  parseToolRefHtml,
-} from './blocks';
+import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
 import {
   extractTextFromChildren,
   getToolRefPrefixFromElement,
@@ -27,9 +23,17 @@ import {
   getToolTraceV2Events,
   isToolTraceV2,
 } from '../../matrix/protocol/toolTrace';
+import type { SecretRequest } from '../../matrix/protocol/secretRequest';
+import { useInlineSecretRequests, type InlineSecretRequest } from '../inlineSecretRequests';
+import { SecretRequestLine } from '../../approvals/SecretRequestLine';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
-import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../../ui/ThreadActivity';
+import {
+  ActivityIcon,
+  ActivityResult,
+  ActivityTone,
+  ThreadActivity,
+} from '../../ui/ThreadActivity';
 import {
   ReasoningSegmentsContext,
   resolveToolCallStates,
@@ -44,7 +48,10 @@ import {
 } from '../agent-run/toolCallStatus';
 import { ReasoningSegmentsAt } from '../agent-run/Reasoning';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
-import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
+import {
+  getEffectiveToolApprovalStatus,
+  parseToolApprovalExpiryTimestamp,
+} from '../../matrix/protocol/toolApproval';
 import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
@@ -185,11 +192,7 @@ function NamedBlock({
   );
 }
 
-type ToolBlockStatus =
-  | 'pending'
-  | 'completed'
-  | 'completed_with_result'
-  | ToolMetadataStatus;
+type ToolBlockStatus = 'pending' | 'completed' | 'completed_with_result' | ToolMetadataStatus;
 
 type ToolBlockRenderData = {
   index: number;
@@ -365,11 +368,7 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
  * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
  * without parsing the replies again.
  */
-function ToolRefGroupBlock({
-  parsedTools,
-}: {
-  parsedTools: ToolBlockRenderData[];
-}) {
+function ToolRefGroupBlock({ parsedTools }: { parsedTools: ToolBlockRenderData[] }) {
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
@@ -460,14 +459,77 @@ function ToolRefGroupBlock({
   );
 }
 
+const SECRET_REQUEST_CALL_STATE = {
+  pending: 'waiting',
+  saved: 'done',
+  declined: 'denied',
+  expired: 'expired',
+} as const satisfies Record<SecretRequest['status'], ToolCallState>;
+
+/** A done secret request the reply draws at the call that asked, as that call's line. */
+function InlineSecretRequestBlock({ secret }: { secret: InlineSecretRequest }) {
+  const message = useContext(ToolCallMessageContext);
+  const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
+  const fold = useContext(ToolCallsFoldContext);
+  const { eventId, request, agentUserId } = secret;
+  const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
+  useFoldedToolCalls(
+    shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
+  );
+  const roomId = message?.roomId;
+  if (!roomId || (!shown && fold && !fold.open)) return null;
+  return (
+    <SecretRequestLine
+      eventId={eventId}
+      request={request}
+      roomId={roomId}
+      agentUserId={agentUserId}
+    />
+  );
+}
+
+type ToolRunPart =
+  | { tools: ToolBlockRenderData[]; secret?: undefined }
+  | { secret: InlineSecretRequest; index: number };
+
+/** A run of calls, split at each call a secret request names, which takes that call's place. */
+const splitToolRunAtSecretRequests = (
+  tools: ToolBlockRenderData[],
+  secrets: ReadonlyMap<number, InlineSecretRequest>
+): ToolRunPart[] => {
+  if (secrets.size === 0) return [{ tools }];
+  const parts: ToolRunPart[] = [];
+  let run: ToolBlockRenderData[] = [];
+  tools.forEach((tool) => {
+    const secret = secrets.get(tool.index);
+    if (!secret) {
+      run.push(tool);
+      return;
+    }
+    if (run.length > 0) parts.push({ tools: run });
+    run = [];
+    parts.push({ secret, index: tool.index });
+  });
+  if (run.length > 0) parts.push({ tools: run });
+  return parts;
+};
+
 /**
  * A run of tool calls as the parser places it, then the reasoning that followed its last call
- * (Reasoning.tsx), which shows there also while the run itself is hidden.
+ * (Reasoning.tsx), which shows there also while the run itself is hidden. A secret request for
+ * one of its calls splits it, drawn on its own line where that call was.
  */
 function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
+  const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
   return (
     <>
-      <ToolRefGroupBlock parsedTools={tools} />
+      {splitToolRunAtSecretRequests(tools, secrets).map((part) =>
+        part.secret ? (
+          <InlineSecretRequestBlock key={`secret-${part.index}`} secret={part.secret} />
+        ) : (
+          <ToolRefGroupBlock key={`tools-${part.tools[0]!.index}`} parsedTools={part.tools} />
+        )
+      )}
       <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
     </>
   );
