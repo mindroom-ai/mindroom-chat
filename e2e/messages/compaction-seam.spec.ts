@@ -279,7 +279,12 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
         unfinished('failed', 'The summary model returned an error (529 overloaded).', 31_200)
       ),
       compaction('timeout', 2, unfinished('timeout', 'No summary after 120 s.', 120_000)),
-      compaction('cut', 3, { status: 'running', after_tokens: undefined, duration_ms: undefined }),
+      compaction('cut', 3, {
+        status: 'running',
+        after_tokens: undefined,
+        duration_ms: undefined,
+        compacted_run_count: undefined,
+      }),
     ],
   });
   // (4) Compacted before the reply's first model request.
