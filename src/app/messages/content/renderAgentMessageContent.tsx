@@ -92,6 +92,7 @@ const withLiveWrapperContent = (
 };
 
 const withoutCompactions = (content: Record<string, unknown>): Record<string, unknown> => {
+  if (!(COMPACTIONS_CONTENT_KEY in content) && !(LIVE_COMPACTIONS_KEY in content)) return content;
   const { [COMPACTIONS_CONTENT_KEY]: _list, [LIVE_COMPACTIONS_KEY]: _live, ...rest } = content;
   return rest;
 };
