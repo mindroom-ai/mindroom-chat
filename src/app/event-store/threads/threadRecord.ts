@@ -100,16 +100,17 @@ export type ThreadRecordChanges = {
   /** The count at the last change of each thread, by root, since the room's last. */
   threads: Map<string, number>;
   /**
-   * Called by a build that kept a record. The listener answers with a mark of the room soon
-   * after, for what a record reads that no event tells of.
+   * Whether the listener hears the room now. Without it nothing is marked, so no unread mark may
+   * be kept.
    */
-  onKept?: () => void;
+  listened: boolean;
 };
 
 export const createThreadRecordChanges = (): ThreadRecordChanges => ({
   count: 0,
   room: 0,
   threads: new Map(),
+  listened: false,
 });
 
 /** Marks a change of one thread, or without `threadRootId` one that any thread's record may show. */
@@ -511,7 +512,6 @@ export const buildThreadRecordMap = ({
   const records = new Map<string, ThreadRecord>();
   const roomSources = getRoomSources(room);
   const builtAt = reuse?.changes.count ?? 0;
-  let keptAny = false;
 
   threadRootIds.forEach((threadRootId) => {
     const options: BuildThreadRecordOptions = {
@@ -553,14 +553,12 @@ export const buildThreadRecordMap = ({
         recordSources.set(record, keptFrom);
       }
       records.set(threadRootId, record);
-      keptAny = true;
       return;
     }
     const record = buildThreadRecord(options);
     if (reuse) recordSources.set(record, { options, builtAt, roomSources });
     records.set(threadRootId, record);
   });
-  if (keptAny) reuse?.changes.onKept?.();
 
   return records;
 };
@@ -579,8 +577,8 @@ const unreadSources = new WeakMap<ReadonlyMap<string, boolean>, ThreadUnreadSour
  * Whether each of `threads` is unread for `userId` (`getThreadUnread`), by root. With `reuse`, the
  * marks of `previous` are kept as `buildThreadRecordMap` keeps records: for the same thread, with
  * no mark in `changes` for it or the room since, for the same reader and the same answers of the
- * room. Only while someone listens (`onKept`), who checks a kept mark again soon after. A build
- * that changes no mark gives `previous` itself.
+ * room. Only while the listener hears the room (`listened`). A build that changes no mark gives
+ * `previous` itself.
  */
 export const buildThreadUnreadMap = (
   room: Room,
@@ -589,14 +587,13 @@ export const buildThreadUnreadMap = (
   reuse?: { previous: ReadonlyMap<string, boolean> | undefined; changes: ThreadRecordChanges }
 ): ReadonlyMap<string, boolean> => {
   const roomSources = getRoomSources(room);
-  const previous = reuse?.changes.onKept ? reuse.previous : undefined;
+  const previous = reuse?.changes.listened ? reuse.previous : undefined;
   const from = previous && unreadSources.get(previous);
   const keptFrom =
     from && from.userId === userId && sameOption(from.roomSources, roomSources) ? from : undefined;
   const unreads = new Map<string, boolean>();
   const checked = new Map<string, Thread>();
   let changed = false;
-  let keptAny = false;
   threads.forEach((thread) => {
     checked.set(thread.id, thread);
     const kept = previous?.get(thread.id);
@@ -608,14 +605,12 @@ export const buildThreadUnreadMap = (
       unchangedSince(reuse.changes, thread.id, keptFrom.builtAt)
     ) {
       unreads.set(thread.id, kept);
-      keptAny = true;
       return;
     }
     const unread = getThreadUnread(thread, userId);
     if (unread !== kept) changed = true;
     unreads.set(thread.id, unread);
   });
-  if (keptAny) reuse?.changes.onKept?.();
   const built = !previous || changed || previous.size !== unreads.size ? unreads : previous;
   if (reuse) {
     unreadSources.set(built, {

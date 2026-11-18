@@ -372,6 +372,28 @@ describe('streaming replies on thread cards', () => {
     }
   });
 
+  it('announces a streaming thread whose reply the full store of seen replies forgets', async () => {
+    const now = Date.now();
+    const f = fixture();
+    await f.start();
+    await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000)), reply(now - 50_000)]);
+    await f.deliver([edit('The notes list', now - 1_000, 'streaming')]);
+    expect(f.card().streaming).toBe(true);
+    const updates = vi.fn();
+    f.room().on(ThreadEvent.Update, updates);
+
+    // The store keeps 5,000 replies: as many newer ones push this one out.
+    const others = Array.from({ length: 5000 }, (_, index) =>
+      message(`$other${index}`, now, { body: 'Done', 'io.mindroom.stream_status': 'completed' })
+    );
+    await f.deliver(others.slice(0, 4999));
+    expect(updates).not.toHaveBeenCalled();
+    await f.deliver(others.slice(4999));
+
+    expect(updates).toHaveBeenCalledTimes(1);
+    expect(f.card().streaming).toBe(false);
+  });
+
   it('does not stream a reply without an edit for half an hour', async () => {
     const now = Date.now();
     const f = fixture();

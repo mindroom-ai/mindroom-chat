@@ -9,9 +9,8 @@ import {
 } from '../../event-store/threads/threadEditBackfill';
 import { getLiveTimeline } from '../../event-store/timeline/timelinePagination';
 import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
-import { eventBelongsToThread, findThreadRootEvent, isThreadReplyEvent } from '../../event-store/threads/threadUtils';
+import { eventBelongsToThread, findThreadRootEvent } from '../../event-store/threads/threadUtils';
 import { reactionOrEditEvent } from '../../matrix/room';
-import { getThreadCacheTargetId } from '../../event-store/cache/eventRepository';
 import { getKnownThreadReplyCount } from '../../event-store/threads/threadRecord';
 import { mergeThreadBackfillEvents } from '../../event-store/cache/threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
@@ -31,15 +30,6 @@ type ThreadSeedPrewarmTarget = {
 export const isThreadNotFoundError = (error: unknown): error is MatrixError =>
   error instanceof MatrixError &&
   (error.httpStatus === 404 || error.errcode === ErrorCode.M_NOT_FOUND);
-
-export const shouldRefreshOverviewForTimelineEvent = (room: Room, mEvent: MatrixEvent): boolean => {
-  const eventId = mEvent.getId();
-  if (eventId && (mEvent.isThreadRoot || isThreadReplyEvent(eventId, mEvent.threadRootId))) {
-    return true;
-  }
-
-  return getThreadCacheTargetId(room, mEvent) !== undefined;
-};
 
 const sortThreadSeedEvents = (events: MatrixEvent[]): MatrixEvent[] =>
   events.sort((left, right) => {

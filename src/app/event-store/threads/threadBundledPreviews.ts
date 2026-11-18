@@ -87,5 +87,13 @@ export const getBundledThreadPreviews = (
   };
 };
 
+/**
+ * When the newest revision of `event` the client holds was sent. The SDK tells the time of the
+ * edit bundled with the event before that of the edit put on it, and a live edit is put on the
+ * event before the cache writes it into the bundle, which no event tells of: so the newer of both.
+ */
 export const getThreadPreviewRevisionTs = (event: MatrixEvent): number =>
-  event.replacingEventDate?.()?.getTime() ?? event.getTs();
+  Math.max(
+    event.replacingEventDate?.()?.getTime() ?? event.getTs(),
+    event.replacingEvent?.()?.getTs() ?? 0
+  );
