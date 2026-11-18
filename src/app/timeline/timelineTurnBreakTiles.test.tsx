@@ -37,11 +37,7 @@ const fold: ThreadTurnFold = { key: ROOT, hiddenIds: ['$a1', '$a2'], count: 2 };
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
-  secretRequestTimeline: {
-    hiddenEventIds: new Set<string>(),
-    byReply: new Map(),
-    waitingReplyIds: new Set<string>(),
-  },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>() },
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and what it shows in order: its break (`break`) and its row. */

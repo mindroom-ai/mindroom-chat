@@ -482,8 +482,12 @@ export function SecretRequestDetails({
   );
 }
 
-const findByAttribute = (name: string, value: string) =>
-  [...document.querySelectorAll<HTMLElement>(`[${name}]`)].find(
+/** The timeline `node` is a row of (RoomTimeline.tsx): another beside it may show the same events. */
+export const timelineOf = (node: Element | null | undefined): ParentNode =>
+  node?.closest('[data-timeline-rows]') ?? document;
+
+export const findByAttribute = (timeline: ParentNode, name: string, value: string) =>
+  [...timeline.querySelectorAll<HTMLElement>(`[${name}]`)].find(
     (element) => element.getAttribute(name) === value
   );
 
@@ -560,12 +564,13 @@ export function SecretRequestCard({
     }
   }, [formShown]);
 
-  // Once done, its row goes when its reply draws it (inlineSecretRequests.ts), in the render that
-  // marks it done, so this is set up while it waits: focus in the row moves to the request's line
-  // there, else to the reply.
+  // Once done, its row goes while its reply shows its line (inlineSecretRequests.ts), from the
+  // commit that mounts the line: focus in the row moves to the request's line there, else to the
+  // reply.
   const replyId = request.anchor?.responseEventId;
   useLayoutEffect(() => {
     const node = card.current;
+    const timeline = timelineOf(node);
     if (!eventId || !replyId) return undefined;
     return () => {
       if (!node?.contains(document.activeElement)) return;
@@ -573,8 +578,8 @@ export function SecretRequestCard({
       queueMicrotask(() => {
         if (document.activeElement && document.activeElement !== document.body) return;
         (
-          findByAttribute('data-secret-request-for', eventId) ??
-          findByAttribute('data-message-id', replyId)
+          findByAttribute(timeline, 'data-secret-request-for', eventId) ??
+          findByAttribute(timeline, 'data-message-id', replyId)
         )?.focus({ preventScroll: true });
       });
     };
@@ -668,6 +673,8 @@ export function SecretRequestCard({
       gap="200"
       role="group"
       tabIndex={-1}
+      // Where the focus goes when the request's line in the reply goes (SecretRequestLine.tsx).
+      data-secret-request-card={eventId}
       aria-label={t(
         temporary
           ? 'mindroomUi.messages.secretRequestCard.temporary.label'

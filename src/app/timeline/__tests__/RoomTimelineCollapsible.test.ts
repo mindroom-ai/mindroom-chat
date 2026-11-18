@@ -452,7 +452,6 @@ vi.mock('../RoomIntro', () => ({
 // No plugin hides a row here (MessageRenderer.hidden); the real module would load the app's i18n.
 vi.mock('../../plugins/messageRenderers', () => ({
   useMessageRowHidden: () => undefined,
-  useMessageRendererTaken: () => undefined,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({

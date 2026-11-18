@@ -4,7 +4,11 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import type { SecretRequest } from '../../matrix/protocol/secretRequest';
-import { InlineSecretRequestsContext, type InlineSecretRequestPlan } from '../inlineSecretRequests';
+import {
+  InlineSecretRequestsContext,
+  NO_INLINE_SECRET_REQUESTS as noSecrets,
+  type InlineSecretRequestPlan,
+} from '../inlineSecretRequests';
 import { settingsAtom } from '../../preferences/settings';
 import { MessageExtras } from '../MessageExtras';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
@@ -59,13 +63,7 @@ const deniedShell = (toolCallId?: string) => {
   };
 };
 
-const noSecrets: InlineSecretRequestPlan = {
-  hiddenEventIds: new Set(),
-  byReply: new Map(),
-  waitingReplyIds: new Set(),
-};
-
-/** A saved secret request drawn in place of the reply's call at `index`. */
+/** A saved secret request the reply may draw in place of its call at `index`. */
 const savedSecretAt = (index: number): InlineSecretRequestPlan => ({
   ...noSecrets,
   byReply: new Map([
@@ -73,7 +71,7 @@ const savedSecretAt = (index: number): InlineSecretRequestPlan => ({
       '$reply',
       new Map([
         [
-          index,
+          `call_${index}`,
           {
             eventId: '$secret',
             agentUserId: '@mindroom_dev:x',
@@ -201,12 +199,17 @@ describe("a reply's approval cards across its runs of calls", () => {
     expect(cog[0]?.props['data-state']).toBe('done');
   });
 
-  it('gives no card to a call its secret request is drawn in place of', () => {
-    deniedShell();
-    render(
-      reply([marker('shell', 1), '<p>Got it.</p>', marker('shell', 2)], ['shell', 'shell'], false),
-      { secrets: savedSecretAt(1) }
+  it("gives a later call that reuses the secret call's ID its own card", () => {
+    // Providers reuse call IDs within a reply: only the call that asked gives its line away.
+    deniedShell('call_1');
+    const content = reply(
+      [marker('request_secret', 1), '<p>Got it.</p>', marker('shell', 2)],
+      ['request_secret', 'shell']
     );
+    content['io.mindroom.tool_trace'].events.forEach((entry) =>
+      Object.assign(entry, { tool_call_id: 'call_1' })
+    );
+    render(content, { secrets: savedSecretAt(1) });
     expect(lines()).toEqual(['secret:saved', 'Denied 1 tool call']);
   });
 

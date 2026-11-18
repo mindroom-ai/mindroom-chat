@@ -64,6 +64,7 @@ const {
   roomTimelineVirtualizerState,
   settingsState,
   pluginRowHiddenMock,
+  messageContentMock,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   // The mocked components render as these host tags, which React's element types don't list.
@@ -139,6 +140,10 @@ const {
   settingsState: {
     prefetchDepth: 300,
     showHiddenEvents: false,
+  },
+  // What a row draws as its message content, by its event ID; nothing by default.
+  messageContentMock: {
+    render: undefined as ((eventId: string) => React.ReactNode) | undefined,
   },
   // The plugins' test of a row they hide (useMessageRowHidden); none by default.
   pluginRowHiddenMock: {
@@ -461,6 +466,8 @@ vi.mock('@tanstack/react-virtual', () => {
           instance!.options = next;
         },
         itemSizeCache: new Map(),
+        // No row is measured here, so none is in the cache of measured elements.
+        elementsCache: new Map(),
         getVirtualItemForOffset: (offset: number) => {
           const opts = optionsRef.current;
           const { firstVisibleKey } = roomTimelineVirtualizerState;
@@ -693,11 +700,11 @@ vi.mock('../RoomIntro', () => ({
 // test sets one; the real module would load the plugins' translations, and the app's i18n setup.
 vi.mock('../../plugins/messageRenderers', () => ({
   useMessageRowHidden: () => pluginRowHiddenMock.test,
-  useMessageRendererTaken: () => undefined,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
-  RenderMessageContent: passthrough,
+  RenderMessageContent: (props: { eventId: string }) =>
+    React.createElement(passthrough, props, messageContentMock.render?.(props.eventId)),
 }));
 
 vi.mock('../CollapsibleMessage', async () => {
@@ -1458,6 +1465,7 @@ beforeEach(() => {
   threadRenderStateMock.forkPointIndex = undefined;
   threadRenderStateMock.threadInitialRenderMode = 'live';
   pluginRowHiddenMock.test = undefined;
+  messageContentMock.render = undefined;
   settingsState.showHiddenEvents = false;
   threadLastActivityTsMapMock.clear();
   threadStreamingStateMock.clear();
@@ -1830,6 +1838,7 @@ export {
   setThreadAwareTimelineRefreshHook,
   settingsState,
   pluginRowHiddenMock,
+  messageContentMock,
   stateEventsByTypeMock,
   TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,
