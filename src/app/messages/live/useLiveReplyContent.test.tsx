@@ -152,7 +152,7 @@ describe('useLiveReplyContent', () => {
     expect(shown()[LIVE_COMPACTIONS_KEY]).toEqual(compactions);
   });
 
-  it('shows an empty live list over a durable one, which then shows no seam', () => {
+  it('shows an empty live list over a durable one', () => {
     const stale = [
       { id: 'a', phase: 'pre_turn', after_tool: 0, status: 'running', before_tokens: 366804 },
     ];
