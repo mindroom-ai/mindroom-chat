@@ -1950,6 +1950,71 @@ describe('useRoomInputSendSessionController in a fork draft', () => {
   const relationOf = (mx: ReturnType<typeof renderHarness>['mx'], index: number) =>
     (mx.sendMessage.mock.calls[index]![1] as Record<string, unknown>)['m.relates_to'];
 
+  it.each([
+    ['joins the thread of', true],
+    ['starts the fork after', false],
+  ])(
+    "holds a file back that %s an earlier message's send while another file uploads again",
+    async (_what, earlierSent) => {
+      const { api, mx, localEvents } = renderHarness({ forkFrom: ref });
+      const earlier = createDeferred<{ event_id: string }>();
+      mx.sendMessage.mockImplementationOnce(
+        (targetRoomId: string, _content: unknown, txnId?: string) => {
+          localEvents.set(txnId!, { getId: () => `~${targetRoomId}:${txnId}` });
+          return earlier.promise;
+        }
+      );
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Try Porto' } });
+      });
+      const photo = createFile('photo.png');
+      const clip = createFile('clip.mp4');
+      api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+      api.uploadsRef.current = [successUpload(photo), prepErrorUpload(clip)];
+
+      // The photo waits for the fork's start while the video's upload is retried.
+      let sending!: Promise<void>;
+      act(() => {
+        sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
+      });
+      // Its content is built by now; it waits for the earlier message's ID.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      api.uploadsRef.current = [successUpload(photo), loadingUpload(clip)];
+      await act(async () => {
+        if (earlierSent) earlier.resolve({ event_id: '$porto' });
+        else earlier.reject(new Error('offline'));
+        await sending;
+      });
+      expect(sentBodies(mx)).toEqual(['Try Porto']);
+
+      api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+      await act(async () => {
+        await api.processSendSession();
+      });
+      expect(sentBodies(mx)).toEqual(['Try Porto', 'photo.png', 'clip.mp4', 'Look']);
+      const markers = mx.sendMessage.mock.calls.map(
+        (call) => (call[1] as Record<string, unknown>)['io.mindroom.submission']
+      );
+      const { id } = markers[1] as { id: string };
+      expect(markers.slice(1)).toEqual([
+        { id, more: true },
+        { id, more: true },
+        { id, more: false },
+      ]);
+      const thread = earlierSent ? '$porto' : '$event-0';
+      expect(forkStarts(mx)).toEqual(earlierSent ? ['Try Porto'] : ['Try Porto', 'photo.png']);
+      if (earlierSent) {
+        expect(relationOf(mx, 1)).toMatchObject({ rel_type: 'm.thread', event_id: thread });
+      } else {
+        expect(relationOf(mx, 1)).toBeUndefined();
+      }
+      expect(relationOf(mx, 2)).toMatchObject({ rel_type: 'm.thread', event_id: thread });
+      expect(relationOf(mx, 3)).toMatchObject({ rel_type: 'm.thread', event_id: thread });
+    }
+  );
+
   it('joins a message sent while the root still uploads to the fork that root starts', async () => {
     const onRoomMessageSent = vi.fn(() => true);
     const { api, mx } = renderHarness({ forkFrom: ref, onRoomMessageSent });

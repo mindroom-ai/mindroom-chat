@@ -572,14 +572,18 @@ export const useRoomInputSendSessionController = ({
       }
 
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
-      // An upload retried while this file built holds it back, as resolveRoomInputSendStep does:
-      // the file stays unsent, and the session builds it again once nothing uploads.
-      if (isRoomInputSendSessionUploading(session, ...getSessionUploads(session))) return;
       const {
         content: contentWithRelation,
         relation,
         settleFork,
       } = await placeMessage(session, content, getUploadRelationForSendSession(session, isRoot));
+      // An upload retried while this file built or waited for its fork holds it back, as
+      // resolveRoomInputSendStep does: the file stays unsent, gives up its place as the fork's
+      // start, and the session builds and places it again once nothing uploads.
+      if (isRoomInputSendSessionUploading(session, ...getSessionUploads(session))) {
+        settleFork?.();
+        return;
+      }
       const txnId = mx.makeTxnId();
       const response = await mx
         .sendMessage(
