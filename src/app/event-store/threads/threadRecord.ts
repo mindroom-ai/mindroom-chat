@@ -147,8 +147,8 @@ const unchangedSince = (
  * Lets a build keep the records of the build before it (`previous`) for the threads that did not
  * change: no mark in `changes` for the thread or the room since its record was built, the same
  * values given for it, the same answers of the room that every record reads (`roomSources`), its
- * root opened on this device or not as before (`rootSeen`), and the same summary of the thread on
- * its root (`rootSummary`).
+ * root opened on this device or not as before (`rootSeen`), the same summary of the thread on its
+ * root (`rootSummary`), and the same count and newest reply of the SDK's thread (`threadSummary`).
  */
 export type ThreadRecordReuse = {
   previous: ReadonlyMap<string, ThreadRecord> | undefined;
@@ -170,6 +170,12 @@ type ThreadRecordSources = {
    * from the cache or fetched writes what it knows into the room's root, and no event tells of it.
    */
   rootSummary: unknown;
+  /**
+   * The count of replies and the newest reply of the SDK's thread (`length`, `replyToEvent`). The
+   * SDK takes both from a root it reads again, which may say what the room's root already says,
+   * and tells of them only once the first page of the thread's replies is in.
+   */
+  threadSummary: readonly unknown[];
 };
 
 /** What each kept record was built from. */
@@ -578,6 +584,8 @@ export const buildThreadRecordMap = ({
       resolveThreadRootEvent(room, threadRootId, options.threadRootEvent)?.getUnsigned()?.[
         'm.relations'
       ]?.['m.thread'];
+    const thread = reuse && room.getThread(threadRootId);
+    const threadSummary = [thread?.length, thread?.replyToEvent];
     const kept = reuse?.previous?.get(threadRootId);
     const keptFrom = kept && recordSources.get(kept);
     if (
@@ -588,6 +596,7 @@ export const buildThreadRecordMap = ({
       sameOption(keptFrom.roomSources, roomSources) &&
       keptFrom.rootSeen === rootSeen &&
       sameRootSummary(keptFrom, rootSummary) &&
+      sameOption(keptFrom.threadSummary, threadSummary) &&
       sameOptions(keptFrom.options, options)
     ) {
       // The room's threads trade places with every reply; a thread that only moved keeps its
@@ -603,7 +612,14 @@ export const buildThreadRecordMap = ({
     }
     const record = buildThreadRecord(options);
     if (reuse) {
-      recordSources.set(record, { options, builtAt, roomSources, rootSeen, rootSummary });
+      recordSources.set(record, {
+        options,
+        builtAt,
+        roomSources,
+        rootSeen,
+        rootSummary,
+        threadSummary,
+      });
     }
     records.set(threadRootId, record);
   });

@@ -20,7 +20,7 @@ import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import { createSyncEngine } from '../../event-store/engine/syncEngine';
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
-import { saveThreadEventsToCache } from '../../event-store/cache/db';
+import { deleteCacheStoreDb, saveThreadEventsToCache } from '../../event-store/cache/db';
 import { hydrateThreadFromCache } from '../open/threadOpenCacheController';
 import { useThreadSeedPrewarmController } from '../open/threadSeedPrewarmController';
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
@@ -35,12 +35,16 @@ const state = vi.hoisted(() => ({
   noIds: [] as string[],
   /** The cached events of a thread are read once this settles: a test holds a read back. */
   cacheRead: Promise.resolve(),
+  /** Whether the room's thread list loads, so that a record takes its count from the SDK's thread. */
+  listed: false,
 }));
 
-vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../event-store/threads/roomThreadList')>()),
-  loadRoomThreads: vi.fn(async () => undefined),
-}));
+vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../event-store/threads/roomThreadList')>();
+  const loadRoomThreads: typeof actual.loadRoomThreads = async (...args) =>
+    state.listed ? actual.loadRoomThreads(...args) : undefined;
+  return { ...actual, loadRoomThreads };
+});
 vi.mock('../../event-store/cache/eventRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../event-store/cache/eventRepository')>();
   const loadThreadCachedSnapshot: typeof actual.loadThreadCachedSnapshot = async (options) => {
@@ -312,9 +316,11 @@ beforeEach(async () => {
   await room.fetchRoomThreads();
 });
 
-afterEach(() => {
+afterEach(async () => {
   cleanup();
+  await deleteCacheStoreDb('session');
   state.cacheRead = Promise.resolve();
+  state.listed = false;
   clearSeenThreadRoots(ME);
   vi.restoreAllMocks();
   Thread.hasServerSideSupport = threadSupport;
@@ -450,19 +456,49 @@ describe('the Compact list of a room without threads', () => {
 });
 
 describe('the Compact list back after threads filled the page', () => {
-  /** A root as the server sends it, with its thread's summary: the newest reply, by Bob. */
-  const rawRoot = (id: string, ts: number, count: number, participated: boolean) => ({
+  /**
+   * A root as the server sends it, with its thread's summary: the newest reply, by Bob, which is
+   * `latest` or else named by the count.
+   */
+  const rawRoot = (
+    id: string,
+    ts: number,
+    count: number,
+    participated: boolean,
+    latest = `${id}-reply${count}`
+  ) => ({
     ...message(id, ts).event,
     unsigned: {
       'm.relations': {
         [RelationType.Thread]: {
           count,
           current_user_participated: participated,
-          latest_event: message(`${id}-reply${count}`, ts + count, id).event,
+          latest_event: message(latest, ts + latest.length, id).event,
         },
       },
     },
   });
+
+  /**
+   * The server answers a request for the root of `id` with `root`, and holds the first page of
+   * its replies until `arrive`.
+   */
+  const heldFirstPage = (id: string, root: object) => {
+    let arrive = (): void => undefined;
+    const firstPage = new Promise<object>((resolve) => {
+      arrive = () => resolve({ chunk: [] });
+    });
+    const held = { asked: false, arrive: () => arrive() };
+    vi.mocked(mx.http.authedRequest).mockImplementation((_method, path) => {
+      if (path.endsWith(`/event/${encodeURIComponent(id)}`)) return Promise.resolve(root);
+      if (path.includes(`/relations/${encodeURIComponent(id)}`)) {
+        held.asked = true;
+        return firstPage;
+      }
+      return Promise.resolve({ chunk: [] });
+    });
+    return held;
+  };
 
   /** A thread the room knows by its root's summary: one reply, none of the reader's. */
   const addListedThread = (id: string, ts: number) => {
@@ -472,10 +508,12 @@ describe('the Compact list back after threads filled the page', () => {
   };
 
   /** Puts a copy of a thread's root and of its newest reply in the cache. */
-  const cache = (id: string, ts: number, count: number, participated: boolean) => {
-    const root = rawRoot(id, ts, count, participated);
-    const reply = root.unsigned['m.relations'][RelationType.Thread].latest_event;
-    return saveThreadEventsToCache('session', ROOM_ID, id, [reply], root);
+  const summaryOf = (root: ReturnType<typeof rawRoot>) =>
+    root.unsigned['m.relations'][RelationType.Thread];
+
+  const cache = (id: string, ts: number, count: number, participated: boolean, latest?: string) => {
+    const root = rawRoot(id, ts, count, participated, latest);
+    return saveThreadEventsToCache('session', ROOM_ID, id, [summaryOf(root).latest_event], root);
   };
 
   /** The summary of its thread the room's root carries. */
@@ -559,19 +597,7 @@ describe('the Compact list back after threads filled the page', () => {
 
   it('builds again the record of a thread opened whose root the SDK read again, before its first page is in', async () => {
     // The server has a second reply of A. The first page of A's replies does not arrive yet.
-    let pageIn = (): void => undefined;
-    const firstPage = new Promise<object>((resolve) => {
-      pageIn = () => resolve({ chunk: [] });
-    });
-    let pageAsked = false;
-    vi.mocked(mx.http.authedRequest).mockImplementation((_method, path) => {
-      if (path.endsWith('/event/%24a')) return Promise.resolve(rawRoot('$a', 1000, 2, false));
-      if (path.includes('/relations/%24a')) {
-        pageAsked = true;
-        return firstPage;
-      }
-      return Promise.resolve({ chunk: [] });
-    });
+    const firstPage = heldFirstPage('$a', rawRoot('$a', 1000, 2, false));
     const page = await shownPage();
     const before = page.records();
     expect(before.get('$a')?.status.replyCount).toBe(1);
@@ -583,7 +609,7 @@ describe('the Compact list back after threads filled the page', () => {
     room.on(ThreadEvent.Update, heard);
     page.open('$a');
     const initializing = room.getThread('$a')!.initialize();
-    await vi.waitFor(() => expect(pageAsked).toBe(true));
+    await vi.waitFor(() => expect(firstPage.asked).toBe(true));
     expect(heard).not.toHaveBeenCalled();
     const first = page.back();
 
@@ -591,9 +617,75 @@ describe('the Compact list back after threads filled the page', () => {
     expect(first.get('$a')?.presentation.latestReplyPreviewText).toBe('$a-reply2');
     expect(first.get('$b')).toBe(before.get('$b'));
     expect(first.get('$c')).toBe(before.get('$c'));
-    pageIn();
+    firstPage.arrive();
     await act(async () => {
       await initializing;
     });
   });
+
+  it.each([
+    ['another count and newest reply', 2, '$b-reply2'],
+    ['the same count and another newest reply', 1, '$b-reply1b'],
+    // The thread holds its newest reply, so the SDK keeps that event and changes only the count.
+    ['another count and the same newest reply', 2, '$b-reply1'],
+  ])(
+    "builds again the record of a thread the SDK's thread caught up with its root for: %s",
+    async (_name, count, latest) => {
+      // The room's thread list is in: a record takes its count from the SDK's thread.
+      state.listed = true;
+      const thread = room.getThread('$b')!;
+      if (latest === '$b-reply1') {
+        thread.addEvents(
+          [new MatrixEvent(summaryOf(rawRoot('$b', 2000, 1, false)).latest_event)],
+          false
+        );
+        await settle();
+      }
+      // The cache and the server have the same newer root of B. The list's read of the cached
+      // events writes it into the room's root before the records are built: the root's summary
+      // is ahead of the SDK's thread, which still has one reply, the first.
+      await cache('$b', 2000, count, false, latest);
+      const firstPage = heldFirstPage('$b', rawRoot('$b', 2000, count, false, latest));
+      const page = await shownPage(['$b']);
+      await vi.waitFor(() =>
+        expect(summary('$b')).toMatchObject({ count, latest_event: { event_id: latest } })
+      );
+      act(() => {
+        room.emit(RoomEvent.Receipt, receipt(BOB, '$other', 2), room);
+      });
+      const before = page.records();
+      const replyBefore = thread.replyToEvent;
+      expect(replyBefore?.getId()).toBe('$b-reply1');
+      expect(before.get('$b')?.status.replyCount).toBe(1);
+      expect(before.get('$b')?.presentation.latestReplyPreviewText).toBe('$b-reply1');
+
+      // A fills the page. The SDK reads B's root again, the same the room's root already says,
+      // takes the count and the newest reply from it, and tells of it only once the first page
+      // of B's replies is in, which waits.
+      const heard = vi.fn();
+      room.on(ThreadEvent.Update, heard);
+      page.open('$a');
+      const initializing = thread.initialize();
+      await vi.waitFor(() => expect(firstPage.asked).toBe(true));
+      expect(heard).not.toHaveBeenCalled();
+      expect(thread.length).toBe(count);
+      expect(thread.replyToEvent?.getId()).toBe(latest);
+      expect(thread.replyToEvent === replyBefore).toBe(latest === '$b-reply1');
+      const first = page.back();
+
+      // B's record is the one a list that kept nothing builds; C's is kept.
+      const coldKeeper = createThreadRecordKeeper(room);
+      const cold = mountList(coldKeeper);
+      expect(first.get('$b')).toEqual(cold.firstBuild.get('$b'));
+      cold.unmount();
+      disposeThreadRecordKeeper(coldKeeper);
+      expect(first.get('$b')?.status.replyCount).toBe(count);
+      expect(first.get('$b')?.presentation.latestReplyPreviewText).toBe(latest);
+      expect(first.get('$c')).toBe(before.get('$c'));
+      firstPage.arrive();
+      await act(async () => {
+        await initializing;
+      });
+    }
+  );
 });
