@@ -131,6 +131,14 @@ const compactionNoticeEvent = (id: string, sender: string) =>
       },
     },
   }) as unknown as MatrixEvent;
+const encryptedEvent = (id: string) =>
+  new MatrixEvent({
+    event_id: id,
+    type: MessageEvent.RoomMessageEncrypted,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    content: {},
+  });
 const summaryMarkers = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll((node) => (node.type as unknown) === 'summary-marker');
 const renderedContent = (renderer: ReturnType<typeof create>) =>
@@ -395,13 +403,7 @@ describe('timeline message feature', () => {
   });
 
   it('renders newly decrypted content and cleans up subscriptions on replacement and unmount', async () => {
-    const event = new MatrixEvent({
-      event_id: '$encrypted',
-      type: MessageEvent.RoomMessageEncrypted,
-      room_id: '!room:example.org',
-      sender: '@alice:example.org',
-      content: {},
-    });
+    const event = encryptedEvent('$encrypted');
     const rows = [rowFor(event)];
     const { renderer, update } = await mountFeature(rows);
     expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
@@ -437,21 +439,11 @@ describe('timeline message feature', () => {
   });
 
   it("repaints for a row's edits still to decrypt, and for those of the quiet markers beside it", async () => {
-    const encrypted = (id: string) =>
-      new MatrixEvent({
-        event_id: id,
-        type: MessageEvent.RoomMessageEncrypted,
-        room_id: '!room:example.org',
-        sender: '@alice:example.org',
-        content: {},
-      });
     const withPendingEdit = (event: MatrixEvent, edit: MatrixEvent) =>
       Object.assign(event, { __pendingEdits: [edit] });
-    const [messageEdit, summaryEdit, laterSummaryEdit] = [
-      '$message-edit',
-      '$summary-edit',
-      '$later-summary-edit',
-    ].map(encrypted) as [MatrixEvent, MatrixEvent, MatrixEvent];
+    const messageEdit = encryptedEvent('$message-edit');
+    const summaryEdit = encryptedEvent('$summary-edit');
+    const laterSummaryEdit = encryptedEvent('$later-summary-edit');
     const message = withPendingEdit(
       makeEvent('$message', { threadRootId: '$thread' }) as unknown as MatrixEvent,
       messageEdit
