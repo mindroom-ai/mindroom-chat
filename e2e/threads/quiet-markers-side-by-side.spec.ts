@@ -62,8 +62,21 @@ const seed = async (name: string, skills: readonly string[] = [SKILL]) => {
     invite: [agent.userId],
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
-  const send = (session: MatrixSession, content: Record<string, unknown>) =>
-    sendRoomMessage(HOMESERVER, session.accessToken, roomId, content);
+  // Each event gets a later server timestamp than the one before: events of one millisecond
+  // sort by ID, which would shuffle the markers.
+  let previousTs = 0;
+  const send = async (session: MatrixSession, content: Record<string, unknown>) => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const eventId = await sendRoomMessage(HOMESERVER, session.accessToken, roomId, content);
+    const sent = await matrixFetch<{ origin_server_ts: number }>(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(roomId)}/event/${encodeURIComponent(eventId)}`,
+      { accessToken: session.accessToken }
+    );
+    expect(sent.origin_server_ts).toBeGreaterThan(previousTs);
+    previousTs = sent.origin_server_ts;
+    return eventId;
+  };
 
   const rootId = await send(reader, { msgtype: 'm.text', body: ROOT });
   const answerId = await send(agent, {
@@ -182,14 +195,19 @@ const checkThree = async (
     for (const box of boxes) {
       expect(box!.x + box!.width).toBeLessThanOrEqual(options.viewport!.width);
     }
-    // A review is never narrower than its icon and fixed words: its skill name starts inside it.
+    // A review is never narrower than its icon and fixed words: at least one character of its
+    // skill name shows before the ellipsis.
     for (const review of markers.slice(1)) {
-      const room = await review.evaluate((node) => {
+      const { shown, char } = await review.evaluate((node) => {
         const code = node.querySelector('code');
-        const marker = node.getBoundingClientRect();
-        return code ? marker.right - code.getBoundingClientRect().left : -1;
+        const label = code?.closest('button > span');
+        if (!code || !label) return { shown: -1, char: 0 };
+        const fontSize = parseFloat(getComputedStyle(code).fontSize);
+        const visible = label.getBoundingClientRect().right - code.getBoundingClientRect().left;
+        // A monospace character is about 0.6 em; the ellipsis takes one.
+        return { shown: visible - 0.6 * fontSize, char: 0.6 * fontSize };
       });
-      expect(room).toBeGreaterThan(0);
+      expect(shown).toBeGreaterThanOrEqual(char);
     }
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
   } finally {
