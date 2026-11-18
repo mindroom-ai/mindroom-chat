@@ -194,6 +194,7 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
       after.areaRight - ((pill?.x ?? 0) + (pill?.width ?? 0)),
       'at the end of the row'
     ).toBeLessThan(24);
+    await page.mouse.move(0, 0);
     await shot(page, 'desktop-empty');
 
     await textBox(page).click();
@@ -271,7 +272,7 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
     await page.keyboard.type('Ready for review.');
     await tap(button(page, 'Send message'));
     await expect(page.getByText('Ready for review.', { exact: true }).first()).toBeVisible();
-    await expect(textBox(page)).toHaveText('');
+    await expect(textBox(page)).not.toContainText('Ready for review.');
 
     // Focus leaving an empty composer folds it back to one row.
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());

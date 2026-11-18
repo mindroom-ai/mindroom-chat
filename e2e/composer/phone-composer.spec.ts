@@ -113,9 +113,9 @@ const composerRow = async (page: Page, below = false) =>
     // Only the row's own controls: on the text box's line (or under it), not the model picker.
     const buttons = [...row.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
       .map((candidate) => ({ candidate, rect: candidate.getBoundingClientRect() }))
-      .filter(({ rect }) =>
+      .filter(({ candidate, rect }) =>
         under
-          ? rect.width > 0 && rect.top >= text.bottom - 1
+          ? rect.width > 0 && rect.top >= text.bottom - 1 && !candidate.closest('[role="toolbar"]')
           : rect.width > 0 && rect.top < text.bottom && rect.bottom > text.top
       )
       .sort((a, b) => a.rect.left - b.rect.left);
@@ -229,7 +229,10 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   await expect(menu).toBeHidden();
   const toolbar = page.getByRole('toolbar', { name: 'Formatting' });
   await expect(toolbar).toBeVisible();
-  expect((await composerRow(page)).names, `${engine}: the row stays as it was`).toEqual(PHONE_ROW);
+  // The composer expands to two rows while the toolbar shows; its row of controls stays as it was.
+  expect((await composerRow(page, true)).names, `${engine}: the row stays as it was`).toEqual(
+    PHONE_ROW
+  );
   await shot(page, `phone-${engine}-light-formatting`);
   menu = await openMenu(page);
   const formatting = menu.getByRole('menuitemcheckbox', { name: 'Formatting' });

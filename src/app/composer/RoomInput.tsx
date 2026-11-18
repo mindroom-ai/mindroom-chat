@@ -702,9 +702,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         ref={ref}
         style={COMPOSER_STYLE}
         data-composer-expanded={expanded}
-        onFocus={focus.handlers.onFocus}
-        onBlur={focus.handlers.onBlur}
-        // Only a press on the expanded composer holds it open (`isComposerExpanded`).
+        // Only a phone's composer follows focus; elsewhere it always shows two rows. Only a press
+        // on the expanded composer holds it open (`isComposerExpanded`).
+        onFocus={phone ? focus.handlers.onFocus : undefined}
+        onBlur={phone ? focus.handlers.onBlur : undefined}
         onPointerDown={phone && expanded ? focus.handlers.onPointerDown : undefined}
       >
         {autocomplete}
