@@ -741,6 +741,7 @@ type MockEvent = {
   event: { event_id: string };
   getAssociatedId: () => string | undefined;
   getContent: () => Record<string, unknown>;
+  getOriginalContent: () => Record<string, unknown>;
   getId: () => string;
   getRelation: () => { event_id?: string; rel_type?: string } | undefined;
   getRoomId: () => string;
@@ -787,6 +788,7 @@ const makeEvent = (
       body: eventId,
       msgtype: 'm.text',
     },
+  getOriginalContent: () => opts.content ?? { body: eventId, msgtype: 'm.text' },
   getId: () => eventId,
   getRelation: () => opts.relation,
   getRoomId: () => ROOM_ID,

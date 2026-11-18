@@ -10,11 +10,11 @@ import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval
 import { MessageEvent } from '../../matrix/types/room';
 import { defined } from '../../../test/utils/defined';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
-import {
-  NO_VOICE_TRANSCRIPTS,
-  type VoiceTranscriptPlan,
-} from '../../messages/voiceTranscripts';
+import { NO_VOICE_TRANSCRIPTS, type VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+
+// The transcript's own test draws it; here only what the row gives it counts.
+vi.mock('../../messages/content/VoiceTranscript', () => ({ VoiceTranscript: () => null }));
 
 const reactionMocks = vi.hoisted(() => ({ toggleReaction: vi.fn(async () => undefined) }));
 vi.mock('../../messages/reactions/reactionToggle', () => ({

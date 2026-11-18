@@ -205,9 +205,6 @@ describe("a router's voice echo", () => {
   });
 
   it('keeps its row while no voice message shows it', () => {
-    expect(tileRows(events, [1, 2], 0).map(({ shown }) => shown)).toEqual([
-      ['$voice'],
-      ['$echo'],
-    ]);
+    expect(tileRows(events, [1, 2], 0).map(({ shown }) => shown)).toEqual([['$voice'], ['$echo']]);
   });
 });

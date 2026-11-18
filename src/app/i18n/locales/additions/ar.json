@@ -968,7 +968,7 @@
       },
       "voiceTranscript": {
         "transcribing": "جارٍ التفريغ…",
-        "transcribedBy": "فرّغه {{name}}"
+        "transcribedBy": "فرّغه ⁨{{name}}⁩"
       }
     },
     "message-search": {
