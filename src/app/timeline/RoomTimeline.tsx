@@ -3,7 +3,6 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -38,6 +37,7 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
+import { takeCompactFocusRequest } from '../threads/overview/compactFocusRequest';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
@@ -257,9 +257,6 @@ const useTimelineDisplaySettings = () => ({
   hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
 });
-
-/** Where a focused Compact card without a saved place sits: its top this far below the list's. */
-const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
 
 /**
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
@@ -1716,15 +1713,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   );
   const roomStyle = roomViewStyleUnder(filterBar ? filterBarHeight : null);
 
-  // An address's request to show an event in the room is the cards' once: the list takes it into
-  // its memory below, and the room's own address then takes its place, so returning to this entry
-  // later (Back, or the way back from a thread opened since) finds the list where it was left.
-  const compactFocusRequest =
-    compactCards && threadIndex.showCompactRoomView && !!eventId && !!focusEventInRoom;
-  useEffect(() => {
-    if (compactFocusRequest) navigateRoom(room.roomId, undefined, { replace: true });
-  }, [compactFocusRequest, navigateRoom, room.roomId]);
-
   // Compact mode: the room's threads as cards. A room without any thread waits until it knows
   // it has none (its cache read and the client's first catch-up), then shows its timeline under
   // the bar instead, which pages back to the room's start and there says it has no thread (not
@@ -1746,16 +1734,14 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     // Leaving a thread comes back here focused on its root. One opened from its card finds the
     // place the list saved with that card in view; one opened from a link has none, so its card
     // takes a place below the bar, and the list's memory brings it there as cards render.
-    const savedPlace = compactRoomScrollStateRef.current.get(room.roomId);
-    if (
-      eventId &&
-      focusEventInRoom &&
-      !savedPlace?.anchors.some((anchor) => anchor.key === eventId)
-    ) {
-      compactRoomScrollStateRef.current.set(room.roomId, {
-        scrollTop: 1,
-        anchors: [{ key: eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
-      });
+    if (eventId && focusEventInRoom) {
+      takeCompactFocusRequest(
+        compactRoomScrollStateRef.current,
+        room.roomId,
+        eventId,
+        compactRootIds,
+        window.history.state
+      );
     }
     return (
       <Box ref={compactHostRef} grow="Yes" direction="Column" style={roomStyle}>
