@@ -1,5 +1,12 @@
 # Mac Native Voice Recorder Implementation Plan
 
+> **Superseded in part.** The spec's "After code review" section replaces parts of Task 1 (the wrapper), Task 3 (the Swift plugin and its contract test) and Task 4 (Step 4, whose probe below is current). Where this plan differs, the code and `nativeVoiceRecorderIOSContract.test.ts` are the reference:
+>
+> - **Levels** (Tasks 1 and 3): no `level` event, no `addListener` and no 80 ms native timer. The plugin has a method `level({ id })`, which the wrapper's `level()` calls while recording.
+> - **Which start records** (Task 3): no `epoch`. The wrapper names each start with a nonce (`window.mindroomVoiceStart`, `start({ nonce })`); the plugin reads it back from the loaded page after the prompt, with a count of the page loads begun, and asks no closed or loading page for the microphone.
+> - **A closed window** (Task 3): `SceneDelegate` calls `close()`, not `cancelRecording()`; a page load runs `pageWillLoad()`.
+> - **The file read** (Task 1): a non-empty answer with status 0 is the recording; and the plugin gives the audio session back its category after every recording.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: implement this plan task-by-task with the skill named in **Execution**. Steps use checkbox (`- [ ]`) syntax.
 
 **Execution:** baspowers:subagent-driven-development: Swift and TypeScript tasks meet at a contract, and a mistake in the capture session would break voice messages on iPhone and the web.
