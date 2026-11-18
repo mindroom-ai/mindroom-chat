@@ -201,6 +201,8 @@ export const useLiveReplyContent = (
   // grows or pauses.
   const shownDocs = useRef<LiveDocs>();
   if (docs) shownDocs.current = docs;
+  // A durable edit that covers the frames supersedes them: they never show again, widgets included.
+  if (verdict === 'wait') shownDocs.current = undefined;
   const heldDocs =
     !docs &&
     verdict !== 'wait' &&

@@ -188,6 +188,32 @@ describe('useLiveReplyContent', () => {
       expect(shown()).not.toHaveProperty(UI);
     });
 
+    it('keeps a widget a covering edit removed gone after the entry expires', () => {
+      const frame = snapshot(4, 'Chart and more text');
+      ingest({ ...frame, snapshot: { ...frame.snapshot, ui: ui('aaaaaaaaaa') } });
+      render(durable('streaming', { body: 'Chart' }));
+      expect(shown()[UI]).toEqual(ui('aaaaaaaaaa'));
+
+      act(() => {
+        renderer?.update(
+          <Harness
+            mx={mx}
+            event={replyEvent()}
+            content={durable('streaming', {
+              body: 'Chart',
+              'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+            })}
+          />
+        );
+      });
+      expect(shown()).not.toHaveProperty(UI);
+      act(() => {
+        vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+      });
+      expect(shown()).not.toHaveProperty(UI);
+      expect(shown().body).toBe('Chart');
+    });
+
     it("drops a stale frame's widgets with the frame once the reply finishes", () => {
       ingest({ ...snapshot(0), snapshot: { ...snapshot(0).snapshot, ui: ui('aaaaaaaaaa') } });
       render(durable('completed', { [UI]: ui('bbbbbbbbbb') }));
