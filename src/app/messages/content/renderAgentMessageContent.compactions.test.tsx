@@ -542,6 +542,41 @@ describe('compaction seams in finished and live replies', () => {
     expect(inWork(answerParagraph)).toBe(false);
   });
 
+  it('keeps the seam after a last tool call inside a div in the folded work', () => {
+    const answer = 'The answer.'.padEnd(6000, ' More.');
+    const html =
+      '<p>🔧 <code>t1</code> [1]</p><p>Now the file.</p>' +
+      `<div><p>🔧 <code>t2</code> [2]</p></div><p>${answer}</p>`;
+    render(
+      reply(
+        paragraphs(
+          markerLine('t1', 1),
+          'Now the file.',
+          '<div>',
+          markerLine('t2', 2),
+          '</div>',
+          answer
+        ),
+        [entry('c1', 1), entry('c2', 2)],
+        {
+          'io.mindroom.ai_run': { version: 1, status: 'completed' },
+          format: 'org.matrix.custom.html',
+          formatted_body: html,
+        }
+      )
+    );
+    expect(sequence()).toEqual([answer]);
+
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(sequence()).toEqual(['tools:t1', 'seam', 'Now the file.', 'tools:t2', 'seam', answer]);
+    const work = workedRow().parent!;
+    const inWork = (node: ReactTestInstance | null): boolean =>
+      !!node && (node === work || inWork(node.parent));
+    expect(seams().map(inWork)).toEqual([true, true]);
+  });
+
   it('shows the live compactions over the event’s while the reply streams', () => {
     render(
       reply(paragraphs('Intro.', markerLine('t1', 1), 'More.'), [entry('c1', 1)], {

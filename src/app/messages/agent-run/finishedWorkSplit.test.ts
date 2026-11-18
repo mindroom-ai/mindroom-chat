@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isLongAgentReply, splitFinishedWork } from './finishedWorkSplit';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from './toolRefDom';
+import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
 
@@ -50,6 +51,16 @@ describe('splitFinishedWork', () => {
       head: `<p>a</p>${marker('shell', 1)}<p>b</p>${marker('grep', 2)}`,
       tail: '<p>done</p>',
     });
+  });
+
+  it('splits after a last marker the renderer shows inside a div or details', () => {
+    for (const wrapper of ['div', 'details']) {
+      const nested = `<${wrapper}>${marker('grep', 2)}</${wrapper}>`;
+      expect(splitFinishedWork(`${marker('shell', 1)}<p>b</p>${nested}<p>done</p>`)).toEqual({
+        head: `${marker('shell', 1)}<p>b</p>${nested}`,
+        tail: '<p>done</p>',
+      });
+    }
   });
 
   it('ignores marker-like text inside a code block', () => {
@@ -104,11 +115,11 @@ describe('splitFinishedWork', () => {
     (_name, { formatted_body: html }) => {
       const split = splitFinishedWork(html);
       if (!split) return;
-      const rendered = getRenderedToolRefs(html).toolBlocks.map(({ index }) => index);
-      expect(getRenderedToolRefs(split.head).toolBlocks.map(({ index }) => index)).toEqual(
-        rendered
-      );
-      expect(getRenderedToolRefs(split.tail).toolBlocks).toEqual([]);
+      // As `Reasoning` reads the markers it places seams and thinking after.
+      const placed = (part: string) =>
+        getRenderedToolRefs(sanitizeCustomHtml(part), true).toolBlocks.map(({ index }) => index);
+      expect(placed(split.head)).toEqual(placed(html));
+      expect(placed(split.tail)).toEqual([]);
     }
   );
 });

@@ -2,12 +2,7 @@ import { htmlToDOM } from 'html-react-parser';
 import { isText, type ChildNode } from 'domhandler';
 import { MINDROOM_TOOL_REF_ICON, parseToolRefText } from '../html/blocks';
 import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
-import {
-  extractTextFromChildren,
-  isDomElementNode,
-  parseToolBlockMarker,
-  takeLeadingToolRefs,
-} from './toolRefDom';
+import { isDomElementNode, visitRenderedToolBlocks } from './toolRefDom';
 
 export type FinishedWorkSplit = {
   /** The work: everything up to and including the block of the last tool marker. */
@@ -35,17 +30,14 @@ export const isLongAgentReply = (body: string): boolean =>
       body.length
     ) >= LONG_AGENT_REPLY_LENGTH;
 
-/** Whether the renderer shows this top-level node as a tool block, as `getRenderedToolRefs` reads it. */
-const startsWithToolBlock = (node: ChildNode): boolean => {
-  if (!isDomElementNode(node)) return false;
-  // Necessary for a match, and far cheaper than the prefix scan.
-  if (!extractTextFromChildren(node.children).trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) {
-    return false;
-  }
+/**
+ * Whether the renderer shows a tool block in this top-level node, by the rule that places seams
+ * and thinking after calls (nested markers included), so no seam anchors past the work.
+ */
+const holdsToolBlock = (node: ChildNode): boolean => {
   let found = false;
-  takeLeadingToolRefs(node, (html) => {
-    found = parseToolBlockMarker(html) !== undefined;
-    return false;
+  visitRenderedToolBlocks(node, true, () => {
+    found = true;
   });
   return found;
 };
@@ -113,7 +105,7 @@ export const splitFinishedWork = (html: string): FinishedWorkSplit | undefined =
   const nodes = htmlToDOM(html) as ChildNode[];
   let last = -1;
   nodes.forEach((node, index) => {
-    if (startsWithToolBlock(node)) last = index;
+    if (holdsToolBlock(node)) last = index;
   });
   if (last < 0) return undefined;
   const tail = nodes
