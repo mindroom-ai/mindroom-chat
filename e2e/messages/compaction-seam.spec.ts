@@ -542,6 +542,26 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     }
   }
 
+  // A short window with large text: the card stays inside it, and its rest scrolls.
+  await page.setViewportSize({ width: 640, height: 300 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  const failedRow = seamsIn(replyWith(page, STATES)).nth(0);
+  await centre(page, failedRow);
+  await failedRow.getByRole('button').hover();
+  await expect(card).toContainText('529 overloaded');
+  const box = await card.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(300);
+  expect(await card.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '';
+  });
+  await page.setViewportSize(DESKTOP);
+
   if (!SCREENSHOT) return;
   for (const [name, themeId, size] of SHOTS) {
     await page.setViewportSize(size);

@@ -109,6 +109,10 @@ export const Rule = style({
 export const Card = style({
   inlineSize: toRem(336),
   maxInlineSize: `calc(100vw - ${toRem(16)})`,
+  // Never taller than the window, as the message menu: the rest scrolls inside.
+  maxBlockSize: 'min(80dvh, calc(100dvh - 24px))',
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   borderRadius: config.radii.R400,
   paddingBlock: toRem(12),
