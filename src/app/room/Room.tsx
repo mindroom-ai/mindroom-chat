@@ -27,6 +27,7 @@ import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
@@ -766,6 +767,12 @@ function RoomContent() {
     if (focused && box?.contains(focused)) (focused as HTMLElement).blur();
     return () => setBehindPanel(false);
   }, [behindPanel, setBehindPanel]);
+  // Covered, the thread's back swipe is off, and a plugin's panel has no swipe of its own, so the
+  // left edge would open the room list (the drawer) instead of leaving the panel.
+  useEdgeSwipeBack(
+    closePluginPanel,
+    mobile && behindPanel && !!shown && shown.id === pluginPanel?.id
+  );
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
