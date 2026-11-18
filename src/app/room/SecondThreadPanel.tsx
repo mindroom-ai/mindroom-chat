@@ -68,9 +68,9 @@ export function SecondThreadPanel({
   const { t } = useTranslation();
   const columnRef = useRef<HTMLDivElement>(null);
   const focusComposer = useRef<() => void>();
-  // Whether the focus is in B's tree: React's focus events come through its portals too (its
-  // menus and dialogs, drawn outside its nodes). Focus going elsewhere blurs first; a node that
-  // goes with B leaves it set.
+  // Whether the focus is in B's tree, its splitter included: React's focus events come through its
+  // portals too (its menus and dialogs, drawn outside its nodes). Focus going elsewhere blurs
+  // first; a node that goes with B leaves it set.
   const ownsFocus = useRef(false);
   const closing = usePanelPresence()?.phase === 'exit';
 
@@ -95,19 +95,14 @@ export function SecondThreadPanel({
       onCollapse={onClose}
       testId="second-thread-panel"
       onKeyDown={handleKeyDown}
+      onFocus={() => {
+        ownsFocus.current = true;
+      }}
+      onBlur={() => {
+        ownsFocus.current = false;
+      }}
     >
-      <div
-        ref={columnRef}
-        style={COLUMN_STYLE}
-        role="region"
-        aria-label={t('thread.second')}
-        onFocus={() => {
-          ownsFocus.current = true;
-        }}
-        onBlur={() => {
-          ownsFocus.current = false;
-        }}
-      >
+      <div ref={columnRef} style={COLUMN_STYLE} role="region" aria-label={t('thread.second')}>
         {!closing && <FocusProbe ownsFocus={ownsFocus} onGone={onGone} />}
         {!closing && (
           <ThreadView

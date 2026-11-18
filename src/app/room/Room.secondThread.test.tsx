@@ -354,6 +354,18 @@ describe('the second thread beside the open one', () => {
     expect(document.activeElement).toBe(screen.getByTestId('a-composer'));
   });
 
+  it('B replaced by a call with the focus on its splitter hands the focus to A', async () => {
+    await renderRoom('$a');
+    await openBeside('$b');
+    screen.getByRole('separator', { name: 'Resize second thread' }).focus();
+    await act(async () => {
+      getDefaultStore().set(getCallWindowSettingsAtom('@alice:example.org'), { mode: 'docked' });
+      getDefaultStore().set(callPanelRoomAtom, room.roomId);
+    });
+    expect(panel()).toBeNull();
+    expect(document.activeElement).toBe(screen.getByTestId('a-composer'));
+  });
+
   it('B replaced by a call hands the focus to A, unless it already moved elsewhere', async () => {
     const store = getDefaultStore();
     await renderRoom('$a');
