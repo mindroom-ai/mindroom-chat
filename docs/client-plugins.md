@@ -258,6 +258,12 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 63 `threadHeaderSlot`
 - version 64 `ui`'s `MarkdownContent`
 
+## Page zoom
+
+The app's Page Zoom setting (`src/app/theme/usePageZoom.ts`) scales the root font size, and the app sizes everything in `rem`, so the whole interface grows or shrinks with it.
+A plugin sizes its text and controls in `rem` too (font sizes, line heights, control heights, paddings, gaps and icons), or they keep their size while the app around them zooms; `px` stays for hairline borders, outlines, shadow offsets and media queries.
+A number a plugin measures layout with in code, such as a virtualized list's row height, follows the root font size the same way (`getComputedStyle(document.documentElement).fontSize`).
+
 ## Pinches
 
 The app turns a pinch into its page zoom (`src/app/theme/usePinchToZoom.ts`), except over an element that has the attribute `ui`'s `PINCH_SURFACE_ATTRIBUTE` names (`data-pinch-surface`, with any value), such as a board or slides that zoom themselves, or the image viewer.
