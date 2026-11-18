@@ -127,6 +127,8 @@ import {
   useThreadApprovalTimeline,
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
+import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
+import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { InlineSecretRequestsContext } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
@@ -859,6 +861,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     routeId: eventId,
     focusId: focusItem?.eventId,
   });
+  // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
+  const viewerId = mx.getUserId() ?? undefined;
+  const voiceTranscripts = useVoiceTranscriptPlan({
+    events: threadId ? threadEvents : roomRows,
+    getContent: getRowContent,
+    isAgent: (userId) => isMindroomAgentUserIdForViewer(userId, viewerId),
+    ignored: ignoredUsersSet,
+    revealed: pluginRevealedRef.current,
+  });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
   // opened, and the rows a fork's lines sit on, keep their turn unfolded.
@@ -871,7 +882,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
       isTimelineRowHidden(event, {
-        messageData: { approvalTimeline, threadSummaryTimeline, secretRequestTimeline },
+        messageData: {
+          approvalTimeline,
+          threadSummaryTimeline,
+          secretRequestTimeline,
+          voiceTranscripts,
+        },
         ignoredUsersSet,
         showHiddenEvents,
         isHiddenByPlugin,
@@ -883,6 +899,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       secretRequestTimeline,
       showHiddenEvents,
       threadSummaryTimeline,
+      voiceTranscripts,
     ]
   );
   const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
@@ -1092,6 +1109,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     if (
       pluginHiddenThreadIds.size === 0 &&
       secretRequestTimeline.hiddenEventIds.size === 0 &&
+      voiceTranscripts.hiddenEventIds.size === 0 &&
       turnFolds.view.hiddenIds.size === 0
     ) {
       return approvalTimeline.hiddenEventIds;
@@ -1099,6 +1117,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     return new Set([
       ...approvalTimeline.hiddenEventIds,
       ...secretRequestTimeline.hiddenEventIds,
+      ...voiceTranscripts.hiddenEventIds,
       ...pluginHiddenThreadIds,
       ...turnFolds.view.hiddenIds,
     ]);
@@ -1106,6 +1125,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     approvalTimeline.hiddenEventIds,
     secretRequestTimeline.hiddenEventIds,
+    voiceTranscripts.hiddenEventIds,
     pluginHiddenThreadIds,
     turnFolds.view,
   ]);
@@ -1810,6 +1830,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     approvalTimeline,
     threadSummaryTimeline,
     secretRequestTimeline,
+    voiceTranscripts,
     handleOpenReply,
     forkPrefixEventIds,
   };

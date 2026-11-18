@@ -10,13 +10,21 @@ import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval
 import { MessageEvent } from '../../matrix/types/room';
 import { defined } from '../../../test/utils/defined';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+import {
+  NO_VOICE_TRANSCRIPTS,
+  type VoiceTranscriptPlan,
+} from '../../messages/voiceTranscripts';
+import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
 
 const reactionMocks = vi.hoisted(() => ({ toggleReaction: vi.fn(async () => undefined) }));
 vi.mock('../../messages/reactions/reactionToggle', () => ({
   toggleReaction: reactionMocks.toggleReaction,
 }));
 
-const emptyData = () => ({
+const emptyData = (): {
+  voiceTranscripts: VoiceTranscriptPlan;
+  [key: string]: unknown;
+} => ({
   threadRecordMap: new Map(),
   handleOpenReply: vi.fn(),
   approvalTimeline: {
@@ -33,15 +41,19 @@ const emptyData = () => ({
     byReply: new Map(),
     waitingReplyIds: new Set<string>(),
   },
+  voiceTranscripts: NO_VOICE_TRANSCRIPTS,
 });
 
 /** Renders one row; `content()` gives the props its message content received last. */
-const renderRow = async (event: MatrixEvent, threadId?: string) => {
+const renderRow = async (
+  event: MatrixEvent,
+  threadId?: string,
+  data: ReturnType<typeof emptyData> = emptyData()
+) => {
   const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
   const room = makeRoom({ liveEvents: [] }) as unknown as Room;
   const editor = createEditor();
   const scrollRef = createRef<HTMLDivElement>();
-  const data = emptyData() as never;
   const row = {
     eventId: event.getId()!,
     event,
@@ -61,7 +73,7 @@ const renderRow = async (event: MatrixEvent, threadId?: string) => {
       messageSpacing: '400' as MessageSpacing,
       hideActivity: false,
     });
-    return feature.wrapExpansion(<>{feature.renderEvent(row, data)}</>);
+    return feature.wrapExpansion(<>{feature.renderEvent(row, data as never)}</>);
   }
   let renderer!: ReturnType<typeof create>;
   act(() => {
@@ -225,5 +237,44 @@ describe('timeline rows of an encrypted room', () => {
     expect(content().edited).toBe(true);
     act(() => renderer.unmount());
     expect(reply.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
+  });
+});
+
+describe('a voice message the router transcribed', () => {
+  const voice = makeEvent('$voice', {
+    content: { msgtype: 'm.audio', body: 'voice.ogg', url: 'mxc://example.org/voice' },
+  }) as unknown as MatrixEvent;
+  const echo = makeEvent('$echo', {
+    sender: '@mindroom_router:example.org',
+    content: {
+      msgtype: 'm.text',
+      body: 'Router agent is transcribing…',
+      'com.mindroom.visible_router_voice_echo': true,
+      'com.mindroom.voice_source_event_id': '$voice',
+    },
+  }) as unknown as MatrixEvent & { __editedEvent?: unknown };
+  const paired = () => ({
+    ...emptyData(),
+    voiceTranscripts: {
+      hiddenEventIds: new Set(['$echo']),
+      byVoiceId: new Map([['$voice', echo]]),
+    },
+  });
+  const transcripts = (renderer: Awaited<ReturnType<typeof renderRow>>['renderer']) =>
+    renderer.root.findAllByType(VoiceTranscript);
+
+  it("shows the echo's latest version under the voice message", async () => {
+    echo.__editedEvent = makeEvent('$echo-edit', {
+      content: { msgtype: 'm.text', body: '🎤 Invented words' },
+    });
+    const { renderer } = await renderRow(voice, undefined, paired());
+    expect(transcripts(renderer).map((node) => node.props.content.body)).toEqual([
+      '🎤 Invented words',
+    ]);
+  });
+
+  it('shows nothing extra under a voice message without a paired echo', async () => {
+    const { renderer } = await renderRow(voice);
+    expect(transcripts(renderer)).toHaveLength(0);
   });
 });

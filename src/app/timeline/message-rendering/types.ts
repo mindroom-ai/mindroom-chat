@@ -4,6 +4,7 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 import type { useThreadApprovalTimeline } from '../../approvals/useThreadApprovalTimeline';
 import type { ThreadSummaryTimelinePlan } from '../../event-store/threads/threadSummaryTimeline';
 import type { InlineSecretRequestPlan } from '../../messages/inlineSecretRequests';
+import type { VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
 
 export type TimelineMessageRow = Readonly<{
   eventId: string;
@@ -23,6 +24,8 @@ export type TimelineMessageData = {
   threadSummaryTimeline: ThreadSummaryTimelinePlan;
   /** Secret request cards the thread's replies draw, whose own rows hide. */
   secretRequestTimeline: InlineSecretRequestPlan;
+  /** The router's voice echoes the voice messages they transcribe draw, whose own rows hide. */
+  voiceTranscripts: VoiceTranscriptPlan;
   handleOpenReply: MouseEventHandler;
   /** In a fork, the IDs of its parent's messages shown before its own: rows read-only here. */
   forkPrefixEventIds?: ReadonlySet<string>;

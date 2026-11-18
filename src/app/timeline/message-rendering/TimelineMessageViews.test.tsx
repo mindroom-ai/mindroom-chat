@@ -12,6 +12,7 @@ import { BlockType } from '../../editor/types';
 import { ConversationViewContext } from '../../navigation/conversationView';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
 
 // Two views of one room: the room's page and another conversation view (a plugin's thread view),
 // each with its timeline and the composer that shares its editor. The reply target is real jotai
@@ -60,6 +61,7 @@ const emptyData = {
     byReply: new Map(),
     waitingReplyIds: new Set<string>(),
   },
+  voiceTranscripts: NO_VOICE_TRANSCRIPTS,
 } as never;
 
 const emptyEditor = () => {
