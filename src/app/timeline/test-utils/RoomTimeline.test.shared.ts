@@ -565,7 +565,7 @@ vi.mock('../../lib/hooks/useKeyDown', () => ({
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
-    useTranslation: () => ({ t: translateFromEn, i18n: { language: 'en' } }),
+    useTranslation: () => ({ t: translateFromEn }),
     Trans: ({ i18nKey }: { i18nKey: string }) => i18nKey,
   };
 });
@@ -746,7 +746,6 @@ vi.mock('../../lib/time', () => ({
   inSameDay: inSameDayMock,
   minuteDifference: () => 0,
   timeDayMonthYear: timeDayMonthYearMock,
-  timeHourMinuteSecond: () => 'time',
   today: () => false,
   yesterday: () => false,
 }));
