@@ -11,18 +11,15 @@ import {
 /**
  * One row of a thread: `p` a person's message, `a` an agent's message, `m` a quiet marker,
  * `n` an agent's notice, `e` an edit (no row of its own). Flags: `s` streaming or waiting on the
- * reader, `h` hidden by another plan, `d` sent the next day.
+ * reader, `h` hidden by another plan.
  */
 type Row = string;
-
-const START = new Date(2026, 10, 16, 12, 0).getTime();
 
 const toEvent = (row: Row, index: number): MatrixEvent => {
   const [kind] = row;
   const id = `$${index}${row}`;
   return {
     getId: () => id,
-    getTs: () => START + index * 60_000 + (row.includes('d') ? 24 * 60 * 60_000 : 0),
     getType: () => 'm.room.message',
     getStateKey: () => undefined,
     getRelation: () => (kind === 'e' ? { rel_type: 'm.replace', event_id: '$0p' } : null),
@@ -45,11 +42,10 @@ const plan = (rows: Row[], rules: Partial<ThreadTurnRules> = {}) => {
     lastTurnBusy: false,
     ...rules,
   });
-  // Each fold as `key: hidden rows -> answer (count)`, rows by their index in `rows`.
+  // Each fold as `key: hidden rows (count)`, rows by their index in `rows`.
   const at = (id: string) => Number(/^\$(\d+)/.exec(id)?.[1]);
   return folds.map(
-    (fold) =>
-      `${at(fold.key)}: ${fold.hiddenIds.map(at).join(',')} -> ${at(fold.answerId)} (${fold.count})`
+    (fold) => `${at(fold.key)}: ${fold.hiddenIds.map(at).join(',')} (${fold.count})`
   );
 };
 
@@ -58,39 +54,32 @@ describe('planThreadTurnFolds', () => {
     [
       'folds the rows between the question and the last agent message',
       ['p', 'a', 'a', 'a'],
-      ['0: 1,2 -> 3 (2)'],
+      ['0: 1,2 (2)'],
     ],
     ['leaves a turn with one message before its answer', ['p', 'a', 'a'], []],
     ['leaves a turn without an agent message', ['p', 'm', 'm'], []],
-    [
-      'keeps the markers after the answer in view',
-      ['p', 'a', 'a', 'a', 'm', 'm'],
-      ['0: 1,2 -> 3 (2)'],
-    ],
+    ['leaves a turn whose agent sent only notices', ['p', 'n', 'n', 'n'], []],
+    ['keeps the markers after the answer in view', ['p', 'a', 'a', 'a', 'm', 'm'], ['0: 1,2 (2)']],
     [
       'counts messages, not the quiet markers among them',
       ['p', 'a', 'm', 'a', 'a'],
-      ['0: 1,2,3 -> 4 (2)'],
+      ['0: 1,2,3 (2)'],
     ],
     ['needs two messages, however many markers', ['p', 'a', 'm', 'm', 'a'], []],
-    ['answers with a message, not a notice', ['p', 'a', 'a', 'a', 'n'], ['0: 1,2 -> 3 (2)']],
+    ['answers with a message, not a notice', ['p', 'a', 'a', 'a', 'n'], ['0: 1,2 (2)']],
     [
       'folds each turn on its own',
       ['p', 'a', 'a', 'a', 'p', 'a', 'a', 'a', 'a'],
-      ['0: 1,2 -> 3 (2)', '4: 5,6,7 -> 8 (3)'],
+      ['0: 1,2 (2)', '4: 5,6,7 (3)'],
     ],
-    [
-      'starts a turn at each of back-to-back messages',
-      ['p', 'p', 'a', 'a', 'a'],
-      ['1: 2,3 -> 4 (2)'],
-    ],
+    ['starts a turn at each of back-to-back messages', ['p', 'p', 'a', 'a', 'a'], ['1: 2,3 (2)']],
     ['folds nothing before the first person message', ['a', 'a', 'a', 'p', 'a'], []],
-    ['skips edits, which have no row', ['p', 'a', 'e', 'a', 'e', 'a', 'e'], ['0: 1,3 -> 5 (2)']],
+    ['skips edits, which have no row', ['p', 'a', 'e', 'a', 'e', 'a', 'e'], ['0: 1,3 (2)']],
     ['leaves rows other plans hide out of the count', ['p', 'a', 'ah', 'a'], []],
     [
       'keeps a turn with a streaming reply unfolded',
       ['p', 'a', 'as', 'a', 'p', 'a', 'a', 'a'],
-      ['4: 5,6 -> 7 (2)'],
+      ['4: 5,6 (2)'],
     ],
     ['keeps a turn whose hidden request waits unfolded', ['p', 'a', 'mhs', 'a', 'a'], []],
   ])('%s', (_name, rows, expected) => {
@@ -99,33 +88,27 @@ describe('planThreadTurnFolds', () => {
 
   it('folds the newest turn only once the thread stops working on it', () => {
     const rows = ['p', 'a', 'a', 'a', 'p', 'a', 'a', 'a'];
-    expect(plan(rows, { lastTurnBusy: true })).toEqual(['0: 1,2 -> 3 (2)']);
-    expect(plan(rows)).toEqual(['0: 1,2 -> 3 (2)', '4: 5,6 -> 7 (2)']);
+    expect(plan(rows, { lastTurnBusy: true })).toEqual(['0: 1,2 (2)']);
+    expect(plan(rows)).toEqual(['0: 1,2 (2)', '4: 5,6 (2)']);
   });
 
   it('keeps an earlier turn unfolded while its row waits, whatever came after it', () => {
     // An unanswered question in the first turn holds it, though the person wrote since.
     const rows = ['p', 'as', 'a', 'a', 'p', 'a', 'a', 'a'];
-    expect(plan(rows)).toEqual(['4: 5,6 -> 7 (2)']);
-  });
-
-  it('folds a turn that crosses a day like any other', () => {
-    expect(plan(['p', 'ad', 'ad', 'ad'])).toEqual(['0: 1,2 -> 3 (2)']);
-    expect(plan(['p', 'a', 'ad', 'ad'])).toEqual(['0: 1,2 -> 3 (2)']);
-    expect(plan(['p', 'a', 'a', 'a', 'md'])).toEqual(['0: 1,2 -> 3 (2)']);
+    expect(plan(rows)).toEqual(['4: 5,6 (2)']);
   });
 
   it('keeps a turn unfolded that would hide a pinned row', () => {
     const rows = ['p', 'a', 'a', 'a', 'p', 'a', 'a', 'a'];
     // The route opened the second turn's first reply; the answer itself may be pinned.
-    expect(plan(rows, { pinnedIds: new Set(['$5a', '$3a']) })).toEqual(['0: 1,2 -> 3 (2)']);
+    expect(plan(rows, { pinnedIds: new Set(['$5a', '$3a']) })).toEqual(['0: 1,2 (2)']);
   });
 });
 
 describe('viewThreadTurnFolds', () => {
   const folds: ThreadTurnFold[] = [
-    { key: '$q1', hiddenIds: ['$1', '$2'], count: 2, answerId: '$3' },
-    { key: '$q2', hiddenIds: ['$5', '$6', '$7'], count: 3, answerId: '$8' },
+    { key: '$q1', hiddenIds: ['$1', '$2'], count: 2 },
+    { key: '$q2', hiddenIds: ['$5', '$6', '$7'], count: 3 },
   ];
 
   it('hides the rows of closed turns and puts every break on its first hidden row', () => {

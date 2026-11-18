@@ -12,7 +12,7 @@ import { isRowlessTimelineEvent } from './timelineRowFold';
  * agent's could be its answer) keeps its turn unfolded. Other rows (approval cards, state notices)
  * are neither. A redacted message keeps only its sender, as the minimap reads it.
  */
-export type ThreadRowAuthor = 'person' | 'agent' | 'unknown' | 'none';
+type ThreadRowAuthor = 'person' | 'agent' | 'unknown' | 'none';
 
 export const threadRowAuthor = (event: MatrixEvent): ThreadRowAuthor => {
   if (event.getStateKey() !== undefined) return 'none';
@@ -35,8 +35,6 @@ export type ThreadTurnFold = {
   hiddenIds: readonly string[];
   /** How many of them are messages, not quiet markers: what the break counts. */
   count: number;
-  /** The turn's answer, the last message an agent wrote in it, which stays in view. */
-  answerId: string;
 };
 
 export type ThreadTurnRules = {
@@ -57,17 +55,15 @@ export type ThreadTurnRules = {
 };
 
 /** Fewer messages than this between a turn's question and its answer leave the turn unfolded. */
-export const MIN_FOLDED_MESSAGES = 2;
+const MIN_FOLDED_MESSAGES = 2;
 
 /**
  * The turns of an open thread's rows (`events`, in order) that fold. A turn runs from a person's
  * message to the next one. Its answer is its last agent message; the rows after it (quiet markers)
  * stay, and the rows before it fold once at least `MIN_FOLDED_MESSAGES` of them are messages. A
  * turn that is not finished (a row holds it, or it is the newest while the thread works) or that
- * would hide a pinned row stays unfolded. A turn that crosses a day folds too: folded, the answer
- * gets a date divider when its day differs from the question's, and opened, every divider is
- * back in place. Rows without one of their own (edits, reactions) and rows other plans hide
- * take no part.
+ * would hide a pinned row stays unfolded. Rows without one of their own (edits, reactions) and
+ * rows other plans hide take no part.
  */
 export const planThreadTurnFolds = (
   events: readonly MatrixEvent[],
@@ -86,9 +82,7 @@ export const planThreadTurnFolds = (
     }
     let answerAt = rows.length - 1;
     while (answerAt >= 0 && !rules.isAnswer(rows[answerAt]!)) answerAt -= 1;
-    const answer = rows[answerAt];
-    const answerId = answer?.getId();
-    if (!answer || !answerId) return;
+    if (answerAt < 0) return;
     const hidden = rows.slice(0, answerAt);
     const hiddenIds = hidden.flatMap((event) => event.getId() ?? []);
     if (hiddenIds.length !== hidden.length || hiddenIds.some((id) => rules.pinnedIds.has(id))) {
@@ -96,7 +90,7 @@ export const planThreadTurnFolds = (
     }
     const count = hidden.filter((event) => !rules.isQuietMarker(event)).length;
     if (count < MIN_FOLDED_MESSAGES) return;
-    folds.push({ key, hiddenIds, count, answerId });
+    folds.push({ key, hiddenIds, count });
   };
   let turnStart: number | undefined;
   events.forEach((event, index) => {

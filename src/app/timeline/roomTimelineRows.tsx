@@ -167,7 +167,7 @@ const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 68 } as const;
 const ROOM_ROW_UNMEASURED_PX = 0.5;
 const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
 /** A turn's break (`TurnBreak`): its pill and the padding around it. */
-export const TURN_BREAK_ESTIMATE_PX = 42;
+const TURN_BREAK_ESTIMATE_PX = 42;
 
 /**
  * The virtual list's row sizes and keys for this render. Room indexes count from the window's

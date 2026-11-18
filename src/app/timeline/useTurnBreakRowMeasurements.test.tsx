@@ -10,7 +10,7 @@ import { EMPTY_TURN_FOLD_VIEW, viewThreadTurnFolds, type ThreadTurnFold } from '
 // must take its estimate again rather than keep that height.
 
 const events = ['$q', '$a1', '$a2', '$a3'].map((id) => ({ getId: () => id } as MatrixEvent));
-const fold: ThreadTurnFold = { key: '$q', hiddenIds: ['$a1', '$a2'], count: 2, answerId: '$a3' };
+const fold: ThreadTurnFold = { key: '$q', hiddenIds: ['$a1', '$a2'], count: 2 };
 const estimate = (index: number) => (index === 1 ? 42 : 30);
 
 const setup = (mountedKeys: string[], detachedKeys: string[] = []) => {

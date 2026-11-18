@@ -31,7 +31,7 @@ const event = (id: string, minute: number) =>
   });
 
 const events = [event(ROOT, 0), event('$a1', 1), event('$a2', 2), event('$a3', 3)];
-const fold: ThreadTurnFold = { key: ROOT, hiddenIds: ['$a1', '$a2'], count: 2, answerId: '$a3' };
+const fold: ThreadTurnFold = { key: ROOT, hiddenIds: ['$a1', '$a2'], count: 2 };
 
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
