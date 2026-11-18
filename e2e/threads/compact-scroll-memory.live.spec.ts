@@ -37,13 +37,14 @@ type CardLayout = {
   offsets: Record<string, number>;
   /** The glass room header covers this much of the viewport's top. */
   headerHeight: number;
+  scrollTop: number;
 };
 
 // The overview's layout once it has stopped moving.
 const settledCardLayout = (page: Page): Promise<CardLayout> =>
   page.evaluate(async (selector) => {
     const view = document.querySelector<HTMLElement>(selector);
-    if (!view) return { offsets: {}, headerHeight: 0 };
+    if (!view) return { offsets: {}, headerHeight: 0, scrollTop: -1 };
     let previous = view.scrollTop;
     for (let stableFrames = 0, frames = 0; stableFrames < 5 && frames < 120; frames += 1) {
       await new Promise((resolve) => {
@@ -60,7 +61,11 @@ const settledCardLayout = (page: Page): Promise<CardLayout> =>
         offsets[card.dataset.threadRootId!] = rect.top - top;
       }
     });
-    return { offsets, headerHeight: parseFloat(getComputedStyle(view).paddingTop) };
+    return {
+      offsets,
+      headerHeight: parseFloat(getComputedStyle(view).paddingTop),
+      scrollTop: view.scrollTop,
+    };
   }, COMPACT_VIEW);
 
 const scrollOverviewTo = (page: Page, scrollTop: number) =>
@@ -78,11 +83,8 @@ const clickThreadExitButton = (page: Page) =>
     exitButton.click();
   });
 
-test('the compact overview keeps its cards in place when threads re-sort during a thread visit', async ({
-  page,
-}) => {
-  test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
-  test.slow();
+// A logged-in page and a compact room of THREAD_COUNT threads with a reply each, the first oldest.
+const setUpCompactRoom = async (page: Page) => {
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
@@ -110,6 +112,15 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     viewMode: 'compact',
     filterState: createDefaultThreadFilterState(),
   });
+  return { homeserver, session, runTag, roomId, roots };
+};
+
+test('the compact overview keeps its cards in place when threads re-sort during a thread visit', async ({
+  page,
+}) => {
+  test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+  test.slow();
+  const { homeserver, session, runTag, roomId, roots } = await setUpCompactRoom(page);
 
   // Opens the first card below the header and, while the thread is open, gets
   // replies in it and in the thread at the bottom of the list, so both sort
@@ -170,5 +181,48 @@ test('the compact overview keeps its cards in place when threads re-sort during 
   await test.step('mobile browser Back', async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await visitThreadAndReturn(1200, () => page.goBack());
+  });
+});
+
+test('the compact overview a focus address opened stays where the reader left it', async ({
+  page,
+}) => {
+  test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+  test.slow();
+  const { roomId, roots } = await setUpCompactRoom(page);
+  const cards = page.locator(`${COMPACT_VIEW} button[data-thread-root-id]`);
+
+  // A thread left from its link puts this address in its place, and Back from a thread opened
+  // later returns to it. Its card was shown once; the reader has scrolled to the top since.
+  const openTopCardAfterFocus = async (focusedRootId: string) => {
+    await page.goto(
+      `/home/${encodeURIComponent(roomId)}/${encodeURIComponent(focusedRootId)}?focusEvent=1`
+    );
+    await expect(
+      page.locator(`${COMPACT_VIEW} button[data-thread-root-id="${focusedRootId}"]`)
+    ).toBeInViewport();
+    await scrollOverviewTo(page, 0);
+    expect((await settledCardLayout(page)).scrollTop).toBe(0);
+    const topRootId = await cards.first().getAttribute('data-thread-root-id');
+    const card = await cards.first().boundingBox();
+    await page.mouse.click(card!.x + card!.width / 2, card!.y + card!.height / 2);
+    await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(topRootId!)}`));
+  };
+  const expectAtTop = async () => {
+    await expect(page).not.toHaveURL(/threadId=/);
+    await expect(page.locator(COMPACT_VIEW)).toBeVisible();
+    expect((await settledCardLayout(page)).scrollTop).toBe(0);
+  };
+
+  await test.step('browser Back', async () => {
+    await openTopCardAfterFocus(roots[3]!);
+    await page.goBack();
+    await expectAtTop();
+  });
+
+  await test.step('thread exit button', async () => {
+    await openTopCardAfterFocus(roots[6]!);
+    await clickThreadExitButton(page);
+    await expectAtTop();
   });
 });
