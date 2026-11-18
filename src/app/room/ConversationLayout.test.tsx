@@ -92,11 +92,18 @@ it('draws the header, timeline, dock and footer of the room', () => {
       (child) => child.getAttribute('data-testid') ?? child.className
     )
   ).toEqual(['room-dock-bars', 'following']);
+  // The footer starts with an empty box, where a selection of the conversation ends before the
+  // composer.
   const footer = document.querySelector('[data-room-footer="true"]');
-  expect([...(footer?.children ?? [])].map((child) => child.getAttribute('data-testid'))).toEqual([
-    'notice',
-    'composer',
-  ]);
+  expect(
+    [...(footer?.children ?? [])].map(
+      (child) =>
+        child.getAttribute('data-testid') ??
+        (child.childNodes.length === 0 && child.getAttribute('aria-hidden') === 'true'
+          ? 'empty box'
+          : child.outerHTML)
+    )
+  ).toEqual(['empty box', 'notice', 'composer']);
 });
 
 it("adds the thread's approvals and passes a confirmed thread to its provider", () => {
