@@ -69,16 +69,14 @@ const useElapsedSeconds = (startedAt: number | undefined, ticking: boolean): num
   return Math.max(0, Math.floor((now - startedAt) / 1000));
 };
 
-type Labels = { t: TFunction; elapsed: string | undefined };
-
 /** The row's words at rest: what happened, and (after a dot) what it changed. */
 const restParts = (
   compaction: ReplyCompaction,
   state: SeamState,
   place: SeamPlace,
-  { t, elapsed }: Labels
-): { what: string; detail?: string; tick?: string } => {
-  if (state === 'running') return { what: t(`${KEY}.label.running`), tick: elapsed };
+  t: TFunction
+): { what: string; detail?: string } => {
+  if (state === 'running') return { what: t(`${KEY}.label.running`) };
   if (isUnfinished(state)) {
     const kept = keptFullHistory(compaction);
     return { what: t(`${KEY}.label.${state}`), ...(kept && { detail: t(`${KEY}.keptHistory`) }) };
@@ -289,7 +287,9 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   const state = seamState(compaction, interrupted);
   const place = seamPlace(compaction);
   const seconds = useElapsedSeconds(compaction.startedAt, state === 'running');
-  const elapsed = seconds === undefined ? undefined : t(`${KEY}.elapsed`, { n: seconds });
+  // The running clock, on the row and in the card's head.
+  const elapsed =
+    state === 'running' && seconds !== undefined ? t(`${KEY}.elapsed`, { n: seconds }) : undefined;
 
   const show = (mode: OpenMode) => {
     const trigger = triggerRef.current;
@@ -361,7 +361,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
 
   const unfinished = isUnfinished(state);
   const Icon = unfinished ? IconAlertTriangle : IconFold;
-  const rest = restParts(compaction, state, place, { t, elapsed });
+  const rest = restParts(compaction, state, place, t);
   const title = state === 'success' ? t(`${KEY}.title`) : t(`${KEY}.label.${state}`);
   const tag = place === 'notice' ? undefined : t(`${KEY}.tag.${place}`);
   const sub = subtitle(compaction, state, place, t);
@@ -401,10 +401,10 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             <span>{rest.detail}</span>
           </>
         )}
-        {rest.tick !== undefined && (
+        {elapsed !== undefined && (
           <>
             {' '}
-            <span>{rest.tick}</span>
+            <span>{elapsed}</span>
           </>
         )}
       </button>
@@ -439,7 +439,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
               <Icon size={ICON_SIZE} aria-hidden />
               <span>
                 {title}
-                {state === 'running' && elapsed !== undefined && ` ${elapsed}`}
+                {elapsed !== undefined && ` ${elapsed}`}
               </span>
               {tag !== undefined && <span className={css.Tag}>{tag}</span>}
             </div>
