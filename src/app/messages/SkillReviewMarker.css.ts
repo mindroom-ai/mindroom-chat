@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 export const Marker = style({
@@ -14,7 +14,9 @@ export const MarkerTrigger = style({
   alignItems: 'center',
   gap: '0.3rem',
   minWidth: 0,
-  maxWidth: '100%',
+  // The start margin pulls it past the line's start; it may reach the line's end too. In a row
+  // of markers sized to their content, plain 100% would cut the label short.
+  maxWidth: `calc(100% + ${config.space.S100})`,
   border: 0,
   borderRadius: config.radii.R300,
   padding: `${toRem(1)} ${config.space.S100}`,
@@ -41,6 +43,22 @@ export const MarkerTrigger = style({
 
 export const Name = style({
   overflowWrap: 'anywhere',
+});
+
+// The icon keeps its size when the label beside it is cut short.
+globalStyle(`${MarkerTrigger} > svg`, { flexShrink: 0 });
+
+// Beside other markers (a run row in the thread timeline), the label keeps to one line and its
+// skill name, at its end, ends in an ellipsis; the card shows it in full.
+export const Label = style({
+  selectors: {
+    '[data-quiet-marker-run] &': {
+      minWidth: 0,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    },
+  },
 });
 
 export const Details = style({

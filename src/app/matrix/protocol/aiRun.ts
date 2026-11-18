@@ -194,6 +194,28 @@ export const getStreamStatusFromContent = (
   return typeof raw === 'string' && raw.length > 0 ? raw.toLowerCase() : undefined;
 };
 
+// Some producers wrap the stream status in a `{ status | state }` record instead
+// of writing a plain string. Fall back to that shape when the shared string
+// helper (which only accepts strings) yields nothing.
+const getStatusFromRecordMetadata = (metadata: unknown): string | undefined => {
+  if (!isRecord(metadata)) return undefined;
+  const statusCandidate = metadata.status ?? metadata.state;
+  if (typeof statusCandidate !== 'string' || statusCandidate.length === 0) return undefined;
+  return statusCandidate.toLowerCase();
+};
+
+/** The stream status in string or record form, lower-cased. */
+export const readStreamStatus = (content: Record<string, unknown>): string | undefined => {
+  const fromStringForm = getStreamStatusFromContent(content);
+  if (fromStringForm) return fromStringForm;
+
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
+  return (
+    getStatusFromRecordMetadata(newContent?.[STREAM_STATUS_KEY]) ??
+    getStatusFromRecordMetadata(content[STREAM_STATUS_KEY])
+  );
+};
+
 /**
  * True only when the content itself proves the stream reached a terminal
  * state. Absent or unrecognized metadata returns false — callers must not

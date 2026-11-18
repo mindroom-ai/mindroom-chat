@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -337,9 +338,33 @@ export function CompactRoomView({
     shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
   }, [heldSections, room.roomId]);
   // A section that shows alone, as under its workflow tab, is open: its stored fold waits for the
-  // other sections to come back.
+  // other sections to come back. While the order is held, that section stays open when a card
+  // moving to Working brings a second one, so the cards under the pointer stay in view, until the
+  // hold lets go or the reader folds it from its header.
   const soleSection = heldSections?.length === 1;
-  const folded = soleSection ? NO_FOLDS : sectionsChoice.folded;
+  const heldOpenRef = useRef<{ roomId: string; id: ThreadWorkflowBucket }>();
+  const [, showFolds] = useReducer((count: number) => count + 1, 0);
+  const heldOpen = soleSection
+    ? heldSections?.[0]?.id
+    : orderHeld && heldOpenRef.current?.roomId === room.roomId
+    ? heldOpenRef.current.id
+    : undefined;
+  useLayoutEffect(() => {
+    heldOpenRef.current = heldOpen ? { roomId: room.roomId, id: heldOpen } : undefined;
+  }, [heldOpen, room.roomId]);
+  const folded = useMemo(
+    () => (soleSection ? NO_FOLDS : sectionsChoice.folded.filter((id) => id !== heldOpen)),
+    [heldOpen, sectionsChoice.folded, soleSection]
+  );
+  const toggleFold = (id: ThreadWorkflowBucket) => {
+    // A section held open shows open, so its header folds it, stored as folded once.
+    if (id === heldOpen) {
+      heldOpenRef.current = undefined;
+      showFolds();
+      if (sectionsChoice.folded.includes(id)) return;
+    }
+    updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
+  };
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
   const listedRows = useMemo(
     () =>
@@ -554,7 +579,7 @@ export function CompactRoomView({
             fill="None"
             radii="300"
             aria-expanded={!closed}
-            onClick={() => updateSectionsChoice({ type: 'TOGGLE_FOLD', id })}
+            onClick={() => toggleFold(id)}
             before={
               <Icon
                 size="100"

@@ -12,6 +12,7 @@ import { keepThreadReplyCounts } from './threadReplyCounts';
 import { relistThreadsAfterGaps } from './threadListGaps';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { keepStreamingRepliesChecked } from './streamingReplies';
+import { keepStreamingThreadsLoaded } from './streamingThreadLoads';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepSyncedEdits } from './syncedEdits';
 import { emptySupersededJobsState } from './supersededJobsState';
@@ -95,6 +96,7 @@ export const startClient = async (mx: MatrixClient): Promise<void> => {
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
     keepStreamingRepliesChecked(mx);
+    keepStreamingThreadsLoaded(mx);
     relistThreadsAfterGaps(mx);
     // These saves listen to the page as well (it may be hidden while one waits), which would keep
     // a closed client in memory and save its store once more.

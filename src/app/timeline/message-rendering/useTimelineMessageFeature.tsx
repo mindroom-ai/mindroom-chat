@@ -1,4 +1,5 @@
 import React, {
+  isValidElement,
   useCallback,
   useContext,
   useEffect,
@@ -10,7 +11,7 @@ import React, {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, color } from 'folds';
+import { Text, color, config, toRem } from 'folds';
 import {
   EventStatus,
   type EventTimelineSet,
@@ -84,6 +85,8 @@ import { ApprovalHistory } from '../../approvals/ThreadApprovalControls';
 import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { readAgentNoticeMarker } from '../../messages/agentNoticeMarker';
+import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
+import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
@@ -295,6 +298,36 @@ const useLiveExpansion = () => {
 const endAligned = { alignItems: 'flex-end' } as const;
 
 /**
+ * A run of quiet markers side by side. A skill review shrinks to its basis, its name ending in an
+ * ellipsis (its card shows it in full), before the run wraps: two markers share a phone's line,
+ * a third goes to the next one.
+ */
+const quietRunStyle = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'flex-start',
+  columnGap: config.space.S400,
+  rowGap: config.space.S100,
+} as const;
+/** The title marker's words are fixed and short: it keeps them whole. */
+const fixedQuietRunItemStyle = { flex: 'none' } as const;
+/** Room for a skill review's icon and fixed words, with the start of its name. */
+const shrinkingQuietRunItemStyle = {
+  flex: `1 1 ${toRem(128)}`,
+  minWidth: 0,
+  maxWidth: 'max-content',
+} as const;
+/**
+ * Quiet markers that never show beside others. A snooze ending's note, cut short, has no card to
+ * read; a compaction notice is a seam, a full-width rule across the thread.
+ */
+const OWN_ROW_MARKERS: ReadonlySet<unknown> = new Set([SnoozeEndedMarker, CompactionNoticeSeam]);
+const quietRunItemStyle = (node: ReactNode) =>
+  isValidElement(node) && node.type === ThreadSummaryMarker
+    ? fixedQuietRunItemStyle
+    : shrinkingQuietRunItemStyle;
+
+/**
  * Inside a thread, the thread's title and the backend's snooze-ended, skill review and compaction
  * notices render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title
  * shows only where the thread's summary plan marks it; the others only from a MindRoom agent. A
@@ -486,6 +519,35 @@ export const useTimelineMessageFeature = ({
     [navigateRoomThread, room.roomId]
   );
 
+  /**
+   * The quiet marker line a row renders as (`readQuietMarker`), or null. Reads the content the row
+   * shows, edits included, as `renderMessageRow` does.
+   */
+  const readRowQuietMarker = useCallback(
+    (
+      event: MatrixEvent,
+      data: TimelineMessageData,
+      rowTimelineSet: EventTimelineSet,
+      onOpenTitleSettings?: () => void
+    ): ReactNode | null => {
+      if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return null;
+      const eventId = event.getId() ?? '';
+      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
+      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
+      const editedEvent = getEditedEvent(eventId, event, timelineSet);
+      const content = getLatestMessageContent(event, editedEvent) as Record<string, unknown>;
+      return readQuietMarker(
+        eventId,
+        event,
+        content,
+        data,
+        userId ?? undefined,
+        onOpenTitleSettings
+      );
+    },
+    [room, threadId, userId]
+  );
+
   /** The row of a message, approval, sticker or undecryptable event. */
   const renderMessageRow = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
@@ -516,14 +578,47 @@ export const useTimelineMessageFeature = ({
           ? readQuietMarker(eventId, event, content, data, userId ?? undefined, openTitleSettings)
           : null;
       if (quietMarker) {
+        // The run's later markers fold into this row, beside it, each keeping its own ID. A lone
+        // marker keeps the same elements, so one that a new marker joins stays mounted.
+        const later = (row.quietRun ?? []).flatMap((marker) => {
+          renderedEventsRef.current?.push(
+            marker.event,
+            ...getPendingEdits(
+              marker.eventId,
+              marker.event,
+              rowEditTimelineSet(
+                room,
+                forkPrefixThreadId(marker.event, marker.eventId, data.forkPrefixEventIds),
+                marker.timelineSet
+              )
+            )
+          );
+          const node = readRowQuietMarker(
+            marker.event,
+            data,
+            marker.timelineSet,
+            openTitleSettings
+          );
+          return node ? [{ eventId: marker.eventId, node }] : [];
+        });
+        const markers = [{ eventId, node: quietMarker }, ...later];
+        const inRun = markers.length > 1;
         return (
-          <MessageAside
-            key={eventId}
-            data-message-id={eventId}
-            data-message-item={row.index}
-            spaced
-          >
-            {quietMarker}
+          <MessageAside key={eventId} data-message-item={row.index} spaced>
+            <div
+              style={inRun ? quietRunStyle : undefined}
+              data-quiet-marker-run={inRun ? 'true' : undefined}
+            >
+              {markers.map((marker) => (
+                <div
+                  key={marker.eventId}
+                  data-message-id={marker.eventId}
+                  style={inRun ? quietRunItemStyle(marker.node) : undefined}
+                >
+                  {marker.node}
+                </div>
+              ))}
+            </div>
           </MessageAside>
         );
       }
@@ -772,6 +867,7 @@ export const useTimelineMessageFeature = ({
       navigateRoomThread,
       openTitleSettings,
       reactionFailedEventId,
+      readRowQuietMarker,
       room,
       showThreadRepliesInRoom,
       showUrlPreview,
@@ -812,18 +908,21 @@ export const useTimelineMessageFeature = ({
    * `renderMessageRow` does.
    */
   const isQuietMarkerRow = useCallback(
+    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean =>
+      readRowQuietMarker(event, data, rowTimelineSet) !== null,
+    [readRowQuietMarker]
+  );
+
+  /**
+   * Of the quiet marker rows, those that show beside the markers around them (timelineRowFold).
+   * A snooze ending and a compaction notice keep their own row (`OWN_ROW_MARKERS`).
+   */
+  const joinsQuietMarkerRun = useCallback(
     (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean => {
-      if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return false;
-      const eventId = event.getId() ?? '';
-      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
-      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
-      const content = getLatestMessageContent(
-        event,
-        getEditedEvent(eventId, event, timelineSet)
-      ) as Record<string, unknown>;
-      return readQuietMarker(eventId, event, content, data, userId ?? undefined) !== null;
+      const node = readRowQuietMarker(event, data, rowTimelineSet);
+      return node !== null && !(isValidElement(node) && OWN_ROW_MARKERS.has(node.type));
     },
-    [room, threadId, userId]
+    [readRowQuietMarker]
   );
 
   // A thread has no expand-all toggle, so its long messages fold as usual whatever the room's is.
@@ -844,6 +943,7 @@ export const useTimelineMessageFeature = ({
   return {
     renderEvent,
     isQuietMarkerRow,
+    joinsQuietMarkerRun,
     wrapExpansion,
     markLiveExpansionCandidate,
     editingEventId,

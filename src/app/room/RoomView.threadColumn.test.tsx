@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ComponentProps, ReactNode } from 'react';
+import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
@@ -18,6 +18,7 @@ import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/ro
 import { PanelRow } from '../members/PanelRow';
 import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
+import { runShortcut } from '../shortcuts/useShortcut';
 import { RoomView, type RoomViewProps } from './RoomView';
 import type { ThreadView } from './ThreadView';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
@@ -49,6 +50,8 @@ const state = vi.hoisted(() => ({
   roomMessageSent: undefined as ((eventId: string) => boolean | void) | undefined,
   // Whether the thread's view took the focus as each thread opened in it, as ThreadView reads it.
   openFocus: [] as [string, boolean | undefined][],
+  // The threads of the Compact cards the room's messages show while no thread is open.
+  cards: undefined as string[] | undefined,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -112,12 +115,33 @@ vi.mock('./ConversationCover', async () => {
     },
   };
 });
-vi.mock('../timeline/RoomTimeline', () => ({
-  RoomTimeline: (props: RoomTimelineProps) => {
-    state.main = props;
-    return <div data-testid="messages">{props.threadHeader}</div>;
-  },
-}));
+vi.mock('../timeline/RoomTimeline', async () => {
+  const { useLayoutEffect, useState } = await import('react');
+  // A Compact list shows its cards a pass after it mounts, in the same task (RoomTimeline).
+  function Cards({ ids }: { ids: string[] }) {
+    const [shown, setShown] = useState(false);
+    useLayoutEffect(() => setShown(true), []);
+    if (!shown) return null;
+    return (
+      <div data-compact-room-view="true">
+        {ids.map((id) => (
+          <button key={id} type="button" data-thread-root-id={id} aria-label={`Card ${id}`} />
+        ))}
+      </div>
+    );
+  }
+  return {
+    RoomTimeline: (props: RoomTimelineProps) => {
+      state.main = props;
+      return (
+        <div data-testid="messages">
+          {props.threadHeader}
+          {!state.thread && state.cards && <Cards ids={state.cards} />}
+        </div>
+      );
+    },
+  };
+});
 vi.mock('../timeline/typing/RoomViewTyping', () => ({ RoomViewTyping: () => null }));
 vi.mock('../timeline/RoomViewFollowing', () => ({ RoomViewFollowing: () => null }));
 vi.mock('../background-jobs/BackgroundJobsBar', () => ({
@@ -265,6 +289,7 @@ beforeEach(() => {
   state.viewMounts = 0;
   state.coverMounts = 0;
   state.openFocus = [];
+  state.cards = undefined;
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -746,4 +771,85 @@ it('marks the thread read on Escape in its column, in a menu it opened and on it
   // Beside the column, the room's messages are read.
   escape(screen.getByRole('textbox', { name: 'Message' }));
   expect(state.read).toEqual(['$thread', '$thread', '$thread', 'messages']);
+});
+
+// A control outside the room that takes the focus as the thread closes, after the room's effects.
+function Elsewhere() {
+  const control = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!state.thread) control.current?.focus();
+  });
+  return (
+    <button ref={control} type="button">
+      Elsewhere
+    </button>
+  );
+}
+/**
+ * Alt and the left arrow in a thread that fills the page, over a Compact room: the labels of
+ * what took the focus from then on, in order.
+ */
+const leaveThreadByKey = async ({
+  elsewhere = false,
+  cards = ['$other', '$thread'],
+  screenSize = ScreenSize.Desktop,
+} = {}) => {
+  state.cards = cards;
+  const page = () => (
+    <>
+      {tree({}, screenSize)}
+      {elsewhere && <Elsewhere />}
+    </>
+  );
+  const { rerender } = render(page());
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Card $thread' })).toBeNull();
+  screen.getByLabelText('Reply').focus();
+  const focused: (string | null)[] = [];
+  const onFocus = (event: FocusEvent) =>
+    focused.push((event.target as Element).getAttribute('aria-label'));
+  document.addEventListener('focusin', onFocus);
+  try {
+    expect(runShortcut('leaveThread', new KeyboardEvent('keydown'))).toBe(true);
+    state.thread = undefined;
+    rerender(page());
+    await act(async () => {});
+  } finally {
+    document.removeEventListener('focusin', onFocus);
+  }
+  return focused;
+};
+
+it("moves the focus the keys took out of a thread that filled the page to that thread's card alone", async () => {
+  // Not by way of the room's composer: the focus moves once, as people who hear it move expect.
+  expect(await leaveThreadByKey()).toEqual(['Card $thread']);
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Card $thread' }));
+});
+
+it("moves the focus the keys took out of a thread to that thread's card in a room without a composer", async () => {
+  state.canMessage = false;
+  expect(await leaveThreadByKey()).toEqual(['Card $thread']);
+});
+
+it("gives the focus the keys took out of a thread to the composer where that thread's card does not show", async () => {
+  expect(await leaveThreadByKey({ cards: ['$other'] })).toEqual(['Message']);
+  expect(screen.getByRole('button', { name: 'Card $other' })).toBeDefined();
+});
+
+it('leaves the focus the keys took out of a thread alone on a phone without its card', async () => {
+  const phone = { cards: ['$other'], screenSize: ScreenSize.Mobile };
+  expect(await leaveThreadByKey(phone)).toEqual([]);
+  expect(document.activeElement).toBe(document.body);
+});
+
+it('leaves the focus on a control that took it as the keys closed the thread', async () => {
+  // With the thread's card there, and without it, where the composer would have had the focus.
+  expect(await leaveThreadByKey({ elsewhere: true })).toEqual([null]);
+  expect(screen.getByRole('button', { name: 'Card $thread' })).toBeDefined();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }));
+  cleanup();
+
+  state.thread = '$thread';
+  expect(await leaveThreadByKey({ elsewhere: true, cards: ['$other'] })).toEqual([null]);
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }));
 });

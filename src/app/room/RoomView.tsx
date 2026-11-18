@@ -203,7 +203,7 @@ export function RoomView({
   }, []);
   // Before the effect below that sends the focus of a closed thread column to the composer: the
   // card of a thread the keys left takes it first.
-  useThreadKeys({
+  const unlessCardTakesFocus = useThreadKeys({
     roomId,
     areaRef,
     openThreadId,
@@ -262,11 +262,13 @@ export function RoomView({
   useEffect(() => {
     const closed = hadColumn.current && !openThreadId;
     hadColumn.current = !!openThreadId;
-    const doc = areaRef.current?.ownerDocument;
-    if (closed && !phone && doc && (!doc.activeElement || doc.activeElement === doc.body)) {
-      focusConversation();
-    }
-  }, [openThreadId, focusConversation, phone]);
+    if (!closed || phone) return;
+    // Not before the card of a thread the keys left had its pass to show: the focus moves once.
+    unlessCardTakesFocus(() => {
+      const doc = areaRef.current?.ownerDocument;
+      if (doc && (!doc.activeElement || doc.activeElement === doc.body)) focusConversation();
+    });
+  }, [openThreadId, focusConversation, phone, unlessCardTakesFocus]);
 
   // The open thread's banner, with the way to fill the page or to go beside the messages.
   const threadBanner = openThreadId && (

@@ -13,6 +13,8 @@ export type TimelineMessageRow = Readonly<{
   collapse: boolean;
   highlighted: boolean;
   previousEventId?: string;
+  /** A quiet marker row's earlier markers of its run, shown beside it in one row (timelineRowFold). */
+  quietRun?: readonly TimelineMessageRow[];
 }>;
 
 export type TimelineMessageData = {

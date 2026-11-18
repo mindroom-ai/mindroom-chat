@@ -153,7 +153,7 @@ for (const viewport of [
           await expect(
             banner.getByText('fea', { exact: true }).filter({ visible: true })
           ).toHaveCount(0);
-          await expect(page.locator('[data-room-following]')).toBeAttached();
+          // Who has read the latest message gives its line to the messages too.
           await expect(page.locator('[data-room-following]')).toBeHidden();
           expect(visibleMessages / viewport.height).toBeGreaterThan(0.55);
 
@@ -203,7 +203,8 @@ for (const viewport of [
           await expect(
             banner.getByText('fea', { exact: true }).filter({ visible: true })
           ).toHaveCount(1);
-          await expect(page.locator('[data-room-following]')).toBeVisible();
+          // No strip under the composer keeps room for the names any more.
+          await expect(page.locator('[data-room-footer] [data-room-following]')).toHaveCount(0);
         }
       } finally {
         await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
