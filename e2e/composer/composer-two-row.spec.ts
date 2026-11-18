@@ -393,47 +393,84 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
   }
 });
 
+const boxOf = async (what: string, locator: Locator) => {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error(`no box for ${what}`);
+  return box;
+};
+
+const formattingToolbar = (page: Page) => page.getByRole('toolbar', { name: 'Formatting' });
+
+// The widths the threshold in Editor.css.ts sums: the frame, its slots and the toolbar's content.
+const widths = (page: Page) =>
+  page.evaluate(() => {
+    const grid = document.querySelector<HTMLElement>('[data-room-footer] [data-editor-layout]');
+    const width = (element: Element | null | undefined) =>
+      element ? Math.round(element.getBoundingClientRect().width * 10) / 10 : 0;
+    return {
+      frame: width(grid?.parentElement),
+      slots: Array.from(grid?.children ?? []).map(width),
+      toolbar: grid?.querySelector('[role="toolbar"]')?.scrollWidth ?? 0,
+      area:
+        document.querySelector<HTMLElement>('[data-room-footer]')?.offsetParent?.clientHeight ?? 0,
+    };
+  });
+
+/** A frame wide enough for the toolbar beside the controls, logged for the threshold. */
+const expectWideFrame = async (page: Page, what: string) => {
+  const at = await widths(page);
+  console.log(`${what} widths: ${JSON.stringify(at)}`);
+  expect(at.frame, `${what}: the composer frame is at least 40rem wide`).toBeGreaterThanOrEqual(
+    640
+  );
+  return at;
+};
+
+/** The toolbar in a row of its own under the text box and above `control`, the controls row. */
+const expectOwnRow = async (page: Page, what: string, control: Locator) => {
+  const toolbarBox = await boxOf('the toolbar', formattingToolbar(page));
+  const text = await boxOf('the text box', textBox(page));
+  expect(toolbarBox.y, `${what}: the toolbar sits under the text box`).toBeGreaterThanOrEqual(
+    text.y + text.height - 1
+  );
+  expect(
+    toolbarBox.y + toolbarBox.height,
+    `${what}: the toolbar sits above the controls row`
+  ).toBeLessThanOrEqual((await boxOf('a control', control)).y);
+};
+
+/** One row: the text beside Send, the toolbar in its own row under them. */
+const expectOneRow = async (page: Page, what: string) => {
+  expect((await geometry(page)).sendBelowText, `${what}: the text shares its row with Send`).toBe(
+    false
+  );
+  const toolbarBox = await boxOf('the toolbar', formattingToolbar(page));
+  const text = await boxOf('the text box', textBox(page));
+  const send = await boxOf('Send', button(page, 'Send message'));
+  expect(toolbarBox.y, `${what}: the toolbar has a row of its own`).toBeGreaterThanOrEqual(
+    Math.max(text.y + text.height, send.y + send.height) - 1
+  );
+};
+
 test('the formatting toolbar shares the controls row where the composer is wide enough', async ({
   browser,
   baseURL,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   const world = await seed('fmt_');
   // Wide enough for one controls row with the members panel open beside the room.
   const desktop = await signIn(browser, baseURL, world, { viewport: { width: 1600, height: 900 } });
   try {
     const { page } = desktop;
     const formatting = button(page, 'Formatting');
-    const toolbar = page.getByRole('toolbar', { name: 'Formatting' });
-    const boxOf = async (what: string, locator: Locator) => {
-      const box = await locator.boundingBox();
-      if (!box) throw new Error(`no box for ${what}`);
-      return box;
-    };
-    // The widths the threshold in Editor.css.ts sums: the frame, its three slots and the
-    // toolbar's own content.
-    const widths = () =>
-      page.evaluate(() => {
-        const grid = document.querySelector<HTMLElement>('[data-room-footer] [data-editor-layout]');
-        const width = (element: Element | null | undefined) =>
-          element ? Math.round(element.getBoundingClientRect().width * 10) / 10 : null;
-        const slots = Array.from(grid?.children ?? []);
-        const toolbarBox = grid?.querySelector('[role="toolbar"]');
-        return {
-          frame: width(grid?.parentElement),
-          slots: slots.map(width),
-          toolbar: toolbarBox?.scrollWidth ?? null,
-        };
-      });
+    const toolbar = formattingToolbar(page);
 
     const closed = await geometry(page);
     expect(closed.layout).toBe('stacked');
     await formatting.click();
     await expect(toolbar).toBeVisible();
     await page.mouse.move(0, 0);
-    const wide = await widths();
-    console.log(`wide composer widths: ${JSON.stringify(wide)}`);
-    expect(wide.frame, 'the composer frame is at least 40rem wide').toBeGreaterThanOrEqual(640);
+    await expectWideFrame(page, 'wide desktop');
     const opened = await geometry(page);
     const formattingBox = await boxOf('Formatting', formatting);
     const toolbarBox = await boxOf('the toolbar', toolbar);
@@ -461,23 +498,57 @@ test('the formatting toolbar shares the controls row where the composer is wide 
     await page.setViewportSize(DESKTOP.viewport ?? { width: 1180, height: 800 });
     await expect(button(page, 'Send message')).toBeVisible();
     await expect(toolbar).toBeVisible();
-    const narrowWidths = await widths();
-    console.log(`narrow composer widths: ${JSON.stringify(narrowWidths)}`);
+    const narrowWidths = await widths(page);
+    console.log(`narrow desktop widths: ${JSON.stringify(narrowWidths)}`);
     expect(narrowWidths.frame, 'the composer frame is under 40rem wide').toBeLessThan(640);
-    const narrow = await geometry(page);
-    expect(narrow.layout).toBe('stacked');
-    const narrowFormatting = await boxOf('Formatting', formatting);
-    const narrowToolbar = await boxOf('the toolbar', toolbar);
-    const text = await boxOf('the text box', textBox(page));
-    expect(
-      narrowToolbar.y + narrowToolbar.height,
-      'the toolbar sits above the controls row'
-    ).toBeLessThanOrEqual(narrowFormatting.y);
-    expect(narrowToolbar.y, 'the toolbar sits under the text box').toBeGreaterThanOrEqual(
-      text.y + text.height - 1
-    );
+    expect((await geometry(page)).layout).toBe('stacked');
+    await expectOwnRow(page, 'narrow desktop', formatting);
     await shot(page, 'desktop-formatting-row');
+
+    // A short room area keeps one row, wide frame or not.
+    await page.setViewportSize({ width: 1600, height: 240 });
+    await expect(toolbar).toBeVisible();
+    const short = await expectWideFrame(page, 'short room area');
+    expect(short.area, 'the room area is short').toBeLessThanOrEqual(240);
+    await expectOneRow(page, 'short room area');
   } finally {
     await desktop.context.close();
+  }
+
+  // A phone keeps the toolbar in its own row, even with a frame wide enough to hold it.
+  const phone = await signIn(browser, baseURL, world, {
+    ...PHONE,
+    viewport: { width: 700, height: 900 },
+  });
+  try {
+    const { page } = phone;
+    const tap = async (target: Locator) => {
+      const box = await boxOf('a control', target);
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    };
+    const more = button(page, 'More actions');
+    await tap(more);
+    await tap(page.getByRole('menuitemcheckbox', { name: 'Formatting' }));
+    await expect(formattingToolbar(page)).toBeVisible();
+    await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
+    await expectWideFrame(page, 'phone');
+    await expectOwnRow(page, 'phone', more);
+
+    // A short landscape window under a coarse pointer, off the phone size class, keeps one row.
+    await page.setViewportSize({ width: 1600, height: 480 });
+    await expect(formattingToolbar(page)).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)')
+            .matches
+      ),
+      'the short viewport query matches'
+    ).toBe(true);
+    const landscape = await expectWideFrame(page, 'short viewport');
+    expect(landscape.area, 'the room area is not short').toBeGreaterThan(240);
+    await expectOneRow(page, 'short viewport');
+  } finally {
+    await phone.context.close();
   }
 });

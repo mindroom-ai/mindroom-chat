@@ -776,6 +776,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           markdownCommands
           // The composer floats over the timeline and the cards, which scroll beneath it.
           className={glassDenseOverBackdrop}
+          // A phone keeps the formatting toolbar in a row of its own however wide its composer.
+          inlineBottom={!phone}
           placeholder={forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')}
           onChange={handleChange}
           onKeyDown={handleKeyDown}

@@ -231,11 +231,12 @@ type CustomEditorProps = EditorSlots & {
   maxHeight?: string;
   /**
    * The composer's frame, which can change without remounting the text box: `row` puts the
-   * controls beside the text, `stacked` under it (text at least two lines tall), with the
-   * `bottom` row between the leading and trailing controls where the frame is wide enough.
-   * Without it, the controls sit beside the text in a plain row.
+   * controls beside the text, `stacked` under it (text at least two lines tall). Without it,
+   * the controls sit beside the text in a plain row.
    */
   layout?: EditorLayout;
+  /** A `stacked` frame wide enough holds the `bottom` row between its leading and trailing controls. */
+  inlineBottom?: boolean;
   className?: string;
   style?: CSSProperties;
   readOnly?: boolean;
@@ -294,7 +295,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh', layout } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
-  const { styleMarkdown, linkSchemes, markdownCommands } = props;
+  const { styleMarkdown, linkSchemes, markdownCommands, inlineBottom } = props;
   const decorate = useMemo(
     () =>
       styleMarkdown
@@ -366,7 +367,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
     <div
       ref={ref}
       style={style}
-      className={classNames(css.Editor, layout && css.EditorFrame, className)}
+      className={classNames(css.Editor, layout && inlineBottom && css.EditorFrame, className)}
     >
       <Slate initialValue={initialValue} editor={editor} onChange={onChange}>
         {top}

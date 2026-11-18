@@ -38,8 +38,9 @@ export const Editor = style([
   },
 ]);
 
-// The frame of a composer with a layout, which its stacked layout measures. Its width comes from
-// its parent, never from its content.
+// The frame of a stacked composer that may hold its bottom row on the controls row, which its
+// layout measures; a phone's composer goes without it. Its width comes from its parent, never
+// from its content.
 const frame = createContainer();
 export const EditorFrame = style({ containerName: frame, containerType: 'inline-size' });
 
@@ -48,8 +49,10 @@ export const EditorFrame = style({ containerName: frame, containerType: 'inline-
 // divider, 4 gap, attach, microphone and Formatting 32 each with 4 gaps, 8 px padding: 187 px),
 // the toolbar (8 gap, the 1 px hairline, 8 gap, eleven 26 px buttons, its own 1 px line and
 // eleven 4 px gaps: 340 px) and the trailing ones (8, emoji 32, 4, Send 32, 8: 84 px) make
-// 611 px, 38.2rem; the rest is slack.
-const inlineBottomWidth = '40rem';
+// 611 px at 16 px to the rem. Of those, 45 px do not scale with the rem: the model's 20 px logo,
+// its 22 px effort bars and the three 1 px lines; the other 566 px are 35.4rem. With slack,
+// 37rem and those 45 px, and never less than 40rem.
+const inlineBottomWidth = 'max(40rem, calc(37rem + 45px))';
 
 export const EditorOptions = style({
   padding: config.space.S200,
