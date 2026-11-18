@@ -18,7 +18,8 @@ import {
 } from '../helpers/disposableAccounts';
 
 // In a thread, an agent answers, then the backend titles the thread and reviews a skill: two quiet
-// marker rows at the bottom. They show side by side in one row, each keeping its own message ID.
+// marker rows at the bottom. They show side by side on one line, each keeping its own message ID;
+// on a phone the long skill name ends in an ellipsis instead of wrapping.
 // Set QUIET_MARKER_SHOTS=<directory> to save each view.
 const PASSWORD = 'quiet-markers-side-by-side-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -28,7 +29,7 @@ const ROOT = 'Can you tidy up the release notes for this week?';
 const ANSWER =
   'Done: the v3 final notes now group the fixes by area and drop the duplicate entries.';
 const TITLE = 'Release notes cleanup';
-const SKILL = 'release-notes';
+const SKILL = 'developing-mindroom-chat';
 
 const setDisplayName = (session: MatrixSession, displayName: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
@@ -94,7 +95,7 @@ const check = async (
   options: BrowserContextOptions,
   baseURL: string | undefined,
   name: string,
-  sameLine: boolean
+  shortened: boolean
 ) => {
   const { reader, roomId, rootId, answerId, titleId, reviewId } = await seed(name);
   const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
@@ -120,12 +121,17 @@ const check = async (
     await expect(run).toHaveCount(1);
     await expect(run.locator(`[data-message-id="${titleId}"]`)).toHaveCount(1);
     await expect(run.locator(`[data-message-id="${reviewId}"]`)).toHaveCount(1);
-    if (sameLine) {
-      const [titleBox, reviewBox] = await Promise.all([title.boundingBox(), review.boundingBox()]);
-      expect(titleBox && reviewBox).toBeTruthy();
-      expect(Math.abs(titleBox!.y - reviewBox!.y)).toBeLessThan(1);
-      expect(reviewBox!.x).toBeGreaterThan(titleBox!.x + titleBox!.width);
-    }
+    const [titleBox, reviewBox] = await Promise.all([title.boundingBox(), review.boundingBox()]);
+    expect(titleBox && reviewBox).toBeTruthy();
+    expect(Math.abs(titleBox!.y - reviewBox!.y)).toBeLessThan(1);
+    // One line each: the skill name's code font may add a pixel, a second line would add ~18.
+    expect(Math.abs(titleBox!.height - reviewBox!.height)).toBeLessThan(4);
+    expect(reviewBox!.x).toBeGreaterThan(titleBox!.x + titleBox!.width);
+    expect(reviewBox!.x + reviewBox!.width).toBeLessThanOrEqual(options.viewport!.width);
+    // The skill name ends in an ellipsis only where the line is too short for it.
+    const label = review.locator('[data-skill-review] button > span');
+    const cut = await label.evaluate((node) => node.scrollWidth > node.clientWidth);
+    expect(cut).toBe(shortened);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
   } finally {
     await context.close();
@@ -161,13 +167,12 @@ test('a title and a skill review notice share one row (Chromium, desktop)', asyn
   browser,
   baseURL,
 }) => {
-  await check(browser, DESKTOP, baseURL, 'desktop', true);
+  await check(browser, DESKTOP, baseURL, 'desktop', false);
 });
 
-// A phone may wrap them onto two lines; they stay in one run row.
-test('a title and a skill review notice share one run row (Chromium, phone)', async ({
+test('a title and a skill review notice share one row (Chromium, phone)', async ({
   browser,
   baseURL,
 }) => {
-  await check(browser, PHONE, baseURL, 'phone', false);
+  await check(browser, PHONE, baseURL, 'phone', true);
 });

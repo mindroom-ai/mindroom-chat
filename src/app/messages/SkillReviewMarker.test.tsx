@@ -23,6 +23,7 @@ vi.mock('./SkillReviewMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
   Name: 'Name',
+  Label: 'Label',
   Details: 'Details',
   Added: 'Added',
   Removed: 'Removed',

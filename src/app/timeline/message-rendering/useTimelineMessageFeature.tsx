@@ -1,4 +1,5 @@
 import React, {
+  isValidElement,
   useCallback,
   useContext,
   useEffect,
@@ -297,15 +298,18 @@ const useLiveExpansion = () => {
 /** Lines a failed send's Not sent row and reason up with the end of an own bubble. */
 const endAligned = { alignItems: 'flex-end' } as const;
 
-/** A run of quiet markers side by side, wrapping onto the next line where they do not fit. */
+/**
+ * A run of quiet markers side by side on one line. Where they do not fit, a marker's own text
+ * (a skill name, a snooze note) ends in an ellipsis inside the run; its card shows it in full.
+ */
 const quietRunStyle = {
   display: 'flex',
-  flexWrap: 'wrap',
   alignItems: 'flex-start',
   columnGap: config.space.S400,
-  rowGap: config.space.S100,
 } as const;
-const quietRunItemStyle = { minWidth: 0, maxWidth: '100%' } as const;
+const quietRunItemStyle = { minWidth: 0 } as const;
+/** The title marker's words are fixed and short: it keeps them whole. */
+const fixedQuietRunItemStyle = { flexShrink: 0 } as const;
 
 /**
  * Inside a thread, the thread's title and the backend's snooze-ended and skill review messages
@@ -598,7 +602,11 @@ export const useTimelineMessageFeature = ({
                 <div
                   key={marker.eventId}
                   data-message-id={marker.eventId}
-                  style={quietRunItemStyle}
+                  style={
+                    isValidElement(marker.node) && marker.node.type === ThreadSummaryMarker
+                      ? fixedQuietRunItemStyle
+                      : quietRunItemStyle
+                  }
                 >
                   {marker.node}
                 </div>
