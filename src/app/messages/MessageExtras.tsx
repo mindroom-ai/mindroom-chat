@@ -116,28 +116,28 @@ export function MessageExtras({
       className={css.Extras}
       aria-label={t('mindroomUi.messages.mindroomMessageExtras.messageExtras')}
     >
-      {/* A secret request takes its call's line in the reply's body only: here the line stays. */}
-      <InlineSecretRequestsContext.Provider value={NO_INLINE_SECRET_REQUESTS}>
-        {extras.sections.map((section, index) => {
-          const detailsProps: MessageExtraDetailsProps = {
-            className: css.Section,
-            defaultOpen: !section.collapsed,
-          };
+      {extras.sections.map((section, index) => {
+        const detailsProps: MessageExtraDetailsProps = {
+          className: css.Section,
+          defaultOpen: !section.collapsed,
+        };
 
-          return (
-            <MessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
-              <summary className={css.Summary}>{section.title}</summary>
-              <div className={css.Content}>
+        return (
+          <MessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
+            <summary className={css.Summary}>{section.title}</summary>
+            <div className={css.Content}>
+              {/* Only the reply's body draws a secret request at its call. */}
+              <InlineSecretRequestsContext.Provider value={NO_INLINE_SECRET_REQUESTS}>
                 <MessageExtraSectionContent
                   content={section.content}
                   contentType={section.contentType}
                   htmlReactParserOptions={parserOptions}
                 />
-              </div>
-            </MessageExtraDetails>
-          );
-        })}
-      </InlineSecretRequestsContext.Provider>
+              </InlineSecretRequestsContext.Provider>
+            </div>
+          </MessageExtraDetails>
+        );
+      })}
     </div>
   );
 }
