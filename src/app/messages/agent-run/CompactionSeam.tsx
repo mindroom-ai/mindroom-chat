@@ -4,20 +4,17 @@ import {
   useId,
   useRef,
   useState,
-  type FocusEvent,
   type MouseEvent,
-  type PointerEvent,
   type ReactNode,
 } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import type { RectCords } from 'folds';
 import { IconAlertTriangle, IconFold } from '@tabler/icons-react';
 import { PopOut, revealDirectionControls } from '../../ui/directional';
+import { useAnchoredCard } from '../../ui/useAnchoredCard';
 import { timeHourMinuteSecond } from '../../lib/time';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
-import { tabFromCardToOpener } from '../../lib/overlayFocus';
 import { MAX_TIME_MS, type ReplyCompaction } from '../../matrix/protocol/compactions';
 import {
   formatSeconds,
@@ -41,9 +38,6 @@ type CompactionSeamProps = {
   /** The reply ended, so a compaction still running there never finishes. */
   interrupted?: boolean;
 };
-
-/** How the card came up: a mouse resting on the row, keyboard focus, or a click or tap. */
-type OpenMode = 'hover' | 'focus' | 'pinned';
 
 type UnfinishedState = Exclude<SeamState, 'running' | 'success'>;
 
@@ -251,16 +245,6 @@ const cardRows = (c: ReplyCompaction, state: SeamState, context: RowContext): Ro
   return unfinishedRows(c, state, context);
 };
 
-type OpenCard = { mode: OpenMode; anchor: RectCords };
-
-/** The open card with its anchor at `rect`, the same object while the row has not moved. */
-const anchoredAt = (current: OpenCard | undefined, rect: RectCords): OpenCard | undefined => {
-  if (!current) return current;
-  const { x, y, width, height } = current.anchor;
-  const moved = rect.x !== x || rect.y !== y || rect.width !== width || rect.height !== height;
-  return moved ? { ...current, anchor: rect } : current;
-};
-
 /**
  * One history compaction, as a quiet row at the spot of the reply where it ran: what it did in a
  * few words and a hairline to the row's end. Hovering, focusing or tapping the row opens a card
@@ -269,8 +253,8 @@ const anchoredAt = (current: OpenCard | undefined, rect: RectCords): OpenCard | 
 export function CompactionSeam({ compaction, interrupted = false }: CompactionSeamProps) {
   const { t, i18n } = useTranslation();
   const [hour24Clock] = useHour24Clock();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState<OpenCard>();
+  const { open, triggerRef, cardRef, show, toggle, pin, hover, onFocusLeave } =
+    useAnchoredCard(HOVER_CLOSE_DELAY_MS);
   const cardId = useId();
   const state = seamState(compaction, interrupted);
   const place = seamPlace(compaction);
@@ -279,30 +263,6 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   const elapsed =
     state === 'running' && seconds !== undefined ? t(`${KEY}.elapsed`, { n: seconds }) : undefined;
 
-  const show = (mode: OpenMode) => {
-    const trigger = triggerRef.current;
-    if (trigger) setOpen({ mode, anchor: trigger.getBoundingClientRect() });
-  };
-
-  // A card the mouse opened stays while the mouse is on the row or on the card, so it can be read
-  // and selected (WCAG 1.4.13): leaving either closes it only after a moment without the other.
-  const closeTimer = useRef<number>();
-  const keepHover = () => window.clearTimeout(closeTimer.current);
-  const leaveHover = (evt: PointerEvent) => {
-    if (evt.pointerType !== 'mouse' || open?.mode !== 'hover') return;
-    keepHover();
-    closeTimer.current = window.setTimeout(() => {
-      setOpen((current) => (current?.mode === 'hover' ? undefined : current));
-    }, HOVER_CLOSE_DELAY_MS);
-  };
-  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
-  // Focus reached the card: the mouse leaving must not take it, nor a close the mouse already
-  // started, or the focus in it would drop to the page.
-  const pin = () => {
-    keepHover();
-    setOpen((current) => current && { ...current, mode: 'pinned' });
-  };
-  const cardRef = useRef<HTMLDivElement>(null);
   // A card the keyboard pinned takes focus once it shows (the frame loop hands it a new anchor
   // then), so its keys scroll it; Escape gives focus back to the row.
   const focusCard = useRef(false);
@@ -315,66 +275,8 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
     if (!focusCard.current || !cardElement) return;
     focusCard.current = false;
     cardElement.focus({ preventScroll: true });
-  }, [open]);
-  // A press in the card, to select its text, takes focus from the row into it: only focus that
-  // leaves both closes the card.
-  const onFocusLeave = (evt: FocusEvent) => {
-    const next = evt.relatedTarget;
-    const within = (element: Element | null) => next instanceof Node && !!element?.contains(next);
-    if (!within(triggerRef.current) && !within(cardRef.current)) setOpen(undefined);
-  };
-
+  }, [open, cardRef]);
   const isOpen = !!open;
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const close = () => setOpen(undefined);
-    const onKeyDown = (evt: KeyboardEvent) => {
-      const inCard = !!cardRef.current?.contains(document.activeElement);
-      // The card lives in the body: Tab in it goes on from the row, where it opened.
-      if (inCard) tabFromCardToOpener(evt, triggerRef.current);
-      if (evt.key !== 'Escape') return;
-      // Focus in the card would fall to the page once it is gone, so it goes back to the row, and
-      // the room's Escape (focus the composer), which skips a key whose default was prevented,
-      // must not take it from there. With focus elsewhere that Escape still runs.
-      if (inCard) {
-        evt.preventDefault();
-        triggerRef.current?.focus();
-      }
-      close();
-    };
-    const onPointerDown = (evt: Event) => {
-      const target = evt.target as Node;
-      if (!triggerRef.current?.contains(target) && !cardRef.current?.contains(target)) close();
-    };
-    // The card sits at a fixed spot, so it follows the row once a frame, whatever moved it: a
-    // scroll, a line showing above it, text above it wrapping, an image loading. A card that
-    // changed size (a progress frame named a longer model) is placed again, a new anchor for folds.
-    let frame = 0;
-    let cardSize = '';
-    const follow = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      const box = cardRef.current?.getBoundingClientRect();
-      const size = box ? `${box.width}x${box.height}` : '';
-      const resized = size !== cardSize;
-      cardSize = size;
-      // A row not displayed measures all zeros; the card then stays where the row last was.
-      const shown = rect && (rect.x || rect.y || rect.width || rect.height);
-      if (shown) {
-        setOpen((current) =>
-          resized && current ? { ...current, anchor: rect } : anchoredAt(current, rect)
-        );
-      }
-      frame = requestAnimationFrame(follow);
-    };
-    frame = requestAnimationFrame(follow);
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('pointerdown', onPointerDown, true);
-    return () => {
-      cancelAnimationFrame(frame);
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onPointerDown, true);
-    };
-  }, [isOpen]);
 
   const unfinished = isUnfinished(state);
   const Icon = unfinished ? IconAlertTriangle : IconFold;
@@ -396,24 +298,15 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
         className={css.Trigger}
         aria-expanded={isOpen}
         aria-describedby={isOpen ? cardId : undefined}
-        onPointerEnter={(evt: PointerEvent) => {
-          if (evt.pointerType !== 'mouse') return;
-          keepHover();
-          if (!open) show('hover');
-        }}
-        onPointerLeave={leaveHover}
+        {...hover}
         onFocus={() => {
           // Focus outlasts a hover opening, so a mouse leaving must not close the card under it.
           if (open?.mode !== 'pinned') show('focus');
         }}
         onClick={(evt: MouseEvent) => {
-          if (open?.mode === 'pinned') {
-            setOpen(undefined);
-            return;
-          }
           // Enter and Space click with no press count.
           focusCard.current = evt.detail === 0;
-          show('pinned');
+          toggle();
         }}
         onBlur={onFocusLeave}
       >
@@ -455,10 +348,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             className={css.Card}
             data-state={state}
             style={{ pointerEvents: 'auto' }}
-            onPointerEnter={(evt: PointerEvent) => {
-              if (evt.pointerType === 'mouse') keepHover();
-            }}
-            onPointerLeave={leaveHover}
+            {...hover}
             onFocus={pin}
             onBlur={onFocusLeave}
           >

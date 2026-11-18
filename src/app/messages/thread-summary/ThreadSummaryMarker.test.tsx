@@ -192,13 +192,14 @@ describe('ThreadSummaryMarker', () => {
   });
 
   it('stays open and follows the marker when the timeline scrolls', async () => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     await act(() => trigger(renderer).props.onClick());
     expect(popout(renderer)[0]!.props['data-top']).toBe(20);
     triggerRect.y = 140;
     act(() => {
-      window.dispatchEvent(new Event('scroll'));
+      vi.advanceTimersToNextFrame();
     });
 
     expect(popout(renderer)).toHaveLength(1);
