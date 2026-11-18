@@ -215,49 +215,4 @@ describe('LiveReplyStore', () => {
     expect(store.get('!other:example', REPLY)).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
-
-  it('holds the last entry of a reply whose entry went, until a frame or a forgetting drop', () => {
-    store.ingest(ROOM, AGENT, snapshot(0, 'Hello'), Date.now());
-    vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
-    expect(store.get(ROOM, REPLY)).toBeUndefined();
-    expect(store.getHeld(ROOM, REPLY)?.docs.md).toBe('Hello');
-
-    store.ingest(ROOM, AGENT, snapshot(1, 'Hello again'), Date.now());
-    expect(store.getHeld(ROOM, REPLY)).toBeUndefined();
-
-    const listener = vi.fn();
-    store.subscribe(ROOM, REPLY, listener);
-    store.drop(ROOM, REPLY);
-    expect(store.getHeld(ROOM, REPLY)?.docs.md).toBe('Hello again');
-    store.drop(ROOM, REPLY, false);
-    expect(store.getHeld(ROOM, REPLY)).toBeUndefined();
-    expect(listener).toHaveBeenCalledTimes(2);
-  });
-
-  it('holds the last entries of eight replies at most, the newest ones', () => {
-    const replies = Array.from({ length: 9 }, (_value, index) => `$reply${index}`);
-    replies.forEach((reply) => {
-      store.ingest(ROOM, AGENT, { ...snapshot(0, reply), reply }, 1000);
-      store.drop(ROOM, reply);
-    });
-
-    expect(store.getHeld(ROOM, '$reply0')).toBeUndefined();
-    expect(store.getHeld(ROOM, '$reply1')?.docs.md).toBe('$reply1');
-    expect(store.getHeld(ROOM, '$reply8')?.docs.md).toBe('$reply8');
-  });
-
-  it("tells a room's subscribers of a change to any of its replies", () => {
-    const listener = vi.fn();
-    const unsubscribe = store.subscribeRoom(ROOM, listener);
-
-    store.ingest(ROOM, AGENT, snapshot(0, 'Hello'), 1000);
-    store.ingest(ROOM, AGENT, { ...snapshot(0, 'Other'), reply: '$other' }, 1000);
-    store.ingest('!other:example', AGENT, snapshot(0, 'Elsewhere'), 1000);
-    store.drop(ROOM, REPLY);
-    expect(listener).toHaveBeenCalledTimes(3);
-
-    unsubscribe();
-    store.drop(ROOM, '$other');
-    expect(listener).toHaveBeenCalledTimes(3);
-  });
 });

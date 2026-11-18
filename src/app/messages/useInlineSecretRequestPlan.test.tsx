@@ -3,18 +3,10 @@ import { EventEmitter } from 'events';
 import { act } from 'react-dom/test-utils';
 import { createRoot, type Root } from 'react-dom/client';
 import { MatrixEvent, MatrixEventEvent, RoomEvent, type Room } from 'matrix-js-sdk';
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InlineSecretRequestPlan } from './inlineSecretRequests';
 import { useInlineSecretRequestPlan } from './useInlineSecretRequestPlan';
-import { loadLiveMarkdown } from './live/liveMarkdown';
-import { getLiveReplyStore } from './live/liveReplyStore';
-import {
-  AGENT,
-  cardEvent,
-  markers,
-  replyEvent,
-  traceEvents,
-} from './test-utils/secretRequestEvents';
+import { AGENT, cardEvent, replyEvent } from './test-utils/secretRequestEvents';
 
 const ROOM = '!room:example.org';
 const NONE = new Set<string>();
@@ -125,97 +117,5 @@ describe('useInlineSecretRequestPlan', () => {
 
     expect(plans.length).toBeGreaterThan(1);
     expect(plan()).toBe(first);
-  });
-
-  describe('a reply that streams live frames over its durable edit', () => {
-    const SID = '1761858000123-0a1b2c3d';
-    const CALLS = ['call_1', 'call_2'];
-    // The durable edit stopped before the call that asked; the frames go on past it.
-    const streaming = (body = markers(1)) =>
-      replyEvent('$reply', { body, roomId: ROOM, status: 'streaming' });
-    let seq = 0;
-    const frame = (md: string, reasoning = '') =>
-      act(() => {
-        seq += 1;
-        getLiveReplyStore(client as never).ingest(
-          ROOM,
-          AGENT,
-          {
-            reply: '$reply',
-            sid: SID,
-            seq,
-            snapshot: {
-              md,
-              reasoning,
-              tools: traceEvents(CALLS),
-              status: 'streaming',
-              activity: '',
-              segments: [],
-            },
-          },
-          Date.now()
-        );
-      });
-
-    beforeAll(async () => {
-      await loadLiveMarkdown();
-    });
-    afterEach(() => {
-      act(() => getLiveReplyStore(client as never).clear());
-    });
-
-    it('hides a done card whose call the drawn frame shows, at that call', () => {
-      frame(`${markers(2)}\n\nTo deploy the demo app`);
-      render([streaming(), cardEvent()]);
-
-      expect([...plan().hiddenEventIds]).toEqual(['$card']);
-      expect(plan().byReply.get('$reply')?.get(2)?.eventId).toBe('$card');
-    });
-
-    it("keeps the card's row until a frame shows the call, then draws it there", () => {
-      frame(markers(1));
-      render([streaming(), cardEvent()]);
-      expect(plan().hiddenEventIds.size).toBe(0);
-
-      frame(markers(2));
-
-      expect([...plan().hiddenEventIds]).toEqual(['$card']);
-      expect(plan().byReply.get('$reply')?.get(2)?.eventId).toBe('$card');
-    });
-
-    it('keeps the drawn request, the same plan, when the stream ends with the durable body', () => {
-      const card = cardEvent();
-      frame(markers(2));
-      render([streaming(), card]);
-      const drawn = plan();
-      expect(drawn.hiddenEventIds.size).toBe(1);
-
-      const done = replyEvent('$reply', { body: markers(2), roomId: ROOM, status: 'completed' });
-      render([done, card]);
-      act(() => getLiveReplyStore(client as never).drop(ROOM, '$reply'));
-
-      expect(plan()).toBe(drawn);
-    });
-
-    it('plans nothing again for frames that move no call', () => {
-      frame(markers(2));
-      render([streaming(), cardEvent()]);
-      const count = plans.length;
-
-      frame(`${markers(2)}\n\nTo deploy`, 'Weighing it');
-      frame(`${markers(2)}\n\nTo deploy the demo app`, 'Weighing it');
-
-      expect(plans.length).toBe(count);
-    });
-
-    it('brings the row back when a frame no longer shows the call', () => {
-      frame(markers(2));
-      render([streaming(), cardEvent()]);
-      expect(plan().hiddenEventIds.size).toBe(1);
-
-      frame(`${markers(1)}\n\n\`\`\`\n${markers(2)}`);
-
-      expect(plan().hiddenEventIds.size).toBe(0);
-    });
   });
 });

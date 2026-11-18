@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { IContent, MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
 import {
@@ -7,13 +7,8 @@ import {
 } from '../../matrix/protocol/thinkingPlaceholder';
 import { MINDROOM_TOOL_TRACE_KEY } from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
-import { isLiveMarkdownReady, renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
-import {
-  getLiveReplyStore,
-  LIVE_REPLY_FRESHNESS_MS,
-  type LiveReplyEntry,
-  type LiveReplyStore,
-} from './liveReplyStore';
+import { renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
+import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from './liveReplyStore';
 
 /** On durable writes: the content is at least as new as every frame up to this `(sid, seq)`. */
 export const LIVE_CHECKPOINT_KEY = 'io.mindroom.live_checkpoint';
@@ -168,76 +163,6 @@ export type LiveReplyContent = {
   live: boolean;
 };
 
-type LiveReplyState = {
-  /** The documents drawn over the durable content. */
-  docs?: LiveDocs;
-  /** The documents a covering checkpoint stands for, which still lend it reasoning and output. */
-  waitDocs?: LiveDocs;
-};
-
-/**
- * How the reply's live state draws over its durable `content`: the entry's documents while they
- * show (getLiveVerdict), or only its reasoning and running output while a checkpoint covers it.
- * When frames and edits stop together (the connection dropped mid-stream), the entry goes while
- * the durable reply is still an earlier state of what the reader saw; its last documents
- * (`held`, LiveReplyStore.getHeld) stay until an edit with more of them arrives, so a reply only
- * grows or pauses.
- */
-const getLiveReplyState = (
-  event: MatrixEvent,
-  content: IContent,
-  entry: LiveReplyEntry | undefined,
-  held: LiveReplyEntry | undefined,
-  now: number
-): LiveReplyState => {
-  const verdict = entry ? getLiveVerdict(event, content, entry, now) : undefined;
-  if (verdict === 'show') return { docs: entry?.docs };
-  if (verdict === 'wait') return { waitDocs: entry?.docs };
-  const last = entry ?? held;
-  return last && last.sender === event.getSender() && isEarlierState(event, content, last.docs.md)
-    ? { docs: last.docs }
-    : {};
-};
-
-const drawLiveReplyState = (
-  content: IContent,
-  { docs, waitDocs }: LiveReplyState,
-  markdownReady: boolean
-): IContent => {
-  if (docs) return getLiveContent(content, docs, markdownReady);
-  const durable = withWarmupActivity(content);
-  if (!waitDocs) return durable;
-  const covered = withRunningOutput(durable, waitDocs.tools);
-  if (!waitDocs.reasoning) return covered;
-  const { segments } = waitDocs;
-  const segmentsContent = segments.length > 0 ? { [LIVE_REASONING_SEGMENTS_KEY]: segments } : {};
-  return { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning, ...segmentsContent };
-};
-
-/**
- * What the reply's row draws now (useLiveReplyContent) over the resolved durable `content`, for
- * readers that must agree with it, as the thread's secret request plan does.
- */
-export const getDrawnReplyContent = (
-  store: LiveReplyStore,
-  event: MatrixEvent,
-  content: IContent
-): IContent => {
-  const roomId = event.getRoomId();
-  const replyId = event.getId();
-  const state =
-    roomId && replyId
-      ? getLiveReplyState(
-          event,
-          content,
-          store.get(roomId, replyId),
-          store.getHeld(roomId, replyId),
-          Date.now()
-        )
-      : {};
-  return drawLiveReplyState(content, state, isLiveMarkdownReady());
-};
-
 /**
  * The reply's content with its live frames over the resolved durable `content`, while the
  * durable reply streams and no durable checkpoint covers them; otherwise `content` itself.
@@ -260,30 +185,43 @@ export const useLiveReplyContent = (
   const entry = useSyncExternalStore(subscribe, () =>
     roomId && replyId ? store.get(roomId, replyId) : undefined
   );
-  // The store changes it only with the entry, so the entry's subscription follows it too.
-  const held = roomId && replyId ? store.getHeld(roomId, replyId) : undefined;
-  const now = Date.now();
-  const verdict = event && entry ? getLiveVerdict(event, content, entry, now) : undefined;
-  const { docs, waitDocs }: LiveReplyState = event
-    ? getLiveReplyState(event, content, entry, held, now)
-    : {};
-  const markdownReady = useLiveMarkdownReady(docs !== undefined);
+  const verdict = event && entry ? getLiveVerdict(event, content, entry, Date.now()) : undefined;
+  const docs = verdict === 'show' ? entry?.docs : undefined;
+  // The frames the row showed last. When frames and edits stop together (the connection dropped
+  // mid-stream), the entry expires while the durable reply is still an earlier state of what the
+  // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
+  // grows or pauses.
+  const shownDocs = useRef<LiveDocs>();
+  if (docs) shownDocs.current = docs;
+  const heldDocs =
+    !docs &&
+    verdict !== 'wait' &&
+    event &&
+    shownDocs.current &&
+    isEarlierState(event, content, shownDocs.current.md)
+      ? shownDocs.current
+      : undefined;
+  const liveDocs = docs ?? heldDocs;
+  const markdownReady = useLiveMarkdownReady(liveDocs !== undefined);
 
   useEffect(() => {
-    if (!roomId || !replyId || !event) return;
-    const status = getStreamStatusFromContent(content);
-    const streams = !!status && LIVE_DURABLE_STATUSES.has(status) && !event.isRedacted();
-    if (verdict === 'drop' && store.get(roomId, replyId) === entry) {
-      // Frames that went stale stay held; those of another sender or a finished reply go.
-      store.drop(roomId, replyId, streams && entry?.sender === event.getSender());
-    } else if (!entry && held && !streams) {
-      store.drop(roomId, replyId, false);
-    }
-  }, [content, entry, event, held, replyId, roomId, store, verdict]);
+    if (verdict !== 'drop' || !roomId || !replyId || store.get(roomId, replyId) !== entry) return;
+    store.drop(roomId, replyId);
+  }, [entry, replyId, roomId, store, verdict]);
 
-  const liveContent = useMemo(
-    () => drawLiveReplyState(content, { docs, waitDocs }, markdownReady),
-    [content, docs, markdownReady, waitDocs]
-  );
-  return { content: liveContent, live: verdict === 'show' || verdict === 'wait' || !!docs };
+  const waitDocs = verdict === 'wait' ? entry?.docs : undefined;
+  const liveContent = useMemo(() => {
+    if (liveDocs) return getLiveContent(content, liveDocs, markdownReady);
+    const durable = withWarmupActivity(content);
+    if (!waitDocs) return durable;
+    const covered = withRunningOutput(durable, waitDocs.tools);
+    if (!waitDocs.reasoning) return covered;
+    const { segments } = waitDocs;
+    const segmentsContent = segments.length > 0 ? { [LIVE_REASONING_SEGMENTS_KEY]: segments } : {};
+    return { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning, ...segmentsContent };
+  }, [content, liveDocs, markdownReady, waitDocs]);
+  return {
+    content: liveContent,
+    live: verdict === 'show' || verdict === 'wait' || heldDocs !== undefined,
+  };
 };

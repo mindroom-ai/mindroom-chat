@@ -25,9 +25,6 @@ export type LiveReplyEntry = {
 
 const entryKey = (roomId: string, replyId: string): string => `${roomId}\0${replyId}`;
 
-/** How many dropped entries the store keeps for their replies to hold (`getHeld`). */
-const HELD_ENTRIES = 8;
-
 const fitsCap = ({ md, reasoning, activity }: LiveDocs): boolean =>
   md.length <= LIVE_DOCUMENT_CAP &&
   reasoning.length <= LIVE_DOCUMENT_CAP &&
@@ -66,16 +63,7 @@ export class LiveReplyStore {
 
   private readonly expiries = new Map<string, ReturnType<typeof setTimeout>>();
 
-  /**
-   * The last entry of each reply whose entry went (it expired, or a reader dropped it), newest
-   * last: a reply whose durable edits stopped at an earlier state of it keeps showing its text
-   * (useLiveReplyContent), in every view that draws the reply.
-   */
-  private readonly held = new Map<string, LiveReplyEntry>();
-
   private readonly listeners = new Map<string, Set<() => void>>();
-
-  private readonly roomListeners = new Map<string, Set<() => void>>();
 
   private readonly roomFrames = new Map<string, number>();
 
@@ -85,7 +73,6 @@ export class LiveReplyStore {
     const next = nextLiveEntry(entry, sender, frame, receivedAt);
     if (!next) return;
     this.entries.set(key, next);
-    this.held.delete(key);
     if (!next.stale) this.roomFrames.set(roomId, this.frameCount(roomId) + 1);
     if (next.lastFrameAt !== entry?.lastFrameAt) {
       clearTimeout(this.expiries.get(key));
@@ -106,24 +93,11 @@ export class LiveReplyStore {
     return this.entries.get(entryKey(roomId, replyId));
   }
 
-  /** The last entry of a reply whose entry went, while the store keeps it. */
-  public getHeld(roomId: string, replyId: string): LiveReplyEntry | undefined {
-    return this.held.get(entryKey(roomId, replyId));
-  }
-
-  /** Drops the reply's entry; `hold` keeps it for `getHeld`, else the store forgets it. */
-  public drop(roomId: string, replyId: string, hold = true): void {
+  public drop(roomId: string, replyId: string): void {
     const key = entryKey(roomId, replyId);
     clearTimeout(this.expiries.get(key));
     this.expiries.delete(key);
-    const entry = this.entries.get(key);
-    const held = this.held.delete(key);
-    if (entry && hold) {
-      this.held.set(key, entry);
-      const [oldest] = this.held.keys();
-      if (this.held.size > HELD_ENTRIES && oldest !== undefined) this.held.delete(oldest);
-    }
-    if (this.entries.delete(key) || held) this.notify(key);
+    if (this.entries.delete(key)) this.notify(key);
   }
 
   public subscribe(roomId: string, replyId: string, listener: () => void): () => void {
@@ -137,31 +111,16 @@ export class LiveReplyStore {
     };
   }
 
-  /** Tells `listener` of every change to the room's replies. */
-  public subscribeRoom(roomId: string, listener: () => void): () => void {
-    const listeners = this.roomListeners.get(roomId) ?? new Set();
-    listeners.add(listener);
-    this.roomListeners.set(roomId, listeners);
-    return () => {
-      listeners.delete(listener);
-      if (listeners.size === 0 && this.roomListeners.get(roomId) === listeners) {
-        this.roomListeners.delete(roomId);
-      }
-    };
-  }
-
   public clear(): void {
-    const keys = new Set([...this.entries.keys(), ...this.held.keys()]);
+    const keys = [...this.entries.keys()];
     this.expiries.forEach((expiry) => clearTimeout(expiry));
     this.expiries.clear();
     this.entries.clear();
-    this.held.clear();
     keys.forEach((key) => this.notify(key));
   }
 
   private notify(key: string): void {
     this.listeners.get(key)?.forEach((listener) => listener());
-    this.roomListeners.get(key.slice(0, key.indexOf('\0')))?.forEach((listener) => listener());
   }
 }
 
