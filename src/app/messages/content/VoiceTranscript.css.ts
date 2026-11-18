@@ -1,5 +1,5 @@
 import { keyframes, style } from '@vanilla-extract/css';
-import { color, config, toRem } from 'folds';
+import { config, toRem } from 'folds';
 
 const sweep = keyframes({
   from: { transform: 'translateX(-100%)' },
@@ -29,14 +29,16 @@ export const Line = style({
   overflow: 'hidden',
   height: toRem(10),
   borderRadius: config.radii.R300,
-  backgroundColor: color.SurfaceVariant.Container,
+  // Drawn in the text's own colour, so the lines show on any message background, a bubble too.
+  backgroundColor: 'color-mix(in srgb, currentColor 10%, transparent)',
   // The second line is shorter, as the last line of a paragraph.
   selectors: { '&:last-child': { width: '60%' } },
   '::after': {
     content: '""',
     position: 'absolute',
     inset: 0,
-    backgroundImage: `linear-gradient(90deg, transparent, ${color.SurfaceVariant.ContainerActive}, transparent)`,
+    backgroundImage:
+      'linear-gradient(90deg, transparent, color-mix(in srgb, currentColor 14%, transparent), transparent)',
     animation: `${sweep} 1.6s ease-in-out infinite`,
     willChange: 'transform',
   },
