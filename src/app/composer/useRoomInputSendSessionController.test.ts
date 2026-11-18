@@ -1,6 +1,6 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
-import { EventStatus, MatrixError } from 'matrix-js-sdk';
+import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
@@ -110,6 +110,14 @@ const prepErrorUpload = (file: File): Upload & { error: MatrixError } => ({
   error: toMatrixUploadError(new Error(`failed to prepare ${file.name}`), 'create'),
 });
 
+type BuildUploadMessageContent = (fileItem: TUploadItem, mxc: string) => Promise<IContent>;
+
+const buildFileContent: BuildUploadMessageContent = async (fileItem, mxc) => ({
+  msgtype: 'm.file',
+  body: fileItem.file.name,
+  url: mxc,
+});
+
 const TestHarness = ({
   onReady,
   onRoomMessageSent,
@@ -122,6 +130,7 @@ const TestHarness = ({
   threadId,
   forkFrom,
   roomId = '!room:example.org',
+  buildUploadMessageContent = buildFileContent,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -140,6 +149,7 @@ const TestHarness = ({
   threadId?: string;
   forkFrom?: ThreadForkRef;
   roomId?: string;
+  buildUploadMessageContent?: BuildUploadMessageContent;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -211,11 +221,7 @@ const TestHarness = ({
     sendTypingStatus,
     attachments,
     mountedRef,
-    buildUploadMessageContent: async (fileItem, mxc) => ({
-      msgtype: 'm.file',
-      body: fileItem.file.name,
-      url: mxc,
-    }),
+    buildUploadMessageContent,
     restoreComposerFallbackForRoom,
     onRoomMessageSent,
   });
@@ -240,6 +246,7 @@ const renderHarness = (
     forkFrom?: ThreadForkRef;
     onRoomMessageSent?: (eventId: string) => boolean | void;
     replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
+    buildUploadMessageContent?: BuildUploadMessageContent;
   } = {}
 ) => {
   let sentEvents = 0;
@@ -278,6 +285,7 @@ const renderHarness = (
     restoreComposerFallbackForRoom,
     onRoomMessageSent: options.onRoomMessageSent,
     forkFrom: options.forkFrom,
+    buildUploadMessageContent: options.buildUploadMessageContent,
     onReady: (nextApi: HarnessApi) => {
       api = nextApi;
     },
@@ -383,6 +391,23 @@ const renderHarness = (
 };
 
 describe('useRoomInputSendSessionController after its composer unmounts', () => {
+  /**
+   * Sends the root once the child's upload fails, then retries that upload: the send waits for
+   * the child in the thread the root opened (no file goes out while another one uploads).
+   */
+  const sendRootWhileChildRetries = async (
+    api: ReturnType<typeof renderHarness>['api'],
+    root: File,
+    child: File
+  ) => {
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), prepErrorUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+  };
+
   it('sends the message once its upload finishes after the composer went', async () => {
     const onRoomMessageSent = vi.fn();
     const { api, mx, unmount, current, changeThread } = renderHarness({ onRoomMessageSent });
@@ -419,11 +444,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
     const root = createFile('root.txt');
     const child = createFile('child.txt');
-    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
-    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
-    await act(async () => {
-      await api.startSendSession();
-    });
+    await sendRootWhileChildRetries(api, root, child);
     expect(sentBodies(mx)).toEqual(['root.txt']);
 
     // The root opened its thread, which fills the page: the thread's composer comes (it lists
@@ -459,11 +480,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
     const root = createFile('root.txt');
     const child = createFile('child.txt');
-    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
-    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
-    await act(async () => {
-      await api.startSendSession();
-    });
+    await sendRootWhileChildRetries(api, root, child);
     const viewKey = { key: JSON.stringify(['!room:example.org', '$event-0']) };
     const thread = mountThreadView('$event-0');
     store.set(threadViewVoiceComposersAtom, [viewKey]);
@@ -485,11 +502,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
     const root = createFile('root.txt');
     const child = createFile('child.txt');
-    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
-    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
-    await act(async () => {
-      await api.startSendSession();
-    });
+    await sendRootWhileChildRetries(api, root, child);
     const thread = mountThreadView('$event-0');
     store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
     unmount();
@@ -507,11 +520,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
     const root = createFile('root.txt');
     const child = createFile('child.txt');
-    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
-    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
-    await act(async () => {
-      await api.startSendSession();
-    });
+    await sendRootWhileChildRetries(api, root, child);
     // The thread beside the messages has a send of its own going out.
     const thread = mountThreadView('$event-0');
     store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
@@ -538,11 +547,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const { api, unmount, mountAgain } = renderHarness({ onRoomMessageSent: () => true });
     const root = createFile('root.txt');
     const child = createFile('child.txt');
-    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
-    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
-    await act(async () => {
-      await api.startSendSession();
-    });
+    await sendRootWhileChildRetries(api, root, child);
     // The thread opened beside the messages and closed again; the room's composer goes later.
     unmount();
     expect(mountAgain().current().joinedSendPending).toBe(true);
@@ -552,11 +557,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const { api, unmount, mountThreadView, mountAgain } = renderHarness();
     const root = createFile('root.txt');
     const child = createFile('child.txt');
-    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
-    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
-    await act(async () => {
-      await api.startSendSession();
-    });
+    await sendRootWhileChildRetries(api, root, child);
 
     unmount();
     expect(mountThreadView('$event-0').current().joinedSendPending).toBe(false);
@@ -1949,6 +1950,71 @@ describe('useRoomInputSendSessionController in a fork draft', () => {
   const relationOf = (mx: ReturnType<typeof renderHarness>['mx'], index: number) =>
     (mx.sendMessage.mock.calls[index]![1] as Record<string, unknown>)['m.relates_to'];
 
+  it.each([
+    ['joins the thread of', true],
+    ['starts the fork after', false],
+  ])(
+    "holds a file back that %s an earlier message's send while another file uploads again",
+    async (_what, earlierSent) => {
+      const { api, mx, localEvents } = renderHarness({ forkFrom: ref });
+      const earlier = createDeferred<{ event_id: string }>();
+      mx.sendMessage.mockImplementationOnce(
+        (targetRoomId: string, _content: unknown, txnId?: string) => {
+          localEvents.set(txnId!, { getId: () => `~${targetRoomId}:${txnId}` });
+          return earlier.promise;
+        }
+      );
+      await act(async () => {
+        await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Try Porto' } });
+      });
+      const photo = createFile('photo.png');
+      const clip = createFile('clip.mp4');
+      api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+      api.uploadsRef.current = [successUpload(photo), prepErrorUpload(clip)];
+
+      // The photo waits for the fork's start while the video's upload is retried.
+      let sending!: Promise<void>;
+      act(() => {
+        sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
+      });
+      // Its content is built by now; it waits for the earlier message's ID.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      api.uploadsRef.current = [successUpload(photo), loadingUpload(clip)];
+      await act(async () => {
+        if (earlierSent) earlier.resolve({ event_id: '$porto' });
+        else earlier.reject(new Error('offline'));
+        await sending;
+      });
+      expect(sentBodies(mx)).toEqual(['Try Porto']);
+
+      api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+      await act(async () => {
+        await api.processSendSession();
+      });
+      expect(sentBodies(mx)).toEqual(['Try Porto', 'photo.png', 'clip.mp4', 'Look']);
+      const markers = mx.sendMessage.mock.calls.map(
+        (call) => (call[1] as Record<string, unknown>)['io.mindroom.submission']
+      );
+      const { id } = markers[1] as { id: string };
+      expect(markers.slice(1)).toEqual([
+        { id, more: true },
+        { id, more: true },
+        { id, more: false },
+      ]);
+      const thread = earlierSent ? '$porto' : '$event-0';
+      expect(forkStarts(mx)).toEqual(earlierSent ? ['Try Porto'] : ['Try Porto', 'photo.png']);
+      if (earlierSent) {
+        expect(relationOf(mx, 1)).toMatchObject({ rel_type: 'm.thread', event_id: thread });
+      } else {
+        expect(relationOf(mx, 1)).toBeUndefined();
+      }
+      expect(relationOf(mx, 2)).toMatchObject({ rel_type: 'm.thread', event_id: thread });
+      expect(relationOf(mx, 3)).toMatchObject({ rel_type: 'm.thread', event_id: thread });
+    }
+  );
+
   it('joins a message sent while the root still uploads to the fork that root starts', async () => {
     const onRoomMessageSent = vi.fn(() => true);
     const { api, mx } = renderHarness({ forkFrom: ref, onRoomMessageSent });
@@ -2069,6 +2135,187 @@ describe('useRoomInputSendSessionController submission markers', () => {
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
       { id, more: true },
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('holds the files while one uploads, and marks what goes out once its upload fails', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const third = createFile('third.png');
+    api.selectedFilesRef.current = [first, second, third].map((file) => createUploadItem(file));
+    api.uploadsRef.current = [successUpload(first), loadingUpload(second), successUpload(third)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'What are these?' } });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.uploadsRef.current = [successUpload(first), prepErrorUpload(second), successUpload(third)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'third.png', 'What are these?']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: true },
+      { id, more: false },
+    ]);
+
+    // The retried file goes after the caption and ends the submission again.
+    api.uploadsRef.current = [successUpload(first), successUpload(second), successUpload(third)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'third.png', 'What are these?', 'second.png']);
+    expect(markerOf(mx, 3)).toEqual({ id, more: false });
+  });
+
+  it('ends the submission with the caption when the root fails to send, and the root after it', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), successUpload(second)];
+    mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'Caption']);
+    const { id } = markerOf(mx, 1) as { id: string };
+    expect(markerOf(mx, 1)).toEqual({ id, more: false });
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'Caption', 'first.png', 'second.png']);
+    expect([markerOf(mx, 2), markerOf(mx, 3)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('ends the submission with the caption when the root upload fails, and the files after its retry', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [prepErrorUpload(first), successUpload(second)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(sentBodies(mx)).toEqual(['Caption']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect(markerOf(mx, 0)).toEqual({ id, more: false });
+
+    api.uploadsRef.current = [successUpload(first), successUpload(second)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['Caption', 'first.png', 'second.png']);
+    expect([markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  // A file dropped on a closed board has no card to start its upload: it goes once that starts.
+  it('sends the ready root while another file has not started uploading', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), { file: second, status: UploadStatus.Idle }];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(sentBodies(mx)).toEqual(['first.png']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect(markerOf(mx, 0)).toEqual({ id, more: true });
+
+    api.uploadsRef.current = [successUpload(second)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'second.png', 'Caption']);
+    expect([markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('holds a built file back while another file it waits for uploads again', async () => {
+    const photoBuild = createDeferred<IContent>();
+    const { api, mx } = renderHarness({
+      buildUploadMessageContent: (fileItem, mxc) =>
+        fileItem.file.name === 'photo.png' ? photoBuild.promise : buildFileContent(fileItem, mxc),
+    });
+    const photo = createFile('photo.png');
+    const clip = createFile('clip.mp4');
+    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+    api.uploadsRef.current = [successUpload(photo), prepErrorUpload(clip)];
+
+    let sending!: Promise<void>;
+    act(() => {
+      sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
+    });
+    // The video's upload is retried while the photo's content builds.
+    api.uploadsRef.current = [successUpload(photo), loadingUpload(clip)];
+    await act(async () => {
+      photoBuild.resolve({
+        msgtype: 'm.image',
+        body: 'photo.png',
+        url: 'mxc://mindroom/photo.png',
+      });
+      await sending;
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4', 'Look']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('sends the rest of a submission once a file still uploading is removed', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), loadingUpload(second)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.selectedFilesRef.current = api.selectedFilesRef.current.filter(
+      (item) => item.file !== second
+    );
+    api.sendSessionUploadItemsRef.current = api.sendSessionUploadItemsRef.current.filter(
+      (item) => item.file !== second
+    );
+    api.uploadsRef.current = [successUpload(first)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'Caption']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1)]).toEqual([
       { id, more: true },
       { id, more: false },
     ]);

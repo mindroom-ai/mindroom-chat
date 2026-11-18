@@ -486,6 +486,68 @@ describe('roomInputSendSession', () => {
     expect(isRoomInputSendSessionStalled(session, [successUpload(first)], [first])).toBe(true);
   });
 
+  // MindRoom holds a submission only briefly after its last event: a photo sent while a long
+  // video uploads would be answered alone.
+  it('sends no file, the root included, while another file still uploads', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.mp4', 'video/mp4');
+    const rooted = createRoomInputSendSessionState({ files: [first, second], hasText: true });
+    const threaded = createRoomInputSendSessionState({
+      files: [first, second],
+      hasText: true,
+      threadId: '$thread',
+    });
+
+    for (const session of [rooted, threaded]) {
+      expect(
+        resolveRoomInputSendStep(
+          session,
+          [successUpload(first), loadingUpload(second)],
+          [first, second]
+        )
+      ).toEqual({ kind: 'wait' });
+      expect(
+        resolveRoomInputSendStep(
+          session,
+          [successUpload(first), successUpload(second)],
+          [first, second]
+        )
+      ).toEqual({
+        kind: 'send-upload',
+        file: first,
+        mxc: 'mxc://mindroom/first.png',
+        isRoot: session === rooted,
+      });
+    }
+    // Nor does the caption while the root waits for a retry and another file uploads.
+    expect(
+      resolveRoomInputSendStep(rooted, [errorUpload(first), loadingUpload(second)], [first, second])
+    ).toEqual({ kind: 'wait' });
+  });
+
+  it('sends the files once every upload has succeeded or failed', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({
+      files: [first, second],
+      hasText: true,
+      threadId: '$thread',
+    });
+
+    expect(
+      resolveRoomInputSendStep(
+        session,
+        [errorUpload(first), successUpload(second)],
+        [first, second]
+      )
+    ).toEqual({
+      kind: 'send-upload',
+      file: second,
+      mxc: 'mxc://mindroom/second.png',
+      isRoot: false,
+    });
+  });
+
   it('counts a session as stalled only when everything it waits for needs the person', () => {
     const first = createFile('first.png');
     const second = createFile('second.png');
@@ -578,16 +640,55 @@ describe('getSubmissionMarker', () => {
     ]);
   });
 
-  it('marks a file followed while another file still uploads, and the last file as the end', () => {
+  it('sends nothing while another file still uploads, then marks the last file as the end', () => {
     const first = createFile('first.png');
     const second = createFile('second.png');
     const session = createRoomInputSendSessionState({ files: [first, second], hasText: false });
 
     expect(
       sendWhatCanGo(session, [successUpload(first), loadingUpload(second)], [first, second])
-    ).toEqual([marked(session, 'first.png', true)]);
+    ).toEqual([]);
     expect(
       sendWhatCanGo(session, [successUpload(first), successUpload(second)], [first, second])
+    ).toEqual([marked(session, 'first.png', true), marked(session, 'second.png', false)]);
+  });
+
+  it('marks the files and caption sent once a failed upload has settled the rest', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const third = createFile('third.png');
+    const session = createRoomInputSendSessionState({
+      files: [first, second, third],
+      hasText: true,
+      threadId: '$thread',
+    });
+    const files = [first, second, third];
+
+    expect(
+      sendWhatCanGo(
+        session,
+        [successUpload(first), errorUpload(second), loadingUpload(third)],
+        files
+      )
+    ).toEqual([]);
+    expect(
+      sendWhatCanGo(
+        session,
+        [successUpload(first), errorUpload(second), successUpload(third)],
+        files
+      )
+    ).toEqual([
+      marked(session, 'first.png', true),
+      marked(session, 'third.png', true),
+      marked(session, 'text', false),
+    ]);
+    // The retried file comes after the caption and ends the submission again.
+    expect(
+      sendWhatCanGo(
+        session,
+        [successUpload(first), successUpload(second), successUpload(third)],
+        files
+      )
     ).toEqual([marked(session, 'second.png', false)]);
   });
 

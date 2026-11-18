@@ -43,10 +43,11 @@ import {
   getUploadRelationForSendSession,
   hasRoomInputSendFailures,
   isRoomInputSendSessionStalled,
+  isRoomInputSendSessionUploading,
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
-  SUBMISSION_CONTENT_KEY,
 } from './roomInputSendSession';
+import { SUBMISSION_CONTENT_KEY } from '../matrix/protocol/submission';
 import { getRoomMessageSentNotificationEventId } from '../event-store/timeline/roomMessageSent';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import {
@@ -514,8 +515,6 @@ export const useRoomInputSendSessionController = ({
         settleFork?.();
         throw error;
       }
-      // MindRoom reads a sidecar's content in place of its preview's, so both carry the marker.
-      eventContent = withSubmissionMarker(session, eventContent, undefined);
       const txnId = mx.makeTxnId();
       const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
       sendPromise.then(
@@ -578,6 +577,13 @@ export const useRoomInputSendSessionController = ({
         relation,
         settleFork,
       } = await placeMessage(session, content, getUploadRelationForSendSession(session, isRoot));
+      // An upload retried while this file built or waited for its fork holds it back, as
+      // resolveRoomInputSendStep does: the file stays unsent, gives up its place as the fork's
+      // start, and the session builds and places it again once nothing uploads.
+      if (isRoomInputSendSessionUploading(session, ...getSessionUploads(session))) {
+        settleFork?.();
+        return;
+      }
       const txnId = mx.makeTxnId();
       const response = await mx
         .sendMessage(

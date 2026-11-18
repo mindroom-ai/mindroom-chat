@@ -19,13 +19,6 @@ export type RoomInputSendSessionState = {
   submissionId: string;
 };
 
-/**
- * The content key of the marker on every event of a composer submission that has an attachment.
- * The MindRoom backend holds such a submission until the event that says `more: false`, so its
- * files and its caption make one agent turn.
- */
-export const SUBMISSION_CONTENT_KEY = 'io.mindroom.submission';
-
 export type SubmissionMarker = {
   id: string;
   /** The session will send another event of this submission without the person doing anything. */
@@ -142,6 +135,22 @@ const getPendingFiles = (
   );
 };
 
+/**
+ * Whether a file of the session still to go is uploading: MindRoom holds a submission for only a
+ * few seconds after its last event, so a photo sent at once would be answered alone while a long
+ * video uploads. An upload not started (its card is on a closed board) does not count.
+ */
+export const isRoomInputSendSessionUploading = (
+  session: RoomInputSendSessionState,
+  uploads: Upload[],
+  activeFiles: TUploadContent[]
+): boolean => {
+  const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
+  return getPendingFiles(session, activeFiles).some(
+    (file) => uploadMap.get(file)?.status === UploadStatus.Loading
+  );
+};
+
 const isUploadSuccess = (
   upload: Upload | undefined
 ): upload is Extract<Upload, { status: UploadStatus.Success }> =>
@@ -159,6 +168,11 @@ export const resolveRoomInputSendStep = (
 
   const pendingFiles = getPendingFiles(session, activeFiles);
   const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
+
+  // No file goes out, the root included, while another one still uploads.
+  if (isRoomInputSendSessionUploading(session, uploads, activeFiles)) {
+    return { kind: 'wait' };
+  }
 
   if (
     session.mode === 'auto-thread-upload-root' &&
@@ -198,9 +212,10 @@ export const resolveRoomInputSendStep = (
     return { kind: 'send-upload', file, mxc: upload.mxc, isRoot: false };
   }
 
-  // Attachments go out first and the caption goes last: each event says whether more of the
-  // submission follows (getSubmissionMarker), and MindRoom holds the files for the caption that
-  // closes it. Files awaiting a manual retry do not hold the caption back.
+  // Attachments go out first, once none of them is still uploading, and the caption goes
+  // last: each event says whether more of the submission follows (getSubmissionMarker), and
+  // MindRoom holds the files for the caption that closes it. Files awaiting a manual retry do not
+  // hold the caption back, and one retried after the caption closes the submission again.
   if (session.textPending) {
     return { kind: 'send-text' };
   }

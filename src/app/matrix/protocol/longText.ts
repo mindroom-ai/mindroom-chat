@@ -2,6 +2,7 @@ import type { EventAttachmentOwner } from './eventAttachments';
 import { IEncryptedFile } from '../types/common';
 import { THREAD_FORK_KEY } from './threadFork';
 import { MID_TURN_MODE_KEY } from './midTurn';
+import { SUBMISSION_CONTENT_KEY } from './submission';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -304,8 +305,9 @@ const MESSAGE_PREVIEW_LENGTH = 2000;
 
 /**
  * The event for a typed message sent as a long-text sidecar: the start of its text, and the
- * mentions, relation, fork reference and mid-turn mode that route it. The file holds the whole
- * message.
+ * mentions, relation, fork reference, mid-turn mode and submission marker that route it. The file
+ * holds the whole message. MindRoom reads the file's content in place of the event's, so both
+ * carry the marker.
  */
 export const buildLongTextPreview = (content: Record<string, unknown>) => {
   const body = typeof content.body === 'string' ? content.body : '';
@@ -321,6 +323,9 @@ export const buildLongTextPreview = (content: Record<string, unknown>) => {
     ...(content[MID_TURN_MODE_KEY] === undefined
       ? {}
       : { [MID_TURN_MODE_KEY]: content[MID_TURN_MODE_KEY] }),
+    ...(content[SUBMISSION_CONTENT_KEY] === undefined
+      ? {}
+      : { [SUBMISSION_CONTENT_KEY]: content[SUBMISSION_CONTENT_KEY] }),
   };
 };
 
