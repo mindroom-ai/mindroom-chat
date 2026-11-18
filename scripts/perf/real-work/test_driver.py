@@ -394,7 +394,7 @@ class ApplyCountsTest(unittest.TestCase):
         scheduler.add("$r")
         scheduler.started("$r", 0, post="$turn")
         reply_roots = {"$report": "$r", "$reply": "$r"}
-        report = counts(started=["$report"], active=["$report"], finished=["$report"])
+        report = counts(started=["$report"], active=["$report"], finished=["$report"], answers={"$report": "$other"})
         self.assertEqual(driver.apply_counts(scheduler, report, reply_roots, 1), [])
         reply = counts(started=["$reply"], active=["$reply"], finished=["$reply"], answers={"$reply": "$turn"})
         self.assertEqual(driver.apply_counts(scheduler, reply, reply_roots, 2), ["$r"])
@@ -458,6 +458,8 @@ class FakeLobby:
         self.reply_roots: dict[str, str] = {}
         self.posts: list[tuple[float, str]] = []
         self.failed_posts = 0
+        # Each post tried, as (root, transaction ID).
+        self.attempts: list[tuple[str, str | None]] = []
         self.answer = lambda now, posts: counts()
         self._failing_posts = failing_posts
         self.resolved: list[str] = []
@@ -476,7 +478,8 @@ class FakeLobby:
         self.now += self.tick
         return self.answer(self.now, self.posts)
 
-    def post_turn(self, root: str, body: str) -> str | None:
+    def post_turn(self, root: str, body: str, txn: str | None = None) -> str | None:
+        self.attempts.append((root, txn))
         if self.failed_posts < self._failing_posts:
             self.failed_posts += 1
             return None
@@ -688,7 +691,11 @@ class RunLiveTest(unittest.TestCase):
         lobby.answer = self.replies(lobby, ends_after=2)
         bodies: list[str] = []
         post = lobby.post_turn
-        lobby.post_turn = lambda root, body: bodies.append(body) or post(root, body)  # type: ignore[method-assign]
+        def posting(root: str, body: str, txn: str | None = None) -> str | None:
+            bodies.append(body)
+            return post(root, body, txn)
+
+        lobby.post_turn = posting  # type: ignore[method-assign]
         profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
         profile["reply"] |= {"bg": NO_PAUSE, "bgsec": {"p50": 300, "p90": 300, "max": 300}}
         profile["live"] |= {"pauseSeconds": NO_PAUSE, "jobs": 2}
@@ -726,6 +733,13 @@ class RunLiveTest(unittest.TestCase):
         lobby = FakeLobby(failing_posts=2, tick=0.25)
         self.assertEqual(self.run_seeded(lobby, streams=2, jobs=2)[0], 0)
         self.assertEqual([root for _, root in lobby.posts[:2]], ["root2", "root3"])
+        # Every try of one seed sends its one transaction, which a homeserver that took an earlier try answers
+        # with that try's event instead of posting again.
+        seeds = lobby.attempts[:4]
+        self.assertEqual([root for root, _ in seeds], ["root2", "root2", "root2", "root3"])
+        self.assertIsNotNone(seeds[0][1])
+        self.assertEqual({txn for _, txn in seeds[:3]}, {seeds[0][1]})
+        self.assertNotEqual(seeds[3][1], seeds[0][1])
         lobby = FakeLobby(failing_posts=3, tick=0.25)
         code, errors = self.run_seeded(lobby, streams=2, jobs=2)
         self.assertEqual(code, 1)
@@ -972,6 +986,23 @@ class LobbySyncTest(unittest.TestCase):
             lobby.sync()
         self.assertIn(ROOM, str(stopped.exception.code))
         self.assertEqual(home.asked, ["p1", "p1", "p1"])
+
+    def test_a_retry_with_the_transaction_of_a_post_whose_answer_was_lost_posts_once(self) -> None:
+        lobby = self.lobby()
+        accepted: dict[str, str] = {}
+
+        def homeserver(_server: str, method: str, path: str, _token: str, _body: object = None) -> dict:
+            txn = path.rsplit("/", 1)[1]
+            first = txn not in accepted
+            accepted.setdefault(txn, f"$post{len(accepted)}")
+            if first:
+                raise RuntimeError(f"{method} {path}: 0 connection reset")  # taken, but the answer was lost
+            return {"event_id": accepted[txn]}
+
+        with mock.patch("matrix_http.call", homeserver), contextlib.redirect_stderr(io.StringIO()):
+            self.assertIsNone(lobby.post_turn("$r", "#work", txn="seed1"))
+            self.assertEqual(lobby.post_turn("$r", "#work", txn="seed1"), "$post0")
+        self.assertEqual(accepted, {"seed1": "$post0"})
 
     def test_failed_post_gives_none(self) -> None:
         lobby = self.lobby()

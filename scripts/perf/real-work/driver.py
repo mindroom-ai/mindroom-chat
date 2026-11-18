@@ -76,6 +76,7 @@ import random
 import signal
 import sys
 import time
+import uuid
 from collections import deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -565,9 +566,10 @@ class Lobby:
         }
         return {**batch, "rooms": {**batch["rooms"], "join": {**batch["rooms"]["join"], self.room: room}}}
 
-    def post_turn(self, root: str | None, body: str) -> str | None:
+    def post_turn(self, root: str | None, body: str, txn: str | None = None) -> str | None:
         """Posts a person's turn: a new thread's root, or a reply in the thread of `root`. Its event ID, or None
-        when the post failed, which the caller tries again."""
+        when the post failed, which the caller tries again; with the same `txn` (a transaction ID), a try whose
+        answer was lost after the homeserver took it is not posted twice."""
         content: dict = {"msgtype": "m.text", "body": body}
         if root is not None:
             content["m.relates_to"] = {
@@ -577,7 +579,7 @@ class Lobby:
                 "m.in_reply_to": {"event_id": root},
             }
         try:
-            return send(self.homeserver, self.token, self.room, content)
+            return send(self.homeserver, self.token, self.room, content, txn=txn)
         except (RuntimeError, ValueError, KeyError) as error:
             log(f"a turn was not posted: {error}")
             return None
@@ -738,9 +740,10 @@ def run_live(
     clock: Callable[[], float] = time.monotonic,
     ramp: float = 0.0,
 ) -> int:
-    """The live phase: 0 once `seconds` passed or `stopped` says so, 2 on a shortfall. The first `streams` threads
-    get their first turn at a time drawn evenly from the first `ramp` seconds, and the others none before its end,
-    so the replies under way are not all at the same point of their course when the ramp is over."""
+    """The live phase: 0 once `seconds` passed or `stopped` says so, 2 on a shortfall, 1 when the history leaves too
+    few open threads for `live.jobs` after the streams' threads or a job's turn was not posted in 3 tries. The first
+    `streams` threads get their first turn at a time drawn evenly from the first `ramp` seconds, and the others none
+    before its end, so the replies under way are not all at the same point of their course when the ramp is over."""
     if history["room"] != lobby.room:
         raise RuntimeError(f"the history is of {history['room']}, the stack's lobby is {lobby.room}")
     scheduler = Scheduler(streams, profile["live"]["pauseSeconds"], profile["live"]["stuckSeconds"], rng)
@@ -767,10 +770,12 @@ def run_live(
         return 1
     for root in seeds:
         prompt = jobs_prompt(profile["reply"], rng, worker=worker_of.get(root))
+        # One transaction for every try, so a homeserver that took a try whose answer was lost does not post twice.
+        txn = uuid.uuid4().hex
         for attempt in range(SEED_TRIES):
             if attempt:
                 time.sleep(1)
-            if (post := lobby.post_turn(root, prompt)) is not None:
+            if (post := lobby.post_turn(root, prompt, txn)) is not None:
                 scheduler.started(root, started, post)
                 break
         else:

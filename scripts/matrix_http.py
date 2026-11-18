@@ -79,7 +79,10 @@ def register(homeserver: str, username: str, password: str) -> dict:
     return answer
 
 
-def send(homeserver: str, token: str, room_id: str, content: dict, event_type: str = "m.room.message") -> str:
-    """Sends an event with a fresh transaction ID and returns its event ID."""
-    path = f"/_matrix/client/v3/rooms/{quote(room_id)}/send/{event_type}/{uuid.uuid4().hex}"
+def send(
+    homeserver: str, token: str, room_id: str, content: dict, event_type: str = "m.room.message", txn: str | None = None
+) -> str:
+    """Sends an event and returns its event ID. Its transaction ID is `txn`, so a send tried again with the same one
+    gets the event the homeserver already took instead of a second event, or a fresh one."""
+    path = f"/_matrix/client/v3/rooms/{quote(room_id)}/send/{event_type}/{txn or uuid.uuid4().hex}"
     return call(homeserver, "PUT", path, token, content)["event_id"]
