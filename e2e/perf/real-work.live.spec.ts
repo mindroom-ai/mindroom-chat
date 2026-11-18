@@ -58,11 +58,10 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *                   rows it settles on, then 5 s
  *   thread-idle     30 s of the open thread left alone
  *   thread-type     10 s of typing in the thread's composer
- *   switch          Back, then a thread other than the one just left, 5 times, each timed (the
- *                   thread to its first row and to its settled rows). A step opens a streaming
- *                   thread when another one streams, else an idle one, and the thread just left
- *                   again when no other card counts (with a driver, only the cards of the
- *                   threads it streams in do)
+ *   switch          Back, then a card that counts (with a driver, only the cards of the threads
+ *                   it streams in do): another one than the thread just left that streams, else
+ *                   another one that is idle, else the one just left; 5 times, each timed (the
+ *                   thread to its first row and to its settled rows)
  *   cold-load       a reload of the room, to its first card, then 5 s
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
@@ -568,13 +567,12 @@ const SCENARIO: Record<
       const { page } = run;
       const timings: Timing[] = [];
       let openedStreaming = true;
-      // The thread the scenario starts in: the first step opens another one, as the later ones do.
+      // The thread the scenario starts in, which the first step leaves.
       let current = run.shown;
       for (let turn = 1; turn <= 5; turn += 1) {
         const backMs = await timeToVisible(page, () => back(page).click(), CARD);
         await expect(page.locator(ROW)).toHaveCount(0);
         timings.push({ name: `back-${turn}`, ms: backMs });
-        // Another thread each time when the view has one, one that streams when there is one.
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;
