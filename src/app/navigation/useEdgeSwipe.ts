@@ -2,7 +2,7 @@ import { useAtomValue } from 'jotai';
 import { type RefObject, useEffect, useRef } from 'react';
 import { imageViewerOpenAtom } from './imageViewerState';
 import { phoneLayerOpenAtom } from './phoneNavDrawer';
-import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
+import { hasOpenOverlay } from '../lib/openOverlay';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
 
 export const EDGE_START_MAX_X = 28;
@@ -29,7 +29,8 @@ export const useEdgeSwipe = ({
   onSwipe: () => void;
   /**
    * The overlay the swipe belongs to (the image viewer): it works while that overlay is open, for
-   * a touch that starts inside it, so a menu or dialog over the overlay still keeps it.
+   * a touch that starts inside it. Without one the swipe belongs to the page. Either way a menu or
+   * dialog open over its layer, or opening before the finger lifts, takes the touch.
    */
   within?: RefObject<Element>;
 }): void => {
@@ -54,8 +55,9 @@ export const useEdgeSwipe = ({
     let armed = false;
     let startX = 0;
     let startY = 0;
+    const covered = () => hasOpenOverlay(within?.current);
     const blocked = (event: TouchEvent) =>
-      within ? !within.current?.contains(event.target as Node | null) : hasBlockingPortalOverlay();
+      (!!within && !within.current?.contains(event.target as Node | null)) || covered();
     const reset = () => {
       tracking = false;
       armed = false;
@@ -86,7 +88,7 @@ export const useEdgeSwipe = ({
 
     const handleTouchMove = (event: TouchEventWithFlag) => {
       if (!tracking || event[HANDLED_EVENT_FLAG]) return;
-      if ((!within && hasBlockingPortalOverlay()) || event.touches.length !== 1) {
+      if (covered() || event.touches.length !== 1) {
         reset();
         return;
       }
@@ -106,7 +108,7 @@ export const useEdgeSwipe = ({
     };
 
     const handleTouchEnd = () => {
-      const swiped = tracking && armed;
+      const swiped = tracking && armed && !covered();
       reset();
       if (swiped) onSwipeRef.current();
     };

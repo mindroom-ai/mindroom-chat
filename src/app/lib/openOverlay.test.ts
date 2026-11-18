@@ -27,4 +27,12 @@ describe('hasOpenOverlay', () => {
     expect(hasOpenOverlay(sheet)).toBe(false);
     expect(hasOpenOverlay()).toBe(true);
   });
+
+  it('leaves out one opened before the asking layer, under it, and sees one opened over it', () => {
+    add('<div role="dialog" aria-modal="true"></div>');
+    const viewer = add('<div role="dialog" aria-modal="true"></div>');
+    expect(hasOpenOverlay(viewer)).toBe(false);
+    add('<div aria-modal="true"></div>');
+    expect(hasOpenOverlay(viewer)).toBe(true);
+  });
 });
