@@ -608,6 +608,25 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(latestWords).toBeFocused();
   await latestWords.blur();
   await expect(card).toHaveCount(0);
+
+  // On a phone with large text a long translated label wraps, and every value keeps its width.
+  await page.setViewportSize(PHONE);
+  await centre(page, latestRow);
+  await latestRow.getByRole('button').hover();
+  await expect(card).toContainText('History');
+  await card
+    .locator('dt')
+    .first()
+    .evaluate((term) => {
+      term.textContent = 'Modell der Zusammenfassung';
+    });
+  const valueWidths = await card
+    .locator('dd')
+    .evaluateAll((values) => values.map((value) => value.getBoundingClientRect().width));
+  expect(valueWidths.length).toBeGreaterThan(0);
+  for (const width of valueWidths) expect(width).toBeGreaterThan(0);
+  await page.mouse.move(0, 0);
+  await expect(card).toHaveCount(0);
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '';
   });

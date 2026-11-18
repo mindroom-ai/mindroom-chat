@@ -218,7 +218,8 @@ export const GaugeLabel = style({
 
 export const Rows = style({
   display: 'grid',
-  gridTemplateColumns: 'max-content minmax(0, 1fr)',
+  // A long translated label wraps at half the card, so its value always keeps width.
+  gridTemplateColumns: 'fit-content(50%) minmax(0, 1fr)',
   gap: `${toRem(3)} ${toRem(14)}`,
   marginBlock: `${toRem(8)} 0`,
   marginInline: 0,
