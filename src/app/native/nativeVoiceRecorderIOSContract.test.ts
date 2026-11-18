@@ -14,16 +14,20 @@ const body = (method: string) =>
   )?.[0] ?? '';
 
 describe('MindRoomVoiceRecorderPlugin native contract', () => {
-  it('is the plugin the web side registers, with its methods and its level event', () => {
+  it('is the plugin the web side registers, with its methods', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomVoiceRecorder"');
     expect(wrapperSource).toContain("('MindRoomVoiceRecorder')");
-    ['start', 'pause', 'resume', 'stop', 'cancel'].forEach((method) => {
+    ['start', 'level', 'pause', 'resume', 'stop', 'cancel'].forEach((method) => {
       expect(pluginSource).toContain(
         `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
       );
       expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
     });
-    expect(pluginSource).toContain('notifyListeners("level", data: ["level": level])');
+    expect(body('level')).toContain(
+      'call.resolve(["level": pow(10, live.recorder.averagePower(forChannel: 0) / 20)])'
+    );
+    // A listener notified from the main queue would race the bridge queue's listener changes.
+    expect(pluginSource).not.toMatch(/notifyListeners\(|Timer/);
     expect(pluginSource).toContain('call.resolve(["id": id])');
     expect(pluginSource).toContain('call.resolve(["path": ');
   });
@@ -31,7 +35,7 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('keeps each recording in a file of its own ID, a UUID, and acts only on the ID it is given', () => {
     expect(pluginSource).toContain('"\\(id).m4a"');
     expect(pluginSource).toContain('UUID(uuidString: id)');
-    ['pause', 'resume', 'stop'].forEach((method) =>
+    ['level', 'pause', 'resume', 'stop'].forEach((method) =>
       expect(body(method), method).toMatch(
         /^.*\n.*\n\s*guard let live = self\.live, live\.id == call\.getString\("id"\) else \{\s*return call\.reject\("No such recording", "NOT_RECORDING"\)/
       )
@@ -71,7 +75,6 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource).toMatch(
       /AVFormatIDKey: kAudioFormatMPEG4AAC,\s*AVSampleRateKey: 16_000,\s*AVNumberOfChannelsKey: 1,\s*AVEncoderBitRateKey: 32_000/
     );
-    expect(pluginSource).toContain('withTimeInterval: 0.08');
   });
 
   it('is on the main bridge of the Mac app only, compiled by both of its targets', () => {

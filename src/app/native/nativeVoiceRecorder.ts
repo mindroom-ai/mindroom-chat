@@ -1,19 +1,15 @@
-import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 /** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture): start()
- *  resolving { id }; pause, resume, stop and cancel({ id }) act on that recording only; stop
- *  resolves { path } of its `.m4a`; event `level` with { level } from 0 to 1; rejections carry
- *  `code`. */
+ *  resolving { id }; level, pause, resume, stop and cancel({ id }) act on that recording only;
+ *  level resolves { level } from 0 to 1, stop { path } of its `.m4a`; rejections carry `code`. */
 type MindRoomVoiceRecorderPlugin = {
   start(): Promise<{ id: string }>;
+  level(options: { id: string }): Promise<{ level: number }>;
   pause(options: { id: string }): Promise<void>;
   resume(options: { id: string }): Promise<void>;
   stop(options: { id: string }): Promise<{ path: string }>;
   cancel(options: { id: string }): Promise<void>;
-  addListener(
-    event: 'level',
-    listener: (data: { level: number }) => void
-  ): Promise<PluginListenerHandle>;
 };
 
 const START_ERROR_NAMES: Record<string, string> = {
@@ -41,13 +37,25 @@ export class NativeVoiceRecorder extends EventTarget {
 
   readonly mimeType = 'audio/mp4';
 
-  constructor(
-    private readonly id: string,
-    /** The newest level event, 0 before the first. */
-    readonly level: () => number,
-    private readonly levels: PluginListenerHandle
-  ) {
+  private newestLevel = 0;
+
+  constructor(private readonly id: string) {
     super();
+  }
+
+  /** The level the native recorder answered last, 0 before the first; asks it for the next. */
+  level(): number {
+    if (this.state === 'recording') {
+      getVoiceRecorderPlugin()
+        .level({ id: this.id })
+        .then(
+          ({ level }) => {
+            this.newestLevel = level;
+          },
+          () => undefined
+        );
+    }
+    return this.newestLevel;
   }
 
   pause(): void {
@@ -94,7 +102,6 @@ export class NativeVoiceRecorder extends EventTarget {
 
   /** Every way out, once (`state` is `inactive` by then): the native side deletes the file. */
   private end(): void {
-    this.levels.remove().catch(() => undefined);
     getVoiceRecorderPlugin()
       .cancel({ id: this.id })
       .catch(() => undefined);
@@ -105,16 +112,10 @@ export class NativeVoiceRecorder extends EventTarget {
 /** Asks for the microphone and starts recording. Rejects with an Error named as getUserMedia
  *  names it. */
 export const startNativeVoiceRecorder = async (): Promise<NativeVoiceRecorder> => {
-  const plugin = getVoiceRecorderPlugin();
-  let level = 0;
-  const levels = await plugin.addListener('level', (data) => {
-    level = data.level;
-  });
   try {
-    const { id } = await plugin.start();
-    return new NativeVoiceRecorder(id, () => level, levels);
+    const { id } = await getVoiceRecorderPlugin().start();
+    return new NativeVoiceRecorder(id);
   } catch (error) {
-    levels.remove().catch(() => undefined);
     const { code, message } = error as { code?: string; message?: string };
     throw Object.assign(new Error(message), {
       name: START_ERROR_NAMES[code ?? ''] ?? 'NotReadableError',

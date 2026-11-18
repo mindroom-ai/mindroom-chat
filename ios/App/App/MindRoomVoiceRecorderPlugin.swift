@@ -11,6 +11,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "MindRoomVoiceRecorder"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "level", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pause", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resume", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
@@ -31,7 +32,6 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private var live: (id: String, recorder: AVAudioRecorder)?
-    private var meter: Timer?
     /// The page this plugin serves; raised when it goes away, so that an answer to its
     /// microphone prompt records nothing.
     private var epoch = 0
@@ -81,15 +81,21 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         try? session.setActive(false, options: .notifyOthersOnDeactivation)
                         return call.reject("Could not start recording", "START_FAILED")
                     }
-                    self.meter = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
-                        guard let self, let recorder = self.live?.recorder, recorder.isRecording else { return }
-                        recorder.updateMeters()
-                        let level = pow(10, recorder.averagePower(forChannel: 0) / 20)
-                        self.notifyListeners("level", data: ["level": level])
-                    }
                     call.resolve(["id": id])
                 }
             }
+        }
+    }
+
+    /// The linear level now, 0 to 1. The page asks at its own pace: a listener would be notified
+    /// here while the bridge queue adds and removes listeners.
+    @objc func level(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [self] in
+            guard let live = self.live, live.id == call.getString("id") else {
+                return call.reject("No such recording", "NOT_RECORDING")
+            }
+            live.recorder.updateMeters()
+            call.resolve(["level": pow(10, live.recorder.averagePower(forChannel: 0) / 20)])
         }
     }
 
@@ -123,8 +129,6 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
             live.recorder.stop()
-            meter?.invalidate()
-            meter = nil
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             self.live = nil
             call.resolve(["path": live.recorder.url.path])
@@ -145,8 +149,6 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func discardLive() {
-        meter?.invalidate()
-        meter = nil
         guard let live else { return }
         self.live = nil
         live.recorder.stop()
