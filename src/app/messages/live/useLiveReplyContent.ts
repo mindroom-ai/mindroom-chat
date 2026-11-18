@@ -198,18 +198,24 @@ export const useLiveReplyContent = (
   // The frames the row showed last. When frames and edits stop together (the connection dropped
   // mid-stream), the entry expires while the durable reply is still an earlier state of what the
   // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
-  // grows or pauses.
-  const shownDocs = useRef<LiveDocs>();
-  if (docs) shownDocs.current = docs;
-  // A durable edit that covers the frames supersedes them: they never show again, widgets included.
-  if (verdict === 'wait') shownDocs.current = undefined;
+  // grows or pauses. A durable edit that covers those frames supersedes them for good, widgets
+  // included, whether it arrives before or after the entry expires.
+  const shown = useRef<{ entry: LiveReplyEntry; key: string }>();
+  const key = `${roomId}\0${replyId}`;
+  if (docs && entry) shown.current = { entry, key };
+  const held = shown.current;
+  const checkpoint = getLiveCheckpoint(content);
+  if (held && (held.key !== key || (checkpoint && compareLiveOrder(held.entry, checkpoint) <= 0))) {
+    shown.current = undefined;
+  }
   const heldDocs =
     !docs &&
     verdict !== 'wait' &&
     event &&
-    shownDocs.current &&
-    isEarlierState(event, content, shownDocs.current.md)
-      ? shownDocs.current
+    shown.current &&
+    shown.current.entry.sender === event.getSender() &&
+    isEarlierState(event, content, shown.current.entry.docs.md)
+      ? shown.current.entry.docs
       : undefined;
   const liveDocs = docs ?? heldDocs;
   const markdownReady = useLiveMarkdownReady(liveDocs !== undefined);

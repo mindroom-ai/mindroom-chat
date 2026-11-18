@@ -214,6 +214,57 @@ describe('useLiveReplyContent', () => {
       expect(shown().body).toBe('Chart');
     });
 
+    describe('held after the entry expires', () => {
+      const update = (content: IContent, event = replyEvent()) =>
+        act(() => {
+          renderer?.update(<Harness mx={mx} event={event} content={content} />);
+        });
+      const holdChart = () => {
+        const frame = snapshot(4, 'Chart extended');
+        ingest({ ...frame, snapshot: { ...frame.snapshot, ui: ui('aaaaaaaaaa') } });
+        render(durable('streaming', { body: 'Chart' }));
+        act(() => {
+          vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+        });
+        expect(store().get(ROOM, REPLY)).toBeUndefined();
+        expect(shown()[UI]).toEqual(ui('aaaaaaaaaa'));
+      };
+
+      it('gives way to a covering edit that arrives after the expiry', () => {
+        holdChart();
+        update(
+          durable('streaming', {
+            body: 'Chart',
+            'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+          })
+        );
+
+        expect(shown()).not.toHaveProperty(UI);
+        expect(shown().body).toBe('Chart');
+      });
+
+      it('gives way to an edit from a newer publisher', () => {
+        holdChart();
+        update(
+          durable('streaming', {
+            body: 'Chart',
+            'io.mindroom.live_checkpoint': { sid: `${SID}z`, seq: 0 },
+          })
+        );
+
+        expect(shown()).not.toHaveProperty(UI);
+      });
+
+      it('never shows over another reply', () => {
+        holdChart();
+        const other = new MatrixEvent({ ...replyEvent().event, event_id: '$other' });
+        update(durable('streaming', { body: 'Chart' }), other);
+
+        expect(shown()).not.toHaveProperty(UI);
+        expect(shown().body).toBe('Chart');
+      });
+    });
+
     it("drops a stale frame's widgets with the frame once the reply finishes", () => {
       ingest({ ...snapshot(0), snapshot: { ...snapshot(0).snapshot, ui: ui('aaaaaaaaaa') } });
       render(durable('completed', { [UI]: ui('bbbbbbbbbb') }));
