@@ -12,6 +12,8 @@ The person's latest message picks a scenario by hashtag:
   #markdown    a table, a code block and a list
   #error       the provider answers 500
   #ask         a streamed reply that ends in a question with two options, for answering by reaction
+  #chart       a sentence, a `ui` chart block (spec 5.4 of the widgets design) and a sentence, which a backend with
+               `ui_widgets` on turns into the reply's io.mindroom.ui chart
   #shell       one shell call         #multi   three shell calls
   #pause       two shell calls of 7 s each (the backend lists a call as a job once it has run 5 s), with 3.5 s of
                thinking before the second
@@ -122,7 +124,7 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
     ],
     "#terminal": [("terminal_open", {}), ("terminal_run", terminal_command)],
 }
-TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error", "#ask", "#work")
+TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error", "#ask", "#work", "#chart")
 
 # #ask: a short stream (each word an edit) ending in MindRoom's interactive block, which the backend turns into the
 # message's question and its reaction buttons.
@@ -133,6 +135,16 @@ ASK_QUESTION = {
         {"emoji": "✅", "label": "v3 final", "value": "v3"},
         {"emoji": "📄", "label": "v4 draft", "value": "v4"},
     ],
+}
+
+# #chart: the chart of the widgets design's section 5.4, as a model writes it.
+CHART_WIDGET = {
+    "type": "chart",
+    "kind": "line",
+    "title": "Signups",
+    "labels": ["Jan", "Feb", "Mar"],
+    "series": [{"name": "Signups", "data": [120, 180.5, 150]}],
+    "y": "users",
 }
 
 
@@ -465,6 +477,9 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
         )
     if has_tag(text, "#error"):
         return ("error",)
+    if has_tag(text, "#chart"):
+        block = json.dumps(CHART_WIDGET, separators=(",", ":"))
+        return ("text", f"Signups peaked in February.\n\n```ui\n{block}\n```\n\nMarch is still 25% above January.")
     if has_tag(text, "#ask"):
         block = json.dumps(ASK_QUESTION, ensure_ascii=False)
         return ("slow", f"Two versions are ready.\n\n```interactive\n{block}\n```", ASK_SECONDS_PER_WORD)

@@ -196,6 +196,8 @@ TERMINAL_TOOLKIT = "src/mindroom/tools/terminal.py"
 SHELL_WITHOUT_WORKER = ("src/mindroom/config/models.py", "allow_shell_without_worker")
 # A commit whose models take a `reasoning` block (MindRoom #4119); a stub stack on it gets a third model with levels.
 REASONING_LEVELS = ("src/mindroom/config/models.py", "class ReasoningConfig")
+# A commit whose agents take `ui_widgets` (MindRoom's docs/widgets.md); a stub stack's helper on it draws widgets.
+UI_WIDGETS = ("src/mindroom/config/agent.py", "ui_widgets")
 # The stub model with reasoning levels, which the model picker's effort column runs a thread on.
 REASONING_MODEL = {"key": "think", "id": "stub-think", "displayName": "Stub Think", "levels": ["low", "medium", "high"]}
 TRANSCRIPTION_MODES = ("stub", "real")
@@ -811,6 +813,7 @@ def config_yaml(
     shell_without_worker: bool = False,
     extra_agents: int = 0,
     reasoning_levels: bool = False,
+    ui_widgets: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -836,6 +839,7 @@ def config_yaml(
         worker_defaults = f"  worker_tools: {json.dumps(computers['tools'])}\n  worker_scope: user_agent\n"
         agent_tools += "\n      - browser_mcp"
     helper_terminals = ""
+    helper_widgets = "    ui_widgets: true\n" if ui_widgets else ""
     shell_review = "    - match: run_shell_command\n      script: ./approval_scripts/shell_review.py\n"
     if terminals:
         # Terminals run beside the shells in the slot's sandbox runner, and people may type in them (the docstring);
@@ -888,7 +892,7 @@ def config_yaml(
     role: Test agent driven by a stub model
     model: default
     rooms: [lobby]
-    tools:
+{helper_widgets}    tools:
 {agent_tools}
 {helper_terminals}  scout:
     display_name: Scout
@@ -1316,6 +1320,7 @@ def start(
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
     reasoning_levels = args.model == "stub" and commit_mentions(checkout, sha, *REASONING_LEVELS)
+    ui_widgets = args.model == "stub" and commit_mentions(checkout, sha, *UI_WIDGETS)
     config_path.write_text(
         config_yaml(
             args.model,
@@ -1330,6 +1335,7 @@ def start(
             commit_mentions(checkout, sha, *SHELL_WITHOUT_WORKER),
             args.agents,
             reasoning_levels,
+            ui_widgets,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
@@ -1373,6 +1379,7 @@ def start(
         "model": args.model,
         "models": MODELS[args.model],
         "reasoningModel": REASONING_MODEL if reasoning_levels else None,
+        "uiWidgets": ui_widgets,
         "calls": calls,
         "transcription": transcription,
         "clientSessions": args.client_sessions,

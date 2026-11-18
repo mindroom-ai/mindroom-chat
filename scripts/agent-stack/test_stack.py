@@ -1340,6 +1340,21 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(payload["question"], "Which deck should I polish for Thursday?")
         self.assertEqual([option["emoji"] for option in payload["options"]], ["✅", "📄"])
 
+    def test_chart_writes_a_ui_block_between_two_sentences(self) -> None:
+        kind, text = stub_model.plan(chat("signups? #chart"), stub_model.tool_scenarios([]))
+        before, rest = text.split("```ui\n", 1)
+        block, after = rest.split("\n```", 1)
+        self.assertEqual(kind, "text")
+        self.assertEqual(before, "Signups peaked in February.\n\n")
+        self.assertEqual(json.loads(block), stub_model.CHART_WIDGET)
+        self.assertEqual(after, "\n\nMarch is still 25% above January.")
+
+    def test_a_backend_with_ui_widgets_gives_the_helper_widgets(self) -> None:
+        self.assertNotIn("ui_widgets", stack.config_yaml("stub", TESTER, STUB_URL, 0.0003))
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, ui_widgets=True)
+        self.assertIn("    rooms: [lobby]\n    ui_widgets: true\n    tools:\n      - shell\n", config)
+        self.assertEqual(config.count("ui_widgets"), 1)
+
     def test_a_hashtag_matches_only_whole(self) -> None:
         greet = self.scenarios(
             {"#greet": [["sample_greet", {"name": "Ada"}]], "#greet2": [["sample_greet", {"name": "Bob"}]]}

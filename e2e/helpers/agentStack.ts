@@ -39,6 +39,8 @@ export type AgentStack = {
   models: { first: AgentModel; second: AgentModel };
   /** A stub model with reasoning levels, on a backend whose models take them (MindRoom #4119), else null. */
   reasoningModel?: (AgentModel & { levels: string[] }) | null;
+  /** Whether the helper draws widgets: a stub stack on a backend whose agents take `ui_widgets`. */
+  uiWidgets?: boolean;
   sha: string;
   namespace: string;
   homeserver: string;
