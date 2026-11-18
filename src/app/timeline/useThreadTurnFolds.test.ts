@@ -63,11 +63,11 @@ describe('turnRowWaits', () => {
     expect(waits(message('$live', { 'io.mindroom.stream_status': status }))).toBe(true);
   });
 
-  it('lets a reply fold that says it streams but had no revision for the idle limit', () => {
+  it('holds a reply that says it streams even past the idle limit (it shows whole)', () => {
     const stale = Date.now() - STREAM_IDLE_LIMIT_MS - 60_000;
     expect(
       waits(message('$gone', { 'io.mindroom.stream_status': 'streaming' }, AGENT, stale))
-    ).toBe(false);
+    ).toBe(true);
     const fresh = Date.now() - STREAM_IDLE_LIMIT_MS + 60_000;
     expect(
       waits(message('$slow', { 'io.mindroom.stream_status': 'streaming' }, AGENT, fresh))

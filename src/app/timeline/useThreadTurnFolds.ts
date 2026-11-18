@@ -3,7 +3,6 @@ import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { useThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { isEventStreaming } from '../event-store/threads/useThreadStreamingState';
-import { isStreamingReplyIdle } from '../matrix/client/streamingReplies';
 import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
 import { getEventReactions } from '../matrix/room';
 import {
@@ -55,13 +54,8 @@ export const turnRowWaits = (
   if (author !== 'agent') return false;
   // A reply that says it streams has not finished, also while the client has yet to vouch for it
   // (isStreamingReplyCurrent): its turn folds once it says it ended.
-  // One with no revision for a long while lets it fold: its writer is gone (the Working rule).
-  if (
-    isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet) &&
-    !isStreamingReplyIdle(event)
-  ) {
-    return true;
-  }
+  // One whose writer died mid-stream keeps holding: its turn shows whole, as without folds.
+  if (isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet)) return true;
   // A question waits until a reaction answers it, as its card reads it (QuestionCard), whatever
   // the person wrote since.
   const question = readInteractiveQuestion(getContent(event), event.getOriginalContent());
