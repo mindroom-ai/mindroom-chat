@@ -2,7 +2,6 @@ import {
   Fragment,
   useEffect,
   useId,
-  useReducer,
   useRef,
   useState,
   type FocusEvent,
@@ -16,6 +15,7 @@ import { IconAlertTriangle, IconFold } from '@tabler/icons-react';
 import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { timeHourMinuteSecond } from '../../lib/time';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { MAX_TIME_MS, type ReplyCompaction } from '../../matrix/protocol/compactions';
 import {
   formatSeconds,
@@ -467,7 +467,7 @@ export function CompactionNoticeSeam({ compaction }: { compaction: ReplyCompacti
   const { status, startedAt } = compaction;
   const deadline =
     status === 'running' && startedAt !== undefined ? startedAt + NOTICE_GIVE_UP_MS : undefined;
-  const [, wake] = useReducer((count: number) => count + 1, 0);
+  const [, wake] = useForceUpdate();
   useEffect(() => {
     if (deadline === undefined) return undefined;
     const left = deadline - Date.now();
@@ -478,7 +478,7 @@ export function CompactionNoticeSeam({ compaction }: { compaction: ReplyCompacti
     }
     const timer = window.setTimeout(wake, left);
     return () => window.clearTimeout(timer);
-  }, [deadline]);
+  }, [deadline, wake]);
   const gaveUp = deadline !== undefined && Date.now() >= deadline;
   return <CompactionSeam compaction={compaction} interrupted={gaveUp} />;
 }
