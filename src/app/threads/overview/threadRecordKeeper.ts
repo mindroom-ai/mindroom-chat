@@ -1,8 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import {
   createThreadRecordChanges,
-  markThreadRecordChange,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
 import type { ThreadIndexRecordMaps } from './threadIndexRecords';
@@ -81,23 +80,9 @@ export const threadRecordKept = (
   (keeper.maps.compactThreadRecordMap.has(threadRootId) ||
     keeper.maps.normalThreadRecordMap.has(threadRootId));
 
-/**
- * The page's keeper: a new one with each room, let go when the page leaves it.
- *
- * `shownThreadId` is the thread that fills the page in the list's place. What its view does to
- * it tells no listener: the events it reads from the cache write what they know into the room's
- * own root, and the SDK reads the root again and tells of it only once the first page of replies
- * is in. So the list that comes back builds again the record of every thread that filled the
- * page meanwhile, whatever happened to it.
- */
-export const useThreadRecordKeeper = (room: Room, shownThreadId?: string): ThreadRecordKeeper => {
+/** The page's keeper: a new one with each room, let go when the page leaves it. */
+export const useThreadRecordKeeper = (room: Room): ThreadRecordKeeper => {
   const keeper = useMemo(() => createThreadRecordKeeper(room), [room]);
   useEffect(() => () => disposeThreadRecordKeeper(keeper), [keeper]);
-  // With the commit that puts the thread in the list's place: after the list's last build.
-  useLayoutEffect(() => {
-    if (shownThreadId && threadRecordKept(keeper, shownThreadId)) {
-      markThreadRecordChange(keeper.changes, shownThreadId);
-    }
-  }, [keeper, shownThreadId]);
   return keeper;
 };

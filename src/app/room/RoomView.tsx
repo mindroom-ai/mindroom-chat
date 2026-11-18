@@ -147,6 +147,9 @@ export function RoomView({
   const pageRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
   const threadReturnPlaceRef = useRef<RoomRowsPlace>();
+  // The Compact list's records, kept while a thread fills the page and the list is gone.
+  const threadRecordKeeper = useThreadRecordKeeper(room);
+
   const myUserId = client.getSafeUserId();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
   const canMessage = permissions.event('m.room.message', myUserId);
@@ -167,8 +170,6 @@ export function RoomView({
   // Every open thread shows in the column: beside the room's messages while the person chose that
   // and the page has room, else filling the page, over the room's conversation, which goes.
   const columnFills = !!openThreadId && (threadLayout.layout === 'full' || !threadLayout.roomy);
-  // The Compact list's records, kept while a thread fills the page and the list is gone.
-  const threadRecordKeeper = useThreadRecordKeeper(room, columnFills ? openThreadId : undefined);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>();
   useLocalEchoRoot(room, openThreadId, () => {

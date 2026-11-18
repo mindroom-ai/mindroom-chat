@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { useLayoutEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
 import {
   createClient,
@@ -22,6 +22,7 @@ import { createSyncEngine } from '../../event-store/engine/syncEngine';
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import { saveThreadEventsToCache } from '../../event-store/cache/db';
 import { hydrateThreadFromCache } from '../open/threadOpenCacheController';
+import { useThreadSeedPrewarmController } from '../open/threadSeedPrewarmController';
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
 import { markThreadAsRead } from '../../notifications/readReceipts';
 
@@ -32,16 +33,26 @@ const state = vi.hoisted(() => ({
   noWriters: new Map(),
   noEvents: [] as unknown[],
   noIds: [] as string[],
+  /** The cached events of a thread are read once this settles: a test holds a read back. */
+  cacheRead: Promise.resolve(),
 }));
 
 vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../event-store/threads/roomThreadList')>()),
   loadRoomThreads: vi.fn(async () => undefined),
 }));
-vi.mock('../../event-store/cache/eventRepository', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../event-store/cache/eventRepository')>()),
-  loadCachedThreadRootsForRoom: vi.fn(async () => []),
-}));
+vi.mock('../../event-store/cache/eventRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../event-store/cache/eventRepository')>();
+  const loadThreadCachedSnapshot: typeof actual.loadThreadCachedSnapshot = async (options) => {
+    await state.cacheRead;
+    return actual.loadThreadCachedSnapshot(options);
+  };
+  return {
+    ...actual,
+    loadCachedThreadRootsForRoom: vi.fn(async () => []),
+    loadThreadCachedSnapshot,
+  };
+});
 vi.mock('../usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => state.noEvents }));
 vi.mock('../../event-store/threads/useThreadPinning', () => ({
   usePinnedEventIds: () => state.noIds,
@@ -213,23 +224,47 @@ const mountList = (
   };
 };
 
+/** The list's read of the cached events of the threads of its cards, as the room's timeline runs it. */
+function Prewarm({ threads }: { threads: string[] }) {
+  useThreadSeedPrewarmController({
+    room,
+    mx,
+    sessionId: 'session',
+    prefetchDepthRef: useRef(50),
+    activeThreadId: undefined,
+    priorityTargets: useMemo(
+      () => threads.map((threadId) => ({ threadId, replyCount: 1, visible: true })),
+      [threads]
+    ),
+    debugTraceId: 'test',
+  });
+  return null;
+}
+
 /** The room page: its list, or the thread that fills it in the list's place. */
-function Page({ thread, probe }: { thread?: string; probe: Probe }) {
-  const keeper = useThreadRecordKeeper(room, thread);
-  return thread ? null : <List keeper={keeper} probe={probe} />;
+function Page({ thread, probe, prewarm }: { thread?: string; probe: Probe; prewarm: string[] }) {
+  const keeper = useThreadRecordKeeper(room);
+  if (thread) return null;
+  return (
+    <>
+      <List keeper={keeper} probe={probe} />
+      <Prewarm threads={prewarm} />
+    </>
+  );
 }
 
 /**
  * The room page with its list, shown a while. `open` puts a thread in the list's place, and
- * `back` brings the list again and gives the records of its first build.
+ * `back` brings the list again and gives the records of its first build. The list reads the
+ * cached events of the threads of `prewarm`.
  */
-const shownPage = async () => {
+const shownPage = async (prewarm: string[] = []) => {
   const probe: Probe = { builds: [] };
   const engine = createSyncEngine({ mx });
   const tree = (thread?: string) => (
     <MatrixClientProvider value={mx}>
       <SyncEngineProvider engine={engine}>
-        <Page thread={thread} probe={probe} />
+        <Page thread={thread} probe={probe} prewarm={prewarm} />
       </SyncEngineProvider>
     </MatrixClientProvider>
   );
@@ -279,6 +314,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  state.cacheRead = Promise.resolve();
   clearSeenThreadRoots(ME);
   vi.restoreAllMocks();
   Thread.hasServerSideSupport = threadSupport;
@@ -435,6 +471,17 @@ describe('the Compact list back after threads filled the page', () => {
     return room.createThread(id, root, [], false);
   };
 
+  /** Puts a copy of a thread's root and of its newest reply in the cache. */
+  const cache = (id: string, ts: number, count: number, participated: boolean) => {
+    const root = rawRoot(id, ts, count, participated);
+    const reply = root.unsigned['m.relations'][RelationType.Thread].latest_event;
+    return saveThreadEventsToCache('session', ROOM_ID, id, [reply], root);
+  };
+
+  /** The summary of its thread the room's root carries. */
+  const summary = (id: string): unknown =>
+    room.findEventById(id)?.getServerAggregatedRelation(RelationType.Thread);
+
   const people = (records: Records, id: string) => records.get(id)?.presentation.peopleIds;
 
   beforeEach(async () => {
@@ -444,13 +491,8 @@ describe('the Compact list back after threads filled the page', () => {
 
   it('builds again the record of each thread opened: its cached root says the reader took part', async () => {
     // The cache holds a newer copy of A's and B's roots than the room: the reader replied since.
-    const cache = (id: string, ts: number) => {
-      const root = rawRoot(id, ts, 1, true);
-      const reply = root.unsigned['m.relations'][RelationType.Thread].latest_event;
-      return saveThreadEventsToCache('session', ROOM_ID, id, [reply], root);
-    };
-    await cache('$a', 1000);
-    await cache('$b', 2000);
+    await cache('$a', 1000, 1, true);
+    await cache('$b', 2000, 1, true);
     const page = await shownPage();
     const before = page.records();
     expect(ids(before)).toEqual(['$a', '$b', '$c']);
@@ -463,13 +505,55 @@ describe('the Compact list back after threads filled the page', () => {
     await act(() => hydrateThreadFromCache(runtime, '$a'));
     page.open('$b');
     await act(() => hydrateThreadFromCache(runtime, '$b'));
-    const summary = room.findEventById('$a')?.getServerAggregatedRelation(RelationType.Thread);
-    expect(summary).toMatchObject({ current_user_participated: true });
+    expect(summary('$a')).toMatchObject({ current_user_participated: true });
     const first = page.back();
 
     expect(people(first, '$a')).toEqual([BOB, ME]);
     expect(people(first, '$b')).toEqual([BOB, ME]);
     expect(first.get('$c')).toBe(before.get('$c'));
+    expect(page.records().get('$c')).toBe(before.get('$c'));
+  });
+
+  it("builds again the record of a thread whose cached root the list's read wrote into the room's while another filled the page", async () => {
+    addListedThread('$d', 4000);
+    await settle();
+    // The cache: B's root with a second reply and the reader among its people, and C's root as
+    // the room has it. The list's read of the cached events waits.
+    await cache('$b', 2000, 2, true);
+    await cache('$c', 3000, 1, false);
+    let read = (): void => undefined;
+    state.cacheRead = new Promise((resolve) => {
+      read = resolve;
+    });
+    const page = await shownPage(['$b', '$c']);
+    const before = page.records();
+    expect(people(before, '$b')).toEqual([BOB]);
+    expect(before.get('$b')?.status.replyCount).toBe(1);
+    const summaryOfC = summary('$c');
+
+    // A fills the page. Only now the read the list had asked for goes on: it writes what the
+    // cached roots know into the room's own, B's and C's, and no event tells of it.
+    page.open('$a');
+    read();
+    await vi.waitFor(() => {
+      expect(summary('$b')).toMatchObject({ count: 2, current_user_participated: true });
+      expect(summary('$c')).not.toBe(summaryOfC);
+    });
+    // C's root says what it said, in another object.
+    expect(summary('$c')).toEqual(summaryOfC);
+    const first = page.back();
+
+    // B's record is the one a list that kept nothing builds: people, count, preview and the rest.
+    expect(people(first, '$b')).toEqual([BOB, ME]);
+    expect(first.get('$b')?.status.replyCount).toBe(2);
+    const coldKeeper = createThreadRecordKeeper(room);
+    const cold = mountList(coldKeeper);
+    expect(first.get('$b')).toEqual(cold.firstBuild.get('$b'));
+    cold.unmount();
+    disposeThreadRecordKeeper(coldKeeper);
+    // C's root was written with what it had, and nothing wrote D's: both records are kept.
+    expect(first.get('$c')).toBe(before.get('$c'));
+    expect(first.get('$d')).toBe(before.get('$d'));
     expect(page.records().get('$c')).toBe(before.get('$c'));
   });
 

@@ -237,6 +237,24 @@ describe('buildThreadRecordMap reuse', () => {
     expect(third.get('$a')).toBe(first.get('$a'));
   });
 
+  it('builds only the record of a root whose summary of its thread says something else', () => {
+    const summarized = (count: number, participated: boolean) => ({
+      'm.relations': { 'm.thread': { count, current_user_participated: participated } },
+    });
+    roots.forEach((event) => event.setUnsigned(summarized(1, false)));
+    const first = build();
+
+    // A copy of B's root wrote a second reply into it, and one of A's root what A's had.
+    roots.get('$a')!.setUnsigned(summarized(1, false));
+    roots.get('$b')!.setUnsigned(summarized(2, true));
+    const second = build(first);
+
+    expect(second.get('$a')).toBe(first.get('$a'));
+    expect(second.get('$b')?.status.replyCount).toBe(2);
+    expect(second.get('$b')?.presentation.peopleIds).toContain(ME);
+    expect(build(second).get('$b')).toBe(second.get('$b'));
+  });
+
   it("builds every record once the room's thread list is in", () => {
     const first = build();
 

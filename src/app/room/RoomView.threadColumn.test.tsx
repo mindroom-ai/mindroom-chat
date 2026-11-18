@@ -755,18 +755,9 @@ it("keeps one keeper of the room's records while a thread fills the page, and a 
   expect(keeper?.room).toBe(room);
 
   // The thread fills the page and the room's messages go; Back brings them with the same keeper.
-  // Of the records kept, the thread's is marked: the list that comes back builds it again.
-  const records = new Map([
-    ['$thread', {}],
-    ['$other', {}],
-  ]);
-  Object.assign(keeper!, {
-    maps: { normalThreadRecordMap: new Map(), compactThreadRecordMap: records },
-  });
   state.thread = '$thread';
   rerenderView(rerender);
   expect(screen.queryByTestId('messages')).toBeNull();
-  expect([...keeper!.changes.threads.keys()]).toEqual(['$thread']);
   state.thread = undefined;
   rerenderView(rerender);
   expect(screen.queryByTestId('messages')).not.toBeNull();

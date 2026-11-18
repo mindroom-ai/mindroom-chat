@@ -33,6 +33,7 @@ import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilte
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
 import { parseThreadSnooze } from './threadSnooze';
 import { isSeenThreadRoot } from '../../matrix/seenThreadRoots';
+import { stableSerialize } from '../../matrix/eventRevision';
 import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
@@ -145,8 +146,9 @@ const unchangedSince = (
 /**
  * Lets a build keep the records of the build before it (`previous`) for the threads that did not
  * change: no mark in `changes` for the thread or the room since its record was built, the same
- * values given for it, the same answers of the room that every record reads (`roomSources`), and
- * its root opened on this device or not as before (`rootSeen`).
+ * values given for it, the same answers of the room that every record reads (`roomSources`), its
+ * root opened on this device or not as before (`rootSeen`), and the same summary of the thread on
+ * its root (`rootSummary`).
  */
 export type ThreadRecordReuse = {
   previous: ReadonlyMap<string, ThreadRecord> | undefined;
@@ -162,6 +164,12 @@ type ThreadRecordSources = {
    * event tells of. A record reads it of its own root only (`isMainTimelineMessageUnread`).
    */
   rootSeen: boolean;
+  /**
+   * The summary of the thread its root carries (`unsigned['m.relations']['m.thread']`): the count
+   * of replies, the newest one, and whether the reader took part. A copy of the root that is read
+   * from the cache or fetched writes what it knows into the room's root, and no event tells of it.
+   */
+  rootSummary: unknown;
 };
 
 /** What each kept record was built from. */
@@ -176,6 +184,18 @@ const getRoomSources = (room: Room): readonly unknown[] => [
   roomThreadListIsListed(room),
   receiptEventsVersion(room),
 ];
+
+/**
+ * Whether the record's root still carries the summary the record was built from. A write puts
+ * another object there, also one that says the same: only then the two are read through, once,
+ * and the record goes by the new object from there on.
+ */
+const sameRootSummary = (keptFrom: ThreadRecordSources, rootSummary: unknown): boolean => {
+  if (keptFrom.rootSummary === rootSummary) return true;
+  if (stableSerialize(keptFrom.rootSummary) !== stableSerialize(rootSummary)) return false;
+  keptFrom.rootSummary = rootSummary;
+  return true;
+};
 
 /** The same value, or two lists or objects that hold the same values. */
 const sameOption = (left: unknown, right: unknown): boolean => {
@@ -334,6 +354,14 @@ const buildDefaultThreadCacheCoverage = (
   };
 };
 
+/** The root a record reads: the one given for it, else the thread's, else the room's. */
+const resolveThreadRootEvent = (
+  room: Room,
+  threadRootId: string,
+  threadRootEvent: MatrixEvent | undefined
+): MatrixEvent | undefined =>
+  threadRootEvent ?? room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+
 export const buildThreadRecord = ({
   room,
   threadRootId,
@@ -358,8 +386,7 @@ export const buildThreadRecord = ({
   // Share this snapshot only within this synchronous build; SDK events can
   // change in place between updates through edits, decryption and redaction.
   const visibleReplyEvents = getPreferredVisibleThreadReplyEvents(thread);
-  const resolvedThreadRootEvent =
-    threadRootEvent ?? thread?.rootEvent ?? room.findEventById(threadRootId);
+  const resolvedThreadRootEvent = resolveThreadRootEvent(room, threadRootId, threadRootEvent);
   const zeroReplyThreadRoot = resolvedThreadRootEvent
     ? shouldRenderZeroReplyThreadBadge(room, resolvedThreadRootEvent)
     : false;
@@ -546,6 +573,11 @@ export const buildThreadRecordMap = ({
     };
     const rootSeen =
       !!reuse && !!currentUserId && isSeenThreadRoot(currentUserId, room.roomId, threadRootId);
+    const rootSummary =
+      reuse &&
+      resolveThreadRootEvent(room, threadRootId, options.threadRootEvent)?.getUnsigned()?.[
+        'm.relations'
+      ]?.['m.thread'];
     const kept = reuse?.previous?.get(threadRootId);
     const keptFrom = kept && recordSources.get(kept);
     if (
@@ -555,6 +587,7 @@ export const buildThreadRecordMap = ({
       unchangedSince(reuse.changes, threadRootId, keptFrom.builtAt) &&
       sameOption(keptFrom.roomSources, roomSources) &&
       keptFrom.rootSeen === rootSeen &&
+      sameRootSummary(keptFrom, rootSummary) &&
       sameOptions(keptFrom.options, options)
     ) {
       // The room's threads trade places with every reply; a thread that only moved keeps its
@@ -569,7 +602,9 @@ export const buildThreadRecordMap = ({
       return;
     }
     const record = buildThreadRecord(options);
-    if (reuse) recordSources.set(record, { options, builtAt, roomSources, rootSeen });
+    if (reuse) {
+      recordSources.set(record, { options, builtAt, roomSources, rootSeen, rootSummary });
+    }
     records.set(threadRootId, record);
   });
 

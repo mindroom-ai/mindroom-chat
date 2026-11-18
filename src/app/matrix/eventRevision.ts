@@ -20,7 +20,8 @@ export type RelationSnapshotMode = 'partial' | 'authoritative';
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const stableSerialize = (value: unknown): string => {
+/** The value as text, the same for objects that hold the same values under keys in any order. */
+export const stableSerialize = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
   if (isRecord(value)) {
     return `{${Object.keys(value)
