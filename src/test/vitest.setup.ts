@@ -13,6 +13,7 @@ vi.mock('../app/ui/styles/Glass.css', () => ({
   glassFlat: 'glass-flat',
   glassOutline: 'glass-outline',
   glassDenseOverBackdrop: 'glass-dense-over-backdrop',
+  glassExpanded: 'glass-expanded',
   glassSurface: () => 'glass-surface',
 }));
 vi.mock('../app/ui/ThreadActivity.css', () => ({

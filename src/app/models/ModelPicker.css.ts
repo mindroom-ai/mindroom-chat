@@ -411,44 +411,20 @@ export const Empty = style([
 
 const triggerSize = toRem(32);
 
-// The button at the start of the composer: the provider's logo alone, without the glass of the
-// buttons after it, the same 32 px square, 44 px tall and 36 px wide to a finger.
+// The button at the start of the composer: the model's logo in the glass frame of the buttons
+// after it, the same 32 px square, 44 px tall and 36 px wide to a finger.
 export const Trigger = style([
-  control,
   touchTarget('2px'),
   {
-    position: 'relative',
     flexShrink: 0,
-    display: 'inline-grid',
-    placeItems: 'center',
-    inlineSize: triggerSize,
-    padding: 0,
+    minInlineSize: triggerSize,
     blockSize: triggerSize,
-    borderRadius: config.radii.R300,
-    color: color.SurfaceVariant.OnContainer,
     selectors: {
-      ...hoverAndFocus(color.SurfaceVariant.ContainerHover, color.Primary.Main),
-      '&[aria-expanded="true"]': { backgroundColor: color.SurfaceVariant.ContainerActive },
       // With a level, its bars follow the logo and the button grows to hold them.
-      '&[data-effort="true"]': {
-        gridAutoFlow: 'column',
-        gap: toRem(4),
-        inlineSize: 'auto',
-        paddingInline: toRem(6),
-      },
+      '&[data-effort="true"]': { gap: toRem(4), paddingInline: toRem(6) },
     },
   },
 ]);
-
-// The logo stays quiet until the button is pointed at, focused or open.
-export const TriggerIcon = style({
-  opacity: config.opacity.P300,
-  selectors: {
-    [`${Trigger}:hover &`]: { opacity: 1 },
-    [`${Trigger}:focus-visible &`]: { opacity: 1 },
-    [`${Trigger}[aria-expanded="true"] &`]: { opacity: 1 },
-  },
-});
 
 // The hairline between the model button and the composer's other buttons.
 export const TriggerDivider = style({

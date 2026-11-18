@@ -278,6 +278,26 @@ for (const theme of ['silver', 'dark']) {
   });
 }
 
+test('the model button is framed like the composer buttons after it, its logo centred', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 620 });
+  await page.goto('/e2e/fixtures/glass-surfaces.html?menus&effort=0');
+  const trigger = page.getByRole('button', { name: /^Choose model / });
+  const button = (await trigger.boundingBox())!;
+  const attach = (await page.getByRole('button', { name: 'Attach', exact: true }).boundingBox())!;
+  expect([button.width, button.height, button.y]).toEqual([attach.width, attach.height, attach.y]);
+  const logo = (await trigger.locator('svg').boundingBox())!;
+  expect(logo.x - button.x).toBeCloseTo(button.x + button.width - logo.x - logo.width, 1);
+  expect(logo.y - button.y).toBeCloseTo(button.y + button.height - logo.y - logo.height, 1);
+  // The same glass, not a bare logo.
+  const background = (locator: typeof trigger) =>
+    locator.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(await background(trigger)).toBe(
+    await background(page.getByRole('button', { name: 'Attach', exact: true }))
+  );
+});
+
 test('a short phone window keeps room for both the models and the effort levels', async ({
   page,
 }, testInfo) => {

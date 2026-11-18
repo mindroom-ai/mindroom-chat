@@ -147,6 +147,11 @@ const material = (
   },
 });
 
+// A glass button whose menu or dialog is open looks pressed, as a composer toggle that is on does.
+export const glassExpanded = style({
+  selectors: { 'button&&[aria-expanded="true"]': { vars: { [surfaceContainer]: surfaceActive } } },
+});
+
 // Keep floating chrome as lightly blurred as the Chromium optical filter.
 export const glassFloating = style({
   selectors: {
