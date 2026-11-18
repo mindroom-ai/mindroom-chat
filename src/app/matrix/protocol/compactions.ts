@@ -50,6 +50,12 @@ const isCount = (value: unknown): value is number =>
 const isAmount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
+/** The latest time a `Date` holds, in ms; date formatting throws past it. */
+const MAX_TIME_MS = 8.64e15;
+
+/** A time or a duration in ms that a `Date` can hold. */
+const isTime = (value: unknown): value is number => isAmount(value) && value <= MAX_TIME_MS;
+
 const isText = (value: unknown): value is string => typeof value === 'string' && value !== '';
 
 /** The most of a failure reason kept: the backend sends its error text uncapped. */
@@ -62,8 +68,8 @@ const capReason = (text: string): string =>
 /** The optional fields `entry` carries with the right type; a malformed one is left out. */
 const readOptionalFields = (entry: Record<string, unknown>): OptionalFields => {
   const fields: OptionalFields = {};
-  if (isAmount(entry.started_at)) fields.startedAt = entry.started_at;
-  if (isAmount(entry.duration_ms)) fields.durationMs = entry.duration_ms;
+  if (isTime(entry.started_at)) fields.startedAt = entry.started_at;
+  if (isTime(entry.duration_ms)) fields.durationMs = entry.duration_ms;
   if (isText(entry.summary_model)) fields.summaryModel = entry.summary_model;
   if (isAmount(entry.after_tokens)) fields.afterTokens = entry.after_tokens;
   if (isAmount(entry.history_budget_tokens)) {

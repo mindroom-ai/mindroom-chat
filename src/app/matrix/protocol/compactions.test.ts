@@ -129,6 +129,24 @@ describe('readReplyCompactions', () => {
     expect(readReplyCompactions(value)).toEqual([]);
   });
 
+  it.each([
+    ['past the latest date', 8.64e15 + 1],
+    ['negative', -1],
+    ['infinite', Infinity],
+  ])('leaves out a start time and a duration %s, keeping the entry', (_name, value) => {
+    const [read] = readReplyCompactions([{ ...ENTRY, started_at: value, duration_ms: value }]);
+
+    expect(read).toMatchObject({ id: '3f9c', beforeTokens: 366804 });
+    expect(read).not.toHaveProperty('startedAt');
+    expect(read).not.toHaveProperty('durationMs');
+  });
+
+  it('keeps a start time and a duration at the latest date', () => {
+    const [read] = readReplyCompactions([{ ...ENTRY, started_at: 8.64e15, duration_ms: 8.64e15 }]);
+
+    expect(read).toMatchObject({ startedAt: 8.64e15, durationMs: 8.64e15 });
+  });
+
   it('cuts a long failure reason to 300 characters with an ellipsis', () => {
     const long = 'x'.repeat(2000);
     const [read] = readReplyCompactions([{ ...ENTRY, failure_reason: long }]);
