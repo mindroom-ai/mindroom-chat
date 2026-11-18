@@ -573,6 +573,26 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await page.keyboard.press('Escape');
   await expect(card).toHaveCount(0);
   await expect(latestWords).toBeFocused();
+  // Tab in the card, which lives in the body, goes on from the row in timeline order.
+  await page.keyboard.press('Enter');
+  await expect(card).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(card).toHaveCount(0);
+  expect(
+    await latestWords.evaluate((row) => {
+      const next = document.activeElement;
+      return (
+        !!next &&
+        next !== row &&
+        !!next.closest('[data-message-item]') &&
+        !!(row.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING)
+      );
+    })
+  ).toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect(latestWords).toBeFocused();
+  await latestWords.blur();
+  await expect(card).toHaveCount(0);
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '';
   });

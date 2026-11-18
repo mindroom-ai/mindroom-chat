@@ -497,6 +497,24 @@ describe('CompactionSeam card', () => {
     view.unmount();
   });
 
+  it('sends Tab in a keyboard-opened card on from the row, as the card lives in the body', () => {
+    const view = renderDom(<CompactionSeam compaction={compaction()} />);
+    const row = view.container.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    act(() => row.focus());
+    fireEvent.click(row, { detail: 0 });
+    // Tab goes on from the row: focus moves there and the key's own move then runs from it.
+    expect(fireEvent.keyDown(screen.getByRole('tooltip'), { key: 'Tab' })).toBe(true);
+    expect(document.activeElement).toBe(row);
+
+    // Shift+Tab stops at the row, which comes before the card.
+    act(() => screen.getByRole('tooltip').focus());
+    expect(fireEvent.keyDown(screen.getByRole('tooltip'), { key: 'Tab', shiftKey: true })).toBe(
+      false
+    );
+    expect(document.activeElement).toBe(row);
+    view.unmount();
+  });
+
   it('takes focus in the card back to the row on Escape, and keeps that Escape from the room', () => {
     const view = renderDom(<CompactionSeam compaction={compaction()} />);
     const row = view.container.querySelector<HTMLButtonElement>('button[aria-expanded]')!;

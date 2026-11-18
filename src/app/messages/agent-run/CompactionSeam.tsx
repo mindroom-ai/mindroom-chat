@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FocusEvent,
+  type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -17,6 +18,7 @@ import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { timeHourMinuteSecond } from '../../lib/time';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
+import { tabFromCardToOpener } from '../../lib/overlayFocus';
 import { MAX_TIME_MS, type ReplyCompaction } from '../../matrix/protocol/compactions';
 import {
   formatSeconds,
@@ -327,7 +329,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   useEffect(() => {
     if (!isOpen) return undefined;
     const close = () => setOpen(undefined);
-    const onKeyDown = (evt: KeyboardEvent) => {
+    const onKeyDown = (evt: globalThis.KeyboardEvent) => {
       if (evt.key !== 'Escape') return;
       // Focus in the card would fall to the page once it is gone, so it goes back to the row, and
       // the room's Escape (focus the composer), which skips a key whose default was prevented,
@@ -455,6 +457,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             onPointerLeave={leaveHover}
             onFocus={pin}
             onBlur={onFocusLeave}
+            onKeyDown={(evt: KeyboardEvent) => tabFromCardToOpener(evt, triggerRef.current)}
           >
             <div className={css.Head}>
               <Icon className={css.HeadIcon} size={ICON_SIZE} aria-hidden />

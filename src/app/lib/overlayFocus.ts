@@ -67,6 +67,19 @@ export const LAYER_HOST_ATTRIBUTE = 'data-layer-host';
 /** Marks a layer that moves focus itself, which this module then leaves alone. */
 export const OWNS_FOCUS_ATTRIBUTE = 'data-owns-focus';
 
+/**
+ * Tab in a card that lives in the body goes on from the control that opened it: focus moves to
+ * `opener`, where a plain Tab then runs, while Shift+Tab stops there, the control before the card.
+ */
+export const tabFromCardToOpener = (
+  evt: { key: string; shiftKey: boolean; preventDefault: () => void },
+  opener: HTMLElement | null
+): void => {
+  if (evt.key !== 'Tab') return;
+  if (evt.shiftKey) evt.preventDefault();
+  opener?.focus();
+};
+
 const isLayerParent = (doc: Document, parent: Element | null): boolean =>
   !!parent &&
   (parent === doc.body ||
