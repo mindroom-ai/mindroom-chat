@@ -676,6 +676,19 @@
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
         "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi."
       }
+    },
+    "macApp": {
+      "title": "MindRoom untuk Mac",
+      "text": "Tangkapan Cepat dengan ⌃⌥Space, notifikasi native.",
+      "download": "Unduh",
+      "notNow": "Nanti saja",
+      "dismiss": "Tutup",
+      "banner": "<b>Pakai Mac?</b> Dapatkan aplikasi MindRoom.",
+      "bannerDownload": "Unduh untuk Mac",
+      "menu": "Unduh aplikasi Mac",
+      "downloadDmg": "Unduh (.dmg)",
+      "copyCommand": "Salin perintah",
+      "keywords": "mac, macos, desktop, aplikasi, unduh, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

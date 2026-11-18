@@ -676,6 +676,19 @@
         "readOnly": "このルームの設定を変更できる人だけが編集できます。",
         "saveFailed": "設定を保存できませんでした。もう一度お試しください。"
       }
+    },
+    "macApp": {
+      "title": "Mac 版 MindRoom",
+      "text": "⌃⌥Space でクイックキャプチャ、ネイティブ通知。",
+      "download": "ダウンロード",
+      "notNow": "今はしない",
+      "dismiss": "閉じる",
+      "banner": "<b>Mac をお使いですか?</b> MindRoom アプリを入手しましょう。",
+      "bannerDownload": "Mac 版をダウンロード",
+      "menu": "Mac アプリをダウンロード",
+      "downloadDmg": "ダウンロード (.dmg)",
+      "copyCommand": "コマンドをコピー",
+      "keywords": "mac, macos, デスクトップ, アプリ, ダウンロード, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

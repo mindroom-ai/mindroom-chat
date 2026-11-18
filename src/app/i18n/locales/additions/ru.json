@@ -703,6 +703,19 @@
         "readOnly": "Изменять это могут только те, кому разрешено менять настройки этой комнаты.",
         "saveFailed": "Не удалось сохранить настройку. Попробуйте ещё раз."
       }
+    },
+    "macApp": {
+      "title": "MindRoom для Mac",
+      "text": "Быстрая запись по ⌃⌥Space, системные уведомления.",
+      "download": "Скачать",
+      "notNow": "Не сейчас",
+      "dismiss": "Скрыть",
+      "banner": "<b>У вас Mac?</b> Установите приложение MindRoom.",
+      "bannerDownload": "Скачать для Mac",
+      "menu": "Скачать приложение для Mac",
+      "downloadDmg": "Скачать (.dmg)",
+      "copyCommand": "Скопировать команду",
+      "keywords": "mac, macos, компьютер, приложение, скачать, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

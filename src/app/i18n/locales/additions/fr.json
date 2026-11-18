@@ -694,6 +694,19 @@
         "readOnly": "Seules les personnes autorisées à modifier les paramètres de ce salon peuvent changer ceci.",
         "saveFailed": "Impossible d’enregistrer le paramètre. Réessayez."
       }
+    },
+    "macApp": {
+      "title": "MindRoom pour Mac",
+      "text": "Capture rapide avec ⌃⌥Space, notifications natives.",
+      "download": "Télécharger",
+      "notNow": "Plus tard",
+      "dismiss": "Ignorer",
+      "banner": "<b>Vous utilisez un Mac ?</b> Installez l’app MindRoom.",
+      "bannerDownload": "Télécharger pour Mac",
+      "menu": "Télécharger l’app Mac",
+      "downloadDmg": "Télécharger (.dmg)",
+      "copyCommand": "Copier la commande",
+      "keywords": "mac, macos, bureau, app, application, télécharger, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

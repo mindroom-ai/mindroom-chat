@@ -685,6 +685,19 @@
         "readOnly": "Only people allowed to change this room's settings can edit this.",
         "saveFailed": "Couldn't save the setting. Try again."
       }
+    },
+    "macApp": {
+      "title": "MindRoom for Mac",
+      "text": "Quick Capture with ⌃⌥Space, native notifications.",
+      "download": "Download",
+      "notNow": "Not now",
+      "dismiss": "Dismiss",
+      "banner": "<b>Using a Mac?</b> Get the MindRoom app.",
+      "bannerDownload": "Download for Mac",
+      "menu": "Download Mac app",
+      "downloadDmg": "Download (.dmg)",
+      "copyCommand": "Copy command",
+      "keywords": "mac, macos, desktop, app, download, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

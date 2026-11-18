@@ -685,6 +685,19 @@
         "readOnly": "শুধু যাঁরা এই রুমের সেটিংস বদলাতে পারেন, তাঁরাই এটি সম্পাদনা করতে পারেন।",
         "saveFailed": "সেটিংটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"
       }
+    },
+    "macApp": {
+      "title": "Mac-এর জন্য MindRoom",
+      "text": "⌃⌥Space দিয়ে কুইক ক্যাপচার, নেটিভ নোটিফিকেশন।",
+      "download": "ডাউনলোড",
+      "notNow": "এখন নয়",
+      "dismiss": "সরিয়ে দিন",
+      "banner": "<b>Mac ব্যবহার করছেন?</b> MindRoom অ্যাপটি নিন।",
+      "bannerDownload": "Mac-এর জন্য ডাউনলোড",
+      "menu": "Mac অ্যাপ ডাউনলোড",
+      "downloadDmg": "ডাউনলোড (.dmg)",
+      "copyCommand": "কমান্ড কপি করুন",
+      "keywords": "mac, macos, ডেস্কটপ, অ্যাপ, ডাউনলোড, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

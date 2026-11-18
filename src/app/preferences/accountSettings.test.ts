@@ -32,6 +32,13 @@ describe('sanitizeAccountSettings', () => {
     expect(sanitizeAccountSettings({ tourOffered: 1 }).tourOffered).toBe(false);
   });
 
+  it('reads whether the Mac app was offered, which it was not unless a boolean says so', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.macAppOffered).toBe(false);
+    expect(sanitizeAccountSettings({}).macAppOffered).toBe(false);
+    expect(sanitizeAccountSettings({ macAppOffered: true }).macAppOffered).toBe(true);
+    expect(sanitizeAccountSettings({ macAppOffered: 'yes' }).macAppOffered).toBe(false);
+  });
+
   it('ignores unknown keys when reading', () => {
     expect(
       sanitizeAccountSettings({

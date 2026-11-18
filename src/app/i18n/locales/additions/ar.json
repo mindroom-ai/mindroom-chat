@@ -721,6 +721,19 @@
         "readOnly": "لا يمكن تعديل هذا إلا لمن يُسمح لهم بتغيير إعدادات هذه الغرفة.",
         "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى."
       }
+    },
+    "macApp": {
+      "title": "MindRoom لنظام Mac",
+      "text": "الالتقاط السريع بـ ⌃⌥Space، وإشعارات أصلية.",
+      "download": "تنزيل",
+      "notNow": "ليس الآن",
+      "dismiss": "إخفاء",
+      "banner": "<b>تستخدم Mac؟</b> احصل على تطبيق MindRoom.",
+      "bannerDownload": "تنزيل لنظام Mac",
+      "menu": "تنزيل تطبيق Mac",
+      "downloadDmg": "تنزيل (.dmg)",
+      "copyCommand": "نسخ الأمر",
+      "keywords": "mac, macos, سطح المكتب, تطبيق, تنزيل, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {

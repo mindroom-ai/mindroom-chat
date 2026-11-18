@@ -685,6 +685,19 @@
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
         "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin."
       }
+    },
+    "macApp": {
+      "title": "Mac için MindRoom",
+      "text": "⌃⌥Space ile Hızlı Yakalama, yerel bildirimler.",
+      "download": "İndir",
+      "notNow": "Şimdi değil",
+      "dismiss": "Kapat",
+      "banner": "<b>Mac mi kullanıyorsunuz?</b> MindRoom uygulamasını edinin.",
+      "bannerDownload": "Mac için indir",
+      "menu": "Mac uygulamasını indir",
+      "downloadDmg": "İndir (.dmg)",
+      "copyCommand": "Komutu kopyala",
+      "keywords": "mac, macos, masaüstü, uygulama, indir, dmg, homebrew, brew"
     }
   },
   "mindroomUi": {
