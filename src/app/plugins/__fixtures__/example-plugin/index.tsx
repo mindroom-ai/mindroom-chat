@@ -4,7 +4,7 @@
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // Activity and the Threads page preview such a message as "Greeting: <text>" ("Gruß: <text>").
 // In the Compact view, the card of a thread such a message begins shows its thread card badge,
-// "Greeting", after the thread's tags.
+// "Greeting", before the thread's tags.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
 // whether a MindRoom agent has joined or is invited, through the account's client, and whether the
 // account may post there, which it says again when the room's levels change. Under "Example rows"

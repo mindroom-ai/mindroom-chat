@@ -40,6 +40,7 @@ vi.mock('./PhoneTopBar.css', () => ({
 vi.mock('../command-palette/CommandPaletteSearchField.css', () => ({
   SearchField: 'field',
   SearchPlaceholder: 'placeholder',
+  ShortcutHint: 'shortcut-hint',
 }));
 vi.mock('folds', async () => {
   const reactModule = await import('react');

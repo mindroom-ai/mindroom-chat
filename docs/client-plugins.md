@@ -480,7 +480,8 @@ A `Component` that throws closes the card, logged and reported with `[plugin <id
 
 Thread card badges (`src/app/plugins/threadCardBadges.ts`) are the tenth kind: `ClientPlugin.threadCardBadges`, a list of `{ Component, hoverCard? }`.
 `Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws a small mark for that thread, such as the state of a pull request it works on, or nothing.
-`src/app/threads/overview/ThreadCardBadges.tsx` draws the badges of the enabled plugins, in build order, on each thread's card in the Compact view, in the card's metadata row after the thread's tags.
+`src/app/threads/overview/ThreadCardBadges.tsx` draws the badges of the enabled plugins, in build order, on each thread's card in the Compact view, in the card's metadata row before the thread's tags.
+When the row runs out of room (on a phone), a badge or tag that does not fit beside the writers and the reply count is left out whole, never squeezed, so the badges keep their place before the tags. A badge fits the row's height, 1.5rem; a taller one loses its bottom.
 Only the Compact view's cards draw them: the Threads page, the sidebar's thread rows and the timeline's thread badge do not.
 A thread whose first message is still sending has no badges until the server has confirmed it, so `threadId` is always the ID the server gave the root.
 They are drawn inside the card's button, so a badge renders no control of its own: no button, no link and nothing that takes the focus, and a click on it opens the thread as a click anywhere on the card does.

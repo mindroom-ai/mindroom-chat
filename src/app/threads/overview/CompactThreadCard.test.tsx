@@ -17,6 +17,7 @@ vi.mock('./CompactRoomView.css', () => ({
   MessagePreview: 'MessagePreview',
   MessageText: 'MessageText',
   MetadataRow: 'MetadataRow',
+  Chips: 'Chips',
   ParticipantAvatar: 'ParticipantAvatar',
   Participants: 'Participants',
   ReplyCount: 'ReplyCount',
@@ -28,6 +29,7 @@ vi.mock('./CompactRoomView.css', () => ({
   SnoozedIndicator: 'SnoozedIndicator',
   Stats: 'Stats',
   StreamingStatus: 'StreamingStatus',
+  StreamingLabel: 'StreamingLabel',
   TimeText: 'TimeText',
   TimeTextUnread: 'TimeTextUnread',
   TitleRow: 'TitleRow',
@@ -519,31 +521,31 @@ describe("CompactThreadCard's badges", () => {
     return { container, onClick };
   };
 
-  it("draws them inside the card's button, in the metadata row after the tags and before the count", () => {
+  it("draws them inside the card's button, in the metadata row before the tags and the count", () => {
     const { container } = renderCard();
     const badge = screen.getByTestId('badge');
     const metadata = container.querySelector('[data-compact-card-metadata]');
     const pills = [...container.querySelectorAll('.thread-tag-pill')];
-    const lastPill = pills[pills.length - 1];
+    const [firstPill] = pills;
     const streaming = container.querySelector('.StreamingStatus');
     const replyCount = container.querySelector('[data-compact-card-reply-count]');
 
     expect(container.querySelector('button')?.contains(badge)).toBe(true);
     expect(metadata?.contains(badge)).toBe(true);
     expect(pills).toHaveLength(2);
-    expect(lastPill?.compareDocumentPosition(badge)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(badge.compareDocumentPosition(firstPill!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(badge.compareDocumentPosition(streaming!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(badge.compareDocumentPosition(replyCount!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('draws them after the count of the tags the card leaves out', () => {
+  it('draws them before the tags and the count of those the card leaves out', () => {
     const { container } = renderCard(['blog', 'bug', 'docs', 'ideas', 'later']);
     const badge = screen.getByTestId('badge');
     const overflow = screen.getByText('+2');
 
     expect(container.querySelectorAll('.thread-tag-pill')).toHaveLength(3);
     expect(overflow.title).toBe('ideas, later');
-    expect(overflow.compareDocumentPosition(badge)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(badge.compareDocumentPosition(overflow)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('opens the thread on a click anywhere on the card but a badge that stops the click', () => {

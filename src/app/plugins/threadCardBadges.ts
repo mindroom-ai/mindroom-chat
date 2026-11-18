@@ -9,7 +9,7 @@ import type { RegisteredPlugin } from './registry';
 export type ThreadCardBadgeProps = { room: Room; threadId: string };
 
 /**
- * A small mark a plugin draws on a thread's card in the Compact view, after the thread's tags. It
+ * A small mark a plugin draws on a thread's card in the Compact view, before the thread's tags. It
  * is drawn inside the card's button, so it renders no control of its own: no button, link or tab
  * stop.
  */

@@ -313,7 +313,29 @@ export const MetadataRow = style({
   minHeight: toRem(24),
 });
 
-globalStyle(`${MetadataRow} > .thread-tag-pill`, { minWidth: 0 });
+// The row's marks after the writers (the resolver's byline, a plugin's badges, the tags): one line
+// of them, and a second, hidden one for those that do not fit, so a mark shows whole or not at
+// all. They take only the room the writers and the stats leave (a zero basis), so they give way
+// first. A mark wider than the whole line is hidden too, but for the resolver's byline, which is
+// capped at the line's width and ends in an ellipsis. A badge must fit the row's height: one taller
+// loses its bottom.
+export const Chips = style({
+  display: 'flex',
+  flex: '1 1 0',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  alignContent: 'flex-start',
+  columnGap: config.space.S200,
+  minWidth: 0,
+  blockSize: toRem(24),
+  overflow: 'hidden',
+  // A zero-width strut makes the first line the row's height, so its marks sit centred on it.
+  '::before': {
+    content: "''",
+    blockSize: toRem(24),
+    marginInlineEnd: `calc(-1 * ${config.space.S200})`,
+  },
+});
 
 // Room for the menu button that sits at the end of this row on touch; only
 // the compact view's card shell has that button.
@@ -340,6 +362,9 @@ export const ResolutionByline = style({
   alignItems: 'center',
   columnGap: config.space.S100,
   minWidth: 0,
+  // No wider than the marks' line, so a long name stays on it and ends in an ellipsis rather than
+  // wrapping onto the hidden line (a line breaks before its items shrink).
+  maxInlineSize: '100%',
   // Success.Main has 3.9:1 on the light theme's resolved card.
   color: color.Success.OnContainer,
   fontWeight: 500,
@@ -360,17 +385,23 @@ export const StreamingStatus = style({
   flexShrink: 0,
 });
 
+// On a phone the dot alone says an agent is writing (the time beside the title already says
+// "now"), and the word's room goes to the badges and tags.
+export const StreamingLabel = style({
+  '@media': { [touchActions]: { display: 'none' } },
+});
+
 export const Stats = style({
   display: 'inline-flex',
   alignItems: 'center',
   columnGap: config.space.S200,
-  flexShrink: 0,
+  // Past the marks, a long snooze or schedule label gives way to the count, which keeps its size.
+  minWidth: 0,
   marginInlineStart: 'auto',
 });
 
 export const ScheduledIndicator = style({
   minWidth: 0,
-  flexShrink: 0,
   whiteSpace: 'nowrap',
 });
 
@@ -384,6 +415,7 @@ export const SnoozedIndicator = style({
 
 export const ReplyCount = style({
   display: 'inline-flex',
+  flexShrink: 0,
   alignItems: 'center',
   gap: toRem(3),
   whiteSpace: 'nowrap',
