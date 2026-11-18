@@ -346,7 +346,8 @@ WORK_WORDS = (
 def work_knobs(text: str) -> dict[str, float]:
     """The #work knobs of `text` (key=number pairs), defaults for those it leaves out."""
     knobs: dict[str, float] = dict(WORK_DEFAULTS)
-    for key, value in re.findall(r"\b(words|wps|reasoning|tools|toolsec|links|toolout|bg|bgsec|seed)=(-?\d+(?:\.\d+)?)", text.lower()):
+    names = "words|wps|reasoning|tools|toolsec|links|toolout|bg|bgsec|seed"
+    for key, value in re.findall(rf"\b({names})=(-?\d+(?:\.\d+)?)", text.lower()):
         number = float(value)
         knobs[key] = int(number) if number == int(number) else number
     return knobs

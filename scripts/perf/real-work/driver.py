@@ -212,7 +212,8 @@ def jobs_prompt(reply: dict, rng: random.Random, worker: str | None = None) -> s
     """A `#work` prompt whose reply only starts one background job of `reply.bgsec` seconds and says so in a few
     words: the jobs a room already has under way when the live phase starts (`live.jobs`)."""
     seconds = round(sample(reply["bgsec"], rng))
-    return f"{worker + ' ' if worker else ''}#work words=12 wps=0 tools=0 bg=1 bgsec={seconds} seed={rng.randrange(1, 1_000_000)}"
+    seed = rng.randrange(1, 1_000_000)
+    return f"{worker + ' ' if worker else ''}#work words=12 wps=0 tools=0 bg=1 bgsec={seconds} seed={seed}"
 
 
 # Turns

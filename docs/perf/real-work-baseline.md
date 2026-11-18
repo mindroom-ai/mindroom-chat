@@ -291,6 +291,77 @@ The probe's `nodes` (Chrome's count of live `Node` objects) read 5,000 to 68,000
 
 After a collection the count stays in one band at both levels: 2,100 to 2,300 nodes above the attached ones after a thread opens and while it is open, 2,300 (50 streams) and 3,000 (7 streams) after five switches, and about 150 above them in the Compact view (the page's other documents). The large readings are nodes waiting for the collector, made by re-rendering; they fall back at each collection. So the large counts do not hold after a collection, and the node count is not a hotspot of its own; the churn that makes them is the re-rendering of hotspots 1 and 3. The 10-minute soak agrees: 3,300 to 5,200 nodes after each forced collection. The production copy's thread view was not checked this way.
 
+## The live-room workload (2026-11-18)
+
+`e2e/perf/workloads/real-work-live.json` is made from aggregates of one production room, 2026-11-18: the 24 hours before the census, read from the backend's own records (its replies, its tool-call log and its jobs) and the room's thread tags. Only counts and percentiles were taken. It differs from the census profile above in the replies (minutes long, with many tool calls and tool traces as large as real ones) and in the background jobs and sub-agent runs that the room's jobs state lists while no reply streams.
+
+| Measure (24 h unless named) | p50 | p90 | max | Profile |
+|---|---|---|---|---|
+| Replies under way at once (each 10 s) | 5 | 11 | 20 | `live.streams` 6 (an earlier count of the busiest hours: 6, 8, 11) |
+| Reply duration (s) | 81 | 1,005 | 34,041 | tools times `toolsec` plus words over `wps`: drawn 95, 973 |
+| Words per reply | 313 | 537 | 4,024 | `reply.words` 313, 537, 1,158 |
+| Tool calls per reply | 4 | 24 | 310 | `reply.tools` 4, 24, 50 |
+| Seconds per tool step (reply time over its tool calls) | 21 | 73 | 1,893 | `reply.toolsec` 12, 73, 110 |
+| One tool call by itself (s; the log's last 14 h) | 0.4 | 58 | 4,618 | none (the stub has no model time; see below) |
+| Reply size with its tool trace (kB) | 5.3 | 22.1 | 230 | follows from the rows above and `toolout` |
+| Tool trace entry (bytes); tool output (characters, the log's last 14 h) | 751; 687 | 972; 2,048 | 2,051 | `reply.toolout` 700 (the trace keeps 500 of them) |
+| Links per reply | 0 | 1 | 5 | `reply.links` 0, 1, 5 |
+| Reasoning | | | | not in the records: the census profile's |
+| Background jobs and sub-agent runs started per reply (60 % of replies start one) | 1 | 3 | 113 | `reply.bg` 1, 3, 10 |
+| Their duration (s; to the follow-up that reports them, else their last update) | 308 | 1,972 | 11,306 | `reply.bgsec` 308, 1,972, 2,248 |
+| Of them at once: all; background tool jobs; sub-agent runs | 13; 1; 11 | 29; 7; 23 | 55; 40; 42 | `live.jobs` 13 |
+| Job records started a minute | 4 | 14 | 41 | none: the stub's calls and jobs write the state |
+| Turns per thread, 25 days: the tenth with 28 or more (19 threads, 8 of them open); the others | 42; 4 | 72; 15 | 101; 27 | `heavy` (8 threads), `turns` |
+| Pause between a thread's replies (s; gaps under 1 h, 95 % of them) | 266 | 1,776 | 3,551 | `live.pauseSeconds` |
+
+Counts: 952 replies in 79 threads; 187 threads with replies in the 25 days of records, 159 of them resolved (`threads` 187, `resolvedThreads` 159); the room's thread tags name 654 threads, 625 of them resolved, whose history with these turns would take more than the hour the history phase has. One agent replied (`agents` 1). Per reply, the agent added 1.4 reactions and 1.0 redactions and people 0.05 reactions; the stack's backend makes its own (1.0 and 1.0 a reply in a check run), so the profile has no field for them, nor for the agent's 16 message events (edits) a reply. 112 other rooms are known to the backend, 8 of which had 28 to 314 events in the 24 h (`quietRooms` 112, `quietMessages` 10).
+
+Where a maximum is a rare outlier (310 tool calls, 113 jobs), the profile's maximum is the one that gives the draw the census mean: a draw spreads its top tenth evenly from p90 to the maximum, so the real 310 would put the mean at 25 tool calls instead of 10.3. `toolsec` stays under 120 s, the shell's wait before a call goes on as a job, and its median is 12 s, not 21 s: tool calls and step times are drawn apart, and with 21 s the median reply would last 128 s against the room's 81.
+
+Four fields are new for it (the driver's docstring): `reply.toolout`, the characters each tool call prints; `reply.bg` and `reply.bgsec`, background shell jobs a live reply starts before its tool calls (`background_after` 0), which the jobs state lists until they end and the backend asks the agent to report them (the stub then collects and answers, as the room's agent does 0.9 times a reply); and `live.jobs`, that many such jobs started at the live phase's start, one each in the threads after the first streams' threads, so the room has its jobs under way from the first window. The stub's `#work` has the matching `toolout=`, `bg=` and `bgsec=`.
+
+Limits of the profile:
+
+- A stub reply's tool step is all shell time (`sleep`), where a real one is mostly model time: the backend lists a call as a job after 5 s, so the stub's steps are listed and rewrite the jobs state far more often than the room's calls (0.4 s at the median) do. The driver's jobs state writes a second (below) show it.
+- The stub's background jobs stand in for the sub-agent runs too: the jobs state lists them as `tool`, not `subagent`.
+- A run is shorter than a job's mean life (12 minutes), so the jobs at once drift from `live.jobs` over the run; the windows' counts are below.
+- 187 threads, not the room's 654: the history of 654 with these turns needs more than 80 minutes on gce-dev. The thread index and read receipt paths (hotspots 1, 2 and 9) see 3.5 times fewer threads than the room has.
+
+### Main under the live-room workload (gce-dev)
+
+Commit `935bb5127` (the app's `src` tree is that of main at `1a9a0fcf6`), gce-dev slots 70 and 71 at once, `PERF_CPU_THROTTLE=1,4 PERF_PROFILE=1`, 6 streams; two runs, given as "first, second". Both held 6 streams in every window and gave up no reply as stuck. Budgets as under "Result against the budgets"; back and switch are each run's median of its 5 steps.
+
+| Scenario | 1x CPU | 4x CPU |
+|---|---|---|
+| Compact view, no input | 18 %, 18 %; p95 17 ms; 3 and 2 over 100 ms **FAIL** | 76 %, 70 %; p95 33 ms; 22 and 22 over 100 ms **FAIL** |
+| Compact view, wheel scrolling | p95 17 ms, 0 over 100 ms PASS | p95 33 and 50 ms, 4 and 8 over 100 ms **FAIL** |
+| Open a thread from its card | 313 and 320 ms **FAIL** | 1,082 and 1,349 ms **FAIL** |
+| Open thread, no input | 17 %, 14 %; p95 17 ms; 1 and 1 over 100 ms **FAIL** | 57 %, 44 %; p95 50 and 33 ms; 13 and 11 over 100 ms **FAIL** |
+| Typing in the thread composer | p95 18 and 19 ms PASS | p95 58 and 110 ms **FAIL** |
+| Back to Compact, then another thread | back 156 and 143 ms, thread 481 and 243 ms **FAIL** | back 592 and 693 ms, thread 886 and 1,135 ms **FAIL** |
+| Reload to the first card (no budget) | 1,024 and 1,091 ms | 3,894 and 4,252 ms |
+
+The load (driver, after the ramp, both runs): 6.2 live frames a second (30 in the busiest 5 s), 0.59 durable edits and 0.46 jobs state writes a second. The room's own rates for comparison: its agent's message events (replies and their edits) came at 0.18 a second over the 24 h and its job records started at 0.1 a second, each listed one rewriting the state when it starts and ends; so the run's edits are about 3 times and its jobs state writes at least 2.4 times the room's. The jobs state listed 13 jobs at the first window and 42 to 50 at the end, of them 20 to 34 older than 2 minutes (the background jobs), in 14 to 21 threads: the room had 13 at the median and 29 at p90.
+
+Where the main thread goes, 1x, inclusive time over the window's wall time (both runs within 0.1 point but where named; `cpuprofile-summary.mjs --top 40`, no warning):
+
+| Compact view, no input | Share | Open thread, no input | Share |
+|---|---|---|---|
+| `RoomTimelineRows` (`src/app/timeline/RoomTimeline.tsx:286`) | 0.9 % | `RoomTimelineRows` (`RoomTimeline.tsx:286`) | 0.8, 0.5 % |
+| the thread index (`src/app/threads/overview/useThreadIndex.ts:346`) | 0.6 % | the sync's fetch (`src/app/matrix/client/syncStall.ts:78`) | 0.4 % |
+| the event cache's write (`src/app/event-store/cache/db/cacheStoreEvents.ts:963`) | 0.5 % | the reachability check around it (`src/app/matrix/client/homeserverReachability.ts:91`) | 0.4 % |
+| the event cache's read (`cacheStoreEvents.ts:1584`) | 0.4 % | the client's fetch (`src/app/matrix/client/matrixClientFactory.ts:63`) | 0.3 % |
+| the sync's fetch (`syncStall.ts:78`) | 0.4 % | the saved redactions' gap (`src/app/matrix/client/savedSyncRedactions.ts:208`) | 0.3 % |
+| the reachability check (`homeserverReachability.ts:91`) | 0.4 % | `deepTrace` (`src/app/diagnostics/deepTrace.ts:699`) | 0.3 % |
+| the client's fetch (`matrixClientFactory.ts:63`) | 0.4 % | the thread's approvals (`src/app/approvals/ThreadApprovalProvider.tsx:187`) | 0.2 % |
+| `src/app/event-store/cache/eventRepository.ts:1276` | 0.4 % | `src/app/approvals/threadApprovalEvents.ts:100` | 0.2 % |
+| `deepTrace` (`deepTrace.ts:699`) | 0.4 % | the turn folds (`src/app/timeline/useThreadTurnFolds.ts:117`) | 0.3, 0.1 % |
+| the thread records (`src/app/event-store/threads/threadRecord.ts:334`) | 0.4 % | `src/app/timeline/threadTurnFolds.ts:75` | 0.3, 0.1 % |
+
+The crypto machine's sync handling (`OlmMachine::receive_sync_changes`, hotspot 11) is the largest single block in both, 2.1 to 2.2 % of the Compact window: more than any of the app's functions.
+
+What differs from the 50-stream picture, measured again on the same commit (one run of `real-work-50.json` at 50 streams, 1x, gce-dev slot 70): there the Compact view was 71 % busy with 9 frames over 100 ms (open thread 47 %, 2), at 97 frames, 5.3 edits and 2.3 jobs state writes a second, and the thread index path led the app's time (`RoomTimelineRows` 7.2 %, `useThreadIndex.ts:346` 5.8 %, `threadIndexRecords.ts:52` and `threadRecord.ts:498` 2.8 % each, the list motion 2.7 %), with the crypto machine at 6.8 %. Under the live-room load, with a sixteenth of the frames, a ninth of the edits and a fifth of the jobs state writes, those paths are a tenth of that: the thread index no longer leads, the event cache's IndexedDB work and the sync's own fetch path rank beside it, and the crypto machine is the largest block. The open thread keeps the 50-stream order after its rows (redactions, then the turn folds; the room's agent redacts once a reply), at a fifth of the share. The budgets missed at 1x are no longer busy shares (18 % and 14 % are under 25 %) but single long frames, the open (313 and 320 ms against 300) and the step to another thread (243 and 481 ms against 200); at 4x no budget holds.
+
 ## How to rerun
 
 From a checkout that holds the commit, on a machine that reaches the runners. `<runner tool>` is the fleet's `remote-test.sh` (`matrix.sh` finds it itself, or takes it from `MRC_REMOTE_TEST`), `<keychain agent>` the SSH agent socket that holds the key the runners accept, `<private results dir>` a directory outside the repository. gce-dev slots 80 to 89 were used (check that a slot's ports are free), at most 8 jobs at once.
@@ -309,6 +380,9 @@ scripts/perf/real-work/matrix.sh $H $OUT/agents gce:80,gce:81,gce:82 -- \
 scripts/perf/real-work/matrix.sh $H $OUT/soak gce:83 -- \
   PERF_WORKLOAD=e2e/perf/workloads/real-work-50.json PERF_STREAMS=50 PERF_CPU_THROTTLE=1 \
   PERF_SOAK=1 PERF_SOAK_GC=1 PERF_SCENARIOS=none
+# the live-room workload (6 streams; its history takes 40 to 50 minutes)
+scripts/perf/real-work/matrix.sh $H $OUT/live gce:70,gce:71 -- \
+  PERF_WORKLOAD=e2e/perf/workloads/real-work-live.json PERF_CPU_THROTTLE=1,4 PERF_PROFILE=1
 ```
 
 A job takes about 22 minutes for one level at two throttles (11 of them the history), the soak 33. `matrix.sh` runs the three slots of one call at once; this baseline ran the levels at once as well.

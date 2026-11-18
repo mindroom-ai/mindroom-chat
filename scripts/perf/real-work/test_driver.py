@@ -99,7 +99,8 @@ class PromptTest(unittest.TestCase):
         # The other draws are those of the profile without them.
         plain = driver.work_prompt(REPLY, random.Random(1), live=True)
         self.assertEqual(live.split(" toolout=")[0], plain.split(" seed=")[0])
-        self.assertRegex(driver.jobs_prompt(reply, random.Random(1)), r"^#work words=12 wps=0 tools=0 bg=1 bgsec=\d+ seed=")
+        jobs_prompt = driver.jobs_prompt(reply, random.Random(1))
+        self.assertRegex(jobs_prompt, r"^#work words=12 wps=0 tools=0 bg=1 bgsec=\d+ seed=")
 
     def test_prompt_live_keeps_the_pace(self) -> None:
         prompt = driver.work_prompt(REPLY, random.Random(1), live=True)
@@ -640,13 +641,13 @@ class RunLiveTest(unittest.TestCase):
         profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
         profile["reply"] |= {"bg": NO_PAUSE, "bgsec": {"p50": 300, "p90": 300, "max": 300}}
         profile["live"] |= {"pauseSeconds": NO_PAUSE, "jobs": 2}
-        history = {"room": ROOM, "threads": ["$r0", "$r1", "$r2", "$r3", "$r4"], "quietRooms": []}
+        history = {"room": ROOM, "threads": ["root0", "root1", "root2", "root3", "root4"], "quietRooms": []}
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):
             driver.run_live(lobby, profile, history, 2, 10, random.Random(1), Path(directory) / "l", clock=lobby.clock)
-        self.assertEqual([root for _, root in lobby.posts[:2]], ["$r2", "$r3"])
+        self.assertEqual([root for _, root in lobby.posts[:2]], ["root2", "root3"])
         self.assertTrue(all(re.search(r" tools=0 bg=1 bgsec=\d+ ", body) for body in bodies[:2]), bodies)
         # They hold their threads as turns, so the streams' first turns wait for their replies to end.
-        self.assertEqual(sorted(root for _, root in lobby.posts[2:4]), ["$r0", "$r1"])
+        self.assertEqual(sorted(root for _, root in lobby.posts[2:4]), ["root0", "root1"])
         self.assertGreater(lobby.posts[2][0], 0)
         self.assertFalse(any(" bg=" in body for body in bodies[2:]), bodies)
 
