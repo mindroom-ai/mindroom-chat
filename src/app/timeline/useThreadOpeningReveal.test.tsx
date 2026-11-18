@@ -8,40 +8,17 @@ type Geometry = {
   scrollHeight: number;
   clientHeight: number;
   scrollTop: number;
-  /** The virtual list's mounted rows, by index, first to last. */
+  /** The virtual list's mounted rows, by index. */
   mounted?: number[];
-  /** The first mounted row's top, from the top of the scroll area: above it unless the test says. */
-  firstTop?: number;
 };
 
-/** The height of the sticky header over the top of the scroll area (its scroll-padding-top). */
-const header = { px: 0 };
-
-/** Where the hook scrolled the scroll areas of a test, in order. */
-const scrolledTo: number[] = [];
-
-/** A scroll area whose geometry and mounted rows the test sets; its scrolls go to `scrolledTo`. */
-const scrollArea = ({ mounted = [18, 19, 20], firstTop = -40, ...geometry }: Geometry) => {
-  const tile = (index: number) => ({
-    getAttribute: () => String(index),
-    getBoundingClientRect: () => ({ top: 100 + firstTop }),
-  });
-  const area = {
+/** A scroll area whose geometry and mounted rows the test sets. */
+const scrollArea = ({ mounted = [20], ...geometry }: Geometry) =>
+  ({
     ...geometry,
-    getBoundingClientRect: () => ({ top: 100 }),
-    scrollTo: ({ top }: { top: number }) => {
-      scrolledTo.push(top);
-      area.scrollTop = top;
-    },
-    querySelector: (selector: string) => {
-      const [first] = mounted;
-      if (selector === '[data-index]') return first === undefined ? null : tile(first);
-      const index = mounted.find((candidate) => selector === `[data-index="${candidate}"]`);
-      return index === undefined ? null : tile(index);
-    },
-  };
-  return area as unknown as HTMLElement;
-};
+    querySelector: (selector: string) =>
+      mounted.some((index) => selector === `[data-index="${index}"]`) ? {} : null,
+  } as unknown as HTMLElement);
 
 const message = (index: number) =>
   new MatrixEvent({ event_id: `$${index}`, type: 'm.room.message', content: { body: `${index}` } });
@@ -59,10 +36,6 @@ type Props = {
   rows?: MatrixEvent[];
   geometry: Geometry;
   tookOver?: boolean;
-  measured?: boolean;
-  /** How far measurement corrections moved the scroll position up so far. */
-  correction?: number;
-  settled?: boolean;
 };
 
 const shown: { hidden?: boolean } = {};
@@ -73,9 +46,6 @@ function Harness({
   rows = messages(21),
   geometry,
   tookOver = false,
-  measured = true,
-  correction = 0,
-  settled = true,
 }: Props) {
   shown.hidden = useThreadOpeningReveal({
     viewKey,
@@ -83,9 +53,6 @@ function Harness({
     rows,
     scrollRef: { current: scrollArea(geometry) },
     readerTookOver: () => tookOver,
-    rowsAtMeasuredSizes: () => measured,
-    measurementCorrectionPx: () => correction,
-    openAskedForLatest: () => settled,
   });
   return null;
 }
@@ -103,21 +70,18 @@ describe('useThreadOpeningReveal', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    scrolledTo.length = 0;
-    header.px = 0;
-    vi.spyOn(window, 'getComputedStyle').mockImplementation(
-      () => ({ scrollPaddingTop: `${header.px}px` } as CSSStyleDeclaration)
-    );
   });
 
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
     vi.useRealTimers();
-    vi.restoreAllMocks();
   });
 
   it('hides the rows of a thread opening at its newest reply until they rest at the end', () => {
+    render({ geometry: AT_TOP });
+    expect(shown.hidden).toBe(true);
+
     // At the end of the range while the list still holds the rows of the top.
     render({ geometry: { ...AT_END, mounted: [0, 1, 2] } });
     expect(shown.hidden).toBe(true);
@@ -125,109 +89,24 @@ describe('useThreadOpeningReveal', () => {
     render({ geometry: AT_END });
     expect(shown.hidden).toBe(false);
 
-    // Shown once, the rows stay shown, wherever the reader goes, and nothing scrolls them back.
+    // Shown once, the rows stay shown, wherever the reader goes.
     render({ geometry: AT_TOP });
     expect(shown.hidden).toBe(false);
-    expect(scrolledTo).toEqual([]);
   });
 
-  it('leaves the hidden rows at the end of the range after a commit moved it', () => {
-    // The rows measured in this commit made the list longer: the view is no longer at its end.
-    render({ geometry: { ...AT_END, scrollHeight: 2600, mounted: [0, 1, 2] } });
-    expect(scrolledTo).toEqual([1800]);
+  it('shows the rows of a thread opened at a target event at once', () => {
+    render({ geometry: AT_TOP, opensAtLatest: false });
+    expect(shown.hidden).toBe(false);
+  });
+
+  it('keeps an empty list hidden at the end, and shows a short thread that fits', () => {
+    render({ geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0 }, rows: [] });
     expect(shown.hidden).toBe(true);
-
-    // Put there, a commit that holds the last rows shows them.
-    render({ geometry: { scrollHeight: 2600, clientHeight: 800, scrollTop: 1800 } });
-    expect(scrolledTo).toEqual([1800]);
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('leaves the position to a reader who took it over, and shows the rows', () => {
-    // Already in the first commit: no earlier position tells of the move.
-    render({ geometry: AT_TOP, tookOver: true });
-    expect(scrolledTo).toEqual([]);
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('leaves the position to a move up that came without a gesture, and shows the rows', () => {
-    render({ geometry: { ...AT_END, mounted: [0, 1, 2] } });
-    // A script or assistive technology scrolled up: no measurement accounts for the move.
-    render({ geometry: { ...AT_END, scrollTop: 1400, mounted: [0, 1, 2] } });
-    expect(scrolledTo).toEqual([]);
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('puts the rows back at the end after a measurement moved the view up', () => {
-    render({ geometry: { ...AT_END, mounted: [0, 1, 2] } });
-    // virtual-core moved the view up by the 200 px a row above it shrank, and the list grew.
     render({
-      geometry: { ...AT_END, scrollHeight: 2500, scrollTop: 1400, mounted: [0, 1, 2] },
-      correction: -200,
-    });
-    expect(scrolledTo).toEqual([1700]);
-    expect(shown.hidden).toBe(true);
-  });
-
-  it('keeps the rows hidden while the top of the view has no row', () => {
-    // The rows measured shorter than estimated: the first mounted one starts below the view's top.
-    render({ geometry: { ...AT_END, mounted: [14, 20], firstTop: 60 } });
-    expect(shown.hidden).toBe(true);
-
-    render({ geometry: { ...AT_END, mounted: [9, 20], firstTop: -30 } });
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('takes the view to start below the sticky header', () => {
-    // The first mounted row starts 60 px below the scroll area's top, under a header of 90 px.
-    header.px = 90;
-    render({ geometry: { ...AT_END, mounted: [14, 20], firstTop: 60 } });
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('shows a thread whose first row is mounted, however far below the top of the view', () => {
-    render({
-      geometry: {
-        scrollHeight: 800,
-        clientHeight: 800,
-        scrollTop: 0,
-        mounted: [0, 1],
-        firstTop: 200,
-      },
+      geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0, mounted: [0, 1] },
       rows: messages(2),
     });
     expect(shown.hidden).toBe(false);
-  });
-
-  it('keeps the rows hidden until a commit shows them at their measured sizes', () => {
-    render({ geometry: AT_END, measured: false });
-    expect(shown.hidden).toBe(true);
-
-    render({ geometry: AT_END });
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('keeps the rows hidden until the open asked for its pin to the newest reply', () => {
-    // At the end of the rows the client holds, which may end before the thread does.
-    render({ geometry: AT_END, settled: false });
-    expect(shown.hidden).toBe(true);
-
-    render({ geometry: AT_END });
-    expect(shown.hidden).toBe(false);
-  });
-
-  it('shows the rows of a thread opened at a target event at once, where it opened', () => {
-    render({ geometry: AT_TOP, opensAtLatest: false });
-    expect(shown.hidden).toBe(false);
-    expect(scrolledTo).toEqual([]);
-  });
-
-  it('keeps an empty list hidden at the end', () => {
-    render({
-      geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0, mounted: [] },
-      rows: [],
-    });
-    expect(shown.hidden).toBe(true);
   });
 
   it('shows the rows at the end of a thread whose last rows are edits, which have no tiles', () => {
@@ -241,16 +120,16 @@ describe('useThreadOpeningReveal', () => {
     expect(shown.hidden).toBe(false);
   });
 
-  it('shows the rows after a while, whatever holds them back', () => {
-    render({ geometry: { ...AT_END, mounted: [0, 1, 2] } });
+  it('shows the rows when the reader takes over, or after a while', () => {
+    render({ geometry: AT_TOP });
+    render({ geometry: AT_TOP, tookOver: true });
+    expect(shown.hidden).toBe(false);
+
+    render({ geometry: AT_TOP, viewKey: '!room|$other' });
     expect(shown.hidden).toBe(true);
     act(() => {
       vi.advanceTimersByTime(THREAD_REVEAL_AFTER_MS);
     });
     expect(shown.hidden).toBe(false);
-
-    // Another thread starts hidden again.
-    render({ geometry: { ...AT_END, mounted: [0, 1, 2] }, viewKey: '!room|$other' });
-    expect(shown.hidden).toBe(true);
   });
 });

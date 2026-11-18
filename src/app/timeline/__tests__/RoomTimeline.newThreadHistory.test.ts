@@ -7,7 +7,6 @@ import {
   create,
   createControlledRoomTimelineHarness,
   flushAsyncWork,
-  flushOpenTasks,
   getClickableByText,
   makeEvent,
   makeRoom,
@@ -82,7 +81,6 @@ describe('new thread history', () => {
             )
           );
           await flushAsyncWork(30);
-          await flushOpenTasks();
         });
 
         expect(renderError).not.toHaveBeenCalled();

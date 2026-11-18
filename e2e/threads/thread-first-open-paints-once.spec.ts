@@ -43,8 +43,6 @@ type Frame = {
   ids: string[];
   /** The rows at least partly in view, in order. */
   visible: string[];
-  /** The tops of the rows in view, from the top of the scroll area, in order. */
-  tops: number[];
   /** Whether the long reply's row shows its whole text (null while it is not mounted). */
   longWhole: boolean | null;
   /** Whether the list shows the "Loading full response" line anywhere. */
@@ -138,15 +136,15 @@ const installFrameSampler = (keys: typeof KEYS) => {
       const bottom = Math.min(box.bottom, composer?.getBoundingClientRect().top ?? box.bottom);
       const rows = [...scroller.querySelectorAll<HTMLElement>('[data-message-id]')];
       const longRow = longId ? scroller.querySelector(`[data-message-id="${longId}"]`) : null;
-      const inView = rows.filter((row) => {
-        const rowBox = row.getBoundingClientRect();
-        return rowBox.bottom > box.top + 1 && rowBox.top < bottom - 1;
-      });
       win.firstOpenFrames.push({
         t: Math.round(performance.now() - start),
         ids: rows.map((row) => row.dataset.messageId ?? ''),
-        visible: inView.map((row) => row.dataset.messageId ?? ''),
-        tops: inView.map((row) => Math.round(row.getBoundingClientRect().top - box.top)),
+        visible: rows
+          .filter((row) => {
+            const rowBox = row.getBoundingClientRect();
+            return rowBox.bottom > box.top + 1 && rowBox.top < bottom - 1;
+          })
+          .map((row) => row.dataset.messageId ?? ''),
         longWhole: longRow ? !!longRow.textContent?.includes(keys.marker) : null,
         loadingLine: !!scroller.textContent?.includes('Loading full response'),
       });
@@ -260,14 +258,11 @@ test('a thread opened for the first time paints its replies once, its long reply
   expect(first.ids, 'the first painted frame holds the long reply').toContain(longId);
   expect(first.longWhole, 'the first painted frame shows the long reply whole').toBe(true);
   const later = frames.slice(painted + 1);
-  // A row the first frame did not have, in view before one it had, came in above it. A row the
-  // list mounts beside its view once the thread shows is not in view: the reader sees none of it.
-  // The next check fails on such a frame too; this one says what happened.
+  // A row the first frame did not have, placed before one it had, came in above it.
   const insertedAbove = later.filter((frame) =>
     frame.ids.some(
       (id, index) =>
         !first.ids.includes(id) &&
-        frame.visible.includes(id) &&
         frame.ids.slice(index + 1).some((next) => first.ids.includes(next))
     )
   );
@@ -275,13 +270,6 @@ test('a thread opened for the first time paints its replies once, its long reply
   expect(
     later.filter((frame) => frame.visible.join() !== first.visible.join()),
     'frames whose rows in view differ from the first paint'
-  ).toEqual([]);
-  // The same rows, at the same place: a row that lands above the view must not move them.
-  expect(
-    later.filter((frame) =>
-      frame.tops.some((top, index) => Math.abs(top - (first.tops[index] ?? top)) > 1)
-    ),
-    'frames whose rows in view moved from where the first paint had them'
   ).toEqual([]);
   expect(
     frames.filter((frame) => frame.loadingLine),

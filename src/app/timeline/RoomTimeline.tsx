@@ -2,9 +2,7 @@ import type { ThreadWorkflowTab } from '../event-store/threads/threadWorkflow';
 import {
   type Dispatch,
   type SetStateAction,
-  startTransition,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -611,9 +609,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     }),
     [setTimeline, threadStateRef]
   );
-  // The open asks for its pin to the newest reply once it has the thread's newest replies: an
-  // opening thread's rows show from then on (useThreadOpeningReveal).
-  const openAskedForLatestRef = useViewScopedFlag(viewKey);
   const viewportPort = useMemo<ThreadOpenViewportPort>(
     () => ({
       resetForOpen: () => {
@@ -624,10 +619,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
       // Queued: the next commit applies it, unless the reader scrolls first.
       requestLatestPin: () => {
         backController.requestOpenBottomPin(scrollToBottomRef);
-        openAskedForLatestRef.current.value = true;
       },
     }),
-    [backController, openAskedForLatestRef, viewKeyRef]
+    [backController, viewKeyRef]
   );
   const priorityTargets = windowState.priorityThreadSeedPrewarmRoots;
   const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
@@ -940,13 +934,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     return !!scrollArea && !isNearLatestEnd(scrollArea, true);
   }, [getScrollElement]);
   const latestPinAsked = useLatestPinAsked(scrollToBottomRef);
-  // A thread that opens at its newest reply starts its list there, with the rows near its view;
-  // the rows kept ready around them follow once it shows (below, after the reveal).
-  const threadOpensAtLatest = !!threadId && !eventId && !isLocalEchoEventId(threadId);
-  const [rowsAroundViewReady, setRowsAroundViewReady] = useViewScopedState(
-    viewKey,
-    () => !threadOpensAtLatest
-  );
   const ledger = useTimelineScrollLedgerController({
     alive,
     anchorRoomRows: latestAtTop && !latestPinAsked ? anchorBelowLatestEnd : undefined,
@@ -965,8 +952,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadEvents,
     threadId,
     threadInitialRenderMode,
-    startAtEnd: threadOpensAtLatest,
-    rowsNearViewOnly: !rowsAroundViewReady,
     leadingKey: threadId
       ? [
           threadLoadError ? 'error' : '',
@@ -1152,21 +1137,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // (a local echo root, a thread still being created, has no open to wait for).
   const hideOpeningThreadRows = useThreadOpeningReveal({
     viewKey,
-    opensAtLatest: threadOpensAtLatest,
+    opensAtLatest: !!threadId && !eventId && !isLocalEchoEventId(threadId),
     rows: threadEvents,
     scrollRef,
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
-    rowsAtMeasuredSizes: () => !beforePaint && virtualizerRef.current.getTotalSize() === listHeight,
-    measurementCorrectionPx: ledger.readMeasurementCorrectionPx,
-    openAskedForLatest: () => openAskedForLatestRef.current.value,
   });
-  // Once the thread shows, the rows kept ready around its view mount, in a render that gives way
-  // to the reader's input and to the replies that stream.
-  useEffect(() => {
-    if (hideOpeningThreadRows || rowsAroundViewReady) return;
-    startTransition(() => setRowsAroundViewReady(true));
-  }, [hideOpeningThreadRows, rowsAroundViewReady, setRowsAroundViewReady]);
 
   const {
     handleJumpToLatest: showLatestRows,
