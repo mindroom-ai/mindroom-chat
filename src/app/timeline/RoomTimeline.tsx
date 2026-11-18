@@ -256,8 +256,25 @@ const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
  * thread root and the classic one with the replies inline; inside a thread, the root and its
  * replies. Rows are virtualized, and an offset ledger keeps the reader's rows still when rows
  * land above them.
+ *
+ * A list that mounts in Compact, as when a thread that filled the page closes, renders nothing
+ * in its first pass: the overview's listeners start in that commit, and the list then builds
+ * its cards once, from the room as they hear it, before the paint (`holdFirstBuild` of
+ * `useThreadOverviewRefreshCounter`). Any other list builds in its first render, as it did.
  */
 export function RoomTimeline(props: RoomTimelineProps) {
+  const overview = useThreadOverviewRefreshCounter(
+    props.room,
+    props.threadId,
+    props.viewMode === 'compact'
+  );
+  if (overview.firstBuildHeld) return null;
+  return <RoomTimelineRows {...props} overview={overview} />;
+}
+
+function RoomTimelineRows(
+  props: RoomTimelineProps & { overview: ReturnType<typeof useThreadOverviewRefreshCounter> }
+) {
   const {
     room,
     eventId,
@@ -402,8 +419,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const [unreadInfo, setUnreadInfo] = useRoomUnreadInfo(room, !!threadId || !!eventId);
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
-  const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } =
-    useThreadOverviewRefreshCounter(room, threadId);
+  const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } = props.overview;
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
   const rederiveRoomRows = useCallback(

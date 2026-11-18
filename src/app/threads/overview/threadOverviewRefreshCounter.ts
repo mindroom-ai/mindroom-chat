@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   ClientEvent,
@@ -105,17 +105,30 @@ export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[]
  * listeners). Someone else's receipt changes no record. Every mark comes with a count: a mark
  * alone would leave the record as it was until something else counted. While these listeners hear
  * the room, `overviewChanges.listened` says so.
+ *
+ * `holdFirstBuild`, read when the list mounts, is for a list whose first build is a pass over
+ * every thread of the room (Compact, back in place of a thread that filled the page). Building
+ * in its first render and again for the start of its listeners would be that pass twice. Its
+ * listeners start in the commit of that render instead, before the paint, and `firstBuildHeld`
+ * is true until their start has counted: the caller renders no list until then, so its one build
+ * reads the room as it is once they hear it, and comes before the paint as well. Nothing is kept
+ * from one mount to the next, and nothing listens between them. A later start of the listeners
+ * (another room) comes after the render that shows that room, as without the hold.
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
-  threadId: string | undefined
+  threadId: string | undefined,
+  holdFirstBuild = false
 ): {
   overviewRefreshCounter: number;
   setOverviewRefreshCounter: Dispatch<SetStateAction<number>>;
   overviewChanges: ThreadRecordChanges;
+  firstBuildHeld: boolean;
 } => {
   const [overviewRefreshCounter, setCounter] = useState(0);
   const [overviewChanges] = useState(createThreadRecordChanges);
+  // Inside a thread nothing listens, so nothing would end the hold.
+  const [heldAtMount] = useState(holdFirstBuild && !threadId);
   const setOverviewRefreshCounter = useCallback<Dispatch<SetStateAction<number>>>(
     (count) => {
       markThreadRecordChange(overviewChanges);
@@ -124,7 +137,7 @@ export const useThreadOverviewRefreshCounter = (
     [overviewChanges]
   );
 
-  useEffect(() => {
+  const listen = useCallback(() => {
     if (threadId) return undefined;
 
     overviewChanges.listened = true;
@@ -136,7 +149,8 @@ export const useThreadOverviewRefreshCounter = (
       bump();
     };
     // What happened to the room before these listeners heard it: since the render that built the
-    // records shown, or while a thread was open.
+    // records shown, or while a thread was open. A list that held its first build has built none:
+    // this count lets it build.
     mark();
     const markEvent = (mEvent: MatrixEvent) =>
       changedThreadIds(room, mEvent).forEach((id) => mark(id));
@@ -265,6 +279,20 @@ export const useThreadOverviewRefreshCounter = (
       room.removeListener(ThreadEvent.Delete, handleThread);
     };
   }, [room, threadId, overviewChanges]);
+  // The first start of a held list is in the commit; every other start follows the paint.
+  const startsInCommit = useRef(heldAtMount);
+  useLayoutEffect(() => (startsInCommit.current ? listen() : undefined), [listen]);
+  useEffect(() => {
+    if (!startsInCommit.current) return listen();
+    startsInCommit.current = false;
+    return undefined;
+  }, [listen]);
 
-  return { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges };
+  return {
+    overviewRefreshCounter,
+    setOverviewRefreshCounter,
+    overviewChanges,
+    // The start counts once (`mark` above), and the count only goes up.
+    firstBuildHeld: heldAtMount && overviewRefreshCounter === 0,
+  };
 };
