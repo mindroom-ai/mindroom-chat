@@ -11,7 +11,7 @@ import React, {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, color, config } from 'folds';
+import { Text, color, config, toRem } from 'folds';
 import {
   EventStatus,
   type EventTimelineSet,
@@ -299,17 +299,29 @@ const useLiveExpansion = () => {
 const endAligned = { alignItems: 'flex-end' } as const;
 
 /**
- * A run of quiet markers side by side on one line. Where they do not fit, a skill review's name
- * ends in an ellipsis inside the run; its card shows it in full.
+ * A run of quiet markers side by side. A skill review shrinks to its basis, its name ending in an
+ * ellipsis (its card shows it in full), before the run wraps: two markers share a phone's line,
+ * a third goes to the next one.
  */
 const quietRunStyle = {
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'flex-start',
   columnGap: config.space.S400,
+  rowGap: config.space.S100,
 } as const;
-/** The title marker's words are fixed and short: it keeps them whole; others may shrink. */
+/** The title marker's words are fixed and short: it keeps them whole. */
+const fixedQuietRunItemStyle = { flex: 'none' } as const;
+/** Room for a skill review's icon and fixed words, with the start of its name. */
+const shrinkingQuietRunItemStyle = {
+  flex: `1 1 ${toRem(128)}`,
+  minWidth: 0,
+  maxWidth: 'max-content',
+} as const;
 const quietRunItemStyle = (node: ReactNode) =>
-  isValidElement(node) && node.type === ThreadSummaryMarker ? { flexShrink: 0 } : { minWidth: 0 };
+  isValidElement(node) && node.type === ThreadSummaryMarker
+    ? fixedQuietRunItemStyle
+    : shrinkingQuietRunItemStyle;
 
 /**
  * Inside a thread, the thread's title and the backend's snooze-ended and skill review messages

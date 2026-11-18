@@ -19,7 +19,8 @@ import {
 
 // In a thread, an agent answers, then the backend titles the thread and reviews a skill: two quiet
 // marker rows at the bottom. They show side by side on one line, each keeping its own message ID;
-// on a phone the long skill name ends in an ellipsis instead of wrapping.
+// on a phone the long skill name ends in an ellipsis instead of wrapping. A third marker goes to
+// a second line there rather than squeezing all three.
 // Set QUIET_MARKER_SHOTS=<directory> to save each view.
 const PASSWORD = 'quiet-markers-side-by-side-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -30,6 +31,7 @@ const ANSWER =
   'Done: the v3 final notes now group the fixes by area and drop the duplicate entries.';
 const TITLE = 'Release notes cleanup';
 const SKILL = 'developing-mindroom-chat';
+const OTHER_SKILL = 'developing-mindroom-backend';
 
 const setDisplayName = (session: MatrixSession, displayName: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
@@ -48,7 +50,7 @@ const inThread = (rootId: string, previousId: string) => ({
   },
 });
 
-const seed = async (name: string) => {
+const seed = async (name: string, skills: readonly string[] = [SKILL]) => {
   const reader = await registerDisposableUser(`qmsbs_${name}_${RUN}`, PASSWORD);
   await setDisplayName(reader, 'Sam Lee');
   // A `mindroom_` account on the reader's server: only its notices become marker rows.
@@ -81,13 +83,42 @@ const seed = async (name: string) => {
     },
     ...inThread(rootId, answerId),
   });
-  const reviewId = await send(agent, {
-    msgtype: 'm.notice',
-    body: `Updated skill ${SKILL}`,
-    'io.mindroom.skill_review': { changes: { [SKILL]: 'updated' } },
-    ...inThread(rootId, titleId),
+  const reviewIds: string[] = [];
+  for (const skill of skills) {
+    reviewIds.push(
+      await send(agent, {
+        msgtype: 'm.notice',
+        body: `Updated skill ${skill}`,
+        'io.mindroom.skill_review': { changes: { [skill]: 'updated' } },
+        ...inThread(rootId, reviewIds.at(-1) ?? titleId),
+      })
+    );
+  }
+  return { reader, roomId, rootId, answerId, titleId, reviewIds };
+};
+
+/** Opens the seeded thread and waits for its markers. */
+const openThread = async (
+  browser: Browser,
+  options: BrowserContextOptions,
+  baseURL: string | undefined,
+  seeded: Awaited<ReturnType<typeof seed>>
+) => {
+  const { reader, roomId, rootId, answerId, titleId } = seeded;
+  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: reader.username,
+    password: PASSWORD,
   });
-  return { reader, roomId, rootId, answerId, titleId, reviewId };
+  await seedRoomOverviewState({ page, roomId, userId: reader.userId, viewMode: 'threaded' });
+  await page.goto(`/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`);
+  await expect(page.locator(`[data-message-id="${answerId}"]`)).toContainText(ANSWER, {
+    timeout: 60_000,
+  });
+  await expect(page.locator(`[data-message-id="${titleId}"]`)).toContainText(TITLE);
+  return { context, page };
 };
 
 const check = async (
@@ -97,24 +128,13 @@ const check = async (
   name: string,
   shortened: boolean
 ) => {
-  const { reader, roomId, rootId, answerId, titleId, reviewId } = await seed(name);
-  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
-  const page = await context.newPage();
+  const seeded = await seed(name);
+  const { titleId } = seeded;
+  const [reviewId] = seeded.reviewIds;
+  const { context, page } = await openThread(browser, options, baseURL, seeded);
   try {
-    await loginWithPassword(page, {
-      homeserver: HOMESERVER,
-      username: reader.username,
-      password: PASSWORD,
-    });
-    await seedRoomOverviewState({ page, roomId, userId: reader.userId, viewMode: 'threaded' });
-    await page.goto(`/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`);
-
-    await expect(page.locator(`[data-message-id="${answerId}"]`)).toContainText(ANSWER, {
-      timeout: 60_000,
-    });
     const title = page.locator(`[data-message-id="${titleId}"]`);
     const review = page.locator(`[data-message-id="${reviewId}"]`);
-    await expect(title).toContainText(TITLE);
     await expect(review).toContainText(SKILL);
     // Both markers sit in one run row.
     const run = page.locator('[data-quiet-marker-run]');
@@ -132,6 +152,45 @@ const check = async (
     const label = review.locator('[data-skill-review] button > span');
     const cut = await label.evaluate((node) => node.scrollWidth > node.clientWidth);
     expect(cut).toBe(shortened);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
+  } finally {
+    await context.close();
+  }
+};
+
+/** A title and two skill reviews on a phone: two lines, each marker keeping its fixed words. */
+const checkThree = async (
+  browser: Browser,
+  options: BrowserContextOptions,
+  baseURL: string | undefined,
+  name: string
+) => {
+  const seeded = await seed(name, [SKILL, OTHER_SKILL]);
+  const { context, page } = await openThread(browser, options, baseURL, seeded);
+  try {
+    const ids = [seeded.titleId, ...seeded.reviewIds];
+    const markers = ids.map((id) => page.locator(`[data-message-id="${id}"]`));
+    await expect(markers[2]!).toContainText(OTHER_SKILL.slice(0, 6));
+    const run = page.locator('[data-quiet-marker-run]');
+    await expect(run).toHaveCount(1);
+    await expect(run.locator('[data-message-id]')).toHaveCount(3);
+    const boxes = await Promise.all(markers.map((marker) => marker.boundingBox()));
+    const tops = boxes.map((box) => Math.round(box!.y));
+    // The title and the first review share the first line; the second review is on the next.
+    expect(Math.abs(tops[0]! - tops[1]!)).toBeLessThan(1);
+    expect(tops[2]!).toBeGreaterThan(tops[1]! + 10);
+    for (const box of boxes) {
+      expect(box!.x + box!.width).toBeLessThanOrEqual(options.viewport!.width);
+    }
+    // A review is never narrower than its icon and fixed words: its skill name starts inside it.
+    for (const review of markers.slice(1)) {
+      const room = await review.evaluate((node) => {
+        const code = node.querySelector('code');
+        const marker = node.getBoundingClientRect();
+        return code ? marker.right - code.getBoundingClientRect().left : -1;
+      });
+      expect(room).toBeGreaterThan(0);
+    }
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
   } finally {
     await context.close();
@@ -175,4 +234,11 @@ test('a title and a skill review notice share one row (Chromium, phone)', async 
   baseURL,
 }) => {
   await check(browser, PHONE, baseURL, 'phone', true);
+});
+
+test('a title and two skill reviews take two lines (Chromium, phone)', async ({
+  browser,
+  baseURL,
+}) => {
+  await checkThree(browser, PHONE, baseURL, 'phone-3');
 });
