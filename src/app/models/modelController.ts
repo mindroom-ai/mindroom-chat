@@ -754,7 +754,7 @@ export class ModelController {
     this.scopes.forEach((scope) => {
       if (scope.room.roomId !== member.roomId) return;
       if (scope.query?.hydrating && !scope.catalogs.size) return;
-      this.invalidateAndRefresh(scope);
+      this.invalidateAndRefresh(scope, true);
     });
   };
 
@@ -778,14 +778,15 @@ export class ModelController {
     });
   };
 
-  private invalidateAndRefresh(scope: Scope): void {
-    // Revalidate behind the button while its runtime and one of its agents stay joined, also in a
-    // thread no composer shows now, which shows it again at once when opened.
+  /** `keepUnshown`: a membership change, after which a thread no composer shows keeps its button. */
+  private invalidateAndRefresh(scope: Scope, keepUnshown = false): void {
+    // Revalidate behind the button while its runtime and one of its agents stay joined.
     const verified = scope.catalogs.size ? roomCatalogsOf(scope.catalogs.values()) : scope.kept;
     const kept = (verified ?? []).filter((catalog) =>
       hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.agentUserIds)
     );
-    const keep = scope.snapshot.eligible && kept.length > 0;
+    const keep =
+      (keepUnshown || scope.listeners.size > 0) && scope.snapshot.eligible && kept.length > 0;
     this.invalidate(scope, keep ? scope.snapshot : undefined);
     if (keep) scope.kept = kept;
     if (scope.refreshScheduled || !scope.listeners.size) return;

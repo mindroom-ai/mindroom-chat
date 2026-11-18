@@ -716,6 +716,23 @@ describe('shared model discovery', () => {
     h.member(helper);
     expect(h.snapshot('$third')).toMatchObject({ eligible: false, inherited: [] });
   });
+  it('does not show a thread left before its runtime devices changed the old selection', async () => {
+    const h = setup();
+    const inherited = [{ entity: 'helper', model: 'fast' }];
+    const leave = h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request(), { selection: { override: 'reset', inherited } });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    leave();
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: false, override: null, inherited: [] });
+    h.response(h.request(), { selection: { override: 'reset', inherited } });
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, override: 'reset', canMutate: true });
+  });
   it('starts counting failures again after an answer', async () => {
     const h = setup();
     await h.discover();
