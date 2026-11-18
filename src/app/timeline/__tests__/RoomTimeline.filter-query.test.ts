@@ -38,7 +38,6 @@ vi.mock('../../schedules/useScheduledTaskEvents', () => ({
 }));
 vi.mock('../../event-store/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
-  useThreadLastActivityTs: () => 0,
 }));
 
 const makeThreadRoom = () => {

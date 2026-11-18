@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config } from 'folds';
 
 const surfacePaint = { color: color.Surface.OnContainer, background: color.Surface.Container };
@@ -72,3 +72,33 @@ export const ImageViewerStep = style({
     '&[aria-disabled="true"]': { opacity: 0.4, cursor: 'default' },
   },
 });
+
+const zoomHintFade = keyframes({ to: { opacity: 0, visibility: 'hidden' } });
+
+// "⌘ + scroll to zoom" over the bottom of the image area, for a mouse or trackpad only. It fades
+// a few seconds after the viewer opens, and hides at once when the image is zoomed.
+export const ImageViewerZoomHint = style([
+  DefaultReset,
+  surfacePaint,
+  {
+    display: 'none',
+    position: 'absolute',
+    insetBlockEnd: config.space.S400,
+    insetInline: 0,
+    marginInline: 'auto',
+    inlineSize: 'fit-content',
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S300,
+    borderRadius: config.radii.Pill,
+    border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+    pointerEvents: 'none',
+    whiteSpace: 'nowrap',
+    animation: `${zoomHintFade} 400ms ease-out 4s forwards`,
+    '@media': {
+      '(hover: hover) and (pointer: fine)': { display: 'block' },
+    },
+    selectors: {
+      '&[data-zoomed="true"]': { visibility: 'hidden' },
+    },
+  },
+]);

@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "বন্ধ করুন",
       "previous": "আগের ছবি",
-      "next": "পরের ছবি"
+      "next": "পরের ছবি",
+      "wheelZoomHint": "জুম করতে {{key}} + স্ক্রল"
     },
     "inviteUserPrompt": {
       "close": "বন্ধ করুন",

@@ -91,9 +91,13 @@ export const Panel = style({
 
 export const FileHeader = style({
   display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'baseline',
+  alignItems: 'center',
   gap: config.space.S100,
+});
+
+export const FileName = style({
+  flex: 1,
+  minWidth: 0,
   overflowWrap: 'anywhere',
 });
 
@@ -121,6 +125,16 @@ const diffLine = {
   minHeight: '1.5em',
   paddingInline: config.space.S100,
   whiteSpace: 'pre',
+  selectors: {
+    // Wrapped, a long line continues under its text, past the diff's +/- column.
+    '[data-wrap="true"] > &': {
+      minWidth: 0,
+      paddingInlineStart: `calc(${config.space.S100} + 1ch)`,
+      textIndent: '-1ch',
+      whiteSpace: 'pre-wrap',
+      overflowWrap: 'anywhere',
+    },
+  },
 } as const;
 
 export const DiffLine = style(diffLine);

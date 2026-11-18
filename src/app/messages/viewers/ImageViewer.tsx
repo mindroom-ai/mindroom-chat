@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, Icons, Spinner, Text, as } from 'folds';
@@ -9,6 +9,8 @@ import { downloadMedia } from '../../matrix/matrix';
 import { saveFile } from '../../native/nativeFileSave';
 import { DOWNLOAD_MIME_TYPE } from '../content/attachmentDownload';
 import { documentIsRightToLeft, revealDirectionControls } from '../../ui/directional';
+import { isMacOS } from '../../lib/user-agent';
+import { KeySymbol } from '../../lib/key-symbol';
 import * as css from './ImageViewer.css';
 
 const ZOOM_STEP = 0.2;
@@ -142,7 +144,22 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const [downloadState, download] = useSaveMedia(src ?? '', alt);
     // The name shows its direction controls; the download keeps it as it is.
     const shownAlt = revealDirectionControls(alt);
-    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(ZOOM_STEP);
+    const imageRef = useRef<HTMLImageElement>(null);
+    const hintId = useId();
+    // A wheel or pinch zoom keeps the picture under the cursor or fingers still. Only events
+    // call it, so `panning` is set by then.
+    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming, aimed } = useZoom(
+      ZOOM_STEP,
+      undefined,
+      undefined,
+      (step) => {
+        const image = imageRef.current;
+        panning.zoomAround(
+          step,
+          image ? { width: image.offsetWidth, height: image.offsetHeight } : undefined
+        );
+      }
+    );
     const panning = usePan(zoom !== 1);
     const { pan, cursor, isPanning } = panning;
     const saving = downloadState === 'saving';
@@ -215,6 +232,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
           <Box alignItems="Center" shrink="No" gap="200">
             <IconButton
               aria-label={t('sharedUi.imageViewer.zoomOut')}
+              aria-describedby={hintId}
               onClick={zoomOut}
               variant={zoomTone(zoom < 1)}
               radii="Pill"
@@ -234,6 +252,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             </Button>
             <IconButton
               aria-label={t('sharedUi.imageViewer.zoomIn')}
+              aria-describedby={hintId}
               onClick={zoomIn}
               variant={zoomTone(zoom > 1)}
               radii="Pill"
@@ -298,8 +317,9 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             >
               {src ? (
                 <img
+                  ref={imageRef}
                   className={css.ImageViewerImg}
-                  data-gesture={isZooming || isPanning}
+                  data-gesture={isZooming || isPanning || aimed}
                   style={{ transform: imageTransform }}
                   src={src}
                   alt={shownAlt}
@@ -310,6 +330,22 @@ export const ImageViewer = as<'div', ImageViewerProps>(
                 <Spinner variant="Secondary" size="400" />
               )}
             </Box>
+          )}
+          {src && !onRetry && (
+            // Only with a mouse or trackpad (the CSS), and it fades after a few seconds. The zoom
+            // buttons keep it as their description.
+            <Text
+              id={hintId}
+              as="p"
+              size="T200"
+              aria-hidden
+              className={css.ImageViewerZoomHint}
+              data-zoomed={zoom !== 1}
+            >
+              {t('sharedUi.imageViewer.wheelZoomHint', {
+                key: isMacOS() ? KeySymbol.Command : 'Ctrl',
+              })}
+            </Text>
           )}
           {paging &&
             ([-1, 1] as const).map((delta) => (

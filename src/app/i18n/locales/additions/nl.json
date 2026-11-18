@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "Sluiten",
       "previous": "Vorige afbeelding",
-      "next": "Volgende afbeelding"
+      "next": "Volgende afbeelding",
+      "wheelZoomHint": "{{key}} + scrollen om te zoomen"
     },
     "inviteUserPrompt": {
       "close": "Sluiten",

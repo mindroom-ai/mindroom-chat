@@ -33,7 +33,8 @@ const cutReplyText = (text: string): string => {
 };
 
 const chipOf = (thread: CaptureThread): CaptureChip | undefined => {
-  if (thread.resolved) return undefined;
+  // The signals keep only what a resolved thread asked after the resolve.
+  if (thread.resolved) return thread.needsYou ? 'needs-you' : undefined;
   if (thread.streaming) return 'working';
   if (thread.needsYou) return 'needs-you';
   if (thread.unread) return 'new';
@@ -60,7 +61,10 @@ const toItem = (thread: CaptureThread): CaptureItem => {
   };
 };
 
-/** The widget's list: the 30 newest unresolved threads, then threads resolved in the last 24 hours. */
+/**
+ * The widget's list: the 30 newest unresolved threads, then threads resolved in the last 24 hours.
+ * A resolved thread asked something after the resolve (`needsYou`) waits again: it is open.
+ */
 export const buildCaptureItems = (threads: CaptureThread[], now: number): CaptureItem[] => {
   const seen = new Set<string>();
   const unique = threads.filter((thread) => {
@@ -68,15 +72,16 @@ export const buildCaptureItems = (threads: CaptureThread[], now: number): Captur
     seen.add(thread.threadId);
     return true;
   });
+  const isOpen = (thread: CaptureThread): boolean => !thread.resolved || thread.needsYou;
   const open = unique
-    .filter((thread) => !thread.resolved)
+    .filter(isOpen)
     .sort((a, b) => b.ts - a.ts)
     .slice(0, MAX_CAPTURE_ITEMS);
   const resolvedAt = (thread: CaptureThread): number => thread.resolvedTs ?? 0;
   const resolved = unique
     .filter(
       (thread) =>
-        thread.resolved &&
+        !isOpen(thread) &&
         thread.resolvedTs !== undefined &&
         now - thread.resolvedTs < RESOLVED_SHOWN_MS
     )
