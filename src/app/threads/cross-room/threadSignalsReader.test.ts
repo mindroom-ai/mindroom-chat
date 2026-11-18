@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { ClientEvent, MatrixEventEvent, RoomEvent, RoomMemberEvent } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { closeClient } from '../../matrix/client/closeClient';
 import { rememberSeenThreadRoot } from '../../matrix/seenThreadRoots';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
@@ -258,6 +259,8 @@ describe('getThreadSignalsReader', () => {
         room,
       ],
       getSafeUserId: () => ME,
+      stopClient: () => undefined,
+      store: {},
     });
     const reader = getThreadSignalsReader(mx as unknown as MatrixClient);
     const readAgain = (): string[] => {
@@ -363,6 +366,16 @@ describe('getThreadSignalsReader', () => {
     // A message no room holds or names is in no thread whose signals were read.
     forget('$unheld');
     expect(readAgain()).toEqual([]);
+  });
+
+  // Every client shares the store of kept edits: a listener left there keeps its client in memory.
+  it('hears of no dropped kept edit once its client is closed', () => {
+    const { mx } = setup();
+    expect(mocks.forgotten.size).toBe(1);
+
+    closeClient(mx as unknown as MatrixClient);
+
+    expect(mocks.forgotten.size).toBe(0);
   });
 
   it('reads every thread when a timeline of the room starts over, and one thread when its own does', () => {

@@ -12,6 +12,7 @@ import {
   markThreadRecordChange,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
+import { onClientClose } from '../../matrix/client/closeClient';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
 import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
@@ -142,10 +143,10 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
       if (threadIds) threadIds.forEach((threadId) => mark(room.roomId, threadId));
       else mark(room.roomId);
     });
-    // The kept edit a thread's signals read of a message is gone, and no event tells of it. Never
-    // stopped, like the listeners above; but every client shares the store of kept edits, so this
-    // one keeps its client in memory after a sign-out without a reload.
-    onSyncedEditForgotten((messageId) => {
+    // The kept edit a thread's signals read of a message is gone, and no event tells of it. Every
+    // client shares the store of kept edits, where this listener would keep its client in memory:
+    // it stops when the client is closed. The listeners above are the client's own.
+    const stopForgotten = onSyncedEditForgotten((messageId) => {
       for (const room of mx.getRooms()) {
         // In a timeline, or the reply an unopened thread's summary names, which signals read too.
         const held =
@@ -163,6 +164,7 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
         }
       }
     });
+    onClientClose(mx, stopForgotten);
     const reader = createThreadSignalsReader((room, threadRootId) => {
       const roomChanges = changes.get(room.roomId);
       return roomChanges?.threads.get(threadRootId) ?? roomChanges?.room ?? 0;

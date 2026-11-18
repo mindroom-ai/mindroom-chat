@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientEvent, createClient, MatrixEvent, SyncState } from 'matrix-js-sdk';
-import { startClient, stopSavedSync } from './clientSyncPolicy';
+import { startClient } from './clientSyncPolicy';
+import { closeClient } from './closeClient';
 
 const stateEvent = (eventId: string) =>
   new MatrixEvent({
@@ -15,10 +16,10 @@ const stateEvent = (eventId: string) =>
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('stopSavedSync', () => {
+describe('startClient', () => {
   // The page's listener reaches the client: while it stays, the page keeps a client it is done
   // with in memory, and saves that client's store once more.
-  it("ends a started client's saves of its sync store, also the one a hidden page asks for", async () => {
+  it("ends a client's saves of its sync store once it is closed, also the one a hidden page asks for", async () => {
     const page = Object.assign(new EventTarget(), { visibilityState: 'visible' });
     vi.stubGlobal('document', page);
     const listening = new Set<unknown>();
@@ -55,16 +56,11 @@ describe('stopSavedSync', () => {
     page.visibilityState = 'visible';
     batch('$still-waiting');
 
-    stopSavedSync(mx);
+    closeClient(mx);
 
     expect(listening.size).toBe(0);
     batch('$after');
     hide();
     expect(save).toHaveBeenCalledTimes(2);
-  });
-
-  it('does nothing for a client that never started', () => {
-    const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@me:example.org' });
-    expect(() => stopSavedSync(mx)).not.toThrow();
   });
 });

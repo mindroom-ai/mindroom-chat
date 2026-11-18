@@ -3,6 +3,7 @@ import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/li
 import { readCachedSpecVersions } from '../cachedSpecVersions';
 import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
+import { onClientClose } from './closeClient';
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepBundledEditsInTheirRoom } from './bundledEditRoom';
 import { keepNewerEditsOnMappedCopies } from './mappedCopyEdits';
@@ -78,15 +79,7 @@ export const clearSyncFilterIds = (userId: string): void => {
   );
 };
 
-/** Each started client, with what stops its saves of the sync store. */
-const startedClients = new WeakMap<MatrixClient, () => void>();
-
-/**
- * Stops the saves of the sync store a started client asks for, for a client the page is done
- * with (`closeClient`). They listen to the page as well as to the client (it may be hidden while
- * a save waits), and so would keep the client in memory, and save its store once more.
- */
-export const stopSavedSync = (mx: MatrixClient): void => startedClients.get(mx)?.();
+const countedClients = new WeakSet<MatrixClient>();
 
 /** Starts syncing: bounded timelines, lazy-loaded members, threads and live reply frames. */
 export const startClient = async (mx: MatrixClient): Promise<void> => {
@@ -95,14 +88,17 @@ export const startClient = async (mx: MatrixClient): Promise<void> => {
   // and edits, bundled ones among them. Only an SDK client has rooms whose threads count replies
   // and hold edits. A deleted message is saved at once, so the next replay does not bring it back.
   // Messages the last page left unsent come back as Not sent rows once the rooms are known.
-  if (mx instanceof MatrixClient && !startedClients.has(mx)) {
+  if (mx instanceof MatrixClient && !countedClients.has(mx)) {
+    countedClients.add(mx);
     keepBundledEditsInTheirRoom(mx);
     keepNewerEditsOnMappedCopies(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
     keepStreamingRepliesChecked(mx);
     relistThreadsAfterGaps(mx);
-    startedClients.set(mx, keepRedactionsInSavedSync(mx));
+    // These saves listen to the page as well (it may be hidden while one waits), which would keep
+    // a closed client in memory and save its store once more.
+    onClientClose(mx, keepRedactionsInSavedSync(mx));
     dropRoomsForgottenElsewhere(mx);
     keepSyncedEdits(mx);
     emptySupersededJobsState(mx);
