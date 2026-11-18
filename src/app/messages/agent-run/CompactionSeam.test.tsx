@@ -488,6 +488,34 @@ describe('CompactionSeam card', () => {
     view.unmount();
   });
 
+  it('takes focus in the card back to the row on Escape, and keeps that Escape from the room', () => {
+    const view = renderDom(<CompactionSeam compaction={compaction()} />);
+    const row = view.container.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    fireEvent.click(row);
+    act(() => screen.getByRole('tooltip').focus());
+
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    act(() => {
+      document.dispatchEvent(escape);
+    });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(document.activeElement).toBe(row);
+    expect(escape.defaultPrevented).toBe(true);
+
+    // With focus elsewhere the room's Escape still runs.
+    fireEvent.click(row);
+    act(() => row.blur());
+    fireEvent.click(row);
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+    const elsewhere = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    act(() => {
+      document.dispatchEvent(elsewhere);
+    });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(elsewhere.defaultPrevented).toBe(false);
+    view.unmount();
+  });
+
   it('pins a hovered card once focus reaches it, so the mouse leaving keeps it', () => {
     vi.useFakeTimers();
     const renderer = render(<CompactionSeam compaction={compaction()} />);

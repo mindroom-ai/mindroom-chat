@@ -328,7 +328,15 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
     if (!isOpen) return undefined;
     const close = () => setOpen(undefined);
     const onKeyDown = (evt: KeyboardEvent) => {
-      if (evt.key === 'Escape') close();
+      if (evt.key !== 'Escape') return;
+      // Focus in the card would fall to the page once it is gone, so it goes back to the row, and
+      // the room's Escape (focus the composer), which skips a key whose default was prevented,
+      // must not take it from there. With focus elsewhere that Escape still runs.
+      if (cardRef.current?.contains(document.activeElement)) {
+        evt.preventDefault();
+        triggerRef.current?.focus();
+      }
+      close();
     };
     const onPointerDown = (evt: Event) => {
       const target = evt.target as Node;
