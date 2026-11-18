@@ -191,7 +191,7 @@ describe('ThreadSummaryMarker', () => {
     expect(popout(renderer)).toHaveLength(0);
   });
 
-  it('stays open and follows the marker when the timeline scrolls', async () => {
+  it('stays open and follows the marker when the timeline moves it', async () => {
     vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
@@ -229,6 +229,19 @@ describe('ThreadSummaryMarker', () => {
     const link = (renderer: ReactTestRenderer) =>
       renderer.root.findByProps({ className: 'MarkerSettingsLink' });
     const keyDown = (key: string, shiftKey = false) => ({ key, shiftKey, preventDefault: vi.fn() });
+    // A real Tab pressed in the card, which bubbles to the card's document listener.
+    const tabIn = (target: HTMLElement, shiftKey = false) => {
+      const evt = new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => {
+        target.dispatchEvent(evt);
+      });
+      return evt;
+    };
     const mouse = { pointerType: 'mouse' };
 
     it('shows no button beside the marker, only the marker itself', () => {
@@ -327,11 +340,8 @@ describe('ThreadSummaryMarker', () => {
       expect(popout(renderer)).toHaveLength(1);
 
       // Shift+Tab from the link goes back to the marker, which keeps the card.
-      const back = keyDown('Tab', true);
-      act(() => {
-        link(renderer).props.onKeyDown(back);
-      });
-      expect(back.preventDefault).toHaveBeenCalled();
+      const back = tabIn(nodes.link!, true);
+      expect(back.defaultPrevented).toBe(true);
       expect(nodes.trigger!.focus).toHaveBeenCalled();
       await act(() => card(renderer).props.onBlur({ relatedTarget: nodes.trigger }));
       expect(popout(renderer)).toHaveLength(1);
@@ -345,14 +355,11 @@ describe('ThreadSummaryMarker', () => {
       const renderer = renderWithSettings();
 
       await act(() => trigger(renderer).props.onClick());
-      const tab = keyDown('Tab');
-      act(() => {
-        link(renderer).props.onKeyDown(tab);
-      });
+      const tab = tabIn(nodes.link!);
 
       // The browser's own Tab then moves on from the marker, past the card in the body.
       expect(nodes.trigger!.focus).toHaveBeenCalled();
-      expect(tab.preventDefault).not.toHaveBeenCalled();
+      expect(tab.defaultPrevented).toBe(false);
     });
 
     it('keeps the card when Tab reaches the link while a pointer close is pending', async () => {

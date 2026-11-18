@@ -10,7 +10,7 @@ import type { RectCords } from 'folds';
 import { tabFromCardToOpener } from '../lib/overlayFocus';
 
 /** How a card came up: a mouse resting on its trigger, keyboard focus, or a click or tap. */
-export type CardMode = 'hover' | 'focus' | 'pinned';
+type CardMode = 'hover' | 'focus' | 'pinned';
 
 type OpenCard = { mode: CardMode; anchor: RectCords };
 
@@ -89,8 +89,10 @@ export function useAnchoredCard(closeDelayMs = 0) {
     if (!isOpen) return undefined;
     const onKeyDown = (evt: KeyboardEvent) => {
       const inCard = !!cardRef.current?.contains(document.activeElement);
-      // The card lives in the body: Tab in it goes on from the trigger, where it opened.
-      if (inCard) tabFromCardToOpener(evt, triggerRef.current);
+      // The card lives in the body: Tab in it goes on from the trigger, where it opened. Only a key
+      // pressed in the card: a trigger may itself send Tab into the card, and focus is there by now.
+      const fromCard = evt.target instanceof Node && !!cardRef.current?.contains(evt.target);
+      if (fromCard) tabFromCardToOpener(evt, triggerRef.current);
       if (evt.key !== 'Escape') return;
       // Focus in the card would fall to the page once it is gone, so it goes back to the trigger,
       // and the room's Escape (focus the composer, ShortcutRoot on the window), which skips a key

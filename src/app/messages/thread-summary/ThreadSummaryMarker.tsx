@@ -6,7 +6,7 @@ import { useAnchoredCard } from '../../ui/useAnchoredCard';
 import { IconSparkles } from '@tabler/icons-react';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../../event-store/threads/threadSummaryTimeline';
-import { OWNS_FOCUS_ATTRIBUTE, tabFromCardToOpener } from '../../lib/overlayFocus';
+import { OWNS_FOCUS_ATTRIBUTE } from '../../lib/overlayFocus';
 import * as css from './ThreadSummaryMarker.css';
 
 type ThreadSummaryMarkerProps = {
@@ -79,7 +79,6 @@ export function ThreadSummaryMarker({
             close();
             onOpenSettings();
           }}
-          onKeyDown={(evt: KeyboardEvent) => tabFromCardToOpener(evt, triggerRef.current)}
         >
           {t('mindroomUi.messages.mindroomThreadSummaryMarker.titleSettings')}
         </button>

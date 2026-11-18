@@ -23,6 +23,12 @@ function Harness({ closeDelayMs }: { closeDelayMs?: number }) {
         {...hover}
         onClick={toggle}
         onBlur={onFocusLeave}
+        // Like the title marker: Tab from the trigger goes into the open card.
+        onKeyDown={(evt) => {
+          if (evt.key !== 'Tab' || evt.shiftKey || !open) return;
+          evt.preventDefault();
+          screen.getByText('Example action').focus();
+        }}
       >
         Example trigger
       </button>
@@ -72,6 +78,21 @@ describe('useAnchoredCard', () => {
     fireEvent.click(screen.getByText('Example trigger'));
     expect(card()).toBeNull();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('lets a trigger send Tab into the card, and Tab in the card goes on from the trigger', () => {
+    render(<Harness />);
+    const trigger = screen.getByText('Example trigger');
+    fireEvent.click(trigger);
+    act(() => trigger.focus());
+
+    // The bubbling Tab reaches the document with focus already in the card: it stays there.
+    fireEvent.keyDown(trigger, { key: 'Tab' });
+    const action = screen.getByText('Example action');
+    expect(document.activeElement).toBe(action);
+
+    fireEvent.keyDown(action, { key: 'Tab' });
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('gives focus in the card back to the trigger on Escape, and keeps that Escape from the room', () => {
