@@ -183,8 +183,9 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
 
   const selectItem = (item: PickerItem) => {
     if (mutationsDisabled) return;
-    // The current choice needs no command; choosing it again only closes the menu.
-    if (isCurrent(item)) {
+    // The current choice needs no command; choosing it again only closes the menu. A current model
+    // at a named level goes back to its plain key, which runs it at its default.
+    if (isCurrent(item) && (item.kind === 'default' || state.reasoning === null)) {
       requestClose();
       return;
     }
