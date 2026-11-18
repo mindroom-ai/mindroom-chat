@@ -91,6 +91,17 @@ describe('sanitizeContent', () => {
     });
     expect(sanitizeContent(content, true)).toBe(content);
   });
+
+  it("drops a person's widgets", () => {
+    const ui = { version: 1, widgets: [{ id: 'df4d729a5d', json: '{}' }] };
+    const content = {
+      body: 'chart',
+      'io.mindroom.ui': ui,
+      'm.new_content': { 'io.mindroom.ui': ui },
+    };
+    expect(sanitizeContent(content, false)).toEqual({ body: 'chart', 'm.new_content': {} });
+    expect(sanitizeContent(content, true)).toBe(content);
+  });
 });
 
 describe('isTrustedAgentSender', () => {

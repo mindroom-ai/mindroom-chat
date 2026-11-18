@@ -170,6 +170,33 @@ describe('useLiveReplyContent', () => {
     expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
   });
 
+  describe('widgets', () => {
+    const UI = 'io.mindroom.ui';
+    const ui = (id: string) => ({ version: 1, widgets: [{ id, json: '{}' }] });
+
+    it("shows the frame's widgets over the durable ones", () => {
+      ingest({ ...snapshot(0), snapshot: { ...snapshot(0).snapshot, ui: ui('aaaaaaaaaa') } });
+      render(durable('streaming', { [UI]: ui('bbbbbbbbbb') }));
+
+      expect(shown()[UI]).toEqual(ui('aaaaaaaaaa'));
+    });
+
+    it('shows no durable widgets while the frame has none', () => {
+      ingest(snapshot(0));
+      render(durable('streaming', { [UI]: ui('bbbbbbbbbb') }));
+
+      expect(shown()).not.toHaveProperty(UI);
+    });
+
+    it("drops a stale frame's widgets with the frame once the reply finishes", () => {
+      ingest({ ...snapshot(0), snapshot: { ...snapshot(0).snapshot, ui: ui('aaaaaaaaaa') } });
+      render(durable('completed', { [UI]: ui('bbbbbbbbbb') }));
+
+      expect(shown()[UI]).toEqual(ui('bbbbbbbbbb'));
+      expect(live()).toBe(false);
+    });
+  });
+
   it('keeps the live reasoning segments over a durable checkpoint that covers the entry', () => {
     ingest(snapshot(4, 'Frame four', 'Weighing\n\noptions', SEGMENTS));
     render(durable('streaming', { 'io.mindroom.live_checkpoint': { sid: SID, seq: 4 } }));

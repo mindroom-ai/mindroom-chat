@@ -495,7 +495,12 @@ describe('room edit helpers', () => {
 });
 
 /** An encrypted edit of `targetEventId` whose decryption failed, as a missing key leaves it. */
-const makeUndecryptableEdit = async (eventId: string, ts: number, targetEventId: string) => {
+const makeUndecryptableEdit = async (
+  eventId: string,
+  ts: number,
+  targetEventId: string,
+  sender = '@alice:example.org'
+) => {
   const edit = new MatrixEvent({
     content: {
       algorithm: 'm.megolm.v1.aes-sha2',
@@ -505,7 +510,7 @@ const makeUndecryptableEdit = async (eventId: string, ts: number, targetEventId:
     event_id: eventId,
     origin_server_ts: ts,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    sender,
     type: 'm.room.encrypted',
   });
   await edit.attemptDecryption({
@@ -842,5 +847,100 @@ describe('the finish of a stream an edit borrows its status from', () => {
 
     expect(getEditStreamFinishTs(getEditedEvent('$target', targetEvent, timelineSet)!)).toBe(5000);
     expect(getEditStreamFinishTs(getEditedEvent('$target', targetEvent, timelineSet)!)).toBe(5000);
+  });
+});
+
+describe('widgets of the shown revision', () => {
+  const UI = 'io.mindroom.ui';
+  const AGENT = '@mindroom_atlas:example.org';
+  const uiValue = (id: string) => ({ version: 1, widgets: [{ id, json: '{"type":"chart"}' }] });
+  const marker = '```mindroom-ui-df4d729a5d\nSignups\n```';
+
+  const agentMessage = (ui?: unknown) =>
+    new MatrixEvent({
+      content: { body: marker, msgtype: 'm.text', ...(ui !== undefined && { [UI]: ui }) },
+      event_id: '$target',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: AGENT,
+      type: 'm.room.message',
+    });
+
+  const agentEdit = (
+    eventId: string,
+    ts: number,
+    { inner, outer, sender = AGENT }: { inner?: unknown; outer?: unknown; sender?: string } = {}
+  ) => {
+    const edit = makeEditEvent(eventId, ts, '$target', sender);
+    const content = edit.getContent();
+    content['m.new_content'].body = marker;
+    if (inner !== undefined) content['m.new_content'][UI] = inner;
+    if (outer !== undefined) content[UI] = outer;
+    return edit;
+  };
+
+  const shownUi = (target: MatrixEvent, ...edits: MatrixEvent[]) => {
+    const editedEvent = getEditedEvent('$target', target, relationsOf(...edits));
+    return getLatestMessageContent(target, editedEvent)[UI];
+  };
+
+  it('drops the original value under an edit without the key', () => {
+    expect(shownUi(agentMessage(uiValue('aaaaaaaaaa')), agentEdit('$e1', 2000))).toBeUndefined();
+  });
+
+  it('never borrows the key from an older edit', () => {
+    const older = agentEdit('$e1', 2000, { inner: uiValue('aaaaaaaaaa') });
+    expect(shownUi(agentMessage(), older, agentEdit('$e2', 3000))).toBeUndefined();
+  });
+
+  it("ignores a key at the edit's outer level", () => {
+    const edit = agentEdit('$e1', 2000, { outer: uiValue('aaaaaaaaaa') });
+    expect(shownUi(agentMessage(), edit)).toBeUndefined();
+  });
+
+  it("reads the edit's own m.new_content", () => {
+    const edit = agentEdit('$e1', 2000, { inner: uiValue('bbbbbbbbbb') });
+    expect(shownUi(agentMessage(uiValue('aaaaaaaaaa')), edit)).toEqual(uiValue('bbbbbbbbbb'));
+  });
+
+  it("keeps the sender's own revision over another member's edit", () => {
+    const own = agentEdit('$e1', 2000, { inner: uiValue('aaaaaaaaaa') });
+    const foreign = agentEdit('$e2', 3000, {
+      inner: uiValue('cccccccccc'),
+      sender: '@mallory:example.org',
+    });
+    expect(shownUi(agentMessage(), own, foreign)).toEqual(uiValue('aaaaaaaaaa'));
+  });
+
+  it('keeps the last readable revision until a newer edit decrypts, then follows it', async () => {
+    const target = agentMessage();
+    const readable = agentEdit('$e1', 2000, { inner: uiValue('aaaaaaaaaa') });
+    const pending = await makeUndecryptableEdit('$e2', 3000, '$target', AGENT);
+    expect(shownUi(target, readable, pending)).toEqual(uiValue('aaaaaaaaaa'));
+
+    await pending.attemptDecryption(
+      {
+        decryptEvent: async () => ({
+          clearEvent: {
+            type: 'm.room.message',
+            content: {
+              msgtype: 'm.text',
+              body: '* prose',
+              'm.new_content': { msgtype: 'm.text', body: 'prose' },
+              'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+            },
+          },
+        }),
+      } as never,
+      { isRetry: true }
+    );
+    expect(shownUi(target, readable, pending)).toBeUndefined();
+  });
+
+  it("shows the previous revision's own value when the newest edit is redacted", () => {
+    const older = agentEdit('$e1', 2000, { inner: uiValue('aaaaaaaaaa') });
+    const redacted = agentEdit('$e2', 3000);
+    redacted.event.unsigned = { redacted_because: { type: 'm.room.redaction' } as never };
+    expect(shownUi(agentMessage(), older, redacted)).toEqual(uiValue('aaaaaaaaaa'));
   });
 });

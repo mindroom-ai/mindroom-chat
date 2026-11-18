@@ -22,6 +22,8 @@ export type LiveDocs = {
    * Absent when the backend is older than compactions, so the reply's durable list stands.
    */
   compactions?: unknown[];
+  /** The reply's `io.mindroom.ui` value as sent; absent when it has no widgets. */
+  ui?: unknown;
 };
 
 /** Replaces `del` UTF-16 units at `at` with `ins`; `len` is the document length afterwards. */
@@ -39,6 +41,8 @@ export type LiveDelta = {
   segments?: LiveReasoningSegment[];
   /** Replaces the whole compaction list. */
   compactions?: unknown[];
+  /** Replaces the whole `io.mindroom.ui` value; null clears it. */
+  ui?: unknown;
 };
 
 export type LiveOrder = { sid: string; seq: number };
@@ -105,7 +109,17 @@ const parseSnapshot = (value: unknown): LiveDocs | null => {
   if (!isStatus(status) || typeof activity !== 'string' || !segments || compactions === null) {
     return null;
   }
-  return { md, reasoning, tools, status, activity, segments, ...(compactions && { compactions }) };
+  const { ui } = value;
+  return {
+    md,
+    reasoning,
+    tools,
+    status,
+    activity,
+    segments,
+    ...(compactions && { compactions }),
+    ...(ui != null && { ui }),
+  };
 };
 
 const parseDelta = (value: unknown): LiveDelta | null => {
@@ -144,6 +158,7 @@ const parseDelta = (value: unknown): LiveDelta | null => {
     if (!compactions) return null;
     delta.compactions = compactions;
   }
+  if ('ui' in value) delta.ui = value.ui;
   return Object.keys(delta).length > 0 ? delta : null;
 };
 
@@ -191,6 +206,7 @@ export const applyLiveDelta = (docs: LiveDocs, delta: LiveDelta): LiveDocs | nul
   const tools = delta.tools ? applyToolsDelta(docs.tools, delta.tools) : docs.tools;
   if (md === null || reasoning === null || tools === null) return null;
   const compactions = delta.compactions ?? docs.compactions;
+  const ui = 'ui' in delta ? delta.ui : docs.ui;
   return {
     md,
     reasoning,
@@ -199,6 +215,7 @@ export const applyLiveDelta = (docs: LiveDocs, delta: LiveDelta): LiveDocs | nul
     activity: delta.activity ?? docs.activity,
     segments: delta.segments ?? docs.segments,
     ...(compactions && { compactions }),
+    ...(ui != null && { ui }),
   };
 };
 

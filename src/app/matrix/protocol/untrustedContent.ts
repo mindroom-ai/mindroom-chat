@@ -1,14 +1,16 @@
 import { MatrixEvent, type IContent } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
+import { UI_WIDGETS_KEY } from './uiWidgets';
 import { isRecord } from '../../lib/isRecord';
 
 /**
  * Message content keys only MindRoom's agents send: the run details (model chip, Reply details),
  * the streaming status (the streaming dots, the thinking placeholder, finished-reply
  * notifications), the tool trace, the reasoning, the history compactions, the live reply state,
- * a voice call's transcript, which shows other members' names and avatars beside its turns, and a
- * call's row and transcript message. Any member can write them into a message, so they count only
- * from an agent account.
+ * a voice call's transcript, which shows other members' names and avatars beside its turns, a
+ * call's row and transcript message, and a reply's widgets. Any member can write them into a
+ * message, so they count only from an agent account. This list trusts agents of any signed-in
+ * account, so widgets are also checked against the current viewer where they render.
  */
 export const AGENT_ONLY_CONTENT_KEYS: readonly string[] = [
   'io.mindroom.ai_run',
@@ -26,6 +28,7 @@ export const AGENT_ONLY_CONTENT_KEYS: readonly string[] = [
   'io.mindroom.call_transcript',
   'io.mindroom.call',
   'io.mindroom.call_notes',
+  UI_WIDGETS_KEY,
 ];
 
 const isOptionalString = (value: unknown): boolean =>

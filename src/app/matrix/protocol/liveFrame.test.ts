@@ -40,7 +40,12 @@ describe('live reply frames', () => {
           ? parsed.snapshot
           : applyLiveDelta({ segments: [], ...testCase.before } as LiveDocs, parsed.delta);
 
-      expect(after).toEqual({ segments: [], ...testCase.after });
+      // The backend's documents after a frame name no compactions unless the case is about them.
+      const { compactions: _compactions, ...withoutCompactions } = after ?? {};
+      expect('compactions' in testCase.after ? after : withoutCompactions).toEqual({
+        segments: [],
+        ...testCase.after,
+      });
     }
   );
 
@@ -150,6 +155,26 @@ describe('live reply frames', () => {
       ...before,
       activity: 'x',
     });
+  });
+
+  it('sets the widgets with a delta, clears them with null, and keeps them in a snapshot', () => {
+    const ui = { version: 1, widgets: [{ id: 'df4d729a5d', json: '{}' }] };
+    const deltaOf = (body: Record<string, unknown>) => {
+      const parsed = parseLiveFrame(frame({ delta: body }));
+      if (!parsed || !('delta' in parsed)) throw new Error('Expected a delta');
+      return parsed.delta;
+    };
+
+    expect(applyLiveDelta(docs, deltaOf({ ui }))).toEqual({ ...docs, ui });
+    expect(applyLiveDelta({ ...docs, ui }, deltaOf({ activity: 'x' }))).toEqual({
+      ...docs,
+      activity: 'x',
+      ui,
+    });
+    expect(applyLiveDelta({ ...docs, ui }, deltaOf({ ui: null }))).toEqual(docs);
+    const parsed = parseLiveFrame(frame({ snapshot: { ...docs, ui } }));
+    expect(parsed && 'snapshot' in parsed && parsed.snapshot).toEqual({ ...docs, ui });
+    expect(parseLiveFrame(frame({ snapshot: docs }))).not.toHaveProperty('snapshot.ui');
   });
 
   it('rejects content that is not an object', () => {

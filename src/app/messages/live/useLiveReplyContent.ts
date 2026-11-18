@@ -6,6 +6,7 @@ import {
   MINDROOM_THINKING_PLACEHOLDER_BODY,
 } from '../../matrix/protocol/thinkingPlaceholder';
 import { MINDROOM_TOOL_TRACE_KEY } from '../../matrix/protocol/toolTrace';
+import { UI_WIDGETS_KEY } from '../../matrix/protocol/uiWidgets';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
 import { renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from './liveReplyStore';
@@ -63,11 +64,16 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
     body: docs.md || MINDROOM_THINKING_PLACEHOLDER_BODY,
     [STREAM_STATUS_KEY]: docs.status,
   };
-  ['m.new_content', LONG_TEXT_KEY, 'format', 'formatted_body', MINDROOM_TOOL_TRACE_KEY].forEach(
-    (key) => {
-      delete live[key];
-    }
-  );
+  [
+    'm.new_content',
+    LONG_TEXT_KEY,
+    'format',
+    'formatted_body',
+    MINDROOM_TOOL_TRACE_KEY,
+    UI_WIDGETS_KEY,
+  ].forEach((key) => {
+    delete live[key];
+  });
   const html = docs.md && renderMarkdown ? renderLiveMarkdown(docs.md) : undefined;
   if (html !== undefined) {
     live.format = 'org.matrix.custom.html';
@@ -79,6 +85,8 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
   if (docs.segments.length > 0) live[LIVE_REASONING_SEGMENTS_KEY] = docs.segments;
   // An empty list says the reply has none, over a durable list an older edit left.
   if (docs.compactions) live[LIVE_COMPACTIONS_KEY] = docs.compactions;
+  // The frame's widgets replace the durable ones as a whole, as its text replaces the body.
+  if (docs.ui !== undefined) live[UI_WIDGETS_KEY] = docs.ui;
   return live;
 };
 

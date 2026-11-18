@@ -69,4 +69,20 @@ describe('copyResolvedEditMetadata', () => {
 
     expect(latest).toEqual({ body: 'Edited by hand' });
   });
+
+  it('never copies the widgets or a form answer, so an edit without them shows none', () => {
+    const latest: Record<string, unknown> = { body: 'Now in prose' };
+    const ui = { version: 1, widgets: [{ id: 'df4d729a5d', json: '{}' }] };
+    const answer = { version: 1, event_id: '$form', widget: 'df4d729a5d' };
+
+    copyResolvedEditMetadata(latest, [
+      {
+        'm.new_content': { 'io.mindroom.ui': ui, 'io.mindroom.ui_response': answer },
+        'io.mindroom.ui': ui,
+        'io.mindroom.ui_response': answer,
+      },
+    ]);
+
+    expect(latest).toEqual({ body: 'Now in prose' });
+  });
 });
