@@ -1565,6 +1565,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
     pendingListShrinkPx,
+    takeSettledScrollTop: ledger.takeSettledScrollTop,
   });
 
   const minimap = useRoomTimelineMinimap({

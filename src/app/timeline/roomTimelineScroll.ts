@@ -147,6 +147,11 @@ type LatestRowRequestOptions = {
    * position up by as much, and that scroll is not the reader's.
    */
   pendingListShrinkPx?: () => number;
+  /**
+   * Takes the position the offset ledger last wrote when it settled, if no scroll has read it yet
+   * (`takeSettledScrollTop`). The scroll that lands there is the ledger's own.
+   */
+  takeSettledScrollTop?: () => number | undefined;
 };
 
 /**
@@ -167,6 +172,7 @@ const useLatestRowRequest = ({
   focusItem,
   onReaderGesture,
   pendingListShrinkPx,
+  takeSettledScrollTop,
 }: LatestRowRequestOptions) => {
   const requestRef = useRef(opensAtLatest);
   const seenCountRef = useRef(scrollToBottomRef.current.count);
@@ -175,6 +181,7 @@ const useLatestRowRequest = ({
   const onReaderGestureRef = useLatestRef(onReaderGesture);
   const latestAtTopRef = useLatestRef(!!latestAtTop);
   const pendingListShrinkPxRef = useLatestRef(pendingListShrinkPx);
+  const takeSettledScrollTopRef = useLatestRef(takeSettledScrollTop);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
@@ -206,14 +213,12 @@ const useLatestRowRequest = ({
     // the view that changes size moves the position and the content by the same amount. It
     // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
     // synchronously and so would pin the newest row again before this saw the reader's position.
-    // With the newest row first, the pins scroll up, and a scroll down away from the top that
-    // leaves less room below the view is the reader's. One that leaves as much is the timeline
-    // giving the position what it owed the rows above the view: the offset ledger settles (the
-    // list had held them above its start, out of reach of a pin to the top, and puts them back
-    // with the position moved down as far), or the virtual list corrects for a row measured there.
-    // The pin then brings the top in again.
-    // The room below the view that rows which shrank still take until React renders the list does
-    // not count: the correction that keeps the end in place for them scrolls up as much.
+    // With the newest row first, the pins scroll up, and a scroll down away from the top is the
+    // reader's, except the one the offset ledger writes when it settles: the list had held rows
+    // above its start, out of reach of a pin to the top, and the settle puts them back with the
+    // position moved down as far. The pin then brings the top in.
+    // The room below the view that rows which shrank still take until React renders the
+    // list does not count: the correction that keeps the end in place for them scrolls up as much.
     // The rows can still measure a shrink that React has already rendered: never less than none.
     // A scroll up no larger than the scroll area grew is the browser keeping the position inside
     // the taller area (a phone's keyboard band that widens while the rows measure again): the
@@ -228,8 +233,10 @@ const useLatestRowRequest = ({
       const below = roomBelow();
       const height = scrollElement.clientHeight;
       const lowerEdgeRose = top < lastTop && top + height < lastTop + lastHeight;
+      const settledTop = takeSettledScrollTopRef.current?.();
+      const ledgerSettled = settledTop !== undefined && Math.abs(top - settledTop) < 1;
       const leftLatest = latestAtTopRef.current
-        ? top > lastTop + LEFT_LATEST_ROW_PX && below < lastBelow - LEFT_LATEST_ROW_PX
+        ? !ledgerSettled && top > lastTop + LEFT_LATEST_ROW_PX
         : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
       if (leftLatest) release();
       lastTop = top;
@@ -250,6 +257,7 @@ const useLatestRowRequest = ({
     pendingListShrinkPxRef,
     scrollElement,
     scrollToBottomRef,
+    takeSettledScrollTopRef,
   ]);
   return requestRef;
 };

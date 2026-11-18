@@ -215,10 +215,18 @@ type RoomProps = {
   scrollToIndex: (index: number) => void;
   /** The rows run newest first (the Threads view under a newest-first sort). */
   latestAtTop?: boolean;
+  takeSettledScrollTop?: () => number | undefined;
 };
 
 /** The pieces of the room's Full view that decide its bottom pins, wired as the room timeline does. */
-function RoomRows({ scroller, pins, rows, scrollToIndex, latestAtTop = false }: RoomProps) {
+function RoomRows({
+  scroller,
+  pins,
+  rows,
+  scrollToIndex,
+  latestAtTop = false,
+  takeSettledScrollTop,
+}: RoomProps) {
   const scrollRef = useRef(scroller as unknown as HTMLDivElement);
   const latestAtTopRef = useRef(latestAtTop);
   latestAtTopRef.current = latestAtTop;
@@ -273,6 +281,7 @@ function RoomRows({ scroller, pins, rows, scrollToIndex, latestAtTop = false }: 
     committedView: '!room||classic',
     focusItem: undefined,
     onReaderGesture: gesturePins.onRoomGesture,
+    takeSettledScrollTop,
   });
   return null;
 }
@@ -457,7 +466,20 @@ describe('useLatestRowPin in room rows that run newest first', () => {
     const pins = { current: { count: 0, smooth: false } };
     const scrollToIndex = vi.fn();
     let renderer: ReactTestRenderer | undefined;
-    const props = { scroller: element, pins, scrollToIndex, latestAtTop: true };
+    // The position the offset ledger wrote at its last settle, taken once.
+    const settled = { top: undefined as number | undefined };
+    const takeSettledScrollTop = () => {
+      const { top } = settled;
+      settled.top = undefined;
+      return top;
+    };
+    const props = {
+      scroller: element,
+      pins,
+      scrollToIndex,
+      latestAtTop: true,
+      takeSettledScrollTop,
+    };
     act(() => {
       renderer = create(createElement(RoomRows, { ...props, rows: 20 }));
     });
@@ -467,7 +489,7 @@ describe('useLatestRowPin in room rows that run newest first', () => {
       act(() => {
         shown.update(createElement(RoomRows, { ...props, rows }));
       });
-    return { element, fire, pins, scrollToIndex, showRows };
+    return { element, fire, pins, scrollToIndex, showRows, settled };
   };
 
   it('opens at the top and keeps it while rows land there, until the reader scrolls down', () => {
@@ -491,13 +513,23 @@ describe('useLatestRowPin in room rows that run newest first', () => {
     const room = roomNewestFirst();
     room.element.scrollTo.mockClear();
 
-    // The settle puts the rows back above the view and moves the position down as far: the list
-    // grows by what the position gains, and no room below the view is lost.
+    // The settle puts the rows back above the view and moves the position down as far.
+    room.settled.top = 762;
     room.element.scrollHeight += 762;
     room.element.scrollTop = 762;
     act(() => room.fire('scroll'));
     room.showRows(20);
     expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 0 });
+    room.element.scrollTop = 0;
+    act(() => room.fire('scroll'));
+    room.element.scrollTo.mockClear();
+
+    // The reader's scrollbar takes them down as far, after rows that arrived made the list longer.
+    room.element.scrollHeight += 900;
+    room.element.scrollTop = 762;
+    act(() => room.fire('scroll'));
+    room.showRows(21);
+    expect(room.element.scrollTo).not.toHaveBeenCalled();
   });
 
   it('follows a new row at the top, and Jump to Latest goes there', () => {
