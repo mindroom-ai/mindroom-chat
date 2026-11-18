@@ -1176,7 +1176,8 @@
       }
     },
     "renameHint": "Double-cliquez pour renommer",
-    "close": "Fermer le fil"
+    "close": "Fermer le fil",
+    "resizeSecond": "Redimensionner le second fil"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",

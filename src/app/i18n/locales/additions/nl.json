@@ -1156,7 +1156,8 @@
       }
     },
     "renameHint": "Dubbelklik om de naam te wijzigen",
-    "close": "Thread sluiten"
+    "close": "Thread sluiten",
+    "resizeSecond": "Breedte van de tweede thread wijzigen"
   },
   "threadSnooze": {
     "title": "Snoozen tot",

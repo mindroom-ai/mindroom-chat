@@ -1156,7 +1156,8 @@
       }
     },
     "renameHint": "Double-click to rename",
-    "close": "Close thread"
+    "close": "Close thread",
+    "resizeSecond": "Resize second thread"
   },
   "threadSnooze": {
     "title": "Snooze until",

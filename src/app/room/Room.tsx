@@ -97,8 +97,12 @@ import {
   callWidthStorageKey,
   computerWidthStorageKey,
   pluginPanelWidthStorageKey,
+  secondThreadWidthStorageKey,
   subagentsWidthStorageKey,
 } from '../preferences/accountStorageKeys';
+import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
+import { SecondThreadPanel } from './SecondThreadPanel';
+import { useSecondThread } from './useSecondThread';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -219,6 +223,11 @@ function RoomContent() {
 
   // The URL may name a reply; panels and agent requests belong to the thread's root.
   const threadId = useThreadRootEvent(room, routedThreadId);
+  const {
+    threadId: secondId,
+    open: openSecond,
+    close: closeSecond,
+  } = useSecondThread(roomId, ownUserId, threadId);
   useInitializeOpenThread(room, threadId);
   const routeReady = isThreadRouteReady(room, routedThreadId);
   const conversation = `${roomId}\n${routedThreadId ?? ''}`;
@@ -489,8 +498,36 @@ function RoomContent() {
         </ResizableMembersPanel>
       ),
     },
+    {
+      // A second thread beside the open one (Open beside), never on phones. It has no frame: it
+      // never fills the room nor folds.
+      id: 'thread',
+      open: !mobile && !!secondId,
+      close: closeSecond,
+      covers: false,
+      render: () =>
+        secondId && (
+          <SecondThreadPanel
+            room={room}
+            threadId={secondId}
+            onClose={closeSecond}
+            widthKey={secondThreadWidthStorageKey(ownUserId)}
+          />
+        ),
+    },
   ];
   const { shown, layout, setLayout, request } = useRoomPanels(roomId, panels);
+  const secondThread = useMemo<SecondThreadControl | undefined>(
+    () =>
+      mobile
+        ? undefined
+        : {
+            offers: (rootId) =>
+              isConfirmedMatrixEventId(rootId) && rootId !== threadId && rootId !== secondId,
+            open: (rootId) => request('thread', () => openSecond(rootId)),
+          },
+    [mobile, openSecond, request, secondId, threadId]
+  );
   // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
   // ask for theirs, also while it shows: folded, it unfolds. So does a sub-agent job in the jobs
   // bar for the Sub-agents panel, whose store the header's toggle sets too.
@@ -831,30 +868,32 @@ function RoomContent() {
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
         <PluginPanelControlsContext.Provider value={pluginPanelControls}>
-          <Box
-            ref={conversationRef}
-            grow="Yes"
-            direction="Column"
-            style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
-          >
-            <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
-            <MessageLinkCards roomId={room.roomId}>
-              <RoomView
-                room={room}
-                eventId={eventId}
-                threadId={routedThreadId}
-                forkAt={forkAt}
-                focusEventInRoom={focusEventInRoom}
-                entryKey={entryKey}
-                entryPushed={entryPushed}
-                hasMindroomAgents={hasMindroomAgents}
-                joinRequestCount={joinRequestCount}
-                onThreadLoadError={onThreadLoadError}
-                {...headerPanels}
-              />
-            </MessageLinkCards>
-          </Box>
-          {sidePanel}
+          <SecondThreadContext.Provider value={secondThread}>
+            <Box
+              ref={conversationRef}
+              grow="Yes"
+              direction="Column"
+              style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
+            >
+              <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
+              <MessageLinkCards roomId={room.roomId}>
+                <RoomView
+                  room={room}
+                  eventId={eventId}
+                  threadId={routedThreadId}
+                  forkAt={forkAt}
+                  focusEventInRoom={focusEventInRoom}
+                  entryKey={entryKey}
+                  entryPushed={entryPushed}
+                  hasMindroomAgents={hasMindroomAgents}
+                  joinRequestCount={joinRequestCount}
+                  onThreadLoadError={onThreadLoadError}
+                  {...headerPanels}
+                />
+              </MessageLinkCards>
+            </Box>
+            {sidePanel}
+          </SecondThreadContext.Provider>
         </PluginPanelControlsContext.Provider>
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>

@@ -136,6 +136,7 @@ vi.mock('folds', () => ({
   OverlayBackdrop: () => React.createElement('div'),
 }));
 
+vi.mock('../SecondThreadPanel', () => ({ SecondThreadPanel: () => null }));
 vi.mock('../MessageLinkCards', () => ({
   MessageLinkCards: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
