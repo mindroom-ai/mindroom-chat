@@ -1021,6 +1021,11 @@
         "levelIsDefault": "{{level}}, Standard",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Agent-Standard",
+        "roomModel": "Raummodell",
+        "defaultChoice": "Standard",
+        "threadOnly": "Ein hier gewähltes Modell gilt nur für diesen Thread.",
+        "roomOverrideThreadOnly": "Für diesen Raum mit !room_model festgelegt. Ein hier gewähltes Modell gilt nur für diesen Thread.",
         "levels": {
           "off": "Aus",
           "minimal": "Minimal",

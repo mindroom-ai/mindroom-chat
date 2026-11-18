@@ -1041,6 +1041,11 @@
         "levelIsDefault": "{{level}}, par défaut",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Par défaut de l’agent",
+        "roomModel": "Modèle du salon",
+        "defaultChoice": "Par défaut",
+        "threadOnly": "Le modèle choisi ici s’applique uniquement à ce fil.",
+        "roomOverrideThreadOnly": "Défini pour ce salon avec !room_model. Le modèle choisi ici s’applique uniquement à ce fil.",
         "levels": {
           "off": "Désactivé",
           "minimal": "Minimal",

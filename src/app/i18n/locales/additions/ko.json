@@ -1001,6 +1001,11 @@
         "levelIsDefault": "{{level}}, 기본값",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "에이전트 기본값",
+        "roomModel": "방 모델",
+        "defaultChoice": "기본값",
+        "threadOnly": "여기서 고른 모델은 이 스레드에만 적용됩니다.",
+        "roomOverrideThreadOnly": "이 방에는 !room_model로 설정되어 있습니다. 여기서 고른 모델은 이 스레드에만 적용됩니다.",
         "levels": {
           "off": "끄기",
           "minimal": "최소",

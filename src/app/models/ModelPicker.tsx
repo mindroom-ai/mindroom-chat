@@ -24,6 +24,7 @@ import { EffortGlyph, effortBars } from './EffortGlyph';
 import { ModelEffortColumn } from './ModelEffortColumn';
 import type { ModelCatalogEntry, ReasoningLevel } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
+import { agentMember } from '../matrix/protocol/agentIdentity';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
 import * as css from './ModelPicker.css';
 
@@ -38,6 +39,8 @@ const STACKED_EFFORT_HEIGHT = 560;
 
 type ModelPickerPanelProps = {
   state: ModelPickerState;
+  /** The words for the row that clears the thread's model: its title, agents and description. */
+  defaults: DefaultWords;
   /** The height above the button the menu may take, a CSS length. */
   room: string;
   requestClose: () => void;
@@ -65,16 +68,37 @@ const sharedRoomDefault = (state: ModelPickerState): ModelCatalogEntry | undefin
   return state.models.find((model) => model.key === key);
 };
 
-/** Each agent's fallback model by name, "entity: Model, …"; empty before the router names them. */
-const agentModels = (
+/** Where the thread's default comes from: each agent's own model, the room's, or a mix or unknown. */
+export type DefaultSource = 'agent' | 'room' | 'unknown';
+
+/**
+ * What the default row says: its source, each agent's model by name ("DevAgent · Opus", or
+ * "DevAgent: Opus · Analyst: Sol"), empty before the router names them, and whether `!room_model` set it.
+ */
+export const describeDefault = (
   inherited: ModelPickerState['inherited'],
-  models: ModelPickerState['models']
-): string => {
+  models: ModelPickerState['models'],
+  nameOf: (entity: string) => string
+): { source: DefaultSource; agents: string; roomOverride: boolean } => {
   const labels = new Map(models.map((model) => [model.key, model.display_name]));
-  return inherited
-    .map(({ entity, model }) => `${entity}: ${labels.get(model) ?? model}`)
-    .join(', ');
+  const named = inherited.map(({ entity, model }) => [nameOf(entity), labels.get(model) ?? model]);
+  const kinds = new Set(
+    inherited.map(({ source }) => (source === 'room_config' ? 'room' : source))
+  );
+  const [kind] = kinds;
+  return {
+    source: kinds.size === 1 && (kind === 'agent' || kind === 'room') ? kind : 'unknown',
+    agents:
+      named.length === 1 ? named[0]!.join(' · ') : named.map((pair) => pair.join(': ')).join(' · '),
+    roomOverride: inherited.some(({ source }) => source === 'room'),
+  };
 };
+type DefaultWords = { label: string; agents: string; description: string };
+const DEFAULT_LABELS = {
+  agent: 'agentDefault',
+  room: 'roomModel',
+  unknown: 'defaultChoice',
+} as const;
 
 /**
  * The model the thread runs on now, its own or else the one every agent falls back to, and the
@@ -92,7 +116,13 @@ const currentChoice = (state: ModelPickerState) => {
   return { model, level: model && levels.size === 1 ? level : undefined };
 };
 
-function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerPanelProps) {
+function ModelPickerPanel({
+  state,
+  defaults,
+  room,
+  requestClose,
+  onCommand,
+}: ModelPickerPanelProps) {
   const { t } = useTranslation();
   const stacked = useScreenSizeContext() === ScreenSize.Mobile;
   const columnRef = useRef<HTMLDivElement>(null);
@@ -106,21 +136,10 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
   const filterShown = state.models.length > FILTER_AFTER;
   // A catalog that shrinks under the field (another runtime, a refresh) takes its filter with it.
   const normalizedQuery = filterShown ? query.trim().toLocaleLowerCase() : '';
-  // What "Room default" means here: each agent's own model, by name, once the router says.
-  const defaultDetail = useMemo(
-    () =>
-      agentModels(state.inherited, state.models) ||
-      t('mindroomUi.models.modelPicker.roomDefaultDescription'),
-    [state.inherited, state.models, t]
-  );
   // Found by its own words, not by the names of the models it falls back to.
   const defaultVisible =
     !normalizedQuery ||
-    `${t('mindroomUi.models.modelPicker.roomDefault')} ${t(
-      'mindroomUi.models.modelPicker.roomDefaultDescription'
-    )}`
-      .toLocaleLowerCase()
-      .includes(normalizedQuery);
+    `${defaults.label} ${defaults.description}`.toLocaleLowerCase().includes(normalizedQuery);
   const visibleModels = useMemo(
     () => state.models.filter((model) => modelMatches(model, normalizedQuery)),
     [state.models, normalizedQuery]
@@ -279,12 +298,13 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
         </span>
         <span className={css.OptionText}>
           <span className={css.OptionTitle}>
-            {item.kind === 'default'
-              ? t('mindroomUi.models.modelPicker.roomDefault')
-              : item.model.display_name}
+            {item.kind === 'default' ? defaults.label : item.model.display_name}
           </span>
+          {item.kind === 'default' && defaults.agents && (
+            <span className={css.RoomDefaultDetail}>{defaults.agents}</span>
+          )}
           <span className={item.kind === 'default' ? css.RoomDefaultDetail : css.OptionDetail}>
-            {item.kind === 'default' ? defaultDetail : item.model.id}
+            {item.kind === 'default' ? defaults.description : item.model.id}
           </span>
         </span>
         {selected && <IconCheck className={css.Check} size={16} aria-hidden="true" />}
@@ -422,11 +442,7 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
       <ModelEffortColumn
         model={current.model}
         active={current.level}
-        modelName={
-          current.model?.display_name ??
-          state.override ??
-          t('mindroomUi.models.modelPicker.roomDefault')
-        }
+        modelName={current.model?.display_name ?? state.override ?? defaults.label}
         disabled={mutationsDisabled}
         columnRef={columnRef}
         onPick={selectLevel}
@@ -476,9 +492,12 @@ function TrappedPanel(props: ModelPickerPanelProps) {
  */
 export function ModelPicker({
   state,
+  room: membersRoom,
   conversationHidden,
 }: {
   state: ModelPickerState;
+  /** The room whose members name the agents; without it, agents go by their entity names. */
+  room?: Room;
   /** The conversation it is in is hidden (a cover over it, a side panel in its place): it closes. */
   conversationHidden?: boolean;
 }) {
@@ -491,15 +510,28 @@ export function ModelPicker({
   const sawPendingRef = useRef(false);
   const selectedModel = state.models.find((model) => model.key === state.override);
   const { model: shownModel, level: active } = currentChoice(state);
-  const roomDefault = t('mindroomUi.models.modelPicker.roomDefault');
-  const agents = agentModels(state.inherited, state.models);
-  // Without an override the button names what each agent runs, as Room default in the menu does.
+  const described = describeDefault(
+    state.inherited,
+    state.models,
+    (entity) => agentMember(membersRoom, entity)?.name || entity
+  );
+  const defaults: DefaultWords = {
+    label: t(`mindroomUi.models.modelPicker.${DEFAULT_LABELS[described.source]}`),
+    agents: described.agents,
+    description: described.roomOverride
+      ? t('mindroomUi.models.modelPicker.roomOverrideThreadOnly')
+      : t('mindroomUi.models.modelPicker.threadOnly'),
+  };
+  // Without an override the button names what each agent runs, as the default row in the menu does.
   const modelLabel =
     selectedModel?.display_name ??
     state.override ??
-    (agents
-      ? t('mindroomUi.models.modelPicker.roomDefaultWith', { label: roomDefault, models: agents })
-      : roomDefault);
+    (defaults.agents
+      ? t('mindroomUi.models.modelPicker.roomDefaultWith', {
+          label: defaults.label,
+          models: defaults.agents,
+        })
+      : defaults.label);
   // A model with levels names the level it runs at too, and shows it as bars after its logo.
   const levels = shownModel?.reasoning_levels;
   const bars = levels && active ? effortBars(levels, active) : undefined;
@@ -565,6 +597,7 @@ export function ModelPicker({
         anchor ? (
           <TrappedPanel
             state={state}
+            defaults={defaults}
             room={room}
             requestClose={close}
             onCommand={() => {
@@ -624,7 +657,7 @@ function ExistingThreadModelPicker({
 
   return (
     <>
-      <ModelPicker state={state} conversationHidden={conversationHidden} />
+      <ModelPicker state={state} room={room} conversationHidden={conversationHidden} />
       <span className={css.TriggerDivider} aria-hidden="true" />
     </>
   );

@@ -1001,6 +1001,11 @@
         "levelIsDefault": "{{level}}、デフォルト",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "エージェントの既定",
+        "roomModel": "ルームのモデル",
+        "defaultChoice": "既定",
+        "threadOnly": "ここで選んだモデルはこのスレッドにのみ適用されます。",
+        "roomOverrideThreadOnly": "このルームには !room_model で設定されています。ここで選んだモデルはこのスレッドにのみ適用されます。",
         "levels": {
           "off": "オフ",
           "minimal": "最小",

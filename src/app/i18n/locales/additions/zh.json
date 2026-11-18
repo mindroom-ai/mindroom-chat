@@ -1001,6 +1001,11 @@
         "levelIsDefault": "{{level}}，默认",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "智能体默认",
+        "roomModel": "房间模型",
+        "defaultChoice": "默认",
+        "threadOnly": "在此选择的模型仅适用于此话题。",
+        "roomOverrideThreadOnly": "已通过 !room_model 为此房间设置。在此选择的模型仅适用于此话题。",
         "levels": {
           "off": "关闭",
           "minimal": "最低",

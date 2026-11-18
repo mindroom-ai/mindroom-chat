@@ -27,8 +27,19 @@ export type ModelCatalogEntry = {
   /** The level the plain key runs at; one of `reasoning_levels`, present with them. */
   reasoning_default?: ReasoningLevel;
 };
-/** `model` is a catalog key; `reasoning` names a level only when the stored choice had one. */
-export type ModelInheritedEntry = { entity: string; model: string; reasoning?: ReasoningLevel };
+/** What chose an inherited model: the room's `!room_model`, its `room_models` entry, or the agent's own. */
+export const MODEL_SOURCES = ['room', 'room_config', 'agent'] as const;
+export type ModelSource = (typeof MODEL_SOURCES)[number];
+/**
+ * `model` is a catalog key; `reasoning` names a level only when the stored choice had one; `source`
+ * is absent from older runtimes and when it names a source this client does not know.
+ */
+export type ModelInheritedEntry = {
+  entity: string;
+  model: string;
+  reasoning?: ReasoningLevel;
+  source?: ModelSource;
+};
 export type ModelSelection = {
   override: string | null;
   /** The override's level, when it named one; absent means the model's default. */
@@ -165,6 +176,9 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
         entity: entry.entity as string,
         model: entry.model as string,
         ...levelOf(models, entry.model as string, entry.reasoning),
+        ...(MODEL_SOURCES.includes(entry.source as ModelSource)
+          ? { source: entry.source as ModelSource }
+          : {}),
       })),
     },
   };

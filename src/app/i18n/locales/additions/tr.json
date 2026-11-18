@@ -1021,6 +1021,11 @@
         "levelIsDefault": "{{level}}, varsayılan",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Ajan varsayılanı",
+        "roomModel": "Oda modeli",
+        "defaultChoice": "Varsayılan",
+        "threadOnly": "Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
+        "roomOverrideThreadOnly": "Bu oda için !room_model ile ayarlandı. Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
         "levels": {
           "off": "Kapalı",
           "minimal": "Minimum",

@@ -8,6 +8,26 @@ import { AI_RUN_METADATA_KEY } from './aiRun';
  */
 export const AGENT_USERNAME_PREFIX = 'mindroom_';
 
+// MindRoom names agent accounts mindroom_<agent>, or mindroom_<agent>_<namespace> where the
+// namespace is 4-32 lowercase letters and digits. Prefix matching would mistake
+// mindroom_assistant_pro for the account of `assistant`.
+const NAMESPACE = '[a-z0-9]{4,32}';
+
+/** The joined member whose account is the MindRoom agent (or team) named `agentName`. */
+export const agentMember = <M extends { userId: string }>(
+  room: { getJoinedMembers: () => M[] } | null | undefined,
+  agentName: string
+): M | undefined => {
+  const base = `${AGENT_USERNAME_PREFIX}${agentName.toLowerCase()}`;
+  const namespaced = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_${NAMESPACE}$`);
+  const members = room?.getJoinedMembers() ?? [];
+  const localpart = (userId: string) => (getMxIdLocalPart(userId) ?? '').toLowerCase();
+  return (
+    members.find((item) => localpart(item.userId) === base) ??
+    members.find((item) => namespaced.test(localpart(item.userId)))
+  );
+};
+
 const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
 const TOOL_TRACE_KEY = 'io.mindroom.tool_trace';
 

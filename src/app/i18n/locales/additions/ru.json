@@ -1061,6 +1061,11 @@
         "levelIsDefault": "{{level}}, по умолчанию",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "По умолчанию агента",
+        "roomModel": "Модель комнаты",
+        "defaultChoice": "По умолчанию",
+        "threadOnly": "Выбранная здесь модель действует только в этой ветке.",
+        "roomOverrideThreadOnly": "Задана для этой комнаты командой !room_model. Выбранная здесь модель действует только в этой ветке.",
         "levels": {
           "off": "Выкл.",
           "minimal": "Минимальное",

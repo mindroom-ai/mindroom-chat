@@ -7,7 +7,7 @@ import { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelCatalogEntry } from './modelProtocol';
 import type { ModelPickerState } from './useModelPicker';
-import { ModelPicker, ThreadModelPicker } from './ModelPicker';
+import { describeDefault, ModelPicker, ThreadModelPicker } from './ModelPicker';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ModelIcon } from './ModelIcon';
 
@@ -70,11 +70,8 @@ vi.mock('react-i18next', async () => {
       t: (key: string, options?: Record<string, unknown>) => {
         const strings: Record<string, string> = {
           'mindroomUi.models.modelPicker.chooseModel': 'Choose model',
-          'mindroomUi.models.modelPicker.roomDefault': 'Room default',
           'mindroomUi.models.modelPicker.modelForThread': 'Model for this thread',
           'mindroomUi.models.modelPicker.search': 'Search models',
-          'mindroomUi.models.modelPicker.roomDefaultDescription':
-            'Let each agent use its configured model.',
           'mindroomUi.models.modelPicker.models': 'Models',
           'mindroomUi.models.modelPicker.runtime': 'Runtime',
           'mindroomUi.models.modelPicker.chooseRuntime': 'Choose a runtime',
@@ -163,7 +160,8 @@ vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => true,
 }));
 
-vi.mock('../matrix/matrix', () => ({
+vi.mock('../matrix/matrix', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   mxcUrlToHttp: mocks.mxcUrlToHttp,
 }));
 
@@ -206,7 +204,7 @@ const createState = (patch: Partial<ModelPickerState> = {}): ModelPickerState =>
   ],
   override: null,
   reasoning: null,
-  inherited: [{ entity: 'assistant', model: 'fast' }],
+  inherited: [{ entity: 'assistant', model: 'fast', source: 'agent' }],
   loading: false,
   pending: false,
   canMutate: true,
@@ -287,7 +285,14 @@ describe('composer model picker', () => {
     () => {
       mocks.useModelPicker.mockReturnValue(createState({ eligible: false }));
 
-      act(() => root.render(<ThreadModelPicker room={{} as Room} threadId="$thread" />));
+      act(() =>
+        root.render(
+          <ThreadModelPicker
+            room={{ getJoinedMembers: () => [] } as unknown as Room}
+            threadId="$thread"
+          />
+        )
+      );
 
       expect(container.querySelector('button[aria-label="Choose model"]')).toBeNull();
       expect(container.querySelector('.TriggerDivider')).toBeNull();
@@ -297,7 +302,14 @@ describe('composer model picker', () => {
   it('sets the button off from the buttons after it in a thread', () => {
     mocks.useModelPicker.mockReturnValue(createState());
 
-    act(() => root.render(<ThreadModelPicker room={{} as Room} threadId="$thread" />));
+    act(() =>
+      root.render(
+        <ThreadModelPicker
+          room={{ getJoinedMembers: () => [] } as unknown as Room}
+          threadId="$thread"
+        />
+      )
+    );
 
     expect(trigger()).not.toBeNull();
     expect(container.lastElementChild?.className).toBe('TriggerDivider');
@@ -368,27 +380,38 @@ describe('composer model picker', () => {
     expect(optionNamed('Quick helper').querySelector('.Check')).toBeNull();
   });
 
-  it('says under "Room default" which model each agent falls back to', async () => {
-    await open(
-      createState({
-        override: 'reset',
-        inherited: [
-          { entity: 'assistant', model: 'fast' },
-          { entity: 'reviewer', model: 'legacy-key' },
-        ],
-      })
-    );
+  it('says under "Agent default" which model each agent runs, by its display name', async () => {
+    const room = {
+      getJoinedMembers: () => [{ userId: '@mindroom_assistant:example.org', name: 'Assistant' }],
+    } as unknown as Room;
+    const state = createState({
+      override: 'reset',
+      inherited: [
+        { entity: 'assistant', model: 'fast', source: 'agent' },
+        { entity: 'reviewer', model: 'legacy-key', source: 'agent' },
+      ],
+    });
+    mocks.anchors.length = 0;
+    act(() => root.render(<ModelPicker state={state} room={room} />));
+    await click(trigger());
 
-    expect(optionNamed('Room default').querySelector('.RoomDefaultDetail')?.textContent).toBe(
-      'assistant: Quick helper, reviewer: legacy-key'
-    );
+    const details = optionNamed('Agent default').querySelectorAll('.RoomDefaultDetail');
+    expect([...details].map((detail) => detail.textContent)).toEqual([
+      'Assistant: Quick helper · reviewer: legacy-key',
+      'Choosing a model here applies to this thread only.',
+    ]);
   });
 
-  it('explains "Room default" before the router names the fallback models', async () => {
-    await open(createState({ inherited: [] }));
-
-    expect(optionNamed('Room default').querySelector('.RoomDefaultDetail')?.textContent).toBe(
-      'Let each agent use its configured model.'
+  it('names a room model set with !room_model, and explains the row before the router answers', async () => {
+    await open(
+      createState({ inherited: [{ entity: 'assistant', model: 'fast', source: 'room' }] })
+    );
+    expect(optionNamed('Room model').textContent).toBe(
+      'Room modelassistant · Quick helperSet for this room with !room_model. Choosing a model here applies to this thread only.'
+    );
+    act(() => root.render(<ModelPicker state={createState({ inherited: [] })} />));
+    expect(optionNamed('Default').querySelector('.RoomDefaultDetail')?.textContent).toBe(
+      'Choosing a model here applies to this thread only.'
     );
   });
 
@@ -448,9 +471,9 @@ describe('composer model picker', () => {
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
 
     act(() => root.render(<ModelPicker state={{ ...state, override: 'default' }} />));
-    expect(optionNamed('Room default').getAttribute('aria-selected')).toBe('false');
+    expect(optionNamed('Agent default').getAttribute('aria-selected')).toBe('false');
     expect(optionNamed('Named default').getAttribute('aria-selected')).toBe('true');
-    await click(optionNamed('Room default'));
+    await click(optionNamed('Agent default'));
     expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
   });
 
@@ -561,7 +584,7 @@ describe('composer model picker', () => {
 
     expect(search()).toBeNull();
     expect(options().map((option) => option.querySelector('.OptionTitle')?.textContent)).toEqual([
-      'Room default',
+      'Agent default',
       'Quick helper',
       'Deep reasoning',
       'Named default',
@@ -993,7 +1016,7 @@ describe('composer model picker', () => {
         inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
       });
       await open(state);
-      // Neither the Room default row nor the model's own row changes what the column says.
+      // Neither the default row nor the model's own row changes what the column says.
       expect(header()).toBe('EffortSol');
       await hover('Sol');
       expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
@@ -1132,7 +1155,7 @@ describe('composer model picker', () => {
       expect(document.activeElement).toBe(list());
     });
 
-    it("shows no levels under Room default, and names each agent's model, while they differ", async () => {
+    it("shows no levels under Default, and names each agent's model, while they differ", async () => {
       await open(
         levelled({
           // Both name Low, but for different models: the thread runs at no one level.
@@ -1142,11 +1165,11 @@ describe('composer model picker', () => {
           ],
         })
       );
-      expect(header()).toBe('EffortRoom default');
+      expect(header()).toBe('EffortDefault');
       expect(column()?.textContent).toContain('No effort levels');
       expect(trigger().querySelector('[data-effort-glyph]')).toBeNull();
       const [, label] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
-      const named = 'Room default · assistant: Sol, reviewer: Luna';
+      const named = 'Default · assistant: Sol · reviewer: Luna';
       expect(document.getElementById(label!)?.textContent).toBe(named);
       expect(
         container.querySelector('[data-tooltip-label]')?.getAttribute('data-tooltip-hint')
@@ -1208,5 +1231,50 @@ describe('composer model picker', () => {
       const [, label] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
       expect(document.getElementById(label!)?.textContent).toBe('Deep reasoning');
     });
+  });
+});
+
+describe('describeDefault', () => {
+  const models = [{ key: 'opus', display_name: 'Opus', provider: 'anthropic', id: 'opus-id' }];
+  const names: Record<string, string> = { dev: 'DevAgent', analyst: 'Analyst' };
+  const nameOf = (entity: string) => names[entity] ?? entity;
+  const sourceOf = (...sources: (string | undefined)[]) =>
+    describeDefault(
+      sources.map((source, index) => ({
+        entity: `agent${index}`,
+        model: 'opus',
+        ...(source ? { source: source as 'agent' } : {}),
+      })),
+      models,
+      nameOf
+    ).source;
+
+  it.each([
+    [['agent'], 'agent'],
+    [['agent', 'agent'], 'agent'],
+    [['room', 'room'], 'room'],
+    [['room_config'], 'room'],
+    [['agent', 'room_config'], 'unknown'],
+    [['agent', undefined], 'unknown'],
+    [[undefined], 'unknown'],
+    [[], 'unknown'],
+  ])('names %j as %s', (sources, expected) => {
+    expect(sourceOf(...sources)).toBe(expected);
+  });
+
+  it("lists each agent's display name with its model, one agent as a pair", () => {
+    expect(
+      describeDefault([{ entity: 'dev', model: 'opus', source: 'agent' }], models, nameOf)
+    ).toEqual({ source: 'agent', agents: 'DevAgent · Opus', roomOverride: false });
+    expect(
+      describeDefault(
+        [
+          { entity: 'dev', model: 'opus', source: 'room' },
+          { entity: 'analyst', model: 'sol', source: 'room' },
+        ],
+        models,
+        nameOf
+      )
+    ).toEqual({ source: 'room', agents: 'DevAgent: Opus · Analyst: sol', roomOverride: true });
   });
 });

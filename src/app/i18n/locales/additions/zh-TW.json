@@ -1001,6 +1001,11 @@
         "levelIsDefault": "{{level}}，預設",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "代理程式預設",
+        "roomModel": "聊天室模型",
+        "defaultChoice": "預設",
+        "threadOnly": "在此選擇的模型只套用於此討論串。",
+        "roomOverrideThreadOnly": "已透過 !room_model 為此聊天室設定。在此選擇的模型只套用於此討論串。",
         "levels": {
           "off": "關閉",
           "minimal": "最低",

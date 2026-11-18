@@ -92,6 +92,25 @@ describe('reasoning levels on the wire', () => {
     expect(parsed?.selection).toEqual(catalog.selection);
   });
 
+  it('keeps a known source on each inherited model and drops an unknown one', () => {
+    const parsed = parseModelCatalogResponse({
+      ...catalog,
+      selection: {
+        override: null,
+        inherited: [
+          { entity: 'helper', model: 'fast', source: 'room_config' },
+          { entity: 'scout', model: 'fast', source: 'space' },
+          { entity: 'crew', model: 'fast', source: 7 },
+        ],
+      },
+    });
+    expect(parsed?.selection.inherited).toEqual([
+      { entity: 'helper', model: 'fast', source: 'room_config' },
+      { entity: 'scout', model: 'fast' },
+      { entity: 'crew', model: 'fast' },
+    ]);
+  });
+
   it.each([
     { reasoning_levels: 'high' },
     { reasoning_levels: [] },
