@@ -75,3 +75,33 @@ test('mouse dragging follows the cursor at double zoom and releases outside the 
   await page.mouse.move(500, 300);
   await expect.poll(() => transform(image)).toEqual(released);
 });
+
+test('ctrl with the wheel zooms toward the cursor, which the hint tells of', async ({ page }) => {
+  await page.goto('/e2e/fixtures/image-viewer.html');
+  const image = page.getByRole('img', { name: 'Test image' });
+  await expect(image).toBeVisible();
+  // Measured once laid out at its decoded size, which a cold dev server can lag behind.
+  await image.evaluate((element: HTMLImageElement) => element.decode());
+  // Chromium plays a Mac on a Mac, where the viewer names the command key.
+  const key = process.platform === 'darwin' ? '⌘' : 'Ctrl';
+  const hint = page.getByText(`${key} + scroll to zoom`, { exact: true });
+  await expect(hint).toBeVisible();
+
+  const start = (await image.boundingBox())!;
+  const cursor = { x: start.x + start.width * 0.25, y: start.y + start.height * 0.75 };
+  // Where the cursor sits on the picture, as a share of its width and height.
+  const spot = async () => {
+    const box = (await image.boundingBox())!;
+    return [(cursor.x - box.x) / box.width, (cursor.y - box.y) / box.height];
+  };
+  await page.mouse.move(cursor.x, cursor.y);
+  await page.keyboard.down('ControlOrMeta');
+  await page.mouse.wheel(0, -100);
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up('ControlOrMeta');
+
+  await expect.poll(async () => (await transform(image)).scale).toBeCloseTo(1.4);
+  await expect.poll(async () => (await spot())[0]).toBeCloseTo(0.25, 2);
+  await expect.poll(async () => (await spot())[1]).toBeCloseTo(0.75, 2);
+  await expect(hint).toBeHidden();
+});
