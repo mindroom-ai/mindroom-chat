@@ -23,17 +23,34 @@ import { isRecord } from '../../lib/isRecord';
 // stay outside the encrypted payload.
 
 /**
- * Messages each map keeps. A full map drops the message it heard of longest ago, and no more: the
- * readers are not told, so what they read of every other message must stay as it was.
+ * Messages each map keeps. A full map drops the message it heard of longest ago, and no more:
+ * what the readers read of every other message stays as it was, and they are told of the dropped
+ * one (`onSyncedEditForgotten`).
  */
 const REMEMBERED_LIMIT = 5000;
+
+const forgottenListeners = new Set<(messageId: string) => void>();
+
+/**
+ * Calls `listener` with each message a full map drops: what this module says of that message may
+ * differ from then on, and no event of a room tells so. Returns a function that stops it.
+ */
+export const onSyncedEditForgotten = (listener: (messageId: string) => void): (() => void) => {
+  forgottenListeners.add(listener);
+  return () => {
+    forgottenListeners.delete(listener);
+  };
+};
 
 /** Keeps `value` as the map's newest entry; a `Map` lists its entries oldest first. */
 const keepNewest = <Value>(map: Map<string, Value>, messageId: string, value: Value) => {
   map.delete(messageId);
   if (map.size >= REMEMBERED_LIMIT) {
     const [oldest] = map.keys();
-    if (oldest !== undefined) map.delete(oldest);
+    if (oldest !== undefined) {
+      map.delete(oldest);
+      forgottenListeners.forEach((listener) => listener(oldest));
+    }
   }
   map.set(messageId, value);
 };

@@ -9,7 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from './threadRecord';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
-import { getBundledThreadPreviews } from './threadBundledPreviews';
+import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { buildThreadHeaderViewModelFromRecord } from '../../threads/threadHeaderViewModel';
 import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
@@ -443,5 +443,43 @@ describe('bundled thread previews of a redacted edit', () => {
 
     expect(room.findEventById('$edit')?.isRedacted()).toBe(true);
     expect(presentation(room, root).latestReplyPreviewText).toBe('Draft answer');
+  });
+});
+
+// A reply's bundle names the edit the server had when the reply was read. A live edit is put on
+// the reply at once, and the bundle follows only when the cache writes the reply back, which no
+// event tells of: a card built in between showed the older edit's time.
+describe('the time of a reply’s newest revision', () => {
+  const edit = (id: string, ts: number): IEvent => ({
+    ...reply(id, '* Draft', ts),
+    content: {
+      msgtype: 'm.text',
+      body: '* Draft',
+      'm.new_content': { msgtype: 'm.text', body: 'Draft' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$streamed' },
+    },
+  });
+  const streamed = (bundled?: IEvent) =>
+    new MatrixEvent({
+      ...reply('$streamed', 'Thinking', 1000),
+      room_id: roomId,
+      unsigned: bundled ? { 'm.relations': { 'm.replace': bundled } } : {},
+    });
+
+  it('is that of the edit put on the reply when the bundled edit is older', () => {
+    const event = streamed(edit('$first', 2000));
+    expect(getThreadPreviewRevisionTs(event)).toBe(2000);
+
+    event.makeReplaced(new MatrixEvent({ ...edit('$second', 3000), room_id: roomId }));
+
+    expect(getThreadPreviewRevisionTs(event)).toBe(3000);
+  });
+
+  it('is that of the bundled edit when it is the newer one, and the reply’s own without an edit', () => {
+    const event = streamed(edit('$second', 3000));
+    event.makeReplaced(new MatrixEvent({ ...edit('$first', 2000), room_id: roomId }));
+
+    expect(getThreadPreviewRevisionTs(event)).toBe(3000);
+    expect(getThreadPreviewRevisionTs(streamed())).toBe(1000);
   });
 });
