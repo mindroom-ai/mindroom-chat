@@ -436,6 +436,45 @@ describe('timeline message feature', () => {
     expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
   });
 
+  it("repaints for a row's edits still to decrypt, and for those of the quiet markers beside it", async () => {
+    const encrypted = (id: string) =>
+      new MatrixEvent({
+        event_id: id,
+        type: MessageEvent.RoomMessageEncrypted,
+        room_id: '!room:example.org',
+        sender: '@alice:example.org',
+        content: {},
+      });
+    const withPendingEdit = (event: MatrixEvent, edit: MatrixEvent) =>
+      Object.assign(event, { __pendingEdits: [edit] });
+    const [messageEdit, summaryEdit, laterSummaryEdit] = [
+      '$message-edit',
+      '$summary-edit',
+      '$later-summary-edit',
+    ].map(encrypted) as [MatrixEvent, MatrixEvent, MatrixEvent];
+    const message = withPendingEdit(
+      makeEvent('$message', { threadRootId: '$thread' }) as unknown as MatrixEvent,
+      messageEdit
+    );
+    const summary = withPendingEdit(summaryEvent('$summary'), summaryEdit);
+    const laterSummary = withPendingEdit(summaryEvent('$later-summary'), laterSummaryEdit);
+    const rows = [rowFor(message), { ...rowFor(summary, 1), quietRun: [rowFor(laterSummary, 2)] }];
+    const { renderer, data, update } = await mountFeature(rows, '$thread');
+    ['$summary', '$later-summary'].forEach((id) =>
+      data.threadSummaryTimeline.markersByEventId.set(id, { first: false })
+    );
+    update();
+    // Both summaries show as markers on one row.
+    expect(summaryMarkers(renderer)).toHaveLength(2);
+    const watched = () =>
+      [messageEdit, summaryEdit, laterSummaryEdit].map((edit) =>
+        edit.listenerCount(MatrixEventEvent.Decrypted)
+      );
+    expect(watched()).toEqual([1, 1, 1]);
+    act(() => renderer.unmount());
+    expect(watched()).toEqual([0, 0, 0]);
+  });
+
   it('leaves the failed root of an open thread to the thread footer', async () => {
     const { FailedSendActions } = await import('../../messages/FailedSendActions');
     const [root, reply] = ['~root', '~reply'].map((id) => {

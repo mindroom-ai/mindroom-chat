@@ -947,7 +947,6 @@ export const useTimelineMessageFeature = ({
     wrapExpansion,
     markLiveExpansionCandidate,
     editingEventId,
-    setEditingEventId,
     expandAll,
     toggleExpandAll,
   };
