@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useZoom } from './useZoom';
+import { useZoom, type ZoomAround } from './useZoom';
 
 type Listener = (event: Event) => void;
 
@@ -39,6 +39,11 @@ class MockEventTarget {
     }
   }
 
+  // A 200 x 100 surface at (100, 50): its centre is (200, 100).
+  getBoundingClientRect() {
+    return { left: 100, top: 50, width: 200, height: 100 } as DOMRect;
+  }
+
   dispatch(type: string, event: Event) {
     this.listeners.get(type)?.forEach((listener) => listener(event));
   }
@@ -46,10 +51,12 @@ class MockEventTarget {
 
 function HookHarness({
   onUpdate,
+  onZoomAround,
 }: {
   onUpdate: (state: ReturnType<typeof useZoom>) => void;
+  onZoomAround?: ZoomAround;
 }) {
-  onUpdate(useZoom(0.2));
+  onUpdate(useZoom(0.2, undefined, undefined, onZoomAround));
   return null;
 }
 
@@ -126,6 +133,93 @@ describe('useZoom', () => {
     });
 
     expect(zoomState.isZooming).toBe(false);
+  });
+
+  it('aims a modifier wheel zoom at the cursor, step after step between renders', () => {
+    const zoomSurface = new MockEventTarget();
+    const onZoomAround = vi.fn<ZoomAround>();
+    let zoomState!: ReturnType<typeof useZoom>;
+    act(() => {
+      renderer = create(
+        React.createElement(HookHarness, {
+          onUpdate: (state) => {
+            zoomState = state;
+          },
+          onZoomAround,
+        })
+      );
+    });
+    act(() => {
+      zoomState.zoomTargetRef(zoomSurface as unknown as HTMLElement);
+    });
+    const wheel = (deltaY: number, modifier: Partial<WheelEvent>) =>
+      ({ deltaY, clientX: 250, clientY: 80, preventDefault: vi.fn(), ...modifier } as WheelEvent);
+
+    act(() => {
+      zoomSurface.dispatch('wheel', wheel(-100, { metaKey: true }));
+      zoomSurface.dispatch('wheel', wheel(-100, { ctrlKey: true }));
+      zoomSurface.dispatch('wheel', wheel(-100, {}));
+    });
+
+    expect(zoomState.zoom).toBeCloseTo(1.4);
+    expect(onZoomAround).toHaveBeenCalledTimes(2);
+    expect(onZoomAround.mock.calls[0]?.[0]).toBe(1);
+    expect(onZoomAround.mock.calls[0]?.[1]).toBeCloseTo(1.2);
+    expect(onZoomAround.mock.calls[1]?.[0]).toBeCloseTo(1.2);
+    expect(onZoomAround.mock.calls[1]?.[1]).toBeCloseTo(1.4);
+    expect(onZoomAround).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), {
+      x: 50,
+      y: -20,
+    });
+  });
+
+  it('aims a pinch at the middle of the fingers, and stays quiet at the limit', () => {
+    const zoomSurface = new MockEventTarget();
+    const onZoomAround = vi.fn<ZoomAround>();
+    let zoomState!: ReturnType<typeof useZoom>;
+    act(() => {
+      renderer = create(
+        React.createElement(HookHarness, {
+          onUpdate: (state) => {
+            zoomState = state;
+          },
+          onZoomAround,
+        })
+      );
+    });
+    act(() => {
+      zoomState.zoomTargetRef(zoomSurface as unknown as HTMLElement);
+    });
+    const touches = (spread: number) =>
+      createTouchList([
+        { clientX: 120, clientY: 60 },
+        { clientX: 120, clientY: 60 + spread },
+      ]);
+
+    act(() => {
+      zoomSurface.dispatch('touchstart', { touches: touches(20) } as unknown as TouchEvent);
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: touches(40),
+      } as unknown as TouchEvent);
+    });
+    expect(onZoomAround).toHaveBeenLastCalledWith(1, 2, { x: -80, y: -20 });
+
+    act(() => {
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: touches(400),
+      } as unknown as TouchEvent);
+      zoomSurface.dispatch('touchmove', {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        touches: touches(500),
+      } as unknown as TouchEvent);
+    });
+    expect(zoomState.zoom).toBe(5);
+    expect(onZoomAround).toHaveBeenCalledTimes(2);
   });
 
   it('clamps touch pinch zoom to the configured maximum', () => {

@@ -92,7 +92,8 @@
     "imageViewer": {
       "close": "Cerrar",
       "previous": "Imagen anterior",
-      "next": "Imagen siguiente"
+      "next": "Imagen siguiente",
+      "wheelZoomHint": "{{key}} + desplazar para hacer zoom"
     },
     "inviteUserPrompt": {
       "close": "Cerrar",

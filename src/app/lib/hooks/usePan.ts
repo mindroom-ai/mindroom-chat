@@ -60,12 +60,25 @@ export const usePan = (active: boolean) => {
     }));
   }, []);
 
+  /**
+   * Keeps the point `at` (an offset from the element's centre, its transform origin) under the
+   * cursor or fingers while the element's scale goes from `from` to `to`.
+   */
+  const zoomAround = useCallback((from: number, to: number, at: Point) => {
+    const ratio = to / from;
+    setPan((current) => ({
+      translateX: at.x - ratio * (at.x - current.translateX),
+      translateY: at.y - ratio * (at.y - current.translateY),
+    }));
+  }, []);
+
   let cursor = 'initial';
   if (active) cursor = isPanning ? 'grabbing' : 'grab';
 
   return {
     pan,
     setPan,
+    zoomAround,
     cursor,
     isPanning,
     onPointerDown,

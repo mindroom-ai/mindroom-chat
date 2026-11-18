@@ -39,6 +39,17 @@ describe('usePan', () => {
     vi.clearAllMocks();
   });
 
+  it('keeps the point it zooms around in place', () => {
+    mount();
+    act(() => state.setPan({ translateX: 10, translateY: -20 }));
+    // Content at offset (60, 20) sits 50 and 40 px from the image centre at zoom 1; at zoom 2
+    // that becomes 100 and 80, so the centre moves to (60 - 100, 20 - 80).
+    act(() => state.zoomAround(1, 2, { x: 60, y: 20 }));
+    expect(state.pan).toEqual({ translateX: -40, translateY: -60 });
+    act(() => state.zoomAround(2, 1, { x: 60, y: 20 }));
+    expect(state.pan).toEqual({ translateX: 10, translateY: -20 });
+  });
+
   it.each(['touch', 'mouse', 'pen'])('pans with %s using screen coordinates', (pointerType) => {
     mount();
     act(() => state.onPointerDown(event(1, 100, 200, pointerType)));

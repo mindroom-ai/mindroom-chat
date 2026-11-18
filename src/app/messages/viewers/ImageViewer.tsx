@@ -9,6 +9,8 @@ import { downloadMedia } from '../../matrix/matrix';
 import { saveFile } from '../../native/nativeFileSave';
 import { DOWNLOAD_MIME_TYPE } from '../content/attachmentDownload';
 import { documentIsRightToLeft, revealDirectionControls } from '../../ui/directional';
+import { isMacOS } from '../../lib/user-agent';
+import { KeySymbol } from '../../lib/key-symbol';
 import * as css from './ImageViewer.css';
 
 const ZOOM_STEP = 0.2;
@@ -142,7 +144,14 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const [downloadState, download] = useSaveMedia(src ?? '', alt);
     // The name shows its direction controls; the download keeps it as it is.
     const shownAlt = revealDirectionControls(alt);
-    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(ZOOM_STEP);
+    // A wheel or pinch zoom keeps the point under the cursor or fingers still. Only events call
+    // it, so `panning` is set by then.
+    const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(
+      ZOOM_STEP,
+      undefined,
+      undefined,
+      (from, to, at) => panning.zoomAround(from, to, at)
+    );
     const panning = usePan(zoom !== 1);
     const { pan, cursor, isPanning } = panning;
     const saving = downloadState === 'saving';
@@ -310,6 +319,20 @@ export const ImageViewer = as<'div', ImageViewerProps>(
                 <Spinner variant="Secondary" size="400" />
               )}
             </Box>
+          )}
+          {src && !onRetry && (
+            // Only with a mouse or trackpad (the CSS), and it fades after a few seconds.
+            <Text
+              as="p"
+              size="T200"
+              aria-hidden
+              className={css.ImageViewerZoomHint}
+              data-zoomed={zoom !== 1}
+            >
+              {t('sharedUi.imageViewer.wheelZoomHint', {
+                key: isMacOS() ? KeySymbol.Command : 'Ctrl',
+              })}
+            </Text>
           )}
           {paging &&
             ([-1, 1] as const).map((delta) => (

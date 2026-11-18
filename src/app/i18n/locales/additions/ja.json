@@ -86,7 +86,8 @@
     "imageViewer": {
       "close": "閉じる",
       "previous": "前の画像",
-      "next": "次の画像"
+      "next": "次の画像",
+      "wheelZoomHint": "{{key}} + スクロールでズーム"
     },
     "inviteUserPrompt": {
       "close": "閉じる",
