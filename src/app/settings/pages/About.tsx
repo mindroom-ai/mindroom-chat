@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
-import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config, toRem } from 'folds';
+import {
+  Box,
+  Button,
+  Icon,
+  IconButton,
+  Icons,
+  Spinner,
+  Switch,
+  Text,
+  color,
+  config,
+  toRem,
+} from 'folds';
 import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
 import { ViewerOverlay } from '../../messages/content/FileContent';
@@ -8,10 +20,18 @@ import { SettingTile } from '../../ui/SettingTile';
 import { TextViewer } from '../../messages/viewers/TextViewer';
 import { useClientConfig } from '../../config/useClientConfig';
 import { appUrl } from '../../lib/basePath';
+import { copyToClipboard } from '../../lib/dom';
+import { CheckIcon, CopyIcon } from '../../rich-text/code/CodeBlockIcons';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import { isNativeIOS } from '../../native/nativeSso';
+import { MacAppIcon } from '../../native/MacAppIcon';
+import {
+  MAC_APP_BREW_COMMAND,
+  MAC_APP_DOWNLOAD_URL,
+  offersMacApp,
+} from '../../native/macApp';
 import { saveFile } from '../../native/nativeFileSave';
 import { getFlightRecorderStatus } from '../../diagnostics/flightRecorder';
 import {
@@ -284,6 +304,82 @@ function TourSetting({ onStart }: { onStart: () => void }) {
   );
 }
 
+/**
+ * The Mac app, in a browser on a Mac: its disk image, and the Homebrew command that installs it,
+ * with a button that copies it. A phone's tile has no room beside its text for the download, which
+ * goes under the command there.
+ */
+function MacAppSetting() {
+  const { t } = useTranslation();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  // Undefined until a copy was tried; copyToClipboard resolves false when every clipboard failed.
+  const [copied, setCopied] = useState<boolean>();
+  const copyLabel = copied ? t('messageCodeBlock.copied') : t('featureUi.macApp.copyCommand');
+
+  const download = (
+    <Button
+      as="a"
+      href={MAC_APP_DOWNLOAD_URL}
+      target="_blank"
+      rel="noreferrer noopener"
+      size="300"
+      radii="300"
+      variant="Primary"
+      fill="Solid"
+      before={<Icon size="100" src={Icons.Download} />}
+      data-mac-app-download="about"
+    >
+      <Text size="B300">{t('featureUi.macApp.downloadDmg')}</Text>
+    </Button>
+  );
+
+  return (
+    <SettingTile
+      focusId="macApp"
+      before={<Icon size="200" src={MacAppIcon} />}
+      title={t('featureUi.macApp.title')}
+      description={t('featureUi.macApp.text')}
+      after={phone ? undefined : download}
+    >
+      <Box direction="Column" alignItems="Start" gap="200">
+        <Box
+          alignItems="Center"
+          gap="200"
+          style={{
+            maxWidth: '100%',
+            paddingInlineStart: config.space.S300,
+            paddingInlineEnd: config.space.S100,
+            paddingBlock: config.space.S100,
+            borderRadius: config.radii.R300,
+            backgroundColor: color.Background.Container,
+          }}
+        >
+          <Text
+            as="code"
+            size="T200"
+            className="selectable"
+            style={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}
+          >
+            {MAC_APP_BREW_COMMAND}
+          </Text>
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Background"
+            fill="None"
+            aria-label={copyLabel}
+            data-mac-app-copy-brew=""
+            onClick={() => void copyToClipboard(MAC_APP_BREW_COMMAND).then(setCopied)}
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+          </IconButton>
+        </Box>
+        {phone ? download : null}
+      </Box>
+    </SettingTile>
+  );
+}
+
 type AboutProps = {
   requestClose: () => void;
   /**
@@ -477,6 +573,7 @@ export function About({ requestClose, closeDialog }: AboutProps) {
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
       <AboutSection title={t('featureUi.settings.about.options')}>
+        {offersMacApp() && <MacAppSetting />}
         <DebugModeSetting
           enabled={debugMode}
           keepRecorders={nativeDiagnostics}

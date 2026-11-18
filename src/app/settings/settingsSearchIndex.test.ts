@@ -29,6 +29,7 @@ const WEB: SettingsContext = {
   developerTools: false,
   errorReporting: false,
   railButtons: { threads: true, explore: true, createSpace: true, search: true },
+  macApp: false,
 };
 
 const ids = (query: string, translate = english) =>

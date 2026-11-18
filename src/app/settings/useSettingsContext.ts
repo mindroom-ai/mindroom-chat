@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
+import { offersMacApp } from '../native/macApp';
 import { isNativeIOS } from '../native/nativeSso';
 import { getDebugModeEnabled } from '../diagnostics/debugMode';
 import { useOfferedRailButtons } from './railButtons';
@@ -31,5 +32,6 @@ export const useSettingsContext = (): SettingsContext => {
     developerTools,
     errorReporting,
     railButtons,
+    macApp: offersMacApp(),
   };
 };
