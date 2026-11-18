@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { isLongAgentReply, splitFinishedWork } from './finishedWorkSplit';
+import { foldFinishedWork, splitFinishedWork } from './finishedWorkSplit';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../html/react-custom-html-parser';
 
@@ -132,40 +132,85 @@ describe('splitFinishedWork', () => {
   });
 });
 
-describe('isLongAgentReply', () => {
-  const textMarker = (name: string, n: number, pending = false) =>
-    `🔧 \`${name}\` [${n}]${pending ? ' ⏳' : ''}`;
+describe('foldFinishedWork', () => {
+  const note = (n: number) => `Note ${n} on what the calls found.`;
+  /** A reply of runs of calls with a note after each, then an answer of `answer` short lines. */
+  const reply = (runs: number[], answer: number, toolCallsShown = true, seamRows = 0) => {
+    let call = 0;
+    const html: string[] = ['<p>Intro.</p>'];
+    const body: string[] = ['Intro.'];
+    runs.forEach((size, run) => {
+      Array.from({ length: size }).forEach(() => {
+        call += 1;
+        html.push(marker('shell', call));
+        body.push(`🔧 \`shell\` [${call}]`);
+      });
+      if (run < runs.length - 1) {
+        html.push(`<p>${note(run)}</p>`);
+        body.push(note(run));
+      }
+    });
+    const lines = Array.from({ length: answer }, (_, n) => `Answer line ${n}.`);
+    html.push(...lines.map((line) => `<p>${line}</p>`));
+    body.push(...lines);
+    return foldFinishedWork(
+      body.join('\n\n'),
+      html.join('\n'),
+      baseOpts,
+      {},
+      toolCallsShown,
+      seamRows
+    );
+  };
 
-  it('is long from 6000 characters on', () => {
-    expect(isLongAgentReply('a'.repeat(5999))).toBe(false);
-    expect(isLongAgentReply('a'.repeat(6000))).toBe(true);
+  // Work rows: the intro, a row per run of calls shown, a note between runs, and the cog's own row
+  // while the calls are hidden (`seamRows`, as the caller counts it).
+  it.each([
+    [
+      '19 calls in 6 runs with notes and a short answer (12 rows)',
+      [4, 3, 3, 3, 3, 3],
+      3,
+      true,
+      true,
+    ],
+    ['the same with its calls hidden (7 rows)', [4, 3, 3, 3, 3, 3], 3, false, false],
+    ['one run of 100 calls and a long answer', [100], 40, true, false],
+    ['one run of 100 calls and a long answer, its calls hidden', [100], 40, false, false],
+    ['2 calls and one line of answer', [2], 1, true, false],
+    ['8 rows of work under an answer over 3 times as long', [1, 1, 1, 1], 25, true, false],
+    ['8 rows of work and an answer 3 times as long', [1, 1, 1, 1], 24, true, true],
+    ['14 rows of work and a huge answer', [1, 1, 1, 1, 1, 1, 1], 500, true, true],
+    [
+      '13 rows of work with its calls hidden and a huge answer',
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      500,
+      false,
+      true,
+    ],
+  ])('%s', (_name, runs, answer, toolCallsShown, folds) => {
+    expect(reply(runs, answer, toolCallsShown, toolCallsShown ? 0 : 1) !== undefined).toBe(folds);
   });
 
-  it('counts each tool marker line as 80 characters, as it renders as a full row', () => {
-    const line = textMarker('shell', 1);
-    expect(line.length).toBeLessThan(80);
-    // 5999 - 80 - 1 (the newline) = 5918 characters of text and one marker: 5999 in all.
-    expect(isLongAgentReply(`${'a'.repeat(5918)}\n${line}`)).toBe(false);
-    expect(isLongAgentReply(`${'a'.repeat(5919)}\n${line}`)).toBe(true);
-    // 75 markers and their 74 newlines: 75 * 80 + 74 = 6074.
-    const markers = Array.from({ length: 75 }, (_, i) => textMarker('read_file', i + 1));
-    expect(markers.join('\n').length).toBeLessThan(6000);
-    expect(isLongAgentReply(markers.join('\n'))).toBe(true);
+  it('counts the reasoning line and the compaction seams as work', () => {
+    expect(reply([1, 1, 1], 2)).toBeUndefined();
+    expect(reply([1, 1, 1], 2, true, 2)?.tail).toContain('Answer line 0.');
   });
 
-  it('weights a marker line with a long tool name as 80 characters too', () => {
-    const line = textMarker('x'.repeat(200), 1);
-    expect(isLongAgentReply(`${'a'.repeat(5000)}\n${line}`)).toBe(false);
+  it('counts a long line as a row per 100 characters', () => {
+    const long = 'a'.repeat(450);
+    const html = `<p>${long}</p>${marker('shell', 1)}<p>Done.</p>`;
+    const fold = (seamRows: number) =>
+      foldFinishedWork(`${long}\n\n🔧 \`shell\` [1]\n\nDone.`, html, baseOpts, {}, true, seamRows);
+    // 5 rows of text and 1 of the call.
+    expect(fold(1)).toBeUndefined();
+    expect(fold(2)).toEqual({ head: `<p>${long}</p>${marker('shell', 1)}`, tail: '<p>Done.</p>' });
   });
 
-  it('counts a pending marker, with its hourglass, as a marker', () => {
-    const line = textMarker('shell', 1, true);
-    expect(isLongAgentReply(`${'a'.repeat(5918)}\n${line}`)).toBe(false);
-    expect(isLongAgentReply(`${'a'.repeat(5919)}\n${line}`)).toBe(true);
-  });
-
-  it('counts a marker inside a line of text as text', () => {
-    const line = `see ${textMarker('shell', 1)} here`;
-    expect(isLongAgentReply(`${'a'.repeat(5999 - line.length - 1)}\n${line}`)).toBe(false);
+  it('skips the split while the whole body has fewer than 8 rows', () => {
+    const html = Array.from({ length: 9 }, (_, n) => `<p>${note(n)}</p>${marker('a', n + 1)}`);
+    const fold = (body: string) =>
+      foldFinishedWork(body, `${html.join('')}<p>Done.</p>`, baseOpts, {}, true, 0);
+    expect(fold('short')).toBeUndefined();
+    expect(fold('line\n'.repeat(8))?.tail).toBe('<p>Done.</p>');
   });
 });

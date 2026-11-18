@@ -5,6 +5,8 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent } from 'matrix-js-sdk';
+import { getDefaultStore } from 'jotai';
+import { getSettings, settingsAtom } from '../../preferences/settings';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
@@ -138,32 +140,33 @@ const toolTrace = (...toolNames: string[]) => ({
   })),
 });
 
-/** The plain body of a reply with two tool calls, `length` characters long with its markers. */
-const bodyOf = (length: number) => {
-  const lines = [
-    'Let me look.',
-    '',
-    '🔧 `web_search` [1]',
-    '',
-    'Now the file.',
-    '',
-    '🔧 `read_file` [2]',
-  ];
-  // Each line and its newline, a marker line counted as 80 characters, then the blank line's.
-  const counted = lines.reduce((n, line) => n + (line.startsWith('🔧') ? 80 : line.length) + 1, 1);
-  return [...lines, '', 'The answer.'.padEnd(length - counted, ' More.')].join('\n');
-};
-const LONG_BODY = bodyOf(6000);
-const SHORT_BODY = bodyOf(5999);
+/**
+ * The work of a reply that searched and read a file, `rows` rows of it (`foldFinishedWork`): its
+ * notes, a row per call, and the line between the calls.
+ */
+const workHtml = (rows: number) =>
+  [
+    ...Array.from({ length: rows - 3 }, (_, n) => (n === 0 ? 'Let me look.' : `Step ${n}.`)).map(
+      (note) => `<p>${note}</p>`
+    ),
+    marker('web_search', 1),
+    '<p>Now the file.</p>',
+    marker('read_file', 2),
+  ].join('');
+// Enough work to fold by default, with a short answer.
+const WORK = workHtml(8);
+// A plain body of as many rows, which bounds the work's.
+const BODY = 'Placeholder line.\n'.repeat(9);
+// Too few rows to fold, in its plain body and its HTML.
+const SHORT_BODY =
+  'Let me look.\n\n🔧 `web_search` [1]\n\nNow the file.\n\n🔧 `read_file` [2]\n\nThe answer.';
+const SHORT_HTML = `${workHtml(4)}<p>The answer.</p>`;
 
-/** A reply that searched, read a file, then answered, long enough to fold by default. */
+/** A reply that searched, read a file, then answered, with enough work to fold by default. */
 const reply = (
   status: string | undefined,
-  html = `<p>Let me look.</p>${marker('web_search', 1)}<p>Now the file.</p>${marker(
-    'read_file',
-    2
-  )}<p>The answer.</p>`,
-  body = LONG_BODY
+  html = `${WORK}<p>The answer.</p>`,
+  body = BODY
 ): Record<string, unknown> => ({
   msgtype: 'm.text',
   body,
@@ -263,9 +266,7 @@ describe('finished agent work', () => {
   it("keeps a link of the deployment's extra scheme in the folded answer", () => {
     clientConfig = { messageRendering: { additionalAllowedUriSchemes: ['obsidian'] } };
     const link = '<a href="obsidian://open?vault=Notes">Open notes</a>';
-    render(
-      reply('completed', `<p>Let me look.</p>${marker('web_search', 1)}<p>The answer: ${link}</p>`)
-    );
+    render(reply('completed', `${WORK}<p>The answer: ${link}</p>`));
 
     expect(text()).not.toContain('Let me look.');
     const anchor = renderer!.root.find((node) => node.type === 'a');
@@ -336,16 +337,27 @@ describe('finished agent work', () => {
     expect(text()).not.toContain('Let me look.');
   });
 
-  it('folds a finished reply of 6000 characters, its tool markers counted as 80', () => {
-    expect(LONG_BODY.length).toBeLessThan(6000);
-    render(reply('completed', undefined, LONG_BODY));
-
+  it('folds a finished reply from 8 rows of work on', () => {
+    render(reply('completed', `${workHtml(8)}<p>The answer.</p>`));
     expect(text()).toContain('Worked for 2m 13s');
     expect(text()).not.toContain('Let me look.');
+
+    render(reply('completed', `${workHtml(7)}<p>The answer.</p>`));
+    expect(text()).not.toContain('Worked');
+    expect(text()).toContain('Let me look.');
+  });
+
+  it('counts the cog of hidden tool calls as one row, and their runs as none', () => {
+    getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: false });
+    render(reply('completed', `${workHtml(8)}<p>The answer.</p>`));
+    expect(text()).not.toContain('Worked');
+
+    render(reply('completed', `${workHtml(9)}<p>The answer.</p>`));
+    expect(text()).toContain('Worked for 2m 13s');
   });
 
   it('does not fold a shorter finished reply with tool calls', () => {
-    render(reply('completed', undefined, SHORT_BODY));
+    render(reply('completed', SHORT_HTML, SHORT_BODY));
 
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
@@ -361,10 +373,10 @@ describe('finished agent work', () => {
   });
 
   it('keeps a short reply in place when it finishes on screen', () => {
-    render(reply('streaming', undefined, SHORT_BODY));
+    render(reply('streaming', SHORT_HTML, SHORT_BODY));
     const before = firstParagraph();
 
-    render(reply('completed', undefined, SHORT_BODY));
+    render(reply('completed', SHORT_HTML, SHORT_BODY));
     expect(text()).not.toContain('Worked');
     expect(firstParagraph()).toBe(before);
   });
@@ -453,7 +465,7 @@ describe('finished agent work', () => {
   it('does not split a short reply', () => {
     vi.mocked(splitFinishedWork).mockClear();
 
-    render(reply('completed', undefined, SHORT_BODY));
+    render(reply('completed', SHORT_HTML, SHORT_BODY));
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
     expect(splitFinishedWork).not.toHaveBeenCalled();
