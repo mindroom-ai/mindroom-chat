@@ -59,7 +59,6 @@ vi.mock('./ModelPicker.css', () => ({
   TextButton: 'TextButton',
   Trigger: 'Trigger',
   TriggerDivider: 'TriggerDivider',
-  TriggerIcon: 'TriggerIcon',
   VisuallyHidden: 'VisuallyHidden',
 }));
 
@@ -125,6 +124,12 @@ vi.mock('../ui/glass/GlassPrimitives', () => ({
       </div>
     )
   ),
+  IconButton: React.forwardRef<
+    HTMLButtonElement,
+    React.ButtonHTMLAttributes<HTMLButtonElement> & Record<'variant' | 'radii' | 'size', string>
+  >(({ variant: _variant, radii: _radii, size: _size, ...props }, ref) => (
+    <button ref={ref} {...props} />
+  )),
 }));
 
 vi.mock('../ui/IconTooltip', () => ({

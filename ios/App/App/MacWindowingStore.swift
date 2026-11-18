@@ -152,6 +152,9 @@ enum MacWindowing {
     static func displayID(of window: NSObject) -> UInt32? { support?.displayID(of: window)?.uint32Value }
     static func rememberFrontProcess() { support?.rememberFrontProcess() }
     static func followFrontProcess() { support?.followFrontProcess() }
+    static func monitorMouseButtons(_ handler: @escaping (NSObject?, Int, Bool) -> Bool) {
+        support?.monitorMouseButtons(handler)
+    }
 
     static func installHotKey(_ action: @escaping () -> Void) {
         if support?.installHotKey(action) != true {

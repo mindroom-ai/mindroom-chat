@@ -2,7 +2,7 @@ import { Line } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { MacAppIcon } from '../../native/MacAppIcon';
-import { MAC_APP_DOWNLOAD_URL, useOffersMacApp } from '../../native/macApp';
+import { useMacAppDownloadUrl, useOffersMacApp } from '../../native/macApp';
 
 /**
  * Home's menu entry that downloads the Mac app, at the end of the menu after a line, where the
@@ -10,7 +10,9 @@ import { MAC_APP_DOWNLOAD_URL, useOffersMacApp } from '../../native/macApp';
  */
 export function MacAppMenuEntry({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  if (!useOffersMacApp()) return null;
+  const offered = useOffersMacApp();
+  const downloadUrl = useMacAppDownloadUrl(offered);
+  if (!offered) return null;
   return (
     <>
       <Line variant="Surface" size="300" />
@@ -21,7 +23,7 @@ export function MacAppMenuEntry({ onClose }: { onClose: () => void }) {
           data-mac-app-download="menu"
           onSelect={() => {
             onClose();
-            window.open(MAC_APP_DOWNLOAD_URL, '_blank', 'noopener,noreferrer');
+            window.open(downloadUrl, '_blank', 'noopener,noreferrer');
           }}
         />
       </MenuGroup>

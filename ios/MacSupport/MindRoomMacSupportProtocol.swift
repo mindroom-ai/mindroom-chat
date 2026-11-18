@@ -14,6 +14,7 @@ protocol MindRoomMacSupportProtocol: NSObjectProtocol {
     func displayID(of window: NSObject) -> NSNumber?
     func rememberFrontProcess()
     func followFrontProcess()
+    func monitorMouseButtons(_ handler: @escaping (NSObject?, Int, Bool) -> Bool)
     var lastFrontProcess: Int32 { get }
     func installHotKey(_ action: @escaping () -> Void) -> Bool
     func windowOrder() -> [NSNumber]

@@ -9,6 +9,7 @@ import Foundation
 final class MindRoomMacSupport: NSObject, MindRoomMacSupportProtocol {
     private let frameName = "MindRoomQuickCapture"
     private var frontObserver: NSObjectProtocol?
+    private var mouseMonitor: Any?
     private var hotKey: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
     private var hotKeyAction: (() -> Void)?
@@ -18,6 +19,7 @@ final class MindRoomMacSupport: NSObject, MindRoomMacSupportProtocol {
         if let hotKey { UnregisterEventHotKey(hotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }
         if let frontObserver { NSWorkspace.shared.notificationCenter.removeObserver(frontObserver) }
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
     }
 
     func window(titled title: String) -> NSObject? {
@@ -122,6 +124,13 @@ final class MindRoomMacSupport: NSObject, MindRoomMacSupportProtocol {
             guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   application.processIdentifier != getpid() else { return }
             self?.lastFrontProcess = application.processIdentifier
+        }
+    }
+
+    func monitorMouseButtons(_ handler: @escaping (NSObject?, Int, Bool) -> Bool) {
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown, .otherMouseUp]) { event in
+            handler(event.window, event.buttonNumber, event.type == .otherMouseUp) ? nil : event
         }
     }
 
