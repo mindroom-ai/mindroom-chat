@@ -20,6 +20,7 @@ vi.mock('./app/diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: vi.fn(),
   recordDeepTraceEvent: vi.fn(),
 }));
+vi.mock('./app/diagnostics/memorySampler', () => ({ startMemorySampler: vi.fn() }));
 vi.mock('./app/account/lifecycle/indexedDbLossRecovery', () => ({
   installIndexedDbLossRecovery: vi.fn(),
   readRecoveryReloadAge: () => undefined,

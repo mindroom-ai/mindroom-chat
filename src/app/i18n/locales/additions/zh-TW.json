@@ -404,7 +404,7 @@
         "thirdPartyNotices": "第三方聲明",
         "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。",
         "debugMode": "除錯模式",
-        "debugModeDescription": "在此裝置上記錄診斷資訊，以便匯出並開啟深度診斷追蹤。"
+        "debugModeDescription": "在輸入框的 + 選單中加入「附加應用程式記錄」，以便在訊息中傳送此裝置的診斷資訊。如需包含記憶體數據和詳細追蹤，請在下方開啟深度診斷追蹤。"
       }
     },
     "createChat": {
@@ -967,6 +967,8 @@
     "emoji": "表情符號",
     "cancelReply": "取消回覆",
     "moreActions": "更多操作",
+    "attachMenu": "附加",
+    "attachAppLogs": "附加應用程式記錄",
     "lostFiles": "未隨此草稿保留：{{files}}。傳送前請重新附加。",
     "lostPastes": "貼上的文字未隨此草稿保留。傳送前請重新貼上。",
     "dismissLostFiles": "關閉",

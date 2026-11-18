@@ -42,7 +42,8 @@ src/
     preferences/         user settings (settings atom, useSetting), the settings catalog, account settings
     routes/              URL schema: paths, path helpers, search params, deep links, route restore, "is selected" hooks
     shortcuts/           shortcut registry, key labels, useShortcut, DOM helpers
-    diagnostics/         flight recorder, deep trace, trace schema, timeline debug probes, SDK debug logging, export
+    diagnostics/         debug mode, flight recorder, deep trace and its memory samples, trace schema, timeline debug
+                         probes, SDK debug logging, export
     native/              Capacitor layer: platform checks, native sign-in, Cloudflare Access, file save, App Store scenes
     ui/                  the design system: dialogs, menus, tooltips, setting tiles, glass/, nav/, page/, panels/,
                          settings/ (settings page kit), sidebar/ (rail items), splash/, media/, particle-background/,

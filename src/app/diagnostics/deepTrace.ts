@@ -241,6 +241,7 @@ const STATIC_EVENT_NAMES = new Set([
   'lifecycle.pagehide',
   'lifecycle.pageshow',
   'lifecycle.visible',
+  'memory.sample',
   'network.offline',
   'network.online',
   'performance.event_loop_stall',

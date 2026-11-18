@@ -116,14 +116,14 @@ describe('settings registry', () => {
     expect(getShownSettings({ ...WEB, errorReporting: true }).map((s) => s.id)).toContain(
       'errorReports'
     );
-    // Debug mode outside the iOS app; the diagnostics wherever they record.
+    // Debug mode everywhere, the iOS app included; the diagnostics wherever they record.
     expect(webSettings).toContain('debugMode');
     expect(webSettings).not.toContain('diagnosticsExport');
     expect(getShownSettings({ ...WEB, diagnostics: true }).map((s) => s.id)).toEqual(
       expect.arrayContaining(['debugMode', 'diagnosticsExport', 'deepTrace'])
     );
-    expect(getShownSettings({ ...app, diagnostics: true }).map((s) => s.id)).not.toContain(
-      'debugMode'
+    expect(getShownSettings({ ...app, diagnostics: true }).map((s) => s.id)).toEqual(
+      expect.arrayContaining(['debugMode', 'diagnosticsExport', 'deepTrace'])
     );
   });
 

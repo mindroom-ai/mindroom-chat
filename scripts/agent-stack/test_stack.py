@@ -88,6 +88,50 @@ class ConfigTests(unittest.TestCase):
         ):
             self.assertIn(f"{tag}:", script)
 
+    def test_live_config_runs_a_plain_helper_on_luna_with_haiku_beside_it(self) -> None:
+        config = stack.config_yaml("live", TESTER, STUB_URL, 0.0003)
+        self.assertIn("  default:\n    provider: openai\n    id: gpt-6-luna\n", config)
+        self.assertIn("  haiku:\n    provider: anthropic\n    id: claude-haiku-5-5\n", config)
+        self.assertIn("router:\n  model: default\n", config)
+        self.assertIn("  thread_summary_model: default\n", config)
+        self.assertIn('      - "You are a helpful assistant in a throwaway MindRoom test deployment."\n', config)
+        self.assertIn("      - thread_model\n", config)
+        # No hashtag script, no stub.
+        self.assertNotIn("#slow", config)
+        self.assertNotIn(STUB_URL, config)
+        self.assertNotIn("  scout:", config)
+
+    def test_a_live_stack_needs_only_the_openai_key(self) -> None:
+        args = up_args(checkout=None, ref=None, transcription="stub", model="live")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, "ANTHROPIC_API_KEY": "a"}, clear=True),
+            mock.patch.object(stack, "resolve_checkout", return_value=Path("/checkout")),
+            mock.patch.object(stack, "resolve_commit", return_value="abc"),
+            mock.patch.object(stack, "commit_has", return_value=False),
+            mock.patch.object(stack, "http_json", return_value=(200, {})),
+            self.assertRaises(stack.StackError) as raised,
+        ):
+            stack.up(5, args)
+        self.assertEqual(raised.exception.code, stack.EXIT_NO_KEYS)
+        self.assertIn("--model live needs OPENAI_API_KEY", str(raised.exception))
+
+    def test_a_live_stacks_default_model_is_priced_as_luna(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            line = 'LLM usage {"model_name": "default", "model_id": "gpt-6-luna", "uncached_input_tokens": 1000000}'
+            (Path(directory) / "backend.log").write_text(line + "\n")
+            summary = stack.usage_summary({"model": "live"}, Path(directory))
+        self.assertEqual(summary["models"]["default"]["usd"], 0.1)
+
+    def test_the_default_checkout_is_the_first_that_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            second = Path(directory) / "b"
+            second.mkdir()
+            with mock.patch.object(stack, "CHECKOUT_CANDIDATES", (str(Path(directory) / "a"), str(second))):
+                self.assertEqual(stack.default_checkout(), str(second))
+                second.rmdir()
+                self.assertEqual(stack.default_checkout(), str(Path(directory) / "a"))
+
     def test_a_key_in_the_environment_never_reaches_the_config(self) -> None:
         with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-secret", "OPENAI_API_KEY": "sk-two"}):
             config = stack.config_yaml("real", TESTER, STUB_URL, 0.0003)

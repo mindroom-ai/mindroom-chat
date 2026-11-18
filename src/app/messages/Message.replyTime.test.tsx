@@ -26,6 +26,11 @@ vi.mock('../event-store/threads/useThreadPinning', () => ({
 }));
 vi.mock('../bug-reports/MessageBugReportItem', () => ({ MessageBugReportItem: () => null }));
 vi.mock('../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
+// The dialog needs a layout jsdom lacks; the info button's aria-expanded says it opened.
+vi.mock('../ui/ModalLayer', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../ui/ModalLayer')>()),
+  ModalLayer: () => null,
+}));
 vi.mock('./Time.css', () => ({ ReplyTime: 'ReplyTime', Fold: 'Fold', FoldText: 'FoldText' }));
 
 const loadMessage = async () => (await import('./Message')).Message;
@@ -33,7 +38,14 @@ importBeforeTests(loadMessage);
 
 const START = new Date(2026, 2, 5, 10, 4, 12).getTime();
 
-const renderMessage = async (layout: MessageLayout, replyTiming?: ReplyTiming) => {
+const PLAIN = { msgtype: 'm.text', body: 'Done' };
+const WITH_RUN = { ...PLAIN, 'io.mindroom.ai_run': { version: 1, status: 'completed' } };
+
+const renderMessage = async (
+  layout: MessageLayout,
+  replyTiming?: ReplyTiming,
+  content: Record<string, unknown> = PLAIN
+) => {
   const Message = await loadMessage();
   render(
     <Message
@@ -41,7 +53,7 @@ const renderMessage = async (layout: MessageLayout, replyTiming?: ReplyTiming) =
       mEvent={
         {
           threadRootId: undefined,
-          getContent: () => ({ msgtype: 'm.text', body: 'Done' }),
+          getContent: () => content,
           getId: () => '$event',
           getSender: () => '@mindroom_helper:example.org',
           getTs: () => START,
@@ -127,5 +139,49 @@ describe("an agent reply's header time", () => {
     });
     expect(time.hasAttribute('data-open')).toBe(true);
     expect(screen.queryByRole('button', { name: 'Reply' })).toBeNull();
+  });
+
+  it('opens the reply details on a click with a hovering pointer, staying folded', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(hover: hover)',
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);
+    await act(async () => {
+      fireEvent.click(time);
+    });
+    const details = screen.getByRole('button', { name: 'Reply details' });
+    expect(details.getAttribute('aria-expanded')).toBe('true');
+    expect(time.hasAttribute('data-open')).toBe(false);
+  });
+
+  it('unfolds on a tap on a touchscreen whose primary pointer hovers', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(hover: hover)',
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);
+    await act(async () => {
+      // jsdom has no PointerEvent, so the press is a MouseEvent with a pointer type.
+      const down = new MouseEvent('pointerdown', { bubbles: true, button: 0 });
+      Object.defineProperty(down, 'pointerType', { value: 'touch' });
+      time.dispatchEvent(down);
+      fireEvent.click(time);
+    });
+    expect(time.hasAttribute('data-open')).toBe(true);
+    const details = screen.getByRole('button', { name: 'Reply details' });
+    expect(details.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps unfolding on a tap, with the reply details on its button', async () => {
+    const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);
+    await act(async () => {
+      fireEvent.click(time);
+    });
+    expect(time.hasAttribute('data-open')).toBe(true);
+    const details = screen.getByRole('button', { name: 'Reply details' });
+    expect(details.getAttribute('aria-expanded')).toBe('false');
   });
 });
