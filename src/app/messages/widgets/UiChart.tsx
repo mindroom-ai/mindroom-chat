@@ -380,7 +380,9 @@ function CartesianPlot({
     format
   );
   const count = chart.labels.length;
-  const every = labelStep(count, plotWidth);
+  // Short labels sit closer together than the 48 px a long one needs.
+  const longest = Math.max(...chart.labels.map((label) => [...label].length));
+  const every = labelStep(count, plotWidth, Math.min(48, Math.max(24, longest * 6.5 + 10)));
   const seriesCount = chart.series.length;
   const group = band * 0.72;
   const barWidth = group / seriesCount;

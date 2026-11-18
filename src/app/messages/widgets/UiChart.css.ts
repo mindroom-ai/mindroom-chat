@@ -212,7 +212,7 @@ globalStyle(`${Table} thead th`, {
 
 globalStyle(`${Table} tbody th`, { fontWeight: 400 });
 
-globalStyle(`${Table} td`, { textAlign: 'end' });
+globalStyle(`${Table} td, ${Table} thead th + th`, { textAlign: 'end' });
 
 globalStyle(`${Table} tr:last-child > *`, { borderBlockEnd: 0 });
 

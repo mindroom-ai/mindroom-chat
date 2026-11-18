@@ -116,7 +116,7 @@ describe('UiChart', () => {
     expect(svg?.getAttribute('width')).toBe('390');
     const shown = [...svg!.querySelectorAll('text')].filter((t) => /^D\d+$/.test(t.textContent!));
     expect(shown.length).toBeGreaterThan(1);
-    expect(shown.length).toBeLessThanOrEqual(8);
+    expect(shown.length).toBeLessThanOrEqual(10);
     expect(screen.queryByText('Chart')).toBeNull();
   });
 
