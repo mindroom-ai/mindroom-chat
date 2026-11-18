@@ -924,6 +924,38 @@ describe('composer model picker', () => {
       expect(list()).toBeNull();
     });
 
+    it("resets the current model's row to its default level with one command", async () => {
+      const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+      await open(state);
+      await click(optionNamed('Sol'));
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol');
+    });
+
+    it("resets the current model's level with Enter on its row", async () => {
+      const state = levelled({ override: 'sol', reasoning: 'low' });
+      await open(state);
+      await keyDown(list()!, 'Enter');
+      expect(state.selectModel).toHaveBeenCalledTimes(1);
+      expect(state.selectModel).toHaveBeenCalledWith('sol');
+    });
+
+    it('only closes on the current model row while it runs at its default level', async () => {
+      const state = levelled({ override: 'sol' });
+      await open(state);
+      await click(optionNamed('Sol'));
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it('checks the default level and still marks it Default', async () => {
+      await open(levelled({ override: 'sol' }));
+      const high = radio('High, default');
+      expect(high.getAttribute('aria-checked')).toBe('true');
+      expect(high.querySelector('.Check')).not.toBeNull();
+      expect(high.querySelector('.EffortDefault')?.textContent).toBe('Default');
+    });
+
     it('applies a model row at its default level, as before', async () => {
       const state = levelled({ override: 'sol', reasoning: 'xhigh' });
       await open(state);

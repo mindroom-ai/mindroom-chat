@@ -122,7 +122,7 @@ export function ModelEffortColumn({
                 onClick={() => !disabled && onPick(effort, level)}
               >
                 <span className={css.EffortLabel}>{label}</span>
-                {isDefault && !checked && (
+                {isDefault && (
                   <span className={css.EffortDefault} aria-hidden="true">
                     {t('mindroomUi.models.modelPicker.defaultLevel')}
                   </span>
