@@ -24,7 +24,7 @@ import {
 import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
+import { TUploadItem, Upload } from '../matrix/state/upload';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { TUploadContent } from '../matrix/matrix';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
@@ -34,7 +34,6 @@ import {
   MAX_EVENT_CONTENT_BYTES,
 } from '../matrix/protocol/longText';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
-import { withCurrentSpoiler } from '../matrix/send/msgContent';
 import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
@@ -70,11 +69,6 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
-  /**
-   * Each file's event content as built for its upload, without relation or marker, and the item
-   * it was built from. The spoiler flag, which the board changes, is applied as the file goes out.
-   */
-  preparedContent: Map<TUploadContent, PreparedContent>;
   onUploadSent?: (file: TUploadContent) => void;
   /** What the session uses of the composer that started it, taken at Send. */
   composer: SessionComposer;
@@ -87,8 +81,6 @@ type SendSession = RoomInputSendSessionState & {
    */
   originThreadView?: boolean;
 };
-
-type PreparedContent = { item: TUploadItem; mxc: string; content: IContent };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
 
@@ -295,7 +287,6 @@ const createSendSession = (
   signalBridgedRoom: context.signalBridgedRoom,
   forkStart: context.forkStart,
   replyCleared: false,
-  preparedContent: new Map(),
   ...createRoomInputSendSessionState({
     files,
     hasText: Boolean(fields.textContent),
@@ -404,105 +395,6 @@ const getSessionUploads = (session: SendSession): [Upload[], TUploadContent[]] =
   const { staged, enrolled, uploads } = session.composer.attachments.snapshot(session.roomId);
   const activeFiles = new Set([...staged, ...enrolled].map((fileItem) => fileItem.file));
   return [session.uploads ?? uploads, Array.from(activeFiles)];
-};
-
-const findSessionFileItem = (session: SendSession, file: TUploadContent) => {
-  const { staged, enrolled } = session.composer.attachments.snapshot(session.roomId);
-  return staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
-};
-
-/**
- * Whether content built from item `built` holds for item `current`: the board replaces an item to
- * set its spoiler flag (`withCurrentSpoiler` applies it at send time), which needs no new build.
- */
-const hasSameBuildInputs = (built: TUploadItem, current: TUploadItem | undefined): boolean =>
-  built === current ||
-  (current !== undefined &&
-    built.file === current.file &&
-    built.originalFile === current.originalFile &&
-    built.encInfo === current.encInfo &&
-    built.metadata.mindroomPasteAttachment === current.metadata.mindroomPasteAttachment &&
-    built.metadata.voiceMessage === current.metadata.voiceMessage);
-
-/** The content built for the file's current item and upload, if it is still that. */
-const getPreparedContent = (
-  session: SendSession,
-  file: TUploadContent,
-  mxc: string
-): PreparedContent | undefined => {
-  const prepared = session.preparedContent.get(file);
-  return prepared?.mxc === mxc &&
-    hasSameBuildInputs(prepared.item, findSessionFileItem(session, file))
-    ? prepared
-    : undefined;
-};
-
-/** The session's files still to go, in order, and the uploads they wait for. */
-const getPendingSessionFiles = (session: SendSession) => {
-  const [uploads, activeFiles] = getSessionUploads(session);
-  const pending = session.orderedFiles.filter(
-    (file) => activeFiles.includes(file) && !session.sentFiles.has(file)
-  );
-  return { uploads, pending };
-};
-
-/**
- * Builds the event content of every file the session can send now before the first of them goes
- * out (a picture or video decodes a frame and uploads its thumbnail): MindRoom holds a submission
- * only a few seconds after its last event, so its events go out back to back. A file whose content
- * fails to build fails as its send would. A file whose item changed builds again. True when it
- * built or failed a file.
- */
-const prepareSessionFiles = async (session: SendSession): Promise<boolean> => {
-  const before = getPendingSessionFiles(session);
-  const toBuild = before.uploads.flatMap((upload) => {
-    const item = findSessionFileItem(session, upload.file);
-    return item &&
-      upload.status === UploadStatus.Success &&
-      before.pending.includes(upload.file) &&
-      !session.failedFiles.has(upload.file) &&
-      !getPreparedContent(session, upload.file, upload.mxc)
-      ? [{ item, mxc: upload.mxc }]
-      : [];
-  });
-  if (toBuild.length === 0) return false;
-
-  const built = await Promise.allSettled(
-    toBuild.map(async ({ item, mxc }) => ({
-      item,
-      mxc,
-      content: await session.composer.buildUploadMessageContent(
-        item,
-        mxc,
-        session.signalBridgedRoom
-      ),
-    }))
-  );
-  // The person may have removed or changed a file meanwhile: a result counts only for the file
-  // as it is now, and the root is the first file still to go.
-  const { uploads, pending } = getPendingSessionFiles(session);
-  const rootFile =
-    session.mode === 'auto-thread-upload-root' && !session.rootEventId ? pending[0] : undefined;
-  built.forEach((result, index) => {
-    const { item, mxc } = toBuild[index]!;
-    const { file } = item;
-    const upload = uploads.find((candidate) => candidate.file === file);
-    const current =
-      pending.includes(file) &&
-      hasSameBuildInputs(item, findSessionFileItem(session, file)) &&
-      upload?.status === UploadStatus.Success &&
-      upload.mxc === mxc;
-    if (!current) return;
-    if (result.status === 'fulfilled') {
-      session.preparedContent.set(file, result.value);
-      return;
-    }
-    if (session.failFast) throw result.reason;
-    // The caption goes on without a root that failed (resolveRoomInputSendStep).
-    if (file === rootFile) session.blockedRoot = true;
-    else session.failedFiles.add(file);
-  });
-  return true;
 };
 
 const isSessionStalled = (session: SendSession) =>
@@ -670,19 +562,27 @@ export const useRoomInputSendSessionController = ({
 
   const sendSessionUpload = useCallback(
     async (session: SendSession, file: TUploadContent, mxc: string, isRoot: boolean) => {
-      const prepared = getPreparedContent(session, file, mxc);
-      if (!prepared) throw new Error('Unprepared upload in send session.');
-      const { content } = prepared;
+      const { attachments, buildUploadMessageContent } = session.composer;
+      const { staged, enrolled } = attachments.snapshot(session.roomId);
+      const fileItem =
+        staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
+      if (!fileItem) {
+        throw new Error('Missing upload item for send session.');
+      }
+
+      const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
       const {
         content: contentWithRelation,
         relation,
         settleFork,
       } = await placeMessage(session, content, getUploadRelationForSendSession(session, isRoot));
-      const item = findSessionFileItem(session, file);
-      const outgoing = item ? withCurrentSpoiler(contentWithRelation, item) : contentWithRelation;
       const txnId = mx.makeTxnId();
       const response = await mx
-        .sendMessage(session.roomId, withSubmissionMarker(session, outgoing, file) as any, txnId)
+        .sendMessage(
+          session.roomId,
+          withSubmissionMarker(session, contentWithRelation, file) as any,
+          txnId
+        )
         .catch((error: unknown) => {
           settleFork?.();
           // The composer keeps the attachment to send again; drop the unsent echo.
@@ -760,8 +660,6 @@ export const useRoomInputSendSessionController = ({
           continue;
         }
 
-        // Every file's content is built before the first of them goes out.
-        if (await prepareSessionFiles(session)) continue;
         try {
           await sendSessionUpload(session, step.file, step.mxc, step.isRoot);
         } catch (error) {

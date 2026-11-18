@@ -1,6 +1,6 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
-import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
+import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
@@ -110,14 +110,6 @@ const prepErrorUpload = (file: File): Upload & { error: MatrixError } => ({
   error: toMatrixUploadError(new Error(`failed to prepare ${file.name}`), 'create'),
 });
 
-type BuildUploadMessageContent = (fileItem: TUploadItem, mxc: string) => Promise<IContent>;
-
-const buildFileContent: BuildUploadMessageContent = async (fileItem, mxc) => ({
-  msgtype: 'm.file',
-  body: fileItem.file.name,
-  url: mxc,
-});
-
 const TestHarness = ({
   onReady,
   onRoomMessageSent,
@@ -130,7 +122,6 @@ const TestHarness = ({
   threadId,
   forkFrom,
   roomId = '!room:example.org',
-  buildUploadMessageContent = buildFileContent,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -149,7 +140,6 @@ const TestHarness = ({
   threadId?: string;
   forkFrom?: ThreadForkRef;
   roomId?: string;
-  buildUploadMessageContent?: BuildUploadMessageContent;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -221,7 +211,11 @@ const TestHarness = ({
     sendTypingStatus,
     attachments,
     mountedRef,
-    buildUploadMessageContent,
+    buildUploadMessageContent: async (fileItem, mxc) => ({
+      msgtype: 'm.file',
+      body: fileItem.file.name,
+      url: mxc,
+    }),
     restoreComposerFallbackForRoom,
     onRoomMessageSent,
   });
@@ -246,7 +240,6 @@ const renderHarness = (
     forkFrom?: ThreadForkRef;
     onRoomMessageSent?: (eventId: string) => boolean | void;
     replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
-    buildUploadMessageContent?: BuildUploadMessageContent;
   } = {}
 ) => {
   let sentEvents = 0;
@@ -285,7 +278,6 @@ const renderHarness = (
     restoreComposerFallbackForRoom,
     onRoomMessageSent: options.onRoomMessageSent,
     forkFrom: options.forkFrom,
-    buildUploadMessageContent: options.buildUploadMessageContent,
     onReady: (nextApi: HarnessApi) => {
       api = nextApi;
     },
@@ -2108,240 +2100,6 @@ describe('useRoomInputSendSessionController submission markers', () => {
     expect(sentBodies(mx)).toEqual(['first.png', 'third.png', 'What are these?', 'second.png']);
     expect(markerOf(mx, 3)).toEqual({ id, more: false });
   });
-
-  it('sends no event while a file builds its content, then all of them back to back', async () => {
-    const video = createDeferred<IContent>();
-    const { api, mx } = renderHarness({
-      buildUploadMessageContent: (fileItem, mxc) =>
-        fileItem.file.name === 'clip.mp4' ? video.promise : buildFileContent(fileItem, mxc),
-    });
-    const photo = createFile('photo.png');
-    const clip = createFile('clip.mp4');
-    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
-    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
-
-    let sending!: Promise<void>;
-    act(() => {
-      sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
-    });
-    // The video decodes a frame and uploads its thumbnail: the photo waits for it.
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(mx.sendMessage).not.toHaveBeenCalled();
-
-    await act(async () => {
-      video.resolve({ msgtype: 'm.video', body: 'clip.mp4', url: 'mxc://mindroom/clip.mp4' });
-      await sending;
-    });
-    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4', 'Look']);
-    const { id } = markerOf(mx, 0) as { id: string };
-    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
-      { id, more: true },
-      { id, more: true },
-      { id, more: false },
-    ]);
-    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({
-      msgtype: 'm.video',
-      'm.relates_to': { rel_type: 'm.thread', event_id: '$event-0' },
-    });
-  });
-
-  it('fails a file whose content does not build as a failed upload, and sends it on retry', async () => {
-    let failing = true;
-    const { api, mx } = renderHarness({
-      buildUploadMessageContent: async (fileItem, mxc) => {
-        if (fileItem.file.name === 'clip.mp4' && failing) throw new Error('no frame');
-        return buildFileContent(fileItem, mxc);
-      },
-    });
-    const photo = createFile('photo.png');
-    const clip = createFile('clip.mp4');
-    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
-    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
-
-    await act(async () => {
-      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
-    });
-    expect(sentBodies(mx)).toEqual(['photo.png', 'Look']);
-    const { id } = markerOf(mx, 0) as { id: string };
-    expect([markerOf(mx, 0), markerOf(mx, 1)]).toEqual([
-      { id, more: true },
-      { id, more: false },
-    ]);
-
-    failing = false;
-    await act(async () => {
-      await api.startSendSession();
-    });
-    expect(sentBodies(mx)).toEqual(['photo.png', 'Look', 'clip.mp4']);
-    expect(markerOf(mx, 2)).toEqual({ id, more: false });
-  });
-
-  // The board replaces an item to set its spoiler flag; the file goes out with the flag it has
-  // as it leaves, without building its content again.
-  const SPOILER = 'page.codeberg.everypizza.msc4193.spoiler';
-  const buildImage: BuildUploadMessageContent = async (fileItem, mxc) => ({
-    ...(await buildFileContent(fileItem, mxc)),
-    msgtype: 'm.image',
-    ...(fileItem.metadata.markedAsSpoiler ? { [SPOILER]: true } : {}),
-  });
-  const markAsSpoiler = (api: HarnessApi, file: File) => {
-    const replace = (item: TUploadItem) =>
-      item.file === file
-        ? { ...item, metadata: { ...item.metadata, markedAsSpoiler: true } }
-        : item;
-    api.selectedFilesRef.current = api.selectedFilesRef.current.map(replace);
-    api.sendSessionUploadItemsRef.current = api.sendSessionUploadItemsRef.current.map(replace);
-  };
-  const builtNames = (build: ReturnType<typeof vi.fn>) =>
-    build.mock.calls.map((call) => (call[0] as TUploadItem).file.name);
-
-  it('sends a file marked as a spoiler after its send failed as a spoiler on Send again', async () => {
-    const build = vi.fn(buildImage);
-    const { api, mx } = renderHarness({ buildUploadMessageContent: build });
-    const photo = createFile('photo.png');
-    api.selectedFilesRef.current = [createUploadItem(photo)];
-    api.uploadsRef.current = [successUpload(photo)];
-    mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
-
-    await act(async () => {
-      await api.startSendSession();
-    });
-    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty([SPOILER]);
-
-    markAsSpoiler(api, photo);
-    await act(async () => {
-      await api.startSendSession();
-    });
-    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({ body: 'photo.png', [SPOILER]: true });
-    expect(builtNames(build)).toEqual(['photo.png']);
-  });
-
-  it('sends a file marked as a spoiler while another file built as a spoiler', async () => {
-    const video = createDeferred<IContent>();
-    const build = vi.fn((fileItem: TUploadItem, mxc: string) =>
-      fileItem.file.name === 'clip.mp4' ? video.promise : buildImage(fileItem, mxc)
-    );
-    const { api, mx } = renderHarness({ buildUploadMessageContent: build });
-    const photo = createFile('photo.png');
-    const clip = createFile('clip.mp4');
-    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
-    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
-
-    let sending!: Promise<void>;
-    act(() => {
-      sending = api.startSendSession();
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    markAsSpoiler(api, photo);
-    await act(async () => {
-      video.resolve({ msgtype: 'm.video', body: 'clip.mp4', url: 'mxc://mindroom/clip.mp4' });
-      await sending;
-    });
-    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4']);
-    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({ [SPOILER]: true });
-    expect(builtNames(build)).toEqual(['photo.png', 'clip.mp4']);
-  });
-
-  // Building a video again (frame and thumbnail) after the submission's first event left could
-  // outlast MindRoom's hold.
-  it('sends a video marked as a spoiler while an earlier file goes out without building it again', async () => {
-    const build = vi.fn((fileItem: TUploadItem, mxc: string) =>
-      fileItem.file.name === 'clip.mp4'
-        ? Promise.resolve({ msgtype: 'm.video', body: 'clip.mp4', url: mxc })
-        : buildImage(fileItem, mxc)
-    );
-    const { api, mx } = renderHarness({ buildUploadMessageContent: build });
-    const photoSend = createDeferred<{ event_id: string }>();
-    mx.sendMessage.mockReturnValueOnce(photoSend.promise);
-    const photo = createFile('photo.png');
-    const clip = createFile('clip.mp4');
-    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
-    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
-
-    let sending!: Promise<void>;
-    act(() => {
-      sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
-    });
-    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
-    markAsSpoiler(api, clip);
-    await act(async () => {
-      photoSend.resolve({ event_id: '$photo' });
-      await sending;
-    });
-
-    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4', 'Look']);
-    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty([SPOILER]);
-    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({ msgtype: 'm.video', [SPOILER]: true });
-    expect(builtNames(build)).toEqual(['photo.png', 'clip.mp4']);
-    const { id } = markerOf(mx, 0) as { id: string };
-    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
-      { id, more: true },
-      { id, more: true },
-      { id, more: false },
-    ]);
-  });
-
-  const removeFile = (api: HarnessApi, file: File) => {
-    api.selectedFilesRef.current = api.selectedFilesRef.current.filter(
-      (item) => item.file !== file
-    );
-    api.sendSessionUploadItemsRef.current = api.sendSessionUploadItemsRef.current.filter(
-      (item) => item.file !== file
-    );
-    api.uploadsRef.current = api.uploadsRef.current.filter((upload) => upload.file !== file);
-  };
-
-  it.each([
-    ['fails', (build: ReturnType<typeof createDeferred<IContent>>) => build.reject(new Error('x'))],
-    [
-      'builds',
-      (build: ReturnType<typeof createDeferred<IContent>>) =>
-        build.resolve({ msgtype: 'm.file', body: 'first.png', url: 'mxc://mindroom/first.png' }),
-    ],
-  ])(
-    'makes the next file the root when the root is removed while its content %s',
-    async (_outcome, settle) => {
-      const rootBuild = createDeferred<IContent>();
-      const { api, mx } = renderHarness({
-        buildUploadMessageContent: (fileItem, mxc) =>
-          fileItem.file.name === 'first.png' ? rootBuild.promise : buildFileContent(fileItem, mxc),
-      });
-      const first = createFile('first.png');
-      const second = createFile('second.png');
-      api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
-      api.uploadsRef.current = [successUpload(first), successUpload(second)];
-
-      let sending!: Promise<void>;
-      act(() => {
-        sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
-      });
-      await act(async () => {
-        await Promise.resolve();
-      });
-      removeFile(api, first);
-      await act(async () => {
-        settle(rootBuild);
-        await sending;
-      });
-
-      expect(sentBodies(mx)).toEqual(['second.png', 'Caption']);
-      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
-      expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({
-        'm.relates_to': { rel_type: 'm.thread', event_id: '$event-0' },
-      });
-      const { id } = markerOf(mx, 0) as { id: string };
-      expect([markerOf(mx, 0), markerOf(mx, 1)]).toEqual([
-        { id, more: true },
-        { id, more: false },
-      ]);
-      expect(api.hasActiveSendSession()).toBe(false);
-    }
-  );
 
   it('ends the submission with the caption when the root fails to send, and the root after it', async () => {
     const { api, mx } = renderHarness();

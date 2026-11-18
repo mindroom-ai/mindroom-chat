@@ -56,17 +56,6 @@ const withFileSource = (content: IContent, item: TUploadItem, mxc: string): ICon
 const withSpoiler = (content: IContent, item: TUploadItem): IContent =>
   item.metadata.markedAsSpoiler ? { ...content, [MEDIA_SPOILER_PROPERTY]: true } : content;
 
-/**
- * A picture's or video's content with the spoiler flag `item` has now: the upload board changes it
- * without changing the file, so content built earlier needs no new build.
- */
-export const withCurrentSpoiler = (content: IContent, item: TUploadItem): IContent => {
-  if (content.msgtype !== MsgType.Image && content.msgtype !== MsgType.Video) return content;
-  const unmarked = { ...content };
-  delete unmarked[MEDIA_SPOILER_PROPERTY];
-  return withSpoiler(unmarked, item);
-};
-
 type ThumbnailOptions = {
   /** The encoding of the thumbnail; JPEG unless the picture may be transparent. */
   mimeType?: string;
