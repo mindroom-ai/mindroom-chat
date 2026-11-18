@@ -21,7 +21,9 @@ export function ComposerAttachButton({ onAttach, onAttachAppLogs }: ComposerAtta
   const debugMode = useDebugMode();
 
   if (!debugMode) {
-    return <ComposerIconButton label={t('composer.attach')} icon={Icons.PlusCircle} onPress={onAttach} />;
+    return (
+      <ComposerIconButton label={t('composer.attach')} icon={Icons.PlusCircle} onPress={onAttach} />
+    );
   }
   return (
     <ComposerMenuButton label={t('composer.attachMenu')} icon={Icons.PlusCircle}>
