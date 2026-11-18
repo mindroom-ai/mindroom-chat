@@ -68,7 +68,7 @@ import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
 import { ComposerSendButton } from './ComposerSendButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { composeTextMessage } from './composeTextMessage';
+import { composeTextMessage, holdsNoText } from './composeTextMessage';
 import {
   type ActingCommand,
   describeCommandFailure,
@@ -251,9 +251,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const [submitPending, setSubmitPending] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
-    // Whether the editor holds nothing, for the Send button's menu. It changes only as it flips,
-    // so typing renders nothing more.
-    const [editorEmpty, setEditorEmpty] = useState(() => isEmptyEditor(editor));
+    // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
+    // It changes only as it flips, so typing renders nothing more.
+    const [noText, setNoText] = useState(() => holdsNoText(editor));
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
     // hides, under a plugin's cover or behind a side panel.
     const conversationHidden = useConversationHidden();
@@ -591,7 +591,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       saveDraft();
       attachments.onEditorChange();
       const empty = isEmptyEditor(editor);
-      setEditorEmpty(empty);
+      setNoText(holdsNoText(editor));
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
     }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
 
@@ -835,7 +835,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 alone={phone}
                 agentReplying={agentReplying}
                 hasText={() => buildTextContent(midTurnSend) !== undefined}
-                empty={editorEmpty}
+                empty={noText}
                 defaultMode={midTurnSend}
                 onSend={handleSend}
               />

@@ -20,7 +20,7 @@ type ComposerSendButtonProps = {
   agentReplying: boolean;
   /** Whether the composer holds text to send; only a text message carries a mode. */
   hasText: () => boolean;
-  /** The composer holds nothing, which closes a menu a rest opened, however it emptied. */
+  /** The composer holds no text to send, which closes a menu a rest opened, however it went. */
   empty: boolean;
   /** The mode a tap sends with, from the Chats setting; its row in the menu says so. */
   defaultMode: MidTurnMode;
