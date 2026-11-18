@@ -9,6 +9,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
+import { standInVisualViewport } from '../helpers/keyboardViewport';
 import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -90,6 +91,8 @@ const signIn = async (
   options: BrowserContextOptions
 ) => {
   const context = await browser.newContext({ ...options, baseURL });
+  // Lets a phone's page show Safari's keyboard (`__setKeyboardViewport`).
+  if (options.hasTouch) await standInVisualViewport(context);
   const page = await context.newPage();
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -348,11 +351,22 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'false');
     expect((await geometry(page)).layout).toBe('row');
 
-    // A room area the keyboard leaves short keeps one row while focused (upright, so no media
-    // query for a sideways phone applies).
-    await page.setViewportSize({ width: 390, height: 280 });
+    // A room area Safari's keyboard leaves short keeps one row while focused. The layout
+    // viewport keeps its upright size there, so no media query sees the keyboard.
     await tap(textBox(page));
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
+    expect((await geometry(page)).sendBelowText, 'two rows before the keyboard').toBe(true);
+    await page.evaluate((visible) => {
+      window.__setKeyboardViewport?.(visible, 0, 'resize');
+      window.__setKeyboardViewport?.(visible, window.innerHeight - visible, 'scroll');
+    }, 260);
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
+      )
+      .toBe('260px');
+    expect(await page.evaluate(() => matchMedia('(orientation: landscape)').matches)).toBe(false);
+    await expect(textBox(page)).toBeFocused();
     const short = await geometry(page);
     const areaHeight = await page
       .locator('[data-room-footer]')
