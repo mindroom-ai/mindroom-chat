@@ -276,6 +276,8 @@ export const useThreadOverviewRefreshCounter = (
   const [ownChanges] = useState(createThreadRecordChanges);
   const kept = threadRecordKeeperOf(keeper, room);
   const overviewChanges = kept ? kept.changes : ownChanges;
+  // The marks this render's build saw (`useThreadIndex` builds in the same render).
+  const renderedAt = overviewChanges.count;
   const setOverviewRefreshCounter = useCallback<Dispatch<SetStateAction<number>>>(
     (count) => {
       markThreadRecordChange(overviewChanges);
@@ -288,6 +290,9 @@ export const useThreadOverviewRefreshCounter = (
   useLayoutEffect(() => {
     if (threadId) return undefined;
 
+    // A mark between the build and this commit (a render React let wait, a list that comes back
+    // before it listens) counts now, before paint, as any change does.
+    const missed = overviewChanges.count !== renderedAt;
     const bump = () => setCounter((count) => count + 1);
     // What no event of the room tells of reaches a kept record within a second: a store that
     // drops its oldest entries, a stream that ends by the clock, an old name of a member who left
@@ -311,11 +316,14 @@ export const useThreadOverviewRefreshCounter = (
       markThreadRecordChange(overviewChanges);
       stop = listenForThreadRecordChanges(room, overviewChanges, { count: bump, maps: undefined });
     }
+    if (missed) bump();
     return () => {
       stop();
       clearTimeout(keptCheck);
       overviewChanges.onKept = undefined;
     };
+    // Only the commit that starts the listeners reads `renderedAt`: later ones count as they hear.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room, threadId, overviewChanges, kept]);
 
   return { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges };

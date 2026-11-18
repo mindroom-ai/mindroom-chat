@@ -1,7 +1,7 @@
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { indexThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
@@ -66,7 +66,6 @@ import {
 import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 import {
   keptThreadRecordMaps,
-  threadRecordKeeperHears,
   threadRecordKeeperOf,
   type ThreadRecordKeeper,
 } from './threadRecordKeeper';
@@ -595,17 +594,11 @@ export const useThreadIndex = ({
   const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
   // Keep base records only: background-job overlays never become reuse inputs.
   // A list that mounts again under its room's page starts from the records the last one left.
-  const [handedRecordMaps] = useState(() => keptThreadRecordMaps(threadRecordKeeper, room));
-  const builtRecordMapsRef = useRef(handedRecordMaps);
-  // Raised before a paint whose build missed a change (below).
-  const [missedChanges, setMissedChanges] = useState(0);
-  const baseRecordBuild = useMemo(() => {
+  // Only the first build reads them: it replaces them in the ref, which lets go of them.
+  const builtRecordMapsRef = useRef(keptThreadRecordMaps(threadRecordKeeper, room));
+  const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    void missedChanges;
-    // The room's listener hears every change from here on: any it marks, the count shows.
-    const heard = threadRecordKeeperHears(threadRecordKeeper, room);
-    const builtAt = overviewChanges.count;
     const built = buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
@@ -628,7 +621,7 @@ export const useThreadIndex = ({
     });
     // An open thread has no records, so nothing is kept from before it.
     builtRecordMapsRef.current = built;
-    return { maps: built, builtAt, heard };
+    return built;
   }, [
     threadId,
     compactViewRequested,
@@ -647,21 +640,13 @@ export const useThreadIndex = ({
     currentUserId,
     scheduledStatusMap,
     overviewRefreshCounter,
-    missedChanges,
     overviewChanges,
-    threadRecordKeeper,
   ]);
-  const baseRecordMaps = baseRecordBuild.maps;
   // The page keeps the records of the build that shows, never those of a render left unshown.
-  // A change marked between the build and its commit (a render React let wait, the gap before a
-  // list that comes back listens) would show only with the next count: it is built before paint.
   useLayoutEffect(() => {
     const keeper = threadRecordKeeperOf(threadRecordKeeper, room);
-    if (keeper) keeper.maps = compactViewRequested && !threadId ? baseRecordBuild.maps : undefined;
-    if (baseRecordBuild.heard && overviewChanges.count !== baseRecordBuild.builtAt) {
-      setMissedChanges((missed) => missed + 1);
-    }
-  }, [baseRecordBuild, threadRecordKeeper, room, compactViewRequested, threadId, overviewChanges]);
+    if (keeper) keeper.maps = compactViewRequested && !threadId ? baseRecordMaps : undefined;
+  }, [baseRecordMaps, threadRecordKeeper, room, compactViewRequested, threadId]);
   // Base records read SDK timelines. Job-only updates must only overlay their two flags.
   // Weak keys retain unchanged overlays without retaining old record/history snapshots.
   const jobOverlays = useMemo(() => new WeakMap<ThreadRecord, ThreadRecord>(), []);

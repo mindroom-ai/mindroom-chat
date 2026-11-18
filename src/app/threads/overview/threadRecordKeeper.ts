@@ -71,12 +71,6 @@ export const keptThreadRecordMaps = (
   return kept?.stop ? kept.maps : undefined;
 };
 
-/** Whether the room's listener hears every change for the records `keeper` keeps. */
-export const threadRecordKeeperHears = (
-  keeper: ThreadRecordKeeper | undefined,
-  room: Room
-): boolean => !!threadRecordKeeperOf(keeper, room)?.stop;
-
 /** Whether a change of the thread may matter to what `keeper` keeps while no list shows. */
 export const threadRecordKept = (
   keeper: Pick<ThreadRecordKeeper, 'maps'>,

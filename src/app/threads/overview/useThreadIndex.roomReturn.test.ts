@@ -379,7 +379,7 @@ function SuspendWhen({ suspend }: { suspend: boolean }) {
 }
 
 describe('the lifetime of what the room page keeps', () => {
-  it('builds before paint what changed between the build of the list that came back and its commit', () => {
+  it('shows before paint what changed between the build of the list that came back and its commit', () => {
     const keeper = createThreadRecordKeeper(room);
     const shown = shownList(keeper);
     const before = shown.records();
@@ -387,10 +387,8 @@ describe('the lifetime of what the room page keeps', () => {
 
     const builds: Records[] = [];
     const painted: { current?: Records } = {};
-    // In the same commit, before the list listens again: an update of thread B.
-    const updateB = () => {
-      room.emit(ThreadEvent.Update, { id: '$b' } as Thread);
-    };
+    // In the same commit, before the list listens again: an edit of B's root.
+    const updateB = () => editRoot(roots[1]!, 'New B');
     const view = render(
       createElement(
         Fragment,
@@ -400,9 +398,9 @@ describe('the lifetime of what the room page keeps', () => {
       )
     );
 
-    // The first build kept B from before; the paint shows B built again, the others kept.
+    // The first build kept B from before; the paint shows B's new text, the others kept.
     expect(builds[0]!.get('$b')).toBe(before.get('$b'));
-    expect(painted.current?.get('$b')).not.toBe(before.get('$b'));
+    expect(painted.current?.get('$b')?.presentation.rootPreviewText).toBe('New B');
     expect(painted.current?.get('$a')).toBe(before.get('$a'));
     expect(painted.current?.get('$c')).toBe(before.get('$c'));
     view.unmount();
@@ -447,6 +445,37 @@ describe('the lifetime of what the room page keeps', () => {
     );
     view.unmount();
     disposeThreadRecordKeeper(keeper);
+  });
+
+  it('lets go of the records it started from once it built its own, also in another room', async () => {
+    vi.useRealTimers();
+    // Node's own collector, so a test can tell what the list still holds.
+    const v8 = await import('node:v8');
+    const vm = await import('node:vm');
+    v8.setFlagsFromString('--expose-gc');
+    const gc = vm.runInNewContext('gc') as () => void;
+    const keeper = createThreadRecordKeeper(room);
+    shownList(keeper).unmount();
+    const seed = new WeakRef(keeper.maps!);
+
+    const builds: Records[] = [];
+    const painted: { current?: Records } = {};
+    const probe = (listRoom: Room, listKeeper: ThreadRecordKeeper | undefined) =>
+      createElement(ListProbe, { listRoom, keeper: listKeeper, builds, shown: painted });
+    const view = render(probe(room, keeper));
+    // A change builds new maps; then the page goes to another room in place.
+    act(() => {
+      room.emit(ThreadEvent.Update, { id: '$b' } as Thread);
+    });
+    disposeThreadRecordKeeper(keeper);
+    view.rerender(probe(new Room('!other:server', mx, '@me:server'), undefined));
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    gc();
+    expect(seed.deref()).toBeUndefined();
+    view.unmount();
   });
 
   it('keeps under StrictMode, and lets go when the page goes or leaves the room', () => {
