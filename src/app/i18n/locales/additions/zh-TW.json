@@ -1141,7 +1141,8 @@
     },
     "renameHint": "按兩下以重新命名",
     "close": "關閉討論串",
-    "resizeSecond": "調整第二個討論串大小"
+    "resizeSecond": "調整第二個討論串大小",
+    "second": "第二個討論串"
   },
   "threadSnooze": {
     "title": "延後至",

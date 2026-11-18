@@ -1141,7 +1141,8 @@
     },
     "renameHint": "双击以重命名",
     "close": "关闭讨论串",
-    "resizeSecond": "调整第二个讨论串大小"
+    "resizeSecond": "调整第二个讨论串大小",
+    "second": "第二个讨论串"
   },
   "threadSnooze": {
     "title": "延后至",

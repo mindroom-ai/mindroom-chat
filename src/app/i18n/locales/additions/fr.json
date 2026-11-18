@@ -1181,7 +1181,8 @@
     },
     "renameHint": "Double-cliquez pour renommer",
     "close": "Fermer le fil",
-    "resizeSecond": "Redimensionner le second fil"
+    "resizeSecond": "Redimensionner le second fil",
+    "second": "Second fil"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",

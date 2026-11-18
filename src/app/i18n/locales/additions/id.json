@@ -1141,7 +1141,8 @@
     },
     "renameHint": "Klik dua kali untuk mengganti nama",
     "close": "Tutup utas",
-    "resizeSecond": "Ubah ukuran utas kedua"
+    "resizeSecond": "Ubah ukuran utas kedua",
+    "second": "Utas kedua"
   },
   "threadSnooze": {
     "title": "Tunda hingga",

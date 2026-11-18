@@ -275,14 +275,14 @@ export function ThreadContextBanner({
     void unsnooze(mutableThreadRootId);
   }, [mutableThreadRootId, unsnooze]);
   const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
+  // A second thread's view leaves the resolve key to the open thread, and so advertises none.
+  const resolveShortcut = resolveDisabled || onClose ? undefined : 'resolveThread';
   // Not a thread that a side panel in the conversation's place hides.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   useShortcut('resolveThread', () => {
     // On a focused card beside the thread, the keys are that card's (CompactRoomView).
     if (focusedCompactCard()) return false;
-    // A second thread's view leaves the key to the open thread.
-    if (onClose) return false;
-    if (behindPanel || resolveDisabled || !mutableThreadRootId || isPinned) return false;
+    if (behindPanel || !resolveShortcut || !mutableThreadRootId || isPinned) return false;
     handleToggleResolve();
     return true;
   });
@@ -651,7 +651,7 @@ export function ThreadContextBanner({
                       ? t('threadActions.reopen')
                       : undefined
                   }
-                  shortcut={resolveDisabled ? undefined : 'resolveThread'}
+                  shortcut={resolveShortcut}
                 >
                   {(triggerRef) => (
                     <IconButton
@@ -666,7 +666,7 @@ export function ThreadContextBanner({
                       aria-describedby={showResolver ? resolverBylineId : undefined}
                       onClick={handleToggleResolve}
                       disabled={resolveDisabled}
-                      {...shortcutAttributes(resolveDisabled ? undefined : 'resolveThread')}
+                      {...shortcutAttributes(resolveShortcut)}
                     >
                       <Icon src={Icons.Check} size="100" />
                     </IconButton>
@@ -711,6 +711,7 @@ export function ThreadContextBanner({
             onHideDetails={collapsed ? undefined : () => toggleCollapsed(true)}
             onShowBeside={onShowBeside}
             onShowFull={onShowFull}
+            shortcutless={!!onClose}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />

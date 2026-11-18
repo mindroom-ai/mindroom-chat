@@ -221,6 +221,12 @@ describe('ThreadActionsMenu rows', () => {
     });
   });
 
+  it('advertises no resolve shortcut in the menu of a view the keys do not act on', () => {
+    const items = renderMenu({ shortcutless: true });
+    expect(rowOf(items, 'resolve')?.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(rowOf(items, 'resolve')?.querySelector('[data-keys]')).toBeNull();
+  });
+
   describe('Open beside', () => {
     const menuIn = (
       second: SecondThreadControl | undefined,
@@ -261,8 +267,8 @@ describe('ThreadActionsMenu rows', () => {
       const offers = vi.fn(() => true);
       const items = menuIn({ offers, open }, { onClose });
       act(() => rowOf(items, 'openBeside')?.click());
-      expect(offers).toHaveBeenCalledWith('$root');
-      expect(open).toHaveBeenCalledWith('$root');
+      expect(offers).toHaveBeenCalledWith('!room:test', '$root');
+      expect(open).toHaveBeenCalledWith('!room:test', '$root');
       expect(onClose).toHaveBeenCalledOnce();
     });
 

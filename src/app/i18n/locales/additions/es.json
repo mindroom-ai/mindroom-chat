@@ -1181,7 +1181,8 @@
     },
     "renameHint": "Haz doble clic para cambiar el nombre",
     "close": "Cerrar el hilo",
-    "resizeSecond": "Cambiar el tamaño del segundo hilo"
+    "resizeSecond": "Cambiar el tamaño del segundo hilo",
+    "second": "Segundo hilo"
   },
   "threadSnooze": {
     "title": "Posponer hasta",

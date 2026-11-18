@@ -1161,7 +1161,8 @@
     },
     "renameHint": "Zum Umbenennen doppelklicken",
     "close": "Thread schließen",
-    "resizeSecond": "Breite des zweiten Threads ändern"
+    "resizeSecond": "Breite des zweiten Threads ändern",
+    "second": "Zweiter Thread"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",

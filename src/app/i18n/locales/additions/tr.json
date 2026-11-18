@@ -1161,7 +1161,8 @@
     },
     "renameHint": "Yeniden adlandırmak için çift tıklayın",
     "close": "Konuyu kapat",
-    "resizeSecond": "İkinci konuyu yeniden boyutlandır"
+    "resizeSecond": "İkinci konuyu yeniden boyutlandır",
+    "second": "İkinci konu"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",

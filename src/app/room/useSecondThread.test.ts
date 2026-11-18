@@ -45,12 +45,23 @@ describe('useSecondThread', () => {
     expect(stored()).toEqual({ '!r2': '$b2' });
   });
 
-  it.each(['[1]', '3', '{"!r1":5}', 'not json'])('ignores malformed storage %s', (value) => {
-    localStorage.setItem(key, value);
+  it.each(['[1]', '3', '{"!r1":5}', '{"!r1":"~stale"}', '{"!r1":""}', 'not json'])(
+    'ignores malformed storage %s',
+    (value) => {
+      localStorage.setItem(key, value);
+      const { result } = renderHook(() => useSecondThread('!r1', user, undefined));
+      expect(result.current.threadId).toBeUndefined();
+      act(() => result.current.open('$b'));
+      expect(stored()).toEqual({ '!r1': '$b' });
+    }
+  );
+
+  it('takes the focus only for an explicit open, not a restored B', () => {
+    localStorage.setItem(key, JSON.stringify({ '!r1': '$b' }));
     const { result } = renderHook(() => useSecondThread('!r1', user, undefined));
-    expect(result.current.threadId).toBeUndefined();
-    act(() => result.current.open('$b'));
-    expect(stored()).toEqual({ '!r1': '$b' });
+    expect(result.current).toMatchObject({ threadId: '$b', focus: false });
+    act(() => result.current.open('$c'));
+    expect(result.current).toMatchObject({ threadId: '$c', focus: true });
   });
 
   it('closes B when it becomes the main thread', () => {

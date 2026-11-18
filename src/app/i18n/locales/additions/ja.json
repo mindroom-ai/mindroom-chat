@@ -1141,7 +1141,8 @@
     },
     "renameHint": "ダブルクリックで名前を変更",
     "close": "スレッドを閉じる",
-    "resizeSecond": "2つ目のスレッドのサイズを変更"
+    "resizeSecond": "2つ目のスレッドのサイズを変更",
+    "second": "2つ目のスレッド"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
