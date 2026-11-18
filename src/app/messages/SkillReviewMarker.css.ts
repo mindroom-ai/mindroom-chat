@@ -14,7 +14,9 @@ export const MarkerTrigger = style({
   alignItems: 'center',
   gap: '0.3rem',
   minWidth: 0,
-  maxWidth: '100%',
+  // The start margin pulls it past the line's start; it may reach the line's end too. In a row
+  // of markers sized to their content, plain 100% would wrap the trigger.
+  maxWidth: `calc(100% + ${config.space.S100})`,
   border: 0,
   borderRadius: config.radii.R300,
   padding: `${toRem(1)} ${config.space.S100}`,
