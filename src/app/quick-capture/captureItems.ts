@@ -33,7 +33,8 @@ const cutReplyText = (text: string): string => {
 };
 
 const chipOf = (thread: CaptureThread): CaptureChip | undefined => {
-  if (thread.resolved) return undefined;
+  // The signals keep only what a resolved thread asked after the resolve.
+  if (thread.resolved) return thread.needsYou ? 'needs-you' : undefined;
   if (thread.streaming) return 'working';
   if (thread.needsYou) return 'needs-you';
   if (thread.unread) return 'new';

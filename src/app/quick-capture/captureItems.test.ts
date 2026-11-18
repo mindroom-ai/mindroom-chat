@@ -91,8 +91,12 @@ describe('buildCaptureItems', () => {
     expect(chip({ unread: true })).toBe('new');
     expect(chip({})).toBeUndefined();
     expect(
-      chip({ streaming: true, needsYou: true, unread: true, resolved: true, resolvedTs: NOW })
+      chip({ streaming: true, unread: true, resolved: true, resolvedTs: NOW })
     ).toBeUndefined();
+    // Asked after the resolve: the signals call that waiting.
+    expect(
+      chip({ streaming: true, needsYou: true, unread: true, resolved: true, resolvedTs: NOW })
+    ).toBe('needs-you');
   });
 
   it('omits the chip key when there is none', () => {
