@@ -109,7 +109,12 @@ export const buildThreadIndexRecordMaps = ({
         threadRootEventMap: compactThreadRootEventMap,
         rootPreviewTextMap: compactThreadRootBodyMap,
         absoluteIndexMap: compactThreadRootData.indexMap,
-        reuse: { previous: previous?.compactThreadRecordMap, changes },
+        // The record of a thread both maps list with the same values is built once.
+        reuse: {
+          previous: previous?.compactThreadRecordMap,
+          changes,
+          beside: normalThreadRecordMap,
+        },
       })
     : normalThreadRecordMap;
 
