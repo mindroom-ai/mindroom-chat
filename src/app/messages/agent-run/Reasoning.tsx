@@ -363,7 +363,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
       icons,
       markers:
         icons > 0 && html !== undefined
-          ? getRenderedToolRefs(sanitizeCustomHtml(html)).toolBlocks.map(({ index }) => index)
+          ? getRenderedToolRefs(sanitizeCustomHtml(html), true).toolBlocks.map(({ index }) => index)
           : [],
     });
   }

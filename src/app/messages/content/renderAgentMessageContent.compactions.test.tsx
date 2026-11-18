@@ -456,6 +456,18 @@ describe('compaction seams in a reply', () => {
     expect(sequence()).toEqual(['seam', 'tools:t2', 'seam', 'Answer']);
   });
 
+  it.each(['tool call inside a raw div', 'tool call inside a details block'] as const)(
+    'places a compaction after the call of the fixture "%s"',
+    (name) => {
+      const { body, formatted_body: html } = backendBodies[name];
+      render(
+        reply(body, [entry('c1', 1)], { format: 'org.matrix.custom.html', formatted_body: html })
+      );
+
+      expect(sequence()).toEqual(['tools:t1', 'seam', 'Answer']);
+    }
+  );
+
   it('shows a compaction at the top when its tool call renders as text', () => {
     render(reply(backendBodies['tool call as a list item'].body, [entry('c1', 1)]));
 

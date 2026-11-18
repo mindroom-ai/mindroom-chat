@@ -205,6 +205,9 @@ export const parseToolBlockMarker = (html: string): ToolRefParseResult | undefin
   return toolRef && parseToolRefIndexFromTextPrefix(html) === toolRef.index ? toolRef : undefined;
 };
 
+/** Elements the renderer applies its tool rule inside, as it does at the top level. */
+const NESTING_WRAPPERS = new Set(['div', 'details']);
+
 export type RenderedToolRefs = {
   /** Markers shown as tool blocks, in document order. */
   toolBlocks: ToolRefParseResult[];
@@ -223,25 +226,29 @@ export type RenderedToolRefs = {
  * HTML. The renderer applies its tool rule to top-level containers and to the
  * content it re-wraps after a marker. The base parser renders lists, quotes,
  * and headings with its own options, so markers there stay text; wrappers it
- * leaves alone (`div`, `details`) do show nested markers, which this skips.
+ * leaves alone (`div`, `details`) do show nested markers, which this skips
+ * unless `nested` asks for them (copying cannot prove those, placing can).
  */
-export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
+export const getRenderedToolRefs = (html: string, nested = false): RenderedToolRefs => {
   const toolBlocks: ToolRefParseResult[] = [];
   let toolBlockIconCount = 0;
   const visit = (node: ChildNode) => {
     if (!isDomElementNode(node)) return;
     // Necessary for a match, and far cheaper than the prefix scan.
     const text = extractTextFromChildren(node.children);
-    if (!text.trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) return;
+    let found = false;
+    if (text.trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) {
+      takeLeadingToolRefs(node, (html) => {
+        const toolRef = parseToolBlockMarker(html);
+        if (!toolRef) return false;
 
-    takeLeadingToolRefs(node, (html) => {
-      const toolRef = parseToolBlockMarker(html);
-      if (!toolRef) return false;
-
-      toolBlocks.push(toolRef);
-      toolBlockIconCount += countToolRefIcons(html);
-      return true;
-    });
+        toolBlocks.push(toolRef);
+        toolBlockIconCount += countToolRefIcons(html);
+        found = true;
+        return true;
+      });
+    }
+    if (nested && !found && NESTING_WRAPPERS.has(node.name)) node.children.forEach(visit);
   };
 
   const countAttributeIcons = (nodes: ChildNode[]): number =>
@@ -249,10 +256,7 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
       (count, node) =>
         isDomElementNode(node)
           ? count +
-            Object.values(node.attribs).reduce(
-              (sum, value) => sum + countToolRefIcons(value),
-              0
-            ) +
+            Object.values(node.attribs).reduce((sum, value) => sum + countToolRefIcons(value), 0) +
             countAttributeIcons(node.children)
           : count,
       0
@@ -262,8 +266,7 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
   nodes.forEach(visit);
   return {
     toolBlocks,
-    iconCount:
-      countToolRefIcons(extractTextFromChildren(nodes)) + countAttributeIcons(nodes),
+    iconCount: countToolRefIcons(extractTextFromChildren(nodes)) + countAttributeIcons(nodes),
     toolBlockIconCount,
   };
 };
