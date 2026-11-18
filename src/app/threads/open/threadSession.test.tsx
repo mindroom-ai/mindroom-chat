@@ -110,18 +110,7 @@ const openFixture = () => {
         expectedReplyCount: 1,
       },
     } as unknown as ThreadCachedSnapshot);
-  return {
-    runtime,
-    root,
-    reply,
-    timeline,
-    bootstrap,
-    context,
-    rendered,
-    cache,
-    getThread,
-    persist,
-  };
+  return { runtime, root, reply, timeline, bootstrap, context, rendered, cache, getThread };
 };
 
 /** With `concurrent`, React renders state updates later, batched, as the app's root does. */
@@ -460,38 +449,6 @@ describe('thread session opening', () => {
     } finally {
       view.unmount();
       await act(async () => pending.resolve(fixture.cache()));
-    }
-  });
-
-  it('writes the cache in a task after the press that opened the thread', async () => {
-    const fixture = openFixture();
-    vi.mocked(loadThreadCachedSnapshot)
-      .mockReset()
-      .mockReturnValue(new Promise(() => {}));
-    const view = renderOpen(fixture.runtime, {
-      roomId: fixture.runtime.room.roomId,
-      threadId: '$a',
-    });
-    // The test decides when a later task runs.
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      // Everything the open can do without waiting for a request or a later task.
-      await act(async () => undefined);
-      expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
-      expect(view.session.snapshot.open.sdkReady).toBe(true);
-      expect(fixture.persist).not.toHaveBeenCalled();
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-      });
-      expect(fixture.persist.mock.calls[0]?.slice(0, 3)).toEqual([
-        '$a',
-        [fixture.reply],
-        fixture.root,
-      ]);
-    } finally {
-      view.unmount();
-      vi.useRealTimers();
     }
   });
 

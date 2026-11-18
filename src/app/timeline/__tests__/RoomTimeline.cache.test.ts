@@ -15,7 +15,6 @@ import {
   directRoomState,
   emitClientSync,
   flushAsyncWork,
-  flushOpenTasks,
   getClickableByText,
   getRenderedEventIds,
   isMembershipChangedMock,
@@ -3870,7 +3869,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             })
           );
           await flushAsyncWork(10);
-          await flushOpenTasks();
         });
 
         await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
@@ -4262,7 +4260,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             })
           );
           await flushAsyncWork(10);
-          await flushOpenTasks();
         });
 
         await waitForCondition(() => matrixClientMock.fetchRelations.mock.calls.length > 0, 50);
@@ -4909,7 +4906,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             })
           );
           await flushAsyncWork(10);
-          await flushOpenTasks();
         });
 
         await waitForCondition(
@@ -4920,7 +4916,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           await flushAsyncWork(30);
           finishBootstrap();
           await flushAsyncWork(30);
-          await flushOpenTasks();
         });
         await waitForCondition(
           () => staleThreadTimeline.getPaginationToken(Direction.Backward) === null,

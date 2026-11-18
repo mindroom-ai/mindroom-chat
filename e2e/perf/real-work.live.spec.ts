@@ -432,7 +432,8 @@ type SettledWindow = { __realWorkSettled?: Promise<SettledOutcome> };
  * frame in which a row came into view for the first time, once SETTLED_QUIET_MS passed without
  * another, and how many rows were in view in that frame. A row that leaves the view is no
  * change: a reply that streams pushes rows out at the top. Call it before the press, and the
- * function it returns after it. Fails when rows still come into view 30 s after the press.
+ * function it returns after it. Fails when no row came into view within 30 s of the press, or
+ * rows still come into view then.
  */
 const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise<Timing>> => {
   await page.evaluate(
@@ -478,7 +479,12 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
               if (seen.size > 0 && at - changedAt >= quietMs) {
                 resolve({ ms: changedAt - startedAt, rows });
               } else if (at - startedAt > 30_000) {
-                resolve({ error: 'rows still came into view 30 s after the press' });
+                resolve({
+                  error:
+                    seen.size === 0
+                      ? 'no message row came into view within 30 s of the press'
+                      : 'rows still came into view 30 s after the press',
+                });
               } else {
                 requestAnimationFrame(tick);
               }
@@ -538,7 +544,8 @@ const SCENARIO: Record<
       const settled = await watchRowsSettled(page, 'open-settled');
       const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
       await expect(banner(page)).toBeVisible();
-      // The rest of the thread arrives and settles inside the window.
+      // The rest of the thread arrives and settles inside the window, which lasts 5 s as before,
+      // or until the rows settled when that takes longer.
       const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(5_000)]);
       return { timings: [{ name: 'open', ms }, settledTiming], openedStreaming: streaming };
     },

@@ -1431,19 +1431,6 @@ const flushAsyncWork = async (cycles = 5) => {
   }
 };
 
-/**
- * A thread's open writes its cache in tasks after the ones that ask for the writes: lets those
- * tasks run, with the promises they settle.
- */
-const flushOpenTasks = async () => {
-  for (let task = 0; task < 3; task += 1) {
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
-    await flushAsyncWork();
-  }
-};
-
 const waitForCondition = async (condition: () => boolean, cycles = 500) => {
   for (let index = 0; index < cycles; index += 1) {
     if (condition()) return;
@@ -1814,7 +1801,6 @@ export {
   directRoomState,
   emitClientSync,
   flushAsyncWork,
-  flushOpenTasks,
   getClickableByText,
   getRenderedEventIds,
   getThreadOpenSeedSnapshot,

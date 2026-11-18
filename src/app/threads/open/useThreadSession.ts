@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Direction } from 'matrix-js-sdk';
-import type { PersistThreadEventCache } from '../../event-store/engine/enginePersistFacade';
 import { countCacheProbe } from '../../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { isLocalEchoEventId } from '../../event-store/threads/threadRouteUtils';
@@ -27,18 +26,6 @@ import type {
   ThreadTargetCommands,
   ThreadSessionCommands,
 } from './threadSessionTypes';
-
-/**
- * The open's cache writes, each made in a task after the one that asked for it, in the order they
- * were asked for. A write serializes every event it is given, and a thread whose timeline is
- * already loaded asks for its first one in the task of the press that opens it, before the
- * thread has been painted.
- */
-const writeAfterThisTask =
-  (write: PersistThreadEventCache): PersistThreadEventCache =>
-  (...args) => {
-    setTimeout(() => write(...args), 0);
-  };
 
 const initialState = {
   open: {
@@ -281,7 +268,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             firstPaintHeld: firstPaint.held,
           },
         }));
-        const persistThreadEventCache = writeAfterThisTask(runtime.beginCacheWrite());
+        const persistThreadEventCache = runtime.beginCacheWrite();
         let cacheResult: Awaited<ReturnType<typeof runThreadOpenCacheFirst>> | undefined;
         let liveProgressed = false;
         let networkLoadError = false;
