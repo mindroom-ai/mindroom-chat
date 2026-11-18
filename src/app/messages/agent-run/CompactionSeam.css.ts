@@ -19,9 +19,9 @@ const UNFINISHED = ['failed', 'timeout', 'interrupted'];
 const ACTIVE = ':is(:hover, :focus-visible, [aria-expanded="true"])';
 
 /**
- * A state's color on the reply, a fifth of the way toward its text color: Primary.Main and
- * Warning.Main alone fall under AA contrast for 12px text on some palettes (Orange, Silver), on the
- * reply's surface or its bubble.
+ * A state's color as text, a fifth of the way toward the text color: Primary.Main and Warning.Main
+ * alone fall under AA contrast for small text on some palettes (Orange, Silver), on the reply's
+ * surface, its bubble or the card.
  */
 const towardText = (stateColor: string) =>
   `color-mix(in srgb, ${stateColor} 80%, ${color.Surface.OnContainer})`;
@@ -144,8 +144,8 @@ export const Head = style({
   fontSize: toRem(13),
   fontWeight: 600,
   selectors: {
-    [`${Card}[data-state="running"] &`]: { color: color.Primary.Main },
-    [unfinished(Card, ' &')]: { color: color.Warning.Main },
+    [`${Card}[data-state="running"] &`]: { color: towardText(color.Primary.Main) },
+    [unfinished(Card, ' &')]: { color: towardText(color.Warning.Main) },
   },
 });
 

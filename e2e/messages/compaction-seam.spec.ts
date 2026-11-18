@@ -508,8 +508,8 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(card).toContainText('before the reply');
   await page.mouse.move(0, 0);
 
-  // A finished, a running and a failed row stay readable at rest and highlighted, in the themes
-  // where their colors come closest to their background.
+  // A finished, a running and a failed row stay readable at rest and highlighted, and so does
+  // their card's head, in the themes where their colors come closest to their background.
   for (const themeId of ['catppuccinLatte-theme', 'silver-theme', 'orange-theme', 'dark-theme']) {
     await applySettings(page, themeId, true);
     await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
@@ -520,6 +520,8 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
       await row.getByRole('button').hover();
       await expect(card).toBeVisible();
       await expectReadable(row.getByRole('button'));
+      // The card's head, in the row's state color.
+      await expectReadable(card.locator(':scope > div').first());
       await page.mouse.move(0, 0);
     }
   }
