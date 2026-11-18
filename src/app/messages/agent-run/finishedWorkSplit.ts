@@ -1,7 +1,11 @@
 import { htmlToDOM, type HTMLReactParserOptions } from 'html-react-parser';
 import { isText, type ChildNode } from 'domhandler';
 import { MINDROOM_TOOL_REF_ICON, parseToolRefText } from '../html/blocks';
-import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
+import {
+  sanitizeCustomHtml,
+  sanitizeText,
+  type SanitizeCustomHtmlOptions,
+} from '../../rich-text/sanitize';
 import { isDomElementNode } from './toolRefDom';
 import { readRenderedToolCalls } from '../html/HtmlBlocks';
 
@@ -83,22 +87,26 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
     return MEDIA_ELEMENTS.has(node.name) || hasVisibleContent(node.children);
   });
 
-/** Whether the HTML shows anything once sanitized as `RenderBody` sanitizes it. */
+/** Whether the sanitized HTML shows anything. */
 const rendersVisibleContent = (html: string): boolean =>
-  hasVisibleContent(htmlToDOM(sanitizeCustomHtml(html)) as ChildNode[]);
+  hasVisibleContent(htmlToDOM(html) as ChildNode[]);
 
 /**
- * Splits a finished agent reply's HTML, sanitized as `RenderBody` renders it, after the top-level
- * node that holds the last call the renderer draws with these base parser options (see
+ * Splits a finished agent reply's HTML, sanitized with the options `RenderBody` renders it with
+ * (`useBodySanitizeOptions`), after the top-level node that holds the last call the renderer draws with these base parser options (see
  * `readRenderedToolCalls`), or returns undefined when it draws no call or nothing visible follows
  * the last one.
  */
 export const splitFinishedWork = (
   html: string,
-  baseOpts: HTMLReactParserOptions
+  baseOpts: HTMLReactParserOptions,
+  sanitizeOptions: SanitizeCustomHtmlOptions
 ): FinishedWorkSplit | undefined => {
   if (!html.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
-  const { nodes, lastNode } = readRenderedToolCalls(sanitizeCustomHtml(html), baseOpts);
+  const { nodes, lastNode } = readRenderedToolCalls(
+    sanitizeCustomHtml(html, sanitizeOptions),
+    baseOpts
+  );
   if (lastNode < 0) return undefined;
   const serialize = (from: number, to?: number) =>
     nodes.slice(from, to).map(serializeHtmlNode).join('');

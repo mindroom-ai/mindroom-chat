@@ -2051,7 +2051,7 @@ describe('placement markers and the fold match the app renderer', () => {
     expect(placed(html)).toEqual(drawn);
 
     // The fold keeps every drawn call in the work, each body rendered as RenderBody renders it.
-    const split = splitFinishedWork(rawHtml, baseOpts);
+    const split = splitFinishedWork(rawHtml, baseOpts, {});
     if (!split) return;
     expect(await renderedOrder(sanitizeCustomHtml(split.head))).toEqual(drawn);
     expect(await renderedOrder(sanitizeCustomHtml(split.tail))).toEqual([]);

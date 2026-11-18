@@ -41,6 +41,7 @@ import { ReasoningSegmentsContext, ToolCallsCogContext } from './toolCallStatus'
 import { CogRipple } from './ToolCallsFold.css';
 import { MINDROOM_TOOL_REF_ICON } from '../html/blocks';
 import { readRenderedToolCalls } from '../html/HtmlBlocks';
+import { useBodySanitizeOptions } from '../content/useBodySanitizeOptions';
 import * as css from './Reasoning.css';
 import { CompactionSeamsAt, ReasoningSegmentsAt, thoughtSeconds } from './ReasoningAnchors';
 
@@ -252,6 +253,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // The calls the body draws as tool blocks, read from the renderer's own parse of the HTML it
   // renders. They place the segments an open bulb shows after calls and the compactions after
   // calls, and end the segment the model writes; the body is read for them only then.
+  const sanitizeOptions = useBodySanitizeOptions();
   const readsCalls =
     (open && segments.some(({ afterTool }) => afterTool > 0)) ||
     compactions.some(({ afterTool }) => afterTool > 0) ||
@@ -259,9 +261,10 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const markers = useMemo(
     () =>
       readsCalls && html?.includes(MINDROOM_TOOL_REF_ICON)
-        ? readRenderedToolCalls(sanitizeCustomHtml(html), htmlReactParserOptions).indexes
+        ? readRenderedToolCalls(sanitizeCustomHtml(html, sanitizeOptions), htmlReactParserOptions)
+            .indexes
         : NO_MARKERS,
-    [readsCalls, html, htmlReactParserOptions]
+    [readsCalls, html, htmlReactParserOptions, sanitizeOptions]
   );
   // The model is writing its last segment from when the live reasoning comes or grows on screen
   // until the reply moves past it. A tool call that began after the segment did ends it, also when

@@ -7,6 +7,7 @@ import { ClientConfigProvider } from '../../config/useClientConfig';
 import { loadLiveMarkdown, renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { renderAgentMessageContent } from '../content/renderAgentMessageContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { readRenderedToolCalls } from '../html/HtmlBlocks';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 
 // The real renderer, watched for when it is requested.
@@ -19,10 +20,17 @@ vi.mock('../live/liveMarkdown', async (importOriginal) => {
   };
 });
 
-// The real sanitizer, watched for when a body is parsed: RenderBody passes the link schemes too.
+// The real sanitizer, watched for when a body is read, by RenderBody or the placement of its
+// calls, both with the body's sanitize options.
 vi.mock('../../rich-text/sanitize', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../rich-text/sanitize')>();
   return { ...actual, sanitizeCustomHtml: vi.fn(actual.sanitizeCustomHtml) };
+});
+
+// The real reader of the calls a body draws, watched for when the placement reads them.
+vi.mock('../html/HtmlBlocks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../html/HtmlBlocks')>();
+  return { ...actual, readRenderedToolCalls: vi.fn(actual.readRenderedToolCalls) };
 });
 
 // The real RenderBody under an MText that renders the body, then what comes after it.
@@ -493,7 +501,8 @@ describe('MindroomReasoning', () => {
         (node) => node.type === 'button' && node.props.className === 'ReasoningCollapseEnd'
       );
 
-    // How often the body was parsed: RenderBody sanitizes it with the link schemes.
+    // How often the body was read, by RenderBody or the placement of its calls: both pass the
+    // body's sanitize options, as the reasoning's own Markdown does not.
     const bodyParses = () =>
       vi.mocked(sanitizeCustomHtml).mock.calls.filter((call) => call.length > 1).length;
 
@@ -837,12 +846,10 @@ describe('MindroomReasoning', () => {
       it('reads the tool calls of an open reply again for each change of its HTML', async () => {
         const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
         await act(() => header(root).props.onClick());
-        // The body sanitized without the link schemes, as the placement reads its markers.
         const markerReads = () =>
           vi
-            .mocked(sanitizeCustomHtml)
-            .mock.calls.filter((call) => call.length === 1 && call[0].includes('<p>Reading.</p>'))
-            .length;
+            .mocked(readRenderedToolCalls)
+            .mock.calls.filter(([html]) => html.includes('<p>Reading.</p>')).length;
         const reads = markerReads();
         expect(reads).toBeGreaterThan(0);
 

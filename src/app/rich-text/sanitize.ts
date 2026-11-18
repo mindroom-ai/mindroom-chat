@@ -247,7 +247,7 @@ const normalizeAdditionalSchemes = (value: unknown): string[] => {
 export const allowedLinkSchemes = (additionalAllowedUriSchemes?: unknown): string[] =>
   union(PERMITTED_URL_SCHEMES, normalizeAdditionalSchemes(additionalAllowedUriSchemes));
 
-type SanitizeCustomHtmlOptions = {
+export type SanitizeCustomHtmlOptions = {
   /** Additions to the allowlist; they extend the base rules and never replace them. */
   policy?: IOptions;
   /** Extra link schemes, such as `obsidian`, from the client configuration. */

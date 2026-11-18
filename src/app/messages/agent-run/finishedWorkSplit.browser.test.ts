@@ -35,7 +35,7 @@ describe('splitFinishedWork in the browser', () => {
   });
 
   it('keeps the leading newline of a code block in the answer', () => {
-    const tail = splitFinishedWork(`${marker}<pre>\n\nhello</pre>`, {})?.tail;
+    const tail = splitFinishedWork(`${marker}<pre>\n\nhello</pre>`, {}, {})?.tail;
 
     expect(tail).toBeDefined();
     expect(renderedPreText(tail ?? '')).toBe('\nhello');

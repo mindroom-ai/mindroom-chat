@@ -6,6 +6,7 @@ import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
+import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
 import { MessageExtras } from '../MessageExtras';
@@ -162,14 +163,15 @@ function AgentWorkBody({
 }: AgentWorkBodyProps) {
   // While a request of its calls waits, under it, the work stays open: the call it blocks shows.
   const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
+  const sanitizeOptions = useBodySanitizeOptions();
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
   // reply's own body to change, and for it to finish long.
   const split = useMemo(
     () =>
       finished && !waiting && html !== undefined && isLongAgentReply(body)
-        ? splitFinishedWork(html, htmlReactParserOptions)
+        ? splitFinishedWork(html, htmlReactParserOptions, sanitizeOptions)
         : undefined,
-    [finished, waiting, body, html, htmlReactParserOptions]
+    [finished, waiting, body, html, htmlReactParserOptions, sanitizeOptions]
   );
   return (
     <FinishedWorkFold

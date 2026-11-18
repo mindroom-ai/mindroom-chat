@@ -12,7 +12,7 @@ const mx = {
 const baseOpts = getReactCustomHtmlParser(mx, undefined, {
   linkifyOpts: LINKIFY_OPTS,
 });
-const split = (html: string) => splitFinishedWork(html, baseOpts);
+const split = (html: string) => splitFinishedWork(html, baseOpts, {});
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
 
