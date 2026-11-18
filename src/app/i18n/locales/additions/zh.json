@@ -1144,7 +1144,10 @@
         "all": "符合其他筛选条件的所有讨论串。"
       }
     },
-    "renameHint": "双击以重命名"
+    "renameHint": "双击以重命名",
+    "close": "关闭讨论串",
+    "resizeSecond": "调整第二个讨论串大小",
+    "second": "第二个讨论串"
   },
   "threadSnooze": {
     "title": "延后至",
@@ -1484,5 +1487,8 @@
     "later": "稍后",
     "open": "未完成",
     "done": "已完成"
+  },
+  "threadActions": {
+    "openBeside": "在旁边打开"
   }
 }

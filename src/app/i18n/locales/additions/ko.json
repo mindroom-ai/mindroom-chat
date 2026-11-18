@@ -1144,7 +1144,10 @@
         "all": "다른 필터 조건에 맞는 모든 스레드입니다."
       }
     },
-    "renameHint": "두 번 클릭하여 이름 바꾸기"
+    "renameHint": "두 번 클릭하여 이름 바꾸기",
+    "close": "스레드 닫기",
+    "resizeSecond": "두 번째 스레드 크기 조정",
+    "second": "두 번째 스레드"
   },
   "threadSnooze": {
     "title": "일시 중지 종료 시각",
@@ -1484,5 +1487,8 @@
     "later": "나중에",
     "open": "열림",
     "done": "완료"
+  },
+  "threadActions": {
+    "openBeside": "옆에 열기"
   }
 }

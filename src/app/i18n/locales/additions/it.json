@@ -1184,7 +1184,10 @@
         "all": "Tutti i thread che corrispondono agli altri filtri."
       }
     },
-    "renameHint": "Fai doppio clic per rinominare"
+    "renameHint": "Fai doppio clic per rinominare",
+    "close": "Chiudi il thread",
+    "resizeSecond": "Ridimensiona il secondo thread",
+    "second": "Secondo thread"
   },
   "threadSnooze": {
     "title": "Posticipa fino a",
@@ -1550,5 +1553,8 @@
     "later": "Più tardi",
     "open": "Aperti",
     "done": "Fatti"
+  },
+  "threadActions": {
+    "openBeside": "Apri accanto"
   }
 }

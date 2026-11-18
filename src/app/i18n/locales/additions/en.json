@@ -1164,7 +1164,10 @@
         "all": "Every thread matching your other filters."
       }
     },
-    "renameHint": "Double-click to rename"
+    "renameHint": "Double-click to rename",
+    "close": "Close thread",
+    "resizeSecond": "Resize second thread",
+    "second": "Second thread"
   },
   "threadSnooze": {
     "title": "Snooze until",
@@ -1517,5 +1520,8 @@
     "later": "Later",
     "open": "Open",
     "done": "Done"
+  },
+  "threadActions": {
+    "openBeside": "Open beside"
   }
 }

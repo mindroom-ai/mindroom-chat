@@ -1144,7 +1144,10 @@
         "all": "Semua utas yang cocok dengan filter Anda lainnya."
       }
     },
-    "renameHint": "Klik dua kali untuk mengganti nama"
+    "renameHint": "Klik dua kali untuk mengganti nama",
+    "close": "Tutup utas",
+    "resizeSecond": "Ubah ukuran utas kedua",
+    "second": "Utas kedua"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -1484,5 +1487,8 @@
     "later": "Nanti",
     "open": "Terbuka",
     "done": "Selesai"
+  },
+  "threadActions": {
+    "openBeside": "Buka di samping"
   }
 }

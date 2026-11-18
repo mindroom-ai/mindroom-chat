@@ -1144,7 +1144,10 @@
         "all": "他のフィルター条件に一致するすべてのスレッドです。"
       }
     },
-    "renameHint": "ダブルクリックで名前を変更"
+    "renameHint": "ダブルクリックで名前を変更",
+    "close": "スレッドを閉じる",
+    "resizeSecond": "2つ目のスレッドのサイズを変更",
+    "second": "2つ目のスレッド"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
@@ -1484,5 +1487,8 @@
     "later": "後で",
     "open": "未完了",
     "done": "完了"
+  },
+  "threadActions": {
+    "openBeside": "横に開く"
   }
 }
