@@ -39,6 +39,7 @@ const state = vi.hoisted(() => ({
   noWriters: new Map(),
   noEvents: [] as unknown[],
   noIds: [] as string[],
+  forgotten: new Set<(messageId: string) => void>(),
 }));
 
 vi.mock('./useRoomThreadList', () => ({ useRoomThreadList: () => state.list }));
@@ -53,13 +54,13 @@ vi.mock('../../event-store/threads/threadWriters', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../event-store/threads/threadWriters')>()),
   useThreadWriters: () => state.noWriters,
 }));
-vi.mock('../open/threadBootstrap', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../open/threadBootstrap')>();
-  return {
-    ...actual,
-    shouldRefreshOverviewForTimelineEvent: vi.fn(actual.shouldRefreshOverviewForTimelineEvent),
-  };
-});
+vi.mock('../../matrix/client/syncedEdits', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/client/syncedEdits')>()),
+  onSyncedEditForgotten: (listener: (messageId: string) => void) => {
+    state.forgotten.add(listener);
+    return () => state.forgotten.delete(listener);
+  },
+}));
 vi.mock('./threadOverviewCacheHydration', () => ({
   useThreadOverviewCacheHydration: () => undefined,
   useThreadOverviewRelationUpdates: () => () => undefined,
@@ -76,8 +77,6 @@ import {
   useThreadRecordKeeper,
   type ThreadRecordKeeper,
 } from './threadRecordKeeper';
-// eslint-disable-next-line import/first
-import { shouldRefreshOverviewForTimelineEvent } from '../open/threadBootstrap';
 // eslint-disable-next-line import/first
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 
@@ -194,6 +193,8 @@ beforeEach(() => {
   Object.assign(room, { threadsTimelineSets: [{ getLiveTimeline: () => ({}) }] });
   roots = [root('$a', 'First A'), root('$b', 'B'), root('$c', 'C'), root('$d', 'D')];
   state.pinnedEvents = roots;
+  // Keepers some tests leave behind listen to the rooms of those tests.
+  state.forgotten.clear();
   vi.useFakeTimers();
 });
 
@@ -235,6 +236,38 @@ describe('the Compact list back under its room page', () => {
     expect(back.firstBuild.get('$a')).toBe(before.get('$a'));
     expect(back.firstBuild.get('$c')).toBe(before.get('$c'));
     back.unmount();
+  });
+
+  it('hears through the trip what no event tells of, and builds no more by the clock', () => {
+    const keeper = createThreadRecordKeeper(room);
+    const shown = shownList(keeper);
+    const before = shown.records();
+    shown.unmount();
+
+    // While away: the kept edits of C's root are dropped, and D's reply stops streaming by the
+    // clock, which comes as an update of its thread (streamingReplies.ts).
+    state.forgotten.forEach((listener) => listener('$c'));
+    room.emit(ThreadEvent.Update, { id: '$d' } as Thread);
+    const builds: Records[] = [];
+    const painted: { current?: Records } = {};
+    const view = render(createElement(ListProbe, { keeper, builds, shown: painted }));
+
+    expect(builds[0]!.get('$c')).not.toBe(before.get('$c'));
+    expect(builds[0]!.get('$d')).not.toBe(before.get('$d'));
+    expect(builds[0]!.get('$a')).toBe(before.get('$a'));
+    expect(builds[0]!.get('$b')).toBe(before.get('$b'));
+    // A quiet room rests: no check a second later builds the kept records again.
+    const shownBuild = painted.current;
+    const rendered = builds.length;
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(builds).toHaveLength(rendered);
+    expect(painted.current).toBe(shownBuild);
+    view.unmount();
+    expect(state.forgotten.size).toBe(1);
+    disposeThreadRecordKeeper(keeper);
+    expect(state.forgotten.size).toBe(0);
   });
 
   it('builds every record after a change of the whole room while the list was gone', () => {
@@ -519,10 +552,9 @@ describe('the lifetime of what the room page keeps', () => {
     expect(mx.listenerCount(MatrixEventEvent.Replaced)).toBe(0);
   });
 
-  it('while no list shows, marks only the threads it keeps and the room, and asks nothing of a view', () => {
+  it('while no list shows, marks only the threads it keeps and the room', () => {
     const keeper = createThreadRecordKeeper(room);
     shownList(keeper).unmount();
-    vi.mocked(shouldRefreshOverviewForTimelineEvent).mockClear();
 
     const reply = new MatrixEvent({
       type: 'm.room.message',
@@ -539,7 +571,6 @@ describe('the lifetime of what the room page keeps', () => {
     room.emit(ThreadEvent.Update, { id: '$unseen' } as Thread);
     room.emit(ThreadEvent.Update, { id: '$b' } as Thread);
 
-    expect(shouldRefreshOverviewForTimelineEvent).not.toHaveBeenCalled();
     expect([...keeper.changes.threads.keys()]).toEqual(['$b']);
     disposeThreadRecordKeeper(keeper);
   });

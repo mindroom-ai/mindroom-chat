@@ -219,31 +219,52 @@ const loadMedia = <T extends HTMLImageElement | HTMLVideoElement>(
 export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
   loadMedia(document.createElement('img'), 'load', url);
 
-/** How long a video may take to show its first frame before it is sent without one. */
+/** How long a video may take to load before it is sent without its dimensions and thumbnail. */
 export const VIDEO_LOAD_TIMEOUT_MS = 10_000;
 
 /**
- * Loads a video up to its first frame, for its dimensions or to draw a thumbnail. iOS WebKit
- * decodes no frame of a video that never plays, so it plays muted until then. A video that
- * still shows no frame after `VIDEO_LOAD_TIMEOUT_MS` rejects, so a send never waits on it.
+ * How long a loaded video may take to show its first frame before it goes on without the
+ * browser's word for one. The picture of a video can start after its sound.
  */
-export const loadVideoElement = (url: string): Promise<HTMLVideoElement> => {
+export const VIDEO_FRAME_WAIT_MS = 2_000;
+
+/**
+ * Loads a video up to its first frame, for its dimensions or to draw a thumbnail. iOS WebKit
+ * decodes no frame of a video that never plays, so it plays muted until then. WebKit fires
+ * `loadeddata` before the frame can be drawn, so the load also waits until the browser has shown
+ * a frame, for at most `VIDEO_FRAME_WAIT_MS`: a page that is not on screen shows none. A video
+ * that has not loaded after `VIDEO_LOAD_TIMEOUT_MS` rejects, so a send never waits on it.
+ */
+export const loadVideoElement = async (url: string): Promise<HTMLVideoElement> => {
   const video = document.createElement('video');
   Object.assign(video, { preload: 'metadata', playsInline: true, muted: true });
+  // A browser that cannot tell when it shows a frame counts as having shown it.
+  const frameShown = new Promise<void>((resolve) => {
+    if ('requestVideoFrameCallback' in video) video.requestVideoFrameCallback(() => resolve());
+    else resolve();
+  });
   const loaded = loadMedia(video, 'loadeddata', url);
   // A refused play (Low Power Mode) leaves the timeout to settle the load.
   video.play()?.catch(() => undefined);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timedOut = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`Could not load video ${url} within ${VIDEO_LOAD_TIMEOUT_MS} ms`)),
-      VIDEO_LOAD_TIMEOUT_MS
-    );
-  });
-  return Promise.race([loaded, timedOut]).finally(() => {
-    clearTimeout(timer);
+  const timers: Array<ReturnType<typeof setTimeout>> = [];
+  const after = (ms: number) =>
+    new Promise<void>((resolve) => {
+      timers.push(setTimeout(resolve, ms));
+    });
+  try {
+    await Promise.race([
+      loaded,
+      after(VIDEO_LOAD_TIMEOUT_MS).then(() => {
+        throw new Error(`Could not load video ${url} within ${VIDEO_LOAD_TIMEOUT_MS} ms`);
+      }),
+    ]);
+    // A file with no picture the browser can decode (only sound) shows no frame.
+    if (video.videoWidth > 0) await Promise.race([frameShown, after(VIDEO_FRAME_WAIT_MS)]);
+    return video;
+  } finally {
+    timers.forEach(clearTimeout);
     video.pause();
-  });
+  }
 };
 
 export const getDataTransferFiles = (dataTransfer: DataTransfer): File[] | undefined => {
