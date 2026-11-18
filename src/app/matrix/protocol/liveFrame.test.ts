@@ -132,26 +132,24 @@ describe('live reply frames', () => {
 
   it('replaces the whole compaction list with a delta that carries it and keeps it otherwise', () => {
     const before = { ...docs, compactions: [COMPACTIONS[0]] };
-    const replacing = parseLiveFrame(frame({ delta: { compactions: COMPACTIONS } }));
-    const clearing = parseLiveFrame(frame({ delta: { compactions: [] } }));
-    const keeping = parseLiveFrame(frame({ delta: { activity: 'x' } }));
-    if (
-      !replacing ||
-      !('delta' in replacing) ||
-      !clearing ||
-      !('delta' in clearing) ||
-      !keeping ||
-      !('delta' in keeping)
-    ) {
-      throw new Error('Expected three deltas');
-    }
+    const deltaOf = (body: Record<string, unknown>) => {
+      const parsed = parseLiveFrame(frame({ delta: body }));
+      if (!parsed || !('delta' in parsed)) throw new Error('Expected a delta');
+      return parsed.delta;
+    };
 
-    expect(applyLiveDelta(before, replacing.delta)).toEqual({
+    expect(applyLiveDelta(before, deltaOf({ compactions: COMPACTIONS }))).toEqual({
       ...before,
       compactions: COMPACTIONS,
     });
-    expect(applyLiveDelta(before, clearing.delta)).toEqual({ ...before, compactions: [] });
-    expect(applyLiveDelta(before, keeping.delta)).toEqual({ ...before, activity: 'x' });
+    expect(applyLiveDelta(before, deltaOf({ compactions: [] }))).toEqual({
+      ...before,
+      compactions: [],
+    });
+    expect(applyLiveDelta(before, deltaOf({ activity: 'x' }))).toEqual({
+      ...before,
+      activity: 'x',
+    });
   });
 
   it('rejects content that is not an object', () => {
