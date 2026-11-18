@@ -29,6 +29,7 @@ on:
     paths:
       - ios/**
       - scripts/build-macos-app.sh
+      - scripts/macos-dmg/**
       - scripts/build-macos-store.sh
       - scripts/macos-store-preflight.mjs
       - scripts/test-macos-support.sh
