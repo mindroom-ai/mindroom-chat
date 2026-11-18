@@ -22,9 +22,8 @@ import { glassExpanded } from '../ui/styles/Glass.css';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EffortGlyph, effortBars } from './EffortGlyph';
 import { ModelEffortColumn } from './ModelEffortColumn';
-import type { ModelCatalogEntry, ReasoningLevel } from './modelProtocol';
+import type { ModelCatalogEntry, ModelInheritedEntry, ReasoningLevel } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
-import { agentMember } from '../matrix/protocol/agentIdentity';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
 import * as css from './ModelPicker.css';
 
@@ -78,10 +77,10 @@ export type DefaultSource = 'agent' | 'room' | 'unknown';
 export const describeDefault = (
   inherited: ModelPickerState['inherited'],
   models: ModelPickerState['models'],
-  nameOf: (entity: string) => string
+  nameOf: (entry: ModelInheritedEntry) => string
 ): { source: DefaultSource; agents: string; roomOverride: boolean } => {
   const labels = new Map(models.map((model) => [model.key, model.display_name]));
-  const named = inherited.map(({ entity, model }) => [nameOf(entity), labels.get(model) ?? model]);
+  const named = inherited.map((entry) => [nameOf(entry), labels.get(entry.model) ?? entry.model]);
   const kinds = new Set(
     inherited.map(({ source }) => (source === 'room_config' ? 'room' : source))
   );
@@ -90,7 +89,7 @@ export const describeDefault = (
     source: kinds.size === 1 && (kind === 'agent' || kind === 'room') ? kind : 'unknown',
     agents:
       named.length === 1 ? named[0]!.join(' · ') : named.map((pair) => pair.join(': ')).join(' · '),
-    roomOverride: inherited.some(({ source }) => source === 'room'),
+    roomOverride: inherited.length > 0 && inherited.every(({ source }) => source === 'room'),
   };
 };
 type DefaultWords = { label: string; agents: string; description: string };
@@ -513,7 +512,8 @@ export function ModelPicker({
   const described = describeDefault(
     state.inherited,
     state.models,
-    (entity) => agentMember(membersRoom, entity)?.name || entity
+    // The runtime names each entity's account; without it, or before its member loads, the entity.
+    ({ entity, user_id: userId }) => (userId && membersRoom?.getMember(userId)?.name) || entity
   );
   const defaults: DefaultWords = {
     label: t(`mindroomUi.models.modelPicker.${DEFAULT_LABELS[described.source]}`),

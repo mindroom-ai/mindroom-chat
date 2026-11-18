@@ -92,22 +92,29 @@ describe('reasoning levels on the wire', () => {
     expect(parsed?.selection).toEqual(catalog.selection);
   });
 
-  it('keeps a known source on each inherited model and drops an unknown one', () => {
+  it("keeps each inherited model's known source and account, and drops malformed ones", () => {
     const parsed = parseModelCatalogResponse({
       ...catalog,
       selection: {
         override: null,
         inherited: [
-          { entity: 'helper', model: 'fast', source: 'room_config' },
-          { entity: 'scout', model: 'fast', source: 'space' },
-          { entity: 'crew', model: 'fast', source: 7 },
+          {
+            entity: 'helper',
+            model: 'fast',
+            source: 'room_config',
+            user_id: '@mindroom_helper:test',
+          },
+          { entity: 'scout', model: 'fast', source: 'space', user_id: 'mindroom_scout' },
+          { entity: 'crew', model: 'fast', source: 7, user_id: 7 },
+          { entity: 'aide', model: 'fast', user_id: '@'.repeat(2000) },
         ],
       },
     });
     expect(parsed?.selection.inherited).toEqual([
-      { entity: 'helper', model: 'fast', source: 'room_config' },
+      { entity: 'helper', model: 'fast', source: 'room_config', user_id: '@mindroom_helper:test' },
       { entity: 'scout', model: 'fast' },
       { entity: 'crew', model: 'fast' },
+      { entity: 'aide', model: 'fast' },
     ]);
   });
 

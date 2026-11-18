@@ -160,8 +160,7 @@ vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => true,
 }));
 
-vi.mock('../matrix/matrix', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
+vi.mock('../matrix/matrix', () => ({
   mxcUrlToHttp: mocks.mxcUrlToHttp,
 }));
 
@@ -285,14 +284,7 @@ describe('composer model picker', () => {
     () => {
       mocks.useModelPicker.mockReturnValue(createState({ eligible: false }));
 
-      act(() =>
-        root.render(
-          <ThreadModelPicker
-            room={{ getJoinedMembers: () => [] } as unknown as Room}
-            threadId="$thread"
-          />
-        )
-      );
+      act(() => root.render(<ThreadModelPicker room={{} as Room} threadId="$thread" />));
 
       expect(container.querySelector('button[aria-label="Choose model"]')).toBeNull();
       expect(container.querySelector('.TriggerDivider')).toBeNull();
@@ -302,14 +294,7 @@ describe('composer model picker', () => {
   it('sets the button off from the buttons after it in a thread', () => {
     mocks.useModelPicker.mockReturnValue(createState());
 
-    act(() =>
-      root.render(
-        <ThreadModelPicker
-          room={{ getJoinedMembers: () => [] } as unknown as Room}
-          threadId="$thread"
-        />
-      )
-    );
+    act(() => root.render(<ThreadModelPicker room={{} as Room} threadId="$thread" />));
 
     expect(trigger()).not.toBeNull();
     expect(container.lastElementChild?.className).toBe('TriggerDivider');
@@ -380,24 +365,34 @@ describe('composer model picker', () => {
     expect(optionNamed('Quick helper').querySelector('.Check')).toBeNull();
   });
 
-  it('says under "Agent default" which model each agent runs, by its display name', async () => {
+  it('names each agent by the room member of the account the runtime gives, else by its entity', async () => {
+    // Two runtimes' helpers share the entity name; only the account tells them apart.
+    const names: Record<string, string> = {
+      '@mindroom_helper:example.org': 'Helper at home',
+      '@mindroom_helper_work1:example.org': 'Helper at work',
+    };
     const room = {
-      getJoinedMembers: () => [{ userId: '@mindroom_assistant:example.org', name: 'Assistant' }],
+      getMember: (userId: string) => (names[userId] ? { name: names[userId] } : null),
     } as unknown as Room;
     const state = createState({
       override: 'reset',
       inherited: [
-        { entity: 'assistant', model: 'fast', source: 'agent' },
+        {
+          entity: 'helper',
+          model: 'fast',
+          source: 'agent',
+          user_id: '@mindroom_helper_work1:example.org',
+        },
         { entity: 'reviewer', model: 'legacy-key', source: 'agent' },
+        { entity: 'scout', model: 'fast', source: 'agent', user_id: '@mindroom_scout:example.org' },
       ],
     });
-    mocks.anchors.length = 0;
     act(() => root.render(<ModelPicker state={state} room={room} />));
     await click(trigger());
 
     const details = optionNamed('Agent default').querySelectorAll('.RoomDefaultDetail');
     expect([...details].map((detail) => detail.textContent)).toEqual([
-      'Assistant: Quick helper · reviewer: legacy-key',
+      'Helper at work: Quick helper · reviewer: legacy-key · scout: Quick helper',
       'Choosing a model here applies to this thread only.',
     ]);
   });
@@ -1237,7 +1232,7 @@ describe('composer model picker', () => {
 describe('describeDefault', () => {
   const models = [{ key: 'opus', display_name: 'Opus', provider: 'anthropic', id: 'opus-id' }];
   const names: Record<string, string> = { dev: 'DevAgent', analyst: 'Analyst' };
-  const nameOf = (entity: string) => names[entity] ?? entity;
+  const nameOf = ({ entity }: { entity: string }) => names[entity] ?? entity;
   const sourceOf = (...sources: (string | undefined)[]) =>
     describeDefault(
       sources.map((source, index) => ({
@@ -1276,5 +1271,18 @@ describe('describeDefault', () => {
         nameOf
       )
     ).toEqual({ source: 'room', agents: 'DevAgent: Opus · Analyst: sol', roomOverride: true });
+  });
+
+  it("says !room_model set the model only when it set every agent's", () => {
+    const roomOverride = (...sources: ('room' | 'room_config' | 'agent')[]) =>
+      describeDefault(
+        sources.map((source) => ({ entity: 'dev', model: 'opus', source })),
+        models,
+        nameOf
+      ).roomOverride;
+    expect(roomOverride('room', 'room')).toBe(true);
+    expect(roomOverride('room', 'room_config')).toBe(false);
+    expect(roomOverride('room', 'agent')).toBe(false);
+    expect(roomOverride()).toBe(false);
   });
 });

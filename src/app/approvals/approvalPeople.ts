@@ -1,5 +1,4 @@
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { agentMember } from '../matrix/protocol/agentIdentity';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { isolateInSentence } from '../ui/directional';
@@ -19,7 +18,24 @@ export const useApprovalRoom = (roomId?: string): ApprovalMemberRoom | null | un
   return id ? (mx.getRoom?.(id) as ApprovalMemberRoom | null | undefined) : undefined;
 };
 
-export { agentMember };
+// MindRoom names agent accounts mindroom_<agent>, or mindroom_<agent>_<namespace> where the
+// namespace is 4-32 lowercase letters and digits. Prefix matching would mistake
+// mindroom_assistant_pro for the account of `assistant`.
+const NAMESPACE = '[a-z0-9]{4,32}';
+
+export const agentMember = (
+  room: ApprovalMemberRoom | null | undefined,
+  agentName: string
+): ApprovalMember | undefined => {
+  const base = `mindroom_${agentName.toLowerCase()}`;
+  const namespaced = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_${NAMESPACE}$`);
+  const members = room?.getJoinedMembers() ?? [];
+  const localpart = (userId: string) => (getMxIdLocalPart(userId) ?? '').toLowerCase();
+  return (
+    members.find((item) => localpart(item.userId) === base) ??
+    members.find((item) => namespaced.test(localpart(item.userId)))
+  );
+};
 
 export const agentDisplayName = (
   room: ApprovalMemberRoom | null | undefined,
@@ -29,4 +45,5 @@ export const agentDisplayName = (
 export const userDisplayName = (
   room: ApprovalMemberRoom | null | undefined,
   userId: string
-): string => isolateInSentence(room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId);
+): string =>
+  isolateInSentence(room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId);

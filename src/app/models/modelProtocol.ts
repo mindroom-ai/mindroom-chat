@@ -31,14 +31,16 @@ export type ModelCatalogEntry = {
 export const MODEL_SOURCES = ['room', 'room_config', 'agent'] as const;
 export type ModelSource = (typeof MODEL_SOURCES)[number];
 /**
- * `model` is a catalog key; `reasoning` names a level only when the stored choice had one; `source`
- * is absent from older runtimes and when it names a source this client does not know.
+ * `model` is a catalog key; `reasoning` names a level only when the stored choice had one; `user_id`
+ * is the entity's own account; `source` and `user_id` are absent from older runtimes, and when
+ * malformed or naming a source this client does not know.
  */
 export type ModelInheritedEntry = {
   entity: string;
   model: string;
   reasoning?: ReasoningLevel;
   source?: ModelSource;
+  user_id?: string;
 };
 export type ModelSelection = {
   override: string | null;
@@ -179,6 +181,7 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
         ...(MODEL_SOURCES.includes(entry.source as ModelSource)
           ? { source: entry.source as ModelSource }
           : {}),
+        ...(str(entry.user_id) && entry.user_id.startsWith('@') ? { user_id: entry.user_id } : {}),
       })),
     },
   };

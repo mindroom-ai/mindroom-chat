@@ -27,6 +27,8 @@ const shot = async (page: Page, name: string) => {
 // A model's own row starts with its name; "Agent default" names the models the agents fall back to.
 const named = (name: string): RegExp =>
   new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+// The button without a thread model; a runtime that names no source shows "Default".
+const UNCHOSEN = /^(Agent default|Default)/;
 
 test('a thread switches to another model from the picker, and the choice survives a reload', async ({
   page,
@@ -52,7 +54,7 @@ test('a thread switches to another model from the picker, and the choice survive
   await expect(firstRow).toContainText(first.displayName);
 
   const chip = page.getByRole('button', { name: 'Choose model' });
-  await expect(chip).toHaveText(named('Agent default'), { timeout: 60_000 });
+  await expect(chip).toHaveText(UNCHOSEN, { timeout: 60_000 });
   await chip.click();
   const models = page.getByRole('listbox', { name: 'Models' });
   await expect(models.getByRole('option', { name: named(second.displayName) })).toBeVisible({
@@ -102,7 +104,7 @@ test('a thread runs a model at the reasoning level picked in the effort column',
   });
 
   const chip = page.getByRole('button', { name: 'Choose model' });
-  await expect(chip).toHaveText(named('Agent default'), { timeout: 60_000 });
+  await expect(chip).toHaveText(UNCHOSEN, { timeout: 60_000 });
   await chip.click();
   const models = page.getByRole('listbox', { name: 'Models' });
   const row = models.getByRole('option', { name: named(think.displayName) });
@@ -151,7 +153,7 @@ test(
       modelId: first.id,
     });
     const chip = page.getByRole('button', { name: 'Choose model' });
-    await expect(chip).toHaveText(named('Agent default'), { timeout: 60_000 });
+    await expect(chip).toHaveText(UNCHOSEN, { timeout: 60_000 });
 
     await sendFromComposer(page, `!model ${second.key}`);
     await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
@@ -165,7 +167,7 @@ test(
     await expect(page.getByText('Thread model override removed').last()).toBeVisible({
       timeout: 60_000,
     });
-    await expect(chip).toHaveText(named('Agent default'), { timeout: 10_000 });
+    await expect(chip).toHaveText(UNCHOSEN, { timeout: 10_000 });
   }
 );
 
