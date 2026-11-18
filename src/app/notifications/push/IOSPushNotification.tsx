@@ -15,6 +15,7 @@ import {
   disableIOSPushPusher,
   isNativeIOSPlatform,
   type NativePushPermission,
+  registerIOSPush,
   requestIOSPushPermission,
   resolveIOSPushConfig,
   setIOSPushEnabled,
@@ -70,8 +71,10 @@ function IOSPushNotificationTile() {
           let current = await checkIOSPushPermission();
           if (current === 'prompt') current = await requestIOSPushPermission();
           if (current !== 'granted') throw new Error('Notification permission was not granted.');
-          // NativeIOSPushFeature registers with APNs and the homeserver once this is on.
           setIOSPushEnabled(true, sessionId);
+          // Granting permission changes nothing NativeIOSPushFeature watches (on a fresh install
+          // push is already on), so register here; its listener sends the token as the pusher.
+          await registerIOSPush();
           return;
         }
         setIOSPushEnabled(false, sessionId);
