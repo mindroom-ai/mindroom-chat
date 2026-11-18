@@ -31,6 +31,8 @@ const tokens = createVar();
 const cost = createVar();
 const time = createVar();
 const button = config.size.X500;
+// The title line keeps the typing strip's height beside it: its controls are a line tall.
+const lineHeight = '1.5rem';
 const actions = `calc(2 * ${button} + ${config.space.S100})`;
 
 // The typing bar's size and material; the rows inside take no surface of their own. Listed jobs
@@ -79,7 +81,7 @@ const grid = {
 export const Status = style([
   approvals.BarStatus,
   // The title line is the rows' size, not the approval bar's.
-  { gridArea: 'status', gap: config.space.S100, minHeight: config.size.X500, fontSize: 'inherit' },
+  { gridArea: 'status', gap: config.space.S100, minHeight: lineHeight, fontSize: 'inherit' },
 ]);
 
 export const Action = style({ gridArea: 'action', display: 'flex', alignItems: 'center' });
@@ -106,7 +108,7 @@ export const Toggle = style({
   gap: gap,
   flex: '1 1 auto',
   minWidth: 0,
-  minHeight: config.size.X500,
+  minHeight: lineHeight,
   ...textButton,
   selectors: {
     '&:focus-visible': keyboardRing,
@@ -149,7 +151,7 @@ export const Chevron = style({
   flex: 'none',
   marginInlineStart: 'auto',
   inlineSize: button,
-  blockSize: button,
+  blockSize: lineHeight,
   opacity: config.opacity.P300,
   selectors: { '[aria-expanded="true"] > &': { transform: 'rotate(180deg)' } },
 });
@@ -441,7 +443,16 @@ const iconButton = {
   },
 } as const;
 
-export const IconButton = style([touchTarget('8px'), iconButton]);
+// In the title line, a button is a line tall, so the bar keeps the typing strip's height.
+const inTitleLine = { blockSize: lineHeight };
+
+export const IconButton = style([
+  touchTarget('8px'),
+  {
+    ...iconButton,
+    selectors: { ...iconButton.selectors, [`${Status} &, ${Action} &`]: inTitleLine },
+  },
+]);
 
 const stopHover = { background: color.Critical.Container, color: color.Critical.Main };
 
@@ -449,7 +460,11 @@ export const StopButton = style([
   touchTarget('8px'),
   {
     ...iconButton,
-    selectors: { ...iconButton.selectors, '&:hover': stopHover },
+    selectors: {
+      ...iconButton.selectors,
+      '&:hover': stopHover,
+      [`${Status} &, ${Action} &`]: inTitleLine,
+    },
     '@media': {
       '(forced-colors: active)': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
     },
@@ -464,7 +479,7 @@ export const StopAll = style([
     alignItems: 'center',
     gap: config.space.S100,
     flex: 'none',
-    blockSize: button,
+    blockSize: lineHeight,
     paddingInline: config.space.S200,
     whiteSpace: 'nowrap',
     selectors: { '&:hover': stopHover, '&:focus-visible': keyboardRing },
