@@ -677,6 +677,29 @@ describe('shared model discovery', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(h.request().request_id).not.toBe(asked);
   });
+  it('resets the failure count on the answer itself, not on a later invalidation', async () => {
+    const h = setup();
+    await h.discover();
+    h.member('@one:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@one:test')!);
+    await flush();
+    // Four unanswered attempts, then the fifth, 60 s later, is answered.
+    for (const delay of [3000, 10000, 30000]) await vi.advanceTimersByTimeAsync(12000 + delay);
+    await vi.advanceTimersByTimeAsync(12000 + 60000);
+    h.response(h.request());
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    // A plain refresh (no invalidation) goes unanswered: it is the first failure, so retry after 3 s.
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+    const asked = h.request().request_id;
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(h.request().request_id).toBe(asked);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(h.request().request_id).not.toBe(asked);
+  });
   it('does not probe again on a sync that stays syncing', async () => {
     const h = setup();
     h.controller.subscribe(h.room, '$root', () => {});
