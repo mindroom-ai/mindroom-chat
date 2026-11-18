@@ -280,12 +280,13 @@ export function VoiceWaveform({
     >
       {compact ? (
         // The bars and the dotted line before them, whose dots fall at the bars' step, glide
-        // left together (useLiveGlide).
+        // left together (useLiveGlide). The line runs on under the unrecorded placeholder bars,
+        // so their rounded corners don't show as pills next to the square dots.
         <g ref={glideRef}>
           <line
             className={css.CompactLine}
             x1={0}
-            x2={Math.max(0, compactFirstStep) * BAR_STEP}
+            x2={Math.max(0, compactFirstStep + compactUnrecordedBarCount) * BAR_STEP}
             y1={SVG_HEIGHT / 2}
             y2={SVG_HEIGHT / 2}
             strokeWidth={3}
