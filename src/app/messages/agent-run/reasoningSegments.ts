@@ -69,10 +69,11 @@ export const lastRecordedReasoningSegment = (
 /**
  * Where each segment renders: a map from an anchor (a rendered tool marker index, or 0 for the top
  * of the reply) to the indices of the segments placed there, in order. A segment goes after the
- * greatest rendered marker index at most its `afterTool`, or to the top when there is none.
+ * greatest rendered marker index at most its `afterTool`, or to the top when there is none. The
+ * reply's compactions are placed by the same rule.
  */
 export const placeReasoningSegments = (
-  segments: readonly ReasoningSegment[],
+  segments: readonly { afterTool: number }[],
   renderedMarkerIndices: readonly number[]
 ): Map<number, number[]> => {
   const placement = new Map<number, number[]>();

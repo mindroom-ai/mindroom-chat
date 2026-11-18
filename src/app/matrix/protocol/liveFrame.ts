@@ -17,6 +17,11 @@ export type LiveDocs = {
   status: string;
   activity: string;
   segments: LiveReasoningSegment[];
+  /**
+   * The reply's `io.mindroom.compactions` entries as sent; `readReplyCompactions` reads them.
+   * Absent when the backend is older than compactions, so the reply's durable list stands.
+   */
+  compactions?: unknown[];
 };
 
 /** Replaces `del` UTF-16 units at `at` with `ins`; `len` is the document length afterwards. */
@@ -32,6 +37,8 @@ export type LiveDelta = {
   status?: string;
   activity?: string;
   segments?: LiveReasoningSegment[];
+  /** Replaces the whole compaction list. */
+  compactions?: unknown[];
 };
 
 export type LiveOrder = { sid: string; seq: number };
@@ -61,6 +68,9 @@ const parseSegments = (value: unknown): LiveReasoningSegment[] | null =>
     ? value.map(({ start, after_tool }: LiveReasoningSegment) => ({ start, after_tool }))
     : null;
 
+const parseCompactions = (value: unknown): unknown[] | null =>
+  Array.isArray(value) ? (value as unknown[]) : null;
+
 const parseSplice = (value: unknown): LiveSplice | null => {
   if (!isRecord(value)) return null;
   const { at, del, ins, len } = value;
@@ -89,9 +99,13 @@ const parseSnapshot = (value: unknown): LiveDocs | null => {
   const tools = parseTools(value.tools);
   // Older backends send no segments.
   const segments = 'segments' in value ? parseSegments(value.segments) : [];
+  // Older backends send no compactions: the frames then say nothing about them.
+  const compactions = 'compactions' in value ? parseCompactions(value.compactions) : undefined;
   if (typeof md !== 'string' || typeof reasoning !== 'string' || !tools) return null;
-  if (!isStatus(status) || typeof activity !== 'string' || !segments) return null;
-  return { md, reasoning, tools, status, activity, segments };
+  if (!isStatus(status) || typeof activity !== 'string' || !segments || compactions === null) {
+    return null;
+  }
+  return { md, reasoning, tools, status, activity, segments, ...(compactions && { compactions }) };
 };
 
 const parseDelta = (value: unknown): LiveDelta | null => {
@@ -124,6 +138,11 @@ const parseDelta = (value: unknown): LiveDelta | null => {
     const segments = parseSegments(value.segments);
     if (!segments) return null;
     delta.segments = segments;
+  }
+  if ('compactions' in value) {
+    const compactions = parseCompactions(value.compactions);
+    if (!compactions) return null;
+    delta.compactions = compactions;
   }
   return Object.keys(delta).length > 0 ? delta : null;
 };
@@ -171,6 +190,7 @@ export const applyLiveDelta = (docs: LiveDocs, delta: LiveDelta): LiveDocs | nul
   const reasoning = delta.reasoning ? applySplice(docs.reasoning, delta.reasoning) : docs.reasoning;
   const tools = delta.tools ? applyToolsDelta(docs.tools, delta.tools) : docs.tools;
   if (md === null || reasoning === null || tools === null) return null;
+  const compactions = delta.compactions ?? docs.compactions;
   return {
     md,
     reasoning,
@@ -178,6 +198,7 @@ export const applyLiveDelta = (docs: LiveDocs, delta: LiveDelta): LiveDocs | nul
     status: delta.status ?? docs.status,
     activity: delta.activity ?? docs.activity,
     segments: delta.segments ?? docs.segments,
+    ...(compactions && { compactions }),
   };
 };
 

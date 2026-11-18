@@ -368,4 +368,51 @@ describe('thread summary markers', () => {
       act(() => renderer?.unmount());
     }
   });
+
+  it('keeps a compaction notice on its own row between a title and skill reviews', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { CompactionNoticeSeam } = await import('../../messages/agent-run/CompactionSeam');
+    const review = {
+      'io.mindroom.skill_review': { changes: { 'developing-mindroom-chat': 'updated' } },
+    };
+    const events = [
+      makeEvent(threadId, { isThreadRoot: true, ts: 1_000 }),
+      makeEvent('$r1', { threadRootId: threadId, ts: 2_000 }),
+      summary('$s1', 'Push bug', 3_000),
+      agentNotice('$review', 4_000, review),
+      agentNotice('$seam', 5_000, {
+        'io.mindroom.compaction': {
+          version: 3,
+          mode: 'manual',
+          status: 'success',
+          before_tokens: 366_804,
+          after_tokens: 6336,
+          history_budget_tokens: 351_792,
+        },
+      }),
+      agentNotice('$review2', 6_000, review),
+    ];
+    const { room, show } = mountThread(events);
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      show();
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, threadId }));
+        await flushAsyncWork();
+      });
+      expect(getRenderedEventIds(renderer!)).toEqual([
+        '$r1',
+        '$s1',
+        '$review',
+        '$seam',
+        '$review2',
+      ]);
+      expect(renderer!.root.findAllByType(CompactionNoticeSeam)).toHaveLength(1);
+      // The seam joins no run and ends the one before it: the review after it stands alone.
+      expect(quietRuns(renderer!)).toEqual([['$s1', '$review']]);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 });

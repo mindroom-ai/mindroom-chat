@@ -845,6 +845,62 @@
         "finished": "Terminou {{value1}}",
         "stillStreaming": "Ainda em andamento",
         "duration": "Duração {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} tokens",
+        "label": {
+          "running": "Compactando o contexto…",
+          "preTurn": "Compactado antes de responder",
+          "midTurn": "Contexto compactado",
+          "manual": "Compactado a pedido",
+          "failed": "Falha na compactação",
+          "timeout": "A compactação esgotou o tempo",
+          "interrupted": "Compactação interrompida"
+        },
+        "title": "Contexto compactado",
+        "tag": {
+          "preTurn": "antes da resposta",
+          "midTurn": "no meio do turno",
+          "manual": "manual"
+        },
+        "subtitle": {
+          "preTurn": "Antes da primeira solicitação ao modelo desta resposta.",
+          "midTurn": "Entre duas solicitações ao modelo, após a chamada de ferramenta {{n, number}}.",
+          "midTurnNoTools": "Entre duas solicitações ao modelo.",
+          "manual": "Solicitado com o comando de compactação."
+        },
+        "gauge": {
+          "was": "era {{p, number}}% do orçamento",
+          "now": "agora {{p, number}}%",
+          "used": "{{p, number}}% do orçamento"
+        },
+        "row": {
+          "history": "Histórico",
+          "saved": "Economizado",
+          "budget": "Orçamento",
+          "folded": "Agrupado",
+          "folding": "Agrupando",
+          "summarizedBy": "Resumido por",
+          "summaryModel": "Modelo de resumo",
+          "when": "Quando",
+          "started": "Iniciado",
+          "reason": "Motivo",
+          "gaveUpAfter": "Desistiu após"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> tokens",
+          "history": "<b>{{n, number}}</b> tokens",
+          "tokens": "{{n, number}} tokens",
+          "saved": "{{n, number}} tokens ({{p, number}}%)",
+          "runs_one": "{{count, number}} execução",
+          "runs_many": "{{count, number}} de execuções",
+          "runs_other": "{{count, number}} execuções",
+          "folded": "{{runs}} em 1 resumo",
+          "folding": "{{runs}}, {{done, number}} concluídas",
+          "summarizedBy": "{{model}} em {{duration}}",
+          "interrupted": "A resposta terminou antes de o resumo ficar pronto."
+        }
       }
     },
     "message-search": {

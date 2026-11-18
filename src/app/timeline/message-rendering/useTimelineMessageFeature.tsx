@@ -84,10 +84,9 @@ import { toggleReaction as sendReactionToggle } from '../../messages/reactions/r
 import { ApprovalHistory } from '../../approvals/ThreadApprovalControls';
 import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
+import { readAgentNoticeMarker } from '../../messages/agentNoticeMarker';
 import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
-import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
-import { SkillReviewMarker } from '../../messages/SkillReviewMarker';
+import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
@@ -318,19 +317,25 @@ const shrinkingQuietRunItemStyle = {
   minWidth: 0,
   maxWidth: 'max-content',
 } as const;
+/**
+ * Quiet markers that never show beside others. A snooze ending's note, cut short, has no card to
+ * read; a compaction notice is a seam, a full-width rule across the thread.
+ */
+const OWN_ROW_MARKERS: ReadonlySet<unknown> = new Set([SnoozeEndedMarker, CompactionNoticeSeam]);
 const quietRunItemStyle = (node: ReactNode) =>
   isValidElement(node) && node.type === ThreadSummaryMarker
     ? fixedQuietRunItemStyle
     : shrinkingQuietRunItemStyle;
 
 /**
- * Inside a thread, the thread's title and the backend's snooze-ended and skill review messages
- * render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title shows
- * only where the thread's summary plan marks it; the other two only from a MindRoom agent.
+ * Inside a thread, the thread's title and the backend's snooze-ended, skill review and compaction
+ * notices render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title
+ * shows only where the thread's summary plan marks it; the others only from a MindRoom agent. A
+ * compaction notice started when its event was sent.
  */
 const readQuietMarker = (
   eventId: string,
-  sender: string | undefined,
+  event: MatrixEvent,
   content: Record<string, unknown>,
   data: TimelineMessageData,
   viewerId: string | undefined,
@@ -347,11 +352,8 @@ const readQuietMarker = (
       />
     );
   }
-  if (!isMindroomAgentUserIdForViewer(sender, viewerId)) return null;
-  const snoozeEndedNote = readSnoozeEndedNote(content);
-  if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
-  const skillReview = readSkillReviewNotice(content);
-  return skillReview ? <SkillReviewMarker review={skillReview} /> : null;
+  if (!isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, viewerId)) return null;
+  return readAgentNoticeMarker(content, event.getTs());
 };
 
 /**
@@ -534,10 +536,9 @@ export const useTimelineMessageFeature = ({
       const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
       const editedEvent = getEditedEvent(eventId, event, timelineSet);
       const content = getLatestMessageContent(event, editedEvent) as Record<string, unknown>;
-      const sender = event.getSender() ?? undefined;
       return readQuietMarker(
         eventId,
-        sender,
+        event,
         content,
         data,
         userId ?? undefined,
@@ -574,14 +575,7 @@ export const useTimelineMessageFeature = ({
       ) as Record<string, unknown>;
       const quietMarker =
         threadId && kind === 'message'
-          ? readQuietMarker(
-              eventId,
-              event.getSender() ?? undefined,
-              content,
-              data,
-              userId ?? undefined,
-              openTitleSettings
-            )
+          ? readQuietMarker(eventId, event, content, data, userId ?? undefined, openTitleSettings)
           : null;
       if (quietMarker) {
         // The run's later markers fold into this row, beside it, each keeping its own ID. A lone
@@ -921,12 +915,12 @@ export const useTimelineMessageFeature = ({
 
   /**
    * Of the quiet marker rows, those that show beside the markers around them (timelineRowFold).
-   * A snooze ending keeps its own row: its note, cut short beside others, has no card to read.
+   * A snooze ending and a compaction notice keep their own row (`OWN_ROW_MARKERS`).
    */
   const joinsQuietMarkerRun = useCallback(
     (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean => {
       const node = readRowQuietMarker(event, data, rowTimelineSet);
-      return node !== null && !(isValidElement(node) && node.type === SnoozeEndedMarker);
+      return node !== null && !(isValidElement(node) && OWN_ROW_MARKERS.has(node.type));
     },
     [readRowQuietMarker]
   );

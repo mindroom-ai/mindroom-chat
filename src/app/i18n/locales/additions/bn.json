@@ -834,6 +834,61 @@
         "finished": "শেষ {{value1}}",
         "stillStreaming": "এখনও চলছে",
         "duration": "সময়কাল {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} সে",
+        "tokensShort": "{{before}} → {{after}} টোকেন",
+        "label": {
+          "running": "প্রসঙ্গ সংক্ষিপ্ত হচ্ছে…",
+          "preTurn": "উত্তরের আগে সংক্ষিপ্ত হয়েছে",
+          "midTurn": "প্রসঙ্গ সংক্ষিপ্ত হয়েছে",
+          "manual": "অনুরোধে সংক্ষিপ্ত হয়েছে",
+          "failed": "সংক্ষিপ্তকরণ ব্যর্থ হয়েছে",
+          "timeout": "সংক্ষিপ্তকরণের সময় শেষ",
+          "interrupted": "সংক্ষিপ্তকরণ থেমে গেছে"
+        },
+        "title": "প্রসঙ্গ সংক্ষিপ্ত হয়েছে",
+        "tag": {
+          "preTurn": "উত্তরের আগে",
+          "midTurn": "পালার মাঝে",
+          "manual": "ম্যানুয়াল"
+        },
+        "subtitle": {
+          "preTurn": "এই উত্তরের প্রথম মডেল অনুরোধের আগে।",
+          "midTurn": "দুটি মডেল অনুরোধের মাঝে, টুল কল {{n, number}}-এর পরে।",
+          "midTurnNoTools": "দুটি মডেল অনুরোধের মাঝে।",
+          "manual": "সংক্ষিপ্ত করার কমান্ড দিয়ে অনুরোধ করা হয়েছে।"
+        },
+        "gauge": {
+          "was": "আগে বাজেটের {{p, number}}%",
+          "now": "এখন {{p, number}}%",
+          "used": "বাজেটের {{p, number}}%"
+        },
+        "row": {
+          "history": "ইতিহাস",
+          "saved": "সাশ্রয়",
+          "budget": "বাজেট",
+          "folded": "গুটানো হয়েছে",
+          "folding": "গুটানো হচ্ছে",
+          "summarizedBy": "সারাংশ করেছে",
+          "summaryModel": "সারাংশ মডেল",
+          "when": "কখন",
+          "started": "শুরু হয়েছে",
+          "reason": "কারণ",
+          "gaveUpAfter": "যতক্ষণ পরে ছেড়ে দিয়েছে"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> টোকেন",
+          "history": "<b>{{n, number}}</b> টোকেন",
+          "tokens": "{{n, number}} টোকেন",
+          "saved": "{{n, number}} টোকেন ({{p, number}}%)",
+          "runs_one": "{{count, number}}টি রান",
+          "runs_other": "{{count, number}}টি রান",
+          "folded": "{{runs}} ১টি সারাংশে",
+          "folding": "{{runs}}, {{done, number}}টি শেষ",
+          "summarizedBy": "{{model}}, {{duration}}-এ",
+          "interrupted": "সারাংশ শেষ হওয়ার আগেই উত্তর শেষ হয়েছে।"
+        }
       }
     },
     "message-search": {

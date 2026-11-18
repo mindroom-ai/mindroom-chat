@@ -6,6 +6,7 @@ import { color } from 'folds';
 import { MessageEmptyContent } from './FallbackContent';
 import { useClientConfig } from '../../config/useClientConfig';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { renderTextWithLatex } from '../html/react-custom-html-parser';
 import {
@@ -89,19 +90,17 @@ export const RenderBody = memo(function RenderBody({
   htmlReactParserOptions,
 }: RenderBodyProps) {
   const clientConfig = useClientConfig();
-  const allowedSchemes = clientConfig.messageRendering?.additionalAllowedUriSchemes;
   // Site icons come from a third party, so links show them only where the deployment allows it.
   const linkFavicons = clientConfig.messageRendering?.linkFavicons === true;
-  const schemesKey = JSON.stringify(allowedSchemes ?? null);
+  const sanitizeOptions = useBodySanitizeOptions();
 
   const customContent = useMemo(() => {
     if (!customBody) return undefined;
-    const additionalAllowedUriSchemes: string[] | undefined = JSON.parse(schemesKey) ?? undefined;
     return parse(
-      sanitizeCustomHtml(customBody, { additionalAllowedUriSchemes }),
+      sanitizeCustomHtml(customBody, sanitizeOptions),
       withHighlight(resolveHtmlReactParserOptions(htmlReactParserOptions), highlightRegex)
     );
-  }, [customBody, highlightRegex, htmlReactParserOptions, schemesKey]);
+  }, [customBody, highlightRegex, htmlReactParserOptions, sanitizeOptions]);
 
   if (body === '' && customContent === undefined) return <MessageEmptyContent />;
   return (

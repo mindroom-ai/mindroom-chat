@@ -200,7 +200,7 @@ export const countToolRefIcons = (text: string): number =>
  * so a name holding another index can hide the block; that counts as text.
  * The marker starts the text, so that number is in the marker.
  */
-export const parseToolBlockMarker = (html: string): ToolRefParseResult | undefined => {
+const parseToolBlockMarker = (html: string): ToolRefParseResult | undefined => {
   const toolRef = parseToolRefHtml(html);
   return toolRef && parseToolRefIndexFromTextPrefix(html) === toolRef.index ? toolRef : undefined;
 };
@@ -249,10 +249,7 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
       (count, node) =>
         isDomElementNode(node)
           ? count +
-            Object.values(node.attribs).reduce(
-              (sum, value) => sum + countToolRefIcons(value),
-              0
-            ) +
+            Object.values(node.attribs).reduce((sum, value) => sum + countToolRefIcons(value), 0) +
             countAttributeIcons(node.children)
           : count,
       0
@@ -262,8 +259,7 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
   nodes.forEach(visit);
   return {
     toolBlocks,
-    iconCount:
-      countToolRefIcons(extractTextFromChildren(nodes)) + countAttributeIcons(nodes),
+    iconCount: countToolRefIcons(extractTextFromChildren(nodes)) + countAttributeIcons(nodes),
     toolBlockIconCount,
   };
 };
