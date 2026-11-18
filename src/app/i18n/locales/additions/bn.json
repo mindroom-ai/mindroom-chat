@@ -827,6 +827,12 @@
         "workedFor": "{{duration}} কাজ করেছে",
         "worked": "কাজ করেছে"
       },
+      "turnFold": {
+        "earlier_one": "{{count}}টি আগের বার্তা",
+        "earlier_other": "{{count}}টি আগের বার্তা",
+        "hide_one": "{{count}}টি বার্তা লুকান",
+        "hide_other": "{{count}}টি বার্তা লুকান"
+      },
       "questionCard": {
         "title": "প্রশ্ন",
         "waiting": "আপনার অপেক্ষায়",

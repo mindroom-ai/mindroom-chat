@@ -816,6 +816,10 @@
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
       },
+      "turnFold": {
+        "earlier_other": "{{count}} 則較早的訊息",
+        "hide_other": "隱藏 {{count}} 則訊息"
+      },
       "questionCard": {
         "title": "問題",
         "waiting": "等你回答",

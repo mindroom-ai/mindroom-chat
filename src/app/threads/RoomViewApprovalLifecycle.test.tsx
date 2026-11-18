@@ -237,7 +237,9 @@ function Composer(
   useEffect(() => {
     api = controller;
     completeUpload = () => {
-      uploadsRef.current = [ready(second)];
+      uploadsRef.current = uploadsRef.current.map((upload) =>
+        upload.file === second ? ready(second) : upload
+      );
       setVersion((value) => value + 1);
     };
   }, [controller]);
@@ -264,6 +266,10 @@ it('continues the pending second upload and caption when the first upload opens 
     await act(async () => {
       await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
     });
+    // A submission's files wait until every upload settles, so nothing leaves yet.
+    expect(send.mock.calls.map((call) => call[1].body)).toEqual([]);
+    await act(async () => completeUpload());
+    // The first file opens the thread, whose composer takes the send over with its own board.
     expect(send.mock.calls.map((call) => call[1].body)).toEqual(['first.png']);
     await act(async () => completeUpload());
     expect(send.mock.calls.map((call) => call[1].body)).toEqual([

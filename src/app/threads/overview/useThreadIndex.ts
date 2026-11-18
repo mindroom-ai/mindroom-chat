@@ -1,5 +1,8 @@
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
-import { indexThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
+import {
+  indexThreadBackgroundJobs,
+  type ThreadBackgroundState,
+} from '../../matrix/protocol/threadBackgroundJobs';
 import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
 import { useMemo, useRef } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
@@ -127,6 +130,8 @@ export type UseThreadIndexResult = ThreadIndexSnapshot & {
   applyThreadOverviewRelationEvents: (options: FetchedRelationOverviewUpdateOptions) => void;
   /** The time the list was filtered at, renewed when a snooze ends (Compact's sections use it). */
   snoozeNow: number;
+  /** Each thread's live background jobs and approvals, as the jobs bar lists them. */
+  threadBackgroundStates: ReadonlyMap<string, ThreadBackgroundState>;
 };
 
 export type ResolveThreadIndexSnapshotOptions = {
@@ -772,5 +777,6 @@ export const useThreadIndex = ({
     refreshRoomThreadList,
     applyThreadOverviewRelationEvents,
     snoozeNow,
+    threadBackgroundStates: jobStates,
   };
 };

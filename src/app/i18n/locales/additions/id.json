@@ -816,6 +816,10 @@
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"
       },
+      "turnFold": {
+        "earlier_other": "{{count}} pesan sebelumnya",
+        "hide_other": "Sembunyikan {{count}} pesan"
+      },
       "questionCard": {
         "title": "Pertanyaan",
         "waiting": "Menunggu Anda",

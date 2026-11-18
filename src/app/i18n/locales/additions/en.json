@@ -827,6 +827,12 @@
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} earlier message",
+        "earlier_other": "{{count}} earlier messages",
+        "hide_one": "Hide {{count}} message",
+        "hide_other": "Hide {{count}} messages"
+      },
       "questionCard": {
         "title": "Question",
         "waiting": "Waiting for you",

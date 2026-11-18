@@ -131,6 +131,14 @@ const compactionNoticeEvent = (id: string, sender: string) =>
       },
     },
   }) as unknown as MatrixEvent;
+const encryptedEvent = (id: string) =>
+  new MatrixEvent({
+    event_id: id,
+    type: MessageEvent.RoomMessageEncrypted,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    content: {},
+  });
 const summaryMarkers = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll((node) => (node.type as unknown) === 'summary-marker');
 const renderedContent = (renderer: ReturnType<typeof create>) =>
@@ -395,13 +403,7 @@ describe('timeline message feature', () => {
   });
 
   it('renders newly decrypted content and cleans up subscriptions on replacement and unmount', async () => {
-    const event = new MatrixEvent({
-      event_id: '$encrypted',
-      type: MessageEvent.RoomMessageEncrypted,
-      room_id: '!room:example.org',
-      sender: '@alice:example.org',
-      content: {},
-    });
+    const event = encryptedEvent('$encrypted');
     const rows = [rowFor(event)];
     const { renderer, update } = await mountFeature(rows);
     expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
@@ -434,6 +436,35 @@ describe('timeline message feature', () => {
     expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
     act(() => renderer.unmount());
     expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
+  it("listens for the decryption of a row's pending edits, and of those of the quiet markers beside it, until it unmounts", async () => {
+    const withPendingEdit = (event: MatrixEvent, edit: MatrixEvent) =>
+      Object.assign(event, { __pendingEdits: [edit] });
+    const messageEdit = encryptedEvent('$message-edit');
+    const summaryEdit = encryptedEvent('$summary-edit');
+    const laterSummaryEdit = encryptedEvent('$later-summary-edit');
+    const message = withPendingEdit(
+      makeEvent('$message', { threadRootId: '$thread' }) as unknown as MatrixEvent,
+      messageEdit
+    );
+    const summary = withPendingEdit(summaryEvent('$summary'), summaryEdit);
+    const laterSummary = withPendingEdit(summaryEvent('$later-summary'), laterSummaryEdit);
+    const rows = [rowFor(message), { ...rowFor(summary, 1), quietRun: [rowFor(laterSummary, 2)] }];
+    const { renderer, data, update } = await mountFeature(rows, '$thread');
+    ['$summary', '$later-summary'].forEach((id) =>
+      data.threadSummaryTimeline.markersByEventId.set(id, { first: false })
+    );
+    update();
+    // Both summaries show as markers on one row.
+    expect(summaryMarkers(renderer)).toHaveLength(2);
+    const watched = () =>
+      [messageEdit, summaryEdit, laterSummaryEdit].map((edit) =>
+        edit.listenerCount(MatrixEventEvent.Decrypted)
+      );
+    expect(watched()).toEqual([1, 1, 1]);
+    act(() => renderer.unmount());
+    expect(watched()).toEqual([0, 0, 0]);
   });
 
   it('leaves the failed root of an open thread to the thread footer', async () => {

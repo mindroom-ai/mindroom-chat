@@ -871,6 +871,20 @@
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",
         "worked": "عمل"
       },
+      "turnFold": {
+        "earlier_zero": "⁨{{count}}⁩ رسالة سابقة",
+        "earlier_one": "⁨{{count}}⁩ رسالة سابقة",
+        "earlier_two": "⁨{{count}}⁩ رسالتان سابقتان",
+        "earlier_few": "⁨{{count}}⁩ رسائل سابقة",
+        "earlier_many": "⁨{{count}}⁩ رسالة سابقة",
+        "earlier_other": "⁨{{count}}⁩ رسالة سابقة",
+        "hide_zero": "إخفاء ⁨{{count}}⁩ رسالة",
+        "hide_one": "إخفاء ⁨{{count}}⁩ رسالة",
+        "hide_two": "إخفاء ⁨{{count}}⁩ رسالتين",
+        "hide_few": "إخفاء ⁨{{count}}⁩ رسائل",
+        "hide_many": "إخفاء ⁨{{count}}⁩ رسالة",
+        "hide_other": "إخفاء ⁨{{count}}⁩ رسالة"
+      },
       "questionCard": {
         "title": "سؤال",
         "waiting": "بانتظارك",
