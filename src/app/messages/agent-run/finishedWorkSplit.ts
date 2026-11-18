@@ -93,9 +93,9 @@ const rendersVisibleContent = (html: string): boolean =>
 
 /**
  * Splits a finished agent reply's HTML, sanitized with the options `RenderBody` renders it with
- * (`useBodySanitizeOptions`), after the top-level node that holds the last call the renderer draws with these base parser options (see
- * `readRenderedToolCalls`), or returns undefined when it draws no call or nothing visible follows
- * the last one.
+ * (`useBodySanitizeOptions`), after the top-level node that holds the last call the renderer
+ * draws with these base parser options (see `readRenderedToolCalls`), or returns undefined when
+ * it draws no call or nothing visible follows the last one.
  */
 export const splitFinishedWork = (
   html: string,
@@ -115,7 +115,9 @@ export const splitFinishedWork = (
   let end = lastNode + 1;
   for (;;) {
     const tail = serialize(end);
-    const drawn = readRenderedToolCalls(tail, baseOpts).lastNode;
+    const drawn = tail.includes(MINDROOM_TOOL_REF_ICON)
+      ? readRenderedToolCalls(tail, baseOpts).lastNode
+      : -1;
     if (drawn < 0) {
       return rendersVisibleContent(tail) ? { head: serialize(0, end), tail } : undefined;
     }
