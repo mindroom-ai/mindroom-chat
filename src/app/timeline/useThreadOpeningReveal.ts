@@ -2,6 +2,7 @@ import { type RefObject, useEffect, useLayoutEffect } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../matrix/room';
 import { useViewScopedState } from './roomTimelineViewScope';
+import { openProbe } from '../diagnostics/openProbe';
 
 /** The longest a thread's rows stay hidden while it opens, whatever holds them back. */
 export const THREAD_REVEAL_AFTER_MS = 1_500;
@@ -47,12 +48,33 @@ export const useThreadOpeningReveal = ({
       lastTileIndex >= 0 &&
       scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1 &&
       !!scrollArea.querySelector(`[data-index="${lastTileIndex}"]`);
+    const mounted = scrollArea ? Array.from(scrollArea.querySelectorAll('[data-index]')) : [];
+    const indexes = mounted.map((element) => Number(element.getAttribute('data-index')));
+    openProbe('reveal-check', {
+      rows: rows.length,
+      lastTileIndex,
+      gap: scrollArea
+        ? Math.round(scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop)
+        : null,
+      scrollHeight: scrollArea?.scrollHeight ?? null,
+      scrollTop: scrollArea ? Math.round(scrollArea.scrollTop) : null,
+      hasLastTile: !!scrollArea?.querySelector(`[data-index="${lastTileIndex}"]`),
+      mounted: indexes.length,
+      minIndex: indexes.length ? Math.min(...indexes) : null,
+      maxIndex: indexes.length ? Math.max(...indexes) : null,
+      messages: scrollArea?.querySelectorAll('[data-message-id]').length ?? 0,
+      took: readerTookOver(),
+      atEnd,
+    });
     if (atEnd || readerTookOver()) setRevealed(true);
   });
 
   useEffect(() => {
     if (revealed) return undefined;
-    const timer = setTimeout(() => setRevealed(true), THREAD_REVEAL_AFTER_MS);
+    const timer = setTimeout(() => {
+      openProbe('reveal-timeout');
+      setRevealed(true);
+    }, THREAD_REVEAL_AFTER_MS);
     return () => clearTimeout(timer);
   }, [revealed, setRevealed]);
 

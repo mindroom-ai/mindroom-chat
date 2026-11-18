@@ -512,7 +512,35 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
   };
 };
 
-type Measured = { timings?: Timing[]; typing?: Stats; openedStreaming?: boolean };
+type OpenProbe = { step: string; events: Record<string, unknown>[] };
+type Measured = {
+  timings?: Timing[];
+  typing?: Stats;
+  openedStreaming?: boolean;
+  openProbe?: OpenProbe[];
+};
+
+// THROWAWAY PROBE: arms the app's open marks before a press and reads them after the step.
+const armOpenProbe = (page: Page): Promise<void> =>
+  page.evaluate(() => {
+    const target = window as unknown as { __openProbe?: Record<string, unknown>[] };
+    const marks: Record<string, unknown>[] = [];
+    target.__openProbe = marks;
+    document.addEventListener(
+      'pointerdown',
+      (event) => marks.push({ t: Math.round(event.timeStamp * 10) / 10, name: 'pointerdown' }),
+      { capture: true, once: true }
+    );
+  });
+const readOpenProbe = async (page: Page, step: string): Promise<OpenProbe> => ({
+  step,
+  events: await page.evaluate(() => {
+    const target = window as unknown as { __openProbe?: Record<string, unknown>[] };
+    const marks = target.__openProbe ?? [];
+    target.__openProbe = undefined;
+    return marks;
+  }),
+});
 
 const idle = async (run: Run): Promise<void> => {
   await run.page.waitForTimeout(30_000);
@@ -546,12 +574,17 @@ const SCENARIO: Record<
       const { page } = run;
       const { root, streaming } = await pickThread(run);
       const settled = await watchRowsSettled(page, 'open-settled');
+      await armOpenProbe(page);
       const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
       await expect(banner(page)).toBeVisible();
       // The rest of the thread arrives and settles inside the window, which lasts 5 s as before,
       // or until the rows settled when that takes longer.
       const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(5_000)]);
-      return { timings: [{ name: 'open', ms }, settledTiming], openedStreaming: streaming };
+      return {
+        timings: [{ name: 'open', ms }, settledTiming],
+        openedStreaming: streaming,
+        openProbe: [await readOpenProbe(page, 'open')],
+      };
     },
   },
   'thread-idle': { prepare: showThread, measure: idle },
@@ -566,6 +599,7 @@ const SCENARIO: Record<
     measure: async (run) => {
       const { page } = run;
       const timings: Timing[] = [];
+      const openProbe: OpenProbe[] = [];
       let openedStreaming = true;
       // The thread the scenario starts in, which the first step leaves.
       let current = run.shown;
@@ -577,14 +611,16 @@ const SCENARIO: Record<
         current = root;
         openedStreaming &&= streaming;
         const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
+        await armOpenProbe(page);
         const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
         await expect(banner(page)).toBeVisible();
         timings.push({ name: `switch-${turn}`, ms });
         // As long as before when the rows settle at once: 1 s after the first row.
         const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(1_000)]);
         timings.push(settledTiming);
+        openProbe.push(await readOpenProbe(page, `switch-${turn}`));
       }
-      return { timings, openedStreaming };
+      return { timings, openedStreaming, openProbe };
     },
   },
   'cold-load': {
@@ -716,6 +752,7 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     target: driver?.streams ?? null,
     timings: [] as Timing[],
     typing: undefined as Stats | undefined,
+    openProbe: undefined as OpenProbe[] | undefined,
     // Whether every thread the scenario opened showed the streaming marker when pressed.
     openedStreaming: typeof prepared === 'boolean' ? prepared : undefined,
   };
@@ -723,6 +760,7 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     const measured = await SCENARIO[name].measure(run);
     if (measured?.timings) extra.timings = measured.timings;
     extra.typing = measured?.typing;
+    extra.openProbe = measured?.openProbe;
     if (measured?.openedStreaming !== undefined) {
       extra.openedStreaming = (extra.openedStreaming ?? true) && measured.openedStreaming;
     }
