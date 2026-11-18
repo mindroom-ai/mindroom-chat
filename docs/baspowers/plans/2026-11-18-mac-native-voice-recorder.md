@@ -1,0 +1,617 @@
+# Mac Native Voice Recorder Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: implement this plan task-by-task with the skill named in **Execution**. Steps use checkbox (`- [ ]`) syntax.
+
+**Execution:** baspowers:subagent-driven-development: Swift and TypeScript tasks meet at a contract, and a mistake in the capture session would break voice messages on iPhone and the web.
+
+**Goal:** Voice messages record in the Mac app, whose WebKit has no media capture, through a native recorder plugin.
+
+**Architecture:** The capture session keeps one recorder of a small type, the part of `MediaRecorder` it already drives. On the Mac app, where `getUserMedia` or `MediaRecorder` is missing and the plugin is there, the recorder is `NativeVoiceRecorder`, an `EventTarget` over the Capacitor plugin `MindRoomVoiceRecorder` (`AVAudioRecorder`, AAC `.m4a`). The file reaches the page with `Capacitor.convertFileSrc` and `fetch`; levels arrive as a `level` event.
+
+**Tech Stack:** TypeScript, vitest, Capacitor 8.5.2, Swift (AVFoundation), Mac Catalyst.
+
+**Spec:** `docs/baspowers/specs/2026-11-18-mac-native-voice-recorder-design.md`
+
+## Global Constraints
+
+- iPhone, iPad, Android and the web keep the web path: every existing test under `src/app/composer/voice/` passes without edits, except the iPhone case of `microphoneAccess.test.ts` (Task 2).
+- No new dependency, no new string, no new setting.
+- Names and values: plugin `MindRoomVoiceRecorder`; methods `start`, `pause`, `resume`, `stop`, `cancel`; event `level` with `{ level }` (0 to 1, linear); codes `PERMISSION_DENIED`, `NO_MICROPHONE`, `START_FAILED`, `NOT_RECORDING`; MIME type `audio/mp4`; AAC, 1 channel, 16_000 Hz, 32_000 bit/s; level interval 0.08 s; file `voice-recorder/voice-message.m4a` in the temporary folder.
+- Mac-only Swift sits inside `#if targetEnvironment(macCatalyst)`: the iOS routing test host compiles every file of `ios/App/App/` for iOS.
+- Every command runs in `nix develop` (`nix develop -c just ...`); run `nix develop -c just install` once first. Strict flags and type-aware lint cover tests too.
+- Commits: `git -c commit.gpgsign=false commit --trailer "Assisted-by: MindRoom DevAgent:<your model id> <https://github.com/mindroom-ai/mindroom>"`, files added by explicit path, no em dashes in docs, comments or commit messages. Never `git stash`. Use `trash`, not `rm`.
+- Mac work runs only on the MacBook M2, never on battery; the work MacBook is off limits.
+
+## Review Focus
+
+- Discard while the microphone prompt is still up: the recorder that starts afterwards is stopped, no microphone stays open (Task 2, "stops a native recorder whose start outlived the recording").
+- Record again right after a send: the first recording's `cancel` is sent before its `stop` event, so it cannot delete the second recording (Task 1, the `stop after cancel` order).
+- The window closes or the page reloads while recording: the microphone is released (Task 3 contract test; Task 4 manual check).
+- A Mac without a microphone, or a denied one: the existing messages, and system settings instead of "iPhone settings" (Tasks 1 and 2).
+- Send while paused: the recording is delivered and the pause is not counted (Task 2, first test).
+
+---
+
+### Task 1: The web side of the plugin
+
+**Files:**
+- Create: `src/app/native/nativeVoiceRecorder.ts`
+- Test: `src/app/native/nativeVoiceRecorder.test.ts`
+
+**Interfaces:**
+- Produces:
+
+```ts
+export const isNativeVoiceRecorderAvailable: () => boolean;
+/** Asks for the microphone and starts recording. Rejects with an Error named as getUserMedia names it. */
+export const startNativeVoiceRecorder: () => Promise<NativeVoiceRecorder>;
+export class NativeVoiceRecorder extends EventTarget {
+  state: 'inactive' | 'recording' | 'paused'; // 'recording' at first
+  readonly mimeType: 'audio/mp4';
+  level(): number; // the newest level event, 0 before the first
+  pause(): void;
+  resume(): void;
+  stop(): void; // raises 'dataavailable' (an Event with `data: Blob`) when there is audio, then 'stop'
+}
+```
+
+- [ ] **Step 1: Write the failing tests**
+
+```ts
+import { Capacitor } from '@capacitor/core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { isNativeVoiceRecorderAvailable, startNativeVoiceRecorder } from './nativeVoiceRecorder';
+
+const plugin = vi.hoisted(() => ({
+  start: vi.fn(), pause: vi.fn(), resume: vi.fn(), stop: vi.fn(), cancel: vi.fn(),
+  addListener: vi.fn(), remove: vi.fn(),
+}));
+vi.mock('@capacitor/core', () => ({
+  Capacitor: {
+    getPlatform: vi.fn(() => 'ios'),
+    isNativePlatform: vi.fn(() => true),
+    isPluginAvailable: vi.fn(() => true),
+    convertFileSrc: vi.fn((path: string) => `capacitor://localhost/_capacitor_file_${path}`),
+  },
+  registerPlugin: vi.fn(() => plugin),
+}));
+
+const PATH = '/tmp/voice-recorder/voice-message.m4a';
+let emitLevel: (data: { level: number }) => void;
+const stubFetch = (response: Partial<Response>) => {
+  const fetchMock = vi.fn(() => Promise.resolve(response as Response));
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+};
+const audio = (body = 'voice'): Partial<Response> => ({ ok: true, blob: async () => new Blob([body]) });
+const watch = (recorder: EventTarget) => {
+  const seen: string[] = [];
+  const chunks: Blob[] = [];
+  recorder.addEventListener('dataavailable', (event) => {
+    seen.push('dataavailable');
+    chunks.push((event as BlobEvent).data);
+  });
+  recorder.addEventListener('stop', () =>
+    seen.push(plugin.cancel.mock.calls.length > 0 ? 'stop after cancel' : 'stop')
+  );
+  return { seen, chunks };
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
+  [plugin.start, plugin.pause, plugin.resume, plugin.cancel, plugin.remove].forEach((method) =>
+    method.mockResolvedValue(undefined)
+  );
+  plugin.stop.mockResolvedValue({ path: PATH });
+  plugin.addListener.mockImplementation(async (_event: string, listener: typeof emitLevel) => {
+    emitLevel = listener;
+    return { remove: plugin.remove };
+  });
+});
+
+describe('native voice recorder', () => {
+  it('is available only on a native iOS platform with the plugin', () => {
+    expect(isNativeVoiceRecorderAvailable()).toBe(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValueOnce(false);
+    expect(isNativeVoiceRecorderAvailable()).toBe(false);
+    vi.mocked(Capacitor.getPlatform).mockReturnValueOnce('android');
+    expect(isNativeVoiceRecorderAvailable()).toBe(false);
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValueOnce(false);
+    expect(isNativeVoiceRecorderAvailable()).toBe(false);
+    expect(Capacitor.isPluginAvailable).toHaveBeenCalledWith('MindRoomVoiceRecorder');
+  });
+
+  it.each([
+    ['PERMISSION_DENIED', 'NotAllowedError'],
+    ['NO_MICROPHONE', 'NotFoundError'],
+    ['START_FAILED', 'NotReadableError'],
+  ])('names a %s start failure %s and stops listening', async (code, name) => {
+    plugin.start.mockRejectedValue({ code, message: 'native' });
+    await expect(startNativeVoiceRecorder()).rejects.toMatchObject({ name });
+    expect(plugin.remove).toHaveBeenCalledOnce();
+  });
+
+  it('starts recording audio/mp4 and reads the newest level', async () => {
+    const recorder = await startNativeVoiceRecorder();
+    expect(plugin.addListener).toHaveBeenCalledWith('level', expect.any(Function));
+    expect([recorder.state, recorder.mimeType, recorder.level()]).toEqual(['recording', 'audio/mp4', 0]);
+    emitLevel({ level: 0.25 });
+    expect(recorder.level()).toBe(0.25);
+  });
+
+  it('pauses and resumes at once', async () => {
+    const recorder = await startNativeVoiceRecorder();
+    recorder.pause();
+    expect(recorder.state).toBe('paused');
+    expect(plugin.pause).toHaveBeenCalledOnce();
+    recorder.resume();
+    expect(recorder.state).toBe('recording');
+    expect(plugin.resume).toHaveBeenCalledOnce();
+  });
+
+  it('delivers the recording, deletes it, then reports the stop', async () => {
+    const fetchMock = stubFetch(audio());
+    const recorder = await startNativeVoiceRecorder();
+    const { seen, chunks } = watch(recorder);
+    recorder.stop();
+    expect(recorder.state).toBe('inactive');
+    recorder.stop();
+    await vi.waitFor(() => expect(seen).toEqual(['dataavailable', 'stop after cancel']));
+    expect(plugin.stop).toHaveBeenCalledOnce();
+    expect(plugin.cancel).toHaveBeenCalledOnce();
+    expect(plugin.remove).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(`capacitor://localhost/_capacitor_file_${PATH}`);
+    expect(await chunks[0]!.text()).toBe('voice');
+  });
+
+  it.each([
+    ['the native stop fails', () => plugin.stop.mockRejectedValue({ code: 'NOT_RECORDING' })],
+    ['the file cannot be read', () => stubFetch({ ok: false })],
+    ['the file is empty', () => stubFetch(audio(''))],
+  ])('reports a stop without audio when %s', async (_name, fail) => {
+    stubFetch(audio());
+    fail();
+    const recorder = await startNativeVoiceRecorder();
+    const { seen } = watch(recorder);
+    recorder.stop();
+    await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
+    expect(plugin.cancel).toHaveBeenCalledOnce();
+  });
+});
+```
+
+- [ ] **Step 2: Run them and see them fail**
+
+Run: `nix develop -c just test src/app/native/nativeVoiceRecorder.test.ts`
+Expected: FAIL, `./nativeVoiceRecorder` cannot be resolved.
+
+- [ ] **Step 3: Implement `src/app/native/nativeVoiceRecorder.ts`**
+
+Follow `nativeQuickCapture.ts`: a plugin type (`start`, `pause`, `resume`, `cancel` resolve nothing, `stop` resolves `{ path: string }`, `addListener('level', ...)` resolves a `PluginListenerHandle`), registered lazily with `registerPlugin<MindRoomVoiceRecorderPlugin>('MindRoomVoiceRecorder')`. `startNativeVoiceRecorder` adds the `level` listener, then calls `start`; on a rejection it removes the listener and throws `Object.assign(new Error(message), { name })` with the name of the rejection's `code` (`PERMISSION_DENIED` is `NotAllowedError`, `NO_MICROPHONE` is `NotFoundError`, anything else `NotReadableError`). `pause()` and `resume()` set `state` and call the plugin without awaiting; a rejection is swallowed. `stop()` does nothing unless `state` is not `inactive`; it sets `inactive`, then in order: plugin `stop`, `fetch(Capacitor.convertFileSrc(path))`, when `response.ok` and the blob is not empty a `dataavailable` event (`Object.assign(new Event('dataavailable'), { data: blob })`); then, also after any failure, remove the `level` listener, call plugin `cancel` (not awaited), and raise `stop`.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `nix develop -c just test src/app/native/nativeVoiceRecorder.test.ts`
+Expected: PASS (10 tests).
+
+- [ ] **Step 5: Commit**
+
+`git add src/app/native/nativeVoiceRecorder.ts src/app/native/nativeVoiceRecorder.test.ts`, message `feat(native): web side of the Mac voice recorder plugin`.
+
+---
+
+### Task 2: The session records through it, and the Mac's blocked message
+
+**Files:**
+- Modify: `src/app/composer/voice/voiceCaptureSession.ts` (`:1-16` imports, `:85-104` `Generation`, `:147-165` `closeAudio`, `:210-253` sampling and analyser, `:254-258` `finishStop` signature, `:311-388` `start`)
+- Modify: `src/app/composer/voice/microphoneAccess.ts:5-17`
+- Test: `src/app/composer/voice/voiceCaptureSession.test.ts`, `src/app/composer/voice/microphoneAccess.test.ts`
+
+**Interfaces:**
+- Consumes: `isNativeVoiceRecorderAvailable`, `startNativeVoiceRecorder`, `NativeVoiceRecorder` (Task 1); `analyserRmsToMatrixPoint` (`src/app/lib/audioWaveform.ts:81`); `isMacOS` (`src/app/lib/user-agent.ts:23`).
+- Produces: no new export. `createVoiceCaptureSession` behaves as before wherever `getUserMedia` and `MediaRecorder` exist.
+
+- [ ] **Step 1: Write the failing session tests**
+
+Add to `voiceCaptureSession.test.ts`, beside the other mocks and helpers:
+
+```ts
+const native = vi.hoisted(() => ({ available: vi.fn(() => false), start: vi.fn() }));
+vi.mock('../../native/nativeVoiceRecorder', () => ({
+  isNativeVoiceRecorderAvailable: native.available,
+  startNativeVoiceRecorder: native.start,
+}));
+
+class NativeRecorder extends EventTarget {
+  state: RecordingState = 'recording';
+  mimeType = 'audio/mp4';
+  level = () => 0.25;
+  pause = vi.fn(() => { this.state = 'paused'; });
+  resume = vi.fn(() => { this.state = 'recording'; });
+  stop = vi.fn(() => { this.state = 'inactive'; });
+  deliver(body = 'voice') {
+    this.dispatchEvent(Object.assign(new Event('dataavailable'), { data: new Blob([body]) }));
+    this.dispatchEvent(new Event('stop'));
+  }
+}
+const withoutWebCapture = () => {
+  vi.stubGlobal('navigator', {});
+  vi.stubGlobal('MediaRecorder', undefined);
+  native.available.mockReturnValue(true);
+  const recorder = new NativeRecorder();
+  native.start.mockResolvedValue(recorder);
+  return recorder;
+};
+```
+
+In `beforeEach`: `native.available.mockReset().mockReturnValue(false); native.start.mockReset();`. Then a new `describe('voice capture session on the native recorder', ...)`:
+
+```ts
+it('records, pauses and sends through the native recorder', async () => {
+  const recorder = withoutWebCapture();
+  const session = capture();
+  expect(await session.start()).toBe(true);
+  expect(getUserMedia).not.toHaveBeenCalled();
+  expect(session.getSnapshot()).toMatchObject({ phase: 'recording', canPause: true });
+  vi.advanceTimersByTime(250);
+  expect(session.pause()).toBe(true);
+  expect(recorder.pause).toHaveBeenCalledOnce();
+  vi.advanceTimersByTime(5000);
+  const finished = session.finish();
+  expect(recorder.stop).toHaveBeenCalledOnce();
+  recorder.deliver();
+  const result = await finished;
+  if (result.status !== 'captured') throw new Error('missing recording');
+  expect(result.recording.duration).toBe(250);
+  expect(result.recording.file.type).toBe('audio/mp4');
+  expect(result.recording.file.name).toMatch(/^voice-message-.*\.m4a$/);
+  expect(await result.recording.file.text()).toBe('voice');
+  expect(result.recording.waveform).toEqual(Array(48).fill(512));
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('stops a native recorder whose start outlived the recording', async () => {
+  const recorder = withoutWebCapture();
+  const gate = deferred<NativeRecorder>();
+  native.start.mockReturnValue(gate.promise);
+  const session = capture();
+  const started = session.start();
+  expect(session.getSnapshot().phase).toBe('requesting');
+  session.reset();
+  gate.resolve(recorder);
+  expect(await started).toBe(false);
+  expect(recorder.stop).toHaveBeenCalledOnce();
+  expect(session.getSnapshot().phase).toBe('idle');
+});
+
+it('discards a native recording', async () => {
+  const recorder = withoutWebCapture();
+  const session = capture();
+  await session.start();
+  const discarded = session.discard();
+  recorder.deliver();
+  expect(await discarded).toBe(false);
+  expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+});
+
+it('shows the microphone message of a failed native start', async () => {
+  withoutWebCapture();
+  native.start.mockRejectedValue(Object.assign(new Error('native'), { name: 'NotFoundError' }));
+  const session = capture();
+  expect(await session.start()).toBe(false);
+  expect(session.getSnapshot()).toMatchObject({
+    phase: 'idle',
+    errorMessage: 'No microphone was found on this device.',
+  });
+});
+
+it('keeps the web recorder where the web view has media capture', async () => {
+  native.available.mockReturnValue(true);
+  const session = capture();
+  expect(await session.start()).toBe(true);
+  expect(native.start).not.toHaveBeenCalled();
+  expect(getUserMedia).toHaveBeenCalledOnce();
+});
+
+it('is unsupported without media capture and without the plugin', async () => {
+  vi.stubGlobal('navigator', {});
+  vi.stubGlobal('MediaRecorder', undefined);
+  const session = capture();
+  expect(await session.start()).toBe(false);
+  expect(session.getSnapshot().errorMessage).toBe('Voice recording is not supported in this browser.');
+});
+```
+
+- [ ] **Step 2: Write the failing message tests**
+
+In `microphoneAccess.test.ts` add `afterEach(() => vi.unstubAllGlobals())` and
+
+```ts
+const device = (userAgent: string, platform: string, maxTouchPoints: number) =>
+  vi.stubGlobal('navigator', { userAgent, platform, maxTouchPoints });
+```
+
+Start the existing iOS case with `device('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 'iPhone', 5);` (Node reports a Mac on a Mac). Add:
+
+```ts
+it('sends Mac app users to the system settings, not to iPhone settings', () => {
+  vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+  vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+  device('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 0);
+  expect(getMicrophoneAccessErrorMessage({ name: 'NotAllowedError' })).toBe(
+    'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.'
+  );
+});
+```
+
+- [ ] **Step 3: Run both files and see the new tests fail**
+
+Run: `nix develop -c just test src/app/composer/voice/voiceCaptureSession.test.ts src/app/composer/voice/microphoneAccess.test.ts`
+Expected: the seven new tests FAIL (the native ones with "not supported in this browser" or `false`, the Mac one with the iPhone text); the existing ones PASS.
+
+- [ ] **Step 4: Change `voiceCaptureSession.ts`**
+
+- Add the type and use it for `Generation.recorder` and the `recorder` parameter of `finishStop`:
+
+```ts
+/** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
+type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
+  Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
+```
+
+- Add `Generation.readLevel?: () => number` (the level now, as a Matrix waveform point). `sample()` and `startTimers()` test and call `generation.readLevel` where they test and read the analyser and buffer today; `setupAnalyser` assigns it once the buffer exists (`getByteTimeDomainData` then `timeDomainDataToWaveformPoint`); `closeAudio` clears it.
+- In `start()`: `const webCapture = !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined'; const native = !webCapture && isNativeVoiceRecorderAvailable();`. The unsupported branch runs when neither holds.
+- In the `try`, with `native`: `const recorder = await startNativeVoiceRecorder();` then, if `!owns(generation)`, `recorder.stop()` and `return false`; else `generation.recorder = recorder` and `generation.readLevel = () => analyserRmsToMatrixPoint(recorder.level())`. Without `native`, today's lines from `getUserMedia` to `setupAnalyser` run unchanged. The two listeners then attach as today for both (take `event: Event` and read `data` as a `BlobEvent`); `recorder.start(VOICE_RECORDER_TIMESLICE_MS)` runs for the web recorder only; the lines from `generation.startedAt = now()` on are shared.
+
+- [ ] **Step 5: Change `getBlockedMicrophoneMessage`**
+
+The iPhone text is returned when `nativePlatform === 'ios' && !isMacOS()`; the Mac app falls through to the last return.
+
+- [ ] **Step 6: Run the whole voice folder and the type checks**
+
+Run: `nix develop -c just test src/app/composer/voice` then `nix develop -c just typecheck` and `nix develop -c just strict`
+Expected: PASS, with `useVoiceRecorder.test.ts` and `VoiceRecorderDialog.test.ts` unedited; 0 type errors.
+
+- [ ] **Step 7: Commit**
+
+`git add` the four files, message `feat(voice): record through the native recorder where the web view has no media capture`.
+
+---
+
+### Task 3: The Swift plugin
+
+**Files:**
+- Create: `ios/App/App/MindRoomVoiceRecorderPlugin.swift`
+- Modify: `ios/App/App/MindRoomBridgeViewController.swift:42` (after the Quick Capture registration)
+- Modify: `ios/App/App/SceneDelegate.swift:85` (before `QuickCapture.stopPage(of: window)`)
+- Modify: `ios/App/App.xcodeproj/project.pbxproj` (file reference, group, both Sources phases)
+- Modify: `src/app/native/macCatalystShell.test.ts:65-70`, `docs/development.md:104`
+- Test: `src/app/native/nativeVoiceRecorderIOSContract.test.ts`
+
+**Interfaces:**
+- Consumes: the names and values of Global Constraints; Task 1's wrapper is the caller.
+- Produces: `MindRoomVoiceRecorderPlugin` with `func cancelRecording()` (main queue: stops a live recording, deletes the folder), which `SceneDelegate` calls.
+
+- [ ] **Step 1: Write the failing contract test**
+
+```ts
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
+const pluginSource = read('ios/App/App/MindRoomVoiceRecorderPlugin.swift');
+const bridgeSource = read('ios/App/App/MindRoomBridgeViewController.swift');
+const sceneSource = read('ios/App/App/SceneDelegate.swift');
+const projectSource = read('ios/App/App.xcodeproj/project.pbxproj');
+const wrapperSource = read('src/app/native/nativeVoiceRecorder.ts');
+
+describe('MindRoomVoiceRecorderPlugin native contract', () => {
+  it('is the plugin the web side registers, with its methods and its level event', () => {
+    expect(pluginSource).toContain('public let jsName = "MindRoomVoiceRecorder"');
+    expect(wrapperSource).toContain("('MindRoomVoiceRecorder')");
+    ['start', 'pause', 'resume', 'stop', 'cancel'].forEach((method) => {
+      expect(pluginSource).toContain(
+        `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
+      );
+      expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
+    });
+    expect(pluginSource).toContain('notifyListeners("level", data: ["level": level])');
+    expect(pluginSource).toContain('call.resolve(["path": ');
+  });
+
+  it('rejects with the codes the web side names', () => {
+    ['PERMISSION_DENIED', 'NO_MICROPHONE', 'START_FAILED', 'NOT_RECORDING'].forEach((code) =>
+      expect(pluginSource).toContain(`"${code}"`)
+    );
+    ['PERMISSION_DENIED', 'NO_MICROPHONE'].forEach((code) => expect(wrapperSource).toContain(code));
+  });
+
+  it('asks for the microphone and records mono AAC at 16 kHz and 32 kbit/s, as the Watch does', () => {
+    expect(pluginSource).toContain('AVCaptureDevice.requestAccess(for: .audio)');
+    expect(pluginSource).toMatch(
+      /AVFormatIDKey: kAudioFormatMPEG4AAC,\s*AVSampleRateKey: 16_000,\s*AVNumberOfChannelsKey: 1,\s*AVEncoderBitRateKey: 32_000/
+    );
+    expect(pluginSource).toContain('withTimeInterval: 0.08');
+    expect(pluginSource).toContain('"voice-message.m4a"');
+  });
+
+  it('is on the main bridge of the Mac app only, compiled by both of its targets', () => {
+    expect(bridgeSource).toMatch(
+      /#if targetEnvironment\(macCatalyst\)\n(?:\s*\/\/.*\n)*\s*if !\(self is QuickCaptureViewController\) \{\n\s*bridge\?\.registerPluginInstance\(MindRoomVoiceRecorderPlugin\(\)\)\n\s*\}\n#endif/
+    );
+    expect(
+      projectSource.match(/MindRoomVoiceRecorderPlugin\.swift in Sources \*\/,/g)
+    ).toHaveLength(2);
+  });
+
+  it('releases the microphone when its page goes away and forgets a recording left behind', () => {
+    expect(pluginSource).toContain('name: .capacitorWebViewNavigationStarted');
+    expect(pluginSource).toMatch(/override public func load\(\) \{[\s\S]*?clearFolder\(\)/);
+    expect(sceneSource).toMatch(
+      /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.cancelRecording\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/
+    );
+  });
+});
+```
+
+In `macCatalystShell.test.ts`, inside 'keeps AppKit, Carbon and ScreenCaptureKit inside Mac-only blocks', add:
+
+```ts
+expect(
+  outsideMacOnly(readSource('../../../ios/App/App/MindRoomVoiceRecorderPlugin.swift')).trim()
+).toBe('');
+```
+
+- [ ] **Step 2: Run and see them fail**
+
+Run: `nix develop -c just test src/app/native/nativeVoiceRecorderIOSContract.test.ts src/app/native/macCatalystShell.test.ts`
+Expected: FAIL, `MindRoomVoiceRecorderPlugin.swift` does not exist.
+
+- [ ] **Step 3: Write `MindRoomVoiceRecorderPlugin.swift`**
+
+The whole file sits between `#if targetEnvironment(macCatalyst)` and `#endif` (imports `AVFoundation`, `Capacitor`). The model is `ios/Watch/MindRoomWatch/Model/Recorder.swift`; the shape is `MindRoomQuickCapturePlugin.swift`.
+
+```swift
+@objc(MindRoomVoiceRecorderPlugin)
+public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "MindRoomVoiceRecorderPlugin"
+    public let jsName = "MindRoomVoiceRecorder"
+    public let pluginMethods: [CAPPluginMethod]   // start, pause, resume, stop, cancel
+    private static var folder: URL                // temporaryDirectory/voice-recorder
+    private static func clearFolder()
+    private var recorder: AVAudioRecorder?
+    private var meter: Timer?
+    override public func load()                   // clearFolder(); observes page loads
+    @objc func start(_ call: CAPPluginCall)
+    @objc func pause(_ call: CAPPluginCall)
+    @objc func resume(_ call: CAPPluginCall)
+    @objc func stop(_ call: CAPPluginCall)
+    @objc func cancel(_ call: CAPPluginCall)
+    func cancelRecording()
+    @objc private func pageWillLoad()             // cancelRecording()
+}
+```
+
+- Every method hops to `DispatchQueue.main` before it touches `recorder` or `meter`.
+- `load()`: `NotificationCenter.default.addObserver(self, selector: #selector(pageWillLoad), name: .capacitorWebViewNavigationStarted, object: bridge?.webView)`.
+- `start`: `AVCaptureDevice.requestAccess(for: .audio)`; on the main queue: not granted rejects `PERMISSION_DENIED`; `AVCaptureDevice.default(for: .audio) == nil` rejects `NO_MICROPHONE`; then `cancelRecording()`, the audio session as `Recorder.swift:31-33` (`.record`, active), the folder created, `AVAudioRecorder(url: folder/"voice-message.m4a", settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 32_000])`, `isMeteringEnabled = true`, `record()`. A throw or `record()` returning false: `cancelRecording()` and reject `START_FAILED`. Else start `meter` (`Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true)`, `[weak self]`) and resolve.
+- The timer, only while `recorder.isRecording`: `updateMeters()`, `let level = pow(10, recorder.averagePower(forChannel: 0) / 20)`, `notifyListeners("level", data: ["level": level])`.
+- `pause`: `recorder?.pause()`. `resume`: `recorder?.record()`. Both resolve.
+- `stop`: without a recorder reject `NOT_RECORDING`; else stop it, end the timer, deactivate the audio session (`Recorder.swift:89`), forget the recorder, keep the file, `call.resolve(["path": url.path])`.
+- `cancelRecording()`: end the timer, stop and forget a live recorder, deactivate the audio session, `clearFolder()`. `cancel` calls it and resolves.
+
+- [ ] **Step 4: Register it, cancel on window close, add it to the project**
+
+`MindRoomBridgeViewController.capacitorDidLoad`, after the Quick Capture plugin's line:
+
+```swift
+#if targetEnvironment(macCatalyst)
+        // Mac Catalyst's WebKit has no media capture. Only the main window records voice.
+        if !(self is QuickCaptureViewController) {
+            bridge?.registerPluginInstance(MindRoomVoiceRecorderPlugin())
+        }
+#endif
+```
+
+`SceneDelegate.sceneDidDisconnect`, directly before `QuickCapture.stopPage(of: window)`:
+
+```swift
+            // Its recording ends with it: the blank page below loads past the bridge.
+            ((window.rootViewController as? CAPBridgeViewController)?.bridge?
+                .plugin(withName: "MindRoomVoiceRecorder") as? MindRoomVoiceRecorderPlugin)?.cancelRecording()
+```
+
+`project.pbxproj`, copying the six lines of `MacScreenshot.swift` (`:31`, `:55`, `:189`, `:343`, `:743`, `:785`): file reference `5A0000000000000000000001`, build file `5A0000000000000000000002` in the `App` Sources phase (`:728`), build file `5A0000000000000000000003` in the `AppStoreMac` Sources phase (`:771`), and the reference in the group after `MacScreenshot.swift`.
+
+- [ ] **Step 5: Document it**
+
+`docs/development.md`, the **Mac** bullet: one sentence that voice messages record through `MindRoomVoiceRecorderPlugin` (`src/app/native/nativeVoiceRecorder.ts`), because Mac Catalyst's WebKit has no media capture, and that calls are unavailable there for the same reason.
+
+- [ ] **Step 6: Run the native tests**
+
+Run: `nix develop -c just test src/app/native`
+Expected: PASS, including `iosSceneLifecycle.test.ts`, `macCatalystShell.test.ts` and `macStorePreflight.test.ts` (the preflight already requires both microphone entitlements, `scripts/macos-store-preflight.mjs:56-67`; it does not change).
+
+- [ ] **Step 7: Commit**
+
+`git add` the seven files by path, message `feat(mac): native voice recorder plugin for Mac Catalyst`.
+
+---
+
+### Task 4: Check and prove it on the MacBook M2
+
+**Files:** none committed, unless the Mac build finds a defect (fix it in the file of Task 3 and commit).
+
+**Interfaces:**
+- Consumes: the branch head with Tasks 1 to 3.
+
+- [ ] **Step 1: The full local check**
+
+Run: `nix develop -c just check`
+Expected: every recipe passes.
+
+- [ ] **Step 2: Find the M2 on power**
+
+Read `~/repos/MACHINES.md` and the skill `working-across-machines`. Run: `ssh -A -o BatchMode=yes pc.local '~/repos/machines.sh' | tail -15`
+Expected: the `basnijholt-macbook-pro-m2` line ends with `on AC power`. `ON BATTERY` or unreachable: stop and report; do not use another Mac.
+
+- [ ] **Step 3: Put the branch on the M2 and build both targets**
+
+Push the branch, then through `ssh -A pc.local 'ssh macbook-m2 ...'` check it out in a worktree of the M2's mindroom-chat checkout and run, in it: `npm ci`, `npm run build:ios`, `just watch-sdk --fetch`, `npx cap sync ios`, then
+
+```bash
+xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+  -destination 'platform=macOS,variant=Mac Catalyst' -derivedDataPath build/mac-voice \
+  CODE_SIGNING_ALLOWED=NO build
+```
+
+and the same command with `-scheme AppStoreMac`.
+Expected: `** BUILD SUCCEEDED **` twice. A failure counts against this branch unless the same command fails the same way at `origin/main`.
+
+- [ ] **Step 4: Probe the real plugin**
+
+On the M2's worktree only, never committed: insert this block in `MindRoomBridgeViewController.viewDidAppear`, directly before its `#if DEBUG`, and build the `App` scheme again.
+
+```swift
+#if DEBUG && targetEnvironment(macCatalyst)
+        if ProcessInfo.processInfo.environment["MINDROOM_VOICE_PROBE"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                let script = """
+                const call = (method) => window.Capacitor.nativePromise('MindRoomVoiceRecorder', method, {});
+                const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+                try {
+                  await Promise.race([
+                    call('start'),
+                    wait(30000).then(() => { throw { code: 'PROMPT_PENDING' }; }),
+                  ]);
+                  await wait(3000);
+                  const { path } = await call('stop');
+                  const bytes = await (await fetch(window.Capacitor.convertFileSrc(path))).arrayBuffer();
+                  return `ok bytes=${bytes.byteLength} path=${path}`;
+                } catch (error) {
+                  return `failed ${error.code || error.message || error}`;
+                }
+                """
+                self?.webView?.callAsyncJavaScript(script, arguments: [:], in: nil, in: .page) { result in
+                    NSLog("MindRoom voice probe: %@", String(describing: result))
+                }
+            }
+        }
+#endif
+```
+
+Run: `open -n --env MINDROOM_VOICE_PROBE=1 --stderr /tmp/voice-probe.log build/mac-voice/Build/Products/Debug-maccatalyst/MindRoom.chat.app`, wait 45 s, `grep 'MindRoom voice probe' /tmp/voice-probe.log` (an empty log: `log show --last 2m --predicate 'eventMessage CONTAINS "MindRoom voice probe"'`), then `afinfo <path>` with the path it printed.
+Expected: `ok bytes=` above 2000, and `afinfo` reports `1 ch,  16000 Hz` AAC with an estimated duration between 2.7 and 3.3 s. Other answers:
+
+| Answer | Meaning | Do |
+|---|---|---|
+| `failed PROMPT_PENDING` | macOS waits for a click on the microphone prompt | report the probe as blocked on the prompt, not as passed; rerun after Bas clicks Allow on the M2 |
+| `failed PERMISSION_DENIED` | denied before | `tccutil reset Microphone chat.mindroom.app`, rerun |
+| anything else | a defect | fix in Task 3's file, commit, rebuild |
+
+Afterwards: list the probe's app with `pgrep -af '[b]uild/mac-voice/.*/MacOS/'` in one call and `kill <that PID>` in the next (never by name: Bas's own MindRoom may run there; the bracket keeps the remote shell out of the match), `git checkout -- ios/App/App/MindRoomBridgeViewController.swift`, and `git status --short` shows no tracked change.
+
+- [ ] **Step 5: Hand the manual check to Bas**
+
+Report the two builds and the probe's answer verbatim, and this list for Bas's Mac, on a build of the branch: press record and click Allow; the waveform moves; pause and resume; send; the message plays on Mac and on iPhone with the recorded length; record and discard; with the microphone denied in System Settings the blocked message names system settings; reload the window while recording and the microphone indicator goes out; close the window while recording and it goes out too. The pull request's screenshot of the recording capsule on the Mac comes from this check.

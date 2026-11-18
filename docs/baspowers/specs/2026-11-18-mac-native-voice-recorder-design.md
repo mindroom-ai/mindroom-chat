@@ -128,8 +128,8 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
 - `isNativeVoiceRecorderAvailable(): boolean`: a native platform, platform `ios`, and
   `Capacitor.isPluginAvailable('MindRoomVoiceRecorder')` (the shape of
   `isNativeQuickCaptureAvailable`).
-- `startNativeVoiceRecorder(): Promise<NativeVoiceRecorder>`: calls the plugin's `start`, listens
-  for `level`, and resolves the recorder. A rejection becomes an `Error` whose `name` is the one
+- `startNativeVoiceRecorder(): Promise<NativeVoiceRecorder>`: listens for `level`, calls the
+  plugin's `start`, and resolves the recorder. A rejection becomes an `Error` whose `name` is the one
   `getUserMedia` would give: code `PERMISSION_DENIED` is `NotAllowedError`, `NO_MICROPHONE` is
   `NotFoundError`, anything else `NotReadableError`.
 - `NativeVoiceRecorder extends EventTarget`: `state` (`recording` at first), `mimeType`
@@ -146,7 +146,7 @@ file of at most a few megabytes to drop it costs less than a second stop method.
 
 ### The plugin: `ios/App/App/MindRoomVoiceRecorderPlugin.swift`
 
-`jsName` `MindRoomVoiceRecorder`. The file's body, apart from `import Capacitor`, is inside
+`jsName` `MindRoomVoiceRecorder`. The whole file is inside
 `#if targetEnvironment(macCatalyst)`. All recorder work runs on the main queue (plugin calls arrive
 on Capacitor's bridge queue, in order).
 
