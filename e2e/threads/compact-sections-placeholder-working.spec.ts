@@ -17,9 +17,10 @@ import {
 
 // MindRoom posts a "Thinking..." placeholder marked `io.mindroom.stream_status: pending` as soon
 // as an agent starts on a message, and the workflow classifier counts it as Working. In the Compact
-// room's sections, the card must move to Working then, also while the mouse rests on the cards
-// (which otherwise holds every card in the section it showed in). Against the disposable
-// homeserver of a slot (scripts/e2e-slot.sh).
+// room's sections, the card must move to Working then, also while the mouse is on the cards
+// (which otherwise holds every card in the section it showed in). A finished run waits while the
+// mouse moves over the cards and leaves Working once it rests. Against the disposable homeserver of
+// a slot (scripts/e2e-slot.sh).
 const PASSWORD = 'thinking-placeholder-spec-password';
 const RUN = Date.now().toString(36);
 const ROOM_NAME = 'Placeholder Desk';
@@ -120,16 +121,51 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
   await think(rootA);
   await expect.poll(() => sectionOf(page, rootA), { timeout: 10_000 }).toBe('working');
 
-  // (b) The mouse rests on another card, which holds every other move.
+  // (b) The mouse moves over another card, which holds every other move.
+  const box = await card(oldRoot).boundingBox();
+  if (!box) throw new Error('no card to point at');
+  let nudge = 0;
+  /** Moves the mouse a pixel over the card, so it never rests long enough to let go. */
+  const move = async () => {
+    nudge = 1 - nudge;
+    await page.mouse.move(box.x + box.width / 2 + nudge, box.y + box.height / 2);
+  };
   const rootB = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
-    body: 'Question B with the mouse resting on a card',
+    body: 'Question B with the mouse on a card',
   });
   await expect(card(rootB)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('needsYou');
-  await card(oldRoot).hover();
+  await move();
   await expect.poll(orderHeld, { timeout: 5_000 }).toBe(1);
-  await think(rootB);
-  await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('working');
+  const replyB = await think(rootB);
+  await expect
+    .poll(
+      async () => {
+        await move();
+        return sectionOf(page, rootB);
+      },
+      { timeout: 10_000 }
+    )
+    .toBe('working');
   expect(await orderHeld()).toBe(1);
+
+  // (c) The run finishes: held while the mouse moves, then it leaves Working once the mouse rests.
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: '* Here are the fixes.',
+    'm.new_content': {
+      msgtype: 'm.text',
+      body: 'Here are the fixes.',
+      'io.mindroom.stream_status': 'completed',
+    },
+    'm.relates_to': { rel_type: 'm.replace', event_id: replyB },
+  });
+  for (let index = 0; index < 8; index += 1) {
+    await move();
+    await page.waitForTimeout(500);
+  }
+  expect(await sectionOf(page, rootB)).toBe('working');
+  await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('needsYou');
+  expect(await orderHeld()).toBe(0);
 });

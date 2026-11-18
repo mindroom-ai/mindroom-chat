@@ -2,7 +2,7 @@
 import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import { MOUSE_REST_HOLD_MS, useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 
 describe('useHeldThreadOrder', () => {
   it('follows the live order while nothing holds it', () => {
@@ -200,6 +200,62 @@ describe('usePointerOverCards', () => {
     expect(result.current.pointerInside).toBe(true);
     act(() => result.current.onPointerLeave(pointer('mouse')));
     expect(result.current.pointerInside).toBe(false);
+  });
+
+  describe('a mouse at rest', () => {
+    const mouse = (buttons = 0) => ({ pointerType: 'mouse', buttons } as PointerEvent<HTMLElement>);
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it(`lets go once it rested ${MOUSE_REST_HOLD_MS} ms, and holds again at its next move`, () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => usePointerOverCards());
+      act(() => result.current.onPointerEnter(mouse()));
+      act(() => {
+        vi.advanceTimersByTime(MOUSE_REST_HOLD_MS - 1);
+      });
+      act(() => result.current.onPointerMove(mouse()));
+      act(() => {
+        vi.advanceTimersByTime(MOUSE_REST_HOLD_MS - 1);
+      });
+      expect(result.current.pointerInside).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current.pointerInside).toBe(false);
+
+      act(() => result.current.onPointerMove(mouse()));
+      expect(result.current.pointerInside).toBe(true);
+    });
+
+    it('holds through a press however long, and rests again from its release', () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => usePointerOverCards());
+      act(() => result.current.onPointerEnter(mouse()));
+      act(() => result.current.onPointerDown());
+      act(() => result.current.onPointerMove(mouse(1)));
+      act(() => {
+        vi.advanceTimersByTime(MOUSE_REST_HOLD_MS * 2);
+      });
+      expect(result.current.pointerInside).toBe(true);
+
+      act(() => result.current.onPointerUp(mouse()));
+      act(() => {
+        vi.advanceTimersByTime(MOUSE_REST_HOLD_MS);
+      });
+      expect(result.current.pointerInside).toBe(false);
+    });
+
+    it('lets no finger go by time', () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => usePointerOverCards());
+      act(() => result.current.onPointerEnter(pointer('touch')));
+      act(() => {
+        vi.advanceTimersByTime(MOUSE_REST_HOLD_MS * 2);
+      });
+      expect(result.current.pointerInside).toBe(true);
+    });
   });
 
   it("holds a finger that lifted until its tap's click", () => {
