@@ -335,7 +335,8 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   const tag = place === 'notice' ? undefined : t(`${KEY}.tag.${place}`);
   const sub = subtitle(compaction, state, place, t);
   const at = (ts: number) => timeHourMinuteSecond(ts, hour24Clock, i18n.language);
-  const rows = cardRows(compaction, state, { t, at });
+  // The card's rows are built only while it shows.
+  const rows = isOpen ? cardRows(compaction, state, { t, at }) : [];
 
   return (
     <div className={css.Seam} data-compaction-seam data-state={state}>
