@@ -1178,7 +1178,7 @@
 				MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;
 				"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;
 				MINDROOM_UPDATE_FEED_URL = "https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-appcast/appcast.xml";
-				MINDROOM_UPDATE_PUBLIC_KEY = "PLACEHOLDER-the-Sparkle-public-key-of-docs-ios-release";
+				MINDROOM_UPDATE_PUBLIC_KEY = "he65VFC6KQjH8xkoYxPKmIe6cbbspSFr7oMsttWYPRE=";
 				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app;
 				PRODUCT_NAME = MindRoom.chat;
 				SUPPORTS_MACCATALYST = YES;

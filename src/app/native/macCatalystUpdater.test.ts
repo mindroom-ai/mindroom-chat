@@ -69,9 +69,9 @@ describe('the Mac updater in the Xcode project', () => {
     expect(release).toContain(
       'MINDROOM_UPDATE_FEED_URL = "https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-appcast/appcast.xml";'
     );
-    // The one place the key goes. While it is the placeholder the updater never starts and a
-    // signed release fails at its appcast (macUpdaterScripts.test.ts).
-    expect(release).toMatch(/MINDROOM_UPDATE_PUBLIC_KEY = "PLACEHOLDER[^"]*";/);
+    // The one place the key goes: the public half of the SPARKLE_ED_PRIVATE_KEY secret
+    // (docs/ios-release.md, "Making the key").
+    expect(release).toContain('MINDROOM_UPDATE_PUBLIC_KEY = "he65VFC6KQjH8xkoYxPKmIe6cbbspSFr7oMsttWYPRE=";');
     expect(project.match(/MINDROOM_UPDATE_(FEED_URL|PUBLIC_KEY) =/g)).toHaveLength(2);
     expect(debug).not.toContain('MINDROOM_UPDATE_');
   });

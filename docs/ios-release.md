@@ -96,7 +96,7 @@ The Developer ID app updates itself with [Sparkle](https://sparkle-project.org) 
 
 **Recovery.** A failed `feed` job: **Re-run failed jobs**, which needs no rebuild, or wait for the next release. A release with an `appcast.xml` and no DMG (the `dmg` job failed between its two uploads): re-run the `dmg` job, which replaces the `appcast.xml` and uploads the DMG, after deleting by hand a `starter` DMG the failed upload may have left. A DMG is never replaced.
 
-**The keys.** The build phase `scripts/macos-updater-info-plist.sh` writes six keys into the built Mac app only, when the build setting `MINDROOM_UPDATE_FEED_URL` is set, which only `App`'s Release configuration does: `SUFeedURL` (the feed), `SUPublicEDKey` (`MINDROOM_UPDATE_PUBLIC_KEY`), `SUEnableAutomaticChecks`, `SUAutomaticallyUpdate`, `SUScheduledCheckInterval` 3600 and `SUVerifyUpdateBeforeExtraction`. Builds without the setting, every Debug build among them, carry the bundle but never start it, so a local build never replaces itself with the release. Until the placeholder `MINDROOM_UPDATE_PUBLIC_KEY` in the project is the real public key, no build gets the keys, the updater never starts, and a signed release fails at its `appcast.xml`.
+**The keys.** The build phase `scripts/macos-updater-info-plist.sh` writes six keys into the built Mac app only, when the build setting `MINDROOM_UPDATE_FEED_URL` is set, which only `App`'s Release configuration does: `SUFeedURL` (the feed), `SUPublicEDKey` (`MINDROOM_UPDATE_PUBLIC_KEY`), `SUEnableAutomaticChecks`, `SUAutomaticallyUpdate`, `SUScheduledCheckInterval` 3600 and `SUVerifyUpdateBeforeExtraction`. Builds without the setting, every Debug build among them, carry the bundle but never start it, so a local build never replaces itself with the release. `MINDROOM_UPDATE_PUBLIC_KEY` in the project is the public half of the secret `SPARKLE_ED_PRIVATE_KEY`; a key that starts with `PLACEHOLDER` gives no build the keys, so the updater never starts and a signed release fails at its `appcast.xml`.
 
 **Making the key** (once, by Bas, on his Mac), from a clean checkout of the commit that adds the updater (its pull request's head before it merges, `main` after): `generate_keys` comes from the pinned, checksummed Sparkle, the public key it prints goes into `MINDROOM_UPDATE_PUBLIC_KEY`, and the private key leaves the login keychain only into a private folder that goes even if a step fails:
 
@@ -108,6 +108,8 @@ The Developer ID app updates itself with [Sparkle](https://sparkle-project.org) 
   ios/MacUpdater/Sparkle/bin/generate_keys --account mindroom-chat -x "$dir/sparkle.key"
   gh secret set SPARKLE_ED_PRIVATE_KEY --repo mindroom-ai/mindroom-chat < "$dir/sparkle.key" )
 ```
+
+The current key (2026-11-18) was made over ssh, where `generate_keys` cannot write the locked login keychain (`-25308`): `openssl genpkey -algorithm ed25519`, the last 32 bytes of its DER private key and of its DER public key, each base64, are the secret and `MINDROOM_UPDATE_PUBLIC_KEY`; `sign_update` with that file signs byte-for-byte as `openssl pkeyutl` does. Only the secret holds the private key.
 
 **A lost key** is replaced by a release whose app carries the new public key and whose enclosure is signed with the new private key: Sparkle accepts it because the DMG is signed with Developer ID by the installed app's team, and then checks the enclosure against the new app's key.
 
