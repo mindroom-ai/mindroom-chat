@@ -1001,6 +1001,39 @@ describe('composer model picker', () => {
       expect(state.selectModel).not.toHaveBeenCalledWith('luna', expect.anything());
     });
 
+    it("checks the room default's level on its model's own row too, where picking it changes nothing", async () => {
+      const state = levelled({
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      await hover('Sol');
+
+      expect(header()).toBe('EffortSol');
+      expect(radio('Medium').getAttribute('aria-checked')).toBe('true');
+      await click(radio('Medium'));
+      expect(state.selectModel).not.toHaveBeenCalled();
+      expect(list()).toBeNull();
+    });
+
+    it("pins a room default's model and level with a click on another level of its row", async () => {
+      const state = levelled({
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      await hover('Sol');
+      await click(radio('Low'));
+      expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
+    });
+
+    it("pins the room default's model with a click on its row", async () => {
+      const state = levelled({
+        inherited: [{ entity: 'assistant', model: 'sol', reasoning: 'medium' }],
+      });
+      await open(state);
+      await click(optionNamed('Sol'));
+      expect(state.selectModel).toHaveBeenCalledWith('sol');
+    });
+
     it('checks the default level and still marks it Default', async () => {
       await open(levelled({ override: 'sol' }));
       const high = radio('High, default');

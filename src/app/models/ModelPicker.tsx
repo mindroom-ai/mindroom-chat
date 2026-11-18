@@ -162,12 +162,17 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
     effort = roomDefaultEffort(state);
     effortModelName = effort?.model.display_name ?? t('mindroomUi.models.modelPicker.roomDefault');
   } else {
-    const current = state.override === activeItem.model.key;
-    effort = effortOf(
-      activeItem.model,
-      current ? state.reasoning ?? activeItem.model.reasoning_default : undefined,
-      current
-    );
+    // A model the thread runs on, its own pick or the room default's, is checked at its level.
+    const shared = state.override === null ? roomDefaultEffort(state) : undefined;
+    if (shared?.model.key === activeItem.model.key) effort = shared;
+    else {
+      const current = state.override === activeItem.model.key;
+      effort = effortOf(
+        activeItem.model,
+        current ? state.reasoning ?? activeItem.model.reasoning_default : undefined,
+        current
+      );
+    }
     effortModelName = activeItem.model.display_name;
   }
 
