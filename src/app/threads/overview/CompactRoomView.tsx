@@ -32,7 +32,12 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
-import { type CompactFocusRequest, meetCompactFocusRequest } from './compactFocusRequest';
+import {
+  type CompactFocusRequest,
+  isCompactFocusRequestOpen,
+  meetCompactFocusRequest,
+  placeCompactFocusRequest,
+} from './compactFocusRequest';
 import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
@@ -511,6 +516,30 @@ export function CompactRoomView({
     }
   }, [error]);
 
+  // A request that comes to the mounted list (a pin's link) places its card once the card shows,
+  // as a mount with that request does; the one the list mounted with had that mount.
+  const focusShown = cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
+  const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
+  const mountRequestKeyRef = useRef(requestKey);
+  const arrivedRequestKey =
+    focusRequest &&
+    focusShown &&
+    requestKey !== mountRequestKeyRef.current &&
+    isCompactFocusRequestOpen(compactRoomScrollStateRef.current, focusRequest)
+      ? requestKey
+      : undefined;
+  useLayoutEffect(() => {
+    if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
+    if (arrivedRequestKey && focusRequest && viewRef.current) {
+      placeCompactFocusRequest(
+        compactRoomScrollStateRef.current,
+        room.roomId,
+        focusRequest,
+        viewRef.current
+      );
+    }
+  });
+
   // Opening a card remounts this view, and threads that got replies meanwhile
   // sort above the cards that were in view, so restore by those cards.
   useScrollAnchorMemory({
@@ -519,12 +548,12 @@ export function CompactRoomView({
     scrollRef: viewRef,
     contentRef,
     ready: cardViewModels.length > 0,
+    restoreKey: arrivedRequestKey,
   });
 
   // The address's request is met once its card shows, which a folded section's does not.
   useLayoutEffect(() => {
-    const shown = cardViewModels.some((card) => card.id.threadRootId === focusRequest?.eventId);
-    if (focusRequest && shown) {
+    if (focusRequest && focusShown) {
       meetCompactFocusRequest(compactRoomScrollStateRef.current, focusRequest);
     }
   });

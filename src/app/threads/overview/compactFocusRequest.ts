@@ -1,7 +1,12 @@
-import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import type { ScrollAnchorMemory, ScrollAnchorSnapshot } from '../../ui/scrollAnchorMemory';
 
 /** Where a focused Compact card without a saved place sits: its top this far below the list's. */
 const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
+
+const focusedPlace = (eventId: string): ScrollAnchorSnapshot => ({
+  scrollTop: 1,
+  anchors: [{ key: eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
+});
 
 /**
  * An address's request that the room's cards show one of them (`?focusEvent=1`): the card's event
@@ -30,11 +35,39 @@ export const takeCompactFocusRequest = (
   const key = metKey(request);
   if (key && metRequests.get(memory)?.has(key)) return;
   if (!memory.get(roomId)?.anchors.some((anchor) => anchor.key === request.eventId)) {
-    memory.set(roomId, {
-      scrollTop: 1,
-      anchors: [{ key: request.eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
-    });
+    memory.set(roomId, focusedPlace(request.eventId));
   }
+};
+
+/** Whether the list has still to show the card `request` asks for. */
+export const isCompactFocusRequestOpen = (
+  memory: ScrollAnchorMemory,
+  request: CompactFocusRequest
+): boolean => {
+  const key = metKey(request);
+  return !!key && !metRequests.get(memory)?.has(key);
+};
+
+/**
+ * A request that comes to a mounted list, whose place in `memory` is the one it was left at:
+ * the place for the list to take now, its card's, or none while the card shows whole.
+ */
+export const placeCompactFocusRequest = (
+  memory: ScrollAnchorMemory,
+  roomId: string,
+  request: CompactFocusRequest,
+  view: HTMLElement
+): void => {
+  const card = Array.from(view.querySelectorAll('[data-scroll-anchor]')).find(
+    (row) => row.getAttribute('data-scroll-anchor') === request.eventId
+  );
+  const style = getComputedStyle(view);
+  const shown = view.getBoundingClientRect();
+  const top = shown.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
+  const bottom = shown.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
+  const rect = card?.getBoundingClientRect();
+  if (rect && rect.top >= top && rect.bottom <= bottom) memory.delete(roomId);
+  else memory.set(roomId, focusedPlace(request.eventId));
 };
 
 /** The list shows the card `request` asks for. For an effect: a render can be abandoned. */

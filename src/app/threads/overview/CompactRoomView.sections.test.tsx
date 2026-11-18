@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
-import { takeCompactFocusRequest } from './compactFocusRequest';
+import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
@@ -548,5 +548,82 @@ describe('the Compact room in sections', () => {
 
     expect(rows()).toEqual(['$streaming', '$job']);
     expect(state.enabled.every((enabled) => !enabled)).toBe(true);
+  });
+});
+
+describe('a focus request on the mounted Compact room', () => {
+  const ROW_HEIGHT = 100;
+  const VIEW_HEIGHT = 300;
+  const cards = Array.from({ length: 10 }, (_unused, index) => `$card${index}`);
+  let scrollTop = 0;
+
+  // jsdom lays nothing out: each card is ROW_HEIGHT tall, one under the other, in a list
+  // VIEW_HEIGHT tall that scrolls.
+  beforeEach(() => {
+    scrollTop = 0;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+        disconnect = vi.fn();
+      }
+    );
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
+      this: HTMLElement
+    ) {
+      if (this.dataset.compactRoomView) return new DOMRect(0, 0, 300, VIEW_HEIGHT);
+      const index = [...document.querySelectorAll('[data-scroll-anchor]')].indexOf(this);
+      return new DOMRect(0, index * ROW_HEIGHT - scrollTop, 300, index < 0 ? 0 : ROW_HEIGHT);
+    });
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(() => scrollTop);
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation((value: number) => {
+      scrollTop = Math.min(Math.max(0, value), cards.length * ROW_HEIGHT - VIEW_HEIGHT);
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const memory: ScrollAnchorMemory = new Map();
+  const at = (focusRequest?: CompactFocusRequest) => {
+    // What the room does as it renders the address.
+    if (focusRequest) takeCompactFocusRequest(memory, ROOM_ID, focusRequest);
+    return (
+      <CompactRoomView
+        room={room}
+        threadRootIds={cards}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: memory }}
+        focusRequest={focusRequest}
+      />
+    );
+  };
+  const topOf = (key: string) =>
+    document.querySelector(`[data-scroll-anchor="${key}"]`)!.getBoundingClientRect().top;
+
+  it('brings a card out of view to its place below the top, once, and leaves one in view', () => {
+    memory.clear();
+    // The list was left earlier with the card in view, and the reader is now at its top.
+    memory.set(ROOM_ID, { scrollTop: 700, anchors: [{ key: '$card8', offset: 100 }] });
+    const { rerender } = render(at());
+    scrollTop = 0;
+
+    rerender(at({ eventId: '$card8', entryKey: 'pin' }));
+    expect(topOf('$card8')).toBe(160);
+
+    // The reader scrolls on; another render of that address keeps their place.
+    scrollTop = 100;
+    rerender(at({ eventId: '$card8', entryKey: 'pin' }));
+    expect(scrollTop).toBe(100);
+
+    // A card in view stays where it is.
+    rerender(at({ eventId: '$card2', entryKey: 'next' }));
+    expect(scrollTop).toBe(100);
+
+    // Back to the first entry keeps the reader's place: its request was met.
+    rerender(at({ eventId: '$card8', entryKey: 'pin' }));
+    expect(scrollTop).toBe(100);
   });
 });
