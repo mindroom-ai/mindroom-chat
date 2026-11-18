@@ -8,7 +8,10 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { getDefaultStore } from 'jotai';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { getSettings, settingsAtom } from '../../preferences/settings';
-import { renderAgentMessageContent } from './renderAgentMessageContent';
+import {
+  renderAgentMessageContent,
+  type RenderAgentMessageContentOptions,
+} from './renderAgentMessageContent';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { LIVE_COMPACTIONS_KEY } from '../live/useLiveReplyContent';
@@ -186,6 +189,9 @@ const reply = (
   ...extra,
 });
 
+/** An answer long enough to fold the work before it. */
+const LONG_ANSWER = 'The answer.'.padEnd(6000, ' More.');
+
 const paragraphs = (...parts: (string | string[])[]) => parts.flat().join('\n\n');
 
 const mEvent = new MatrixEvent({
@@ -204,7 +210,10 @@ let replyCount = 0;
 let replyId = '$reply';
 let renderer: ReactTestRenderer | undefined;
 
-const render = (content: Record<string, unknown>) =>
+const render = (
+  content: Record<string, unknown>,
+  overrides: Partial<RenderAgentMessageContentOptions> = {}
+) =>
   act(() => {
     const tree = (
       <ClientConfigProvider value={{}}>
@@ -219,6 +228,7 @@ const render = (content: Record<string, unknown>) =>
             content,
             htmlReactParserOptions,
             linkifyOpts,
+            ...overrides,
           })}
         </ToolCallsFold>
       </ClientConfigProvider>
@@ -226,6 +236,16 @@ const render = (content: Record<string, unknown>) =>
     if (renderer) renderer.update(tree);
     else renderer = create(tree);
   });
+
+beforeEach(() => {
+  replyCount += 1;
+  replyId = `$reply${replyCount}`;
+});
+
+afterEach(() => {
+  act(() => renderer?.unmount());
+  renderer = undefined;
+});
 
 const textOf = (node: ReactTestInstance | string): string =>
   typeof node === 'string' ? node : node.children.map(textOf).join('');
@@ -283,16 +303,6 @@ const workedRow = () =>
   renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Worked'));
 
 describe('compaction seams in a reply', () => {
-  beforeEach(() => {
-    replyCount += 1;
-    replyId = `$reply${replyCount}`;
-  });
-
-  afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
-  });
-
   it('shows a compaction before the first tool call at the top of the reply', () => {
     render(reply(paragraphs('Intro.', markerLine('t1', 1), 'Done.'), [entry('c1', 0)]));
 
@@ -512,18 +522,8 @@ describe('compaction seams in a reply', () => {
 });
 
 describe('compaction seams in finished and live replies', () => {
-  beforeEach(() => {
-    replyCount += 1;
-    replyId = `$reply${replyCount}`;
-  });
-
-  afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
-  });
-
   it('keeps every seam in the folded work of a long finished reply, none in the answer', () => {
-    const answer = 'The answer.'.padEnd(6000, ' More.');
+    const answer = LONG_ANSWER;
     render(
       reply(
         paragraphs(
@@ -566,7 +566,7 @@ describe('compaction seams in finished and live replies', () => {
   });
 
   it('keeps the seam after a last tool call inside a div in the folded work', () => {
-    const answer = 'The answer.'.padEnd(6000, ' More.');
+    const answer = LONG_ANSWER;
     const html =
       '<p>🔧 <code>t1</code> [1]</p><p>Now the file.</p>' +
       `<div><p>🔧 <code>t2</code> [2]</p></div><p>${answer}</p>`;
@@ -601,7 +601,7 @@ describe('compaction seams in finished and live replies', () => {
   });
 
   it('places each seam after its call when a div holds a direct call, then one in a paragraph', () => {
-    const answer = 'The answer.'.padEnd(6000, ' More.');
+    const answer = LONG_ANSWER;
     const html = `<div>🔧 <code>t1</code> [1]<p>🔧 <code>t2</code> [2]</p></div><p>${answer}</p>`;
     render(
       reply(
@@ -627,7 +627,7 @@ describe('compaction seams in finished and live replies', () => {
   });
 
   it('folds a call the sanitizer takes out of a section with the work, its seam too', () => {
-    const answer = 'The answer.'.padEnd(6000, ' More.');
+    const answer = LONG_ANSWER;
     const html =
       '<p>🔧 <code>t1</code> [1]</p>' +
       `<section><p>🔧 <code>t2</code> [2]</p></section><p>${answer}</p>`;
@@ -696,27 +696,15 @@ describe('compaction seams in finished and live replies', () => {
       ...reply(paragraphs('Intro.', 'More.'), [entry('c1', 0)]),
       [LIVE_COMPACTIONS_KEY]: [entry('c2', 0, { status: 'running' })],
     });
-    act(() => {
-      renderer = create(
-        <ClientConfigProvider value={{}}>
-          {renderAgentMessageContent({
-            mEvent,
-            eventId: '$person-long',
-            fromMindroomAgent: false,
-            displayName: 'Bob',
-            msgType: 'm.text',
-            content: {
-              msgtype: 'm.text',
-              body: 'Intro.',
-              url: 'mxc://example.org/person',
-              'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
-            },
-            htmlReactParserOptions,
-            linkifyOpts,
-          })}
-        </ClientConfigProvider>
-      );
-    });
+    render(
+      {
+        msgtype: 'm.text',
+        body: 'Intro.',
+        url: 'mxc://example.org/person',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+      { fromMindroomAgent: false, displayName: 'Bob', eventId: '$person-long' }
+    );
     sidecars.clear();
 
     expect(renderer!.toJSON()).not.toBeNull();
@@ -759,11 +747,6 @@ describe('compaction seams in finished and live replies', () => {
 });
 
 describe('an old compaction notice outside an open thread', () => {
-  afterEach(() => {
-    act(() => renderer?.unmount());
-    renderer = undefined;
-  });
-
   const notice = {
     msgtype: 'm.notice',
     body: '📦 Compacted 24 runs: 366,804 → 6,336 / 351,792 history budget',
@@ -784,21 +767,11 @@ describe('an old compaction notice outside an open thread', () => {
   });
 
   it("keeps a person's message with the compaction key as text", () => {
-    act(() => {
-      renderer = create(
-        <ClientConfigProvider value={{}}>
-          {renderAgentMessageContent({
-            mEvent,
-            eventId: '$person',
-            fromMindroomAgent: false,
-            displayName: 'Bob',
-            msgType: 'm.notice',
-            content: notice,
-            htmlReactParserOptions,
-            linkifyOpts,
-          })}
-        </ClientConfigProvider>
-      );
+    render(notice, {
+      fromMindroomAgent: false,
+      displayName: 'Bob',
+      msgType: 'm.notice',
+      eventId: '$person',
     });
 
     expect(seams()).toHaveLength(0);
@@ -809,21 +782,7 @@ describe('an old compaction notice outside an open thread', () => {
       ...notice,
       'io.mindroom.compaction': { ...notice['io.mindroom.compaction'], status: 'running' },
     };
-    act(() => {
-      renderer = create(
-        <ClientConfigProvider value={{}}>
-          {renderAgentMessageContent({
-            eventId: '$no-event',
-            fromMindroomAgent: true,
-            displayName: 'Agent',
-            msgType: 'm.notice',
-            content: running,
-            htmlReactParserOptions,
-            linkifyOpts,
-          })}
-        </ClientConfigProvider>
-      );
-    });
+    render(running, { mEvent: undefined, msgType: 'm.notice', eventId: '$no-event' });
 
     expect(seamStates()).toEqual(['running']);
     expect(textOf(seams()[0]!.findByType('button'))).toBe('Compacting context…');
