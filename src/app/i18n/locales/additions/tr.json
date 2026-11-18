@@ -827,6 +827,12 @@
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} önceki mesaj",
+        "earlier_other": "{{count}} önceki mesaj",
+        "hide_one": "{{count}} mesajı gizle",
+        "hide_other": "{{count}} mesajı gizle"
+      },
       "questionCard": {
         "title": "Soru",
         "waiting": "Sizi bekliyor",

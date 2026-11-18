@@ -838,6 +838,14 @@
         "workedFor": "Ha lavorato per {{duration}}",
         "worked": "Ha lavorato"
       },
+      "turnFold": {
+        "earlier_one": "{{count}} messaggio precedente",
+        "earlier_many": "{{count}} messaggi precedenti",
+        "earlier_other": "{{count}} messaggi precedenti",
+        "hide_one": "Nascondi {{count}} messaggio",
+        "hide_many": "Nascondi {{count}} messaggi",
+        "hide_other": "Nascondi {{count}} messaggi"
+      },
       "questionCard": {
         "title": "Domanda",
         "waiting": "Ti aspetta",

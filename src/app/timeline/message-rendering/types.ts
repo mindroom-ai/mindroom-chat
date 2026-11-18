@@ -28,4 +28,10 @@ export type TimelineMessageData = {
   forkPrefixEventIds?: ReadonlySet<string>;
 };
 
+/** What reading a row as a quiet marker needs of the timeline's data. */
+export type QuietMarkerData = Pick<
+  TimelineMessageData,
+  'threadSummaryTimeline' | 'forkPrefixEventIds'
+>;
+
 export type { TimelineMessageKind } from '../../event-store/timeline/timelineRowTypes';

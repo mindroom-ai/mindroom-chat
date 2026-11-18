@@ -1164,6 +1164,7 @@ vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
   getThreadStreamingState: (_room: unknown, threadRootId: string) =>
     threadStreamingStateMock.get(threadRootId) ?? false,
   useThreadStreamingState: () => false,
+  isEventStreaming: () => false,
 }));
 
 vi.mock('../../threads/tags/useRoomThreadTags', () => ({

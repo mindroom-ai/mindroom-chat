@@ -107,7 +107,7 @@ import {
 } from '../../event-store/timeline/timelineRowTypes';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
 import type { ThreadRecord } from '../../event-store/threads/types';
-import type { TimelineMessageData, TimelineMessageRow } from './types';
+import type { QuietMarkerData, TimelineMessageData, TimelineMessageRow } from './types';
 
 /**
  * The settings below come from the user's preferences; `hideActivity` keeps read receipts
@@ -337,7 +337,7 @@ const readQuietMarker = (
   eventId: string,
   event: MatrixEvent,
   content: Record<string, unknown>,
-  data: TimelineMessageData,
+  data: QuietMarkerData,
   viewerId: string | undefined,
   onOpenTitleSettings?: () => void
 ): ReactNode | null => {
@@ -526,7 +526,7 @@ export const useTimelineMessageFeature = ({
   const readRowQuietMarker = useCallback(
     (
       event: MatrixEvent,
-      data: TimelineMessageData,
+      data: QuietMarkerData,
       rowTimelineSet: EventTimelineSet,
       onOpenTitleSettings?: () => void
     ): ReactNode | null => {
@@ -908,7 +908,7 @@ export const useTimelineMessageFeature = ({
    * `renderMessageRow` does.
    */
   const isQuietMarkerRow = useCallback(
-    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean =>
+    (event: MatrixEvent, data: QuietMarkerData, rowTimelineSet: EventTimelineSet): boolean =>
       readRowQuietMarker(event, data, rowTimelineSet) !== null,
     [readRowQuietMarker]
   );
@@ -918,7 +918,7 @@ export const useTimelineMessageFeature = ({
    * A snooze ending and a compaction notice keep their own row (`OWN_ROW_MARKERS`).
    */
   const joinsQuietMarkerRun = useCallback(
-    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean => {
+    (event: MatrixEvent, data: QuietMarkerData, rowTimelineSet: EventTimelineSet): boolean => {
       const node = readRowQuietMarker(event, data, rowTimelineSet);
       return node !== null && !(isValidElement(node) && OWN_ROW_MARKERS.has(node.type));
     },

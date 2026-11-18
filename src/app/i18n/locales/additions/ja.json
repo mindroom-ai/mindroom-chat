@@ -816,6 +816,10 @@
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"
       },
+      "turnFold": {
+        "earlier_other": "以前のメッセージ {{count}} 件",
+        "hide_other": "{{count}} 件のメッセージを非表示"
+      },
       "questionCard": {
         "title": "質問",
         "waiting": "あなたの回答待ち",

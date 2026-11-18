@@ -167,7 +167,13 @@ import {
 } from './roomTimelineUnread';
 import { useMessageRowHidden } from '../plugins/messageRenderers';
 import { isPluginHiddenRow } from './pluginHiddenRows';
-import { renderTimelineTiles, timelineRowSizing, useRoomRowEntries } from './roomTimelineRows';
+import { useThreadTurnFolds, useTurnBreakRowMeasurements } from './useThreadTurnFolds';
+import {
+  isTimelineRowHidden,
+  renderTimelineTiles,
+  timelineRowSizing,
+  useRoomRowEntries,
+} from './roomTimelineRows';
 import { collectThreadWriterIds, recordThreadWriters } from '../event-store/threads/threadWriters';
 import { useThreadWritersBackfill } from '../threads/overview/useThreadWritersBackfill';
 import type { FetchedRelationOverviewUpdateOptions } from '../threads/overview/threadOverviewCacheHydration';
@@ -852,6 +858,53 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     routeId: eventId,
     focusId: focusItem?.eventId,
   });
+  // A finished turn of the open thread folds its rows between the person's message and the answer
+  // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
+  // opened, and the rows a fork's lines sit on, keep their turn unfolded.
+  const { isQuietMarkerRow } = feature;
+  const isTurnQuietMarker = useCallback(
+    (event: MatrixEvent) =>
+      isQuietMarkerRow(event, { threadSummaryTimeline, forkPrefixEventIds }, rowTimelineSet),
+    [forkPrefixEventIds, isQuietMarkerRow, rowTimelineSet, threadSummaryTimeline]
+  );
+  const isTurnRowSkipped = useCallback(
+    (event: MatrixEvent) =>
+      isTimelineRowHidden(event, {
+        messageData: { approvalTimeline, threadSummaryTimeline, secretRequestTimeline },
+        ignoredUsersSet,
+        showHiddenEvents,
+        isHiddenByPlugin,
+      }),
+    [
+      approvalTimeline,
+      ignoredUsersSet,
+      isHiddenByPlugin,
+      secretRequestTimeline,
+      showHiddenEvents,
+      threadSummaryTimeline,
+    ]
+  );
+  const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
+  const turnPinnedIds = useMemo(() => {
+    // The plugin rule's revealed rows, which its memo adds the route's and the jump's to.
+    void isHiddenByPlugin;
+    const ids = new Set(pluginRevealedRef.current);
+    if (forkStartId) ids.add(forkStartId);
+    if (shownForkPoint) ids.add(shownForkPoint);
+    return ids;
+  }, [forkStartId, isHiddenByPlugin, shownForkPoint]);
+  const turnFolds = useThreadTurnFolds({
+    room,
+    threadId,
+    events: threadEvents,
+    viewerId: mx.getUserId() ?? undefined,
+    getContent: getRowContent,
+    timelineSet: rowTimelineSet,
+    isSkipped: isTurnRowSkipped,
+    isQuietMarker: isTurnQuietMarker,
+    pinnedIds: turnPinnedIds,
+    backgroundState: threadId ? threadIndex.threadBackgroundStates.get(threadId) : undefined,
+  });
 
   // While the opening room view does not fill the screen, keep paginating. The fill holds the
   // last row still while the rows above it measure, so a view whose newest row is its first
@@ -949,6 +1002,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     roomRowsRef,
     activeRangeRef,
     threadRecordMapRef,
+    turnFolds: turnFolds.view,
   });
   const showThreadLoadOlder = !!threadId && windowState.showThreadLoadOlderMessages;
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
@@ -1029,27 +1083,33 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     beforePaint && renderedList?.height
       ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
       : virtualizer.getTotalSize();
-  // Rows hidden in the open thread, by its plans and by plugins, measure nothing; one shown again
-  // gets its estimate back, so a jump to it mounts it.
-  const threadHiddenIds = useMemo(
-    () =>
-      !threadId
-        ? EMPTY_IDS
-        : pluginHiddenThreadIds.size === 0 && secretRequestTimeline.hiddenEventIds.size === 0
-        ? approvalTimeline.hiddenEventIds
-        : new Set([
-            ...approvalTimeline.hiddenEventIds,
-            ...secretRequestTimeline.hiddenEventIds,
-            ...pluginHiddenThreadIds,
-          ]),
-    [
-      threadId,
-      approvalTimeline.hiddenEventIds,
-      secretRequestTimeline.hiddenEventIds,
-      pluginHiddenThreadIds,
-    ]
-  );
+  // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
+  // (the row that draws a folded turn's break measures the break); one shown again gets its
+  // estimate back, so a jump to it mounts it.
+  const threadHiddenIds = useMemo(() => {
+    if (!threadId) return EMPTY_IDS;
+    if (
+      pluginHiddenThreadIds.size === 0 &&
+      secretRequestTimeline.hiddenEventIds.size === 0 &&
+      turnFolds.view.hiddenIds.size === 0
+    ) {
+      return approvalTimeline.hiddenEventIds;
+    }
+    return new Set([
+      ...approvalTimeline.hiddenEventIds,
+      ...secretRequestTimeline.hiddenEventIds,
+      ...pluginHiddenThreadIds,
+      ...turnFolds.view.hiddenIds,
+    ]);
+  }, [
+    threadId,
+    approvalTimeline.hiddenEventIds,
+    secretRequestTimeline.hiddenEventIds,
+    pluginHiddenThreadIds,
+    turnFolds.view,
+  ]);
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
+  useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFolds.view, estimateSize);
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
@@ -1767,6 +1827,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     forkDivider,
     forkingDivider,
+    turnFolds,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
     ledgerPxAtRender: ledger.ledgerPxAtRender,
