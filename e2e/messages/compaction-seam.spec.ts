@@ -585,20 +585,25 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await page.keyboard.press('Escape');
   await expect(card).toHaveCount(0);
   await expect(latestWords).toBeFocused();
-  // Tab in the card, which lives in the body, goes on from the row in timeline order.
+  // Tab in the card, which lives in the body, goes on from the row in timeline order: to where
+  // Tab from the row itself goes.
+  const focused = () =>
+    page.evaluate(() => {
+      const element = document.activeElement;
+      if (!element || element === document.body) return '';
+      return `${element.tagName} ${element.getAttribute('aria-label') ?? element.textContent}`;
+    });
+  await latestWords.blur();
+  await latestWords.focus();
+  await page.keyboard.press('Tab');
+  const afterRow = await focused();
+  expect(afterRow).not.toBe('');
+  await latestWords.focus();
   await page.keyboard.press('Enter');
   await expect(card).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(card).toHaveCount(0);
-  expect(
-    await latestWords.evaluate((row) => {
-      // Focus lands on the control Tab reaches after the row in the page's order.
-      const tabbable = Array.from(
-        document.querySelectorAll<HTMLElement>('button, [href], input, textarea, [tabindex]')
-      ).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
-      return document.activeElement === tabbable[tabbable.indexOf(row) + 1];
-    })
-  ).toBe(true);
+  expect(await focused()).toBe(afterRow);
   await page.keyboard.press('Shift+Tab');
   await expect(latestWords).toBeFocused();
   await latestWords.blur();
