@@ -19,6 +19,12 @@ vi.mock('@tabler/icons-react', () => ({
   IconNotebook: () => React.createElement('svg'),
 }));
 
+vi.mock('../rich-text/code/CodeBlockIcons', () => ({
+  WrapTextIcon: () => React.createElement('svg'),
+}));
+
+vi.mock('../rich-text/CustomHtml.css', () => ({ CodeBlockAction: 'CodeBlockAction' }));
+
 vi.mock('./SkillReviewMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
@@ -28,6 +34,7 @@ vi.mock('./SkillReviewMarker.css', () => ({
   Removed: 'Removed',
   Panel: 'Panel',
   FileHeader: 'FileHeader',
+  FileName: 'FileName',
   Diff: 'Diff',
   DiffLine: 'DiffLine',
   DiffAdded: 'DiffAdded',
@@ -73,7 +80,8 @@ const render = (review: SkillReviewNotice) => {
   renderers.push(renderer);
   return renderer;
 };
-const trigger = (renderer: ReactTestRenderer) => renderer.root.findByType('button');
+const trigger = (renderer: ReactTestRenderer) =>
+  renderer.root.findByProps({ className: 'MarkerTrigger' });
 const tooltip = (renderer: ReactTestRenderer) =>
   renderer.root.findAll((node) => node.props['data-popout'] === true);
 const panel = (renderer: ReactTestRenderer) =>
@@ -150,6 +158,20 @@ describe('SkillReviewMarker', () => {
 
     await act(() => trigger(renderer).props.onClick());
     expect(panel(renderer)).toHaveLength(0);
+  });
+
+  it('wraps long diff lines until the reader turns wrapping off', async () => {
+    const renderer = render(updated);
+    await act(() => trigger(renderer).props.onClick());
+    const [diffs] = panel(renderer);
+    const diff = () => diffs!.findByProps({ className: 'Diff' });
+    const wrap = diffs!.findByProps({ 'aria-label': 'Wrap lines' });
+    expect(diff().props['data-wrap']).toBe(true);
+    expect(wrap.props['aria-pressed']).toBe(true);
+
+    await act(() => wrap.props.onClick());
+    expect(diff().props['data-wrap']).toBe(false);
+    expect(wrap.props['aria-pressed']).toBe(false);
   });
 
   it('says when a diff was truncated or left out', async () => {

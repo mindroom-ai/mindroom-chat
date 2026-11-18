@@ -44,7 +44,8 @@ const WITH_RUN = { ...PLAIN, 'io.mindroom.ai_run': { version: 1, status: 'comple
 const renderMessage = async (
   layout: MessageLayout,
   replyTiming?: ReplyTiming,
-  content: Record<string, unknown> = PLAIN
+  content: Record<string, unknown> = PLAIN,
+  collapse = false
 ) => {
   const Message = await loadMessage();
   render(
@@ -60,7 +61,7 @@ const renderMessage = async (
           isRedacted: () => false,
         } as unknown as MatrixEvent
       }
-      collapse={false}
+      collapse={collapse}
       highlight={false}
       messageLayout={layout}
       messageSpacing="400"
@@ -174,6 +175,18 @@ describe("an agent reply's header time", () => {
     const details = screen.getByRole('button', { name: 'Reply details' });
     expect(details.getAttribute('aria-expanded')).toBe('false');
   });
+
+  it.each([MessageLayout.Modern, MessageLayout.Bubble])(
+    'stays on a follow-up agent reply, with run details or only its timing (%s)',
+    async (layout) => {
+      expect(await renderMessage(layout, timing, WITH_RUN, true)).not.toBeNull();
+      expect(screen.getByRole('button', { name: 'Reply details' })).toBeTruthy();
+      cleanup();
+      expect(await renderMessage(layout, timing, PLAIN, true)).not.toBeNull();
+      cleanup();
+      expect(await renderMessage(layout, undefined, PLAIN, true)).toBeNull();
+    }
+  );
 
   it('keeps unfolding on a tap, with the reply details on its button', async () => {
     const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);

@@ -1158,7 +1158,6 @@ vi.mock('../../threads/overview/useRoomThreadList', () => ({
 vi.mock('../../event-store/threads/useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: (_room: unknown, threadRootId: string) =>
     threadLastActivityTsMapMock.get(threadRootId) ?? 0,
-  useThreadLastActivityTs: () => 0,
 }));
 
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
