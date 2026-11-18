@@ -197,6 +197,13 @@ describe('readCompactionNotice', () => {
     duration_ms: 8400,
   };
 
+  it('leaves out the start of a notice read without its event time', () => {
+    const read = readCompactionNotice(notice({ ...SUCCESS, status: 'running' }));
+
+    expect(read).toMatchObject({ status: 'running', beforeTokens: 366804 });
+    expect(read).not.toHaveProperty('startedAt');
+  });
+
   it.each([
     ['past the latest date', 8.64e15 + 1],
     ['negative', -1],

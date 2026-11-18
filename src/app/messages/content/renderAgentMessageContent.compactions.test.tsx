@@ -641,4 +641,29 @@ describe('an old compaction notice outside an open thread', () => {
 
     expect(seams()).toHaveLength(0);
   });
+
+  it('counts no seconds for a running notice without its event, whose start is unknown', () => {
+    const running = {
+      ...notice,
+      'io.mindroom.compaction': { ...notice['io.mindroom.compaction'], status: 'running' },
+    };
+    act(() => {
+      renderer = create(
+        <ClientConfigProvider value={{}}>
+          {renderAgentMessageContent({
+            eventId: '$no-event',
+            fromMindroomAgent: true,
+            displayName: 'Agent',
+            msgType: 'm.notice',
+            content: running,
+            htmlReactParserOptions,
+            linkifyOpts,
+          })}
+        </ClientConfigProvider>
+      );
+    });
+
+    expect(seamStates()).toEqual(['running']);
+    expect(textOf(seams()[0]!.findByType('button'))).toBe('Compacting context…');
+  });
 });

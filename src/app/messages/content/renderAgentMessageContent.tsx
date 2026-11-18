@@ -454,7 +454,7 @@ export const renderAgentMessageContent = ({
   const skillReview = fromMindroomAgent ? readSkillReviewNotice(content) : null;
   if (skillReview) return <SkillReviewMarker review={skillReview} />;
   const compactionNotice = fromMindroomAgent
-    ? readCompactionNotice(content, mEvent?.getTs() ?? Date.now())
+    ? readCompactionNotice(content, mEvent?.getTs())
     : undefined;
   if (compactionNotice) return <CompactionNoticeSeam compaction={compactionNotice} />;
 
