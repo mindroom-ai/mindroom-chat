@@ -298,12 +298,11 @@ const endAligned = { alignItems: 'flex-end' } as const;
  * Inside a thread, the thread's title and the backend's snooze-ended, skill review and compaction
  * notices render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title
  * shows only where the thread's summary plan marks it; the others only from a MindRoom agent. A
- * compaction notice started when it was sent (`originTs`).
+ * compaction notice started when its event was sent.
  */
 const readQuietMarker = (
   eventId: string,
-  sender: string | undefined,
-  originTs: number,
+  event: MatrixEvent,
   content: Record<string, unknown>,
   data: TimelineMessageData,
   viewerId: string | undefined,
@@ -320,8 +319,8 @@ const readQuietMarker = (
       />
     );
   }
-  if (!isMindroomAgentUserIdForViewer(sender, viewerId)) return null;
-  return readAgentNoticeMarker(content, originTs);
+  if (!isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, viewerId)) return null;
+  return readAgentNoticeMarker(content, event.getTs());
 };
 
 /**
@@ -514,15 +513,7 @@ export const useTimelineMessageFeature = ({
       ) as Record<string, unknown>;
       const quietMarker =
         threadId && kind === 'message'
-          ? readQuietMarker(
-              eventId,
-              event.getSender() ?? undefined,
-              event.getTs(),
-              content,
-              data,
-              userId ?? undefined,
-              openTitleSettings
-            )
+          ? readQuietMarker(eventId, event, content, data, userId ?? undefined, openTitleSettings)
           : null;
       if (quietMarker) {
         return (
@@ -830,10 +821,7 @@ export const useTimelineMessageFeature = ({
         event,
         getEditedEvent(eventId, event, timelineSet)
       ) as Record<string, unknown>;
-      const sender = event.getSender() ?? undefined;
-      return (
-        readQuietMarker(eventId, sender, event.getTs(), content, data, userId ?? undefined) !== null
-      );
+      return readQuietMarker(eventId, event, content, data, userId ?? undefined) !== null;
     },
     [room, threadId, userId]
   );
