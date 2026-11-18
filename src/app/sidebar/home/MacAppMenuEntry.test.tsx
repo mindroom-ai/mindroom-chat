@@ -19,8 +19,8 @@ vi.mock('folds', () => ({ Line: () => null }));
 vi.mock('../../ui/MenuEntry', () => ({
   MenuGroup: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
-  MenuEntry: ({ label, onSelect }: { label: string; onSelect: () => void }) =>
-    React.createElement('button', { onClick: onSelect }, label),
+  MenuEntry: ({ label, href, onSelect }: { label: string; href?: string; onSelect: () => void }) =>
+    React.createElement('a', { href, onClick: onSelect }, label),
 }));
 
 const OFFERED: ClientConfig = { macApp: { offer: true } };
@@ -61,41 +61,42 @@ describe('MacAppMenuEntry', () => {
     expect(fetchReleases).not.toHaveBeenCalled();
   });
 
-  it('closes the menu and opens the download in a browser on a Mac', () => {
-    const open = vi.fn();
-    vi.stubGlobal('window', { open });
+  it('links the releases page in a browser on a Mac, and closes the menu when chosen', () => {
     const onClose = vi.fn();
     const renderer = menu(onClose);
-    const [entry, ...others] = renderer.root.findAllByType('button');
+    const [entry, ...others] = renderer.root.findAllByType('a');
     expect(others).toEqual([]);
     expect(entry?.children).toEqual(['Download Mac app']);
+    expect(entry?.props.href).toBe(MAC_APP_RELEASES_URL);
 
     act(() => {
       entry?.props.onClick();
     });
 
     expect(onClose).toHaveBeenCalledOnce();
-    expect(open).toHaveBeenCalledWith(MAC_APP_RELEASES_URL, '_blank', 'noopener,noreferrer');
   });
 
-  it('opens the disk image of the newest release that has one, once GitHub has named it', async () => {
-    fetchReleases.mockResolvedValue(
-      new Response(
-        JSON.stringify([{ assets: [{ name: 'MindRoom.dmg', browser_download_url: DMG }] }])
-      )
+  it('links the disk image of the newest release that has one, once GitHub has named it', async () => {
+    let respond!: (response: Response) => void;
+    fetchReleases.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        respond = resolve;
+      })
     );
-    const open = vi.fn();
-    vi.stubGlobal('window', { open });
-    let renderer!: ReturnType<typeof menu>;
+    const renderer = menu(vi.fn());
+    const entry = () => renderer.root.findByType('a');
+    expect(entry().props.href).toBe(MAC_APP_RELEASES_URL);
+
     await act(async () => {
-      renderer = menu(vi.fn());
+      respond(
+        new Response(
+          JSON.stringify([
+            { assets: [{ name: 'MindRoom.dmg', state: 'uploaded', browser_download_url: DMG }] },
+          ])
+        )
+      );
     });
-    const [entry] = renderer.root.findAllByType('button');
 
-    act(() => {
-      entry?.props.onClick();
-    });
-
-    expect(open).toHaveBeenCalledWith(DMG, '_blank', 'noopener,noreferrer');
+    expect(entry().props.href).toBe(DMG);
   });
 });

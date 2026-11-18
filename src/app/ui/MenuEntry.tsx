@@ -14,7 +14,7 @@ type MenuEntryProps = Omit<
   icon: IconSrc;
   /** Shown instead of the icon, such as a spinner while the entry works. */
   after?: ReactNode;
-  onSelect: MouseEventHandler<HTMLButtonElement>;
+  onSelect: MouseEventHandler<HTMLElement>;
   critical?: boolean;
   /** The icon points along the reading direction, so right-to-left languages mirror it. */
   directional?: boolean;
@@ -28,6 +28,8 @@ type MenuEntryProps = Omit<
   disabledReason?: string;
   /** One line under the label that says what the entry does; the row's description. */
   description?: string;
+  /** Makes the entry a link to this address, which opens in a new tab; `onSelect` still runs. */
+  href?: string;
 };
 
 // The label takes the row's free width, so the icons line up, and starts at the leading edge
@@ -49,6 +51,7 @@ export function MenuEntry({
   shortcut,
   disabledReason,
   description,
+  href,
   className,
   ...props
 }: MenuEntryProps) {
@@ -85,6 +88,13 @@ export function MenuEntry({
         )
       }
       onClick={disabledReason ? undefined : onSelect}
+      {...(href && {
+        as: 'a',
+        href,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        style: { textDecoration: 'none' },
+      })}
       {...shortcutAttributes(shortcut)}
       {...props}
       {...(disabledReason && { 'aria-disabled': true })}

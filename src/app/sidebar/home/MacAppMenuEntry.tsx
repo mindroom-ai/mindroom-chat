@@ -21,10 +21,8 @@ export function MacAppMenuEntry({ onClose }: { onClose: () => void }) {
           icon={MacAppIcon}
           label={t('featureUi.macApp.menu')}
           data-mac-app-download="menu"
-          onSelect={() => {
-            onClose();
-            window.open(downloadUrl, '_blank', 'noopener,noreferrer');
-          }}
+          href={downloadUrl}
+          onSelect={onClose}
         />
       </MenuGroup>
     </>
