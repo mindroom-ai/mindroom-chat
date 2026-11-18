@@ -9,7 +9,7 @@ import { openPanelRoom, panelLocator, type PanelRoom } from '../helpers/sidePane
 // agent's reply that called it. A run counts as running for 30 seconds after its last frame, so
 // the frames go out again before each look.
 
-test.use({ viewport: { width: 1280, height: 860 }, video: 'off' });
+test.use({ viewport: { width: 1400, height: 860 }, video: 'off' });
 test.afterEach(async ({ context }) => {
   await context.unrouteAll({ behavior: 'ignoreErrors' });
 });
@@ -193,6 +193,7 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
           tool: 'panels',
           subagent: 'sub-child',
           run: 'run-child',
+          status: 'awaiting_approval',
           started_at: startedAt(4),
         }),
       ],
@@ -225,6 +226,9 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(child.locator('[data-job-model]')).toHaveText('Sol · GPT-6.2');
   // An unpriced run shows its tokens without a cost.
   await expect(child.locator('[data-job-stat]')).toHaveText(['7', '314K', '']);
+  // A job waiting for approval says so in its one pill, and the title counts it.
+  await expect(child).toContainText('Waiting for approval');
+  await expect(title).toContainText('1 needs approval');
   const shell = row(bar, 'tool');
   await expect(shell.locator('[data-job-logo]')).toHaveAttribute('data-job-logo', 'tool');
   // A tool job's second line is its call's arguments; its first line names the tool.
@@ -255,6 +259,7 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
   // Beside the panel the bar is narrower: the columns stay, and a thread chip is its icon.
+  await bar.getByRole('button', { name: /^3 background jobs/ }).click();
   await expect(lead.locator('[data-job-stat="calls"]')).toBeVisible();
   await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-panel.png') });
 

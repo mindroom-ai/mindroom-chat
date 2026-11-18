@@ -20,7 +20,7 @@ export const Anchor = style({
 // The bar's own width, not the screen's, decides what gives way: beside the Sub-agents panel the
 // thread chips shrink to their icons, and on a phone only the time, Open and Stop stay on the right.
 const panel = '(max-width: 46rem)';
-const phone = '(max-width: 38rem)';
+const phone = '(max-width: 30rem)';
 const hiddenOnPhone = { '@container': { [phone]: { display: 'none' } } };
 
 // The columns every row shares: logo | text | calls | tokens | cost | time | Open and Stop.
