@@ -41,7 +41,8 @@ export const pluginPublicUrl = (id: string): string => appUrl(`public/plugins/${
 
 /**
  * Reloads the page into the newest version the server has, as the app's own update notice does,
- * also when the page has not noticed that version yet.
+ * also when the page has not noticed that version yet. In the Mac app with a downloaded update it
+ * restarts the app into it instead, and rejects when the app did not restart.
  */
 export const reloadForNewVersion = async (): Promise<void> => {
   // A version the page has not noticed stages no new worker, and the old one would answer the reload.

@@ -76,8 +76,8 @@ describe('the Mac updater in the Xcode project', () => {
       ids(store, 'buildPhases').find((id) => object(id).includes('isa = PBXSourcesBuildPhase;')) ??
         ''
     );
-    ['MacUpdater.swift', 'MindRoomMacUpdaterProtocol.swift'].forEach((file) =>
-      expect(sources).not.toContain(`/* ${file} in Sources */`)
+    ['MacUpdater.swift', 'MindRoomMacUpdaterProtocol.swift', 'MindRoomUpdatePlugin.swift'].forEach(
+      (file) => expect(sources).not.toContain(`/* ${file} in Sources */`)
     );
   });
 

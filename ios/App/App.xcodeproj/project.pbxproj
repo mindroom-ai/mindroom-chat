@@ -73,6 +73,7 @@
 		66964B857163CFBAA375CA3B /* MindRoomMacUpdater.bundle in Embed Mac Updater */ = {isa = PBXBuildFile; fileRef = E1C3B9713BA05E12E764174A /* MindRoomMacUpdater.bundle */; platformFilter = maccatalyst; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		BDACE7C7D158832EA988828D /* MindRoomMacUpdaterProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8979C82BE1FD040AAD5E98 /* MindRoomMacUpdaterProtocol.swift */; };
 		FBFB57312EB4954DF040540E /* MacUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */; };
+		B6F1F10D5715F6EFB23542D9 /* MindRoomUpdatePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -245,6 +246,7 @@
 		4C88F1D4F4557F374B2C4440 /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Sparkle/Sparkle.framework; sourceTree = "<group>"; };
 		4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacUpdater.swift; sourceTree = "<group>"; };
 		E1C3B9713BA05E12E764174A /* MindRoomMacUpdater.bundle */ = {isa = PBXFileReference; explicitFileType = "wrapper.plug-in"; includeInIndex = 0; path = MindRoomMacUpdater.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomUpdatePlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -394,6 +396,7 @@
 				0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */,
 				0C0000000000000000000007 /* MacScreenshot.swift */,
 				4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */,
+				1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */,
 				D1A600000000000000000007 /* PrivacyInfo.xcprivacy */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -859,6 +862,7 @@
 				00793D37691CA6A2C357C1DA /* MindRoomWatchPlugin.swift in Sources */,
 				BDACE7C7D158832EA988828D /* MindRoomMacUpdaterProtocol.swift in Sources */,
 				FBFB57312EB4954DF040540E /* MacUpdater.swift in Sources */,
+				B6F1F10D5715F6EFB23542D9 /* MindRoomUpdatePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
