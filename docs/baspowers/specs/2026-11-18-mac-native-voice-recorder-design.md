@@ -309,3 +309,28 @@ audio session on Mac Catalyst; the microphone prompt from `AVCaptureDevice.reque
 that a page reloaded under it records nothing; the fetch of the recording from the temporary
 folder in the sandboxed Store build. Playback of the `.m4a` in Chromium and Firefox depends on
 their AAC decoders, as it does for iPhone and Watch messages today; the manual check covers it.
+
+## After code review
+
+Four points of the design above changed after the review of the implementation; the code and
+`nativeVoiceRecorderIOSContract.test.ts` are the reference.
+
+- **The file read.** Capacitor answers a local media file without an HTTP status, which WebKit
+  reports as status 0 with `ok` false. The wrapper takes a non-empty body with status 0 and still
+  drops HTTP errors and empty bodies.
+- **Levels.** No native timer and no `level` event: a notification from the main queue raced the
+  listener changes Capacitor makes on its bridge queue. The plugin has a method `level({ id })`,
+  which the wrapper's `level()` calls while recording; it returns the answer before, one sample
+  (80 ms) behind.
+- **Which start records.** The page's token (`epoch`) is gone: it was read after the call had
+  waited in a queue, and two starts of one page shared it. The wrapper names each start with a
+  nonce, in `window.mindroomVoiceStart` and in `start({ nonce })`. After the prompt the plugin
+  reads the name back from the loaded page and records only when the page still names this start
+  and no navigation is under way (`webView.isLoading`): an older start of the page, a start of a
+  page that was or is being replaced, and a start of a closed window answer `START_FAILED`. A
+  start while a page still loads fails the same way; the next press records.
+- **A closed window.** `SceneDelegate` calls `close()`, which disables that window's plugin for
+  good. A page load still discards the live recording and the folder.
+
+The probe of the plan's Task 4 follows: it names its start, asks one level, and reads the file by
+the wrapper's rule; `twice` sends two starts under one prompt.
