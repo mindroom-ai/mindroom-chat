@@ -9,8 +9,6 @@ import { timeHourMinuteSecond } from '../../lib/time';
 import { CompactionNoticeSeam, CompactionSeam } from './CompactionSeam';
 
 vi.mock('folds', () => ({
-  Text: ({ as: Tag = 'span', children, size, priority, ...props }: any) =>
-    React.createElement(Tag, props, children),
   PopOut: ({ anchor, content, position, align, offset, ...props }: any) =>
     anchor
       ? React.createElement(
@@ -124,7 +122,9 @@ const rows = (renderer: ReactTestRenderer): Array<[string, string]> => {
 
 const open = async (renderer: ReactTestRenderer) => {
   await act(() => trigger(renderer).props.onClick());
-  expect(card(renderer)).toHaveLength(1);
+  const cards = card(renderer);
+  expect(cards).toHaveLength(1);
+  return cards[0]!;
 };
 
 afterEach(() => {
@@ -284,8 +284,7 @@ describe('CompactionSeam end time', () => {
 describe('CompactionSeam reason', () => {
   it('clamps the failure reason, and only it, to a few lines', async () => {
     const renderer = render(<CompactionSeam compaction={failed()} />);
-    await open(renderer);
-    const clamped = card(renderer)[0]!.findAll(
+    const clamped = (await open(renderer)).findAll(
       (node) => node.type === 'dd' && String(node.props.className).includes('Reason')
     );
 
@@ -597,8 +596,7 @@ describe('CompactionSeam card', () => {
 
   it('details a successful compaction', async () => {
     const renderer = render(<CompactionSeam compaction={compaction()} />);
-    await open(renderer);
-    const tip = card(renderer)[0]!;
+    const tip = await open(renderer);
 
     expect(tip.props['data-state']).toBe('success');
     expect(text(tip)).toContain('Context compacted');
@@ -648,8 +646,7 @@ describe('CompactionSeam card', () => {
   it('tags where it ran', async () => {
     const tagged = async (c: ReplyCompaction) => {
       const renderer = render(<CompactionSeam compaction={c} />);
-      await open(renderer);
-      return text(card(renderer)[0]!);
+      return text(await open(renderer));
     };
     const preTurn = await tagged(compaction({ phase: 'pre_turn', afterTool: 0 }));
     expect(preTurn).toContain('before the reply');
@@ -663,8 +660,7 @@ describe('CompactionSeam card', () => {
 
   it('shows no tag and no subtitle for an old automatic notice', async () => {
     const renderer = render(<CompactionSeam compaction={compaction({ phase: 'notice' })} />);
-    await open(renderer);
-    const tip = card(renderer)[0]!;
+    const tip = await open(renderer);
     expect(tip.findAll((node) => node.props.className === 'Tag')).toHaveLength(0);
     expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
   });
@@ -681,8 +677,7 @@ describe('CompactionSeam card', () => {
     vi.useFakeTimers();
     vi.setSystemTime(STARTED + 12_000);
     const renderer = render(<CompactionSeam compaction={running()} />);
-    await open(renderer);
-    const tip = card(renderer)[0]!;
+    const tip = await open(renderer);
 
     expect(text(tip)).toContain('Compacting context… 12 s');
     expect(text(tip)).toContain('104% of budget');
@@ -697,8 +692,7 @@ describe('CompactionSeam card', () => {
 
   it('details a failure, its reason first', async () => {
     const renderer = render(<CompactionSeam compaction={failed()} />);
-    await open(renderer);
-    const tip = card(renderer)[0]!;
+    const tip = await open(renderer);
 
     expect(text(tip)).toContain('Compaction failed');
     expect(text(tip)).toContain('The reply went on with its full history.');
@@ -720,14 +714,12 @@ describe('CompactionSeam card', () => {
         const renderer = render(
           <CompactionSeam compaction={failed({ status, compactedRunCount })} />
         );
-        await open(renderer);
-        expect(text(card(renderer)[0]!)).toContain(kept);
+        expect(text(await open(renderer))).toContain(kept);
       }
       const folded = render(
         <CompactionSeam compaction={failed({ status, compactedRunCount: 3 })} />
       );
-      await open(folded);
-      const tip = card(folded)[0]!;
+      const tip = await open(folded);
       expect(text(tip)).not.toContain(kept);
       expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
     }
@@ -736,14 +728,12 @@ describe('CompactionSeam card', () => {
   it('calls the history unchanged only when no runs were folded', async () => {
     for (const status of ['failed', 'timeout'] as const) {
       const kept = render(<CompactionSeam compaction={failed({ status, compactedRunCount: 0 })} />);
-      await open(kept);
-      expect(text(card(kept)[0]!)).toContain('104% of budget, unchanged');
+      expect(text(await open(kept))).toContain('104% of budget, unchanged');
 
       const folded = render(
         <CompactionSeam compaction={failed({ status, compactedRunCount: 3 })} />
       );
-      await open(folded);
-      const tip = card(folded)[0]!;
+      const tip = await open(folded);
       expect(text(tip)).not.toContain('unchanged');
       expect(tip.findAll((node) => node.props.className === 'GaugeLabel')).toHaveLength(0);
       expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(1);
@@ -759,8 +749,7 @@ describe('CompactionSeam card', () => {
         expect(label(renderer)).toBe(
           status === 'failed' ? 'Compaction failed' : 'Compaction timed out'
         );
-        await open(renderer);
-        const tip = card(renderer)[0]!;
+        const tip = await open(renderer);
         expect(text(tip)).not.toContain('full history');
         expect(text(tip)).not.toContain('unchanged');
         expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
@@ -770,15 +759,13 @@ describe('CompactionSeam card', () => {
 
   it('gives the reason of an interrupted compaction', async () => {
     const renderer = render(<CompactionSeam compaction={running()} interrupted />);
-    await open(renderer);
-    expect(text(card(renderer)[0]!)).toContain('Compaction interrupted');
+    expect(text(await open(renderer))).toContain('Compaction interrupted');
     expect(rows(renderer)[0]).toEqual(['Reason', 'The reply ended before the summary finished.']);
   });
 
   it('labels no gauge of a success without its count after', async () => {
     const renderer = render(<CompactionSeam compaction={compaction({ afterTokens: undefined })} />);
-    await open(renderer);
-    const tip = card(renderer)[0]!;
+    const tip = await open(renderer);
     expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(1);
     expect(tip.findAll((node) => node.props.className === 'GaugeLabel')).toHaveLength(0);
   });
@@ -787,8 +774,7 @@ describe('CompactionSeam card', () => {
     const renderer = render(
       <CompactionSeam compaction={compaction({ historyBudgetTokens: undefined })} />
     );
-    await open(renderer);
-    const tip = card(renderer)[0]!;
+    const tip = await open(renderer);
     expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(0);
     expect(text(tip)).not.toContain('of budget');
     expect(rows(renderer).map(([term]) => term)).not.toContain('Budget');
@@ -800,8 +786,7 @@ describe('CompactionSeam card', () => {
         compaction={failed({ beforeTokens: undefined, phase: 'notice', afterTool: 0 })}
       />
     );
-    await open(renderer);
-    const tip = card(renderer)[0]!;
+    const tip = await open(renderer);
     expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(0);
     expect(rows(renderer).map(([term]) => term)).toEqual([
       'Reason',
