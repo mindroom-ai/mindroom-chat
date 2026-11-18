@@ -177,4 +177,19 @@ describe('link previews of a text message', () => {
 
     expect(renderUrlsPreview).toHaveBeenCalledWith(['https://example.org/a']);
   });
+
+  it('finds the widget after code whose closing fence is indented', () => {
+    const renderUrlsPreview = vi.fn(() => null);
+    const withCode = `\`\`\`python\nprint(1)\n  \`\`\`\n\n${body}`;
+    const renderer = create(
+      React.createElement(MText, {
+        content: { msgtype: MsgType.Text, body: withCode },
+        renderBody: ({ body: shown }) => shown,
+        renderUrlsPreview,
+      })
+    );
+    renderer.unmount();
+
+    expect(renderUrlsPreview).toHaveBeenCalledWith(['https://example.org/a']);
+  });
 });

@@ -1,4 +1,5 @@
 import { isRecord } from '../../lib/isRecord';
+import { fencedCodeRanges } from '../../lib/markdownFences';
 
 /** On an agent reply: the widgets its body shows as `mindroom-ui-<id>` fallback blocks. */
 export const UI_WIDGETS_KEY = 'io.mindroom.ui';
@@ -11,8 +12,7 @@ const MAX_WIDGETS = 8;
 const MAX_JSON_BYTES = 16384;
 const ID_PATTERN = /^[0-9a-f]{10}$/;
 const MARKER_CLASS_PATTERN = /^language-mindroom-ui-([0-9a-f]{10})$/;
-const FENCE_PATTERN = /^(`{3,}|~{3,})(.*)$/;
-const MARKER_INFO_PATTERN = /^mindroom-ui-[0-9a-f]{10}$/;
+const MARKER_OPENING = /^(`{3,}|~{3,})mindroom-ui-[0-9a-f]{10}$/;
 
 const utf8Length = (text: string): number => new TextEncoder().encode(text).length;
 
@@ -47,25 +47,17 @@ export const readUiMarkerId = (codeClassName: string | undefined): string | unde
   codeClassName ? MARKER_CLASS_PATTERN.exec(codeClassName)?.[1] : undefined;
 
 /**
- * `body` without its `mindroom-ui-` fenced blocks, so their labels never become link previews. Other
- * fenced code stays whole, a marker line inside it included.
+ * `body` without its `mindroom-ui-` fenced blocks, so their labels never become link previews. The
+ * fences are the live renderer's, so other code, a marker line inside it included, stays whole.
  */
 export const stripUiFallbackBlocks = (body: string): string => {
   if (!body.includes('mindroom-ui-')) return body;
-  const kept: string[] = [];
-  let fence: { mark: string; marker: boolean } | undefined;
-  body.split('\n').forEach((line) => {
-    if (fence === undefined) {
-      const opening = FENCE_PATTERN.exec(line);
-      if (opening) fence = { mark: opening[1]!, marker: MARKER_INFO_PATTERN.test(opening[2]!) };
-      if (!fence?.marker) kept.push(line);
-      return;
-    }
-    if (!fence.marker) kept.push(line);
-    const closing = line.trimEnd();
-    if (closing.length >= fence.mark.length && closing === fence.mark[0]!.repeat(closing.length)) {
-      fence = undefined;
-    }
+  let kept = '';
+  let cursor = 0;
+  fencedCodeRanges(body).forEach(([start, end]) => {
+    if (!MARKER_OPENING.test(body.slice(start, end).split('\n', 1)[0]!)) return;
+    kept += body.slice(cursor, start);
+    cursor = end;
   });
-  return kept.join('\n');
+  return kept + body.slice(cursor);
 };
