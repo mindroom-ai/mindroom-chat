@@ -22,22 +22,23 @@ import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */
 const fakeThreadScroller = () => {
-  const handlers = new Map<string, Set<() => void>>();
+  type Handler = (event: { type: string }) => void;
+  const handlers = new Map<string, Set<Handler>>();
   const element = {
     scrollHeight: 3000,
     clientHeight: 600,
     scrollTop: 2400,
     scrollTo: vi.fn(),
-    addEventListener: (type: string, handler: () => void) => {
-      const forType = handlers.get(type) ?? new Set<() => void>();
+    addEventListener: (type: string, handler: Handler) => {
+      const forType = handlers.get(type) ?? new Set<Handler>();
       forType.add(handler);
       handlers.set(type, forType);
     },
-    removeEventListener: (type: string, handler: () => void) => {
+    removeEventListener: (type: string, handler: Handler) => {
       handlers.get(type)?.delete(handler);
     },
   };
-  const fire = (type: string) => handlers.get(type)?.forEach((handler) => handler());
+  const fire = (type: string) => handlers.get(type)?.forEach((handler) => handler({ type }));
   return { element, fire };
 };
 
@@ -122,7 +123,7 @@ function OpenThread({ scroller, pins, rows, openPending, followsLatest = false }
 /** A thread opened at its newest row, the opening done, the reader still at the bottom. */
 const openAtLatest = (followsLatest = false) => {
   const { element, fire } = fakeThreadScroller();
-  const pins = { current: { count: 0, smooth: false } };
+  const pins: { current: ScrollToBottomState } = { current: { count: 0, smooth: false } };
   const render = (rows: number, openPending: boolean) =>
     createElement(OpenThread, { scroller: element, pins, rows, openPending, followsLatest });
   let renderer: ReactTestRenderer | undefined;
@@ -553,6 +554,81 @@ describe('useLatestRowPin in an open thread the reader has scrolled', () => {
     thread.element.scrollTo.mockClear();
     thread.element.scrollHeight = 3400;
     thread.showRows(23);
+    expect(thread.element.scrollTo).not.toHaveBeenCalled();
+  });
+
+  /** The reader flicks the thread up with `gesture`, and the scroll goes on after it. */
+  const flickedUp = (gesture: 'touchstart' | 'wheel') => {
+    const thread = openAtLatest(true);
+    act(() => thread.fire(gesture));
+    thread.showRows(20);
+    const scrollTo = (top: number) => {
+      thread.element.scrollTop = top;
+      act(() => thread.fire('scroll'));
+    };
+    scrollTo(1500);
+    return { ...thread, scrollTo };
+  };
+  /** Jump to Latest, which sits outside the scroll area: no gesture reaches it. */
+  const jumpToLatest = (thread: ReturnType<typeof flickedUp>) => {
+    const count = thread.pins.current.count + 1;
+    thread.pins.current = { count, smooth: false, jump: count };
+    thread.showRows(20);
+    expect(thread.element.scrollTo).toHaveBeenLastCalledWith({ top: 2400, behavior: 'instant' });
+    thread.scrollTo(2400);
+    thread.element.scrollTo.mockClear();
+  };
+
+  it("keeps the bottom Jump to Latest took against the momentum of the reader's flick", () => {
+    const thread = flickedUp('touchstart');
+    jumpToLatest(thread);
+
+    // A frame of the flick's momentum arrives after the jump: the bottom is taken again.
+    thread.scrollTo(1400);
+    expect(thread.element.scrollTo).toHaveBeenCalledWith({ top: 2400, behavior: 'instant' });
+
+    // The request still holds: rows that grow below end at the bottom.
+    thread.scrollTo(2400);
+    thread.element.scrollTo.mockClear();
+    thread.element.scrollHeight = 3200;
+    thread.showRows(21);
+    expect(thread.element.scrollTo).toHaveBeenCalledWith({ top: 2600, behavior: 'instant' });
+
+    // The reader's next touch hands the position back.
+    act(() => thread.fire('touchstart'));
+    thread.scrollTo(2000);
+    thread.element.scrollTo.mockClear();
+    thread.element.scrollHeight = 3400;
+    thread.showRows(22);
+    expect(thread.element.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('lets a scroll up after Jump to Latest go when no touch came before, or long after', () => {
+    const wheeled = flickedUp('wheel');
+    jumpToLatest(wheeled);
+    wheeled.scrollTo(1400);
+    expect(wheeled.element.scrollTo).not.toHaveBeenCalled();
+
+    vi.useFakeTimers();
+    try {
+      const touched = flickedUp('touchstart');
+      jumpToLatest(touched);
+      vi.advanceTimersByTime(5000);
+      touched.scrollTo(1400);
+      expect(touched.element.scrollTo).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lets the momentum carry the reader on from a row the thread followed mid-flick', () => {
+    const thread = flickedUp('touchstart');
+    thread.followNewRow();
+    thread.showRows(21);
+    thread.scrollTo(2400);
+    thread.element.scrollTo.mockClear();
+
+    thread.scrollTo(1400);
     expect(thread.element.scrollTo).not.toHaveBeenCalled();
   });
 });
