@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -13,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
@@ -1714,6 +1716,18 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     </FilterBarSlot>
   );
   const roomStyle = roomViewStyleUnder(filterBar ? filterBarHeight : null);
+
+  // An address's request to show an event in the room is the cards' once: the list takes it into
+  // its memory below, and the room's own address then takes its place, so returning to this entry
+  // later (Back, or the way back from a thread opened since) finds the list where it was left.
+  const compactFocusRequest =
+    compactCards && threadIndex.showCompactRoomView && !!eventId && !!focusEventInRoom;
+  const { state: locationState } = useLocation();
+  useEffect(() => {
+    if (compactFocusRequest) {
+      navigateRoom(room.roomId, undefined, { replace: true, state: locationState });
+    }
+  }, [compactFocusRequest, locationState, navigateRoom, room.roomId]);
 
   // Compact mode: the room's threads as cards. A room without any thread waits until it knows
   // it has none (its cache read and the client's first catch-up), then shows its timeline under
