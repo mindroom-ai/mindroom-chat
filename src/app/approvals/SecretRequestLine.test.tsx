@@ -122,7 +122,7 @@ describe('SecretRequestLine', () => {
     expect(opened).toContain('sudo on hetzner-matrix to pull the provisioning checkout.');
     expect(opened).toContain("Given to Ada's commands in this conversation as");
     expect(opened).toContain('Kept for 15 minutes, in memory only.');
-    expect(opened).toContain('Sent to configured.example.org');
+    expect(opened).not.toContain('Sent to');
     expect(receipt()?.querySelector('input, button')).toBeNull();
 
     click(lineButton());

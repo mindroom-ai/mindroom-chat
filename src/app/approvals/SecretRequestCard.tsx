@@ -405,7 +405,8 @@ function Fact({ icon, children }: { icon: IconSrc; children: ReactNode }) {
 
 /**
  * A done request, read-only, for its card's fold and its line in a reply (SecretRequestLine.tsx):
- * the agent's reason, then what became of the secret, one fact to a line.
+ * the agent's reason, then what became of the secret, one fact to a line. It names no server: the
+ * one the viewer would send to now may not be the one that got the secret.
  */
 export function SecretRequestDetails({
   request,
@@ -421,7 +422,6 @@ export function SecretRequestDetails({
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const room = useApprovalRoom(roomId);
-  const { apiUrl } = useAgentMindroomServer(useMatrixClient(), roomId, agentUserId);
   const saved = status === 'saved';
   const temporary = request.kind === 'temporary' ? request : undefined;
   const hosts = request.kind === 'key' ? request.hosts : [];
@@ -475,11 +475,6 @@ export function SecretRequestDetails({
         {saved && request.kind === 'key' && request.replaces && (
           <Fact icon={Icons.Reload}>
             {t('mindroomUi.messages.secretRequestCard.facts.replaced')}
-          </Fact>
-        )}
-        {saved && apiUrl && (
-          <Fact icon={Icons.Server}>
-            {t('mindroomUi.messages.secretRequestCard.sentTo', { host: new URL(apiUrl).host })}
           </Fact>
         )}
       </div>
