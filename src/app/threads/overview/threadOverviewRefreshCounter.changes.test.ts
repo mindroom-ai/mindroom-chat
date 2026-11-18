@@ -307,23 +307,15 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ).toEqual([]);
   });
 
-  it('marks the room and counts for a member event a timeline takes, as a page of history brings', () => {
+  // A member who left shows the name of their newest member event the room has loaded.
+  it.each([
+    ['takes, as a page of history brings', true, false],
+    ['loses', undefined, true],
+  ])('marks the room and counts for a member event a timeline %s', (_what, toStart, removed) => {
     const { room, told } = setup();
     const member = event({ id: '$member', type: 'm.room.member' });
 
-    // A member who left shows the name of their newest member event the room has loaded.
-    expect(told(() => room.emit(RoomEvent.Timeline, member, room, true, false))).toEqual({
-      marked: 'room',
-      counted: true,
-    });
-  });
-
-  it('marks the room and counts for a member event a timeline loses', () => {
-    const { room, told } = setup();
-    const member = event({ id: '$member', type: 'm.room.member' });
-
-    // The member's next newest member event the room has loaded names them from then on.
-    expect(told(() => room.emit(RoomEvent.Timeline, member, room, undefined, true))).toEqual({
+    expect(told(() => room.emit(RoomEvent.Timeline, member, room, toStart, removed))).toEqual({
       marked: 'room',
       counted: true,
     });
@@ -331,9 +323,8 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
   it('marks the room and counts for a root of this room this device takes for read', () => {
     const { told, unmount } = setup();
-    const root = event({ id: '$root' });
-    const see = (roomId: string) => () =>
-      rememberSeenThreadRoot(ME, roomId, Object.assign(root, { getTs: () => 1 }), 0);
+    const root = { getId: () => '$root', getTs: () => 1 } as unknown as MatrixEvent;
+    const see = (roomId: string) => () => rememberSeenThreadRoot(ME, roomId, root, 0);
 
     // No receipt is sent for it, so no event of the room tells of it.
     expect(told(see(ROOM_ID))).toEqual({ marked: 'room', counted: true });
