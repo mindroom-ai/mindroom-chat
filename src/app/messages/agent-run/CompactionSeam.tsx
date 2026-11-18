@@ -48,10 +48,12 @@ const isUnfinished = (state: SeamState): state is UnfinishedState =>
   state === 'failed' || state === 'timeout' || state === 'interrupted';
 
 /**
- * Whether an unfinished compaction left the reply its full history: each summary part is saved
- * before the next starts, so one that gave up after folding runs did not.
+ * Whether an unfinished compaction provably left the reply its full history: each summary part is
+ * saved before the next starts, so one that gave up after folding runs did not. Only a reply's own
+ * entries count their folded runs to the end; a notice's last edit can leave the count out.
  */
-const keptFullHistory = (compaction: ReplyCompaction): boolean => !compaction.compactedRunCount;
+const keptFullHistory = ({ phase, compactedRunCount }: ReplyCompaction): boolean =>
+  (phase === 'pre_turn' || phase === 'mid_turn') && !compactedRunCount;
 
 /** The whole seconds since `startedAt`, once a second while `ticking`; undefined without a start. */
 const useElapsedSeconds = (startedAt: number | undefined, ticking: boolean): number | undefined => {

@@ -317,7 +317,7 @@ describe('CompactionNoticeSeam', () => {
       vi.advanceTimersByTime(MINUTE);
     });
     expect(state(renderer)).toBe('interrupted');
-    expect(label(renderer)).toBe('Compaction interrupted · kept full history');
+    expect(label(renderer)).toBe('Compaction interrupted');
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -640,6 +640,24 @@ describe('CompactionSeam card', () => {
       expect(text(tip)).not.toContain('unchanged');
       expect(tip.findAll((node) => node.props.className === 'GaugeLabel')).toHaveLength(0);
       expect(tip.findAll((node) => node.props.className === 'Gauge')).toHaveLength(1);
+    }
+  });
+
+  it('claims no kept history for a notice, which cannot show that nothing was folded', async () => {
+    for (const phase of ['manual', 'notice'] as const) {
+      for (const status of ['failed', 'timeout'] as const) {
+        const renderer = render(
+          <CompactionSeam compaction={failed({ phase, status, afterTool: 0 })} />
+        );
+        expect(label(renderer)).toBe(
+          status === 'failed' ? 'Compaction failed' : 'Compaction timed out'
+        );
+        await open(renderer);
+        const tip = card(renderer)[0]!;
+        expect(text(tip)).not.toContain('full history');
+        expect(text(tip)).not.toContain('unchanged');
+        expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
+      }
     }
   });
 
