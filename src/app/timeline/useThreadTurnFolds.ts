@@ -5,6 +5,7 @@ import { useThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { isEventStreaming } from '../event-store/threads/useThreadStreamingState';
 import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
 import { getEventReactions } from '../matrix/room';
+import { getAiRunInfo } from '../matrix/protocol/aiRun';
 import {
   readInteractiveQuestion,
   readRoomQuestionAnswer,
@@ -74,6 +75,21 @@ export const isTurnAnswer = (
   !isQuietMarker(event) &&
   getContent(event).msgtype !== 'm.notice';
 
+const ATTACHMENT_MSGTYPES: readonly unknown[] = ['m.image', 'm.file', 'm.video', 'm.audio'];
+
+/**
+ * How well a row answers its turn (`ThreadTurnRules.answerRank`), as it shows now: 0 a reply
+ * that carries its run's metadata, 1 another message, 2 an attachment.
+ */
+export const turnAnswerRank = (
+  event: MatrixEvent,
+  getContent: (event: MatrixEvent) => Record<string, unknown>
+): 0 | 1 | 2 => {
+  const content = getContent(event);
+  if (getAiRunInfo(content)) return 0;
+  return ATTACHMENT_MSGTYPES.includes(content.msgtype) ? 2 : 1;
+};
+
 type UseThreadTurnFoldsOptions = {
   room: Room;
   /** Only an open thread folds its turns. */
@@ -124,6 +140,7 @@ export const useThreadTurnFolds = ({
       isPersonMessage: (event) => threadRowAuthor(event) === 'person',
       isSkipped,
       isAnswer: (event) => isTurnAnswer(event, getContent, isQuietMarker),
+      answerRank: (event) => turnAnswerRank(event, getContent),
       isQuietMarker,
       holdsTurn: (event) =>
         turnRowWaits(event, { room, timelineSet, getContent, pendingApprovalIds, viewerId, now }),

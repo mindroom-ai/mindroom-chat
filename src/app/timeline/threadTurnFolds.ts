@@ -44,6 +44,11 @@ export type ThreadTurnRules = {
   isSkipped: (event: MatrixEvent) => boolean;
   /** An agent's message that can answer a turn: neither a quiet marker nor a notice. */
   isAnswer: (event: MatrixEvent) => boolean;
+  /**
+   * How well such a message answers, the lowest best: 0 a run's reply, which an agent sends as its
+   * run starts, so what it posts while it works comes after it; 1 another message; 2 an attachment.
+   */
+  answerRank: (event: MatrixEvent) => 0 | 1 | 2;
   /** A row that renders as a quiet marker line, such as the thread's title. */
   isQuietMarker: (event: MatrixEvent) => boolean;
   /** A row that keeps its turn unfolded: a reply still streaming, a request waiting on the reader. */
@@ -59,8 +64,10 @@ const MIN_FOLDED_MESSAGES = 2;
 
 /**
  * The turns of an open thread's rows (`events`, in order) that fold. A turn runs from a person's
- * message to the next one. Its answer is its last agent message; the rows after it (quiet markers)
- * stay, and the rows before it fold once at least `MIN_FOLDED_MESSAGES` of them are messages. A
+ * message to the next one. Its answer is its last agent message of the best `answerRank`: its last
+ * run's reply, else its last message that is not an attachment, else its last message. The rows
+ * after it (what the run posted as it worked, attachments, quiet markers) stay, and the rows before
+ * it fold once at least `MIN_FOLDED_MESSAGES` of them are messages. A
  * turn that is not finished (a row holds it, or it is the newest while the thread works) or that
  * would hide a pinned row stays unfolded. Rows without one of their own (edits, reactions) and
  * rows other plans hide take no part.
@@ -80,8 +87,15 @@ export const planThreadTurnFolds = (
       if (rules.holdsTurn(event)) return;
       if (!rules.isSkipped(event)) rows.push(event);
     }
-    let answerAt = rows.length - 1;
-    while (answerAt >= 0 && !rules.isAnswer(rows[answerAt]!)) answerAt -= 1;
+    let answerAt = -1;
+    let answerRank = Infinity;
+    rows.forEach((event, index) => {
+      if (!rules.isAnswer(event)) return;
+      const rank = rules.answerRank(event);
+      if (rank > answerRank) return;
+      answerAt = index;
+      answerRank = rank;
+    });
     if (answerAt < 0) return;
     const hidden = rows.slice(0, answerAt);
     const hiddenIds = hidden.flatMap((event) => event.getId() ?? []);
