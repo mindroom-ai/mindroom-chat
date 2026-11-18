@@ -1,4 +1,4 @@
-import { type StyleRule, style } from '@vanilla-extract/css';
+import { type StyleRule, createContainer, globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { touchTarget } from '../ui/styles/touchTarget';
 
@@ -64,9 +64,10 @@ export const EffortPanel = style({
   maxWidth: panelMaxWidth,
 });
 
+const stack = createContainer();
+
 // On a phone the column sits under the models instead, in the plain menu: the two panes under
-// each other. When the window leaves less than their smallest heights, as with
-// a phone's keyboard up, they scroll together inside the menu's rim, so every level can be reached.
+// each other, inside its rim.
 export const StackedScroll = style([
   column,
   {
@@ -74,11 +75,13 @@ export const StackedScroll = style([
     minHeight: 0,
     overflowY: 'auto',
     overscrollBehavior: 'contain',
+    containerName: stack,
+    containerType: 'size',
   },
 ]);
 
 // The filter, the status and the rows, which scroll inside it. Stacked on a phone, it takes the
-// height the levels leave, and keeps room for a few rows when the window is short.
+// height the levels leave.
 export const Picker = style([
   column,
   {
@@ -90,6 +93,9 @@ export const Picker = style([
     },
   },
 ]);
+
+// The models' scroller, whose own style makes it scroll.
+export const Rows = style({});
 
 const effortSurface = `color-mix(in srgb, ${color.SurfaceVariant.Container} 40%, transparent)`;
 
@@ -148,6 +154,22 @@ export const EffortLevels = style([
     padding: config.space.S100,
   },
 ]);
+
+// A window that leaves the stack less than its panes' smallest heights, as with a phone's keyboard
+// up: the panes take their full heights and the stack is the only box that scrolls, so a swipe
+// that starts on a model reaches the levels.
+globalStyle(
+  `${StackedScroll} > ${Picker}, ${StackedScroll} > ${EffortColumn}, ${StackedScroll} ${Rows}, ${StackedScroll} ${EffortLevels}`,
+  {
+    '@container': {
+      [`${stack} (max-height: ${toRem(160 + 80)})`]: {
+        flex: 'none',
+        minHeight: 0,
+        overflow: 'visible !important',
+      },
+    },
+  }
+);
 
 export const EffortRow = style([
   control,

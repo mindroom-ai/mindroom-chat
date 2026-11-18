@@ -47,6 +47,7 @@ vi.mock('./ModelPicker.css', () => ({
   Picker: 'Picker',
   Results: 'Results',
   RoomDefaultDetail: 'RoomDefaultDetail',
+  Rows: 'Rows',
   RuntimeLabel: 'RuntimeLabel',
   RuntimeRow: 'RuntimeRow',
   RuntimeSelect: 'RuntimeSelect',

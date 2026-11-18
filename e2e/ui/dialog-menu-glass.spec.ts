@@ -1,5 +1,6 @@
 /* eslint-disable no-await-in-loop -- Menus share focus and must open sequentially. */
 import { expect, test } from '@playwright/test';
+import { fingersOn } from '../helpers/fingers';
 import { expectFloatingNavHeader, pixelDifference, sampleScreenshot } from '../helpers/glassVisual';
 
 for (const theme of ['silver', 'dark']) {
@@ -280,8 +281,8 @@ for (const theme of ['silver', 'dark']) {
 test('a short phone window keeps room for both the models and the effort levels', async ({
   page,
 }, testInfo) => {
-  // About 240 px above the model button, as with a phone's keyboard up.
-  await page.setViewportSize({ width: 390, height: 304 });
+  // About 300 px above the model button, as with a phone's keyboard up.
+  await page.setViewportSize({ width: 390, height: 364 });
   await page.goto('/e2e/fixtures/glass-surfaces.html?menus&theme=silver');
   const trigger = page.getByRole('button', { name: /^Choose model / });
   await trigger.click();
@@ -308,37 +309,74 @@ test('a short phone window keeps room for both the models and the effort levels'
   await page.screenshot({ path: testInfo.outputPath('short-phone.png'), scale: 'css' });
 });
 
-for (const height of [248, 200]) {
-  test(`a level can be tapped and applied with ${height - 64} px above the model button`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height });
-    await page.goto('/e2e/fixtures/glass-surfaces.html?menus&theme=silver');
-    const trigger = page.getByRole('button', { name: /^Choose model / });
-    await trigger.click();
-    const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
-    const menu = (await dialog.boundingBox())!;
-    expect(menu.y).toBeGreaterThanOrEqual(0);
-    expect(menu.y + menu.height).toBeLessThanOrEqual((await trigger.boundingBox())!.y);
-    // The room default runs Studio model 01 at Extra high; Low is the column's first level.
-    // It may sit below the fold: the person scrolls the menu, as a wheel or a swipe does (a
-    // script's scrollIntoView would also scroll a box that clips its overflow).
-    const low = dialog.getByRole('radio', { name: 'Low', exact: true });
-    const shown = async () => {
-      const box = (await low.boundingBox())!;
-      return box.y >= menu.y && box.y + box.height <= menu.y + menu.height + 1;
-    };
-    await page.mouse.move(menu.x + menu.width / 2, menu.y + menu.height - 6);
-    await expect
-      .poll(async () => {
-        if (await shown()) return true;
-        await page.mouse.wheel(0, 120);
-        return shown();
-      })
-      .toBe(true);
-    const row = (await low.boundingBox())!;
-    // A tap where the row shows reaches the row: nothing covers or clips it.
-    await page.mouse.click(row.x + row.width / 2, row.y + row.height / 2);
-    await expect(page.locator('output')).toHaveText('model-1@low');
-  });
-}
+test.describe('a phone window too short for both panes', () => {
+  test.use({ hasTouch: true });
+
+  for (const height of [248, 200]) {
+    test(`a swipe from a model reaches the levels, and a tap applies one, with ${
+      height - 64
+    } px above the model button`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height });
+      await page.goto('/e2e/fixtures/glass-surfaces.html?menus&theme=silver');
+      const trigger = page.getByRole('button', { name: /^Choose model / });
+      await trigger.tap();
+      const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
+      const menu = (await dialog.boundingBox())!;
+      expect(menu.y).toBeGreaterThanOrEqual(0);
+      expect(menu.y + menu.height).toBeLessThanOrEqual((await trigger.boundingBox())!.y);
+      // The models and the levels scroll in one box: neither scrolls inside it, where a swipe
+      // would stop at the end of the models.
+      const scrollers = await dialog.evaluate(
+        (element) =>
+          [...element.querySelectorAll('*')].filter((child) =>
+            ['auto', 'scroll'].includes(getComputedStyle(child).overflowY)
+          ).length
+      );
+      expect(scrollers).toBe(1);
+
+      // The room default runs Studio model 01 at Extra high; Low is the first of its levels, under
+      // all the models. A finger goes down on a model row and swipes up until it shows.
+      const low = dialog.getByRole('radio', { name: 'Low', exact: true });
+      const shown = async () => {
+        const box = (await low.boundingBox())!;
+        return box.y >= menu.y && box.y + box.height <= menu.y + menu.height + 1;
+      };
+      const touch = await fingersOn(page);
+      const x = menu.x + menu.width / 2;
+      // The lowest row whose middle shows is where the finger goes down.
+      const middles = await dialog
+        .getByRole('option')
+        .evaluateAll((rows) =>
+          rows.map((row) => row.getBoundingClientRect()).map((box) => box.y + box.height / 2)
+        );
+      const from = Math.max(...middles.filter((y) => y < menu.y + menu.height - 4));
+      const startsOnModel = await page.evaluate(
+        ([left, top]) => !!document.elementFromPoint(left!, top!)?.closest('[role="option"]'),
+        [x, from]
+      );
+      expect(startsOnModel).toBe(true);
+      await expect
+        .poll(
+          async () => {
+            if (await shown()) return true;
+            // Short swipes, so the level cannot pass through the menu in one, and a finger that
+            // rests before it lifts, so the menu does not glide on.
+            const to = Math.max(from - 64, menu.y + 4);
+            await touch('touchStart', [[1, x, from]]);
+            for (let y = from - 8; y >= to; y -= 8) await touch('touchMove', [[1, x, y]]);
+            await page.waitForTimeout(150);
+            await touch('touchMove', [[1, x, to]]);
+            await touch('touchEnd', []);
+            return shown();
+          },
+          { timeout: 60_000, intervals: [50] }
+        )
+        .toBe(true);
+      // No swipe counted as a tap on a model.
+      await expect(page.locator('output')).toHaveText('');
+      const row = (await low.boundingBox())!;
+      await page.touchscreen.tap(row.x + row.width / 2, row.y + row.height / 2);
+      await expect(page.locator('output')).toHaveText('model-1@low');
+    });
+  }
+});

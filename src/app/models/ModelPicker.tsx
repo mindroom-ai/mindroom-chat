@@ -366,6 +366,7 @@ function ModelPickerPanel({ state, room, requestClose, onCommand }: ModelPickerP
       {/* The rows scroll inside the menu's rim, which stays put around them. */}
       <Scroll
         ref={resultsRef}
+        className={css.Rows}
         size="300"
         hideTrack
         visibility="Hover"
