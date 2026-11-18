@@ -58,13 +58,31 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
       /Object\.assign\(globalThis, \{ mindroomVoiceStart: nonce \}\);[\s\S]*?\.start\(\{ nonce \}\)/
     );
     const [before, after] = body('start').split(
-      /evaluateJavaScript\("window\.mindroomVoiceStart"\) \{ newest, _ in\s*guard !self\.closed, !webView\.isLoading, let newest = newest as\? String,\s*newest == call\.getString\("nonce"\) else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}/
+      /evaluateJavaScript\("window\.mindroomVoiceStart"\) \{ newest, _ in\s*guard generation == self\.generation, !self\.closed, !webView\.isLoading,\s*let newest = newest as\? String, newest == call\.getString\("nonce"\) else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}/
     );
+    // A closed or loading page is not asked for the microphone, and the navigation generation is
+    // read before the prompt: a page load begun under it, also one that fails and leaves the old
+    // page with its name, ends the start.
     expect(before).toMatch(
-      /AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
+      /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}\s*let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
     );
     expect(before).not.toMatch(/live|setActive|AVAudioRecorder/);
     expect(after).toMatch(/self\.discardLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
+    expect(pluginSource).toMatch(
+      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*discardLive\(\)\s*Self\.clearFolder\(\)\s*\}/
+    );
+    expect(pluginSource.match(/\bgeneration \+?= /g)).toEqual([
+      'generation = ',
+      'generation = ',
+      'generation += ',
+    ]);
+    ['capacitorWebViewNavigationStarted', 'capacitorWebViewTerminated'].forEach((name) =>
+      expect(pluginSource).toMatch(
+        new RegExp(
+          `selector: #selector\\(pageWillLoad\\), name: \\.${name},\\s*object: bridge\\?\\.webView`
+        )
+      )
+    );
   });
 
   it('records nothing more once its window has closed', () => {
@@ -102,10 +120,6 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
   });
 
   it('releases the microphone when its page goes away and forgets a recording left behind', () => {
-    expect(pluginSource).toContain('name: .capacitorWebViewNavigationStarted');
-    expect(pluginSource).toMatch(
-      /@objc private func pageWillLoad\(\) \{\s*discardLive\(\)\s*Self\.clearFolder\(\)\s*\}/
-    );
     expect(pluginSource).toMatch(/override public func load\(\) \{[\s\S]*?clearFolder\(\)/);
     expect(sceneSource).toMatch(
       /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.close\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/

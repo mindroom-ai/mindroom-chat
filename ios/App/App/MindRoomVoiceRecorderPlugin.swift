@@ -34,6 +34,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     private var live: (id: String, recorder: AVAudioRecorder)?
     /// Its window closed: it records nothing more.
     private var closed = false
+    /// The page loads begun: a start asked before the newest one records nothing.
+    private var generation = 0
 
     override public func load() {
         // A recording left behind when the app quit.
@@ -42,53 +44,62 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             self, selector: #selector(pageWillLoad), name: .capacitorWebViewNavigationStarted,
             object: bridge?.webView
         )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(pageWillLoad), name: .capacitorWebViewTerminated,
+            object: bridge?.webView
+        )
     }
 
     @objc func start(_ call: CAPPluginCall) {
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            DispatchQueue.main.async {
-                guard let webView = self.bridge?.webView else {
-                    return call.reject("The page is gone", "START_FAILED")
-                }
-                // The page names its newest start, and the page loaded now, after the prompt, is
-                // asked for it: an older start of this page, a start of a page that has been
-                // replaced or is being replaced, and one of a closed window record nothing.
-                webView.evaluateJavaScript("window.mindroomVoiceStart") { newest, _ in
-                    guard !self.closed, !webView.isLoading, let newest = newest as? String,
-                          newest == call.getString("nonce") else {
-                        return call.reject("The page is gone", "START_FAILED")
+        DispatchQueue.main.async {
+            // A closed or loading page is not asked for the microphone.
+            guard !self.closed, let webView = self.bridge?.webView, !webView.isLoading else {
+                return call.reject("The page is gone", "START_FAILED")
+            }
+            let generation = self.generation
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                DispatchQueue.main.async {
+                    // The page names its newest start, and the page loaded now, after the prompt, is
+                    // asked for it: an older start of this page, a start of a page that has been
+                    // replaced or is being replaced, one under which a page load began (also one
+                    // that failed and left the page), and one of a closed window record nothing.
+                    webView.evaluateJavaScript("window.mindroomVoiceStart") { newest, _ in
+                        guard generation == self.generation, !self.closed, !webView.isLoading,
+                              let newest = newest as? String, newest == call.getString("nonce") else {
+                            return call.reject("The page is gone", "START_FAILED")
+                        }
+                        guard granted else { return call.reject("Microphone access is denied", "PERMISSION_DENIED") }
+                        guard AVCaptureDevice.default(for: .audio) != nil else {
+                            return call.reject("No microphone", "NO_MICROPHONE")
+                        }
+                        self.discardLive()
+                        let id = UUID().uuidString
+                        guard let url = Self.file(of: id) else {
+                            return call.reject("Could not start recording", "START_FAILED")
+                        }
+                        let session = AVAudioSession.sharedInstance()
+                        // `live` is set only once it records, so a failed attempt cleans up from here.
+                        var attempt: AVAudioRecorder?
+                        do {
+                            try session.setCategory(.record, mode: .default)
+                            try session.setActive(true)
+                            try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
+                            let recorder = try AVAudioRecorder(url: url, settings: [
+                                AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
+                                AVEncoderBitRateKey: 32_000
+                            ])
+                            attempt = recorder
+                            recorder.isMeteringEnabled = true
+                            guard recorder.record() else { throw CocoaError(.fileWriteUnknown) }
+                            self.live = (id, recorder)
+                        } catch {
+                            attempt?.stop()
+                            try? FileManager.default.removeItem(at: url)
+                            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                            return call.reject("Could not start recording", "START_FAILED")
+                        }
+                        call.resolve(["id": id])
                     }
-                    guard granted else { return call.reject("Microphone access is denied", "PERMISSION_DENIED") }
-                    guard AVCaptureDevice.default(for: .audio) != nil else {
-                        return call.reject("No microphone", "NO_MICROPHONE")
-                    }
-                    self.discardLive()
-                    let id = UUID().uuidString
-                    guard let url = Self.file(of: id) else {
-                        return call.reject("Could not start recording", "START_FAILED")
-                    }
-                    let session = AVAudioSession.sharedInstance()
-                    // `live` is set only once it records, so a failed attempt cleans up from here.
-                    var attempt: AVAudioRecorder?
-                    do {
-                        try session.setCategory(.record, mode: .default)
-                        try session.setActive(true)
-                        try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
-                        let recorder = try AVAudioRecorder(url: url, settings: [
-                            AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
-                            AVEncoderBitRateKey: 32_000
-                        ])
-                        attempt = recorder
-                        recorder.isMeteringEnabled = true
-                        guard recorder.record() else { throw CocoaError(.fileWriteUnknown) }
-                        self.live = (id, recorder)
-                    } catch {
-                        attempt?.stop()
-                        try? FileManager.default.removeItem(at: url)
-                        try? session.setActive(false, options: .notifyOthersOnDeactivation)
-                        return call.reject("Could not start recording", "START_FAILED")
-                    }
-                    call.resolve(["id": id])
                 }
             }
         }
@@ -163,8 +174,10 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    /// The page is going (main queue): nothing of it records or stays on disk.
+    /// The page is going, or its process ended (main queue): nothing of it records or stays on
+    /// disk, and a start that waits on the prompt ends.
     @objc private func pageWillLoad() {
+        generation += 1
         discardLive()
         Self.clearFolder()
     }
