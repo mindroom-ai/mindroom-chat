@@ -492,6 +492,17 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(card).toContainText('before the reply');
   await page.mouse.move(0, 0);
 
+  // A row's text stays readable on its highlight in the dark theme too, finished or running.
+  await applySettings(page, 'dark-theme', true);
+  await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
+  for (const row of [seamsIn(replyWith(page, CHECKING)), seamsIn(pending)]) {
+    await centre(page, row);
+    await row.getByRole('button').hover();
+    await expect(card).toBeVisible();
+    await expectReadable(row.getByRole('button'));
+    await page.mouse.move(0, 0);
+  }
+
   if (!SCREENSHOT) return;
   for (const [name, themeId, size] of SHOTS) {
     await page.setViewportSize(size);
