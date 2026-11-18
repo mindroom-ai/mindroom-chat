@@ -544,11 +544,21 @@ describe('CompactionSeam card', () => {
     expect(card(renderer)).toHaveLength(1);
   });
 
-  it('stays open when focus arrives while hovered and the mouse then leaves', async () => {
+  it('stays open when focus arrives while hovered and the mouse then leaves', () => {
+    vi.useFakeTimers();
     const renderer = render(<CompactionSeam compaction={compaction()} />);
-    await act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' }));
-    await act(() => trigger(renderer).props.onFocus());
-    await act(() => trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' }));
+    act(() => {
+      trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    act(() => {
+      trigger(renderer).props.onFocus();
+    });
+    act(() => {
+      trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(card(renderer)).toHaveLength(1);
   });
 
@@ -560,10 +570,21 @@ describe('CompactionSeam card', () => {
     expect(card(renderer)).toHaveLength(0);
   });
 
-  it('stays open when a focused row is hovered and left', async () => {
+  it('stays open when a focused row is hovered and left', () => {
+    vi.useFakeTimers();
     const renderer = render(<CompactionSeam compaction={compaction()} />);
-    await act(() => trigger(renderer).props.onFocus());
-    await act(() => trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' }));
+    act(() => {
+      trigger(renderer).props.onFocus();
+    });
+    act(() => {
+      trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    act(() => {
+      trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(card(renderer)).toHaveLength(1);
   });
 
