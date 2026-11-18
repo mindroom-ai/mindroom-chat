@@ -78,7 +78,8 @@ if (command === 'gh') {
     process.stdout.write(require('node:child_process').execFileSync('jq', ['-r', filter], { input: json }));
   }
   if (action === 'download') {
-    fs.copyFileSync(path.join(folder, 'appcast.xml'), path.join(args[args.indexOf('--dir') + 1], 'appcast.xml'));
+    // As gh does, it never overwrites a local file.
+    fs.copyFileSync(path.join(folder, 'appcast.xml'), path.join(args[args.indexOf('--dir') + 1], 'appcast.xml'), fs.constants.COPYFILE_EXCL);
   }
   if (action === 'create') {
     fs.mkdirSync(folder);
@@ -86,6 +87,7 @@ if (command === 'gh') {
   }
   if (action === 'upload') {
     const file = args[3];
+    if (early('rejected', process.env.TEST_UPLOAD_REJECTED)) process.exit(1);
     fs.rmSync(path.join(folder, path.basename(file)), { force: true });
     if (early('upload', process.env.TEST_UPLOAD_FAILS)) process.exit(1);
     fs.copyFileSync(file, path.join(folder, path.basename(file)));
@@ -204,13 +206,17 @@ it('checks the public URL again when the feed already has these bytes', () => {
   expect(github.uploads(result)).toBe(0);
 });
 
-it('uploads no more once a failed upload turns out to have landed', () => {
+it.each([
+  ['at once', { TEST_UPLOAD_LANDS_FAILING: '1' }, 1],
+  // The first readback finds the old feed; the second must still see the new one.
+  ['after a rejected upload', { TEST_UPLOAD_REJECTED: '1', TEST_UPLOAD_LANDS_FAILING: '1' }, 2],
+])('uploads no more once a failed upload turns out to have landed, %s', (_name, env, count) => {
   const github = fixture();
   github.live('2026.11.9');
   github.ready('v2026.11.10');
-  const result = github.run('v2026.11.10', { TEST_UPLOAD_LANDS_FAILING: '1' });
+  const result = github.run('v2026.11.10', env);
   expect(result.status, result.stderr).toBe(0);
-  expect(github.uploads(result)).toBe(1);
+  expect(github.uploads(result)).toBe(count);
   expect(github.feedNow()).toBe(appcast('2026.11.10'));
 });
 

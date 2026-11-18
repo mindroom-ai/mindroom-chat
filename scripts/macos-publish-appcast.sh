@@ -35,7 +35,7 @@ PY
 calver "${tag#v}" && [[ $tag == v* ]] || fail "'$tag' is not a release tag vYYYY.M.N"
 folder=$(mktemp -d)
 trap 'rm -rf "$folder"' EXIT
-mkdir "$folder/new" "$folder/live" "$folder/check"
+mkdir "$folder/new" "$folder/live"
 new=$folder/new/appcast.xml
 
 # The DMG goes up last, after the appcast.xml that signs it: a release that has it is ready. Only
@@ -73,11 +73,17 @@ if grep -Fqx appcast.xml <<<"$live_names"; then
 fi
 
 # --clobber deletes the asset, then uploads: a failed upload can leave the feed missing. An upload
-# whose answer was lost may have landed: read it back before trying again.
+# whose answer was lost may have landed: read it back (into a fresh folder) before trying again,
+# and never replace a feed that already is this one. A readback that fails fails the job.
 for attempt in 1 2 3; do
   [[ -n $publish ]] || break
   if gh release upload "$feed" "$new" --clobber --repo "$GITHUB_REPOSITORY"; then break; fi
-  if download "$feed" "$folder/check" 2> /dev/null && cmp -s "$new" "$folder/check/appcast.xml"; then break; fi
+  names=$(release "$feed")
+  if grep -Fqx appcast.xml <<<"$names"; then
+    check=$(mktemp -d "$folder/check.XXXXXX")
+    download "$feed" "$check"
+    if cmp -s "$new" "$check/appcast.xml"; then break; fi
+  fi
   ((attempt < 3)) || fail 'The update feed could not be published and may be missing. Re-run this job: it needs no rebuild.'
   sleep 10
 done

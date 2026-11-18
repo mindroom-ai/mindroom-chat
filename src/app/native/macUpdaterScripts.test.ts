@@ -37,6 +37,10 @@ if (command === 'generate_appcast') {
 fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(record) + '\\n');
 if (command === 'curl') fs.writeFileSync(args[args.indexOf('-o') + 1], 'garbage');
 if (command === 'shasum') console.log('0000  file');
+// plutil: the keys in TEST_PRESENT are in the plist; TEST_FAIL=plutil:<flag> makes that call fail.
+if (process.env.TEST_FAIL === command + ':' + args[0]) process.exit(1);
+if (command === 'plutil' && args[0] === '-extract')
+  process.exit((process.env.TEST_PRESENT ?? '').split(',').includes(args[1]) ? 0 : 1);
 `;
   ['curl', 'shasum', 'tar', 'plutil'].forEach((command) =>
     writeFileSync(join(root, 'bin', command), stub, { mode: 0o755 })
@@ -128,15 +132,6 @@ describe('scripts/macos-updater-info-plist.sh', () => {
     ]);
   });
 
-  const keys = [
-    'SUFeedURL',
-    'SUPublicEDKey',
-    'SUEnableAutomaticChecks',
-    'SUAutomaticallyUpdate',
-    'SUScheduledCheckInterval',
-    'SUVerifyUpdateBeforeExtraction',
-  ];
-
   it.each([{ IS_MACCATALYST: 'NO' }, { IS_MACCATALYST: '' }])(
     'touches nothing for %o',
     (override) => {
@@ -146,17 +141,37 @@ describe('scripts/macos-updater-info-plist.sh', () => {
     }
   );
 
+  const disabled = { ...env, MINDROOM_UPDATE_FEED_URL: '' };
+
   it.each([
-    ['no feed', { MINDROOM_UPDATE_FEED_URL: '' }],
-    ['the placeholder key', { MINDROOM_UPDATE_PUBLIC_KEY: 'PLACEHOLDER-the-Sparkle-public-key' }],
+    ['no feed', disabled],
+    [
+      'the placeholder key',
+      { ...env, MINDROOM_UPDATE_PUBLIC_KEY: 'PLACEHOLDER-the-Sparkle-public-key' },
+    ],
   ])('removes the keys an earlier build of the same app wrote, for %s', (_name, override) => {
-    const { run } = fixture();
-    run('scripts/macos-updater-info-plist.sh', env);
-    const result = run('scripts/macos-updater-info-plist.sh', { ...env, ...override });
-    expect(result.status).toBe(0);
-    expect(result.commands.slice(6).map(({ args }) => args)).toEqual(
-      keys.map((key) => ['-remove', key, plist])
-    );
+    const result = fixture().run('scripts/macos-updater-info-plist.sh', {
+      ...override,
+      TEST_PRESENT: 'SUFeedURL,SUPublicEDKey',
+    });
+    expect(result.status, result.stderr).toBe(0);
+    expect(
+      result.commands.filter(({ args }) => args[0] === '-remove').map(({ args }) => args)
+    ).toEqual([
+      ['-remove', 'SUFeedURL', plist],
+      ['-remove', 'SUPublicEDKey', plist],
+    ]);
+  });
+
+  it.each([
+    ['a key it cannot remove', { TEST_PRESENT: 'SUFeedURL', TEST_FAIL: 'plutil:-remove' }],
+    ['a plist it cannot read', { TEST_FAIL: 'plutil:-lint' }],
+  ])('fails the build for %s, rather than leave the updater on', (_name, override) => {
+    const result = fixture().run('scripts/macos-updater-info-plist.sh', {
+      ...disabled,
+      ...override,
+    });
+    expect(result.status).not.toBe(0);
   });
 
   it('fails the build for a feed without a valid public key', () => {

@@ -120,17 +120,29 @@ describe('the Mac workflow and the update feed', () => {
   });
 
   it('signs only a published, stable release, and backfills a pre-updater tag with its DMG alone', () => {
-    type Step = { name?: string; if?: string; run?: string };
+    type Step = {
+      name?: string;
+      if?: string;
+      run?: string;
+      uses?: string;
+      env?: Record<string, string>;
+    };
     const steps = (parse(workflow) as { jobs: { dmg: { steps: Step[] } } }).jobs.dmg.steps;
     const named = (name: string) => steps.find((step) => step.name === name)!;
     expect(named('Check the release').run).toContain('--json isDraft,isPrerelease');
-    // A tag from before the updater has no appcast script, and its app no key to sign for.
-    expect(named('Make the appcast').if).toBe(
-      "env.RELEASE_TAG && hashFiles('scripts/macos-appcast.sh') != ''"
-    );
-    expect(named('Attach the appcast and the DMG to the release').run).toContain(
-      'if [[ -f build/macos/appcast.xml ]]; then'
-    );
+    // One rule, from the checked-out tag: one from before the updater has no appcast script (and
+    // needs no key); any other needs the key before the build and uploads its appcast or fails.
+    const check = named('Check the update key');
+    const checkout = steps.findIndex(({ uses }) => uses?.startsWith('actions/checkout'));
+    expect(steps.indexOf(check)).toBeGreaterThan(checkout);
+    expect(steps.indexOf(check)).toBeLessThan(steps.indexOf(named('Build, sign and notarize')));
+    expect(check.run).toContain('if [[ -f scripts/macos-appcast.sh ]]; then');
+    expect(check.run).toContain('echo updater=true >> "$GITHUB_OUTPUT"');
+    expect(named('Make the appcast').if).toBe("steps.updater.outputs.updater == 'true'");
+    const upload = named('Attach the appcast and the DMG to the release');
+    expect(upload.env?.UPDATER).toBe('${{ steps.updater.outputs.updater }}');
+    expect(upload.run).toContain('if [[ $UPDATER == true ]]; then');
+    expect(upload.run).not.toContain('-f build/macos/appcast.xml');
   });
 
   it('publishes the feed one run at a time, and writes nothing but for a release tag', () => {

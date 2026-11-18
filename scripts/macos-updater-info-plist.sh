@@ -11,11 +11,13 @@ plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
 key=${MINDROOM_UPDATE_PUBLIC_KEY:-}
 # Without the feed, or until the real key replaces the placeholder in the project, no updater
 # starts: Xcode may reuse a plist an earlier build wrote the keys into, so they are removed. A
-# signed release then fails at its appcast (no SUPublicEDKey, no signature).
+# signed release then fails at its appcast (no SUPublicEDKey, no signature). A plist it cannot
+# read, or a key it cannot remove, fails the build.
 if [[ -z "${MINDROOM_UPDATE_FEED_URL:-}" || "$key" == PLACEHOLDER* ]]; then
+  plutil -lint "$plist" > /dev/null
   for name in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUAutomaticallyUpdate \
     SUScheduledCheckInterval SUVerifyUpdateBeforeExtraction; do
-    plutil -remove "$name" "$plist" 2> /dev/null || true
+    if plutil -extract "$name" raw -o - "$plist" > /dev/null 2>&1; then plutil -remove "$name" "$plist"; fi
   done
   exit 0
 fi

@@ -61,15 +61,6 @@ jobs:
       # Empty for a pull request: an unsigned build.
       RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
     steps:
-      - name: Check the update key
-        if: env.RELEASE_TAG
-        env:
-          HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
-        run: |
-          if [[ $HAS_SPARKLE_KEY != true ]]; then
-            echo '::error::The secret SPARKLE_ED_PRIVATE_KEY is missing: a release must not ship without its update feed'
-            exit 1
-          fi
       - name: Check the release
         if: env.RELEASE_TAG
         id: release
@@ -100,6 +91,22 @@ jobs:
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
+      # The one rule for the update feed: a tag from before the updater (no appcast script) gets its
+      # DMG alone and needs no key; any other needs the key before the build and uploads its
+      # appcast.xml before the DMG, or fails.
+      - name: Check the update key
+        if: env.RELEASE_TAG
+        id: updater
+        env:
+          HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
+        run: |
+          if [[ -f scripts/macos-appcast.sh ]]; then
+            if [[ $HAS_SPARKLE_KEY != true ]]; then
+              echo '::error::The secret SPARKLE_ED_PRIVATE_KEY is missing: a release must not ship without its update feed'
+              exit 1
+            fi
+            echo updater=true >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -170,8 +177,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: scripts/build-macos-app.sh --sign
       - name: Make the appcast
-        # A tag from before the updater has neither this script nor a key in its app: its DMG alone.
-        if: env.RELEASE_TAG && hashFiles('scripts/macos-appcast.sh') != ''
+        if: steps.updater.outputs.updater == 'true'
         env:
           # This step alone gets the key, and the script reads it from standard input only.
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
@@ -184,11 +190,12 @@ jobs:
         if: env.RELEASE_TAG
         env:
           GH_TOKEN: ${{ github.token }}
+          UPDATER: ${{ steps.updater.outputs.updater }}
         # The DMG, never replaced, goes last: a release that has it has the appcast.xml that signs
         # it. --clobber replaces an appcast.xml a failed earlier run left.
         run: |
           set -euo pipefail
-          if [[ -f build/macos/appcast.xml ]]; then
+          if [[ $UPDATER == true ]]; then
             gh release upload "$RELEASE_TAG" build/macos/appcast.xml --clobber --repo "$GITHUB_REPOSITORY"
           fi
           gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
