@@ -105,27 +105,55 @@ export const TOOL_STATE_TITLE = {
  * What happened to each call. The public trace only says started or completed, and a denied
  * call completes without a result, so calls that needed approval take their state from the
  * approval card MindRoom posted for this reply. A call that went on as a background job takes
- * the card of the job its handle names; other cards match calls by tool name, in order. A call
+ * the card of the job its handle names, and another call the card that names its call ID. While
+ * `byName`, the other cards go to the first call of their tool, in order, that no card named and
+ * that names no other call ID than the card's: a trace from before call IDs names none. A call
  * whose card still waits has not run, even when the reply went on without it.
  */
 export const resolveToolCallStates = (
-  calls: readonly { toolName: string; pending: boolean; job?: ToolJobHandle }[],
-  approvals: readonly { toolName: string; status: ToolApprovalStatus; jobId?: string | null }[]
+  calls: readonly {
+    toolName: string;
+    pending: boolean;
+    job?: ToolJobHandle;
+    toolCallId?: string;
+  }[],
+  approvals: readonly {
+    toolName: string;
+    status: ToolApprovalStatus;
+    jobId?: string | null;
+    toolCallId?: string | null;
+  }[],
+  byName = true
 ): ToolCallState[] => {
   const unmatched = [...approvals];
-  const take = (index: number) => (index >= 0 ? unmatched.splice(index, 1)[0]!.status : undefined);
-  const byJob = calls.map(({ job }) =>
-    job ? take(unmatched.findIndex((approval) => approval.jobId === job.jobId)) : undefined
-  );
-  return calls.map(({ toolName, pending, job }, callIndex) => {
-    const status = job
-      ? byJob[callIndex]
-      : take(unmatched.findIndex((approval) => approval.toolName === toolName));
+  const take = (match: (approval: (typeof approvals)[number]) => boolean) => {
+    const index = unmatched.findIndex(match);
+    return index >= 0 ? unmatched.splice(index, 1)[0]!.status : undefined;
+  };
+  const named = calls.map(({ job, toolCallId }) => {
+    if (job) return take((approval) => approval.jobId === job.jobId);
+    return toolCallId ? take((approval) => approval.toolCallId === toolCallId) : undefined;
+  });
+  return calls.map(({ toolName, pending, job, toolCallId }, callIndex) => {
+    const status =
+      named[callIndex] ??
+      (job || !byName
+        ? undefined
+        : take(
+            (approval) => approval.toolName === toolName && !(approval.toolCallId && toolCallId)
+          ));
     if (status === 'denied' || status === 'expired') return status;
     if (status === 'pending' || (!status && job?.status === 'awaiting_approval')) return 'waiting';
     return pending ? 'running' : 'done';
   });
 };
+
+/**
+ * Whether a reply's calls take approval cards by their tool's name (`byName` of
+ * resolveToolCallStates); not in the reply's extras (MessageExtras.tsx), whose markers repeat
+ * calls of its body, which take those cards there.
+ */
+export const ToolApprovalsByNameContext = createContext(true);
 
 export type ToolCallSummary = {
   state: ToolCallState;

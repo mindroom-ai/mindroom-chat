@@ -37,6 +37,57 @@ describe('resolveToolCallStates', () => {
   });
 });
 
+describe('resolveToolCallStates with call IDs', () => {
+  const named = (toolName: string, toolCallId?: string) => ({
+    toolName,
+    pending: false,
+    toolCallId,
+  });
+  const denied = (toolCallId: string | null) => ({
+    toolName: 'shell',
+    status: 'denied' as const,
+    toolCallId,
+  });
+
+  it('gives a card to the call it names, before any call of its tool', () => {
+    expect(
+      resolveToolCallStates([named('shell', 'a'), named('shell', 'b')], [denied('b')])
+    ).toEqual(['done', 'denied']);
+  });
+
+  it('never gives a card that names a call to a call that names another', () => {
+    expect(
+      resolveToolCallStates([named('shell', 'a'), named('shell', 'b')], [denied('c')])
+    ).toEqual(['done', 'done']);
+  });
+
+  it('gives a card that names a call by its tool to a call from before call IDs', () => {
+    expect(resolveToolCallStates([named('shell'), named('shell')], [denied('b')])).toEqual([
+      'denied',
+      'done',
+    ]);
+  });
+
+  it('gives a card that names no call to the first call of its tool that no card named', () => {
+    expect(
+      resolveToolCallStates(
+        [named('shell', 'a'), named('shell', 'b')],
+        [denied(null), { ...denied('a'), status: 'expired' }]
+      )
+    ).toEqual(['expired', 'denied']);
+  });
+
+  it('gives cards only to the calls they name without byName', () => {
+    expect(
+      resolveToolCallStates(
+        [named('shell', 'a'), named('shell')],
+        [denied(null), denied('a')],
+        false
+      )
+    ).toEqual(['denied', 'done']);
+  });
+});
+
 describe('resolveToolCallStates with background jobs', () => {
   const job = (jobId: string) => ({ jobId, status: 'awaiting_approval' });
 

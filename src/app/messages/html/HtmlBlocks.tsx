@@ -22,6 +22,7 @@ import {
   ToolMetadataStatus,
   getToolTraceV2Events,
   isToolTraceV2,
+  toolTraceCallId,
 } from '../../matrix/protocol/toolTrace';
 import type { SecretRequest } from '../../matrix/protocol/secretRequest';
 import { useInlineSecretRequests, type InlineSecretRequest } from '../inlineSecretRequests';
@@ -43,6 +44,7 @@ import {
   ToolCallClockContext,
   ToolCallMessageContext,
   ToolCallsFoldContext,
+  ToolApprovalsByNameContext,
   ToolCallState,
   useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
@@ -200,6 +202,8 @@ type ToolBlockRenderData = {
   command: string;
   toolName: string;
   argsPreview?: string;
+  /** The call's ID from its trace entry, which an approval card may name. */
+  toolCallId?: string;
   result?: string;
   resultInline: boolean;
   progress?: string;
@@ -249,6 +253,7 @@ const buildToolRefRenderData = (
     return {
       index: toolRef.index,
       status: 'pending',
+      toolCallId: toolTraceCallId(eventRaw),
       command,
       toolName: traceToolName,
       argsPreview,
@@ -262,6 +267,7 @@ const buildToolRefRenderData = (
     return {
       index: toolRef.index,
       status: 'completed_with_result',
+      toolCallId: toolTraceCallId(eventRaw),
       command,
       toolName: traceToolName,
       argsPreview,
@@ -273,6 +279,7 @@ const buildToolRefRenderData = (
   return {
     index: toolRef.index,
     status: 'completed',
+    toolCallId: toolTraceCallId(eventRaw),
     command,
     toolName: traceToolName,
     argsPreview,
@@ -338,50 +345,68 @@ function ToolRefGroupItem({
   );
 }
 
-// Calls that needed approval take their state from the cards MindRoom posted for this reply: a
-// paused reply's cards name it, and a job's card names the job or replies to this message.
-const useToolCallApprovals = (jobIds: readonly string[]) => {
-  const eventId = useContext(ToolCallMessageContext)?.eventId;
-  const context = useThreadApprovals();
-  if (!eventId || !context) return [];
-  return context.records
-    .filter(({ approval }) =>
-      approval.responseEventId
-        ? approval.responseEventId === eventId
-        : approval.replyToEventId === eventId ||
-          (!!approval.jobId && jobIds.includes(approval.jobId))
-    )
-    .map(({ approval }) => ({
-      toolName: approval.toolName,
-      jobId: approval.jobId,
-      status: getEffectiveToolApprovalStatus(
-        approval.status,
-        parseToolApprovalExpiryTimestamp(approval.expiresAt),
-        context.now
-      ),
-    }));
-};
-
 const isLoadedTool = (tool: ToolBlockRenderData): boolean =>
   tool.status !== 'loading' && tool.status !== 'unavailable';
 
 /**
- * The state of each of the reply's calls with trace details, by its index. They resolve together,
- * in call order, so that a card that matches calls by tool name goes to one call of the reply, not
- * to one in every run of them.
+ * The calls one parse of a reply draws, by marker index (a repeated marker once), which the parse
+ * fills before any of its runs renders. Their states resolve together, so that a card goes to one
+ * call of the reply and not to one in every run, and the runs share them while what they resolve
+ * from stays the same (`last`).
  */
-const useToolCallStates = (
-  replyTools: readonly ToolBlockRenderData[]
-): ReadonlyMap<number, ToolCallState> => {
-  const loaded = replyTools.filter(isLoadedTool).sort((a, b) => a.index - b.index);
+type ReplyToolCalls = {
+  tools: Map<number, ToolBlockRenderData>;
+  last?: { inputs: readonly unknown[]; states: ReadonlyMap<number, ToolCallState> };
+};
+
+/**
+ * The state of each of the reply's calls with trace details, by its index. Calls that needed
+ * approval take theirs from the cards MindRoom posted for this reply: a paused reply's cards name
+ * it, and a job's card names the job or replies to this message. A call whose secret request
+ * draws in its place (ToolRun) takes no card.
+ */
+const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallState> => {
+  const eventId = useContext(ToolCallMessageContext)?.eventId;
+  const context = useThreadApprovals();
+  const secrets = useInlineSecretRequests(eventId);
+  const byName = useContext(ToolApprovalsByNameContext);
+  const inputs = [eventId, context?.records, context?.now, secrets, byName];
+  if (reply.last?.inputs.every((input, index) => input === inputs[index])) return reply.last.states;
+
+  const loaded = [...reply.tools.values()]
+    .filter((tool) => isLoadedTool(tool) && !secrets.has(tool.index))
+    .sort((a, b) => a.index - b.index);
   const calls = loaded.map((tool) => ({
     toolName: tool.toolName,
     pending: tool.status === 'pending',
     job: parseToolJobHandle(tool.result),
+    toolCallId: tool.toolCallId,
   }));
-  const approvals = useToolCallApprovals(calls.flatMap(({ job }) => (job ? [job.jobId] : [])));
-  const states = resolveToolCallStates(calls, approvals);
-  return new Map(loaded.map((tool, index) => [tool.index, states[index]!]));
+  const jobIds = calls.flatMap(({ job }) => (job ? [job.jobId] : []));
+  const approvals =
+    eventId && context
+      ? context.records
+          .filter(({ approval }) =>
+            approval.responseEventId
+              ? approval.responseEventId === eventId
+              : approval.replyToEventId === eventId ||
+                (!!approval.jobId && jobIds.includes(approval.jobId))
+          )
+          .map(({ approval }) => ({
+            toolName: approval.toolName,
+            jobId: approval.jobId,
+            toolCallId: approval.toolCallId,
+            status: getEffectiveToolApprovalStatus(
+              approval.status,
+              parseToolApprovalExpiryTimestamp(approval.expiresAt),
+              context.now
+            ),
+          }))
+      : [];
+  const resolved = resolveToolCallStates(calls, approvals, byName);
+  const states = new Map(loaded.map((tool, index) => [tool.index, resolved[index]!]));
+  reply.last = { inputs, states };
+  return states;
 };
 
 /**
@@ -395,7 +420,7 @@ function ToolRefGroupBlock({
   replyTools,
 }: {
   parsedTools: ToolBlockRenderData[];
-  replyTools: readonly ToolBlockRenderData[];
+  replyTools: ReplyToolCalls;
 }) {
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
@@ -536,15 +561,14 @@ const splitToolRunAtSecretRequests = (
 /**
  * A run of tool calls as the parser places it, then the reasoning that followed its last call
  * (Reasoning.tsx), which shows there also while the run itself is hidden. A secret request for
- * one of its calls splits it, drawn on its own line where that call was. `replyTools` are all the
- * calls of the parse, which it fills before any run renders.
+ * one of its calls splits it, drawn on its own line where that call was.
  */
 function ToolRun({
   tools,
   replyTools,
 }: {
   tools: ToolBlockRenderData[];
-  replyTools: readonly ToolBlockRenderData[];
+  replyTools: ReplyToolCalls;
 }) {
   const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
   return (
@@ -652,8 +676,10 @@ const createToolTraceMarkerParserOptions = (
   const baseTransform = baseOpts.transform;
   const consumedToolIndexes = new Set<number>();
   const groupRootIndexes = new Set<number>();
-  // Every call the parse draws, for the states its runs resolve together (useToolCallStates).
-  const replyTools: ToolBlockRenderData[] = [];
+  const replyTools: ReplyToolCalls = { tools: new Map() };
+  const addReplyTool = (tool: ToolBlockRenderData) => {
+    if (!replyTools.tools.has(tool.index)) replyTools.tools.set(tool.index, tool);
+  };
   const nextOpts: HTMLReactParserOptions = {
     ...baseOpts,
     replace: (domNode) => {
@@ -762,7 +788,7 @@ const createToolTraceMarkerParserOptions = (
 
           items.forEach((item) => {
             consumedToolIndexes.add(item.data.index);
-            replyTools.push(item.data);
+            addReplyTool(item.data);
           });
           groupRootIndexes.add(firstItem.data.index);
           const toolBlock = (
@@ -795,7 +821,7 @@ const createToolTraceMarkerParserOptions = (
             );
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
-            replyTools.push(data);
+            addReplyTool(data);
             chainedToolBlocks.push(
               <ToolRun key={`tool-group-${toolRef.index}`} tools={[data]} replyTools={replyTools} />
             );
