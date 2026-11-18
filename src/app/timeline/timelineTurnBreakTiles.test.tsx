@@ -109,7 +109,9 @@ describe('the tiles of a folded turn', () => {
   it("toggle the break's turn on a click", () => {
     mounted(false, [40, 42, 0, 40]);
     const button = renderer!.root.findByType('button');
-    act(() => button.props.onClick());
+    act(() => {
+      button.props.onClick();
+    });
     expect(toggle).toHaveBeenCalledWith(fold);
   });
 
