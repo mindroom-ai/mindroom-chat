@@ -152,6 +152,17 @@ describe('createThreadSignalsReader', () => {
     );
   });
 
+  it('tells the signals when the thread was resolved, so a request asked before waits no more', () => {
+    mocks.read.mockReturnValue(quiet);
+    const { room } = makeRoom();
+    const resolved = (resolvedTs?: number) =>
+      ({ ...entry(2), isResolved: true, resolvedTs } as CrossRoomThreadIndexEntry);
+    createThreadSignalsReader().read(room, entry(), '@me:x', NOW);
+    createThreadSignalsReader().read(room, resolved(NOW - 1), '@me:x', NOW);
+    createThreadSignalsReader().read(room, resolved(), '@me:x', NOW);
+    expect(mocks.read.mock.calls.map((call) => call[4])).toEqual([undefined, NOW - 1, Infinity]);
+  });
+
   it('forgets threads the index no longer lists', () => {
     mocks.read.mockReturnValue(quiet);
     const { room } = makeRoom();

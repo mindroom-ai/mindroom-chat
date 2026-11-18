@@ -1,7 +1,7 @@
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { isSnoozedAt } from '../event-store/threads/threadSnooze';
-import { isQuietSinceResolved, isWaitingOnYou } from '../event-store/threads/threadWorkflow';
+import { isWaitingOnYou } from '../event-store/threads/threadWorkflow';
 
 export type ActivityKind =
   | 'approval'
@@ -112,7 +112,9 @@ export const buildActivityRows = ({
   for (const entry of entries) {
     const threadSignals = signals(entry);
     // Resolving a thread answers what it held; only news that comes after brings it back.
-    if (isQuietSinceResolved(entry, threadSignals.newsTs)) continue;
+    if (entry.isResolved && (threadSignals.newsTs ?? 0) <= (entry.resolvedTs ?? Infinity)) {
+      continue;
+    }
     // A snooze holds until a person writes in the thread after it was set. Agents' replies, such
     // as the one confirming the snooze, wait for its end; the Threads page still shows what waits.
     if (
@@ -122,7 +124,7 @@ export const buildActivityRows = ({
       continue;
     }
     const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
-    const waits = isWaitingOnYou(threadSignals, entry.threadRecord.status);
+    const waits = isWaitingOnYou(threadSignals, entry);
     const named = threadSignals.mentionedMe;
     // What waits for the person or names them stays however old; the rest leaves after the window.
     if (!waits && !named) {

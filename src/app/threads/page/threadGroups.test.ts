@@ -183,26 +183,22 @@ describe('groupThreads', () => {
     expect(shape(groupThreads([job], 'all', ME, '', NOW))).toEqual([['needsYou', ['job']]]);
   });
 
-  it('moves a resolved thread out of Needs you until news comes in it after', () => {
+  it('leaves a resolved thread with only a background approval out of Needs you', () => {
+    // The signals hold only requests asked after the resolve (readThreadSignals' resolvedTs).
     const question = { eventId: '$q', senderId: 'a', text: 'q', options: [] };
     const resolved = { isResolved: true, resolvedTs: 2000 };
-    const backgroundApproval = item('job', resolved, { newsTs: 1500 });
-    backgroundApproval.entry.threadRecord.status.hasBackgroundApproval = true;
+    const job = item('job', resolved);
+    job.entry.threadRecord.status.hasBackgroundApproval = true;
     const groups = groupThreads(
-      [
-        item('asked', resolved, { pendingQuestion: question, newsTs: 1500 }),
-        item('approval', resolved, { pendingApproval: approval }),
-        backgroundApproval,
-        item('askedAgain', resolved, { pendingQuestion: question, newsTs: 2500 }),
-      ],
+      [job, item('askedAfter', resolved, { pendingQuestion: question })],
       'following',
       ME,
       '',
       NOW
     );
     expect(shape(groups)).toEqual([
-      ['needsYou', ['askedAgain']],
-      ['recent', ['approval', 'asked', 'job']],
+      ['needsYou', ['askedAfter']],
+      ['recent', ['job']],
     ]);
   });
 
