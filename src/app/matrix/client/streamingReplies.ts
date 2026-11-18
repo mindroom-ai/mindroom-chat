@@ -351,13 +351,10 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     const eventId = event.getId();
     // A local echo is the user's own message on its way.
     if (!eventId || eventId.startsWith('~')) return true;
-    if (isIdle(event)) return false;
-    if (unknown.has(eventId)) return false;
     const vouched = seen.get(eventId);
-    if (!vouched || vouched.gap !== gapsOf(room.roomId)) ask(room.roomId, eventId, [event]);
-    if (!vouched) return false;
-    // Another copy of the reply (a summary's, the cache's) may lack the edit the client knows.
-    const known = vouched.edit && newerEdit(event, vouched.edit);
+    // Another copy of the reply (a summary's, the cache's) may lack the edit the client knows,
+    // which may be newer than the idle limit the copy alone has passed.
+    const known = vouched?.edit && newerEdit(event, vouched.edit);
     if (known) {
       queueMicrotask(() => {
         putEdit(event, known);
@@ -365,6 +362,10 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       });
       return false;
     }
+    if (isIdle(event)) return false;
+    if (unknown.has(eventId)) return false;
+    if (!vouched || vouched.gap !== gapsOf(room.roomId)) ask(room.roomId, eventId, [event]);
+    if (!vouched) return false;
     const showing = shown.get(eventId) ?? { roomId: room.roomId, targets: new Set<MatrixEvent>() };
     showing.targets.add(event);
     shown.set(eventId, showing);

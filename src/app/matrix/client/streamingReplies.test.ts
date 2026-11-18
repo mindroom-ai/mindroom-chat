@@ -325,10 +325,11 @@ describe('streaming replies on thread cards', () => {
   });
 
   it('does not ask about a reply that went idle while its check waited', async () => {
-    const now = Date.now();
     const f = fixture();
-    f.setServerReply(withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')));
     await f.start();
+    // Fresh when its card asks, idle once the check's delay has passed.
+    const now = Date.now();
+    f.setServerReply(withEdit(reply(now - 50_000), edit('The notes', now - 3_000, 'streaming')));
     await f.deliver([withSummary(root(now - 31 * MINUTE), reply(now - 30 * MINUTE + 1_000))]);
     expect(f.card().streaming).toBe(false);
 
@@ -686,6 +687,34 @@ describe('streaming replies on thread cards', () => {
       await settle();
       expect(f.card().streaming).toBe(true);
       await afterCheckDelay();
+      expect(f.card().streaming).toBe(true);
+      expect(f.replyRequests()).toBe(0);
+    });
+
+    it('streams a reply whose restored copy went idle when the list bundles a fresh edit', async () => {
+      const now = Date.now();
+      const f = await reload(now);
+      const old = reply(now - 31 * MINUTE);
+      const thread = defined(f.room().getThread(rootId), 'the thread');
+      thread.timelineSet.addEventsToTimeline(
+        [f.mx.getEventMapper()(old)],
+        true,
+        false,
+        thread.liveTimeline
+      );
+      const listedRoot = withSummary(root(now - 60_000), title(now - 15_000), 2);
+      const summary = listedRoot.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
+      summary['io.mindroom.latest_reply'] = withEdit(
+        old,
+        edit('The notes', now - 3_000, 'streaming')
+      );
+      const openList = f.holdThreadList([listedRoot]);
+      const listing = loadRoomThreads(f.room());
+      openList();
+      await listing;
+      await settle();
+      f.card();
+      await settle();
       expect(f.card().streaming).toBe(true);
       expect(f.replyRequests()).toBe(0);
     });
