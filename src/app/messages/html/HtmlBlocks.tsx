@@ -887,9 +887,11 @@ const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
   else collectToolRunIndexes(node.props.children, into);
 };
 
+/** The HTML's top-level nodes, as the renderer parses it. */
+export const parseRenderedHtml = (html: string, baseOpts: HTMLReactParserOptions): ChildNode[] =>
+  htmlToDOM(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
+
 type RenderedToolCalls = {
-  /** The HTML's top-level nodes, as the renderer parses it. */
-  nodes: ChildNode[];
   /** The calls drawn as tool blocks, by index, in the order they are drawn. */
   indexes: number[];
   /**
@@ -908,7 +910,8 @@ export const readRenderedToolCalls = (
   html: string,
   baseOpts: HTMLReactParserOptions
 ): RenderedToolCalls => {
-  const nodes = htmlToDOM(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
+  // Its own parse, which drawing changes (a marker's leading line break goes).
+  const nodes = parseRenderedHtml(html, baseOpts);
   const opts = createToolTraceMarkerParserOptions(baseOpts, undefined, undefined, new Set());
   const indexes: number[] = [];
   let lastNode = -1;
@@ -922,7 +925,7 @@ export const readRenderedToolCalls = (
       inRun = true;
     } else if (isDomElementNode(node)) inRun = false;
   });
-  return { nodes, indexes, lastNode };
+  return { indexes, lastNode };
 };
 
 /**

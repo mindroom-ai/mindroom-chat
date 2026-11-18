@@ -82,6 +82,13 @@ describe('splitFinishedWork', () => {
     expect(split(`${work}<p>Answer</p>`)).toEqual({ head: work, tail: '<p>Answer</p>' });
   });
 
+  it('folds the work as the HTML says, not as finding its last call left it', () => {
+    // Chromium writes a paragraph that starts with line breaks this way; drawing its call takes
+    // one of them, so the work must be cut from the HTML itself.
+    const work = `${marker('shell', 1)}<p><br><br>🔧 <code>grep</code> [2]</p>${marker('read', 3)}`;
+    expect(split(`${work}<p>done</p>`)).toEqual({ head: work, tail: '<p>done</p>' });
+  });
+
   it('ignores marker-like text inside a code block', () => {
     expect(split('<pre><code>🔧 <code>shell</code> [1]</code></pre><p>x</p>')).toBeUndefined();
     expect(split('<pre><code>🔧 `shell` [1]</code></pre><p>x</p>')).toBeUndefined();

@@ -7,7 +7,7 @@ import {
   type SanitizeCustomHtmlOptions,
 } from '../../rich-text/sanitize';
 import { isDomElementNode } from './toolRefDom';
-import { readRenderedToolCalls } from '../html/HtmlBlocks';
+import { parseRenderedHtml, readRenderedToolCalls } from '../html/HtmlBlocks';
 
 export type FinishedWorkSplit = {
   /**
@@ -103,11 +103,11 @@ export const splitFinishedWork = (
   sanitizeOptions: SanitizeCustomHtmlOptions
 ): FinishedWorkSplit | undefined => {
   if (!html.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
-  const { nodes, lastNode } = readRenderedToolCalls(
-    sanitizeCustomHtml(html, sanitizeOptions),
-    baseOpts
-  );
+  const sanitized = sanitizeCustomHtml(html, sanitizeOptions);
+  const { lastNode } = readRenderedToolCalls(sanitized, baseOpts);
   if (lastNode < 0) return undefined;
+  // Cut from a parse of its own: finding the calls draws them, which changes the nodes it read.
+  const nodes = parseRenderedHtml(sanitized, baseOpts);
   const serialize = (from: number, to?: number) =>
     nodes.slice(from, to).map(serializeHtmlNode).join('');
   // The answer renders on its own, where a marker the whole body shows as text (one naming a call
