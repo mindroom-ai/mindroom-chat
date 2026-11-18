@@ -203,10 +203,12 @@ const comeBack = (during: { beforeListeners?: () => void; onceListening?: () => 
   };
 };
 
-const listeners = () =>
-  [ThreadEvent.New, ThreadEvent.Update, RoomEvent.Timeline, RoomEvent.Redaction].map((event) =>
-    room.listenerCount(event)
-  );
+const listeners = () => [
+  room.listenerCount(ThreadEvent.New),
+  room.listenerCount(ThreadEvent.Update),
+  room.listenerCount(RoomEvent.Timeline),
+  room.listenerCount(RoomEvent.Redaction),
+];
 
 beforeEach(async () => {
   mx = createClient({ baseUrl: 'https://example.org', userId: ME });
