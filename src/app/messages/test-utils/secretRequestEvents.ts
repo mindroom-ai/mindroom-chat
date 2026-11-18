@@ -30,12 +30,12 @@ export const replyEvent = (
     },
   });
 
-/** The agent's temporary-secret card, naming the reply and the call that asked. */
+/** The agent's temporary-secret card, done by default, naming the reply and the call that asked. */
 export const cardEvent = (
   id = '$card',
   {
     sender = AGENT,
-    status = 'pending',
+    status = 'saved',
     anchor = { response_event_id: '$reply', tool_call_id: 'call_2' } as object,
   } = {}
 ) =>

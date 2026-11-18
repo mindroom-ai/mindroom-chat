@@ -16,8 +16,8 @@ const plan = (
   {
     ignored = new Set<string>(),
     revealed = new Set<string>(),
-    rows = new Set<string>(),
     getContent = (event: MatrixEvent) => event.getContent(),
+    pluginRenders = undefined as ((event: MatrixEvent) => boolean) | undefined,
   } = {}
 ) => {
   const byId = new Map(events.map((event) => [event.getId(), event]));
@@ -27,7 +27,7 @@ const plan = (
     getContent,
     ignored,
     revealed,
-    rows,
+    pluginRenders,
     threadId: ROOT,
   });
 };
@@ -47,19 +47,25 @@ describe('secretRequestAttachments', () => {
     expect([...secretRequestAttachments(content)]).toEqual([['call_1', 1]]);
   });
 
-  it('leaves out a marker the renderer shows as text, and a reply of long text', () => {
+  it('leaves out a marker the renderer shows as text', () => {
     const fenced = replyEvent('$r', { body: '```\n🔧 `shell` [2]\n```\n\n🔧 `shell` [1]' });
     expect([...secretRequestAttachments(fenced.getContent())]).toEqual([['call_1', 1]]);
-    const long = { ...replyEvent().getContent(), 'io.mindroom.long_text': { version: 2 } };
-    expect(secretRequestAttachments(long).size).toBe(0);
+  });
+
+  it.each([
+    ['of long text', { 'io.mindroom.long_text': { version: 2 } }],
+    ['still streaming, which live frames draw over', { 'io.mindroom.stream_status': 'streaming' }],
+  ])('maps nothing for a reply %s', (_case, extra) => {
+    expect(secretRequestAttachments({ ...replyEvent().getContent(), ...extra }).size).toBe(0);
   });
 });
 
 describe('planInlineSecretRequests', () => {
-  it("hides a card its reply draws, at the named call's marker", () => {
-    const { hiddenEventIds, byReply } = plan([replyEvent(), cardEvent()]);
+  it("hides a done card its reply draws, at the named call's marker", () => {
+    const { hiddenEventIds, byReply, waitingReplyIds } = plan([replyEvent(), cardEvent()]);
 
     expect([...hiddenEventIds]).toEqual(['$card']);
+    expect(waitingReplyIds.size).toBe(0);
     const drawn = byReply.get('$reply')?.get(2);
     expect(drawn?.eventId).toBe('$card');
     expect(drawn?.agentUserId).toBe(AGENT);
@@ -108,15 +114,19 @@ describe('planInlineSecretRequests', () => {
     expect(plan([replyEvent(), cardEvent()], { ignored }).hiddenEventIds.size).toBe(0);
   });
 
-  it('keeps a pending card that showed as a row a row, and lets it move once done', () => {
-    const rows = new Set(['$card']);
-    const waiting = plan([replyEvent(), cardEvent()], { rows });
-    expect(waiting.hiddenEventIds.size).toBe(0);
-    expect([...waiting.pending]).toEqual(['$card']);
+  it('keeps the row of a card not done yet, and names its reply as waiting', () => {
+    const { hiddenEventIds, byReply, waitingReplyIds } = plan([
+      replyEvent(),
+      cardEvent('$card', { status: 'pending' }),
+    ]);
+    expect(hiddenEventIds.size).toBe(0);
+    expect(byReply.size).toBe(0);
+    expect([...waitingReplyIds]).toEqual(['$reply']);
+  });
 
-    const done = plan([replyEvent(), cardEvent('$card', { status: 'saved' })], { rows });
-    expect([...done.hiddenEventIds]).toEqual(['$card']);
-    expect(done.pending.size).toBe(0);
+  it("keeps the row of a card whose reply a plugin's renderer draws", () => {
+    const pluginRenders = (event: MatrixEvent) => event.getId() === '$reply';
+    expect(plan([replyEvent(), cardEvent()], { pluginRenders }).hiddenEventIds.size).toBe(0);
   });
 
   it('draws one card per call; a second one naming the same call keeps its row', () => {

@@ -40,9 +40,9 @@ import {
 // then carries that title and hint, and a button that names the page's host and opens it in a tab
 // of its own, which knows nothing of the page it came from. A host too long for the button's line
 // wraps, so the person reads all of it, its end too, which says whose page it is.
-// A card that names the agent's reply and the tool call that asked has no row of its own: the
-// reply draws it in place of that call's line, the form under it while it waits, also while the
-// thread hides tool calls, and once done a line like a tool call's that opens the request read-only.
+// A card that names the agent's reply and the tool call that asked waits as its own row, right
+// under the reply. Once the agent marks it done it moves into the reply, in place of that call's
+// line: a line like a tool call's that opens the request read-only, with the focus the row had.
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 /** Another origin, where a redirect from the MindRoom server points. */
@@ -50,7 +50,7 @@ const ELSEWHERE = 'http://127.0.0.1:29598';
 const CORS = { 'Access-Control-Allow-Origin': '*' };
 const PASSWORD = 'secret-request-spec-password';
 // Set SECRET_REQUEST_SHOTS=<directory> to save screenshots of the folded and the opened card, and
-// of a request drawn in its reply: waiting, done, and done and opened.
+// of a request for a reply's tool call: waiting under the reply, then done in it, folded and opened.
 const SHOTS = process.env.SECRET_REQUEST_SHOTS;
 
 test.beforeEach(async () => {
@@ -739,7 +739,22 @@ const toolReply = () => {
   };
 };
 
-test('a request drawn in its reply waits at its tool call, then closes to a line that opens it', async ({
+/** The reply and the rows under it, `count` in all, as one picture. */
+const shootRows = async (page: Page, first: Locator, count: number, path: string) => {
+  const box = await first.evaluate((element, rows) => {
+    const all = [...document.querySelectorAll('[data-message-id]')];
+    const start = all.indexOf(element);
+    const boxes = all.slice(start, start + rows).map((node) => node.getBoundingClientRect());
+    const top = Math.min(...boxes.map(({ top: y }) => y));
+    const bottom = Math.max(...boxes.map(({ bottom: y }) => y));
+    const left = Math.min(...boxes.map(({ left: x }) => x));
+    const right = Math.max(...boxes.map(({ right: x }) => x));
+    return { x: left, y: top, width: right - left, height: bottom - top };
+  }, count);
+  await page.screenshot({ path, clip: box });
+};
+
+test('a request waits as a row under its reply, then moves into the reply at its tool call', async ({
   context,
   page,
 }) => {
@@ -761,43 +776,35 @@ test('a request drawn in its reply waits at its tool call, then closes to a line
   // As a reader who never showed tool calls.
   await openThread(context, page, requester, room, false);
   const reply = page.locator(`[data-message-id="${replyId}"]`);
-  const line = reply.locator('[data-secret-request-line]');
-  await expect(line).toHaveAttribute('data-secret-request-line', 'pending', { timeout: 30_000 });
-  // The card has no row of its own; the reply draws it.
-  await expect(page.locator(`[data-message-id="${cardId}"]`)).toHaveCount(0);
-  await expect(page.locator('[aria-label="Secret request"]')).toHaveCount(1);
-
-  // Tool calls start hidden: the request shows anyway, and the cog counts it as waiting.
-  const cog = reply.locator('[data-tool-calls-fold]');
-  await expect(cog).toHaveAttribute('data-state', 'waiting');
-  await expect(reply.getByText('Ran 2 tool calls')).toHaveCount(0);
-  await expect(line).toContainText('SUDO_PASSWORD');
-  await expect(line).toContainText('Expires in');
-  await expect(line).toContainText('To restart the web server.');
-  const field = line.getByLabel('Secret for SUDO_PASSWORD', { exact: true });
-  await expect(field).toBeVisible();
-
-  // Opened, the cog shows the calls around the request, which splits their run.
-  await cog.locator('button').click();
-  await expect(reply.getByText('Ran 2 tool calls')).toBeVisible();
-  await expect(reply.getByText('Ran 1 tool call')).toBeVisible();
-  const order = await reply.evaluate((element) =>
-    [...element.querySelectorAll('[data-secret-request-line], button[aria-controls]')].map((node) =>
-      node.hasAttribute('data-secret-request-line')
-        ? 'secret'
-        : (node.textContent ?? '').replace(/shell.*$/, '').trim()
+  const card = page.locator(`[data-message-id="${cardId}"]`);
+  const field = card.getByLabel('Secret for SUDO_PASSWORD', { exact: true });
+  await expect(field).toBeVisible({ timeout: 30_000 });
+  // Waiting, the card is the row right under the reply, which draws no line for it.
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-message-id]')].map((node) =>
+      node.getAttribute('data-message-id')
     )
   );
-  expect(order).toEqual(['Ran 2 tool calls', 'secret', 'Ran 1 tool call']);
-  if (SHOTS) await reply.screenshot({ path: `${SHOTS}/inline-pending.png` });
+  expect(rows.slice(rows.indexOf(replyId!), rows.indexOf(replyId!) + 2)).toEqual([
+    replyId,
+    cardId,
+  ]);
+  await expect(reply.locator('[data-secret-request-line]')).toHaveCount(0);
+  const cog = reply.locator('[data-tool-calls-fold]');
+  await cog.locator('button').click();
+  await expect(reply.getByText('Ran 4 tool calls')).toBeVisible();
+  if (SHOTS) await shootRows(page, reply, 2, `${SHOTS}/inline-pending.png`);
 
+  // Sent from the keyboard, the card folds and keeps the focus.
   await field.fill(secret);
-  await line.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(line.getByRole('status')).toHaveText('Sent, waiting for the agent');
-  await expect(line.locator('input')).toHaveCount(0);
+  await field.press('Enter');
+  await expect(card.getByRole('status')).toHaveText('Sent, waiting for the agent');
+  await expect(card.locator('input')).toHaveCount(0);
+  await expect(card.locator('summary')).toBeFocused();
   expect(JSON.parse(answers[0]?.body ?? 'null')).toEqual({ secret, keep: 'memory' });
 
-  // The agent's edit: the line reads like a tool call's, with what became of the secret.
+  // The agent's edit: the card's row goes, and the reply draws the request at its call, a line
+  // like a tool call's with what became of the secret, which takes the focus.
   const saved = temporaryContent(requester.userId, requestId, 'saved', 'memory');
   const savedContent = {
     ...saved,
@@ -813,10 +820,20 @@ test('a request drawn in its reply waits at its tool call, then closes to a line
     'm.new_content': { ...savedContent, body: '🔑 Secret received.' },
     'm.relates_to': { rel_type: 'm.replace', event_id: cardId },
   });
+  const line = reply.locator('[data-secret-request-line]');
   await expect(line).toHaveAttribute('data-secret-request-line', 'saved', { timeout: 30_000 });
+  await expect(card).toHaveCount(0);
   const lineButton = line.locator(':scope > button');
+  await expect(lineButton).toBeFocused();
   await expect(lineButton).toHaveText('SUDO_PASSWORDSent · kept 15 minutes');
-  await expect(line.getByRole('status')).toHaveCount(0);
+  const order = await reply.evaluate((element) =>
+    [...element.querySelectorAll('[data-secret-request-line], button[aria-controls]')].map((node) =>
+      node.hasAttribute('data-secret-request-line')
+        ? 'secret'
+        : (node.textContent ?? '').replace(/shell.*$/, '').trim()
+    )
+  );
+  expect(order).toEqual(['Ran 2 tool calls', 'secret', 'Ran 1 tool call']);
   await expect(cog).toHaveAttribute('data-state', 'done');
   if (SHOTS) await reply.screenshot({ path: `${SHOTS}/inline-done.png` });
 
@@ -840,24 +857,20 @@ test('a request drawn in its reply waits at its tool call, then closes to a line
   expect(leaks).toEqual([]);
 });
 
-test('a waiting request in its reply fits a phone', async ({ context, page }) => {
+test('a request waiting under its reply fits a phone', async ({ context, page }) => {
   test.slow();
-  const { requester, room, replyId } = await seedCard(false, temporaryContent, {
+  const { requester, room, cardId, replyId } = await seedCard(false, temporaryContent, {
     reply: toolReply(),
     toolCallId: 'call_3',
   });
   await routeSignIn(context, requester, `session-${randomUUID()}`);
   await page.setViewportSize({ width: 390, height: 844 });
 
-  // As a reader who never showed tool calls.
   await openThread(context, page, requester, room, false);
-  const reply = page.locator(`[data-message-id="${replyId}"]`);
-  const line = reply.locator('[data-secret-request-line="pending"]');
-  await expect(line).toBeVisible({ timeout: 30_000 });
-  await reply.locator('[data-tool-calls-fold] button').click();
-  await expect(reply.getByText('Ran 2 tool calls')).toBeVisible();
-  // Nothing of the form sticks out of the reply.
-  const fits = await line.evaluate((element) => {
+  const card = page.locator(`[data-message-id="${cardId}"]`);
+  await expect(card.locator('input:not([type="radio"])')).toBeVisible({ timeout: 30_000 });
+  // Nothing of the form sticks out of the card.
+  const fits = await card.evaluate((element) => {
     const box = element.getBoundingClientRect();
     return (
       [...element.querySelectorAll('input, button')].every((node) => {
@@ -867,5 +880,7 @@ test('a waiting request in its reply fits a phone', async ({ context, page }) =>
     );
   });
   expect(fits).toBe(true);
-  if (SHOTS) await reply.screenshot({ path: `${SHOTS}/inline-pending-phone.png` });
+  if (SHOTS) {
+    await shootRows(page, page.locator(`[data-message-id="${replyId}"]`), 2, `${SHOTS}/inline-pending-phone.png`);
+  }
 });

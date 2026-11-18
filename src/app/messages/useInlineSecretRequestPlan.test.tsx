@@ -1,74 +1,45 @@
 // @vitest-environment jsdom
+import { EventEmitter } from 'events';
 import { act } from 'react-dom/test-utils';
 import { createRoot, type Root } from 'react-dom/client';
-import { getDefaultStore } from 'jotai';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, MatrixEventEvent, RoomEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ClientConfigProvider } from '../config/useClientConfig';
-import { parseSecretRequestContent } from '../matrix/protocol/secretRequest';
-import { SecretRequestCard } from '../approvals/SecretRequestCard';
-import { secretRequestAnswersAtom } from '../approvals/secretRequestStatus';
 import type { InlineSecretRequestPlan } from './inlineSecretRequests';
 import { useInlineSecretRequestPlan } from './useInlineSecretRequestPlan';
-import { AGENT, cardEvent, markers, replyEvent } from './test-utils/secretRequestEvents';
+import { AGENT, cardEvent, replyEvent } from './test-utils/secretRequestEvents';
 
-const env = vi.hoisted(() => ({ send: vi.fn() }));
-const mx = vi.hoisted(() => ({
-  getUserId: () => '@bas:example.org',
-  getRoom: () => ({ getMember: () => null, getJoinedMembers: () => [] }),
-}));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
-vi.mock('../computer/useAgentServers', () => ({
-  useOpenIdBinding: () => true,
-  useRoomAgentServers: () => [],
-}));
-vi.mock('../computer/clientSessions', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../computer/clientSessions')>()),
-  clientSessions: () => ({ send: env.send }),
-}));
-
+const ROOM = '!room:example.org';
 const NONE = new Set<string>();
+const getContent = (event: MatrixEvent) => event.getContent();
 
-// What each row shows now and the edit it shows, as RoomTimeline reads them.
-let contents: Map<MatrixEvent, Record<string, unknown>>;
-let revisions: Map<MatrixEvent, string>;
-const getContent = (event: MatrixEvent) => contents.get(event) ?? event.getContent();
-const getRevision = (event: MatrixEvent) => revisions.get(event);
-
+let client: EventEmitter;
+let room: Room;
 let plans: InlineSecretRequestPlan[];
+const plan = () => plans.at(-1)!;
 
-/** A thread's rows as RoomTimeline lays them out: a card shows as its row unless planned away. */
 function Thread({ events }: { events: MatrixEvent[] }) {
-  const plan = useInlineSecretRequestPlan({
-    events,
-    getContent,
-    getRevision,
-    ignored: NONE,
-    viewerId: '@bas:example.org',
-    threadId: '$root',
-  });
-  plans.push(plan);
-  return (
-    <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: 'https://mr.example.org' } } }}>
-      {events.map((event) => {
-        const request = parseSecretRequestContent(getContent(event));
-        const id = event.getId()!;
-        return request && !plan.hiddenEventIds.has(id) ? (
-          <SecretRequestCard key={id} request={request} roomId="!room:x" agentUserId={AGENT} />
-        ) : null;
-      })}
-    </ClientConfigProvider>
+  plans.push(
+    useInlineSecretRequestPlan({
+      room,
+      events,
+      getContent,
+      ignored: NONE,
+      viewerId: '@bas:example.org',
+      threadId: '$root',
+    })
   );
+  return null;
 }
 
 let host: HTMLDivElement;
 let root: Root;
+const render = (events: MatrixEvent[]) => act(() => root.render(<Thread events={events} />));
+
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  contents = new Map();
-  revisions = new Map();
+  client = new EventEmitter();
+  room = Object.assign(new EventEmitter(), { roomId: ROOM, client }) as unknown as Room;
   plans = [];
-  env.send.mockReset();
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -77,98 +48,70 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
-  getDefaultStore().set(secretRequestAnswersAtom, new Map());
 });
 
-const render = (events: MatrixEvent[]) => act(() => root.render(<Thread events={events} />));
-const field = () => host.querySelector<HTMLInputElement>('input:not([type="radio"])');
-const type = (value: string) => {
-  const input = field()!;
-  act(() => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+/** `event` as the SDK has it before it decrypts, in the thread, and the decryption to come. */
+const encrypted = (event: MatrixEvent) => {
+  const wire = new MatrixEvent({
+    event_id: event.getId(),
+    type: 'm.room.encrypted',
+    sender: event.getSender(),
+    room_id: ROOM,
+    content: {
+      algorithm: 'm.megolm.v1.aes-sha2',
+      ciphertext: 'x',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    },
   });
+  const decrypt = () =>
+    act(() => {
+      Object.assign(wire, { clearEvent: { type: event.getType(), content: event.getContent() } });
+      client.emit(MatrixEventEvent.Decrypted, wire);
+    });
+  return { wire, decrypt };
 };
-const send = () =>
-  act(async () => {
-    field()!
-      .closest('form')!
-      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  });
 
 describe('useInlineSecretRequestPlan', () => {
-  it('draws a card in its reply from the first plan when both are there', () => {
-    render([replyEvent(), cardEvent()]);
-    expect([...plans.at(-1)!.hiddenEventIds]).toEqual(['$card']);
-    expect(field()).toBeNull();
+  it.each(['card', 'reply'] as const)(
+    'brings the row back when the %s is redacted in place',
+    (redacted) => {
+      const events = { card: cardEvent(), reply: replyEvent() };
+      render([events.reply, events.card]);
+      expect([...plan().hiddenEventIds]).toEqual(['$card']);
+
+      const redaction = new MatrixEvent({ type: 'm.room.redaction', sender: AGENT, content: {} });
+      act(() => {
+        events[redacted].makeRedacted(redaction, room);
+        room.emit(RoomEvent.Redaction, redaction, room, '$root');
+      });
+
+      expect(plan().hiddenEventIds.size).toBe(0);
+    }
+  );
+
+  it.each([
+    ['the card, then the reply', ['card', 'reply']],
+    ['the reply, then the card', ['reply', 'card']],
+  ] as const)('draws the request once both decrypt: %s', (_case, order) => {
+    const events = { card: encrypted(cardEvent()), reply: encrypted(replyEvent()) };
+    render([events.reply.wire, events.card.wire]);
+    expect(plan().hiddenEventIds.size).toBe(0);
+
+    events[order[0]].decrypt();
+    expect(plan().hiddenEventIds.size).toBe(0);
+    events[order[1]].decrypt();
+
+    expect([...plan().hiddenEventIds]).toEqual(['$card']);
   });
 
-  it('plans again only when a card or its reply gets a newer edit', () => {
+  it('keeps the same plan while the thread changes in ways that draw the same', () => {
     const events = [replyEvent(), cardEvent()];
     render(events);
-    const first = plans.at(-1);
-    render(events);
-    render([...events]);
-    expect(plans.at(-1)).toBe(first);
+    const first = plan();
 
-    revisions.set(events[0]!, '$edit');
-    render([...events]);
-    expect(plans.at(-1)).not.toBe(first);
-  });
+    render([...events, replyEvent('$later')]);
 
-  describe('a waiting card that showed as a row keeps its field when its reply catches up', () => {
-    // The trace has the call before the body has its marker: the card shows as a row.
-    const reply = replyEvent('$reply', { body: markers(1) });
-    const card = cardEvent();
-    const catchUp = () => {
-      contents.set(reply, replyEvent().getContent());
-      revisions.set(reply, '$edit');
-      render([reply, card]);
-    };
-
-    it('with what was typed and the keep chosen', () => {
-      render([reply, card]);
-      const input = field();
-      type('hunter2');
-      act(() => host.querySelector<HTMLInputElement>('input[value="disk"]')!.click());
-
-      catchUp();
-
-      expect(plans.at(-1)!.hiddenEventIds.size).toBe(0);
-      expect(field()).toBe(input);
-      expect(input?.value).toBe('hunter2');
-      expect(host.querySelector<HTMLInputElement>('input[value="disk"]')?.checked).toBe(true);
-    });
-
-    it('while its answer is on its way and after the server took it, until the agent edits it', async () => {
-      let answer!: (response: Response) => void;
-      env.send.mockReturnValue(new Promise<Response>((resolve) => (answer = resolve)));
-      render([reply, card]);
-      const input = field();
-      type('hunter2');
-      await send();
-
-      catchUp();
-      expect(field()).toBe(input);
-      // A second Send while the first is on its way sends nothing.
-      await send();
-      expect(env.send).toHaveBeenCalledTimes(1);
-
-      await act(async () => answer(new Response(null, { status: 204 })));
-      expect(host.querySelector('[role="status"]')?.textContent).toBe(
-        'Sent, waiting for the agent'
-      );
-      catchUp();
-      expect(plans.at(-1)!.hiddenEventIds.size).toBe(0);
-      expect(host.querySelector('[role="status"]')?.textContent).toBe(
-        'Sent, waiting for the agent'
-      );
-
-      // Done, it moves into its reply.
-      contents.set(card, cardEvent('$card', { status: 'saved' }).getContent());
-      revisions.set(card, '$card-edit');
-      render([reply, card]);
-      expect([...plans.at(-1)!.hiddenEventIds]).toEqual(['$card']);
-    });
+    expect(plans.length).toBeGreaterThan(1);
+    expect(plan()).toBe(first);
   });
 });

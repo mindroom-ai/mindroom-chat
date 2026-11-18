@@ -10,6 +10,10 @@ An agent's secret request is drawn inside the agent's reply, at the tool-call li
 - **Done** (`saved`, `declined`, `expired`, or the local answer before the agent's edit): one line that looks exactly like a tool-call line: lock icon tile in the state's colour, the secret's name (temporary: `env` in mono, or `label`; key: `display_name`), then the status (`Sent · kept 15 minutes`, `Saved`, `Declined`, `Expired`), and a chevron. The request is always its own line: it splits a run of tool calls ("Ran 2 tool calls", secret line, "Ran 1 tool call") rather than hiding inside one.
 - **Done, opened:** clicking the line opens a read-only card under it, in the same visual family as the pending card: name and status chip, the full reason, then fact lines (given as / kept for / sent to; for a key: used only for hosts, replaced the key saved before; declined: nothing was sent or kept). No field, no buttons. Clicking again folds it.
 
+## Deviation: pending stays a row (2026-11-17, after review round 2)
+
+A request that is not done yet (pending, or answered from this page before the agent's edit) does not move into the reply: it keeps its own row, exactly today's card, right under the reply. The agent is blocked on that call, so the call is the reply's last line and the row sits at it anyway. Moving the live form between its row and the reply gave it two owners that switched as the timeline changed (a later edit, a plugin's renderer, live frames, extras), losing what was typed. Only a request the agent's edit marked done is drawn inline, as the line above that opens the read-only card, and only when the reply's finished, durable body renders the call's marker (not a reply of long text, still streaming, or drawn by a plugin; never in the reply's extras). While a request of its calls waits, the reply's work does not fold.
+
 ## Wire format (backend `mindroom`)
 
 1. `io.mindroom.secret_request` content (initial card and every `m.replace` edit) gains:

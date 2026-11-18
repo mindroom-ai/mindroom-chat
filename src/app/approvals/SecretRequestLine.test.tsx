@@ -8,9 +8,8 @@ import type {
   SecretRequest,
   TemporarySecretRequest,
 } from '../matrix/protocol/secretRequest';
-import { getDefaultStore } from 'jotai';
+import { SecretRequestCard } from './SecretRequestCard';
 import { SecretRequestLine } from './SecretRequestLine';
-import { secretRequestAnswersAtom } from './secretRequestStatus';
 
 const ROOM = '!room:example.org';
 const ALICE = '@alice:example.org';
@@ -80,23 +79,21 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
-  getDefaultStore().set(secretRequestAnswersAtom, new Map());
 });
 
 const render = (request: SecretRequest) =>
   act(() =>
     root.render(
       <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: CONFIGURED } } }}>
-        <SecretRequestLine request={request} roomId={ROOM} agentUserId={AGENT} />
+        <SecretRequestLine eventId="$card" request={request} roomId={ROOM} agentUserId={AGENT} />
       </ClientConfigProvider>
     )
   );
 
 const line = () => host.querySelector('[data-secret-request-line]');
-/** The line itself, without the card under it. */
+/** The line itself, without the request under it. */
 const row = () => line()?.firstElementChild;
 const lineButton = () => line()?.querySelector(':scope > button');
-const field = () => host.querySelector<HTMLInputElement>('input:not([type="radio"])');
 const receipt = () => host.querySelector('[data-secret-request-receipt]');
 const text = () => host.textContent ?? '';
 const click = (element: Element | null | undefined) =>
@@ -106,37 +103,16 @@ const click = (element: Element | null | undefined) =>
   });
 
 describe('SecretRequestLine', () => {
-  it('waits on a line that opens nothing, the form under it', () => {
-    render(temporary());
-
-    expect(line()?.getAttribute('data-secret-request-line')).toBe('pending');
-    expect(lineButton()).toBeNull();
-    expect(row()?.textContent).toBe('HETZNER_SUDO_PASSWORD' + 'Expires in 9 minutes');
-    expect(field()).not.toBeNull();
-    expect(text()).toContain('sudo on hetzner-matrix');
-    expect(host.querySelector('button[type="submit"]')?.textContent).toBe('Send');
-    // A status line that stays through the answer, for screen readers.
-    expect(host.querySelector('[role="status"]')).not.toBeNull();
-  });
-
   it('names a temporary secret by its label when the agent gave one', () => {
-    render(temporary({ label: 'Hetzner sudo password' }));
-    expect(row()?.textContent).toBe('Hetzner sudo password' + 'Expires in 9 minutes');
+    render(temporary({ label: 'Hetzner sudo password', status: 'saved' }));
+    expect(row()?.textContent).toBe('Hetzner sudo password' + 'Sent');
   });
 
-  it('offers no field to someone else, who sees whom it waits for', () => {
-    env.viewer = '@bob:example.org';
-    render(temporary());
-    expect(field()).toBeNull();
-    expect(text()).toContain('Waiting for');
-  });
-
-  it('closes once done to a line with a chevron, which opens the request read-only and folds it', () => {
+  it('shows a done request as a line with a chevron, which opens it read-only and folds it', () => {
     render(temporary({ status: 'saved', kept: 'memory' }));
 
     expect(line()?.getAttribute('data-secret-request-line')).toBe('saved');
     expect(row()?.textContent).toBe('HETZNER_SUDO_PASSWORD' + 'Sent · kept 15 minutes');
-    expect(field()).toBeNull();
     expect(receipt()).toBeNull();
     expect(lineButton()?.getAttribute('aria-expanded')).toBe('false');
 
@@ -178,27 +154,22 @@ describe('SecretRequestLine', () => {
     expect(opened).toContain('Replaced the key saved before.');
   });
 
-  it('turns done with the answer, before the agent edits the card', async () => {
-    env.send.mockResolvedValue(new Response(null, { status: 200 }));
-    render(temporary());
-    const input = field()!;
-    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    act(() => {
-      setValue?.call(input, 'hunter2');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+  it("takes the focus that was in the card's row when the row went", () => {
+    const done = temporary({
+      status: 'saved',
+      anchor: { responseEventId: '$reply', toolCallId: 'call_1' },
     });
-    await act(async () => {
-      input
-        .closest('form')!
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    act(() =>
+      root.render(
+        <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: CONFIGURED } } }}>
+          <SecretRequestCard request={done} roomId={ROOM} agentUserId={AGENT} eventId="$card" />
+        </ClientConfigProvider>
+      )
+    );
+    act(() => host.querySelector<HTMLElement>('summary')!.focus());
 
-    expect(env.send).toHaveBeenCalledTimes(1);
-    expect(line()?.getAttribute('data-secret-request-line')).toBe('saved');
-    expect(field()).toBeNull();
-    expect(host.querySelector('[role="status"]')?.textContent).toBe('Sent, waiting for the agent');
-    // From the keyboard, the line takes the focus the form had.
+    render(done);
+
     expect(document.activeElement).toBe(lineButton());
   });
 });

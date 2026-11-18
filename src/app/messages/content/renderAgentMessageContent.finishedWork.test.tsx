@@ -5,19 +5,17 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent } from 'matrix-js-sdk';
-import { getDefaultStore } from 'jotai';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
-import { InlineSecretRequestsContext, type InlineSecretRequests } from '../inlineSecretRequests';
-import type { SecretRequest, SecretRequestStatus } from '../../matrix/protocol/secretRequest';
-import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import {
-  recordSecretRequestAnswer,
-  secretRequestAnswersAtom,
-} from '../../approvals/secretRequestStatus';
+  InlineSecretRequestsContext,
+  NO_INLINE_SECRET_REQUESTS,
+  type InlineSecretRequestPlan,
+} from '../inlineSecretRequests';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 
 // The folded work shows its tool calls once open, so these tests show them.
@@ -108,10 +106,6 @@ vi.mock('../html/HtmlBlocks.css', () => ({
 }));
 
 vi.mock('../../ui/PendingSendIndicator.css', () => ({ Container: 'PendingSendIndicator' }));
-vi.mock('../../approvals/SecretRequestLine', () => ({
-  SecretRequestLine: ({ request }: { request: SecretRequest }) =>
-    React.createElement('div', null, `secret ${request.status}`),
-}));
 
 vi.mock('../agent-run/TranscribingPlaceholder.css', () => ({
   Placeholder: 'TranscribingPlaceholder',
@@ -196,14 +190,12 @@ vi.spyOn(mEvent, 'replacingEvent').mockReturnValue(
 let replyCount = 0;
 let replyId = '$reply';
 
-const NO_SECRETS: InlineSecretRequests = new Map();
-
 let renderer: ReactTestRenderer | undefined;
 const render = (
   content: Record<string, unknown>,
   fromMindroomAgent = true,
   highlightRegex?: RegExp,
-  secrets = NO_SECRETS
+  secrets: InlineSecretRequestPlan = NO_INLINE_SECRET_REQUESTS
 ) =>
   act(() => {
     const tree = (
@@ -310,48 +302,14 @@ describe('finished agent work', () => {
     expect(text()).toContain('Let me look.');
   });
 
-  it('keeps the work open while a secret request in it waits, and folds it once done', () => {
-    const secrets = (status: SecretRequestStatus): InlineSecretRequests =>
-      new Map([
-        [
-          replyId,
-          new Map([
-            [
-              2,
-              {
-                eventId: '$card',
-                agentUserId: '@agent:example.org',
-                request: {
-                  kind: 'temporary',
-                  requestId: 'req-1',
-                  requesterId: '@bas:example.org',
-                  env: 'SUDO_PASSWORD',
-                  keep: { memory: 900 },
-                  kept: null,
-                  reason: 'To restart',
-                  status,
-                  expiresAt: Date.now() + 60_000,
-                },
-              },
-            ],
-          ]),
-        ],
-      ]);
-    render(reply('completed'), true, undefined, secrets('pending'));
+  it('keeps the work open while a secret request of its calls waits, and folds it once done', () => {
+    const waiting = { ...NO_INLINE_SECRET_REQUESTS, waitingReplyIds: new Set([replyId]) };
+    render(reply('completed'), true, undefined, waiting);
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Now the file.');
-    expect(text()).toContain('secret pending');
 
-    render(reply('completed'), true, undefined, secrets('saved'));
+    render(reply('completed'), true, undefined, NO_INLINE_SECRET_REQUESTS);
     expect(text()).toContain('Worked for 2m 13s');
-    expect(text()).not.toContain('secret');
-
-    // The page's own answer counts before the agent's edit comes.
-    render(reply('completed'), true, undefined, secrets('pending'));
-    expect(text()).not.toContain('Worked');
-    act(() => getDefaultStore().set(recordSecretRequestAnswer, 'req-1', 'declined'));
-    expect(text()).toContain('Worked for 2m 13s');
-    act(() => getDefaultStore().set(secretRequestAnswersAtom, new Map()));
   });
 
   it('folds a reply once it finishes on screen', () => {

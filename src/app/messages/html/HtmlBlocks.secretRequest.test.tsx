@@ -4,12 +4,9 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import type { SecretRequest, SecretRequestStatus } from '../../matrix/protocol/secretRequest';
-import { InlineSecretRequestsContext, type InlineSecretRequests } from '../inlineSecretRequests';
+import { InlineSecretRequestsContext, type InlineSecretRequestPlan } from '../inlineSecretRequests';
 import { settingsAtom } from '../../preferences/settings';
-import {
-  recordSecretRequestAnswer,
-  secretRequestAnswersAtom,
-} from '../../approvals/secretRequestStatus';
+import { MessageExtras } from '../MessageExtras';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { ToolCallMessageContext, ToolCallsCogContext } from '../agent-run/toolCallStatus';
 
@@ -60,19 +57,35 @@ const secrets = (
   status: SecretRequestStatus,
   index = 3,
   value: SecretRequest = request(status)
-): InlineSecretRequests =>
-  new Map([
+): InlineSecretRequestPlan => ({
+  hiddenEventIds: new Set(['$card']),
+  byReply: new Map([
     [
       '$reply',
       new Map([[index, { eventId: '$card', request: value, agentUserId: '@mindroom_dev:x' }]]),
     ],
-  ]);
+  ]),
+  waitingReplyIds: new Set(),
+});
+
+/** A section of the reply's extras with the marker of its body's third call, as a list item. */
+const extras = {
+  version: 1 as const,
+  sections: [
+    {
+      title: 'Trace',
+      contentType: 'text/markdown' as const,
+      content: '- 🔧 `request_secret` [3]',
+      collapsed: false,
+    },
+  ],
+};
 
 const textOf = (node: ReactTestInstance | string): string =>
   typeof node === 'string' ? node : node.children.map(textOf).join('');
 
 let renderer: ReactTestRenderer | undefined;
-const render = (value: InlineSecretRequests) =>
+const render = (value: InlineSecretRequestPlan, withExtras = false) =>
   act(() => {
     renderer = create(
       <InlineSecretRequestsContext.Provider value={value}>
@@ -82,6 +95,9 @@ const render = (value: InlineSecretRequests) =>
           <ToolCallsFold>
             <ToolCallsCogContext.Consumer>{(cog) => cog}</ToolCallsCogContext.Consumer>
             {parse(html, markerParserOptions({}, content))}
+            {withExtras && (
+              <MessageExtras extras={extras} htmlReactParserOptions={{}} markerContent={content} />
+            )}
           </ToolCallsFold>
         </ToolCallMessageContext.Provider>
       </InlineSecretRequestsContext.Provider>
@@ -101,7 +117,7 @@ const lines = () =>
       node.props['data-secret-line'] !== undefined
         ? `secret:${node.props['data-secret-line']}`
         : textOf(node)
-            .replace(/shell.*$/, '')
+            .replace(/(shell|request_secret).*$/, '')
             .trim()
     );
 const cog = () =>
@@ -118,13 +134,22 @@ describe('a secret request in its reply', () => {
     act(() => renderer?.unmount());
     renderer = undefined;
     showToolCalls(true);
-    getDefaultStore().set(secretRequestAnswersAtom, new Map());
-    vi.useRealTimers();
   });
 
   it('takes the place of the call that asked, splitting its run', () => {
-    render(secrets('pending'));
-    expect(lines()).toEqual(['Ran 2 tool calls', 'secret:pending', 'Ran 1 tool call']);
+    render(secrets('saved'));
+    expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
+  });
+
+  it("takes its call's place in the body only: the extras keep their tool line", () => {
+    render(secrets('declined'), true);
+    expect(lines()).toEqual([
+      'Ran 2 tool calls',
+      'secret:declined',
+      'Ran 1 tool call',
+      'Ran 1 tool call',
+    ]);
+    expect(renderer!.root.findAll((node) => node.props['data-secret-line'] !== undefined)).toHaveLength(1);
   });
 
   it('starts or ends a run without an empty run beside it', () => {
@@ -136,20 +161,11 @@ describe('a secret request in its reply', () => {
   });
 
   it('leaves the run whole without a request for one of its calls', () => {
-    render(new Map());
+    render({ hiddenEventIds: new Set(), byReply: new Map(), waitingReplyIds: new Set() });
     expect(lines()).toEqual(['Ran 4 tool calls']);
     act(() => renderer?.unmount());
-    render(secrets('pending', 9));
+    render(secrets('saved', 9));
     expect(lines()).toEqual(['Ran 4 tool calls']);
-  });
-
-  it('shows while it waits where the thread hides tool calls, and the cog waits too', () => {
-    showToolCalls(false);
-    render(secrets('pending'));
-
-    expect(lines()).toEqual(['secret:pending']);
-    expect(cog()?.props['data-state']).toBe('waiting');
-    expect(textOf(cog()!)).toBe('4');
   });
 
   it('hides with the other calls once done, and shows with them when the cog opens', () => {
@@ -164,28 +180,4 @@ describe('a secret request in its reply', () => {
     expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
   });
 
-  it("takes the page's answer before the agent's edit: the cog no longer waits", () => {
-    showToolCalls(false);
-    render(secrets('pending'));
-    expect(cog()?.props['data-state']).toBe('waiting');
-
-    act(() => getDefaultStore().set(recordSecretRequestAnswer, 'req-1', 'saved'));
-    expect(lines()).toEqual([]);
-    expect(cog()?.props['data-state']).toBe('done');
-  });
-
-  it('turns expired at its deadline on the clock, the line and the cog together', () => {
-    vi.useFakeTimers();
-    showToolCalls(false);
-    render(secrets('pending', 3, { ...request('pending'), expiresAt: Date.now() + 90_000 }));
-    expect(lines()).toEqual(['secret:pending']);
-    expect(cog()?.props['data-state']).toBe('waiting');
-
-    act(() => {
-      vi.advanceTimersByTime(91_000);
-    });
-    expect(lines()).toEqual([]);
-    // Waiting no more: the run's other calls ran.
-    expect(cog()?.props['data-state']).toBe('done');
-  });
 });
