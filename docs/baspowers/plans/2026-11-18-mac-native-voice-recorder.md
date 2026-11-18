@@ -735,6 +735,9 @@ On the M2's worktree only, never committed: insert this block in `MindRoomBridge
                   ]);
                 };
                 try {
+                  // A page that still loads is not asked for the microphone.
+                  if (document.readyState !== 'complete') await new Promise((done) => addEventListener('load', done));
+                  await wait(500);
                   // twice: an older start is still waiting when the newer one asks.
                   const older = mode === 'twice' ? start().then(() => 'recorded', failed) : undefined;
                   const { id } = await start();
