@@ -124,7 +124,7 @@ export const buildActivityRows = ({
       continue;
     }
     const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
-    const waits = isWaitingOnYou(threadSignals, entry.threadRecord.status);
+    const waits = isWaitingOnYou(threadSignals, entry);
     const named = threadSignals.mentionedMe;
     // What waits for the person or names them stays however old; the rest leaves after the window.
     if (!waits && !named) {
