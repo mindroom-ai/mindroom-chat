@@ -1069,7 +1069,12 @@
       "toolCalls_few": "استدعاءات الأدوات: ⁨{{count}}⁩",
       "toolCalls_many": "استدعاءات الأدوات: ⁨{{count}}⁩",
       "toolCalls_other": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "tokens": "الرموز: ⁨{{tokens}}⁩",
+      "tokens_zero": "الرموز: ⁨{{tokens}}⁩",
+      "tokens_one": "الرموز: ⁨{{tokens}}⁩",
+      "tokens_two": "الرموز: ⁨{{tokens}}⁩",
+      "tokens_few": "الرموز: ⁨{{tokens}}⁩",
+      "tokens_many": "الرموز: ⁨{{tokens}}⁩",
+      "tokens_other": "الرموز: ⁨{{tokens}}⁩",
       "started": "بدأ ⁨{{time}}⁩",
       "open": "فتح",
       "openFor": "فتح ⁨{{name}}⁩"

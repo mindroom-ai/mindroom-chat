@@ -993,7 +993,8 @@
       "needApproval_other": "{{count}} need approval",
       "toolCalls_one": "{{count}} tool call",
       "toolCalls_other": "{{count}} tool calls",
-      "tokens": "{{tokens}} tokens",
+      "tokens_one": "{{tokens}} token",
+      "tokens_other": "{{tokens}} tokens",
       "started": "Started {{time}}",
       "open": "Open",
       "openFor": "Open {{name}}"

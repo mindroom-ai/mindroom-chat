@@ -752,6 +752,23 @@ describe('SubagentsPanel', () => {
     expect(view()?.dataset.subagentView).toBe('c');
   });
 
+  it('opens a sub-agent at the turn it was opened for, not at its newest', () => {
+    ingest('a', meta('completed', { subagent: 'p', task: 'Plan it.' }), docs('Planned.'));
+    ingest(
+      'b',
+      meta('running', { subagent: 'p', task: 'Do it.', startedAt: NOW - 5 }),
+      docs('Doing.')
+    );
+    const scrolled: Element[] = [];
+    HTMLElement.prototype.scrollIntoView = function scrollIntoView(this: Element) {
+      scrolled.push(this);
+    };
+    act(() => openSubagentsPanel(getDefaultStore(), ROOM_ID, '$thread:example.org', 'a'));
+    render();
+    expect(view()?.dataset.subagentView).toBe('p');
+    expect(scrolled.map((element) => element.textContent)).toEqual(['Plan it.']);
+  });
+
   it('shows the list when opened for a sub-agent it does not have, or for another room', () => {
     ingest('p', meta('running'), docs('Planning.'));
     const store = getDefaultStore();

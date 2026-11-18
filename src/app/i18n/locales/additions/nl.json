@@ -993,7 +993,8 @@
       "needApproval_other": "{{count}} wachten op goedkeuring",
       "toolCalls_one": "{{count}} toolaanroep",
       "toolCalls_other": "{{count}} toolaanroepen",
-      "tokens": "{{tokens}} tokens",
+      "tokens_one": "{{tokens}} token",
+      "tokens_other": "{{tokens}} tokens",
       "started": "Gestart {{time}}",
       "open": "Openen",
       "openFor": "Openen: {{name}}"

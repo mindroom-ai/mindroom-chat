@@ -191,6 +191,29 @@ it('keeps the jobs it showed for a moment after they end, as finished and withou
   }
 });
 
+it("keeps a held job's time where it ended as its list folds and opens again", () => {
+  vi.useFakeTimers({ now: Date.parse('2026-10-11T00:00:10+00:00') });
+  try {
+    state.jobs = [job('a'), job('b')];
+    render();
+    state.jobs = [];
+    render();
+    expand();
+    const elapsed = () => container.querySelector('[data-job-elapsed]')?.textContent;
+    const ended = elapsed();
+    expect(ended).toBeTruthy();
+    expand();
+    expect(elapsed()).toBeUndefined();
+    act(() => {
+      vi.advanceTimersByTime(1_500);
+    });
+    expand();
+    expect(elapsed()).toBe(ended);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('shows several jobs on one line, and lists them while the title is pressed', async () => {
   state.jobs = [job('a'), job('b')];
   render();
@@ -580,7 +603,7 @@ it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
     threadId: '$other',
-    subagent: 's1',
+    run: 'run-s1',
   });
   // The list stays as it was; the panel opens beside it.
   expect(container.querySelectorAll('li')).toHaveLength(4);
@@ -608,7 +631,7 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
     threadId: '$thread',
-    subagent: 's1',
+    run: 'run-s1',
   });
 
   // One tool job has no Open, and shows a terminal for a logo.
@@ -644,12 +667,29 @@ it("shows a sub-agent's agent, model, task, what it does now and what it used", 
   expect(row.querySelector('[data-job-stats]')?.textContent).toBe(
     [
       tr('mindroomUi.backgroundJobs.toolCalls', { count: 31 }),
-      tr('mindroomUi.backgroundJobs.tokens', { tokens: '1.9M' }),
+      tr('mindroomUi.backgroundJobs.tokens', { count: 1_900_000, tokens: '1.9M' }),
       '$1.30',
     ].join(' · ')
   );
   // The job runs in the view's thread, so it names no thread.
   expect(row.querySelector('[data-job-thread]')).toBeNull();
+});
+
+it('shows no cost before any token, and counts one token as one', () => {
+  const stats = (usage: SubagentMeta['usage']) => {
+    getSubagentRunStore(mx as never).clear();
+    ingestRun('s1', { usage });
+    state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
+    render();
+    if (!toggle()?.getAttribute('aria-expanded')?.includes('true')) expand();
+    return container.querySelector('[data-job-stats]')?.textContent;
+  };
+  expect(stats({ inputTokens: 0, outputTokens: 0, toolCalls: 2, costUsd: 0 })).toBe(
+    tr('mindroomUi.backgroundJobs.toolCalls', { count: 2 })
+  );
+  expect(stats({ inputTokens: 1, outputTokens: 0, toolCalls: 0 })).toBe(
+    tr('mindroomUi.backgroundJobs.tokens', { count: 1, tokens: '1' })
+  );
 });
 
 it("names the thread of a job that runs outside the view's, and shows it when pressed", async () => {

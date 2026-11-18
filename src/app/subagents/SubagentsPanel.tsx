@@ -121,11 +121,12 @@ export function SubagentsPanel({
   const opened = useAtomValue(subagentsPanelAtom);
   const asked = useRef<typeof opened>();
   useEffect(() => {
-    const wanted = opened?.roomId === room.roomId ? opened.subagent : undefined;
-    if (asked.current === opened || wanted === undefined || !byId.has(wanted)) return;
+    const wanted = opened?.roomId === room.roomId ? opened.run : undefined;
+    const subagent = runs.find(({ run }) => run === wanted)?.meta.subagent;
+    if (asked.current === opened || subagent === undefined || !byId.has(subagent)) return;
     asked.current = opened;
-    setOpenId(wanted);
-  }, [byId, opened, room.roomId]);
+    setOpenId(subagent);
+  }, [byId, opened, room.roomId, runs]);
   // A sub-agent the store let go (no frame for a while) closes, so its next frame does not reopen
   // it; the focus its view held goes to the panel, not the page.
   useEffect(() => {

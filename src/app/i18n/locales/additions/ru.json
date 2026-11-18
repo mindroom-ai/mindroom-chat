@@ -1031,7 +1031,10 @@
       "toolCalls_few": "{{count}} вызова инструментов",
       "toolCalls_many": "{{count}} вызовов инструментов",
       "toolCalls_other": "{{count}} вызова инструментов",
-      "tokens": "Токенов: {{tokens}}",
+      "tokens_one": "Токенов: {{tokens}}",
+      "tokens_few": "Токенов: {{tokens}}",
+      "tokens_many": "Токенов: {{tokens}}",
+      "tokens_other": "Токенов: {{tokens}}",
       "started": "Запущено {{time}}",
       "open": "Открыть",
       "openFor": "Открыть: {{name}}"

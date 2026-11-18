@@ -70,6 +70,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const expanded = several && !!open;
   // Only listed rows show the tool jobs' calls, so a folded bar reads none.
   const lookups = useJobLookups(room, jobs, expanded);
+  // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
+  const ended = useRef(new Map<string, number>()).current;
+  const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
+    if (finished && !ended.has(jobId))
+      ended.set(jobId, (run?.meta.endedAt ?? Date.now() / 1000) * 1000);
+    return finished ? ended.get(jobId) : undefined;
+  };
   const anchor = useRef<HTMLDivElement>(null);
   // While listed, the bar keeps its one-line place in the footer and grows over the timeline,
   // so the timeline, which pads itself for the footer, does not move under the pointer.
@@ -206,8 +213,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const finished = model.items.every((item) => item.finished);
   // A sub-agent job whose run the Sub-agents panel has opens it there, on that run.
   const openRun = (item: BackgroundJobsBarItem) => {
-    const subagent = item.run?.meta.subagent;
-    return subagent && (() => openSubagentsPanel(store, room.roomId, item.threadId, subagent));
+    const run = item.run?.run;
+    return run && (() => openSubagentsPanel(store, room.roomId, item.threadId, run));
   };
   const openSingle = single && openRun(single);
   // Only the title text is live, so a change is announced once, not with the button around it.
@@ -290,7 +297,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           ) : (
             <>
               {status}
-              <JobElapsed startedAt={single!.startedAt} live={!single!.finished} />
+              <JobElapsed startedAt={single!.startedAt} endedAt={endedAt(single!)} />
               {openSingle && (
                 // Beside the title, which stays the live status, not inside a button around it.
                 <button
@@ -343,6 +350,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                       room={room}
                       item={item}
                       viewThreadId={threadId}
+                      endedAt={endedAt(item)}
                       onOpen={openRun(item) || undefined}
                       stop={stop(item, true)}
                     />

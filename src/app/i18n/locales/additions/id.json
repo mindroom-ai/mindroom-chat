@@ -974,7 +974,7 @@
       "tools_other": "{{count}} alat",
       "needApproval_other": "{{count}} perlu persetujuan",
       "toolCalls_other": "{{count}} panggilan alat",
-      "tokens": "{{tokens}} token",
+      "tokens_other": "{{tokens}} token",
       "started": "Dimulai {{time}}",
       "open": "Buka",
       "openFor": "Buka {{name}}"

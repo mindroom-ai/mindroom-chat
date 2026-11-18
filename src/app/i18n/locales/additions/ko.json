@@ -974,7 +974,7 @@
       "tools_other": "도구 {{count}}개",
       "needApproval_other": "승인 대기 {{count}}개",
       "toolCalls_other": "도구 호출 {{count}}회",
-      "tokens": "토큰 {{tokens}}개",
+      "tokens_other": "토큰 {{tokens}}개",
       "started": "{{time}} 시작",
       "open": "열기",
       "openFor": "열기: {{name}}"

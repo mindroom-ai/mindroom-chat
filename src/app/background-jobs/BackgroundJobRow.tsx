@@ -53,7 +53,6 @@ export function JobLogo({
       style={{ inlineSize: size, blockSize: size }}
       data-job-logo={model ? 'model' : item.subagent ? 'agent' : 'tool'}
       data-model-provider={model?.modelProvider}
-      data-model-id={model?.modelId}
       aria-hidden
     >
       {logo}
@@ -109,16 +108,17 @@ export function BackgroundJobsSummary({
   );
 }
 
-/** How long the job has run, ticking on the bar's clock; screen readers hear when it started. */
-export function JobElapsed({ startedAt, live }: { startedAt: number; live: boolean }) {
+/** How long the job ran, ticking on one shared clock until `endedAt`; readers hear its start. */
+export function JobElapsed({ startedAt, endedAt }: { startedAt: number; endedAt?: number }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  // Every job's time ticks on one shared clock, and only while the job runs.
-  const [now, setNow] = useState(Date.now);
+  const live = endedAt === undefined;
+  const [ticked, setNow] = useState(Date.now);
   useEffect(
     () => (live ? subscribeRelativeTimeClock(1_000, () => setNow(Date.now())) : undefined),
     [live]
   );
+  const now = endedAt ?? ticked;
   const started = useRelativeTime(Number.isFinite(startedAt) ? startedAt : undefined);
   if (!Number.isFinite(startedAt)) return null;
   return (
@@ -165,8 +165,11 @@ const useUsageText = (usage: SubagentUsage | undefined): string | undefined => {
   const parts = [
     usage.toolCalls > 0 && t('mindroomUi.backgroundJobs.toolCalls', { count: usage.toolCalls }),
     tokens > 0 &&
-      t('mindroomUi.backgroundJobs.tokens', { tokens: tokenFormat(language).format(tokens) }),
-    usage.costUsd !== undefined && formatCostUsd(usage.costUsd, language),
+      t('mindroomUi.backgroundJobs.tokens', {
+        count: tokens,
+        tokens: tokenFormat(language).format(tokens),
+      }),
+    tokens > 0 && usage.costUsd !== undefined && formatCostUsd(usage.costUsd, language), // none yet
   ].filter((part): part is string => !!part);
   return parts.length > 0 ? parts.join(' · ') : undefined;
 };
@@ -176,6 +179,8 @@ type RowProps = {
   item: BackgroundJobsBarItem;
   // The view's conversation; a job of another one links to its thread.
   viewThreadId: string | null;
+  // When an ended job ended, which its time stops at.
+  endedAt?: number;
   // Shows the job's run in the Sub-agents panel; only for a job whose run the panel has.
   onOpen?: () => void;
   // The job's Stop, or its Stopping.
@@ -187,7 +192,7 @@ type RowProps = {
  * the thread it runs in when that is not the view's, and what it used. Then how long it has run,
  * Open and Stop. A job without its run's frames shows its name alone, as before.
  */
-export function BackgroundJobRow({ room, item, viewThreadId, onOpen, stop }: RowProps) {
+export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, stop }: RowProps) {
   const { t } = useTranslation();
   const agent = useAgentProfile(room, item.agent ?? '');
   const meta = item.run?.meta;
@@ -267,7 +272,7 @@ export function BackgroundJobRow({ room, item, viewThreadId, onOpen, stop }: Row
           </span>
         )}
       </span>
-      <JobElapsed startedAt={item.startedAt} live={!item.finished} />
+      <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
       {onOpen && (
         <button
           type="button"

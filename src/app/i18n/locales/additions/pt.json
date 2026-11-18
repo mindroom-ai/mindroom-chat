@@ -1012,7 +1012,9 @@
       "toolCalls_one": "{{count}} chamada de ferramenta",
       "toolCalls_many": "{{count}} chamadas de ferramentas",
       "toolCalls_other": "{{count}} chamadas de ferramentas",
-      "tokens": "{{tokens}} tokens",
+      "tokens_one": "{{tokens}} token",
+      "tokens_many": "{{tokens}} tokens",
+      "tokens_other": "{{tokens}} tokens",
       "started": "Iniciado {{time}}",
       "open": "Abrir",
       "openFor": "Abrir {{name}}"

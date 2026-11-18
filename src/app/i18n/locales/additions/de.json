@@ -993,7 +993,8 @@
       "needApproval_other": "{{count}} brauchen Freigabe",
       "toolCalls_one": "{{count}} Werkzeugaufruf",
       "toolCalls_other": "{{count}} Werkzeugaufrufe",
-      "tokens": "{{tokens}} Tokens",
+      "tokens_one": "{{tokens}} Token",
+      "tokens_other": "{{tokens}} Tokens",
       "started": "Gestartet {{time}}",
       "open": "Öffnen",
       "openFor": "Öffnen: {{name}}"

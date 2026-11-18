@@ -974,7 +974,7 @@
       "tools_other": "ツール {{count}} 件",
       "needApproval_other": "承認待ち {{count}} 件",
       "toolCalls_other": "ツール呼び出し {{count}} 回",
-      "tokens": "{{tokens}} トークン",
+      "tokens_other": "{{tokens}} トークン",
       "started": "{{time}}に開始",
       "open": "開く",
       "openFor": "開く: {{name}}"

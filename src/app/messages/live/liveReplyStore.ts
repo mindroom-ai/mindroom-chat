@@ -111,6 +111,12 @@ export class LiveReplyStore {
     };
   }
 
+  /** Calls `listener` on each change of any of the room's replies. Returns the unsubscribe. */
+  public subscribeRoom(roomId: string, listener: () => void): () => void {
+    // The room's own key: no reply has an empty ID.
+    return this.subscribe(roomId, '', listener);
+  }
+
   public clear(): void {
     const keys = [...this.entries.keys()];
     this.expiries.forEach((expiry) => clearTimeout(expiry));
@@ -120,7 +126,9 @@ export class LiveReplyStore {
   }
 
   private notify(key: string): void {
-    this.listeners.get(key)?.forEach((listener) => listener());
+    [key, key.slice(0, key.indexOf('\0') + 1)].forEach((each) =>
+      this.listeners.get(each)?.forEach((listener) => listener())
+    );
   }
 }
 

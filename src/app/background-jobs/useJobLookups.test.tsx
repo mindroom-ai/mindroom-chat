@@ -4,9 +4,9 @@ import { act } from 'react-dom/test-utils';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
-import { LiveReplyStore } from '../messages/live/liveReplyStore';
+import { getLiveReplyStore, LiveReplyStore } from '../messages/live/liveReplyStore';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
-import { readJobToolCalls, useJobLookups } from './useJobLookups';
+import { indexJobToolCalls, useJobLookups } from './useJobLookups';
 
 const mx = vi.hoisted(() => ({}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -79,8 +79,15 @@ const toolJob = (jobId: string, threadId: string, toolCallId = 'call_1') => ({
   threadId,
   toolCallId,
 });
-const calls = (room: Room, jobs: ReturnType<typeof toolJob>[], store = new LiveReplyStore()) =>
-  Object.fromEntries(readJobToolCalls(room, jobs, store, Date.now()).calls);
+const calls = (room: Room, jobs: ReturnType<typeof toolJob>[], store = new LiveReplyStore()) => {
+  const index = indexJobToolCalls(room, jobs, store, Date.now());
+  return Object.fromEntries(
+    jobs.flatMap((job) => {
+      const call = index.get([job.agentId, job.threadId, job.toolCallId].join('\0'));
+      return call ? [[job.jobId, call]] : [];
+    })
+  );
+};
 
 it("takes each job's call from its own agent's reply in its own thread, also one sharing its ID", () => {
   const room = roomOf({
@@ -184,6 +191,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   getSubagentRunStore(mx as never).clear();
+  getLiveReplyStore(mx as never).clear();
   vi.unstubAllGlobals();
 });
 
@@ -238,4 +246,80 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
   expect(renders).toBe(shown);
   ingest('mine', 'Hi there', 'New task');
   expect(container.textContent).toBe('New task');
+});
+
+it("follows a reply's frames while the list shows, beside another subscriber of that reply", () => {
+  const reply = message('$a', AGENT, {
+    'io.mindroom.stream_status': 'streaming',
+    'io.mindroom.tool_trace': trace('call_1', 'old'),
+  });
+  const room = roomOf({ $a: [reply] });
+  const jobs: BackgroundJob[] = [
+    {
+      jobId: 'job_1',
+      agentId: AGENT,
+      threadId: '$a',
+      kind: 'tool',
+      tool: 'run_shell_command',
+      status: 'running',
+      startedAt: '2026-10-11T00:00:00+00:00',
+      toolCallId: 'call_1',
+    },
+  ];
+  function Probe() {
+    const { toolCallFor } = useJobLookups(room, jobs, true);
+    return <span>{toolCallFor(jobs[0]!)?.preview}</span>;
+  }
+  act(() => root.render(<Probe />));
+  expect(container.textContent).toBe('old');
+  // The reply's row in the timeline follows its frames too.
+  const store = getLiveReplyStore(mx as never);
+  const stop = store.subscribe(ROOM, reply.getId()!, () => undefined);
+  const frame = (seq: number, preview: string) =>
+    act(() =>
+      store.ingest(
+        ROOM,
+        AGENT,
+        {
+          reply: reply.getId()!,
+          sid: SID,
+          seq,
+          snapshot: {
+            md: '',
+            reasoning: '',
+            tools: trace('call_1', preview).events,
+            status: 'streaming',
+            activity: '',
+            segments: [],
+          },
+        },
+        Date.now()
+      )
+    );
+  frame(0, 'new');
+  expect(container.textContent).toBe('new');
+  frame(1, 'newer');
+  expect(container.textContent).toBe('newer');
+  stop();
+});
+
+it('shows no call when the list opens again after its reply was redacted while folded', () => {
+  const reply = message('$a', AGENT, { 'io.mindroom.tool_trace': trace('call_1', 'secret') });
+  const room = roomOf({ $a: [reply] });
+  const jobs = [
+    { ...toolJob('job_1', '$a'), kind: 'tool', tool: 'x', status: 'running', startedAt: '' },
+  ] as BackgroundJob[];
+  const shown: (string | undefined)[] = [];
+  function Probe({ listed }: { listed: boolean }) {
+    const { toolCallFor } = useJobLookups(room, jobs, listed);
+    shown.push(toolCallFor(jobs[0]!)?.preview);
+    return null;
+  }
+  act(() => root.render(<Probe listed />));
+  expect(shown.at(-1)).toBe('secret');
+  act(() => root.render(<Probe listed={false} />));
+  reply.setUnsigned({ redacted_because: { type: 'm.room.redaction' } } as never);
+  shown.length = 0;
+  act(() => root.render(<Probe listed />));
+  expect(shown).not.toContain('secret');
 });

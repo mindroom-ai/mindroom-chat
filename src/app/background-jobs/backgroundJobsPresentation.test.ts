@@ -181,7 +181,7 @@ const lookups = (
   calls: Record<string, { tool: string; preview?: string }> = {}
 ) => ({
   runs,
-  toolCallFor: (jobId: string) => calls[jobId],
+  toolCallFor: ({ jobId }: BackgroundJob) => calls[jobId],
 });
 
 const present = (jobs: BackgroundJob[], found: ReturnType<typeof lookups>) =>

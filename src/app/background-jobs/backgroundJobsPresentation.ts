@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
+import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 
 export type BackgroundJobsBarItem = {
@@ -49,8 +50,8 @@ export type BackgroundJobsBarModel = {
 /** What the bar joins the jobs to: the room's sub-agent runs, and each tool job's call. */
 export type BackgroundJobLookups = {
   runs: readonly SubagentRun[];
-  // The call in the job's own agent's reply in the job's conversation, by the job's ID.
-  toolCallFor: (jobId: string) => JobActivity | undefined;
+  // The call in the job's own agent's reply in the job's conversation.
+  toolCallFor: (job: BackgroundJob) => JobActivity | undefined;
 };
 
 const NO_LOOKUPS: BackgroundJobLookups = { runs: [], toolCallFor: () => undefined };
@@ -84,8 +85,9 @@ const awaitingApproval = (job: BackgroundJob): boolean => job.status === 'awaiti
 /** The status the bar gives the jobs it keeps after they ended; agents list only live jobs. */
 export const FINISHED_JOB_STATUS = 'finished';
 
-const newestToolCall = (run: SubagentRun | undefined): JobActivity | undefined => {
-  const { tool_name: tool, args_preview: preview } = run?.docs.tools.at(-1) ?? {};
+/** A tool call as a row shows it: its tool, and its arguments when sent. */
+export const toolActivity = (event: ToolTraceEvent | undefined): JobActivity | undefined => {
+  const { tool_name: tool, args_preview: preview } = event ?? {};
   if (typeof tool !== 'string' || !tool) return undefined;
   return typeof preview === 'string' && preview ? { tool, preview } : { tool };
 };
@@ -96,14 +98,14 @@ const joinJob = (
 ): Pick<BackgroundJobsBarItem, 'run' | 'activity' | 'agent'> => {
   if (job.kind === 'subagent') {
     const run = runOfJob(runs, job);
-    const activity = newestToolCall(run);
+    const activity = toolActivity(run?.docs.tools.at(-1));
     return {
       agent: run?.meta.agent ?? job.tool,
       ...(run ? { run } : {}),
       ...(activity ? { activity } : {}),
     };
   }
-  const activity = toolCallFor(job.jobId);
+  const activity = toolCallFor(job);
   return activity ? { activity } : {};
 };
 

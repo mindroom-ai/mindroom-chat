@@ -993,7 +993,8 @@
       "needApproval_other": "{{count}} onay bekliyor",
       "toolCalls_one": "{{count}} araç çağrısı",
       "toolCalls_other": "{{count}} araç çağrısı",
-      "tokens": "{{tokens}} token",
+      "tokens_one": "{{tokens}} token",
+      "tokens_other": "{{tokens}} token",
       "started": "Başladı: {{time}}",
       "open": "Aç",
       "openFor": "Aç: {{name}}"

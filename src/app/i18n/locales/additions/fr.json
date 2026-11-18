@@ -1012,7 +1012,9 @@
       "toolCalls_one": "{{count}} appel d'outil",
       "toolCalls_many": "{{count}} appels d'outils",
       "toolCalls_other": "{{count}} appels d'outils",
-      "tokens": "{{tokens}} jetons",
+      "tokens_one": "{{tokens}} jeton",
+      "tokens_many": "{{tokens}} jetons",
+      "tokens_other": "{{tokens}} jetons",
       "started": "Démarré {{time}}",
       "open": "Ouvrir",
       "openFor": "Ouvrir {{name}}"
