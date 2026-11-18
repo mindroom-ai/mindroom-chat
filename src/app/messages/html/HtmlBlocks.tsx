@@ -48,7 +48,7 @@ import {
   ToolCallState,
   useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
-import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/Reasoning';
+import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import {
   getEffectiveToolApprovalStatus,
