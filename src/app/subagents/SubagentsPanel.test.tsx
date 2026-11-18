@@ -769,6 +769,29 @@ describe('SubagentsPanel', () => {
     expect(scrolled.map((element) => element.textContent)).toEqual(['Plan it.']);
   });
 
+  it('scrolls an open sub-agent to the turn each Open asks for, and not again on frames', () => {
+    ingest('a', meta('completed', { subagent: 'p', task: 'Plan it.' }), docs('Planned.'));
+    ingest(
+      'b',
+      meta('running', { subagent: 'p', task: 'Do it.', startedAt: NOW - 5 }),
+      docs('Doing.')
+    );
+    const scrolled: string[] = [];
+    HTMLElement.prototype.scrollIntoView = function scrollIntoView(this: Element) {
+      scrolled.push(this.textContent ?? '');
+    };
+    act(() => openSubagentsPanel(getDefaultStore(), ROOM_ID, '$thread:example.org', 'a'));
+    render();
+    act(() => openSubagentsPanel(getDefaultStore(), ROOM_ID, '$thread:example.org', 'b'));
+    ingest(
+      'b',
+      meta('running', { subagent: 'p', task: 'Do it.', startedAt: NOW - 5 }),
+      docs('Doing more.')
+    );
+    expect(view()?.dataset.subagentView).toBe('p');
+    expect(scrolled).toEqual(['Plan it.', 'Do it.']);
+  });
+
   it('shows the list when opened for a sub-agent it does not have, or for another room', () => {
     ingest('p', meta('running'), docs('Planning.'));
     const store = getDefaultStore();

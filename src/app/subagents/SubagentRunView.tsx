@@ -212,7 +212,8 @@ export function SubagentRunView({
   // A sub-agent at work opens at its newest text; an ended one at its first task.
   const box = useRef<HTMLDivElement>(null);
   // Opened for one of its turns (the jobs bar's Open), it opens at that turn's task.
-  const asked = useAtomValue(subagentsPanelAtom)?.run;
+  const opened = useAtomValue(subagentsPanelAtom);
+  const asked = opened?.run;
   const openAt = node.turns.some(({ run }) => run.run === asked) ? asked : undefined;
   const following = useRef(active && !openAt);
   /** Where keeping the end left the box, so the scroll event that move fires is not the reader's. */
@@ -238,10 +239,13 @@ export function SubagentRunView({
     }
     keepEnd();
   }, [keepEnd, newestRun, node]);
+  // Each Open asks anew (a new atom value); frames do not.
   useLayoutEffect(() => {
-    if (openAt) box.current?.querySelector(`[data-subagent-turn="${openAt}"]`)?.scrollIntoView();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on opening
-  }, []);
+    if (!openAt) return;
+    following.current = false;
+    box.current?.querySelector(`[data-subagent-turn="${openAt}"]`)?.scrollIntoView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on each Open
+  }, [opened]);
   // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
   const getThread = useCallback(() => box.current?.firstElementChild, []);
   useResizeObserver(keepEnd, getThread);

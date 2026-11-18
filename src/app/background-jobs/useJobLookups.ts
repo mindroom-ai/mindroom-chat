@@ -91,14 +91,16 @@ const useJobToolCalls = (room: Room, jobs: readonly BackgroundJob[], listed: boo
   const mx = useMatrixClient();
   const store = getLiveReplyStore(mx);
   const [changed, refresh] = useForceUpdate();
+  // A list of sub-agents only has no call to follow.
+  const linked = listed && jobs.some((job) => job.kind !== 'subagent' && job.toolCallId);
   useEffect(() => {
-    if (!listed) return undefined;
+    if (!linked) return undefined;
     const stops = [
       subscribeRoomSignals(mx, room.roomId, refresh),
       store.subscribeRoom(room.roomId, refresh),
     ];
     return () => stops.forEach((stop) => stop());
-  }, [listed, mx, refresh, room.roomId, store]);
+  }, [linked, mx, refresh, room.roomId, store]);
   return useMemo(() => {
     void changed;
     const toolJobs = listed ? jobs.filter((job) => job.kind !== 'subagent' && job.toolCallId) : [];

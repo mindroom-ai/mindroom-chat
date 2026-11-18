@@ -10,8 +10,12 @@ import { indexJobToolCalls, useJobLookups } from './useJobLookups';
 
 const mx = vi.hoisted(() => ({}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
+const signals = vi.hoisted(() => ({ subscribed: 0 }));
 vi.mock('../threads/cross-room/threadSignalsReader', () => ({
-  subscribeRoomSignals: () => () => undefined,
+  subscribeRoomSignals: () => {
+    signals.subscribed += 1;
+    return () => undefined;
+  },
 }));
 
 const ROOM = '!room:example.org';
@@ -322,4 +326,22 @@ it('shows no call when the list opens again after its reply was redacted while f
   shown.length = 0;
   act(() => root.render(<Probe listed />));
   expect(shown).not.toContain('secret');
+});
+
+it('follows nothing while the list holds no tool job with a linked call', () => {
+  const store = getLiveReplyStore(mx as never);
+  const subscribeRoom = vi.spyOn(store, 'subscribeRoom');
+  signals.subscribed = 0;
+  const jobs = [
+    { jobId: 'job_1', agentId: AGENT, threadId: '$a', kind: 'subagent', tool: 'dev' },
+    { jobId: 'job_2', agentId: AGENT, threadId: '$a', kind: 'tool', tool: 'shell' },
+  ].map((job) => ({ ...job, status: 'running', startedAt: '' })) as BackgroundJob[];
+  function Probe() {
+    useJobLookups(roomOf({}), jobs, true);
+    return null;
+  }
+  act(() => root.render(<Probe />));
+  expect(subscribeRoom).not.toHaveBeenCalled();
+  expect(signals.subscribed).toBe(0);
+  subscribeRoom.mockRestore();
 });

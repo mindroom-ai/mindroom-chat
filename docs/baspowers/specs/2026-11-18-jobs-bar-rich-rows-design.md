@@ -71,6 +71,13 @@ Each ID costs about 50 bytes per job. That fits under the existing `_MAX_LISTED_
 - The usage reaches the frame sink through the existing child-observation path (`delegation/lifecycle.py`). There is no new Matrix event and no new timer. A meta change already triggers a snapshot.
 - Frames are encrypted in encrypted rooms and already go to the same members as the transcript, so cost and tool count need no extra privacy gate.
 
+## Known limits
+
+- While the job list is open and lists a tool job, each live reply frame re-reads that job's loaded conversation.
+- A row shows the run its job names, so a follow-up turn's details appear once the jobs state names it, up to a few seconds later.
+- A job is joined to its run by run ID alone; run IDs are unique per delegation.
+- A tool job that ends while the list is folded shows its time as of the list's next opening.
+
 ## Out of scope
 
 - A "Review" button for approvals: the pill plus Open (the run view shows its approval) cover it.
