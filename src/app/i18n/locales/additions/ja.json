@@ -919,6 +919,25 @@
       "showFor": "サブエージェントを表示: {{name}}",
       "withCount_other": "{{label}}、{{count}} 件がアクティブ",
       "resize": "サブエージェントパネルのサイズを変更"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "推論レベル",
+        "effortFor": "{{model}} の推論レベル",
+        "noEffortLevels": "推論レベルなし",
+        "defaultLevel": "デフォルト",
+        "levelIsDefault": "{{level}}、デフォルト",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "オフ",
+          "minimal": "最小",
+          "low": "低",
+          "medium": "中",
+          "high": "高",
+          "xhigh": "最高",
+          "max": "最大"
+        }
+      }
     }
   },
   "composer": {

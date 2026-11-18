@@ -513,6 +513,9 @@ class Stub:
             # The tail of the conversation as the model saw it, for debugging a scenario.
             "messages": [[m.get("role"), text_of(m.get("content"))[-600:]] for m in messages[-4:]],
         }
+        # The level a model with reasoning levels ran at, which the model picker's specs check.
+        if body.get("reasoning_effort") is not None:
+            entry["reasoning_effort"] = body["reasoning_effort"]
         if body.get("response_format"):
             schema = (body["response_format"].get("json_schema") or {}).get("schema") or {}
             step: tuple = ("text", json.dumps(schema_value(schema, schema.get("$defs", {}), person_text)))

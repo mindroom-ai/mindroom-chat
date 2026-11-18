@@ -936,6 +936,25 @@
       "withCount_one": "{{label}}, {{count}} actief",
       "withCount_other": "{{label}}, {{count}} actief",
       "resize": "Formaat van het subagentenpaneel wijzigen"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Inspanning",
+        "effortFor": "Inspanning voor {{model}}",
+        "noEffortLevels": "Geen inspanningsniveaus",
+        "defaultLevel": "Standaard",
+        "levelIsDefault": "{{level}}, standaard",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Uit",
+          "minimal": "Minimaal",
+          "low": "Laag",
+          "medium": "Gemiddeld",
+          "high": "Hoog",
+          "xhigh": "Extra hoog",
+          "max": "Maximaal"
+        }
+      }
     }
   },
   "composer": {

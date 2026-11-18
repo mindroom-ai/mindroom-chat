@@ -970,6 +970,25 @@
       "withCount_many": "{{label}}, активно: {{count}}",
       "withCount_other": "{{label}}, активно: {{count}}",
       "resize": "Изменить размер панели субагентов"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Усилие",
+        "effortFor": "Усилие для {{model}}",
+        "noEffortLevels": "Нет уровней усилия",
+        "defaultLevel": "По умолчанию",
+        "levelIsDefault": "{{level}}, по умолчанию",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Выкл.",
+          "minimal": "Минимальное",
+          "low": "Низкое",
+          "medium": "Среднее",
+          "high": "Высокое",
+          "xhigh": "Очень высокое",
+          "max": "Максимальное"
+        }
+      }
     }
   },
   "composer": {

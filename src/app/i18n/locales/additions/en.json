@@ -936,6 +936,25 @@
       "withCount_one": "{{label}}, {{count}} active",
       "withCount_other": "{{label}}, {{count}} active",
       "resize": "Resize the sub-agents panel"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Effort",
+        "effortFor": "Effort for {{model}}",
+        "noEffortLevels": "No effort levels",
+        "defaultLevel": "Default",
+        "levelIsDefault": "{{level}}, default",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Off",
+          "minimal": "Minimal",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "xhigh": "Extra high",
+          "max": "Max"
+        }
+      }
     }
   },
   "composer": {

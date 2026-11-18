@@ -936,6 +936,25 @@
       "withCount_one": "{{label}}, {{count}} etkin",
       "withCount_other": "{{label}}, {{count}} etkin",
       "resize": "Alt ajan panelini yeniden boyutlandır"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Çaba",
+        "effortFor": "{{model}} için çaba",
+        "noEffortLevels": "Çaba düzeyi yok",
+        "defaultLevel": "Varsayılan",
+        "levelIsDefault": "{{level}}, varsayılan",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Kapalı",
+          "minimal": "Minimum",
+          "low": "Düşük",
+          "medium": "Orta",
+          "high": "Yüksek",
+          "xhigh": "Çok yüksek",
+          "max": "Maksimum"
+        }
+      }
     }
   },
   "composer": {

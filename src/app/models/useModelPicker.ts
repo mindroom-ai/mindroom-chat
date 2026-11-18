@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getModelController, ModelPickerSnapshot } from './modelController';
+import type { ReasoningLevel } from './modelProtocol';
 
 export type ModelPickerState = ModelPickerSnapshot & {
   refresh: () => void;
   chooseRuntime: (runtimeId: string) => void;
-  selectModel: (modelKey: string) => void;
+  /** The model at `level`, or at its default level without one. */
+  selectModel: (modelKey: string, level?: ReasoningLevel) => void;
   resetToRoomDefault: () => void;
 };
 
@@ -34,7 +36,8 @@ export const useModelPicker = (room: Room, threadId: string | undefined): ModelP
     () => ({
       refresh: () => controller.refresh(room, threadId),
       chooseRuntime: (runtimeId: string) => controller.chooseRuntime(room, threadId, runtimeId),
-      selectModel: (key: string) => controller.selectModel(room, threadId, key),
+      selectModel: (key: string, level?: ReasoningLevel) =>
+        controller.selectModel(room, threadId, key, level),
       resetToRoomDefault: () => controller.resetToRoomDefault(room, threadId),
     }),
     [controller, room, threadId]

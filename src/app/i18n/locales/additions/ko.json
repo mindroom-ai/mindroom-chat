@@ -919,6 +919,25 @@
       "showFor": "하위 에이전트 표시: {{name}}",
       "withCount_other": "{{label}}, {{count}}개 활성",
       "resize": "하위 에이전트 패널 크기 조정"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "추론 수준",
+        "effortFor": "{{model}}의 추론 수준",
+        "noEffortLevels": "추론 수준 없음",
+        "defaultLevel": "기본값",
+        "levelIsDefault": "{{level}}, 기본값",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "끄기",
+          "minimal": "최소",
+          "low": "낮음",
+          "medium": "보통",
+          "high": "높음",
+          "xhigh": "매우 높음",
+          "max": "최대"
+        }
+      }
     }
   },
   "composer": {

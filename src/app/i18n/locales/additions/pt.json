@@ -953,6 +953,25 @@
       "withCount_many": "{{label}}, {{count}} ativos",
       "withCount_other": "{{label}}, {{count}} ativos",
       "resize": "Redimensionar o painel de subagentes"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Esforço",
+        "effortFor": "Esforço de {{model}}",
+        "noEffortLevels": "Sem níveis de esforço",
+        "defaultLevel": "Padrão",
+        "levelIsDefault": "{{level}}, padrão",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Desativado",
+          "minimal": "Mínimo",
+          "low": "Baixo",
+          "medium": "Médio",
+          "high": "Alto",
+          "xhigh": "Muito alto",
+          "max": "Máximo"
+        }
+      }
     }
   },
   "composer": {

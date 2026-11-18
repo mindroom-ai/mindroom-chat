@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { color, Text } from 'folds';
 import { ModelPicker } from '../../src/app/models/ModelPicker';
+import type { ModelCatalogEntry } from '../../src/app/models/modelProtocol';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/lib/hooks/useScreenSize';
 import { BottomSheet } from '../../src/app/ui/BottomSheet';
 import { InviteAutocompleteMenu } from '../../src/app/members/invite/InviteAutocompleteMenu';
@@ -9,6 +10,15 @@ import { AutocompleteMenu } from '../../src/app/editor/autocomplete/Autocomplete
 import { ImagePackView } from '../../src/app/emoji/packs/ImagePackView';
 import { TextViewer } from '../../src/app/messages/viewers/TextViewer';
 import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
+
+/** The reasoning levels of the first models; the others have none. */
+const FIXTURE_LEVELS: Array<Pick<ModelCatalogEntry, 'reasoning_levels' | 'reasoning_default'>> = [
+  { reasoning_levels: ['low', 'medium', 'high', 'xhigh'], reasoning_default: 'high' },
+  {
+    reasoning_levels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+    reasoning_default: 'medium',
+  },
+];
 
 /** Real menu components with deterministic data; no backend or external model calls. */
 export function DialogMenusGlass() {
@@ -53,7 +63,9 @@ export function DialogMenusGlass() {
               eligible: true,
               runtimes: [],
               override: null,
-              inherited: [],
+              reasoning: null,
+              // The room default runs the first model at a level, so its button shows the bars.
+              inherited: [{ entity: 'helper', model: 'model-1', reasoning: 'xhigh' }],
               loading: false,
               pending: false,
               canMutate: true,
@@ -62,10 +74,11 @@ export function DialogMenusGlass() {
                 id: `model-${index + 1}`,
                 provider: 'Local',
                 display_name: `Studio model ${String(index + 1).padStart(2, '0')}`,
+                ...(FIXTURE_LEVELS[index] ?? {}),
               })),
               refresh: () => undefined,
               chooseRuntime: () => undefined,
-              selectModel: setSelected,
+              selectModel: (key, level) => setSelected(level ? `${key}@${level}` : key),
               resetToRoomDefault: () => setSelected('default'),
             }}
           />

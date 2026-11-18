@@ -1054,6 +1054,114 @@ describe('model mutation acknowledgement', () => {
     await flush();
     expect(h.snapshot().override).toBeNull();
   });
+  describe('reasoning levels', () => {
+    const sol = {
+      key: 'sol',
+      display_name: 'Sol',
+      provider: 'codex',
+      id: 'gpt-sol',
+      reasoning_levels: ['low', 'medium', 'high', 'xhigh'],
+      reasoning_default: 'high',
+    };
+    const levelled = async (h: ReturnType<typeof setup>, selection: object) => {
+      h.controller.subscribe(h.room, '$root', () => {});
+      await flush();
+      h.response(h.request(), {
+        models: [{ key: 'fast', display_name: 'Quick', provider: 'openai', id: 'model' }, sol],
+        selection,
+      });
+      await flush();
+      await vi.advanceTimersByTimeAsync(12000);
+    };
+    const sent = (h: ReturnType<typeof setup>, call = 0) =>
+      h.send.mock.calls[call]![2] as unknown as Record<string, any>;
+
+    it('shows the level of the override and of each inherited model', async () => {
+      const h = setup();
+      await levelled(h, {
+        override: 'sol',
+        reasoning: 'xhigh',
+        inherited: [{ entity: 'helper', model: 'sol', reasoning: 'low' }],
+      });
+      expect(h.snapshot().override).toBe('sol');
+      expect(h.snapshot().reasoning).toBe('xhigh');
+      expect(h.snapshot().inherited).toEqual([
+        { entity: 'helper', model: 'sol', reasoning: 'low' },
+      ]);
+    });
+
+    it('sends the model at a level as one reference and applies its echo', async () => {
+      const h = setup();
+      await levelled(h, { override: null, inherited: [{ entity: 'helper', model: 'sol' }] });
+      h.controller.selectModel(h.room, '$root', 'sol', 'xhigh');
+      await flush();
+      expect(h.send).toHaveBeenCalledTimes(1);
+      expect(sent(h).body).toBe('!model sol@xhigh');
+      expect(sent(h)['io.mindroom.model_selection']).toEqual({
+        version: 1,
+        runtime_user_id: router,
+        runtime_device_id: 'DEVICE',
+        operation: 'set',
+        model: 'sol@xhigh',
+      });
+      // A result for the plain key answers another command.
+      h.ack({ model: 'sol', override: 'sol' });
+      await flush();
+      expect(h.snapshot().pending).toBe(true);
+      h.ack({ model: 'sol@xhigh', override: 'sol@xhigh' });
+      await flush();
+      expect(h.snapshot()).toMatchObject({ pending: false, override: 'sol', reasoning: 'xhigh' });
+    });
+
+    it('names the default level too, since a stale catalog may name another default', async () => {
+      const h = setup();
+      await levelled(h, { override: 'sol', reasoning: 'low', inherited: [] });
+      h.controller.selectModel(h.room, '$root', 'sol', 'high');
+      await flush();
+      expect(sent(h).body).toBe('!model sol@high');
+      expect(sent(h)['io.mindroom.model_selection'].model).toBe('sol@high');
+      h.ack({ model: 'sol', override: 'sol' });
+      await flush();
+      expect(h.snapshot().pending).toBe(true);
+      h.ack({ model: 'sol@high', override: 'sol@high' });
+      await flush();
+      expect(h.snapshot()).toMatchObject({ pending: false, override: 'sol', reasoning: 'high' });
+    });
+
+    it('sends the plain key for a model without a level, which clears the level', async () => {
+      const h = setup();
+      await levelled(h, { override: 'sol', reasoning: 'low', inherited: [] });
+      h.controller.selectModel(h.room, '$root', 'sol');
+      await flush();
+      expect(sent(h).body).toBe('!model sol');
+      h.ack({ model: 'sol', override: 'sol' });
+      await flush();
+      expect(h.snapshot()).toMatchObject({ override: 'sol', reasoning: null });
+    });
+
+    it('refuses a level the model does not offer, and any level on a model without levels', async () => {
+      const h = setup();
+      await levelled(h, { override: null, inherited: [] });
+      h.controller.selectModel(h.room, '$root', 'sol', 'max');
+      h.controller.selectModel(h.room, '$root', 'fast', 'high');
+      await flush();
+      expect(h.send).not.toHaveBeenCalled();
+      expect(h.snapshot().pending).toBe(false);
+    });
+
+    it('never sends a reference to a backend whose catalog has no levels', async () => {
+      const h = setup();
+      await h.discover();
+      expect(h.snapshot().models.some((m) => m.reasoning_levels)).toBe(false);
+      h.controller.selectModel(h.room, '$root', 'fast', 'high');
+      await flush();
+      expect(h.send).not.toHaveBeenCalled();
+      h.controller.selectModel(h.room, '$root', 'fast');
+      await flush();
+      expect(sent(h).body).toBe('!model fast');
+      expect(h.snapshot().reasoning).toBeNull();
+    });
+  });
   it('reports rejection without changing confirmed selection', async () => {
     const h = setup();
     await h.discover();
