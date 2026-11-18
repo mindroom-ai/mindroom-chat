@@ -18,12 +18,20 @@ const UNFINISHED = ['failed', 'timeout', 'interrupted'];
 // The trigger hovered, focused from the keyboard or with its card open.
 const ACTIVE = ':is(:hover, :focus-visible, [aria-expanded="true"])';
 
+/**
+ * A state's color on the reply, a fifth of the way toward its text color: Primary.Main and
+ * Warning.Main alone fall under AA contrast for 12px text on some palettes (Orange, Silver), on the
+ * reply's surface or its bubble.
+ */
+const towardText = (stateColor: string) =>
+  `color-mix(in srgb, ${stateColor} 80%, ${color.Surface.OnContainer})`;
+
 /** `scope` with each state a compaction ended in without a summary, around `inner`. */
 const unfinished = (scope: string, inner = '') =>
   UNFINISHED.map((state) => `${scope}[data-state="${state}"]${inner}`).join(', ');
 
 // One quiet row at the spot of the reply where the history was compacted, with a hairline to the
-// row's end: muted at rest like the AI title marker, colored while it runs or when it failed.
+// row's end: in the text color at rest, colored while it runs or when it failed.
 export const Seam = style({
   position: 'relative',
   display: 'flex',
@@ -48,25 +56,22 @@ export const Trigger = style([
     marginInlineStart: toRem(-6),
     background: 'transparent',
     color: color.Surface.OnContainer,
-    // folds' muted text level, which keeps 12px text above WCAG AA contrast.
-    opacity: config.opacity.P300,
     font: 'inherit',
     fontSize: toRem(12),
     lineHeight: toRem(20),
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'start',
     cursor: 'pointer',
-    transition: transition(['opacity', 'color', 'background-color']),
+    transition: transition(['color', 'background-color']),
     selectors: {
       // On a container its OnContainer text, which keeps AA contrast on every palette.
       [`&${ACTIVE}`]: {
-        opacity: 1,
         color: color.Primary.OnContainer,
         background: color.Primary.Container,
       },
-      [`${Seam}[data-state="running"] &`]: { opacity: 1, color: color.Primary.Main },
+      [`${Seam}[data-state="running"] &`]: { color: towardText(color.Primary.Main) },
       [`${Seam}[data-state="running"] &${ACTIVE}`]: { color: color.Primary.OnContainer },
-      [unfinished(Seam, ' &')]: { opacity: 1, color: color.Warning.Main },
+      [unfinished(Seam, ' &')]: { color: towardText(color.Warning.Main) },
       [unfinished(Seam, ` &${ACTIVE}`)]: {
         color: color.Warning.OnContainer,
         background: color.Warning.Container,

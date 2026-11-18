@@ -218,22 +218,38 @@ const expectSettled = async (target: Locator) => {
     .toBe(true);
 };
 
-/** The WCAG contrast of a row's text on its own (opaque) background, once its transition ends. */
+/**
+ * The WCAG contrast of a row's text, at its opacity, on the first opaque background behind it,
+ * once its transition ends.
+ */
 const expectReadable = (button: Locator) =>
   expect
     .poll(() =>
       button.evaluate((element) => {
-        const luminance = (value: string) => {
-          const [r, g, b] = (value.match(/[\d.]+/g) ?? []).map((part) => {
-            const v = Number(part) / 255;
+        // `rgb(…)`/`rgba(…)` in 0-255, or `color(srgb …)` (a color-mix) in 0-1.
+        const rgba = (value: string) => {
+          const parts = (value.match(/[\d.]+/g) ?? []).map(Number);
+          const scale = value.startsWith('color(') ? 255 : 1;
+          return [parts[0]! * scale, parts[1]! * scale, parts[2]! * scale, parts[3] ?? 1];
+        };
+        let behind: Element | null = element;
+        let bg = rgba(getComputedStyle(element).backgroundColor);
+        while (bg[3] === 0 && behind?.parentElement) {
+          behind = behind.parentElement;
+          bg = rgba(getComputedStyle(behind).backgroundColor);
+        }
+        const style = getComputedStyle(element);
+        const fg = rgba(style.color);
+        const alpha = fg[3]! * Number(style.opacity);
+        const shown = [0, 1, 2].map((i) => fg[i]! * alpha + bg[i]! * (1 - alpha));
+        const luminance = (channels: number[]) => {
+          const [r, g, b] = channels.map((channel) => {
+            const v = channel / 255;
             return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
           });
           return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
         };
-        const style = getComputedStyle(element);
-        const [high, low] = [luminance(style.color), luminance(style.backgroundColor)].sort(
-          (a, b) => b - a
-        );
+        const [high, low] = [luminance(shown), luminance(bg)].sort((x, y) => y - x);
         return (high! + 0.05) / (low! + 0.05);
       })
     )
@@ -492,15 +508,20 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(card).toContainText('before the reply');
   await page.mouse.move(0, 0);
 
-  // A row's text stays readable on its highlight in the dark theme too, finished or running.
-  await applySettings(page, 'dark-theme', true);
-  await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
-  for (const row of [seamsIn(replyWith(page, CHECKING)), seamsIn(pending)]) {
-    await centre(page, row);
-    await row.getByRole('button').hover();
-    await expect(card).toBeVisible();
-    await expectReadable(row.getByRole('button'));
-    await page.mouse.move(0, 0);
+  // A finished, a running and a failed row stay readable at rest and highlighted, in the themes
+  // where their colors come closest to their background.
+  for (const themeId of ['catppuccinLatte-theme', 'silver-theme', 'orange-theme', 'dark-theme']) {
+    await applySettings(page, themeId, true);
+    await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
+    const rows = [CHECKING, STATES].map((text) => seamsIn(replyWith(page, text)).first());
+    for (const row of [...rows, seamsIn(pending)]) {
+      await centre(page, row);
+      await expectReadable(row.getByRole('button'));
+      await row.getByRole('button').hover();
+      await expect(card).toBeVisible();
+      await expectReadable(row.getByRole('button'));
+      await page.mouse.move(0, 0);
+    }
   }
 
   if (!SCREENSHOT) return;
