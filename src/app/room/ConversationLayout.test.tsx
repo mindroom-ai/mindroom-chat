@@ -79,17 +79,23 @@ it('draws the header, timeline, dock and footer of the room', () => {
   expect(screen.getByTestId('timeline')).toBeTruthy();
   expect(seen.jobs).toContain(null);
   expect(screen.queryByTestId('approval-queue')).toBeNull();
-  // The typing strip shares the dock's row with the jobs bar, first, so it can sit beside it.
+  // The typing strip shares the dock's bars with the jobs bar, first, so it can sit beside it;
+  // who has read the latest message ends the dock's row.
+  const bars = screen.getByTestId('jobs').parentElement;
+  expect([...(bars?.children ?? [])].map((child) => child.getAttribute('data-testid'))).toEqual([
+    'typing',
+    'jobs',
+  ]);
+  expect(bars?.className).toBe('room-dock-bars');
   expect(
-    [...(screen.getByTestId('jobs').parentElement?.children ?? [])].map((child) =>
-      child.getAttribute('data-testid')
+    [...(bars?.parentElement?.children ?? [])].map(
+      (child) => child.getAttribute('data-testid') ?? child.className
     )
-  ).toEqual(['typing', 'jobs']);
+  ).toEqual(['room-dock-bars', 'following']);
   const footer = document.querySelector('[data-room-footer="true"]');
   expect([...(footer?.children ?? [])].map((child) => child.getAttribute('data-testid'))).toEqual([
     'notice',
     'composer',
-    'following',
   ]);
 });
 

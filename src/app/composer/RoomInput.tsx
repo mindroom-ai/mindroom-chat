@@ -97,6 +97,7 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
@@ -635,6 +636,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       setEmojiAnchor(anchor);
     };
     const toggleFormatting = () => setFormattingOpen((open) => !open);
+    const recorder = voiceActive ? voice.renderRecorder(() => void handleSend()) : null;
+    // Two rows, text over controls; a phone shows one row until the user writes (`isComposerExpanded`).
+    const focus = useComposerFocus();
+    const expanded = isComposerExpanded({
+      phone,
+      focused: focus.focused,
+      pressing: focus.pressing,
+      empty: noText,
+      busy:
+        !!replyDraft ||
+        !!attachments.board ||
+        !!recorder ||
+        emojiAnchor !== undefined ||
+        !!autocompleteQuery ||
+        formattingOpen,
+    });
 
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
@@ -681,7 +698,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ));
 
     return (
-      <div ref={ref} style={COMPOSER_STYLE}>
+      <div
+        ref={ref}
+        style={COMPOSER_STYLE}
+        data-composer-expanded={expanded}
+        onFocus={focus.handlers.onFocus}
+        onBlur={focus.handlers.onBlur}
+        // Only a press on the expanded composer holds it open (`isComposerExpanded`).
+        onPointerDown={phone && expanded ? focus.handlers.onPointerDown : undefined}
+      >
         {autocomplete}
         {attachments.board}
         {/* After the staged files anchor, so that panel floats above the drop hint, not over it. */}
@@ -727,10 +752,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             onDismiss={attachments.dismissLostPastes}
           />
         )}
-        {voiceActive && voice.renderRecorder(() => void handleSend())}
+        {recorder}
         <CustomEditor
           editor={editor}
           editableName="RoomInput"
+          layout={expanded ? 'stacked' : 'row'}
           styleMarkdown={isMarkdown}
           linkSchemes={linkSchemes}
           markdownCommands

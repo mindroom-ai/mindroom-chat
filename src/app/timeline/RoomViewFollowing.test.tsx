@@ -8,7 +8,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { RoomViewFollowing } from './RoomViewFollowing';
 
 vi.mock('./RoomViewFollowing.css', () => ({
-  FollowingStrip: 'following-strip',
+  Following: 'following',
   FollowingButton: 'following-button',
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
@@ -91,6 +91,8 @@ const render = (room: FakeRoom, threadId?: string) => {
 };
 
 const strip = (view: HTMLElement) => view.querySelector('[data-room-following="true"]');
+/** The names it shows; none while it renders nothing. */
+const names = (view: HTMLElement) => strip(view)?.textContent ?? '';
 
 /** Emits as the SDK does, then lets the row read once, as it does after the SDK's synchronous work. */
 const emitting = async (emit: () => void) => {
@@ -99,19 +101,18 @@ const emitting = async (emit: () => void) => {
   });
 };
 
-it('keeps an empty row while nobody else has read the latest message', () => {
+it('shows nothing while nobody else has read the latest message', () => {
   const room = makeRoom();
   // The user's own receipt and the sender's do not count.
   room.read.add('@me:example.org').add('@sam:example.org');
   const view = render(room);
-  expect(strip(view)).not.toBeNull();
-  expect(strip(view)?.textContent).toBe('');
+  expect(strip(view)).toBeNull();
 });
 
 it('names a reader as their receipt arrives and lists the readers on press', async () => {
   const room = makeRoom();
   const view = render(room);
-  expect(strip(view)?.textContent).toBe('');
+  expect(names(view)).toBe('');
 
   room.read.add('@avery:example.org');
   await emitting(() => room.emit('Room.receipt'));
@@ -122,23 +123,23 @@ it('names a reader as their receipt arrives and lists the readers on press', asy
   expect(view.querySelector('[data-readers-of="$latest"]')?.textContent).toBe('@avery:example.org');
 });
 
-it('follows the newest event, so a new message empties the row again', async () => {
+it('follows the newest event, so a new message hides the names again', async () => {
   const room = makeRoom();
   room.read.add('@avery:example.org');
   const view = render(room);
-  expect(strip(view)?.textContent).toContain('Avery');
+  expect(names(view)).toContain('Avery');
 
   room.latest = { id: '$newer', sender: '@sam:example.org' };
   room.read.clear();
   await emitting(() => room.emit('Room.timeline'));
-  expect(strip(view)?.textContent).toBe('');
+  expect(names(view)).toBe('');
 });
 
 it('stays empty while the user keeps their own activity private', () => {
   settings.hideActivity = true;
   const room = makeRoom();
   room.read.add('@avery:example.org');
-  expect(strip(render(room))?.textContent).toBe('');
+  expect(names(render(room))).toBe('');
 });
 
 it('does not draw the row again for events that leave the same readers', async () => {
@@ -176,7 +177,7 @@ it('reads once for a page of older history, which brings an event for each of it
     for (let event = 0; event < 50; event += 1) older();
   });
   expect(hasUserReadEvent.mock.calls.length - asked).toBe(askedForOneRead);
-  expect(strip(view)?.textContent).toContain('Avery');
+  expect(names(view)).toContain('Avery');
 });
 
 it('asks no receipts for the events and receipts of threads the room view does not show', async () => {
@@ -221,7 +222,7 @@ it('asks no receipts for the events and receipts of threads the room view does n
   await emitting(() =>
     room.emit('Room.timeline', {}, room, false, false, { timeline: room.liveTimeline })
   );
-  expect(strip(view)?.textContent).toBe('');
+  expect(names(view)).toBe('');
 });
 
 it('names a member the SDK announces before it sets their membership', async () => {
@@ -229,7 +230,7 @@ it('names a member the SDK announces before it sets their membership', async () 
   room.joined.delete('@avery:example.org');
   room.read.add('@avery:example.org');
   const view = render(room);
-  expect(strip(view)?.textContent).toBe('');
+  expect(names(view)).toBe('');
 
   // Members load lazily. The SDK emits `RoomState.newMember` for a member it did not know, then
   // sets their membership.
@@ -237,7 +238,7 @@ it('names a member the SDK announces before it sets their membership', async () 
     room.emit('RoomState.newMember');
     room.joined.add('@avery:example.org');
   });
-  expect(strip(view)?.textContent).toContain('Avery');
+  expect(names(view)).toContain('Avery');
 });
 
 it('in a thread, reads once for a burst of updates, and again for each later one', async () => {
@@ -249,7 +250,7 @@ it('in a thread, reads once for a burst of updates, and again for each later one
     'hasUserReadEvent'
   );
   const view = render(room, thread.id);
-  expect(strip(view)?.textContent).toBe('');
+  expect(names(view)).toBe('');
 
   // The SDK adds the thread's first page in one go, with an update for each of its events.
   let asked = hasUserReadEvent.mock.calls.length;
@@ -265,5 +266,5 @@ it('in a thread, reads once for a burst of updates, and again for each later one
   // receipt is found again after a redaction moved it.
   room.read.add('@avery:example.org');
   await emitting(() => room.emit('Thread.update', thread));
-  expect(strip(view)?.textContent).toContain('Avery');
+  expect(names(view)).toContain('Avery');
 });
