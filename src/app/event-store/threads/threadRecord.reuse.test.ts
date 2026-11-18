@@ -220,14 +220,21 @@ describe('buildThreadRecordMap reuse', () => {
     expect(third.get('$a')).not.toBe(second.get('$a'));
   });
 
-  it('builds every record after the reader opened a root on this device', () => {
+  it('builds only the record of a root the reader opened on this device', () => {
     const first = build();
 
     rememberSeenThreadRoot(ME, ROOM_ID, roots.get('$b')!, 0);
     const second = build(first);
 
     expect(unread(second)).toEqual([true, false]);
-    expect(second.get('$a')).not.toBe(first.get('$a'));
+    expect(second.get('$a')).toBe(first.get('$a'));
+
+    // Every root the device knew opened is forgotten at once: the record of each that was.
+    clearSeenThreadRoots(ME);
+    const third = build(second);
+
+    expect(unread(third)).toEqual([true, true]);
+    expect(third.get('$a')).toBe(first.get('$a'));
   });
 
   it("builds every record once the room's thread list is in", () => {

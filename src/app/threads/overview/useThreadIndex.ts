@@ -642,10 +642,14 @@ export const useThreadIndex = ({
     overviewRefreshCounter,
     overviewChanges,
   ]);
-  // The page keeps the records of the build that shows, never those of a render left unshown.
+  // The page keeps the records of the build that shows, never those of a render left unshown,
+  // and none of a build without records: the room's listener would go on for nothing to keep.
   useLayoutEffect(() => {
     const keeper = threadRecordKeeperOf(threadRecordKeeper, room);
-    if (keeper) keeper.maps = compactViewRequested && !threadId ? baseRecordMaps : undefined;
+    if (!keeper) return;
+    const records =
+      baseRecordMaps.normalThreadRecordMap.size + baseRecordMaps.compactThreadRecordMap.size;
+    keeper.maps = compactViewRequested && !threadId && records > 0 ? baseRecordMaps : undefined;
   }, [baseRecordMaps, threadRecordKeeper, room, compactViewRequested, threadId]);
   // Base records read SDK timelines. Job-only updates must only overlay their two flags.
   // Weak keys retain unchanged overlays without retaining old record/history snapshots.

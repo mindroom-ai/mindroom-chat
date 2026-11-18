@@ -32,7 +32,7 @@ import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilter';
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
 import { parseThreadSnooze } from './threadSnooze';
-import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
+import { isSeenThreadRoot } from '../../matrix/seenThreadRoots';
 import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
@@ -104,6 +104,11 @@ export type ThreadRecordChanges = {
    * be kept.
    */
   listened: boolean;
+  /**
+   * Counts the threads the listener heard created, updated, deleted or replied to: the room has
+   * other threads, or the same in another order, than a list read before (`useRoomThreadList`).
+   */
+  threadList: number;
 };
 
 export const createThreadRecordChanges = (): ThreadRecordChanges => ({
@@ -111,6 +116,7 @@ export const createThreadRecordChanges = (): ThreadRecordChanges => ({
   room: 0,
   threads: new Map(),
   listened: false,
+  threadList: 0,
 });
 
 /** Marks a change of one thread, or without `threadRootId` one that any thread's record may show. */
@@ -139,7 +145,8 @@ const unchangedSince = (
 /**
  * Lets a build keep the records of the build before it (`previous`) for the threads that did not
  * change: no mark in `changes` for the thread or the room since its record was built, the same
- * values given for it, and the same answers of the room that every record reads (`roomSources`).
+ * values given for it, the same answers of the room that every record reads (`roomSources`), and
+ * its root opened on this device or not as before (`rootSeen`).
  */
 export type ThreadRecordReuse = {
   previous: ReadonlyMap<string, ThreadRecord> | undefined;
@@ -150,6 +157,11 @@ type ThreadRecordSources = {
   options: BuildThreadRecordOptions;
   builtAt: number;
   roomSources: readonly unknown[];
+  /**
+   * Whether the reader opened the root's thread on this device (`isSeenThreadRoot`), which no
+   * event tells of. A record reads it of its own root only (`isMainTimelineMessageUnread`).
+   */
+  rootSeen: boolean;
 };
 
 /** What each kept record was built from. */
@@ -157,13 +169,11 @@ const recordSources = new WeakMap<ThreadRecord, ThreadRecordSources>();
 
 /**
  * What every record of a room reads that changes without an event of its thread: whether the
- * room's thread list is in (it decides whose reply count is used), the roots opened on this
- * device, and the receipt events a room came to hold or lost (a receipt reads up to its event's
- * time, or to when the server took it).
+ * room's thread list is in (it decides whose reply count is used), and the receipt events a room
+ * came to hold or lost (a receipt reads up to its event's time, or to when the server took it).
  */
 const getRoomSources = (room: Room): readonly unknown[] => [
   roomThreadListIsListed(room),
-  seenThreadRootsVersion(),
   receiptEventsVersion(room),
 ];
 
@@ -534,6 +544,8 @@ export const buildThreadRecordMap = ({
       cacheCoverage: cacheCoverageMap?.get(threadRootId),
       absoluteIndex: absoluteIndexMap?.get(threadRootId),
     };
+    const rootSeen =
+      !!reuse && !!currentUserId && isSeenThreadRoot(currentUserId, room.roomId, threadRootId);
     const kept = reuse?.previous?.get(threadRootId);
     const keptFrom = kept && recordSources.get(kept);
     if (
@@ -542,6 +554,7 @@ export const buildThreadRecordMap = ({
       keptFrom &&
       unchangedSince(reuse.changes, threadRootId, keptFrom.builtAt) &&
       sameOption(keptFrom.roomSources, roomSources) &&
+      keptFrom.rootSeen === rootSeen &&
       sameOptions(keptFrom.options, options)
     ) {
       // The room's threads trade places with every reply; a thread that only moved keeps its
@@ -556,7 +569,7 @@ export const buildThreadRecordMap = ({
       return;
     }
     const record = buildThreadRecord(options);
-    if (reuse) recordSources.set(record, { options, builtAt, roomSources });
+    if (reuse) recordSources.set(record, { options, builtAt, roomSources, rootSeen });
     records.set(threadRootId, record);
   });
 
@@ -577,8 +590,9 @@ const unreadSources = new WeakMap<ReadonlyMap<string, boolean>, ThreadUnreadSour
  * Whether each of `threads` is unread for `userId` (`getThreadUnread`), by root. With `reuse`, the
  * marks of `previous` are kept as `buildThreadRecordMap` keeps records: for the same thread, with
  * no mark in `changes` for it or the room since, for the same reader and the same answers of the
- * room. Only while the listener hears the room (`listened`). A build that changes no mark gives
- * `previous` itself.
+ * room. Only while the listener hears the room (`listened`). A thread's mark reads its replies and
+ * receipts, not its root, so not the roots opened on this device. A build that changes no mark
+ * gives `previous` itself.
  */
 export const buildThreadUnreadMap = (
   room: Room,

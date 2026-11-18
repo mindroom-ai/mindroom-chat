@@ -181,7 +181,11 @@ const listenForThreadRecordChanges = (
     if (held) markEvent(held);
     else mark(messageId);
   });
-  const handleThread = (thread: Thread | undefined) => mark(thread?.id);
+  // The room's thread list reads the room's threads again with this count (`useRoomThreadList`).
+  const handleThread = (thread: Thread | undefined) => {
+    changes.threadList += 1;
+    mark(thread?.id);
+  };
 
   // The events of a batch decrypt one by one: they are marked at once and counted once.
   let decryptedBump: ReturnType<typeof setTimeout> | undefined;

@@ -1,4 +1,4 @@
-import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   loadRoomThreads,
@@ -76,7 +76,9 @@ const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
 /**
  * The room's threads, unread first and then by activity, and their unread marks.
  * `overviewChanges` and `overviewRefreshCounter` are the room's (`useThreadOverviewRefreshCounter`):
- * each count checks the marks of the threads it may have changed (`buildThreadUnreadMap`).
+ * each count checks the marks of the threads it may have changed (`buildThreadUnreadMap`), and
+ * reads the room's threads again once a thread was created, updated, deleted or replied to since
+ * (`ThreadRecordChanges.threadList`), not for a receipt.
  */
 export const useRoomThreadList = (
   room: Room,
@@ -258,30 +260,15 @@ export const useRoomThreadList = (
     };
   }, [enabled, loadThreads]);
 
-  useEffect(() => {
-    if (!enabled) return undefined;
-
-    const handleThreadUpdate = () => {
-      setVersion((current) => current + 1);
-    };
-
-    room.on(ThreadEvent.New, handleThreadUpdate);
-    room.on(ThreadEvent.Update, handleThreadUpdate);
-    room.on(ThreadEvent.NewReply, handleThreadUpdate);
-    room.on(ThreadEvent.Delete, handleThreadUpdate);
-
-    return () => {
-      room.removeListener(ThreadEvent.New, handleThreadUpdate);
-      room.removeListener(ThreadEvent.Update, handleThreadUpdate);
-      room.removeListener(ThreadEvent.NewReply, handleThreadUpdate);
-      room.removeListener(ThreadEvent.Delete, handleThreadUpdate);
-    };
-  }, [enabled, room]);
-
+  // The room's listener hears each thread that is created, updated, deleted or replied to, and
+  // counts it with the count that renders this: no listener of this list's own, which would hear
+  // the room later than that one and miss a thread in between.
+  const heardThreadList = overviewChanges.threadList;
   const rawThreads = useMemo(() => {
     void version;
+    void heardThreadList;
     return room.getThreads();
-  }, [room, version]);
+  }, [room, version, heardThreadList]);
   const userId = mx.getUserId() ?? '';
   // The marks of the last build. A count checks the threads it marked (a reply, the reader's
   // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.
@@ -304,8 +291,9 @@ export const useRoomThreadList = (
   );
   const fullyLoaded = useMemo(() => {
     void version;
+    void heardThreadList;
     return roomThreadListIsComplete(room);
-  }, [room, version]);
+  }, [room, version, heardThreadList]);
 
   return {
     threads,

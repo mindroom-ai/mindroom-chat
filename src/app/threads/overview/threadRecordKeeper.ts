@@ -16,13 +16,13 @@ import type { ThreadIndexRecordMaps } from './threadIndexRecords';
  * of its first list until the page lets go of the room. While a list shows, it also counts what
  * that list may show. While none shows it only marks, and only the threads of the records it
  * keeps and the whole room: it builds, renders and fetches nothing and updates no view. The list
- * keeps here the records of the build it committed, and only while Compact.
+ * keeps here the records of the build it committed, only while Compact, and only when it has any.
  */
 export type ThreadRecordKeeper = {
   readonly room: Room;
   /** The marks of the room's list, from one mount of the list to the next. */
   readonly changes: ThreadRecordChanges;
-  /** The records of the list's last committed build; undefined after one outside Compact. */
+  /** The records of the list's last committed build; undefined outside Compact or without any. */
   maps: ThreadIndexRecordMaps | undefined;
   /** Counts a change the list that shows may show; undefined while no list shows. */
   count: (() => void) | undefined;
