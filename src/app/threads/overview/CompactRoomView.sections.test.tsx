@@ -353,6 +353,25 @@ describe('the Compact room in sections', () => {
       expect(rows()).toEqual(['#working 1', '#needsYou 1', '$b', '#done 1']);
     });
 
+    it('folds a held-open section stored open with one click on its header', () => {
+      const release = holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+
+      act(() => {
+        fireEvent.click(header('needsYou'));
+      });
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+    });
+
     it('folds the held-open section from its header at once, and keeps it folded after', () => {
       localStorage.setItem(
         `compactRoomSections:${ME}`,

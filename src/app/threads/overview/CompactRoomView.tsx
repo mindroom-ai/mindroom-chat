@@ -357,11 +357,11 @@ export function CompactRoomView({
     [heldOpen, sectionsChoice.folded, soleSection]
   );
   const toggleFold = (id: ThreadWorkflowBucket) => {
-    // A section held open shows its stored fold again; the stored choice already says folded.
-    if (id === heldOpen && sectionsChoice.folded.includes(id)) {
+    // A section held open shows open, so its header folds it, stored as folded once.
+    if (id === heldOpen) {
       heldOpenRef.current = undefined;
       showFolds();
-      return;
+      if (sectionsChoice.folded.includes(id)) return;
     }
     updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
   };
