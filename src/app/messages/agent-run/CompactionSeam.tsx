@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   type FocusEvent,
-  type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -329,12 +328,15 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   useEffect(() => {
     if (!isOpen) return undefined;
     const close = () => setOpen(undefined);
-    const onKeyDown = (evt: globalThis.KeyboardEvent) => {
+    const onKeyDown = (evt: KeyboardEvent) => {
+      const inCard = !!cardRef.current?.contains(document.activeElement);
+      // The card lives in the body: Tab in it goes on from the row, where it opened.
+      if (inCard) tabFromCardToOpener(evt, triggerRef.current);
       if (evt.key !== 'Escape') return;
       // Focus in the card would fall to the page once it is gone, so it goes back to the row, and
       // the room's Escape (focus the composer), which skips a key whose default was prevented,
       // must not take it from there. With focus elsewhere that Escape still runs.
-      if (cardRef.current?.contains(document.activeElement)) {
+      if (inCard) {
         evt.preventDefault();
         triggerRef.current?.focus();
       }
@@ -459,7 +461,6 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             onPointerLeave={leaveHover}
             onFocus={pin}
             onBlur={onFocusLeave}
-            onKeyDown={(evt: KeyboardEvent) => tabFromCardToOpener(evt, triggerRef.current)}
           >
             <div className={css.Head}>
               <Icon className={css.HeadIcon} size={ICON_SIZE} aria-hidden />
