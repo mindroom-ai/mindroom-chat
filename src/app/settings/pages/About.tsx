@@ -27,7 +27,11 @@ import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import { isNativeIOS } from '../../native/nativeSso';
 import { MacAppIcon } from '../../native/MacAppIcon';
-import { MAC_APP_BREW_COMMAND, MAC_APP_DOWNLOAD_URL, useOffersMacApp } from '../../native/macApp';
+import {
+  MAC_APP_BREW_COMMAND,
+  useMacAppDownloadUrl,
+  useOffersMacApp,
+} from '../../native/macApp';
 import { saveFile } from '../../native/nativeFileSave';
 import { getFlightRecorderStatus } from '../../diagnostics/flightRecorder';
 import {
@@ -308,6 +312,7 @@ function TourSetting({ onStart }: { onStart: () => void }) {
 function MacAppSetting() {
   const { t } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const downloadUrl = useMacAppDownloadUrl();
   // Undefined until a copy was tried; copyToClipboard resolves false when every clipboard failed.
   const [copied, setCopied] = useState<boolean>();
   const copyStatus =
@@ -325,7 +330,7 @@ function MacAppSetting() {
   const download = (
     <Button
       as="a"
-      href={MAC_APP_DOWNLOAD_URL}
+      href={downloadUrl}
       target="_blank"
       rel="noreferrer noopener"
       size="300"
