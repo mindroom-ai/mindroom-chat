@@ -1,11 +1,6 @@
-import { useCallback, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
-import {
-  isVisibleThreadReplyEvent,
-  isVisibleThreadReplyEventType,
-} from './threadUtils';
-import { useThreadEventRefresh } from './useThreadEventRefresh';
+import { isVisibleThreadReplyEvent, isVisibleThreadReplyEventType } from './threadUtils';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
 import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 import { isRecord } from '../../lib/isRecord';
@@ -34,7 +29,11 @@ const getBundledThreadLatestEventTs = (rootEvent: MatrixEvent | undefined): numb
     rootEvent?.getUnsigned()?.['m.relations']?.['m.thread']?.latest_event;
 
   if (!isRecord(latestEvent)) return undefined;
-  if (!isVisibleThreadReplyEventType(typeof latestEvent.type === 'string' ? latestEvent.type : undefined)) {
+  if (
+    !isVisibleThreadReplyEventType(
+      typeof latestEvent.type === 'string' ? latestEvent.type : undefined
+    )
+  ) {
     return undefined;
   }
 
@@ -52,64 +51,20 @@ const getBundledThreadLatestEventTs = (rootEvent: MatrixEvent | undefined): numb
   return Math.max(latestEventTs, latestEditTs);
 };
 
-const getThreadActivityEvents = (
+export const getThreadLastActivityTs = (
   room: Room | undefined,
   threadRootId: string | undefined
-): { rootEvent: MatrixEvent | undefined; trackedEvents: MatrixEvent[] } => {
-  if (!room || !threadRootId) {
-    return {
-      rootEvent: undefined,
-      trackedEvents: [],
-    };
-  }
-
+): number | undefined => {
+  if (!room || !threadRootId) return undefined;
   const thread = room.getThread(threadRootId);
   const rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId);
-  const trackedEvents: MatrixEvent[] = [];
-  const trackedEventIds = new Set<string>();
-
-  const addTrackedEvent = (mEvent: MatrixEvent | null | undefined) => {
-    if (mEvent == null) return;
-
-    const eventId = mEvent.getId();
-    if (eventId) {
-      if (trackedEventIds.has(eventId)) return;
-      trackedEventIds.add(eventId);
-    } else if (trackedEvents.includes(mEvent)) {
-      return;
-    }
-
-    trackedEvents.push(mEvent);
-  };
-
-  getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT)
-    .filter(isVisibleThreadReplyEvent)
-    .forEach(addTrackedEvent);
-  const lastReply = thread?.lastReply?.() ?? null;
-  if (lastReply && isVisibleThreadReplyEvent(lastReply)) {
-    addTrackedEvent(lastReply);
-  }
-  if (thread?.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)) {
-    addTrackedEvent(thread.replyToEvent);
-  }
-  addTrackedEvent(rootEvent);
-
-  return {
-    rootEvent,
-    trackedEvents,
-  };
-};
-
-type ThreadLastActivitySnapshot = {
-  activityTs: number | undefined;
-  trackedEvents: MatrixEvent[];
-};
-
-const getThreadLastActivitySnapshot = (
-  room: Room | undefined,
-  threadRootId: string | undefined
-): ThreadLastActivitySnapshot => {
-  const { rootEvent, trackedEvents } = getThreadActivityEvents(room, threadRootId);
+  // The replies of the loaded tail, the newest one the thread knows and the one its summary names.
+  const replies = [
+    ...getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT),
+    thread?.lastReply?.(),
+    thread?.replyToEvent,
+  ].filter((mEvent): mEvent is MatrixEvent => !!mEvent && isVisibleThreadReplyEvent(mEvent));
+  const trackedEvents = [...replies, rootEvent];
   const liveActivityTs = trackedEvents
     .map((mEvent) => getEventActivityTs(mEvent))
     .reduce<number | undefined>((latestTs, candidateTs) => {
@@ -118,36 +73,7 @@ const getThreadLastActivitySnapshot = (
       return candidateTs > latestTs ? candidateTs : latestTs;
     }, undefined);
   const bundledActivityTs = getBundledThreadLatestEventTs(rootEvent);
-  const activityTs =
-    liveActivityTs === undefined
-      ? bundledActivityTs
-      : bundledActivityTs === undefined
-        ? liveActivityTs
-        : Math.max(liveActivityTs, bundledActivityTs);
-
-  return {
-    activityTs,
-    trackedEvents,
-  };
-};
-
-export const getThreadLastActivityTs = (
-  room: Room | undefined,
-  threadRootId: string | undefined
-): number | undefined =>
-  getThreadLastActivitySnapshot(room, threadRootId).activityTs;
-
-export const useThreadLastActivityTs = (
-  room: Room | undefined,
-  threadRootId: string | undefined
-): number | undefined => {
-  const thread = room && threadRootId ? room.getThread(threadRootId) ?? undefined : undefined;
-  const [snapshot, setSnapshot] = useState(() => getThreadLastActivitySnapshot(room, threadRootId));
-  const refresh = useCallback(() => {
-    setSnapshot(getThreadLastActivitySnapshot(room, threadRootId));
-  }, [room, threadRootId]);
-
-  useThreadEventRefresh(thread, snapshot.trackedEvents, refresh);
-
-  return snapshot.activityTs;
+  if (liveActivityTs === undefined) return bundledActivityTs;
+  if (bundledActivityTs === undefined) return liveActivityTs;
+  return Math.max(liveActivityTs, bundledActivityTs);
 };

@@ -89,7 +89,8 @@
     "imageViewer": {
       "close": "Kapat",
       "previous": "Önceki görsel",
-      "next": "Sonraki görsel"
+      "next": "Sonraki görsel",
+      "wheelZoomHint": "Yakınlaştırmak için {{key}} + kaydırma"
     },
     "inviteUserPrompt": {
       "close": "Kapat",

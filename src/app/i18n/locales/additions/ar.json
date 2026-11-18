@@ -101,7 +101,8 @@
     "imageViewer": {
       "close": "إغلاق",
       "previous": "الصورة السابقة",
-      "next": "الصورة التالية"
+      "next": "الصورة التالية",
+      "wheelZoomHint": "⁨{{key}}⁩ + التمرير للتكبير"
     },
     "inviteUserPrompt": {
       "close": "إغلاق",

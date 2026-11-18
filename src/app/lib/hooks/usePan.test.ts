@@ -39,6 +39,45 @@ describe('usePan', () => {
     vi.clearAllMocks();
   });
 
+  it('keeps the point it zooms around in place', () => {
+    mount();
+    act(() => state.setPan({ translateX: 10, translateY: -20 }));
+    const at = { x: 60, y: 20 };
+    // Content at offset (60, 20) sits 50 and 40 px from the image centre at zoom 1.5; at zoom 3
+    // that becomes 100 and 80, so the centre moves to (60 - 100, 20 - 80).
+    act(() => state.zoomAround({ from: 1.5, to: 3, at, before: at }));
+    expect(state.pan).toEqual({ translateX: -40, translateY: -60 });
+    act(() => state.zoomAround({ from: 3, to: 1.5, at, before: at }));
+    expect(state.pan).toEqual({ translateX: 10, translateY: -20 });
+  });
+
+  it('moves the content under the fingers with them as they pinch', () => {
+    mount();
+    // At zoom 1 the content at (0, -10) lands at (0, -20) at zoom 2: the centre goes to (0, 0).
+    act(() => state.zoomAround({ from: 1, to: 2, at: { x: 0, y: -20 }, before: { x: 0, y: -10 } }));
+    expect(state.pan).toEqual({ translateX: 0, translateY: 0 });
+  });
+
+  it('recentres at fit, wherever the zoom aimed', () => {
+    mount();
+    const at = { x: 60, y: 20 };
+    act(() => {
+      state.zoomAround({ from: 1, to: 1.2, at, before: at });
+      state.zoomAround({ from: 1.2, to: 1, at: { x: -90, y: 0 }, before: { x: -90, y: 0 } });
+    });
+    expect(state.pan).toEqual({ translateX: 0, translateY: 0 });
+  });
+
+  it('anchors a zoom aimed beside the image at its nearest edge', () => {
+    mount();
+    const size = { width: 100, height: 200 };
+    // The cursor sits 150 px right of a 100 px wide image's centre: its right edge (50) stays,
+    // and the image grows to its left, so its centre moves to -50.
+    const at = { x: 150, y: 0 };
+    act(() => state.zoomAround({ from: 1, to: 2, at, before: at }, size));
+    expect(state.pan).toEqual({ translateX: -50, translateY: 0 });
+  });
+
   it.each(['touch', 'mouse', 'pen'])('pans with %s using screen coordinates', (pointerType) => {
     mount();
     act(() => state.onPointerDown(event(1, 100, 200, pointerType)));

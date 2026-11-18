@@ -89,6 +89,84 @@ describe('seen thread roots', () => {
     expect(told).toEqual([ROOM, ROOM]);
   });
 
+  describe("another tab's write", () => {
+    const key = `mindroom.seenThreadRoots:${encodeURIComponent(ME)}`;
+    const OTHER_ROOM = '!other:example.org';
+    /** The write of another tab, and the event this tab gets of it. */
+    const otherTabWrites = (
+      page: EventTarget,
+      record: object | undefined,
+      eventKey: string | null = key
+    ) => {
+      if (record) values.set(key, JSON.stringify(record));
+      else values.delete(key);
+      const newValue = values.get(key) ?? null;
+      page.dispatchEvent(Object.assign(new Event('storage'), { key: eventKey, newValue }));
+    };
+    const loadInPage = async () => {
+      const page = new EventTarget();
+      vi.stubGlobal('window', page);
+      return { page, seen: await load() };
+    };
+
+    it('reaches what this tab read, its version and its listeners', async () => {
+      const { page, seen } = await loadInPage();
+      seen.rememberSeenThreadRoot(ME, ROOM, root('$mine', 10), 0);
+      const told: string[] = [];
+      seen.onSeenThreadRootsChange((roomId) => told.push(roomId));
+      const version = seen.seenThreadRootsVersion();
+
+      otherTabWrites(page, { [ROOM]: { $mine: 10, $theirs: 20 }, [OTHER_ROOM]: { $far: 30 } });
+
+      expect(seen.isSeenThreadRoot(ME, ROOM, '$theirs')).toBe(true);
+      expect(seen.isSeenThreadRoot(ME, OTHER_ROOM, '$far')).toBe(true);
+      expect(seen.seenThreadRootsVersion()).toBeGreaterThan(version);
+      expect(told.sort()).toEqual([OTHER_ROOM, ROOM].sort());
+
+      // Only the room whose record changed is told of.
+      told.length = 0;
+      otherTabWrites(page, { [ROOM]: { $mine: 10, $theirs: 20 } });
+      expect(told).toEqual([OTHER_ROOM]);
+      expect(seen.isSeenThreadRoot(ME, OTHER_ROOM, '$far')).toBe(false);
+    });
+
+    it('forgets what the other tab removed: a sign-out there, or all of the storage cleared', async () => {
+      const { page, seen } = await loadInPage();
+      seen.rememberSeenThreadRoot(ME, ROOM, root('$mine', 10), 0);
+
+      otherTabWrites(page, undefined);
+      expect(seen.isSeenThreadRoot(ME, ROOM, '$mine')).toBe(false);
+
+      seen.rememberSeenThreadRoot(ME, ROOM, root('$again', 10), 0);
+      const told: string[] = [];
+      seen.onSeenThreadRootsChange((roomId) => told.push(roomId));
+      // `localStorage.clear()` names no key.
+      otherTabWrites(page, undefined, null);
+      expect(seen.isSeenThreadRoot(ME, ROOM, '$again')).toBe(false);
+      expect(told).toEqual([ROOM]);
+    });
+
+    it("tells nothing for another key's write, or one that changes no record", async () => {
+      const { page, seen } = await loadInPage();
+      seen.rememberSeenThreadRoot(ME, ROOM, root('$mine', 10), 0);
+      const told: string[] = [];
+      seen.onSeenThreadRootsChange((roomId) => told.push(roomId));
+      const version = seen.seenThreadRootsVersion();
+
+      otherTabWrites(page, { [ROOM]: { $mine: 10 } });
+      page.dispatchEvent(
+        Object.assign(new Event('storage'), {
+          key: 'mindroom.somethingElse',
+          newValue: JSON.stringify({ [ROOM]: { $else: 5 } }),
+        })
+      );
+
+      expect(told).toEqual([]);
+      expect(seen.seenThreadRootsVersion()).toBe(version);
+      expect(seen.isSeenThreadRoot(ME, ROOM, '$mine')).toBe(true);
+    });
+  });
+
   it('forgets everything of an account that signs out', async () => {
     const store = await load();
     store.rememberSeenThreadRoot(ME, ROOM, root('$root', 5000), 2000);
