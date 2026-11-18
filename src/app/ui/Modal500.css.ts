@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
-import { color, config, toRem } from 'folds';
+import { config, toRem } from 'folds';
+import { surfaceContainer } from './styles/Glass.css';
 
 // Larger screens center the dialog clear of the status bar and the home indicator, so it never
 // slides under a notch and its shadow stays off the strip the page shows there.
@@ -39,8 +40,9 @@ export const PhoneOverlayCenter = style({
   justifyContent: 'stretch',
 });
 
-// Opaque, unlike the glass it has elsewhere: nothing of the page behind is left to show through,
-// and the blurred page would only blur into the dialog's own rows.
+// Opaque in its surface's own color, unlike the glass it has elsewhere: nothing of the page behind
+// is left to show through, and the blurred page would only blur into the dialog's own rows. The
+// glass rim goes too; at the screen's edges it would only draw a line down each side.
 export const PhoneModal = style({
   selectors: {
     '&&&': {
@@ -54,7 +56,7 @@ export const PhoneModal = style({
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       paddingLeft: 'env(safe-area-inset-left, 0px)',
       paddingRight: 'env(safe-area-inset-right, 0px)',
-      backgroundColor: color.Background.Container,
+      backgroundColor: surfaceContainer,
       backgroundImage: 'none',
       backdropFilter: 'none',
       WebkitBackdropFilter: 'none',
