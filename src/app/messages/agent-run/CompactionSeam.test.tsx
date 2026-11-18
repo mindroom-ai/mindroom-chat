@@ -756,6 +756,16 @@ describe('CompactionSeam card', () => {
     }
   });
 
+  it('claims no going on for an interrupted compaction, whose reply ended', async () => {
+    for (const compactedRunCount of [undefined, 0]) {
+      const renderer = render(
+        <CompactionSeam compaction={running({ compactedRunCount })} interrupted />
+      );
+      const tip = await open(renderer);
+      expect(tip.findAll((node) => node.props.className === 'Subtitle')).toHaveLength(0);
+    }
+  });
+
   it('calls the history unchanged only when no runs were folded', async () => {
     for (const status of ['failed', 'timeout'] as const) {
       const kept = render(<CompactionSeam compaction={failed({ status, compactedRunCount: 0 })} />);

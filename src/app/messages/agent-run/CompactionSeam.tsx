@@ -100,8 +100,11 @@ const subtitle = (
   t: TFunction
 ): string | undefined => {
   if (place === 'notice') return undefined;
+  // An interrupted one's reply ended: it did not go on.
   if (isUnfinished(state)) {
-    return keptFullHistory(compaction) ? t(`${KEY}.subtitle.unfinished`) : undefined;
+    return state !== 'interrupted' && keptFullHistory(compaction)
+      ? t(`${KEY}.subtitle.unfinished`)
+      : undefined;
   }
   if (place === 'midTurn') {
     return compaction.afterTool > 0
