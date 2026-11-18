@@ -3,6 +3,7 @@ import type { EventTimelineSet, MatrixEvent } from 'matrix-js-sdk';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { useThreadApprovalTimeline } from '../../approvals/useThreadApprovalTimeline';
 import type { ThreadSummaryTimelinePlan } from '../../event-store/threads/threadSummaryTimeline';
+import type { VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
 
 export type TimelineMessageRow = Readonly<{
   eventId: string;
@@ -22,6 +23,8 @@ export type TimelineMessageData = {
   threadSummaryTimeline: ThreadSummaryTimelinePlan;
   /** Secret request cards whose line a reply of the thread has mounted, so their own rows hide. */
   secretRequestTimeline: { hiddenEventIds: ReadonlySet<string> };
+  /** The router's voice echoes the voice messages they transcribe draw, whose own rows hide. */
+  voiceTranscripts: VoiceTranscriptPlan;
   handleOpenReply: MouseEventHandler;
   /** In a fork, the IDs of its parent's messages shown before its own: rows read-only here. */
   forkPrefixEventIds?: ReadonlySet<string>;

@@ -965,6 +965,10 @@
           "summarizedBy": "⁨{{model}}⁩ في ⁨{{duration}}⁩",
           "interrupted": "انتهى الرد قبل اكتمال الملخص."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "جارٍ التفريغ…",
+        "transcribedBy": "فرّغه ⁨{{name}}⁩"
       }
     },
     "message-search": {

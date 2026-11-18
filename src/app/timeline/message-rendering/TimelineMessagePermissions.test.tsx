@@ -8,6 +8,7 @@ import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
 import type { IPowerLevels } from '../../matrix/hooks/usePowerLevels';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
 
 const ME = '@alice:example.org';
 const OTHER = '@bob:example.org';
@@ -50,6 +51,7 @@ const emptyData = () => ({
     markersByEventId: new Map(),
   },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
+  voiceTranscripts: NO_VOICE_TRANSCRIPTS,
 });
 
 /** Renders the rows and returns the `canDelete` and `canPinEvent` props each message received. */

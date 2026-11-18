@@ -937,6 +937,10 @@
           "summarizedBy": "{{model}} за {{duration}}",
           "interrupted": "Ответ завершился раньше, чем была готова сводка."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Расшифровка…",
+        "transcribedBy": "Расшифровал(а) {{name}}"
       }
     },
     "message-search": {

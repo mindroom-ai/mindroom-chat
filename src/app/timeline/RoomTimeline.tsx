@@ -128,6 +128,12 @@ import {
   useThreadApprovalTimeline,
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
+import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
+import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
+import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
 import {
   InlineSecretRequestsContext,
   useDrawnSecretRequestIds,
@@ -872,6 +878,25 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => ({ hiddenEventIds: drawnSecretRequestIds }),
     [drawnSecretRequestIds]
   );
+  // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
+  // Only from the router the room's state names, read again when that state or the levels change.
+  const voiceRouterBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const powerLevels = usePowerLevelsContext();
+  const roomCreators = useRoomCreators(room);
+  const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
+  // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
+  const voiceTranscripts = useVoiceTranscriptPlan({
+    events: threadId ? threadEvents : roomWindowRows,
+    getContent: getRowContent,
+    routerUserId: trustedRouterUserId(
+      voiceRouterBinding,
+      powerLevels,
+      roomCreators,
+      rawPowerLevels
+    ),
+    ignored: ignoredUsersSet,
+    revealed: pluginRevealedRef.current,
+  });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
   // opened, and the rows a fork's lines sit on, keep their turn unfolded.
@@ -890,12 +915,20 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           approvalTimeline,
           threadSummaryTimeline,
           secretRequestTimeline: { hiddenEventIds: EMPTY_IDS },
+          voiceTranscripts,
         },
         ignoredUsersSet,
         showHiddenEvents,
         isHiddenByPlugin,
       }),
-    [approvalTimeline, ignoredUsersSet, isHiddenByPlugin, showHiddenEvents, threadSummaryTimeline]
+    [
+      approvalTimeline,
+      ignoredUsersSet,
+      isHiddenByPlugin,
+      showHiddenEvents,
+      threadSummaryTimeline,
+      voiceTranscripts,
+    ]
   );
   const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
   const turnPinnedIds = useMemo(() => {
@@ -1104,6 +1137,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     if (
       pluginHiddenThreadIds.size === 0 &&
       secretRequestTimeline.hiddenEventIds.size === 0 &&
+      voiceTranscripts.hiddenEventIds.size === 0 &&
       turnFolds.view.hiddenIds.size === 0
     ) {
       return approvalTimeline.hiddenEventIds;
@@ -1111,6 +1145,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     return new Set([
       ...approvalTimeline.hiddenEventIds,
       ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
+      ...voiceTranscripts.hiddenEventIds,
       ...pluginHiddenThreadIds,
       ...turnFolds.view.hiddenIds,
     ]);
@@ -1118,6 +1153,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     approvalTimeline.hiddenEventIds,
     secretRequestTimeline.hiddenEventIds,
+    voiceTranscripts.hiddenEventIds,
     pluginHiddenThreadIds,
     turnFolds.view,
   ]);
@@ -1817,6 +1853,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     approvalTimeline,
     threadSummaryTimeline,
     secretRequestTimeline,
+    voiceTranscripts,
     handleOpenReply,
     forkPrefixEventIds,
   };

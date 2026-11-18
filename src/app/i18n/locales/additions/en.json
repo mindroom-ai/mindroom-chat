@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "The reply ended before the summary finished."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Transcribing…",
+        "transcribedBy": "Transcribed by {{name}}"
       }
     },
     "message-search": {

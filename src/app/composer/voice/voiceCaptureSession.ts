@@ -1,5 +1,10 @@
 import { isNativeApp } from '../../native/nativeSso';
 import {
+  isNativeVoiceRecorderAvailable,
+  startNativeVoiceRecorder,
+} from '../../native/nativeVoiceRecorder';
+import {
+  analyserRmsToMatrixPoint,
   createFallbackWaveform,
   normalizeMatrixWaveform,
   timeDomainDataToWaveformPoint,
@@ -82,14 +87,18 @@ export type VoiceCaptureSession = {
   releaseOwner: () => void;
 };
 
+/** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
+type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
+  Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
+
 type Generation = {
   acceptsEvents: boolean;
-  recorder?: MediaRecorder;
+  recorder?: VoiceRecorder;
   stream?: MediaStream;
   audioContext?: AudioContext;
   source?: MediaStreamAudioSourceNode;
-  analyser?: AnalyserNode;
-  buffer?: Uint8Array;
+  /** The level now, as a Matrix waveform point. */
+  readLevel?: () => number;
   timer?: ReturnType<typeof setInterval>;
   sampleTimer?: ReturnType<typeof setInterval>;
   stopTimer?: ReturnType<typeof setTimeout>;
@@ -151,8 +160,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       /* Already disconnected. */
     }
     generation.source = undefined;
-    generation.analyser = undefined;
-    generation.buffer = undefined;
+    generation.readLevel = undefined;
     const context = generation.audioContext;
     generation.audioContext = undefined;
     if (context && context.state !== 'closed') {
@@ -208,15 +216,8 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     publish(idleSnapshot());
   };
   const sample = (generation: Generation) => {
-    if (
-      current !== generation ||
-      !generation.acceptsEvents ||
-      !generation.analyser ||
-      !generation.buffer
-    )
-      return;
-    generation.analyser.getByteTimeDomainData(generation.buffer);
-    generation.samples.push(timeDomainDataToWaveformPoint(generation.buffer));
+    if (current !== generation || !generation.acceptsEvents || !generation.readLevel) return;
+    generation.samples.push(generation.readLevel());
     if (generation.samples.length > 1200)
       generation.samples.splice(0, generation.samples.length - 1200);
     publish({ waveform: generation.samples, sampleCount: snapshot.sampleCount + 1 });
@@ -227,7 +228,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       if (current === generation)
         publish({ elapsedMs: Math.max(0, Math.round(elapsed(generation))) });
     }, 200);
-    if (generation.analyser && generation.buffer) {
+    if (generation.readLevel) {
       generation.sampleTimer = setInterval(
         () => sample(generation),
         VOICE_WAVEFORM_SAMPLE_INTERVAL_MS
@@ -242,10 +243,14 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       const context = new Constructor();
       generation.audioContext = context;
       generation.source = context.createMediaStreamSource(stream);
-      generation.analyser = context.createAnalyser();
-      generation.analyser.fftSize = 2048;
-      generation.source.connect(generation.analyser);
-      generation.buffer = new Uint8Array(generation.analyser.fftSize);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 2048;
+      generation.source.connect(analyser);
+      const buffer = new Uint8Array(analyser.fftSize);
+      generation.readLevel = () => {
+        analyser.getByteTimeDomainData(buffer);
+        return timeDomainDataToWaveformPoint(buffer);
+      };
       if (context.state === 'suspended') void context.resume().catch(() => undefined);
     } catch {
       closeAudio(generation);
@@ -253,7 +258,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   };
   const finishStop = (
     generation: Generation,
-    recorder: MediaRecorder,
+    recorder: VoiceRecorder,
     mimeType: string | undefined
   ) => {
     if (!generation.acceptsEvents) return;
@@ -316,7 +321,10 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     current = generation;
     publish({ errorMessage: undefined });
     if (!owns(generation)) return false;
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    const webCapture =
+      !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
+    const native = !webCapture && isNativeVoiceRecorderAvailable();
+    if (!webCapture && !native) {
       current = undefined;
       retire(generation);
       publish({ errorMessage: 'Voice recording is not supported in this browser.' });
@@ -332,36 +340,52 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     publish({ ...idleSnapshot(), phase: 'requesting' });
     if (!owns(generation)) return false;
     try {
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+      let recorder: VoiceRecorder;
+      let webRecorder: MediaRecorder | undefined;
+      let mimeType: string | undefined;
+      if (native) {
+        const nativeRecorder = await startNativeVoiceRecorder();
+        if (!owns(generation)) {
+          nativeRecorder.stop();
+          return false;
+        }
+        recorder = nativeRecorder;
+        generation.recorder = recorder;
+        generation.readLevel = () => analyserRmsToMatrixPoint(nativeRecorder.level());
+      } else {
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+          });
+        } catch (err) {
+          if (err instanceof DOMException && err.name === 'OverconstrainedError') {
+            if (!owns(generation)) return false;
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          } else throw err;
+        }
+        if (!owns(generation)) {
+          stream.getTracks().forEach((track) => track.stop());
+          return false;
+        }
+        generation.stream = stream;
+        mimeType = getSupportedRecorderMimeType();
+        const options: MediaRecorderOptions = {
+          audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
+        };
+        if (mimeType) options.mimeType = mimeType;
+        webRecorder = new MediaRecorder(stream, options);
+        recorder = webRecorder;
+        generation.recorder = recorder;
+        publish({
+          canPause: typeof recorder.pause === 'function' && typeof recorder.resume === 'function',
         });
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'OverconstrainedError') {
-          if (!owns(generation)) return false;
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } else throw err;
+        if (!owns(generation)) return false;
+        setupAnalyser(generation, stream);
       }
-      if (!owns(generation)) {
-        stream.getTracks().forEach((track) => track.stop());
-        return false;
-      }
-      generation.stream = stream;
-      const mimeType = getSupportedRecorderMimeType();
-      const options: MediaRecorderOptions = {
-        audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
-      };
-      if (mimeType) options.mimeType = mimeType;
-      const recorder = new MediaRecorder(stream, options);
-      generation.recorder = recorder;
-      publish({
-        canPause: typeof recorder.pause === 'function' && typeof recorder.resume === 'function',
-      });
-      if (!owns(generation)) return false;
-      setupAnalyser(generation, stream);
-      const onData = (event: BlobEvent) => {
-        if (generation.acceptsEvents && event.data.size > 0) generation.chunks.push(event.data);
+      const onData = (event: Event) => {
+        const { data } = event as BlobEvent;
+        if (generation.acceptsEvents && data.size > 0) generation.chunks.push(data);
       };
       const onStop = () => finishStop(generation, recorder, mimeType);
       generation.finishStop = onStop;
@@ -371,7 +395,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
       };
-      recorder.start(VOICE_RECORDER_TIMESLICE_MS);
+      webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       generation.startedAt = now();
       startTimers(generation);
       if (!isRecording(generation)) return false;

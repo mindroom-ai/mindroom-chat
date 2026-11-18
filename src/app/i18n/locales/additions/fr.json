@@ -923,6 +923,10 @@
           "summarizedBy": "{{model}} en {{duration}}",
           "interrupted": "La réponse s’est terminée avant la fin du résumé."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Transcription…",
+        "transcribedBy": "Transcrit par {{name}}"
       }
     },
     "message-search": {

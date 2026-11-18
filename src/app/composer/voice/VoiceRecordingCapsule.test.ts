@@ -4,6 +4,7 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
 import { createFallbackWaveform } from '../../lib/audioWaveform';
+import { VoiceWaveform } from '../../messages/content/voice/VoiceWaveform';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 
 vi.mock('folds', () => {
@@ -46,7 +47,7 @@ vi.mock('../../messages/content/voice/VoiceWaveform.css', () => ({
   BarActive: 'BarActive',
   BarCompact: 'BarCompact',
   BarCompactUnrecorded: 'BarCompactUnrecorded',
-  CompactStrip: 'CompactStrip',
+  CompactLine: 'CompactLine',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
@@ -56,6 +57,30 @@ vi.mock('../../messages/content/voice/VoiceWaveform.css', () => ({
 }));
 
 describe('VoiceRecordingCapsule', () => {
+  it('glides the waveform only while recording', () => {
+    const props = {
+      elapsedMs: 12000,
+      waveform: createFallbackWaveform(),
+      sampleCount: 7,
+      canPause: true,
+      onDiscard: vi.fn(),
+      onPause: vi.fn(),
+      onResume: vi.fn(),
+    };
+    const renderer = create(
+      React.createElement(VoiceRecordingCapsule, { ...props, phase: 'recording' })
+    );
+    const liveCount = () => renderer.root.findByType(VoiceWaveform).props.liveSampleCount;
+    expect(liveCount()).toBe(7);
+
+    (['paused', 'processing', 'sending'] as const).forEach((phase) => {
+      act(() => renderer.update(React.createElement(VoiceRecordingCapsule, { ...props, phase })));
+      expect(liveCount()).toBeUndefined();
+    });
+
+    renderer.unmount();
+  });
+
   it('updates visible and accessible status when the active language changes', async () => {
     const language = createInstance();
     await language.init({
