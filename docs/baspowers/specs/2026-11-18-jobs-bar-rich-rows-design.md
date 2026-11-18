@@ -14,24 +14,30 @@ Bas picked variant A of the mockup (`mockups/jobs-bar-rich/mockup.html` in DevAg
 
 ### Expanded list
 
-The bar keeps today's mechanics unchanged: where it sits, hover/click to expand, pinning, Escape and outside-click to close, focus handling, Stop, Stop all, Stopping…, failures, the jobs held between calls. Only the content of the rows and the title row changes.
+Bas then picked variant C ("Task-first table") of a visual redesign (`mockups/jobs-bar-rich-v2/` in DevAgent's workspace). The bar keeps its mechanics unchanged: where it sits, hover/click to expand, pinning, Escape and outside-click to close, focus handling, Stop, Stop all, Stopping…, failures, the jobs held between calls.
 
-- **Groups.** When both kinds are present, the list has two headings, "Sub-agents · N" then "Tools · N". With one kind only, no headings. Rows stay oldest first in each group.
-- **Sub-agent row**, two lines, left to right:
-  - **Logo** (26 px) from the run's model (`ModelIcon`/`ProviderModelIcon` with the frame's `model` provider and id). It has a status dot: running (success colour, a slow pulse that `prefers-reduced-motion` turns off), awaiting approval (warning), stopping (danger), finished (muted). If the run has no model yet, use the agent's avatar (`AgentAvatar`) with the same dot.
-  - **Line 1:** agent display name (`useAgentProfile`), a model pill (`getAiRunCompactModelLabel`, full label as `title`), the task's first line (ellipsized), then at most one status pill: "Needs approval", "Stopping…" or "Done".
-  - **Line 2 ("now doing"):** the run's newest tool entry, as the tool name in bold plus its args preview in monospace (ellipsized). When the frame carries no previews (`show_tool_calls` off, or dropped for size), only the name. Nothing when the run has no tool entry yet. Then the thread chip, then stats.
-  - **Thread chip:** shown only when the job's `threadId` is not the view's thread, which in practice means the room timeline view, with the job in a thread. It shows the thread's title (the same title helper the thread list uses) and navigates to that thread.
-  - **Stats:** "{n} tool calls · {tokens} tokens · {cost}" from the frame's `usage`. Each part shows only when its value is present. Tokens are compact ("1.9M", "310k"). Cost uses the app's existing cost formatting. Cost counts the run's own model requests only, not its nested sub-agents, which have their own rows.
-  - **Right side:** elapsed time since `started_at`, ticking each second (`formatCallDuration`), then **Open**, then **Stop**. Open opens the Sub-agents panel with this sub-agent's run open. The bar shows Open only when the panel has that run. The name is no longer a button.
-- **Tool row:** a terminal icon in the logo slot, with the same status dot. Line 1 is the tool name. Line 2 is the call's args preview, found by the job's `tool_call_id` in the tool trace of the agent's reply that the client already holds (live frame or content). When none is found, there is no line 2. Then the thread chip. The right side has the elapsed time and Stop.
-- **Nesting:** a sub-agent job whose run's `parent` is the run of another listed job sits right under that job, indented one step per level (at most 3 steps), with a 20 px logo. A job whose parent is not listed stays top-level.
-- **Narrow (under 40rem):** line 1 drops the model pill (the logo stays) and line 2 drops the stats.
+- **One grid.** Every row and group heading shares one grid: the logo in a fixed column (28 px tile, 20 px nested), the text column, then fixed columns for Calls, Tokens, Cost, Time, and Open + Stop. Only the text column flexes, so every row's numbers, time and buttons line up. A hairline sets each top-level job off the one before; a nested job stays with its parent.
+- **Groups.** Sub-agents first, then tools, oldest first in each. Each group has a heading row on the grid that names its number columns ("Calls · Tokens · Cost · Time" for sub-agents, "Time" for tools), so the cells hold bare numbers with their words as titles. When both kinds are present the heading also names the group, "Sub-agents · N" or "Tools · N"; with one kind only, it names just the columns.
+- **Type.** Inter only, two sizes (T200, and T300 for the headline), two weights (400, 600), tabular numerals. The only other family is the app's `var(--font-mono)`, for a tool call's arguments.
+- **Sub-agent row:**
+  - **Logo:** the run's model mark (`ProviderModelIcon`) on a Surface tile with a line, so it shows on the bar; the agent's avatar (`AgentAvatar`) before the run has a model. A status dot ringed in the row's own colour: running (success, a slow pulse `prefers-reduced-motion` turns off), awaiting approval (warning), stopping (critical), finished (muted).
+  - **Line 1, the headline:** the task's first line at T300 weight 600, ellipsized, then at most one pill at its end: "Waiting for approval" (warning) or "Stopping…" (critical). Without a task (no frame yet), the job's name.
+  - **Line 2, muted:** the agent's display name (`useAgentProfile`), the model (`getAiRunCompactModelLabel`, full label as `title`), "·", then what it does now: the newest tool entry's name and its args preview in the code font. Only the name when the frame carries no previews (`show_tool_calls` off). Then the thread chip.
+  - **Thread chip:** only when the job's `threadId` is not the view's thread (in practice, the room timeline view). The thread's title (`useThreadTitle`) with a thread icon; pressing it shows that thread.
+  - **Numbers:** calls, tokens (compact, "1.9M"), cost (`formatCostUsd`) from the frame's `usage`, each blank when it has no value: no calls when 0, and neither tokens nor cost before the first token. Cost counts the run's own model requests only.
+  - **Time:** elapsed since `started_at`, as "38m 12s" (`formatWorkDuration`), so it visibly ticks each second. A finished job's time stops at its run's end, or when the bar first showed it finished.
+  - **Open and Stop:** 28 px icon buttons with tooltips and labels. Open shows the Sub-agents panel on this job's run, and appears only when the panel has that run. Stop turns critical under the pointer. A stopping job shows a spinner in Stop's place, with "Stopping…" for screen readers.
+- **Tool row:** a terminal icon on the tile, with the same dot. Line 1 is the tool's name (the headline style). Line 2 is the call's args preview in the code font, found by the job's `tool_call_id` in the visible tool trace of its own agent's reply in its own conversation; none when not found. Then the thread chip. No numbers; Time and Stop.
+- **Nesting:** a sub-agent job whose run's `parent` is another listed job's run sits right under it, its logo and text moved in one fixed step per level (at most 3), with an elbow line from its parent. Its columns stay where they are. A job whose parent is not listed stays top-level.
+- **The bar's width decides** (container queries on the bar, not the screen):
+  - **Beside the side panel (bar under 46rem):** the number columns narrow, the thread chip shrinks to its icon (its title names the thread), the agent's name gives way sooner.
+  - **Phone (bar under 30rem):** only Time, Open and Stop stay on the right; the model leaves line 2; the approval pill becomes its icon, and the stopping pill leaves (the spinner and dot say it).
 
 ### Title row
 
-- Several jobs: today's title ("7 background jobs"), then the sub-agents' logos stacked (first 4, overlapping), then a summary: "{s} sub-agents · {t} tools", plus " · {k} need approval" in the warning colour when k > 0. Parts with a zero count are left out.
-- One job: the title row is that job's row on one line: logo with dot, today's title text, elapsed, Open (sub-agent only), Stop.
+- A line sets it off the listed jobs. Its icon (clock, or a check once all finished) sits in the logos' column.
+- **Several jobs:** today's title ("7 background jobs", weight 600), the first 4 sub-agents' logos stacked, then a muted summary "{s} sub-agents · {t} tools" and " · {k} needs approval" in the warning colour when k > 0 (parts with a zero count left out), then the chevron at the toggle's end. Stop all is an icon-and-text button of the same family as Stop. On a phone the icon, the summary and (when something needs approval) the logos leave, so the title reads "N background jobs · k needs approval".
+- **One job:** that job on one line: its logo with dot, today's title text, its time, Open (sub-agent with a run only), Stop.
 
 ### Missing data
 
@@ -46,7 +52,7 @@ Every row must degrade to today's content, never to a blank or broken row:
 - The ticking timer text is `aria-hidden`. The row carries a screen-reader-only "started {relative time}" (`useRelativeTime`), so assistive tech is not told every second.
 - Status dots are decorative. The status pill and today's waiting text carry the state.
 - Every new string goes in the locale additions, in every locale file that the repo's i18n check requires.
-- The bar owns one 1-second clock (`useInterval`), running only while a listed job is live.
+- Every job's time ticks on one shared 1-second clock (`subscribeRelativeTimeClock`), and only while the job is live.
 
 ## Data contract
 
