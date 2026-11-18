@@ -45,7 +45,8 @@ const tileRows = (
   events: MatrixEvent[],
   indexes: number[],
   readUptoAbsoluteIndex: number,
-  quiet: ReadonlySet<string> = new Set()
+  quiet: ReadonlySet<string> = new Set(),
+  forkingIndex?: number
 ) => {
   const tiles = renderTimelineTiles({
     virtualItems: indexes.map(
@@ -74,6 +75,10 @@ const tileRows = (
     isHiddenByPluginId: () => false,
     renderEvent,
     isQuietMarkerRow: (rowEvent) => quiet.has(rowEvent.getId() ?? ''),
+    forkingDivider:
+      forkingIndex === undefined
+        ? undefined
+        : { index: forkingIndex, node: <hr data-forking="true" /> },
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
     ledgerPxAtRender: 0,
@@ -93,7 +98,10 @@ const tileRows = (
         separators: separators.map((node) =>
           /new ?messages/i.test(text(node)) ? 'unread' : 'date'
         ),
-        shown: tile.findAll((node) => node.props['data-row'] === 'true').map(text),
+        // The rows and a fork draft's line, in document order.
+        shown: tile
+          .findAll((node) => node.props['data-row'] === 'true' || node.type === 'hr')
+          .map((node) => (node.type === 'hr' ? 'forking' : text(node))),
       };
     });
 };
@@ -149,5 +157,22 @@ describe('the dividers above a run of quiet markers', () => {
     ]);
     expect(tileRows(events, [1, 2], 0, quiet)).toEqual([run, folded]);
     expect(tileRows(events, [1], 0, quiet)).toEqual([run]);
+  });
+});
+
+describe("a fork draft's line at a run of quiet markers", () => {
+  it('goes under the run when the fork point is a later marker of it', () => {
+    const quiet = new Set(['$title', '$review']);
+    const events = [
+      event('$reply', 'm.room.message', START),
+      event('$title', 'm.room.message', START + 60_000),
+      event('$review', 'm.room.message', START + 60_000),
+    ];
+    expect(tileRows(events, [0, 1, 2], 2, quiet, 2)).toEqual([
+      { id: '$reply', separators: [], shown: ['$reply'] },
+      { id: '$title', separators: [], shown: ['$title+$review', 'forking'] },
+      { id: '$review', separators: [], shown: [] },
+    ]);
+    expect(tileRows(events, [1, 2], 2, quiet, 1)[0]?.shown).toEqual(['$title+$review', 'forking']);
   });
 });

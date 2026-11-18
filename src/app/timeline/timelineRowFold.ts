@@ -172,8 +172,6 @@ type FoldOptions = {
   isQuietMarker?: (event: MatrixEvent) => boolean;
   /** Of the quiet marker rows, those that show beside others (`quietRunIndexes`). */
   joinsQuietRun?: (event: MatrixEvent) => boolean;
-  /** A row that ends a run of markers: something goes under it, such as a fork draft's line. */
-  quietRunEndIndex?: number;
 };
 
 /** The next row with output after `index`, or undefined past the loaded events. */
@@ -199,7 +197,7 @@ const nextRowIndex = (
  * next row with output instead, and a reply quote looks past it, as past a quiet marker row.
  *
  * Quiet marker rows with no other row between them, and no divider or group start above one of
- * them (nor a fork draft's line under one), show as one row: the run's first marker shows them all side by side. A run that crosses an
+ * them, show as one row: the run's first marker shows them all side by side. A run that crosses an
  * edge of the window is read from the loaded rows past it, so a row shows or folds the same
  * wherever the window starts or ends.
  */
@@ -212,7 +210,6 @@ export const foldTimelineRowContexts = ({
   groupStartIndex,
   isQuietMarker: readsAsQuietMarker = () => false,
   joinsQuietRun = () => true,
-  quietRunEndIndex,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
   const firstIndex = indexes[0];
@@ -310,7 +307,6 @@ export const foldTimelineRowContexts = ({
         const joinsRun =
           marker &&
           quietRun.length > 0 &&
-          quietRun.at(-1) !== quietRunEndIndex &&
           !context.dayDivider &&
           !unreadDivider &&
           index !== groupStartIndex;

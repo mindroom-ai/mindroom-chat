@@ -354,13 +354,11 @@ describe('foldTimelineRowContexts', () => {
         indexes = rows.map((_, index) => index),
         groupStartIndex,
         readUptoAbsoluteIndex,
-        quietRunEndIndex,
         alone = [],
       }: {
         indexes?: number[];
         groupStartIndex?: number;
         readUptoAbsoluteIndex?: number;
-        quietRunEndIndex?: number;
         /** Markers that never join a run, as a snooze ending. */
         alone?: string[];
       } = {}
@@ -374,7 +372,6 @@ describe('foldTimelineRowContexts', () => {
         getAbsoluteIndex: (index) => index,
         readUptoAbsoluteIndex,
         groupStartIndex,
-        quietRunEndIndex,
         isQuietMarker: (event) => quiet.has(event.getId() ?? ''),
         joinsQuietRun: (event) => !alone.includes(event.getId() ?? ''),
       });
@@ -428,11 +425,6 @@ describe('foldTimelineRowContexts', () => {
       expect(shown(sameDay, { readUptoAbsoluteIndex: 0 })).toEqual(['$a', '$b+$c', '']);
       expect(shown(sameDay, { readUptoAbsoluteIndex: 1 })).toEqual(['$a+$b', '', '$c']);
       expect(shown(sameDay, { groupStartIndex: 1 })).toEqual(['$a', '$b+$c', '']);
-    });
-
-    it("end a run at a fork draft's line under one of its markers", () => {
-      const rows = [marker('$a', 0), marker('$b', 1), marker('$c', 2)];
-      expect(shown(rows, { quietRunEndIndex: 1 })).toEqual(['$a+$b', '', '$c']);
     });
 
     it('show each row the same wherever the window starts or ends', () => {

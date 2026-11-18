@@ -375,8 +375,6 @@ export const renderTimelineTiles = ({
     joinsQuietRun: joinsQuietMarkerRun
       ? (event) => joinsQuietMarkerRun(event, messageData, timelineSet)
       : undefined,
-    // A fork draft's line goes under its fork point: no marker below it joins that row.
-    quietRunEndIndex: forkingDivider?.index,
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
@@ -411,6 +409,11 @@ export const renderTimelineTiles = ({
         ),
         quietRun,
       };
+      // A fork draft's line goes under its fork point, or under the run of markers it is in.
+      const forkingHere =
+        forkingDivider !== undefined &&
+        (forkingDivider.index === item.index ||
+          !!context.quietRunIndexes?.includes(forkingDivider.index));
       // A row that fails to render shows as broken; the rows around it stay.
       content = (
         <MessageRowBoundary
@@ -423,7 +426,7 @@ export const renderTimelineTiles = ({
                 {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
                 {context.dayDivider && <DayDivider ts={event.getTs()} />}
                 {rendered}
-                {forkingDivider?.index === item.index && forkingDivider.node}
+                {forkingHere && forkingDivider.node}
               </>
             );
           }}
