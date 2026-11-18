@@ -1,6 +1,7 @@
 import { ClientEvent, SyncState, type MatrixClient, type Room, type Thread } from 'matrix-js-sdk';
 import {
   ACTIVE_STREAM_STATUSES,
+  TERMINAL_STREAM_STATUSES,
   hasTerminalStreamMetadata,
   isAiRunStreaming,
   readStreamStatus,
@@ -50,7 +51,12 @@ const hiddenStreamingReply = (room: Room, thread: Thread): string | undefined =>
   const content = isRecord(newContent) ? newContent : reply.content;
   const status = readStreamStatus(content);
   const streams = isAiRunStreaming(content) || (!!status && ACTIVE_STREAM_STATUSES.has(status));
-  if (!streams || hasTerminalStreamMetadata(content)) return undefined;
+  if (
+    !streams ||
+    hasTerminalStreamMetadata(content) ||
+    (status && TERMINAL_STREAM_STATUSES.has(status))
+  )
+    return undefined;
   const ts = Math.max(
     typeof reply.origin_server_ts === 'number' ? reply.origin_server_ts : 0,
     typeof edit?.origin_server_ts === 'number' ? edit.origin_server_ts : 0
