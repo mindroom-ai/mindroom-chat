@@ -304,6 +304,15 @@ test('a thread opened for the first time paints its replies once, its long reply
     frames.filter((frame) => frame.loadingLine),
     'frames with a loading line'
   ).toEqual([]);
+  const later = frames.slice(painted + 1);
+  // A row the first frame did not have, placed before one it had, came in above it.
+  const insertedAbove = later.filter((frame) =>
+    frame.ids.some(
+      (id, index) =>
+        !first.ids.includes(id) &&
+        frame.ids.slice(index + 1).some((next) => first.ids.includes(next))
+    )
+  );
   if (dataAt > FIRST_PAINT_CAP_MS && first.t >= FIRST_PAINT_CAP_MS) {
     // The open's data came after the cap, so the client painted without waiting for all of it.
     // A paint before the cap waited for nothing more.
@@ -314,19 +323,15 @@ test('a thread opened for the first time paints its replies once, its long reply
     const last = frames[frames.length - 1]!;
     expect(last.ids, 'the thread ends with the long reply').toContain(longId);
     expect(last.longWhole, 'the thread ends with the long reply whole').toBe(true);
+    // A capped paint that already holds replies the card did not know had the thread's replies
+    // (only the sidecar was late): no row comes in above them either.
+    if (first.ids.some((id) => ![rootId, longId, newestId].includes(id))) {
+      expect(insertedAbove, 'frames with a row inserted above the capped first paint').toEqual([]);
+    }
     return;
   }
   expect(first.ids, 'the first painted frame holds the long reply').toContain(longId);
   expect(first.longWhole, 'the first painted frame shows the long reply whole').toBe(true);
-  const later = frames.slice(painted + 1);
-  // A row the first frame did not have, placed before one it had, came in above it.
-  const insertedAbove = later.filter((frame) =>
-    frame.ids.some(
-      (id, index) =>
-        !first.ids.includes(id) &&
-        frame.ids.slice(index + 1).some((next) => first.ids.includes(next))
-    )
-  );
   expect(insertedAbove, 'frames with a row inserted above the first paint').toEqual([]);
   expect(
     later.filter((frame) => frame.visible.join() !== first.visible.join()),

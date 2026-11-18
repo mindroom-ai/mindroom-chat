@@ -370,15 +370,35 @@ const NOTCHES = 4;
 const FLICK_PX = NOTCH_PX * NOTCHES;
 
 /**
+ * A touch event of one finger on the list. The page's handlers read the fingers of a touch event
+ * (`event.touches`), so it names them, as the `drag` input of `scrollRoom` does.
+ */
+const touch = (scroller: Scroller, type: 'touchstart' | 'touchend') =>
+  scroller.evaluate((view, name) => {
+    const box = view.getBoundingClientRect();
+    const finger = {
+      identifier: 0,
+      target: view,
+      clientX: box.x + box.width / 2,
+      clientY: box.y + box.height / 2,
+    };
+    const touches = name === 'touchend' ? [] : [finger];
+    view.dispatchEvent(
+      Object.assign(new Event(name, { bubbles: true, cancelable: true }), {
+        touches,
+        targetTouches: touches,
+        changedTouches: [finger],
+      })
+    );
+  }, type);
+
+/**
  * One flick: four wheel notches 40 ms apart on a desktop; on a phone a touch, four steps of the
  * same size and the lift.
  */
 const flick = async (page: Page, scroller: Scroller, device: Device, down: boolean) => {
   const delta = down ? NOTCH_PX : -NOTCH_PX;
-  if (device === 'phone')
-    await scroller.evaluate((view) =>
-      view.dispatchEvent(new Event('touchstart', { bubbles: true }))
-    );
+  if (device === 'phone') await touch(scroller, 'touchstart');
   for (let notch = 0; notch < NOTCHES; notch += 1) {
     if (device === 'desktop') {
       // eslint-disable-next-line no-await-in-loop
@@ -390,8 +410,7 @@ const flick = async (page: Page, scroller: Scroller, device: Device, down: boole
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(40);
   }
-  if (device === 'phone')
-    await scroller.evaluate((view) => view.dispatchEvent(new Event('touchend', { bubbles: true })));
+  if (device === 'phone') await touch(scroller, 'touchend');
 };
 
 type Step = {

@@ -799,8 +799,9 @@ export type ScrollInput = 'wheel' | 'touch' | 'drag';
  * Scrolls the list the way a reader does: `flicks` fast flicks through it, then `readingSteps`
  * steps at a reading pace with pauses, then `backFlicks` flicks back. `wheel` turns the mouse
  * wheel; `touch` sends Chromium touch flings; `drag` moves the list by a finger's speed each frame
- * from inside the page (WebKit on a phone has neither), between the touch events of one finger,
- * which hand the scroll position to the reader as a real drag does.
+ * from inside the page, between the touch events of one finger, which hand the scroll position to
+ * the reader as a real drag does. A phone uses `drag` wherever the flings are not to be had: in
+ * WebKit, which has neither a wheel nor the flings, and in a Chromium page without a CDP session.
  */
 export const scrollRoom = async (
   page: Page,
