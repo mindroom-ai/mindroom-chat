@@ -9,7 +9,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useLocation, useParams, useSearchParams } from 'react-router-dom';
+import {
+  NavigationType,
+  useLocation,
+  useNavigationType,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
@@ -91,8 +97,19 @@ import {
   callWidthStorageKey,
   computerWidthStorageKey,
   pluginPanelWidthStorageKey,
+  secondThreadWidthStorageKey,
   subagentsWidthStorageKey,
 } from '../preferences/accountStorageKeys';
+import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
+import { SecondThreadPanel } from './SecondThreadPanel';
+import { useSecondThread } from './useSecondThread';
+
+const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
+// The composers the focus goes back to from the second thread: the open thread's, else the room's.
+const MAIN_COMPOSERS = [
+  '[data-testid="thread-column"] [data-room-footer="true"] [data-editable-name="RoomInput"]',
+  '[data-room-footer="true"][data-footer-of="room"] [data-editable-name="RoomInput"]',
+];
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -147,7 +164,8 @@ type PanelEntry = RoomPanel & {
 
 /**
  * What the room's URL asks for: an event, a thread, whether to show the event in place, and the
- * fork point of a fork draft of the thread; and the router's key of the history entry that asks.
+ * fork point of a fork draft of the thread; and the router's key of the history entry that asks,
+ * and whether the router pushed that entry.
  */
 const useRoomRoute = () => {
   const params = useParams();
@@ -157,6 +175,7 @@ const useRoomRoute = () => {
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
     entryKey: useLocation().key,
+    entryPushed: useNavigationType() === NavigationType.Push,
     forkAt: search.get('forkAt') ?? undefined,
   };
 };
@@ -176,7 +195,8 @@ export function Room() {
 
 function RoomContent() {
   const room = useRoom();
-  const { eventId, routedThreadId, focusEventInRoom, entryKey, forkAt } = useRoomRoute();
+  const { eventId, routedThreadId, focusEventInRoom, entryKey, entryPushed, forkAt } =
+    useRoomRoute();
   const { roomId } = room;
   // Every room address, a thread's included, opens here: the palette lists this room among the
   // ones visited last. Messages arriving in it do not count.
@@ -210,6 +230,14 @@ function RoomContent() {
 
   // The URL may name a reply; panels and agent requests belong to the thread's root.
   const threadId = useThreadRootEvent(room, routedThreadId);
+  const {
+    threadId: secondId,
+    focus: secondFocus,
+    open: openSecond,
+    close: closeSecond,
+  } = useSecondThread(roomId, ownUserId, threadId);
+  // Whether B's view held the focus as it went (SecondThreadPanel), for the handoff below.
+  const secondHadFocus = useRef(false);
   useInitializeOpenThread(room, threadId);
   const routeReady = isThreadRouteReady(room, routedThreadId);
   const conversation = `${roomId}\n${routedThreadId ?? ''}`;
@@ -480,8 +508,48 @@ function RoomContent() {
         </ResizableMembersPanel>
       ),
     },
+    {
+      // A second thread beside the open one (Open beside), never on phones. It has no frame: it
+      // never fills the room nor folds.
+      id: 'thread',
+      open: !mobile && !!secondId,
+      close: closeSecond,
+      covers: false,
+      render: () =>
+        secondId && (
+          <SecondThreadPanel
+            room={room}
+            threadId={secondId}
+            autoFocus={secondFocus}
+            onClose={closeSecond}
+            onGone={(hadFocus) => {
+              secondHadFocus.current = hadFocus;
+            }}
+            widthKey={secondThreadWidthStorageKey(ownUserId)}
+          />
+        ),
+    },
   ];
   const { shown, layout, setLayout, request } = useRoomPanels(roomId, panels);
+  const secondThread = useMemo<SecondThreadControl | undefined>(
+    () =>
+      mobile
+        ? undefined
+        : {
+            offers: (target, rootId) =>
+              target === roomId &&
+              isConfirmedMatrixEventId(rootId) &&
+              rootId !== threadId &&
+              rootId !== secondId,
+            open: (target, rootId) => {
+              if (target === roomId) request('thread', () => openSecond(rootId));
+            },
+          },
+    [mobile, openSecond, request, roomId, secondId, threadId]
+  );
+  // B as it shows, which a late SDK model of it loads for, as the open thread's does.
+  const secondShown = shown?.id === 'thread' ? secondId : undefined;
+  useInitializeOpenThread(room, secondShown);
   // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
   // ask for theirs, also while it shows: folded, it unfolds. So does a sub-agent job in the jobs
   // bar for the Sub-agents panel, whose store the header's toggle sets too.
@@ -731,10 +799,12 @@ function RoomContent() {
   });
 
   // A canvas chosen in the header may still load; any change of what the side panel shows
-  // (or of the conversation) since then wins over its late answer.
+  // (or of the conversation, or which thread the second thread panel shows) since then wins over
+  // its late answer.
   const panelContext = [
     conversation,
     openCanvasId ?? '',
+    secondShown ?? '',
     ...panels.filter((panel) => panel.open).map((panel) => panel.id),
   ].join('\n');
   const onCanvasOpen = useOpenCanvasById(client, room, panelContext, uiActions.activate);
@@ -757,6 +827,24 @@ function RoomContent() {
   const behindPanel = (!!shown?.covers && !(shown.ownFrame && folded)) || layout === 'filled';
   const conversationRef = useRef<HTMLDivElement>(null);
   useInert(conversationRef, behindPanel);
+  // B gone however it closed (its Close, another panel or a call in its place) with the focus in
+  // it hands the focus to the main composer: the open thread's, else the room's. Focus left on the
+  // page's body or in the panel moving out moves; focus taken elsewhere stays.
+  const secondWasShown = useRef(secondShown);
+  useEffect(() => {
+    const was = secondWasShown.current;
+    secondWasShown.current = secondShown;
+    const hadFocus = secondHadFocus.current;
+    secondHadFocus.current = false;
+    const box = conversationRef.current;
+    const focused = box?.ownerDocument.activeElement;
+    if (!was || secondShown || !box || !focused) return;
+    const inShell = !!focused.closest(SECOND_THREAD_PANEL);
+    if (!inShell && !(hadFocus && focused === box.ownerDocument.body)) return;
+    MAIN_COMPOSERS.map((selector) => box.querySelector<HTMLElement>(selector))
+      .find(Boolean)
+      ?.focus();
+  }, [secondShown]);
   const setBehindPanel = useSetAtom(conversationBehindPanelAtom);
   useLayoutEffect(() => {
     if (!behindPanel) return undefined;
@@ -822,29 +910,36 @@ function RoomContent() {
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
         <PluginPanelControlsContext.Provider value={pluginPanelControls}>
-          <Box
-            ref={conversationRef}
-            grow="Yes"
-            direction="Column"
-            style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
-          >
-            <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
-            <MessageLinkCards roomId={room.roomId}>
-              <RoomView
-                room={room}
-                eventId={eventId}
-                threadId={routedThreadId}
-                forkAt={forkAt}
-                focusEventInRoom={focusEventInRoom}
-                entryKey={entryKey}
-                hasMindroomAgents={hasMindroomAgents}
-                joinRequestCount={joinRequestCount}
-                onThreadLoadError={onThreadLoadError}
-                {...headerPanels}
-              />
-            </MessageLinkCards>
-          </Box>
-          {sidePanel}
+          <SecondThreadContext.Provider value={secondThread}>
+            <Box
+              ref={conversationRef}
+              grow="Yes"
+              direction="Column"
+              style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
+            >
+              <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
+              {/* Without an open thread the room's announcer reads B's replies too. */}
+              {routedThreadId && secondShown && (
+                <RoomMessageAnnouncer room={room} threadId={secondShown} myUserId={ownUserId} />
+              )}
+              <MessageLinkCards roomId={room.roomId}>
+                <RoomView
+                  room={room}
+                  eventId={eventId}
+                  threadId={routedThreadId}
+                  forkAt={forkAt}
+                  focusEventInRoom={focusEventInRoom}
+                  entryKey={entryKey}
+                  entryPushed={entryPushed}
+                  hasMindroomAgents={hasMindroomAgents}
+                  joinRequestCount={joinRequestCount}
+                  onThreadLoadError={onThreadLoadError}
+                  {...headerPanels}
+                />
+              </MessageLinkCards>
+            </Box>
+            {sidePanel}
+          </SecondThreadContext.Provider>
         </PluginPanelControlsContext.Provider>
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>

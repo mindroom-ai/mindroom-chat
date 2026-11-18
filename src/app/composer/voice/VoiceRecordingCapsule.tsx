@@ -73,7 +73,9 @@ export function VoiceRecordingCapsule({
       </IconTooltip>
       <VoiceWaveform
         waveform={waveform}
-        liveSampleCount={sampleCount}
+        // Only a recording glides: paused or finishing, the bars stop, and the count starts
+        // afresh on resume rather than gliding in everything since.
+        liveSampleCount={recording ? sampleCount : undefined}
         dimmed={paused || busy}
         compact
       />

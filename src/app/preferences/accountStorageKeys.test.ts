@@ -19,6 +19,8 @@ it('builds the keys under the names the app has always used', () => {
     'mindroom.computer.width:@alice:example.org',
     'mindroom.callTranscript.width:@alice:example.org',
     'mindroom.subagents.width:@alice:example.org',
+    'mindroom.secondThread:@alice:example.org',
+    'mindroom.secondThread.width:@alice:example.org',
   ]);
   expect(pluginPanelWidthStorageKey('@alice:example.org', 'notes/list')).toBe(
     'mindroom.panel.width:@alice:example.org:notes/list'

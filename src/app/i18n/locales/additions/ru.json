@@ -943,6 +943,10 @@
         "table": "Таблица",
         "pointValue": "{{label}}: {{series}} {{value}}",
         "share": "{{value}} ({{percent}})"
+      },
+      "voiceTranscript": {
+        "transcribing": "Расшифровка…",
+        "transcribedBy": "Расшифровал(а) {{name}}"
       }
     },
     "message-search": {
@@ -1066,6 +1070,12 @@
         "defaultLevel": "По умолчанию",
         "levelIsDefault": "{{level}}, по умолчанию",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "По умолчанию агента",
+        "roomModel": "Модель комнаты",
+        "defaultChoice": "По умолчанию",
+        "threadOnly": "Выбранная здесь модель действует только в этой ветке.",
+        "roomOverrideThreadOnly": "Задана для этой комнаты командой !room_model. Выбранная здесь модель действует только в этой ветке.",
         "levels": {
           "off": "Выкл.",
           "minimal": "Минимальное",
@@ -1200,7 +1210,10 @@
         "all": "Все ветки, соответствующие остальным фильтрам."
       }
     },
-    "renameHint": "Дважды щёлкните, чтобы переименовать"
+    "renameHint": "Дважды щёлкните, чтобы переименовать",
+    "close": "Закрыть ветку",
+    "resizeSecond": "Изменить ширину второй ветки",
+    "second": "Вторая ветка"
   },
   "threadSnooze": {
     "title": "Отложить до",
@@ -1579,5 +1592,8 @@
     "later": "Позже",
     "open": "Открытые",
     "done": "Готово"
+  },
+  "threadActions": {
+    "openBeside": "Открыть рядом"
   }
 }

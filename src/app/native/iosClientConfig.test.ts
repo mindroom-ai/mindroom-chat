@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { iosClientConfig } from '../../../scripts/ios-client-config.mjs';
 import { resolveComputerApiUrl } from '../computer/api';
+import { resolveIOSPushConfig } from '../notifications/push/iosPush';
 
 const source = readFileSync(new URL('../../../config/mindroom.json', import.meta.url), 'utf8');
 const settings = JSON.parse(
@@ -23,6 +24,16 @@ describe('bundled iOS client config', () => {
     }).toEqual({
       ...base,
       mindroom: { ...base.mindroom, canvas: undefined, computers: undefined },
+    });
+  });
+
+  it('turns push on in the iOS app, through the MindRoom push gateway', () => {
+    // Without it the app registers no pusher with any account's homeserver: only pushers another
+    // client left behind push, without the account tag a tap needs to open the right account.
+    const push = resolveIOSPushConfig(JSON.parse(iosClientConfig(source, settings)));
+    expect(push).toMatchObject({
+      appId: 'chat.mindroom.app',
+      gatewayUrl: 'https://push.mindroom.chat/_matrix/push/v1/notify',
     });
   });
 

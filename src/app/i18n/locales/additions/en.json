@@ -915,6 +915,10 @@
         "table": "Table",
         "pointValue": "{{label}}: {{series}} {{value}}",
         "share": "{{value}} ({{percent}})"
+      },
+      "voiceTranscript": {
+        "transcribing": "Transcribing…",
+        "transcribedBy": "Transcribed by {{name}}"
       }
     },
     "message-search": {
@@ -1026,6 +1030,12 @@
         "defaultLevel": "Default",
         "levelIsDefault": "{{level}}, default",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Agent default",
+        "roomModel": "Room model",
+        "defaultChoice": "Default",
+        "threadOnly": "Choosing a model here applies to this thread only.",
+        "roomOverrideThreadOnly": "Set for this room with !room_model. Choosing a model here applies to this thread only.",
         "levels": {
           "off": "Off",
           "minimal": "Minimal",
@@ -1160,7 +1170,10 @@
         "all": "Every thread matching your other filters."
       }
     },
-    "renameHint": "Double-click to rename"
+    "renameHint": "Double-click to rename",
+    "close": "Close thread",
+    "resizeSecond": "Resize second thread",
+    "second": "Second thread"
   },
   "threadSnooze": {
     "title": "Snooze until",
@@ -1513,5 +1526,8 @@
     "later": "Later",
     "open": "Open",
     "done": "Done"
+  },
+  "threadActions": {
+    "openBeside": "Open beside"
   }
 }

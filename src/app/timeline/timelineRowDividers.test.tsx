@@ -5,6 +5,7 @@ import type { VirtualItem } from '@tanstack/react-virtual';
 import { describe, expect, it } from 'vitest';
 import { renderTimelineTiles } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
+import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
 
 // A row whose render gives nothing (an event of a type the timeline draws no row for, kept in the
 // list by the developer setting `showHiddenEvents`, or one that decrypted to such a type) takes no
@@ -33,11 +34,8 @@ const renderEvent = ({ eventId, quietRun }: TimelineMessageRow) => (
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
-  secretRequestTimeline: {
-    hiddenEventIds: new Set<string>(),
-    byReply: new Map(),
-    waitingReplyIds: new Set<string>(),
-  },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>() },
+  voiceTranscripts: NO_VOICE_TRANSCRIPTS,
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and the dividers above its row: `unread`, or the date. */
@@ -46,7 +44,8 @@ const tileRows = (
   indexes: number[],
   readUptoAbsoluteIndex: number,
   quiet: ReadonlySet<string> = new Set(),
-  forkingIndex?: number
+  forkingIndex?: number,
+  data: TimelineMessageData = messageData
 ) => {
   const tiles = renderTimelineTiles({
     virtualItems: indexes.map(
@@ -70,7 +69,7 @@ const tileRows = (
     showHiddenEvents: true,
     timelineSet: {} as EventTimelineSet,
     focusItem: undefined,
-    messageData,
+    messageData: data,
     isHiddenByPlugin: () => false,
     isHiddenByPluginId: () => false,
     renderEvent,
@@ -174,5 +173,34 @@ describe("a fork draft's line at a run of quiet markers", () => {
       { id: '$review', separators: [], shown: [] },
     ]);
     expect(tileRows(events, [1, 2], 2, quiet, 1)[0]?.shown).toEqual(['$title+$review', 'forking']);
+  });
+});
+
+describe("a router's voice echo", () => {
+  const events = [
+    event('$read', 'm.room.message', START),
+    event('$voice', 'm.room.message', START + DAY),
+    event('$echo', 'm.room.message', START + DAY + 1_000),
+    event('$answer', 'm.room.message', START + DAY + 2_000),
+  ];
+  const paired = {
+    ...messageData,
+    voiceTranscripts: {
+      hiddenEventIds: new Set(['$echo']),
+      byVoiceId: new Map([['$voice', events[2]!]]),
+    },
+  };
+
+  it('takes no row once its voice message shows it, the dividers staying above that message', () => {
+    expect(tileRows(events, [0, 1, 2, 3], 0, undefined, undefined, paired)).toEqual([
+      { id: '$read', separators: [], shown: ['$read'] },
+      { id: '$voice', separators: ['unread', 'date'], shown: ['$voice'] },
+      { id: '$echo', separators: [], shown: [] },
+      { id: '$answer', separators: [], shown: ['$answer'] },
+    ]);
+  });
+
+  it('keeps its row while no voice message shows it', () => {
+    expect(tileRows(events, [1, 2], 0).map(({ shown }) => shown)).toEqual([['$voice'], ['$echo']]);
   });
 });

@@ -929,6 +929,10 @@
         "table": "Tabla",
         "pointValue": "{{label}}: {{series}} {{value}}",
         "share": "{{value}} ({{percent}})"
+      },
+      "voiceTranscript": {
+        "transcribing": "Transcribiendo…",
+        "transcribedBy": "Transcrito por {{name}}"
       }
     },
     "message-search": {
@@ -1046,6 +1050,12 @@
         "defaultLevel": "Predeterminado",
         "levelIsDefault": "{{level}}, predeterminado",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Predeterminado del agente",
+        "roomModel": "Modelo de la sala",
+        "defaultChoice": "Predeterminado",
+        "threadOnly": "El modelo que elijas aquí solo se aplica a este hilo.",
+        "roomOverrideThreadOnly": "Establecido para esta sala con !room_model. El modelo que elijas aquí solo se aplica a este hilo.",
         "levels": {
           "off": "Desactivado",
           "minimal": "Mínimo",
@@ -1180,7 +1190,10 @@
         "all": "Todos los hilos que coinciden con tus otros filtros."
       }
     },
-    "renameHint": "Haz doble clic para cambiar el nombre"
+    "renameHint": "Haz doble clic para cambiar el nombre",
+    "close": "Cerrar el hilo",
+    "resizeSecond": "Cambiar el tamaño del segundo hilo",
+    "second": "Segundo hilo"
   },
   "threadSnooze": {
     "title": "Posponer hasta",
@@ -1546,5 +1559,8 @@
     "later": "Más tarde",
     "open": "Abiertos",
     "done": "Hechos"
+  },
+  "threadActions": {
+    "openBeside": "Abrir al lado"
   }
 }

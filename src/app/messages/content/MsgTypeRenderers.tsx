@@ -27,8 +27,6 @@ import {
   IVideoInfo,
   MATRIX_AUDIO_DETAILS_PROPERTY_NAME,
   MATRIX_AUDIO_DETAILS_UNSTABLE_PROPERTY_NAME,
-  MATRIX_VOICE_MESSAGE_PROPERTY_NAME,
-  MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME,
 } from '../../matrix/types/common';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { MEDIA_MAX_SIZE } from '../../event-store/timeline/timelineRowTypes';
@@ -41,6 +39,7 @@ import {
   getMimeTypeBase,
 } from '../../lib/mimeTypes';
 import { isRecord } from '../../lib/isRecord';
+import { isVoiceMessageContent } from './voiceMessageContent';
 
 type MessageContent = Record<string, unknown>;
 
@@ -318,10 +317,6 @@ const readWaveform = (content: MessageContent): number[] | undefined => {
     ? waveform
     : undefined;
 };
-
-const isVoiceMessageContent = (content: MessageContent): boolean =>
-  content[MATRIX_VOICE_MESSAGE_PROPERTY_NAME] !== undefined ||
-  content[MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME] !== undefined;
 
 type MAudioProps = {
   content: MessageContent;

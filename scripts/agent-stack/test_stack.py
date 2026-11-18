@@ -1517,6 +1517,7 @@ class StubScenarioTests(unittest.TestCase):
 class WorkScenarioTests(unittest.TestCase):
     def test_knobs_default_and_parse(self) -> None:
         defaults = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "links": 0, "seed": 1}
+        defaults |= {"toolout": 0, "bg": 0, "bgsec": 0}
         self.assertEqual(stub_model.work_knobs("#work"), defaults)
         self.assertEqual(
             stub_model.work_knobs("please #work words=50 wps=0 tools=2 toolsec=1.5 seed=9"),
@@ -1557,6 +1558,18 @@ class WorkScenarioTests(unittest.TestCase):
         self.assertEqual(two[0], "work")
         self.assertEqual((two[1], two[3]), ("", 0))
         self.assertEqual(len(two[2].split()), 10)
+
+    def test_plan_starts_background_jobs_then_prints_tool_output(self) -> None:
+        shell = "run_shell_command"
+        prompt = "#work words=10 wps=0 tools=1 toolsec=2 toolout=700 bg=2 bgsec=300"
+        first = stub_model.plan(chat(prompt), {})
+        self.assertEqual(first, ("tool", shell, {"args": "sleep 300; echo background step 1", "background_after": 0}))
+        second = stub_model.plan(chat(prompt, {"role": "tool", "content": "a"}), {})
+        self.assertEqual(second, ("tool", shell, {"args": "sleep 300; echo background step 2", "background_after": 0}))
+        work = stub_model.plan(chat(prompt, *[{"role": "tool", "content": c} for c in "ab"]), {})
+        command = "sleep 2; echo work step 1; head -c 700 /dev/zero | tr '\\0' x"
+        self.assertEqual(work, ("tool", shell, {"args": command}))
+        self.assertEqual(stub_model.plan(chat(prompt, *[{"role": "tool", "content": c} for c in "abc"]), {})[0], "work")
 
     def test_reasoning_section(self) -> None:
         self.assertEqual(stub_model.work_reasoning(0, 1), "")

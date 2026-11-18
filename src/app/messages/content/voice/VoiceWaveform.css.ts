@@ -1,6 +1,5 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { BAR_GAP, BAR_STEP, GLIDE_MAX_STEPS } from './waveformGeometry';
 
 export const Waveform = style([
   DefaultReset,
@@ -46,23 +45,6 @@ export const WaveformCompact = style({
   position: 'relative',
 });
 
-// The recording's bars and the dotted line before them, which glide left together as samples
-// come in (VoiceWaveform.tsx). The dots repeat at the bars' step, so a glide of whole steps
-// ends where it began; the strip reaches past its start as far as a glide can begin.
-export const CompactStrip = style({
-  position: 'absolute',
-  insetBlock: 0,
-  insetInlineEnd: 0,
-  inlineSize: `calc(100% + ${toRem(GLIDE_MAX_STEPS * BAR_STEP)})`,
-  backgroundImage: `linear-gradient(to right, transparent 0 ${toRem(BAR_GAP)}, ${
-    color.SurfaceVariant.ContainerLine
-  } ${toRem(BAR_GAP)} ${toRem(BAR_STEP)})`,
-  // eslint-disable-next-line no-restricted-syntax -- Waveform lays out left to right in every language, so the bars sit at the right
-  backgroundPosition: 'right center',
-  backgroundRepeat: 'repeat-x',
-  backgroundSize: `${toRem(BAR_STEP)} ${toRem(3)}`,
-});
-
 export const Svg = style({
   display: 'block',
   width: '100%',
@@ -91,6 +73,11 @@ export const BarCompact = style({
 export const BarActive = style({
   fill: color.Primary.Main,
   opacity: 1,
+});
+
+// The dotted line the recording's bars will fill, drawn like the silence bars before them.
+export const CompactLine = style({
+  stroke: color.SurfaceVariant.ContainerLine,
 });
 
 export const BarCompactUnrecorded = style({

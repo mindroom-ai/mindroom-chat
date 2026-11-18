@@ -35,6 +35,11 @@ export const callTranscriptWidthStorageKey = (userId: string): string =>
 export const subagentsWidthStorageKey = (userId: string): string =>
   `mindroom.subagents.width:${userId}`;
 
+/** The second thread shown beside the open one, by room (`{ [roomId]: threadId }`), and its width. */
+export const secondThreadStorageKey = (userId: string): string => `mindroom.secondThread:${userId}`;
+export const secondThreadWidthStorageKey = (userId: string): string =>
+  `mindroom.secondThread.width:${userId}`;
+
 /** The start of the width keys of the account's plugin side panels. */
 export const pluginPanelWidthStorageKeyPrefix = (userId: string): string =>
   `mindroom.panel.width:${userId}:`;
@@ -54,6 +59,8 @@ export const accountStorageKeys = (userId: string): string[] => [
   computerWidthStorageKey(userId),
   callTranscriptWidthStorageKey(userId),
   subagentsWidthStorageKey(userId),
+  secondThreadStorageKey(userId),
+  secondThreadWidthStorageKey(userId),
 ];
 
 /** The starts of the account's keys that hold one value per panel or device. */

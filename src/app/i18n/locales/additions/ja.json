@@ -901,6 +901,10 @@
         "table": "表",
         "pointValue": "{{label}}：{{series}} {{value}}",
         "share": "{{value}} ({{percent}})"
+      },
+      "voiceTranscript": {
+        "transcribing": "文字起こし中…",
+        "transcribedBy": "{{name}} が文字起こし"
       }
     },
     "message-search": {
@@ -1006,6 +1010,12 @@
         "defaultLevel": "デフォルト",
         "levelIsDefault": "{{level}}、デフォルト",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "エージェントの既定",
+        "roomModel": "ルームのモデル",
+        "defaultChoice": "既定",
+        "threadOnly": "ここで選んだモデルはこのスレッドにのみ適用されます。",
+        "roomOverrideThreadOnly": "このルームには !room_model で設定されています。ここで選んだモデルはこのスレッドにのみ適用されます。",
         "levels": {
           "off": "オフ",
           "minimal": "最小",
@@ -1140,7 +1150,10 @@
         "all": "他のフィルター条件に一致するすべてのスレッドです。"
       }
     },
-    "renameHint": "ダブルクリックで名前を変更"
+    "renameHint": "ダブルクリックで名前を変更",
+    "close": "スレッドを閉じる",
+    "resizeSecond": "2つ目のスレッドのサイズを変更",
+    "second": "2つ目のスレッド"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
@@ -1480,5 +1493,8 @@
     "later": "後で",
     "open": "未完了",
     "done": "完了"
+  },
+  "threadActions": {
+    "openBeside": "横に開く"
   }
 }

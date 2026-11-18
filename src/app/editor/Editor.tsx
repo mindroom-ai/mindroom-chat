@@ -235,6 +235,8 @@ type CustomEditorProps = EditorSlots & {
    * the controls sit beside the text in a plain row.
    */
   layout?: EditorLayout;
+  /** A `stacked` frame wide enough holds the `bottom` row between its leading and trailing controls. */
+  inlineBottom?: boolean;
   className?: string;
   style?: CSSProperties;
   readOnly?: boolean;
@@ -293,7 +295,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh', layout } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
-  const { styleMarkdown, linkSchemes, markdownCommands } = props;
+  const { styleMarkdown, linkSchemes, markdownCommands, inlineBottom } = props;
   const decorate = useMemo(
     () =>
       styleMarkdown
@@ -362,7 +364,11 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
   );
 
   return (
-    <div ref={ref} style={style} className={classNames(css.Editor, className)}>
+    <div
+      ref={ref}
+      style={style}
+      className={classNames(css.Editor, layout && inlineBottom && css.EditorFrame, className)}
+    >
       <Slate initialValue={initialValue} editor={editor} onChange={onChange}>
         {top}
         {layout ? (
@@ -370,9 +376,11 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
             className={classNames(css.EditorGrid, layout === 'stacked' && css.EditorGridStacked)}
             data-editor-layout={layout}
           >
+            {/* The text box first, so no layout moves it; the bottom row after the leading
+                controls, so Tab reaches a toolbar right after the button that showed it. */}
             {scroll(css.EditorSlotText)}
-            {bottom && <div className={css.EditorSlotBottom}>{bottom}</div>}
             <EditorControls className={css.EditorSlotBefore}>{before}</EditorControls>
+            {bottom && <div className={css.EditorSlotBottom}>{bottom}</div>}
             <EditorControls className={css.EditorSlotAfter}>{after}</EditorControls>
           </div>
         ) : (

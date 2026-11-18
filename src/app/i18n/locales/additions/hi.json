@@ -915,6 +915,10 @@
         "table": "तालिका",
         "pointValue": "{{label}}: {{series}} {{value}}",
         "share": "{{value}} ({{percent}})"
+      },
+      "voiceTranscript": {
+        "transcribing": "ट्रांसक्राइब हो रहा है…",
+        "transcribedBy": "{{name}} ने ट्रांसक्राइब किया"
       }
     },
     "message-search": {
@@ -1026,6 +1030,12 @@
         "defaultLevel": "डिफ़ॉल्ट",
         "levelIsDefault": "{{level}}, डिफ़ॉल्ट",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "एजेंट डिफ़ॉल्ट",
+        "roomModel": "रूम मॉडल",
+        "defaultChoice": "डिफ़ॉल्ट",
+        "threadOnly": "यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
+        "roomOverrideThreadOnly": "इस रूम के लिए !room_model से सेट किया गया। यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
         "levels": {
           "off": "बंद",
           "minimal": "न्यूनतम",
@@ -1160,7 +1170,10 @@
         "all": "आपके अन्य फ़िल्टर से मेल खाने वाले सभी थ्रेड।"
       }
     },
-    "renameHint": "नाम बदलने के लिए डबल-क्लिक करें"
+    "renameHint": "नाम बदलने के लिए डबल-क्लिक करें",
+    "close": "थ्रेड बंद करें",
+    "resizeSecond": "दूसरे थ्रेड का आकार बदलें",
+    "second": "दूसरा थ्रेड"
   },
   "threadSnooze": {
     "title": "कब तक स्थगित करें",
@@ -1513,5 +1526,8 @@
     "later": "बाद में",
     "open": "खुले",
     "done": "पूरे"
+  },
+  "threadActions": {
+    "openBeside": "बगल में खोलें"
   }
 }

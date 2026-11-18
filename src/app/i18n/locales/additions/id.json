@@ -901,6 +901,10 @@
         "table": "Tabel",
         "pointValue": "{{label}}: {{series}} {{value}}",
         "share": "{{value}} ({{percent}})"
+      },
+      "voiceTranscript": {
+        "transcribing": "Mentranskripsi…",
+        "transcribedBy": "Ditranskripsi oleh {{name}}"
       }
     },
     "message-search": {
@@ -1006,6 +1010,12 @@
         "defaultLevel": "Bawaan",
         "levelIsDefault": "{{level}}, bawaan",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Bawaan agen",
+        "roomModel": "Model ruangan",
+        "defaultChoice": "Bawaan",
+        "threadOnly": "Model yang dipilih di sini hanya berlaku untuk utas ini.",
+        "roomOverrideThreadOnly": "Diatur untuk ruangan ini dengan !room_model. Model yang dipilih di sini hanya berlaku untuk utas ini.",
         "levels": {
           "off": "Mati",
           "minimal": "Minimal",
@@ -1140,7 +1150,10 @@
         "all": "Semua utas yang cocok dengan filter Anda lainnya."
       }
     },
-    "renameHint": "Klik dua kali untuk mengganti nama"
+    "renameHint": "Klik dua kali untuk mengganti nama",
+    "close": "Tutup utas",
+    "resizeSecond": "Ubah ukuran utas kedua",
+    "second": "Utas kedua"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -1480,5 +1493,8 @@
     "later": "Nanti",
     "open": "Terbuka",
     "done": "Selesai"
+  },
+  "threadActions": {
+    "openBeside": "Buka di samping"
   }
 }

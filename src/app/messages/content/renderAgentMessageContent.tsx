@@ -4,7 +4,7 @@ import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
+import { COMPACTIONS_CONTENT_KEY, readReplyCompactions } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
@@ -28,9 +28,10 @@ import { getLongTextSource, hasLongTextMetadata } from '../../matrix/protocol/lo
 import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
 import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
-import { withReasoning } from '../agent-run/Reasoning';
+import { hasFinalReasoning, withReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
-import { isLongAgentReply, splitFinishedWork } from '../agent-run/finishedWorkSplit';
+import { foldFinishedWork } from '../agent-run/finishedWorkSplit';
+import { useToolCallsShown } from '../toolCallVisibility';
 import {
   LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_KEY,
@@ -149,8 +150,12 @@ function AgentRenderBody({
 }
 
 type AgentWorkBodyProps = {
-  /** The body's plain text, whose length decides whether it folds. */
+  /** The body's plain text, whose rows bound the work's. */
   body: string;
+  /** Whether the reasoning line shows above the body. */
+  reasoned: boolean;
+  /** The number of compaction seams in the work. */
+  compactions: number;
   /** The body's HTML; undefined for a plain body or the thinking placeholder. */
   html?: string;
   foldKey: string;
@@ -168,10 +173,12 @@ type AgentWorkBodyProps = {
 /**
  * An agent reply, in the same tree from its first streamed frame on, with or without tool calls,
  * so the state inside it, such as collapsed reasoning, stays as they come; its work folded once it
- * finished long, with an answer after its last tool call.
+ * finished with enough rows of work (`foldFinishedWork`) and an answer after its last tool call.
  */
 function AgentWorkBody({
   body,
+  reasoned,
+  compactions,
   html,
   foldKey,
   finished,
@@ -181,16 +188,36 @@ function AgentWorkBody({
   htmlReactParserOptions,
 }: AgentWorkBodyProps) {
   // While a request of its calls waits, under it, the work stays open: the call it blocks shows.
-  const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
+  const message = useContext(ToolCallMessageContext);
+  const waiting = useSecretRequestWaiting(message?.eventId);
+  const [toolCallsShown] = useToolCallsShown(message?.roomId, message?.threadId);
   const sanitizeOptions = useBodySanitizeOptions();
+  // Hidden calls fold into the cog, which sits on the reasoning line or has a row of its own.
+  const seamRows = (reasoned || !toolCallsShown ? 1 : 0) + compactions;
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
-  // reply's own body to change, and for it to finish long.
+  // reply's own body to change, and for it to finish with work worth folding.
   const split = useMemo(
     () =>
-      finished && !waiting && html !== undefined && isLongAgentReply(body)
-        ? splitFinishedWork(html, htmlReactParserOptions, sanitizeOptions)
+      finished && !waiting && html !== undefined
+        ? foldFinishedWork(
+            body,
+            html,
+            htmlReactParserOptions,
+            sanitizeOptions,
+            toolCallsShown,
+            seamRows
+          )
         : undefined,
-    [finished, waiting, body, html, htmlReactParserOptions, sanitizeOptions]
+    [
+      finished,
+      waiting,
+      body,
+      html,
+      htmlReactParserOptions,
+      sanitizeOptions,
+      toolCallsShown,
+      seamRows,
+    ]
   );
   return (
     <FinishedWorkFold
@@ -305,7 +332,7 @@ export const renderAgentMessageContent = ({
       html
     );
 
-  // A long finished reply folds its work, everything up to its last tool call, behind one row, as
+  // A finished reply folds its work, everything up to its last tool call, behind one row, as
   // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
   // event to its final edit. Search results and highlighted rows show the whole reply. A
   // regenerated reply keeps its previous answer's run status, so a stream status of its own must
@@ -339,6 +366,8 @@ export const renderAgentMessageContent = ({
       return (
         <AgentWorkBody
           body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
+          reasoned={hasFinalReasoning(bodyContent)}
+          compactions={readReplyCompactions(bodyContent[COMPACTIONS_CONTENT_KEY]).length}
           html={bodyHtml}
           foldKey={`finished-work:${foldEventId}`}
           finished={finished && canFold}

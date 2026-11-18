@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { MatrixEventEvent, RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useMessageRendererTaken } from '../plugins/messageRenderers';
 import {
   NO_INLINE_SECRET_REQUESTS,
+  createDrawnSecretRequests,
   planInlineSecretRequests,
   sameInlineSecretRequestPlan,
   secretRequestCards,
@@ -14,9 +14,10 @@ import {
 /**
  * The open thread's inline secret requests (planInlineSecretRequests), made again whenever the
  * thread's events change, and when one of them decrypts, is redacted or replaced in place, which
- * leaves the array as it was. A plan that draws the same as the last is the last, so the
- * thread's replies do not redraw for each streamed edit. Only threads plan them; the room's views
- * keep each card's row.
+ * leaves the array as it was. A plan that allows the same as the last is the last, so the
+ * thread's replies do not redraw for each streamed edit. With it, this timeline's record of the
+ * lines its replies have mounted (`drawn`). Only threads plan them; the room's views keep each
+ * card's row.
  */
 export const useInlineSecretRequestPlan = ({
   room,
@@ -60,19 +61,8 @@ export const useInlineSecretRequestPlan = ({
       room.removeListener(RoomEvent.Redaction, redacted);
     };
   }, [mx, room, threadId]);
-  const rendererTaken = useMessageRendererTaken(viewerId);
-  const pluginRenders = useCallback(
-    (event: MatrixEvent, content: Record<string, unknown>) =>
-      !!rendererTaken?.({
-        eventId: event.getId(),
-        roomId: event.getRoomId(),
-        type: event.getType(),
-        sender: event.getSender() ?? '',
-        content,
-      }),
-    [rendererTaken]
-  );
-  const last = useRef(NO_INLINE_SECRET_REQUESTS);
+  const [drawn] = useState(createDrawnSecretRequests);
+  const last = useRef<InlineSecretRequestPlan>(NO_INLINE_SECRET_REQUESTS);
   return useMemo(() => {
     void changes;
     if (routeId) revealed.current.add(routeId);
@@ -81,19 +71,17 @@ export const useInlineSecretRequestPlan = ({
       ? secretRequestCards(events, (userId) => isMindroomAgentUserIdForViewer(userId, viewerId))
       : [];
     const byId = new Map(cards.length > 0 ? events.map((event) => [event.getId(), event]) : []);
-    const plan =
-      cards.length === 0
-        ? NO_INLINE_SECRET_REQUESTS
-        : planInlineSecretRequests({
-            cards,
-            getEvent: (id) => byId.get(id),
-            getContent,
-            ignored,
-            revealed: revealed.current,
-            pluginRenders,
-            threadId,
-          });
-    if (!sameInlineSecretRequestPlan(plan, last.current)) last.current = plan;
+    const plan = planInlineSecretRequests({
+      cards,
+      getEvent: (id) => byId.get(id),
+      getContent,
+      ignored,
+      revealed: revealed.current,
+      threadId,
+    });
+    if (last.current.drawn !== drawn || !sameInlineSecretRequestPlan(plan, last.current)) {
+      last.current = { ...plan, drawn };
+    }
     return last.current;
-  }, [changes, events, getContent, ignored, pluginRenders, threadId, viewerId, routeId, focusId]);
+  }, [changes, drawn, events, getContent, ignored, threadId, viewerId, routeId, focusId]);
 };

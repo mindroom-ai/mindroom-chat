@@ -3,6 +3,7 @@ import React from 'react';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useClientConfig } from '../../config/useClientConfig';
 import * as css from './ThinkingPlaceholder.css';
+import { ShimmerText } from './ShimmerText';
 import { resolveThinkingPlaceholderMessages } from '../../matrix/protocol/thinkingPlaceholder';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 import thinkingBase from './thinking-mark-base.svg';
@@ -101,14 +102,7 @@ export function ThinkingPlaceholder({ startedAt }: ThinkingPlaceholderProps) {
           </span>
         </span>
       </span>
-      <span className={css.Text} aria-hidden="true">
-        <span className={css.TextBase}>{text}</span>
-        <span className={css.TextSweep} aria-hidden="true">
-          <span className={css.TextCounter}>
-            <span className={css.TextHighlight}>{text}</span>
-          </span>
-        </span>
-      </span>
+      <ShimmerText>{text}</ShimmerText>
     </span>
   );
 }

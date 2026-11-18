@@ -1,4 +1,12 @@
-import React, { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
@@ -50,6 +58,7 @@ import { registeredPlugins, type RegisteredPlugin } from '../plugins/registry';
 import { shownThreadDetails } from '../plugins/threadDetails';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { ThreadDetailsList } from './ThreadDetailsList';
+import { SecondThreadContext } from '../navigation/secondThread';
 import * as css from './ThreadActionsMenu.css';
 import { latestForkPoint } from '../event-store/threads/threadFork';
 import { ForkIcon } from '../messages/ForkIcon';
@@ -71,6 +80,8 @@ export type ThreadActionsMenuProps = {
   onShowBeside?: () => void;
   /** Offered from the banner of a thread beside the messages, to fill the page with it. */
   onShowFull?: () => void;
+  /** The menu of a view the keys do not act on (a second thread's banner): it advertises none. */
+  shortcutless?: boolean;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
@@ -103,11 +114,13 @@ export function ThreadActionsMenu({
   onHideDetails,
   onShowBeside,
   onShowFull,
+  shortcutless = false,
   plugins = registeredPlugins,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const tags = useThreadTags(room, rootId);
+  const secondThread = useContext(SecondThreadContext);
   const mutations = useMutateThreadTags(room);
   const pinning = useThreadPinning(room);
   const members = useRoomMembers(mx, room.roomId);
@@ -470,6 +483,17 @@ export function ThreadActionsMenu({
       onSelect: onOpenThread,
     });
   }
+  if (secondThread?.offers(room.roomId, rootId)) {
+    items.push({
+      action: 'openBeside',
+      label: t('threadActions.openBeside'),
+      icon: Icons.ThreadPlus,
+      onSelect: () => {
+        secondThread.open(room.roomId, rootId);
+        onClose();
+      },
+    });
+  }
   if (showTags) {
     items.push({
       action: 'tags',
@@ -501,7 +525,7 @@ export function ThreadActionsMenu({
       label: tags.isResolved ? t('threadActions.reopen') : t('thread.resolve'),
       icon: tags.isResolved ? Icons.Reload : Icons.CheckTwice,
       // The shortcut resolves the open thread, whose menu has no Open.
-      shortcut: onOpenThread ? undefined : 'resolveThread',
+      shortcut: onOpenThread || shortcutless ? undefined : 'resolveThread',
       onSelect: () => {
         void mutations.setResolved(rootId, !tags.isResolved);
       },

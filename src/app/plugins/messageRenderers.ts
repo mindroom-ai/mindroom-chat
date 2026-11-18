@@ -146,23 +146,6 @@ export const useMessageRowHidden = (
   return hasHiddenRenderers() ? test : undefined;
 };
 
-/**
- * The test of whether a plugin's renderer takes a message in the timeline (RenderMessageContent),
- * as the viewer with the app's config.json; undefined when no plugin of this build has one.
- */
-export const useMessageRendererTaken = (
-  viewerId: string | undefined
-): ((event: PluginEvent) => boolean) | undefined => {
-  const config = useOptionalClientConfig();
-  const test = useCallback(
-    (event: PluginEvent) => pickRenderer(config, event, viewerId) !== undefined,
-    [config, viewerId]
-  );
-  return registeredPlugins.some(({ messageRenderers }) => messageRenderers.length > 0)
-    ? test
-    : undefined;
-};
-
 /** Whether a plugin of this build gives a message renderer a `preview`: else none is asked. */
 export const hasMessagePreviews = (): boolean =>
   registeredPlugins.some(({ messageRenderers }) => messageRenderers.some(({ preview }) => preview));

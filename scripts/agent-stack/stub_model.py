@@ -26,10 +26,11 @@ The person's latest message picks a scenario by hashtag:
   #canvasrtl   the same page, titled in Arabic around a Latin file name
   #job         a shell call that runs 45 s as a background job
   #work        a reply shaped by knobs in the prompt: #work words=200 wps=30 reasoning=0 tools=0 toolsec=0 links=0
-               seed=1 (words in the reply, words a second (0 sends it at once), characters of reasoning first, shell
-               calls of toolsec seconds before it, how many of the words are links (https://example.org/work/..., a
-               reserved name nothing is fetched from by a homeserver without a preview allowlist), and the seed of
-               the generated Markdown)
+               toolout=0 bg=0 bgsec=0 seed=1 (words in the reply, words a second (0 sends it at once), characters of
+               reasoning first, shell calls of toolsec seconds before it, how many of the words are links
+               (https://example.org/work/..., a reserved name nothing is fetched from by a homeserver without a
+               preview allowlist), characters each of those calls prints after its line, shell calls started first
+               as background jobs (background_after 0) that run bgsec seconds, and the seed of the generated Markdown)
   #terminal    terminal_open, then terminal_run of an echo in the terminal it opened (stack.py --terminals)
 
 --scenarios FILE (repeatable; stack.py passes each plugin directory's e2e/stub-scenarios.json) adds tool scenarios in
@@ -335,7 +336,18 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
 
 # The #work scenario
 
-WORK_DEFAULTS = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "links": 0, "seed": 1}
+WORK_DEFAULTS = {
+    "words": 200,
+    "wps": 30,
+    "reasoning": 0,
+    "tools": 0,
+    "toolsec": 0,
+    "links": 0,
+    "toolout": 0,
+    "bg": 0,
+    "bgsec": 0,
+    "seed": 1,
+}
 WORK_WORDS = (
     "the agent room thread message reply model tool result step plan check build test run file change update "
     "list item value config state client server user queue event stream render page link note cache index "
@@ -346,7 +358,8 @@ WORK_WORDS = (
 def work_knobs(text: str) -> dict[str, float]:
     """The #work knobs of `text` (key=number pairs), defaults for those it leaves out."""
     knobs: dict[str, float] = dict(WORK_DEFAULTS)
-    for key, value in re.findall(r"\b(words|wps|reasoning|tools|toolsec|links|seed)=(-?\d+(?:\.\d+)?)", text.lower()):
+    names = "words|wps|reasoning|tools|toolsec|links|toolout|bg|bgsec|seed"
+    for key, value in re.findall(rf"\b({names})=(-?\d+(?:\.\d+)?)", text.lower()):
         number = float(value)
         knobs[key] = int(number) if number == int(number) else number
     return knobs
@@ -426,9 +439,15 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
         return ("text", f"The background job ended:\n\n```\n{last_result}\n```")
     if has_tag(text, "#work"):
         knobs = work_knobs(text)
-        if len(results) < knobs["tools"]:
+        background = int(knobs["bg"])
+        if len(results) < background:
+            command = f"sleep {knobs['bgsec']:g}; echo background step {len(results) + 1}"
+            return ("tool", "run_shell_command", {"args": command, "background_after": 0})
+        if len(results) < background + knobs["tools"]:
             seconds = f"{knobs['toolsec']:g}"
-            return ("tool", "run_shell_command", {"args": f"sleep {seconds}; echo work step {len(results) + 1}"})
+            output = f"; head -c {int(knobs['toolout'])} /dev/zero | tr '\\0' x" if knobs["toolout"] > 0 else ""
+            step = len(results) - background + 1
+            return ("tool", "run_shell_command", {"args": f"sleep {seconds}; echo work step {step}{output}"})
         wps = knobs["wps"]
         return (
             "work",
