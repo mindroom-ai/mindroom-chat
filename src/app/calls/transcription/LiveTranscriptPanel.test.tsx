@@ -255,6 +255,18 @@ describe('LiveTranscriptPanel', () => {
     );
     expect(text('[data-live-transcript-name]')).toEqual(['carol']);
     expect(text('[data-live-transcript-text]')).toEqual(['Hello all. Joining late, sorry.']);
+    // A line that lengthens the text leaves the text already there, and a selection in it, be.
+    const said = container.querySelector('[data-live-transcript-text]')?.firstChild;
+    act(() =>
+      state.polls[0]?.onLive({
+        call: CALL,
+        lines: [line('l10', CAROL, '2026-11-07T09:32:05Z', { text: '!' })],
+        names: {},
+      })
+    );
+    expect(text('[data-live-transcript-text]')).toEqual(['Hello all. Joining late, sorry.!']);
+    expect(container.querySelector('[data-live-transcript-text]')?.firstChild).toBe(said);
+    expect(said?.textContent).toBe('Hello all.');
     expect(text('[data-live-transcript-member]')).toEqual(['Ann', 'Bob']);
     // Pause is for the call this device is in.
     expect(container.querySelector('header [aria-label="Pause transcription"]')).toBeNull();
@@ -262,7 +274,7 @@ describe('LiveTranscriptPanel', () => {
     // A failed read keeps what was read, and says transcripts are unavailable.
     act(() => state.polls[0]?.onFailure?.());
     expect(container.textContent).toContain('Transcripts are unavailable');
-    expect(text('[data-live-transcript-text]')).toEqual(['Hello all. Joining late, sorry.']);
+    expect(text('[data-live-transcript-text]')).toEqual(['Hello all. Joining late, sorry.!']);
 
     act(() => root.unmount());
     expect(state.polls[0]?.signal.aborted).toBe(true);
