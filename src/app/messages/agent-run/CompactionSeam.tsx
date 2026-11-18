@@ -130,7 +130,7 @@ function Gauge({ compaction, state }: { compaction: ReplyCompaction; state: Seam
   );
 }
 
-type Row = { term: string; value: ReactNode; className?: string };
+type Row = { term: string; value: ReactNode };
 
 type RowContext = { t: TFunction; at: (ts: number) => string };
 
@@ -156,8 +156,8 @@ const historyRow = (
 };
 
 /** A row of the card, or none without a value. */
-const row = (term: string, value: ReactNode | undefined, className?: string): Row[] =>
-  value === undefined ? [] : [{ term, value, className }];
+const row = (term: string, value: ReactNode | undefined): Row[] =>
+  value === undefined ? [] : [{ term, value }];
 
 const budgetRow = ({ historyBudgetTokens: budget }: ReplyCompaction, t: TFunction): Row[] =>
   row(
@@ -231,7 +231,7 @@ const unfinishedRows = (c: ReplyCompaction, state: SeamState, { t, at }: RowCont
     ? t(`${KEY}.value.interrupted`)
     : c.failureReason && revealDirectionControls(c.failureReason);
   return [
-    ...row(t(`${KEY}.row.reason`), reason, css.Reason),
+    ...row(t(`${KEY}.row.reason`), reason),
     ...historyRow(c, false, t),
     ...budgetRow(c, t),
     ...modelRow(c, t),
@@ -477,10 +477,10 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             {sub !== undefined && <div className={css.Subtitle}>{sub}</div>}
             <Gauge compaction={compaction} state={state} />
             <dl className={css.Rows}>
-              {rows.map(({ term, value, className }) => (
+              {rows.map(({ term, value }) => (
                 <Fragment key={term}>
                   <dt className={css.Term}>{term}</dt>
-                  <dd className={className ? `${css.Value} ${className}` : css.Value}>{value}</dd>
+                  <dd className={css.Value}>{value}</dd>
                 </Fragment>
               ))}
             </dl>

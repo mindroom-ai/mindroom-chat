@@ -637,6 +637,35 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   expect(titleWidth).toBeGreaterThanOrEqual(cardWidth / 2);
   await page.mouse.move(0, 0);
   await expect(card).toHaveCount(0);
+
+  // A long failure reason reads in full: the card scrolls, and the reason is not cut short.
+  const reasonSeam = seamsIn(replyWith(page, STATES)).nth(0);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '';
+  });
+  await centre(page, reasonSeam);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%';
+  });
+  await centre(page, reasonSeam);
+  await reasonSeam.getByRole('button').hover();
+  await expect(card).toContainText('529 overloaded');
+  const reason = 'The summary exceeds the history budget (44681 estimated tokens; 9794 available)';
+  expect(
+    await card.evaluate((element, longReason) => {
+      const value = element.querySelector('dd')!;
+      value.textContent = longReason;
+      element.scrollTop = element.scrollHeight;
+      const range = document.createRange();
+      range.setStart(value.firstChild!, longReason.length - 1);
+      range.setEnd(value.firstChild!, longReason.length);
+      const last = range.getBoundingClientRect();
+      const inside = (box: DOMRect) => last.top >= box.top && last.bottom <= box.bottom;
+      return inside(element.getBoundingClientRect()) && inside(value.getBoundingClientRect());
+    }, reason)
+  ).toBe(true);
+  await page.mouse.move(0, 0);
+  await expect(card).toHaveCount(0);
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '';
   });

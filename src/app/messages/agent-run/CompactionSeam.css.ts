@@ -231,13 +231,4 @@ export const Term = style(muted);
 
 export const Value = style({ margin: 0, fontVariantNumeric: 'tabular-nums' });
 
-// A failure reason is error text of any length; past six lines it would push the card off a
-// phone, which cannot scroll it.
-export const Reason = style({
-  display: '-webkit-box',
-  WebkitLineClamp: 6,
-  WebkitBoxOrient: 'vertical',
-  overflow: 'hidden',
-});
-
 globalStyle(`${Value} b`, { fontWeight: 600 });
