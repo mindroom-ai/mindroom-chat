@@ -1,4 +1,10 @@
-import { type CSSProperties, type KeyboardEvent, useLayoutEffect, useRef } from 'react';
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { editableActiveElement } from '../lib/dom';
@@ -12,7 +18,6 @@ import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 /** The thread column's own width, at first. */
 const DEFAULT_WIDTH = 480;
 const MAX_WIDTH = 4096;
-const TEST_ID = 'second-thread-panel';
 const COLUMN_STYLE: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -21,16 +26,19 @@ const COLUMN_STYLE: CSSProperties = {
 };
 
 /**
- * Tells `onGone` as B's view goes whether it held the focus: rendered before the view, its cleanup
- * runs while the view's nodes are still on the page.
+ * Tells `onGone` as B's view goes whether it held the focus (`ownsFocus`): rendered before the
+ * view, its cleanup runs before any blur its going may bring.
  */
-function FocusProbe({ onGone }: { onGone: (hadFocus: boolean) => void }) {
+function FocusProbe({
+  ownsFocus,
+  onGone,
+}: {
+  ownsFocus: RefObject<boolean>;
+  onGone: (hadFocus: boolean) => void;
+}) {
   const gone = useRef(onGone);
   gone.current = onGone;
-  useLayoutEffect(
-    () => () => gone.current(!!document.activeElement?.closest(`[data-testid="${TEST_ID}"]`)),
-    []
-  );
+  useLayoutEffect(() => () => gone.current(!!ownsFocus.current), [ownsFocus]);
   return null;
 }
 
@@ -60,6 +68,10 @@ export function SecondThreadPanel({
   const { t } = useTranslation();
   const columnRef = useRef<HTMLDivElement>(null);
   const focusComposer = useRef<() => void>();
+  // Whether the focus is in B's tree: React's focus events come through its portals too (its
+  // menus and dialogs, drawn outside its nodes). Focus going elsewhere blurs first; a node that
+  // goes with B leaves it set.
+  const ownsFocus = useRef(false);
   const closing = usePanelPresence()?.phase === 'exit';
 
   const handleKeyDown = (evt: KeyboardEvent<HTMLDivElement>) => {
@@ -81,11 +93,22 @@ export function SecondThreadPanel({
       resizeLabel={t('thread.resizeSecond')}
       collapseLabel={t('thread.close')}
       onCollapse={onClose}
-      testId={TEST_ID}
+      testId="second-thread-panel"
       onKeyDown={handleKeyDown}
     >
-      <div ref={columnRef} style={COLUMN_STYLE} role="region" aria-label={t('thread.second')}>
-        {!closing && <FocusProbe onGone={onGone} />}
+      <div
+        ref={columnRef}
+        style={COLUMN_STYLE}
+        role="region"
+        aria-label={t('thread.second')}
+        onFocus={() => {
+          ownsFocus.current = true;
+        }}
+        onBlur={() => {
+          ownsFocus.current = false;
+        }}
+      >
+        {!closing && <FocusProbe ownsFocus={ownsFocus} onGone={onGone} />}
         {!closing && (
           <ThreadView
             key={threadId}

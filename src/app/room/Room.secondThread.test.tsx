@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { type MutableRefObject, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { getDefaultStore } from 'jotai';
 import { ThreadEvent } from 'matrix-js-sdk';
 import { callPanelRoomAtom } from '../calls/callStore';
@@ -128,6 +129,8 @@ vi.mock('./ThreadView', () => ({
           beta
         </p>
         <div role="menu" tabIndex={-1} data-testid="b-menu" />
+        {/* A popover of B's, such as its thread options, rendered outside B's nodes. */}
+        {createPortal(<button type="button">Portal option</button>, document.body)}
       </div>
     );
   },
@@ -336,6 +339,18 @@ describe('the second thread beside the open one', () => {
     await openBeside('$b');
     screen.getByTestId('b-composer').focus();
     await act(async () => screen.getByRole('button', { name: 'Close thread' }).click());
+    expect(document.activeElement).toBe(screen.getByTestId('a-composer'));
+  });
+
+  it('B replaced by a call with the focus in its portaled popover hands the focus to A', async () => {
+    await renderRoom('$a');
+    await openBeside('$b');
+    screen.getByRole('button', { name: 'Portal option' }).focus();
+    await act(async () => {
+      getDefaultStore().set(getCallWindowSettingsAtom('@alice:example.org'), { mode: 'docked' });
+      getDefaultStore().set(callPanelRoomAtom, room.roomId);
+    });
+    expect(panel()).toBeNull();
     expect(document.activeElement).toBe(screen.getByTestId('a-composer'));
   });
 
