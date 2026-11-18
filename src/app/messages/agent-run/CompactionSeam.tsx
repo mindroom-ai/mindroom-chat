@@ -132,7 +132,7 @@ function Gauge({ compaction, state }: { compaction: ReplyCompaction; state: Seam
   );
 }
 
-type Row = { term: string; value: ReactNode };
+type Row = { term: string; value: ReactNode; className?: string };
 
 type RowContext = { t: TFunction; at: (ts: number) => string };
 
@@ -235,7 +235,9 @@ const unfinishedRows = (c: ReplyCompaction, state: SeamState, { t, at }: RowCont
   let reason: string | undefined = c.failureReason && revealDirectionControls(c.failureReason);
   if (interrupted) reason = t(`${KEY}.value.interrupted`);
   return [
-    ...(reason === undefined ? [] : [{ term: t(`${KEY}.row.reason`), value: reason }]),
+    ...(reason === undefined
+      ? []
+      : [{ term: t(`${KEY}.row.reason`), value: reason, className: css.Reason }]),
     ...historyRow(c, false, t),
     ...budgetRow(c, t),
     ...modelRow(c, t),
@@ -373,10 +375,10 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             {sub !== undefined && <div className={css.Subtitle}>{sub}</div>}
             <Gauge compaction={compaction} state={state} />
             <dl className={css.Rows}>
-              {rows.map(({ term, value }) => (
+              {rows.map(({ term, value, className }) => (
                 <Fragment key={term}>
                   <dt className={css.Term}>{term}</dt>
-                  <dd className={css.Value}>{value}</dd>
+                  <dd className={className ? `${css.Value} ${className}` : css.Value}>{value}</dd>
                 </Fragment>
               ))}
             </dl>

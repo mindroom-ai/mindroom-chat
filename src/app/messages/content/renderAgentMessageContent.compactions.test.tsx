@@ -103,6 +103,7 @@ vi.mock('../agent-run/CompactionSeam.css', () => ({
   Rows: 'Rows',
   Term: 'Term',
   Value: 'Value',
+  Reason: 'Reason',
 }));
 vi.mock('../agent-run/OutlineComet.css', () => ({ Outline: 'Outline' }));
 vi.mock('../agent-run/ToolCallsFold.css', () => ({

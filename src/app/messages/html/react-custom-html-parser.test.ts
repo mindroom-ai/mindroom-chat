@@ -138,6 +138,7 @@ vi.mock('../agent-run/CompactionSeam.css', () =>
       'Rows',
       'Term',
       'Value',
+      'Reason',
     ].map((name) => [name, name])
   )
 );

@@ -52,6 +52,13 @@ const isAmount = (value: unknown): value is number =>
 
 const isText = (value: unknown): value is string => typeof value === 'string' && value !== '';
 
+/** The most of a failure reason kept: the backend sends its error text uncapped. */
+const MAX_REASON_LENGTH = 300;
+
+/** `text` cut to `MAX_REASON_LENGTH` characters, the last an ellipsis, when it is longer. */
+const capReason = (text: string): string =>
+  text.length > MAX_REASON_LENGTH ? `${text.slice(0, MAX_REASON_LENGTH - 1)}…` : text;
+
 /** The optional fields `entry` carries with the right type; a malformed one is left out. */
 const readOptionalFields = (entry: Record<string, unknown>): OptionalFields => {
   const fields: OptionalFields = {};
@@ -65,7 +72,7 @@ const readOptionalFields = (entry: Record<string, unknown>): OptionalFields => {
   if (isCount(entry.runs_before)) fields.runsBefore = entry.runs_before;
   if (isCount(entry.compacted_run_count)) fields.compactedRunCount = entry.compacted_run_count;
   if (isCount(entry.runs_remaining)) fields.runsRemaining = entry.runs_remaining;
-  if (isText(entry.failure_reason)) fields.failureReason = entry.failure_reason;
+  if (isText(entry.failure_reason)) fields.failureReason = capReason(entry.failure_reason);
   return fields;
 };
 

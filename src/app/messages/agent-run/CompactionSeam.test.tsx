@@ -48,6 +48,7 @@ vi.mock('./CompactionSeam.css', () => ({
   Rows: 'Rows',
   Term: 'Term',
   Value: 'Value',
+  Reason: 'Reason',
 }));
 
 const text = (value: ReactTestInstance | string): string =>
@@ -247,6 +248,18 @@ describe('CompactionSeam while running', () => {
   it('runs no timer once finished', () => {
     render(<CompactionSeam compaction={compaction()} />);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('CompactionSeam reason', () => {
+  it('clamps the failure reason, and only it, to a few lines', async () => {
+    const renderer = render(<CompactionSeam compaction={failed()} />);
+    await open(renderer);
+    const clamped = card(renderer)[0]!.findAll(
+      (node) => node.type === 'dd' && String(node.props.className).includes('Reason')
+    );
+
+    expect(clamped.map(text)).toEqual(['The summary model returned an error (529 overloaded).']);
   });
 });
 

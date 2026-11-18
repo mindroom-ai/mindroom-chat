@@ -129,6 +129,16 @@ describe('readReplyCompactions', () => {
     expect(readReplyCompactions(value)).toEqual([]);
   });
 
+  it('cuts a long failure reason to 300 characters with an ellipsis', () => {
+    const long = 'x'.repeat(2000);
+    const [read] = readReplyCompactions([{ ...ENTRY, failure_reason: long }]);
+
+    expect(read!.failureReason).toBe(`${'x'.repeat(299)}…`);
+    expect(read!.failureReason).toHaveLength(300);
+    const [short] = readReplyCompactions([{ ...ENTRY, failure_reason: 'y'.repeat(300) }]);
+    expect(short!.failureReason).toBe('y'.repeat(300));
+  });
+
   it('keeps the start order', () => {
     const first = { ...ENTRY, id: 'first', phase: 'pre_turn', after_tool: 0 };
     const second = { ...ENTRY, id: 'second', phase: 'mid_turn', after_tool: 4 };
