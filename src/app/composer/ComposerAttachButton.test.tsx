@@ -20,6 +20,7 @@ vi.mock('../diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: vi.fn(),
   setDeepTraceEnabled: vi.fn(async () => true),
   clearDeepTrace: vi.fn(async () => undefined),
+  getDeepTraceEnabled: vi.fn(() => false),
 }));
 vi.mock('../diagnostics/memorySampler', () => ({ startMemorySampler: vi.fn() }));
 

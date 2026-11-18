@@ -567,10 +567,22 @@ export const useRoomInputAttachments = ({
   );
 
   const attachAppLogs = useCallback(() => {
+    // The export takes a moment, and this composer can move to another room or thread meanwhile:
+    // the logs go only to the conversation they were asked for in.
+    const { roomId: targetRoomId, draftKey: targetDraftKey } = current.current;
     buildDiagnosticsExport()
-      .then(({ blob, fileName }) =>
-        stageFiles([new File([blob], fileName, { type: 'application/json' })])
-      )
+      .then(({ blob, fileName }) => {
+        if (!mounted.current) return undefined;
+        if (
+          current.current.roomId !== targetRoomId ||
+          current.current.draftKey !== targetDraftKey
+        ) {
+          // eslint-disable-next-line no-console
+          console.warn('[composer] app logs not attached: the conversation changed meanwhile');
+          return undefined;
+        }
+        return stageFiles([new File([blob], fileName, { type: 'application/json' })]);
+      })
       .catch((error: unknown) => {
         // eslint-disable-next-line no-console
         console.warn('[composer] could not attach app logs', error);

@@ -15,8 +15,11 @@ const mocks = vi.hoisted(() => ({
   initializeDeepTraceRecorder: vi.fn(),
   setDeepTraceEnabled: vi.fn(),
   clearDeepTrace: vi.fn(),
+  getDeepTraceEnabled: vi.fn(),
   startMemorySampler: vi.fn(),
 }));
+
+const never = () => new Promise<never>(() => undefined);
 
 vi.mock('./flightRecorder', () => ({
   FLIGHT_RECORDER_CURRENT_KEY: 'mindroom.flight.current.v1',
@@ -30,6 +33,7 @@ vi.mock('./deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
   setDeepTraceEnabled: mocks.setDeepTraceEnabled,
   clearDeepTrace: mocks.clearDeepTrace,
+  getDeepTraceEnabled: mocks.getDeepTraceEnabled,
 }));
 
 describe('debug mode', () => {
@@ -123,10 +127,46 @@ describe('debug mode', () => {
     window.localStorage.setItem(FLIGHT_RECORDER_CURRENT_KEY, '{}');
     mocks.clearDeepTrace.mockRejectedValue(new Error('IndexedDB lost'));
 
-    await expect(setDebugModeEnabled(false)).rejects.toThrow('IndexedDB lost');
+    await expect(setDebugModeEnabled(false)).resolves.toBe(true);
 
     expect(window.localStorage.getItem(DEBUG_MODE_KEY)).toBeNull();
     expect(window.localStorage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBeNull();
+  });
+
+  it('answers with the saved choice at once while the deep trace store never settles', async () => {
+    mocks.setDeepTraceEnabled.mockImplementation(never);
+    mocks.clearDeepTrace.mockImplementation(never);
+
+    await expect(setDebugModeEnabled(true)).resolves.toBe(true);
+    expect(mocks.setDeepTraceEnabled).toHaveBeenCalledWith(true);
+    await expect(setDebugModeEnabled(false)).resolves.toBe(true);
+    expect(mocks.setDeepTraceEnabled).toHaveBeenLastCalledWith(false);
+    expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
+    expect(getDebugModeEnabled()).toBe(false);
+  });
+
+  it("starts this tab's deep trace and sampler, not a flight recorder, when another tab turns it on", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeDebugMode(listener);
+    mocks.getDeepTraceEnabled.mockReturnValue(true);
+
+    window.localStorage.setItem(DEBUG_MODE_KEY, '1');
+    window.dispatchEvent(new StorageEvent('storage', { key: DEBUG_MODE_KEY, newValue: '1' }));
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
+    expect(mocks.setDeepTraceEnabled).toHaveBeenCalledWith(true);
+    expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
+    expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
+
+    // Turned off there, this tab starts nothing; the deep trace stops on its own key.
+    vi.clearAllMocks();
+    window.localStorage.removeItem(DEBUG_MODE_KEY);
+    window.dispatchEvent(new StorageEvent('storage', { key: DEBUG_MODE_KEY, newValue: null }));
+    expect(listener).toHaveBeenCalledOnce();
+    expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+    expect(mocks.startMemorySampler).not.toHaveBeenCalled();
+    unsubscribe();
   });
 
   it('starts nothing when the choice cannot be saved', async () => {

@@ -296,6 +296,30 @@ describe('attachment staging ownership', () => {
     expect(harness.feature.access.snapshot().staged[0]!.file).toBe(file);
   });
 
+  it('drops app logs that finish after the composer moved to another thread', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let finish!: (built: { fileName: string; blob: Blob }) => void;
+    diagnostics.buildDiagnosticsExport.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      })
+    );
+    const prepare = vi.fn(async () => []);
+    const harness = renderHarness(prepare);
+    harness.changeThread('$asked');
+
+    act(() => harness.feature.attachAppLogs());
+    harness.changeThread('$other');
+    await act(async () => {
+      finish({ fileName: 'mindroom-diagnostics-x.json', blob: new Blob(['{}']) });
+      await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    });
+
+    expect(prepare).not.toHaveBeenCalled();
+    expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+    warn.mockRestore();
+  });
+
   it('stages nothing when the app logs cannot be built', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     diagnostics.buildDiagnosticsExport.mockRejectedValue(new Error('storage gone'));

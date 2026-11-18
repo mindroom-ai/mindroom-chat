@@ -69,14 +69,18 @@ export const traceCacheStoreOpen = (opening: Promise<IDBDatabase | undefined>): 
 
 /**
  * Every cache transaction starts on its connection, so watch them there. Each account has
- * its own cache database, so open counts cover only this connection's transactions.
+ * its own cache database, so open counts cover only this connection's transactions. Returns the
+ * function that takes the connection's count out of memory samples, for when it closes.
  */
-export const traceCacheTransactions = (db: IDBDatabase): void => {
+export const traceCacheTransactions = (db: IDBDatabase): (() => void) => {
   // Resolve the inherited method per call, so it stays the browser's (or a test's) current one.
   const inherited = Object.getPrototypeOf(db) as IDBDatabase;
   const openTransactions: OpenTransactions = new Map();
   // The newest connection is the signed-in account's; an older one's count would be stale.
-  registerMemoryGauge('cache_open_transactions', () => openTransactions.size);
+  const unregisterGauge = registerMemoryGauge(
+    'cache_open_transactions',
+    () => openTransactions.size
+  );
   db.transaction = ((
     storeNames: string | string[],
     mode?: IDBTransactionMode,
@@ -112,6 +116,7 @@ export const traceCacheTransactions = (db: IDBDatabase): void => {
     transaction.addEventListener('abort', settle(true), { once: true });
     return transaction;
   }) as IDBDatabase['transaction'];
+  return unregisterGauge;
 };
 
 /** The browser or another tab closed the cache connection. */

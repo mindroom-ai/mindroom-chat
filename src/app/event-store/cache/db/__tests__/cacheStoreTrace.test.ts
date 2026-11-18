@@ -67,6 +67,28 @@ it("counts the newest connection's open transactions in memory samples", async (
   expect(openCount()).toBe(0);
 });
 
+it("drops a connection's count from memory samples once it closes or is deleted", async () => {
+  const sampledCount = () => {
+    record.mockClear();
+    sampleMemory('interval');
+    return record.mock.calls.find(([name]) => name === 'memory.sample')?.[1]
+      ?.cache_open_transactions;
+  };
+  const db = (await openCacheStore(sessionId))!;
+  expect(sampledCount()).toBe(0);
+  const closed = new Promise<void>((resolve) => {
+    db.addEventListener('close', () => resolve(), { once: true });
+  });
+  forceCloseDatabase(db as unknown as Parameters<typeof forceCloseDatabase>[0]);
+  await closed;
+  expect(sampledCount()).toBeUndefined();
+
+  await openCacheStore(otherSessionId);
+  expect(sampledCount()).toBe(0);
+  await deleteCacheStoreDb(otherSessionId);
+  expect(sampledCount()).toBeUndefined();
+});
+
 it('records nothing for cache transactions that finish in time', async () => {
   const db = (await openCacheStore(sessionId))!;
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });

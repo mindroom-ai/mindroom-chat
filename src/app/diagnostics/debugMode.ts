@@ -9,7 +9,12 @@ import {
   FLIGHT_RECORDER_CURRENT_KEY,
   installFlightRecorder,
 } from './flightRecorder';
-import { clearDeepTrace, initializeDeepTraceRecorder, setDeepTraceEnabled } from './deepTrace';
+import {
+  clearDeepTrace,
+  getDeepTraceEnabled,
+  initializeDeepTraceRecorder,
+  setDeepTraceEnabled,
+} from './deepTrace';
 import { startMemorySampler } from './memorySampler';
 
 /**
@@ -40,20 +45,33 @@ export const getDebugModeEnabled = (
 ): boolean => getStorageItemSafe(storage, DEBUG_MODE_KEY) === '1';
 
 /**
+ * Another tab changed debug mode. Turned on there, this tab records its own deep trace and memory
+ * samples too, so logs attached here hold this tab's activity. The flight recorder stays with the
+ * tab that started it: the device keeps one live session.
+ */
+const onStorage = (event: StorageEvent): void => {
+  if (event.key !== DEBUG_MODE_KEY && event.key !== null) return;
+  if (getDebugModeEnabled()) {
+    initializeDeepTraceRecorder();
+    if (getDeepTraceEnabled()) void setDeepTraceEnabled(true).catch(() => undefined);
+    startMemorySampler();
+  }
+  notifyListeners();
+};
+
+/**
  * Calls the listener after each change of debug mode, in this page or another tab of the app.
  * Returns the unsubscribe function.
  */
 export const subscribeDebugMode = (listener: () => void): (() => void) => {
-  listeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === DEBUG_MODE_KEY || event.key === null) listener();
-  };
   // Without a window (a worker, a test in Node) only this page's changes arrive.
-  const target = typeof window === 'undefined' ? undefined : window;
-  target?.addEventListener('storage', onStorage);
+  if (listeners.size === 0 && typeof window !== 'undefined') {
+    window.addEventListener('storage', onStorage);
+  }
+  listeners.add(listener);
   return () => {
-    listeners.delete(listener);
-    target?.removeEventListener('storage', onStorage);
+    if (!listeners.delete(listener) || listeners.size > 0) return;
+    if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage);
   };
 };
 
@@ -75,7 +93,8 @@ type DebugModeOptions = {
  * Turns debug mode on or off on this device and starts or stops its recorders at once. On also
  * turns the deep trace on, so attached logs hold it; its own switch can still turn it off. Off
  * turns the deep trace off and deletes it, and in a browser stops the flight recorder and deletes
- * its records too. Returns whether the choice was saved.
+ * its records too. Returns whether the choice was saved, as soon as it is: the deep trace's
+ * storage can stall (WebKit loses its IndexedDB server), and the switch must not wait for it.
  */
 export const setDebugModeEnabled = async (
   enabled: boolean,
@@ -88,11 +107,8 @@ export const setDebugModeEnabled = async (
     initializeDeepTraceRecorder();
     startMemorySampler();
     notifyListeners();
-    try {
-      await setDeepTraceEnabled(true);
-    } catch {
-      // Debug mode stays on; the deep trace's own tile shows that it does not record.
-    }
+    // Its switch is saved at once; its own tile shows whether it records.
+    void setDeepTraceEnabled(true).catch(() => undefined);
     return true;
   }
   const saved = removeStorageItemSafe(storage, DEBUG_MODE_KEY);
@@ -107,7 +123,8 @@ export const setDebugModeEnabled = async (
     removeStorageItemSafe(storage, FLIGHT_RECORDER_CURRENT_KEY);
     removeStorageItemSafe(storage, FLIGHT_RECORDER_ABNORMAL_KEY);
   }
-  await setDeepTraceEnabled(false);
-  await clearDeepTrace();
+  // Both start now, in this order: the trace stops before its store is cleared.
+  void setDeepTraceEnabled(false).catch(() => undefined);
+  void clearDeepTrace().catch(() => undefined);
   return saved;
 };

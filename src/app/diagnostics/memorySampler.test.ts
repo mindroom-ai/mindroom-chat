@@ -5,6 +5,7 @@ import type { DeepTraceData, DeepTraceRuntimeStatus } from './deepTrace';
 import {
   MEMORY_SAMPLE_INTERVAL_MS,
   registerMemoryGauge,
+  registerMemoryGauges,
   sampleMemory,
   startMemorySampler,
 } from './memorySampler';
@@ -73,10 +74,40 @@ describe('memory sampler', () => {
         dom_nodes: expect.any(Number) as number,
         uptime_s: expect.any(Number) as number,
       }),
-      { flush: false }
+      // Written at once: the reload it diagnoses would lose a queued sample.
+      { flush: true }
     );
     // The reason goes first, ahead of the trace's field limit.
     expect(Object.keys(samples()[0]!)[0]).toBe('reason_thread_open');
+  });
+
+  it('writes interval samples with the next batch, and reads a group of gauges in one call', () => {
+    trace.recording = true;
+    const group = vi.fn(() => ({ rooms: 2, threads: 9, missing: undefined }));
+    cleanups.push(registerMemoryGauges('matrix', group));
+
+    sampleMemory('interval');
+
+    expect(group).toHaveBeenCalledOnce();
+    expect(samples()[0]).toMatchObject({ rooms: 2, threads: 9 });
+    expect(samples()[0]).not.toHaveProperty('missing');
+    expect(trace.record).toHaveBeenLastCalledWith('memory.sample', expect.anything(), {
+      flush: false,
+    });
+  });
+
+  it('skips a group that throws and keeps the other gauges', () => {
+    trace.recording = true;
+    cleanups.push(
+      registerMemoryGauges('broken', () => {
+        throw new Error('gone');
+      })
+    );
+    cleanups.push(registerMemoryGauge('rooms', () => 3));
+
+    sampleMemory('interval');
+
+    expect(samples()[0]).toMatchObject({ rooms: 3, dom_nodes: expect.any(Number) as number });
   });
 
   it('skips a gauge that throws or has no value and keeps the others', () => {
