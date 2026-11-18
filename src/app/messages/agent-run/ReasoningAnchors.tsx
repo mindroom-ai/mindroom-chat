@@ -46,17 +46,12 @@ function ReasoningText({ text, htmlReactParserOptions }: ReasoningTextProps) {
 export function CompactionSeamsAt({ anchor }: { anchor: number }) {
   const reasoning = useContext(ReasoningSegmentsContext);
   if (!reasoning) return null;
-  const { compactions, compactionPlacement, replyEnded } = reasoning;
+  const { compactionsAt, replyEnded } = reasoning;
   return (
     <>
-      {compactionPlacement.get(anchor)?.map((index) => {
-        const compaction = compactions[index];
-        return (
-          compaction && (
-            <CompactionSeam key={compaction.id} compaction={compaction} interrupted={replyEnded} />
-          )
-        );
-      })}
+      {compactionsAt.get(anchor)?.map((compaction) => (
+        <CompactionSeam key={compaction.id} compaction={compaction} interrupted={replyEnded} />
+      ))}
     </>
   );
 }

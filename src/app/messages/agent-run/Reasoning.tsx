@@ -24,7 +24,11 @@ import {
   getStreamStatusFromContent,
   hasTerminalStreamMetadata,
 } from '../../matrix/protocol/aiRun';
-import { COMPACTIONS_CONTENT_KEY, readReplyCompactions } from '../../matrix/protocol/compactions';
+import {
+  COMPACTIONS_CONTENT_KEY,
+  readReplyCompactions,
+  type ReplyCompaction,
+} from '../../matrix/protocol/compactions';
 import { revealDirectionControls } from '../../ui/directional';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
@@ -272,10 +276,16 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const writing = live !== undefined && grew.seen && !movedOn && !ended;
   const liveIndex = writing && bulb !== 'closed' ? segments.length - 1 : undefined;
   const placement = useMemo(() => placeReasoningSegments(segments, markers), [segments, markers]);
-  const compactionPlacement = useMemo(
-    () => placeReasoningSegments(compactions, markers),
-    [compactions, markers]
-  );
+  const compactionsAt = useMemo(() => {
+    const at = new Map<number, ReplyCompaction[]>();
+    placeReasoningSegments(compactions, markers).forEach((indices, anchor) =>
+      at.set(
+        anchor,
+        indices.flatMap((index) => compactions[index] ?? [])
+      )
+    );
+    return at;
+  }, [compactions, markers]);
   const reasoning = useMemo(
     () => ({
       segments,
@@ -284,21 +294,10 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
       hide,
       liveIndex,
       htmlReactParserOptions,
-      compactions,
-      compactionPlacement,
+      compactionsAt,
       replyEnded,
     }),
-    [
-      segments,
-      placement,
-      open,
-      hide,
-      liveIndex,
-      htmlReactParserOptions,
-      compactions,
-      compactionPlacement,
-      replyEnded,
-    ]
+    [segments, placement, open, hide, liveIndex, htmlReactParserOptions, compactionsAt, replyEnded]
   );
 
   let label: string | undefined;

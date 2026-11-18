@@ -954,7 +954,7 @@ export const useToolTraceMarkerParserOptions = (
                 (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
             )
             .map(([anchor]) => anchor),
-          ...reasoning.compactionPlacement.keys(),
+          ...reasoning.compactionsAt.keys(),
         ]),
       ]
         .filter((anchor) => anchor > 0)

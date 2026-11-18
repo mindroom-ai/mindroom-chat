@@ -72,10 +72,8 @@ export type ReasoningSegmentsState = {
   liveIndex: number | undefined;
   /** What the segments' Markdown renders with. */
   htmlReactParserOptions: HTMLReactParserOptions;
-  /** The reply's history compactions, in start order; each shows wherever it is placed. */
-  compactions: readonly ReplyCompaction[];
-  /** From an anchor, as `placement`, to its compactions' indices. */
-  compactionPlacement: ReadonlyMap<number, readonly number[]>;
+  /** From an anchor, as `placement`, to the reply's history compactions there, in start order. */
+  compactionsAt: ReadonlyMap<number, readonly ReplyCompaction[]>;
   /** The reply ended, so a compaction still running in it never finishes. */
   replyEnded: boolean;
 };
