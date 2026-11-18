@@ -233,7 +233,7 @@ describe('usePointerOverCards', () => {
       vi.useFakeTimers();
       const { result } = renderHook(() => usePointerOverCards());
       act(() => result.current.onPointerEnter(mouse()));
-      act(() => result.current.onPointerDown());
+      act(() => result.current.onPointerDown(mouse(1)));
       act(() => result.current.onPointerMove(mouse(1)));
       act(() => {
         vi.advanceTimersByTime(MOUSE_REST_HOLD_MS * 2);
@@ -245,6 +245,17 @@ describe('usePointerOverCards', () => {
         vi.advanceTimersByTime(MOUSE_REST_HOLD_MS);
       });
       expect(result.current.pointerInside).toBe(false);
+    });
+
+    it('keeps a pen that came after the mouse held when the mouse has rested', () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => usePointerOverCards());
+      act(() => result.current.onPointerMove(mouse()));
+      act(() => result.current.onPointerEnter(pointer('pen')));
+      act(() => {
+        vi.advanceTimersByTime(MOUSE_REST_HOLD_MS * 2);
+      });
+      expect(result.current.pointerInside).toBe(true);
     });
 
     it('lets no finger go by time', () => {

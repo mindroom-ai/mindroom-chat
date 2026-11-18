@@ -161,11 +161,21 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
     },
     'm.relates_to': { rel_type: 'm.replace', event_id: replyB },
   });
-  for (let index = 0; index < 8; index += 1) {
-    await move();
-    await page.waitForTimeout(500);
-  }
+  // The headers count live: once Working counts one, the client has the finish while the hold
+  // still shows the card under Working.
+  const workingHeader = page.locator('[data-compact-section="working"]');
+  await expect
+    .poll(
+      async () => {
+        await move();
+        return workingHeader.textContent();
+      },
+      { timeout: 15_000 }
+    )
+    .toMatch(/· 1$/);
+  await move();
   expect(await sectionOf(page, rootB)).toBe('working');
+  expect(await orderHeld()).toBe(1);
   await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('needsYou');
   expect(await orderHeld()).toBe(0);
 });

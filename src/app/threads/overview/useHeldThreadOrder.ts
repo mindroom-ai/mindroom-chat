@@ -162,7 +162,9 @@ export const MOUSE_REST_HOLD_MS = 3_000;
  * renders at the discrete one, which can leave them out; the pointerdown is discrete too.
  */
 export const usePointerOverCards = () => {
-  const [pointerInside, setPointerInside] = useState(false);
+  // A mouse at rest lets go by time; a pen, a finger or a press never does, so they hold apart.
+  const [mouseInside, setMouseInside] = useState(false);
+  const [otherInside, setOtherInside] = useState(false);
   const cancelledRef = useRef(false);
   const releaseOnClickRef = useRef<() => void>();
   const restTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -182,20 +184,35 @@ export const usePointerOverCards = () => {
     },
     [stopResting, stopWaiting]
   );
+  const letGo = useCallback(() => {
+    setMouseInside(false);
+    setOtherInside(false);
+  }, []);
   const onPointerEnter = useCallback(
     (event?: PointerEvent<HTMLElement>) => {
-      setPointerInside(true);
-      // A press (buttons held) holds until it is released; only a mouse at rest lets go.
-      if (event?.pointerType !== 'mouse' || event.buttons) return;
+      if (event?.pointerType !== 'mouse') {
+        setOtherInside(true);
+        return;
+      }
+      setMouseInside(true);
       stopResting();
-      restTimerRef.current = setTimeout(() => setPointerInside(false), MOUSE_REST_HOLD_MS);
+      // A press holds until it is released; only a mouse at rest lets go.
+      if (event.buttons) return;
+      restTimerRef.current = setTimeout(() => setMouseInside(false), MOUSE_REST_HOLD_MS);
     },
     [stopResting]
   );
-  const onPointerDown = useCallback(() => {
-    stopResting();
-    setPointerInside(true);
-  }, [stopResting]);
+  const onPointerDown = useCallback(
+    (event?: PointerEvent<HTMLElement>) => {
+      if (event?.pointerType !== 'mouse') {
+        setOtherInside(true);
+        return;
+      }
+      stopResting();
+      setMouseInside(true);
+    },
+    [stopResting]
+  );
   const onPointerCancel = useCallback(() => {
     cancelledRef.current = true;
   }, []);
@@ -204,34 +221,36 @@ export const usePointerOverCards = () => {
       const cancelled = cancelledRef.current;
       cancelledRef.current = false;
       stopWaiting();
-      stopResting();
       if (event.pointerType === 'mouse' || cancelled) {
-        setPointerInside(false);
+        stopResting();
+        letGo();
         return;
       }
       // The click is already aimed when this runs, in the capture phase.
       const release = () => {
         stopWaiting();
-        setPointerInside(false);
+        letGo();
       };
       releaseOnClickRef.current = release;
       document.addEventListener('click', release, true);
     },
-    [stopResting, stopWaiting]
+    [letGo, stopResting, stopWaiting]
   );
   return {
-    pointerInside,
+    pointerInside: mouseInside || otherInside,
     onPointerEnter,
     onPointerMove: onPointerEnter,
     onPointerDown,
-    onPointerUp: onPointerEnter,
+    onPointerUp: (event: PointerEvent<HTMLElement>) => {
+      if (event.pointerType === 'mouse') onPointerEnter(event);
+    },
     onPointerLeave,
     onPointerCancel,
     onTouchEnd: (event: TouchEvent<HTMLElement>) => {
       // A long press consumes the release click, so there is no click left to wait for.
       if (!event.defaultPrevented) return;
       stopWaiting();
-      setPointerInside(false);
+      letGo();
     },
   };
 };
