@@ -349,13 +349,23 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
       if (!triggerRef.current?.contains(target) && !cardRef.current?.contains(target)) close();
     };
     // The card sits at a fixed spot, so it follows the row once a frame, whatever moved it: a
-    // scroll, a line showing above it, text above it wrapping, an image loading.
+    // scroll, a line showing above it, text above it wrapping, an image loading. A card that
+    // changed size (a progress frame named a longer model) is placed again, a new anchor for folds.
     let frame = 0;
+    let cardSize = '';
     const follow = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
+      const box = cardRef.current?.getBoundingClientRect();
+      const size = box ? `${box.width}x${box.height}` : '';
+      const resized = size !== cardSize;
+      cardSize = size;
       // A row not displayed measures all zeros; the card then stays where the row last was.
       const shown = rect && (rect.x || rect.y || rect.width || rect.height);
-      if (shown) setOpen((current) => anchoredAt(current, rect));
+      if (shown) {
+        setOpen((current) =>
+          resized && current ? { ...current, anchor: rect } : anchoredAt(current, rect)
+        );
+      }
       frame = requestAnimationFrame(follow);
     };
     frame = requestAnimationFrame(follow);

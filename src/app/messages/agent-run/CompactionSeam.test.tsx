@@ -8,9 +8,11 @@ import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 import { timeHourMinuteSecond } from '../../lib/time';
 import { CompactionNoticeSeam, CompactionSeam } from './CompactionSeam';
 
+// Each anchor folds' PopOut is handed: it places the card again for a new one.
+const anchors = vi.hoisted(() => new Set<unknown>());
 vi.mock('folds', () => ({
   PopOut: ({ anchor, content, position, align, offset, ...props }: any) =>
-    anchor
+    anchors.add(anchor) && anchor
       ? React.createElement(
           'div',
           { ...props, 'data-popout': true, 'data-position': position, 'data-top': anchor.y },
@@ -91,13 +93,15 @@ const failed = (fields: Partial<ReplyCompaction> = {}) =>
   });
 
 const triggerRect = { x: 10, y: 20, width: 100, height: 16 };
+const cardRect = { x: 10, y: 46, width: 280, height: 200 };
 const renderers: ReactTestRenderer[] = [];
 const render = (element: React.ReactElement) => {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(element, {
-      createNodeMock: () => ({
-        getBoundingClientRect: () => ({ ...triggerRect }),
+      createNodeMock: (element) => ({
+        getBoundingClientRect: () =>
+          element.props.role === 'tooltip' ? { ...cardRect } : { ...triggerRect },
         contains: () => false,
       }),
     });
@@ -635,6 +639,27 @@ describe('CompactionSeam card', () => {
     });
     expect(card(renderer)).toHaveLength(0);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('places an open card again once a frame after it changed size', async () => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    await open(renderer);
+    const frame = () =>
+      act(() => {
+        vi.advanceTimersToNextFrame();
+      });
+    frame();
+    const placed = anchors.size;
+    frame();
+    expect(anchors.size).toBe(placed);
+    // A progress frame names a longer model: the card grows, its row stays.
+    cardRect.height = 260;
+    frame();
+    expect(anchors.size).toBe(placed + 1);
+    frame();
+    expect(anchors.size).toBe(placed + 1);
+    cardRect.height = 200;
   });
 
   it('details a successful compaction', async () => {
