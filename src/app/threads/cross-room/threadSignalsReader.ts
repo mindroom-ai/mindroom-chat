@@ -152,7 +152,11 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
         return;
       }
       for (const room of rooms) {
-        const held = room.findEventById(messageId);
+        // In a timeline, or the reply an unopened thread's summary names, which signals read too.
+        const held =
+          room.findEventById(messageId) ??
+          room.getThreads().find((thread) => thread.replyToEvent?.getId() === messageId)
+            ?.replyToEvent;
         if (held) {
           changedThreadIds(room, held).forEach((threadId) => mark(room.roomId, threadId));
           return;

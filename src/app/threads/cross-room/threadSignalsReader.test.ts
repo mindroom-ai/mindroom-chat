@@ -225,17 +225,20 @@ describe('getThreadSignalsReader', () => {
   const setup = () => {
     mocks.read.mockReturnValue(quiet);
     const held = new Map<string, MatrixEvent>();
+    /** The replies the summaries of unopened threads name, which no timeline holds. */
+    const summarized: MatrixEvent[] = [];
     const receipts = { oldest: Infinity };
     const room = {
       roomId: '!r:x',
       getThread: () => ({ events: [] }),
       getThreadUnreadNotificationCount: () => 0,
       findEventById: (eventId: string) => held.get(eventId),
+      getThreads: () => summarized.map((replyToEvent) => ({ replyToEvent })),
       getOldestThreadedReceiptTs: () => receipts.oldest,
     } as unknown as Room;
     const mx = Object.assign(new EventEmitter(), {
       getRoom: (roomId: string) => (roomId === room.roomId ? room : null),
-      getRooms: () => [{ findEventById: () => undefined }, room],
+      getRooms: () => [{ findEventById: () => undefined, getThreads: () => [] }, room],
       getSafeUserId: () => ME,
     });
     const reader = getThreadSignalsReader(mx as unknown as MatrixClient);
@@ -246,7 +249,7 @@ describe('getThreadSignalsReader', () => {
     };
     expect(readAgain()).toEqual(['$a', '$b']);
     expect(readAgain()).toEqual([]);
-    return { mx, room, held, receipts, readAgain };
+    return { mx, room, held, summarized, receipts, readAgain };
   };
 
   it('keeps one reader per client', () => {
@@ -324,14 +327,18 @@ describe('getThreadSignalsReader', () => {
   });
 
   it('reads the thread of a message whose kept edits a full store drops', () => {
-    const { held, readAgain } = setup();
+    const { held, summarized, readAgain } = setup();
     held.set('$card', event({ id: '$card', threadRootId: '$a' }));
+    summarized.push(event({ id: '$latest', threadRootId: '$b' }));
     const forget = (messageId: string) =>
       mocks.forgotten.forEach((listener) => listener(messageId));
 
     forget('$card');
     expect(readAgain()).toEqual(['$a']);
-    // A message no room of the client holds is in no thread whose signals were read.
+    // Signals also read the reply an unopened thread's summary names, which no timeline holds.
+    forget('$latest');
+    expect(readAgain()).toEqual(['$b']);
+    // A message no room holds or names is in no thread whose signals were read.
     forget('$unheld');
     expect(readAgain()).toEqual([]);
   });
