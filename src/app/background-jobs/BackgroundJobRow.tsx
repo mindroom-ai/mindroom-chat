@@ -1,10 +1,12 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Badge, Icon, Icons, Text } from 'folds';
+import classNames from 'classnames';
+import { Icon, Icons } from 'folds';
+import { IconAlertCircle, IconArrowUpRight, IconMessage } from '@tabler/icons-react';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { subscribeRelativeTimeClock, useRelativeTime } from '../i18n/useRelativeTime';
-import { formatCallDuration } from '../lib/time';
+import { formatWorkDuration } from '../lib/time';
 import type { SubagentUsage } from '../matrix/protocol/subagentFrame';
 import {
   formatCostUsd,
@@ -19,38 +21,35 @@ import * as css from './BackgroundJobsBar.css';
 import type { BackgroundJobsBarItem, BackgroundJobsBarModel } from './backgroundJobsPresentation';
 
 /**
- * A job's logo: its run's model, else a sub-agent's agent or a tool's terminal, with a dot that
- * says how it stands. The dot is decoration; the row's words say it too.
+ * A job's logo: its run's model, else a sub-agent's agent or a tool's terminal, on a tile with a
+ * dot that says how it stands. The dot is decoration; the row's words say it too.
  */
 export function JobLogo({
   room,
   item,
-  size,
+  small = false,
   dot = true,
+  className,
 }: {
   room: Room;
   item: BackgroundJobsBarItem;
-  size: number;
+  small?: boolean;
   dot?: boolean;
+  className?: string;
 }) {
   const agent = useAgentProfile(room, item.agent ?? '');
   const model = item.run?.meta.model;
-  let logo: ReactNode = <Icon src={Icons.Terminal} size="100" aria-hidden />;
+  let logo: ReactNode = <Icon src={Icons.Terminal} size={small ? '50' : '100'} aria-hidden />;
   if (model) {
     logo = (
-      <ProviderModelIcon
-        provider={model.modelProvider}
-        id={model.modelId}
-        size={Math.round(size * 0.6)}
-      />
+      <ProviderModelIcon provider={model.modelProvider} id={model.modelId} size={small ? 12 : 16} />
     );
   } else if (item.subagent) {
     logo = <AgentAvatar agent={agent} size="200" />;
   }
   return (
     <span
-      className={css.Logo}
-      style={{ inlineSize: size, blockSize: size }}
+      className={classNames(css.Logo, className)}
       data-job-logo={model ? 'model' : item.subagent ? 'agent' : 'tool'}
       data-model-provider={model?.modelProvider}
       aria-hidden
@@ -88,27 +87,29 @@ export function BackgroundJobsSummary({
       {logos.length > 0 && (
         <span className={css.Stack} aria-hidden>
           {logos.map((item) => (
-            <JobLogo key={item.jobId} room={room} item={item} size={18} dot={false} />
+            <JobLogo
+              key={item.jobId}
+              room={room}
+              item={item}
+              small
+              dot={false}
+              className={css.StackedLogo}
+            />
           ))}
         </span>
       )}
-      {counts.length > 0 && (
-        <Text as="span" size="T200" truncate className={css.Summary}>
-          {counts.join(' · ')}
-        </Text>
-      )}
+      {counts.length > 0 && <span className={css.Summary}>{counts.join(' · ')}</span>}
       {summary.waiting > 0 && (
         // Outside the muted counts, so its warning color keeps its full contrast.
-        <Text as="span" size="T200" truncate className={css.SummaryWaiting}>
-          {counts.length > 0 && '· '}
+        <span className={css.SummaryWaiting} data-needs-approval>
           {t('mindroomUi.backgroundJobs.needApproval', { count: summary.waiting })}
-        </Text>
+        </span>
       )}
     </>
   );
 }
 
-/** How long the job ran, ticking on one shared clock until `endedAt`; readers hear its start. */
+/** How long the job ran ("38m 12s"), ticking on one shared clock until `endedAt`; readers hear its start. */
 export function JobElapsed({ startedAt, endedAt }: { startedAt: number; endedAt?: number }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
@@ -120,16 +121,16 @@ export function JobElapsed({ startedAt, endedAt }: { startedAt: number; endedAt?
   );
   const now = endedAt ?? ticked;
   const started = useRelativeTime(Number.isFinite(startedAt) ? startedAt : undefined);
-  if (!Number.isFinite(startedAt)) return null;
+  if (!Number.isFinite(startedAt)) return <span />;
   return (
-    <>
-      <Text as="span" size="T200" className={css.Elapsed} aria-hidden data-job-elapsed>
-        {formatCallDuration((now - startedAt) / 1000, language)}
-      </Text>
+    <span className={css.Elapsed}>
+      <span aria-hidden data-job-elapsed>
+        {formatWorkDuration(now - startedAt, language)}
+      </span>
       <span className={css.VisuallyHidden}>
         {t('mindroomUi.backgroundJobs.started', { time: started })}
       </span>
-    </>
+    </span>
   );
 }
 
@@ -142,13 +143,12 @@ function ThreadChip({ room, threadId }: { room: Room; threadId: string }) {
       type="button"
       className={css.ThreadChip}
       title={title}
+      aria-label={title}
       onClick={() => navigateRoomThread(room.roomId, threadId)}
       data-job-thread={threadId}
     >
-      <Icon src={Icons.Thread} size="50" aria-hidden />
-      <Text as="span" size="T200" truncate>
-        {title}
-      </Text>
+      <IconMessage size={14} stroke={1.8} aria-hidden />
+      <span className={css.ThreadTitle}>{title}</span>
     </button>
   );
 }
@@ -156,22 +156,34 @@ function ThreadChip({ room, threadId }: { room: Room; threadId: string }) {
 const tokenFormat = (language: string) =>
   new Intl.NumberFormat(language, { notation: 'compact', maximumFractionDigits: 1 });
 
-/** "31 tool calls · 1.9M tokens · $1.30": each part the run has, its sub-agents' not counted. */
-const useUsageText = (usage: SubagentUsage | undefined): string | undefined => {
+type UsageCell = { text: string; title: string } | undefined;
+
+/**
+ * The run's calls, tokens and cost as bare numbers, each with its words as its title. A count of
+ * none shows nothing, and no cost shows before any token.
+ */
+const useUsageCells = (usage: SubagentUsage | undefined): [UsageCell, UsageCell, UsageCell] => {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  if (!usage) return undefined;
+  if (!usage) return [undefined, undefined, undefined];
   const tokens = usage.inputTokens + usage.outputTokens;
-  const parts = [
-    usage.toolCalls > 0 && t('mindroomUi.backgroundJobs.toolCalls', { count: usage.toolCalls }),
-    tokens > 0 &&
-      t('mindroomUi.backgroundJobs.tokens', {
-        count: tokens,
-        tokens: tokenFormat(language).format(tokens),
-      }),
-    tokens > 0 && usage.costUsd !== undefined && formatCostUsd(usage.costUsd, language), // none yet
-  ].filter((part): part is string => !!part);
-  return parts.length > 0 ? parts.join(' · ') : undefined;
+  const compact = tokenFormat(language).format(tokens);
+  const cost = usage.costUsd !== undefined ? formatCostUsd(usage.costUsd, language) : undefined;
+  return [
+    usage.toolCalls > 0
+      ? {
+          text: String(usage.toolCalls),
+          title: t('mindroomUi.backgroundJobs.toolCalls', { count: usage.toolCalls }),
+        }
+      : undefined,
+    tokens > 0
+      ? {
+          text: compact,
+          title: t('mindroomUi.backgroundJobs.tokens', { count: tokens, tokens: compact }),
+        }
+      : undefined,
+    tokens > 0 && cost ? { text: cost, title: cost } : undefined,
+  ];
 };
 
 type RowProps = {
@@ -187,10 +199,29 @@ type RowProps = {
   stop: ReactNode;
 };
 
+/** Open: an icon button that shows the job's run in the Sub-agents panel. */
+export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void }) {
+  const { t } = useTranslation();
+  const label = t('mindroomUi.backgroundJobs.openFor', { name });
+  return (
+    <button
+      type="button"
+      className={css.IconButton}
+      aria-label={label}
+      title={label}
+      onClick={onOpen}
+      data-job-open
+    >
+      <IconArrowUpRight size={16} stroke={1.8} aria-hidden />
+    </button>
+  );
+}
+
 /**
- * One listed job, on two lines: who and on what model, its task and status; then what it does now,
- * the thread it runs in when that is not the view's, and what it used. Then how long it has run,
- * Open and Stop. A job without its run's frames shows its name alone, as before.
+ * One listed job on the bar's grid: its task as the headline, with at most one pill; under it who,
+ * on what model, doing what, and the thread it runs in when that is not the view's. Then its
+ * calls, tokens and cost, its time, Open and Stop, each in its column. A job without its run's
+ * frames shows its name alone, as before.
  */
 export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, stop }: RowProps) {
   const { t } = useTranslation();
@@ -198,95 +229,97 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
   const meta = item.run?.meta;
   const modelLabel = meta?.model && getAiRunCompactModelLabel(meta.model);
   const task = meta?.task?.split('\n', 1)[0];
-  const usage = useUsageText(meta?.usage);
+  const [calls, tokens, cost] = useUsageCells(meta?.usage);
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
+  const headline = task || name;
   const nested = item.depth > 0;
+  const { activity } = item;
+  const doing = activity && (item.subagent || activity.preview);
+  const waiting = item.waiting && !item.stopping;
+  const detail = (task && meta) || doing || elsewhere;
   return (
     <li
-      className={css.Job}
-      style={nested ? { paddingInlineStart: `${item.depth * 1.5}rem` } : undefined}
+      className={classNames(css.Job, nested && css.Nested)}
+      style={nested ? ({ '--job-depth': item.depth } as CSSProperties) : undefined}
       data-job-kind={item.subagent ? 'subagent' : 'tool'}
       data-job-depth={item.depth}
     >
-      <JobLogo room={room} item={item} size={nested ? 20 : 26} />
+      <JobLogo room={room} item={item} small={nested} />
       <span className={css.JobText}>
-        <span className={css.JobLine}>
-          <Text as="span" size="T200" truncate className={css.Name} title={item.name}>
-            {name}
-          </Text>
-          {modelLabel && (
-            <Badge
-              variant="Secondary"
-              fill="Soft"
-              radii="Pill"
-              className={css.ModelPill}
-              title={meta?.model && getAiRunModelLabel(meta.model)}
-              data-job-model
-            >
-              <Text as="span" size="L400" truncate>
-                {modelLabel}
-              </Text>
-            </Badge>
+        <span className={css.Headline}>
+          <span className={css.Task} title={task ? task : item.name} dir="auto">
+            {headline}
+          </span>
+          {waiting && (
+            <span className={css.Pill.waiting} title={t('mindroomUi.backgroundJobs.waiting')}>
+              <span className={css.PillIcon}>
+                <IconAlertCircle size={14} stroke={1.8} aria-hidden />
+              </span>
+              <span className={css.PillText}>{t('mindroomUi.backgroundJobs.waiting')}</span>
+            </span>
           )}
-          {task && (
-            <Text as="span" size="T200" truncate className={css.Task} title={task} dir="auto">
-              {task}
-            </Text>
-          )}
-          {item.waiting && !item.stopping && (
-            <Badge variant="Warning" fill="Soft" radii="Pill" className={css.Pill}>
-              <Text as="span" size="L400">
-                {t('mindroomUi.backgroundJobs.waiting')}
-              </Text>
-            </Badge>
-          )}
-          {item.finished && (
-            <Badge variant="Secondary" fill="Soft" radii="Pill" className={css.Pill}>
-              <Text as="span" size="L400">
-                {t('mindroomUi.subagents.completed')}
-              </Text>
-            </Badge>
+          {item.stopping && (
+            // Its Stop's place says so to screen readers.
+            <span className={css.Pill.stopping} aria-hidden>
+              {t('mindroomUi.backgroundJobs.stopping')}
+            </span>
           )}
         </span>
-        {((item.activity && (item.subagent || item.activity.preview)) || elsewhere || usage) && (
-          <span className={css.JobLine}>
-            {item.activity && (
-              // A tool job's line 1 is its tool already: its line 2 is the call's arguments.
+        {detail && (
+          <span className={css.Detail}>
+            {task && meta && (
+              <span className={css.Name} title={agent.name}>
+                {agent.name}
+              </span>
+            )}
+            {task && modelLabel && (
+              <span
+                className={css.Model}
+                title={meta?.model && getAiRunModelLabel(meta.model)}
+                data-job-model
+              >
+                {modelLabel}
+              </span>
+            )}
+            {task && modelLabel && doing && (
+              <span className={css.Model} aria-hidden>
+                ·
+              </span>
+            )}
+            {doing && (
+              // A tool job's headline is its tool already: its line 2 is the call's arguments.
               <span className={css.Activity} data-job-activity>
-                {item.subagent && <b>{item.activity.tool}</b>}
-                {item.activity.preview && (
-                  <code className={css.Preview}>
+                {item.subagent && activity.tool}
+                {activity.preview && (
+                  <span className={css.Preview}>
                     {item.subagent && ' '}
-                    {item.activity.preview}
-                  </code>
+                    {activity.preview}
+                  </span>
                 )}
               </span>
             )}
             {elsewhere && <ThreadChip room={room} threadId={item.threadId!} />}
-            {usage && (
-              <Text as="span" size="T200" className={css.Stats} data-job-stats>
-                {usage}
-              </Text>
-            )}
           </span>
         )}
       </span>
-      <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
-      {onOpen && (
-        <button
-          type="button"
-          className={css.Open}
-          aria-label={t('mindroomUi.backgroundJobs.openFor', { name })}
-          onClick={onOpen}
-          data-job-open
+      {[calls, tokens, cost].map((cell, index) => (
+        <span
+          // The columns are fixed: calls, tokens, cost.
+          // eslint-disable-next-line react/no-array-index-key
+          key={index}
+          className={css.Stat}
+          title={cell?.title}
+          data-job-stat={['calls', 'tokens', 'cost'][index]}
         >
-          <Text as="span" size="T200">
-            {t('mindroomUi.backgroundJobs.open')}
-          </Text>
-        </button>
-      )}
-      {stop}
+          {cell?.text}
+        </span>
+      ))}
+      <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
+      <span className={css.Actions}>
+        {onOpen && <OpenButton name={name} onOpen={onOpen} />}
+        {stop}
+      </span>
     </li>
   );
 }

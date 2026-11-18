@@ -977,7 +977,13 @@
       "tokens_other": "{{tokens}} 个令牌",
       "started": "开始于{{time}}",
       "open": "打开",
-      "openFor": "打开 {{name}}"
+      "openFor": "打开 {{name}}",
+      "column": {
+        "calls": "调用",
+        "tokens": "令牌",
+        "cost": "费用",
+        "time": "时间"
+      }
     },
     "subagents": {
       "title": "子智能体",

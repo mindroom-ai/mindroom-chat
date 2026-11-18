@@ -997,7 +997,13 @@
       "tokens_other": "{{tokens}} टोकन",
       "started": "{{time}} शुरू हुआ",
       "open": "खोलें",
-      "openFor": "खोलें: {{name}}"
+      "openFor": "खोलें: {{name}}",
+      "column": {
+        "calls": "कॉल",
+        "tokens": "टोकन",
+        "cost": "लागत",
+        "time": "समय"
+      }
     },
     "subagents": {
       "title": "सब-एजेंट",

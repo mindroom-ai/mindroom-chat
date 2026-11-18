@@ -39,35 +39,48 @@ vi.mock('../threads/fork/ThreadForkDivider', () => ({
 vi.mock('./BackgroundJobsBar.css', () => ({
   Anchor: 'Anchor',
   Bar: 'Bar',
-  Toggle: 'Toggle',
-  Chevron: 'Chevron',
   Status: 'Status',
+  Action: 'Action',
+  Toggle: 'Toggle',
+  TitleIcon: 'TitleIcon',
+  Title: 'Title',
+  Chevron: 'Chevron',
   Jobs: 'Jobs',
   JobList: 'JobList',
   GroupHeading: 'GroupHeading',
+  GroupName: 'GroupName',
+  ColumnName: 'ColumnName',
+  StatColumn: 'StatColumn',
   Job: 'Job',
-  JobText: 'JobText',
-  JobLine: 'JobLine',
-  Name: 'Name',
-  ModelPill: 'ModelPill',
-  Task: 'Task',
-  Pill: 'Pill',
-  Activity: 'Activity',
-  Preview: 'Preview',
-  Stats: 'Stats',
-  Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', finished: 'Dot' },
+  Nested: 'Nested',
   Logo: 'Logo',
   Stack: 'Stack',
+  StackedLogo: 'StackedLogo',
+  Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', finished: 'Dot' },
+  JobText: 'JobText',
+  Headline: 'Headline',
+  Detail: 'Detail',
+  Task: 'Task',
+  Name: 'Name',
+  Model: 'Model',
+  Activity: 'Activity',
+  Preview: 'Preview',
+  Pill: { waiting: 'Pill', stopping: 'Pill' },
+  PillText: 'PillText',
+  PillIcon: 'PillIcon',
+  ThreadChip: 'ThreadChip',
+  ThreadTitle: 'ThreadTitle',
+  Num: 'Num',
+  Stat: 'Stat',
+  Actions: 'Actions',
+  IconButton: 'IconButton',
+  StopButton: 'StopButton',
+  StopAll: 'StopAll',
+  Stopping: 'Stopping',
   Summary: 'Summary',
   SummaryWaiting: 'SummaryWaiting',
   Elapsed: 'Elapsed',
   VisuallyHidden: 'VisuallyHidden',
-  ThreadChip: 'ThreadChip',
-  Open: 'Open',
-  Muted: 'Muted',
-  Stopping: 'Stopping',
-  Action: 'Action',
-  Plain: 'Plain',
   Alert: 'Alert',
 }));
 vi.mock('react-i18next', () => ({
@@ -166,7 +179,8 @@ it('names one job in the title, with Stop and no list', () => {
   render();
   expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
   expect(container.querySelector('.Jobs')).toBeNull();
-  expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stop');
+  // Stop is an icon button, named by its label and its tooltip.
+  expect(button(cancelA)?.getAttribute('title')).toBe('mindroomUi.backgroundJobs.stop');
 });
 
 it('keeps the jobs it showed for a moment after they end, as finished and without Stop', async () => {
@@ -614,7 +628,9 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
   state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
   render('$thread');
   const open = container.querySelector<HTMLButtonElement>('[data-job-open]');
-  expect(open?.textContent).toBe('mindroomUi.backgroundJobs.open');
+  expect(open?.getAttribute('aria-label')).toBe(
+    tr('mindroomUi.backgroundJobs.openFor', { name: subagentName })
+  );
   // The title's live text is not inside the button, so its changes are still announced.
   expect(open?.querySelector('[role="status"]')).toBeNull();
   expect(container.querySelector('[role="status"]')?.textContent).toBe(
@@ -664,13 +680,14 @@ it("shows a sub-agent's agent, model, task, what it does now and what it used", 
   expect(row.querySelector('[data-job-model]')?.textContent).toBe('Opus');
   expect(row.querySelector('.Task')?.textContent).toBe('Port the fix');
   expect(row.querySelector('[data-job-activity]')?.textContent).toBe('run_shell_command just test');
-  expect(row.querySelector('[data-job-stats]')?.textContent).toBe(
-    [
-      tr('mindroomUi.backgroundJobs.toolCalls', { count: 31 }),
-      tr('mindroomUi.backgroundJobs.tokens', { count: 1_900_000, tokens: '1.9M' }),
-      '$1.30',
-    ].join(' · ')
-  );
+  // Each number in its column, bare, with its words as its title.
+  const cells = [...row.querySelectorAll('[data-job-stat]')];
+  expect(cells.map((cell) => cell.textContent)).toEqual(['31', '1.9M', '$1.30']);
+  expect(cells.map((cell) => cell.getAttribute('title'))).toEqual([
+    tr('mindroomUi.backgroundJobs.toolCalls', { count: 31 }),
+    tr('mindroomUi.backgroundJobs.tokens', { count: 1_900_000, tokens: '1.9M' }),
+    '$1.30',
+  ]);
   // The job runs in the view's thread, so it names no thread.
   expect(row.querySelector('[data-job-thread]')).toBeNull();
 });
@@ -682,14 +699,20 @@ it('shows no cost before any token, and counts one token as one', () => {
     state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
     render();
     if (!toggle()?.getAttribute('aria-expanded')?.includes('true')) expand();
-    return container.querySelector('[data-job-stats]')?.textContent;
+    return [...container.querySelectorAll('li [data-job-stat]')]
+      .slice(0, 3)
+      .map((cell) => cell.getAttribute('title') ?? '');
   };
-  expect(stats({ inputTokens: 0, outputTokens: 0, toolCalls: 2, costUsd: 0 })).toBe(
-    tr('mindroomUi.backgroundJobs.toolCalls', { count: 2 })
-  );
-  expect(stats({ inputTokens: 1, outputTokens: 0, toolCalls: 0 })).toBe(
-    tr('mindroomUi.backgroundJobs.tokens', { count: 1, tokens: '1' })
-  );
+  expect(stats({ inputTokens: 0, outputTokens: 0, toolCalls: 2, costUsd: 0 })).toEqual([
+    tr('mindroomUi.backgroundJobs.toolCalls', { count: 2 }),
+    '',
+    '',
+  ]);
+  expect(stats({ inputTokens: 1, outputTokens: 0, toolCalls: 0 })).toEqual([
+    '',
+    tr('mindroomUi.backgroundJobs.tokens', { count: 1, tokens: '1' }),
+    '',
+  ]);
 });
 
 it("names the thread of a job that runs outside the view's, and shows it when pressed", async () => {
@@ -719,8 +742,9 @@ it('heads the sub-agents and the tools only when both are listed, and sums them 
       tr('mindroomUi.backgroundJobs.tools', { count: 2 }),
     ].join(' · ')
   );
+  // Its leading "· " comes from the style, which a phone leaves out.
   expect(container.querySelector('.SummaryWaiting')?.textContent).toBe(
-    `· ${tr('mindroomUi.backgroundJobs.needApproval', { count: 1 })}`
+    tr('mindroomUi.backgroundJobs.needApproval', { count: 1 })
   );
 
   state.jobs = [job('a'), job('c')];

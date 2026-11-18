@@ -1077,7 +1077,13 @@
       "tokens_other": "الرموز: ⁨{{tokens}}⁩",
       "started": "بدأ ⁨{{time}}⁩",
       "open": "فتح",
-      "openFor": "فتح ⁨{{name}}⁩"
+      "openFor": "فتح ⁨{{name}}⁩",
+      "column": {
+        "calls": "الاستدعاءات",
+        "tokens": "الرموز",
+        "cost": "التكلفة",
+        "time": "الوقت"
+      }
     },
     "subagents": {
       "title": "الوكلاء الفرعيون",

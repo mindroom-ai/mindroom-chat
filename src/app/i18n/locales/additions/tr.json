@@ -997,7 +997,13 @@
       "tokens_other": "{{tokens}} token",
       "started": "Başladı: {{time}}",
       "open": "Aç",
-      "openFor": "Aç: {{name}}"
+      "openFor": "Aç: {{name}}",
+      "column": {
+        "calls": "Çağrı",
+        "tokens": "Token",
+        "cost": "Maliyet",
+        "time": "Süre"
+      }
     },
     "subagents": {
       "title": "Alt ajanlar",

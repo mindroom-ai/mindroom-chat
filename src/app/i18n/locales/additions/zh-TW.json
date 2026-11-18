@@ -977,7 +977,13 @@
       "tokens_other": "{{tokens}} 個權杖",
       "started": "開始於{{time}}",
       "open": "開啟",
-      "openFor": "開啟 {{name}}"
+      "openFor": "開啟 {{name}}",
+      "column": {
+        "calls": "呼叫",
+        "tokens": "權杖",
+        "cost": "費用",
+        "time": "時間"
+      }
     },
     "subagents": {
       "title": "子代理",

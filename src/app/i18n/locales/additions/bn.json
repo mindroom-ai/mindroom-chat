@@ -997,7 +997,13 @@
       "tokens_other": "{{tokens}} টোকেন",
       "started": "শুরু হয়েছে {{time}}",
       "open": "খুলুন",
-      "openFor": "খুলুন: {{name}}"
+      "openFor": "খুলুন: {{name}}",
+      "column": {
+        "calls": "কল",
+        "tokens": "টোকেন",
+        "cost": "খরচ",
+        "time": "সময়"
+      }
     },
     "subagents": {
       "title": "সাব-এজেন্ট",

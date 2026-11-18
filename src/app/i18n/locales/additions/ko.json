@@ -977,7 +977,13 @@
       "tokens_other": "토큰 {{tokens}}개",
       "started": "{{time}} 시작",
       "open": "열기",
-      "openFor": "열기: {{name}}"
+      "openFor": "열기: {{name}}",
+      "column": {
+        "calls": "호출",
+        "tokens": "토큰",
+        "cost": "비용",
+        "time": "시간"
+      }
     },
     "subagents": {
       "title": "하위 에이전트",

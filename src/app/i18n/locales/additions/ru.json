@@ -1037,7 +1037,13 @@
       "tokens_other": "Токенов: {{tokens}}",
       "started": "Запущено {{time}}",
       "open": "Открыть",
-      "openFor": "Открыть: {{name}}"
+      "openFor": "Открыть: {{name}}",
+      "column": {
+        "calls": "Вызовы",
+        "tokens": "Токены",
+        "cost": "Стоимость",
+        "time": "Время"
+      }
     },
     "subagents": {
       "title": "Субагенты",

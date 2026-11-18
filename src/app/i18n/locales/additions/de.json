@@ -997,7 +997,13 @@
       "tokens_other": "{{tokens}} Tokens",
       "started": "Gestartet {{time}}",
       "open": "Öffnen",
-      "openFor": "Öffnen: {{name}}"
+      "openFor": "Öffnen: {{name}}",
+      "column": {
+        "calls": "Aufrufe",
+        "tokens": "Tokens",
+        "cost": "Kosten",
+        "time": "Zeit"
+      }
     },
     "subagents": {
       "title": "Sub-Agenten",

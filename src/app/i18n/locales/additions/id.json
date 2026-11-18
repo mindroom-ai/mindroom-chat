@@ -977,7 +977,13 @@
       "tokens_other": "{{tokens}} token",
       "started": "Dimulai {{time}}",
       "open": "Buka",
-      "openFor": "Buka {{name}}"
+      "openFor": "Buka {{name}}",
+      "column": {
+        "calls": "Panggilan",
+        "tokens": "Token",
+        "cost": "Biaya",
+        "time": "Waktu"
+      }
     },
     "subagents": {
       "title": "Subagen",

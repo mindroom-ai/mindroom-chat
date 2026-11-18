@@ -1,5 +1,6 @@
 import type { Room } from 'matrix-js-sdk';
-import { Chip, Icon, Icons, Text } from 'folds';
+import { Icon, Icons, Spinner, Text } from 'folds';
+import { IconPlayerStopFilled } from '@tabler/icons-react';
 import classNames from 'classnames';
 import React, {
   useCallback,
@@ -18,7 +19,13 @@ import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
-import { BackgroundJobRow, BackgroundJobsSummary, JobElapsed, JobLogo } from './BackgroundJobRow';
+import {
+  BackgroundJobRow,
+  BackgroundJobsSummary,
+  JobElapsed,
+  JobLogo,
+  OpenButton,
+} from './BackgroundJobRow';
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';
 import { forgetCancel, keepCancelsOf, markCancelSent, useSentCancels } from './sentCancels';
 import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
@@ -182,33 +189,34 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       t('mindroomUi.backgroundJobs.stopAllFailed')
     );
   };
-  // Stop and Stop all are text on the bar's own material: no control adds a fill, rim or border.
-  // A row's Stop is regular weight, under the bar's own Stop or Stop all. A finished job has none.
-  const stop = (item: BackgroundJobsBarItem, inRow: boolean) =>
-    !item.finished &&
-    (item.stopping ? (
-      <Text as="span" size="T200" className={css.Stopping}>
-        {t('mindroomUi.backgroundJobs.stopping')}
-      </Text>
-    ) : (
-      canCancel && (
-        <Chip
-          key={item.jobId}
-          type="button"
-          variant="SurfaceVariant"
-          fill="None"
-          radii="Pill"
-          className={css.Plain}
-          aria-label={t('mindroomUi.backgroundJobs.stopJob', { tool: item.name })}
-          data-cancel-job
-          onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-            stopJob(item, event.currentTarget)
-          }
-        >
-          <Text size={inRow ? 'T200' : 'B300'}>{t('mindroomUi.backgroundJobs.stop')}</Text>
-        </Chip>
-      )
-    ));
+  // Stop and Stop all are icon buttons on the bar's own material, red under the pointer. A
+  // stopping job shows a spinner in its Stop's place; a finished job has none.
+  const stop = (item: BackgroundJobsBarItem) => {
+    if (item.finished) return null;
+    if (item.stopping) {
+      return (
+        <span className={css.Stopping} title={t('mindroomUi.backgroundJobs.stopping')}>
+          <Spinner size="100" variant="Secondary" aria-hidden />
+          <span className={css.VisuallyHidden}>{t('mindroomUi.backgroundJobs.stopping')}</span>
+        </span>
+      );
+    }
+    if (!canCancel) return null;
+    const label = t('mindroomUi.backgroundJobs.stopJob', { tool: item.name });
+    return (
+      <button
+        key={item.jobId}
+        type="button"
+        className={css.StopButton}
+        aria-label={label}
+        title={t('mindroomUi.backgroundJobs.stop')}
+        data-cancel-job
+        onClick={(event) => stopJob(item, event.currentTarget)}
+      >
+        <IconPlayerStopFilled size={16} aria-hidden />
+      </button>
+    );
+  };
   const [single] = model.items;
   const finished = model.items.every((item) => item.finished);
   // A sub-agent job whose run the Sub-agents panel has opens it there, on that run.
@@ -221,11 +229,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const status = (
     <>
       {several ? (
-        <Icon src={finished ? Icons.Check : Icons.Clock} size="50" aria-hidden />
+        <span className={css.TitleIcon}>
+          <Icon src={finished ? Icons.Check : Icons.Clock} size="100" aria-hidden />
+        </span>
       ) : (
-        <JobLogo room={room} item={single!} size={20} />
+        <JobLogo room={room} item={single!} />
       )}
-      <Text as="span" size="T200" truncate role="status" title={model.title}>
+      <Text as="span" size="T200" truncate role="status" title={model.title} className={css.Title}>
         {model.title}
       </Text>
     </>
@@ -292,7 +302,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
             >
               {status}
               <BackgroundJobsSummary room={room} model={model} />
-              <Icon src={Icons.ChevronTop} size="50" className={css.Chevron} aria-hidden />
+              <span className={css.Chevron}>
+                <Icon src={Icons.ChevronTop} size="100" aria-hidden />
+              </span>
             </button>
           ) : (
             <>
@@ -300,17 +312,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
               <JobElapsed startedAt={single!.startedAt} endedAt={endedAt(single!)} />
               {openSingle && (
                 // Beside the title, which stays the live status, not inside a button around it.
-                <button
-                  type="button"
-                  className={css.Open}
-                  aria-label={t('mindroomUi.backgroundJobs.openFor', { name: single.name })}
-                  onClick={openSingle}
-                  data-job-open
-                >
-                  <Text as="span" size="B300">
-                    {t('mindroomUi.backgroundJobs.open')}
-                  </Text>
-                </button>
+                <OpenButton name={single.name} onOpen={openSingle} />
               )}
             </>
           )}
@@ -322,21 +324,29 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           <div id={listId} className={css.Jobs} onFocus={() => setOpen('pinned')}>
             {model.groups.map((group) => (
               <React.Fragment key={group.kind}>
-                {model.groups.length > 1 && (
-                  <Text
-                    as="h3"
-                    size="L400"
-                    className={css.GroupHeading}
-                    id={`${listId}-${group.kind}`}
-                  >
-                    {t(
-                      group.kind === 'subagent'
-                        ? 'mindroomUi.backgroundJobs.groupSubagents'
-                        : 'mindroomUi.backgroundJobs.groupTools',
-                      { number: group.items.length }
-                    )}
-                  </Text>
-                )}
+                {/* The group's name, when both show, over the names of its number columns. */}
+                <div className={css.GroupHeading}>
+                  {model.groups.length > 1 ? (
+                    <h3 className={css.GroupName} id={`${listId}-${group.kind}`}>
+                      {t(
+                        group.kind === 'subagent'
+                          ? 'mindroomUi.backgroundJobs.groupSubagents'
+                          : 'mindroomUi.backgroundJobs.groupTools',
+                        { number: group.items.length }
+                      )}
+                    </h3>
+                  ) : (
+                    <span className={css.GroupName} />
+                  )}
+                  {(['calls', 'tokens', 'cost'] as const).map((column) => (
+                    <span key={column} className={css.StatColumn} aria-hidden>
+                      {group.kind === 'subagent' && t(`mindroomUi.backgroundJobs.column.${column}`)}
+                    </span>
+                  ))}
+                  <span className={css.ColumnName} aria-hidden>
+                    {t('mindroomUi.backgroundJobs.column.time')}
+                  </span>
+                </div>
                 {/* Lists without bullets keep their role in WebKit only when it is stated. */}
                 {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
                 <ul
@@ -352,7 +362,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                       viewThreadId={threadId}
                       endedAt={endedAt(item)}
                       onOpen={openRun(item) || undefined}
-                      stop={stop(item, true)}
+                      stop={stop(item)}
                     />
                   ))}
                 </ul>
@@ -365,19 +375,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
             ? canCancel &&
               stoppable.length > 0 && (
                 // Its own button, so a focused Stop never turns into Stop all when a job arrives.
-                <Chip
-                  key="all"
-                  type="button"
-                  variant="SurfaceVariant"
-                  fill="None"
-                  radii="Pill"
-                  className={css.Plain}
-                  onClick={stopAll}
-                >
-                  <Text size="B300">{t('mindroomUi.backgroundJobs.stopAll')}</Text>
-                </Chip>
+                <button key="all" type="button" className={css.StopAll} onClick={stopAll}>
+                  <IconPlayerStopFilled size={16} aria-hidden />
+                  {t('mindroomUi.backgroundJobs.stopAll')}
+                </button>
               )
-            : !single!.stopping && stop(single!, false)}
+            : !single!.stopping && stop(single!)}
         </div>
         {shownFailures.length > 0 && (
           <Text as="small" size="T200" role="alert" className={css.Alert}>

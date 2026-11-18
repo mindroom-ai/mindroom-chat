@@ -1017,7 +1017,13 @@
       "tokens_other": "{{tokens}} tokens",
       "started": "Iniciado {{time}}",
       "open": "Abrir",
-      "openFor": "Abrir {{name}}"
+      "openFor": "Abrir {{name}}",
+      "column": {
+        "calls": "Chamadas",
+        "tokens": "Tokens",
+        "cost": "Custo",
+        "time": "Tempo"
+      }
     },
     "subagents": {
       "title": "Subagentes",
