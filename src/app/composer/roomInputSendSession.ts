@@ -155,17 +155,9 @@ export const resolveRoomInputSendStep = (
 
   // No file goes out, the root included, while another one still uploads: MindRoom holds a
   // submission for only a few seconds after its last event, so a photo sent at once would be
-  // answered alone while a long video uploads. A failed upload or send has settled.
-  if (
-    pendingFiles.some((file) => {
-      const status = uploadMap.get(file)?.status;
-      return (
-        !session.failedFiles.has(file) &&
-        status !== UploadStatus.Success &&
-        status !== UploadStatus.Error
-      );
-    })
-  ) {
+  // answered alone while a long video uploads. An upload not started (its card is on a closed
+  // board) does not hold the others back.
+  if (pendingFiles.some((file) => uploadMap.get(file)?.status === UploadStatus.Loading)) {
     return { kind: 'wait' };
   }
 
@@ -207,7 +199,7 @@ export const resolveRoomInputSendStep = (
     return { kind: 'send-upload', file, mxc: upload.mxc, isRoot: false };
   }
 
-  // Attachments go out first, once all of them have uploaded or failed, and the caption goes
+  // Attachments go out first, once none of them is still uploading, and the caption goes
   // last: each event says whether more of the submission follows (getSubmissionMarker), and
   // MindRoom holds the files for the caption that closes it. Files awaiting a manual retry do not
   // hold the caption back, and one retried after the caption closes the submission again.

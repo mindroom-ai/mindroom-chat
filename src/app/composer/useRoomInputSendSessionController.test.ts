@@ -2151,6 +2151,32 @@ describe('useRoomInputSendSessionController submission markers', () => {
     ]);
   });
 
+  // A file dropped on a closed board has no card to start its upload: it goes once that starts.
+  it('sends the ready root while another file has not started uploading', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), { file: second, status: UploadStatus.Idle }];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(sentBodies(mx)).toEqual(['first.png']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect(markerOf(mx, 0)).toEqual({ id, more: true });
+
+    api.uploadsRef.current = [successUpload(second)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'second.png', 'Caption']);
+    expect([markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
   it('sends the rest of a submission once a file still uploading is removed', async () => {
     const { api, mx } = renderHarness();
     const first = createFile('first.png');
