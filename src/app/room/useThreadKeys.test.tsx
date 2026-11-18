@@ -163,66 +163,54 @@ describe('useThreadKeys', () => {
   });
 
   describe("a left thread's card that shows a pass later in the same task", () => {
-    // Under a thread that fills the page the room has no cards, and its composer stays.
+    // Under a thread that fills the page the room has no cards.
     let cards: string;
-    let composer: HTMLElement;
+    const otherwise = vi.fn();
     beforeEach(() => {
       cards = area.innerHTML;
-      area.innerHTML =
-        '<div data-room-footer="true"><div contenteditable="true" tabindex="0"></div></div>';
-      composer = area.querySelector<HTMLElement>('[contenteditable]')!;
+      area.innerHTML = '';
     });
-    /** The room shows without the thread, its Compact list still holding its first build. */
-    const leave = () => {
-      const { rerender } = mount('$b');
-      expect(press('leaveThread')).toBe(true);
+    /** The room shows without the thread, and the page asks for the focus the thread left. */
+    const leave = (byKey = true) => {
+      const { rerender, result } = mount('$b');
+      if (byKey) expect(press('leaveThread')).toBe(true);
       rerender({ threadId: undefined });
+      result.current(otherwise);
     };
-    const showCards = (html = cards) => area.insertAdjacentHTML('afterbegin', html);
 
-    it('takes the focus the page gave the composer as what the thread left', async () => {
+    it('takes the focus, which the page gives to nothing else', async () => {
       leave();
-      composer.focus();
-      showCards();
+      expect(otherwise).not.toHaveBeenCalled();
+      area.innerHTML = cards;
       await Promise.resolve();
       expect(document.activeElement).toBe(card('$b'));
+      expect(otherwise).not.toHaveBeenCalled();
     });
 
-    it('takes the focus nothing claimed', async () => {
+    it('leaves the focus to the page when it does not show, after its pass', async () => {
       leave();
-      showCards();
+      area.innerHTML =
+        '<div data-compact-room-view="true"><button data-thread-root-id="$a"></button></div>';
+      expect(otherwise).not.toHaveBeenCalled();
       await Promise.resolve();
-      expect(document.activeElement).toBe(card('$b'));
+      expect(otherwise).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(document.body);
     });
 
-    it('leaves the focus on another control that took it meanwhile', async () => {
+    it('leaves the focus on a control that took it meanwhile', async () => {
       const search = document.createElement('input');
-      area.append(search);
-      const menuItem = document.createElement('button');
-      document.body.append(menuItem);
+      document.body.append(search);
       leave();
       search.focus();
-      showCards();
+      area.innerHTML = cards;
       await Promise.resolve();
       expect(document.activeElement).toBe(search);
-
-      area.querySelector('[data-compact-room-view]')?.remove();
-      leave();
-      composer.focus();
-      menuItem.focus();
-      showCards();
-      await Promise.resolve();
-      expect(document.activeElement).toBe(menuItem);
+      expect(otherwise).toHaveBeenCalledTimes(1);
     });
 
-    it('leaves the focus where it went when no card of the left thread shows', async () => {
-      leave();
-      composer.focus();
-      showCards(
-        '<div data-compact-room-view="true"><button data-thread-root-id="$a"></button></div>'
-      );
-      await Promise.resolve();
-      expect(document.activeElement).toBe(composer);
+    it('leaves the focus to the page at once when the keys did not close the thread', () => {
+      leave(false);
+      expect(otherwise).toHaveBeenCalledTimes(1);
     });
   });
 

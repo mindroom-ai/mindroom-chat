@@ -789,11 +789,15 @@ function Elsewhere() {
  * Alt and the left arrow in a thread that fills the page, over a Compact room: the labels of
  * what took the focus from then on, in order.
  */
-const leaveThreadByKey = async (elsewhere = false) => {
-  state.cards = ['$other', '$thread'];
+const leaveThreadByKey = async ({
+  elsewhere = false,
+  cards = ['$other', '$thread'],
+  screenSize = ScreenSize.Desktop,
+} = {}) => {
+  state.cards = cards;
   const page = () => (
     <>
-      {tree()}
+      {tree({}, screenSize)}
       {elsewhere && <Elsewhere />}
     </>
   );
@@ -802,19 +806,23 @@ const leaveThreadByKey = async (elsewhere = false) => {
   expect(screen.queryByRole('button', { name: 'Card $thread' })).toBeNull();
   screen.getByLabelText('Reply').focus();
   const focused: (string | null)[] = [];
-  document.addEventListener('focusin', (event) =>
-    focused.push((event.target as Element).getAttribute('aria-label'))
-  );
-  expect(runShortcut('leaveThread', new KeyboardEvent('keydown'))).toBe(true);
-  state.thread = undefined;
-  rerender(page());
-  await act(async () => {});
+  const onFocus = (event: FocusEvent) =>
+    focused.push((event.target as Element).getAttribute('aria-label'));
+  document.addEventListener('focusin', onFocus);
+  try {
+    expect(runShortcut('leaveThread', new KeyboardEvent('keydown'))).toBe(true);
+    state.thread = undefined;
+    rerender(page());
+    await act(async () => {});
+  } finally {
+    document.removeEventListener('focusin', onFocus);
+  }
   return focused;
 };
 
-it("moves the focus the keys took out of a thread that filled the page to that thread's card", async () => {
-  // The room's composer has it first, as what the closed thread left; the card shows after.
-  expect(await leaveThreadByKey()).toEqual(['Message', 'Card $thread']);
+it("moves the focus the keys took out of a thread that filled the page to that thread's card alone", async () => {
+  // Not by way of the room's composer: the focus moves once, as people who hear it move expect.
+  expect(await leaveThreadByKey()).toEqual(['Card $thread']);
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Card $thread' }));
 });
 
@@ -823,9 +831,25 @@ it("moves the focus the keys took out of a thread to that thread's card in a roo
   expect(await leaveThreadByKey()).toEqual(['Card $thread']);
 });
 
+it("gives the focus the keys took out of a thread to the composer where that thread's card does not show", async () => {
+  expect(await leaveThreadByKey({ cards: ['$other'] })).toEqual(['Message']);
+  expect(screen.getByRole('button', { name: 'Card $other' })).toBeDefined();
+});
+
+it('leaves the focus the keys took out of a thread alone on a phone without its card', async () => {
+  const phone = { cards: ['$other'], screenSize: ScreenSize.Mobile };
+  expect(await leaveThreadByKey(phone)).toEqual([]);
+  expect(document.activeElement).toBe(document.body);
+});
+
 it('leaves the focus on a control that took it as the keys closed the thread', async () => {
-  const focused = await leaveThreadByKey(true);
+  // With the thread's card there, and without it, where the composer would have had the focus.
+  expect(await leaveThreadByKey({ elsewhere: true })).toEqual([null]);
   expect(screen.getByRole('button', { name: 'Card $thread' })).toBeDefined();
-  expect(focused).toEqual(['Message', null]);
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }));
+  cleanup();
+
+  state.thread = '$thread';
+  expect(await leaveThreadByKey({ elsewhere: true, cards: ['$other'] })).toEqual([null]);
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }));
 });

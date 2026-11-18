@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import { useStore } from 'jotai';
 import {
   conversationBehindPanelAtom,
@@ -27,10 +27,6 @@ type UseThreadKeysOptions = {
   onFocusThread: () => void;
 };
 
-/** The text box of the room's composer, under the room's own area. */
-export const roomComposerIn = (area: ParentNode | null | undefined): HTMLElement | null =>
-  area?.querySelector<HTMLElement>('[data-room-footer="true"] [contenteditable="true"]') ?? null;
-
 /**
  * The keys that go into a thread and out of it. Alt and the right arrow goes one level in: from
  * the room to its Compact cards (the card of the thread just left, or the first in view), and
@@ -40,6 +36,9 @@ export const roomComposerIn = (area: ParentNode | null | undefined): HTMLElement
  * moves the focus through the cards, from outside them to the card beside the open thread's or
  * that of the thread just left. None acts on what a side panel, a plugin's cover or a thread that
  * fills the page hides.
+ *
+ * Returns how the page gives away the focus a closed thread left: `otherwise` runs unless the
+ * card of a thread these keys left takes it, at once or after the pass that card shows in.
  */
 export const useThreadKeys = ({
   roomId,
@@ -50,7 +49,7 @@ export const useThreadKeys = ({
   onExitThread,
   onFocusComposer,
   onFocusThread,
-}: UseThreadKeysOptions): void => {
+}: UseThreadKeysOptions): ((otherwise: () => void) => void) => {
   const store = useStore();
   // The cards under a thread that fills the page are gone; a cover or a panel hides the rest.
   const cards = () => (store.get(conversationHiddenAtom) ? [] : compactCardsIn(areaRef.current));
@@ -95,6 +94,7 @@ export const useThreadKeys = ({
   // the reader went to meanwhile: the focus moves only from where it was at the key, or from the
   // page, where the closed thread left it.
   const leftByKey = useRef<{ threadId: string; focused: Element | null }>();
+  const awaitedCard = useRef<{ otherwise?: () => void }>();
   const shownThreadId = useRef(openThreadId);
   useEffect(() => {
     const closed = shownThreadId.current;
@@ -111,11 +111,14 @@ export const useThreadKeys = ({
       focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
     if (!unclaimed() || focusCard()) return;
     // A Compact list that takes the place of a thread that filled the page shows its cards a
-    // pass after this effect, in the same task (`RoomTimeline`). The card takes the focus then,
-    // also from the room's composer, which the page gave it meanwhile as what the thread left;
-    // not from another control that took it.
+    // pass after this effect, in the same task (`RoomTimeline`). The focus goes once, then: to
+    // the card, or as the page gives it (`unlessCardTakesFocus`), and not from a control that
+    // took it meanwhile.
+    const wait: { otherwise?: () => void } = {};
+    awaitedCard.current = wait;
     queueMicrotask(() => {
-      if (unclaimed() || doc.activeElement === roomComposerIn(areaRef.current)) focusCard();
+      if (awaitedCard.current === wait) awaitedCard.current = undefined;
+      if (!(unclaimed() && focusCard())) wait.otherwise?.();
     });
   });
 
@@ -135,4 +138,9 @@ export const useThreadKeys = ({
     // A room without a composer has nowhere out: the keys stay the browser's.
     return focusedCompactCard(areaRef.current) !== focused;
   });
+
+  return useCallback((otherwise) => {
+    if (awaitedCard.current) awaitedCard.current.otherwise = otherwise;
+    else otherwise();
+  }, []);
 };
