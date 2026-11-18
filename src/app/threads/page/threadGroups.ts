@@ -7,7 +7,11 @@ import {
   isCrossRoomThreadEntryEligible,
 } from '../cross-room/crossRoomThreadOrder';
 import type { ThreadSignals } from '../cross-room/threadSignals';
-import { classifyThreadWorkflow, isWaitingOnYou } from '../../event-store/threads/threadWorkflow';
+import {
+  classifyThreadWorkflow,
+  isQuietSinceResolved,
+  isWaitingOnYou,
+} from '../../event-store/threads/threadWorkflow';
 
 /** Mine: threads the user started; Following: threads they take part in; All: every thread. */
 export type ThreadsScope = 'mine' | 'following' | 'all';
@@ -35,7 +39,13 @@ const groupOf = (
   scope: ThreadsScope,
   now: number
 ): ThreadGroupId | undefined => {
-  if (isWaitingOnYou(signals, entry.threadRecord.status)) return 'needsYou';
+  // Resolving answers what waited; only news after the resolve brings it back to Needs you.
+  if (
+    !isQuietSinceResolved(entry, signals.newsTs) &&
+    isWaitingOnYou(signals, entry.threadRecord.status)
+  ) {
+    return 'needsYou';
+  }
   if (signals.automation && !entry.isInvolved) return scope === 'all' ? 'automations' : undefined;
   if (signals.newCount > 0 || signals.mentionedMe) return 'unread';
   const bucket = classifyThreadWorkflow(

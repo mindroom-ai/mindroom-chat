@@ -27,6 +27,15 @@ export const isWaitingOnYou = (
 ): boolean =>
   !!(signals.pendingApproval || signals.pendingQuestion || status.hasBackgroundApproval);
 
+/**
+ * A resolved thread with no news (`ThreadSignals.newsTs`) since it was resolved. Resolving
+ * answers what the thread held, so what waited in it no longer waits for the person.
+ */
+export const isQuietSinceResolved = (
+  thread: { isResolved: boolean; resolvedTs?: number },
+  newsTs: number | undefined
+): boolean => thread.isResolved && (newsTs ?? 0) <= (thread.resolvedTs ?? Infinity);
+
 /** Shared by the room overview and sidebar sections. First match wins, independent of unread state. */
 export const classifyThreadWorkflow = (
   status: ThreadWorkflowStatus,
