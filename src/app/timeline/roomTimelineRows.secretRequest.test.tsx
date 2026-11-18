@@ -19,6 +19,7 @@ import {
   useDrawnSecretRequestIds,
 } from '../messages/inlineSecretRequests';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
+import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { renderTimelineTiles } from './roomTimelineRows';
 
@@ -154,6 +155,7 @@ function Thread({ events, shown }: { events: MatrixEvent[]; shown: Record<string
       approvalTimeline: { hiddenEventIds: NONE },
       threadSummaryTimeline: { hiddenEventIds: NONE },
       secretRequestTimeline: { hiddenEventIds },
+      voiceTranscripts: NO_VOICE_TRANSCRIPTS,
     } as unknown as TimelineMessageData,
     isHiddenByPlugin: () => false,
     isHiddenByPluginId: () => false,

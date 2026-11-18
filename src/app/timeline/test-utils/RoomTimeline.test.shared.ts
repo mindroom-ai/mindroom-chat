@@ -47,6 +47,7 @@ const {
   threadStreamingStateMock,
   threadResolutionMapMock,
   stateEventsByTypeMock,
+  powerLevelsContextMock,
   roomThreadListThreadsMock,
   ignoredUsersMock,
   roomUnreadState,
@@ -118,6 +119,8 @@ const {
     { isResolved: boolean; tags: Record<string, unknown> | null }
   >(),
   stateEventsByTypeMock: new Map<string, unknown[]>(),
+  // The room's power levels the timeline reads from its context.
+  powerLevelsContextMock: { levels: {} as Record<string, unknown> },
   roomThreadListThreadsMock: [] as Array<{ id?: string; rootEvent?: unknown }>,
   ignoredUsersMock: [] as string[],
   roomUnreadState: { value: false },
@@ -315,7 +318,7 @@ vi.mock('jotai', async (importOriginal) => {
 
 vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/hooks/usePowerLevels')>()),
-  usePowerLevelsContext: () => ({}),
+  usePowerLevelsContext: () => powerLevelsContextMock.levels,
 }));
 
 vi.mock('../../matrix/hooks/useRoomCreators', () => ({
@@ -1840,6 +1843,7 @@ export {
   pluginRowHiddenMock,
   messageContentMock,
   stateEventsByTypeMock,
+  powerLevelsContextMock,
   TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,
   threadStreamingStateMock,

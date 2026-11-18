@@ -40,6 +40,8 @@ import { isEmptyEditor } from '../../editor/utils';
 import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
+import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
 import { useDecryptionRepaint } from './useDecryptionRepaint';
 import {
@@ -686,6 +688,36 @@ export const useTimelineMessageFeature = ({
         htmlReactParserOptions,
         linkifyOpts,
       };
+      // The router's echo of a voice message shows under it, as its latest version says.
+      const voiceEcho = data.voiceTranscripts.byVoiceId.get(eventId);
+      const voiceEchoId = voiceEcho?.getId() ?? '';
+      if (voiceEcho) {
+        renderedEventsRef.current?.push(
+          voiceEcho,
+          ...getPendingEdits(voiceEchoId, voiceEcho, timelineSet)
+        );
+      }
+      const voiceTranscript = voiceEcho && (
+        <VoiceTranscript
+          content={
+            getLatestMessageContent(
+              voiceEcho,
+              getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
+            ) as Record<string, unknown>
+          }
+          senderName={
+            room.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
+          }
+          renderBody={({ body, customBody }) => (
+            <RenderBody
+              body={body}
+              customBody={customBody}
+              linkifyOpts={linkifyOpts}
+              htmlReactParserOptions={htmlReactParserOptions}
+            />
+          )}
+        />
+      );
       const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
         !readOnly &&
@@ -817,6 +849,7 @@ export const useTimelineMessageFeature = ({
                   )
                 }
               </CollapsibleMessage>
+              {voiceTranscript}
               {editNotDecrypted && (
                 <div>
                   <MessageEditNotDecryptedContent />
