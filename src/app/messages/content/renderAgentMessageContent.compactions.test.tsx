@@ -561,6 +561,38 @@ describe('compaction seams in finished and live replies', () => {
     expect(sequence()).toEqual(['Intro.', 'tools:t1', 'seam', 'More.']);
   });
 
+  it("shows no seam from a person's downloaded sidecar", () => {
+    sidecars.set('mxc://example.org/person', {
+      ...reply(paragraphs('Intro.', 'More.'), [entry('c1', 0)]),
+      [LIVE_COMPACTIONS_KEY]: [entry('c2', 0, { status: 'running' })],
+    });
+    act(() => {
+      renderer = create(
+        <ClientConfigProvider value={{}}>
+          {renderAgentMessageContent({
+            mEvent,
+            eventId: '$person-long',
+            fromMindroomAgent: false,
+            displayName: 'Bob',
+            msgType: 'm.text',
+            content: {
+              msgtype: 'm.text',
+              body: 'Intro.',
+              url: 'mxc://example.org/person',
+              'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+            },
+            htmlReactParserOptions,
+            linkifyOpts,
+          })}
+        </ClientConfigProvider>
+      );
+    });
+    sidecars.clear();
+
+    expect(renderer!.toJSON()).not.toBeNull();
+    expect(seams()).toHaveLength(0);
+  });
+
   it('shows a running compaction before the reply on its pending placeholder', () => {
     render({
       msgtype: 'm.text',

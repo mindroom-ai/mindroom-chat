@@ -999,6 +999,7 @@ describe('LongTextText hydration identity', () => {
             ClientConfigProvider,
             { value: {} },
             renderAgentMessageContent({
+              fromMindroomAgent: true,
               displayName: 'MindRoom',
               msgType: 'm.text',
               content,

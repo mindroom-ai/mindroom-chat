@@ -47,6 +47,7 @@ import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
 import { SkillReviewMarker } from '../SkillReviewMarker';
+import { sanitizeContent } from '../../matrix/protocol/untrustedContent';
 import { readCompactionNotice } from '../../matrix/protocol/compactions';
 import { CompactionNoticeSeam } from '../agent-run/CompactionSeam';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
@@ -366,11 +367,14 @@ export const renderAgentMessageContent = ({
   };
 
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
-    resolvedContent,
+    downloadedContent,
     props,
     metadataStatus
-  ) =>
-    renderLongCallTranscript(
+  ) => {
+    // A sidecar is downloaded after the event's own content was cleaned, so the agent-only keys
+    // are dropped here too unless an agent sent it.
+    const resolvedContent = sanitizeContent(downloadedContent, fromMindroomAgent);
+    return renderLongCallTranscript(
       resolvedContent,
       wrapAgentBody(
         // The live reasoning and compactions ride on the outer content, not on the preview or the
@@ -393,6 +397,7 @@ export const renderAgentMessageContent = ({
         !hasLongTextMetadata(resolvedContent)
       )
     );
+  };
 
   const renderMessageExtras = (
     extrasContent: Record<string, unknown>,
