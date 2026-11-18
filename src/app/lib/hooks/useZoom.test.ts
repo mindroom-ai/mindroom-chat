@@ -161,16 +161,28 @@ describe('useZoom', () => {
       zoomSurface.dispatch('wheel', wheel(-100, {}));
     });
 
-    expect(zoomState.zoom).toBeCloseTo(1.4);
-    expect(onZoomAround).toHaveBeenCalledTimes(2);
-    expect(onZoomAround.mock.calls[0]?.[0]).toBe(1);
-    expect(onZoomAround.mock.calls[0]?.[1]).toBeCloseTo(1.2);
-    expect(onZoomAround.mock.calls[1]?.[0]).toBeCloseTo(1.2);
-    expect(onZoomAround.mock.calls[1]?.[1]).toBeCloseTo(1.4);
-    expect(onZoomAround).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), {
-      x: 50,
-      y: -20,
+    const at = { x: 50, y: -20 };
+    expect(zoomState.zoom).toBe(1.4);
+    expect(onZoomAround.mock.calls).toEqual([
+      [{ from: 1, to: 1.2, at, before: at }],
+      [{ from: 1.2, to: 1.4, at, before: at }],
+    ]);
+  });
+
+  it('lands on exactly 1 when stepping back to fit', () => {
+    let zoomState!: ReturnType<typeof useZoom>;
+    act(() => {
+      renderer = create(
+        React.createElement(HookHarness, {
+          onUpdate: (state) => {
+            zoomState = state;
+          },
+        })
+      );
     });
+    act(() => zoomState.setZoom(2));
+    for (let i = 0; i < 5; i += 1) act(() => zoomState.zoomOut());
+    expect(zoomState.zoom).toBe(1);
   });
 
   it('aims a pinch at the middle of the fingers, and stays quiet at the limit', () => {
@@ -190,6 +202,7 @@ describe('useZoom', () => {
     act(() => {
       zoomState.zoomTargetRef(zoomSurface as unknown as HTMLElement);
     });
+    // The first finger stays put; the second moves away from it.
     const touches = (spread: number) =>
       createTouchList([
         { clientX: 120, clientY: 60 },
@@ -204,7 +217,12 @@ describe('useZoom', () => {
         touches: touches(40),
       } as unknown as TouchEvent);
     });
-    expect(onZoomAround).toHaveBeenLastCalledWith(1, 2, { x: -80, y: -20 });
+    expect(onZoomAround).toHaveBeenLastCalledWith({
+      from: 1,
+      to: 2,
+      at: { x: -80, y: -20 },
+      before: { x: -80, y: -30 },
+    });
 
     act(() => {
       zoomSurface.dispatch('touchmove', {

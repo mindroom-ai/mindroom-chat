@@ -1,4 +1,5 @@
 import { PointerEvent, PointerEventHandler, useCallback, useEffect, useRef, useState } from 'react';
+import type { ZoomStep } from './useZoom';
 
 type Pan = {
   translateX: number;
@@ -6,6 +7,9 @@ type Pan = {
 };
 
 type Point = { x: number; y: number };
+type Size = { width: number; height: number };
+
+const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
 
 /** Where a pan starts and where it returns when panning turns off. */
 const INITIAL_PAN: Pan = { translateX: 0, translateY: 0 };
@@ -61,15 +65,27 @@ export const usePan = (active: boolean) => {
   }, []);
 
   /**
-   * Keeps the point `at` (an offset from the element's centre, its transform origin) under the
-   * cursor or fingers while the element's scale goes from `from` to `to`.
+   * Moves the element for a zoom step, so the content at `before` (an offset from the element's
+   * centre, its transform origin) lands at `at`. Fit recentres. Given the element's unscaled
+   * `size`, a point beside it anchors at its nearest edge, so zooming over the margin cannot
+   * push it out of view.
    */
-  const zoomAround = useCallback((from: number, to: number, at: Point) => {
-    const ratio = to / from;
-    setPan((current) => ({
-      translateX: at.x - ratio * (at.x - current.translateX),
-      translateY: at.y - ratio * (at.y - current.translateY),
-    }));
+  const zoomAround = useCallback(({ from, to, at, before }: ZoomStep, size?: Size) => {
+    setPan((current) => {
+      if (to === 1) return INITIAL_PAN;
+      const halfWidth = ((size?.width ?? Infinity) * from) / 2;
+      const halfHeight = ((size?.height ?? Infinity) * from) / 2;
+      const shiftX =
+        clamp(before.x, current.translateX - halfWidth, current.translateX + halfWidth) - before.x;
+      const shiftY =
+        clamp(before.y, current.translateY - halfHeight, current.translateY + halfHeight) -
+        before.y;
+      const ratio = to / from;
+      return {
+        translateX: at.x + shiftX - ratio * (before.x + shiftX - current.translateX),
+        translateY: at.y + shiftY - ratio * (before.y + shiftY - current.translateY),
+      };
+    });
   }, []);
 
   let cursor = 'initial';

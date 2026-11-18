@@ -17,8 +17,12 @@ export const touchDistance = (touches: TouchList): number => {
 /** A point as its offset from the zoomed element's centre, where its scale is anchored. */
 export type ZoomOffset = { x: number; y: number };
 
-/** A wheel or pinch zoom from `from` to `to`, aimed at `at`. */
-export type ZoomAround = (from: number, to: number, at: ZoomOffset) => void;
+/**
+ * A wheel or pinch zoom from `from` to `to`: the content at `before` should end up at `at`. They
+ * differ only when the fingers move as they pinch.
+ */
+export type ZoomStep = { from: number; to: number; at: ZoomOffset; before: ZoomOffset };
+export type ZoomAround = (step: ZoomStep) => void;
 
 const offsetFromCentre = (element: Element, clientX: number, clientY: number): ZoomOffset => {
   const rect = element.getBoundingClientRect();
@@ -46,13 +50,15 @@ export const useZoom = (
   zoomAroundRef.current = onZoomAround;
 
   const setZoom = useCallback(
-    (next: number | ((current: number) => number), at?: ZoomOffset) => {
+    (next: number | ((current: number) => number), at?: ZoomOffset, before = at) => {
       const from = zoomRef.current;
-      const to = clampZoom(typeof next === 'function' ? next(from) : next, min, max);
+      const wanted = clampZoom(typeof next === 'function' ? next(from) : next, min, max);
+      // Rounded, so steps back from 2 land on exactly 1 (fit), not 1.0000000000000002.
+      const to = Math.round(wanted * 1e6) / 1e6;
       if (to === from) return;
       zoomRef.current = to;
       setZoomState(to);
-      if (at) zoomAroundRef.current?.(from, to, at);
+      if (at && before) zoomAroundRef.current?.({ from, to, at, before });
     },
     [min, max]
   );
@@ -64,28 +70,32 @@ export const useZoom = (
 
   useEffect(() => {
     if (!target) return undefined;
-    let pinch: { distance: number; zoom: number } | undefined;
+    let pinch: { distance: number; zoom: number; centre: ZoomOffset } | undefined;
+    const touchCentre = (touches: TouchList): ZoomOffset => {
+      const [first, second] = [touches[0]!, touches[1]!];
+      return offsetFromCentre(
+        target,
+        (first.clientX + second.clientX) / 2,
+        (first.clientY + second.clientY) / 2
+      );
+    };
 
     const handleTouchStart = (event: TouchEvent) => {
       if (event.touches.length < 2) return;
       const distance = touchDistance(event.touches);
       if (distance <= 0) return;
-      pinch = { distance, zoom: zoomRef.current };
+      pinch = { distance, zoom: zoomRef.current, centre: touchCentre(event.touches) };
     };
     const handleTouchMove = (event: TouchEvent) => {
       if (!pinch || event.touches.length < 2) return;
       if (event.cancelable) event.preventDefault();
       const scale = touchDistance(event.touches) / pinch.distance;
-      const [first, second] = [event.touches[0]!, event.touches[1]!];
+      // The content under the fingers' last midpoint follows them to the new one.
+      const centre = touchCentre(event.touches);
+      const before = pinch.centre;
+      pinch.centre = centre;
       setIsZooming(true);
-      setZoom(
-        pinch.zoom * scale,
-        offsetFromCentre(
-          target,
-          (first.clientX + second.clientX) / 2,
-          (first.clientY + second.clientY) / 2
-        )
-      );
+      setZoom(pinch.zoom * scale, centre, before);
     };
     const handleTouchEnd = (event: TouchEvent) => {
       if (event.touches.length >= 2) return;

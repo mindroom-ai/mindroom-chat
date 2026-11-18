@@ -80,7 +80,8 @@ test('ctrl with the wheel zooms toward the cursor, which the hint tells of', asy
   await page.goto('/e2e/fixtures/image-viewer.html');
   const image = page.getByRole('img', { name: 'Test image' });
   await expect(image).toBeVisible();
-  const hint = page.getByText('Ctrl + scroll to zoom', { exact: true });
+  // Chromium plays a Mac on a Mac, where the viewer names the command key.
+  const hint = page.getByText(/^(Ctrl|⌘) \+ scroll to zoom$/);
   await expect(hint).toBeVisible();
 
   const start = (await image.boundingBox())!;
@@ -91,10 +92,10 @@ test('ctrl with the wheel zooms toward the cursor, which the hint tells of', asy
     return [(cursor.x - box.x) / box.width, (cursor.y - box.y) / box.height];
   };
   await page.mouse.move(cursor.x, cursor.y);
-  await page.keyboard.down('Control');
+  await page.keyboard.down('ControlOrMeta');
   await page.mouse.wheel(0, -100);
   await page.mouse.wheel(0, -100);
-  await page.keyboard.up('Control');
+  await page.keyboard.up('ControlOrMeta');
 
   await expect.poll(async () => (await transform(image)).scale).toBeCloseTo(1.4);
   await expect.poll(async () => (await spot())[0]).toBeCloseTo(0.25, 2);

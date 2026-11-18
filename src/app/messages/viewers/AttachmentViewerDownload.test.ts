@@ -65,6 +65,7 @@ vi.mock('./ImageViewer.css', () => ({
   ImageViewerImg: 'ImageViewerImg',
   ImageViewerStage: 'ImageViewerStage',
   ImageViewerStep: 'ImageViewerStep',
+  ImageViewerZoomHint: 'ImageViewerZoomHint',
 }));
 
 vi.mock('./PdfViewer.css', () => ({
