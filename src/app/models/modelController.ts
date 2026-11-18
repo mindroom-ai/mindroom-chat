@@ -50,7 +50,13 @@ export type ModelPickerSnapshot = {
   error?: string;
 };
 type Catalog = { runtime: ModelRuntime; response: ModelCatalogResponse };
-type RoomCatalog = { runtime: ModelRuntime; models: ModelCatalogEntry[]; agentUserIds: string[] };
+type RoomCatalog = {
+  runtime: ModelRuntime;
+  models: ModelCatalogEntry[];
+  agentUserIds: string[];
+  /** The room default the runtime last reported, shown until a thread's own answer comes. */
+  inherited: ModelInheritedEntry[];
+};
 type Scope = {
   room: Room;
   threadId?: string;
@@ -120,6 +126,7 @@ const roomCatalogsOf = (catalogs: Iterable<Catalog>): RoomCatalog[] =>
     runtime: catalog.runtime,
     models: catalog.response.models,
     agentUserIds: catalog.response.agent_user_ids,
+    inherited: catalog.response.selection.inherited,
   }));
 const controllers = new WeakMap<MatrixClient, ModelController>();
 
@@ -210,6 +217,7 @@ export class ModelController {
           eligible: cached.length > 0,
           runtimes: cached.map((catalog) => catalog.runtime),
           models: cached.length === 1 ? cached[0]!.models : [],
+          inherited: cached.length === 1 ? cached[0]!.inherited : [],
         },
         listeners: new Set(),
         catalogs: new Map(),
@@ -548,7 +556,9 @@ export class ModelController {
     const model = commandModel(command);
     try {
       if (!(await isCurrentModelRuntime(this.mx, runtime))) {
-        if (this.currentCommand(command)) this.invalidate(scope);
+        if (!this.currentCommand(command)) return;
+        this.roomCatalogs.delete(scope.room.roomId);
+        this.invalidate(scope);
         return;
       }
       if (!this.currentCommand(command)) return;
@@ -724,7 +734,6 @@ export class ModelController {
     scope.command = undefined;
     scope.catalogs.clear();
     scope.kept = undefined;
-    this.roomCatalogs.delete(scope.room.roomId);
     scope.needsRefresh = true;
     scope.snapshot = {
       ...emptySnapshot(),
@@ -735,7 +744,13 @@ export class ModelController {
   }
 
   private onMembership = (_event: MatrixEvent, member: RoomMember): void => {
-    this.roomCatalogs.delete(member.roomId);
+    // The room cache keeps the runtimes whose agents stay joined, as a shown button does.
+    const room = this.mx.getRoom(member.roomId);
+    const joined = (room && this.roomCatalogs.get(member.roomId))?.filter((catalog) =>
+      hasJoinedModelAgent(this.mx, room, catalog.runtime, catalog.agentUserIds)
+    );
+    if (joined?.length) this.roomCatalogs.set(member.roomId, joined);
+    else this.roomCatalogs.delete(member.roomId);
     this.scopes.forEach((scope) => {
       if (scope.room.roomId !== member.roomId) return;
       if (scope.query?.hydrating && !scope.catalogs.size) return;
@@ -764,12 +779,13 @@ export class ModelController {
   };
 
   private invalidateAndRefresh(scope: Scope): void {
-    // Revalidate behind the shown button while its runtime and one of its agents stay joined.
+    // Revalidate behind the button while its runtime and one of its agents stay joined, also in a
+    // thread no composer shows now, which shows it again at once when opened.
     const verified = scope.catalogs.size ? roomCatalogsOf(scope.catalogs.values()) : scope.kept;
     const kept = (verified ?? []).filter((catalog) =>
       hasJoinedModelAgent(this.mx, scope.room, catalog.runtime, catalog.agentUserIds)
     );
-    const keep = scope.listeners.size > 0 && scope.snapshot.eligible && kept.length > 0;
+    const keep = scope.snapshot.eligible && kept.length > 0;
     this.invalidate(scope, keep ? scope.snapshot : undefined);
     if (keep) scope.kept = kept;
     if (scope.refreshScheduled || !scope.listeners.size) return;
