@@ -1,4 +1,12 @@
-import React, { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
@@ -50,6 +58,7 @@ import { registeredPlugins, type RegisteredPlugin } from '../plugins/registry';
 import { shownThreadDetails } from '../plugins/threadDetails';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { ThreadDetailsList } from './ThreadDetailsList';
+import { SecondThreadContext } from '../navigation/secondThread';
 import * as css from './ThreadActionsMenu.css';
 import { latestForkPoint } from '../event-store/threads/threadFork';
 import { ForkIcon } from '../messages/ForkIcon';
@@ -108,6 +117,7 @@ export function ThreadActionsMenu({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const tags = useThreadTags(room, rootId);
+  const secondThread = useContext(SecondThreadContext);
   const mutations = useMutateThreadTags(room);
   const pinning = useThreadPinning(room);
   const members = useRoomMembers(mx, room.roomId);
@@ -468,6 +478,17 @@ export function ThreadActionsMenu({
       label: t('threadActions.open'),
       icon: Icons.Thread,
       onSelect: onOpenThread,
+    });
+  }
+  if (secondThread?.offers(rootId)) {
+    items.push({
+      action: 'openBeside',
+      label: t('threadActions.openBeside'),
+      icon: Icons.ThreadPlus,
+      onSelect: () => {
+        secondThread.open(rootId);
+        onClose();
+      },
     });
   }
   if (showTags) {

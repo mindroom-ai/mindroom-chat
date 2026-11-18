@@ -1576,5 +1576,8 @@
     "later": "Позже",
     "open": "Открытые",
     "done": "Готово"
+  },
+  "threadActions": {
+    "openBeside": "Открыть рядом"
   }
 }

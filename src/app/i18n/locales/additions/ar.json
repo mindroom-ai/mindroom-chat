@@ -1642,5 +1642,8 @@
     "later": "لاحقًا",
     "open": "مفتوحة",
     "done": "منتهية"
+  },
+  "threadActions": {
+    "openBeside": "فتح بجانبها"
   }
 }

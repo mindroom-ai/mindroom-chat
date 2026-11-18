@@ -1477,5 +1477,8 @@
     "later": "Nanti",
     "open": "Terbuka",
     "done": "Selesai"
+  },
+  "threadActions": {
+    "openBeside": "Buka di samping"
   }
 }

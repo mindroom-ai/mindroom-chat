@@ -1477,5 +1477,8 @@
     "later": "나중에",
     "open": "열림",
     "done": "완료"
+  },
+  "threadActions": {
+    "openBeside": "옆에 열기"
   }
 }

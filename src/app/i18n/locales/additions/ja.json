@@ -1477,5 +1477,8 @@
     "later": "後で",
     "open": "未完了",
     "done": "完了"
+  },
+  "threadActions": {
+    "openBeside": "横に開く"
   }
 }

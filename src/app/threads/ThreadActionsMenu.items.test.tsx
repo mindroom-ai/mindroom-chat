@@ -7,6 +7,7 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
+import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 import { ForkIcon } from '../messages/ForkIcon';
 import { getDefaultStore } from 'jotai';
@@ -217,6 +218,59 @@ describe('ThreadActionsMenu rows', () => {
       action: 'resolve',
       label: 'Reopen thread',
       icon: glyph(Icons.Reload),
+    });
+  });
+
+  describe('Open beside', () => {
+    const menuIn = (
+      second: SecondThreadControl | undefined,
+      props: Partial<ThreadActionsMenuProps>
+    ) => {
+      act(() =>
+        root.render(
+          <SecondThreadContext.Provider value={second}>
+            <ThreadActionsMenu
+              room={room}
+              rootId="$root"
+              anchor={{ x: 0, y: 0, width: 0, height: 0 }}
+              onClose={() => undefined}
+              onOpenThread={() => undefined}
+              {...props}
+            />
+          </SecondThreadContext.Provider>
+        )
+      );
+      return [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    };
+
+    it('offers Open beside right after Open when the room page does', () => {
+      const items = menuIn({ offers: () => true, open: vi.fn() }, {});
+      expect(
+        rows(items)
+          .slice(0, 3)
+          .map((row) => row.label)
+      ).toEqual(['Open thread', 'Open beside', 'Edit tags']);
+      expect(rowOf(items, 'openBeside')?.querySelector('svg')?.innerHTML).toBe(
+        glyph(Icons.ThreadPlus)
+      );
+    });
+
+    it('selecting Open beside opens the thread and closes the menu', () => {
+      const open = vi.fn();
+      const onClose = vi.fn();
+      const offers = vi.fn(() => true);
+      const items = menuIn({ offers, open }, { onClose });
+      act(() => rowOf(items, 'openBeside')?.click());
+      expect(offers).toHaveBeenCalledWith('$root');
+      expect(open).toHaveBeenCalledWith('$root');
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it('no Open beside without the room page or for a thread it shows', () => {
+      expect(rowOf(menuIn(undefined, {}), 'openBeside')).toBeUndefined();
+      expect(
+        rowOf(menuIn({ offers: () => false, open: vi.fn() }, {}), 'openBeside')
+      ).toBeUndefined();
     });
   });
 

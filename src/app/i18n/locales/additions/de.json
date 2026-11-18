@@ -1510,5 +1510,8 @@
     "later": "Später",
     "open": "Offen",
     "done": "Erledigt"
+  },
+  "threadActions": {
+    "openBeside": "Daneben öffnen"
   }
 }

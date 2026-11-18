@@ -1543,5 +1543,8 @@
     "later": "Más tarde",
     "open": "Abiertos",
     "done": "Hechos"
+  },
+  "threadActions": {
+    "openBeside": "Abrir al lado"
   }
 }

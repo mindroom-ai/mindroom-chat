@@ -1510,5 +1510,8 @@
     "later": "Sonra",
     "open": "Açık",
     "done": "Bitti"
+  },
+  "threadActions": {
+    "openBeside": "Yanında aç"
   }
 }

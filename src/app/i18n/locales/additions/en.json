@@ -1510,5 +1510,8 @@
     "later": "Later",
     "open": "Open",
     "done": "Done"
+  },
+  "threadActions": {
+    "openBeside": "Open beside"
   }
 }

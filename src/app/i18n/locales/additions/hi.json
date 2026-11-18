@@ -1510,5 +1510,8 @@
     "later": "बाद में",
     "open": "खुले",
     "done": "पूरे"
+  },
+  "threadActions": {
+    "openBeside": "बगल में खोलें"
   }
 }

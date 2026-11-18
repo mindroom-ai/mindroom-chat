@@ -1510,5 +1510,8 @@
     "later": "পরে",
     "open": "খোলা",
     "done": "সম্পন্ন"
+  },
+  "threadActions": {
+    "openBeside": "পাশে খুলুন"
   }
 }

@@ -1477,5 +1477,8 @@
     "later": "稍後",
     "open": "未完成",
     "done": "已完成"
+  },
+  "threadActions": {
+    "openBeside": "在旁邊開啟"
   }
 }
