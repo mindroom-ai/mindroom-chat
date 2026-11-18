@@ -86,6 +86,11 @@ const withLiveWrapperContent = (
   return { ...resolved, ...Object.fromEntries(carried.map((key) => [key, outer[key]])) };
 };
 
+const withoutCompactions = (content: Record<string, unknown>): Record<string, unknown> => {
+  const { [COMPACTIONS_CONTENT_KEY]: _list, [LIVE_COMPACTIONS_KEY]: _live, ...rest } = content;
+  return rest;
+};
+
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
   /** Whether the sender is a MindRoom account on the viewer's homeserver. */
@@ -279,11 +284,19 @@ export const renderAgentMessageContent = ({
   };
 
   // The reply's HTML goes along whole: its tool markers place the reasoning segments.
+  // A reply's compactions count only from an agent for this viewer, as a compaction notice does.
   const wrapWithReasoning = (
     bodyContent: Record<string, unknown>,
     html: string | undefined,
     body: ReactNode
-  ) => withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts, html);
+  ) =>
+    withReasoning(
+      fromMindroomAgent ? bodyContent : withoutCompactions(bodyContent),
+      body,
+      htmlReactParserOptions,
+      linkifyOpts,
+      html
+    );
 
   // A long finished reply folds its work, everything up to its last tool call, behind one row, as
   // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first

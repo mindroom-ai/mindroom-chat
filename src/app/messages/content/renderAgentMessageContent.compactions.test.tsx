@@ -752,6 +752,18 @@ describe('compaction seams in finished and live replies', () => {
     expect(seamStates()).toEqual(['failed']);
   });
 
+  it('shows no seam in a reply from an account that is no agent for this viewer', () => {
+    render(
+      reply(paragraphs('Intro.', markerLine('t1', 1), 'More.'), [entry('c1', 1)], {
+        [LIVE_COMPACTIONS_KEY]: [entry('c2', 0, { status: 'running' })],
+      }),
+      { fromMindroomAgent: false }
+    );
+
+    expect(sequence()).toContain('More.');
+    expect(seams()).toHaveLength(0);
+  });
+
   it("shows no seam from a person's downloaded sidecar", () => {
     sidecars.set('mxc://example.org/person', {
       ...reply(paragraphs('Intro.', 'More.'), [entry('c1', 0)]),
