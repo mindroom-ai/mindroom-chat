@@ -675,7 +675,14 @@
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
-        "saveFailed": "无法保存该设置，请重试。"
+        "saveFailed": "无法保存该设置，请重试。",
+        "replyMode": {
+          "label": "智能体回复",
+          "description": "新消息是否需要提及某个智能体或团队才会得到回复。“默认”遵循 MindRoom 对此房间的配置。即使选择“仅在被提及时”，智能体仍可回复它们已回复过的话题中的后续消息。",
+          "default": "默认",
+          "auto": "任何消息",
+          "mentions": "仅在被提及时"
+        }
       }
     }
   },

@@ -684,7 +684,14 @@
         "clear": "Wissen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Alleen wie de instellingen van deze kamer mag wijzigen, kan dit bewerken.",
-        "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw."
+        "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw.",
+        "replyMode": {
+          "label": "Agents antwoorden",
+          "description": "Of een nieuw bericht een agent of team moet noemen om antwoord te krijgen. Standaard volgt de configuratie van MindRoom voor deze kamer. Ook met Alleen als ze genoemd worden kunnen agents vervolgberichten beantwoorden in een thread waarin ze al antwoordden.",
+          "default": "Standaard",
+          "auto": "Op elk bericht",
+          "mentions": "Alleen als ze genoemd worden"
+        }
       }
     }
   },

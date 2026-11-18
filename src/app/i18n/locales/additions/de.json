@@ -684,7 +684,14 @@
         "clear": "Löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",
-        "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal."
+        "saveFailed": "Die Einstellung konnte nicht gespeichert werden. Versuch es noch einmal.",
+        "replyMode": {
+          "label": "Agents antworten",
+          "description": "Ob eine neue Nachricht einen Agenten oder ein Team erwähnen muss, um eine Antwort zu bekommen. Standard folgt der MindRoom-Konfiguration für diesen Raum. Auch mit Nur bei Erwähnung können Agents Folgenachrichten in einem Thread beantworten, in dem sie schon geantwortet haben.",
+          "default": "Standard",
+          "auto": "Auf jede Nachricht",
+          "mentions": "Nur bei Erwähnung"
+        }
       }
     }
   },
