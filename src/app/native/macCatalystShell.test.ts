@@ -68,6 +68,9 @@ describe('Mac Catalyst shell', () => {
       const source = readSource(`../../../ios/App/App/${name}`);
       expect(outsideMacOnly(source).trim(), name).toBe('import UIKit');
     });
+    expect(
+      outsideMacOnly(readSource('../../../ios/App/App/MindRoomVoiceRecorderPlugin.swift')).trim()
+    ).toBe('');
     [appDelegateSource, widgetSceneSource, sceneSource].forEach((source) => {
       expect(outsideMacOnly(source)).not.toMatch(
         /MacWindowing|MacScreenshot|NSClassFromString|dlsym|buildMenu/

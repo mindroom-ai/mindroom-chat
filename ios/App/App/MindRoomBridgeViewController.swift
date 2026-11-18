@@ -40,6 +40,12 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
         bridge?.registerPluginInstance(MindRoomQuickCapturePlugin())
+#if targetEnvironment(macCatalyst)
+        // Mac Catalyst's WebKit has no media capture. Only the main window records voice.
+        if !(self is QuickCaptureViewController) {
+            bridge?.registerPluginInstance(MindRoomVoiceRecorderPlugin())
+        }
+#endif
 #if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
         // Only the main bridge consumes Watch Handoff; the widget must not take its pending event.
         if self is QuickCaptureViewController { return }
