@@ -567,7 +567,7 @@ const SCENARIO: Record<
       const timings: Timing[] = [];
       let openedStreaming = true;
       // The thread the scenario starts in: the first step opens another one, as the later ones do.
-      let current = run.shown ?? '';
+      let current = run.shown;
       for (let turn = 1; turn <= 5; turn += 1) {
         const backMs = await timeToVisible(page, () => back(page).click(), CARD);
         await expect(page.locator(ROW)).toHaveCount(0);

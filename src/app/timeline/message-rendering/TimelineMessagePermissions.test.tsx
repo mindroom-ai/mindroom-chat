@@ -39,7 +39,6 @@ const rowFor = (event: MatrixEvent, index: number): TimelineMessageRow => ({
 
 const emptyData = () => ({
   threadRecordMap: new Map(),
-  threadEventMap: new Map(),
   handleOpenReply: vi.fn(),
   approvalTimeline: {
     hiddenEventIds: new Set<string>(),

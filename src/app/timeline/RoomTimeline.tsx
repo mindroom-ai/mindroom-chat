@@ -1739,7 +1739,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       : undefined;
   const messageData: TimelineMessageData = {
     threadRecordMap: threadIndex.threadRecordMap,
-    threadEventMap: threadState.threadEventMap ?? new Map(),
     approvalTimeline,
     threadSummaryTimeline,
     secretRequestTimeline,
