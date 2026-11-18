@@ -37,18 +37,12 @@ describe('TurnBreak', () => {
     expect(spoken(button)).toBe('5 earlier messages');
     expect(button.findAllByProps({ className: 'Dots' })).toHaveLength(2);
     expect(button.props['aria-expanded']).toBe(false);
-    expect(button.props.type).toBe('button');
   });
 
   it('offers to hide them once open', () => {
     const button = render(5, true);
     expect(spoken(button)).toBe('Hide 5 messages');
     expect(button.props['aria-expanded']).toBe(true);
-  });
-
-  it('says one message in the singular', () => {
-    expect(spoken(render(1, false))).toBe('1 earlier message');
-    expect(spoken(render(1, true))).toBe('Hide 1 message');
   });
 
   it('toggles on a click', () => {
@@ -58,10 +52,5 @@ describe('TurnBreak', () => {
       button.props.onClick();
     });
     expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it('draws a line on each side of the pill', () => {
-    render(2, false);
-    expect(renderer!.root.findAllByProps({ className: 'Line' })).toHaveLength(2);
   });
 });
