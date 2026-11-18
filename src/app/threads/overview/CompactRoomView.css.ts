@@ -313,7 +313,29 @@ export const MetadataRow = style({
   minHeight: toRem(24),
 });
 
-globalStyle(`${MetadataRow} > .thread-tag-pill`, { minWidth: 0 });
+// The row's marks after the writers (the resolver's byline, a plugin's badges, the tags): one line
+// of them, and a second, hidden one for those that do not fit, so a mark shows whole or not at
+// all. The participants before them and the count after them keep their size. A mark alone on the
+// line and wider than it (a long byline) shrinks and ends in an ellipsis.
+export const Chips = style({
+  display: 'flex',
+  flex: '1 1 auto',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  alignContent: 'flex-start',
+  columnGap: config.space.S200,
+  minWidth: 0,
+  blockSize: toRem(24),
+  overflow: 'hidden',
+  // A zero-width strut makes the first line the row's height, so its marks sit centred on it.
+  '::before': {
+    content: "''",
+    blockSize: toRem(24),
+    marginInlineEnd: `calc(-1 * ${config.space.S200})`,
+  },
+});
+
+globalStyle(`${Chips} > .thread-tag-pill`, { minWidth: 0 });
 
 // Room for the menu button that sits at the end of this row on touch; only
 // the compact view's card shell has that button.
@@ -340,6 +362,9 @@ export const ResolutionByline = style({
   alignItems: 'center',
   columnGap: config.space.S100,
   minWidth: 0,
+  // No wider than the marks' line, so a long name stays on it and ends in an ellipsis rather than
+  // wrapping onto the hidden line (a line breaks before its items shrink).
+  maxInlineSize: '100%',
   // Success.Main has 3.9:1 on the light theme's resolved card.
   color: color.Success.OnContainer,
   fontWeight: 500,
@@ -358,6 +383,12 @@ export const StreamingStatus = style({
   columnGap: config.space.S100,
   whiteSpace: 'nowrap',
   flexShrink: 0,
+});
+
+// On a phone the dot alone says an agent is writing (the time beside the title already says
+// "now"), and the word's room goes to the badges and tags.
+export const StreamingLabel = style({
+  '@media': { [touchActions]: { display: 'none' } },
 });
 
 export const Stats = style({

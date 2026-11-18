@@ -18,6 +18,7 @@ import {
   getCompactThreadMessageCountLabel,
 } from '../../src/app/threads/overview/compactThreadCardViewModel';
 import * as css from '../../src/app/threads/overview/CompactRoomView.css';
+import { CommandPaletteSearchField } from '../../src/app/command-palette/CommandPaletteSearchField';
 import type { CompactThreadCardViewModel } from '../../src/app/event-store/threads/types';
 
 // Screenshot fixture for the compact room view: a realistic agent room with
@@ -25,13 +26,12 @@ import type { CompactThreadCardViewModel } from '../../src/app/event-store/threa
 // production card inside the same shell, swipe and action buttons as
 // CompactRoomView. A swipe toggles a card's resolution; opening a card records
 // its thread in `body[data-opened-thread]`.
-// Query parameters: `lang` (default en) and `theme` (a theme name such as dark or green; default
-// light).
+// Query parameters: `lang` (default en), `theme` (a theme name such as dark or green; default
+// light) and `crowded` (any value: busy placeholder cards instead, each with three
+// writers, tags and a client plugin's pull request chips in its last row).
 
 const params = new URLSearchParams(window.location.search);
-applyThemeToDom(
-  THEMES.find((theme) => theme.id === `${params.get('theme')}-theme`) ?? LightTheme
-);
+applyThemeToDom(THEMES.find((theme) => theme.id === `${params.get('theme')}-theme`) ?? LightTheme);
 
 const avatar = (background: string, label: string) =>
   `data:image/svg+xml,${encodeURIComponent(
@@ -54,12 +54,14 @@ type Sample = {
   preview: string;
   messageCount: number;
   lastActivityTs: number;
-  participants?: typeof mind[];
+  participants?: (typeof mind)[];
   tags?: string[];
   isUnread?: boolean;
   isStreaming?: boolean;
   isResolved?: boolean;
   scheduled?: string;
+  /** A client plugin's chips on the card (the pull request plugin's), and a count of the rest. */
+  pullRequest?: { repo: string; number: number; more?: number };
 };
 
 const samples: Sample[] = [
@@ -121,6 +123,101 @@ const samples: Sample[] = [
   },
 ];
 
+const router = {
+  userId: '@mindroom_router:example.org',
+  displayName: 'Router',
+  avatarUrl: avatar('#81b29a', 'R'),
+};
+const crowd = [mind, router, bas];
+
+const crowdedSamples: Sample[] = [
+  {
+    title: '🧪 Example thread with a long enough title',
+    tools: 4,
+    preview: 'Placeholder preview text for the first sample card.',
+    messageCount: 43,
+    lastActivityTs: minutes(11),
+    participants: crowd,
+    tags: ['alpha', 'beta', 'gamma'],
+    pullRequest: { repo: 'example-repo', number: 101, more: 7 },
+  },
+  {
+    title: '🧪 Example thread that is streaming',
+    tools: 8,
+    preview: 'A',
+    messageCount: 66,
+    lastActivityTs: minutes(0),
+    participants: crowd,
+    tags: ['delta', 'epsilon'],
+    isStreaming: true,
+    pullRequest: { repo: 'example', number: 2002, more: 1 },
+  },
+  {
+    title: '🧪 Example thread whose title wraps onto a second line on a phone',
+    tools: 5,
+    preview: 'Placeholder preview text that is long enough to end in an ellipsis.',
+    messageCount: 50,
+    lastActivityTs: minutes(27),
+    participants: crowd,
+    tags: ['zeta', 'eta'],
+    pullRequest: { repo: 'example-other', number: 303, more: 10 },
+  },
+  {
+    title: '🧪 Example unread thread with several numbers #1, #2, #3, #4',
+    tools: 9,
+    preview: 'Placeholder preview text for an unread sample card.',
+    messageCount: 52,
+    lastActivityTs: minutes(1),
+    participants: crowd,
+    tags: ['theta', 'iota', 'kappa'],
+    isUnread: true,
+    pullRequest: { repo: 'example-repo', number: 404, more: 3 },
+  },
+  {
+    title: 'Short',
+    tools: 6,
+    preview: 'Placeholder preview text for a card with a long repository name.',
+    messageCount: 124,
+    lastActivityTs: minutes(4),
+    participants: crowd,
+    pullRequest: { repo: 'example-very-long-repository-name', number: 5, more: 13 },
+  },
+];
+
+// The pull request plugin's chips, drawn as its styles.css draws them: a row that keeps its size
+// (`flex: none`), so on a phone the card's last row can run out of room.
+const chipStyle = {
+  boxSizing: 'border-box',
+  display: 'inline-flex',
+  flex: 'none',
+  alignItems: 'center',
+  padding: '0.1rem 0.4rem',
+  border: '1px solid currentColor',
+  borderRadius: 9999,
+  fontSize: '0.75rem',
+  lineHeight: 1.4,
+  whiteSpace: 'nowrap',
+} as const;
+
+function PullRequestChips({ repo, number, more }: { repo: string; number: number; more?: number }) {
+  return (
+    <span
+      data-fixture-plugin-chips=""
+      style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 4 }}
+    >
+      <span style={chipStyle}>
+        <span style={{ overflow: 'hidden', maxInlineSize: '12ch', textOverflow: 'ellipsis' }}>
+          {repo}
+        </span>
+        &nbsp;#{number}
+      </span>
+      {more ? <span style={chipStyle}>+{more}</span> : null}
+    </span>
+  );
+}
+
+const chipsOf = ({ pullRequest }: Sample) => pullRequest && <PullRequestChips {...pullRequest} />;
+
 const toViewModel = (sample: Sample, index: number): CompactThreadCardViewModel => {
   const toolBadge = sample.tools
     ? `🔧 ${i18n.t('sharedUi.threadPreviews.tools', { count: sample.tools })} · `
@@ -161,7 +258,7 @@ const openThread = (threadRootId: string) => {
 };
 
 function Fixture() {
-  const [items, setItems] = useState(samples);
+  const [items, setItems] = useState(params.has('crowded') ? crowdedSamples : samples);
   const listRef = useRef<HTMLDivElement>(null);
   useCompactCardSwipeList(listRef);
   const setResolved = (index: number, isResolved: boolean) =>
@@ -171,6 +268,8 @@ function Fixture() {
 
   return (
     <Box className={css.View} data-compact-room-view="true" style={{ flex: 'none' }}>
+      {/* The phone's top bar shows this field over the room. */}
+      {params.has('crowded') && <CommandPaletteSearchField />}
       <Box ref={listRef} className={SwipeList} direction="Column" gap="100" shrink="No">
         {items.map(toViewModel).map((viewModel, index) => (
           <div key={viewModel.id.threadRootId} className={css.CardShell}>
@@ -180,7 +279,11 @@ function Fixture() {
               label={i18n.t(viewModel.isResolved ? 'threadActions.reopen' : 'thread.resolve')}
               onSwipe={(wasResolved) => setResolved(index, !wasResolved)}
             >
-              <CompactThreadCard viewModel={viewModel} onClick={openThread} />
+              <CompactThreadCard
+                viewModel={viewModel}
+                onClick={openThread}
+                badges={chipsOf(items[index]!)}
+              />
               <div className={css.CardAction}>
                 <IconButton
                   className={css.CardQuickAction}
