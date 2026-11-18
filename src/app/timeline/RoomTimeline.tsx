@@ -139,6 +139,7 @@ import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
   heldListHeight,
   isNearLatestEnd,
+  useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
   useLatestRowPin,
@@ -1274,6 +1275,12 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     setFocusItem(undefined);
     showLatestRows();
   }, [showLatestRows]);
+  // The reader's tap on Jump to Latest first stops a flick that still scrolls the rows.
+  const stopFlick = useFlickStop(getScrollElement);
+  const handleJumpToLatestTap = useCallback(() => {
+    stopFlick();
+    handleJumpToLatest();
+  }, [handleJumpToLatest, stopFlick]);
 
   // A message the reader sends shows at once: the view goes to the rows' latest end, through the
   // live window when it has left it, as Jump to Latest does. Compact opens the sent thread instead.
@@ -1625,6 +1632,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
     pendingListShrinkPx,
+    takeSettledScrollTop: ledger.takeSettledScrollTop,
   });
 
   const minimap = useRoomTimelineMinimap({
@@ -1974,7 +1982,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           onSelect={minimap.handleMinimapSelect}
         />
       )}
-      {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatest} up={latestAtTop} />}
+      {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatestTap} up={latestAtTop} />}
     </Box>
   );
 }

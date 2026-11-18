@@ -102,6 +102,11 @@ export type TimelineScrollLedgerController = {
   unrenderedRowMove: () => boolean;
   /** The part of the ledger that rows folded above the reader brought with their own height, in px. */
   readRowFoldPx: () => number;
+  /**
+   * The position the last settle wrote, once: the scroll that lands there is the ledger's own, not
+   * the reader's. Each call takes it, so a later scroll to the same place counts as theirs.
+   */
+  takeSettledScrollTop: () => number | undefined;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
@@ -569,6 +574,13 @@ export const useTimelineScrollLedgerController = ({
     [getScrollElement, threadId]
   );
 
+  const settledScrollTopRef = useRef<number | undefined>(undefined);
+  const takeSettledScrollTop = useCallback(() => {
+    const settledScrollTop = settledScrollTopRef.current;
+    settledScrollTopRef.current = undefined;
+    return settledScrollTop;
+  }, []);
+
   // A jump to a row moves the position itself, and a jump toward the start
   // can land near the pre-settle offset in one large scroll event, the shape
   // of a discarded settle. Restoring the fold then would push the row the
@@ -621,6 +633,7 @@ export const useTimelineScrollLedgerController = ({
         return;
       }
       ledgerBoundaryScrollTopRef.current = settledScrollTop;
+      settledScrollTopRef.current = settledScrollTop;
       if (Math.abs(px) >= SETTLE_DISCARD_MIN_LEDGER_PX) {
         settleDiscardWatchRef.current = {
           px,
@@ -972,6 +985,7 @@ export const useTimelineScrollLedgerController = ({
     ledgerPxAtRender,
     measureElement,
     readRowFoldPx,
+    takeSettledScrollTop,
     leadingRef,
     unrenderedCorrectionPx,
     unrenderedRowMove,

@@ -18,6 +18,7 @@ import {
 } from '../event-store/timeline/timelineScrollUtils';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { scrollToBottom } from '../lib/dom';
+import { isIOS } from '../lib/user-agent';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
@@ -147,6 +148,11 @@ type LatestRowRequestOptions = {
    * position up by as much, and that scroll is not the reader's.
    */
   pendingListShrinkPx?: () => number;
+  /**
+   * Takes the position the offset ledger last wrote when it settled, if no scroll has read it yet
+   * (`takeSettledScrollTop`). The scroll that lands there is the ledger's own.
+   */
+  takeSettledScrollTop?: () => number | undefined;
 };
 
 /**
@@ -167,6 +173,7 @@ const useLatestRowRequest = ({
   focusItem,
   onReaderGesture,
   pendingListShrinkPx,
+  takeSettledScrollTop,
 }: LatestRowRequestOptions) => {
   const requestRef = useRef(opensAtLatest);
   const seenCountRef = useRef(scrollToBottomRef.current.count);
@@ -175,6 +182,7 @@ const useLatestRowRequest = ({
   const onReaderGestureRef = useLatestRef(onReaderGesture);
   const latestAtTopRef = useLatestRef(!!latestAtTop);
   const pendingListShrinkPxRef = useLatestRef(pendingListShrinkPx);
+  const takeSettledScrollTopRef = useLatestRef(takeSettledScrollTop);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
@@ -207,7 +215,10 @@ const useLatestRowRequest = ({
     // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
     // synchronously and so would pin the newest row again before this saw the reader's position.
     // With the newest row first, the pins scroll up, and a scroll down away from the top is the
-    // reader's. The room below the view that rows which shrank still take until React renders the
+    // reader's, except the one the offset ledger writes when it settles: the list had held rows
+    // above its start, out of reach of a pin to the top, and the settle puts them back with the
+    // position moved down as far. The pin then brings the top in.
+    // The room below the view that rows which shrank still take until React renders the
     // list does not count: the correction that keeps the end in place for them scrolls up as much.
     // The rows can still measure a shrink that React has already rendered: never less than none.
     // A scroll up no larger than the scroll area grew is the browser keeping the position inside
@@ -223,8 +234,10 @@ const useLatestRowRequest = ({
       const below = roomBelow();
       const height = scrollElement.clientHeight;
       const lowerEdgeRose = top < lastTop && top + height < lastTop + lastHeight;
+      const settledTop = takeSettledScrollTopRef.current?.();
+      const ledgerSettled = settledTop !== undefined && Math.abs(top - settledTop) < 1;
       const leftLatest = latestAtTopRef.current
-        ? top > lastTop + LEFT_LATEST_ROW_PX
+        ? !ledgerSettled && top > lastTop + LEFT_LATEST_ROW_PX
         : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
       if (leftLatest) release();
       lastTop = top;
@@ -245,6 +258,7 @@ const useLatestRowRequest = ({
     pendingListShrinkPxRef,
     scrollElement,
     scrollToBottomRef,
+    takeSettledScrollTopRef,
   ]);
   return requestRef;
 };
@@ -385,6 +399,38 @@ export const useLatestRowPin = ({
     else if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
     else if (scrollElement) scrollToBottom(scrollElement, 'instant');
   });
+};
+
+/**
+ * Asks iOS to stop a touch flick before the reader's own Jump to Latest writes: the button is
+ * outside the scroll area, so its tap does not end the flick, and a write inside a scroll the
+ * compositor still owns can be discarded (see the offset ledger's discard watch). The area takes
+ * `overflow-y: hidden` for the write and gets its own value back two frames later, so one frame
+ * renders it hidden. iOS only; the timeline's own pins never call it.
+ */
+export const useFlickStop = (getScrollElement: () => HTMLElement | null): (() => void) => {
+  const stoppedRef = useRef<{ element: HTMLElement; overflowY: string; frame: number }>();
+  const restore = useCallback(() => {
+    const stopped = stoppedRef.current;
+    if (!stopped) return;
+    stoppedRef.current = undefined;
+    cancelAnimationFrame(stopped.frame);
+    stopped.element.style.overflowY = stopped.overflowY;
+  }, []);
+  // Leaving the view gives the area its overflow back at once.
+  useEffect(() => restore, [restore]);
+  return useCallback(() => {
+    const element = getScrollElement();
+    if (!element || !isIOS()) return;
+    // A second jump starts over from the area's own value.
+    restore();
+    const stopped = { element, overflowY: element.style.overflowY, frame: 0 };
+    stoppedRef.current = stopped;
+    element.style.overflowY = 'hidden';
+    stopped.frame = requestAnimationFrame(() => {
+      stopped.frame = requestAnimationFrame(restore);
+    });
+  }, [getScrollElement, restore]);
 };
 
 /**
