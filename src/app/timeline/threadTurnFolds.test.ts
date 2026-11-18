@@ -109,10 +109,9 @@ describe('planThreadTurnFolds', () => {
     expect(plan(rows)).toEqual(['4: 5,6 -> 7 (2)']);
   });
 
-  it('keeps a turn that crosses a day unfolded, its date divider in view', () => {
-    expect(plan(['p', 'ad', 'ad', 'ad'])).toEqual([]);
-    expect(plan(['p', 'a', 'a', 'ad'])).toEqual([]);
-    // A marker the next day after the answer folds nothing and holds nothing.
+  it('folds a turn that crosses a day like any other', () => {
+    expect(plan(['p', 'ad', 'ad', 'ad'])).toEqual(['0: 1,2 -> 3 (2)']);
+    expect(plan(['p', 'a', 'ad', 'ad'])).toEqual(['0: 1,2 -> 3 (2)']);
     expect(plan(['p', 'a', 'a', 'a', 'md'])).toEqual(['0: 1,2 -> 3 (2)']);
   });
 

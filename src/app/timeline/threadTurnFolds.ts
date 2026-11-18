@@ -1,6 +1,5 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { getTimelineMessageKind } from '../event-store/timeline/timelineRowTypes';
-import { inSameDay } from '../lib/time';
 import {
   isMindroomAgentMessageEvent,
   isMindroomAgentUserId,
@@ -65,8 +64,9 @@ export const MIN_FOLDED_MESSAGES = 2;
  * message to the next one. Its answer is its last agent message; the rows after it (quiet markers)
  * stay, and the rows before it fold once at least `MIN_FOLDED_MESSAGES` of them are messages. A
  * turn that is not finished (a row holds it, or it is the newest while the thread works) or that
- * would hide a pinned row stays unfolded, as does one that crosses a day, whose date divider would
- * sit inside the fold. Rows without one of their own (edits, reactions) and rows other plans hide
+ * would hide a pinned row stays unfolded. A turn that crosses a day folds too: folded, the answer
+ * gets a date divider when its day differs from the question's, and opened, every divider is
+ * back in place. Rows without one of their own (edits, reactions) and rows other plans hide
  * take no part.
  */
 export const planThreadTurnFolds = (
@@ -89,8 +89,6 @@ export const planThreadTurnFolds = (
     const answer = rows[answerAt];
     const answerId = answer?.getId();
     if (!answer || !answerId) return;
-    const askedTs = events[start]!.getTs();
-    if (rows.slice(0, answerAt + 1).some((event) => !inSameDay(askedTs, event.getTs()))) return;
     const hidden = rows.slice(0, answerAt);
     const hiddenIds = hidden.flatMap((event) => event.getId() ?? []);
     if (hiddenIds.length !== hidden.length || hiddenIds.some((id) => rules.pinnedIds.has(id))) {
