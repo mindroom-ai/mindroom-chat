@@ -5,8 +5,7 @@ import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../protocol/backgroundJobsContra
 // change, and each write carries the list it replaces as well (`unsigned.prev_content`). A room
 // with 50 streaming agents got more than one such write a second, and its timelines kept them all:
 // about a megabyte a minute that nothing reads, since every reader takes the jobs from the room's
-// current state. The event itself stays in the timelines: a read receipt may name it, and the
-// timeline rows count their places over every event.
+// current state.
 
 /**
  * Empties an agent's jobs state (its list, and the copy of the list before it) once a newer one
@@ -21,8 +20,9 @@ export const emptySupersededJobsState = (mx: MatrixClient): void => {
     // Changed in place, with no event announced and nothing drawn again: the jobs are read from
     // the current state alone (`agentRoomState`), which no longer holds this event, and nothing
     // reads the list before a jobs state. What tells the event's place stays (ID, time, type,
-    // state key), for the receipts that name it. Sync and the event cache save their own copies,
-    // and neither brings a saved event back as state.
+    // state key): a read receipt may name the event, and the timeline rows count their places
+    // over every event, so it is not removed. Sync and the event cache save their own copies, and
+    // neither brings a saved event back as state.
     previous.event.content = {};
     delete previous.event.unsigned?.prev_content;
   });

@@ -16,6 +16,7 @@ import { emptySupersededJobsState } from './supersededJobsState';
 const ROOM_ID = '!room:example.org';
 const AGENT = '@mindroom_agent:example.org';
 const OTHER_AGENT = '@mindroom_other:example.org';
+const USER_ID = '@me:example.org';
 
 let ts = 1_000;
 
@@ -50,21 +51,19 @@ const message = (eventId: string) => {
   });
 };
 
-const joinedRoom = async (keep = true) => {
+const joinedRoom = async (install = true) => {
   const mx: MatrixClient = createClient({
     baseUrl: 'https://example.org',
-    userId: '@me:example.org',
+    userId: USER_ID,
     timelineSupport: true,
   });
-  const room = new Room(ROOM_ID, mx, '@me:example.org', { timelineSupport: true });
+  const room = new Room(ROOM_ID, mx, USER_ID, { timelineSupport: true });
   mx.store.storeRoom(room);
   // As sync does for each room it creates.
   mx.reEmitter.reEmit(room, [RoomEvent.Timeline, RoomStateEvent.Events]);
-  if (keep) emptySupersededJobsState(mx);
-  await room.addLiveEvents([stateEvent(EventType.RoomCreate, '', '$create'), message('$first')], {
-    addToState: true,
-  });
+  if (install) emptySupersededJobsState(mx);
   const live = (...events: MatrixEvent[]) => room.addLiveEvents(events, { addToState: true });
+  await live(stateEvent(EventType.RoomCreate, '', '$create'), message('$first'));
   /** Every event of the room's timelines, with what it still holds of a jobs list. */
   const timelineEvents = () =>
     room
@@ -73,7 +72,7 @@ const joinedRoom = async (keep = true) => {
       .flatMap((timeline) => timeline.getEvents())
       .map((event) => [
         event.getId(),
-        Object.keys({ ...event.getContent(), ...event.getPrevContent() }).includes('jobs'),
+        'jobs' in { ...event.getContent(), ...event.getPrevContent() },
       ]);
   const currentJobs = (agent = AGENT) =>
     room.currentState.getStateEvents(MINDROOM_BACKGROUND_JOBS_EVENT, agent)?.getId();
@@ -200,15 +199,15 @@ describe('emptySupersededJobsState', () => {
       new MatrixEvent({
         type: EventType.Receipt,
         room_id: ROOM_ID,
-        content: { $jobs1: { 'm.read': { '@me:example.org': { ts: ts + 1 } } } },
+        content: { $jobs1: { 'm.read': { [USER_ID]: { ts: ts + 1 } } } },
       })
     );
 
     await live(message('$unread'), jobs('$jobs2'));
 
-    expect(room.getEventReadUpTo('@me:example.org')).toBe('$jobs1');
-    expect(room.hasUserReadEvent('@me:example.org', '$first')).toBe(true);
-    expect(room.hasUserReadEvent('@me:example.org', '$unread')).toBe(false);
+    expect(room.getEventReadUpTo(USER_ID)).toBe('$jobs1');
+    expect(room.hasUserReadEvent(USER_ID, '$first')).toBe(true);
+    expect(room.hasUserReadEvent(USER_ID, '$unread')).toBe(false);
   });
 
   it('empties nothing for a page of history, whose jobs states are older than the current one', async () => {
