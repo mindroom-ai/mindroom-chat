@@ -724,23 +724,37 @@ On the M2's worktree only, never committed: insert this block in `MindRoomBridge
                 let script = """
                 const call = (method, options = {}) => window.Capacitor.nativePromise('MindRoomVoiceRecorder', method, options);
                 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
-                try {
-                  const { id } = await Promise.race([
-                    call('start'),
+                const failed = (error) => `failed ${error.code || error.message || error}`;
+                // As startNativeVoiceRecorder: the page names the start, then asks.
+                const start = () => {
+                  const nonce = `${Date.now()}-${Math.random()}`;
+                  window.mindroomVoiceStart = nonce;
+                  return Promise.race([
+                    call('start', { nonce }),
                     wait(30000).then(() => { throw { code: 'PROMPT_PENDING' }; }),
                   ]);
-                  await wait(3000);
+                };
+                try {
+                  // twice: an older start is still waiting when the newer one asks.
+                  const older = mode === 'twice' ? start().then(() => 'recorded', failed) : undefined;
+                  const { id } = await start();
+                  await wait(1500);
+                  const { level } = await call('level', { id });
+                  await wait(1500);
                   const { path } = await call('stop', { id });
-                  const bytes = await (await fetch(window.Capacitor.convertFileSrc(path))).arrayBuffer();
-                  return `ok bytes=${bytes.byteLength} path=${path}`;
+                  // As NativeVoiceRecorder.deliver reads the file.
+                  const response = await fetch(window.Capacitor.convertFileSrc(path), { signal: AbortSignal.timeout(5000) });
+                  const size = !response.ok && response.status !== 0 ? 0 : (await response.blob()).size;
+                  return `${size > 0 ? 'ok' : 'failed NO_AUDIO'} bytes=${size} status=${response.status} level=${level}`
+                    + (older ? ` older=${await older}` : '') + ` path=${path}`;
                 } catch (error) {
-                  return `failed ${error.code || error.message || error}`;
+                  return failed(error);
                 }
                 """
-                self?.webView?.callAsyncJavaScript(script, arguments: [:], in: nil, in: .page) { result in
+                self?.webView?.callAsyncJavaScript(script, arguments: ["mode": probe], in: nil, in: .page) { result in
                     NSLog("MindRoom voice probe: %@", String(describing: result))
                 }
-                // The second run: the page reloads while the microphone prompt is up.
+                // reload: the page reloads while the microphone prompt is up.
                 if probe == "reload" {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self?.webView?.reload() }
                 }
@@ -750,7 +764,7 @@ On the M2's worktree only, never committed: insert this block in `MindRoomBridge
 ```
 
 Run: `open -n --env MINDROOM_VOICE_PROBE=1 --stderr /tmp/voice-probe.log build/mac-voice/Build/Products/Debug-maccatalyst/MindRoom.chat.app`, wait 45 s, `grep 'MindRoom voice probe' /tmp/voice-probe.log` (an empty log: `log show --last 2m --predicate 'eventMessage CONTAINS "MindRoom voice probe"'`), then `afinfo <path>` with the path it printed.
-Expected: `ok bytes=` above 2000, and `afinfo` reports `1 ch,  16000 Hz` AAC with an estimated duration between 2.7 and 3.3 s. Other answers:
+Expected: `ok bytes=` above 2000 with `status=0` or `status=200` (the file read by the wrapper's rule) and a `level=` between 0 and 1, and `afinfo` reports `1 ch,  16000 Hz` AAC with an estimated duration between 2.7 and 3.3 s. This run is the control: the runs below mean nothing until it answers `ok`. Other answers:
 
 | Answer | Meaning | Do |
 |---|---|---|
@@ -760,8 +774,11 @@ Expected: `ok bytes=` above 2000, and `afinfo` reports `1 ch,  16000 Hz` AAC wit
 
 After every `failed` answer: `ls "$(getconf DARWIN_USER_TEMP_DIR)voice-recorder"` (or the folder of an earlier run's path) shows no `.m4a`, and the next run of the probe, once its cause is removed, answers `ok`: a failed start leaves no file and does not block the next one.
 
-Then the page that goes away under the prompt: stop the probe's app (below), `tccutil reset Microphone chat.mindroom.app`, launch again with `MINDROOM_VOICE_PROBE=reload`. The prompt appears and the page reloads 2 s later. After a click on Allow, wait 5 s: `ls` of the folder of the first run's path.
-Expected: no `.m4a` in it, and no microphone indicator in the menu bar. A file there means the token failed: a defect. Without a click on the prompt, report this run as not done, not as passed.
+Then two starts under one prompt: stop the probe's app (below), `tccutil reset Microphone chat.mindroom.app`, launch again with `MINDROOM_VOICE_PROBE=twice`, click Allow.
+Expected: `ok ... older=failed START_FAILED`: only the newer start records, and it is delivered whole.
+
+Then the page that goes away under the prompt: stop the probe's app, `tccutil reset Microphone chat.mindroom.app`, launch again with `MINDROOM_VOICE_PROBE=reload`. The prompt appears and the page reloads 2 s later. After a click on Allow, wait 5 s: `ls` of the folder of the first run's path.
+Expected: no `.m4a` in it, and no microphone indicator in the menu bar. A file there means the start outlived its page: a defect. Without a click on the prompt, report this run as not done, not as passed.
 
 Afterwards: list the probe's app with `pgrep -af '[b]uild/mac-voice/.*/MacOS/'` in one call and `kill <that PID>` in the next (never by name: Bas's own MindRoom may run there; the bracket keeps the remote shell out of the match), `git checkout -- ios/App/App/MindRoomBridgeViewController.swift`, and `git status --short` shows no tracked change.
 

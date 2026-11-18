@@ -329,6 +329,10 @@ Four points of the design above changed after the review of the implementation; 
   and no navigation is under way (`webView.isLoading`): an older start of the page, a start of a
   page that was or is being replaced, and a start of a closed window answer `START_FAILED`. A
   start while a page still loads fails the same way; the next press records.
+  A closed or loading page is not asked for the microphone at all. The plugin also counts the
+  page loads begun (and ends of the page's process), reads the count before the prompt and
+  compares it after: a load begun under the prompt ends the start, also one that fails and
+  leaves the old page with its name.
 - **A closed window.** `SceneDelegate` calls `close()`, which disables that window's plugin for
   good. A page load still discards the live recording and the folder.
 
