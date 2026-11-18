@@ -887,7 +887,7 @@ const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
   else collectToolRunIndexes(node.props.children, into);
 };
 
-export type RenderedToolCalls = {
+type RenderedToolCalls = {
   /** The HTML's top-level nodes, as the renderer parses it. */
   nodes: ChildNode[];
   /** The calls drawn as tool blocks, by index, in the order they are drawn. */

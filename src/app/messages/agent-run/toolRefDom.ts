@@ -200,7 +200,7 @@ export const countToolRefIcons = (text: string): number =>
  * so a name holding another index can hide the block; that counts as text.
  * The marker starts the text, so that number is in the marker.
  */
-export const parseToolBlockMarker = (html: string): ToolRefParseResult | undefined => {
+const parseToolBlockMarker = (html: string): ToolRefParseResult | undefined => {
   const toolRef = parseToolRefHtml(html);
   return toolRef && parseToolRefIndexFromTextPrefix(html) === toolRef.index ? toolRef : undefined;
 };
