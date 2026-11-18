@@ -61,7 +61,10 @@ prints (`toolout=`), which makes a tool trace as large as a real one's. Its `rep
 how many seconds each runs (`bg=` and `bgsec=`; history replies start none): the jobs and sub-agent runs that go on
 after a reply, which the room's jobs state lists until they end and the backend asks the agent to report them. Its
 `live.jobs` (default 0) is how many such jobs the room has under way when the live phase starts: one each, of
-`reply.bgsec` seconds, in the threads after the first `streams`, started at once by a short turn.
+`reply.bgsec` seconds, in the threads after the first `streams`, started at once by a short turn; a history without
+that many open threads after the streams' threads, or such a turn refused three times, ends the live phase with
+exit 1. A turn's reply is the agent's genuine reply to the turn's post: a report of ended jobs only continues the
+thread, and its frames and edits count in the load but it neither answers nor ends a turn.
 """
 
 from __future__ import annotations
@@ -85,6 +88,8 @@ WINDOW_SECONDS = 5
 SHORTFALL_RAMP_SECONDS = 30
 SHORTFALL_AVERAGE_SECONDS = 10
 SHORTFALL_SHARE = 0.8
+# Tries of each post that starts a job of `live.jobs`.
+SEED_TRIES = 3
 # A reply stops counting as live this long after its last frame or edit: three of the snapshot frames the backend
 # sends every 5 s.
 LIVE_SECONDS = 15
@@ -139,10 +144,9 @@ def check_profile(profile: dict) -> dict:
     if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= profile["threads"] - resolved:
         raise ValueError("the profile's heavy.threads must be an integer from 0 to the number of its open threads")
     reply = profile["reply"]
-    optional = (("reply.links", reply.get("links")), ("reply.bg", reply.get("bg")), ("reply.bgsec", reply.get("bgsec")))
+    # Optional when absent; a null is checked, and refused, like any other value.
+    optional = [(f"reply.{key}", reply[key]) for key in ("links", "bg", "bgsec") if key in reply]
     for name, dist in (("heavy.turns", heavy.get("turns")), *optional):
-        if name != "heavy.turns" and dist is None:
-            continue
         if not isinstance(dist, dict) or any(key not in dist for key in DIST_KEYS):
             raise ValueError(f"the profile's {name} must have {', '.join(DIST_KEYS)}")
     if ("bg" in reply) != ("bgsec" in reply):
@@ -234,6 +238,8 @@ class Scheduler:
         self._idle: dict[str, float] = {}
         # Thread to the time its turn was posted.
         self._busy: dict[str, float] = {}
+        # The event ID of each turn under way's post, None where the caller gave none.
+        self._post: dict[str, str | None] = {}
         # Reply event ID to the thread whose turn under way it answers, and to the time of its last activity.
         self._thread_of_reply: dict[str, str] = {}
         self._active_at: dict[str, float] = {}
@@ -252,13 +258,18 @@ class Scheduler:
         free = max(0, self.streams - len(self._busy))
         return [thread for thread, at in self._idle.items() if at <= now][:free]
 
-    def started(self, thread: str, now: float) -> None:
+    def started(self, thread: str, now: float, post: str | None = None) -> None:
+        """The thread's turn was posted; `post`, its event ID, is what the turn's reply answers."""
         self._idle.pop(thread, None)
         self._busy[thread] = now
+        self._post[thread] = post
 
-    def reply_started(self, thread: str, reply: str, now: float) -> None:
-        """An agent's message `reply` came in the thread; it answers the thread's turn under way, if any."""
-        if thread in self._busy:
+    def reply_started(self, thread: str, reply: str, now: float, answers: str | None = None) -> None:
+        """An agent's message `reply` came in the thread; it answers the thread's turn under way, if any, unless the
+        turn's post is known and `reply` is no genuine reply to it (`answers`, the post it replies to), as the
+        backend's report of ended background jobs, which only continues the thread."""
+        post = self._post.get(thread)
+        if thread in self._busy and (post is None or answers == post):
             self._thread_of_reply[reply] = thread
             self._active_at[reply] = now
 
@@ -283,6 +294,7 @@ class Scheduler:
     def _end_turn(self, thread: str) -> bool:
         if self._busy.pop(thread, None) is None:
             return False
+        self._post.pop(thread, None)
         for reply in [reply for reply, owner in self._thread_of_reply.items() if owner == thread]:
             del self._thread_of_reply[reply]
             del self._active_at[reply]
@@ -316,11 +328,13 @@ def joined_room(batch: dict, room: str) -> dict:
 def count_sync(batch: dict, room: str, agent_ids: set[str], reply_roots: dict[str, str]) -> dict:
     """The load one /sync answer shows in `room`: the numbers of live frames and of the agents' edits and jobs
     state writes, and by event ID the agents' thread replies that `started` (their first event), were `active` (that
-    event, a frame or an edit) and `finished` (a final stream status). `reply_roots` (reply event ID to its thread
+    event, a frame or an edit) and `finished` (a final stream status), and in `answers` the post each started reply
+    genuinely replies to (one that only continues the thread, as a report of ended jobs, has none). Frames, edits
+    and jobs state writes count whatever reply they belong to. `reply_roots` (reply event ID to its thread
     root) is filled here and kept by the caller across answers, since a reply's edits come in later answers than
     the reply."""
     joined = joined_room(batch, room)
-    counts: dict = {"frames": 0, "edits": 0, "jobs": 0, "started": [], "active": [], "finished": []}
+    counts: dict = {"frames": 0, "edits": 0, "jobs": 0, "started": [], "active": [], "finished": [], "answers": {}}
 
     def note(key: str, reply: object) -> None:
         if isinstance(reply, str) and reply not in counts[key]:
@@ -349,6 +363,9 @@ def count_sync(batch: dict, room: str, agent_ids: set[str], reply_roots: dict[st
             reply = event["event_id"]
             reply_roots[reply] = target
             note("started", reply)
+            answered = (relation.get("m.in_reply_to") or {}).get("event_id")
+            if relation.get("is_falling_back") is not True and isinstance(answered, str):
+                counts["answers"][reply] = answered
             status = content.get(STREAM_STATUS)
         else:
             continue
@@ -382,7 +399,7 @@ def apply_counts(
         root = reply_roots[reply]
         thread = root if thread_of_root is None else thread_of_root.get(root)
         if thread is not None:
-            scheduler.reply_started(thread, reply, now)
+            scheduler.reply_started(thread, reply, now, counts.get("answers", {}).get(reply))
     for reply in counts["active"]:
         scheduler.reply_active(reply, now)
     ended = (scheduler.reply_finished(reply, now) for reply in counts["finished"])
@@ -662,7 +679,7 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
             if thread not in roots:
                 roots[thread] = event_id
                 thread_of_root[event_id] = thread
-            scheduler.started(thread, now)
+            scheduler.started(thread, now, event_id)
             progressed = now
         counts = lobby.sync()
         now = time.monotonic()
@@ -736,10 +753,26 @@ def run_live(
         first = 0.0 if stagger is None else stagger.uniform(0, ramp) if index < streams else ramp
         scheduler.add(root, started + first)
     # The jobs under way at the start, one each in the threads after those of the first turns: posted at once, they
-    # hold their threads as turns until their short replies end, as any turn does.
-    for root in history["threads"][streams : streams + profile["live"].get("jobs", 0)]:
-        if lobby.post_turn(root, jobs_prompt(profile["reply"], rng, worker=worker_of.get(root))) is not None:
-            scheduler.started(root, started)
+    # hold their threads as turns until their short replies end, as any turn does. Fewer than asked for would be a
+    # lighter load than the profile's, so a history without the threads for them, or a post refused three times,
+    # fails the run.
+    jobs = profile["live"].get("jobs", 0)
+    seeds = history["threads"][streams : streams + jobs]
+    if len(seeds) < jobs:
+        log(f"live.jobs is {jobs}, but the history's {len(history['threads'])} open threads leave {len(seeds)} after "
+            f"the {streams} streams' threads")
+        return 1
+    for root in seeds:
+        prompt = jobs_prompt(profile["reply"], rng, worker=worker_of.get(root))
+        for attempt in range(SEED_TRIES):
+            if attempt:
+                time.sleep(1)
+            if (post := lobby.post_turn(root, prompt)) is not None:
+                scheduler.started(root, started, post)
+                break
+        else:
+            log(f"the turn of a job under way at the start was not posted in {SEED_TRIES} tries")
+            return 1
     unix_offset = time.time() - started
     window_end = started + WINDOW_SECONDS
     # Live replies times the seconds they were live for, in this window.
@@ -750,9 +783,10 @@ def run_live(
             live_seconds += scheduler.streaming(now) * (now - ticked)
             ticked = now
             for root in scheduler.ready(now):
-                if lobby.post_turn(root, work_prompt(profile["reply"], rng, live=True, worker=worker_of.get(root))) is None:
+                post = lobby.post_turn(root, work_prompt(profile["reply"], rng, live=True, worker=worker_of.get(root)))
+                if post is None:
                     break
-                scheduler.started(root, now)
+                scheduler.started(root, now, post)
             if now >= window_end:
                 live = round(live_seconds / (now - window_started))
                 # The time the window was due, so lines are 5 s apart however long the last /sync took.

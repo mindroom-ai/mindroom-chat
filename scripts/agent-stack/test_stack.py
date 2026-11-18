@@ -1550,7 +1550,7 @@ class WorkScenarioTests(unittest.TestCase):
         first = stub_model.plan(chat(prompt), {})
         self.assertEqual(first, ("tool", shell, {"args": "sleep 300; echo background step 1", "background_after": 0}))
         second = stub_model.plan(chat(prompt, {"role": "tool", "content": "a"}), {})
-        self.assertEqual(second[2]["args"], "sleep 300; echo background step 2")
+        self.assertEqual(second, ("tool", shell, {"args": "sleep 300; echo background step 2", "background_after": 0}))
         work = stub_model.plan(chat(prompt, *[{"role": "tool", "content": c} for c in "ab"]), {})
         command = "sleep 2; echo work step 1; head -c 700 /dev/zero | tr '\\0' x"
         self.assertEqual(work, ("tool", shell, {"args": command}))
