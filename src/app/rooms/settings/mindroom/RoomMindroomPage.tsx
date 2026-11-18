@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { SettingsCard } from '../../../ui/settings/SettingsCard';
 import { SettingsPageFrame } from '../../../ui/settings/SettingsPageFrame';
 import { ROOM_SETTING_DEFINITIONS } from './roomSettingDefinitions';
+import { RoomChoiceSettingTile } from './RoomChoiceSettingTile';
 import { RoomTextSettingTile } from './RoomTextSettingTile';
 
 /** The room's MindRoom settings, which its agents read from room state: a card per setting. */
@@ -15,7 +16,11 @@ export function RoomMindroomPage({ room, requestClose }: { room: Room; requestCl
     >
       {ROOM_SETTING_DEFINITIONS.map((definition) => (
         <SettingsCard key={definition.key}>
-          <RoomTextSettingTile room={room} definition={definition} />
+          {definition.kind === 'choice' ? (
+            <RoomChoiceSettingTile room={room} definition={definition} />
+          ) : (
+            <RoomTextSettingTile room={room} definition={definition} />
+          )}
         </SettingsCard>
       ))}
     </SettingsPageFrame>

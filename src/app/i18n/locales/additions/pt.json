@@ -693,7 +693,14 @@
         "clear": "Limpar",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Só quem pode alterar as definições desta sala pode editar isto.",
-        "saveFailed": "Não foi possível guardar a definição. Tente novamente."
+        "saveFailed": "Não foi possível guardar a definição. Tente novamente.",
+        "replyMode": {
+          "label": "Os agentes respondem",
+          "description": "Se uma nova mensagem precisa mencionar um agente ou equipe para receber resposta. Padrão segue a configuração do MindRoom para esta sala. Mesmo com Só quando mencionados, os agentes podem responder às mensagens seguintes em uma conversa em que já responderam.",
+          "default": "Padrão",
+          "auto": "A qualquer mensagem",
+          "mentions": "Só quando mencionados"
+        }
       }
     }
   },
