@@ -14,7 +14,7 @@ import {
 } from './renderAgentMessageContent';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
-import { LIVE_COMPACTIONS_KEY } from '../live/useLiveReplyContent';
+import { LIVE_COMPACTIONS_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
@@ -50,6 +50,11 @@ vi.mock('./RenderBody', async () => {
   return { RenderBody };
 });
 vi.mock('./BrokenContent', async () => ({ BrokenContent: () => null }));
+// A seam's card in place of folds' portal, which the test renderer cannot hold.
+vi.mock('../../ui/directional', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../ui/directional')>()),
+  PopOut: ({ anchor, content }: any) => (anchor ? content : null),
+}));
 vi.mock('./FallbackContent', () => ({ MessageEmptyContent: () => null }));
 vi.mock('../html/react-custom-html-parser', () => ({
   renderTextWithLatex: (text: string) => text,
@@ -106,7 +111,12 @@ vi.mock('../agent-run/CompactionSeam.css', () => ({
   Value: 'Value',
   Reason: 'Reason',
 }));
-vi.mock('../agent-run/OutlineComet.css', () => ({ Outline: 'Outline' }));
+vi.mock('../agent-run/OutlineComet.css', () => ({
+  Outline: 'Outline',
+  Glow: 'Glow',
+  Comet: 'Comet',
+  CometHead: 'CometHead',
+}));
 vi.mock('../agent-run/ToolCallsFold.css', () => ({
   Cog: 'Cog',
   CogGear: 'CogGear',
@@ -207,6 +217,11 @@ vi.spyOn(mEvent, 'replacingEvent').mockReturnValue(
 let replyCount = 0;
 let replyId = '$reply';
 let renderer: ReactTestRenderer | undefined;
+// A button measures where a seam's card opens under it.
+const createNodeMock = (element: React.ReactElement) =>
+  element.type === 'button'
+    ? { getBoundingClientRect: () => ({ x: 0, y: 0, width: 0, height: 0 }), contains: () => false }
+    : null;
 
 const render = (
   content: Record<string, unknown>,
@@ -232,7 +247,7 @@ const render = (
       </ClientConfigProvider>
     );
     if (renderer) renderer.update(tree);
-    else renderer = create(tree);
+    else renderer = create(tree, { createNodeMock });
   });
 
 beforeEach(() => {
@@ -315,6 +330,21 @@ describe('compaction seams in a reply', () => {
     );
 
     expect(sequence()).toEqual(['bulb', 'seam', 'Intro.', 'tools:t1', 'Done.']);
+  });
+
+  it('keeps an open top seam open when the first reasoning comes', () => {
+    const running = [entry('c1', 0, { status: 'running', after_tokens: undefined })];
+    const body = paragraphs('Intro.', markerLine('t1', 1), 'Done.');
+    render(reply(body, running));
+    const trigger = () => seams()[0]!.findByType('button');
+    act(() => {
+      trigger().props.onClick();
+    });
+    expect(trigger().props['aria-expanded']).toBe(true);
+
+    render(reply(body, running, { [LIVE_REASONING_KEY]: 'Considering.' }));
+    expect(sequence().slice(0, 2)).toEqual(['bulb', 'seam']);
+    expect(trigger().props['aria-expanded']).toBe(true);
   });
 
   it('splits a run of consecutive tool calls at a compaction between them', () => {

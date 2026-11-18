@@ -46,6 +46,7 @@ import * as css from './Reasoning.css';
 import { CompactionSeamsAt, ReasoningSegmentsAt, thoughtSeconds } from './ReasoningAnchors';
 
 const NO_MARKERS: readonly number[] = [];
+const CONTENTS = { display: 'contents' } as const;
 
 /** Final reasoning the runtime stores on a finished reply. */
 const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
@@ -94,8 +95,9 @@ const parseFinalReasoning = (value: unknown): FinalReasoning | undefined => {
 const nonEmptyString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined;
 
-type ReasoningHeaderProps = {
-  label: string;
+type ReasoningTopProps = {
+  /** The reasoning line's label; without one the block shows only the cog's row, if any. */
+  label: string | undefined;
   open: boolean;
   /** A comet laps the bulb, as it laps the cog while a call runs. */
   thinking: boolean;
@@ -104,14 +106,28 @@ type ReasoningHeaderProps = {
 };
 
 /**
- * The reply's reasoning line: the bulb, which shows every reasoning segment where it happened and
- * hides them again, as the cog after it does the runs of tool calls, and the segments at the top.
+ * The top of a reply: its reasoning line, with the bulb, which shows every reasoning segment where
+ * it happened and hides them again, as the cog after it does the runs of tool calls; then the
+ * compactions and the segments at the top. Without reasoning the cog has a row of its own, if the
+ * reply has one; with a seam at the top too, both sit in a block that lays out its rows as if it
+ * were not there, the block reasoning comes in, so an open card of that seam stays open then.
  */
-function ReasoningHeader({ label, open, thinking, onToggle, bulbRef }: ReasoningHeaderProps) {
+function ReasoningTop({ label, open, thinking, onToggle, bulbRef }: ReasoningTopProps) {
   const cog = useContext(ToolCallsCogContext);
   // Each click sheds a ripple, as the cog's does: the count keys it, so a new one starts while the
   // last one fades.
   const [ripples, setRipples] = useState(0);
+  const topSeams = !!useContext(ReasoningSegmentsContext)?.compactionsAt.has(0);
+  if (label === undefined) {
+    const cogRow = cog && <div className={css.CogRow}>{cog}</div>;
+    if (!topSeams) return cogRow;
+    return (
+      <div style={CONTENTS}>
+        {cogRow}
+        <CompactionSeamsAt anchor={0} />
+      </div>
+    );
+  }
   return (
     <div className={css.Reasoning}>
       <div className={css.Line}>
@@ -176,12 +192,6 @@ function LiveActivity({ text }: { text: string }) {
       ))}
     </div>
   );
-}
-
-/** The reply's cog in a row of its own, for a reply without reasoning; nothing without a cog. */
-function ToolCallsCogRow() {
-  const cog = useContext(ToolCallsCogContext);
-  return cog ? <div className={css.CogRow}>{cog}</div> : null;
 }
 
 type ReplyReasoningProps = {
@@ -316,20 +326,13 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
   return (
     <ReasoningSegmentsContext.Provider value={reasoning}>
-      {label === undefined ? (
-        <>
-          <ToolCallsCogRow />
-          <CompactionSeamsAt anchor={0} />
-        </>
-      ) : (
-        <ReasoningHeader
-          label={label}
-          open={open}
-          thinking={thinking}
-          onToggle={() => setBulb(open ? 'closed' : 'open')}
-          bulbRef={bulbRef}
-        />
-      )}
+      <ReasoningTop
+        label={label}
+        open={open}
+        thinking={thinking}
+        onToggle={() => setBulb(open ? 'closed' : 'open')}
+        bulbRef={bulbRef}
+      />
       {children}
       {activity !== undefined && <LiveActivity text={activity} />}
     </ReasoningSegmentsContext.Provider>
