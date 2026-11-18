@@ -10,6 +10,7 @@ import { useViewScopedFlag } from './roomTimelineViewScope';
 import type { EventTimeline } from 'matrix-js-sdk';
 import {
   heldListHeight,
+  useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
   useLatestRowPin,
@@ -22,23 +23,22 @@ import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */
 const fakeThreadScroller = () => {
-  type Handler = (event: { type: string }) => void;
-  const handlers = new Map<string, Set<Handler>>();
+  const handlers = new Map<string, Set<() => void>>();
   const element = {
     scrollHeight: 3000,
     clientHeight: 600,
     scrollTop: 2400,
     scrollTo: vi.fn(),
-    addEventListener: (type: string, handler: Handler) => {
-      const forType = handlers.get(type) ?? new Set<Handler>();
+    addEventListener: (type: string, handler: () => void) => {
+      const forType = handlers.get(type) ?? new Set<() => void>();
       forType.add(handler);
       handlers.set(type, forType);
     },
-    removeEventListener: (type: string, handler: Handler) => {
+    removeEventListener: (type: string, handler: () => void) => {
       handlers.get(type)?.delete(handler);
     },
   };
-  const fire = (type: string) => handlers.get(type)?.forEach((handler) => handler({ type }));
+  const fire = (type: string) => handlers.get(type)?.forEach((handler) => handler());
   return { element, fire };
 };
 
@@ -123,7 +123,7 @@ function OpenThread({ scroller, pins, rows, openPending, followsLatest = false }
 /** A thread opened at its newest row, the opening done, the reader still at the bottom. */
 const openAtLatest = (followsLatest = false) => {
   const { element, fire } = fakeThreadScroller();
-  const pins: { current: ScrollToBottomState } = { current: { count: 0, smooth: false } };
+  const pins = { current: { count: 0, smooth: false } };
   const render = (rows: number, openPending: boolean) =>
     createElement(OpenThread, { scroller: element, pins, rows, openPending, followsLatest });
   let renderer: ReactTestRenderer | undefined;
@@ -556,80 +556,86 @@ describe('useLatestRowPin in an open thread the reader has scrolled', () => {
     thread.showRows(23);
     expect(thread.element.scrollTo).not.toHaveBeenCalled();
   });
+});
 
-  /** The reader flicks the thread up with `gesture`, and the scroll goes on after it. */
-  const flickedUp = (gesture: 'touchstart' | 'wheel') => {
-    const thread = openAtLatest(true);
-    act(() => thread.fire(gesture));
-    thread.showRows(20);
-    const scrollTo = (top: number) => {
-      thread.element.scrollTop = top;
-      act(() => thread.fire('scroll'));
+describe('useFlickStop', () => {
+  /** The hook on a scroll area with its own inline overflow, on a phone (iOS) or a desktop. */
+  const flickStop = (userAgent: string) => {
+    const frames = new Map<number, () => void>();
+    let asked = 0;
+    vi.stubGlobal('navigator', { userAgent, platform: '', maxTouchPoints: 0 });
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
+      asked += 1;
+      frames.set(asked, callback);
+      return asked;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (frame: number) => frames.delete(frame));
+    const element = { style: { overflowY: 'auto' } };
+    let stop: (() => void) | undefined;
+    function Stop() {
+      stop = useFlickStop(() => element as unknown as HTMLElement);
+      return null;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(createElement(Stop));
+    });
+    const nextFrame = () => {
+      const due = [...frames.values()];
+      frames.clear();
+      due.forEach((frame) => frame());
     };
-    scrollTo(1500);
-    return { ...thread, scrollTo };
+    return { element, frames, stop: () => stop?.(), nextFrame, unmount: () => renderer?.unmount() };
   };
-  /** Jump to Latest, which sits outside the scroll area: no gesture reaches it. */
-  const jumpToLatest = (thread: ReturnType<typeof flickedUp>) => {
-    const count = thread.pins.current.count + 1;
-    thread.pins.current = { count, smooth: false, jump: count };
-    thread.showRows(20);
-    expect(thread.element.scrollTo).toHaveBeenLastCalledWith({ top: 2400, behavior: 'instant' });
-    thread.scrollTo(2400);
-    thread.element.scrollTo.mockClear();
-  };
+  const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_2 like Mac OS X) AppleWebKit/605.1.15';
+  const DESKTOP = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/142.0.0.0';
 
-  it("keeps the bottom Jump to Latest took against the momentum of the reader's flick", () => {
-    const thread = flickedUp('touchstart');
-    jumpToLatest(thread);
-
-    // A frame of the flick's momentum arrives after the jump: the bottom is taken again.
-    thread.scrollTo(1400);
-    expect(thread.element.scrollTo).toHaveBeenCalledWith({ top: 2400, behavior: 'instant' });
-
-    // The request still holds: rows that grow below end at the bottom.
-    thread.scrollTo(2400);
-    thread.element.scrollTo.mockClear();
-    thread.element.scrollHeight = 3200;
-    thread.showRows(21);
-    expect(thread.element.scrollTo).toHaveBeenCalledWith({ top: 2600, behavior: 'instant' });
-
-    // The reader's next touch hands the position back.
-    act(() => thread.fire('touchstart'));
-    thread.scrollTo(2000);
-    thread.element.scrollTo.mockClear();
-    thread.element.scrollHeight = 3400;
-    thread.showRows(22);
-    expect(thread.element.scrollTo).not.toHaveBeenCalled();
-  });
-
-  it('lets a scroll up after Jump to Latest go when no touch came before, or long after', () => {
-    const wheeled = flickedUp('wheel');
-    jumpToLatest(wheeled);
-    wheeled.scrollTo(1400);
-    expect(wheeled.element.scrollTo).not.toHaveBeenCalled();
-
-    vi.useFakeTimers();
+  it('hides the overflow of an iOS scroll area for the jump and gives it back two frames on', () => {
     try {
-      const touched = flickedUp('touchstart');
-      jumpToLatest(touched);
-      vi.advanceTimersByTime(5000);
-      touched.scrollTo(1400);
-      expect(touched.element.scrollTo).not.toHaveBeenCalled();
+      const area = flickStop(IPHONE);
+      area.stop();
+      // The jump's write lands here, in the commit of the tap.
+      expect(area.element.style.overflowY).toBe('hidden');
+      // The first frame callback runs ahead of the rendering that shows the area hidden.
+      area.nextFrame();
+      expect(area.element.style.overflowY).toBe('hidden');
+      area.nextFrame();
+      expect(area.element.style.overflowY).toBe('auto');
+      expect(area.frames.size).toBe(0);
+
+      // A second tap before the first is over starts again from the area's own value.
+      area.stop();
+      area.nextFrame();
+      area.stop();
+      area.nextFrame();
+      expect(area.element.style.overflowY).toBe('hidden');
+      area.nextFrame();
+      expect(area.element.style.overflowY).toBe('auto');
+
+      // Leaving the view gives the overflow back at once and asks for no later frame.
+      area.stop();
+      act(() => area.unmount());
+      expect(area.element.style.overflowY).toBe('auto');
+      expect(area.frames.size).toBe(0);
     } finally {
-      vi.useRealTimers();
+      vi.unstubAllGlobals();
     }
   });
 
-  it('lets the momentum carry the reader on from a row the thread followed mid-flick', () => {
-    const thread = flickedUp('touchstart');
-    thread.followNewRow();
-    thread.showRows(21);
-    thread.scrollTo(2400);
-    thread.element.scrollTo.mockClear();
-
-    thread.scrollTo(1400);
-    expect(thread.element.scrollTo).not.toHaveBeenCalled();
+  it('leaves the overflow of a desktop scroll area alone', () => {
+    try {
+      const area = flickStop(DESKTOP);
+      const overflowWrites = vi.fn();
+      Object.defineProperty(area.element.style, 'overflowY', {
+        get: () => 'auto',
+        set: overflowWrites,
+      });
+      area.stop();
+      expect(overflowWrites).not.toHaveBeenCalled();
+      expect(area.frames.size).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

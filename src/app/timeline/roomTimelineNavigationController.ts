@@ -13,7 +13,6 @@ import { countsRoomRows } from './roomTimelineClassicRows';
 type ScrollToBottomState = {
   count: number;
   smooth: boolean;
-  jump?: number;
 };
 
 type OpenEventHandler = (
@@ -70,9 +69,8 @@ export const useRoomTimelineNavigationController = ({
 }: RoomTimelineNavigationControllerOptions) => {
   const pinToBottom = useCallback(() => {
     // An instant jump: the newest rows replace the window, so there is nothing to animate.
-    // `jump` tells the latest-row request that the reader asked, after any flick still scrolling.
-    const count = scrollToBottomRef.current.count + 1;
-    scrollToBottomRef.current = { count, smooth: false, jump: count };
+    const { count } = scrollToBottomRef.current;
+    scrollToBottomRef.current = { count: count + 1, smooth: false };
     setAtBottom(true);
   }, [scrollToBottomRef, setAtBottom]);
 

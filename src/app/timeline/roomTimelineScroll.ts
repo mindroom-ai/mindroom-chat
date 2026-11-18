@@ -18,6 +18,7 @@ import {
 } from '../event-store/timeline/timelineScrollUtils';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { scrollToBottom } from '../lib/dom';
+import { isIOS } from '../lib/user-agent';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
@@ -124,11 +125,6 @@ export const useViewportAtBottomNow = (
 export const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 /** How much further from the newest row a scroll must leave the reader to count as theirs. */
 const LEFT_LATEST_ROW_PX = 32;
-/**
- * How long Jump to Latest holds the latest end against the momentum of a touch flick. The flick
- * can run for seconds; a scroll write ends it, but frames of it already under way still arrive.
- */
-const JUMP_MOMENTUM_MS = 2000;
 
 const distanceBelowView = (element: HTMLElement): number =>
   element.scrollHeight - element.scrollTop - element.clientHeight;
@@ -180,10 +176,6 @@ const useLatestRowRequest = ({
   const onReaderGestureRef = useLatestRef(onReaderGesture);
   const latestAtTopRef = useLatestRef(!!latestAtTop);
   const pendingListShrinkPxRef = useLatestRef(pendingListShrinkPx);
-  // Whether the reader's last gesture on the scroll area was a touch, and until when a Jump to
-  // Latest asked after it holds the latest end against that flick's momentum.
-  const touchedRef = useRef(false);
-  const jumpHeldUntilRef = useRef(0);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
@@ -194,12 +186,10 @@ const useLatestRowRequest = ({
   // Every commit compares the count as it is then: a render that React bails out of keeps the
   // count it read without running its effects, so effect dependencies would miss that pin.
   useLayoutEffect(() => {
-    const { count, jump } = scrollToBottomRef.current;
+    const { count } = scrollToBottomRef.current;
     if (count === seenCountRef.current) return;
     seenCountRef.current = count;
     requestRef.current = true;
-    jumpHeldUntilRef.current =
-      jump === count && touchedRef.current ? Date.now() + JUMP_MOMENTUM_MS : 0;
   });
   useLayoutEffect(() => {
     // A jump to an event owns the position from here.
@@ -207,12 +197,9 @@ const useLatestRowRequest = ({
   }, [focusItem]);
   useEffect(() => {
     if (!scrollElement) return undefined;
-    const release = (gesture?: Event) => {
+    const release = () => {
       requestRef.current = false;
       seenCountRef.current = scrollToBottomRef.current.count;
-      // A touch sends `pointerdown` first, so its `touchstart` is the last word.
-      if (gesture) touchedRef.current = gesture.type === 'touchstart';
-      jumpHeldUntilRef.current = 0;
       onReaderGestureRef.current();
     };
     // A scroll up that also leaves more rows below the view is the reader's too (the scrollbar,
@@ -232,10 +219,6 @@ const useLatestRowRequest = ({
     // A scroll up no larger than the scroll area grew is the browser keeping the position inside
     // the taller area (a phone's keyboard band that widens while the rows measure again): the
     // view's lower edge stays where it was, and that scroll is not the reader's either.
-    // Nor is one that follows the reader's Jump to Latest within the time a touch flick from
-    // before it can still scroll: the button is outside the scroll area, so its tap is no gesture
-    // here and need not stop the flick, and iOS can report the flick's position again after the
-    // jump's write. The jump then takes the latest end again and keeps the request.
     const roomBelow = () =>
       Math.max(0, distanceBelowView(scrollElement) - (pendingListShrinkPxRef.current?.() ?? 0));
     let lastTop = scrollElement.scrollTop;
@@ -249,9 +232,7 @@ const useLatestRowRequest = ({
       const leftLatest = latestAtTopRef.current
         ? top > lastTop + LEFT_LATEST_ROW_PX && below < lastBelow - LEFT_LATEST_ROW_PX
         : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
-      if (leftLatest && requestRef.current && Date.now() < jumpHeldUntilRef.current)
-        scrollToLatestEnd(scrollElement, latestAtTopRef.current);
-      else if (leftLatest) release();
+      if (leftLatest) release();
       lastTop = top;
       lastBelow = below;
       lastHeight = height;
@@ -410,6 +391,43 @@ export const useLatestRowPin = ({
     else if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
     else if (scrollElement) scrollToBottom(scrollElement, 'instant');
   });
+};
+
+/**
+ * Stops a touch flick that still scrolls the timeline, for the reader's own Jump to Latest. Its
+ * button is outside the scroll area, so the tap does not end the flick, and a scroll write that
+ * lands inside a scroll the compositor still owns can be discarded: the compositor puts its own
+ * position back (the offset ledger's discard watch records that for its settle writes), and the
+ * jump would rest short of the newest row. An area that cannot scroll has no flick, so it takes
+ * `overflow-y: hidden` for the jump's write and has its own value back in the frame after the
+ * one that rendered it: the frame callback asked for here still runs ahead of that rendering.
+ * Hidden overflow keeps the scroll position, and the pin goes on following the rows meanwhile.
+ * Only on iOS (`isIOS`: its app's web view and its browsers scroll alike), and never for a pin
+ * the timeline asks for itself: elsewhere the reader's scrollbar would go and the rows reflow.
+ */
+export const useFlickStop = (getScrollElement: () => HTMLElement | null): (() => void) => {
+  const stoppedRef = useRef<{ element: HTMLElement; overflowY: string; frame: number }>();
+  const restore = useCallback(() => {
+    const stopped = stoppedRef.current;
+    if (!stopped) return;
+    stoppedRef.current = undefined;
+    cancelAnimationFrame(stopped.frame);
+    stopped.element.style.overflowY = stopped.overflowY;
+  }, []);
+  // Leaving the view gives the area its overflow back at once.
+  useEffect(() => restore, [restore]);
+  return useCallback(() => {
+    const element = getScrollElement();
+    if (!element || !isIOS()) return;
+    // A second jump starts over from the area's own value.
+    restore();
+    const stopped = { element, overflowY: element.style.overflowY, frame: 0 };
+    stoppedRef.current = stopped;
+    element.style.overflowY = 'hidden';
+    stopped.frame = requestAnimationFrame(() => {
+      stopped.frame = requestAnimationFrame(restore);
+    });
+  }, [getScrollElement, restore]);
 };
 
 /**

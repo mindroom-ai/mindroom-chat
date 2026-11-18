@@ -55,8 +55,6 @@ export type RoomTimelineFocusItem = {
 export type ScrollToBottomState = {
   count: number;
   smooth: boolean;
-  /** The `count` the reader's own Jump to Latest asked with; any later request has another. */
-  jump?: number;
 };
 
 export type RoomFocusScrollControllerOptions = {
