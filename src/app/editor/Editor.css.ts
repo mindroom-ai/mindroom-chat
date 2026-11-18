@@ -1,6 +1,7 @@
 import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { glassFloating, glassSurface } from '../ui/styles/Glass.css';
+import { shortRoomArea } from '../ui/styles/roomArea.css';
 import { shortViewport } from '../ui/styles/shortViewport';
 
 // Space above and below a line of text; the placeholder sits on the same line.
@@ -61,7 +62,8 @@ export const EditorGrid = style({
 // Two rows, as in T3 Code: the text on top, at least two lines tall, inset from the frame; the
 // bottom row (the formatting toolbar) under it; the controls in a row of their own at the
 // bottom, the leading ones at the start and the trailing ones at the end. A phone held
-// sideways is too short for it, and keeps one row.
+// sideways is too short for it, and so is a room area its keyboard leaves short (which no media
+// query sees under Safari's keyboard): both keep one row.
 export const EditorGridStacked = style({
   vars: {
     [textPaddingTop]: config.space.S300,
@@ -72,6 +74,7 @@ export const EditorGridStacked = style({
   gridTemplateAreas: '"text text text" "bottom bottom bottom" "before . after"',
   alignItems: 'center',
   '@media': { [shortViewport]: { ...rowLayout, alignItems: 'start' } },
+  '@container': { [shortRoomArea]: { ...rowLayout, alignItems: 'start' } },
 });
 
 export const EditorSlotBefore = style({ gridArea: 'before' });

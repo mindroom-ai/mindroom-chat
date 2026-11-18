@@ -26,6 +26,8 @@ export const FollowingButton = style({
   minWidth: 0,
   // As tall as the typing strip and the jobs bar: their padding around a 24 px line.
   minBlockSize: toRem(32),
+  // The dock's row passes presses through to the timeline; the names take their own.
+  pointerEvents: 'auto',
   cursor: 'pointer',
   paddingBlock: config.space.S100,
   paddingInline: config.space.S300,

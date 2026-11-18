@@ -1,4 +1,6 @@
-import { type FocusEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Editor } from 'slate';
+import { isEmptyEditor } from '../editor/utils';
 
 /** How long after a press inside the composer ends it still counts, so its click lands first. */
 export const PRESS_SETTLE_MS = 300;
@@ -6,14 +8,14 @@ export const PRESS_SETTLE_MS = 300;
 export type ComposerExpansionInputs = {
   /** A phone's composer starts as one row; elsewhere it always shows two. */
   phone: boolean;
-  /** Focus is in the composer, or in a menu or board it opened. */
+  /** Focus is in the composer, or one of its controls has a menu open (`useComposerFocus`). */
   focused: boolean;
   /**
    * A press that started inside the composer while it was expanded has not settled yet: the
    * composer listens for presses only then (`useComposerFocus`'s `onPointerDown`).
    */
   pressing: boolean;
-  /** The composer holds no text. */
+  /** The composer shows nothing typed (`isComposerEmpty`). */
   empty: boolean;
   /** Something the composer shows asks for its room: files, a reply, a recording, a board, suggestions. */
   busy: boolean;
@@ -21,12 +23,13 @@ export type ComposerExpansionInputs = {
 
 /**
  * Whether the composer shows its two rows: text above, controls below. On a phone it expands
- * while the user writes (focus, text, or anything the composer holds) and collapses back to one
- * row only once focus has left it with nothing in it. A press inside the expanded composer keeps
- * it expanded until the press settles: iOS takes focus from the text on the press of a button,
- * and collapsing then would move the button from under the finger before its click lands. A
- * press on the collapsed composer must not expand it, for the same reason the other way round,
- * so the composer passes presses on only while expanded.
+ * while the user writes (focus, text, an open menu, or anything the composer holds) and
+ * collapses back to one row only once focus has left it with nothing in it. A press inside the
+ * expanded composer keeps it expanded until the press settles: iOS takes focus from the text on
+ * the press of a button, before the button's click, and collapsing then would move the button
+ * from under the finger before that click lands. A press on the collapsed composer must not
+ * expand it, for the same reason the other way round, so the composer passes presses on only
+ * while expanded.
  */
 export const isComposerExpanded = ({
   phone,
@@ -36,46 +39,76 @@ export const isComposerExpanded = ({
   busy,
 }: ComposerExpansionInputs): boolean => !phone || focused || pressing || !empty || busy;
 
-type FocusHandlers = {
-  onFocus: (event: FocusEvent<HTMLElement>) => void;
-  onBlur: (event: FocusEvent<HTMLElement>) => void;
-  onPointerDown: () => void;
-};
+/**
+ * Whether the composer shows nothing typed: for its layout, any visible text counts, also a
+ * command such as `/me` with nothing to send after it (which Send treats as empty).
+ */
+export const isComposerEmpty = (editor: Editor): boolean => isEmptyEditor(editor);
+
+/** A control of the composer whose menu is open; the menus themselves render elsewhere. */
+const OPEN_MENU = '[aria-expanded="true"]';
 
 /**
- * Tracks focus within the composer's React tree (menus and boards it portals out count, since
- * React's focus events follow the component tree) and presses that started inside it. Focus
- * moving between two of its parts sends a blur then a focus; the blur waits a task, so that
- * move never reads as focus leaving.
+ * Whether focus is in the composer's element, or a control in it has its menu open (menus
+ * render in a portal, and open some without focus), and whether a press that started in it has
+ * yet to settle. Read from the document whenever focus moves in or out, and whenever the
+ * composer's elements change: a focused control that is removed (a recording's discard button)
+ * takes focus with it without a blur the composer would hear. Watches only while `watch` holds.
  */
-export const useComposerFocus = (): {
+export const useComposerFocus = (
+  watch: boolean
+): {
   focused: boolean;
   pressing: boolean;
-  handlers: FocusHandlers;
+  setRoot: (element: HTMLElement | null) => void;
+  onPointerDown: () => void;
 } => {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
   const [focused, setFocused] = useState(false);
   const [pressing, setPressing] = useState(false);
-  const blurTimer = useRef<ReturnType<typeof setTimeout>>();
   const pressTimer = useRef<ReturnType<typeof setTimeout>>();
   const pressEnd = useRef<() => void>();
 
+  useEffect(() => {
+    if (!root || !watch) {
+      setFocused(false);
+      return undefined;
+    }
+    const read = () =>
+      setFocused(root.contains(document.activeElement) || root.querySelector(OPEN_MENU) !== null);
+    // Focus moving between two of its parts leaves the document's focus on the body for a
+    // moment; read once it has landed.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const readSoon = () => {
+      clearTimeout(timer);
+      timer = setTimeout(read, 0);
+    };
+    read();
+    root.addEventListener('focusin', read);
+    root.addEventListener('focusout', readSoon);
+    const observer = new MutationObserver(readSoon);
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['aria-expanded'],
+    });
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+      root.removeEventListener('focusin', read);
+      root.removeEventListener('focusout', readSoon);
+    };
+  }, [root, watch]);
+
   useEffect(
     () => () => {
-      clearTimeout(blurTimer.current);
       clearTimeout(pressTimer.current);
       pressEnd.current?.();
     },
     []
   );
 
-  const onFocus = useCallback(() => {
-    clearTimeout(blurTimer.current);
-    setFocused(true);
-  }, []);
-  const onBlur = useCallback(() => {
-    clearTimeout(blurTimer.current);
-    blurTimer.current = setTimeout(() => setFocused(false), 0);
-  }, []);
   const onPointerDown = useCallback(() => {
     clearTimeout(pressTimer.current);
     pressEnd.current?.();
@@ -93,5 +126,5 @@ export const useComposerFocus = (): {
     };
   }, []);
 
-  return { focused, pressing, handlers: { onFocus, onBlur, onPointerDown } };
+  return { focused, pressing, setRoot, onPointerDown };
 };

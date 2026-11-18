@@ -1,8 +1,5 @@
-import { createContainer, style } from '@vanilla-extract/css';
-
-// The room area answers its own height: a phone's keyboard shrinks the area, while media queries
-// read the layout viewport, which keeps its height under Safari's keyboard.
-const roomArea = createContainer();
+import { style } from '@vanilla-extract/css';
+import { roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
 
 export const RoomArea = style({ containerName: roomArea, containerType: 'size' });
 
@@ -10,5 +7,5 @@ export const RoomArea = style({ containerName: roomArea, containerType: 'size' }
 // its keyboard up), the area gives the header's place to the conversation and the composer; the
 // header returns with the height.
 export const HeaderInShortArea = style({
-  '@container': { [`${roomArea} (max-height: 240px)`]: { display: 'none' } },
+  '@container': { [shortRoomArea]: { display: 'none' } },
 });

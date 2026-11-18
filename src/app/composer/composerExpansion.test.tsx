@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { createEditor, type Descendant } from 'slate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { holdsNoText } from './composeTextMessage';
 import {
   type ComposerExpansionInputs,
   PRESS_SETTLE_MS,
+  isComposerEmpty,
   isComposerExpanded,
   useComposerFocus,
 } from './composerExpansion';
@@ -26,7 +30,7 @@ describe('isComposerExpanded', () => {
   });
 
   it.each([
-    ['focus', { focused: true }],
+    ['focus or an open menu', { focused: true }],
     ['text', { empty: false }],
     ['files, a reply, a recording, a board or suggestions', { busy: true }],
   ] as const)('expands on a phone with %s', (_name, change) => {
@@ -38,18 +42,45 @@ describe('isComposerExpanded', () => {
   });
 });
 
-function Probe() {
-  const { focused, pressing, handlers } = useComposerFocus();
+describe('isComposerEmpty', () => {
+  const editorWith = (text: string) => {
+    const editor = createEditor();
+    editor.children = [{ type: 'paragraph', children: [{ text }] }] as Descendant[];
+    return editor;
+  };
+
+  it('is empty with one empty line only', () => {
+    expect(isComposerEmpty(editorWith(''))).toBe(true);
+    expect(isComposerEmpty(editorWith('a'))).toBe(false);
+  });
+
+  it('counts a command with nothing to send as shown text', () => {
+    const editor = editorWith('/me ');
+    expect(holdsNoText(editor)).toBe(true);
+    expect(isComposerEmpty(editor)).toBe(false);
+  });
+});
+
+function Probe({ menu = false }: { menu?: boolean }) {
+  const { focused, pressing, setRoot, onPointerDown } = useComposerFocus(true);
+  const [discard, setDiscard] = useState(true);
   return (
-    <div data-testid="box" {...handlers}>
+    <div data-testid="box" ref={setRoot} onPointerDown={onPointerDown}>
       <input data-testid="text" />
-      <button type="button" data-testid="button">
+      <button type="button" data-testid="button" aria-expanded={menu}>
         b
       </button>
+      {discard && (
+        <button type="button" data-testid="discard" onClick={() => setDiscard(false)}>
+          d
+        </button>
+      )}
       <output data-testid="state">{`${focused}|${pressing}`}</output>
     </div>
   );
 }
+
+const state = () => screen.getByTestId('state').textContent;
 
 describe('useComposerFocus', () => {
   afterEach(() => {
@@ -66,42 +97,61 @@ describe('useComposerFocus', () => {
       </>
     );
     act(() => screen.getByTestId('text').focus());
-    expect(screen.getByTestId('state').textContent).toBe('true|false');
+    expect(state()).toBe('true|false');
 
     act(() => {
       screen.getByTestId('button').focus();
       vi.runOnlyPendingTimers();
     });
-    expect(screen.getByTestId('state').textContent).toBe('true|false');
+    expect(state()).toBe('true|false');
 
     act(() => {
       screen.getByTestId('outside').focus();
       vi.runOnlyPendingTimers();
     });
-    expect(screen.getByTestId('state').textContent).toBe('false|false');
+    expect(state()).toBe('false|false');
+  });
+
+  it('drops focus when the focused control is removed', async () => {
+    render(<Probe />);
+    act(() => screen.getByTestId('discard').focus());
+    expect(state()).toBe('true|false');
+    act(() => screen.getByTestId('discard').click());
+    // The observer reads after the removal, a task later.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 10)));
+    expect(screen.queryByTestId('discard')).toBeNull();
+    expect(state()).toBe('false|false');
+  });
+
+  it('counts an open menu of a control as focus, without focus in the composer', async () => {
+    const { rerender } = render(<Probe menu />);
+    expect(state()).toBe('true|false');
+    rerender(<Probe menu={false} />);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 10)));
+    expect(state()).toBe('false|false');
   });
 
   it('counts a press until it settles after the pointer lifts', () => {
     vi.useFakeTimers();
     render(<Probe />);
     fireEvent.pointerDown(screen.getByTestId('button'));
-    expect(screen.getByTestId('state').textContent).toBe('false|true');
+    expect(state()).toBe('false|true');
 
     act(() => {
       vi.advanceTimersByTime(PRESS_SETTLE_MS * 3);
     });
     // Still down: the press lasts as long as the finger does.
-    expect(screen.getByTestId('state').textContent).toBe('false|true');
+    expect(state()).toBe('false|true');
 
     fireEvent.pointerUp(window);
     act(() => {
       vi.advanceTimersByTime(PRESS_SETTLE_MS - 1);
     });
-    expect(screen.getByTestId('state').textContent).toBe('false|true');
+    expect(state()).toBe('false|true');
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(screen.getByTestId('state').textContent).toBe('false|false');
+    expect(state()).toBe('false|false');
   });
 
   it('ends a press on pointercancel too', () => {
@@ -112,6 +162,6 @@ describe('useComposerFocus', () => {
     act(() => {
       vi.advanceTimersByTime(PRESS_SETTLE_MS);
     });
-    expect(screen.getByTestId('state').textContent).toBe('false|false');
+    expect(state()).toBe('false|false');
   });
 });

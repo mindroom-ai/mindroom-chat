@@ -97,7 +97,7 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
-import { isComposerExpanded, useComposerFocus } from './composerExpansion';
+import { isComposerEmpty, isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
@@ -256,6 +256,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
     // It changes only as it flips, so typing renders nothing more.
     const [noText, setNoText] = useState(() => holdsNoText(editor));
+    // Whether it shows nothing typed, for its layout: a lone `/me` is no text to send but shows.
+    const [empty, setEmpty] = useState(() => isComposerEmpty(editor));
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
     // hides, under a plugin's cover or behind a side panel.
     const conversationHidden = useConversationHidden();
@@ -594,6 +596,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       attachments.onEditorChange();
       const empty = isEmptyEditor(editor);
       setNoText(holdsNoText(editor));
+      setEmpty(isComposerEmpty(editor));
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
     }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
 
@@ -638,12 +641,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const toggleFormatting = () => setFormattingOpen((open) => !open);
     const recorder = voiceActive ? voice.renderRecorder(() => void handleSend()) : null;
     // Two rows, text over controls; a phone shows one row until the user writes (`isComposerExpanded`).
-    const focus = useComposerFocus();
+    // Only a phone's composer follows focus; elsewhere it always shows two rows.
+    const focus = useComposerFocus(phone);
+    const { setRoot } = focus;
+    const setComposerRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        setRoot(node);
+        if (typeof ref === 'function') ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref, setRoot]
+    );
     const expanded = isComposerExpanded({
       phone,
       focused: focus.focused,
       pressing: focus.pressing,
-      empty: noText,
+      empty,
       busy:
         !!replyDraft ||
         !!attachments.board ||
@@ -699,14 +712,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     return (
       <div
-        ref={ref}
+        ref={setComposerRef}
         style={COMPOSER_STYLE}
         data-composer-expanded={expanded}
-        // Only a phone's composer follows focus; elsewhere it always shows two rows. Only a press
-        // on the expanded composer holds it open (`isComposerExpanded`).
-        onFocus={phone ? focus.handlers.onFocus : undefined}
-        onBlur={phone ? focus.handlers.onBlur : undefined}
-        onPointerDown={phone && expanded ? focus.handlers.onPointerDown : undefined}
+        // Only a press on the expanded composer holds it open (`isComposerExpanded`).
+        onPointerDown={phone && expanded ? focus.onPointerDown : undefined}
       >
         {autocomplete}
         {attachments.board}

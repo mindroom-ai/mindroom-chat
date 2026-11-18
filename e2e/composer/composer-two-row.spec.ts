@@ -194,6 +194,35 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
       after.areaRight - ((pill?.x ?? 0) + (pill?.width ?? 0)),
       'at the end of the row'
     ).toBeLessThan(24);
+    // The names take a press at their centre; a little beside them, the press reaches the
+    // conversation, not the dock.
+    const hits = await following.evaluate((element) => {
+      const name = element.querySelector('button');
+      const box = name?.getBoundingClientRect();
+      if (!name || !box) return { centre: false, beside: false };
+      const y = box.top + box.height / 2;
+      const beside = document.elementFromPoint(box.left - 6, y);
+      return {
+        centre: !!document
+          .elementFromPoint(box.left + box.width / 2, y)
+          ?.closest('button')
+          ?.isSameNode(name),
+        beside:
+          !!beside &&
+          !beside.closest('[data-room-following]') &&
+          !beside.closest('[data-room-footer]'),
+      };
+    });
+    expect(hits, 'the names take presses; beside them the conversation does').toEqual({
+      centre: true,
+      beside: true,
+    });
+    const pillBox = await following.locator('button').boundingBox();
+    if (!pillBox) throw new Error('no names');
+    await page.mouse.click(pillBox.x + pillBox.width / 2, pillBox.y + pillBox.height / 2);
+    await expect(page.getByText('Seen by', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('Seen by', { exact: true })).toBeHidden();
     await page.mouse.move(0, 0);
     await shot(page, 'desktop-empty');
 
@@ -260,12 +289,52 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
 
+    // Expanded exactly while focus is in the empty composer, a moment after a change settles.
+    const expectExpandedWithFocus = async (what: string) => {
+      await page.waitForTimeout(600);
+      const read = () =>
+        page.evaluate(() => {
+          const box = document.querySelector('[data-composer-expanded]');
+          return {
+            expanded: box?.getAttribute('data-composer-expanded') === 'true',
+            focus: !!box?.contains(document.activeElement),
+          };
+        });
+      const now = await read();
+      expect(now.expanded, what).toBe(now.focus);
+      return now;
+    };
+
+    // An empty composer whose menu is open stays expanded under it, past the press's hold,
+    // although iOS took focus from the text and the menu opened without focus.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'false');
+    await tap(more);
+    await expect(menu).toBeVisible();
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.waitForTimeout(600);
+    await expect(composer(page), 'open menu keeps it expanded').toHaveAttribute(
+      'data-composer-expanded',
+      'true'
+    );
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(composer(page), 'closed and unfocused, it folds').toHaveAttribute(
+      'data-composer-expanded',
+      'false'
+    );
+
+    await tap(textBox(page));
+    await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
     await tap(button(page, 'Record voice message'));
     const discard = button(page, 'Discard voice recording');
     await expect(discard, 'the tap reached the microphone').toBeVisible();
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
     await tap(discard);
     await expect(discard).toBeHidden();
+    // The discard button had focus and is gone: no stale focus keeps the composer expanded.
+    console.log(`after discard: ${JSON.stringify(await expectExpandedWithFocus('after discard'))}`);
 
     await tap(textBox(page));
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
@@ -278,6 +347,21 @@ test('two rows on a desktop, one row on a phone that expands while writing', asy
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'false');
     expect((await geometry(page)).layout).toBe('row');
+
+    // A room area the keyboard leaves short keeps one row while focused (upright, so no media
+    // query for a sideways phone applies).
+    await page.setViewportSize({ width: 390, height: 300 });
+    await tap(textBox(page));
+    await expect(composer(page)).toHaveAttribute('data-composer-expanded', 'true');
+    const short = await geometry(page);
+    const areaHeight = await page
+      .locator('[data-room-footer]')
+      .evaluate(
+        (footer) => ((footer as HTMLElement).offsetParent as HTMLElement | null)?.clientHeight ?? 0
+      );
+    console.log(`phone short area ${areaHeight}px: ${JSON.stringify(short)}`);
+    expect(areaHeight).toBeLessThanOrEqual(240);
+    expect(short.sendBelowText, 'one row in a short area').toBe(false);
   } finally {
     await phone.context.close();
   }
