@@ -1093,8 +1093,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
       : virtualizer.getTotalSize();
   // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
-  // (the row that draws a folded turn's break measures the break); one shown again gets its
-  // estimate back, so a jump to it mounts it.
+  // (the row that draws a folded turn's break measures the break, also when it is a secret
+  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
   const threadHiddenIds = useMemo(() => {
     if (!threadId) return EMPTY_IDS;
     if (
@@ -1106,7 +1106,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     }
     return new Set([
       ...approvalTimeline.hiddenEventIds,
-      ...secretRequestTimeline.hiddenEventIds,
+      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
       ...pluginHiddenThreadIds,
       ...turnFolds.view.hiddenIds,
     ]);

@@ -199,11 +199,17 @@ describe("a reply's approval cards across its runs of calls", () => {
     expect(cog[0]?.props['data-state']).toBe('done');
   });
 
-  it('gives no card to a call its secret request is drawn in place of', () => {
-    deniedShell();
-    render(reply([marker('shell', 1), '<p>Got it.</p>', marker('shell', 2)], ['shell', 'shell']), {
-      secrets: savedSecretAt(1),
-    });
+  it("gives a later call that reuses the secret call's ID its own card", () => {
+    // Providers reuse call IDs within a reply: only the call that asked gives its line away.
+    deniedShell('call_1');
+    const content = reply(
+      [marker('request_secret', 1), '<p>Got it.</p>', marker('shell', 2)],
+      ['request_secret', 'shell']
+    );
+    content['io.mindroom.tool_trace'].events.forEach((entry) =>
+      Object.assign(entry, { tool_call_id: 'call_1' })
+    );
+    render(content, { secrets: savedSecretAt(1) });
     expect(lines()).toEqual(['secret:saved', 'Denied 1 tool call']);
   });
 

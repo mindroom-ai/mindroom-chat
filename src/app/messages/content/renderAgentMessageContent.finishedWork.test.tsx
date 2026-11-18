@@ -352,7 +352,11 @@ describe('finished agent work', () => {
       drawn,
     };
 
-    render(reply('completed'), true, undefined, done);
+    const asked = {
+      ...reply('completed'),
+      'io.mindroom.tool_trace': toolTrace('web_search', 'request_temporary_secret'),
+    };
+    render(asked, true, undefined, done);
     expect(text()).toContain('Worked for 2m 13s');
     expect(text()).not.toContain('secret line');
     expect([...drawn.getIds()]).toEqual([]);

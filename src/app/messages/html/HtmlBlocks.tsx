@@ -219,6 +219,8 @@ type ToolBlockRenderData = {
   progress?: string;
   /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
   startedAt?: number;
+  /** Its marker sits in a `<details>`, which hides it while closed. */
+  inDetails?: boolean;
 };
 
 // How many of a running call's last output lines show under its tool calls.
@@ -369,11 +371,43 @@ type ReplyToolCalls = {
   last?: { inputs: readonly unknown[]; states: ReadonlyMap<number, ToolCallState> };
 };
 
+// MindRoom's tools that ask for a secret (a service's key, a temporary secret).
+const SECRET_REQUEST_TOOLS = ['request_secret', 'request_temporary_secret'];
+
+/**
+ * The marker each of the reply's secret requests may draw at, by its index: the first call with
+ * the ID the request names that asks for a secret, as that tool or as the command line call that
+ * ran it, whose arguments name the tool. The ID alone does not say: providers reuse call IDs
+ * within a reply. Not a marker in a `<details>`, which would hide the line while the card's row
+ * hides for it.
+ */
+const secretRequestMarkers = (
+  reply: ReplyToolCalls,
+  secrets: ReadonlyMap<string, InlineSecretRequest>
+): ReadonlyMap<number, InlineSecretRequest> => {
+  const markers = new Map<number, InlineSecretRequest>();
+  if (secrets.size === 0) return markers;
+  const placed = new Set<InlineSecretRequest>();
+  [...reply.tools.values()]
+    .sort((a, b) => a.index - b.index)
+    .forEach((tool) => {
+      const secret = secrets.get(tool.toolCallId ?? '');
+      if (!secret || placed.has(secret) || tool.inDetails) return;
+      const asks = SECRET_REQUEST_TOOLS.some(
+        (name) => tool.toolName === name || tool.argsPreview?.includes(name)
+      );
+      if (!asks) return;
+      placed.add(secret);
+      markers.set(tool.index, secret);
+    });
+  return markers;
+};
+
 /**
  * The state of each of the reply's calls with trace details, by its index. Calls that needed
  * approval take theirs from the cards MindRoom posted for this reply: a paused reply's cards name
  * it, and a job's card names the job or replies to this message. A call whose secret request may
- * draw in its place (ToolRun) takes no card.
+ * draw in its place (secretRequestMarkers) takes no card.
  */
 const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallState> => {
   const eventId = useContext(ToolCallMessageContext)?.eventId;
@@ -383,8 +417,9 @@ const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallS
   const inputs = [eventId, context?.records, context?.now, secrets, byName];
   if (reply.last?.inputs.every((input, index) => input === inputs[index])) return reply.last.states;
 
+  const secretMarkers = secretRequestMarkers(reply, secrets);
   const loaded = [...reply.tools.values()]
-    .filter((tool) => isLoadedTool(tool) && !secrets.has(tool.toolCallId ?? ''))
+    .filter((tool) => isLoadedTool(tool) && !secretMarkers.has(tool.index))
     .sort((a, b) => a.index - b.index);
   const calls = loaded.map((tool) => ({
     toolName: tool.toolName,
@@ -562,16 +597,16 @@ type ToolRunPart =
   | { tools: ToolBlockRenderData[]; secret?: undefined }
   | { secret: InlineSecretRequest; tool: ToolBlockRenderData };
 
-/** A run of calls, split at each call a secret request names, which takes that call's place. */
+/** A run of calls, split at each marker a secret request may draw at, in that call's place. */
 const splitToolRunAtSecretRequests = (
   tools: ToolBlockRenderData[],
-  secrets: ReadonlyMap<string, InlineSecretRequest>
+  secrets: ReadonlyMap<number, InlineSecretRequest>
 ): ToolRunPart[] => {
   if (secrets.size === 0) return [{ tools }];
   const parts: ToolRunPart[] = [];
   let run: ToolBlockRenderData[] = [];
   tools.forEach((tool) => {
-    const secret = secrets.get(tool.toolCallId ?? '');
+    const secret = secrets.get(tool.index);
     // A repeated marker of the run draws the request once, and its call's own line after that.
     if (!secret || parts.some((part) => part.secret === secret)) {
       run.push(tool);
@@ -597,7 +632,10 @@ function ToolRun({
   tools: ToolBlockRenderData[];
   replyTools: ReplyToolCalls;
 }) {
-  const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
+  const secrets = secretRequestMarkers(
+    replyTools,
+    useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId)
+  );
   const anchor = tools.at(-1)?.index ?? 0;
   return (
     <>
@@ -622,6 +660,12 @@ function ToolRun({
     </>
   );
 }
+
+const isInDetails = (node: ChildNode): boolean => {
+  let { parent } = node;
+  while (parent && !(isDomElementNode(parent) && parent.name === 'details')) ({ parent } = parent);
+  return !!parent;
+};
 
 const cloneDomChildNode = (node: ChildNode): ChildNode => {
   if (isDomTextNode(node)) {
@@ -752,6 +796,7 @@ const createToolTraceMarkerParserOptions = (
             traceEvents?.[toolRef.index - 1],
             metadataStatus
           );
+          data.inDetails = isInDetails(element);
           const trailingElement =
             toolRefPrefix.trailingChildren.length > 0
               ? new Element(element.name, { ...element.attribs }, toolRefPrefix.trailingChildren)
@@ -853,6 +898,7 @@ const createToolTraceMarkerParserOptions = (
               traceEvents?.[toolRef.index - 1],
               metadataStatus
             );
+            data.inDetails = firstItem.data.inDetails;
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
             addReplyTool(data);

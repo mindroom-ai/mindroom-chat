@@ -30,13 +30,23 @@ function ReplyBody() {
   return mounted ? React.createElement('mock-secret-line') : null;
 }
 
-/** A thread with an agent's reply and the done secret request card of one of its tool calls. */
-const openThread = async () => {
+const row = (id: string, ts: number, sender?: string) =>
+  makeEvent(id, { threadRootId: threadId, ts, sender });
+
+/**
+ * A thread with an agent's reply and the done secret request card of one of its tool calls, which
+ * comes after the rows `between` and before the rows `after`.
+ */
+const openThread = async (
+  between = [] as ReturnType<typeof row>[],
+  after = [row('$after', 5_000)]
+) => {
   const { RoomTimeline } = await import('../RoomTimeline');
   const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
   const events = [
     rootEvent,
     makeEvent('$reply', { threadRootId: threadId, ts: 2_000, sender: AGENT }),
+    ...between,
     makeEvent('$card', {
       threadRootId: threadId,
       ts: 3_000,
@@ -58,7 +68,7 @@ const openThread = async () => {
         },
       },
     }),
-    makeEvent('$after', { threadRootId: threadId, ts: 5_000 }),
+    ...after,
   ];
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
@@ -98,6 +108,8 @@ const sizeOfRow = (renderer: ReturnType<typeof create>, index: number) =>
   ];
 const lines = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll((node) => node.type === ('mock-secret-line' as never)).length;
+const turnBreaks = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll((node) => node.props['data-turn-break'] !== undefined).length;
 
 describe("a done secret request card's row in an open thread", () => {
   it('takes no place while the reply has its line mounted, and its place again after', async () => {
@@ -118,6 +130,29 @@ describe("a done secret request card's row in an open thread", () => {
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$reply', '$card', '$after']);
       await renderer.settle();
       expect(sizeOfRow(renderer, 2)).toBeGreaterThan(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("keeps the next turn's break, and room for it, while the reply draws the card", async () => {
+    // The card came after the next message: it is the first row of that turn's fold, and draws
+    // the turn's break.
+    const renderer = await openThread(
+      [row('$next', 2_500)],
+      [row('$work', 5_000, AGENT), row('$answer', 6_000, AGENT)]
+    );
+    try {
+      expect(turnBreaks(renderer)).toBe(1);
+      expect(getRenderedEventIds(renderer)).toEqual([threadId, '$reply', '$next', '$answer']);
+
+      act(() => line.show(true));
+      await renderer.settle();
+
+      expect(lines(renderer)).toBe(1);
+      expect(turnBreaks(renderer)).toBe(1);
+      expect(sizeOfRow(renderer, 3)).toBeGreaterThan(0);
+      expect(getRenderedEventIds(renderer)).toEqual([threadId, '$reply', '$next', '$answer']);
     } finally {
       act(() => renderer.unmount());
     }

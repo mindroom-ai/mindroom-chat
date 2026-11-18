@@ -466,6 +466,8 @@ vi.mock('@tanstack/react-virtual', () => {
           instance!.options = next;
         },
         itemSizeCache: new Map(),
+        // No row is measured here, so none is in the cache of measured elements.
+        elementsCache: new Map(),
         getVirtualItemForOffset: (offset: number) => {
           const opts = optionsRef.current;
           const { firstVisibleKey } = roomTimelineVirtualizerState;

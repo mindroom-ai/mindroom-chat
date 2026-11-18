@@ -28,24 +28,43 @@ vi.mock('../../approvals/SecretRequestLine', () => ({
 }));
 
 const NAMES = ['shell', 'shell', 'request_secret', 'shell'];
-const marker = (index: number) => `<p>🔧 <code>${NAMES[index - 1]}</code> [${index}]</p>`;
+const marker = (index: number, names = NAMES) =>
+  `<p>🔧 <code>${names[index - 1]}</code> [${index}]</p>`;
 
-/** A reply as its row shows it: the durable one, or a live frame over it (`status`). */
-const reply = (parts: string[], status?: string) => ({
+/**
+ * A reply as its row shows it: the durable one, or a live frame over it (`status`). Its trace
+ * names the tools `names`, each with what `entry` adds.
+ */
+const reply = (
+  parts: string[],
+  status?: string,
+  names = NAMES,
+  entry: (index: number) => Record<string, unknown> = () => ({})
+) => ({
   msgtype: 'm.text',
   body: 'To deploy the demo app',
   format: 'org.matrix.custom.html',
   formatted_body: parts.join('\n'),
   'io.mindroom.tool_trace': {
     version: 2,
-    events: NAMES.map((name, index) => ({
+    events: names.map((name, index) => ({
       type: 'tool_call_completed',
       tool_name: name,
       tool_call_id: `call_${index + 1}`,
+      ...entry(index + 1),
     })),
   },
   ...(status ? { 'io.mindroom.stream_status': status } : {}),
 });
+/** A reply of four calls in one run, the one at `index` the request for the secret. */
+const askingAt = (index: number) => {
+  const names = NAMES.map((_name, at) => (at + 1 === index ? 'request_secret' : 'shell'));
+  return reply(
+    [1, 2, 3, 4].map((at) => marker(at, names)),
+    undefined,
+    names
+  );
+};
 
 const content = reply([
   '<p>To deploy the demo app</p>',
@@ -188,9 +207,9 @@ describe('a secret request in its reply', () => {
   });
 
   it('starts or ends a run without an empty run beside it', () => {
-    render(secrets('saved', 1));
+    render(secrets('saved', 1), <Reply shown={askingAt(1)} />);
     expect(lines()).toEqual(['secret:saved', 'Ran 3 tool calls']);
-    render(secrets('saved', 4));
+    render(secrets('saved', 4), <Reply shown={askingAt(4)} />);
     expect(lines()).toEqual(['Ran 3 tool calls', 'secret:saved']);
   });
 
@@ -299,6 +318,50 @@ describe("a secret request card's row", () => {
     expect(lines()).toEqual(['Ran 1 tool call', 'secret:saved', 'Ran 1 tool call']);
     expect(env.mounts).toBe(1);
     expect(hiddenRows(plan)).toEqual(['$card']);
+  });
+
+  it('stays when the named call ID is another call’s, which asks for no secret', () => {
+    // Providers reuse call IDs within a reply: the ID alone does not say which call asked.
+    const plan = secrets('saved');
+    const reused = reply([marker(1), marker(2), marker(3), marker(4)], undefined, NAMES, () => ({
+      tool_call_id: 'call_3',
+    }));
+    render(plan, <Reply shown={reused} />);
+    expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
+
+    const shells = NAMES.map(() => 'shell');
+    const other = reply([marker(1, shells), marker(3, shells)], undefined, shells);
+    render(plan, <Reply shown={other} />);
+    expect(lines()).toEqual(['Ran 2 tool calls']);
+    expect(hiddenRows(plan)).toEqual([]);
+  });
+
+  it('moves to the command line call that ran the request, whose arguments name the tool', () => {
+    const plan = secrets('saved');
+    const shells = NAMES.map(() => 'shell');
+    const wrapped = reply(
+      [1, 2, 3, 4].map((at) => marker(at, shells)),
+      undefined,
+      shells,
+      (at) =>
+        at === 3
+          ? { args_preview: 'command=mindroom-agent tools call request_temporary_secret' }
+          : {}
+    );
+    render(plan, <Reply shown={wrapped} />);
+
+    expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+  });
+
+  it('stays when the call sits in a <details>, which would hide the line while closed', () => {
+    const plan = secrets('saved');
+    const folded = reply([marker(1), `<details>${marker(3)}</details>`, '<p>Done.</p>']);
+    render(plan, <Reply shown={folded} />);
+
+    expect(lines()).toEqual(['Ran 1 tool call', 'Ran 1 tool call']);
+    expect(env.mounts).toBe(0);
+    expect(hiddenRows(plan)).toEqual([]);
   });
 
   it('goes for one line: a second place that draws the reply keeps the call’s own line', () => {
