@@ -177,6 +177,24 @@ describe('planVoiceTranscripts', () => {
     );
   });
 
+  it('keeps the row of an echo from a router the viewer ignores', () => {
+    expect(plan([voice(), echo('$echo')], { ignored: new Set([ROUTER]) })).toBe(
+      NO_VOICE_TRANSCRIPTS
+    );
+  });
+
+  it('keeps the row of an echo whose latest version is the raw audio fallback', () => {
+    // Transcription failed: the router edits its placeholder to the voice message's fallback text.
+    const echoEvent = replaceWith(echo('$echo'), {
+      msgtype: 'm.text',
+      body: '🎤 [Attached voice message]',
+      [ECHO_KEY]: true,
+      [SOURCE_KEY]: '$voice',
+      'com.mindroom.voice_raw_audio_fallback': true,
+    });
+    expect(plan([voice(), echoEvent])).toBe(NO_VOICE_TRANSCRIPTS);
+  });
+
   it('pairs only the first echo naming a voice message', () => {
     const first = echo('$first');
     const result = plan([voice(), first, echo('$second')]);

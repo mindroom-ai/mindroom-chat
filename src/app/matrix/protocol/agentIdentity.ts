@@ -76,12 +76,3 @@ export type AgentIdentityEvent = {
 export const isMindroomAgentMessageEvent = (mEvent: AgentIdentityEvent): boolean =>
   isMindroomAgentUserId(mEvent.getSender?.()) ||
   hasMindroomAgentMessageMetadata(mEvent.getContent());
-
-/**
- * MindRoom's router: `mindroom_router`, with the installation namespace MindRoom appends when one
- * is set (MindRoom's `matrix_identifiers.namespaced_username_localpart` and `_NAMESPACE_PATTERN`).
- */
-const ROUTER_LOCALPART = /^mindroom_router(?:_[a-z0-9]{4,32})?$/;
-
-export const isMindroomRouterUserId = (userId: string | undefined): boolean =>
-  !!userId && ROUTER_LOCALPART.test((getMxIdLocalPart(userId) ?? userId).toLowerCase());

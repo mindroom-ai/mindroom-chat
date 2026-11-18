@@ -4,6 +4,7 @@ import { isVoiceMessageContent } from './content/voiceMessageContent';
 import {
   getVoiceSourceEventId,
   isVisibleRouterVoiceEcho,
+  isVoiceRawAudioFallback,
 } from '../matrix/protocol/transcribingPlaceholder';
 
 /**
@@ -23,13 +24,15 @@ export const NO_VOICE_TRANSCRIPTS: VoiceTranscriptPlan = {
 /**
  * Which router voice echoes of `events` show under their voice message instead of their row. An
  * echo moves when the room's router sent it (`routerUserId`, which the room's state names and
- * `trustedRouterUserId` trusts; no other agent or account, and none while it names none), it names its voice message (`getVoiceSourceEventId`, read from the
- * version its row shows, `getContent`, which counts only the sender's own edits), and that
- * message is among `events`, drawn as a voice message (an `m.audio` that `MAudio` plays as
- * voice, `isVoiceMessageContent`), not redacted and not from an ignored sender. Every other echo
- * keeps its row as before: one from an older backend without the name, one whose voice message is
- * not loaded here or is no voice message, one the route or a jump opened (`revealed`), and a
- * second echo naming the same voice message.
+ * `trustedRouterUserId` trusts; no other agent or account, none while it names none, and none
+ * the viewer ignores), it names its voice message (`getVoiceSourceEventId`, read from the version
+ * its row shows, `getContent`, which counts only the sender's own edits), that version is a
+ * transcript rather than the fallback text of a failed transcription (`isVoiceRawAudioFallback`),
+ * and that message is among `events`, drawn as a voice message (an `m.audio` that `MAudio` plays
+ * as voice, `isVoiceMessageContent`), not redacted and not from an ignored sender. Every other
+ * echo keeps its row as before: one from an older backend without the name, one whose voice
+ * message is not loaded here or is no voice message, one the route or a jump opened
+ * (`revealed`), and a second echo naming the same voice message.
  */
 export const planVoiceTranscripts = ({
   events,
@@ -45,7 +48,7 @@ export const planVoiceTranscripts = ({
   revealed: ReadonlySet<string>;
 }): VoiceTranscriptPlan => {
   // Every version of an echo carries the flag, so the cheap read of the first finds them.
-  if (!routerUserId) return NO_VOICE_TRANSCRIPTS;
+  if (!routerUserId || ignored.has(routerUserId)) return NO_VOICE_TRANSCRIPTS;
   const echoes = events.filter(
     (event) =>
       isVisibleRouterVoiceEcho(event.getOriginalContent()) &&
@@ -58,8 +61,10 @@ export const planVoiceTranscripts = ({
   const byVoiceId = new Map<string, MatrixEvent>();
   echoes.forEach((echo) => {
     const echoId = echo.getId();
-    const voiceId = getVoiceSourceEventId(getContent(echo));
+    const echoContent = getContent(echo);
+    const voiceId = getVoiceSourceEventId(echoContent);
     if (!echoId || !voiceId || revealed.has(echoId) || byVoiceId.has(voiceId)) return;
+    if (isVoiceRawAudioFallback(echoContent)) return;
     const voice = byId.get(voiceId);
     const voiceSender = voice?.getSender();
     if (!voice || voice.isRedacted() || !voiceSender || ignored.has(voiceSender)) return;

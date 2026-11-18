@@ -2,7 +2,6 @@ import { EventType, type Room, type RoomMember } from 'matrix-js-sdk';
 import { normalizeSearchString } from '../../lib/hooks/useAsyncSearch';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { withoutNameDisguises } from '../../matrix/room';
-import { isMindroomRouterUserId } from '../../matrix/protocol/agentIdentity';
 
 /**
  * The user name prefix MindRoom gives every agent account (MindRoom's
@@ -10,6 +9,9 @@ import { isMindroomRouterUserId } from '../../matrix/protocol/agentIdentity';
  * agent someone means.
  */
 const AGENT_PREFIX = 'mindroom_';
+
+/** MindRoom's router agent, with the installation namespace MindRoom appends when one is set. */
+const ROUTER_AGENT = /^router(?:_[a-z0-9]{4,32})?$/;
 
 const WORD_BREAK = /[^\p{L}\p{N}]+/u;
 
@@ -34,6 +36,11 @@ const localpart = (userId: string): string =>
 const userName = (userId: string): string => {
   const name = localpart(userId);
   return name.startsWith(AGENT_PREFIX) ? name.slice(AGENT_PREFIX.length) : name;
+};
+
+const isRouterAgent = (userId: string): boolean => {
+  const name = localpart(userId);
+  return name.startsWith(AGENT_PREFIX) && ROUTER_AGENT.test(name.slice(AGENT_PREFIX.length));
 };
 
 const startsAWord = (value: string, needle: string): boolean =>
@@ -91,7 +98,7 @@ export const orderMentionCandidates = <T extends MentionCandidate>(
   senders: readonly string[]
 ): T[] => {
   const recency = new Map(senders.map((userId, index) => [userId, index]));
-  const routerLast = (member: T): number => (isMindroomRouterUserId(member.userId) ? 1 : 0);
+  const routerLast = (member: T): number => (isRouterAgent(member.userId) ? 1 : 0);
   const recent = (member: T): number => recency.get(member.userId) ?? senders.length;
   return [...members].sort(
     (left, right) => routerLast(left) - routerLast(right) || recent(left) - recent(right)
