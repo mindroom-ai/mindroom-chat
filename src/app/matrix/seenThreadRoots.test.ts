@@ -73,6 +73,22 @@ describe('seen thread roots', () => {
     expect(reloaded.isSeenThreadRoot(ME, ROOM, '$second')).toBe(true);
   });
 
+  it('tells its listeners the room of each change, with no event of the room', async () => {
+    const seen = await load();
+    const told: string[] = [];
+    const stop = seen.onSeenThreadRootsChange((roomId) => told.push(roomId));
+
+    seen.rememberSeenThreadRoot(ME, ROOM, root('$a', 10), 0);
+    seen.forgetReadThreadRoots(ME, ROOM, 20);
+    // Nothing is recorded for this room, so nothing changes.
+    seen.forgetReadThreadRoots(ME, '!other:example.org', 20);
+    expect(told).toEqual([ROOM, ROOM]);
+
+    stop();
+    seen.rememberSeenThreadRoot(ME, ROOM, root('$b', 30), 0);
+    expect(told).toEqual([ROOM, ROOM]);
+  });
+
   it('forgets everything of an account that signs out', async () => {
     const store = await load();
     store.rememberSeenThreadRoot(ME, ROOM, root('$root', 5000), 2000);

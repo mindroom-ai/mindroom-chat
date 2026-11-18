@@ -4,7 +4,7 @@ import { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { useThreadLastActivityTs } from './useThreadLastActivityTs';
+import { getThreadLastActivityTs, useThreadLastActivityTs } from './useThreadLastActivityTs';
 
 const THREAD_ROOT_ID = '$root';
 
@@ -34,12 +34,14 @@ const makeThreadRootWithBundledLatestEvent = ({
   latestEventTs,
   latestEditTs,
   latestEditSender = '@alice:example.org',
+  latestEditContent,
 }: {
   eventId?: string;
   ts: number;
   latestEventTs?: number;
   latestEditTs?: number;
   latestEditSender?: string;
+  latestEditContent?: Record<string, unknown>;
 }) =>
   new MatrixEvent({
     content: {
@@ -71,6 +73,7 @@ const makeThreadRootWithBundledLatestEvent = ({
                       ? {
                           'm.relations': {
                             'm.replace': {
+                              content: latestEditContent,
                               origin_server_ts: latestEditTs,
                               sender: latestEditSender,
                             },
@@ -469,6 +472,24 @@ describe('useThreadLastActivityTs', () => {
     expect(getSnapshot()).toBe(310);
 
     renderer.unmount();
+  });
+
+  it('keeps a streaming reply at its own timestamp when its bundled edit still streams', () => {
+    const bundled = (status: string) =>
+      makeRoom(
+        makeThreadRootWithBundledLatestEvent({
+          eventId: '$root',
+          ts: 100,
+          latestEventTs: 220,
+          latestEditTs: 310,
+          latestEditContent: { 'io.mindroom.stream_status': status },
+        }),
+        undefined
+      );
+
+    // As an edit put on a loaded reply: two streaming threads would trade places at every edit.
+    expect(getThreadLastActivityTs(bundled('streaming'), '$root')).toBe(220);
+    expect(getThreadLastActivityTs(bundled('completed'), '$root')).toBe(310);
   });
 
   it('ignores a bundled latest_event replacement another sender made', () => {

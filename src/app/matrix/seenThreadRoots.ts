@@ -52,6 +52,20 @@ let changes = 0;
 /** A count of this device's changes to the records, for caches of what they decide. */
 export const seenThreadRootsVersion = (): number => changes;
 
+const changeListeners = new Set<(roomId: string) => void>();
+
+/**
+ * Calls `listener` with the room of each change this device makes to a room's record: no event
+ * of the room tells of it. Returns a function that stops it. A sign-out tells no one: the
+ * account's views close.
+ */
+export const onSeenThreadRootsChange = (listener: (roomId: string) => void): (() => void) => {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+};
+
 const cached = (userId: string): SeenRoots => {
   let roots = cache.get(userId);
   if (!roots) {
@@ -76,6 +90,7 @@ const update = (
   cache.set(userId, roots);
   if (Object.keys(roots).length === 0) removeStorageItemSafe(storage, storageKey(userId));
   else setStorageItemSafe(storage, storageKey(userId), JSON.stringify(roots));
+  changeListeners.forEach((listener) => listener(roomId));
 };
 
 const withoutReadRoots = (room: Record<string, number>, readTs: number) =>
