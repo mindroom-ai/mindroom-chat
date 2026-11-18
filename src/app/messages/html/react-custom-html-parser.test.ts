@@ -2010,6 +2010,55 @@ describe('copy stripping matches the app renderer', () => {
   });
 });
 
+// Reasoning and compaction seams go after the calls `getRenderedToolRefs(html, true)` reads, so it
+// must read exactly the markers the renderer draws as tool blocks, in the order it draws them.
+describe('placement markers match the app renderer', () => {
+  const renderedOrder = async (html: string): Promise<number[]> => {
+    const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+    });
+    const opts = markerParserOptions(baseOpts, { body: '', formatted_body: html });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(React.Fragment, null, parse(html, opts)));
+    });
+    const order = renderer.root
+      .findAll((node) => Array.isArray(node.props?.parsedTools))
+      .flatMap((node) =>
+        (node.props.parsedTools as Array<{ index: number }>).map((tool) => tool.index)
+      );
+    renderer.unmount();
+    return order;
+  };
+  const placed = (html: string) =>
+    getRenderedToolRefs(html, true).toolBlocks.map(({ index }) => index);
+
+  it.each<readonly [string, string]>([
+    ...Object.entries(backendToolMarkerBodies)
+      .filter(([name]) => name !== 'tool name containing another index')
+      .map(([name, { formatted_body: html }]) => [name, html] as const),
+    [
+      'a direct call, then a call in a paragraph, in one div',
+      '<div>🔧 <code>t1</code> [1]<p>🔧 <code>t2</code> [2]</p></div><p>Done</p>',
+    ],
+    [
+      'a call in a paragraph after a call in one div',
+      '<div><p>🔧 <code>t1</code> [1]</p><p>text</p><p>🔧 <code>t2</code> [2]</p></div>',
+    ],
+    [
+      'a div in a div after a call',
+      '<div>🔧 <code>t1</code> [1]<div><p>🔧 <code>t2</code> [2]</p></div></div>',
+    ],
+    [
+      'a call in details after a call in its div',
+      '<div>🔧 <code>t1</code> [1]<details><p>🔧 <code>t2</code> [2]</p></details></div>',
+    ],
+  ])('%s', async (_name, rawHtml) => {
+    const html = sanitizeCustomHtml(rawHtml);
+    expect(placed(html)).toEqual(await renderedOrder(html));
+  });
+});
+
 describe('direction controls in tool calls and code', () => {
   const CONTROL = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
 

@@ -210,8 +210,9 @@ const NESTING_WRAPPERS = new Set(['div', 'details']);
 
 /**
  * Calls `take` for each marker in a top-level node that the renderer shows as a tool block, in
- * document order: the node's leading markers, or with `nested` those of the `div` and `details`
- * inside it. The one rule for where tool blocks render, for `getRenderedToolRefs` and the fold.
+ * the order it draws them: the node's leading markers, then with `nested`, in a `div` or
+ * `details`, those in the children after them, which the renderer draws with the same rule. The
+ * one rule for where tool blocks render, for `getRenderedToolRefs` and the fold.
  */
 export const visitRenderedToolBlocks = (
   node: ChildNode,
@@ -219,19 +220,18 @@ export const visitRenderedToolBlocks = (
   take: (toolRef: ToolRefParseResult, markerHtml: string) => void
 ): void => {
   if (!isDomElementNode(node)) return;
-  let found = false;
+  let rest = node.children;
   // Necessary for a match, and far cheaper than the prefix scan.
   if (extractTextFromChildren(node.children).trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) {
-    takeLeadingToolRefs(node, (markerHtml) => {
+    rest = takeLeadingToolRefs(node, (markerHtml) => {
       const toolRef = parseToolBlockMarker(markerHtml);
       if (!toolRef) return false;
       take(toolRef, markerHtml);
-      found = true;
       return true;
     });
   }
-  if (nested && !found && NESTING_WRAPPERS.has(node.name)) {
-    node.children.forEach((child) => visitRenderedToolBlocks(child, nested, take));
+  if (nested && NESTING_WRAPPERS.has(node.name)) {
+    rest.forEach((child) => visitRenderedToolBlocks(child, nested, take));
   }
 };
 

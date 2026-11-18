@@ -63,6 +63,11 @@ describe('splitFinishedWork', () => {
     }
   });
 
+  it('splits after a div holding a direct call, then a call in a paragraph', () => {
+    const work = `<div>🔧 <code>shell</code> [1]${marker('grep', 2)}</div>`;
+    expect(splitFinishedWork(`${work}<p>done</p>`)).toEqual({ head: work, tail: '<p>done</p>' });
+  });
+
   it('ignores marker-like text inside a code block', () => {
     expect(
       splitFinishedWork('<pre><code>🔧 <code>shell</code> [1]</code></pre><p>x</p>')
