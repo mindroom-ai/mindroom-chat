@@ -830,6 +830,9 @@ export const scrollRoom = async (
                 __jitter: { scroller: HTMLElement; driving: boolean; lastInput: number };
               }
             ).__jitter;
+            const touch = (type: string) =>
+              state.scroller.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+            touch('touchstart');
             let left = Math.abs(by);
             let last = performance.now();
             const step = (now: number) => {
@@ -840,8 +843,13 @@ export const scrollRoom = async (
               state.scroller.scrollTop += Math.sign(by) * move;
               state.driving = false;
               state.lastInput = now;
-              if (left > 0) requestAnimationFrame(step);
-              else resolve();
+              if (left > 0) {
+                touch('touchmove');
+                requestAnimationFrame(step);
+              } else {
+                touch('touchend');
+                resolve();
+              }
             };
             requestAnimationFrame(step);
           }),
