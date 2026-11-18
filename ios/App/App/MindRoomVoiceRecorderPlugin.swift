@@ -32,10 +32,6 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private var live: (id: String, recorder: AVAudioRecorder)?
-    /// The audio session's settings before a recording took it.
-    private var sessionBefore: (
-        category: AVAudioSession.Category, mode: AVAudioSession.Mode, options: AVAudioSession.CategoryOptions
-    )?
     /// Its window closed: it records nothing more.
     private var closed = false
     /// The page loads begun: a start asked before the newest one records nothing.
@@ -85,8 +81,9 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         // `live` is set only once it records, so a failed attempt cleans up from here.
                         var attempt: AVAudioRecorder?
                         do {
-                            self.sessionBefore = (session.category, session.mode, session.categoryOptions)
-                            try session.setCategory(.record, mode: .default)
+                            // Not `.record`: the session keeps its category afterwards, and the page
+                            // must still play audio then.
+                            try session.setCategory(.playAndRecord, mode: .default)
                             try session.setActive(true)
                             try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
                             let recorder = try AVAudioRecorder(url: url, settings: [
@@ -100,7 +97,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         } catch {
                             attempt?.stop()
                             try? FileManager.default.removeItem(at: url)
-                            self.releaseAudioSession()
+                            try? session.setActive(false, options: .notifyOthersOnDeactivation)
                             return call.reject("Could not start recording", "START_FAILED")
                         }
                         call.resolve(["id": id])
@@ -152,7 +149,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
             live.recorder.stop()
-            releaseAudioSession()
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             self.live = nil
             call.resolve(["path": live.recorder.url.path])
         }
@@ -176,18 +173,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         self.live = nil
         live.recorder.stop()
         live.recorder.deleteRecording()
-        releaseAudioSession()
-    }
-
-    /// Ends the recording's audio session and gives it back its settings: left in the record
-    /// category, it would keep the page's audio silent.
-    private func releaseAudioSession() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
-        if let before = sessionBefore {
-            try? session.setCategory(before.category, mode: before.mode, options: before.options)
-        }
-        sessionBefore = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     /// The page is going, or its process ended (main queue): nothing of it records or stays on

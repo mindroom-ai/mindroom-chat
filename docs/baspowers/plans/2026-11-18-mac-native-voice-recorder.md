@@ -5,7 +5,7 @@
 > - **Levels** (Tasks 1 and 3): no `level` event, no `addListener` and no 80 ms native timer. The plugin has a method `level({ id })`, which the wrapper's `level()` calls while recording.
 > - **Which start records** (Task 3): no `epoch`. The wrapper names each start with a nonce (`window.mindroomVoiceStart`, `start({ nonce })`); the plugin reads it back from the loaded page after the prompt, with a count of the page loads begun, and asks no closed or loading page for the microphone.
 > - **A closed window** (Task 3): `SceneDelegate` calls `close()`, not `cancelRecording()`; a page load runs `pageWillLoad()`.
-> - **The file read** (Task 1): a non-empty answer with status 0 is the recording; and the plugin gives the audio session back its category after every recording.
+> - **The file read** (Task 1): a non-empty answer with status 0 is the recording. And the audio session (Task 3) records in `.playAndRecord`, not `.record`, so that the page still plays audio afterwards.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: implement this plan task-by-task with the skill named in **Execution**. Steps use checkbox (`- [ ]`) syntax.
 
