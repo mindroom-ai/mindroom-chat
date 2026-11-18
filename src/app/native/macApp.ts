@@ -1,3 +1,4 @@
+import { useClientConfig } from '../config/useClientConfig';
 import { isMacOS } from '../lib/user-agent';
 import { isNativeApp } from './nativeSso';
 
@@ -9,7 +10,9 @@ export const MAC_APP_DOWNLOAD_URL =
 export const MAC_APP_BREW_COMMAND = 'brew install --cask mindroom-ai/tap/mindroom-chat';
 
 /**
- * Whether to point at the Mac app: in a browser on a Mac (iPadOS, which reports a Mac, is not
- * one), never inside the app itself, which runs this client in its own shell.
+ * Whether to point at the Mac app: only where the deployment turns it on (`macApp.offer` in
+ * config.json), in a browser on a Mac (iPadOS, which reports a Mac, is not one), never inside the
+ * app itself, which runs this client in its own shell.
  */
-export const offersMacApp = (): boolean => isMacOS() && !isNativeApp();
+export const useOffersMacApp = (): boolean =>
+  useClientConfig().macApp?.offer === true && isMacOS() && !isNativeApp();

@@ -37,7 +37,7 @@ export type SettingsContext = {
   errorReporting: boolean;
   /** The sidebar buttons the deployment offers a switch for. */
   railButtons: Readonly<Record<string, boolean>>;
-  /** A browser on a Mac, which About points to the Mac app from (native/macApp.ts). */
+  /** The deployment offers the Mac app and this is a browser on a Mac (native/macApp.ts). */
   macApp: boolean;
 };
 

@@ -17,9 +17,9 @@ import { NewVersionNotice } from './NewVersionNotice';
 const platform = vi.hoisted(() => ({ macBrowser: true }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
-vi.mock('../native/macApp', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../native/macApp')>()),
-  offersMacApp: () => platform.macBrowser,
+vi.mock('../lib/user-agent', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/user-agent')>()),
+  isMacOS: () => platform.macBrowser,
 }));
 // A new version is known, for the test that shows both cards.
 vi.mock('../config/appUpdate', () => ({
@@ -29,6 +29,8 @@ vi.mock('../config/appUpdate', () => ({
   reloadForNewVersion: async () => undefined,
 }));
 
+// A deployment that offers the Mac app, which none does unless it says so.
+const OFFERED: ClientConfig = { macApp: { offer: true } };
 const ALICE = '@alice:example.org';
 const BOB = '@bob:example.org';
 const HOMESERVER = 'https://example.org';
@@ -86,7 +88,7 @@ const show = (
   { client, sync }: Account,
   {
     synced = true,
-    config = {},
+    config = OFFERED,
     list = false,
     phone = false,
     withNewVersion = false,
@@ -171,6 +173,17 @@ describe('MacAppOffer', () => {
     expect(page.childElementCount).toBe(0);
   });
 
+  it.each([
+    ['says nothing', {}],
+    ['turns it off', { macApp: { offer: false } }],
+  ] as const)('shows nothing where the deployment %s', async (_case, config: ClientConfig) => {
+    const alice = account();
+    show(alice, { config, list: true });
+    await settle();
+    expect(card()).toBeNull();
+    expect(alice.setAccountData).not.toHaveBeenCalled();
+  });
+
   it('shows nothing outside a browser on a Mac, which the native app is not', async () => {
     platform.macBrowser = false;
     const alice = account();
@@ -203,7 +216,7 @@ describe('MacAppOffer', () => {
   });
 
   it("does not wait for a tour's offer the deployment turned off", () => {
-    show(account({}), { config: { tour: { offerAtStart: false } } });
+    show(account({}), { config: { ...OFFERED, tour: { offerAtStart: false } } });
     expect(card()).toBeTruthy();
   });
 

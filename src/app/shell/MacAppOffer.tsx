@@ -10,7 +10,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { createSessionId } from '../matrix/session/sessions';
 import { MacAppIcon } from '../native/MacAppIcon';
-import { MAC_APP_DOWNLOAD_URL, offersMacApp } from '../native/macApp';
+import { MAC_APP_DOWNLOAD_URL, useOffersMacApp } from '../native/macApp';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { tourAtom, tourOfferAnsweredAtom } from '../navigation/tourState';
 import {
@@ -30,18 +30,19 @@ const answeredAccounts = new Set<string>();
 export const resetAnsweredMacAppAccountsForTests = () => answeredAccounts.clear();
 
 /**
- * Offers the Mac app in a browser on a Mac, on a card where the tour's offer shows
- * (tour/TourOffer.tsx): at the foot of the room list while there is one beside the page, else at
- * the top of the page in one line, which wraps in a narrow window. It shows once the client has
- * synced with its server, until the account answers with any of the card's buttons, Download
- * included; the answer is kept for the life of the page and stored as `macAppOffered` in the
- * account's `io.mindroom.settings`, so no other start or device asks again. It waits while the
- * tour's offer is due, so a first sign-in gets one offer at a time, and while a tour is open. The
- * Home menu and Settings, About, keep a way to the download.
+ * Offers the Mac app in a browser on a Mac, where the deployment turns it on (`macApp.offer`), on
+ * a card where the tour's offer shows (tour/TourOffer.tsx): at the foot of the room list while
+ * there is one beside the page, else at the top of the page in one line, which wraps in a narrow
+ * window. It shows once the client has synced with its server, until the account answers with any
+ * of the card's buttons, Download included; the answer is kept for the life of the page and stored
+ * as `macAppOffered` in the account's `io.mindroom.settings`, so no other start or device asks
+ * again. It waits while the tour's offer is due, so a first sign-in gets one offer at a time, and
+ * while a tour is open. The Home menu and Settings, About, keep a way to the download.
  */
 export function MacAppOffer() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
+  const offered = useOffersMacApp();
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   // Not the stored copy of the last session, which a start shows first: its account data may
   // lack the answer another device gave since, or the settings a write here would replace.
@@ -74,7 +75,7 @@ export function MacAppOffer() {
   const hasPlace = listSlot !== null || pageSlot !== null;
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const { shown, slot, placement, leaving, settled, dismiss, onAnimationEnd } = useNoticePresence(
-    offersMacApp() && synced && !stored && !answered && !tourFirst && hasPlace,
+    offered && synced && !stored && !answered && !tourFirst && hasPlace,
     { open: phoneLayerOpen, slideOutMs: PHONE_SLIDE_OUT_MS }
   );
   if (!shown || !slot) return null;

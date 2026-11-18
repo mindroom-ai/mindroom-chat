@@ -27,7 +27,7 @@ import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import { isNativeIOS } from '../../native/nativeSso';
 import { MacAppIcon } from '../../native/MacAppIcon';
-import { MAC_APP_BREW_COMMAND, MAC_APP_DOWNLOAD_URL, offersMacApp } from '../../native/macApp';
+import { MAC_APP_BREW_COMMAND, MAC_APP_DOWNLOAD_URL, useOffersMacApp } from '../../native/macApp';
 import { saveFile } from '../../native/nativeFileSave';
 import { getFlightRecorderStatus } from '../../diagnostics/flightRecorder';
 import {
@@ -584,12 +584,13 @@ export function About({ requestClose, closeDialog }: AboutProps) {
   const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
   const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
+  const macApp = useOffersMacApp();
 
   return (
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
       <AboutSection title={t('featureUi.settings.about.options')}>
-        {offersMacApp() && <MacAppSetting />}
+        {macApp && <MacAppSetting />}
         <DebugModeSetting
           enabled={debugMode}
           keepRecorders={nativeDiagnostics}

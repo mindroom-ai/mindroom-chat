@@ -3,7 +3,7 @@
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { tourAtom } from '../../navigation/tourState';
 import { MAC_APP_BREW_COMMAND, MAC_APP_DOWNLOAD_URL } from '../../native/macApp';
@@ -21,7 +21,8 @@ const mocks = vi.hoisted(() => ({
   saveFile: vi.fn(),
   getDebugModeEnabled: vi.fn(),
   setDebugModeEnabled: vi.fn(),
-  offersMacApp: vi.fn(() => false),
+  isMacOS: vi.fn(() => false),
+  config: {} as Record<string, unknown>,
   copyToClipboard: vi.fn(async () => true),
 }));
 
@@ -121,7 +122,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../config/useClientConfig', () => ({
-  useClientConfig: () => ({ welcome: undefined }),
+  useClientConfig: () => ({ welcome: undefined, ...mocks.config }),
 }));
 
 vi.mock('../../ui/branding/clientBranding', () => ({
@@ -136,11 +137,12 @@ vi.mock('../../ui/branding/clientBranding', () => ({
 
 vi.mock('../../native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
+  isNativeApp: () => false,
 }));
 
-vi.mock('../../native/macApp', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../native/macApp')>()),
-  offersMacApp: mocks.offersMacApp,
+vi.mock('../../lib/user-agent', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/user-agent')>()),
+  isMacOS: mocks.isMacOS,
 }));
 
 vi.mock('../../lib/dom', () => ({ copyToClipboard: mocks.copyToClipboard }));
@@ -754,15 +756,30 @@ describe('About Mac app', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isNativeIOS.mockReturnValue(false);
+    mocks.config = { macApp: { offer: true } };
+  });
+
+  afterEach(() => {
+    mocks.config = {};
+  });
+
+  it('is not shown where the deployment does not offer the app, also on a Mac', () => {
+    mocks.isMacOS.mockReturnValue(true);
+    for (const config of [{}, { macApp: { offer: false } }]) {
+      mocks.config = config;
+      const renderer = create(<About requestClose={vi.fn()} />);
+      expect(macTile(renderer)).toHaveLength(0);
+      renderer.unmount();
+    }
   });
 
   it('is shown only in a browser on a Mac', () => {
-    mocks.offersMacApp.mockReturnValue(false);
+    mocks.isMacOS.mockReturnValue(false);
     const elsewhere = create(<About requestClose={vi.fn()} />);
     expect(macTile(elsewhere)).toHaveLength(0);
     elsewhere.unmount();
 
-    mocks.offersMacApp.mockReturnValue(true);
+    mocks.isMacOS.mockReturnValue(true);
     const mac = create(<About requestClose={vi.fn()} />);
     const [tile] = macTile(mac);
     expect(tile?.props['data-setting-title']).toBe('MindRoom for Mac');
@@ -779,7 +796,7 @@ describe('About Mac app', () => {
     [true, 'Copied'],
     [false, 'Copy failed'],
   ])('copies the Homebrew command and says how it went (copied: %s)', async (works, status) => {
-    mocks.offersMacApp.mockReturnValue(true);
+    mocks.isMacOS.mockReturnValue(true);
     mocks.copyToClipboard.mockResolvedValue(works);
     const renderer = create(<About requestClose={vi.fn()} />);
     const copy = () => renderer.root.findByProps({ 'data-mac-app-copy-brew': '' });
