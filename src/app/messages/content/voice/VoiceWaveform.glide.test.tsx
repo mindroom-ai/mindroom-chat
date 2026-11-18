@@ -11,7 +11,7 @@ vi.mock('./VoiceWaveform.css', () => ({
   BarActive: 'BarActive',
   BarCompact: 'BarCompact',
   BarCompactUnrecorded: 'BarCompactUnrecorded',
-  CompactStrip: 'CompactStrip',
+  CompactLine: 'CompactLine',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
@@ -21,42 +21,46 @@ vi.mock('./VoiceWaveform.css', () => ({
   SeekInput: 'SeekInput',
 }));
 
-type FakeAnimation = {
-  target: Element;
-  keyframes: Keyframe[];
-  cancel: ReturnType<typeof vi.fn>;
-  handle: { startTime: CSSNumberish | null };
-};
-
 let host: HTMLDivElement;
 let root: Root;
-let animations: FakeAnimation[];
-let progress: number | null;
+// The time of the frame on screen, and the frame callbacks waiting for the next one.
+let now: number;
+let frames: Map<number, FrameRequestCallback>;
 
 const render = (liveSampleCount: number | undefined) =>
   act(() => {
     root.render(<VoiceWaveform waveform={[100, 200]} liveSampleCount={liveSampleCount} compact />);
   });
 
+const runFrame = (time: number) => {
+  now = time;
+  const callbacks = [...frames.values()];
+  frames.clear();
+  callbacks.forEach((callback) => callback(time));
+};
+
+const offset = () => host.querySelector('g')!.getAttribute('transform');
+
 beforeEach(() => {
-  animations = [];
-  progress = null;
-  // jsdom has no Web Animations; record what the waveform asks for.
-  HTMLElement.prototype.animate = vi.fn(function animate(
-    this: Element,
-    keyframes: Keyframe[],
-    options: KeyframeAnimationOptions
-  ) {
-    expect(options).toEqual({ duration: 80, easing: 'linear' });
-    const cancel = vi.fn();
-    const handle = {
-      cancel,
-      effect: { getComputedTiming: () => ({ progress }) },
-      startTime: null,
-    };
-    animations.push({ target: this, keyframes, cancel, handle });
-    return handle as unknown as Animation;
-  }) as unknown as HTMLElement['animate'];
+  now = 1000;
+  frames = new Map();
+  let nextFrame = 0;
+  vi.stubGlobal(
+    'requestAnimationFrame',
+    vi.fn((callback: FrameRequestCallback) => {
+      nextFrame += 1;
+      frames.set(nextFrame, callback);
+      return nextFrame;
+    })
+  );
+  vi.stubGlobal(
+    'cancelAnimationFrame',
+    vi.fn((frame: number) => frames.delete(frame))
+  );
+  Object.defineProperty(document, 'timeline', {
+    configurable: true,
+    get: () => ({ currentTime: now }),
+  });
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -65,46 +69,44 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
-  delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
   vi.unstubAllGlobals();
   Reflect.deleteProperty(document, 'timeline');
 });
 
 describe('VoiceWaveform live glide', () => {
-  it('glides the strip in from one bar step per new sample, carrying on a glide in flight', () => {
+  it('glides the bars in from one bar step per new sample, carrying on a glide in flight', () => {
     render(1);
-    expect(animations).toHaveLength(0);
+    expect(offset()).toBeNull();
 
+    // Placed a step right at the frame on screen, then back over the sample interval.
     render(2);
-    expect(animations).toHaveLength(1);
-    expect(animations[0]!.target.className).toBe('CompactStrip');
-    expect(animations[0]!.keyframes).toEqual([
-      { insetInlineEnd: '-0.1875rem' },
-      { insetInlineEnd: '0' },
-    ]);
+    expect(offset()).toBe('translate(3 0)');
+    runFrame(1040);
+    expect(offset()).toBe('translate(1.5 0)');
 
-    progress = 0.5;
     render(3);
-    expect(animations[0]!.cancel).toHaveBeenCalled();
-    expect(animations[1]!.keyframes[0]).toEqual({ insetInlineEnd: '-0.2813rem' });
+    expect(offset()).toBe('translate(4.5 0)');
 
-    // Never farther than the strip reaches past its start: many samples at once jump the rest.
+    // Never farther than two steps: many samples at once jump the rest.
     render(13);
-    expect(animations[2]!.keyframes[0]).toEqual({ insetInlineEnd: '-0.375rem' });
+    expect(offset()).toBe('translate(6 0)');
+    runFrame(1120);
+    expect(offset()).toBeNull();
+    expect(frames.size).toBe(0);
 
+    render(14);
     render(0);
-    expect(animations[2]!.cancel).toHaveBeenCalled();
-    expect(animations).toHaveLength(3);
+    expect(offset()).toBeNull();
+    expect(frames.size).toBe(0);
   });
 
-  it('starts each glide at the frame on screen', () => {
-    Object.defineProperty(document, 'timeline', {
-      configurable: true,
-      value: { currentTime: 1234 },
-    });
+  it('stops asking for frames when unmounted mid-glide', () => {
     render(1);
     render(2);
-    expect(animations[0]!.handle.startTime).toBe(1234);
+    expect(frames.size).toBe(1);
+    act(() => root.unmount());
+    expect(frames.size).toBe(0);
+    root = createRoot(host);
   });
 
   it('steps without gliding when reduced motion is asked for', () => {
@@ -114,12 +116,14 @@ describe('VoiceWaveform live glide', () => {
     );
     render(1);
     render(2);
-    expect(animations).toHaveLength(0);
+    expect(offset()).toBeNull();
+    expect(frames.size).toBe(0);
   });
 
   it('stays still without a live sample count', () => {
     render(undefined);
     render(undefined);
-    expect(animations).toHaveLength(0);
+    expect(offset()).toBeNull();
+    expect(frames.size).toBe(0);
   });
 });

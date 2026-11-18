@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { KeyboardEventHandler, RefObject, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
-import { toRem } from 'folds';
 import {
   clampWaveformPoint,
   createFallbackWaveform,
@@ -11,9 +10,21 @@ import {
   normalizeMatrixWaveform,
 } from '../../../lib/audioWaveform';
 import * as css from './VoiceWaveform.css';
-import { BAR_GAP, BAR_STEP, BAR_WIDTH, GLIDE_MAX_STEPS } from './waveformGeometry';
 
+// Sizes in SVG user units. The compact waveform is toRem(32) tall and as wide as its viewBox
+// makes it, so a unit is one px at the default root font size, scaled with page zoom.
 const SVG_HEIGHT = 32;
+const BAR_WIDTH = 2;
+const BAR_GAP = 1;
+// One bar and its gap: how far the bars move per new sample, and the dotted line's repeat.
+const BAR_STEP = BAR_WIDTH + BAR_GAP;
+// The farthest a live glide starts from rest, in bar steps. More samples at once jump the rest
+// of the way.
+const GLIDE_MAX_STEPS = 2;
+// The compact svg is this many bar steps wide, wider than any waveform, whatever the number of
+// bars: its box then never moves, so neither does the pixel its origin is snapped to (see
+// useLiveGlide). The bars sit at its right end and the dotted line fills the rest.
+const COMPACT_VIEW_STEPS = 2048;
 const RECORDING_WAVEFORM_SPEECH_BOOST_START = 0.12;
 const RECORDING_WAVEFORM_SPEECH_BOOST = 0.9;
 const getSvgWidth = (barCount: number): number =>
@@ -58,7 +69,8 @@ const prefersReducedMotion = (): boolean =>
 const renderBars = (
   bars: number[],
   compact: boolean | undefined,
-  getClassName: (index: number) => string
+  getClassName: (index: number) => string,
+  firstStep = 0
 ) =>
   bars.map((point, index) => {
     const height = getBarHeight(point, compact);
@@ -67,7 +79,7 @@ const renderBars = (
         // eslint-disable-next-line react/no-array-index-key
         key={index}
         className={getClassName(index)}
-        x={index * (BAR_WIDTH + BAR_GAP)}
+        x={(firstStep + index) * BAR_STEP}
         y={(SVG_HEIGHT - height) / 2}
         width={BAR_WIDTH}
         height={height}
@@ -76,16 +88,30 @@ const renderBars = (
     );
   });
 
-type Glide = { animation: Animation; fromSteps: number };
+type Glide = { fromSteps: number; startTime: number; frame: number };
 
-// Each new sample moves the bars a step left. Rather than jump, the strip starts that far to
-// the right and glides back over one sample interval, from wherever a glide still running left it.
-// The glide moves the strip's end inset, not its transform. A transform glide runs on the
-// compositor in a layer as wide as every bar recorded so far, and iOS WebKit draws that layer blank
-// for the whole glide at some widths, so the bars flickered with every sample. In the iOS 27.2
-// simulator 300 bars failed while fewer than 170 or more than 500 did not; which widths fail is
-// unknown on devices, so a narrower layer is no safe way back to a transform.
-const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number | undefined) => {
+// The time of the frame on screen, which requestAnimationFrame's timestamps count in too.
+const getFrameTime = (doc: Document): number => {
+  const time = doc.timeline?.currentTime;
+  return typeof time === 'number' ? time : performance.now();
+};
+
+// How far the bars still are from rest at a frame time, in bar steps.
+const getGlideSteps = (glide: Glide, time: number): number =>
+  glide.fromSteps *
+  (1 - clampProgress((time - glide.startTime) / VOICE_WAVEFORM_SAMPLE_INTERVAL_MS));
+
+// Each new sample moves the bars a step left. Rather than jump, the bars start that far to the
+// right and glide back over one sample interval, from wherever a glide still running left them.
+// The glide moves the bars inside the svg, by a transform attribute on their group written every
+// animation frame. Moving a box instead, as the strip's end inset did, is snapped to whole device
+// pixels by Chrome and WebKit, so at a non-integer pixel ratio (browser zoom, display scaling)
+// the bars moved 1, 1, 1, then 2 pixels a frame, and with crisp edges each bar's edges rounded
+// on their own, so bars and gaps changed width as they went. Inside the svg, whose box stays put
+// (COMPACT_VIEW_STEPS), the bars move by fractions of a pixel, antialiased. Nor is the group a
+// CSS transform animation: browsers may give that its own compositor layer as wide as every bar
+// recorded so far, and iOS WebKit drew such a layer blank for whole glides at some widths (#416).
+const useLiveGlide = (barsRef: RefObject<SVGGElement>, sampleCount: number | undefined) => {
   const lastCountRef = useRef(sampleCount);
   const glideRef = useRef<Glide>();
 
@@ -97,27 +123,44 @@ const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number |
     lastCountRef.current = sampleCount;
     const running = glideRef.current;
     glideRef.current = undefined;
-    const progress = running?.animation.effect?.getComputedTiming().progress;
-    running?.animation.cancel();
+    if (running) cancelAnimationFrame(running.frame);
 
-    const strip = stripRef.current;
-    if (added <= 0 || !strip || typeof strip.animate !== 'function' || prefersReducedMotion()) {
+    const bars = barsRef.current;
+    if (!bars) return;
+    const startTime = getFrameTime(bars.ownerDocument);
+    if (added <= 0 || typeof requestAnimationFrame !== 'function' || prefersReducedMotion()) {
+      bars.removeAttribute('transform');
       return;
     }
-    const fromSteps = Math.min(
-      GLIDE_MAX_STEPS,
-      added + (running && typeof progress === 'number' ? running.fromSteps * (1 - progress) : 0)
-    );
-    const animation = strip.animate(
-      [{ insetInlineEnd: toRem(-fromSteps * BAR_STEP) }, { insetInlineEnd: '0' }],
-      { duration: VOICE_WAVEFORM_SAMPLE_INTERVAL_MS, easing: 'linear' }
-    );
-    // Start at the frame on screen rather than the next one, which would hold the bars still
-    // for a frame on every sample.
-    const frameTime = strip.ownerDocument.timeline?.currentTime;
-    if (frameTime !== undefined && frameTime !== null) animation.startTime = frameTime;
-    glideRef.current = { fromSteps, animation };
-  }, [sampleCount, stripRef]);
+    const glide: Glide = {
+      fromSteps: Math.min(
+        GLIDE_MAX_STEPS,
+        added + (running ? getGlideSteps(running, startTime) : 0)
+      ),
+      startTime,
+      frame: 0,
+    };
+    const draw = (time: number) => {
+      const steps = getGlideSteps(glide, time);
+      if (steps <= 0) {
+        bars.removeAttribute('transform');
+        if (glideRef.current === glide) glideRef.current = undefined;
+        return;
+      }
+      bars.setAttribute('transform', `translate(${steps * BAR_STEP} 0)`);
+      glide.frame = requestAnimationFrame(draw);
+    };
+    glideRef.current = glide;
+    // Place the bars for the frame on screen now, since this render just moved them left.
+    draw(startTime);
+  }, [sampleCount, barsRef]);
+
+  useLayoutEffect(
+    () => () => {
+      if (glideRef.current) cancelAnimationFrame(glideRef.current.frame);
+    },
+    []
+  );
 };
 
 // Media reports its time only a few times a second, so a fill drawn from those reports moves in
@@ -171,11 +214,14 @@ export function VoiceWaveform({
   onSeekProgress,
 }: VoiceWaveformProps) {
   const { t } = useTranslation();
-  const stripRef = useRef<HTMLDivElement>(null);
-  useLiveGlide(stripRef, compact ? liveSampleCount : undefined);
+  const glideRef = useRef<SVGGElement>(null);
+  useLiveGlide(glideRef, compact ? liveSampleCount : undefined);
   const bars = compact ? normalizeRecordingWaveform(waveform) : normalizeMatrixWaveform(waveform);
   const compactUnrecordedBarCount = compact ? getCompactUnrecordedBarCount(waveform) : 0;
-  const svgWidth = getSvgWidth(bars.length || VOICE_WAVEFORM_BAR_COUNT);
+  const svgWidth = getSvgWidth(
+    compact ? COMPACT_VIEW_STEPS : bars.length || VOICE_WAVEFORM_BAR_COUNT
+  );
+  const compactFirstStep = COMPACT_VIEW_STEPS - bars.length;
   const normalizedProgress = clampProgress(progress);
   const fillRef = useRef<SVGSVGElement>(null);
   usePlayedFill(fillRef, svgWidth, normalizedProgress, compact ? undefined : getProgress);
@@ -205,6 +251,17 @@ export function VoiceWaveform({
     }
   };
 
+  const baseBars = renderBars(
+    bars,
+    compact,
+    (index) =>
+      classNames(
+        css.Bar,
+        compact && css.BarCompact,
+        compact && index < compactUnrecordedBarCount && css.BarCompactUnrecorded
+      ),
+    compact ? compactFirstStep : 0
+  );
   const svg = (
     <svg
       className={classNames(css.Svg, compact && css.SvgCompact)}
@@ -214,7 +271,6 @@ export function VoiceWaveform({
             width: svgWidth,
             height: SVG_HEIGHT,
             preserveAspectRatio: 'none',
-            shapeRendering: 'crispEdges',
           }
         : {
             preserveAspectRatio: 'none',
@@ -222,12 +278,23 @@ export function VoiceWaveform({
       aria-hidden="true"
       focusable="false"
     >
-      {renderBars(bars, compact, (index) =>
-        classNames(
-          css.Bar,
-          compact && css.BarCompact,
-          compact && index < compactUnrecordedBarCount && css.BarCompactUnrecorded
-        )
+      {compact ? (
+        // The bars and the dotted line before them, whose dots fall at the bars' step, glide
+        // left together (useLiveGlide).
+        <g ref={glideRef}>
+          <line
+            className={css.CompactLine}
+            x1={0}
+            x2={Math.max(0, compactFirstStep) * BAR_STEP}
+            y1={SVG_HEIGHT / 2}
+            y2={SVG_HEIGHT / 2}
+            strokeWidth={3}
+            strokeDasharray={`${BAR_WIDTH} ${BAR_GAP}`}
+          />
+          {baseBars}
+        </g>
+      ) : (
+        baseBars
       )}
       {/* The played part: the same bars in the active color, cut off at the playback position
           by this nested svg's viewport, so the fill moves by pixels rather than whole bars. */}
@@ -237,13 +304,6 @@ export function VoiceWaveform({
         </svg>
       )}
     </svg>
-  );
-  const content = compact ? (
-    <div ref={stripRef} className={css.CompactStrip}>
-      {svg}
-    </div>
-  ) : (
-    svg
   );
 
   if (onSeekProgress) {
@@ -256,7 +316,7 @@ export function VoiceWaveform({
           dimmed && css.WaveformDimmed
         )}
       >
-        {content}
+        {svg}
         <input
           className={css.SeekInput}
           type="range"
@@ -286,7 +346,7 @@ export function VoiceWaveform({
       aria-hidden={label ? undefined : true}
       aria-label={label}
     >
-      {content}
+      {svg}
     </div>
   );
 }

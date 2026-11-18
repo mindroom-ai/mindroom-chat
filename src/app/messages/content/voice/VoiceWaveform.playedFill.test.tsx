@@ -11,7 +11,7 @@ vi.mock('./VoiceWaveform.css', () => ({
   BarActive: 'BarActive',
   BarCompact: 'BarCompact',
   BarCompactUnrecorded: 'BarCompactUnrecorded',
-  CompactStrip: 'CompactStrip',
+  CompactLine: 'CompactLine',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
