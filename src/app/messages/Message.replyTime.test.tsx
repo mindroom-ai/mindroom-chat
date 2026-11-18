@@ -176,12 +176,15 @@ describe("an agent reply's header time", () => {
     expect(details.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('stays on a follow-up agent reply, which a person\'s follow-up drops', async () => {
-    expect(await renderMessage(MessageLayout.Modern, timing, WITH_RUN, true)).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Reply details' })).toBeTruthy();
-    cleanup();
-    expect(await renderMessage(MessageLayout.Modern, timing, PLAIN, true)).toBeNull();
-  });
+  it.each([MessageLayout.Modern, MessageLayout.Bubble])(
+    "stays on a follow-up agent reply, which a person's follow-up drops (%s)",
+    async (layout) => {
+      expect(await renderMessage(layout, timing, WITH_RUN, true)).not.toBeNull();
+      expect(screen.getByRole('button', { name: 'Reply details' })).toBeTruthy();
+      cleanup();
+      expect(await renderMessage(layout, timing, PLAIN, true)).toBeNull();
+    }
+  );
 
   it('keeps unfolding on a tap, with the reply details on its button', async () => {
     const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);

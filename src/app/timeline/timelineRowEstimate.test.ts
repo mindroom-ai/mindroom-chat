@@ -174,6 +174,16 @@ describe('estimateRoomRowHeight', () => {
     expect(estimateRoomRowHeight(other, first)).toBe(68);
   });
 
+  it('keeps the author line of an agent reply that follows one from the same agent', () => {
+    const run = { version: 1, status: 'completed' };
+    const reply = makeEvent({
+      id: '$reply',
+      ts: first.getTs() + 1_000,
+      content: { msgtype: 'm.text', body: 'hello', 'io.mindroom.ai_run': run },
+    });
+    expect(estimateRoomRowHeight(reply, first)).toBe(68);
+  });
+
   it('adds the thread badge the threaded view shows under a message', () => {
     expect(estimateRoomRowHeight(first, undefined, { threadBadge: true })).toBe(68 + 31);
   });

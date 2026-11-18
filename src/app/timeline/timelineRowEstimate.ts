@@ -1,5 +1,6 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { getAiRunInfo } from '../matrix/protocol/aiRun';
 import { hasMessageExtras } from '../matrix/protocol/messageExtrasData';
 import { hasThreadSummary } from '../matrix/protocol/threadSummary';
 import { inSameDay } from '../lib/time';
@@ -180,8 +181,8 @@ export const estimateMessageRowHeight = (
 
 /**
  * A room row in the Modern or Bubble layout: state changes as a line or nothing, messages with
- * the author line that starts a group and the thread badge the threaded view puts under them,
- * and the date separator above a new day.
+ * the author line that starts a group (or that an agent reply keeps, as Message does) and the
+ * thread badge the threaded view puts under them, and the date separator above a new day.
  */
 export const estimateRoomRowHeight = (
   event: MatrixEvent,
@@ -194,9 +195,10 @@ export const estimateRoomRowHeight = (
   if (!getTimelineMessageKind(type)) return 0;
   const bodyPx = estimateMessageRowHeight(event, { compact: false });
   if (bodyPx === 0) return 0;
-  const rowPx = startsAuthorGroup(above, event)
-    ? Math.max(AUTHOR_ROW_MIN_PX, bodyPx + AUTHOR_LINE_PX)
-    : bodyPx;
+  const rowPx =
+    startsAuthorGroup(above, event) || getAiRunInfo(event.getContent())
+      ? Math.max(AUTHOR_ROW_MIN_PX, bodyPx + AUTHOR_LINE_PX)
+      : bodyPx;
   const newDay = !!above && !inSameDay(above.getTs(), event.getTs());
   return rowPx + (threadBadge ? THREAD_BADGE_PX : 0) + (newDay ? DAY_DIVIDER_PX : 0);
 };
