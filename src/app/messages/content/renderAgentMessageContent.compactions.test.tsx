@@ -32,20 +32,18 @@ vi.mock('./LongTextText', () => ({
   },
 }));
 
-// The real RenderBody and its memo, under an MText that passes the body alone, as a reply that
-// arrives without its HTML does, so the agent's Markdown body renders as MindRoom writes it.
+// The real RenderBody and its memo, under an MText (and an MNotice like it) that passes the body
+// alone, as a reply that arrives without its HTML does, so the agent's Markdown body renders as
+// MindRoom writes it.
 vi.mock('./MsgTypeRenderers', async () => {
-  return {
-    MEmote: () => null,
-    MNotice: () => null,
-    MText: ({ content, renderBody, renderAfterBody }: any) =>
-      React.createElement(
-        'div',
-        null,
-        renderBody({ body: content.body, customBody: content.formatted_body }),
-        renderAfterBody
-      ),
-  };
+  const MText = ({ content, renderBody, renderAfterBody }: any) =>
+    React.createElement(
+      'div',
+      null,
+      renderBody({ body: content.body, customBody: content.formatted_body }),
+      renderAfterBody
+    );
+  return { MEmote: () => null, MNotice: MText, MText };
 });
 vi.mock('./RenderBody', async () => {
   const { RenderBody } = await import('./RenderBody');
@@ -775,6 +773,7 @@ describe('an old compaction notice outside an open thread', () => {
     });
 
     expect(seams()).toHaveLength(0);
+    expect(textOf(renderer!.root)).toContain('📦 Compacted 24 runs');
   });
 
   it('counts no seconds for a running notice without its event, whose start is unknown', () => {
