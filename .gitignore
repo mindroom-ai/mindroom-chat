@@ -22,3 +22,6 @@ ios/Watch/MatrixRustSDK/*.zip
 ios/Watch/MatrixRustSDK/release
 ios/Watch/MatrixRustSDK/build/
 ios/Watch/**/.build/
+
+# Sparkle for the Mac app's updater bundle (scripts/fetch-sparkle.sh).
+ios/MacUpdater/Sparkle/

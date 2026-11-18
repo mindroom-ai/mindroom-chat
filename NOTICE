@@ -51,6 +51,16 @@ matrix-rust-sdk (Apple Watch app)
   xxhash-rust (Boost Software License 1.0, permissive, no notice required in a
   binary; matrix-sdk-base needs it through growable-bloom-filter).
 
+Sparkle (Mac app updater)
+  Sparkle 2.10.1, Copyright (c) 2006-2013 Andy Matuschak and the other
+  authors its license names, MIT License (https://github.com/sparkle-project/Sparkle).
+  The Developer ID Mac app embeds it unmodified in its updater bundle,
+  fetched by scripts/fetch-sparkle.sh. Its license file also covers the parts
+  it includes: bsdiff 4.3 (BSD-style, Copyright 2003-2005 Colin Percival),
+  sais-lite (MIT, Copyright 2008-2010 Yuta Mori), orlp/ed25519 (zlib,
+  Copyright 2015 Orson Peters) and SUSignatureVerifier.m (BSD-style,
+  Copyright 2011 Mark Hamlin). License text: licenses/Sparkle-MIT.txt.
+
 noVNC
   @novnc/novnc 1.7.0, Copyright (C) The noVNC authors, Mozilla Public License
   2.0 (its vendored pako is MIT). The web bundle includes noVNC unmodified.
