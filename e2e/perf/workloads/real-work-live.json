@@ -3,8 +3,8 @@
   "agents": 1,
   "quietRooms": 112,
   "quietMessages": 10,
-  "threads": 654,
-  "resolvedThreads": 625,
+  "threads": 187,
+  "resolvedThreads": 159,
   "heavy": {
     "threads": 8,
     "turns": {
@@ -67,5 +67,5 @@
     },
     "stuckSeconds": 3600
   },
-  "historyStreams": 40
+  "historyStreams": 80
 }
