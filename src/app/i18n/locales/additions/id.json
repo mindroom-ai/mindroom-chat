@@ -1005,6 +1005,11 @@
         "levelIsDefault": "{{level}}, bawaan",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Bawaan agen",
+        "roomModel": "Model ruangan",
+        "defaultChoice": "Bawaan",
+        "threadOnly": "Model yang dipilih di sini hanya berlaku untuk utas ini.",
+        "roomOverrideThreadOnly": "Diatur untuk ruangan ini dengan !room_model. Model yang dipilih di sini hanya berlaku untuk utas ini.",
         "levels": {
           "off": "Mati",
           "minimal": "Minimal",

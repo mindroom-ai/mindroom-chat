@@ -1105,6 +1105,11 @@
         "levelIsDefault": "⁨{{level}}⁩، افتراضي",
         "withLevel": "⁨{{model}}⁩ · ⁨{{level}}⁩",
         "roomDefaultWith": "⁨{{label}}⁩ · ⁨{{models}}⁩",
+        "agentDefault": "افتراضي الوكيل",
+        "roomModel": "نموذج الغرفة",
+        "defaultChoice": "افتراضي",
+        "threadOnly": "ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
+        "roomOverrideThreadOnly": "مُعيَّن لهذه الغرفة باستخدام !room_model. ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
         "levels": {
           "off": "إيقاف",
           "minimal": "أدنى",

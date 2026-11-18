@@ -1025,6 +1025,11 @@
         "levelIsDefault": "{{level}}, डिफ़ॉल्ट",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "एजेंट डिफ़ॉल्ट",
+        "roomModel": "रूम मॉडल",
+        "defaultChoice": "डिफ़ॉल्ट",
+        "threadOnly": "यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
+        "roomOverrideThreadOnly": "इस रूम के लिए !room_model से सेट किया गया। यहाँ चुना गया मॉडल केवल इस थ्रेड पर लागू होता है।",
         "levels": {
           "off": "बंद",
           "minimal": "न्यूनतम",

@@ -1025,6 +1025,11 @@
         "levelIsDefault": "{{level}}, default",
         "withLevel": "{{model}} · {{level}}",
         "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Agent default",
+        "roomModel": "Room model",
+        "defaultChoice": "Default",
+        "threadOnly": "Choosing a model here applies to this thread only.",
+        "roomOverrideThreadOnly": "Set for this room with !room_model. Choosing a model here applies to this thread only.",
         "levels": {
           "off": "Off",
           "minimal": "Minimal",
