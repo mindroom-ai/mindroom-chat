@@ -19,11 +19,11 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
-// On a phone (390 by 844, touch) the composer row is "More actions", "Record voice message", the
-// text box and "Send message"; "More actions" opens a menu with Attach files, Formatting and
+// On a phone (390 by 844, touch) the composer row at rest is "More actions", "Record voice
+// message", the text box and "Send message"; "More actions" opens a menu with Attach files, Formatting and
 // Emoji, each of which works from there, and Escape gives focus back to "More actions". Every
 // control of the row and of the menu takes at least 44 px to a finger. A desktop (1280 by 800)
-// keeps its five buttons and no menu. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
+// keeps its five buttons, under the text box, and no menu. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
 // names Playwright's WebKit, in WebKit. Set PHONE_COMPOSER_SHOTS=<directory> to save the composer
 // in light and dark, closed and with the menu open.
 const PASSWORD = 'phone-composer-spec-password';
@@ -97,9 +97,12 @@ const shot = async (page: Page, name: string, extra?: Locator) => {
   });
 };
 
-/** The controls beside the text box, left to right, and the width of the text box's column. */
-const composerRow = async (page: Page) =>
-  textBox(page).evaluate((editable) => {
+/**
+ * The controls beside the text box (or, with `below`, in the row under it), left to right, and
+ * the width of the text box's column.
+ */
+const composerRow = async (page: Page, below = false) =>
+  textBox(page).evaluate((editable, under) => {
     // The row is the text box's nearest ancestor that also holds Send; its child holding the text
     // box is the scrolling column the text takes.
     let row: Element | null = editable;
@@ -107,16 +110,20 @@ const composerRow = async (page: Page) =>
     if (!row) return { names: [], textWidth: 0 };
     const column = [...row.children].find((child) => child.contains(editable)) ?? editable;
     const text = editable.getBoundingClientRect();
-    // Only the row's own controls: on the text box's line, not the model picker above it.
+    // Only the row's own controls: on the text box's line (or under it), not the model picker.
     const buttons = [...row.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
       .map((candidate) => ({ candidate, rect: candidate.getBoundingClientRect() }))
-      .filter(({ rect }) => rect.width > 0 && rect.top < text.bottom && rect.bottom > text.top)
+      .filter(({ rect }) =>
+        under
+          ? rect.width > 0 && rect.top >= text.bottom - 1
+          : rect.width > 0 && rect.top < text.bottom && rect.bottom > text.top
+      )
       .sort((a, b) => a.rect.left - b.rect.left);
     return {
       names: buttons.map(({ candidate }) => candidate.getAttribute('aria-label') ?? ''),
       textWidth: column.getBoundingClientRect().width,
     };
-  });
+  }, below);
 
 /** Taps 1 px inside the 44 px square around a control's centre, at its four edges. */
 const hitArea = async (target: Locator) =>
@@ -260,7 +267,8 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
 
 const checkDesktop = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
-  const row = await composerRow(page);
+  // Two rows on a desktop: the five buttons sit under the text box.
+  const row = await composerRow(page, true);
   console.log(`${engine} desktop row: ${JSON.stringify(row)}`);
   expect(row.names, `${engine}: the desktop row keeps its five buttons`).toEqual(DESKTOP_ROW);
   await expect(button(page, 'More actions')).toHaveCount(0);
