@@ -82,6 +82,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             }
             // A closed window's page would live on unseen: its client syncing beside the next
             // window's, and serving the widget a room nobody sees. It stops, which tells the widget.
+            // Its recording ends with it: the blank page below loads past the bridge.
+            ((window.rootViewController as? CAPBridgeViewController)?.bridge?
+                .plugin(withName: "MindRoomVoiceRecorder") as? MindRoomVoiceRecorderPlugin)?.close()
             QuickCapture.stopPage(of: window)
             self.window = nil
         }

@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "Het antwoord eindigde voordat de samenvatting klaar was."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Transcriberen…",
+        "transcribedBy": "Getranscribeerd door {{name}}"
       }
     },
     "message-search": {
@@ -1020,6 +1024,7 @@
         "defaultLevel": "Standaard",
         "levelIsDefault": "{{level}}, standaard",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "Uit",
           "minimal": "Minimaal",

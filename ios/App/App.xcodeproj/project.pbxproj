@@ -29,6 +29,7 @@
 		0C0000000000000000000004 /* MacWindowing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000003 /* MacWindowing.swift */; };
 		0C0000000000000000000006 /* MindRoomQuickCapturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */; };
 		0C0000000000000000000008 /* MacScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000007 /* MacScreenshot.swift */; };
+		5A0000000000000000000002 /* MindRoomVoiceRecorderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */; };
 		00793D37691CA6A2C357C1DA /* MindRoomWatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */; };
 		525804A9D89766D91C052708 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A02C0E28C92536C30CEA5B63 /* Foundation.framework */; };
 		6A496C5B7FBC4E20A2D784F9 /* MatrixRustSDK in Frameworks */ = {isa = PBXBuildFile; productRef = FE89B787D18AF34B13E63160 /* MatrixRustSDK */; };
@@ -53,6 +54,7 @@
 		6EFA77CC23C196F79EF56888 /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		709FB5E9C80813AB7DAE22E0 /* MindRoomBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */; };
 		7A65B94786FF949EF0E4CD2F /* MacScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000007 /* MacScreenshot.swift */; };
+		5A0000000000000000000003 /* MindRoomVoiceRecorderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */; };
 		7CE6F5DED105D44E79BFEAFD /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000006 /* Localizable.strings */; };
 		7EEEF7FC79B94313A581C118 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE000000000000000A /* SceneDelegate.swift */; };
 		802FA907131E7013397E92B4 /* Pods_AppStoreMac.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8AE896A6002904AFA4E475C8 /* Pods_AppStoreMac.framework */; };
@@ -224,6 +226,7 @@
 		0C0000000000000000000003 /* MacWindowing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowing.swift; sourceTree = "<group>"; };
 		0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomQuickCapturePlugin.swift; sourceTree = "<group>"; };
 		0C0000000000000000000007 /* MacScreenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScreenshot.swift; sourceTree = "<group>"; };
+		5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomVoiceRecorderPlugin.swift; sourceTree = "<group>"; };
 		0C534A4503B3860B63E31A5E /* MindRoomWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MindRoomWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindRoomWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A02C0E28C92536C30CEA5B63 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -395,6 +398,7 @@
 				0C0000000000000000000003 /* MacWindowing.swift */,
 				0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */,
 				0C0000000000000000000007 /* MacScreenshot.swift */,
+				5A0000000000000000000001 /* MindRoomVoiceRecorderPlugin.swift */,
 				4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */,
 				1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */,
 				D1A600000000000000000007 /* PrivacyInfo.xcprivacy */,
@@ -859,6 +863,7 @@
 				0C0000000000000000000004 /* MacWindowing.swift in Sources */,
 				0C0000000000000000000006 /* MindRoomQuickCapturePlugin.swift in Sources */,
 				0C0000000000000000000008 /* MacScreenshot.swift in Sources */,
+				5A0000000000000000000002 /* MindRoomVoiceRecorderPlugin.swift in Sources */,
 				00793D37691CA6A2C357C1DA /* MindRoomWatchPlugin.swift in Sources */,
 				BDACE7C7D158832EA988828D /* MindRoomMacUpdaterProtocol.swift in Sources */,
 				FBFB57312EB4954DF040540E /* MacUpdater.swift in Sources */,
@@ -904,6 +909,7 @@
 				B588122A7BC911C23286447C /* QuickCaptureSceneDelegate.swift in Sources */,
 				4426B337DBA8F5597EA1AD57 /* MindRoomQuickCapturePlugin.swift in Sources */,
 				7A65B94786FF949EF0E4CD2F /* MacScreenshot.swift in Sources */,
+				5A0000000000000000000003 /* MindRoomVoiceRecorderPlugin.swift in Sources */,
 				43058421F5AFF09E2B626793 /* MindRoomWatchPlugin.swift in Sources */,
 				2A5E5246A3B9F2950ACBE0F1 /* MacWindowingStore.swift in Sources */,
 				AE3B0275A3F4DAF6184EAA44 /* MindRoomMacSupportProtocol.swift in Sources */,

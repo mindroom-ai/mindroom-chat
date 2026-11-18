@@ -15,10 +15,10 @@ import {
   disableIOSPushPusher,
   isNativeIOSPlatform,
   type NativePushPermission,
+  registerIOSPush,
   requestIOSPushPermission,
   resolveIOSPushConfig,
   setIOSPushEnabled,
-  unregisterIOSPush,
 } from './iosPush';
 import { useIOSPushEnabled } from './useIOSPushEnabled';
 
@@ -71,13 +71,15 @@ function IOSPushNotificationTile() {
           let current = await checkIOSPushPermission();
           if (current === 'prompt') current = await requestIOSPushPermission();
           if (current !== 'granted') throw new Error('Notification permission was not granted.');
-          // NativeIOSPushFeature registers with APNs and the homeserver once this is on.
           setIOSPushEnabled(true, sessionId);
+          // Granting permission changes nothing NativeIOSPushFeature watches (on a fresh install
+          // push is already on), so register here; its listener sends the token as the pusher.
+          await registerIOSPush();
           return;
         }
         setIOSPushEnabled(false, sessionId);
+        // Only this account's pusher goes: the device stays registered with APNs for the others.
         if (pushConfig) await disableIOSPushPusher(matrixClient, pushConfig, sessionId);
-        await unregisterIOSPush();
       },
       [matrixClient, pushConfig, sessionId]
     )
@@ -119,7 +121,7 @@ function IOSPushNotificationTile() {
         after={
           <Switch
             variant="Primary"
-            value={enabled && permission !== 'denied'}
+            value={!!pushConfig && enabled && permission === 'granted'}
             disabled={busy || !pushConfig}
             onChange={handleChange}
           />

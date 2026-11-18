@@ -37,6 +37,7 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
+import { takeCompactFocusRequest } from '../threads/overview/compactFocusRequest';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
@@ -127,7 +128,16 @@ import {
   useThreadApprovalTimeline,
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
-import { InlineSecretRequestsContext } from '../messages/inlineSecretRequests';
+import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
+import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
+import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { MINDROOM_ROUTER_STATE_EVENT, trustedRouterUserId } from '../matrix/protocol/routerBinding';
+import {
+  InlineSecretRequestsContext,
+  useDrawnSecretRequestIds,
+} from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
@@ -197,6 +207,10 @@ export type RoomTimelineProps = {
   threadId?: string;
   /** Show a permalinked thread root in the room instead of opening its thread. */
   focusEventInRoom?: boolean;
+  /** The router's key of the history entry whose address names `eventId`. */
+  entryKey?: string;
+  /** Whether the router pushed that entry (a link followed), not replaced or returned to it. */
+  entryPushed?: boolean;
   summaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
@@ -258,9 +272,6 @@ const useTimelineDisplaySettings = () => ({
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
 });
 
-/** Where a focused Compact card without a saved place sits: its top this far below the list's. */
-const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
-
 /**
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
  * Full (classic) views show the room timeline, the threaded one with a thread badge under each
@@ -289,6 +300,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     eventId,
     threadId,
     focusEventInRoom,
+    entryKey,
+    entryPushed,
     summaryMap,
     onStoreThreadSummary,
     threadFilterState,
@@ -848,8 +861,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     eventId,
     focusItem?.eventId
   );
-  // Secret request cards the open thread's replies draw at their tool calls, rows hidden here.
-  const secretRequestTimeline = useInlineSecretRequestPlan({
+  // Secret request cards the open thread's replies may draw at their tool calls. A card's row
+  // hides while its line is mounted in a reply and at no other time, so the two never disagree.
+  const secretRequestPlan = useInlineSecretRequestPlan({
     room,
     events: ownThreadEvents,
     getContent: getRowContent,
@@ -858,6 +872,30 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     routeId: eventId,
     focusId: focusItem?.eventId,
+  });
+  const drawnSecretRequestIds = useDrawnSecretRequestIds(secretRequestPlan);
+  const secretRequestTimeline = useMemo(
+    () => ({ hiddenEventIds: drawnSecretRequestIds }),
+    [drawnSecretRequestIds]
+  );
+  // The router's voice echoes drawn under the voice messages they transcribe, rows hidden here.
+  // Only from the router the room's state names, read again when that state or the levels change.
+  const voiceRouterBinding = useStateEvent(room, MINDROOM_ROUTER_STATE_EVENT);
+  const powerLevels = usePowerLevelsContext();
+  const roomCreators = useRoomCreators(room);
+  const rawPowerLevels = useStateEvent(room, StateEvent.RoomPowerLevels)?.getContent();
+  // Paired among the rows the window draws: an echo hides only beside its drawn voice message.
+  const voiceTranscripts = useVoiceTranscriptPlan({
+    events: threadId ? threadEvents : roomWindowRows,
+    getContent: getRowContent,
+    routerUserId: trustedRouterUserId(
+      voiceRouterBinding,
+      powerLevels,
+      roomCreators,
+      rawPowerLevels
+    ),
+    ignored: ignoredUsersSet,
+    revealed: pluginRevealedRef.current,
   });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
@@ -868,10 +906,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       isQuietMarkerRow(event, { threadSummaryTimeline, forkPrefixEventIds }, rowTimelineSet),
     [forkPrefixEventIds, isQuietMarkerRow, rowTimelineSet, threadSummaryTimeline]
   );
+  // A secret request card counts as a row of its turn whether or not a reply draws it now: the
+  // folds would hide that reply, and so change what it draws.
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
       isTimelineRowHidden(event, {
-        messageData: { approvalTimeline, threadSummaryTimeline, secretRequestTimeline },
+        messageData: {
+          approvalTimeline,
+          threadSummaryTimeline,
+          secretRequestTimeline: { hiddenEventIds: EMPTY_IDS },
+          voiceTranscripts,
+        },
         ignoredUsersSet,
         showHiddenEvents,
         isHiddenByPlugin,
@@ -880,9 +925,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       approvalTimeline,
       ignoredUsersSet,
       isHiddenByPlugin,
-      secretRequestTimeline,
       showHiddenEvents,
       threadSummaryTimeline,
+      voiceTranscripts,
     ]
   );
   const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
@@ -1085,20 +1130,22 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
       : virtualizer.getTotalSize();
   // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
-  // (the row that draws a folded turn's break measures the break); one shown again gets its
-  // estimate back, so a jump to it mounts it.
+  // (the row that draws a folded turn's break measures the break, also when it is a secret
+  // request card a reply draws); one shown again gets its estimate back, so a jump to it mounts it.
   const threadHiddenIds = useMemo(() => {
     if (!threadId) return EMPTY_IDS;
     if (
       pluginHiddenThreadIds.size === 0 &&
       secretRequestTimeline.hiddenEventIds.size === 0 &&
+      voiceTranscripts.hiddenEventIds.size === 0 &&
       turnFolds.view.hiddenIds.size === 0
     ) {
       return approvalTimeline.hiddenEventIds;
     }
     return new Set([
       ...approvalTimeline.hiddenEventIds,
-      ...secretRequestTimeline.hiddenEventIds,
+      ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
+      ...voiceTranscripts.hiddenEventIds,
       ...pluginHiddenThreadIds,
       ...turnFolds.view.hiddenIds,
     ]);
@@ -1106,6 +1153,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadId,
     approvalTimeline.hiddenEventIds,
     secretRequestTimeline.hiddenEventIds,
+    voiceTranscripts.hiddenEventIds,
     pluginHiddenThreadIds,
     turnFolds.view,
   ]);
@@ -1744,16 +1792,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     // Leaving a thread comes back here focused on its root. One opened from its card finds the
     // place the list saved with that card in view; one opened from a link has none, so its card
     // takes a place below the bar, and the list's memory brings it there as cards render.
-    const savedPlace = compactRoomScrollStateRef.current.get(room.roomId);
-    if (
-      eventId &&
-      focusEventInRoom &&
-      !savedPlace?.anchors.some((anchor) => anchor.key === eventId)
-    ) {
-      compactRoomScrollStateRef.current.set(room.roomId, {
-        scrollTop: 1,
-        anchors: [{ key: eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
-      });
+    const focusRequest =
+      eventId && focusEventInRoom ? { eventId, entryKey, pushed: entryPushed } : undefined;
+    if (focusRequest) {
+      takeCompactFocusRequest(compactRoomScrollStateRef.current, room.roomId, focusRequest);
     }
     return (
       <Box ref={compactHostRef} grow="Yes" direction="Column" style={roomStyle}>
@@ -1764,6 +1806,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           threadRecordMap={threadIndex.compactThreadRecordMap}
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
+          focusRequest={focusRequest}
           filterBarShown={filterBarShown}
           // The clock the list was filtered at, so the sections show what the selected tab does.
           sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
@@ -1810,6 +1853,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     approvalTimeline,
     threadSummaryTimeline,
     secretRequestTimeline,
+    voiceTranscripts,
     handleOpenReply,
     forkPrefixEventIds,
   };
@@ -1936,6 +1980,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
               {feature.wrapExpansion(
                 <div
                   ref={ledger.virtualInnerRef}
+                  // This timeline's rows, for a row that looks for another (SecretRequestCard.tsx).
+                  data-timeline-rows=""
                   data-thread-count={threadId ? threadEvents.length : undefined}
                   data-testid={threadId ? undefined : 'room-virtual-inner'}
                   style={{
@@ -1947,7 +1993,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
                   }}
                 >
                   {latestAtTop ? frontSentinel : backSentinel}
-                  <InlineSecretRequestsContext.Provider value={secretRequestTimeline}>
+                  <InlineSecretRequestsContext.Provider value={secretRequestPlan}>
                     {tiles}
                   </InlineSecretRequestsContext.Provider>
                 </div>

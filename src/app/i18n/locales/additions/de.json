@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "Die Antwort endete, bevor die Zusammenfassung fertig war."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Wird transkribiert…",
+        "transcribedBy": "Transkribiert von {{name}}"
       }
     },
     "message-search": {
@@ -1020,6 +1024,7 @@
         "defaultLevel": "Standard",
         "levelIsDefault": "{{level}}, Standard",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "Aus",
           "minimal": "Minimal",

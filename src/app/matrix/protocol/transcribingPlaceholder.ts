@@ -10,3 +10,15 @@ export const isVisibleRouterVoiceEcho = (content: Record<string, unknown>): bool
 export const isTranscribingPlaceholder = (content: Record<string, unknown>): boolean =>
   isVisibleRouterVoiceEcho(content) &&
   getThinkingPlaceholderBody(content) === MINDROOM_TRANSCRIBING_PLACEHOLDER_BODY;
+
+const MINDROOM_VOICE_SOURCE_EVENT_ID_KEY = 'com.mindroom.voice_source_event_id';
+
+/** The voice message a router's voice echo transcribes, named on each version by newer backends. */
+export const getVoiceSourceEventId = (content: Record<string, unknown>): string | undefined => {
+  const id = content[MINDROOM_VOICE_SOURCE_EVENT_ID_KEY];
+  return isVisibleRouterVoiceEcho(content) && typeof id === 'string' && id !== '' ? id : undefined;
+};
+
+/** An echo the router edited to the voice message's fallback text: transcription failed. */
+export const isVoiceRawAudioFallback = (content: Record<string, unknown>): boolean =>
+  content['com.mindroom.voice_raw_audio_fallback'] === true;

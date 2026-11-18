@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import 'folds/dist/style.css';
@@ -8,6 +9,8 @@ import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
 import { ImageViewer } from '../../src/app/messages/viewers/ImageViewer';
+import { ImageOverlay } from '../../src/app/messages/content/ImageOverlay';
+import { ScreenSize, ScreenSizeProvider } from '../../src/app/lib/hooks/useScreenSize';
 
 applyThemeToDom(LightTheme);
 
@@ -21,16 +24,39 @@ const picture = [
 ].join('');
 const src = `data:image/svg+xml,${encodeURIComponent(picture)}`;
 
+// With `?phone`, the viewer as a phone opens it, the second of three pictures; `#viewer-state`
+// tells whether it is open and which picture it shows.
+function PhoneViewer() {
+  const [open, setOpen] = useState(true);
+  const [index, setIndex] = useState(1);
+  return (
+    <ScreenSizeProvider value={ScreenSize.Mobile}>
+      <p id="viewer-state">{`${open ? 'open' : 'closed'} ${index}`}</p>
+      <ImageOverlay
+        src={open ? src : undefined}
+        alt="Test image"
+        requestClose={() => setOpen(false)}
+        position={{ index, count: 3 }}
+        onStep={(delta) => setIndex((shown) => Math.min(2, Math.max(0, shown + delta)))}
+      />
+    </ScreenSizeProvider>
+  );
+}
+
 // The viewer in the dialog an opened image message shows it in.
 createRoot(document.getElementById('root')!).render(
-  <Overlay open backdrop={<OverlayBackdrop />}>
-    <OverlayCenter>
-      <Modal
-        size="500"
-        style={{ width: '90vw', height: '90vh', maxWidth: 'none', maxHeight: 'none' }}
-      >
-        <ImageViewer src={src} alt="Test image" requestClose={() => undefined} />
-      </Modal>
-    </OverlayCenter>
-  </Overlay>
+  new URLSearchParams(window.location.search).has('phone') ? (
+    <PhoneViewer />
+  ) : (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <Modal
+          size="500"
+          style={{ width: '90vw', height: '90vh', maxWidth: 'none', maxHeight: 'none' }}
+        >
+          <ImageViewer src={src} alt="Test image" requestClose={() => undefined} />
+        </Modal>
+      </OverlayCenter>
+    </Overlay>
+  )
 );

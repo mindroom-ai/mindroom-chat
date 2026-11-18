@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, Icons, Text } from 'folds';
@@ -18,12 +18,26 @@ export const GAP_KEYS = {
   'not-transcribed': 'featureUi.calls.transcription.gap.notTranscribed',
 } as const;
 
-/** A run of speech by one person, or a gap. */
+/**
+ * A run of speech by one person, its lines the parts of one text (each but the first with what
+ * joins it on), or a gap.
+ */
 type Item =
-  | { kind: 'speech'; key: string; userId: string; lines: Array<{ id: string; text: string }> }
+  | { kind: 'speech'; key: string; userId: string; parts: Array<{ id: string; text: string }> }
   | { kind: 'gap'; key: string; reason: keyof typeof GAP_KEYS };
 
-/** Consecutive speech by one person under one name, as a chat groups messages; gaps apart. */
+/**
+ * Speech-to-text can end a line mid-sentence, so the next one may start with punctuation, which
+ * joins without a space; as MindRoom joins them in the transcript it posts (`spoken_continuation`).
+ */
+const GLUED = /^[,.;:!?…)\]}]/;
+const joined = (next: string): string => (GLUED.test(next) ? next : ` ${next}`);
+
+/**
+ * Consecutive speech by one person as one text under one name, gaps apart, as the transcript
+ * MindRoom posts after the call joins it. Not to the letter: the posted transcript of an agent
+ * call keeps apart two of a speaker's pieces that another's speech arrived between.
+ */
 const groupLines = (lines: readonly TranscriptLine[]): Item[] =>
   lines.reduce<Item[]>((items, line) => {
     if (line.kind === 'gap') {
@@ -32,14 +46,10 @@ const groupLines = (lines: readonly TranscriptLine[]): Item[] =>
     }
     const last = items[items.length - 1];
     if (last?.kind === 'speech' && last.userId === line.userId) {
-      last.lines.push({ id: line.id, text: line.text });
+      last.parts.push({ id: line.id, text: joined(line.text) });
     } else {
-      items.push({
-        kind: 'speech',
-        key: line.id,
-        userId: line.userId,
-        lines: [{ id: line.id, text: line.text }],
-      });
+      const parts = [{ id: line.id, text: line.text }];
+      items.push({ kind: 'speech', key: line.id, userId: line.userId, parts });
     }
     return items;
   }, []);
@@ -99,18 +109,18 @@ function Lines({ room, live }: { room: Room; live: LiveTranscript }) {
                     className={css.Name}
                   />
                 </span>
-                {item.lines.map((line) => (
-                  <Text
-                    key={line.id}
-                    as="p"
-                    size="T300"
-                    className={css.Text}
-                    data-live-transcript-text=""
-                    dir={textDirection(line.text) ?? 'auto'}
-                  >
-                    {line.text}
-                  </Text>
-                ))}
+                <Text
+                  as="p"
+                  size="T300"
+                  className={css.Text}
+                  data-live-transcript-text=""
+                  dir={textDirection(item.parts.map(({ text }) => text).join('')) ?? 'auto'}
+                >
+                  {/* Each part its own text node: a new one leaves the reader's selection be. */}
+                  {item.parts.map(({ id, text }) => (
+                    <Fragment key={id}>{text}</Fragment>
+                  ))}
+                </Text>
               </div>
             </li>
           )

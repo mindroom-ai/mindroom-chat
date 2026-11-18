@@ -6,7 +6,6 @@ import {
   disableIOSPushPusher,
   registerIOSPush,
   setIOSPushEnabled,
-  unregisterIOSPush,
   upsertIOSPushPusher,
 } from './iosPush';
 import { NativeIOSPushFeature } from './IOSPushFeature';
@@ -35,7 +34,6 @@ vi.mock('./iosPush', () => ({
   registerIOSPush: vi.fn(async () => undefined),
   resolveIOSPushConfig: () => ({ appId: 'chat.example', format: 'full' }),
   setIOSPushEnabled: vi.fn(),
-  unregisterIOSPush: vi.fn(async () => undefined),
   upsertIOSPushPusher: vi.fn(async () => undefined),
 }));
 
@@ -116,7 +114,6 @@ describe('NativeIOSPushFeature', () => {
     expect(disableIOSPushPusher).toHaveBeenCalledWith(state.mx, expect.anything(), 's1');
     expect(registerIOSPush).not.toHaveBeenCalled();
     expect(upsertIOSPushPusher).not.toHaveBeenCalled();
-    expect(unregisterIOSPush).not.toHaveBeenCalled();
     expect(setIOSPushEnabled).not.toHaveBeenCalled();
     renderer.unmount();
   });

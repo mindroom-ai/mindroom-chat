@@ -173,6 +173,10 @@ vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
   usePowerLevelsContext: () => ({}),
 }));
 
+vi.mock('../../matrix/hooks/useStateEvent', () => ({
+  useStateEvent: () => undefined,
+}));
+
 vi.mock('../../matrix/hooks/useRoomCreators', () => ({
   useRoomCreators: () => new Set(),
 }));
@@ -452,7 +456,6 @@ vi.mock('../RoomIntro', () => ({
 // No plugin hides a row here (MessageRenderer.hidden); the real module would load the app's i18n.
 vi.mock('../../plugins/messageRenderers', () => ({
   useMessageRowHidden: () => undefined,
-  useMessageRendererTaken: () => undefined,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
@@ -741,6 +744,7 @@ type MockEvent = {
   event: { event_id: string };
   getAssociatedId: () => string | undefined;
   getContent: () => Record<string, unknown>;
+  getOriginalContent: () => Record<string, unknown>;
   getId: () => string;
   getRelation: () => { event_id?: string; rel_type?: string } | undefined;
   getRoomId: () => string;
@@ -787,6 +791,7 @@ const makeEvent = (
       body: eventId,
       msgtype: 'm.text',
     },
+  getOriginalContent: () => opts.content ?? { body: eventId, msgtype: 'm.text' },
   getId: () => eventId,
   getRelation: () => opts.relation,
   getRoomId: () => ROOM_ID,

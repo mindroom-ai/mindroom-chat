@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import type FocusTrap from 'focus-trap-react';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { stopPropagation } from '../../lib/keyboard';
+import { PhoneModal, PhoneOverlayCenter } from '../../ui/Modal500.css';
 
 // Attachment viewers (image, text, PDF) get most of the window, past the modal's usual size cap.
 const WINDOW_BOX: CSSProperties = {
@@ -11,38 +12,22 @@ const WINDOW_BOX: CSSProperties = {
   maxHeight: 'none',
 };
 
-// On phones a viewer is a screen of its own, like the large dialogs (Modal500): edge to edge,
-// square corners, and its header kept clear of the notch and the home indicator.
-const PHONE_BOX: CSSProperties = {
-  width: '100%',
-  height: '100%',
-  maxWidth: 'none',
-  maxHeight: 'none',
-  borderRadius: 0,
-  border: 'none',
-  paddingTop: 'env(safe-area-inset-top, 0px)',
-  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-  paddingLeft: 'env(safe-area-inset-left, 0px)',
-  paddingRight: 'env(safe-area-inset-right, 0px)',
-};
-
-const PHONE_CENTER: CSSProperties = {
-  padding: 0,
-  alignItems: 'stretch',
-  justifyContent: 'stretch',
-};
-
 type ViewerFrame = {
   /** For the `OverlayCenter` around the viewer. */
-  centerStyle?: CSSProperties;
+  centerClassName?: string;
   /** For the `Modal` that holds the viewer. */
-  modalStyle: CSSProperties;
+  modalClassName?: string;
+  modalStyle?: CSSProperties;
 };
 
-/** The size of an attachment viewer's modal for the current screen. */
+/**
+ * The size of an attachment viewer's modal for the current screen. On phones a viewer is a screen
+ * of its own, like the large dialogs (Modal500): edge to edge, without the glass rim, and its
+ * header kept clear of the notch and the home indicator.
+ */
 export const useViewerFrame = (): ViewerFrame =>
   useScreenSizeContext() === ScreenSize.Mobile
-    ? { centerStyle: PHONE_CENTER, modalStyle: PHONE_BOX }
+    ? { centerClassName: PhoneOverlayCenter, modalClassName: PhoneModal }
     : { modalStyle: WINDOW_BOX };
 
 type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;

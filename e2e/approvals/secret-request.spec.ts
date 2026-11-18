@@ -886,3 +886,134 @@ test('a request waiting under its reply fits a phone', async ({ context, page })
     );
   }
 });
+
+/** MindRoom's live frame: an ephemeral snapshot of the reply that streams past its last edit. */
+const sendLiveFrame = (
+  accessToken: string,
+  roomId: string,
+  frame: { reply: string; sid: string; seq: number; md: string; calls: number }
+) =>
+  fetch(
+    `${HOMESERVER}/_matrix/client/unstable/org.matrix.msc2477/rooms/${encodeURIComponent(
+      roomId
+    )}/ephemeral/io.mindroom.live/frame-${frame.sid}-${frame.seq}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        v: 1,
+        reply: frame.reply,
+        sid: frame.sid,
+        seq: frame.seq,
+        snapshot: {
+          md: frame.md,
+          reasoning: '',
+          tools: (toolReply()['io.mindroom.tool_trace'].events as unknown[]).slice(0, frame.calls),
+          status: 'streaming',
+          activity: '',
+        },
+      }),
+    }
+  ).then((response) => {
+    if (!response.ok) throw new Error(`Live frame refused: ${response.status}`);
+  });
+
+test('a request answered mid-turn moves into the reply while the reply still streams', async ({
+  context,
+  page,
+}) => {
+  test.slow();
+  // The agent's last edit stopped after its second command; its live frames go on past the call
+  // that asked, while the turn runs on.
+  const lines = (count: number) => [
+    'To deploy the demo app, first a look at the checkout.',
+    ...CALLS.slice(0, count).map(([name], index) => `🔧 \`${name}\` [${index + 1}]`),
+  ];
+  const whole = toolReply();
+  const streaming = {
+    ...whole,
+    body: lines(2).join('\n\n'),
+    formatted_body: [
+      `<p>${lines(2)[0]}</p>`,
+      ...CALLS.slice(0, 2).map(([name], index) => `<p>🔧 <code>${name}</code> [${index + 1}]</p>`),
+    ].join('\n'),
+    'io.mindroom.stream_status': 'streaming',
+  };
+  const { requester, agent, room, requestId, cardId, replyId } = await seedCard(
+    false,
+    temporaryContent,
+    { reply: streaming, toolCallId: 'call_3' }
+  );
+  await routeSignIn(context, requester, `session-${randomUUID()}`);
+  await openThread(context, page, requester, room);
+  const reply = page.locator(`[data-message-id="${replyId}"]`);
+  const card = page.locator(`[data-message-id="${cardId}"]`);
+  await expect(card.getByLabel('Secret for SUDO_PASSWORD', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  // The request is answered: the agent's edit marks it done while the reply streams on.
+  const saved = temporaryContent(requester.userId, requestId, 'saved', 'memory');
+  const savedContent = {
+    ...saved,
+    'io.mindroom.secret_request': {
+      ...saved['io.mindroom.secret_request'],
+      response_event_id: replyId,
+      tool_call_id: 'call_3',
+    },
+  };
+  await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
+    ...savedContent,
+    body: '* 🔑 Secret received.',
+    'm.new_content': { ...savedContent, body: '🔑 Secret received.' },
+    'm.relates_to': { rel_type: 'm.replace', event_id: cardId },
+  });
+  const sid = `${Date.now()}-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
+  const frame = (seq: number, count: number, more = '') =>
+    sendLiveFrame(agent.accessToken, room.roomId, {
+      reply: replyId!,
+      sid,
+      seq,
+      md: [...lines(count), ...(more ? [more] : [])].join('\n\n'),
+      calls: count,
+    });
+
+  // A frame that has not reached the call yet: the done card keeps its row under the reply.
+  await frame(1, 2, 'Fetching');
+  await expect(reply.getByText('Fetching')).toBeVisible({ timeout: 30_000 });
+  await expect(card).toBeVisible();
+  await expect(reply.locator('[data-secret-request-line]')).toHaveCount(0);
+
+  // A frame that shows the call: the reply draws the request there, and the card's row goes.
+  await frame(2, 4, 'Starting the checkout service');
+  const line = reply.locator('[data-secret-request-line]');
+  await expect(line).toHaveAttribute('data-secret-request-line', 'saved', { timeout: 30_000 });
+  await expect(card).toHaveCount(0);
+  const order = async () =>
+    reply.evaluate((element) =>
+      [...element.querySelectorAll('[data-secret-request-line], button[aria-controls]')].map(
+        (node) =>
+          node.hasAttribute('data-secret-request-line')
+            ? 'secret'
+            : (node.textContent ?? '').replace(/shell.*$/, '').trim()
+      )
+    );
+  expect(await order()).toEqual(['Ran 2 tool calls', 'secret', 'Ran 1 tool call']);
+  await expect(reply.getByText('Starting the checkout service')).toBeVisible();
+  if (SHOTS) await shootRows(page, reply, 1, `${SHOTS}/inline-streaming.png`);
+
+  // The turn ends with the durable body: the line stays where it was, never a row again.
+  await line.evaluate((element) => element.setAttribute('data-probe', 'kept'));
+  await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
+    ...whole,
+    body: `* ${whole.body}`,
+    'm.new_content': { ...whole, 'io.mindroom.stream_status': 'completed' },
+    'm.relates_to': { rel_type: 'm.replace', event_id: replyId },
+  });
+  await expect(reply.getByText('Done. The checkout is at b0e64d34e.')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(card).toHaveCount(0);
+  expect(await order()).toEqual(['Ran 2 tool calls', 'secret', 'Ran 1 tool call']);
+  await expect(line).toHaveAttribute('data-probe', 'kept');
+});

@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}}, {{duration}} में",
           "interrupted": "सारांश पूरा होने से पहले जवाब खत्म हो गया।"
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "ट्रांसक्राइब हो रहा है…",
+        "transcribedBy": "{{name}} ने ट्रांसक्राइब किया"
       }
     },
     "message-search": {
@@ -1020,6 +1024,7 @@
         "defaultLevel": "डिफ़ॉल्ट",
         "levelIsDefault": "{{level}}, डिफ़ॉल्ट",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
         "levels": {
           "off": "बंद",
           "minimal": "न्यूनतम",
