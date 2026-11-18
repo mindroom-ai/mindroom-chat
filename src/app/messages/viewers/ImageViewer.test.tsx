@@ -6,6 +6,17 @@ import { ImageViewer } from './ImageViewer';
 vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['picture']) }));
 const saveFile = vi.hoisted(() => vi.fn(async () => true));
 vi.mock('../../native/nativeFileSave', () => ({ saveFile }));
+const edgeSwipe = vi.hoisted(() => ({
+  last: undefined as
+    | { enabled?: boolean; onSwipe: () => void; within?: { current: Element | null } }
+    | undefined,
+}));
+vi.mock('../../navigation/useEdgeSwipe', () => ({
+  EDGE_START_MAX_X: 28,
+  useEdgeSwipe: (options: NonNullable<typeof edgeSwipe.last>) => {
+    edgeSwipe.last = options;
+  },
+}));
 
 // jsdom has no pointer events.
 class TestPointerEvent extends MouseEvent {
@@ -28,12 +39,16 @@ afterEach(() => {
 
 const imageArea = () => screen.getByRole('img').parentElement!;
 
-/** A one-finger drag over the image area, from x 300 to `toX`. */
-const swipe = (toX: number, toY = 200) => {
+/** A one-finger drag over the image area, from x `fromX` (300) to `toX`. */
+const swipe = (toX: number, toY = 200, fromX = 300, pointerType = 'touch') => {
   const area = imageArea();
-  const pointer = { pointerId: 1, pointerType: 'touch', button: 0 };
-  fireEvent.pointerDown(area, { ...pointer, clientX: 300, clientY: 200 });
-  fireEvent.pointerMove(area, { ...pointer, clientX: (300 + toX) / 2, clientY: (200 + toY) / 2 });
+  const pointer = { pointerId: 1, pointerType, button: 0 };
+  fireEvent.pointerDown(area, { ...pointer, clientX: fromX, clientY: 200 });
+  fireEvent.pointerMove(area, {
+    ...pointer,
+    clientX: (fromX + toX) / 2,
+    clientY: (200 + toY) / 2,
+  });
   fireEvent.pointerUp(area, { ...pointer, clientX: toX, clientY: toY });
 };
 
@@ -270,6 +285,65 @@ describe('ImageViewer paging', () => {
 
     rerender(<ImageViewer {...props} src="blob:b" position={{ index: 1, count: 2 }} />);
     expect(screen.getByRole('button', { name: '100%' })).toBeTruthy();
+  });
+});
+
+describe('ImageViewer left-edge close', () => {
+  const area = { current: document.createElement('div') };
+  const mount = (edgeSwipeArea: typeof area | undefined, onStep = vi.fn()) => {
+    const requestClose = vi.fn();
+    render(
+      <ImageViewer
+        src="blob:b"
+        alt="b.png"
+        requestClose={requestClose}
+        position={{ index: 1, count: 3 }}
+        onStep={onStep}
+        edgeSwipeArea={edgeSwipeArea}
+      />
+    );
+    return { requestClose, onStep };
+  };
+
+  beforeEach(() => {
+    edgeSwipe.last = undefined;
+  });
+
+  it('closes with a swipe from the left edge of the area it is given, at fit', () => {
+    const { requestClose } = mount(area);
+    expect(edgeSwipe.last?.enabled).toBe(true);
+    expect(edgeSwipe.last?.within).toBe(area);
+    act(() => edgeSwipe.last?.onSwipe());
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('pans rather than closes while zoomed in', () => {
+    mount(area);
+    fireEvent.click(screen.getByRole('button', { name: '100%' }));
+    expect(edgeSwipe.last?.enabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: '200%' }));
+    expect(edgeSwipe.last?.enabled).toBe(true);
+  });
+
+  it('has no edge close without an area (off phones)', () => {
+    mount(undefined);
+    expect(edgeSwipe.last?.enabled).toBe(false);
+  });
+
+  it('does not also page on a swipe from the left edge, which closes it', () => {
+    const { onStep } = mount(area);
+    swipe(200, 200, 10);
+    expect(onStep).not.toHaveBeenCalled();
+    // Off the edge, or with a mouse, which has no edge close, it still pages.
+    swipe(400, 200, 40);
+    swipe(200, 200, 10, 'mouse');
+    expect(onStep.mock.calls).toEqual([[-1], [-1]]);
+  });
+
+  it('pages on a swipe from the left edge without the edge close', () => {
+    const { onStep } = mount(undefined);
+    swipe(200, 200, 10);
+    expect(onStep).toHaveBeenCalledWith(-1);
   });
 });
 

@@ -1,5 +1,5 @@
 import { useAtomValue } from 'jotai';
-import { useEffect, useRef } from 'react';
+import { type RefObject, useEffect, useRef } from 'react';
 import { imageViewerOpenAtom } from './imageViewerState';
 import { phoneLayerOpenAtom } from './phoneNavDrawer';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
@@ -21,23 +21,30 @@ export const useEdgeSwipe = ({
   direction,
   enabled = true,
   onSwipe,
+  within,
 }: {
   blockStandaloneWebApp?: boolean;
   direction: EdgeSwipeDirection;
   enabled?: boolean;
   onSwipe: () => void;
+  /**
+   * The overlay the swipe belongs to (the image viewer): it works while that overlay is open, for
+   * a touch that starts inside it, so a menu or dialog over the overlay still keeps it.
+   */
+  within?: RefObject<Element>;
 }): void => {
   const onSwipeRef = useRef(onSwipe);
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
+  const pageCovered = !within && (imageViewerOpen || phoneLayerOpen);
 
   useEffect(() => {
     onSwipeRef.current = onSwipe;
   }, [onSwipe]);
 
   useEffect(() => {
-    if (!enabled || standaloneBlocked || imageViewerOpen || phoneLayerOpen) return;
+    if (!enabled || standaloneBlocked || pageCovered) return;
     if (typeof window === 'undefined') return;
 
     let tracking = false;
@@ -47,6 +54,8 @@ export const useEdgeSwipe = ({
     let armed = false;
     let startX = 0;
     let startY = 0;
+    const blocked = (event: TouchEvent) =>
+      within ? !within.current?.contains(event.target as Node | null) : hasBlockingPortalOverlay();
     const reset = () => {
       tracking = false;
       armed = false;
@@ -55,7 +64,7 @@ export const useEdgeSwipe = ({
     };
 
     const handleTouchStart = (event: TouchEventWithFlag) => {
-      if (event[HANDLED_EVENT_FLAG] || hasBlockingPortalOverlay() || event.touches.length !== 1) {
+      if (event[HANDLED_EVENT_FLAG] || blocked(event) || event.touches.length !== 1) {
         reset();
         return;
       }
@@ -77,7 +86,7 @@ export const useEdgeSwipe = ({
 
     const handleTouchMove = (event: TouchEventWithFlag) => {
       if (!tracking || event[HANDLED_EVENT_FLAG]) return;
-      if (hasBlockingPortalOverlay() || event.touches.length !== 1) {
+      if ((!within && hasBlockingPortalOverlay()) || event.touches.length !== 1) {
         reset();
         return;
       }
@@ -113,5 +122,5 @@ export const useEdgeSwipe = ({
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', reset);
     };
-  }, [direction, enabled, imageViewerOpen, phoneLayerOpen, standaloneBlocked]);
+  }, [direction, enabled, pageCovered, standaloneBlocked, within]);
 };

@@ -1,4 +1,4 @@
-import React, { ComponentProps, useEffect } from 'react';
+import React, { ComponentProps, useEffect, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
@@ -9,6 +9,7 @@ import { useViewerFrame, viewerTrapOptions } from './viewerFrame';
 import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 
 /** Marks the history entry pushed while an image viewer is open, so Back closes the viewer. */
 const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
@@ -85,13 +86,16 @@ const keepContextMenu = (event: React.MouseEvent) => event.stopPropagation();
 
 /**
  * The image viewer in a modal over the page, for message attachments, inline pictures and link
- * previews. Escape, a click outside, Back or the viewer's back button close it; however many
- * pictures it pages through, it holds one history entry. The dialog's name shows the direction
+ * previews. Escape, a click outside, Back, the viewer's back button or, on phones, a swipe from the
+ * left edge close it; however many pictures it pages through, it holds one history entry. The dialog's name shows the direction
  * controls of `alt`; the viewer gets it as it is, to save the picture under it.
  */
 export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverlayProps) {
   const { src, alt, requestClose } = viewer;
   const { centerStyle, modalStyle } = useViewerFrame();
+  // The whole modal, its safe-area padding too: on phones it is the viewer's screen.
+  const screenRef = useRef<HTMLDivElement>(null);
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const open = openWhileLoading || !!src;
   useViewerHistoryEntry(open, requestClose);
   useImageViewerOpenFlag(open);
@@ -102,6 +106,7 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
         <FocusTrap focusTrapOptions={viewerTrapOptions(requestClose)}>
           <Modal
             {...PINCH_SURFACE}
+            ref={screenRef}
             role="dialog"
             aria-modal="true"
             aria-label={revealDirectionControls(alt)}
@@ -109,7 +114,7 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
             style={modalStyle}
             onContextMenu={keepContextMenu}
           >
-            <ImageViewer {...viewer} />
+            <ImageViewer {...viewer} edgeSwipeArea={phone ? screenRef : undefined} />
           </Modal>
         </FocusTrap>
       </OverlayCenter>
