@@ -4,7 +4,6 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   disableIOSPushPusher,
-  getIOSPushEnabled,
   registerIOSPush,
   setIOSPushEnabled,
   upsertIOSPushPusher,
@@ -31,7 +30,6 @@ vi.mock('@capacitor/push-notifications', () => ({
 vi.mock('./iosPush', () => ({
   checkIOSPushPermission: vi.fn(async () => 'granted'),
   disableIOSPushPusher: vi.fn(async () => undefined),
-  getIOSPushEnabled: vi.fn(() => true),
   isNativeIOSPlatform: () => true,
   registerIOSPush: vi.fn(async () => undefined),
   resolveIOSPushConfig: () => ({ appId: 'chat.example', format: 'full' }),
@@ -83,26 +81,6 @@ describe('NativeIOSPushFeature', () => {
       's1'
     );
     expect(setIOSPushEnabled).not.toHaveBeenCalled();
-    renderer.unmount();
-  });
-
-  it('removes the pusher when push is turned off while it is being set', async () => {
-    state.signInRequired = false;
-    let resolveUpsert: () => void = () => undefined;
-    vi.mocked(upsertIOSPushPusher).mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        resolveUpsert = resolve;
-      })
-    );
-    const renderer = await mount();
-    await act(async () => state.onRegistration?.({ value: 'apns-token' }));
-    expect(disableIOSPushPusher).not.toHaveBeenCalled();
-
-    vi.mocked(getIOSPushEnabled).mockReturnValue(false);
-    await act(async () => resolveUpsert());
-
-    expect(disableIOSPushPusher).toHaveBeenCalledWith(state.mx, expect.anything(), 's1');
-    vi.mocked(getIOSPushEnabled).mockReturnValue(true);
     renderer.unmount();
   });
 

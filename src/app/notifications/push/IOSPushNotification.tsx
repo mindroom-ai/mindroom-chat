@@ -118,7 +118,7 @@ function IOSPushNotificationTile() {
         after={
           <Switch
             variant="Primary"
-            value={!!pushConfig && enabled && permission !== 'denied'}
+            value={!!pushConfig && enabled && permission === 'granted'}
             disabled={busy || !pushConfig}
             onChange={handleChange}
           />
