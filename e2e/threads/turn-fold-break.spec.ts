@@ -57,15 +57,17 @@ const DRAFT = 'First draft of the summary';
 const NOTE = 'Checking the draft against the diff.';
 const SUMMARY = 'Final summary of the change';
 const CAPTION = 'Before and after:';
-// A run's reply carries its metadata, as getAiRunInfo reads it.
+// A run's finished reply carries its metadata, as getAiRunInfo reads it; what the run posts as it
+// works (a caption, an upload) carries neither.
 const AI_RUN = {
+  'io.mindroom.stream_status': 'completed',
   'io.mindroom.ai_run': {
     version: 1,
     status: 'completed',
     usage: { input_tokens: 1200, output_tokens: 80 },
   },
 };
-// A 1x1 PNG.
+// A 1x1 PNG; its event's `info` says 120x80 so the row keeps a visible size.
 const PICTURE = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
   'base64'
@@ -153,11 +155,7 @@ const seedAttachments = async (name: string) => {
   const rootId = await send(reader, { msgtype: 'm.text', body: REQUEST });
   let previousId = rootId;
   const agentSends = async (content: Record<string, unknown>) => {
-    previousId = await send(agent, {
-      'io.mindroom.stream_status': 'completed',
-      ...content,
-      ...inThread(rootId, previousId),
-    });
+    previousId = await send(agent, { ...content, ...inThread(rootId, previousId) });
     return previousId;
   };
   const foldedIds = [

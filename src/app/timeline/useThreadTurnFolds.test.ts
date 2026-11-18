@@ -141,6 +141,13 @@ describe('turnAnswerRank', () => {
     ).toBe(0);
     expect(turnAnswerRank(reply, shown({}))).toBe(1);
     expect(turnAnswerRank(message('$img', {}), shown({ msgtype: 'm.image' }))).toBe(2);
+    // A reply too long for one event arrives as a file that keeps its run's metadata.
+    expect(
+      turnAnswerRank(
+        message('$long', {}),
+        shown({ msgtype: 'm.file', 'io.mindroom.ai_run': { version: 1, status: 'completed' } })
+      )
+    ).toBe(0);
   });
 });
 

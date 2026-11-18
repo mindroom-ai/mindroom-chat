@@ -90,6 +90,11 @@ describe('planThreadTurnFolds', () => {
     ],
     ["leaves a turn whose run's reply comes first", ['p', 'ar', 'a', 'ai', 'ai'], []],
     [
+      'keeps text the run posted after its reply in view, not the reply folded',
+      ['p', 'ar', 'a', 'ar', 'a', 'a'],
+      ['0: 1,2 (2)'],
+    ],
+    [
       'answers without a run with the last message that is not an attachment',
       ['p', 'a', 'a', 'a', 'ai', 'ai'],
       ['0: 1,2 (2)'],
