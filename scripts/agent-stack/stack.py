@@ -194,6 +194,10 @@ TERMINAL_TOOLKIT = "src/mindroom/tools/terminal.py"
 # The setting a commit has when its shell refuses commands outside a worker unless the config allows them
 # (MindRoom #3923); an older commit refuses the setting as an unknown key.
 SHELL_WITHOUT_WORKER = ("src/mindroom/config/models.py", "allow_shell_without_worker")
+# A commit whose models take a `reasoning` block (MindRoom #4119); a stub stack on it gets a third model with levels.
+REASONING_LEVELS = ("src/mindroom/config/models.py", "class ReasoningConfig")
+# The stub model with reasoning levels, which the model picker's effort column runs a thread on.
+REASONING_MODEL = {"key": "think", "id": "stub-think", "displayName": "Stub Think", "levels": ["low", "medium", "high"]}
 TRANSCRIPTION_MODES = ("stub", "real")
 # The model that writes a call's notes when a stub-model stack transcribes with OpenAI. With the stand-in the stub
 # model writes them, and a real-model stack has its own GPT-6 Luna write them.
@@ -581,7 +585,24 @@ uvicorn.run(app, host='127.0.0.1', port=int(sys.argv[1]))
 """
 
 
-def stub_models_yaml(stub_url: str) -> str:
+def stub_models_yaml(stub_url: str, reasoning_levels: bool = False) -> str:
+    think = (
+        f"""  {REASONING_MODEL['key']}:
+    provider: openai
+    id: {REASONING_MODEL['id']}
+    display_name: {REASONING_MODEL['displayName']}
+    api: chat_completions
+    context_window: 128000
+    reasoning:
+      levels: {json.dumps(REASONING_MODEL['levels'])}
+      default: medium
+    extra_kwargs:
+      base_url: {stub_url}
+      api_key: stub-key-no-model-is-called
+"""
+        if reasoning_levels
+        else ""
+    )
     return f"""models:
   default:
     provider: openai
@@ -601,7 +622,7 @@ def stub_models_yaml(stub_url: str) -> str:
     extra_kwargs:
       base_url: {stub_url}
       api_key: stub-key-no-model-is-called
-"""
+{think}"""
 
 
 def real_models_yaml() -> str:
@@ -684,7 +705,7 @@ REAL_INSTRUCTIONS = [
     "Then reply 'Finished multi after 3 tool calls. Last result:' followed by the last call's output in a code "
     "block, and nothing about the other calls.",
     "#pause: call run_shell_command twice, one call at a time, the second only after the first result arrived: "
-    "first with args 'sleep 1; echo first step', then with args 'sleep 1; echo second step'. Then reply 'Finished "
+    "first with args 'sleep 7; echo first step', then with args 'sleep 7; echo second step'. Then reply 'Finished "
     "pause after 2 tool calls. Last result:' followed by the last call's output in a code block.",
     "#narrate (a real model's usual shape, which the stub has no scenario for): first write one sentence saying "
     "you will run a command, then call run_shell_command once with args 'echo narrated', then write two sentences "
@@ -789,6 +810,7 @@ def config_yaml(
     terminals: bool = False,
     shell_without_worker: bool = False,
     extra_agents: int = 0,
+    reasoning_levels: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -860,7 +882,7 @@ def config_yaml(
             "# reloads this file when it changes, so edit it to change the agents or their models."
         )
     else:
-        models = stub_models_yaml(stub_url)
+        models = stub_models_yaml(stub_url, reasoning_levels)
         agents = f"""  helper:
     display_name: Helper
     role: Test agent driven by a stub model
@@ -1293,6 +1315,7 @@ def start(
     (slot_dir / "stub").mkdir()
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
+    reasoning_levels = args.model == "stub" and commit_mentions(checkout, sha, *REASONING_LEVELS)
     config_path.write_text(
         config_yaml(
             args.model,
@@ -1306,6 +1329,7 @@ def start(
             args.terminals,
             commit_mentions(checkout, sha, *SHELL_WITHOUT_WORKER),
             args.agents,
+            reasoning_levels,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
@@ -1348,6 +1372,7 @@ def start(
         "slot": slot,
         "model": args.model,
         "models": MODELS[args.model],
+        "reasoningModel": REASONING_MODEL if reasoning_levels else None,
         "calls": calls,
         "transcription": transcription,
         "clientSessions": args.client_sessions,

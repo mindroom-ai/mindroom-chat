@@ -684,7 +684,14 @@
         "clear": "Temizle",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
-        "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin."
+        "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin.",
+        "replyMode": {
+          "label": "Ajanlar yanıtlar",
+          "description": "Yeni bir mesajın yanıt alması için bir ajandan veya ekipten bahsetmesi gerekip gerekmediği. Varsayılan, bu oda için MindRoom yapılandırmasını izler. Yalnızca bahsedilince seçiliyken bile ajanlar, zaten yanıt verdikleri bir ileti dizisindeki sonraki mesajları yanıtlayabilir.",
+          "default": "Varsayılan",
+          "auto": "Her mesaja",
+          "mentions": "Yalnızca bahsedilince"
+        }
       }
     }
   },
@@ -827,6 +834,61 @@
         "finished": "Bitti {{value1}}",
         "stillStreaming": "Hâlâ sürüyor",
         "duration": "Süre {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} sn",
+        "tokensShort": "{{before}} → {{after}} token",
+        "label": {
+          "running": "Bağlam sıkıştırılıyor…",
+          "preTurn": "Yanıttan önce sıkıştırıldı",
+          "midTurn": "Bağlam sıkıştırıldı",
+          "manual": "İstek üzerine sıkıştırıldı",
+          "failed": "Sıkıştırma başarısız oldu",
+          "timeout": "Sıkıştırma zaman aşımına uğradı",
+          "interrupted": "Sıkıştırma yarıda kaldı"
+        },
+        "title": "Bağlam sıkıştırıldı",
+        "tag": {
+          "preTurn": "yanıttan önce",
+          "midTurn": "tur ortasında",
+          "manual": "elle"
+        },
+        "subtitle": {
+          "preTurn": "Bu yanıtın modele ilk isteğinden önce.",
+          "midTurn": "İki model isteği arasında, {{n, number}}. araç çağrısından sonra.",
+          "midTurnNoTools": "İki model isteği arasında.",
+          "manual": "Sıkıştırma komutuyla istendi."
+        },
+        "gauge": {
+          "was": "önce bütçenin %{{p, number}} kadarıydı",
+          "now": "şimdi %{{p, number}}",
+          "used": "bütçenin %{{p, number}} kadarı"
+        },
+        "row": {
+          "history": "Geçmiş",
+          "saved": "Kazanılan",
+          "budget": "Bütçe",
+          "folded": "Birleştirilen",
+          "folding": "Birleştiriliyor",
+          "summarizedBy": "Özetleyen",
+          "summaryModel": "Özet modeli",
+          "when": "Ne zaman",
+          "started": "Başladı",
+          "reason": "Neden",
+          "gaveUpAfter": "Vazgeçildi"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> token",
+          "history": "<b>{{n, number}}</b> token",
+          "tokens": "{{n, number}} token",
+          "saved": "{{n, number}} token (%{{p, number}})",
+          "runs_one": "{{count, number}} çalıştırma",
+          "runs_other": "{{count, number}} çalıştırma",
+          "folded": "{{runs}} 1 özette",
+          "folding": "{{runs}}, {{done, number}} tamamlandı",
+          "summarizedBy": "{{model}}, {{duration}} içinde",
+          "interrupted": "Yanıt, özet bitmeden sona erdi."
+        }
       }
     },
     "message-search": {
@@ -929,6 +991,25 @@
       "withCount_one": "{{label}}, {{count}} etkin",
       "withCount_other": "{{label}}, {{count}} etkin",
       "resize": "Alt ajan panelini yeniden boyutlandır"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Çaba",
+        "effortFor": "{{model}} için çaba",
+        "noEffortLevels": "Çaba düzeyi yok",
+        "defaultLevel": "Varsayılan",
+        "levelIsDefault": "{{level}}, varsayılan",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Kapalı",
+          "minimal": "Minimum",
+          "low": "Düşük",
+          "medium": "Orta",
+          "high": "Yüksek",
+          "xhigh": "Çok yüksek",
+          "max": "Maksimum"
+        }
+      }
     }
   },
   "composer": {

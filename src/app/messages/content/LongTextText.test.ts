@@ -148,6 +148,7 @@ vi.mock('../agent-run/Reasoning.css', () => ({
 vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
 vi.mock('../question/QuestionCard.css', () => ({}));
 vi.mock('../agent-run/OutlineComet.css', () => ({}));
+vi.mock('../agent-run/CompactionSeam.css', () => ({}));
 vi.mock('../agent-run/ToolCallsFold.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
@@ -1005,6 +1006,7 @@ describe('LongTextText hydration identity', () => {
             ClientConfigProvider,
             { value: {} },
             renderAgentMessageContent({
+              fromMindroomAgent: true,
               displayName: 'MindRoom',
               msgType: 'm.text',
               content,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import { useStore } from 'jotai';
 import {
   conversationBehindPanelAtom,
@@ -36,6 +36,9 @@ type UseThreadKeysOptions = {
  * moves the focus through the cards, from outside them to the card beside the open thread's or
  * that of the thread just left. None acts on what a side panel, a plugin's cover or a thread that
  * fills the page hides.
+ *
+ * Returns how the page gives away the focus a closed thread left: `otherwise` runs unless the
+ * card of a thread these keys left takes it, at once or after the pass that card shows in.
  */
 export const useThreadKeys = ({
   roomId,
@@ -46,7 +49,7 @@ export const useThreadKeys = ({
   onExitThread,
   onFocusComposer,
   onFocusThread,
-}: UseThreadKeysOptions): void => {
+}: UseThreadKeysOptions): ((otherwise: () => void) => void) => {
   const store = useStore();
   // The cards under a thread that fills the page are gone; a cover or a panel hides the rest.
   const cards = () => (store.get(conversationHiddenAtom) ? [] : compactCardsIn(areaRef.current));
@@ -91,6 +94,7 @@ export const useThreadKeys = ({
   // the reader went to meanwhile: the focus moves only from where it was at the key, or from the
   // page, where the closed thread left it.
   const leftByKey = useRef<{ threadId: string; focused: Element | null }>();
+  const awaitedCard = useRef<{ otherwise?: () => void }>();
   const shownThreadId = useRef(openThreadId);
   useEffect(() => {
     const closed = shownThreadId.current;
@@ -100,9 +104,22 @@ export const useThreadKeys = ({
     leftByKey.current = undefined;
     if (openThreadId || !left || left.threadId !== closed) return;
     const doc = areaRef.current?.ownerDocument;
-    const focused = doc?.activeElement ?? null;
-    if (!doc || (focused && focused !== doc.body && focused !== left.focused)) return;
-    focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
+    if (!doc) return;
+    const unclaimed = () =>
+      !doc.activeElement || doc.activeElement === doc.body || doc.activeElement === left.focused;
+    const focusCard = () =>
+      focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
+    if (!unclaimed() || focusCard()) return;
+    // A Compact list that takes the place of a thread that filled the page shows its cards a
+    // pass after this effect, in the same task (`RoomTimeline`). The focus goes once, then: to
+    // the card, or as the page gives it (`unlessCardTakesFocus`), and not from a control that
+    // took it meanwhile.
+    const wait: { otherwise?: () => void } = {};
+    awaitedCard.current = wait;
+    queueMicrotask(() => {
+      if (awaitedCard.current === wait) awaitedCard.current = undefined;
+      if (!(unclaimed() && focusCard())) wait.otherwise?.();
+    });
   });
 
   useShortcut('leaveThread', () => {
@@ -121,4 +138,9 @@ export const useThreadKeys = ({
     // A room without a composer has nowhere out: the keys stay the browser's.
     return focusedCompactCard(areaRef.current) !== focused;
   });
+
+  return useCallback((otherwise) => {
+    if (awaitedCard.current) awaitedCard.current.otherwise = otherwise;
+    else otherwise();
+  }, []);
 };

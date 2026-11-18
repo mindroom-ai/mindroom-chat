@@ -675,7 +675,14 @@
         "clear": "Hapus",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
-        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi."
+        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi.",
+        "replyMode": {
+          "label": "Agen menjawab",
+          "description": "Apakah pesan baru harus menyebut agen atau tim agar mendapat jawaban. Default mengikuti konfigurasi MindRoom untuk ruangan ini. Bahkan dengan Hanya saat disebut, agen tetap bisa menjawab pesan lanjutan di utas yang sudah mereka balas.",
+          "default": "Default",
+          "auto": "Setiap pesan",
+          "mentions": "Hanya saat disebut"
+        }
       }
     }
   },
@@ -816,6 +823,60 @@
         "finished": "Selesai {{value1}}",
         "stillStreaming": "Masih berjalan",
         "duration": "Durasi {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} dtk",
+        "tokensShort": "{{before}} → {{after}} token",
+        "label": {
+          "running": "Memadatkan konteks…",
+          "preTurn": "Dipadatkan sebelum membalas",
+          "midTurn": "Konteks dipadatkan",
+          "manual": "Dipadatkan atas permintaan",
+          "failed": "Pemadatan gagal",
+          "timeout": "Pemadatan melewati batas waktu",
+          "interrupted": "Pemadatan terputus"
+        },
+        "title": "Konteks dipadatkan",
+        "tag": {
+          "preTurn": "sebelum balasan",
+          "midTurn": "di tengah giliran",
+          "manual": "manual"
+        },
+        "subtitle": {
+          "preTurn": "Sebelum permintaan model pertama balasan ini.",
+          "midTurn": "Di antara dua permintaan model, setelah panggilan alat {{n, number}}.",
+          "midTurnNoTools": "Di antara dua permintaan model.",
+          "manual": "Diminta dengan perintah pemadatan."
+        },
+        "gauge": {
+          "was": "tadinya {{p, number}}% dari anggaran",
+          "now": "sekarang {{p, number}}%",
+          "used": "{{p, number}}% dari anggaran"
+        },
+        "row": {
+          "history": "Riwayat",
+          "saved": "Dihemat",
+          "budget": "Anggaran",
+          "folded": "Digabung",
+          "folding": "Menggabungkan",
+          "summarizedBy": "Diringkas oleh",
+          "summaryModel": "Model ringkasan",
+          "when": "Kapan",
+          "started": "Dimulai",
+          "reason": "Alasan",
+          "gaveUpAfter": "Menyerah setelah"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> token",
+          "history": "<b>{{n, number}}</b> token",
+          "tokens": "{{n, number}} token",
+          "saved": "{{n, number}} token ({{p, number}}%)",
+          "runs_other": "{{count, number}} proses",
+          "folded": "{{runs}} menjadi 1 ringkasan",
+          "folding": "{{runs}}, {{done, number}} selesai",
+          "summarizedBy": "{{model}} dalam {{duration}}",
+          "interrupted": "Balasan berakhir sebelum ringkasan selesai."
+        }
       }
     },
     "message-search": {
@@ -912,6 +973,25 @@
       "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
       "resize": "Ubah ukuran panel subagen"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Upaya",
+        "effortFor": "Upaya untuk {{model}}",
+        "noEffortLevels": "Tidak ada tingkat upaya",
+        "defaultLevel": "Bawaan",
+        "levelIsDefault": "{{level}}, bawaan",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Mati",
+          "minimal": "Minimal",
+          "low": "Rendah",
+          "medium": "Sedang",
+          "high": "Tinggi",
+          "xhigh": "Sangat tinggi",
+          "max": "Maksimum"
+        }
+      }
     }
   },
   "composer": {

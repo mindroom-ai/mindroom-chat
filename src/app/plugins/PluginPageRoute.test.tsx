@@ -20,6 +20,7 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   messageRenderers: [],
   pages,
   roomHeaderSlot: [],
+  threadHeaderSlot: [],
   sidePanels: [],
   headerActions: [],
   slashCommands: [],

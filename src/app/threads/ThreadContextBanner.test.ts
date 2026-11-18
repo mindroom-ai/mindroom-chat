@@ -31,6 +31,11 @@ vi.mock('./ThreadActionsMenu', () => ({
   },
 }));
 
+vi.mock('./ThreadHeaderSlot', () => ({
+  ThreadHeaderSlot: ({ room, threadId }: { room: Room; threadId: string }) =>
+    React.createElement('u', { 'data-thread-header-slot': `${room.roomId} ${threadId}` }),
+}));
+
 vi.mock('../approvals/ThreadApprovalControls', () => ({
   ThreadApprovalPermissions: () => React.createElement('b', { 'data-approvals': 'true' }),
 }));
@@ -943,6 +948,49 @@ describe('ThreadContextBanner rendering', () => {
     expect(tree).toContain('Thread View');
     expect(tree).not.toContain('Focused thread context is active.');
     expect(tree).not.toContain('Next task');
+  });
+
+  it("draws the plugins' thread header slot before More, and after the approvals once collapsed", () => {
+    /** The banner's slot, approvals and buttons in document order. */
+    const order = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAll(
+          (node) =>
+            node.type === 'button' ||
+            (typeof node.type === 'string' &&
+              (node.props['data-thread-header-slot'] !== undefined ||
+                node.props['data-approvals'] !== undefined))
+        )
+        .map(
+          (node) =>
+            node.props['data-thread-header-slot'] ??
+            (node.props['data-approvals'] ? 'approvals' : node.props['aria-label'])
+        );
+    const expanded = renderBanner();
+    expect(order(expanded)).toEqual([
+      'Back',
+      'approvals',
+      '!room:example.org $root',
+      'Thread options',
+      'Resolve',
+    ]);
+    expanded.unmount();
+    act(() => store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true }));
+    const collapsed = renderBanner();
+    expect(order(collapsed)).toEqual([
+      'Back',
+      'approvals',
+      '!room:example.org $root',
+      'Show thread details',
+    ]);
+    collapsed.unmount();
+  });
+
+  it('draws no thread header slot until the server confirms the thread root', () => {
+    bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
+    const renderer = renderBanner();
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('data-thread-header-slot');
+    renderer.unmount();
   });
 
   it('disables tag and resolve actions for a provisional thread root', () => {

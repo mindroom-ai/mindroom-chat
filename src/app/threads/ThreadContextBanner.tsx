@@ -48,6 +48,7 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
 import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
+import { ThreadHeaderSlot } from './ThreadHeaderSlot';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -293,6 +294,10 @@ export function ThreadContextBanner({
   // The Resolved button is described by the byline, also on short screens,
   // which hide it.
   const resolverBylineId = useId();
+  // Plugins' controls, for a thread the server has, as the menu's details are.
+  const pluginControls = canOpenMenu ? (
+    <ThreadHeaderSlot room={room} threadId={threadRootId} />
+  ) : null;
 
   const backButton = phone ? (
     <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
@@ -358,6 +363,7 @@ export function ThreadContextBanner({
             {backButton}
             <AutoApproveChip room={room} threadId={threadId} />
             <ThreadApprovalPermissions />
+            {pluginControls}
             <IconTooltip label={t('thread.showDetails')}>
               {(triggerRef) => (
                 <IconButton
@@ -557,6 +563,7 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
+              {pluginControls}
               <IconTooltip label={t('threadActions.more')}>
                 {(triggerRef) => (
                   <IconButton

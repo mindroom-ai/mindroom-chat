@@ -370,6 +370,7 @@ describe("plugins' entries", () => {
       messageRenderers: [],
       pages: [],
       roomHeaderSlot: [],
+      threadHeaderSlot: [],
       sidePanels: [],
       headerActions: [],
       slashCommands: [],

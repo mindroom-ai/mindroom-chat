@@ -21,7 +21,7 @@ Each subpath is a module of its own, so a plugin's entry, which loads with the a
 
 ### `core`
 
-`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`, `ThreadCardBadge`, `ThreadCardBadgeProps`, `ThreadDetail`, `ThreadDetailProps`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet, and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
+`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`, `ThreadCardBadge`, `ThreadCardBadgeProps`, `ThreadDetail`, `ThreadDetailProps`, `ThreadHeaderSlotComponent`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet, and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
 
 ### `matrix`
 
@@ -186,7 +186,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 62), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 63), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -252,6 +252,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 60 `room`'s `ThreadBoard`'s `onOpenThread`
 - version 61 a thread card badge's `hoverCard`
 - version 62 a message link's `sidePanel`
+- version 63 `threadHeaderSlot`
 
 ## Pinches
 
@@ -512,6 +513,14 @@ Contributions show in build order, with a hairline between those that drew somet
 A detail that loads its code (a `lazy` component) shows nothing until the code has loaded, while the other details show.
 A detail that throws shows nothing, and the failure is logged and reported with its plugin's tag ("[plugin <id>@<version>] failed to render its thread details").
 `plugins.<id>.enabled: false` and `?plugins=off` turn the kind off as they turn off the others.
+
+## Thread header slot
+
+The thread header slot (`threadHeaderSlot`, `src/app/threads/ThreadHeaderSlot.tsx`) is the twelfth kind: components that get `{ room, threadId }`, the open thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and render a control in the thread's banner, or nothing (`ThreadHeaderSlotComponent` in `core`).
+`src/app/threads/ThreadContextBanner.tsx` shows them in build order just before its More button, and, while the banner is collapsed, after its approval chips; only for a thread whose root the server confirmed (`$` IDs), as the thread menu's details.
+A component draws icon-sized controls that match the banner's own buttons (a folds `IconButton`, `SurfaceVariant` without a fill, `2rem` tall, in an `IconTooltip`), also on short screens, where the banner hides its own buttons but More.
+It renders inside the room's page, so `useRoomSidePanel` and `useShownThread` have the room's context, and it mounts afresh for each thread.
+A component that loads its code (a `lazy` component) shows nothing until the code has loaded; one that throws shows nothing, and the failure is logged and reported with `[plugin <id>@<version>]`.
 
 ## Turning plugins off
 

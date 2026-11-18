@@ -9,17 +9,23 @@ import {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import parse, { type HTMLReactParserOptions } from 'html-react-parser';
+import { type HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Icon, Icons } from 'folds';
-import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import {
   LIVE_ACTIVITY_KEY,
+  LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_KEY,
   LIVE_REASONING_SEGMENTS_KEY,
 } from '../live/useLiveReplyContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
+import {
+  COMPACTIONS_CONTENT_KEY,
+  hasReplyEnded,
+  readReplyCompactions,
+  type ReplyCompaction,
+} from '../../matrix/protocol/compactions';
 import { revealDirectionControls } from '../../ui/directional';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
@@ -30,8 +36,14 @@ import {
 } from './reasoningSegments';
 import { ReasoningSegmentsContext, ToolCallsCogContext } from './toolCallStatus';
 import { CogRipple } from './ToolCallsFold.css';
-import { countToolRefIcons, getRenderedToolRefs } from './toolRefDom';
+import { MINDROOM_TOOL_REF_ICON } from '../html/blocks';
+import { readRenderedToolCalls } from '../html/HtmlBlocks';
+import { useBodySanitizeOptions } from '../content/useBodySanitizeOptions';
 import * as css from './Reasoning.css';
+import { CompactionSeamsAt, ReasoningSegmentsAt, thoughtSeconds } from './ReasoningAnchors';
+
+const NO_MARKERS: readonly number[] = [];
+const CONTENTS = { display: 'contents' } as const;
 
 /** Final reasoning the runtime stores on a finished reply. */
 const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
@@ -77,87 +89,12 @@ const parseFinalReasoning = (value: unknown): FinalReasoning | undefined => {
   };
 };
 
-/** The whole seconds a thought took, one at least. */
-const thoughtSeconds = (durationMs: number): number => Math.max(1, Math.ceil(durationMs / 1000));
-
 const nonEmptyString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined;
 
-type ReasoningTextProps = {
-  text: string;
-  htmlReactParserOptions: HTMLReactParserOptions;
-};
-
-/** Reasoning as Markdown once the renderer has loaded, as plain lines until then. */
-function ReasoningText({ text, htmlReactParserOptions }: ReasoningTextProps) {
-  const ready = useLiveMarkdownReady();
-  const html = useMemo(() => (ready ? renderLiveMarkdown(text) : undefined), [ready, text]);
-  const rendered = useMemo(
-    () =>
-      html === undefined ? undefined : parse(sanitizeCustomHtml(html), htmlReactParserOptions),
-    [html, htmlReactParserOptions]
-  );
-
-  if (rendered === undefined) {
-    // As the Markdown renderer's text does, plain lines show direction controls as code points.
-    return <div style={{ whiteSpace: 'pre-wrap' }}>{revealDirectionControls(text)}</div>;
-  }
-  return <div style={{ whiteSpace: 'normal' }}>{rendered}</div>;
-}
-
-/**
- * The reasoning segments placed at `anchor` (0 for the top of the reply, else the index of the
- * tool marker a run of calls ends at) that show: all of them while the reply's bulb is open, else
- * only the one the model is writing. Each has a rail along it and a button at its end, which close
- * the bulb from where the reader is, however far above it is.
- */
-export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
-  const { t } = useTranslation();
-  const reasoning = useContext(ReasoningSegmentsContext);
-  if (!reasoning) return null;
-  const { segments, placement, open, hide, liveIndex, htmlReactParserOptions } = reasoning;
-  const hideLabel = t('mindroomUi.messages.mindroomReasoning.hide');
-  return (
-    <>
-      {placement.get(anchor)?.map((index) => {
-        const segment = segments[index];
-        if (!segment || !(open || index === liveIndex)) return null;
-        let label = t('mindroomUi.messages.mindroomReasoning.thought');
-        if (index === liveIndex) label = t('mindroomUi.messages.mindroomReasoning.thinking');
-        else if (segment.durationMs !== undefined) {
-          label = t('mindroomUi.messages.mindroomReasoning.thoughtFor', {
-            count: thoughtSeconds(segment.durationMs),
-          });
-        }
-        return (
-          <div key={index} className={css.Segment}>
-            {/* Under a closed bulb the segment only shows while it is written: nothing to hide. */}
-            <button
-              type="button"
-              className={css.Rail}
-              aria-label={hideLabel}
-              disabled={!open}
-              onClick={hide}
-            />
-            <div className={css.Body}>
-              <span className={css.Label}>{label}</span>
-              <ReasoningText text={segment.text} htmlReactParserOptions={htmlReactParserOptions} />
-              {open && (
-                <button type="button" className={css.CollapseEnd} onClick={hide}>
-                  <Icon size="50" src={Icons.ChevronTop} aria-hidden />
-                  <span className={css.Label}>{hideLabel}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
-type ReasoningHeaderProps = {
-  label: string;
+type ReasoningTopProps = {
+  /** The reasoning line's label; without one the block shows only the cog's row, if any. */
+  label: string | undefined;
   open: boolean;
   /** A comet laps the bulb, as it laps the cog while a call runs. */
   thinking: boolean;
@@ -166,14 +103,28 @@ type ReasoningHeaderProps = {
 };
 
 /**
- * The reply's reasoning line: the bulb, which shows every reasoning segment where it happened and
- * hides them again, as the cog after it does the runs of tool calls, and the segments at the top.
+ * The top of a reply: its reasoning line, with the bulb, which shows every reasoning segment where
+ * it happened and hides them again, as the cog after it does the runs of tool calls; then the
+ * compactions and the segments at the top. Without reasoning the cog has a row of its own, if the
+ * reply has one; with a seam at the top too, both sit in a block that lays out its rows as if it
+ * were not there, the block reasoning comes in, so an open card of that seam stays open then.
  */
-function ReasoningHeader({ label, open, thinking, onToggle, bulbRef }: ReasoningHeaderProps) {
+function ReasoningTop({ label, open, thinking, onToggle, bulbRef }: ReasoningTopProps) {
   const cog = useContext(ToolCallsCogContext);
   // Each click sheds a ripple, as the cog's does: the count keys it, so a new one starts while the
   // last one fades.
   const [ripples, setRipples] = useState(0);
+  const topSeams = !!useContext(ReasoningSegmentsContext)?.compactionsAt.has(0);
+  if (label === undefined) {
+    const cogRow = cog && <div className={css.CogRow}>{cog}</div>;
+    if (!topSeams) return cogRow;
+    return (
+      <div style={CONTENTS}>
+        {cogRow}
+        <CompactionSeamsAt anchor={0} />
+      </div>
+    );
+  }
   return (
     <div className={css.Reasoning}>
       <div className={css.Line}>
@@ -201,6 +152,7 @@ function ReasoningHeader({ label, open, thinking, onToggle, bulbRef }: Reasoning
         </button>
         {cog}
       </div>
+      <CompactionSeamsAt anchor={0} />
       <ReasoningSegmentsAt anchor={0} />
     </div>
   );
@@ -237,12 +189,6 @@ function LiveActivity({ text }: { text: string }) {
       ))}
     </div>
   );
-}
-
-/** The reply's cog in a row of its own, for a reply without reasoning; nothing without a cog. */
-function ToolCallsCogRow() {
-  const cog = useContext(ToolCallsCogContext);
-  return cog ? <div className={css.CogRow}>{cog}</div> : null;
 }
 
 type ReplyReasoningProps = {
@@ -304,29 +250,29 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
     () => (text === undefined ? [] : readReasoningSegments(text, recorded)),
     [text, recorded]
   );
-  // The tool markers that render as runs of calls, as the body shows them. They place the segments
-  // an open bulb shows after calls, and end the segment the model writes. The body is read for them
-  // only then, and again only when its count of marker icons changes, as a new call's does: not for
-  // each frame of answer text.
-  const icons =
-    html !== undefined &&
-    ((open && segments.some(({ afterTool }) => afterTool > 0)) || (grew.seen && last))
-      ? countToolRefIcons(html)
-      : 0;
-  const [rendered, setRendered] = useState<{ icons: number; markers: readonly number[] }>({
-    icons: 0,
-    markers: [],
-  });
-  if (rendered.icons !== icons) {
-    setRendered({
-      icons,
-      markers:
-        icons > 0 && html !== undefined
-          ? getRenderedToolRefs(sanitizeCustomHtml(html)).toolBlocks.map(({ index }) => index)
-          : [],
-    });
-  }
-  const { markers } = rendered;
+  // While the reply streams its live frames say which compactions ran, ahead of its durable edits.
+  const recordedCompactions = content[LIVE_COMPACTIONS_KEY] ?? content[COMPACTIONS_CONTENT_KEY];
+  const compactions = useMemo(
+    () => readReplyCompactions(recordedCompactions),
+    [recordedCompactions]
+  );
+  const replyEnded = hasReplyEnded(content);
+  // The calls the body draws as tool blocks, read from the renderer's own parse of the HTML it
+  // renders. They place the segments an open bulb shows after calls and the compactions after
+  // calls, and end the segment the model writes; the body is read for them only then.
+  const sanitizeOptions = useBodySanitizeOptions();
+  const readsCalls =
+    (open && segments.some(({ afterTool }) => afterTool > 0)) ||
+    compactions.some(({ afterTool }) => afterTool > 0) ||
+    (grew.seen && !!last);
+  const markers = useMemo(
+    () =>
+      readsCalls && html?.includes(MINDROOM_TOOL_REF_ICON)
+        ? readRenderedToolCalls(sanitizeCustomHtml(html, sanitizeOptions), htmlReactParserOptions)
+            .indexes
+        : NO_MARKERS,
+    [readsCalls, html, htmlReactParserOptions, sanitizeOptions]
+  );
   // The model is writing its last segment from when the live reasoning comes or grows on screen
   // until the reply moves past it. A tool call that began after the segment did ends it, also when
   // its marker came in the frame of the segment's last piece, and so does a segment that has begun
@@ -338,9 +284,28 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const writing = live !== undefined && grew.seen && !movedOn && !ended;
   const liveIndex = writing && bulb !== 'closed' ? segments.length - 1 : undefined;
   const placement = useMemo(() => placeReasoningSegments(segments, markers), [segments, markers]);
+  const compactionsAt = useMemo(() => {
+    const at = new Map<number, ReplyCompaction[]>();
+    placeReasoningSegments(compactions, markers).forEach((indices, anchor) =>
+      at.set(
+        anchor,
+        indices.flatMap((index) => compactions[index] ?? [])
+      )
+    );
+    return at;
+  }, [compactions, markers]);
   const reasoning = useMemo(
-    () => ({ segments, placement, open, hide, liveIndex, htmlReactParserOptions }),
-    [segments, placement, open, hide, liveIndex, htmlReactParserOptions]
+    () => ({
+      segments,
+      placement,
+      open,
+      hide,
+      liveIndex,
+      htmlReactParserOptions,
+      compactionsAt,
+      replyEnded,
+    }),
+    [segments, placement, open, hide, liveIndex, htmlReactParserOptions, compactionsAt, replyEnded]
   );
 
   let label: string | undefined;
@@ -358,17 +323,13 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
   return (
     <ReasoningSegmentsContext.Provider value={reasoning}>
-      {label === undefined ? (
-        <ToolCallsCogRow />
-      ) : (
-        <ReasoningHeader
-          label={label}
-          open={open}
-          thinking={thinking}
-          onToggle={() => setBulb(open ? 'closed' : 'open')}
-          bulbRef={bulbRef}
-        />
-      )}
+      <ReasoningTop
+        label={label}
+        open={open}
+        thinking={thinking}
+        onToggle={() => setBulb(open ? 'closed' : 'open')}
+        bulbRef={bulbRef}
+      />
       {children}
       {activity !== undefined && <LiveActivity text={activity} />}
     </ReasoningSegmentsContext.Provider>
@@ -376,14 +337,16 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
 }
 
 /**
- * Wrap a reply body with the model's reasoning and the runtime's live activity. The reasoning line
- * above the body says how long the model thought, or that it thinks (`io.mindroom.live_reasoning`,
- * `io.mindroom.reasoning`); its bulb shows each reasoning segment where it happened, at the top or
- * after the tool calls of `html` it followed, and while the reply streams the segment being
- * written shows there under a closed bulb too, until the body goes on or the reader closes the
- * bulb. The live activity line (`io.mindroom.live_activity`) goes below the body. While the
- * reply's tool calls are hidden, their cog sits on the reasoning's line, or in its place above the
- * body.
+ * Wrap a reply body with the model's reasoning, its history compactions and the runtime's live
+ * activity. Each compaction (`io.mindroom.compactions`, or `io.mindroom.live_compactions` while
+ * the reply streams) shows as a seam where it ran, placed as the reasoning segments are. The
+ * reasoning line above the body says how long the model thought, or that it thinks
+ * (`io.mindroom.live_reasoning`, `io.mindroom.reasoning`); its bulb shows each reasoning segment
+ * where it happened, at the top or after the tool calls of `html` it followed, and while the
+ * reply streams the segment being written shows there under a closed bulb too, until the body
+ * goes on or the reader closes the bulb. The live activity line (`io.mindroom.live_activity`)
+ * goes below the body. While the reply's tool calls are hidden, their cog sits on the reasoning's
+ * line, or in its place above the body.
  */
 export const withReasoning = (
   content: Record<string, unknown>,

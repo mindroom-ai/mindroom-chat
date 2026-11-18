@@ -798,8 +798,9 @@ export type ScrollInput = 'wheel' | 'touch' | 'drag';
 /**
  * Scrolls the list the way a reader does: `flicks` fast flicks through it, then `readingSteps`
  * steps at a reading pace with pauses, then `backFlicks` flicks back. `wheel` turns the mouse
- * wheel; `touch` sends Chromium touch flings; `drag` (WebKit on a phone, which has neither) moves
- * the list by a finger's speed each frame from inside the page.
+ * wheel; `touch` sends Chromium touch flings; `drag` moves the list by a finger's speed each frame
+ * from inside the page (WebKit on a phone has neither), between the touch events of one finger,
+ * which hand the scroll position to the reader as a real drag does.
  */
 export const scrollRoom = async (
   page: Page,
@@ -830,6 +831,25 @@ export const scrollRoom = async (
                 __jitter: { scroller: HTMLElement; driving: boolean; lastInput: number };
               }
             ).__jitter;
+            const box = state.scroller.getBoundingClientRect();
+            const finger = {
+              identifier: 0,
+              target: state.scroller,
+              clientX: box.x + box.width / 2,
+              clientY: box.y + box.height / 2,
+            };
+            // The page's handlers read the fingers of a touch event, so each one names them.
+            const touch = (type: string) => {
+              const touches = type === 'touchend' ? [] : [finger];
+              state.scroller.dispatchEvent(
+                Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+                  touches,
+                  targetTouches: touches,
+                  changedTouches: [finger],
+                })
+              );
+            };
+            touch('touchstart');
             let left = Math.abs(by);
             let last = performance.now();
             const step = (now: number) => {
@@ -840,8 +860,13 @@ export const scrollRoom = async (
               state.scroller.scrollTop += Math.sign(by) * move;
               state.driving = false;
               state.lastInput = now;
-              if (left > 0) requestAnimationFrame(step);
-              else resolve();
+              if (left > 0) {
+                touch('touchmove');
+                requestAnimationFrame(step);
+              } else {
+                touch('touchend');
+                resolve();
+              }
             };
             requestAnimationFrame(step);
           }),

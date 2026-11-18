@@ -26,6 +26,7 @@ const plugin = (
   messageRenderers: [],
   pages: [],
   roomHeaderSlot: [],
+  threadHeaderSlot: [],
   sidePanels,
   headerActions: [],
   slashCommands: [],

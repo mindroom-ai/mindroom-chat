@@ -9,6 +9,7 @@ enableMapSet();
 
 const createClient = () => ({
   getAccountData: vi.fn(() => undefined),
+  getRooms: vi.fn(() => []),
   on: vi.fn(),
   removeListener: vi.fn(),
 });

@@ -720,7 +720,14 @@
         "clear": "مسح",
         "characterCount": "⁨{{length, number}}⁩ / ⁨{{max, number}}⁩",
         "readOnly": "لا يمكن تعديل هذا إلا لمن يُسمح لهم بتغيير إعدادات هذه الغرفة.",
-        "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى."
+        "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى.",
+        "replyMode": {
+          "label": "ردود الوكلاء",
+          "description": "هل يجب أن تذكر الرسالة الجديدة وكيلًا أو فريقًا لتحصل على رد. «الافتراضي» يتبع إعدادات MindRoom لهذه الغرفة. حتى مع «فقط عند الإشارة إليهم»، يمكن للوكلاء الرد على الرسائل التالية في سلسلة ردوا فيها بالفعل.",
+          "default": "الافتراضي",
+          "auto": "أي رسالة",
+          "mentions": "فقط عند الإشارة إليهم"
+        }
       }
     }
   },
@@ -871,6 +878,65 @@
         "finished": "انتهى ⁨{{value1}}⁩",
         "stillStreaming": "لا يزال يُبث",
         "duration": "المدة ⁨{{value1}}⁩"
+      },
+      "compactionSeam": {
+        "elapsed": "⁨{{n, number}}⁩ ث",
+        "tokensShort": "⁨{{before}}⁩ ← ⁨{{after}}⁩ رمز",
+        "label": {
+          "running": "جارٍ ضغط السياق…",
+          "preTurn": "ضُغط قبل الرد",
+          "midTurn": "ضُغط السياق",
+          "manual": "ضُغط عند الطلب",
+          "failed": "فشل الضغط",
+          "timeout": "انتهت مهلة الضغط",
+          "interrupted": "انقطع الضغط"
+        },
+        "title": "ضُغط السياق",
+        "tag": {
+          "preTurn": "قبل الرد",
+          "midTurn": "أثناء الدور",
+          "manual": "يدوي"
+        },
+        "subtitle": {
+          "preTurn": "قبل أول طلب لهذا الرد إلى النموذج.",
+          "midTurn": "بين طلبين إلى النموذج، بعد استدعاء الأداة ⁨{{n, number}}⁩.",
+          "midTurnNoTools": "بين طلبين إلى النموذج.",
+          "manual": "طُلب بأمر الضغط."
+        },
+        "gauge": {
+          "was": "كان ⁨{{p, number}}⁩٪ من الميزانية",
+          "now": "الآن ⁨{{p, number}}⁩٪",
+          "used": "⁨{{p, number}}⁩٪ من الميزانية"
+        },
+        "row": {
+          "history": "السجل",
+          "saved": "الموفَّر",
+          "budget": "الميزانية",
+          "folded": "المطويّ",
+          "folding": "قيد الطي",
+          "summarizedBy": "لخّصه",
+          "summaryModel": "نموذج التلخيص",
+          "when": "متى",
+          "started": "البدء",
+          "reason": "السبب",
+          "gaveUpAfter": "توقف بعد"
+        },
+        "value": {
+          "historyChange": "<b>⁨{{before, number}}⁩ ← ⁨{{after, number}}⁩</b> رمز",
+          "history": "<b>⁨{{n, number}}⁩</b> رمز",
+          "tokens": "⁨{{n, number}}⁩ رمز",
+          "saved": "⁨{{n, number}}⁩ رمز (⁨{{p, number}}⁩٪)",
+          "runs_zero": "⁨{{count, number}}⁩ تشغيل",
+          "runs_one": "تشغيل واحد (⁨{{count, number}}⁩)",
+          "runs_two": "تشغيلان (⁨{{count, number}}⁩)",
+          "runs_few": "⁨{{count, number}}⁩ تشغيلات",
+          "runs_many": "⁨{{count, number}}⁩ تشغيلًا",
+          "runs_other": "⁨{{count, number}}⁩ تشغيل",
+          "folded": "⁨{{runs}}⁩ في ملخص واحد",
+          "folding": "⁨{{runs}}⁩، اكتمل ⁨{{done, number}}⁩",
+          "summarizedBy": "⁨{{model}}⁩ في ⁨{{duration}}⁩",
+          "interrupted": "انتهى الرد قبل اكتمال الملخص."
+        }
       }
     },
     "message-search": {
@@ -997,6 +1063,25 @@
       "withCount_many": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_other": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "resize": "تغيير حجم لوحة الوكلاء الفرعيين"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "الجهد",
+        "effortFor": "الجهد لـ ⁨{{model}}⁩",
+        "noEffortLevels": "لا توجد مستويات جهد",
+        "defaultLevel": "افتراضي",
+        "levelIsDefault": "⁨{{level}}⁩، افتراضي",
+        "withLevel": "⁨{{model}}⁩ · ⁨{{level}}⁩",
+        "levels": {
+          "off": "إيقاف",
+          "minimal": "أدنى",
+          "low": "منخفض",
+          "medium": "متوسط",
+          "high": "مرتفع",
+          "xhigh": "مرتفع جدًا",
+          "max": "أقصى"
+        }
+      }
     }
   },
   "composer": {

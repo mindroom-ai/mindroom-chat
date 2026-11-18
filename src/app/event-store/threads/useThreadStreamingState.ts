@@ -3,11 +3,10 @@ import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import {
   ACTIVE_STREAM_STATUSES,
-  STREAM_STATUS_KEY,
   TERMINAL_STREAM_STATUSES,
   getAiRunInfo,
-  getStreamStatusFromContent,
   hasTerminalStreamMetadata,
+  readStreamStatus,
 } from '../../matrix/protocol/aiRun';
 import { STOP_REACTION_KEYS } from '../../matrix/protocol/stopReaction';
 import {
@@ -28,9 +27,6 @@ type ThreadStreamingSnapshot = {
   trackedEvents: MatrixEvent[];
   trackedRelations: Relations[];
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const getPreferredEventContent = (
   mEvent: MatrixEvent,
@@ -59,27 +55,6 @@ const getPreferredEventContent = (
   return getLatestMessageContent(mEvent, editedEvent);
 };
 
-// Some producers wrap the stream status in a `{ status | state }` record instead
-// of writing a plain string. Fall back to that shape when the shared string
-// helper (which only accepts strings) yields nothing.
-const getStatusFromRecordMetadata = (metadata: unknown): string | undefined => {
-  if (!isRecord(metadata)) return undefined;
-  const statusCandidate = metadata.status ?? metadata.state;
-  if (typeof statusCandidate !== 'string' || statusCandidate.length === 0) return undefined;
-  return statusCandidate.toLowerCase();
-};
-
-const getStreamStatus = (content: Record<string, unknown>): string | undefined => {
-  const fromStringForm = getStreamStatusFromContent(content);
-  if (fromStringForm) return fromStringForm;
-
-  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
-  return (
-    getStatusFromRecordMetadata(newContent?.[STREAM_STATUS_KEY]) ??
-    getStatusFromRecordMetadata(content[STREAM_STATUS_KEY])
-  );
-};
-
 const hasStopReaction = (relations: Relations | undefined): boolean =>
   getActiveAnnotationsByKey(relations).some(
     ([key, events]) => STOP_REACTION_KEYS.has(key) && events.size > 0
@@ -106,7 +81,7 @@ export const isEventStreaming = (
     return true;
   }
 
-  const streamStatus = getStreamStatus(content);
+  const streamStatus = readStreamStatus(content);
   // hasTerminalStreamMetadata owns the ai_run terminal set (which
   // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) plus string-form
   // stream statuses; the local check only adds the record-form fallback.

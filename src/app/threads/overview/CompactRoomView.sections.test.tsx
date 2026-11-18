@@ -278,15 +278,126 @@ describe('the Compact room in sections', () => {
       const release = holdThenRegroup(
         [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
         [
-          { id: 'working', rootIds: ['$a'] },
           { id: 'needsYou', rootIds: ['$b'] },
+          { id: 'later', rootIds: ['$a'] },
         ]
       );
 
       expect(rows()).toEqual(['#needsYou 1', '$a', '$b']);
 
       release();
+      expect(rows()).toEqual(['#needsYou 1', '$b', '#later 1', '$a']);
+    });
+
+    it('moves a card an agent starts working on to Working at once, its header with it', () => {
+      holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+
       expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1', '$b']);
+    });
+
+    it('moves a card an agent starts working on into a shown Working where the live order puts it', () => {
+      holdThenRegroup(
+        [
+          { id: 'working', rootIds: ['$w'] },
+          { id: 'needsYou', rootIds: ['$a', '$b'] },
+        ],
+        [
+          { id: 'working', rootIds: ['$b', '$w'] },
+          { id: 'needsYou', rootIds: ['$a'] },
+        ]
+      );
+
+      expect(rows()).toEqual(['#working 2', '$b', '$w', '#needsYou 1', '$a']);
+    });
+
+    it('keeps a lone section open when a card moving to Working brings a second, until let go', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['needsYou'] })
+      );
+      const release = holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1', '$b']);
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+    });
+
+    it('keeps only the lone section open: other stored folds still apply while held', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['working', 'done'] })
+      );
+      holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+          { id: 'done', rootIds: ['$d'] },
+        ],
+        ['$d']
+      );
+
+      expect(rows()).toEqual(['#working 1', '#needsYou 1', '$b', '#done 1']);
+    });
+
+    it('folds a held-open section stored open with one click on its header', () => {
+      const release = holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+
+      act(() => {
+        fireEvent.click(header('needsYou'));
+      });
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+    });
+
+    it('folds the held-open section from its header at once, and keeps it folded after', () => {
+      localStorage.setItem(
+        `compactRoomSections:${ME}`,
+        JSON.stringify({ on: true, folded: ['needsYou'] })
+      );
+      const release = holdThenRegroup(
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+        ]
+      );
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('true');
+
+      act(() => {
+        fireEvent.click(header('needsYou'));
+      });
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(header('needsYou').getAttribute('aria-expanded')).toBe('false');
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1']);
+      expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
+        on: true,
+        folded: ['needsYou'],
+      });
     });
 
     it('keeps a held section in its shown order while a new section comes in after it', () => {

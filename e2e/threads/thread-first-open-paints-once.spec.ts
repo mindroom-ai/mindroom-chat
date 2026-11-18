@@ -21,11 +21,15 @@ import {
 // with the replies between them on the server) paints once: the first frame that shows replies
 // already holds the ones between, with a long agent reply whole (its sidecar loaded), and no
 // later frame adds a row above them, replaces the reply's preview, or shows a loading box or line.
+// The client holds that first paint for at most 600 ms (THREAD_FIRST_PAINT_CAP_MS): when the
+// thread's replies or the long reply's sidecar reach the page later than that, as on a loaded
+// machine, it paints what it has, and the checks of the one paint do not apply.
 // THREAD_FIRST_OPEN_SHOTS names a directory for the screencast frames of the open.
 const PASSWORD = 'thread-first-open-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.THREAD_FIRST_OPEN_SHOTS;
 const SAMPLE_MS = 4_000;
+const FIRST_PAINT_CAP_MS = 600;
 const REPLIES = 12;
 const ROOM_MESSAGES_AFTER = 25;
 const SIDECAR_ONLY = 'This closing paragraph is only in the sidecar.';
@@ -43,6 +47,8 @@ type Frame = {
   ids: string[];
   /** The rows at least partly in view, in order. */
   visible: string[];
+  /** The tops of the rows in view, from the top of the scroll area, in order. */
+  tops: number[];
   /** Whether the long reply's row shows its whole text (null while it is not mounted). */
   longWhole: boolean | null;
   /** Whether the list shows the "Loading full response" line anywhere. */
@@ -114,14 +120,41 @@ const sendLongReply = async (agent: MatrixSession, roomId: string, rootId: strin
   });
 };
 
-/** Samples the open thread after every painted frame into `window.firstOpenFrames`. */
+/**
+ * Samples the open thread after every painted frame into `window.firstOpenFrames`. The sample is
+ * a task that runs ahead of the page's own (`user-blocking`), so it reads what the frame painted:
+ * behind them it would also read what they commit before the next frame, which that frame's
+ * layout work (the room's footer inset, a pin to the end) still changes before anything paints.
+ */
 const installFrameSampler = (keys: typeof KEYS) => {
-  const win = window as unknown as { firstOpenFrames: Frame[]; startFirstOpenFrames: () => void };
+  const win = window as unknown as {
+    firstOpenFrames: Frame[];
+    /**
+     * When the data the first paint waits for reached the page, in ms: the first page of the
+     * thread's replies and the first sidecar. Later loads (more pages, edits) do not hold it.
+     */
+    firstOpenLoads: { replies?: number; sidecar?: number };
+    startFirstOpenFrames: () => void;
+  };
   let start = performance.now();
   let sampling = false;
   win.firstOpenFrames = [];
-  const channel = new MessageChannel();
-  channel.port1.onmessage = () => {
+  win.firstOpenLoads = {};
+  new PerformanceObserver((list) =>
+    list.getEntries().forEach((entry) => {
+      const { name, startTime, responseEnd } = entry as PerformanceResourceTiming;
+      if (startTime < start) return;
+      const loads = win.firstOpenLoads;
+      if (name.includes('/relations/')) loads.replies ??= responseEnd - start;
+      if (name.includes('/media/download/')) loads.sidecar ??= responseEnd - start;
+    })
+  ).observe({ type: 'resource' });
+  const { scheduler } = window as unknown as {
+    scheduler: { postTask: (task: () => void, options: { priority: 'user-blocking' }) => void };
+  };
+  const afterPaint = () =>
+    requestAnimationFrame(() => scheduler.postTask(sample, { priority: 'user-blocking' }));
+  const sample = () => {
     const inner = document.querySelector<HTMLElement>('[data-thread-count]');
     let scroller = inner?.parentElement ?? null;
     while (scroller && !/^(auto|scroll)$/.test(window.getComputedStyle(scroller).overflowY)) {
@@ -136,28 +169,35 @@ const installFrameSampler = (keys: typeof KEYS) => {
       const bottom = Math.min(box.bottom, composer?.getBoundingClientRect().top ?? box.bottom);
       const rows = [...scroller.querySelectorAll<HTMLElement>('[data-message-id]')];
       const longRow = longId ? scroller.querySelector(`[data-message-id="${longId}"]`) : null;
+      const inView = rows.filter((row) => {
+        const rowBox = row.getBoundingClientRect();
+        return rowBox.bottom > box.top + 1 && rowBox.top < bottom - 1;
+      });
       win.firstOpenFrames.push({
         t: Math.round(performance.now() - start),
         ids: rows.map((row) => row.dataset.messageId ?? ''),
-        visible: rows
-          .filter((row) => {
-            const rowBox = row.getBoundingClientRect();
-            return rowBox.bottom > box.top + 1 && rowBox.top < bottom - 1;
-          })
-          .map((row) => row.dataset.messageId ?? ''),
+        visible: inView.map((row) => row.dataset.messageId ?? ''),
+        tops: inView.map((row) => Math.round(row.getBoundingClientRect().top - box.top)),
         longWhole: longRow ? !!longRow.textContent?.includes(keys.marker) : null,
         loadingLine: !!scroller.textContent?.includes('Loading full response'),
       });
     }
     if (sampling && performance.now() - start < keys.sampleMs) {
-      requestAnimationFrame(() => channel.port2.postMessage(0));
+      afterPaint();
     }
   };
   win.startFirstOpenFrames = () => {
-    start = performance.now();
+    const begin = () => {
+      start = performance.now();
+      win.firstOpenFrames = [];
+      win.firstOpenLoads = {};
+    };
+    begin();
+    // The times count from the click that opens the thread; the client's cap starts with the
+    // open, right after it.
+    document.addEventListener('click', begin, { capture: true, once: true });
     sampling = true;
-    win.firstOpenFrames = [];
-    requestAnimationFrame(() => channel.port2.postMessage(0));
+    afterPaint();
   };
 };
 
@@ -244,10 +284,15 @@ test('a thread opened for the first time paints its replies once, its long reply
   await expect(page.locator(`[data-message-id="${newestId}"]`)).toBeAttached({ timeout: 30_000 });
   await page.waitForTimeout(SAMPLE_MS);
   await stopScreencast?.();
-  const frames = await page.evaluate(
-    () => (window as unknown as { firstOpenFrames: Frame[] }).firstOpenFrames
-  );
-  writeFileSync(test.info().outputPath('frames.json'), JSON.stringify(frames));
+  const { frames, dataAt } = await page.evaluate(() => {
+    const win = window as unknown as {
+      firstOpenFrames: Frame[];
+      firstOpenLoads: { replies?: number; sidecar?: number };
+    };
+    const { replies = 0, sidecar = 0 } = win.firstOpenLoads;
+    return { frames: win.firstOpenFrames, dataAt: Math.round(Math.max(replies, sidecar)) };
+  });
+  writeFileSync(test.info().outputPath('frames.json'), JSON.stringify({ dataAt, frames }));
 
   const painted = frames.findIndex((frame) => frame.ids.some((id) => id !== rootId));
   expect(painted, 'a frame shows replies').toBeGreaterThanOrEqual(0);
@@ -255,6 +300,22 @@ test('a thread opened for the first time paints its replies once, its long reply
   test
     .info()
     .annotations.push({ type: 'first paint', description: `${first.t} ms after the click` });
+  expect(
+    frames.filter((frame) => frame.loadingLine),
+    'frames with a loading line'
+  ).toEqual([]);
+  if (dataAt > FIRST_PAINT_CAP_MS && first.t >= FIRST_PAINT_CAP_MS) {
+    // The open's data came after the cap, so the client painted without waiting for all of it.
+    // A paint before the cap waited for nothing more.
+    test.info().annotations.push({
+      type: 'capped open',
+      description: `the open's data arrived ${dataAt} ms after the click`,
+    });
+    const last = frames[frames.length - 1]!;
+    expect(last.ids, 'the thread ends with the long reply').toContain(longId);
+    expect(last.longWhole, 'the thread ends with the long reply whole').toBe(true);
+    return;
+  }
   expect(first.ids, 'the first painted frame holds the long reply').toContain(longId);
   expect(first.longWhole, 'the first painted frame shows the long reply whole').toBe(true);
   const later = frames.slice(painted + 1);
@@ -271,8 +332,11 @@ test('a thread opened for the first time paints its replies once, its long reply
     later.filter((frame) => frame.visible.join() !== first.visible.join()),
     'frames whose rows in view differ from the first paint'
   ).toEqual([]);
+  // The same rows, at the same place: a row that lands above the view must not move them.
   expect(
-    frames.filter((frame) => frame.loadingLine),
-    'frames with a loading line'
+    later.filter((frame) =>
+      frame.tops.some((top, index) => Math.abs(top - (first.tops[index] ?? top)) > 1)
+    ),
+    'frames whose rows in view moved from where the first paint had them'
   ).toEqual([]);
 });

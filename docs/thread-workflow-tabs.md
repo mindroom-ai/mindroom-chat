@@ -32,7 +32,11 @@ came (a reply still streaming counts from when it was sent), Later by the same r
 sidebar (`threadReturnTs`), and Done by when it was resolved; pins lead each section.
 The switch and the folded sections are stored per account (`compactRoomSections:<userId>`), Done
 folded at first. A section that shows alone, as under its tab, is open and folds nothing: its
-stored fold is kept for when the other sections come back.
+stored fold is kept for when the other sections come back. While the pointer, focus or a card
+menu is on the cards, each card keeps its section and place, so none moves under the pointer,
+except a thread the classifier now puts under Working (for example once its agent's "Thinking..."
+placeholder, which already counts as streaming, arrives): it moves there at once. A section that
+showed alone stays open meanwhile, even when that move brings a second section.
 
 ## Saved filters and search
 

@@ -140,10 +140,17 @@ const unchangedSince = (
  * Lets a build keep the records of the build before it (`previous`) for the threads that did not
  * change: no mark in `changes` for the thread or the room since its record was built, the same
  * values given for it, and the same answers of the room that every record reads (`roomSources`).
+ *
+ * `beside` is a map built just before this one, in the same pass, under the same `changes` and
+ * with no `previous` of its own, so that all its records are new (the normal map, for the Compact
+ * one). A record this build would build is taken from it instead when it stands by the same
+ * rule: the two maps then build the record of a thread they list with the same values once.
+ * Nothing of `beside` is kept beyond the records taken.
  */
 export type ThreadRecordReuse = {
   previous: ReadonlyMap<string, ThreadRecord> | undefined;
   changes: ThreadRecordChanges;
+  beside?: ReadonlyMap<string, ThreadRecord>;
 };
 
 type ThreadRecordSources = {
@@ -534,29 +541,33 @@ export const buildThreadRecordMap = ({
       cacheCoverage: cacheCoverageMap?.get(threadRootId),
       absoluteIndex: absoluteIndexMap?.get(threadRootId),
     };
-    const kept = reuse?.previous?.get(threadRootId);
-    const keptFrom = kept && recordSources.get(kept);
-    if (
-      reuse &&
-      kept &&
-      keptFrom &&
-      unchangedSince(reuse.changes, threadRootId, keptFrom.builtAt) &&
-      sameOption(keptFrom.roomSources, roomSources) &&
-      sameOptions(keptFrom.options, options)
-    ) {
+    /** `held` if it still stands for these values, with their place. */
+    const standing = (held: ThreadRecord | undefined): ThreadRecord | undefined => {
+      const heldFrom = held && recordSources.get(held);
+      if (
+        !reuse ||
+        !held ||
+        !heldFrom ||
+        !unchangedSince(reuse.changes, threadRootId, heldFrom.builtAt) ||
+        !sameOption(heldFrom.roomSources, roomSources) ||
+        !sameOptions(heldFrom.options, options)
+      ) {
+        return undefined;
+      }
       // The room's threads trade places with every reply; a thread that only moved keeps its
       // record, with its new place.
       const index = options.absoluteIndex ?? 0;
-      let record = kept;
-      if (kept.absoluteIndex !== index) {
-        record = { ...kept, absoluteIndex: index };
-        recordSources.set(record, keptFrom);
-      }
-      records.set(threadRootId, record);
-      return;
+      if (held.absoluteIndex === index) return held;
+      const moved = { ...held, absoluteIndex: index };
+      recordSources.set(moved, heldFrom);
+      return moved;
+    };
+    let record =
+      standing(reuse?.previous?.get(threadRootId)) ?? standing(reuse?.beside?.get(threadRootId));
+    if (!record) {
+      record = buildThreadRecord(options);
+      if (reuse) recordSources.set(record, { options, builtAt, roomSources });
     }
-    const record = buildThreadRecord(options);
-    if (reuse) recordSources.set(record, { options, builtAt, roomSources });
     records.set(threadRootId, record);
   });
 

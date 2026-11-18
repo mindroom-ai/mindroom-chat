@@ -303,9 +303,7 @@ const checkSpaceRoomOnHomeKeepsView = async (page: Page, world: World, engine: s
     page.locator('[data-e2e-opened-view="true"]'),
     `${engine}: the room view stays mounted`
   ).toHaveCount(1);
-  expect(new URL(page.url()).pathname, `${engine}: the thread opens on Home`).toMatch(
-    /^\/home\//
-  );
+  expect(new URL(page.url()).pathname, `${engine}: the thread opens on Home`).toMatch(/^\/home\//);
 };
 
 const appHeight = (page: Page) =>
@@ -428,18 +426,17 @@ const checkHomeIndicatorInset = async (page: Page, world: World) => {
   await session.send('Emulation.setSafeAreaInsetsOverride', {
     insets: { top: 0, left: 0, right: 0, bottom: HOME_INDICATOR },
   });
-  // Either the box grows by the inset or it moves up by it.
+  // Either the box grows or it moves up, until it ends above the inset (its gap below, 8 px on
+  // a phone, already gave part of it).
+  const screenBottom = page.viewportSize()?.height ?? NaN;
   await expect
-    .poll(async () => {
-      const box = await composerBox(page);
-      return Math.round(box.height - before.height + (before.bottom - box.bottom));
-    })
-    .toBeGreaterThanOrEqual(HOME_INDICATOR - 1);
+    .poll(async () => Math.round((await composerBox(page)).bottom))
+    .toBeLessThanOrEqual(screenBottom - HOME_INDICATOR + 1);
   const after = await composerBox(page);
   console.log(`home indicator: before ${JSON.stringify(before)} after ${JSON.stringify(after)}`);
   expect(after.height, 'the composer box keeps its height').toBeLessThanOrEqual(before.height + 1);
   expect(after.bottom, 'the composer box ends above the inset').toBeLessThanOrEqual(
-    before.bottom - HOME_INDICATOR + 1
+    screenBottom - HOME_INDICATOR + 1
   );
 };
 

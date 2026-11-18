@@ -389,6 +389,7 @@ describe("ThreadActionsMenu's thread details", () => {
     messageRenderers: [],
     pages: [],
     roomHeaderSlot: [],
+    threadHeaderSlot: [],
     sidePanels: [],
     headerActions: [],
     slashCommands: [],

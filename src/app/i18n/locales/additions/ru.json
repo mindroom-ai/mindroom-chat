@@ -702,7 +702,14 @@
         "clear": "Очистить",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Изменять это могут только те, кому разрешено менять настройки этой комнаты.",
-        "saveFailed": "Не удалось сохранить настройку. Попробуйте ещё раз."
+        "saveFailed": "Не удалось сохранить настройку. Попробуйте ещё раз.",
+        "replyMode": {
+          "label": "Агенты отвечают",
+          "description": "Нужно ли в новом сообщении упомянуть агента или команду, чтобы получить ответ. «По умолчанию» следует конфигурации MindRoom для этой комнаты. Даже с вариантом «Только при упоминании» агенты могут отвечать на последующие сообщения в ветке, где они уже ответили.",
+          "default": "По умолчанию",
+          "auto": "На любое сообщение",
+          "mentions": "Только при упоминании"
+        }
       }
     }
   },
@@ -849,6 +856,63 @@
         "finished": "Завершено {{value1}}",
         "stillStreaming": "Ещё идёт",
         "duration": "Длительность {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} с",
+        "tokensShort": "{{before}} → {{after}} токенов",
+        "label": {
+          "running": "Сжатие контекста…",
+          "preTurn": "Сжато перед ответом",
+          "midTurn": "Контекст сжат",
+          "manual": "Сжато по запросу",
+          "failed": "Сжатие не удалось",
+          "timeout": "Время сжатия истекло",
+          "interrupted": "Сжатие прервано"
+        },
+        "title": "Контекст сжат",
+        "tag": {
+          "preTurn": "перед ответом",
+          "midTurn": "посреди хода",
+          "manual": "вручную"
+        },
+        "subtitle": {
+          "preTurn": "Перед первым запросом этого ответа к модели.",
+          "midTurn": "Между двумя запросами к модели, после вызова инструмента {{n, number}}.",
+          "midTurnNoTools": "Между двумя запросами к модели.",
+          "manual": "Запрошено командой сжатия."
+        },
+        "gauge": {
+          "was": "было {{p, number}} % бюджета",
+          "now": "сейчас {{p, number}} %",
+          "used": "{{p, number}} % бюджета"
+        },
+        "row": {
+          "history": "История",
+          "saved": "Сэкономлено",
+          "budget": "Бюджет",
+          "folded": "Свёрнуто",
+          "folding": "Сворачивается",
+          "summarizedBy": "Сводку сделала",
+          "summaryModel": "Модель сводки",
+          "when": "Когда",
+          "started": "Начато",
+          "reason": "Причина",
+          "gaveUpAfter": "Прекращено через"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> токенов",
+          "history": "<b>{{n, number}}</b> токенов",
+          "tokens": "{{n, number}} токенов",
+          "saved": "{{n, number}} токенов ({{p, number}} %)",
+          "runs_one": "{{count, number}} запуск",
+          "runs_few": "{{count, number}} запуска",
+          "runs_many": "{{count, number}} запусков",
+          "runs_other": "{{count, number}} запуска",
+          "folded": "{{runs}} в 1 сводку",
+          "folding": "{{runs}}, готово: {{done, number}}",
+          "summarizedBy": "{{model}} за {{duration}}",
+          "interrupted": "Ответ завершился раньше, чем была готова сводка."
+        }
       }
     },
     "message-search": {
@@ -963,6 +1027,25 @@
       "withCount_many": "{{label}}, активно: {{count}}",
       "withCount_other": "{{label}}, активно: {{count}}",
       "resize": "Изменить размер панели субагентов"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Усилие",
+        "effortFor": "Усилие для {{model}}",
+        "noEffortLevels": "Нет уровней усилия",
+        "defaultLevel": "По умолчанию",
+        "levelIsDefault": "{{level}}, по умолчанию",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Выкл.",
+          "minimal": "Минимальное",
+          "low": "Низкое",
+          "medium": "Среднее",
+          "high": "Высокое",
+          "xhigh": "Очень высокое",
+          "max": "Максимальное"
+        }
+      }
     }
   },
   "composer": {

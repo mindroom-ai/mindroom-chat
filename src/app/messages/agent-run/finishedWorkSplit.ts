@@ -1,18 +1,21 @@
-import { htmlToDOM } from 'html-react-parser';
+import { htmlToDOM, type HTMLReactParserOptions } from 'html-react-parser';
 import { isText, type ChildNode } from 'domhandler';
 import { MINDROOM_TOOL_REF_ICON, parseToolRefText } from '../html/blocks';
-import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
 import {
-  extractTextFromChildren,
-  isDomElementNode,
-  parseToolBlockMarker,
-  takeLeadingToolRefs,
-} from './toolRefDom';
+  sanitizeCustomHtml,
+  sanitizeText,
+  type SanitizeCustomHtmlOptions,
+} from '../../rich-text/sanitize';
+import { isDomElementNode } from './toolRefDom';
+import { parseRenderedHtml, readRenderedToolCalls } from '../html/HtmlBlocks';
 
 export type FinishedWorkSplit = {
-  /** The work: everything up to and including the block of the last tool marker. */
+  /**
+   * The work, sanitized: through the top-level node of the last call it draws, alone or in the
+   * answer.
+   */
   head: string;
-  /** What follows the last tool marker: the reply's answer. */
+  /** The answer after it, sanitized. */
   tail: string;
 };
 
@@ -34,21 +37,6 @@ export const isLongAgentReply = (body: string): boolean =>
         length + (parseToolRefText(line) ? TOOL_MARKER_LINE_LENGTH - line.length : 0),
       body.length
     ) >= LONG_AGENT_REPLY_LENGTH;
-
-/** Whether the renderer shows this top-level node as a tool block, as `getRenderedToolRefs` reads it. */
-const startsWithToolBlock = (node: ChildNode): boolean => {
-  if (!isDomElementNode(node)) return false;
-  // Necessary for a match, and far cheaper than the prefix scan.
-  if (!extractTextFromChildren(node.children).trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) {
-    return false;
-  }
-  let found = false;
-  takeLeadingToolRefs(node, (html) => {
-    found = parseToolBlockMarker(html) !== undefined;
-    return false;
-  });
-  return found;
-};
 
 const VOID_ELEMENTS = new Set([
   'area',
@@ -99,33 +87,40 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
     return MEDIA_ELEMENTS.has(node.name) || hasVisibleContent(node.children);
   });
 
-/** Whether the HTML shows anything once sanitized as `RenderBody` sanitizes it. */
+/** Whether the sanitized HTML shows anything. */
 const rendersVisibleContent = (html: string): boolean =>
-  hasVisibleContent(htmlToDOM(sanitizeCustomHtml(html)) as ChildNode[]);
+  hasVisibleContent(htmlToDOM(html) as ChildNode[]);
 
 /**
- * Splits a finished agent reply's HTML after the top-level block that holds its last tool marker,
- * or returns undefined when it has no marker or nothing visible follows the last one. The backend
- * writes every marker as a paragraph of its own, so the split falls between blocks.
+ * Splits a finished agent reply's HTML, sanitized with the options `RenderBody` renders it with
+ * (`useBodySanitizeOptions`), after the top-level node that holds the last call the renderer
+ * draws with these base parser options (see `readRenderedToolCalls`), or returns undefined when
+ * it draws no call or nothing visible follows the last one.
  */
-export const splitFinishedWork = (html: string): FinishedWorkSplit | undefined => {
+export const splitFinishedWork = (
+  html: string,
+  baseOpts: HTMLReactParserOptions,
+  sanitizeOptions: SanitizeCustomHtmlOptions
+): FinishedWorkSplit | undefined => {
   if (!html.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
-  const nodes = htmlToDOM(html) as ChildNode[];
-  let last = -1;
-  nodes.forEach((node, index) => {
-    if (startsWithToolBlock(node)) last = index;
-  });
-  if (last < 0) return undefined;
-  const tail = nodes
-    .slice(last + 1)
-    .map(serializeHtmlNode)
-    .join('');
-  if (!rendersVisibleContent(tail)) return undefined;
-  return {
-    head: nodes
-      .slice(0, last + 1)
-      .map(serializeHtmlNode)
-      .join(''),
-    tail,
-  };
+  const sanitized = sanitizeCustomHtml(html, sanitizeOptions);
+  const { lastNode } = readRenderedToolCalls(sanitized, baseOpts);
+  if (lastNode < 0) return undefined;
+  // Cut from a parse of its own: finding the calls draws them, which changes the nodes it read.
+  const nodes = parseRenderedHtml(sanitized, baseOpts);
+  const serialize = (from: number, to?: number) =>
+    nodes.slice(from, to).map(serializeHtmlNode).join('');
+  // The answer renders on its own, where a marker the whole body shows as text (one naming a call
+  // drawn before it) draws as a call: the work takes it in.
+  let end = lastNode + 1;
+  for (;;) {
+    const tail = serialize(end);
+    const drawn = tail.includes(MINDROOM_TOOL_REF_ICON)
+      ? readRenderedToolCalls(tail, baseOpts).lastNode
+      : -1;
+    if (drawn < 0) {
+      return rendersVisibleContent(tail) ? { head: serialize(0, end), tail } : undefined;
+    }
+    end += drawn + 1;
+  }
 };

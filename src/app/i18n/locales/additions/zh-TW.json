@@ -675,7 +675,14 @@
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",
-        "saveFailed": "無法儲存設定，請再試一次。"
+        "saveFailed": "無法儲存設定，請再試一次。",
+        "replyMode": {
+          "label": "代理回覆",
+          "description": "新訊息是否需要提及某個代理或團隊才會得到回覆。「預設」依照 MindRoom 對此聊天室的設定。即使選擇「僅在被提及時」，代理仍可回覆它們已回覆過的討論串中的後續訊息。",
+          "default": "預設",
+          "auto": "任何訊息",
+          "mentions": "僅在被提及時"
+        }
       }
     }
   },
@@ -816,6 +823,60 @@
         "finished": "結束 {{value1}}",
         "stillStreaming": "仍在生成",
         "duration": "用時 {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} 秒",
+        "tokensShort": "{{before}} → {{after}} 個權杖",
+        "label": {
+          "running": "正在壓縮上下文…",
+          "preTurn": "回覆前已壓縮",
+          "midTurn": "已壓縮上下文",
+          "manual": "依要求壓縮",
+          "failed": "壓縮失敗",
+          "timeout": "壓縮逾時",
+          "interrupted": "壓縮已中斷"
+        },
+        "title": "上下文已壓縮",
+        "tag": {
+          "preTurn": "回覆前",
+          "midTurn": "回合中途",
+          "manual": "手動"
+        },
+        "subtitle": {
+          "preTurn": "在此回覆的第一個模型請求之前。",
+          "midTurn": "在兩個模型請求之間，第 {{n, number}} 次工具呼叫之後。",
+          "midTurnNoTools": "在兩個模型請求之間。",
+          "manual": "透過壓縮指令要求。"
+        },
+        "gauge": {
+          "was": "之前佔預算的 {{p, number}}%",
+          "now": "現在 {{p, number}}%",
+          "used": "佔預算的 {{p, number}}%"
+        },
+        "row": {
+          "history": "歷史",
+          "saved": "節省",
+          "budget": "預算",
+          "folded": "已合併",
+          "folding": "正在合併",
+          "summarizedBy": "摘要模型",
+          "summaryModel": "摘要模型",
+          "when": "時間",
+          "started": "開始",
+          "reason": "原因",
+          "gaveUpAfter": "放棄於"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> 個權杖",
+          "history": "<b>{{n, number}}</b> 個權杖",
+          "tokens": "{{n, number}} 個權杖",
+          "saved": "{{n, number}} 個權杖（{{p, number}}%）",
+          "runs_other": "{{count, number}} 次執行",
+          "folded": "{{runs}}合併為 1 個摘要",
+          "folding": "{{runs}}，已完成 {{done, number}} 次",
+          "summarizedBy": "{{model}}，耗時 {{duration}}",
+          "interrupted": "摘要完成前回覆已結束。"
+        }
       }
     },
     "message-search": {
@@ -912,6 +973,25 @@
       "showFor": "顯示子代理：{{name}}",
       "withCount_other": "{{label}}，{{count}} 個活躍",
       "resize": "調整子代理面板大小"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "推理強度",
+        "effortFor": "{{model}} 的推理強度",
+        "noEffortLevels": "無推理強度等級",
+        "defaultLevel": "預設",
+        "levelIsDefault": "{{level}}，預設",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "關閉",
+          "minimal": "最低",
+          "low": "低",
+          "medium": "中",
+          "high": "高",
+          "xhigh": "超高",
+          "max": "最高"
+        }
+      }
     }
   },
   "composer": {

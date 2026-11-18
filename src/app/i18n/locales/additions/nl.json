@@ -684,7 +684,14 @@
         "clear": "Wissen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Alleen wie de instellingen van deze kamer mag wijzigen, kan dit bewerken.",
-        "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw."
+        "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw.",
+        "replyMode": {
+          "label": "Agents antwoorden",
+          "description": "Of een nieuw bericht een agent of team moet noemen om antwoord te krijgen. Standaard volgt de configuratie van MindRoom voor deze kamer. Ook met Alleen als ze genoemd worden kunnen agents vervolgberichten beantwoorden in een thread waarin ze al antwoordden.",
+          "default": "Standaard",
+          "auto": "Op elk bericht",
+          "mentions": "Alleen als ze genoemd worden"
+        }
       }
     }
   },
@@ -827,6 +834,61 @@
         "finished": "Klaar {{value1}}",
         "stillStreaming": "Nog bezig",
         "duration": "Duur {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "tokensShort": "{{before}} → {{after}} tokens",
+        "label": {
+          "running": "Context wordt gecomprimeerd…",
+          "preTurn": "Gecomprimeerd vóór het antwoord",
+          "midTurn": "Context gecomprimeerd",
+          "manual": "Op verzoek gecomprimeerd",
+          "failed": "Comprimeren mislukt",
+          "timeout": "Comprimeren duurde te lang",
+          "interrupted": "Comprimeren onderbroken"
+        },
+        "title": "Context gecomprimeerd",
+        "tag": {
+          "preTurn": "vóór het antwoord",
+          "midTurn": "midden in de beurt",
+          "manual": "handmatig"
+        },
+        "subtitle": {
+          "preTurn": "Vóór de eerste modelaanvraag van dit antwoord.",
+          "midTurn": "Tussen twee modelaanvragen, na toolaanroep {{n, number}}.",
+          "midTurnNoTools": "Tussen twee modelaanvragen.",
+          "manual": "Aangevraagd met het compact-commando."
+        },
+        "gauge": {
+          "was": "was {{p, number}}% van het budget",
+          "now": "nu {{p, number}}%",
+          "used": "{{p, number}}% van het budget"
+        },
+        "row": {
+          "history": "Geschiedenis",
+          "saved": "Bespaard",
+          "budget": "Budget",
+          "folded": "Samengevoegd",
+          "folding": "Wordt samengevoegd",
+          "summarizedBy": "Samengevat door",
+          "summaryModel": "Samenvattingsmodel",
+          "when": "Wanneer",
+          "started": "Gestart",
+          "reason": "Reden",
+          "gaveUpAfter": "Opgegeven na"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> tokens",
+          "history": "<b>{{n, number}}</b> tokens",
+          "tokens": "{{n, number}} tokens",
+          "saved": "{{n, number}} tokens ({{p, number}}%)",
+          "runs_one": "{{count, number}} run",
+          "runs_other": "{{count, number}} runs",
+          "folded": "{{runs}} tot 1 samenvatting",
+          "folding": "{{runs}}, {{done, number}} klaar",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "Het antwoord eindigde voordat de samenvatting klaar was."
+        }
       }
     },
     "message-search": {
@@ -929,6 +991,25 @@
       "withCount_one": "{{label}}, {{count}} actief",
       "withCount_other": "{{label}}, {{count}} actief",
       "resize": "Formaat van het subagentenpaneel wijzigen"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Inspanning",
+        "effortFor": "Inspanning voor {{model}}",
+        "noEffortLevels": "Geen inspanningsniveaus",
+        "defaultLevel": "Standaard",
+        "levelIsDefault": "{{level}}, standaard",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Uit",
+          "minimal": "Minimaal",
+          "low": "Laag",
+          "medium": "Gemiddeld",
+          "high": "Hoog",
+          "xhigh": "Extra hoog",
+          "max": "Maximaal"
+        }
+      }
     }
   },
   "composer": {

@@ -328,7 +328,6 @@ vi.mock('../../composer/RoomInput', () => ({
 
 vi.mock('../../timeline/RoomViewFollowing', () => ({
   RoomViewFollowing: passthrough,
-  RoomViewFollowingPlaceholder: passthrough,
 }));
 
 vi.mock('../../ui/page/Page', () => ({

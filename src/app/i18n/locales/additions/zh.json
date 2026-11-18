@@ -675,7 +675,14 @@
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
-        "saveFailed": "无法保存该设置，请重试。"
+        "saveFailed": "无法保存该设置，请重试。",
+        "replyMode": {
+          "label": "智能体回复",
+          "description": "新消息是否需要提及某个智能体或团队才会得到回复。“默认”遵循 MindRoom 对此房间的配置。即使选择“仅在被提及时”，智能体仍可回复它们已回复过的话题中的后续消息。",
+          "default": "默认",
+          "auto": "任何消息",
+          "mentions": "仅在被提及时"
+        }
       }
     }
   },
@@ -816,6 +823,60 @@
         "finished": "结束 {{value1}}",
         "stillStreaming": "仍在生成",
         "duration": "用时 {{value1}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} 秒",
+        "tokensShort": "{{before}} → {{after}} 个令牌",
+        "label": {
+          "running": "正在压缩上下文…",
+          "preTurn": "回复前已压缩",
+          "midTurn": "已压缩上下文",
+          "manual": "按请求压缩",
+          "failed": "压缩失败",
+          "timeout": "压缩超时",
+          "interrupted": "压缩已中断"
+        },
+        "title": "上下文已压缩",
+        "tag": {
+          "preTurn": "回复前",
+          "midTurn": "轮次中途",
+          "manual": "手动"
+        },
+        "subtitle": {
+          "preTurn": "在此回复的第一个模型请求之前。",
+          "midTurn": "在两个模型请求之间，第 {{n, number}} 次工具调用之后。",
+          "midTurnNoTools": "在两个模型请求之间。",
+          "manual": "通过压缩命令请求。"
+        },
+        "gauge": {
+          "was": "之前占预算的 {{p, number}}%",
+          "now": "现在 {{p, number}}%",
+          "used": "占预算的 {{p, number}}%"
+        },
+        "row": {
+          "history": "历史",
+          "saved": "节省",
+          "budget": "预算",
+          "folded": "已合并",
+          "folding": "正在合并",
+          "summarizedBy": "摘要模型",
+          "summaryModel": "摘要模型",
+          "when": "时间",
+          "started": "开始",
+          "reason": "原因",
+          "gaveUpAfter": "放弃于"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> 个令牌",
+          "history": "<b>{{n, number}}</b> 个令牌",
+          "tokens": "{{n, number}} 个令牌",
+          "saved": "{{n, number}} 个令牌（{{p, number}}%）",
+          "runs_other": "{{count, number}} 次运行",
+          "folded": "{{runs}}合并为 1 个摘要",
+          "folding": "{{runs}}，已完成 {{done, number}} 次",
+          "summarizedBy": "{{model}}，用时 {{duration}}",
+          "interrupted": "摘要完成前回复已结束。"
+        }
       }
     },
     "message-search": {
@@ -912,6 +973,25 @@
       "showFor": "显示子智能体：{{name}}",
       "withCount_other": "{{label}}，{{count}} 个活跃",
       "resize": "调整子智能体面板大小"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "推理强度",
+        "effortFor": "{{model}} 的推理强度",
+        "noEffortLevels": "无推理强度级别",
+        "defaultLevel": "默认",
+        "levelIsDefault": "{{level}}，默认",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "关闭",
+          "minimal": "最低",
+          "low": "低",
+          "medium": "中",
+          "high": "高",
+          "xhigh": "超高",
+          "max": "最高"
+        }
+      }
     }
   },
   "composer": {

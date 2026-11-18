@@ -79,6 +79,7 @@ it('repositions inside the viewport when a lazy-only detail grows after opening 
       messageRenderers: [],
       pages: [],
       roomHeaderSlot: [],
+      threadHeaderSlot: [],
       sidePanels: [],
       headerActions: [],
       slashCommands: [],

@@ -1,6 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useContext, useMemo, useState } from 'react';
-import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
+import {
+  Element,
+  HTMLReactParserOptions,
+  Text as DOMText,
+  domToReact,
+  htmlToDOM,
+} from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
@@ -48,7 +54,7 @@ import {
   ToolCallState,
   useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
-import { ReasoningSegmentsAt } from '../agent-run/Reasoning';
+import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import {
   getEffectiveToolApprovalStatus,
@@ -559,9 +565,9 @@ const splitToolRunAtSecretRequests = (
 };
 
 /**
- * A run of tool calls as the parser places it, then the reasoning that followed its last call
- * (Reasoning.tsx), which shows there also while the run itself is hidden. A secret request for
- * one of its calls splits it, drawn on its own line where that call was.
+ * A run of tool calls as the parser places it, then the compactions and the reasoning that
+ * followed its last call (Reasoning.tsx), which show there also while the run itself is hidden. A
+ * secret request for one of its calls splits it, drawn on its own line where that call was.
  */
 function ToolRun({
   tools,
@@ -571,6 +577,7 @@ function ToolRun({
   replyTools: ReplyToolCalls;
 }) {
   const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
+  const anchor = tools.at(-1)?.index ?? 0;
   return (
     <>
       {splitToolRunAtSecretRequests(tools, secrets).map((part) =>
@@ -584,7 +591,8 @@ function ToolRun({
           />
         )
       )}
-      <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
+      <CompactionSeamsAt anchor={anchor} />
+      <ReasoningSegmentsAt anchor={anchor} />
     </>
   );
 }
@@ -669,7 +677,7 @@ const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   traceEvents: ToolTraceEvent[] | undefined,
   metadataStatus: ToolMetadataStatus | undefined,
-  // The markers a run of calls ends at, because reasoning shows after them.
+  // The markers a run of calls ends at, because reasoning or a compaction shows after them.
   splitAfter: ReadonlySet<number>
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
@@ -871,12 +879,61 @@ const createToolTraceMarkerParserOptions = (
   return nextOpts;
 };
 
+/** The indexes of the calls the React nodes draw as tool blocks, in the order they draw them. */
+const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
+  if (Array.isArray(node)) node.forEach((child) => collectToolRunIndexes(child, into));
+  if (!React.isValidElement<{ children?: ReactNode; tools?: ToolBlockRenderData[] }>(node)) return;
+  if (node.type === ToolRun) node.props.tools?.forEach(({ index }) => into.push(index));
+  else collectToolRunIndexes(node.props.children, into);
+};
+
+/** The HTML's top-level nodes, as the renderer parses it. */
+export const parseRenderedHtml = (html: string, baseOpts: HTMLReactParserOptions): ChildNode[] =>
+  htmlToDOM(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
+
+type RenderedToolCalls = {
+  /** The calls drawn as tool blocks, by index, in the order they are drawn. */
+  indexes: number[];
+  /**
+   * The last top-level node that draws a call, or that a run drawn before it takes in and so draws
+   * nothing itself; -1 without a call.
+   */
+  lastNode: number;
+};
+
+/**
+ * The tool calls the renderer draws for this sanitized HTML, read from its own parse with the
+ * message's base parser options, so the reasoning, the compaction seams and the fold of a reply's
+ * work go where its calls show. Where runs split changes which calls a run holds, not which draw.
+ */
+export const readRenderedToolCalls = (
+  html: string,
+  baseOpts: HTMLReactParserOptions
+): RenderedToolCalls => {
+  // Its own parse, which drawing changes (a marker's leading line break goes).
+  const nodes = parseRenderedHtml(html, baseOpts);
+  const opts = createToolTraceMarkerParserOptions(baseOpts, undefined, undefined, new Set());
+  const indexes: number[] = [];
+  let lastNode = -1;
+  let inRun = false;
+  nodes.forEach((node, nodeIndex) => {
+    const count = indexes.length;
+    const drawn = domToReact([node], opts);
+    collectToolRunIndexes(drawn, indexes);
+    if (indexes.length > count || (inRun && isDomElementNode(node) && drawn === null)) {
+      lastNode = nodeIndex;
+      inRun = true;
+    } else if (isDomElementNode(node)) inRun = false;
+  });
+  return { indexes, lastNode };
+};
+
 /**
  * The marker parser options for one message, as a function that makes fresh ones for each parse
  * (they keep state while they parse). The function stays the same while the base options, whether
- * the content has markers, its tool trace, the metadata status and the markers that reasoning
- * shows after do, so a memoized parse of a message that did not change is kept when the timeline
- * renders again, as it does for every streamed edit of another message.
+ * the content has markers, its tool trace, the metadata status and the markers that reasoning or
+ * a compaction shows after do, so a memoized parse of a message that did not change is kept when
+ * the timeline renders again, as it does for every streamed edit of another message.
  */
 export const useToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
@@ -885,20 +942,26 @@ export const useToolTraceMarkerParserOptions = (
 ): HtmlReactParserOptionsSource => {
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
-  // The markers that reasoning shows after (withReasoning in Reasoning.tsx), where a run of calls
-  // ends so that the thinking between two calls shows between them; none while none shows after a
-  // call, and runs then group as they do without reasoning. As text, which stays the same while
-  // they do.
+  // The markers that reasoning or a compaction shows after (withReasoning in Reasoning.tsx), where
+  // a run of calls ends so that the thinking or the compaction between two calls shows between
+  // them; none while none shows after a call, and runs then group as they do without them.
+  // Compactions always show. As text, which stays the same while they do.
   const reasoning = useContext(ReasoningSegmentsContext);
   const splitAfterKey = reasoning
-    ? [...reasoning.placement]
-        .filter(
-          ([anchor, indices]) =>
-            anchor > 0 &&
-            (reasoning.open ||
-              (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex)))
-        )
-        .map(([anchor]) => anchor)
+    ? [
+        ...new Set([
+          ...[...reasoning.placement]
+            .filter(
+              ([, indices]) =>
+                reasoning.open ||
+                (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
+            )
+            .map(([anchor]) => anchor),
+          ...reasoning.compactionsAt.keys(),
+        ]),
+      ]
+        .filter((anchor) => anchor > 0)
+        .sort((a, b) => a - b)
         .join()
     : '';
   return useMemo(() => {

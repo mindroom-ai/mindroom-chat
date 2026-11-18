@@ -248,6 +248,12 @@ describe('installEventContentGuard', () => {
         'io.mindroom.tool_trace': { version: 2, events: [] },
         'io.mindroom.reasoning': { text: 'imitated' },
         'io.mindroom.live_reasoning_segments': [{ start: 0, after_tool: 0 }],
+        'io.mindroom.compactions': [
+          { id: 'a', phase: 'mid_turn', after_tool: 0, status: 'success', before_tokens: 1 },
+        ],
+        'io.mindroom.live_compactions': [
+          { id: 'a', phase: 'mid_turn', after_tool: 0, status: 'running', before_tokens: 1 },
+        ],
         // A transcript would show other members' names and avatars beside words they never said.
         'io.mindroom.call_transcript': {
           duration_seconds: 60,
