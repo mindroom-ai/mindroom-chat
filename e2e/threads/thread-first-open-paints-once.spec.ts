@@ -140,7 +140,7 @@ const installFrameSampler = (keys: typeof KEYS) => {
   new PerformanceObserver((list) =>
     list.getEntries().forEach((entry) => {
       const { name, startTime, responseEnd } = entry as PerformanceResourceTiming;
-      if (sampling && startTime >= start && /\/relations\/|\/media\/download\//.test(name))
+      if (startTime >= start && /\/relations\/|\/media\/download\//.test(name))
         win.firstOpenLoads.push(responseEnd - start);
     })
   ).observe({ type: 'resource' });
@@ -182,10 +182,15 @@ const installFrameSampler = (keys: typeof KEYS) => {
     }
   };
   win.startFirstOpenFrames = () => {
-    start = performance.now();
+    const begin = () => {
+      start = performance.now();
+      win.firstOpenFrames = [];
+      win.firstOpenLoads = [];
+    };
+    begin();
+    // The times count from the click that opens the thread, as the client's cap does.
+    document.addEventListener('click', begin, { capture: true, once: true });
     sampling = true;
-    win.firstOpenFrames = [];
-    win.firstOpenLoads = [];
     afterPaint();
   };
 };
@@ -289,8 +294,9 @@ test('a thread opened for the first time paints its replies once, its long reply
     frames.filter((frame) => frame.loadingLine),
     'frames with a loading line'
   ).toEqual([]);
-  if (dataAt > FIRST_PAINT_CAP_MS) {
+  if (dataAt > FIRST_PAINT_CAP_MS && first.t >= FIRST_PAINT_CAP_MS) {
     // The open's data came after the cap, so the client painted without waiting for all of it.
+    // A paint before the cap waited for nothing: a load that ended later was not one it needed.
     test.info().annotations.push({
       type: 'capped open',
       description: `the open's data arrived ${dataAt} ms after the click`,
