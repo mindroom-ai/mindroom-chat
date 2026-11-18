@@ -32,7 +32,7 @@ describe('hasOpenOverlay', () => {
     add('<div role="dialog" aria-modal="true"></div>');
     const viewer = add('<div role="dialog" aria-modal="true"></div>');
     expect(hasOpenOverlay(viewer)).toBe(false);
-    add('<div aria-modal="true"></div>');
+    add('<div role="menu"></div>');
     expect(hasOpenOverlay(viewer)).toBe(true);
   });
 });

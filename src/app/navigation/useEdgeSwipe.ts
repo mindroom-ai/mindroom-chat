@@ -66,7 +66,7 @@ export const useEdgeSwipe = ({
     };
 
     const handleTouchStart = (event: TouchEventWithFlag) => {
-      if (event[HANDLED_EVENT_FLAG] || blocked(event) || event.touches.length !== 1) {
+      if (event[HANDLED_EVENT_FLAG] || event.touches.length !== 1) {
         reset();
         return;
       }
@@ -76,7 +76,8 @@ export const useEdgeSwipe = ({
         direction === 'back'
           ? touch.clientX <= EDGE_START_MAX_X
           : touch.clientX >= window.innerWidth - EDGE_START_MAX_X;
-      if (!startsAtEdge) {
+      // The edge first: most touches start away from it, and the layer check scans the document.
+      if (!startsAtEdge || blocked(event)) {
         reset();
         return;
       }

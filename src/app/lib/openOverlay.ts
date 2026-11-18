@@ -1,7 +1,6 @@
 import { hasBlockingPortalOverlay } from './portalOverlay';
 
-const OVERLAY_SELECTOR =
-  '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"], [aria-modal="true"]';
+const OVERLAY_SELECTOR = '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]';
 
 /**
  * Whether a menu, listbox or dialog is open over `layer`, the one asking, or over the page without
