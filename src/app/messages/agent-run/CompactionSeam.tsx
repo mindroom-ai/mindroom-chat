@@ -463,10 +463,12 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
             onBlur={onFocusLeave}
           >
             <div className={css.Head}>
-              <Icon className={css.HeadIcon} size={ICON_SIZE} aria-hidden />
-              <span data-compaction-title>
-                {title}
-                {elapsed !== undefined && ` ${elapsed}`}
+              <span className={css.HeadTitle}>
+                <Icon className={css.HeadIcon} size={ICON_SIZE} aria-hidden />
+                <span data-compaction-title>
+                  {title}
+                  {elapsed !== undefined && ` ${elapsed}`}
+                </span>
               </span>
               {tag !== undefined && (
                 <span className={css.Tag} data-compaction-tag>

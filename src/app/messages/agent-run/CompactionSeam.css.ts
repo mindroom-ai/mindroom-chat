@@ -139,6 +139,14 @@ export const Head = style({
 });
 
 /** The head's icon, in the state's color, as the row's is. */
+/** The head's icon and title, one unit, so a tag that does not fit wraps alone. */
+export const HeadTitle = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: toRem(6),
+  minWidth: 0,
+});
+
 export const HeadIcon = style({
   flex: 'none',
   selectors: {

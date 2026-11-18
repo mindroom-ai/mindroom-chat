@@ -102,6 +102,7 @@ vi.mock('../agent-run/CompactionSeam.css', () => ({
   Card: 'Card',
   Head: 'Head',
   HeadIcon: 'HeadIcon',
+  HeadTitle: 'HeadTitle',
   Tag: 'Tag',
   Subtitle: 'Subtitle',
   Gauge: 'Gauge',

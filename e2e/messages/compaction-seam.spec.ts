@@ -635,6 +635,18 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     element.getBoundingClientRect().width,
   ]);
   expect(titleWidth).toBeGreaterThanOrEqual(cardWidth / 2);
+  // The icon stays on the title's first line; only the tag wraps.
+  expect(
+    await card.evaluate((element) => {
+      const title = element.querySelector('[data-compaction-title]')!;
+      const icon = title.previousElementSibling!.getBoundingClientRect();
+      const range = document.createRange();
+      range.setStart(title.firstChild!, 0);
+      range.setEnd(title.firstChild!, 1);
+      const firstLine = range.getBoundingClientRect();
+      return icon.bottom > firstLine.top && icon.top < firstLine.bottom;
+    })
+  ).toBe(true);
   await page.mouse.move(0, 0);
   await expect(card).toHaveCount(0);
 
