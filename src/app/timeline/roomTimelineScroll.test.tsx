@@ -487,6 +487,19 @@ describe('useLatestRowPin in room rows that run newest first', () => {
     expect(room.element.scrollTo).not.toHaveBeenCalled();
   });
 
+  it('keeps the top when the offset ledger gives the position the rows it held above the list', () => {
+    const room = roomNewestFirst();
+    room.element.scrollTo.mockClear();
+
+    // The settle puts the rows back above the view and moves the position down as far: the list
+    // grows by what the position gains, and no room below the view is lost.
+    room.element.scrollHeight += 762;
+    room.element.scrollTop = 762;
+    act(() => room.fire('scroll'));
+    room.showRows(20);
+    expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 0 });
+  });
+
   it('follows a new row at the top, and Jump to Latest goes there', () => {
     const room = roomNewestFirst();
     act(() => room.fire('touchstart'));

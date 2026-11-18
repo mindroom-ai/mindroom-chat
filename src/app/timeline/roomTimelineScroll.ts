@@ -206,9 +206,14 @@ const useLatestRowRequest = ({
     // the view that changes size moves the position and the content by the same amount. It
     // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
     // synchronously and so would pin the newest row again before this saw the reader's position.
-    // With the newest row first, the pins scroll up, and a scroll down away from the top is the
-    // reader's. The room below the view that rows which shrank still take until React renders the
-    // list does not count: the correction that keeps the end in place for them scrolls up as much.
+    // With the newest row first, the pins scroll up, and a scroll down away from the top that
+    // leaves less room below the view is the reader's. One that leaves as much is the timeline
+    // giving the position what it owed the rows above the view: the offset ledger settles (the
+    // list had held them above its start, out of reach of a pin to the top, and puts them back
+    // with the position moved down as far), or the virtual list corrects for a row measured there.
+    // The pin then brings the top in again.
+    // The room below the view that rows which shrank still take until React renders the list does
+    // not count: the correction that keeps the end in place for them scrolls up as much.
     // The rows can still measure a shrink that React has already rendered: never less than none.
     // A scroll up no larger than the scroll area grew is the browser keeping the position inside
     // the taller area (a phone's keyboard band that widens while the rows measure again): the
@@ -224,7 +229,7 @@ const useLatestRowRequest = ({
       const height = scrollElement.clientHeight;
       const lowerEdgeRose = top < lastTop && top + height < lastTop + lastHeight;
       const leftLatest = latestAtTopRef.current
-        ? top > lastTop + LEFT_LATEST_ROW_PX
+        ? top > lastTop + LEFT_LATEST_ROW_PX && below < lastBelow - LEFT_LATEST_ROW_PX
         : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
       if (leftLatest) release();
       lastTop = top;
