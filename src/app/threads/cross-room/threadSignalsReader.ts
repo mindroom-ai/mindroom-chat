@@ -12,6 +12,7 @@ import {
   markThreadRecordChange,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
+import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
 import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
 import { changedThreadIds, receiptThreadIds } from '../overview/threadOverviewRefreshCounter';
@@ -91,7 +92,8 @@ const clients = new WeakMap<MatrixClient, ClientSignals>();
  * the thread it may show in (`changedThreadIds`), so the other threads of the room keep their
  * signals: an event (also one a thread holds back, or one a page of history brings), its
  * decryption, an edit put on or taken off it, a local echo's progress, a redaction, the user's
- * receipt in a thread, and the thread's timeline starting over. It counts for every thread of the
+ * receipt in a thread, the thread's timeline starting over, and a message of the thread whose
+ * kept edits a full store drops (`onSyncedEditForgotten`). It counts for every thread of the
  * room when the thread is unknown (an event related to one the room does not hold), for the
  * user's receipt outside a thread, a timeline of the room that starts over, and a member who
  * joins or leaves (an agent's presence decides whether a notice is listed). Signals read no one
@@ -138,6 +140,24 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
       const threadIds = receiptThreadIds(receipt, mx.getSafeUserId());
       if (threadIds) threadIds.forEach((threadId) => mark(room.roomId, threadId));
       else mark(room.roomId);
+    });
+    // The kept edit a thread's signals read of a card is gone, and no event tells of it. Every
+    // client shares the store of kept edits, so this listener must not keep its client alive: it
+    // holds the client weakly, and stops once the client is gone.
+    const heard = new WeakRef(mx);
+    const stopForgotten = onSyncedEditForgotten((messageId) => {
+      const rooms = heard.deref()?.getRooms();
+      if (!rooms) {
+        stopForgotten();
+        return;
+      }
+      for (const room of rooms) {
+        const held = room.findEventById(messageId);
+        if (held) {
+          changedThreadIds(room, held).forEach((threadId) => mark(room.roomId, threadId));
+          return;
+        }
+      }
     });
     const reader = createThreadSignalsReader((room, threadRootId) => {
       const roomChanges = changes.get(room.roomId);

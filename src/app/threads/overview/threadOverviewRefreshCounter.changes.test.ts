@@ -14,11 +14,12 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { rememberSeenThreadRoot } from '../../matrix/seenThreadRoots';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 // What the room's thread records are told of each event: the thread it may have changed, or the
 // whole room. The records of the other threads are kept (`ThreadRecordReuse`), so each source a
-// record reads has to be told here, also the ones that raise no count.
+// record reads has to be told here, each with its count.
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
 
@@ -100,10 +101,12 @@ const setup = (threadId?: string) => {
 afterEach(cleanup);
 
 describe('useThreadOverviewRefreshCounter changes', () => {
-  it('marks the room when it starts to listen', () => {
+  it('marks the room and counts when it starts to listen', () => {
     const { state } = setup();
 
+    // What the room heard between the render that built the records and these listeners.
     expect(state().overviewChanges.room).toBe(1);
+    expect(state().overviewRefreshCounter).toBe(1);
   });
 
   it('marks nothing while a thread is open', () => {
@@ -249,7 +252,6 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     expect(stateOf().overviewRefreshCounter).toBe(counter + 1);
   });
 
-  // Sources a record reads that raise no count: each shows at the next count of any event.
   it('marks the thread of a local echo that moves on, and counts', () => {
     const { room, told } = setup();
     const echo = event({ id: '$new', threadRootId: '$root' });
@@ -314,6 +316,30 @@ describe('useThreadOverviewRefreshCounter changes', () => {
       marked: 'room',
       counted: true,
     });
+  });
+
+  it('marks the room and counts for a member event a timeline loses', () => {
+    const { room, told } = setup();
+    const member = event({ id: '$member', type: 'm.room.member' });
+
+    // The member's next newest member event the room has loaded names them from then on.
+    expect(told(() => room.emit(RoomEvent.Timeline, member, room, undefined, true))).toEqual({
+      marked: 'room',
+      counted: true,
+    });
+  });
+
+  it('marks the room and counts for a root of this room this device takes for read', () => {
+    const { told, unmount } = setup();
+    const root = event({ id: '$root' });
+    const see = (roomId: string) => () =>
+      rememberSeenThreadRoot(ME, roomId, Object.assign(root, { getTs: () => 1 }), 0);
+
+    // No receipt is sent for it, so no event of the room tells of it.
+    expect(told(see(ROOM_ID))).toEqual({ marked: 'room', counted: true });
+    expect(told(see('!other:example.org'))).toEqual({ marked: [], counted: false });
+    unmount();
+    expect(told(see(ROOM_ID))).toEqual({ marked: [], counted: false });
   });
 
   it('marks the thread of a message whose kept edits a full store drops, and counts', () => {

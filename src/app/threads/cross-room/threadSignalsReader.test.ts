@@ -11,7 +11,17 @@ import {
   subscribeRoomSignals,
 } from './threadSignalsReader';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), receiptEvents: { version: 0 } }));
+const mocks = vi.hoisted(() => ({
+  read: vi.fn(),
+  receiptEvents: { version: 0 },
+  forgotten: new Set<(messageId: string) => void>(),
+}));
+vi.mock('../../matrix/client/syncedEdits', () => ({
+  onSyncedEditForgotten: (listener: (messageId: string) => void) => {
+    mocks.forgotten.add(listener);
+    return () => mocks.forgotten.delete(listener);
+  },
+}));
 vi.mock('./threadSignals', () => ({ readThreadSignals: mocks.read }));
 vi.mock('../../matrix/receiptReadTs', () => ({
   receiptEventsVersion: () => mocks.receiptEvents.version,
@@ -46,7 +56,11 @@ const makeRoom = () => {
   return { room, thread, counts };
 };
 
-afterEach(() => mocks.read.mockReset());
+afterEach(() => {
+  mocks.read.mockReset();
+  // Every client's reader hears the one store of kept edits: no client of an earlier test stays.
+  mocks.forgotten.clear();
+});
 
 describe('createThreadSignalsReader', () => {
   it('reads a thread once while nothing about it changes', () => {
@@ -221,6 +235,7 @@ describe('getThreadSignalsReader', () => {
     } as unknown as Room;
     const mx = Object.assign(new EventEmitter(), {
       getRoom: (roomId: string) => (roomId === room.roomId ? room : null),
+      getRooms: () => [{ findEventById: () => undefined }, room],
       getSafeUserId: () => ME,
     });
     const reader = getThreadSignalsReader(mx as unknown as MatrixClient);
@@ -306,6 +321,19 @@ describe('getThreadSignalsReader', () => {
     held.set('$reply', event({ id: '$reply', threadRootId: '$b' }));
     mx.emit(RoomEvent.Redaction, event({ id: '$redaction', relatesTo: '$reply' }), room);
     expect(readAgain()).toEqual(['$b']);
+  });
+
+  it('reads the thread of a message whose kept edits a full store drops', () => {
+    const { held, readAgain } = setup();
+    held.set('$card', event({ id: '$card', threadRootId: '$a' }));
+    const forget = (messageId: string) =>
+      mocks.forgotten.forEach((listener) => listener(messageId));
+
+    forget('$card');
+    expect(readAgain()).toEqual(['$a']);
+    // A message no room of the client holds is in no thread whose signals were read.
+    forget('$unheld');
+    expect(readAgain()).toEqual([]);
   });
 
   it('reads every thread when a timeline of the room starts over, and one thread when its own does', () => {

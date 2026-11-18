@@ -39,7 +39,13 @@ const getBundledThreadLatestEventTs = (rootEvent: MatrixEvent | undefined): numb
   }
 
   const latestEventTs = getPositiveTs(latestEvent.origin_server_ts);
-  const latestEditTs = getPositiveTs(getSameSenderBundledEdit(latestEvent)?.origin_server_ts);
+  const latestEdit = getSameSenderBundledEdit(latestEvent);
+  // As for an edit put on a loaded reply (`getEventActivityTs`): one that still streams moves no
+  // card. The stream status stays outside an encrypted edit's payload.
+  const latestEditTs =
+    latestEdit && !isAiRunStreaming(isRecord(latestEdit.content) ? latestEdit.content : {})
+      ? getPositiveTs(latestEdit.origin_server_ts)
+      : undefined;
 
   if (latestEventTs === undefined) return latestEditTs;
   if (latestEditTs === undefined) return latestEventTs;

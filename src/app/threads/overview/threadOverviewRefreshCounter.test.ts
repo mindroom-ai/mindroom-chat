@@ -59,7 +59,8 @@ describe('useThreadOverviewRefreshCounter', () => {
       room.emit(ThreadEvent.Update);
     });
 
-    expect(counters).toEqual([0, 1, 2]);
+    // The first count is the listeners' start.
+    expect(counters).toEqual([0, 1, 2, 3]);
 
     await act(async () => {
       renderer?.unmount();
