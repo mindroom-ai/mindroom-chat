@@ -129,17 +129,23 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
   `Capacitor.isPluginAvailable('MindRoomVoiceRecorder')` (the shape of
   `isNativeQuickCaptureAvailable`).
 - `startNativeVoiceRecorder(): Promise<NativeVoiceRecorder>`: listens for `level`, calls the
-  plugin's `start`, and resolves the recorder. A rejection becomes an `Error` whose `name` is the one
-  `getUserMedia` would give: code `PERMISSION_DENIED` is `NotAllowedError`, `NO_MICROPHONE` is
-  `NotFoundError`, anything else `NotReadableError`.
+  plugin's `start`, which resolves the recording's `{ id }`, and resolves the recorder of that ID.
+  A rejection becomes an `Error` whose `name` is the one `getUserMedia` would give: code
+  `PERMISSION_DENIED` is `NotAllowedError`, `NO_MICROPHONE` is `NotFoundError`, anything else
+  `NotReadableError`.
 - `NativeVoiceRecorder extends EventTarget`: `state` (`recording` at first), `mimeType`
-  `'audio/mp4'`, `level()` (the newest level, 0 to 1 linear), `pause()` and
-  `resume()` (set `state` at once and call the plugin, as `MediaRecorder` does; a rejection is
-  ignored), `stop()`.
-- `stop()` sets `state` to `inactive` at once, then: plugin `stop` resolves `{ path }`; the file
-  is fetched from `Capacitor.convertFileSrc(path)`; a non-empty answer is raised as
-  `dataavailable` with `data` (a `Blob`); then, also after any failure, the `level` listener is
-  removed, plugin `cancel` deletes the file, and `stop` is raised. A second `stop()` does nothing.
+  `'audio/mp4'`, `level()` (the newest level, 0 to 1 linear), `pause()`, `resume()`, `stop()`.
+  Every plugin call it makes carries its `id`.
+- `pause()` and `resume()` set `state` at once and call the plugin, as `MediaRecorder` does. A
+  rejection ends the recording unless it has stopped already: `state` becomes `inactive`, the
+  recording is cancelled, and `stop` is raised without audio, which the session reports as
+  "Voice recording stopped unexpectedly. Please record again." (`voiceCaptureSession.ts:272-284`).
+  The session's clock and the native recorder can then never disagree in silence.
+- `stop()` sets `state` to `inactive` at once and removes the `level` listener, then: plugin `stop`
+  resolves `{ path }`; the file is fetched from `Capacitor.convertFileSrc(path)` with
+  `AbortSignal.timeout(5_000)`, the length of the session's stop deadline; a non-empty answer is
+  raised as `dataavailable` with `data` (a `Blob`); then, also after any failure, plugin `cancel`
+  deletes this recording's file, and `stop` is raised. A second `stop()` does nothing.
 
 Discard takes the same road: the session stops the recorder and drops the chunk. Reading a local
 file of at most a few megabytes to drop it costs less than a second stop method.
@@ -148,15 +154,16 @@ file of at most a few megabytes to drop it costs less than a second stop method.
 
 `jsName` `MindRoomVoiceRecorder`. The whole file is inside
 `#if targetEnvironment(macCatalyst)`. All recorder work runs on the main queue (plugin calls arrive
-on Capacitor's bridge queue, in order).
+on Capacitor's bridge queue, in order). At most one recording is live; it has an ID (a UUID) and
+its own file. Every method but `start` takes `{ id }` and acts only on the recording of that ID.
 
 | Method | Does | Resolves or rejects |
 |---|---|---|
-| `start` | asks for the microphone, cancels a recording left over, clears the folder, records | nothing; `PERMISSION_DENIED`, `NO_MICROPHONE`, `START_FAILED` |
-| `pause` | `AVAudioRecorder.pause()` | nothing |
-| `resume` | `AVAudioRecorder.record()` | nothing |
-| `stop` | stops, keeps the file | `{ path }`; `NOT_RECORDING` without a recording |
-| `cancel` | stops a live recording, deletes the folder | nothing |
+| `start` | asks for the microphone, discards a live recording left over, records into a new file | `{ id }`; `PERMISSION_DENIED`, `NO_MICROPHONE`, `START_FAILED` |
+| `pause` | `AVAudioRecorder.pause()` | nothing; `NOT_RECORDING` when `id` is not live |
+| `resume` | `AVAudioRecorder.record()`; when it answers `false`, discards the recording | nothing; `NOT_RECORDING` |
+| `stop` | stops, keeps the file | `{ path }`; `NOT_RECORDING` when `id` is not live |
+| `cancel` | stops the recording when `id` is live; deletes the file of `id` | nothing |
 
 Event `level`: `{ level }`, every 80 ms while recording and not paused (12.5 a second, the
 session's sample interval): `updateMeters()`, then `pow(10, averagePower(forChannel: 0) / 20)`,
@@ -167,14 +174,20 @@ newest value, so the live glide of `VoiceWaveform` is unchanged.
 - **Permission**: `AVCaptureDevice.requestAccess(for: .audio)`, the macOS call for the microphone;
   it prompts the first time and answers `false` at once when denied or restricted.
   `AVCaptureDevice.default(for: .audio) == nil` is `NO_MICROPHONE` (a Mac mini without one).
+- **The page's token**: the plugin counts its pages in `epoch`, which `cancelRecording()` raises
+  (a page load, the window closing). `start` reads `epoch` on the main queue before it asks for
+  the microphone, and compares it on the main queue when the answer arrives, before the audio
+  session is activated: an answer for a page that is gone rejects `START_FAILED` and records
+  nothing.
 - **Format**: AAC in an `.m4a`, mono, 16 kHz, 32 kbit/s, the Watch's settings
   (`Recorder.swift:36-39`): one proven configuration for every native MindRoom recorder, at the
   bitrate of the web path (`voiceCaptureSession.ts:18`). About 240 KB a minute.
 - **Audio session**: as the Watch does (`Recorder.swift:31-33`, `:89`): category `.record`, active
   while recording, inactive after.
-- **File**: `voice-recorder/voice-message.m4a` in the app's temporary folder. The folder is
-  cleared when the plugin loads (a recording left by a crash or a quit), before each `start`, and
-  by `cancel`, which the page calls once it has fetched the file.
+- **File**: `voice-recorder/<id>.m4a` in the app's temporary folder. An `id` that is not a UUID
+  names no file. `cancel` deletes the file of its `id` only, which the page calls once it has
+  fetched it. The whole folder is cleared when the plugin loads (a recording left by a crash or a
+  quit) and by `cancelRecording()` (the page that could fetch from it is gone).
 - **Transfer**: `convertFileSrc` and `fetch`, as `captureScreenshot` does from the same temporary
   folder: no base64 (a third larger, through the JSON bridge) and no new mechanism.
 
@@ -185,15 +198,22 @@ newest value, so the live glide of `VoiceWaveform` is unchanged.
   thin the waveform samples.
 - **The page reloads or WebKit's process dies**: the plugin observes Capacitor's
   `capacitorWebViewNavigationStarted` for its web view (posted for every real document load,
-  `WebViewDelegationHandler.swift:45-49`; a recovery from a crash reloads) and cancels. The page
-  that held the recording is gone, so nothing is told.
+  `WebViewDelegationHandler.swift:45-49`; a recovery from a crash reloads) and calls
+  `cancelRecording()`. The page that held the recording is gone, so nothing is told.
 - **The window closes**: `SceneDelegate.sceneDidDisconnect` blanks the page with the navigation
   delegate removed (`SceneDelegate.swift:85`, `QuickCaptureSceneDelegate.swift:262-267`), which
-  the observer cannot see, so it cancels the bridge's recording first.
+  the observer cannot see, so it calls the bridge's `cancelRecording()` first.
+- **Either happens while the microphone prompt is up**: the page's token no longer matches when
+  the prompt is answered, so no recorder is made.
+- **A stop that outlives the session's 5 s deadline**: the session finishes without audio and may
+  start the next recording. The late stop, fetch and cancel of the first carry its ID and its own
+  file, so they cannot read, stop or delete the second; its events reach no listener
+  (`voiceCaptureSession.ts:259-263`). The fetch gives up after 5 s by itself.
 - **The app quits**: the process releases the microphone; the file goes when the plugin next
   loads.
-- **The recorder stops by itself** (the input device vanishes): not detected. Stop sends what the
-  file holds; an empty or missing file is "No audio data was captured.".
+- **The recorder stops by itself** (the input device vanishes): not detected while recording. A
+  pause or resume that fails ends the recording with "stopped unexpectedly"; otherwise stop sends
+  what the file holds, and an empty or missing file is "No audio data was captured.".
 - **Discard during the permission prompt**: the session retires the generation; when `start`
   resolves it stops the recorder, which deletes the file.
 
@@ -203,7 +223,7 @@ newest value, so the live glide of `VoiceWaveform` is unchanged.
 - Swift: the plugin is registered only inside `#if targetEnvironment(macCatalyst)`, and only on
   the main bridge (not on `QuickCaptureViewController`, which records no voice), so
   `isPluginAvailable` is false on iPhone and iPad and they keep the web path. One bridge means one
-  recorder owns the folder.
+  plugin owns the folder.
 - The file joins both targets' sources, `App` and `AppStoreMac`.
 
 ### The blocked message on the Mac
@@ -229,32 +249,43 @@ WebKit has no media capture, and calls are unavailable there for the same reason
 ## Testing
 
 - `nativeVoiceRecorder.test.ts` with a fake plugin: availability; the three error names; level
-  events reach `level()`; pause and resume; stop raises `dataavailable` then `stop` and calls
-  `cancel`; a failed stop or fetch raises `stop` alone and still cancels; a second stop is ignored.
+  events reach `level()`; pause and resume carry the ID; stop raises `dataavailable` then `stop`
+  and cancels its ID; a failed stop, a failed or aborted fetch and an empty file raise `stop`
+  alone and still cancel; a second stop is ignored; a rejected pause or resume ends the recording,
+  and one rejected after the stop changes nothing; recording A stops with a slow fetch, B starts,
+  A's fetch settles: only A's ID is stopped and cancelled, B still records and reads levels.
 - `voiceCaptureSession.test.ts`: the native path with a fake native recorder (capture to an
   `audio/mp4` `.m4a` file with waveform; pause; discard; a denied start; ownership lost during
-  start stops the recorder; web capture present ignores the plugin). Every existing session and
+  start stops the recorder; web capture present ignores the plugin; a native stop that passes the
+  5 s deadline fails, the next recording starts, the first answers late and the second is sent
+  whole; a recorder that ends by itself shows "stopped unexpectedly"). Every existing session and
   hook test passes untouched.
 - `microphoneAccess.test.ts`: the Mac app gets the system settings text; iPhone keeps its own.
 - `nativeVoiceRecorderIOSContract.test.ts`: the plugin's name, methods, event, codes and settings;
-  Mac-only body; registration inside the Catalyst block and off the Quick Capture bridge; the
-  window-close cancel; both targets compile the file.
+  a file per recording ID, a UUID; the page's token read before the permission request, compared
+  before the audio session is activated, raised by `cancelRecording()`; `resume` checks
+  `record()`; Mac-only body; registration inside the Catalyst block and off the Quick Capture
+  bridge; the window-close cancel; both targets compile the file.
+- Swift has no unit test host for Mac Catalyst here (the routing host is iOS), so the token and
+  the scoping are pinned in source by the contract test and proven at run time on the Mac.
 - On the MacBook M2 (never on battery): a Debug Catalyst build of `App` and of `AppStoreMac`, and a
-  probe that drives the real plugin through the bridge (start, 3 s, stop, fetch, decode) and logs
-  the decoded duration. The probe is a patch applied to the M2's checkout and not committed. macOS
-  shows the microphone prompt once per signed build; without a click the probe reports that it
-  waits on the prompt.
+  probe that drives the real plugin through the bridge (start, 3 s, stop, fetch) and prints the
+  file, which `afinfo` decodes. A second run of the probe reloads the page while the microphone
+  prompt is up: after Allow, no file appears and the microphone indicator stays off. The probe is
+  a patch applied to the M2's checkout and not committed. Both runs need a click on the prompt;
+  without one the probe reports that it waits on the prompt.
 - `scripts/macos-store-preflight.mjs` already requires both microphone entitlements (`:56-67`);
   its tests run unchanged.
-- Final manual check on Bas's Mac: Allow, record, pause, resume, send, play on Mac and iPhone;
-  discard; deny and see the message; reload while recording and see the microphone indicator go
-  out.
+- Final manual check on Bas's Mac: Allow, record, pause, resume, send; the message plays on the
+  Mac, on iPhone, and in the web client in Chromium and in Firefox; discard; deny and see the
+  message; reload while recording and see the microphone indicator go out.
 
 ## Size
 
-Product code, tests excluded: about 240 lines. Swift about 115 (plugin 105, registration and the
-window-close cancel 8, two project entries). TypeScript about 125 (wrapper 95, session 30,
-blocked message 2). Tests about 300. One pull request, four tasks.
+Product code, tests excluded: about 290 lines. Swift about 145 (plugin 135 with the recording IDs,
+the page's token and the checked transitions; registration and the window-close cancel 8; two
+project entries). TypeScript about 145 (wrapper 113 with the IDs, the bounded fetch and the failed
+transitions; session 30; blocked message 2). Tests about 400. One pull request, four tasks.
 
 ## Open questions, with the default taken
 
@@ -264,11 +295,13 @@ blocked message 2). Tests about 300. One pull request, four tasks.
    hidden. Follow-up.
 3. **A length limit**: none, as on the web (default); the Watch stops at 5 minutes.
 4. **Sample rate**: 16 kHz as the Watch (default), or 24 kHz as the web path asks of the browser.
-5. **A recorder that stops by itself**: send what was captured (default), or report "stopped
-   unexpectedly" and drop it as the web path does.
+5. **A recorder that stops by itself while recording**: send what was captured (default), or
+   detect it and report "stopped unexpectedly" as the web path does.
 
 ## To confirm on the Mac
 
 Not run here, checked by the M2 task: `AVAudioRecorder` with these settings and the `.record`
-audio session on Mac Catalyst; the microphone prompt from `AVCaptureDevice.requestAccess`; the
-fetch of the recording from the temporary folder in the sandboxed Store build.
+audio session on Mac Catalyst; the microphone prompt from `AVCaptureDevice.requestAccess`, and
+that a page reloaded under it records nothing; the fetch of the recording from the temporary
+folder in the sandboxed Store build. Playback of the `.m4a` in Chromium and Firefox depends on
+their AAC decoders, as it does for iPhone and Watch messages today; the manual check covers it.
