@@ -29,6 +29,8 @@ const { mx, room, state } = vi.hoisted(() => {
       second: undefined as SecondThreadControl | undefined,
       focusComposer: vi.fn(),
       listeners,
+      /** What a header canvas still loading answers for: its last context. */
+      canvasContext: '',
     },
     mx: {
       getSafeUserId: () => '@alice:example.org',
@@ -160,6 +162,10 @@ vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../canvas/canvasIndex')>()),
   useConversationCanvases: () => [],
   useComputerShown: () => false,
+  useOpenCanvasById: (_client: unknown, _room: unknown, context: string) => {
+    state.canvasContext = context;
+    return () => undefined;
+  },
 }));
 vi.mock('../matrix/hooks/useRoom', () => ({ useRoom: () => room }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -251,6 +257,15 @@ describe('the second thread beside the open one', () => {
     expect(state.second?.offers('!y', '$c')).toBe(false);
     await act(async () => state.second?.open('!y', '$c'));
     expect(panel()).toBeNull();
+  });
+
+  it("a header canvas still loading answers for B's place, which a new second thread changes", async () => {
+    await renderRoom('$a');
+    await openBeside('$b');
+    const withB = state.canvasContext;
+    await openBeside('$c');
+    expect(panel()?.querySelector('[data-thread-view="$c"]')).toBeTruthy();
+    expect(state.canvasContext).not.toBe(withB);
   });
 
   it('opening the members list closes and forgets B', async () => {

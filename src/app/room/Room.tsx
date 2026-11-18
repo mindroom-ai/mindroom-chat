@@ -799,10 +799,12 @@ function RoomContent() {
   });
 
   // A canvas chosen in the header may still load; any change of what the side panel shows
-  // (or of the conversation) since then wins over its late answer.
+  // (or of the conversation, or which thread the second thread panel shows) since then wins over
+  // its late answer.
   const panelContext = [
     conversation,
     openCanvasId ?? '',
+    secondShown ?? '',
     ...panels.filter((panel) => panel.open).map((panel) => panel.id),
   ].join('\n');
   const onCanvasOpen = useOpenCanvasById(client, room, panelContext, uiActions.activate);
