@@ -1155,7 +1155,8 @@
         "all": "Every thread matching your other filters."
       }
     },
-    "renameHint": "Double-click to rename"
+    "renameHint": "Double-click to rename",
+    "close": "Close thread"
   },
   "threadSnooze": {
     "title": "Snooze until",

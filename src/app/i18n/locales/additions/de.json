@@ -1155,7 +1155,8 @@
         "all": "Alle Threads, die deinen anderen Filtern entsprechen."
       }
     },
-    "renameHint": "Zum Umbenennen doppelklicken"
+    "renameHint": "Zum Umbenennen doppelklicken",
+    "close": "Thread schließen"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",

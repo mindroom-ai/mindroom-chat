@@ -1175,7 +1175,8 @@
         "all": "Tous les fils correspondant à vos autres filtres."
       }
     },
-    "renameHint": "Double-cliquez pour renommer"
+    "renameHint": "Double-cliquez pour renommer",
+    "close": "Fermer le fil"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",

@@ -410,7 +410,7 @@ describe('ThreadContextBanner rendering', () => {
   const bannerElement = (
     summaryText?: string,
     threadId = '$root',
-    columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull'>
+    columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull' | 'onClose'>
   ) =>
     React.createElement(
       Provider,
@@ -1399,6 +1399,21 @@ describe('ThreadContextBanner rendering', () => {
     expect(press()).toBe(true);
     expect(setResolved).toHaveBeenCalledTimes(1);
     act(() => renderer?.unmount());
+  });
+
+  it('with onClose it offers Close thread in place of Back', () => {
+    const onClose = vi.fn();
+    const renderer = create(bannerElement(undefined, '$root', { onClose }));
+    const labels = renderer.root
+      .findAllByType('button')
+      .map((button) => button.props['aria-label'] as unknown);
+    expect(labels).toContain('Close thread');
+    expect(labels).not.toContain('Back');
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Close thread' }).props.onClick();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    renderer.unmount();
   });
 
   it('opens the back tooltip toward the banner in either text direction', () => {

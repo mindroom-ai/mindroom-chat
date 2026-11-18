@@ -1175,7 +1175,8 @@
         "all": "Todos os tópicos que correspondem aos seus outros filtros."
       }
     },
-    "renameHint": "Faça duplo clique para mudar o nome"
+    "renameHint": "Faça duplo clique para mudar o nome",
+    "close": "Fechar o tópico"
   },
   "threadSnooze": {
     "title": "Adiar até",

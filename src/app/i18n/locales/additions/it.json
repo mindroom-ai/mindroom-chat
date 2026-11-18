@@ -1175,7 +1175,8 @@
         "all": "Tutti i thread che corrispondono agli altri filtri."
       }
     },
-    "renameHint": "Fai doppio clic per rinominare"
+    "renameHint": "Fai doppio clic per rinominare",
+    "close": "Chiudi il thread"
   },
   "threadSnooze": {
     "title": "Posticipa fino a",

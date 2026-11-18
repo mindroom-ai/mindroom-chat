@@ -15,6 +15,13 @@ export const noteThreadColumnKey = (evt: ReactKeyboardEvent): void => {
   threadColumnKeys.add(evt.nativeEvent);
 };
 
+// Keys pressed in a view of another thread on the page (the second thread beside the open one),
+// with that thread: Escape there marks it read.
+const threadViewKeys = new WeakMap<Event, string>();
+export const noteThreadViewKey = (evt: ReactKeyboardEvent, threadId: string): void => {
+  threadViewKeys.set(evt.nativeEvent, threadId);
+};
+
 type UseRoomEscapeReadReceiptsOptions = {
   hideActivity: boolean;
   roomId: string;
@@ -46,6 +53,11 @@ export const useRoomEscapeReadReceipts = ({
             .some((place) => place.roomId === roomId && place.threadId === threadId);
         if (store.get(conversationOutOfSightAtom) && !threadShows) return;
         if (!isKeyHotkey('escape', evt)) return;
+        const noted = threadViewKeys.get(evt);
+        if (noted) {
+          void markThreadAsRead(mx, roomId, noted, hideActivity);
+          return;
+        }
         // Beside the thread's column, Escape outside the column is the room's messages'. The column
         // noted the key as it passed, wherever the focus shortcut has moved the focus since.
         const messagesBeside = store

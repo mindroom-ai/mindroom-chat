@@ -1175,7 +1175,8 @@
         "all": "Todos los hilos que coinciden con tus otros filtros."
       }
     },
-    "renameHint": "Haz doble clic para cambiar el nombre"
+    "renameHint": "Haz doble clic para cambiar el nombre",
+    "close": "Cerrar el hilo"
   },
   "threadSnooze": {
     "title": "Posponer hasta",

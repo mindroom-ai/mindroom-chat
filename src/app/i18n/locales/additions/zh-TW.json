@@ -1135,7 +1135,8 @@
         "all": "符合其他篩選條件的所有討論串。"
       }
     },
-    "renameHint": "按兩下以重新命名"
+    "renameHint": "按兩下以重新命名",
+    "close": "關閉討論串"
   },
   "threadSnooze": {
     "title": "延後至",

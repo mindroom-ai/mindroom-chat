@@ -1155,7 +1155,8 @@
         "all": "Alle threads die aan je andere filters voldoen."
       }
     },
-    "renameHint": "Dubbelklik om de naam te wijzigen"
+    "renameHint": "Dubbelklik om de naam te wijzigen",
+    "close": "Thread sluiten"
   },
   "threadSnooze": {
     "title": "Snoozen tot",

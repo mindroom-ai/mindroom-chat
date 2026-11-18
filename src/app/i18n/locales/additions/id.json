@@ -1135,7 +1135,8 @@
         "all": "Semua utas yang cocok dengan filter Anda lainnya."
       }
     },
-    "renameHint": "Klik dua kali untuk mengganti nama"
+    "renameHint": "Klik dua kali untuk mengganti nama",
+    "close": "Tutup utas"
   },
   "threadSnooze": {
     "title": "Tunda hingga",

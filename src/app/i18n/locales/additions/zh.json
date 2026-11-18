@@ -1135,7 +1135,8 @@
         "all": "符合其他筛选条件的所有讨论串。"
       }
     },
-    "renameHint": "双击以重命名"
+    "renameHint": "双击以重命名",
+    "close": "关闭讨论串"
   },
   "threadSnooze": {
     "title": "延后至",
