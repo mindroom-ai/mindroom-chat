@@ -42,7 +42,11 @@ describe('Mac Store emitted-artifact preflight', () => {
   it('rejects any trace of the updater', () => {
     expect(
       macStoreUpdaterProblems({
-        paths: ['Contents/MacOS/MindRoom.chat'],
+        // The web bundle carries every license text, Sparkle's too.
+        paths: [
+          'Contents/MacOS/MindRoom.chat',
+          'Contents/Resources/public/public/licenses/Sparkle-MIT.txt',
+        ],
         infoKeys: ['CFBundleName', 'SUPPORTED'],
         strings: ['uiWindow'],
       })

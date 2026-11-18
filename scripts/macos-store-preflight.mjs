@@ -114,7 +114,9 @@ const signatureDetails = (file) => {
  */
 export const macStoreUpdaterProblems = ({ paths, infoKeys, strings }) => {
   const problems = [];
-  if (paths.some((file) => /Sparkle|MindRoomMacUpdater/.test(file)))
+  // The web bundle (Contents/Resources/public) carries every license text, Sparkle's too.
+  const native = paths.filter((file) => !file.startsWith('Contents/Resources/public/'));
+  if (native.some((file) => /Sparkle|MindRoomMacUpdater/.test(file)))
     problems.push('A Mac Store artifact must not embed the updater or Sparkle.');
   // Sparkle's keys (SUFeedURL, SUPublicEDKey, ...), not words such as SUPPORTED.
   if (infoKeys.some((key) => /^SU[A-Z][a-z]/.test(key)))
