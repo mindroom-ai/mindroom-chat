@@ -147,7 +147,7 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
       ...reasoningOf(m),
     } as ModelCatalogEntry);
   }
-  const override = selection.override as string | null;
+  const { override } = selection;
   if (override !== null && !keys.has(override)) return undefined;
   return {
     version: 1,

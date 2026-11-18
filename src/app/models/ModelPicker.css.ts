@@ -44,12 +44,126 @@ const hoverAndFocus = (fill: string, ring: string) =>
     '&:focus-visible': { outline: `2px solid ${ring}` },
   } as const);
 
+const pickerWidth = toRem(272);
+const effortWidth = toRem(192);
+const panelMaxWidth = `calc(100vw - ${toRem(32)})`;
+
 // The menu above the model button, the message menu's glass and rows. Its rows scroll inside it.
 export const Panel = style([
   column,
   {
-    width: toRem(272),
-    maxWidth: `calc(100vw - ${toRem(32)})`,
+    width: pickerWidth,
+    maxWidth: panelMaxWidth,
+  },
+]);
+
+// With reasoning levels: the models, and the effort column beside them, T3 Code's docked picker.
+export const EffortPanel = style({
+  display: 'flex',
+  width: `calc(${pickerWidth} + ${effortWidth})`,
+  maxWidth: panelMaxWidth,
+});
+
+// On a phone the column sits under the models instead, as wide as they are.
+export const StackedEffortPanel = style([column, { width: pickerWidth, maxWidth: panelMaxWidth }]);
+
+// The filter, the status and the rows, which scroll inside it.
+export const Picker = style([
+  column,
+  {
+    flex: '1 1 auto',
+    minWidth: 0,
+    minHeight: 0,
+  },
+]);
+
+const effortSurface = `color-mix(in srgb, ${color.SurfaceVariant.Container} 40%, transparent)`;
+
+export const EffortColumn = style([
+  column,
+  {
+    flex: 'none',
+    width: effortWidth,
+    minHeight: 0,
+    borderInlineStart: hairline(color.SurfaceVariant.ContainerLine),
+    backgroundColor: effortSurface,
+    selectors: {
+      [`${StackedEffortPanel} > &`]: {
+        width: 'auto',
+        height: toRem(256),
+        borderInlineStart: 'none',
+        borderBlockStart: hairline(color.SurfaceVariant.ContainerLine),
+      },
+    },
+  },
+]);
+
+// "Effort" and the model's name, over a rule.
+export const EffortHeader = style([
+  centeredRow(config.space.S200),
+  {
+    flex: 'none',
+    height: toRem(32),
+    marginInline: config.space.S300,
+    marginBlockStart: config.space.S100,
+    borderBlockEnd: hairline(color.SurfaceVariant.ContainerLine),
+    fontSize: config.fontSize.T300,
+  },
+]);
+
+export const EffortModel = style([
+  ellipsis,
+  muted,
+  {
+    minWidth: 0,
+    marginInlineStart: 'auto',
+    fontSize: config.fontSize.T200,
+  },
+]);
+
+export const EffortLevels = style([
+  column,
+  {
+    flex: '1 1 auto',
+    minHeight: 0,
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+    gap: toRem(2),
+    padding: config.space.S100,
+  },
+]);
+
+export const EffortRow = style([
+  control,
+  centeredRow(config.space.S200),
+  {
+    flex: 'none',
+    width: '100%',
+    height: toRem(32),
+    paddingInline: config.space.S200,
+    borderRadius: config.radii.R300,
+    fontSize: config.fontSize.T300,
+    textAlign: 'start',
+    outline: 'none',
+    selectors: {
+      '&:hover, &:focus-visible': { backgroundColor: color.Surface.ContainerHover },
+      '&[aria-checked="true"]': { fontWeight: config.fontWeight.W500 },
+      '&[aria-disabled="true"]': { cursor: 'default', opacity: config.opacity.Disabled },
+    },
+    '@media': { '(pointer: coarse)': { height: toRem(40) } },
+  },
+]);
+
+export const EffortLabel = style([ellipsis, { flex: '1 1 auto', minWidth: 0 }]);
+
+export const EffortDefault = style([muted, { flexShrink: 0, fontSize: config.fontSize.T200 }]);
+
+export const EffortNone = style([
+  muted,
+  {
+    paddingBlock: config.space.S200,
+    paddingInline: config.space.S300,
+    fontSize: config.fontSize.T300,
   },
 ]);
 
@@ -277,6 +391,13 @@ export const Trigger = style([
     selectors: {
       ...hoverAndFocus(color.SurfaceVariant.ContainerHover, color.Primary.Main),
       '&[aria-expanded="true"]': { backgroundColor: color.SurfaceVariant.ContainerActive },
+      // With a level, its bars follow the logo and the button grows to hold them.
+      '&[data-effort="true"]': {
+        gridAutoFlow: 'column',
+        gap: toRem(4),
+        inlineSize: 'auto',
+        paddingInline: toRem(6),
+      },
     },
   },
 ]);

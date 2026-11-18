@@ -996,6 +996,25 @@
       "withCount_many": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_other": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "resize": "تغيير حجم لوحة الوكلاء الفرعيين"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "الجهد",
+        "effortFor": "الجهد لـ ⁨{{model}}⁩",
+        "noEffortLevels": "لا توجد مستويات جهد",
+        "defaultLevel": "افتراضي",
+        "levelIsDefault": "⁨{{level}}⁩، افتراضي",
+        "withLevel": "⁨{{model}}⁩ · ⁨{{level}}⁩",
+        "levels": {
+          "off": "إيقاف",
+          "minimal": "أدنى",
+          "low": "منخفض",
+          "medium": "متوسط",
+          "high": "مرتفع",
+          "xhigh": "مرتفع جدًا",
+          "max": "أقصى"
+        }
+      }
     }
   },
   "composer": {

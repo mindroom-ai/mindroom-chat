@@ -945,6 +945,25 @@
       "withCount_many": "{{label}}, {{count}} attivi",
       "withCount_other": "{{label}}, {{count}} attivi",
       "resize": "Ridimensiona il pannello dei sottoagenti"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Impegno",
+        "effortFor": "Impegno per {{model}}",
+        "noEffortLevels": "Nessun livello di impegno",
+        "defaultLevel": "Predefinito",
+        "levelIsDefault": "{{level}}, predefinito",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Disattivato",
+          "minimal": "Minimo",
+          "low": "Basso",
+          "medium": "Medio",
+          "high": "Alto",
+          "xhigh": "Molto alto",
+          "max": "Massimo"
+        }
+      }
     }
   },
   "composer": {

@@ -144,18 +144,22 @@ for (const theme of ['silver', 'dark']) {
       expect(menu.y + menu.height).toBeLessThanOrEqual(button.y);
       expect(menu.x).toBeGreaterThanOrEqual(0);
       expect(menu.x + menu.width).toBeLessThanOrEqual(width);
-      expect(menu.width).toBeLessThanOrEqual(272);
+      // Some models have reasoning levels: their column sits beside the models, under them on a
+      // phone.
+      expect(menu.width).toBeLessThanOrEqual(width < 750 ? 272 : 272 + 192);
       // 24 models: a filter field above them, which keeps focus and stays while they scroll.
       const search = dialog.getByRole('searchbox', { name: 'Search models' });
       await expect(search).toBeFocused();
       const field = (await search.boundingBox())!;
       const last = dialog.getByRole('option', { name: /^Studio model 24 / });
-      await page.mouse.move(menu.x + menu.width / 2, menu.y + menu.height - 24);
+      const rows = (await dialog.getByRole('listbox').boundingBox())!;
+      const viewport = (await dialog.getByRole('listbox').locator('..').boundingBox())!;
+      await page.mouse.move(rows.x + rows.width / 2, viewport.y + viewport.height - 24);
       await expect
         .poll(async () => {
           await page.mouse.wheel(0, 400);
           const row = (await last.boundingBox())!;
-          return row.y + row.height <= menu.y + menu.height;
+          return row.y + row.height <= viewport.y + viewport.height;
         })
         .toBe(true);
       expect((await search.boundingBox())!.y).toBe(field.y);

@@ -928,6 +928,25 @@
       "withCount_one": "{{label}}, {{count}} aktiv",
       "withCount_other": "{{label}}, {{count}} aktiv",
       "resize": "Größe des Sub-Agenten-Bereichs ändern"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "Aufwand",
+        "effortFor": "Aufwand für {{model}}",
+        "noEffortLevels": "Keine Aufwandsstufen",
+        "defaultLevel": "Standard",
+        "levelIsDefault": "{{level}}, Standard",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "Aus",
+          "minimal": "Minimal",
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch",
+          "xhigh": "Sehr hoch",
+          "max": "Maximal"
+        }
+      }
     }
   },
   "composer": {

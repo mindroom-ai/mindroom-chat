@@ -911,6 +911,25 @@
       "showFor": "显示子智能体：{{name}}",
       "withCount_other": "{{label}}，{{count}} 个活跃",
       "resize": "调整子智能体面板大小"
+    },
+    "models": {
+      "modelPicker": {
+        "effort": "推理强度",
+        "effortFor": "{{model}} 的推理强度",
+        "noEffortLevels": "无推理强度级别",
+        "defaultLevel": "默认",
+        "levelIsDefault": "{{level}}，默认",
+        "withLevel": "{{model}} · {{level}}",
+        "levels": {
+          "off": "关闭",
+          "minimal": "最低",
+          "low": "低",
+          "medium": "中",
+          "high": "高",
+          "xhigh": "超高",
+          "max": "最高"
+        }
+      }
     }
   },
   "composer": {
