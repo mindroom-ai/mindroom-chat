@@ -1067,13 +1067,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // Rows hidden in the open thread, by its plans, by plugins and by folded turns, measure nothing
   // (the row that draws a folded turn's break measures the break); one shown again gets its
   // estimate back, so a jump to it mounts it.
-  const turnFoldView = turnFolds.view;
   const threadHiddenIds = useMemo(() => {
     if (!threadId) return EMPTY_IDS;
     if (
       pluginHiddenThreadIds.size === 0 &&
       secretRequestTimeline.hiddenEventIds.size === 0 &&
-      turnFoldView.hiddenIds.size === 0
+      turnFolds.view.hiddenIds.size === 0
     ) {
       return approvalTimeline.hiddenEventIds;
     }
@@ -1081,17 +1080,17 @@ export function RoomTimeline(props: RoomTimelineProps) {
       ...approvalTimeline.hiddenEventIds,
       ...secretRequestTimeline.hiddenEventIds,
       ...pluginHiddenThreadIds,
-      ...turnFoldView.hiddenIds,
+      ...turnFolds.view.hiddenIds,
     ]);
   }, [
     threadId,
     approvalTimeline.hiddenEventIds,
     secretRequestTimeline.hiddenEventIds,
     pluginHiddenThreadIds,
-    turnFoldView,
+    turnFolds.view,
   ]);
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
-  useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFoldView, estimateSize);
+  useTurnBreakRowMeasurements(virtualizer, threadEvents, turnFolds.view, estimateSize);
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
@@ -1810,8 +1809,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     forkDivider,
     forkingDivider,
-    turnFolds: turnFoldView,
-    onToggleTurnFold: turnFolds.toggle,
+    turnFolds,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
     ledgerPxAtRender: ledger.ledgerPxAtRender,

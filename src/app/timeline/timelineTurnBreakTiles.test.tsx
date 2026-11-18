@@ -45,8 +45,11 @@ const messageData = {
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and what it shows in order: its break (`break`) and its row. */
+const toggle = vi.fn();
+let renderer: ReturnType<typeof create> | undefined;
+
 const mounted = (open: boolean, sizes: number[], threadEvents = events) => {
-  const turnFolds = viewThreadTurnFolds([fold], () => open);
+  const turnFolds = { view: viewThreadTurnFolds([fold], () => open), toggle };
   const tiles = renderTimelineTiles({
     virtualItems: sizes.map(
       (size, index) =>
@@ -68,12 +71,10 @@ const mounted = (open: boolean, sizes: number[], threadEvents = events) => {
     renderEvent: ({ eventId }: TimelineMessageRow) => <p data-row="true">{eventId}</p>,
     isQuietMarkerRow: () => false,
     turnFolds,
-    onToggleTurnFold: () => undefined,
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
     ledgerPxAtRender: 0,
   });
-  let renderer: ReturnType<typeof create> | undefined;
   act(() => {
     renderer = create(<div>{tiles}</div>);
   });
@@ -103,6 +104,13 @@ describe('the tiles of a folded turn', () => {
       ['$a1', ['break']],
       ['$a3', ['$a3']],
     ]);
+  });
+
+  it("toggle the break's turn on a click", () => {
+    mounted(false, [40, 42, 0, 40]);
+    const button = renderer!.root.findByType('button');
+    act(() => button.props.onClick());
+    expect(toggle).toHaveBeenCalledWith(fold);
   });
 
   it('mount the break even while its row is sized as nothing', () => {

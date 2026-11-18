@@ -350,7 +350,6 @@ export const renderTimelineTiles = ({
   forkDivider,
   forkingDivider,
   turnFolds,
-  onToggleTurnFold,
   unreadMarkerRef,
   measureElement,
   ledgerPxAtRender,
@@ -389,8 +388,7 @@ export const renderTimelineTiles = ({
   /** In a fork draft, the line under its fork point (`index`), the last row it shows. */
   forkingDivider?: { index: number; node: ReactNode };
   /** The open thread's folded turns (`threadTurnFolds.ts`) and what their breaks do on a click. */
-  turnFolds?: ThreadTurnFoldView;
-  onToggleTurnFold?: (fold: ThreadTurnFold) => void;
+  turnFolds?: { view: ThreadTurnFoldView; toggle: (fold: ThreadTurnFold) => void };
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
   measureElement: (node: Element | null) => void;
@@ -400,8 +398,8 @@ export const renderTimelineTiles = ({
     threadId ? threadEvents[index] : roomWindowRows[index];
   // A folded turn's rows show nothing, the one that draws its break included.
   const isRowHidden = (event: MatrixEvent): boolean =>
-    !!turnFolds?.hiddenIds.has(event.getId() ?? '') ||
-    turnFolds?.breaks.get(event.getId() ?? '')?.open === false ||
+    !!turnFolds?.view.hiddenIds.has(event.getId() ?? '') ||
+    turnFolds?.view.breaks.get(event.getId() ?? '')?.open === false ||
     isTimelineRowHidden(event, {
       messageData,
       ignoredUsersSet,
@@ -431,17 +429,17 @@ export const renderTimelineTiles = ({
     // its tile mounted until measuring corrects it.
     const id = event.getId() ?? '';
     // So has a row a folded turn hides, once sized as nothing; the row that draws its break stays.
-    if (item.size === 0 && (reactionOrEditEvent(event) || turnFolds?.hiddenIds.has(id))) {
+    if (item.size === 0 && (reactionOrEditEvent(event) || turnFolds?.view.hiddenIds.has(id))) {
       return null;
     }
     const context = rowContexts.get(item.index);
     // Outside the row's boundary, so the break keeps its focus when its turn opens or folds.
-    const turnBreak = turnFolds?.breaks.get(id);
-    const breakNode = turnBreak && onToggleTurnFold && (
+    const turnBreak = turnFolds?.view.breaks.get(id);
+    const breakNode = turnBreak && (
       <TurnBreak
         count={turnBreak.fold.count}
         open={turnBreak.open}
-        onToggle={() => onToggleTurnFold(turnBreak.fold)}
+        onToggle={() => turnFolds?.toggle(turnBreak.fold)}
       />
     );
     let content: ReactNode = null;
