@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Badge, Icon, Icons, Text } from 'folds';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
-import { useRelativeTime } from '../i18n/useRelativeTime';
+import { subscribeRelativeTimeClock, useRelativeTime } from '../i18n/useRelativeTime';
 import { formatCallDuration } from '../lib/time';
 import type { SubagentUsage } from '../matrix/protocol/subagentFrame';
 import {
@@ -110,9 +110,15 @@ export function BackgroundJobsSummary({
 }
 
 /** How long the job has run, ticking on the bar's clock; screen readers hear when it started. */
-export function JobElapsed({ startedAt, now }: { startedAt: number; now: number }) {
+export function JobElapsed({ startedAt, live }: { startedAt: number; live: boolean }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  // Every job's time ticks on one shared clock, and only while the job runs.
+  const [now, setNow] = useState(Date.now);
+  useEffect(
+    () => (live ? subscribeRelativeTimeClock(1_000, () => setNow(Date.now())) : undefined),
+    [live]
+  );
   const started = useRelativeTime(Number.isFinite(startedAt) ? startedAt : undefined);
   if (!Number.isFinite(startedAt)) return null;
   return (
@@ -170,8 +176,6 @@ type RowProps = {
   item: BackgroundJobsBarItem;
   // The view's conversation; a job of another one links to its thread.
   viewThreadId: string | null;
-  // The bar's clock, in ms.
-  now: number;
   // Shows the job's run in the Sub-agents panel; only for a job whose run the panel has.
   onOpen?: () => void;
   // The job's Stop, or its Stopping.
@@ -183,7 +187,7 @@ type RowProps = {
  * the thread it runs in when that is not the view's, and what it used. Then how long it has run,
  * Open and Stop. A job without its run's frames shows its name alone, as before.
  */
-export function BackgroundJobRow({ room, item, viewThreadId, now, onOpen, stop }: RowProps) {
+export function BackgroundJobRow({ room, item, viewThreadId, onOpen, stop }: RowProps) {
   const { t } = useTranslation();
   const agent = useAgentProfile(room, item.agent ?? '');
   const meta = item.run?.meta;
@@ -263,7 +267,7 @@ export function BackgroundJobRow({ room, item, viewThreadId, now, onOpen, stop }
           </span>
         )}
       </span>
-      <JobElapsed startedAt={item.startedAt} now={now} />
+      <JobElapsed startedAt={item.startedAt} live={!item.finished} />
       {onOpen && (
         <button
           type="button"

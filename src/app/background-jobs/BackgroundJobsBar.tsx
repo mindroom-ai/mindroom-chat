@@ -50,7 +50,6 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const sent = useSentCancels(room.roomId);
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId), room);
-  const { now, lookups } = useJobLookups(room, jobs);
   const [failures, setFailures] = useState<ReadonlyMap<string, Failure>>(new Map());
   const bar = useRef<HTMLDivElement>(null);
   const several = jobs.length > 1;
@@ -69,6 +68,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
 
   const [open, setOpen] = useState<OpenMode>();
   const expanded = several && !!open;
+  // Only listed rows show the tool jobs' calls, so a folded bar reads none.
+  const lookups = useJobLookups(room, jobs, expanded);
   const anchor = useRef<HTMLDivElement>(null);
   // While listed, the bar keeps its one-line place in the footer and grows over the timeline,
   // so the timeline, which pads itself for the footer, does not move under the pointer.
@@ -289,7 +290,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           ) : (
             <>
               {status}
-              <JobElapsed startedAt={single!.startedAt} now={now} />
+              <JobElapsed startedAt={single!.startedAt} live={!single!.finished} />
               {openSingle && (
                 // Beside the title, which stays the live status, not inside a button around it.
                 <button
@@ -342,7 +343,6 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                       room={room}
                       item={item}
                       viewThreadId={threadId}
-                      now={now}
                       onOpen={openRun(item) || undefined}
                       stop={stop(item, true)}
                     />

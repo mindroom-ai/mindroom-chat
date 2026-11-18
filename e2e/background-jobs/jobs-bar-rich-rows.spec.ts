@@ -252,11 +252,13 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   // On a phone the rows drop the model and the usage; the logos stay.
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 390, height: 844 });
-  await sendRuns(room);
   await page.goto(
     `/home/${encodeURIComponent(room.roomId)}?threadId=${encodeURIComponent(room.rootId)}`
   );
   const phoneBar = page.getByRole('region', { name: '3 background jobs' });
+  // The reload left the runs the page held behind: their next snapshots come once it shows.
+  await expect(phoneBar).toBeVisible();
+  await sendRuns(room);
   await phoneBar.getByRole('button', { name: /^3 background jobs/ }).click();
   const phoneLead = row(phoneBar, 'subagent');
   await expect(phoneLead.locator('[data-job-activity]')).toBeVisible();

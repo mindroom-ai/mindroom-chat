@@ -30,6 +30,9 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 }));
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
+vi.mock('../threads/cross-room/threadSignalsReader', () => ({
+  subscribeRoomSignals: () => () => undefined,
+}));
 vi.mock('../threads/fork/ThreadForkDivider', () => ({
   useThreadTitle: (_room: unknown, threadId: string) => `Title of ${threadId}`,
 }));
@@ -557,7 +560,7 @@ it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and
   ingestRun('s1');
   // The room's bar lists every thread's jobs: the panel opens for the job's own thread.
   state.jobs = [
-    subagentJob('a', { threadId: '$other', subagent: 's1' }),
+    subagentJob('a', { threadId: '$other', subagent: 's1', run: 'run-s1' }),
     // An older backend names no sub-agent, and one whose run sent no frame yet has none to show.
     subagentJob('c'),
     subagentJob('d', { subagent: 's2' }),
@@ -585,7 +588,7 @@ it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and
 
 it("opens one sub-agent job's run from beside its title, whose title stays the status", async () => {
   ingestRun('s1');
-  state.jobs = [subagentJob('a', { subagent: 's1' })];
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
   render('$thread');
   const open = container.querySelector<HTMLButtonElement>('[data-job-open]');
   expect(open?.textContent).toBe('mindroomUi.backgroundJobs.open');
@@ -628,7 +631,7 @@ it("shows a sub-agent's agent, model, task, what it does now and what it used", 
       { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
     ]
   );
-  state.jobs = [subagentJob('a', { subagent: 's1' }), job('b')];
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
   render();
   expand();
   const row = container.querySelector('li[data-job-kind="subagent"]')!;

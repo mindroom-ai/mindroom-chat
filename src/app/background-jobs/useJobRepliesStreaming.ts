@@ -32,11 +32,8 @@ const SEPARATOR = '\u0000';
 /** The main timeline's place among the conversations, which are otherwise named by their thread. */
 const MAIN = '';
 
-/**
- * The newest messages of the agents in one conversation: a thread's tail, or the main timeline's
- * (`threadId` empty).
- */
-export const repliesOf = (room: Room, threadId: string, agents: Set<string>): MatrixEvent[] => {
+/** The newest messages of the agents in one conversation: a thread's tail, or the main timeline's. */
+const repliesOf = (room: Room, threadId: string, agents: Set<string>): MatrixEvent[] => {
   const events = threadId
     ? getThreadStreamingEvents(room, threadId)
     : room

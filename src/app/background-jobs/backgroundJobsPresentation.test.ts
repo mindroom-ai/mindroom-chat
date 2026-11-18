@@ -140,10 +140,22 @@ const subagentJob = (jobId: string, subagent?: string, run = subagent && `run-${
 
 const subagentRun = (
   subagent: string,
-  { parent = null, tools = [] }: { parent?: string | null; tools?: ToolTraceEvent[] } = {}
+  {
+    parent = null,
+    tools = [],
+    run = `run-${subagent}`,
+    startedAt = 1,
+    status = 'running',
+  }: {
+    parent?: string | null;
+    tools?: ToolTraceEvent[];
+    run?: string;
+    startedAt?: number;
+    status?: SubagentRun['meta']['status'];
+  } = {}
 ): SubagentRun => ({
   roomId: '!room:example.org',
-  run: `run-${subagent}`,
+  run,
   sender: '@mindroom_lead:example.org',
   sid: 'sid',
   seq: 0,
@@ -158,8 +170,8 @@ const subagentRun = (
     parent,
     threadId: '$thread',
     source: 'delegate',
-    status: 'running',
-    startedAt: 1,
+    status,
+    startedAt,
     endedAt: null,
   },
 });
@@ -168,8 +180,8 @@ const lookups = (
   runs: SubagentRun[],
   calls: Record<string, { tool: string; preview?: string }> = {}
 ) => ({
-  runFor: (subagent: string) => runs.find((run) => run.meta.subagent === subagent),
-  toolCallFor: (toolCallId: string) => calls[toolCallId],
+  runs,
+  toolCallFor: (jobId: string) => calls[jobId],
 });
 
 const present = (jobs: BackgroundJob[], found: ReturnType<typeof lookups>) =>
@@ -191,6 +203,24 @@ describe('presentBackgroundJobs, rich rows', () => {
     expect(presentBackgroundJobs([subagentJob('job_1')], none, t)?.items[0]).not.toHaveProperty(
       'run'
     );
+  });
+
+  it("shows a follow-up turn's job nothing of the turn before it until its own run's frame", () => {
+    // Job_1 runs turn B of sub-agent s1; only its ended turn A has sent frames.
+    const turnA = subagentRun('s1', { run: 'run-a', status: 'completed' });
+    const turnB = subagentRun('s1', { run: 'run-b', startedAt: 1791676801 });
+    const followUp = subagentJob('job_1', 's1', 'run-b');
+    expect(present([followUp], lookups([turnA]))!.items[0]).not.toHaveProperty('run');
+    expect(present([followUp], lookups([turnA, turnB]))!.items[0]!.run).toBe(turnB);
+  });
+
+  it('joins a job that names no run to a turn of its sub-agent that started with it or later', () => {
+    // MindRoom before `run`: the job started at 2026-10-11T00:00:01Z, Unix 1791676801.
+    const legacy = job('job_1', { kind: 'subagent', tool: 'mindroom_dev', subagent: 's1' });
+    const before = subagentRun('s1', { run: 'run-a', startedAt: 1791676800 });
+    const after = subagentRun('s1', { run: 'run-b', startedAt: 1791676801 });
+    expect(present([legacy], lookups([before]))!.items[0]).not.toHaveProperty('run');
+    expect(present([legacy], lookups([before, after]))!.items[0]!.run).toBe(after);
   });
 
   it('keeps a job whose run has no frame yet, without a run', () => {
@@ -225,12 +255,12 @@ describe('presentBackgroundJobs, rich rows', () => {
   });
 
   it("takes a tool job's activity from its reply's call, and none without the call's ID", () => {
-    const calls = { call_1: { tool: 'run_shell_command', preview: 'pytest -x' } };
+    const calls = { job_1: { tool: 'run_shell_command', preview: 'pytest -x' } };
     const presented = present(
       [job('job_1', { toolCallId: 'call_1' }), job('job_2')],
       lookups([], calls)
     );
-    expect(presented?.items[0]!.activity).toEqual(calls.call_1);
+    expect(presented?.items[0]!.activity).toEqual(calls.job_1);
     expect(presented?.items[1]).not.toHaveProperty('activity');
   });
 
@@ -298,6 +328,12 @@ describe('presentBackgroundJobs, rich rows', () => {
       'job_3',
     ]);
     expect(presented?.summary).toEqual({ subagents: 2, tools: 2, waiting: 1 });
+  });
+
+  it('counts a job waiting for approval no longer once it is being stopped', () => {
+    const jobs = [job('job_1'), job('job_2', { status: 'awaiting_approval' })];
+    const stopped = presentBackgroundJobs(jobs, (jobId) => jobId === 'job_2', t, 2, lookups([]));
+    expect(stopped?.summary?.waiting).toBe(0);
   });
 
   it('has one group and no summary for a single job', () => {
