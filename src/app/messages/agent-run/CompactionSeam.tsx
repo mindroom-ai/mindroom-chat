@@ -464,11 +464,15 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
           >
             <div className={css.Head}>
               <Icon className={css.HeadIcon} size={ICON_SIZE} aria-hidden />
-              <span>
+              <span data-compaction-title>
                 {title}
                 {elapsed !== undefined && ` ${elapsed}`}
               </span>
-              {tag !== undefined && <span className={css.Tag}>{tag}</span>}
+              {tag !== undefined && (
+                <span className={css.Tag} data-compaction-tag>
+                  {tag}
+                </span>
+              )}
             </div>
             {sub !== undefined && <div className={css.Subtitle}>{sub}</div>}
             <Gauge compaction={compaction} state={state} />

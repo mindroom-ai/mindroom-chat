@@ -610,6 +610,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(card).toHaveCount(0);
 
   // On a phone with large text a long translated label wraps, and every value keeps its width.
+  // The latest reply's card is a running one before the reply, with a tag.
   await page.setViewportSize(PHONE);
   await centre(page, latestRow);
   await latestRow.getByRole('button').hover();
@@ -625,6 +626,15 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     .evaluateAll((values) => values.map((value) => value.getBoundingClientRect().width));
   expect(valueWidths.length).toBeGreaterThan(0);
   for (const width of valueWidths) expect(width).toBeGreaterThan(0);
+  // A long translated tag moves to its own line, so the title keeps at least half the card.
+  await card.locator('[data-compaction-tag]').evaluate((tag) => {
+    tag.textContent = 'antes de la respuesta';
+  });
+  const [titleWidth, cardWidth] = await card.evaluate((element) => [
+    element.querySelector('[data-compaction-title]')!.getBoundingClientRect().width,
+    element.getBoundingClientRect().width,
+  ]);
+  expect(titleWidth).toBeGreaterThanOrEqual(cardWidth / 2);
   await page.mouse.move(0, 0);
   await expect(card).toHaveCount(0);
   await page.evaluate(() => {

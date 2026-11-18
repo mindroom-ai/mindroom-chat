@@ -128,8 +128,10 @@ export const Card = style({
   overflowWrap: 'anywhere',
 });
 
+// A tag that does not fit beside the title moves to its own line, so the title keeps the width.
 export const Head = style({
   display: 'flex',
+  flexWrap: 'wrap',
   alignItems: 'center',
   gap: toRem(6),
   fontSize: toRem(13),
