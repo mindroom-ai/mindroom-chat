@@ -370,8 +370,80 @@ describe('CompactionSeam card', () => {
     expect(layer!.props.style).toEqual({ pointerEvents: 'none' });
     expect(trigger(renderer).props['aria-expanded']).toBe(true);
 
-    await act(() => trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' }));
+    vi.useFakeTimers();
+    act(() => {
+      trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
     expect(card(renderer)).toHaveLength(0);
+  });
+
+  it('stays open while the mouse moves from the row onto the card, and closes once it leaves both', () => {
+    vi.useFakeTimers();
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    act(() => {
+      trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    const [tip] = card(renderer);
+    expect(tip!.props.style).toEqual({ pointerEvents: 'auto' });
+
+    act(() => {
+      trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    act(() => {
+      card(renderer)[0]!.props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(card(renderer)).toHaveLength(1);
+
+    // Back to the row and off the card: still open.
+    act(() => {
+      card(renderer)[0]!.props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(card(renderer)).toHaveLength(1);
+
+    act(() => {
+      trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      card(renderer)[0]!.props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    act(() => {
+      card(renderer)[0]!.props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(card(renderer)).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('clears a pending close when it unmounts', () => {
+    vi.useFakeTimers();
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    act(() => {
+      trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    act(() => {
+      trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    expect(vi.getTimerCount()).toBe(1);
+
+    act(() => renderer.unmount());
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('does not open from a touch pointer entering, only from the tap', async () => {

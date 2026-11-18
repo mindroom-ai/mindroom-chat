@@ -28,6 +28,8 @@ import {
 import * as css from './CompactionSeam.css';
 
 const KEY = 'mindroomUi.messages.compactionSeam';
+/** How long a hover card waits for the mouse to reach it, or come back to the row, before closing. */
+const HOVER_CLOSE_DELAY_MS = 150;
 /** 14px at the default root font size, scaling with it. */
 const ICON_SIZE = '0.875rem';
 
@@ -284,6 +286,20 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
     if (trigger) setOpen({ mode, anchor: trigger.getBoundingClientRect() });
   };
 
+  // A card the mouse opened stays while the mouse is on the row or on the card, so it can be read
+  // and selected (WCAG 1.4.13): leaving either closes it only after a moment without the other.
+  const closeTimer = useRef<number>();
+  const keepHover = () => window.clearTimeout(closeTimer.current);
+  const leaveHover = (evt: PointerEvent) => {
+    if (evt.pointerType !== 'mouse' || open?.mode !== 'hover') return;
+    keepHover();
+    closeTimer.current = window.setTimeout(() => {
+      setOpen((current) => (current?.mode === 'hover' ? undefined : current));
+    }, HOVER_CLOSE_DELAY_MS);
+  };
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  const cardRef = useRef<HTMLDivElement>(null);
+
   const isOpen = !!open;
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -292,7 +308,8 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
       if (evt.key === 'Escape') close();
     };
     const onPointerDown = (evt: Event) => {
-      if (!triggerRef.current?.contains(evt.target as Node)) close();
+      const target = evt.target as Node;
+      if (!triggerRef.current?.contains(target) && !cardRef.current?.contains(target)) close();
     };
     // The card sits at a fixed spot; the timeline scrolls on its own as rows arrive and settle,
     // so it follows the row instead of closing.
@@ -329,11 +346,11 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
         aria-expanded={isOpen}
         aria-describedby={isOpen ? cardId : undefined}
         onPointerEnter={(evt: PointerEvent) => {
-          if (evt.pointerType === 'mouse' && !open) show('hover');
+          if (evt.pointerType !== 'mouse') return;
+          keepHover();
+          if (!open) show('hover');
         }}
-        onPointerLeave={(evt: PointerEvent) => {
-          if (evt.pointerType === 'mouse' && open?.mode === 'hover') setOpen(undefined);
-        }}
+        onPointerLeave={leaveHover}
         onFocus={() => {
           // Focus outlasts a hover opening, so a mouse leaving must not close the card under it.
           if (open?.mode !== 'pinned') show('focus');
@@ -361,8 +378,9 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
       </button>
       <span className={css.Rule} aria-hidden />
       {/* folds' PopOut layer covers the screen; as a tooltip it must let the pointer through to
-          the row and the timeline. The card inside, not the layer, has the role: on touch screens
-          index.css hides tooltip layers in the body, and this card a tap opens. */}
+          the row and the timeline, while the card takes it, so the mouse can rest on the card.
+          The card inside, not the layer, has the role: on touch screens index.css hides tooltip
+          layers in the body, and this card a tap opens. */}
       <PopOut
         style={{ pointerEvents: 'none' }}
         anchor={open?.anchor}
@@ -370,7 +388,18 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
         align="Start"
         offset={6}
         content={
-          <div id={cardId} role="tooltip" className={css.Card} data-state={state}>
+          <div
+            ref={cardRef}
+            id={cardId}
+            role="tooltip"
+            className={css.Card}
+            data-state={state}
+            style={{ pointerEvents: 'auto' }}
+            onPointerEnter={(evt: PointerEvent) => {
+              if (evt.pointerType === 'mouse') keepHover();
+            }}
+            onPointerLeave={leaveHover}
+          >
             <div className={css.Head}>
               <Icon size={ICON_SIZE} aria-hidden />
               <span>
