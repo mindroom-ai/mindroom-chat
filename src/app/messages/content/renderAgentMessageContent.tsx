@@ -4,7 +4,7 @@ import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
+import { COMPACTIONS_CONTENT_KEY, hasReplyEnded } from '../../matrix/protocol/compactions';
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
@@ -300,11 +300,12 @@ export const renderAgentMessageContent = ({
 
   // A long finished reply folds its work, everything up to its last tool call, behind one row, as
   // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
-  // event to its final edit. Search results and highlighted rows show the whole reply.
+  // event to its final edit. Search results and highlighted rows show the whole reply. A
+  // regenerated reply keeps its previous answer's run status, so its own stream must have ended too.
   const foldEventId = eventId ?? mEvent?.getId();
   const status = getAiRunInfo(content)?.status;
   const foldsWork = fromMindroomAgent && highlightRegex === undefined;
-  const finished = !!status && FINISHED_AI_RUN_STATUSES.has(status);
+  const finished = !!status && FINISHED_AI_RUN_STATUSES.has(status) && hasReplyEnded(content);
   const finalEditTs = mEvent?.replacingEvent()?.getTs();
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();

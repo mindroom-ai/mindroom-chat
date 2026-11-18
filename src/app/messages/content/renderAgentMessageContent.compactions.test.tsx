@@ -564,7 +564,10 @@ describe('compaction seams in finished and live replies', () => {
           answer
         ),
         [entry('c1', 0), entry('c2', 1), entry('c3', 2)],
-        { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }
+        {
+          'io.mindroom.stream_status': 'completed',
+          'io.mindroom.ai_run': { version: 1, status: 'completed' },
+        }
       )
     );
     expect(workedRow().props['aria-expanded']).toBe(false);
@@ -612,6 +615,7 @@ describe('compaction seams in finished and live replies', () => {
         ),
         [entry('c1', 1), entry('c2', 2)],
         {
+          'io.mindroom.stream_status': 'completed',
           'io.mindroom.ai_run': { version: 1, status: 'completed' },
           format: 'org.matrix.custom.html',
           formatted_body: html,
@@ -638,6 +642,7 @@ describe('compaction seams in finished and live replies', () => {
         paragraphs('<div>', markerLine('t1', 1), markerLine('t2', 2), '</div>', answer),
         [entry('c1', 1), entry('c2', 2)],
         {
+          'io.mindroom.stream_status': 'completed',
           'io.mindroom.ai_run': { version: 1, status: 'completed' },
           format: 'org.matrix.custom.html',
           formatted_body: html,
@@ -666,6 +671,7 @@ describe('compaction seams in finished and live replies', () => {
         paragraphs(markerLine('t1', 1), markerLine('t2', 2), answer),
         [entry('c1', 1), entry('c2', 2)],
         {
+          'io.mindroom.stream_status': 'completed',
           'io.mindroom.ai_run': { version: 1, status: 'completed' },
           format: 'org.matrix.custom.html',
           formatted_body: html,
@@ -893,6 +899,22 @@ describe('compaction seams across the edits of a reply', () => {
     render(withEdits(finished, regenerating).read());
 
     expect(seamStates()).toEqual(['running']);
+  });
+
+  it('keeps the work of a long regenerated reply open while its own stream still runs', () => {
+    // The regeneration inherits the previous answer's completed run; its own status streams.
+    const regenerating = reply(paragraphs('Again.', markerLine('t1', 1), LONG_ANSWER), [running], {
+      'io.mindroom.stream_status': 'streaming',
+    });
+    const content = withEdits(finished, regenerating).read();
+    expect(content['io.mindroom.ai_run']).toEqual({ version: 1, status: 'completed' });
+    render(content);
+
+    expect(seamStates()).toEqual(['running']);
+    expect(textOf(seams()[0]!.findByType('button'))).toMatch(/^Compacting context….*\d+ s$/);
+    expect(
+      renderer!.root.findAll((node) => node.type === 'button' && textOf(node).startsWith('Worked'))
+    ).toHaveLength(0);
   });
 
   it('shows the seams a stop write carries, not those of the answer before', () => {
