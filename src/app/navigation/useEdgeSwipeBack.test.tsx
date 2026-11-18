@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
