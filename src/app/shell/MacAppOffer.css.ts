@@ -6,9 +6,9 @@ import { noticeCard, noticeCardInList, noticeCardOnPage, noticeMark } from '../u
 /**
  * The offer's card, placed as the tour's offer is (tour/TourOffer.css.ts), and among the cards of
  * its place where the tour's offer would be: above the new version notice in the room list's
- * place, under it in the page's. Stacked, in the list and on a phone, the title and text sit
- * beside the mark and the two buttons under them. In a row, on a wider page, one line says it,
- * followed by the download button, which goes under it only when the row is too narrow.
+ * place, under it in the page's. Stacked, in the list, the title and text sit beside the mark
+ * and the two buttons under all three. In a row, on the page, one line says it, followed by
+ * the download button, which goes under it only when the row is too narrow.
  */
 export const Card = recipe({
   base: noticeCard,
@@ -21,7 +21,7 @@ export const Card = recipe({
       stacked: {
         display: 'grid',
         gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-        gridTemplateAreas: '"mark words dismiss" ". actions actions"',
+        gridTemplateAreas: '"mark words dismiss" "actions actions actions"',
         rowGap: config.space.S200,
         alignItems: 'start',
       },
@@ -57,6 +57,9 @@ export const Actions = style({
   flexWrap: 'wrap',
   gap: config.space.S200,
 });
+
+/** The download button, a link drawn as a button: no link underline. */
+export const Download = style({ textDecoration: 'none' });
 
 /** The row's line and its download button, which wraps under the line when the row is narrow. */
 export const Line = style({

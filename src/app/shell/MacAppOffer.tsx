@@ -89,6 +89,7 @@ export function MacAppOffer() {
   const download = (label: string, action: string) => (
     <Button
       as="a"
+      className={css.Download}
       href={MAC_APP_DOWNLOAD_URL}
       target="_blank"
       rel="noreferrer noopener"
