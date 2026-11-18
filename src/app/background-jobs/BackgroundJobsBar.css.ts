@@ -221,7 +221,11 @@ export const Logo = style({
 // The summary gives way before the title does.
 export const Summary = style({ flex: '0 1000 auto', minWidth: 0, opacity: config.opacity.P300 });
 
-export const SummaryWaiting = style({ color: color.Warning.Main });
+export const SummaryWaiting = style({
+  flex: '0 1000 auto',
+  minWidth: 0,
+  color: color.Warning.Main,
+});
 
 // The time keeps its width as it ticks.
 export const Elapsed = style({

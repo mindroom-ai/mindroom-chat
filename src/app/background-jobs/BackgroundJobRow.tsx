@@ -93,15 +93,18 @@ export function BackgroundJobsSummary({
           ))}
         </span>
       )}
-      <Text as="span" size="T200" truncate className={css.Summary}>
-        {counts.join(' · ')}
-        {summary.waiting > 0 && (
-          <span className={css.SummaryWaiting}>
-            {counts.length > 0 && ' · '}
-            {t('mindroomUi.backgroundJobs.needApproval', { count: summary.waiting })}
-          </span>
-        )}
-      </Text>
+      {counts.length > 0 && (
+        <Text as="span" size="T200" truncate className={css.Summary}>
+          {counts.join(' · ')}
+        </Text>
+      )}
+      {summary.waiting > 0 && (
+        // Outside the muted counts, so its warning color keeps its full contrast.
+        <Text as="span" size="T200" truncate className={css.SummaryWaiting}>
+          {counts.length > 0 && '· '}
+          {t('mindroomUi.backgroundJobs.needApproval', { count: summary.waiting })}
+        </Text>
+      )}
     </>
   );
 }

@@ -674,8 +674,10 @@ it('heads the sub-agents and the tools only when both are listed, and sums them 
     [
       tr('mindroomUi.subagents.nested', { count: 1 }),
       tr('mindroomUi.backgroundJobs.tools', { count: 2 }),
-      tr('mindroomUi.backgroundJobs.needApproval', { count: 1 }),
     ].join(' · ')
+  );
+  expect(container.querySelector('.SummaryWaiting')?.textContent).toBe(
+    `· ${tr('mindroomUi.backgroundJobs.needApproval', { count: 1 })}`
   );
 
   state.jobs = [job('a'), job('c')];
