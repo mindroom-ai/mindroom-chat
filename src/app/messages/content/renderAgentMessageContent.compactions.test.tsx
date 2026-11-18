@@ -776,11 +776,11 @@ describe('compaction seams in finished and live replies', () => {
 });
 
 /**
- * The content a reply shows after its edits, read as the timeline reads it (`getEditedEvent`).
- * Each edit carries its MindRoom metadata twice, in its wrapper and its new content, as the
- * backend writes it.
+ * A reply with these edits, in order. `read` gives the content it shows, read as the timeline
+ * reads it (`getEditedEvent`). Each edit carries its MindRoom metadata twice, in its wrapper and
+ * its new content, as the backend writes it.
  */
-const afterEdits = (...edits: Record<string, unknown>[]): Record<string, unknown> => {
+const withEdits = (...edits: Record<string, unknown>[]) => {
   const sender = '@agent:example.org';
   const target = new MatrixEvent({
     event_id: '$target',
@@ -809,19 +809,26 @@ const afterEdits = (...edits: Record<string, unknown>[]): Record<string, unknown
   const timelineSet = {
     relations: { getChildEventsForEvent: () => ({ getRelations: () => events }) },
   };
-  // Read twice, as every render reads it again after the first wrote what it borrowed.
-  getEditedEvent('$target', target, timelineSet as never);
-  return getLatestMessageContent(
-    target,
-    getEditedEvent('$target', target, timelineSet as never)
-  ) as Record<string, unknown>;
+  const read = () =>
+    getLatestMessageContent(
+      target,
+      getEditedEvent('$target', target, timelineSet as never)
+    ) as Record<string, unknown>;
+  return { events, read };
 };
 
-describe('compaction seams across a regenerated reply', () => {
+describe('compaction seams across the edits of a reply', () => {
   const finished = reply(paragraphs('Intro.', markerLine('t1', 1), 'Done.'), [entry('c1', 1)], {
     'io.mindroom.stream_status': 'completed',
     'io.mindroom.ai_run': { version: 1, status: 'completed' },
   });
+  const failed = entry('c2', 1, { status: 'failed', after_tokens: undefined });
+  const running = entry('c2', 1, { status: 'running', after_tokens: undefined });
+  /** A stop, error or interrupt write: its text, its stream status and the reply's list. */
+  const stopped = (compactions: unknown[]) =>
+    reply(paragraphs('Again.', markerLine('t1', 1)), compactions, {
+      'io.mindroom.stream_status': 'cancelled',
+    });
 
   it('shows no seam of the previous answer on a regenerated one that did not compact', () => {
     const { [COMPACTIONS_CONTENT_KEY]: _none, ...regenerated } = reply(
@@ -829,51 +836,51 @@ describe('compaction seams across a regenerated reply', () => {
       [],
       { 'io.mindroom.stream_status': 'completed' }
     );
-    render(afterEdits(finished, regenerated));
+    render(withEdits(finished, regenerated).read());
 
     expect(sequence()).toEqual(['Again.', 'tools:t1', 'Done again.']);
   });
 
   it('keeps a running seam of a regenerated reply running, whatever the previous answer said', () => {
-    const regenerating = reply(
-      paragraphs('Again.', markerLine('t1', 1)),
-      [entry('c2', 1, { status: 'running', after_tokens: undefined })],
-      { 'io.mindroom.stream_status': 'streaming' }
-    );
-    render(afterEdits(finished, regenerating));
+    const regenerating = reply(paragraphs('Again.', markerLine('t1', 1)), [running], {
+      'io.mindroom.stream_status': 'streaming',
+    });
+    render(withEdits(finished, regenerating).read());
 
     expect(seamStates()).toEqual(['running']);
   });
 
-  /** A stop, error or interrupt write: its text and stream status alone. */
-  const stopped = (body: string) => ({
-    msgtype: 'm.text',
-    body,
-    'io.mindroom.stream_status': 'cancelled',
-  });
-
-  it('keeps the seams of an answer stopped after a compaction, also over an earlier answer', () => {
-    // The stopped answer's compaction failed; the earlier answer's succeeded.
-    const own = entry('c2', 1, { status: 'failed', after_tokens: undefined });
-    const progress = reply(paragraphs('Again.', markerLine('t1', 1), 'More.'), [own]);
-    render(afterEdits(finished, progress, stopped(paragraphs('Again.', markerLine('t1', 1)))));
+  it('shows the seams a stop write carries, not those of the answer before', () => {
+    render(withEdits(finished, stopped([failed])).read());
 
     expect(seamStates()).toEqual(['failed']);
   });
 
-  it('shows a compaction that ran when its answer was stopped as interrupted', () => {
-    const running = entry('c1', 1, { status: 'running', after_tokens: undefined });
-    const progress = reply(paragraphs('Intro.', markerLine('t1', 1)), [running]);
-    render(afterEdits(progress, stopped(paragraphs('Intro.', markerLine('t1', 1)))));
+  it('shows a compaction a stop write carries as running as interrupted', () => {
+    render(withEdits(finished, stopped([running])).read());
 
     expect(seamStates()).toEqual(['interrupted']);
   });
 
-  it("keeps an answer's seams through the agent's later edit by hand", () => {
-    const byHand = { msgtype: 'm.text', body: paragraphs('Intro.', markerLine('t1', 1), 'Fixed.') };
-    render(afterEdits(finished, byHand));
+  it('shows the same seams when an older edit decrypts late', () => {
+    // An older backend's stop write carries no list.
+    const { [COMPACTIONS_CONTENT_KEY]: _none, ...bareStop } = stopped([]);
+    const progress = reply(paragraphs('Again.', markerLine('t1', 1)), [running]);
+    for (const [older, shown] of [
+      [finished, stopped([failed])],
+      [progress, bareStop],
+    ]) {
+      const { events, read } = withEdits(older!, shown!);
+      const decrypted = vi.spyOn(events[0]!, 'isDecryptionFailure').mockReturnValue(true);
+      render(read());
+      const before = seamStates();
+      decrypted.mockReturnValue(false);
+      render(read());
 
-    expect(seamStates()).toEqual(['success']);
+      expect(seamStates()).toEqual(before);
+      act(() => renderer?.unmount());
+      renderer = undefined;
+    }
   });
 });
 
