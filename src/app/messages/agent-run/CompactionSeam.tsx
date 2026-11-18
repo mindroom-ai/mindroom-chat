@@ -308,6 +308,12 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
     }, HOVER_CLOSE_DELAY_MS);
   };
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  // Focus reached the card: the mouse leaving must not take it, nor a close the mouse already
+  // started, or the focus in it would drop to the page.
+  const pin = () => {
+    keepHover();
+    setOpen((current) => current && { ...current, mode: 'pinned' });
+  };
   const cardRef = useRef<HTMLDivElement>(null);
   // A press in the card, to select its text, takes focus from the row into it: only focus that
   // leaves both closes the card.
@@ -418,6 +424,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
               if (evt.pointerType === 'mouse') keepHover();
             }}
             onPointerLeave={leaveHover}
+            onFocus={pin}
             onBlur={onFocusLeave}
           >
             <div className={css.Head}>

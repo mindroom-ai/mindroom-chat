@@ -488,6 +488,35 @@ describe('CompactionSeam card', () => {
     view.unmount();
   });
 
+  it('pins a hovered card once focus reaches it, so the mouse leaving keeps it', () => {
+    vi.useFakeTimers();
+    const renderer = render(<CompactionSeam compaction={compaction()} />);
+    act(() => {
+      trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    act(() => {
+      card(renderer)[0]!.props.onPointerEnter({ pointerType: 'mouse' });
+    });
+    // A close the mouse started before focus came is taken back too.
+    act(() => {
+      card(renderer)[0]!.props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      card(renderer)[0]!.props.onFocus();
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(card(renderer)).toHaveLength(1);
+    act(() => {
+      trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(card(renderer)).toHaveLength(1);
+  });
+
   it('stays open when focus arrives while hovered and the mouse then leaves', async () => {
     const renderer = render(<CompactionSeam compaction={compaction()} />);
     await act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' }));
