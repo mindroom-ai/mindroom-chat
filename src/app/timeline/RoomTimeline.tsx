@@ -249,6 +249,8 @@ export type RoomTimelineProps = {
   onThreadLoadError?: (threadId: string) => void;
   /** Shown above an open thread's rows, inside its scroll area. */
   threadHeader?: ReactNode;
+  /** No room header above the thread: its header keeps a gap above it (`ThreadTimelineHeader`). */
+  threadHeaderGapAbove?: boolean;
   /**
    * A fork draft's fork point: when it is one of the open thread's own messages, the thread shows
    * up to it, read-only as the fork will show it, with the "Forking" divider under it.
@@ -318,6 +320,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     editor,
     onThreadLoadError,
     threadHeader,
+    threadHeaderGapAbove = false,
     forkAt,
   } = props;
   const mx = useMatrixClient();
@@ -1988,6 +1991,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
             <>
               {threadHeader && (
                 <ThreadTimelineHeader
+                  gapAbove={threadHeaderGapAbove}
                   onResize={ledger.holdThreadBannerResize}
                   scrollRef={scrollRef}
                 >

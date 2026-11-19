@@ -211,6 +211,7 @@ export function ThreadView({
                 eventId={eventId}
                 forkAt={draftForkAt}
                 threadHeader={header}
+                threadHeaderGapAbove={!roomHeader}
                 onThreadLoadError={onThreadLoadError}
                 viewMode="threaded"
                 hasMindroomAgents={hasMindroomAgents}
