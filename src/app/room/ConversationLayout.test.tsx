@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { useThreadApprovals, type ThreadApprovals } from '../approvals/ThreadApprovalProvider';
+import { ThreadApprovalsScope } from '../approvals/ThreadApprovalsRelay';
 import { ConversationLayout } from './ConversationLayout';
 import { HeaderInShortArea } from './RoomView.css';
 
@@ -62,7 +63,7 @@ vi.mock('../approvals/ThreadApprovalProvider', async (importOriginal) => {
         () => (threadId ? ({ threadId } as ThreadApprovals) : undefined),
         [threadId]
       );
-      return <actual.ThreadApprovalsScope value={value}>{children}</actual.ThreadApprovalsScope>;
+      return <ThreadApprovalsScope value={value}>{children}</ThreadApprovalsScope>;
     },
   };
 });

@@ -12,12 +12,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Box, Text, color, config } from 'folds';
 import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
-import {
-  ThreadApprovalProvider,
-  ThreadApprovalsRelay,
-  ThreadApprovalsScope,
-  type ThreadApprovals,
-} from '../approvals/ThreadApprovalProvider';
+import { ThreadApprovalProvider, type ThreadApprovals } from '../approvals/ThreadApprovalProvider';
+import { ThreadApprovalsRelay, ThreadApprovalsScope } from '../approvals/ThreadApprovalsRelay';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
