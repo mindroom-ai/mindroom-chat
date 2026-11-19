@@ -94,10 +94,16 @@ const hookObjectUrls = (restores: Array<() => void>): void => {
   restores.push(() => {
     URL.createObjectURL = createObjectURL;
   });
-  // The native call gets the arguments as given, so its errors stay its own.
-  URL.revokeObjectURL = (...args: Parameters<typeof revokeObjectURL>): void => {
-    revokeObjectURL.apply(URL, args);
-    if (args.length > 0) objectUrlBytes.delete(String(args[0]));
+  // The argument is converted once, the way the native call would (a template throws on a symbol
+  // like it does); with none, the native call gets none, so its error stays its own.
+  URL.revokeObjectURL = (...args: unknown[]): void => {
+    if (args.length === 0) {
+      (revokeObjectURL as (...none: unknown[]) => void).apply(URL, args);
+      return;
+    }
+    const url = `${args[0] as string}`;
+    revokeObjectURL.call(URL, url);
+    objectUrlBytes.delete(url);
   };
   restores.push(() => {
     URL.revokeObjectURL = revokeObjectURL;

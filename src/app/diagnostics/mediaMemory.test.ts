@@ -107,6 +107,22 @@ describe('media memory', () => {
     expect(revokeObjectURL).toHaveBeenLastCalledWith();
   });
 
+  it('converts a revoked argument once', () => {
+    const url = URL.createObjectURL(new Blob(['x']));
+    let calls = 0;
+    const once = {
+      toString: () => {
+        calls += 1;
+        if (calls > 1) throw new Error('converted twice');
+        return url;
+      },
+    };
+
+    expect(() => URL.revokeObjectURL(once as unknown as string)).not.toThrow();
+    expect(revokeObjectURL).toHaveBeenLastCalledWith(url);
+    expect(readMediaMemory()).toMatchObject({ object_urls: 0 });
+  });
+
   it('measures a blob made in another realm', () => {
     // A blob from a same-origin frame is not an instance of this page's Blob.
     const blob = new Blob([new Uint8Array(1024 * 1024)]);
