@@ -37,9 +37,17 @@ test.use(PHONE);
 
 /**
  * A slide: its direction, what played on the layout (`page`) and on the copy of the layout as it
- * was, how many copies showed, and what a tap in the middle of the screen would land on.
+ * was, how many copies showed, what a tap in the middle of the screen would land on, and where
+ * the layout was when its slide started, in hundredths of the screen's width: at the slide's
+ * start, where it is held until the page that slides in has been drawn.
  */
-type Slide = { direction: string; plays: string[]; copies?: number; tapLandsOn?: string };
+type Slide = {
+  direction: string;
+  plays: string[];
+  copies?: number;
+  tapLandsOn?: string;
+  startsAt?: number;
+};
 type Recorded = { pageSlides: Slide[]; viewTransitions: number; drawerSlides: string[] };
 
 const FORWARD: Slide = {
@@ -47,12 +55,14 @@ const FORWARD: Slide = {
   plays: ['copy phone-page-under-out', 'page phone-page-over-in'],
   copies: 1,
   tapLandsOn: 'HTML',
+  startsAt: 100,
 };
 const BACK: Slide = {
   direction: 'back',
   plays: ['copy phone-page-over-out', 'page phone-page-under-in'],
   copies: 1,
   tapLandsOn: 'HTML',
+  startsAt: -30,
 };
 
 const recordSlides = (page: Page, heldAt?: number) =>
@@ -85,6 +95,10 @@ const recordSlides = (page: Page, heldAt?: number) =>
       if (!slide.plays.includes(play)) slide.plays.push(play);
       slide.copies = document.querySelectorAll('[data-page-slide-copy]').length;
       slide.tapLandsOn = document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.tagName;
+      if (!copy && slide.startsAt === undefined) {
+        const moved = parseFloat(getComputedStyle(event.target as Element).translate);
+        slide.startsAt = Math.round((moved / innerWidth) * 100);
+      }
       if (held === undefined) return;
       document.getAnimations().forEach((animation) => {
         if (!(animation as CSSAnimation).animationName?.startsWith('phone-page-')) return;

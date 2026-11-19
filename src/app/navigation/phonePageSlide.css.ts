@@ -62,6 +62,11 @@ globalStyle(`${forward} ${STAGE} > ${SLIDES}`, { animation: play(overIn) });
 globalStyle(`${forward} ${COPY} > ${SLIDES}`, { animation: play(underOut) });
 globalStyle(`${back} ${STAGE} > ${SLIDES}`, { animation: play(underIn) });
 globalStyle(`${back} ${COPY} > ${SLIDES}`, { animation: play(overOut) });
+// Held at its start, the copy in the place of the page as it was, until the page that slides in
+// has been drawn (`html[data-page-slide-held]`, phonePageSlide.ts).
+globalStyle(`html[data-page-slide-held] :is(${STAGE}, ${COPY}) > ${SLIDES}`, {
+  animationPlayState: 'paused',
+});
 // The page that is over casts a shadow on the one under, to its sides only: not on the top bar.
 globalStyle(`${forward} ${STAGE} > [data-phone-page], ${back} ${COPY} > [data-phone-page]`, {
   boxShadow: '0 0 24px rgb(0 0 0 / 0.24)',

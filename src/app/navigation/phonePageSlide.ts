@@ -112,8 +112,9 @@ let active: Slide | undefined;
  * layout, and the copy goes when the slide ends. (Not a view transition: the iOS web view's page
  * process crashed in them.) The copy is taken a frame after the call: `change` waits for that,
  * with every change asked for meanwhile, and they run together, in order and committed before
- * they return. While the slide plays, the page takes no taps (phonePageSlide.css.ts), and
- * further changes run at once, which the page that slides in shows as they happen.
+ * they return. The slide starts once the page that slides in has been drawn. While it plays, the
+ * page takes no taps (phonePageSlide.css.ts), and further changes run at once, which the page
+ * that slides in shows as they happen.
  *
  * `change` runs at once, and nothing slides, off the phone layout and with reduced motion.
  * Nothing slides either when the change leaves the phone layout, or leaves a dialog open over
@@ -155,11 +156,13 @@ export const slidePhonePage = (change: Change): void => {
   const end = () => {
     if (ended) return;
     ended = true;
+    window.cancelAnimationFrame(frame);
     window.clearTimeout(timer);
     copy?.remove();
     playing = false;
     active = undefined;
     delete root.dataset.pageSlide;
+    delete root.dataset.pageSlideHeld;
     finish();
   };
   const run = (sliding: boolean) => {
@@ -182,6 +185,13 @@ export const slidePhonePage = (change: Change): void => {
     }
     root.dataset.pageSlide = to > from ? 'forward' : 'back';
     copy = show(stage);
+    // Held at its start (phonePageSlide.css.ts) until the page that slides in has been drawn: that
+    // frame is long, and the slide's clock would run through most of its way before it shows.
+    // It starts with the frame after the one that draws the page.
+    root.dataset.pageSlideHeld = '';
+    frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => delete root.dataset.pageSlideHeld);
+    });
     // The copy's own slide ends with the layout's; a tab that is hidden plays neither.
     copy.addEventListener('animationend', (event) => {
       if (event.animationName.startsWith(KEYFRAMES)) end();

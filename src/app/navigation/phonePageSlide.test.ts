@@ -34,18 +34,21 @@ const endAnimation = (element: Element | null, name: string) =>
 /** The browser's side of a slide: the frame its changes wait for, and the slide's end. */
 const browser = () => {
   let next: (() => void) | undefined;
+  let played: Element | null = null;
   /** The direction of each slide that played, as its change left it. */
   const plays: (string | undefined)[] = [];
-  const request = vi.fn((callback: () => void) => {
+  const request = vi.fn();
+  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
     next = callback;
+    // Not the frames a slide is held for at its start.
+    if (root.dataset.pageSlideHeld === undefined) request();
     return 1;
   });
-  vi.stubGlobal('requestAnimationFrame', request);
   vi.stubGlobal('cancelAnimationFrame', () => {
     next = undefined;
   });
   const page = {
-    /** The frames slides asked for: one each. */
+    /** The frames slides asked for, to change the page in: one each. */
     request,
     plays,
     /** The frame comes: the page changes. */
@@ -53,7 +56,9 @@ const browser = () => {
       const run = next;
       next = undefined;
       run?.();
-      if (run && copy()) plays.push(root.dataset.pageSlide);
+      // Once a slide: the frames it is held for at its start come here too.
+      if (run && copy() && copy() !== played) plays.push(root.dataset.pageSlide);
+      played = copy();
     },
     /** The slide has played to its end. */
     finish: async () => {
@@ -89,6 +94,7 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   delete root.dataset.pageSlide;
+  delete root.dataset.pageSlideHeld;
 });
 
 describe('slidePhonePage', () => {
@@ -148,6 +154,30 @@ describe('slidePhonePage', () => {
     endAnimation(still.querySelector('main'), 'phone-page-under-out');
     expect(copy()).toBeNull();
     expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  it('holds the slide at its start until the page that slides in has been drawn', async () => {
+    const page = browser();
+    slidePhonePage(() => showThread(true));
+    page.frame();
+    // The frame that draws the page is long: the slide waits it out, and starts with the next.
+    expect(root.dataset.pageSlideHeld).toBe('');
+    page.frame();
+    expect(root.dataset.pageSlideHeld).toBe('');
+    page.frame();
+    expect(root.dataset.pageSlideHeld).toBeUndefined();
+    expect(root.dataset.pageSlide).toBe('forward');
+    expect(page.plays).toEqual(['forward']);
+    await page.finish();
+
+    // A slide that ends while it is held is held no more.
+    slidePhonePage(() => showThread(false));
+    page.frame();
+    expect(root.dataset.pageSlideHeld).toBe('');
+    await page.finish();
+    expect(root.dataset.pageSlideHeld).toBeUndefined();
+    page.frame();
+    expect(root.dataset.pageSlideHeld).toBeUndefined();
   });
 
   it('changes the page without a frame, and ends a slide that never plays: a hidden tab', () => {
