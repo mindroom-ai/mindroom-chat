@@ -116,6 +116,20 @@ describe('the drop zone of the second column', () => {
     expect(zone()).toBeNull();
   });
 
+  it("takes a drag that shows its thread only as it starts, as the Mac app's WebKit does", () => {
+    const onOpen = vi.fn();
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    startDrag(threadDrag('$c'));
+    const target = zone()!;
+    // Mac Catalyst's WebKit lists a custom type as the drag starts and not again before the drop.
+    const dataTransfer = dragData({});
+    expect(fireEvent.dragEnter(target, { dataTransfer })).toBe(false);
+    expect(fireEvent.dragOver(target, { dataTransfer })).toBe(false);
+    expect(target.dataset.over).toBe('true');
+    fireEvent.drop(target, { dataTransfer });
+    expect(onOpen.mock.calls).toEqual([['!room:example.org', '$c']]);
+  });
+
   it('takes no drop from a drag that started where the zone shows until it left the zone', () => {
     const onOpen = vi.fn();
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
