@@ -77,9 +77,19 @@ const openRoom = async (page: Page, label: string) => {
           event.target instanceof Element && event.target.closest('[data-thread-root-id]');
         pressed.push(card ? card.getAttribute('data-thread-root-id') : null);
         if (card) tops.push(card.getBoundingClientRect().top);
+        diag.push(['capture', performance.now(), card ? card.getBoundingClientRect().top : null]);
       },
       true
     );
+    const diag: unknown[] = [];
+    Object.assign(window, { diag });
+    window.addEventListener('pointerdown', (event) => {
+      const card = event.target instanceof Element && event.target.closest('[data-thread-root-id]');
+      const row = card ? card.closest('[data-motion-row]') : null;
+      diag.push(['bubble', performance.now(), card ? card.getBoundingClientRect().top : null,
+        row ? row.getAnimations().map((a) => a.playState + '@' + a.currentTime + JSON.stringify((a.effect as KeyframeEffect).getKeyframes().map((f) => f.translate ?? f.zIndex))).join(' ; ') : null]);
+    });
+    new PerformanceObserver((list) => list.getEntries().forEach((e) => diag.push(['longtask', e.startTime, e.duration]))).observe({ entryTypes: ['longtask'] });
   });
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -206,6 +216,8 @@ test.describe('a press on a Compact card in motion', () => {
       await page.mouse.down();
       await page.waitForTimeout(BUSY_MS);
       const top = await card.evaluate((element) => element.getBoundingClientRect().top);
+      // eslint-disable-next-line no-console
+      console.log('DIAG', JSON.stringify(await card.evaluate((element) => [...(window as unknown as { diag: unknown[] }).diag, ['after', performance.now(), element.getBoundingClientRect().top, (element.closest('[data-motion-row]') as Element).getAnimations().map((a) => a.playState + '@' + a.currentTime + JSON.stringify((a.effect as KeyframeEffect).getKeyframes().map((f) => f.translate ?? f.zIndex))).join(' ; ')]])));
       const pressedTop = await page.evaluate(
         () => (window as unknown as { pressedTops: number[] }).pressedTops[0]
       );
