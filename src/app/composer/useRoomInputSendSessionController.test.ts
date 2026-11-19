@@ -1,7 +1,7 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
 import {
@@ -91,7 +91,7 @@ const successUpload = (file: File, mxc = `mxc://mindroom/${file.name}`): Upload 
 });
 
 /** The bodies of the messages sent so far, in order. */
-const sentBodies = (mx: { sendMessage: ReturnType<typeof vi.fn> }): string[] =>
+const sentBodies = (mx: { sendMessage: Mock }): string[] =>
   mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body);
 
 const loadingUpload = (file: File): Upload => ({
@@ -135,17 +135,17 @@ const TestHarness = ({
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
   mx: {
-    cancelPendingEvent: ReturnType<typeof vi.fn>;
-    getEventForTxnId: ReturnType<typeof vi.fn>;
-    makeTxnId: ReturnType<typeof vi.fn>;
-    sendMessage: ReturnType<typeof vi.fn>;
-    uploadContent: ReturnType<typeof vi.fn>;
+    cancelPendingEvent: Mock;
+    getEventForTxnId: Mock;
+    makeTxnId: Mock;
+    sendMessage: Mock;
+    uploadContent: Mock;
   };
   editor: { children: unknown[] };
-  sendTypingStatus: ReturnType<typeof vi.fn>;
+  sendTypingStatus: Mock;
   replyDraft?: IReplyDraft;
-  clearReplyDraft: ReturnType<typeof vi.fn>;
-  restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
+  clearReplyDraft: Mock;
+  restoreComposerFallbackForRoom: Mock;
   threadId?: string;
   forkFrom?: ThreadForkRef;
   roomId?: string;

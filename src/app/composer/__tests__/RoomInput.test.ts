@@ -1,7 +1,7 @@
 import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
@@ -705,7 +705,7 @@ const createTextPasteEvent = (text: string) =>
     preventDefault: vi.fn(),
   } as never as {
     clipboardData: DataTransfer;
-    preventDefault: ReturnType<typeof vi.fn>;
+    preventDefault: Mock<() => void>;
   });
 
 const createDeferred = <T>() => {

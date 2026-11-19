@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Reactions } from './Reactions';
 
@@ -140,7 +140,7 @@ const streamingReply = () =>
 const stopProps = (
   relations: MockRelations,
   targetEvent: MatrixEvent,
-  onReactionToggle: ReturnType<typeof vi.fn>
+  onReactionToggle: Mock
 ) => ({
   room: {} as never,
   mEventId: '$event',

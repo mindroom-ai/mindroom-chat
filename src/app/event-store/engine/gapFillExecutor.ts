@@ -144,7 +144,7 @@ export const createGapFillExecutor = (options: GapFillExecutorOptions): GapFillE
           Math.min(GAP_FILL_BATCH_SIZE, reservation.limit),
           Direction.Backward
         );
-      } catch (error) {
+      } catch {
         // Keep intent for the next connection/focus change, without looping.
         return 'continuation-deferred';
       }
