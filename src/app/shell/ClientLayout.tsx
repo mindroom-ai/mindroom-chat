@@ -1,7 +1,7 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { Box } from 'folds';
 import { useAtomValue } from 'jotai';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { UNSAFE_DataRouterContext, useLocation, useNavigate } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { getActiveSession, updateSessionLastPath } from '../matrix/session/sessions';
@@ -60,6 +60,8 @@ export function ClientLayout({
   const activeSession = useActiveSession();
   const { hash, key, pathname, search } = useLocation();
   const navigate = useNavigate();
+  // The router's own location, which leads the one rendered while an update waits.
+  const router = useContext(UNSAFE_DataRouterContext)?.router;
   const sessionId = activeSession?.sessionId;
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const layerOpen = useAtomValue(phoneLayerOpenAtom);
@@ -94,6 +96,9 @@ export function ClientLayout({
       .then((resolved) => {
         if (cancelled) return;
         setResolvedAliasPath(pathname);
+        // A navigation since, which the page may not show yet, keeps its own address: a link's
+        // redirect into its thread, or a step back to the entry the page load started on.
+        if (router && router.state.location.key !== key) return;
         if (resolved !== pathname) navigate(`${resolved}${search}${hash}`, { replace: true });
       })
       .catch(() => {
@@ -102,7 +107,7 @@ export function ClientLayout({
     return () => {
       cancelled = true;
     };
-  }, [mx, sessionId, hasAlias, pathname, search, hash, navigate]);
+  }, [mx, sessionId, hasAlias, pathname, search, hash, key, navigate, router]);
 
   // One tree on every screen size, so a phone turned sideways keeps the page mounted: the page's
   // wrapper draws no box beside the rail, and on phones holds the page below the top bar.
