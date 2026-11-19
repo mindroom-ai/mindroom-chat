@@ -1,4 +1,12 @@
-import React, { CSSProperties, ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  CSSProperties,
+  ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useAtom } from 'jotai';
 import {
   atomWithLocalStorage,
@@ -41,6 +49,25 @@ type Drag = {
   startWidth: number;
   width: number;
   direction: number;
+  /** Lets the page select text again. */
+  unblock: () => void;
+};
+
+/**
+ * Keeps every text on the page from being selected until the returned function runs, and clears
+ * what a press may have selected. A held mouse that leaves the splitter (a panel at its widest
+ * stays put) goes over the conversation, and the Mac app's web view selects there although the
+ * press's pointerdown was cancelled.
+ */
+const blockSelection = (): (() => void) => {
+  const prevent = (event: Event) => event.preventDefault();
+  document.addEventListener('selectstart', prevent, true);
+  document.documentElement.toggleAttribute(css.RESIZING, true);
+  window.getSelection()?.removeAllRanges();
+  return () => {
+    document.removeEventListener('selectstart', prevent, true);
+    document.documentElement.toggleAttribute(css.RESIZING, false);
+  };
 };
 
 export function ResizablePanel({
@@ -212,6 +239,7 @@ export function ResizablePanel({
   // Without the splitter (full width, folded, or no box of its own) a drag on it ends.
   useLayoutEffect(() => {
     if (!resizable) {
+      dragRef.current?.unblock();
       dragRef.current = undefined;
       setPreviewWidth(undefined);
       return undefined;
@@ -232,6 +260,7 @@ export function ResizablePanel({
     observer.observe(parent);
     return () => observer.disconnect();
   }, [resizable, maxPanelWidth, minContentWidth]);
+  useEffect(() => () => dragRef.current?.unblock(), []);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
@@ -250,6 +279,7 @@ export function ResizablePanel({
       startWidth,
       width: startWidth,
       direction: resizeDirection(),
+      unblock: blockSelection(),
     };
   };
   const moveResize = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -267,6 +297,7 @@ export function ResizablePanel({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = undefined;
+    drag.unblock();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
