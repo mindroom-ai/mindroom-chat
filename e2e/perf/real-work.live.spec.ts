@@ -92,6 +92,13 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *                      heap it compares is what stays (a busy page lets garbage pile up between
  *                      collections, which the plain samples count); its result has `collected`
  *
+ * WebKit: with PLAYWRIGHT_WEBKIT_EXECUTABLE naming Playwright's WebKit, `--project=webkit` runs the
+ * scenarios there at 1x (`--project=chromium` the usual ones; without either, both). WebKit gives
+ * no developer tools session, so its results have frame intervals, timings, typing, commits and
+ * the load, and zeros for busy, long animation frames and long tasks (each result's `notes` say
+ * so); PERF_PROFILE and PERF_TRACE do nothing there. For where its time goes, run macOS's
+ * `sample <pid>` on the page's WebContent process over a window.
+ *
  * External mode, for an account that is already there, in Chromium only (any other engine is
  * refused): PERF_TARGET=external with PERF_HOMESERVER (which must be on 127.0.0.1 or localhost),
  * PERF_USERNAME, PERF_PASSWORD and PERF_ROOM (a room ID). No stack and no driver: the page signs
@@ -904,7 +911,8 @@ test.describe('PERF: real work under the backend load', () => {
       };
 
       for (const throttle of THROTTLES) {
-        test(`scenarios at ${throttle}x CPU`, async ({ page, browserName }) => {
+        // The tag lets the `webkit` project (PLAYWRIGHT_WEBKIT_EXECUTABLE) run it as well.
+        test(`scenarios at ${throttle}x CPU`, { tag: '@webkit' }, async ({ page, browserName }) => {
           test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
           test.skip(throttle !== 1 && browserName !== 'chromium', 'CPU throttling needs Chromium');
           test.setTimeout(scenariosTimeout(throttle));
