@@ -296,6 +296,35 @@ describe('parseLongTextJsonSidecar', () => {
 });
 
 describe('hydrateLongTextSource', () => {
+  it('hydrates a version-3 sidecar with its tool markers back in its text', async () => {
+    const source = expectDefined(
+      getLongTextSource({
+        msgtype: 'm.file',
+        body: 'preview',
+        url: 'mxc://server/preview',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      })
+    );
+    const call = { type: 'tool_call_completed', tool_name: 'shell', at: 1 };
+    const resolved = await hydrateLongTextSource(
+      source,
+      async () =>
+        JSON.stringify({
+          msgtype: 'm.text',
+          body: 'Checking.\n\nDone.',
+          formatted_body: '<p>Checking.</p>\n<p>Done.</p>\n',
+          'io.mindroom.tool_trace': { version: 3, events: [call] },
+        }),
+      {}
+    );
+
+    expect(resolved.body).toBe('Checking.\n\n🔧 `shell` [1]\n\nDone.');
+    expect(resolved.formatted_body).toBe(
+      '<p>Checking.</p>\n<p>🔧 <code>shell</code> [1]</p>\n<p>Done.</p>\n'
+    );
+    expect(resolved['io.mindroom.tool_trace']).toEqual({ version: 2, events: [call] });
+  });
+
   it('hydrates v2 sidecar json and keeps tool-trace metadata', async () => {
     const source = expectDefined(
       getLongTextSource({

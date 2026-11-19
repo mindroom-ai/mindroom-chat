@@ -1,6 +1,7 @@
 import { MatrixEvent, type IContent } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 import { isRecord } from '../../lib/isRecord';
+import { hasToolPositions, withToolMarkersRestored } from './toolPositions';
 
 /**
  * Message content keys only MindRoom's agents send: the run details (model chip, Reply details),
@@ -89,8 +90,9 @@ const withoutAgentKeys = (content: Record<string, unknown>): Record<string, unkn
 
 /**
  * Content in the shapes the app reads: an object, a well-formed `m.relates_to` or none, an object
- * `m.new_content` or none, and without the agent-only keys unless `fromAgent`. Returns `content`
- * itself when nothing changes.
+ * `m.new_content` or none, without the agent-only keys unless `fromAgent`, and an agent's tool
+ * markers back in its text (`withToolMarkersRestored`). Returns `content` itself when nothing
+ * changes.
  */
 export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent => {
   if (!isRecord(content)) return {};
@@ -107,16 +109,12 @@ export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent 
   if ('m.new_content' in content) {
     const newContent = content['m.new_content'];
     if (!isRecord(newContent)) edit('m.new_content', undefined);
-    else if (!fromAgent) {
-      const stripped = withoutAgentKeys(newContent);
-      if (stripped !== newContent) edit('m.new_content', stripped);
+    else {
+      const read = fromAgent ? withToolMarkersRestored(newContent) : withoutAgentKeys(newContent);
+      if (read !== newContent) edit('m.new_content', read);
     }
   }
-  if (!fromAgent) {
-    const stripped = withoutAgentKeys(result);
-    if (stripped !== result) result = stripped;
-  }
-  return result;
+  return fromAgent ? withToolMarkersRestored(result) : withoutAgentKeys(result);
 };
 
 /** Whether the content needs no change, checked without copying: the common case. */
@@ -129,7 +127,10 @@ const isClean = (content: unknown, sender: string | undefined): boolean => {
   const hasAgentKeys =
     AGENT_ONLY_CONTENT_KEYS.some((key) => key in content) ||
     (isRecord(newContent) && AGENT_ONLY_CONTENT_KEYS.some((key) => key in newContent));
-  return !hasAgentKeys || isTrustedAgentSender(sender);
+  if (!hasAgentKeys) return true;
+  const positions =
+    hasToolPositions(content) || (isRecord(newContent) && hasToolPositions(newContent));
+  return !positions && isTrustedAgentSender(sender);
 };
 
 /**
