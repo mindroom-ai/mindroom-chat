@@ -781,6 +781,19 @@
         "unavailableHint": "Para introducir claves aquí, guarda tu servidor de MindRoom en Ajustes → {{page}}.",
         "replaces": "Reemplaza la clave guardada ahora.",
         "replaceKey": "Reemplazar clave",
+        "newService": {
+          "title": "Servicio nuevo: {{name}}",
+          "hint": "Al guardar, este servicio se añade a los tuyos junto con la clave.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Los comandos reciben {{names}}",
+          "auth": {
+            "bearer": "token bearer",
+            "basic": "autenticación básica como {{username}}",
+            "header": "cabecera {{name}}",
+            "query": "parámetro de consulta {{name}}"
+          },
+          "unreadable": "Esta tarjeta añade un servicio que esta versión de MindRoom Chat no puede mostrar, así que no se puede guardar aquí. Actualiza MindRoom Chat para responderla."
+        },
         "temporary": {
           "label": "Solicitud de secreto",
           "title": "Secreto para {{agent}}",

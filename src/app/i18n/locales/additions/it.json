@@ -781,6 +781,19 @@
         "unavailableHint": "Per inserire chiavi qui, salva il tuo server MindRoom in Impostazioni → {{page}}.",
         "replaces": "Sostituisce la chiave salvata ora.",
         "replaceKey": "Sostituisci chiave",
+        "newService": {
+          "title": "Nuovo servizio: {{name}}",
+          "hint": "Salvando, questo servizio si aggiunge ai tuoi insieme alla chiave.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "I comandi ricevono {{names}}",
+          "auth": {
+            "bearer": "token bearer",
+            "basic": "autenticazione basic come {{username}}",
+            "header": "header {{name}}",
+            "query": "parametro di query {{name}}"
+          },
+          "unreadable": "Questa scheda aggiunge un servizio che questa versione di MindRoom Chat non può mostrare, quindi non può essere salvata qui. Aggiorna MindRoom Chat per rispondere."
+        },
         "temporary": {
           "label": "Richiesta di segreto",
           "title": "Segreto per {{agent}}",

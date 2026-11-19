@@ -763,6 +763,19 @@
         "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} 中儲存您的 MindRoom 伺服器。",
         "replaces": "將取代目前儲存的金鑰。",
         "replaceKey": "取代金鑰",
+        "newService": {
+          "title": "新服務：{{name}}",
+          "hint": "儲存後，此服務會連同金鑰新增到您自己的服務中。",
+          "rule": "{{location}} · {{auth}}",
+          "env": "指令取得 {{names}}",
+          "auth": {
+            "bearer": "Bearer 權杖",
+            "basic": "以 {{username}} 進行基本驗證",
+            "header": "標頭 {{name}}",
+            "query": "查詢參數 {{name}}"
+          },
+          "unreadable": "此卡片新增的服務無法在此版本的 MindRoom Chat 中顯示，因此無法在此儲存。請更新 MindRoom Chat 後再回答。"
+        },
         "temporary": {
           "label": "機密要求",
           "title": "給 {{agent}} 的機密",

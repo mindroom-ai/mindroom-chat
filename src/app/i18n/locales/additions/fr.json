@@ -781,6 +781,19 @@
         "unavailableHint": "Pour saisir des clés ici, enregistrez votre serveur MindRoom dans Paramètres → {{page}}.",
         "replaces": "Remplace la clé enregistrée actuellement.",
         "replaceKey": "Remplacer la clé",
+        "newService": {
+          "title": "Nouveau service : {{name}}",
+          "hint": "L’enregistrement ajoute ce service aux vôtres, avec la clé.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Les commandes reçoivent {{names}}",
+          "auth": {
+            "bearer": "jeton bearer",
+            "basic": "authentification basique en tant que {{username}}",
+            "header": "en-tête {{name}}",
+            "query": "paramètre de requête {{name}}"
+          },
+          "unreadable": "Cette carte ajoute un service que cette version de MindRoom Chat ne peut pas afficher, elle ne peut donc pas être enregistrée ici. Mettez à jour MindRoom Chat pour y répondre."
+        },
         "temporary": {
           "label": "Demande de secret",
           "title": "Secret pour {{agent}}",

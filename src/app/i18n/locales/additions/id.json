@@ -763,6 +763,19 @@
         "unavailableHint": "Untuk memasukkan kunci di sini, simpan server MindRoom Anda di Pengaturan → {{page}}.",
         "replaces": "Menggantikan kunci yang tersimpan sekarang.",
         "replaceKey": "Ganti kunci",
+        "newService": {
+          "title": "Layanan baru: {{name}}",
+          "hint": "Menyimpan menambahkan layanan ini ke layanan Anda sendiri, beserta kuncinya.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Perintah mendapat {{names}}",
+          "auth": {
+            "bearer": "token bearer",
+            "basic": "autentikasi dasar sebagai {{username}}",
+            "header": "header {{name}}",
+            "query": "parameter kueri {{name}}"
+          },
+          "unreadable": "Kartu ini menambahkan layanan yang tidak dapat ditampilkan oleh versi MindRoom Chat ini, jadi tidak dapat disimpan di sini. Perbarui MindRoom Chat untuk menjawabnya."
+        },
         "temporary": {
           "label": "Permintaan rahasia",
           "title": "Rahasia untuk {{agent}}",

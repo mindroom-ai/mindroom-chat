@@ -763,6 +763,19 @@
         "unavailableHint": "여기에서 키를 입력하려면 설정 → {{page}}에서 MindRoom 서버를 저장하세요.",
         "replaces": "지금 저장된 키를 대체합니다.",
         "replaceKey": "키 교체",
+        "newService": {
+          "title": "새 서비스: {{name}}",
+          "hint": "저장하면 이 서비스가 키와 함께 내 서비스에 추가됩니다.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "명령이 받는 변수: {{names}}",
+          "auth": {
+            "bearer": "Bearer 토큰",
+            "basic": "{{username}}(으)로 기본 인증",
+            "header": "헤더 {{name}}",
+            "query": "쿼리 매개변수 {{name}}"
+          },
+          "unreadable": "이 카드는 이 버전의 MindRoom Chat에서 표시할 수 없는 서비스를 추가하므로 여기에서 저장할 수 없습니다. 응답하려면 MindRoom Chat을 업데이트하세요."
+        },
         "temporary": {
           "label": "비밀 요청",
           "title": "{{agent}}에게 줄 비밀",

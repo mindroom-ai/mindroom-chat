@@ -772,6 +772,19 @@
         "unavailableHint": "To enter keys here, save your MindRoom server in Settings → {{page}}.",
         "replaces": "Replaces the key saved now.",
         "replaceKey": "Replace key",
+        "newService": {
+          "title": "New service: {{name}}",
+          "hint": "Saving adds this service to your own, with the key.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Commands get {{names}}",
+          "auth": {
+            "bearer": "bearer token",
+            "basic": "basic auth as {{username}}",
+            "header": "header {{name}}",
+            "query": "query parameter {{name}}"
+          },
+          "unreadable": "This card adds a service this version of MindRoom Chat cannot show, so it cannot be saved here. Update MindRoom Chat to answer it."
+        },
         "temporary": {
           "label": "Secret request",
           "title": "Secret for {{agent}}",

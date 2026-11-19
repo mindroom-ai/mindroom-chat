@@ -772,6 +772,19 @@
         "unavailableHint": "Um hier Schlüssel einzugeben, speichere deinen MindRoom-Server unter Einstellungen → {{page}}.",
         "replaces": "Ersetzt den jetzt gespeicherten Schlüssel.",
         "replaceKey": "Schlüssel ersetzen",
+        "newService": {
+          "title": "Neuer Dienst: {{name}}",
+          "hint": "Beim Speichern kommt dieser Dienst mit dem Schlüssel zu deinen eigenen hinzu.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Befehle erhalten {{names}}",
+          "auth": {
+            "bearer": "Bearer-Token",
+            "basic": "Basic-Auth als {{username}}",
+            "header": "Header {{name}}",
+            "query": "Query-Parameter {{name}}"
+          },
+          "unreadable": "Diese Karte fügt einen Dienst hinzu, den diese Version von MindRoom Chat nicht anzeigen kann, daher lässt sie sich hier nicht speichern. Aktualisiere MindRoom Chat, um sie zu beantworten."
+        },
         "temporary": {
           "label": "Geheimnis-Anfrage",
           "title": "Geheimnis für {{agent}}",

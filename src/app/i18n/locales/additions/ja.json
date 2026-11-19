@@ -763,6 +763,19 @@
         "unavailableHint": "ここでキーを入力するには、設定 → {{page}} で MindRoom サーバーを保存してください。",
         "replaces": "現在保存されているキーを置き換えます。",
         "replaceKey": "キーを置き換える",
+        "newService": {
+          "title": "新しいサービス: {{name}}",
+          "hint": "保存すると、このサービスがキーとともにあなたのサービスに追加されます。",
+          "rule": "{{location}} · {{auth}}",
+          "env": "コマンドが受け取る変数: {{names}}",
+          "auth": {
+            "bearer": "ベアラートークン",
+            "basic": "{{username}} としてベーシック認証",
+            "header": "ヘッダー {{name}}",
+            "query": "クエリパラメーター {{name}}"
+          },
+          "unreadable": "このカードは、このバージョンの MindRoom Chat では表示できないサービスを追加するため、ここでは保存できません。応答するには MindRoom Chat を更新してください。"
+        },
         "temporary": {
           "label": "シークレットのリクエスト",
           "title": "{{agent}} へのシークレット",

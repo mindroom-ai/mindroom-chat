@@ -772,6 +772,19 @@
         "unavailableHint": "Burada anahtar girmek için MindRoom sunucunuzu Ayarlar → {{page}} bölümünde kaydedin.",
         "replaces": "Şu an kayıtlı anahtarın yerini alır.",
         "replaceKey": "Anahtarı değiştir",
+        "newService": {
+          "title": "Yeni hizmet: {{name}}",
+          "hint": "Kaydetmek bu hizmeti anahtarla birlikte kendi hizmetlerinize ekler.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Komutlar şunları alır: {{names}}",
+          "auth": {
+            "bearer": "bearer belirteci",
+            "basic": "{{username}} olarak temel kimlik doğrulama",
+            "header": "başlık {{name}}",
+            "query": "sorgu parametresi {{name}}"
+          },
+          "unreadable": "Bu kart, MindRoom Chat'in bu sürümünün gösteremediği bir hizmet ekliyor, bu yüzden burada kaydedilemez. Yanıtlamak için MindRoom Chat'i güncelleyin."
+        },
         "temporary": {
           "label": "Gizli bilgi isteği",
           "title": "{{agent}} için gizli bilgi",

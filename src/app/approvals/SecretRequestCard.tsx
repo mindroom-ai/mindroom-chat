@@ -17,6 +17,8 @@ import { formatLifetime } from '../lib/time';
 import {
   effectiveSecretRequestStatus,
   secretRequestPath,
+  type ProposedService,
+  type ProposedServiceAuth,
   type SecretKeep,
   type SecretRequest,
   type SecretRequestStatus,
@@ -72,6 +74,13 @@ const KEPT_KEYS = {
   memory: 'mindroomUi.messages.secretRequestCard.temporary.kept.memory',
   disk: 'mindroomUi.messages.secretRequestCard.temporary.kept.disk',
 } as const satisfies Record<SecretKeep, string>;
+
+const AUTH_KEYS = {
+  bearer: 'mindroomUi.messages.secretRequestCard.newService.auth.bearer',
+  basic: 'mindroomUi.messages.secretRequestCard.newService.auth.basic',
+  header: 'mindroomUi.messages.secretRequestCard.newService.auth.header',
+  query: 'mindroomUi.messages.secretRequestCard.newService.auth.query',
+} as const satisfies Record<ProposedServiceAuth['type'], string>;
 
 /** The `detail` of a refusal, cut to a readable length; undefined when it carries none. */
 const readDetail = async (response: Response): Promise<string | undefined> => {
@@ -404,6 +413,50 @@ function Fact({ icon, children }: { icon: IconSrc; children: ReactNode }) {
 }
 
 /**
+ * The service the agent proposes, which saving the key adds: its name, then where each rule sends
+ * the key and how, and the variables the agent's commands get.
+ */
+function NewService({ service }: { service: ProposedService }) {
+  const { t } = useTranslation();
+  return (
+    <div className={css.Facts} data-secret-request-new-service>
+      <Fact icon={Icons.Plus}>
+        <IsolatedText
+          text={t('mindroomUi.messages.secretRequestCard.newService.title', {
+            name: isolateInSentence(service.displayName),
+          })}
+        />
+      </Fact>
+      {service.rules.map(({ host, port, pathPrefix, auth }) => (
+        <Fact key={`${host}:${port ?? ''}${pathPrefix}`} icon={Icons.Globe}>
+          <IsolatedText
+            text={t('mindroomUi.messages.secretRequestCard.newService.rule', {
+              location: isolateInSentence(`${host}${port ? `:${port}` : ''}${pathPrefix}`),
+              auth: t(AUTH_KEYS[auth.type], {
+                name: isolateInSentence('name' in auth ? auth.name : ''),
+                username: isolateInSentence('username' in auth ? auth.username : ''),
+              }),
+            })}
+          />
+        </Fact>
+      ))}
+      {service.env.length > 0 && (
+        <Fact icon={Icons.Terminal}>
+          <IsolatedText
+            text={t('mindroomUi.messages.secretRequestCard.newService.env', {
+              names: isolateInSentence(service.env.join(', ')),
+            })}
+          />
+        </Fact>
+      )}
+      <Text size="T200" className={sectionCss.SectionMeta}>
+        {t('mindroomUi.messages.secretRequestCard.newService.hint')}
+      </Text>
+    </div>
+  );
+}
+
+/**
  * A done request, read-only, for its card's fold and its line in a reply (SecretRequestLine.tsx):
  * the agent's reason, then what became of the secret, one fact to a line. It names no server: the
  * one the viewer would send to now may not be the one that got the secret.
@@ -537,6 +590,8 @@ export function SecretRequestCard({
   const timeLeft = open ? formatTimeUntil(request.expiresAt, now, language) : undefined;
   const temporary = request.kind === 'temporary' ? request : undefined;
   const hosts = request.kind === 'key' ? request.hosts : [];
+  // The new service saving would add, or null for one this client cannot read and so cannot save.
+  const newService = request.kind === 'key' ? request.newService : undefined;
 
   // Each minute while open, for the time left, and at the deadline, when the card turns expired.
   useEffect(() => {
@@ -555,7 +610,7 @@ export function SecretRequestCard({
   // and opens it again, takes the focus the page got. Focus moved elsewhere on purpose stays there.
   // Without such an answer none moves (the form gave up its focus): focus put in the row would
   // show the row's toolbar as if it came from the keyboard.
-  const formShown = open && isRequester;
+  const formShown = open && isRequester && newService !== null;
   useEffect(() => {
     if (formShown || !keyboardAnswer.current) return;
     keyboardAnswer.current = false;
@@ -652,6 +707,10 @@ export function SecretRequestCard({
             })}
           />
         </Text>
+      )}
+      {open && newService && <NewService service={newService} />}
+      {open && isRequester && newService === null && (
+        <Text size="T200">{t('mindroomUi.messages.secretRequestCard.newService.unreadable')}</Text>
       )}
       {formShown && (
         <SecretRequestAnswer

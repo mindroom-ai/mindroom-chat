@@ -77,6 +77,78 @@ describe('parseSecretRequestContent', () => {
     });
   });
 
+  it('reads the new service a key card proposes', () => {
+    const newService = {
+      name: 'openrouter',
+      display_name: 'OpenRouter',
+      rules: [
+        { host: 'openrouter.ai', path_prefix: '/api/', auth: { type: 'bearer' } },
+        {
+          host: 'git.example.test',
+          path_prefix: '/',
+          port: 8443,
+          auth: { type: 'header', name: 'X-Key' },
+        },
+        { host: 'dav.example.test', path_prefix: '/', auth: { type: 'basic', username: 'bot' } },
+      ],
+      placeholder_env: { OPENROUTER_API_KEY: 'mindroom-brokered' },
+    };
+    const request = parseSecretRequestContent(content(inner({ new_service: newService })));
+
+    expect(request).toMatchObject({
+      kind: 'key',
+      newService: {
+        name: 'openrouter',
+        displayName: 'OpenRouter',
+        rules: [
+          { host: 'openrouter.ai', pathPrefix: '/api/', auth: { type: 'bearer' } },
+          {
+            host: 'git.example.test',
+            pathPrefix: '/',
+            port: 8443,
+            auth: { type: 'header', name: 'X-Key' },
+          },
+          { host: 'dav.example.test', pathPrefix: '/', auth: { type: 'basic', username: 'bot' } },
+        ],
+        env: ['OPENROUTER_API_KEY'],
+      },
+    });
+    expect(parseSecretRequestContent(content(inner()))).not.toHaveProperty('newService');
+  });
+
+  it('marks a new service it cannot read as null, so the card offers no Save', () => {
+    const rule = { host: 'openrouter.ai', path_prefix: '/', auth: { type: 'bearer' } };
+    const valid = {
+      name: 'openrouter',
+      display_name: 'OpenRouter',
+      rules: [rule],
+      placeholder_env: {},
+    };
+    const newService = (value: unknown) => {
+      const request = parseSecretRequestContent(content(inner({ new_service: value })));
+      return request?.kind === 'key' ? request.newService : 'not a key card';
+    };
+    expect(newService(valid)).not.toBeNull();
+    [
+      'openrouter',
+      null,
+      { ...valid, name: 'other' },
+      { ...valid, display_name: 7 },
+      { ...valid, rules: [] },
+      { ...valid, rules: 'openrouter.ai' },
+      { ...valid, rules: [{ ...rule, host: 7 }] },
+      { ...valid, rules: [{ ...rule, path_prefix: undefined }] },
+      { ...valid, rules: [{ ...rule, port: 0 }] },
+      { ...valid, rules: [{ ...rule, port: '8443' }] },
+      { ...valid, rules: [{ ...rule, auth: undefined }] },
+      { ...valid, rules: [{ ...rule, auth: { type: 'oauth' } }] },
+      { ...valid, rules: [{ ...rule, auth: { type: 'header' } }] },
+      { ...valid, rules: [{ ...rule, auth: { type: 'basic' } }] },
+      { ...valid, placeholder_env: { 'NOT-A-NAME': 'x' } },
+      { ...valid, placeholder_env: undefined },
+    ].forEach((value) => expect(newService(value)).toBeNull());
+  });
+
   it('reads the keep an answered temporary secret has', () => {
     const kept = (value: unknown) => {
       const request = parseSecretRequestContent(

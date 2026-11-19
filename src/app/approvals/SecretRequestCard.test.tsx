@@ -937,6 +937,53 @@ describe('SecretRequestCard', () => {
     expect(button('Replace key')).toBeUndefined();
   });
 
+  it('shows the new service the agent proposes above the field, which Save adds', () => {
+    render(
+      request({
+        service: 'acme',
+        displayName: 'Acme',
+        hosts: ['api.acme.test', 'git.acme.test'],
+        newService: {
+          name: 'acme',
+          displayName: 'Acme',
+          rules: [
+            { host: 'api.acme.test', pathPrefix: '/v1/', auth: { type: 'bearer' } },
+            {
+              host: 'git.acme.test',
+              pathPrefix: '/',
+              port: 8443,
+              auth: { type: 'header', name: 'X-Key' },
+            },
+          ],
+          env: ['ACME_TOKEN'],
+        },
+      })
+    );
+
+    const block = host.querySelector('[data-secret-request-new-service]');
+    expect(block?.textContent).toContain('New service: Acme');
+    expect(block?.textContent).toContain('api.acme.test/v1/ · bearer token');
+    expect(block?.textContent).toContain('git.acme.test:8443/ · header X-Key');
+    expect(block?.textContent).toContain('Commands get ACME_TOKEN');
+    expect(block?.textContent).toContain('Saving adds this service to your own, with the key.');
+    // Above the key field.
+    const field = input();
+    expect(field).not.toBeNull();
+    expect(
+      field && block && block.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(button('Save')).toBeDefined();
+  });
+
+  it('offers no field or Save for a new service this client cannot read', () => {
+    render(request({ newService: null }));
+
+    expect(text()).toContain('GitHub key');
+    expect(text()).toContain('This card adds a service this version of MindRoom Chat cannot show');
+    expect(input()).toBeNull();
+    expect(button('Save')).toBeUndefined();
+  });
+
   it('asks for a temporary secret with its variable and how long to keep it', () => {
     render(temporary());
 

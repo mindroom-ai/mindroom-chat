@@ -31,6 +31,30 @@ type SecretRequestBase = {
   anchor?: { responseEventId: string; toolCallId: string };
 };
 
+/** How a rule of a proposed service sends the key: a header or query parameter by name. */
+export type ProposedServiceAuth =
+  | { type: 'bearer' }
+  | { type: 'basic'; username: string }
+  | { type: 'header' | 'query'; name: string };
+
+/** One rule of a proposed service: where the key may go, and how. */
+export type ProposedServiceRule = {
+  host: string;
+  pathPrefix: string;
+  /** Only when the rule names one; otherwise any port. */
+  port?: number;
+  auth: ProposedServiceAuth;
+};
+
+/** A service the agent proposes with a key card, which saving the key adds as the person's own. */
+export type ProposedService = {
+  name: string;
+  displayName: string;
+  rules: ProposedServiceRule[];
+  /** The variables the agent's commands get, by name. */
+  env: string[];
+};
+
 /** A request for a service's API key, which MindRoom stores for the agent. */
 export type KeySecretRequest = SecretRequestBase & {
   kind: 'key';
@@ -40,6 +64,11 @@ export type KeySecretRequest = SecretRequestBase & {
   hosts: string[];
   /** The service already has a key, which an answer replaces. */
   replaces: boolean;
+  /**
+   * The new service an answer adds, when the agent proposes one; null when the card proposes one
+   * this client cannot read, which it then offers no Save for.
+   */
+  newService?: ProposedService | null;
 };
 
 /** A request for a secret the agent's shell commands receive for a limited time. */
@@ -134,6 +163,43 @@ const readKeep = (value: unknown): TemporarySecretRequest['keep'] | null => {
   return Object.keys(keep).length > 0 ? keep : null;
 };
 
+const readAuth = (value: unknown): ProposedServiceAuth | null => {
+  if (!isRecord(value)) return null;
+  const { type, name, username } = value;
+  if (type === 'bearer') return { type };
+  if (type === 'basic' && typeof username === 'string') return { type, username };
+  if ((type === 'header' || type === 'query') && typeof name === 'string') return { type, name };
+  return null;
+};
+
+const readRule = (value: unknown): ProposedServiceRule | null => {
+  if (!isRecord(value)) return null;
+  const { host, path_prefix: pathPrefix, port } = value;
+  const auth = readAuth(value.auth);
+  const portOk =
+    port === undefined || (Number.isInteger(port) && Number(port) >= 1 && Number(port) <= 65_535);
+  if (typeof host !== 'string' || typeof pathPrefix !== 'string' || !portOk || !auth) return null;
+  return { host, pathPrefix, ...(typeof port === 'number' && { port }), auth };
+};
+
+/** The service a key card proposes as `service`, or null for one this client cannot read. */
+const readNewService = (value: unknown, service: string): ProposedService | null => {
+  if (!isRecord(value)) return null;
+  const { name, display_name: displayName, rules, placeholder_env: env } = value;
+  const read = Array.isArray(rules) ? rules.map(readRule) : [];
+  if (
+    name !== service ||
+    typeof displayName !== 'string' ||
+    read.length === 0 ||
+    !read.every((rule): rule is ProposedServiceRule => rule !== null) ||
+    !isRecord(env) ||
+    !Object.keys(env).every((variable) => ENV_NAME.test(variable))
+  ) {
+    return null;
+  }
+  return { name, displayName, rules: read, env: Object.keys(env) };
+};
+
 const readRequest = (value: unknown): SecretRequest | null => {
   if (!isRecord(value)) return null;
   const {
@@ -198,7 +264,16 @@ const readRequest = (value: unknown): SecretRequest | null => {
   ) {
     return null;
   }
-  return { ...base, kind: 'key', service, displayName, hosts, replaces: value.replaces === true };
+  const key: KeySecretRequest = {
+    ...base,
+    kind: 'key',
+    service,
+    displayName,
+    hosts,
+    replaces: value.replaces === true,
+  };
+  if (value.new_service !== undefined) key.newService = readNewService(value.new_service, service);
+  return key;
 };
 
 /** The request an event's content carries, as its latest edit has it; null for any other content. */
