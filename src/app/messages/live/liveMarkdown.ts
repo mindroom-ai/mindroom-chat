@@ -23,9 +23,20 @@ const SUPPORTED_BLOCK_LINE_START = new RegExp(`^ {0,3}</?(?:${BLOCK_TAG_ALTERNAT
 const SUPPORTED_BLOCK_END_TAG = new RegExp(`</(?:${BLOCK_TAG_ALTERNATION})>\\s*$`, 'i');
 const HR_BLOCK_TAG = /^ {0,3}<hr\b[^<>]*\/?>\s*$/i;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
-// The runtime's HTML parser, and the app's sanitizer, read all text after one of these raw tags as raw text.
-const RAW_TEXT_TAG =
-  /<\/?(?:script|style|title|textarea|xmp|iframe|noembed|noframes|noscript|plaintext)(?=[\s/>])[^>]*>/gi;
+// markdown-it's HTML grammar (markdown-it/lib/common/html_re): an open tag (name in group 1), a close tag
+// (group 2), a comment, processing instruction, declaration or CDATA section, so quoted values and comments
+// are consumed whole.
+const HTML_ATTRIBUTE =
+  '(?:\\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(?:\\s*=\\s*(?:[^"\'=<>`\\x00-\\x20]+|\'[^\']*\'|"[^"]*"))?)';
+const HTML_CONSTRUCT = new RegExp(
+  `<([A-Za-z][A-Za-z0-9-]*)${HTML_ATTRIBUTE}*\\s*/?>|</([A-Za-z][A-Za-z0-9-]*)\\s*>` +
+    '|<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->|<[?][\\s\\S]*?[?]>|<![A-Za-z][^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>',
+  'g'
+);
+// The runtime's HTML parser, and the app's sanitizer, read all text after one of these tags as raw text.
+const RAW_TEXT_TAGS = new Set(
+  'script style title textarea xmp iframe noembed noframes noscript plaintext'.split(' ')
+);
 
 /** Python's `html.escape`, which the runtime uses for escaped openers and preserved math. */
 const escapeLikePython = (text: string): string =>
@@ -257,7 +268,11 @@ export const renderLiveMarkdown = (md: string): string | undefined =>
         separateSupportedBlockHtml
       )
     )
-    .replace(RAW_TEXT_TAG, escapeLikePython);
+    .replace(HTML_CONSTRUCT, (construct, open?: string, close?: string) =>
+      RAW_TEXT_TAGS.has((open ?? close ?? '').toLowerCase())
+        ? escapeLikePython(construct)
+        : construct
+    );
 
 const subscribeReady = (listener: () => void) => {
   readyListeners.add(listener);
