@@ -720,6 +720,17 @@ it('keeps the messages beside the thread while a recording runs as the second th
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(storedLayout()).toBeNull();
 });
+it('holds the thread beside the messages for a recording in the room it was taken in, not the next', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  const store = getDefaultStore();
+  const { rerender } = renderView({ besideWhileSecond: true });
+  act(() => store.set(openVoiceRecorderAtom, Symbol('recorder')));
+  // The second thread closed, and straight on to another room with its thread open.
+  rerender(tree({ room: new Room('!other:example.org', mx, '@alice:example.org') }));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.getByRole('button', { name: 'Beside' })).toBeDefined();
+  act(() => store.set(openVoiceRecorderAtom, undefined));
+});
 it('fills the page with the column while a second thread shows on a page too narrow for both', () => {
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
   renderView({ besideWhileSecond: true });

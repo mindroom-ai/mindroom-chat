@@ -174,9 +174,11 @@ export function RoomView({
   // A voice message recorded as the second thread closes keeps the thread beside until it is sent
   // or discarded: filling the page would take the messages' composer, and its recording, away.
   const recording = useAtomValue(openVoiceRecorderAtom) !== undefined;
-  const [heldBeside, setHeldBeside] = useState(false);
-  const besideForSecond = besideWhileSecond || (heldBeside && recording);
-  if (heldBeside !== besideForSecond) setHeldBeside(besideForSecond);
+  // The room the hold was taken in: the view outlives a room switch, the hold must not.
+  const [heldIn, setHeldIn] = useState<string>();
+  const besideForSecond = besideWhileSecond || (heldIn === roomId && recording);
+  const holdIn = besideForSecond ? roomId : undefined;
+  if (heldIn !== holdIn) setHeldIn(holdIn);
   const columnFills =
     !!openThreadId && ((threadLayout.layout === 'full' && !besideForSecond) || !threadLayout.roomy);
   // The unsent root deleted while its thread showed (onColumnGone).
