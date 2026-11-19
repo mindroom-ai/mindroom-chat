@@ -65,8 +65,7 @@ import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
-import { hasMatchingReplyDraft } from './roomInputSendSession';
-import { getComposerPlaceholderKind } from './composerPlaceholder';
+import { hasExplicitThreadContext, hasMatchingReplyDraft } from './roomInputSendSession';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
@@ -244,23 +243,20 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const view = useContext(ConversationViewContext);
     const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
     const replyDraft = forkFrom ? undefined : viewReplyDraft;
-    // The placeholder says where Send goes: into this thread, a new thread, or the timeline.
+    // The placeholder says where Send goes, as the send routes it: into a thread, or a new one from
+    // the timeline, which a classic timeline, a reply outside any thread and agents answering in the
+    // timeline do not start.
     const roomThreadMode = useRoomThreadMode(roomId, true);
-    const placeholderKind = getComposerPlaceholderKind({
-      threadId,
-      replyDraft,
-      threadingEnabled,
-      roomThreadMode,
-    });
     const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
     const direct = useAtomValue(mDirectAtom).has(roomId);
     let placeholder = t('composer.placeholder');
     if (forkFrom) placeholder = t('threadFork.continueInNewThread');
-    else if (placeholderKind === 'reply-in-thread') placeholder = t('composer.replyInThread');
-    else if (placeholderKind === 'new-thread' && direct)
-      placeholder = t('composer.newThreadWith', { name: roomName });
-    else if (placeholderKind === 'new-thread')
-      placeholder = t('composer.newThreadIn', { room: roomName });
+    else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
+      placeholder = t('composer.replyInThread');
+    else if (threadingEnabled && !replyDraft && roomThreadMode !== 'room')
+      placeholder = direct
+        ? t('composer.newThreadWith', { name: roomName })
+        : t('composer.newThreadIn', { room: roomName });
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
