@@ -1,11 +1,13 @@
 import { type CSSProperties, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
+import { ErrorBoundary } from 'react-error-boundary';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Box, Text, color, config } from 'folds';
 import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
 import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
+import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { FailedSendActions } from '../messages/FailedSendActions';
@@ -207,11 +209,22 @@ export function ConversationLayout({
                 <div className={overlay.DockRow}>
                   <div className={overlay.DockBars}>
                     <RoomViewTyping room={room} threadId={threadId} />
-                    <BackgroundJobsBar
-                      room={room}
-                      threadId={threadId ?? null}
-                      canCancel={canCancelJobs && !readOnly}
-                    />
+                    {/* A bar that throws hides itself, not the room; it tries again in the next conversation. */}
+                    <ErrorBoundary
+                      fallback={null}
+                      resetKeys={[room.roomId, threadId]}
+                      onError={(thrown: unknown, info) => {
+                        // eslint-disable-next-line no-console
+                        console.error('[background-jobs] the jobs bar failed', thrown);
+                        reportBoundaryError(thrown, info.componentStack);
+                      }}
+                    >
+                      <BackgroundJobsBar
+                        room={room}
+                        threadId={threadId ?? null}
+                        canCancel={canCancelJobs && !readOnly}
+                      />
+                    </ErrorBoundary>
                   </div>
                   <RoomViewFollowing room={room} threadId={threadId} />
                 </div>

@@ -13,6 +13,8 @@ const room = new Room('!room:example.org', mx, '@alice:example.org');
 const seen = vi.hoisted(() => ({
   jobs: [] as (string | null)[],
   approvals: [] as (string | undefined)[],
+  jobsThrow: false,
+  reported: [] as unknown[],
 }));
 
 vi.mock('../timeline/typing/RoomViewTyping', () => ({
@@ -28,8 +30,12 @@ vi.mock('../timeline/RoomViewFollowing', () => ({
 vi.mock('../background-jobs/BackgroundJobsBar', () => ({
   BackgroundJobsBar: ({ threadId, canCancel }: { threadId: string | null; canCancel: boolean }) => {
     seen.jobs.push(threadId);
+    if (seen.jobsThrow) throw new Error('jobs bar broke');
     return <div data-testid="jobs" data-can-cancel={String(canCancel)} />;
   },
+}));
+vi.mock('../bug-reports/error-reporting/errorReporting', () => ({
+  reportBoundaryError: (thrown: unknown) => seen.reported.push(thrown),
 }));
 // The jobs bar's link to the Sub-agents panel reads the room's runs, which need a client.
 vi.mock('../messages/live/subagentRunStore', () => ({
@@ -49,6 +55,9 @@ afterEach(() => {
   cleanup();
   seen.jobs = [];
   seen.approvals = [];
+  seen.jobsThrow = false;
+  seen.reported = [];
+  vi.restoreAllMocks();
 });
 
 const layout = (props: Partial<Parameters<typeof ConversationLayout>[0]> = {}) => (
@@ -97,6 +106,22 @@ it('draws the header, timeline, dock and footer of the room', () => {
     'notice',
     'composer',
   ]);
+});
+
+it('hides only a jobs bar that throws, and tries it again in the next conversation', () => {
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  seen.jobsThrow = true;
+  const { rerender } = render(layout({ threadId: '$root' }));
+
+  expect(screen.queryByTestId('jobs')).toBeNull();
+  expect(screen.getByTestId('timeline')).toBeTruthy();
+  expect(screen.getByTestId('typing')).toBeTruthy();
+  expect(screen.getByTestId('composer')).toBeTruthy();
+  expect(seen.reported).toEqual([new Error('jobs bar broke')]);
+
+  seen.jobsThrow = false;
+  rerender(layout({ threadId: '$other' }));
+  expect(screen.getByTestId('jobs')).toBeTruthy();
 });
 
 it("adds the thread's approvals and passes a confirmed thread to its provider", () => {
