@@ -255,14 +255,16 @@ const titleLine = (title: Locator) =>
   title.evaluate((element) => {
     const row = element.parentElement as HTMLElement;
     // Beside the title in the banner's card; in a row under it in a phone's header.
-    const scheduled = element
-      .closest('[data-thread-context-banner]')
-      ?.querySelector<HTMLElement>('[role="img"][title]');
+    const mark = '[role="img"][title]';
+    const scheduled =
+      row.querySelector<HTMLElement>(mark) ??
+      element.closest('[data-thread-context-banner]')?.querySelector<HTMLElement>(mark);
     const titleBox = element.getBoundingClientRect();
     const scheduledBox = scheduled?.getBoundingClientRect();
     return {
       shown: element.textContent ?? '',
-      whole: element.getAttribute('title') ?? '',
+      // The rename hint follows the title on a line of its own.
+      whole: (element.getAttribute('title') ?? '').split('\n')[0] ?? '',
       width: Math.round(titleBox.width),
       textWidth: element.scrollWidth,
       rowWidth: row.clientWidth,

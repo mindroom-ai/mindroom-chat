@@ -199,11 +199,18 @@ const check = async (
       await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
       // eslint-disable-next-line no-await-in-loop
       const line = await titleLine(rootTitle);
-      expect(line.title, `${name}: the whole message on hover`).toBe(full);
+      // The rename hint follows the message on its own line.
+      expect(line.title?.split('\n')[0], `${name}: the whole message on hover`).toBe(full);
       expect(line.direction, name).toBe(direction);
-      expect(line.oneLine, `${name}: one line`).toBe(true);
       expect(line.clipped, `${name}: cut by the title, not by the line`).toBe(false);
       expect(line.firstCharInside, `${name}: its start in view`).toBe(true);
+      if (phone) {
+        // A phone's header shows all of it, on as many lines as it takes.
+        expect(line.text, `${name}: whole`).toBe(full);
+        expect(line.oneLine, `${name}: one line only when short`).toBe(name === 'short');
+        continue;
+      }
+      expect(line.oneLine, `${name}: one line`).toBe(true);
       expectWordCut(line.text, full);
       if (name === 'short') expect(line.text).toBe(SHORT_TEXT);
       else expect(line.text, `${name} is too long for one line`).not.toBe(full);
@@ -233,7 +240,8 @@ const check = async (
     expect(line.direction, name).toBe(direction);
     expect(line.clipped, `${name}: cut by the title, not by the line`).toBe(false);
     expect(line.firstCharInside, `${name}: its start in view`).toBe(true);
-    expectWordCut(line.text, full);
+    if (phone) expect(line.text, `${name}: whole`).toBe(full);
+    else expectWordCut(line.text, full);
   }
   await context.close();
 };

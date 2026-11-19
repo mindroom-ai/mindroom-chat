@@ -449,6 +449,7 @@ describe('ThreadContextBanner rendering', () => {
           roomId: '!room:example.org',
           getThread: () => undefined,
           findEventById: () => undefined,
+          getUnfilteredTimelineSet: () => undefined,
           getMember: (userId: string) =>
             userId === '@alice:example.org'
               ? { rawDisplayName: 'Alice', name: 'Alice' }
@@ -1694,6 +1695,33 @@ describe('ThreadContextBanner rendering', () => {
       // The banner card keeps its one cut line.
       const card = renderBanner(LONG_TITLE);
       expect(card.root.findByProps(summary).props).toMatchObject({
+        className: 'SummaryText',
+        truncate: true,
+      });
+      card.unmount();
+    });
+
+    it('wraps the first message that titles a thread without a summary, where the card cuts it', () => {
+      bannerMocks.useCachedThreadRoot.mockReturnValue(
+        new MatrixEvent({
+          event_id: '$root',
+          type: 'm.room.message',
+          room_id: '!room:example.org',
+          sender: '@bob:example.org',
+          origin_server_ts: 1,
+          content: { msgtype: 'm.text', body: LONG_TITLE },
+        })
+      );
+      const rootTitle = { 'data-thread-context-root-title': 'true' };
+      const renderer = renderPhone();
+      const title = renderer.root.findByProps(rootTitle);
+      expect(text(title)).toBe(LONG_TITLE);
+      expect(title.props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      expect(title.props['data-own-direction']).toBe('block');
+      renderer.unmount();
+
+      const card = renderBanner();
+      expect(card.root.findByProps(rootTitle).props).toMatchObject({
         className: 'SummaryText',
         truncate: true,
       });

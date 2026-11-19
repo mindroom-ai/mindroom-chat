@@ -425,7 +425,12 @@ export function ThreadContextBanner({
             {revealDirectionControls(headerModel.summaryText)}
           </Text>
         ) : (
-          <ThreadRootTitle text={title} hint={hint} onDoubleClick={onDoubleClick} />
+          <ThreadRootTitle
+            text={title}
+            hint={hint}
+            onDoubleClick={onDoubleClick}
+            whole={!!phoneHeader}
+          />
         )
       }
     </InlineThreadTitleEditor>

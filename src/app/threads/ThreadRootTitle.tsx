@@ -7,7 +7,7 @@ import {
   type ThreadPresentationSnapshot,
 } from '../event-store/threads/threadPresentation';
 import { replaceMatrixUserIdsWithDisplayNames } from '../event-store/threads/threadMessagePreview';
-import { ownDirectionLine } from '../ui/directional';
+import { ownDirectionBlock, ownDirectionLine } from '../ui/directional';
 import * as css from './ThreadContextBanner.css';
 
 const ELLIPSIS = '…';
@@ -118,16 +118,19 @@ export const getThreadRootTitle = (
 
 /**
  * The banner's title line from the thread's first message, cut at a word to fit one line. `hint`
- * follows the whole text in its tooltip.
+ * follows the whole text in its tooltip. `whole` shows all of it instead, on as many lines as it
+ * takes: the title in a phone's header.
  */
 export function ThreadRootTitle({
   text,
   hint,
   onDoubleClick,
+  whole,
 }: {
   text: string;
   hint?: string;
   onDoubleClick?: () => void;
+  whole?: boolean;
 }) {
   const ref = useRef<HTMLElement>(null);
   const shown = useWordFitText(ref, text);
@@ -136,12 +139,12 @@ export function ThreadRootTitle({
       ref={ref}
       as="span"
       data-thread-context-root-title="true"
-      className={css.SummaryText}
-      size="T300"
-      truncate
+      className={whole ? css.PhoneTitle : css.SummaryText}
+      size={whole ? 'H5' : 'T300'}
+      truncate={!whole}
       title={hint ? `${text}\n${hint}` : text}
       onDoubleClick={onDoubleClick}
-      {...ownDirectionLine}
+      {...(whole ? ownDirectionBlock : ownDirectionLine)}
     >
       {shown}
     </Text>
