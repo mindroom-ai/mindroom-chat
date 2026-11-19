@@ -9,12 +9,12 @@ import { Header, Panel } from '../ui/panels/SidePanel.css';
 
 /**
  * A plugin's side panel: its title and Close above what the plugin shows, for `request`, or only
- * what it shows for one that draws its own frame, which has them only while its code loads. A
- * plugin that fails says so in the panel, with its title and Close, so it can still be closed,
- * until another request comes.
+ * what it shows for one that draws its own frame, which has them only while its code loads. One
+ * that shows its own title has the panel's box, with the title row only while its code loads. A plugin that fails says so in the panel, with its title and Close, so it can
+ * still be closed, until another request comes.
  */
 export function PluginSidePanel({
-  panel: { label, tag, Component, frame },
+  panel: { label, tag, Component, frame, title },
   roomId,
   request,
   onClose,
@@ -26,22 +26,26 @@ export function PluginSidePanel({
 }) {
   const { t } = useTranslation();
   const own = frame === 'own';
-  const framed = (content: ReactNode) => (
+  // Only without its own frame: `frame: 'own'` wins.
+  const titled = !own && title === 'own';
+  const framed = (content: ReactNode, withTitle = true) => (
     <section className={Panel} style={{ flexGrow: 1 }} aria-label={label}>
-      <header className={Header}>
-        <Text as="h2" size="H4" truncate>
-          {label}
-        </Text>
-        <IconButton
-          size="300"
-          radii="300"
-          variant="Surface"
-          aria-label={t('mindroomUi.plugins.sidePanel.close', { label })}
-          onClick={onClose}
-        >
-          <Icon size="200" src={Icons.Cross} />
-        </IconButton>
-      </header>
+      {withTitle && (
+        <header className={Header}>
+          <Text as="h2" size="H4" truncate>
+            {label}
+          </Text>
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Surface"
+            aria-label={t('mindroomUi.plugins.sidePanel.close', { label })}
+            onClick={onClose}
+          >
+            <Icon size="200" src={Icons.Cross} />
+          </IconButton>
+        </header>
+      )}
       <Box grow="Yes" direction="Column" style={{ minHeight: 0, overflowY: 'auto' }}>
         {content}
       </Box>
@@ -54,7 +58,7 @@ export function PluginSidePanel({
   );
   const shown = (
     <ErrorBoundary
-      fallback={own ? framed(failed) : failed}
+      fallback={own || titled ? framed(failed) : failed}
       resetKeys={[Component, roomId, request]}
       onError={(thrown: unknown, info) => {
         // eslint-disable-next-line no-console
@@ -63,10 +67,14 @@ export function PluginSidePanel({
       }}
     >
       {/* A component that loads its code waits here, not in place of the page. */}
-      <Suspense fallback={own ? framed(null) : null}>
-        <Component roomId={roomId} request={request} />
+      <Suspense fallback={own || titled ? framed(null) : null}>
+        {titled ? (
+          framed(<Component roomId={roomId} request={request} />, false)
+        ) : (
+          <Component roomId={roomId} request={request} />
+        )}
       </Suspense>
     </ErrorBoundary>
   );
-  return own ? shown : framed(shown);
+  return own || titled ? shown : framed(shown);
 }

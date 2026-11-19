@@ -189,7 +189,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 64), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 65), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -257,6 +257,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 62 a message link's `sidePanel`
 - version 63 `threadHeaderSlot`
 - version 64 `ui`'s `MarkdownContent`
+- version 65 side panels' `title`
 
 ## Page zoom
 
@@ -332,13 +333,13 @@ Activity, the Threads page and Compact's thread cards still list the message, Ac
 
 ## Side panels
 
-Side panels (`src/app/plugins/sidePanels.ts`) are the second kind: `{ id, label, icon?, placement?, Component, remember?, opensOverMembers?, frame? }`.
+Side panels (`src/app/plugins/sidePanels.ts`) are the second kind: `{ id, label, icon?, placement?, Component, remember?, opensOverMembers?, frame?, title? }`.
 Each is one more of the room's side panels, beside the computer, a canvas, the call, its live transcript, the sub-agents and the members, under their rule (`src/app/ui/panels/roomPanels.ts`): one shows at a time, and opening one closes the others, except that the members stay open behind the call or its live transcript.
 Its `label` names it in the app's language when it is the key of one of the plugin's strings (`translations`, below), and exactly as given otherwise, such as text with `.` or `:` (which names no other namespace), a template like `$t(…)`, or the key of a group of strings.
 Its toggle in the room header, named by its `label` and drawn with its `icon` (a folds icon such as `Icons.Star`, a bulb unless given), shows and hides it, where `placement` puts it: `auto` and `menu`, the default, as they put a header action (below), and `row` in the header's row on every screen, phones included.
 The command palette also offers the toggle, named by its `label`, while its room is open.
 The toggle is pressed, its button tinted and its menu entry checked, while the room shows the panel and the panel is not folded to its tab; choosing it then closes the panel, and choosing it while the panel is folded unfolds it with what it shows.
-The panel opens in the room it was opened in, as wide as the call panel and resizable (over the room on phones), with the label as its title and a Close button (unless it draws its own frame, below), above what it shows: a column as tall as the panel, which scrolls when what it holds is taller still, and whose parts that may shrink, such as a folds `Box` or anything with an overflow of its own, shrink until the column fits the panel, to nothing if need be, before it scrolls, so a part that must keep its height takes `flexShrink: 0` (a folds `Box` `shrink="No"`), and `Component` gets the room's id (`roomId`) and a `request` (below).
+The panel opens in the room it was opened in, as wide as the call panel and resizable (over the room on phones), with the label as its title and a Close button (unless it draws its own frame or title, below), above what it shows: a column as tall as the panel, which scrolls when what it holds is taller still, and whose parts that may shrink, such as a folds `Box` or anything with an overflow of its own, shrink until the column fits the panel, to nothing if need be, before it scrolls, so a part that must keep its height takes `flexShrink: 0` (a folds `Box` `shrink="No"`), and `Component` gets the room's id (`roomId`) and a `request` (below).
 
 ### The frame
 
@@ -354,6 +355,10 @@ A panel the room frames has it beside the conversation only, undefined on phones
 Filling the room, such a panel takes the conversation's place as any does; folded, it covers nothing, on phones too, so the conversation lays out as with no panel beside what the `Component` still draws, such as its own tab at the room's edge.
 Over the conversation on a phone it also hides the room header, and with it the panel's toggle, so its `Component` offers a way out of its own: Hide, which shows the conversation beside its tab, or a Close that calls `close()` of `useRoomSidePanel` (below).
 While its `Component` loads its code, and if it throws, the room draws the panel's title and Close around it (below), so it can still be closed.
+A panel with `title: 'own'` shows its name and a Close itself, a Close that calls `close()` of `useRoomSidePanel` (below), and the room draws no title row above it, so what it shows starts at the top of its box (since version 65).
+Unlike `frame: 'own'`, the room still draws its box: the splitter, the remembered width and the frame strip (Fill, Fold) beside the conversation, and the cover over it on a phone.
+While its `Component` loads its code, and if it throws, the room draws the title row with Close as for any panel, so it can still be closed.
+With both, `frame: 'own'` wins.
 A `Component` that throws shows "This panel stopped working." in the panel, which can still be closed, until it gets another `request`, and the failure is logged and reported with `[plugin <id>@<version>]`.
 
 ### Opening a panel from code
