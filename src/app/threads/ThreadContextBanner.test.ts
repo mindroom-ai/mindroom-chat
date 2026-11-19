@@ -193,7 +193,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
   PhoneHeader: 'PhoneHeader',
-  PhoneMore: 'PhoneMore',
+  PhoneButton: 'PhoneButton',
   PhonePin: 'PhonePin',
   PhoneRoom: 'PhoneRoom',
   PhoneRoomButton: 'PhoneRoomButton',
@@ -1722,10 +1722,13 @@ describe('ThreadContextBanner rendering', () => {
       card.unmount();
     });
 
-    it("gives More the header buttons' size, and the title a block that takes the focus to be scrolled", () => {
+    it("gives Resolve and More the header buttons' size, and the title a block that takes the focus to be scrolled", () => {
       const renderer = renderPhone(LONG_TITLE);
       expect(renderer.root.findByProps({ 'aria-label': 'Thread options' }).props.className).toBe(
-        'MessageOptionsButton PhoneMore'
+        'MessageOptionsButton PhoneButton'
+      );
+      expect(renderer.root.findByProps({ 'aria-label': 'Resolve' }).props.className).toBe(
+        'MessageOptionsButton PhoneButton'
       );
       expect(renderer.root.findByProps({ className: 'PhoneTitleRow' }).props.tabIndex).toBe(0);
       renderer.unmount();

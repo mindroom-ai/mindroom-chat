@@ -1,7 +1,8 @@
 import type { StyleRule } from '@vanilla-extract/css';
 import { expect, it, vi } from 'vitest';
 import {
-  PhoneMore,
+  PhoneButton,
+  PhoneRoom,
   PhoneRoomButton,
   PhoneRow,
   PhoneStatus,
@@ -67,10 +68,16 @@ it("bounds a phone header's title block, which scrolls in itself, and keeps one 
   });
 });
 
-it('makes More 40 px, and closes the gaps of a row in a room area as narrow as 150% zoom leaves', () => {
-  expect(rules.get(PhoneMore)).toEqual({
-    selectors: { '&&&': { inlineSize: '2.5rem', blockSize: '2.5rem' } },
+it('makes Resolve and More 40 px, but not in a room area as narrow as 150% zoom leaves, whose row closes its gaps', () => {
+  expect(rules.get(PhoneButton)).toEqual({
+    '@container': {
+      'area (min-width: 281px)': {
+        selectors: { '&&&': { inlineSize: '2.5rem', blockSize: '2.5rem' } },
+      },
+    },
   });
+  // The name gives all its width away there, and shows no cut letter.
+  expect(rules.get(PhoneRoom)).toMatchObject({ minWidth: 0, overflowX: 'clip' });
   expect(rules.get(PhoneRow)).toMatchObject({
     '@container': {
       'area (short)': { height: '2.75rem' },

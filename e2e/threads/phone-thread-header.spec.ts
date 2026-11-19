@@ -546,14 +546,20 @@ for (const dir of ['ltr', 'rtl'] as const) {
           .filter((button) => !button.closest('h1'))
           .map((button) => {
             const { left, right } = button.getBoundingClientRect();
-            return { left, right, more: button.getAttribute('aria-haspopup') === 'menu' };
+            return { left, right };
           })
+          .sort((a, b) => a.left - b.left)
       );
-      expect(boxes.filter(({ more }) => more)).toHaveLength(1);
-      boxes.forEach(({ left, right }) => {
+      // Each whole on the screen, More (the last in the row) too, and none over another.
+      boxes.forEach(({ left, right }, index) => {
         expect(left).toBeGreaterThanOrEqual(-0.5);
         expect(right).toBeLessThanOrEqual(viewport.width + 0.5);
+        expect(right - left).toBeGreaterThanOrEqual(32);
+        if (index > 0) expect(left).toBeGreaterThanOrEqual(boxes[index - 1]!.right - 0.5);
       });
+      const more = await buttons.last().boundingBox();
+      expect(more!.x).toBeGreaterThanOrEqual(0);
+      expect(more!.x + more!.width).toBeLessThanOrEqual(viewport.width + 0.5);
       if (SHOTS) {
         mkdirSync(SHOTS, { recursive: true });
         await page.screenshot({ path: path.join(SHOTS, `phone-busy-zoom150-${dir}.png`) });
