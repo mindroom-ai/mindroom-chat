@@ -5,7 +5,7 @@ Each task is test first: write the failing test, see it fail for the stated reas
 
 ## Backend (`mindroom-ai/mindroom`)
 
-1. A typed `!model <key>` or `!model reset` that was applied replies with the picker's `io.mindroom.model_selection_result` (`commands/model_commands.py`, `commands/handler.py`). Tests: the exact result of a typed set and reset; none for a listing, an unknown model or a command outside a thread; the complete reply of a set and a reset, typed and from the picker, names no inherited model, label or provider ID.
+1. A typed `!model <key>` or `!model reset` that was applied replies with the picker's `io.mindroom.model_selection_result` (`commands/model_commands.py`, `commands/handler.py`). Tests: the exact result of a typed set and reset; none for a listing, an unknown model, a command outside a thread or a typed reset with nothing to remove, while the picker's reset with nothing to remove is still acknowledged; the complete reply of a set and a reset, typed and from the picker, names no inherited model, label or provider ID.
 2. `docs/architecture/matrix.md`: the typed result and the privacy rule.
 
 ## Client (this repository)

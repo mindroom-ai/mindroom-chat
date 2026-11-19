@@ -28,7 +28,8 @@ The router's reply to an applied change carries `io.mindroom.model_selection_res
 ```
 
 The backend change adds the same result to the reply of a typed `!model <key>` and `!model reset` that was applied.
-A typed listing, a refusal, a rejected picker command and `!room_model` carry no applied result.
+A typed listing, a refusal, a typed reset that found no override to remove, a rejected picker command and `!room_model` carry no applied result.
+The picker's own reset is acknowledged as applied whether or not it removed anything: its result answers the operation, and the picker waits for it.
 
 ### Privacy rule (review correction)
 
@@ -60,7 +61,7 @@ The plan is made on each render in one pass that reads one key of each row, like
 ## Known limits
 
 - **No "Old → New".** The model a change replaced cannot be proven from what the room can read: the result must not carry it (privacy rule), each person's change covers only the agents they may address, and an agent's own `thread_model` tool or a fork's copy changes a thread's models without any command in the thread. The line shows the new model only. Showing the old one would need a new, room-visible provenance record in the backend, which is out of scope.
-- **A change that moved nothing still shows.** The result does not say whether any agent's model changed (choosing the model already in force, resetting a thread that had no override), so the line says what was done ("Model set", "Model reset"), not that something changed.
+- **A change that moved nothing may still show.** The result does not say whether any agent's model changed (choosing the model already in force, the picker's reset of a thread that had no override), so the line says what was done ("Model set", "Model reset"), not that something changed. A typed reset that found nothing to remove is the exception: the router sends no result for it, so its command and the router's "no model override" reply stay two messages.
 - **The display name is today's.** It comes from the viewer's current catalog, so an old line shows the name the key has now, and the key when the viewer has no catalog (they may address no agent of the room, discovery has not answered) or the key is gone.
 - **Open thread only.** The classic room view, thread cards, previews, search and notifications show the two messages as before.
 - **Typed changes need the backend change.** With an older backend only the picker's changes become a line.
