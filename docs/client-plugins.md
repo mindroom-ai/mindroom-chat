@@ -534,6 +534,7 @@ A detail that throws shows nothing, and the failure is logged and reported with 
 
 The thread header slot (`threadHeaderSlot`, `src/app/threads/ThreadHeaderSlot.tsx`) is the twelfth kind: components that get `{ room, threadId }`, the open thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and render a control in the thread's banner, or nothing (`ThreadHeaderSlotComponent` in `core`).
 `src/app/threads/ThreadContextBanner.tsx` shows them in build order just before its More button, and, while the banner is collapsed, after its approval chips; only for a thread whose root the server confirmed (`$` IDs), as the thread menu's details.
+On a phone, where the thread's banner is the room header's rows, they come after the room's name in the header's row, before Resolve, the call buttons and More.
 A component draws icon-sized controls that match the banner's own buttons (a folds `IconButton`, `SurfaceVariant` without a fill, `2rem` tall, in an `IconTooltip`), also on short screens, where the banner hides its own buttons but More.
 It renders inside the room's page, so `useRoomSidePanel` and `useShownThread` have the room's context, and it mounts afresh for each thread.
 A component that loads its code (a `lazy` component) shows nothing until the code has loaded; one that throws shows nothing, and the failure is logged and reported with `[plugin <id>@<version>]`.

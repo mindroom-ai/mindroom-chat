@@ -1658,11 +1658,15 @@ describe('ThreadContextBanner rendering', () => {
 
     it("leads back from the chevron and from the room's name", () => {
       const renderer = renderPhone(LONG_TITLE);
-      act(() => renderer.root.findByProps({ 'data-phone-back': 'true' }).props.onClick());
+      act(() => {
+        renderer.root.findByProps({ 'data-phone-back': 'true' }).props.onClick();
+      });
       const name = renderer.root.findByProps({ className: 'PhoneRoomButton' });
       expect(name.props.title).toBe('Back to room');
       expect(name.parent?.type).toBe('h1');
-      act(() => name.props.onClick());
+      act(() => {
+        name.props.onClick();
+      });
       expect(onExitThread).toHaveBeenCalledTimes(2);
       renderer.unmount();
     });
@@ -1725,7 +1729,9 @@ describe('ThreadContextBanner rendering', () => {
       await act(async () => more.props.onClick({ currentTarget: trigger }));
       const menu = menuProps.mock.calls.at(-1)![0];
       expect(menu.onHideDetails).toBeUndefined();
-      act(() => menu.onRoomMenu());
+      act(() => {
+        menu.onRoomMenu();
+      });
       expect(onRoomMenu).toHaveBeenCalledWith(anchor);
       renderer.unmount();
 
