@@ -233,7 +233,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           <Icon src={finished ? Icons.Check : Icons.Clock} size="100" aria-hidden />
         </span>
       ) : (
-        <JobLogo room={room} item={single!} small />
+        <JobLogo room={room} item={single!} small className={css.TitleLogo} />
       )}
       <Text as="span" size="T200" truncate role="status" title={model.title} className={css.Title}>
         {model.title}

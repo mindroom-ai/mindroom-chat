@@ -56,6 +56,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Logo: 'Logo',
   Stack: 'Stack',
   StackedLogo: 'StackedLogo',
+  TitleLogo: 'TitleLogo',
   Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', finished: 'Dot' },
   JobText: 'JobText',
   Headline: 'Headline',
@@ -179,6 +180,8 @@ it('names one job in the title, with Stop and no list', () => {
   render();
   expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
   expect(container.querySelector('.Jobs')).toBeNull();
+  // Its logo takes the title line's small tile, so the logo and its dot stay inside the bar.
+  expect(container.querySelector('.Status .Logo')?.classList).toContain('TitleLogo');
   // Stop is an icon button, named by its label and its tooltip.
   expect(button(cancelA)?.getAttribute('title')).toBe('mindroomUi.backgroundJobs.stop');
 });
