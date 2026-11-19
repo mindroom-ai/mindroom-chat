@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -28,6 +28,8 @@ const CARDS = '[data-compact-room-view] [data-motion-row] [data-thread-root-id]'
 const HOLD_MS = 550;
 /** How long the press lasts after a card arrived under it: longer than the cards' glide. */
 const ARRIVAL_HOLD_MS = 400;
+/** How long the page is busy after a press: its next frame comes that late, most of a glide. */
+const BUSY_MS = 150;
 /** How far inside the card's edge the press lands: the card glides this far in the hold. */
 const FROM_EDGE = 15;
 
@@ -63,16 +65,18 @@ const openRoom = async (page: Page, label: string) => {
     rootIds.push(rootId);
   }
 
-  // Which card each press landed in.
+  // Which card each press landed in, and where that card stood then.
   await page.addInitScript(() => {
     const pressed: (string | null)[] = [];
-    (window as unknown as { pressedCards: (string | null)[] }).pressedCards = pressed;
+    const tops: number[] = [];
+    Object.assign(window, { pressedCards: pressed, pressedTops: tops });
     window.addEventListener(
       'pointerdown',
       (event) => {
         const card =
           event.target instanceof Element && event.target.closest('[data-thread-root-id]');
         pressed.push(card ? card.getAttribute('data-thread-root-id') : null);
+        if (card) tops.push(card.getBoundingClientRect().top);
       },
       true
     );
@@ -97,6 +101,49 @@ const openRoom = async (page: Page, label: string) => {
   return { agent, roomId, rootIds };
 };
 
+/** Resolves in the frame the card's glide starts in, with every play of the page at `rate`. */
+const glideStarts = (card: Locator, rate: number) =>
+  card.evaluate(
+    (element, playbackRate) =>
+      new Promise<void>((resolve) => {
+        const row = element.closest('[data-motion-row]');
+        const look = () => {
+          const glides = row
+            ?.getAnimations()
+            .some((animation) =>
+              (animation.effect as KeyframeEffect)
+                .getKeyframes()
+                .some((frame) => 'translate' in frame)
+            );
+          if (!glides) {
+            requestAnimationFrame(look);
+            return;
+          }
+          document.getAnimations().forEach((animation) => {
+            // eslint-disable-next-line no-param-reassign
+            animation.playbackRate = playbackRate;
+          });
+          resolve();
+        };
+        look();
+      }),
+    rate
+  );
+
+/** A reply in the second thread from the top: its card glides up one place, past the first. */
+const secondCardGlides = async (page: Page, room: Awaited<ReturnType<typeof openRoom>>) => {
+  const second = room.rootIds[THREAD_COUNT - 2] ?? '';
+  await expect
+    .poll(() => page.locator(CARDS).nth(1).getAttribute('data-thread-root-id'))
+    .toBe(second);
+  await sendRoomMessage(HOMESERVER, room.agent.accessToken, room.roomId, {
+    msgtype: 'm.text',
+    body: 'Found it: the exporter stops at the first empty cell.',
+    'm.relates_to': threadRelation(second),
+  });
+  return { second, card: page.locator(`${CARDS}[data-thread-root-id="${second}"]`) };
+};
+
 /** The press landed on `rootId`'s card, and its thread is open. */
 const expectOpened = async (page: Page, rootId: string) => {
   expect(
@@ -115,46 +162,10 @@ test.describe('a press on a Compact card in motion', () => {
   // Also in the `webkit` project, where the press was first seen to open nothing.
   test('opens the card it started on', { tag: '@webkit' }, async ({ page }) => {
     test.setTimeout(120_000);
-    const { agent, roomId, rootIds } = await openRoom(page, 'glide');
-
-    // A reply in the second thread from the top: its card glides up one place, past the first.
-    const second = rootIds[THREAD_COUNT - 2] ?? '';
-    await expect
-      .poll(() => page.locator(CARDS).nth(1).getAttribute('data-thread-root-id'))
-      .toBe(second);
-    const card = page.locator(`${CARDS}[data-thread-root-id="${second}"]`);
-    await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
-      msgtype: 'm.text',
-      body: 'Found it: the exporter stops at the first empty cell.',
-      'm.relates_to': threadRelation(second),
-    });
-    // The frame its glide starts in. The motion is slowed to a tenth there, so the press below
-    // lands on the card at the start of its way whatever the machine's speed.
-    await card.evaluate(
-      (element) =>
-        new Promise<void>((resolve) => {
-          const row = element.closest('[data-motion-row]');
-          const look = () => {
-            const glides = row
-              ?.getAnimations()
-              .some((animation) =>
-                (animation.effect as KeyframeEffect)
-                  .getKeyframes()
-                  .some((frame) => 'translate' in frame)
-              );
-            if (!glides) {
-              requestAnimationFrame(look);
-              return;
-            }
-            document.getAnimations().forEach((animation) => {
-              // eslint-disable-next-line no-param-reassign
-              animation.playbackRate = 0.1;
-            });
-            resolve();
-          };
-          look();
-        })
-    );
+    const { second, card } = await secondCardGlides(page, await openRoom(page, 'glide'));
+    // The motion is slowed to a tenth, so the press below lands on the card at the start of its
+    // way whatever the machine's speed.
+    await glideStarts(card, 0.1);
 
     // The card moves up: a press near its lower edge is left behind by it during the hold.
     const box = await card.boundingBox();
@@ -166,6 +177,47 @@ test.describe('a press on a Compact card in motion', () => {
 
     await expectOpened(page, second);
   });
+
+  // A pause takes hold at the browser's next frame, which a busy page draws late: the card glided
+  // on until then.
+  test(
+    'holds the card where the press found it on a busy page',
+    { tag: '@webkit' },
+    async ({ page }) => {
+      test.setTimeout(120_000);
+      const room = await openRoom(page, 'busy');
+      // Busy right after the press, once the list has seen it.
+      await page.evaluate((ms) => {
+        window.addEventListener(
+          'pointerdown',
+          () => {
+            const end = performance.now() + ms;
+            while (performance.now() < end) Math.random();
+          },
+          { once: true }
+        );
+      }, BUSY_MS);
+      const { second, card } = await secondCardGlides(page, room);
+      await glideStarts(card, 1);
+
+      const box = await card.boundingBox();
+      if (!box) throw new Error('the card that glides has no box');
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(BUSY_MS);
+      const top = await card.evaluate((element) => element.getBoundingClientRect().top);
+      const pressedTop = await page.evaluate(
+        () => (window as unknown as { pressedTops: number[] }).pressedTops[0]
+      );
+      await page.mouse.up();
+
+      expect(
+        Math.abs(top - (pressedTop ?? NaN)),
+        'how far the card moved under the press'
+      ).toBeLessThan(1);
+      await expectOpened(page, second);
+    }
+  );
 
   test.describe('with a card that arrives', () => {
     // A service worker's requests pass no route in WebKit: without one, /sync does.
