@@ -490,7 +490,7 @@ export const useThreadOpenedAtLatest = (viewKey: string, latestPending: boolean)
   const startOpen = useCallback(
     (opensAtLatest: boolean) => {
       openedViewKeyRef.current = viewKeyRef.current;
-      if (opensAtLatest) openedAtLatestRef.current.value = true;
+      void opensAtLatest;
     },
     [openedAtLatestRef, viewKeyRef]
   );
