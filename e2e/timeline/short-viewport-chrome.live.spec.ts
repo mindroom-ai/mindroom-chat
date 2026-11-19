@@ -103,12 +103,15 @@ for (const viewport of [
         const roomHeader = page.locator('header').filter({ hasText: ROOM_NAME });
         await expect(roomHeader).toBeVisible();
         const topic = roomHeader.getByRole('button', { name: ROOM_TOPIC, includeHidden: true });
-        await expect(topic).toBeAttached();
+        // Phone widths (up to 750 px) leave the topic out of the room header.
+        const phone = viewport.width <= 750;
+        if (phone) await expect(topic, 'phones leave the topic out').toHaveCount(0);
+        else await expect(topic).toBeAttached();
         await page.screenshot({ path: testInfo.outputPath('room.png') });
         if (viewport.compact) {
           await expect(topic, 'short viewports drop the topic line').toBeHidden();
           expect((await roomHeader.boundingBox())!.height).toBeLessThanOrEqual(44);
-        } else {
+        } else if (!phone) {
           await expect(topic).toBeVisible();
         }
 

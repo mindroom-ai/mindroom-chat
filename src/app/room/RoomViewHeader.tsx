@@ -180,7 +180,7 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 };
 
 /**
- * The room header: avatar (none on phones), name and topic, then its actions (the Compact and
+ * The room header: avatar, name and topic (only the name on phones), then its actions (the Compact and
  * Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the sub-agents,
  * calls, pinned messages, members, and the plugins' actions) and the room menu, which offers those
  * its row leaves out, and whether this room shows tool calls. Phones keep the name, the call
@@ -257,7 +257,8 @@ export function RoomViewHeader({
   // Direction controls in the name and topic show as code points, so they cannot reorder them.
   const roomName = revealDirectionControls(useRoomName(room));
   const roomTopic = useRoomTopic(room);
-  const topic = roomTopic && revealDirectionControls(roomTopic);
+  // Phones keep the header to the name; the topic stays in the room's settings.
+  const topic = !mobile && roomTopic ? revealDirectionControls(roomTopic) : undefined;
   const [topicOpen, setTopicOpen] = useState(false);
 
   const membersVisible = shownPanel === 'members';
