@@ -23,8 +23,8 @@ const KEYFRAMES = 'phone-page-';
 /** How long the frame before the changes, and the slide itself, may take: a hidden tab has neither. */
 const FRAME_MS = 100;
 const PLAY_MS = 2000;
-/** What would load or play to show in the copy. A `source` of a `picture` picks its picture. */
-const MEDIA = 'img, iframe, video, audio, video source, audio source';
+/** What would load or play to show in the copy. */
+const MEDIA = 'img, iframe, video, audio, source';
 /** The fields whose value shows as the text a person typed, which may be a secret. */
 const TYPED =
   'textarea, input:not([type]), input:is([type=text], [type=password], [type=search], [type=email], [type=url], [type=tel], [type=number])';
@@ -54,7 +54,11 @@ const depth = (): number => {
  * radio buttons, and hold nothing typed.
  */
 const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
-  const copy = stage.cloneNode(true) as HTMLElement;
+  // Made in a document of its own, which loads nothing, and brought into the page's once what
+  // would load there has lost its source: the copy asks the network for nothing.
+  const copy = document.implementation
+    .createHTMLDocument('')
+    .importNode(stage, true) as HTMLElement;
   const copies = copy.querySelectorAll<HTMLElement>('*');
   const scrolled: [Element, number, number][] = [];
   stage.querySelectorAll<HTMLElement>('*').forEach((element, index) => {
@@ -63,18 +67,24 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     if (element.scrollTop || element.scrollLeft) {
       scrolled.push([twin, element.scrollTop, element.scrollLeft]);
     }
-    // A picture the page has loaded shows in the copy at once, with no request. Anything else
-    // that would load or play (a picture still loading, a frame, a video) is a blank box of its
-    // size: a frame's page cannot be copied, and loading it again would outlast the slide.
-    const picture = twin as Partial<HTMLImageElement>;
-    if (element.matches(MEDIA) && !(picture.complete && picture.naturalWidth)) {
-      ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'alt'].forEach((name) =>
-        twin.removeAttribute(name)
-      );
-      const { offsetWidth, offsetHeight } = element;
-      twin.style.cssText += `;box-sizing:border-box;width:${offsetWidth}px;height:${offsetHeight}px`;
+    if (!element.matches(MEDIA)) return;
+    ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'loading'].forEach((name) =>
+      twin.removeAttribute(name)
+    );
+    // A picture the page has loaded from its own memory (the app's avatars and message pictures
+    // are `blob:` addresses) shows in the copy with no request. Anything else that would load or
+    // play (a picture from the network, a frame, a video) is a blank box of its size: a frame's
+    // page cannot be copied, and loading it again would outlast the slide.
+    const { complete, naturalWidth, currentSrc = '' } = element as Partial<HTMLImageElement>;
+    if (complete && naturalWidth && /^(blob|data):/.test(currentSrc)) {
+      twin.setAttribute('src', currentSrc);
+      return;
     }
+    twin.removeAttribute('alt');
+    const { offsetWidth, offsetHeight } = element;
+    twin.style.cssText += `;box-sizing:border-box;width:${offsetWidth}px;height:${offsetHeight}px`;
   });
+  document.adoptNode(copy);
   // A canvas is copied empty: it shows what its original does.
   const canvases = copy.querySelectorAll('canvas');
   stage.querySelectorAll('canvas').forEach((canvas, index) => {
@@ -194,7 +204,9 @@ export const slidePhonePage = (change: Change): void => {
     window.clearTimeout(timer);
     waiting = undefined;
     playing = true;
-    const shown = sliding && from !== 0 ? page.querySelector(`[${PHONE_STAGE}]`) : null;
+    // Hidden while it waited for its frame: the page changes, and nothing slides.
+    const slides = sliding && from !== 0 && page.visibilityState !== 'hidden';
+    const shown = slides ? page.querySelector(`[${PHONE_STAGE}]`) : null;
     let show: ReturnType<typeof copyOf> | undefined;
     try {
       show = shown ? copyOf(shown) : undefined;
