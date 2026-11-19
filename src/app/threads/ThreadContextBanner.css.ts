@@ -338,15 +338,18 @@ export const PhoneHeader = style({
   flexDirection: 'column',
   minWidth: 0,
   paddingBottom: config.space.S300,
+  '@media': { [shortViewport]: { paddingBottom: config.space.S100 } },
 });
 
-// The header's row, as tall as the room header's: back, the room's name, then the buttons.
+// The header's row, as tall as the room header's (on short screens too): back, the room's name,
+// then the buttons.
 export const PhoneRow = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S100,
   height: toRem(54),
   paddingInline: config.space.S200,
+  '@media': { [shortViewport]: { height: toRem(44) } },
 });
 
 // The room's name takes the room the buttons leave, and gives way to them.

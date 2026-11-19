@@ -28,6 +28,8 @@ const openRoute = (page: Page, url: string) =>
 // Thread chrome stacks the room header, the thread banner, the composer and
 // the receipt row. On a landscape phone that left about a third of the
 // viewport for messages; short touch screens now keep a single bar at the top.
+// Phone widths (up to 750 px) show the thread in the room's header instead: its
+// row and the thread's whole title, with a lower row on a short screen.
 for (const viewport of [
   { name: 'landscape phone', width: 667, height: 375, touch: true, compact: true },
   { name: 'large landscape phone', width: 844, height: 390, touch: true, compact: true },
@@ -142,10 +144,40 @@ for (const viewport of [
           contentType: 'application/json',
         });
 
-        if (viewport.compact) {
+        if (phone) {
+          // A phone shows the thread in the room's header: its row, then the whole title.
+          await expect(roomHeader).toBeVisible();
+          await expect(roomHeader.locator('[data-thread-context-banner]')).toHaveCount(1);
+          await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
+          // Resolve stays one tap away on short screens too; the tags are the menu's.
+          await expect(banner.getByRole('button', { name: 'Resolve' })).toBeVisible();
+          await expect(
+            banner.getByText('fea', { exact: true }).filter({ visible: true })
+          ).toHaveCount(0);
+          await more.click();
+          const menu = page.getByRole('menu', { name: 'Thread options' });
+          await expect(menu.locator('[data-thread-action="tags"]')).toBeVisible();
+          await expect(menu.locator('[data-thread-action="pin"]')).toBeVisible();
+          await expect(menu.locator('[data-thread-action="roomMenu"]')).toBeVisible();
+          await page.keyboard.press('Escape');
+          await expect(menu).toBeHidden();
+          if (viewport.compact) {
+            // Right below the app's top bar, with the short screen's row and the title's line.
+            expect(bannerBox.y - (await chromeTop(page))).toBeLessThan(12);
+            const row = (await banner.locator('> div').first().boundingBox())!;
+            expect(row.height, "the header's row is the short screen's").toBeLessThanOrEqual(44);
+            expect(bannerBox.height, 'a row and one line of title').toBeLessThanOrEqual(76);
+            await expect(page.locator('[data-room-following]')).toBeHidden();
+            expect(visibleMessages / viewport.height).toBeGreaterThan(0.45);
+          }
+          // Leaving the thread brings the room's own header back.
+          await banner.locator('button').first().click();
+          await expect(banner).toHaveCount(0);
+          await expect(roomHeader.getByRole('button', { name: 'More Options' })).toBeVisible();
+        } else if (viewport.compact) {
           await expect(roomHeader).toBeAttached();
           await expect(roomHeader, 'the thread banner replaces the room header').toBeHidden();
-          // Right below the app's top bar where a phone has one (667 wide), else at the top.
+          // At the top: a screen this wide has no top bar.
           expect(bannerBox.y - (await chromeTop(page))).toBeLessThan(12);
           expect(bannerBox.height, 'the thread banner is a single row').toBeLessThanOrEqual(48);
           // A titled thread has no eyebrow on any screen.
@@ -181,15 +213,11 @@ for (const viewport of [
           await expect(menu).toBeHidden();
           expect((await banner.boundingBox())!.height).toBeLessThanOrEqual(48);
 
-          // Rotating re-measures the header inset the sticky banner sits under.
+          // Rotated, the screen is a phone's width: the thread shows in the room's header.
           await page.setViewportSize({ width: viewport.height, height: viewport.width });
           await expect(roomHeader).toBeVisible();
-          await expect
-            .poll(async () => {
-              const header = (await roomHeader.boundingBox())!;
-              return (await banner.boundingBox())!.y - (header.y + header.height);
-            })
-            .toBeGreaterThanOrEqual(0);
+          await expect(roomHeader.locator('[data-thread-context-banner]')).toHaveCount(1);
+          // Back sideways, the banner is a card again, under the top the header left.
           await page.setViewportSize({ width: viewport.width, height: viewport.height });
           await expect(roomHeader).toBeHidden();
           await expect
