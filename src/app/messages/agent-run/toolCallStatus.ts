@@ -1,5 +1,6 @@
 import { createContext, useContext, useId, useLayoutEffect, type ReactNode } from 'react';
 import type { HTMLReactParserOptions } from 'html-react-parser';
+import type { TFunction } from 'i18next';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
@@ -174,7 +175,7 @@ export const ToolApprovalsByNameContext = createContext(true);
 export type ToolCallSummary = {
   state: ToolCallState;
   count: number;
-  /** Of the calls that ran (`count`), how many failed; only a `failed` summary has it. */
+  /** How many calls failed; a `running` or `waiting` summary has it too, for its failures so far. */
   failed?: number;
   /** Tool names in call order, with repeats as "send_message ×2". */
   names: string;
@@ -190,13 +191,20 @@ export const summarizeToolCalls = (
     .map(([name, count]) => (count > 1 ? `${name} ×${count}` : name))
     .join(', ');
   const count = (state: ToolCallState) => states.filter((item) => item === state).length;
-  if (count('running') > 0) return { state: 'running', count: calls.length, names };
-  if (count('waiting') > 0) return { state: 'waiting', count: count('waiting'), names };
+  const failed = count('failed') || undefined;
+  if (count('running') > 0) return { state: 'running', count: calls.length, failed, names };
+  if (count('waiting') > 0) return { state: 'waiting', count: count('waiting'), failed, names };
   // A run that failed ran too, so it counts with the done ones, and the group says how many failed.
   const ran = count('done') + count('failed');
-  if (count('failed') > 0) return { state: 'failed', count: ran, failed: count('failed'), names };
+  if (failed) return { state: 'failed', count: ran, failed, names };
   if (ran > 0) return { state: 'done', count: ran, names };
   return count('denied') > 0
     ? { state: 'denied', count: count('denied'), names }
     : { state: 'expired', count: count('expired'), names };
 };
+
+/** A running or waiting run's title, which says how many of its calls failed so far too. */
+export const withFailures = (t: TFunction, title: string, { state, failed }: ToolCallSummary) =>
+  state !== 'failed' && failed
+    ? `${title} ${t('mindroomUi.messages.mindroomHtmlBlocks.toolCallsAlsoFailed', { failed })}`
+    : title;

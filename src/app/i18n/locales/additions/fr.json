@@ -859,6 +859,7 @@
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En cours depuis {{duration}}",
         "toolCallFailed": "Échec",
+        "toolCallsAlsoFailed": "· en échec : {{failed}}",
         "toolCallsRanFailed_one": "{{count}} appel d'outil exécuté · en échec : {{failed}}",
         "toolCallsRanFailed_many": "{{count}} appels d'outils exécutés · en échec : {{failed}}",
         "toolCallsRanFailed_other": "{{count}} appels d'outils exécutés · en échec : {{failed}}"

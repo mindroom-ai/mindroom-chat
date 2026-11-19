@@ -9,6 +9,7 @@ import {
   ToolCallMessageContext,
   ToolCallsCogContext,
   ToolCallsFoldContext,
+  withFailures,
 } from './toolCallStatus';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
@@ -33,11 +34,15 @@ function Cog({ calls, open, onToggle }: CogProps) {
     calls,
     calls.map(({ state }) => state)
   );
-  const title = t(
-    summary.state === 'done'
-      ? 'mindroomUi.messages.mindroomHtmlBlocks.usedToolCount'
-      : TOOL_STATE_TITLE[summary.state],
-    { count: summary.count, failed: summary.failed }
+  const title = withFailures(
+    t,
+    t(
+      summary.state === 'done'
+        ? 'mindroomUi.messages.mindroomHtmlBlocks.usedToolCount'
+        : TOOL_STATE_TITLE[summary.state],
+      { count: summary.count, failed: summary.failed }
+    ),
+    summary
   );
   // Where that names fewer calls than the cog shows, its name starts with the number it shows.
   const name =

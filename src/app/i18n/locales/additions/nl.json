@@ -846,6 +846,7 @@
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Loopt al {{duration}}",
         "toolCallFailed": "Mislukt",
+        "toolCallsAlsoFailed": "· {{failed}} mislukt",
         "toolCallsRanFailed_one": "{{count}} toolaanroep uitgevoerd · {{failed}} mislukt",
         "toolCallsRanFailed_other": "{{count}} toolaanroepen uitgevoerd · {{failed}} mislukt"
       },

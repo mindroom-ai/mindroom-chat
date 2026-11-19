@@ -833,6 +833,7 @@
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중",
         "toolCallFailed": "실패",
+        "toolCallsAlsoFailed": "· {{failed}}개 실패",
         "toolCallsRanFailed_other": "도구 호출 {{count}}개 실행됨 · {{failed}}개 실패"
       },
       "mindroomThreadSummaryMarker": {

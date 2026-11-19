@@ -833,6 +833,7 @@
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",
         "toolCallFailed": "Gagal",
+        "toolCallsAlsoFailed": "· {{failed}} gagal",
         "toolCallsRanFailed_other": "{{count}} panggilan alat selesai dijalankan · {{failed}} gagal"
       },
       "mindroomThreadSummaryMarker": {

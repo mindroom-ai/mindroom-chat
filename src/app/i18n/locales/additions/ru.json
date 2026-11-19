@@ -872,6 +872,7 @@
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}",
         "toolCallFailed": "Ошибка",
+        "toolCallsAlsoFailed": "· с ошибкой: {{failed}}",
         "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · с ошибкой: {{failed}}",
         "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · с ошибкой: {{failed}}",
         "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · с ошибкой: {{failed}}",

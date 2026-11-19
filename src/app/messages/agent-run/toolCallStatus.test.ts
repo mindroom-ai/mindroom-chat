@@ -205,9 +205,25 @@ describe('summarizeToolCalls', () => {
         ['done', 'failed', 'done', 'denied']
       )
     ).toEqual({ state: 'failed', count: 3, failed: 1, names: 'a, b, c, d' });
+    expect(summarizeToolCalls([call('a'), call('b')], ['failed', 'failed'])).toEqual({
+      state: 'failed',
+      count: 2,
+      failed: 2,
+      names: 'a, b',
+    });
+  });
+
+  it('keeps a running or waiting call first, with the failures so far alongside', () => {
     expect(summarizeToolCalls([call('a'), call('b')], ['failed', 'running'])).toEqual({
       state: 'running',
       count: 2,
+      failed: 1,
+      names: 'a, b',
+    });
+    expect(summarizeToolCalls([call('a'), call('b')], ['failed', 'waiting'])).toEqual({
+      state: 'waiting',
+      count: 1,
+      failed: 1,
       names: 'a, b',
     });
   });

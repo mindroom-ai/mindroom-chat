@@ -898,6 +898,7 @@
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
         "toolCallFailed": "فشل",
+        "toolCallsAlsoFailed": "· فشل: ⁨{{failed}}⁩",
         "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · فشل: ⁨{{failed}}⁩",
         "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · فشل: ⁨{{failed}}⁩",
         "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · فشل: ⁨{{failed}}⁩",

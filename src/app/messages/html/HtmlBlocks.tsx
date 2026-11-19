@@ -57,6 +57,7 @@ import {
   ToolApprovalsByNameContext,
   ToolCallState,
   useFoldedToolCalls,
+  withFailures,
 } from '../agent-run/toolCallStatus';
 import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
@@ -513,7 +514,11 @@ function ToolRefGroupBlock({
       title={
         metadataStatus
           ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
-          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count, failed: summary.failed })
+          : withFailures(
+              t,
+              t(TOOL_STATE_TITLE[summary.state], { count: summary.count, failed: summary.failed }),
+              summary
+            )
       }
       detail={summary.names}
       aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}

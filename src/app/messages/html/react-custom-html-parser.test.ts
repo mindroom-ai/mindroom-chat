@@ -704,34 +704,51 @@ describe('tool call status from approval cards', () => {
     expect(renderShellCall(handle)).toContain('1 tool call waiting for approval');
   });
 
-  it('says in words which calls failed, on the run line and on the call', () => {
-    const renderCalls = (failed: boolean) => {
-      const opts = markerParserOptions(createBaseOpts(), {
-        formatted_body: '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>',
+  it('says in words which calls failed, on the run line, on the call and on the cog', () => {
+    const completed = { type: 'tool_call_completed' };
+    const failed = { ...completed, is_error: true };
+    // The calls' line and rows, or the folded cog's name, for the two calls' trace entries.
+    const renderCalls = (
+      first: Record<string, unknown>,
+      second: Record<string, unknown>,
+      folded = false
+    ) => {
+      const html =
+        '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>run_shell_command</code> [2]</p>';
+      const content = {
+        formatted_body: html,
         'io.mindroom.tool_trace': {
           version: 2,
           events: [
-            { type: 'tool_call_completed', tool_name: 'read_file', result_preview: 'notes' },
-            {
-              type: 'tool_call_completed',
-              tool_name: 'schedule',
-              result_preview: 'Missing required argument: when',
-              ...(failed ? { is_error: true } : {}),
-            },
+            { tool_name: 'read_file', ...first },
+            { tool_name: 'run_shell_command', ...second },
           ],
         },
-      });
+      };
+      const opts = markerParserOptions(createBaseOpts(), content);
+      const store = createStore();
+      store.set(settingsAtom, { ...getSettings(), showToolCalls: !folded });
       let renderer: ReactTestRenderer | undefined;
       act(() => {
         renderer = create(
           React.createElement(
-            ToolCallMessageContext.Provider,
-            { value: { eventId: '$reply' } },
-            parse('<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>', opts)
+            Provider,
+            { store },
+            React.createElement(
+              ToolCallMessageContext.Provider,
+              { value: { eventId: '$reply' } },
+              // The reply's reasoning line draws the cog.
+              React.createElement(
+                ToolCallsFold,
+                null,
+                withReasoning(content, parse(html, opts), opts)
+              )
+            )
           )
         );
       });
       const tree = renderer as ReactTestRenderer;
+      if (folded) return String(tree.root.findByType('button').props['aria-label']);
       // The run's line opens its panel, which shows each call.
       act(() => {
         tree.root.findByType('button').props.onClick();
@@ -739,14 +756,32 @@ describe('tool call status from approval cards', () => {
       return collectTextContent(tree.toJSON());
     };
     approvals.current = { records: [], now: 0 };
-    const failedText = renderCalls(true);
+    const preview = { result_preview: 'Missing required argument: when' };
+    const failedText = renderCalls(
+      { ...completed, result_preview: 'notes' },
+      { ...failed, ...preview }
+    );
     expect(failedText).toContain('Ran 2 tool calls · 1 failed');
-    expect(failedText).toContain('scheduleFailed');
+    expect(failedText).toContain('run_shell_commandFailed');
     expect(failedText).not.toContain('read_fileFailed');
-    const workedText = renderCalls(false);
+    const workedText = renderCalls(completed, { ...completed, ...preview });
     expect(workedText).toContain('Ran 2 tool calls');
     expect(workedText).not.toContain('failed');
     expect(workedText).not.toContain('Failed');
+    // Without a preview, or with a cut one, a call fails just the same.
+    const allFailedText = renderCalls(failed, { ...failed, ...preview, truncated: true });
+    expect(allFailedText).toContain('Ran 2 tool calls · 2 failed');
+    expect(allFailedText).toContain('read_fileFailed');
+    expect(allFailedText).toContain('run_shell_commandFailed');
+    // A call that still runs or waits leads, and the failure so far shows beside it.
+    const running = { type: 'tool_call_started' };
+    expect(renderCalls(failed, running)).toContain('Running 2 tool calls · 1 failed');
+    expect(renderCalls(failed, running, true)).toBe('Running 2 tool calls · 1 failed');
+    approvals.current = { records: [jobCard('pending', { replyToEventId: '$reply' })], now: 0 };
+    expect(renderCalls(failed, completed)).toContain('1 tool call waiting for approval · 1 failed');
+    expect(renderCalls(failed, completed, true)).toBe(
+      '2 tool calls: 1 tool call waiting for approval · 1 failed'
+    );
   });
 
   it('reads the trace alone outside a thread with approvals', () => {
