@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop -- Menus share focus and must open sequentially. */
-import { expect, test } from '@playwright/test';
+import { type Locator, expect, test } from '@playwright/test';
 import { fingersOn } from '../helpers/fingers';
 import { expectFloatingNavHeader, pixelDifference, sampleScreenshot } from '../helpers/glassVisual';
 
@@ -395,9 +395,7 @@ test.describe('a phone window with little room above the model button', () => {
     });
   }
 
-  test('with an error over the models, a swipe from it reaches Retry and the models', async ({
-    page,
-  }) => {
+  test('with an error over the models, swipes reach Retry and the models', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 200 });
     await page.goto('/e2e/fixtures/glass-surfaces.html?menus&error&theme=silver');
     const trigger = page.getByRole('button', { name: /^Choose model / });
@@ -416,39 +414,43 @@ test.describe('a phone window with little room above the model button', () => {
         ).length
     );
     expect(scrollers).toBe(1);
-    const whole = async (box: { y: number; height: number } | null) =>
+    const whole = (box: { y: number; height: number } | null) =>
       !!box && box.y >= menu.y - 1 && box.y + box.height <= bar.y + 1;
     const touch = await fingersOn(page);
-    const swipeUntil = async (shown: () => Promise<boolean>) => {
+    // Short swipes in the box over the Effort row, toward the target, until it shows whole.
+    const swipeTo = async (target: Locator) => {
       await expect
         .poll(
           async () => {
-            if (await shown()) return true;
-            // A finger goes down on the error, or on the box's last line, and pushes it up.
-            const alert = await dialog.getByRole('alert').boundingBox();
-            const from = alert && (await whole(alert)) ? alert.y + alert.height / 2 : bar.y - 6;
-            const to = Math.max(from - 40, menu.y + 4);
+            const box = await target.boundingBox();
+            if (whole(box)) return true;
+            const up = !box || box.y > menu.y;
+            const from = up ? bar.y - 6 : menu.y + 6;
+            const to = up ? from - 24 : from + 24;
             const x = menu.x + menu.width / 2;
             await touch('touchStart', [[1, x, from]]);
-            for (let y = from - 8; y >= to; y -= 8) await touch('touchMove', [[1, x, y]]);
+            for (let step = 1; step <= 3; step += 1) {
+              await touch('touchMove', [[1, x, from + ((to - from) * step) / 3]]);
+            }
+            // The finger rests before it lifts, so the box does not glide on.
             await page.waitForTimeout(150);
             await touch('touchMove', [[1, x, to]]);
             await touch('touchEnd', []);
-            return shown();
+            return whole(await target.boundingBox());
           },
           { timeout: 30_000, intervals: [50] }
         )
         .toBe(true);
     };
     const retry = dialog.getByRole('button', { name: 'Retry' });
-    await swipeUntil(async () => whole(await retry.boundingBox()));
+    await swipeTo(retry);
     const button = (await retry.boundingBox())!;
     // Opening the menu asked once; Retry asks again.
     await expect(page.locator('main')).toHaveAttribute('data-refreshes', '1');
     await page.touchscreen.tap(button.x + button.width / 2, button.y + button.height / 2);
     await expect(page.locator('main')).toHaveAttribute('data-refreshes', '2');
     const model = dialog.getByRole('option', { name: /^Studio model 01 / });
-    await swipeUntil(async () => whole(await model.boundingBox()));
+    await swipeTo(model);
     const row = (await model.boundingBox())!;
     await page.touchscreen.tap(row.x + row.width / 2, row.y + row.height / 2);
     await expect(page.locator('output')).toHaveText('model-1');
