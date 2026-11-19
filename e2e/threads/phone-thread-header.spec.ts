@@ -403,8 +403,11 @@ test("a phone's thread shows in the room header: back, room, marker, Resolve, ca
     await expect(banner(page).getByRole('img', { name: 'Pinned' })).toBeVisible({
       timeout: 20_000,
     });
-    await page.keyboard.press('Escape');
-    await expect(menu).toBeHidden();
+    // The menu stays on its new label until the pin is saved; Escape closes it after that.
+    await expect(async () => {
+      await page.keyboard.press('Escape');
+      await expect(menu).toBeHidden({ timeout: 1_000 });
+    }).toPass({ timeout: 20_000 });
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'phone-long-pinned-light.png') });
 
     // The room's name leads back to the room, as the chevron does.
