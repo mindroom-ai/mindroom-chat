@@ -1,12 +1,13 @@
-import { Fragment, ReactNode, useEffect, useState } from 'react';
-import { Box, Button, Icon, Icons, Text, color, config, toRem } from 'folds';
-import type { IconSrc } from 'folds';
+import { Fragment, ReactNode, useEffect, useRef, useState } from 'react';
+import { Box, Button, Text, color, toRem } from 'folds';
 import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
-import { Page, PageHero, PageHeroSection } from '../ui/page/Page';
+import { Page } from '../ui/page/Page';
 import { useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../ui/branding/clientBranding';
+import { getMxIdLocalPart } from '../matrix/matrix';
+import { useUserProfile } from '../members/useUserProfile';
+import { getWelcomePageContent } from '../ui/branding/clientBranding';
 import { getLocalMindroomConnections } from '../local-mindroom/api';
 import { getWelcomeSetupFirstSeenStorageKey } from '../preferences/accountStorageKeys';
 import {
@@ -21,6 +22,10 @@ import { UnverifiedDeviceCard } from '../account/verification/UnverifiedDeviceCa
 import type { PoweredByLink } from '../ui/branding/branding';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { tourAtom } from '../navigation/tourState';
+import { HomeAsk } from './HomeAsk';
+import { HomeRecentThreads } from './HomeRecentThreads';
+import { useHomeAgents } from './homeAgents';
+import * as css from './Home.css';
 
 const SETUP_COMMAND =
   'uvx mindroom config init --provider <anthropic|codex|llama.cpp|ollama|openai|openrouter|vertexai_claude>';
@@ -126,32 +131,26 @@ function LocalMindroomSetup() {
   );
 }
 
-/** The welcome column's width in home.png: links, cards and credits all share it. */
-const WELCOME_COLUMN_WIDTH = toRem(360);
+/** How a footer link looks: small, quiet, in a row with the others. */
+const footerLink = {
+  size: '300',
+  radii: '300',
+  variant: 'Secondary',
+  fill: 'None',
+} as const;
 
-type WelcomeLinkProps = { icon: IconSrc; children: ReactNode } & (
-  | { href: string }
-  | { onClick: () => void }
-);
+type FooterLinkProps = { children: ReactNode } & ({ href: string } | { onClick: () => void });
 
-/**
- * A full-width link button of the welcome column: with `href` a link opened in a new tab, with
- * `onClick` a button that acts in the app.
- */
-function WelcomeLink({ icon, children, ...target }: WelcomeLinkProps) {
-  const look = {
-    size: '400',
-    radii: '300',
-    variant: 'Primary',
-    fill: 'Soft',
-    outlined: true,
-    before: <Icon size="100" src={icon} />,
-  } as const;
-  const label = <Text size="B400">{children}</Text>;
-
+/** A link of the page's footer: with `href` opened in a new tab, with `onClick` an action here. */
+function FooterLink({ children, ...target }: FooterLinkProps) {
+  const label = (
+    <Text size="T200" priority="300">
+      {children}
+    </Text>
+  );
   if ('onClick' in target) {
     return (
-      <Button type="button" onClick={target.onClick} {...look}>
+      <Button type="button" onClick={target.onClick} {...footerLink}>
         {label}
       </Button>
     );
@@ -163,7 +162,7 @@ function WelcomeLink({ icon, children, ...target }: WelcomeLinkProps) {
       target="_blank"
       rel="noreferrer noopener"
       style={{ textDecoration: 'none' }}
-      {...look}
+      {...footerLink}
     >
       {label}
     </Button>
@@ -185,15 +184,38 @@ function PoweredByLine({ links }: { links: readonly PoweredByLink[] }) {
     </Fragment>
   ));
   return (
-    <Text size="T300" align="Center">
+    <Text size="T200" priority="300" align="Center" style={{ width: '100%' }}>
       <Trans i18nKey="sharedUi.welcomePage.poweredBy" components={{ links: <>{linked}</> }} />
     </Text>
   );
 }
 
+/** Morning until noon, afternoon until six, evening after. */
+export const greetingKey = (hour: number) => {
+  if (hour >= 5 && hour < 12) return 'home.greeting.morning' as const;
+  if (hour >= 12 && hour < 18) return 'home.greeting.afternoon' as const;
+  return 'home.greeting.evening' as const;
+};
+
+/** "Good afternoon, Robin", by the device's clock and the account's display name. */
+function Greeting() {
+  const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const userId = mx.getSafeUserId();
+  const { displayName } = useUserProfile(userId);
+  const name = displayName || getMxIdLocalPart(userId) || userId;
+  return (
+    <Text as="h1" size="H2" className={css.Greeting}>
+      {t(greetingKey(new Date().getHours()), { name })}
+    </Text>
+  );
+}
+
 /**
- * Shown when no room is open: the app's name, links to source and docs, the way into the interface
- * tour, backup and setup help.
+ * Shown when no room is open: a greeting, a field that asks one of the rooms' agents a question as
+ * a new thread, the newest threads, quiet notices for recovery and this device's verification,
+ * and links to docs, the interface tour and the source. An account without agents gets the
+ * deployment's welcome heading in place of the greeting and the field.
  */
 export function WelcomePage() {
   const { t } = useTranslation();
@@ -201,54 +223,44 @@ export function WelcomePage() {
   const content = getWelcomePageContent(welcome as never, t);
   const showSetup = useWelcomeSetupPrompt();
   const setTour = useSetAtom(tourAtom);
+  const agents = useHomeAgents();
+  const pageRef = useRef<HTMLDivElement>(null);
 
   return (
-    <Page>
-      <Box
-        grow="Yes"
-        direction="Column"
-        justifyContent="Center"
-        style={{ padding: config.space.S700 }}
-      >
-        <PageHeroSection>
-          <PageHero
-            icon={
-              <img
-                width={70}
-                height={70}
-                src={MINDROOM_CLIENT_BRANDING.logoSrc}
-                alt={MINDROOM_CLIENT_BRANDING.logoAlt}
-              />
-            }
-            title={content.title}
-            subTitle={content.subtitle}
-          >
-            <Box
-              direction="Column"
-              gap="300"
-              style={{ width: '100%', maxWidth: WELCOME_COLUMN_WIDTH, marginInline: 'auto' }}
-            >
-              {content.sourceUrl && (
-                <WelcomeLink href={content.sourceUrl} icon={Icons.Code}>
-                  {content.sourceLabel}
-                </WelcomeLink>
-              )}
-              {content.docsUrl && (
-                <WelcomeLink href={content.docsUrl} icon={Icons.Info}>
-                  {content.docsLabel}
-                </WelcomeLink>
-              )}
-              <WelcomeLink onClick={() => setTour({ level: 'quick' })} icon={Icons.Play}>
-                {t('tour.entries.howThreadsWork')}
-              </WelcomeLink>
-              <UnverifiedDeviceCard />
-              <KeyBackupNudge />
-              {Array.isArray(content.poweredBy) && <PoweredByLine links={content.poweredBy} />}
+    <Page ref={pageRef}>
+      <div className={css.Scroll}>
+        <div className={css.Column}>
+          {agents.length > 0 ? (
+            <>
+              <Greeting />
+              <HomeAsk agents={agents} dropRef={pageRef} />
+            </>
+          ) : (
+            <Box direction="Column" alignItems="Center" gap="200">
+              <Text as="h1" size="H2" align="Center">
+                {content.title}
+              </Text>
+              <Text priority="400" align="Center">
+                {content.subtitle}
+              </Text>
             </Box>
-          </PageHero>
-        </PageHeroSection>
-        {showSetup && <LocalMindroomSetup />}
-      </Box>
+          )}
+          <HomeRecentThreads />
+          <UnverifiedDeviceCard />
+          <KeyBackupNudge />
+          {showSetup && <LocalMindroomSetup />}
+        </div>
+        <footer className={css.Footer}>
+          {content.docsUrl && <FooterLink href={content.docsUrl}>{content.docsLabel}</FooterLink>}
+          <FooterLink onClick={() => setTour({ level: 'quick' })}>
+            {t('tour.entries.howThreadsWork')}
+          </FooterLink>
+          {content.sourceUrl && (
+            <FooterLink href={content.sourceUrl}>{content.sourceLabel}</FooterLink>
+          )}
+          {Array.isArray(content.poweredBy) && <PoweredByLine links={content.poweredBy} />}
+        </footer>
+      </div>
     </Page>
   );
 }

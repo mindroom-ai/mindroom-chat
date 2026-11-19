@@ -249,9 +249,6 @@
       "newIntro": "新しいリカバリーパスワードを選んでください。古いものは使えなくなります。",
       "notCached": "このセッションにはすべての暗号鍵がありません。リカバリーパスワードか別のデバイスで検証してから、もう一度お試しください。",
       "incompleteError": "新しいリカバリーパスワードは、まだすべての暗号鍵を対象にしていません。もう一度お試しください。",
-      "nudgeTitle": "メッセージを守りましょう",
-      "nudgeBody": "リカバリーパスワードを設定すると、このブラウザーのデータを消去したり新しいデバイスでサインインしたりしても、暗号化されたチャットを読み続けられます。",
-      "nudgeButton": "リカバリーパスワードを設定",
       "unlockWithPassword": "リカバリーパスワードでロックを解除",
       "resetLoss": "このデバイスが現在読めないメッセージは、読めないままになります。ほかのセッションは再度確認が必要です。",
       "setupCheckFailed": "暗号化の設定を確認できませんでした。",
@@ -1549,5 +1546,37 @@
   },
   "threadActions": {
     "openBeside": "2列目で開く"
+  },
+  "home": {
+    "greeting": {
+      "morning": "おはようございます、{{name}}さん",
+      "afternoon": "こんにちは、{{name}}さん",
+      "evening": "こんばんは、{{name}}さん"
+    },
+    "ask": {
+      "placeholder": "{{name}} に何でも聞いてください…",
+      "chooseAgent": "回答する相手を選ぶ",
+      "agentChoice": "{{name}} が回答",
+      "chooseRoom": "スレッドを始める場所を選ぶ",
+      "roomChoice": "{{room}} で",
+      "inRoom": "<avatar/>{{room}} で",
+      "directChat": "ダイレクトチャット",
+      "startsDirectChat": "{{name}} とのチャットを始めます",
+      "startingDirectChat": "{{name}} とのチャットを開始しています…",
+      "directChatFailed": "{{name}} とのチャットを開始できませんでした。もう一度お試しください。"
+    },
+    "recent": {
+      "title": "最近のスレッド",
+      "allThreads": "すべてのスレッド",
+      "unread": "未読"
+    },
+    "recovery": {
+      "action": "復元パスワードを設定",
+      "text": "新しいデバイスでも暗号化されたチャットにアクセスできるようにします。"
+    },
+    "device": {
+      "action": "このデバイスを確認",
+      "text": "それまでは暗号化されたチャットを読めません。"
+    }
   }
 }

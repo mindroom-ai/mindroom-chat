@@ -20,6 +20,12 @@ type ComposerMenuButtonProps = {
   /** The button's tooltip and aria-label, and the menu's name. */
   label: string;
   icon: IconSrc;
+  /**
+   * A picker's button: what is chosen, shown before the icon, and the button's name for it; the
+   * label stays its tooltip and the menu's name.
+   */
+  face?: { content: ReactNode; label: string };
+  disabled?: boolean;
   /** The menu's entries, `MenuEntry` rows that close the menu through the controls. */
   children(controls: ComposerMenuControls): ReactNode;
 };
@@ -31,7 +37,13 @@ const arrowKey = (name: 'arrowdown' | 'arrowup') => (event: KeyboardEvent) => is
  * Escape closes the menu and focus returns to the button, and the menu closes as the conversation
  * hides.
  */
-export function ComposerMenuButton({ label, icon, children }: ComposerMenuButtonProps) {
+export function ComposerMenuButton({
+  label,
+  icon,
+  face,
+  disabled,
+  children,
+}: ComposerMenuButtonProps) {
   const [anchor, setAnchor] = useState<RectCords>();
   // The menu closes as the conversation hides, under a plugin's cover or behind a side panel.
   const conversationHidden = useConversationHidden();
@@ -100,15 +112,17 @@ export function ComposerMenuButton({ label, icon, children }: ComposerMenuButton
             onClick={(event: MouseEvent<HTMLButtonElement>) =>
               setAnchor(anchor ? undefined : event.currentTarget.getBoundingClientRect())
             }
-            aria-label={label}
+            aria-label={face?.label ?? label}
             aria-haspopup="menu"
             aria-expanded={anchor !== undefined}
+            disabled={disabled}
             variant="SurfaceVariant"
             radii="300"
             size="300"
-            className={css.ComposerIconButton}
+            className={face ? css.ComposerPickerButton : css.ComposerIconButton}
           >
-            <Icon src={icon} />
+            {face?.content}
+            <Icon size={face ? '50' : undefined} src={icon} />
           </IconButton>
         )}
       </IconTooltip>

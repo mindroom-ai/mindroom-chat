@@ -153,7 +153,7 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once per app start, as soon as the user has joined an encrypted room (at start, or once a room is joined or turns encryption on); `false` stops it. Closing either one before the session is verified (Not now, the close button, Escape) keeps it from opening by itself for that account on that browser for 7 days; verifying the session or signing out ends that. The welcome page cards and Settings still offer them. |
+| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once per app start, as soon as the user has joined an encrypted room (at start, or once a room is joined or turns encryption on); `false` stops it. Closing either one before the session is verified (Not now, the close button, Escape) keeps it from opening by itself for that account on that browser for 7 days; verifying the session or signing out ends that. The welcome page notices and Settings still offer them. |
 
 ### Tour
 
@@ -171,8 +171,8 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `welcome.title` | string | `Welcome to MindRoom` | Heading of the welcome page (shown when no room is open). |
-| `welcome.subtitle` | string | `AI agents that live in your chat rooms.` | Line under the heading; also shown in Settings > About. |
+| `welcome.title` | string | `Welcome to MindRoom` | Heading of the welcome page (shown when no room is open) for an account whose rooms have no agent; with one, the page greets the person by name over a field that asks an agent. |
+| `welcome.subtitle` | string | `AI agents that live in your chat rooms.` | Line under that heading; also shown in Settings > About. |
 | `welcome.sourceLabel` | string | `Source Code` | Label of the first welcome button. |
 | `welcome.sourceUrl` | string | `https://github.com/mindroom-ai/mindroom-chat` | Its link. An empty string hides the button. Settings > About always links to the default. |
 | `welcome.docsLabel` | string | `Docs` | Label of the second welcome button. |

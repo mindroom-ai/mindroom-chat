@@ -257,9 +257,6 @@
       "newIntro": "Elige una nueva contraseña de recuperación. La anterior dejará de funcionar.",
       "notCached": "Esta sesión no tiene todas las claves de cifrado. Verifícala con tu contraseña de recuperación o con otro dispositivo y vuelve a intentarlo.",
       "incompleteError": "La nueva contraseña de recuperación aún no cubre todas las claves de cifrado. Inténtalo de nuevo.",
-      "nudgeTitle": "Protege tus mensajes",
-      "nudgeBody": "Establece una contraseña de recuperación para poder seguir leyendo tus chats cifrados después de borrar este navegador o iniciar sesión en un dispositivo nuevo.",
-      "nudgeButton": "Configurar contraseña de recuperación",
       "unlockWithPassword": "Desbloquear con la contraseña de recuperación",
       "resetLoss": "Los mensajes que este dispositivo no puede leer ahora seguirán siendo ilegibles. Tus otras sesiones tendrán que verificarse de nuevo.",
       "setupCheckFailed": "No se pudo comprobar la configuración de tu cifrado.",
@@ -1625,5 +1622,37 @@
   },
   "threadActions": {
     "openBeside": "Abrir en la segunda columna"
+  },
+  "home": {
+    "greeting": {
+      "morning": "Buenos días, {{name}}",
+      "afternoon": "Buenas tardes, {{name}}",
+      "evening": "Buenas noches, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Pregunta a {{name}} lo que quieras…",
+      "chooseAgent": "Elegir quién responde",
+      "agentChoice": "Responde {{name}}",
+      "chooseRoom": "Elegir dónde empieza el hilo",
+      "roomChoice": "En {{room}}",
+      "inRoom": "en <avatar/>{{room}}",
+      "directChat": "Chat directo",
+      "startsDirectChat": "Inicia un chat con {{name}}",
+      "startingDirectChat": "Iniciando un chat con {{name}}…",
+      "directChatFailed": "No se pudo iniciar un chat con {{name}}. Inténtalo de nuevo."
+    },
+    "recent": {
+      "title": "Hilos recientes",
+      "allThreads": "Todos los hilos",
+      "unread": "No leído"
+    },
+    "recovery": {
+      "action": "Configurar una contraseña de recuperación",
+      "text": "Conserva el acceso a los chats cifrados en un dispositivo nuevo."
+    },
+    "device": {
+      "action": "Verificar este dispositivo",
+      "text": "Hasta entonces no puede leer tus chats cifrados."
+    }
   }
 }

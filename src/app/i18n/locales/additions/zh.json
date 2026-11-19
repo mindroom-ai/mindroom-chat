@@ -249,9 +249,6 @@
       "newIntro": "请选择新的恢复密码。旧密码将失效。",
       "notCached": "此会话未持有所有加密密钥。请用恢复密码或其他设备验证它，然后重试。",
       "incompleteError": "新的恢复密码尚未涵盖所有加密密钥。请重试。",
-      "nudgeTitle": "保护你的消息",
-      "nudgeBody": "设置恢复密码，这样在清除此浏览器数据或在新设备上登录后，你仍然可以阅读加密聊天。",
-      "nudgeButton": "设置恢复密码",
       "unlockWithPassword": "使用恢复密码解锁",
       "resetLoss": "此设备目前无法读取的消息将保持无法读取。你的其他会话需要重新验证。",
       "setupCheckFailed": "无法检查你的加密设置。",
@@ -1549,5 +1546,37 @@
   },
   "threadActions": {
     "openBeside": "在第二栏打开"
+  },
+  "home": {
+    "greeting": {
+      "morning": "早上好，{{name}}",
+      "afternoon": "下午好，{{name}}",
+      "evening": "晚上好，{{name}}"
+    },
+    "ask": {
+      "placeholder": "向 {{name}} 提任何问题…",
+      "chooseAgent": "选择由谁回答",
+      "agentChoice": "由 {{name}} 回答",
+      "chooseRoom": "选择话题从哪里开始",
+      "roomChoice": "在 {{room}}",
+      "inRoom": "在 <avatar/>{{room}}",
+      "directChat": "私聊",
+      "startsDirectChat": "开始与 {{name}} 的聊天",
+      "startingDirectChat": "正在开始与 {{name}} 的聊天…",
+      "directChatFailed": "无法开始与 {{name}} 的聊天。请重试。"
+    },
+    "recent": {
+      "title": "最近的话题",
+      "allThreads": "所有话题",
+      "unread": "未读"
+    },
+    "recovery": {
+      "action": "设置恢复密码",
+      "text": "在新设备上也能访问加密聊天。"
+    },
+    "device": {
+      "action": "验证此设备",
+      "text": "在此之前，它无法读取你的加密聊天。"
+    }
   }
 }

@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ClientConfig, useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { tourAtom } from '../navigation/tourState';
-import { WelcomePage } from './WelcomePage';
+import { WelcomePage, greetingKey } from './WelcomePage';
+import { useHomeAgents, type HomeAgent } from './homeAgents';
 
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: vi.fn() }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
@@ -16,6 +17,10 @@ vi.mock('../ui/page/Page', () => {
   const Frame = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return { Page: Frame, PageHero: Frame, PageHeroSection: Frame };
 });
+vi.mock('./homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
+vi.mock('./HomeAsk', () => ({ HomeAsk: () => <div data-testid="ask-field" /> }));
+vi.mock('./HomeRecentThreads', () => ({ HomeRecentThreads: () => null }));
+vi.mock('../members/useUserProfile', () => ({ useUserProfile: () => ({ displayName: 'Ada' }) }));
 vi.mock('../account/verification/UnverifiedDeviceCard', () => ({
   UnverifiedDeviceCard: () => <div data-testid="device-card" />,
 }));
@@ -57,7 +62,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('WelcomePage tour link', () => {
-  it('shows a button after the docs link and before the device and backup cards', () => {
+  it('shows a footer button after the docs link, under the device and backup notices', () => {
     showWelcome({ docsUrl: 'https://docs.example.test', docsLabel: 'Docs' });
 
     const tour = screen.getByRole('button', { name: TOUR_LINK });
@@ -72,8 +77,8 @@ describe('WelcomePage tour link', () => {
     expect(docs.getAttribute('target')).toBe('_blank');
 
     expect(follows(docs, tour)).toBe(true);
-    expect(follows(tour, screen.getByTestId('device-card'))).toBe(true);
-    expect(follows(tour, screen.getByTestId('backup-card'))).toBe(true);
+    expect(follows(screen.getByTestId('device-card'), docs)).toBe(true);
+    expect(follows(screen.getByTestId('backup-card'), docs)).toBe(true);
   });
 
   it('opens the Quick tour', () => {
@@ -90,5 +95,37 @@ describe('WelcomePage tour link', () => {
 
     expect(screen.queryAllByRole('link')).toEqual([]);
     expect(screen.getByRole('button', { name: TOUR_LINK })).toBeTruthy();
+  });
+});
+
+describe('WelcomePage greeting', () => {
+  it('greets the person over the ask field while the rooms have an agent', () => {
+    const agent: HomeAgent = {
+      userId: '@mindroom_helper:mindroom.chat',
+      roomIds: [],
+      lastUsedTs: 0,
+    };
+    vi.mocked(useHomeAgents).mockReturnValueOnce([agent]);
+    showWelcome({});
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/Ada/);
+    expect(screen.getByTestId('ask-field')).toBeTruthy();
+  });
+
+  it("keeps the deployment's welcome heading for an account without agents", () => {
+    showWelcome({ title: 'Welcome to Example' });
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Welcome to Example');
+    expect(screen.queryByTestId('ask-field')).toBeNull();
+  });
+
+  it('says good morning before noon, good afternoon until six, then good evening', () => {
+    expect([4, 5, 11, 12, 17, 18, 23].map(greetingKey)).toEqual([
+      'home.greeting.evening',
+      'home.greeting.morning',
+      'home.greeting.morning',
+      'home.greeting.afternoon',
+      'home.greeting.afternoon',
+      'home.greeting.evening',
+      'home.greeting.evening',
+    ]);
   });
 });

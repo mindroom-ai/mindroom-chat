@@ -253,9 +253,6 @@
       "newIntro": "Kies een nieuw herstelwachtwoord. Het oude werkt dan niet meer.",
       "notCached": "Deze sessie heeft niet elke versleutelingssleutel. Verifieer haar met je herstelwachtwoord of een ander apparaat en probeer het dan opnieuw.",
       "incompleteError": "Het nieuwe herstelwachtwoord dekt nog niet elke versleutelingssleutel. Probeer het opnieuw.",
-      "nudgeTitle": "Bescherm je berichten",
-      "nudgeBody": "Stel een herstelwachtwoord in, zodat je je versleutelde chats nog kunt lezen nadat je deze browser hebt gewist of op een nieuw apparaat inlogt.",
-      "nudgeButton": "Herstelwachtwoord instellen",
       "unlockWithPassword": "Ontgrendelen met herstelwachtwoord",
       "resetLoss": "Berichten die dit apparaat nu niet kan lezen, blijven onleesbaar. Je andere sessies moeten opnieuw worden geverifieerd.",
       "setupCheckFailed": "Kon je versleutelingsinstelling niet controleren.",
@@ -1587,5 +1584,37 @@
   },
   "threadActions": {
     "openBeside": "In tweede kolom openen"
+  },
+  "home": {
+    "greeting": {
+      "morning": "Goedemorgen, {{name}}",
+      "afternoon": "Goedemiddag, {{name}}",
+      "evening": "Goedenavond, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Vraag {{name}} wat je wilt…",
+      "chooseAgent": "Kies wie antwoordt",
+      "agentChoice": "{{name}} antwoordt",
+      "chooseRoom": "Kies waar de thread begint",
+      "roomChoice": "In {{room}}",
+      "inRoom": "in <avatar/>{{room}}",
+      "directChat": "Direct gesprek",
+      "startsDirectChat": "Start een gesprek met {{name}}",
+      "startingDirectChat": "Gesprek met {{name}} starten…",
+      "directChatFailed": "Kan geen gesprek met {{name}} starten. Probeer het opnieuw."
+    },
+    "recent": {
+      "title": "Recente threads",
+      "allThreads": "Alle threads",
+      "unread": "Ongelezen"
+    },
+    "recovery": {
+      "action": "Stel een herstelwachtwoord in",
+      "text": "Houd op een nieuw apparaat toegang tot versleutelde gesprekken."
+    },
+    "device": {
+      "action": "Verifieer dit apparaat",
+      "text": "Tot die tijd kan het je versleutelde gesprekken niet lezen."
+    }
   }
 }

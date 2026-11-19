@@ -63,6 +63,20 @@ vi.mock('../ui/page/Page', async () => {
   };
 });
 
+vi.mock('./homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
+vi.mock('./HomeAsk', () => ({ HomeAsk: () => null }));
+vi.mock('./HomeRecentThreads', () => ({ HomeRecentThreads: () => null }));
+vi.mock('../members/useUserProfile', () => ({ useUserProfile: () => ({ displayName: 'Ada' }) }));
+vi.mock('./Home.css', () => ({
+  Scroll: 'scroll',
+  Column: 'column',
+  Greeting: 'greeting',
+  Footer: 'footer',
+}));
+vi.mock('../account/verification/UnverifiedDeviceCard', () => ({
+  UnverifiedDeviceCard: () => null,
+}));
+vi.mock('../account/onboarding/KeyBackupNudge', () => ({ KeyBackupNudge: () => null }));
 vi.mock('../account/encryption/recoveryState', () => ({
   useRecoveryState: () => ({ kind: 'unknown' }),
 }));
@@ -151,7 +165,7 @@ const mockWelcomeConfig = () => {
 };
 
 describe('WelcomePage', () => {
-  it('renders docs button when docsUrl is set and icons are safe', () => {
+  it('renders the docs link when docsUrl is set', () => {
     useClientConfigMock.mockReturnValue({
       welcome: {
         docsUrl: 'https://docs.example.test',
@@ -167,12 +181,6 @@ describe('WelcomePage', () => {
       (node) => node.props?.href === 'https://docs.example.test'
     );
     expect(docsLinks.length).toBeGreaterThan(0);
-
-    const iconNodes = renderer.root.findAll((node) => node.props?.src && node.props?.size);
-    expect(iconNodes.length).toBeGreaterThan(0);
-    iconNodes.forEach((node) => {
-      expect(typeof node.props.src).toBe('function');
-    });
   });
 
   it('does not render docs button when docsUrl is empty', () => {

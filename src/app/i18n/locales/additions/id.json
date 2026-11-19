@@ -249,9 +249,6 @@
       "newIntro": "Pilih kata sandi pemulihan baru. Yang lama tidak akan berfungsi lagi.",
       "notCached": "Sesi ini tidak memiliki semua kunci enkripsi. Verifikasi sesi ini dengan kata sandi pemulihan Anda atau perangkat lain, lalu coba lagi.",
       "incompleteError": "Kata sandi pemulihan baru belum mencakup semua kunci enkripsi. Coba lagi.",
-      "nudgeTitle": "Lindungi pesan Anda",
-      "nudgeBody": "Atur kata sandi pemulihan agar Anda tetap bisa membaca obrolan terenkripsi setelah menghapus data browser ini atau masuk di perangkat baru.",
-      "nudgeButton": "Siapkan kata sandi pemulihan",
       "unlockWithPassword": "Buka kunci dengan kata sandi pemulihan",
       "resetLoss": "Pesan yang tidak bisa dibaca perangkat ini sekarang akan tetap tidak terbaca. Sesi Anda yang lain perlu diverifikasi lagi.",
       "setupCheckFailed": "Tidak dapat memeriksa pengaturan enkripsi Anda.",
@@ -1549,5 +1546,37 @@
   },
   "threadActions": {
     "openBeside": "Buka di kolom kedua"
+  },
+  "home": {
+    "greeting": {
+      "morning": "Selamat pagi, {{name}}",
+      "afternoon": "Selamat siang, {{name}}",
+      "evening": "Selamat malam, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Tanyakan apa saja kepada {{name}}…",
+      "chooseAgent": "Pilih siapa yang menjawab",
+      "agentChoice": "{{name}} menjawab",
+      "chooseRoom": "Pilih tempat utas dimulai",
+      "roomChoice": "Di {{room}}",
+      "inRoom": "di <avatar/>{{room}}",
+      "directChat": "Obrolan langsung",
+      "startsDirectChat": "Memulai obrolan dengan {{name}}",
+      "startingDirectChat": "Memulai obrolan dengan {{name}}…",
+      "directChatFailed": "Tidak dapat memulai obrolan dengan {{name}}. Coba lagi."
+    },
+    "recent": {
+      "title": "Utas terbaru",
+      "allThreads": "Semua utas",
+      "unread": "Belum dibaca"
+    },
+    "recovery": {
+      "action": "Atur kata sandi pemulihan",
+      "text": "Tetap dapat mengakses obrolan terenkripsi di perangkat baru."
+    },
+    "device": {
+      "action": "Verifikasi perangkat ini",
+      "text": "Sampai saat itu, perangkat ini tidak dapat membaca obrolan terenkripsi Anda."
+    }
   }
 }

@@ -257,9 +257,6 @@
       "newIntro": "Choisissez un nouveau mot de passe de récupération. L'ancien cessera de fonctionner.",
       "notCached": "Cette session ne détient pas toutes les clés de chiffrement. Vérifiez-la avec votre mot de passe de récupération ou un autre appareil, puis réessayez.",
       "incompleteError": "Le nouveau mot de passe de récupération ne couvre pas encore toutes les clés de chiffrement. Réessayez.",
-      "nudgeTitle": "Protégez vos messages",
-      "nudgeBody": "Définissez un mot de passe de récupération pour pouvoir continuer à lire vos discussions chiffrées après avoir vidé ce navigateur ou vous être connecté sur un nouvel appareil.",
-      "nudgeButton": "Configurer le mot de passe de récupération",
       "unlockWithPassword": "Déverrouiller avec le mot de passe de récupération",
       "resetLoss": "Les messages que cet appareil ne peut pas lire actuellement resteront illisibles. Vos autres sessions devront être vérifiées à nouveau.",
       "setupCheckFailed": "Impossible de vérifier votre configuration du chiffrement.",
@@ -1625,5 +1622,37 @@
   },
   "threadActions": {
     "openBeside": "Ouvrir dans la seconde colonne"
+  },
+  "home": {
+    "greeting": {
+      "morning": "Bonjour, {{name}}",
+      "afternoon": "Bon après-midi, {{name}}",
+      "evening": "Bonsoir, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Demandez ce que vous voulez à {{name}}…",
+      "chooseAgent": "Choisir qui répond",
+      "agentChoice": "{{name}} répond",
+      "chooseRoom": "Choisir où commence le fil",
+      "roomChoice": "Dans {{room}}",
+      "inRoom": "dans <avatar/>{{room}}",
+      "directChat": "Discussion directe",
+      "startsDirectChat": "Démarre une discussion avec {{name}}",
+      "startingDirectChat": "Démarrage d’une discussion avec {{name}}…",
+      "directChatFailed": "Impossible de démarrer une discussion avec {{name}}. Réessayez."
+    },
+    "recent": {
+      "title": "Fils récents",
+      "allThreads": "Tous les fils",
+      "unread": "Non lu"
+    },
+    "recovery": {
+      "action": "Définir un mot de passe de récupération",
+      "text": "Gardez l’accès à vos discussions chiffrées sur un nouvel appareil."
+    },
+    "device": {
+      "action": "Vérifier cet appareil",
+      "text": "D’ici là, il ne peut pas lire vos discussions chiffrées."
+    }
   }
 }

@@ -253,9 +253,6 @@
       "newIntro": "Yeni bir kurtarma parolası seçin. Eskisi çalışmayı bırakır.",
       "notCached": "Bu oturumda tüm şifreleme anahtarları yok. Kurtarma parolanızla ya da başka bir cihazla doğrulayın, sonra yeniden deneyin.",
       "incompleteError": "Yeni kurtarma parolası henüz tüm şifreleme anahtarlarını kapsamıyor. Tekrar deneyin.",
-      "nudgeTitle": "Mesajlarınızı koruyun",
-      "nudgeBody": "Bu tarayıcıyı temizledikten veya yeni bir cihazda oturum açtıktan sonra da şifreli sohbetlerinizi okuyabilmek için bir kurtarma parolası belirleyin.",
-      "nudgeButton": "Kurtarma parolası belirle",
       "unlockWithPassword": "Kurtarma parolasıyla kilidi aç",
       "resetLoss": "Bu cihazın şu an okuyamadığı mesajlar okunamaz kalır. Diğer oturumlarınızın yeniden doğrulanması gerekir.",
       "setupCheckFailed": "Şifreleme kurulumunuz denetlenemedi.",
@@ -1587,5 +1584,37 @@
   },
   "threadActions": {
     "openBeside": "İkinci sütunda aç"
+  },
+  "home": {
+    "greeting": {
+      "morning": "Günaydın, {{name}}",
+      "afternoon": "İyi günler, {{name}}",
+      "evening": "İyi akşamlar, {{name}}"
+    },
+    "ask": {
+      "placeholder": "{{name}} adlı ajana her şeyi sorun…",
+      "chooseAgent": "Kimin yanıtlayacağını seçin",
+      "agentChoice": "{{name}} yanıtlıyor",
+      "chooseRoom": "İş parçacığının nerede başlayacağını seçin",
+      "roomChoice": "{{room}} içinde",
+      "inRoom": "<avatar/>{{room}} içinde",
+      "directChat": "Doğrudan sohbet",
+      "startsDirectChat": "{{name}} ile bir sohbet başlatır",
+      "startingDirectChat": "{{name}} ile sohbet başlatılıyor…",
+      "directChatFailed": "{{name}} ile sohbet başlatılamadı. Yeniden deneyin."
+    },
+    "recent": {
+      "title": "Son iş parçacıkları",
+      "allThreads": "Tüm iş parçacıkları",
+      "unread": "Okunmadı"
+    },
+    "recovery": {
+      "action": "Kurtarma parolası belirleyin",
+      "text": "Yeni bir cihazda şifreli sohbetlere erişiminizi koruyun."
+    },
+    "device": {
+      "action": "Bu cihazı doğrulayın",
+      "text": "O zamana kadar şifreli sohbetlerinizi okuyamaz."
+    }
   }
 }

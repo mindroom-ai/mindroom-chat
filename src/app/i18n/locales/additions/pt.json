@@ -257,9 +257,6 @@
       "newIntro": "Escolhe uma nova senha de recuperação. A antiga deixa de funcionar.",
       "notCached": "Esta sessão não tem todas as chaves de cifragem. Verifique-a com a sua senha de recuperação ou com outro dispositivo e tente novamente.",
       "incompleteError": "A nova senha de recuperação ainda não cobre todas as chaves de cifragem. Tenta novamente.",
-      "nudgeTitle": "Proteja as suas mensagens",
-      "nudgeBody": "Defina uma senha de recuperação para continuar a ler as suas conversas cifradas depois de limpar este navegador ou iniciar sessão num novo dispositivo.",
-      "nudgeButton": "Configurar senha de recuperação",
       "unlockWithPassword": "Desbloquear com a senha de recuperação",
       "resetLoss": "As mensagens que este dispositivo não consegue ler agora continuarão ilegíveis. As suas outras sessões precisarão ser verificadas novamente.",
       "setupCheckFailed": "Não foi possível verificar a configuração da sua cifragem.",
@@ -1625,5 +1622,37 @@
   },
   "threadActions": {
     "openBeside": "Abrir na segunda coluna"
+  },
+  "home": {
+    "greeting": {
+      "morning": "Bom dia, {{name}}",
+      "afternoon": "Boa tarde, {{name}}",
+      "evening": "Boa noite, {{name}}"
+    },
+    "ask": {
+      "placeholder": "Pergunte qualquer coisa a {{name}}…",
+      "chooseAgent": "Escolher quem responde",
+      "agentChoice": "{{name}} responde",
+      "chooseRoom": "Escolher onde a conversa começa",
+      "roomChoice": "Em {{room}}",
+      "inRoom": "em <avatar/>{{room}}",
+      "directChat": "Conversa direta",
+      "startsDirectChat": "Inicia uma conversa com {{name}}",
+      "startingDirectChat": "Iniciando uma conversa com {{name}}…",
+      "directChatFailed": "Não foi possível iniciar uma conversa com {{name}}. Tente novamente."
+    },
+    "recent": {
+      "title": "Conversas recentes",
+      "allThreads": "Todas as conversas",
+      "unread": "Não lida"
+    },
+    "recovery": {
+      "action": "Definir uma senha de recuperação",
+      "text": "Mantenha o acesso às conversas criptografadas em um novo dispositivo."
+    },
+    "device": {
+      "action": "Verificar este dispositivo",
+      "text": "Até lá, ele não consegue ler suas conversas criptografadas."
+    }
   }
 }

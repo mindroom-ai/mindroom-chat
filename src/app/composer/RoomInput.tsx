@@ -1,6 +1,7 @@
 import React, {
   forwardRef,
   KeyboardEvent,
+  ReactNode,
   RefObject,
   useCallback,
   useContext,
@@ -69,7 +70,7 @@ import { ComposerActionsMenu } from './ComposerActionsMenu';
 import { ComposerAttachButton } from './ComposerAttachButton';
 import { ComposerSendButton } from './ComposerSendButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { composeTextMessage, holdsNoText } from './composeTextMessage';
+import { composeTextMessage, holdsNoText, withMention } from './composeTextMessage';
 import {
   type ActingCommand,
   describeCommandFailure,
@@ -122,6 +123,11 @@ export type RoomInputProps = {
    * keeps its text apart from the thread's, and takes no reply.
    */
   forkFrom?: ThreadForkRef;
+  /**
+   * Home's ask field: each message starts a thread addressed to `agentUserId`, and `pickers`
+   * (who answers, and where) take the model button's place, with no formatting or emoji button.
+   */
+  ask?: { agentUserId: string; placeholder: string; pickers: ReactNode };
 };
 
 const isEnter = isKeyHotkey('enter');
@@ -220,6 +226,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       threadingEnabled = true,
       onRoomMessageSent,
       forkFrom,
+      ask,
     },
     ref
   ) => {
@@ -269,7 +276,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // "More actions" menu, so the text gets their width.
     const phone = useScreenSizeContext() === ScreenSize.Mobile;
     // A thread's model button starts the row, on phones too: its provider's logo, and a menu.
-    const modelPicker = (
+    const modelPicker = ask?.pickers ?? (
       <ThreadModelPicker room={room} threadId={threadId} conversationHidden={conversationHidden} />
     );
     // While an agent replies in the thread, holding Send offers how the message meets the reply.
@@ -421,7 +428,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     });
 
     // Every text message says what MindRoom does with it should it arrive while an agent replies
-    // in its thread; the send session keeps it on the message for a retry.
+    // in its thread; the send session keeps it on the message for a retry. A question asked from
+    // Home mentions its agent, so that agent answers in a room with several.
+    const askedAgent = ask?.agentUserId;
     const buildTextContent = useCallback(
       (mode: MidTurnMode): IContent | undefined => {
         const content = composeTextMessage(
@@ -430,9 +439,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           mx.getUserId() ?? undefined,
           linkSchemes
         );
-        return content && { ...content, [MID_TURN_MODE_KEY]: mode };
+        if (!content) return undefined;
+        const addressed = askedAgent ? withMention(content, askedAgent) : content;
+        return { ...addressed, [MID_TURN_MODE_KEY]: mode };
       },
-      [editor, isMarkdown, linkSchemes, mx]
+      [askedAgent, editor, isMarkdown, linkSchemes, mx]
     );
 
     // A command that acts sends nothing: the composer empties while it runs and gets the text
@@ -660,7 +671,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       focused: focus.focused,
       pressing: focus.pressing,
       empty,
+      // Home's ask field keeps both rows, so its pickers have the row to themselves.
       busy:
+        !!ask ||
         !!replyDraft ||
         !!attachments.board ||
         !!recorder ||
@@ -716,7 +729,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     return (
       <div
         ref={setComposerRef}
-        style={COMPOSER_STYLE}
+        // Home's column sets the field's width itself.
+        style={ask ? undefined : COMPOSER_STYLE}
         data-composer-expanded={expanded}
         // Only a press on the expanded composer holds it open (`isComposerExpanded`).
         onPointerDown={phone && expanded ? focus.onPointerDown : undefined}
@@ -778,7 +792,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           className={glassDenseOverBackdrop}
           // A phone keeps the formatting toolbar in a row of its own however wide its composer.
           inlineBottom={!phone}
-          placeholder={forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')}
+          placeholder={
+            ask?.placeholder ??
+            (forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder'))
+          }
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}
@@ -823,19 +840,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 />
                 {/* A fork draft records no voice: one would start a thread, not the fork. */}
                 {!forkFrom && voice.microphone}
-                <ComposerIconButton
-                  label={t('composer.formatting')}
-                  icon={Icons.Text}
-                  pressed={formattingOpen}
-                  onPress={toggleFormatting}
-                />
+                {!ask && (
+                  <ComposerIconButton
+                    label={t('composer.formatting')}
+                    icon={Icons.Text}
+                    pressed={formattingOpen}
+                    onPress={toggleFormatting}
+                  />
+                )}
               </>
             )
           }
           bottom={formattingOpen && <ComposerFormattingToolbar />}
           after={
             <>
-              {!phone && (
+              {!phone && !ask && (
                 <ComposerIconButton
                   label={emojiLabel}
                   icon={Icons.Smile}
