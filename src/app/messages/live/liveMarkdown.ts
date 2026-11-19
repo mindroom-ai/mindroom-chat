@@ -23,7 +23,9 @@ const SUPPORTED_BLOCK_LINE_START = new RegExp(`^ {0,3}</?(?:${BLOCK_TAG_ALTERNAT
 const SUPPORTED_BLOCK_END_TAG = new RegExp(`</(?:${BLOCK_TAG_ALTERNATION})>\\s*$`, 'i');
 const HR_BLOCK_TAG = /^ {0,3}<hr\b[^<>]*\/?>\s*$/i;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
-const RAW_HTML_TAG_START = /^<\/?([A-Za-z][A-Za-z0-9-]*)/;
+// The runtime's HTML parser, and the app's sanitizer, read all text after one of these raw tags as raw text.
+const RAW_TEXT_TAG =
+  /<\/?(?:script|style|title|textarea|xmp|iframe|noembed|noframes|noscript|plaintext)(?=[\s/>])[^>]*>/gi;
 
 /** Python's `html.escape`, which the runtime uses for escaped openers and preserved math. */
 const escapeLikePython = (text: string): string =>
@@ -33,12 +35,6 @@ const escapeLikePython = (text: string): string =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
-
-/** The tag `rawHtml` opens with when the runtime escapes it: an HTML parser reads all text after a raw `<title>` as text. */
-const disallowedRawTagName = (rawHtml: string): string | undefined => {
-  const name = RAW_HTML_TAG_START.exec(rawHtml)?.[1]!.toLowerCase();
-  return name === undefined || ALLOWED_TAGS.has(name) ? undefined : name;
-};
 
 // `trimEnd` removes the same characters as `/\s+$/` in linear time; the regex backtracks quadratically.
 const stripTrailingWhitespace = (text: string): string => text.trimEnd();
@@ -229,20 +225,6 @@ const buildRenderer = (MarkdownItConstructor: typeof MarkdownIt): MarkdownIt => 
     escapeLikePython(`$${tokens[index]!.content}$`);
   md.renderer.rules.math_block = (tokens, index) =>
     `<div>${escapeLikePython(`$$\n${tokens[index]!.content.trim()}\n$$`)}</div>\n`;
-  // A disallowed inline tag is escaped as the runtime's sanitizer escapes it; comments and the like
-  // only hide text and pass.
-  md.renderer.rules.html_inline = (tokens, index) => {
-    const { content } = tokens[index]!;
-    const name = disallowedRawTagName(content);
-    if (name === undefined) return content;
-    // The runtime writes a disallowed end tag lowercased and without attributes.
-    return escapeLikePython(content.startsWith('</') ? `</${name}>` : content);
-  };
-  // A `<title>` opening a list item or quote opens block HTML.
-  md.renderer.rules.html_block = (tokens, index) => {
-    const { content } = tokens[index]!;
-    return disallowedRawTagName(content) === undefined ? content : escapeLikePython(content);
-  };
   return md;
 };
 
@@ -268,12 +250,14 @@ export const loadLiveMarkdown = (): Promise<void> => {
 
 /** The HTML for live Markdown, or undefined until the renderer has loaded. */
 export const renderLiveMarkdown = (md: string): string | undefined =>
-  renderer?.render(
-    transformOutsideFencedCode(
-      transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
-      separateSupportedBlockHtml
+  renderer
+    ?.render(
+      transformOutsideFencedCode(
+        transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
+        separateSupportedBlockHtml
+      )
     )
-  );
+    .replace(RAW_TEXT_TAG, escapeLikePython);
 
 const subscribeReady = (listener: () => void) => {
   readyListeners.add(listener);
