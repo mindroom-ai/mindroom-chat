@@ -237,6 +237,10 @@ final class RoomRouteReloadTests: XCTestCase {
             let termination = events.first { $0["name"] as? String == "webview.terminated" }
             XCTAssertNotNil(termination)
             let terminationSequence = termination?["sequence"] as? Int ?? Int.max
+            // TEMP-DIAG(webview-kill): WebKit's private callback names the reason before Capacitor reloads.
+            let reason = events.first { $0["name"] as? String == "webview.termination_reason" }
+            XCTAssertEqual((reason?["data"] as? [String: Any])?["terminationReason"] as? String, "crash")
+            XCTAssertLessThan(reason?["sequence"] as? Int ?? Int.max, terminationSequence)
             XCTAssertTrue(events.contains {
                 $0["name"] as? String == "navigation.finished" && ($0["sequence"] as? Int ?? 0) > terminationSequence
             })

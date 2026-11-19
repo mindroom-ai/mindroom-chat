@@ -19,6 +19,8 @@ enum MindRoomDiagnosticEventName: String, Codable {
     case navigationFailed = "navigation.failed"
     case navigationProvisionalFailed = "navigation.provisional_failed"
     case webViewTerminated = "webview.terminated"
+    // TEMP-DIAG(webview-kill):
+    case webViewTerminationReason = "webview.termination_reason"
 }
 
 enum MindRoomDiagnosticErrorDomain: String, Codable {
@@ -40,6 +42,10 @@ struct MindRoomDiagnosticState: Codable, Equatable {
     var emptyBounds: Bool?
     var errorDomain: MindRoomDiagnosticErrorDomain?
     var errorCode: Int?
+    // TEMP-DIAG(webview-kill): WebKit's termination reason, app headroom, time since the last memory warning.
+    var terminationReason: String?
+    var availableMemoryBytes: Int?
+    var msSinceMemoryWarning: Int?
 
     init(
         applicationState: Int? = nil,
@@ -85,7 +91,9 @@ struct MindRoomDiagnosticState: Codable, Equatable {
     var isEmpty: Bool {
         applicationState == nil && sceneState == nil && loading == nil && progress == nil &&
             attached == nil && hidden == nil && opaque == nil && transparent == nil &&
-            emptyBounds == nil && errorDomain == nil && errorCode == nil
+            emptyBounds == nil && errorDomain == nil && errorCode == nil &&
+            // TEMP-DIAG(webview-kill):
+            terminationReason == nil && availableMemoryBytes == nil && msSinceMemoryWarning == nil
     }
 
     var isValid: Bool {
