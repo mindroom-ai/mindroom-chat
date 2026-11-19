@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
@@ -187,18 +187,68 @@ const threadColumn = (page: Page) => page.getByTestId('thread-column');
 const threadBack = (page: Page) => threadColumn(page).getByRole('button', { name: 'Back' }).last();
 const card = (page: Page, root: string) => page.locator(`[data-thread-root-id="${root}"]`).first();
 
-test.describe('a phone slides its pages', () => {
-  test.beforeEach(async () => {
-    test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
-  });
+/** Runs `check` on a phone's page in `engine`, signed in as `username`. */
+const onPhone = async (
+  engine: (typeof ENGINES)[number],
+  browser: Browser,
+  username: string,
+  options: { reducedMotion?: 'reduce'; heldAt?: number },
+  check: (page: Page) => Promise<void>
+) => {
+  const own = engine === 'webkit' ? await launchWebKit() : browser;
+  try {
+    const context = await own.newContext({ ...PHONE, reducedMotion: options.reducedMotion });
+    try {
+      const page = await context.newPage();
+      await recordSlides(page, options.heldAt);
+      await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+      await check(page);
+      expect(
+        await page.evaluate(() => (window as unknown as Recorded).viewTransitions),
+        'the page asks the browser for no view transition'
+      ).toBe(0);
+    } finally {
+      await context.close();
+    }
+  } finally {
+    if (engine === 'webkit') await own.close();
+  }
+};
 
-  test('the list slides away over a room, and a thread comes in from the right', async ({
-    page,
+test.beforeEach(async () => {
+  test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
+});
+
+for (const engine of ENGINES) {
+  test(`${engine}: the list slides away over a room, and a thread comes in from the right`, async ({
+    browser,
   }) => {
     test.setTimeout(180_000);
-    const { username, root } = await seed('slides');
-    await recordSlides(page);
-    await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+    const { username, root } = await seed(`slides${engine}`);
+    await onPhone(engine, browser, username, { heldAt: SHOTS ? HELD_AT_MS : undefined }, (page) =>
+      slidesItsPages(page, root, engine)
+    );
+  });
+
+  test(`${engine}: nothing slides for someone who asked for reduced motion`, async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const { username, root } = await seed(`still${engine}`);
+    await onPhone(engine, browser, username, { reducedMotion: 'reduce' }, async (page) => {
+      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+      await card(page, root).tap();
+      await expect(threadColumn(page)).toBeVisible();
+      await threadBack(page).tap();
+      await expect(threadColumn(page)).toBeHidden();
+      expect(await takeSlides(page, 'reduced motion')).toEqual([]);
+    });
+  });
+}
+
+const slidesItsPages = async (page: Page, root: string, engine: (typeof ENGINES)[number]) => {
+  {
     // Home's own page: the list is out.
     await expect(drawer(page)).toBeVisible();
     await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible();
@@ -210,14 +260,17 @@ test.describe('a phone slides its pages', () => {
     });
     expect(await takeSlides(page, 'loaded again'), 'a fresh load').toEqual([]);
 
-    // The slides slowed to a tenth, for a frame of each mid-way.
-    const slow = SHOTS ? await page.context().newCDPSession(page) : undefined;
+    // A frame of each slide mid-way: a page slide is held there (`recordSlides`) until its copy
+    // goes, and Chromium slows the drawer's to a tenth.
+    const slow =
+      SHOTS && engine === 'chromium' ? await page.context().newCDPSession(page) : undefined;
     await slow?.send('Animation.enable');
     await slow?.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
-    const shot = async (name: string) => {
-      if (!SHOTS) return;
-      await page.waitForTimeout(900);
-      await page.screenshot({ path: `${SHOTS}/${name}.png` });
+    const shot = async (name: string, pageSlide = false) => {
+      if (!SHOTS || !(pageSlide || slow)) return;
+      if (pageSlide) await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
+      await page.waitForTimeout(pageSlide ? 300 : 900);
+      await page.screenshot({ path: `${SHOTS}/${engine}-${name}.png` });
     };
 
     // Whatever the drawer did on the way in is no part of what follows.
@@ -234,20 +287,20 @@ test.describe('a phone slides its pages', () => {
     ]);
 
     await card(page, root).tap();
-    await shot('2-thread-comes-in');
+    await shot('2-thread-comes-in', true);
     await expect(threadColumn(page)).toBeVisible();
     expect(await takeSlides(page, 'a thread from its room'), 'a thread from its room').toEqual([
       FORWARD,
     ]);
 
     await threadBack(page).tap();
-    await shot('3-thread-leaves');
+    await shot('3-thread-leaves', true);
     await expect(threadColumn(page)).toBeHidden();
     expect(await takeSlides(page, 'back to the room'), 'back to the room').toEqual([BACK]);
 
     // The browser's back (Android's back button) leaves the room for the list.
     await page.goBack();
-    await shot('4-room-leaves');
+    await shot('4-room-leaves', true);
     await expect(drawer(page)).toBeVisible();
     expect(await takeSlides(page, 'back to the list'), 'back to the list').toEqual([BACK]);
 
@@ -274,20 +327,5 @@ test.describe('a phone slides its pages', () => {
       'transitionrun',
       'transitionend',
     ]);
-  });
-
-  test('nothing slides for someone who asked for reduced motion', async ({ page }) => {
-    test.setTimeout(180_000);
-    const { username, root } = await seed('still');
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await recordSlides(page);
-    await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-    await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-    await card(page, root).tap();
-    await expect(threadColumn(page)).toBeVisible();
-    await threadBack(page).tap();
-    await expect(threadColumn(page)).toBeHidden();
-    expect(await takeSlides(page, 'reduced motion')).toEqual([]);
-  });
-});
+  }
+};
