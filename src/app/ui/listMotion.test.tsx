@@ -251,6 +251,74 @@ describe('useListMotion', () => {
     expect(left?.isConnected).toBe(false);
   });
 
+  describe('under a press', () => {
+    // jsdom has no PointerEvent: a mouse event of the pointer's type.
+    const pointer = (type: string, target: Element, button = 0) =>
+      target.dispatchEvent(new MouseEvent(type, { bubbles: true, button }));
+    const row = (key: string) =>
+      screen.getByTestId('list').querySelector(`[data-motion-row="${key}"]`) as HTMLElement;
+    const states = () => [...new Set(motion.plays.map(({ animation }) => animation.playState))];
+    const reorder = () => {
+      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+      rerender(<List order={['c', 'a', 'b']} />);
+      expect(states()).toEqual(['running']);
+    };
+
+    it('holds every play where it shows until the click, so the pressed row gets it', () => {
+      reorder();
+
+      pointer('pointerdown', row('c'));
+      expect(states()).toEqual(['paused']);
+
+      // A finger's click comes after its pointerup, and is aimed anew then.
+      pointer('pointerup', row('c'));
+      expect(states()).toEqual(['paused']);
+
+      pointer('click', row('c'));
+      expect(states()).toEqual(['running']);
+    });
+
+    it('lets go when the press is cancelled, as when it became a scroll', () => {
+      reorder();
+
+      pointer('pointerdown', row('a'));
+      pointer('pointercancel', row('a'));
+
+      expect(states()).toEqual(['running']);
+    });
+
+    it('holds nothing for a press outside the list or with another button', () => {
+      reorder();
+
+      pointer('pointerdown', document.body);
+      pointer('pointerdown', row('c'), 2);
+
+      expect(states()).toEqual(['running']);
+    });
+
+    it('leaves a play that ended while it was held alone', async () => {
+      vi.useFakeTimers();
+      reorder();
+
+      pointer('pointerdown', row('c'));
+      // The list ends the plays the browser has not ended.
+      await vi.advanceTimersByTimeAsync(LONGEST_PLAY_MS);
+      pointer('click', row('c'));
+
+      expect(states()).toEqual(['idle']);
+    });
+
+    it('lets go when the list goes during the press', () => {
+      reorder();
+      const { plays } = motion;
+
+      pointer('pointerdown', row('c'));
+      cleanup();
+
+      expect([...new Set(plays.map(({ animation }) => animation.playState))]).toEqual(['running']);
+    });
+  });
+
   it('plays nothing with reduced motion', () => {
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,

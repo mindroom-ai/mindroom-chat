@@ -14,8 +14,8 @@ export type MotionPlay = {
  * What a list in motion (ui/listMotion.tsx) needs and jsdom lacks: a layout and Web Animations.
  * The rows (`data-motion-row`) stack in one column, `ROW_HEIGHT` apart; an element stands where
  * the row it is, is inside of, or holds first stands. `plays` holds every animation started, none
- * of which ends before `finish()`; `cancel` counts the animations cancelled. Call `restore()`
- * after each test.
+ * of which ends before `finish()`, and each can be paused and played on; `cancel` counts the
+ * animations cancelled. Call `restore()` after each test.
  */
 export const standInForListMotion = () => {
   const plays: MotionPlay[] = [];
@@ -49,6 +49,12 @@ export const standInForListMotion = () => {
           cancel();
           animation.playState = 'idle';
           abort();
+        },
+        pause: () => {
+          if (animation.playState === 'running') animation.playState = 'paused';
+        },
+        play: () => {
+          if (animation.playState === 'paused') animation.playState = 'running';
         },
       };
       plays.push({ element: this, keyframes, options, animation });
