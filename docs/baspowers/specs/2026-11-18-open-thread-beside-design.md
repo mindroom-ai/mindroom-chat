@@ -131,3 +131,28 @@ keeps B, a message typed in B lands in B, Close removes it, phone menu lacks the
 - B is per browser, not synced across devices, and not in a copied link.
 - On a narrow tablet the splitter keeps the conversation's least width, so B can be narrow.
 - No "swap A and B" action; opening B's card makes it A and closes the second column.
+
+## Follow-up (2026-11-18)
+
+Two features both said "beside" (the banner's Show beside and the card menu's Open beside), and
+with the default layout opening B hid the room's messages. Three changes:
+
+1. **Rename.** The card menu's entry is now **Open in second column** (key
+   `threadActions.openBeside` kept), in English and the 16 overlays.
+2. **Messages show while B shows.** While B shows (not on phones) and the page has room
+   (`threadLayout.roomy`), A lays out beside the messages whatever layout is stored: Room passes
+   `besideWhileSecond` to RoomView, and `columnFills` is
+   `!!openThreadId && ((layout === 'full' && !besideWhileSecond) || !roomy)`. Nothing is stored;
+   closing B brings the stored layout back. Meanwhile A's banner offers neither Show beside nor
+   Show in full (the second could not take effect while B shows).
+3. **Drag a card to open it in the second column** (mouse only). A Compact card the page offers
+   (`SecondThreadContext.offers`) is `draggable` with a fine pointer; its drag carries
+   `application/x-mindroom-thread` = `{ roomId, rootId }` (`navigation/secondThread.ts`, shared by
+   `threads` and `room`). `room/useThreadDrag.ts` tells a thread's drag by its type from window
+   `dragstart` until `dragend` or `drop` (Escape ends a drag too), and
+   `room/SecondThreadDropZone.tsx` shows a primary-tinted zone along the room row's end edge, as
+   wide as B's stored width or 480px and never wider than the row, fading in over 150 ms (none with
+   reduced motion), lit while the drag is over it. Dropping calls `SecondThreadContext.open`, so B
+   moves in through the panel presence, or replaces the B that shows. The zone is `aria-hidden`:
+   the menu entry is the keyboard's way. Phones have no context, so neither drag nor zone. The
+   panel row is now positioned (`position: relative`) so the zone takes its edges.
