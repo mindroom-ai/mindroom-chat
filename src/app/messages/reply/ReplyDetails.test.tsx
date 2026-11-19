@@ -300,8 +300,9 @@ describe('ReplyDetails', () => {
     render(reply, '$r3', thread([0.01, 0.02, 0.03], true, [20_000_000, 40_000_000, 1_400_000]));
     expect(conversation()).toBe('Conversation so far61.4M tokens · 3 replies');
 
-    render(reply, '$r3', thread([0.01, 0.02, 0.03], false, [20_000_000, 40_000_000, 1_400_000]));
-    expect(conversation()).toBe('Conversation so far≥ 61.4M tokens · 3 loaded replies');
+    // A lower bound is exact: 1,499,999 would round up to 1.5M.
+    render(reply, '$r2', thread([0.01, 0.02], false, [1_000_000, 499_999]));
+    expect(conversation()).toBe('Conversation so far≥ 1,499,999 tokens · 2 loaded replies');
   });
 
   it("leaves out the conversation's tokens outside a thread or without a count", () => {

@@ -270,8 +270,11 @@ function ConversationTokens({ eventId }: { eventId: string | undefined }) {
   const threadCost = useThreadConversationCost();
   const throughReply = eventId ? threadCost?.tokensByEventId.get(eventId) : undefined;
   if (!threadCost || !throughReply) return null;
+  // A lower bound shows the exact count, since a rounded-up short one would claim more than counted.
   const tokens = t('mindroomUi.messages.mindroomReplyDetails.tokenCount', {
-    tokens: formatAiRunCompactNumber(throughReply.tokens, language),
+    tokens: threadCost.complete
+      ? formatAiRunCompactNumber(throughReply.tokens, language)
+      : formatAiRunNumber(throughReply.tokens, language),
   });
   const replies = t(
     threadCost.complete
