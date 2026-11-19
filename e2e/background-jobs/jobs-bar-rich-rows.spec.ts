@@ -17,12 +17,12 @@ test.afterEach(async ({ context }) => {
 const LEAD_TOOL = {
   type: 'tool_call_started',
   tool_name: 'run_shell_command',
-  args_preview: 'uv run pytest tests/test_held_projection.py -x',
+  args_preview: 'uv run pytest tests/export/test_retry.py -x',
 };
 const CHILD_TOOL = {
   type: 'tool_call_started',
   tool_name: 'grep',
-  args_preview: 'request_tokens src/',
+  args_preview: 'schedule_retry src/',
 };
 
 // Each run's frames: one publisher generation (`sid`, as MindRoom writes it) and its next `seq`.
@@ -79,7 +79,7 @@ const sendRuns = async (room: PanelRoom) => {
     'run-lead',
     {
       subagent: 'sub-lead',
-      task: 'Redesign the held system prompt\nas one request projection',
+      task: 'Rework the export queue retry policy\nwith capped backoff',
       model: {
         config: 'fable',
         display_name: 'Fable 5.2',
@@ -96,7 +96,7 @@ const sendRuns = async (room: PanelRoom) => {
     {
       subagent: 'sub-child',
       parent: 'run-lead',
-      task: 'Find every caller of request_tokens',
+      task: 'List every caller of schedule_retry',
       model: {
         config: 'sol',
         display_name: 'Sol · GPT-6.2',
@@ -143,7 +143,7 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   // The agent's reply that started the shell job, whose trace names the call.
   await sendRoomMessage(DISPOSABLE_HOMESERVER, room.agent.accessToken, room.roomId, {
     msgtype: 'm.text',
-    body: 'Started the suite on gce-dev.',
+    body: 'Started the suite on build-box.',
     'm.relates_to': { rel_type: 'm.thread', event_id: room.rootId },
     'io.mindroom.tool_trace': {
       version: 2,
@@ -151,13 +151,13 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
         {
           type: 'tool_call_completed',
           tool_name: 'run_shell_command',
-          args_preview: "ssh gce-dev 'cd /work/slot71 && uv run pytest -n 20'",
+          args_preview: "ssh build-box 'cd /srv/checkout/slot-14 && uv run pytest -n 20'",
           tool_call_id: 'call_shell',
         },
       ],
     },
   });
-  await expect(page.getByText('Started the suite on gce-dev.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Started the suite on build-box.', { exact: true })).toBeVisible();
   await sendRuns(room);
   const startedAt = (secondsAgo: number) => new Date(Date.now() - secondsAgo * 1000).toISOString();
   const job = (jobId: string, extra: Record<string, unknown>) => ({
@@ -212,8 +212,8 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   const lead = row(bar, 'subagent');
   await expect(lead.locator('[data-job-logo]')).toHaveAttribute('data-model-provider', 'anthropic');
   await expect(lead.locator('[data-job-model]')).toHaveText('Fable 5.2');
-  await expect(lead).toContainText('Redesign the held system prompt');
-  await expect(lead).not.toContainText('as one request projection');
+  await expect(lead).toContainText('Rework the export queue retry policy');
+  await expect(lead).not.toContainText('with capped backoff');
   await expect(lead.locator('[data-job-activity]')).toHaveText(
     `run_shell_command ${LEAD_TOOL.args_preview}`
   );
@@ -233,7 +233,7 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(shell.locator('[data-job-logo]')).toHaveAttribute('data-job-logo', 'tool');
   // A tool job's second line is its call's arguments; its first line names the tool.
   await expect(shell.locator('[data-job-activity]')).toHaveText(
-    "ssh gce-dev 'cd /work/slot71 && uv run pytest -n 20'"
+    "ssh build-box 'cd /srv/checkout/slot-14 && uv run pytest -n 20'"
   );
   await expect(shell.locator('[data-job-open]')).toHaveCount(0);
   // The rows' order in the list: sub-agents (each child under its parent), then tools.
