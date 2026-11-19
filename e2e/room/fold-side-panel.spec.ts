@@ -42,7 +42,7 @@ for (const start of ['default', 'widest'] as const) {
         Promise.all(element.getAnimations().map((animation) => animation.finished))
       );
     if (start === 'widest') {
-      await panel.getByRole('separator').press('End');
+      await panel.locator(':scope > [role="separator"]').press('End');
       await expect.poll(async () => (await widths(page, panel)).conversation).toBeLessThan(500);
     }
     await settled();
@@ -54,7 +54,7 @@ for (const start of ['default', 'widest'] as const) {
     await settled();
     const folded = await widths(page, panel);
     // eslint-disable-next-line no-console
-    console.log(`${browserName} ${start}: beside ${JSON.stringify(beside)}, folded ${JSON.stringify(folded)}`);
+    console.log(`${browserName} ${start}:`, JSON.stringify({ beside, folded }));
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${browserName}-${start}.png` });
     // The tab, and the room's gap beside it.
     expect(folded.panel).toBeLessThan(60);
