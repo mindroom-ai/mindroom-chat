@@ -851,10 +851,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "サブエージェント",
-        "tokensInThisReply": "この返信のトークン",
         "writtenToCache": "キャッシュに書き込み",
         "notCached": "キャッシュなし",
-        "tokenCount": "{{tokens}} トークン"
+        "conversation": "会話"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中",

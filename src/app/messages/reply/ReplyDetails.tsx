@@ -16,8 +16,10 @@ import {
   getAiRunCompactModelLabel,
   getAiRunContextBarSegments,
   getAiRunContextLabel,
+  getAiRunTokenCountParts,
   getAiRunTokenParts,
 } from '../agent-run/aiRunDisplay';
+import * as segmented from '../../ui/styles/Segmented.css';
 import * as css from './ReplyDetails.css';
 
 // Enough bars to read a long thread's shape without each one shrinking to a hairline.
@@ -26,10 +28,13 @@ const MAX_HISTORY_BARS = 40;
 function Section({
   title,
   value,
+  action,
   children,
 }: {
   title: string;
   value?: string;
+  /** A control in place of the value. */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -43,6 +48,7 @@ function Section({
             {value}
           </Text>
         )}
+        {action}
       </div>
       {children}
     </section>
@@ -263,51 +269,73 @@ function CostCard({
   );
 }
 
-/** What the conversation used through this reply, as the cost card counts its cost. */
-function ConversationTokens({ eventId }: { eventId: string | undefined }) {
-  const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  const threadCost = useThreadConversationCost();
-  const throughReply = eventId ? threadCost?.tokensByEventId.get(eventId) : undefined;
-  if (!threadCost || !throughReply) return null;
-  // A lower bound shows the exact count, since a rounded-up short one would claim more than counted.
-  const tokens = t('mindroomUi.messages.mindroomReplyDetails.tokenCount', {
-    tokens: threadCost.complete
-      ? formatAiRunCompactNumber(throughReply.tokens, language)
-      : formatAiRunNumber(throughReply.tokens, language),
-  });
-  const replies = t(
-    threadCost.complete
-      ? 'mindroomUi.messages.mindroomReplyDetails.replyCount'
-      : 'mindroomUi.messages.mindroomReplyDetails.loadedReplyCount',
-    { count: throughReply.replyCount }
-  );
-  return (
-    <Text as="div" size="T200" priority="300" className={css.ConversationTokens}>
-      <span>{t('mindroomUi.messages.mindroomReplyDetails.conversationSoFar')}</span>
-      <span>
-        <span className={css.MetaValue}>
-          {threadCost.complete
-            ? tokens
-            : t('mindroomUi.messages.mindroomReplyDetails.atLeastCost', { cost: tokens })}
-        </span>
-        {' · '}
-        {replies}
-      </span>
-    </Text>
-  );
-}
+const TOKEN_VIEWS = ['thisReply', 'conversation'] as const;
 
+/** What this reply's tokens, or in a thread the conversation's through it, were spent on. */
 function Tokens({ info, eventId }: { info: AiRunInfo; eventId: string | undefined }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const tokens = getAiRunTokenParts(info, t);
-  if (!tokens) return null;
+  const [view, setView] = useState<(typeof TOKEN_VIEWS)[number]>('thisReply');
+  const threadCost = useThreadConversationCost();
+  const throughReply = eventId ? threadCost?.tokensByEventId.get(eventId) : undefined;
+  const reply = getAiRunTokenParts(info, t);
+  const conversation = throughReply && getAiRunTokenCountParts(throughReply.counts, t);
+  if (!reply) return null;
+  const tokens = view === 'conversation' && conversation ? conversation : reply;
+  const complete = tokens === reply || !!threadCost?.complete;
+  // The conversation's sums read short, but a lower bound stays exact: a rounded-up short count
+  // would claim more than was counted.
+  const amount = (count: number) =>
+    tokens === reply || !complete
+      ? formatAiRunNumber(count, language)
+      : formatAiRunCompactNumber(count, language);
+  let label = t('mindroomUi.messages.mindroomReplyDetails.thisReply');
+  if (tokens !== reply && throughReply) {
+    const replies = t(
+      complete
+        ? 'mindroomUi.messages.mindroomReplyDetails.replyCount'
+        : 'mindroomUi.messages.mindroomReplyDetails.loadedReplyCount',
+      { count: throughReply.replyCount }
+    );
+    label = `${t('mindroomUi.messages.mindroomReplyDetails.conversationSoFar')} · ${replies}`;
+  }
+  const total = amount(tokens.total);
   return (
     <Section
-      title={t('mindroomUi.messages.mindroomReplyDetails.tokensInThisReply')}
-      value={formatAiRunNumber(tokens.total, language)}
+      title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
+      action={
+        conversation && (
+          <div
+            className={segmented.Segments}
+            role="radiogroup"
+            aria-label={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
+          >
+            {TOKEN_VIEWS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={view === id}
+                className={segmented.Segment}
+                onClick={() => setView(id)}
+              >
+                {t(`mindroomUi.messages.mindroomReplyDetails.${id}`)}
+              </button>
+            ))}
+          </div>
+        )
+      }
     >
+      <Text as="div" size="T200" className={css.TokenTotal}>
+        <Text as="span" size="T200" priority="300">
+          {label}
+        </Text>
+        <span className={css.HeaderValue}>
+          {complete
+            ? total
+            : t('mindroomUi.messages.mindroomReplyDetails.atLeastCost', { cost: total })}
+        </span>
+      </Text>
       <Meter parts={tokens.parts} legend />
       <ul className={css.Legend}>
         {tokens.parts.map((part) => (
@@ -316,11 +344,10 @@ function Tokens({ info, eventId }: { info: AiRunInfo; eventId: string | undefine
             <Text as="span" size="T200" priority="300">
               {part.label}
             </Text>{' '}
-            {formatAiRunNumber(part.tokens, language)}
+            {amount(part.tokens)}
           </Text>
         ))}
       </ul>
-      <ConversationTokens eventId={eventId} />
     </Section>
   );
 }

@@ -916,10 +916,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "الوكلاء الفرعيون",
-        "tokensInThisReply": "الرموز المميزة في هذا الرد",
         "writtenToCache": "مكتوبة في الذاكرة المؤقتة",
         "notCached": "غير مخزنة مؤقتًا",
-        "tokenCount": "⁨{{tokens}}⁩ رمز مميز"
+        "conversation": "المحادثة"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",

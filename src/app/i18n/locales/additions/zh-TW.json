@@ -851,10 +851,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "子代理",
-        "tokensInThisReply": "這則回覆的詞元",
         "writtenToCache": "寫入快取",
         "notCached": "未快取",
-        "tokenCount": "{{tokens}} 個詞元"
+        "conversation": "對話"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",

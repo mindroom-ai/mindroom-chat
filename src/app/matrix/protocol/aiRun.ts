@@ -165,12 +165,43 @@ export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | unde
   return hasAnyInfo ? info : undefined;
 };
 
-/** The tokens a reply's own model requests used: its input, from cache or not, and its output. */
-export const getAiRunTokenTotal = (info: AiRunInfo): number =>
-  (info.uncachedInputTokens === undefined
-    ? [info.inputTokens, info.outputTokens]
-    : [info.cacheReadTokens, info.uncachedInputTokens, info.outputTokens]
-  ).reduce<number>((sum, tokens) => sum + Math.max(0, tokens ?? 0), 0);
+/** The kinds of tokens a reply's model requests used, in the order they are shown. */
+export const AI_RUN_TOKEN_KINDS = [
+  'cacheRead',
+  'cacheWrite',
+  'notCached',
+  'newInput',
+  'input',
+  'output',
+] as const;
+export type AiRunTokenKind = (typeof AI_RUN_TOKEN_KINDS)[number];
+export type AiRunTokenCounts = Partial<Record<AiRunTokenKind, number>>;
+
+/**
+ * The tokens a reply's own model requests used, by kind. Input splits by cache only where the
+ * backend reported the split, and its uncached part into cache writes and the rest only where it
+ * counted the writes: it leaves out a zero count, and some providers cache without counting
+ * writes, so without the count the uncached input stays one part.
+ */
+export const getAiRunTokenCounts = (info: AiRunInfo): AiRunTokenCounts => {
+  const counts: AiRunTokenCounts = {};
+  const add = (kind: AiRunTokenKind, tokens: number | undefined) => {
+    if (tokens !== undefined && tokens > 0) counts[kind] = tokens;
+  };
+  const uncached = info.uncachedInputTokens;
+  if (uncached === undefined) add('input', info.inputTokens);
+  else {
+    add('cacheRead', info.cacheReadTokens);
+    if (info.cacheWriteTokens === undefined) add('newInput', uncached);
+    else {
+      const writes = Math.min(Math.max(0, info.cacheWriteTokens), uncached);
+      add('cacheWrite', writes);
+      add('notCached', uncached - writes);
+    }
+  }
+  add('output', info.outputTokens);
+  return counts;
+};
 
 /** The run details without their costs, for a sender whose cost does not count. */
 export const withoutAiRunCost = (info: AiRunInfo): AiRunInfo => ({

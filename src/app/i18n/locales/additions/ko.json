@@ -851,10 +851,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "하위 에이전트",
-        "tokensInThisReply": "이 답장의 토큰",
         "writtenToCache": "캐시에 기록",
         "notCached": "캐시 안 됨",
-        "tokenCount": "토큰 {{tokens}}개"
+        "conversation": "대화"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중",

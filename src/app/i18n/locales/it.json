@@ -2770,6 +2770,7 @@
         "model": "Modello: {{model}}"
       },
       "mindroomReplyDetails": {
+        "tokens": "Token",
         "cost": "Costo",
         "conversationSoFar": "Conversazione finora",
         "failed": "Non riuscita",

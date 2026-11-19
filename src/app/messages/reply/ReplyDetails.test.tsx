@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReplyDetails } from './ReplyDetails';
 import { ThreadConversationCostProvider } from '../../event-store/threads/useThreadConversationCost';
 import type { ThreadConversationCost } from '../../event-store/threads/threadConversationCost';
-import type { AiRunInfo } from '../../matrix/protocol/aiRun';
+import {
+  AI_RUN_TOKEN_KINDS,
+  type AiRunInfo,
+  type AiRunTokenCounts,
+} from '../../matrix/protocol/aiRun';
 
 vi.mock('../../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
 
@@ -34,7 +38,7 @@ const reply: AiRunInfo = {
 const thread = (
   costs: number[],
   complete = true,
-  tokens: number[] = []
+  tokens: AiRunTokenCounts[] = []
 ): ThreadConversationCost => {
   let total = 0;
   const byEventId = new Map<string, { usd: number; replyCount: number }>();
@@ -43,11 +47,14 @@ const thread = (
     byEventId.set(`$r${index + 1}`, { usd: total, replyCount: index + 1 });
     return { eventId: `$r${index + 1}`, usd };
   });
-  let tokenTotal = 0;
+  let counts: AiRunTokenCounts = {};
   const tokensByEventId = new Map(
-    tokens.map((count, index) => {
-      tokenTotal += count;
-      return [`$r${index + 1}`, { tokens: tokenTotal, replyCount: index + 1 }] as const;
+    tokens.map((reply, index) => {
+      counts = { ...counts };
+      AI_RUN_TOKEN_KINDS.forEach((kind) => {
+        if (reply[kind]) counts[kind] = (counts[kind] ?? 0) + reply[kind]!;
+      });
+      return [`$r${index + 1}`, { counts, replyCount: index + 1 }] as const;
     })
   );
   return { complete, byEventId, replies, tokensByEventId };
@@ -272,9 +279,10 @@ describe('ReplyDetails', () => {
 
   it('shows what the tokens were spent on', () => {
     render(reply);
-    const tokens = section('Tokens in this reply');
+    const tokens = section('Tokens');
 
-    expect(tokens?.textContent).toContain('Tokens in this reply1,705');
+    expect(tokens?.textContent).toContain('This reply1,705');
+    expect(tokens?.querySelector('[role="radiogroup"]')).toBeNull();
     expect([...(tokens?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
       'From cache 1,408',
       'New input 266',
@@ -284,9 +292,9 @@ describe('ReplyDetails', () => {
 
   it('splits the new input into cache writes and the rest when the writes are counted', () => {
     render({ ...reply, cacheWriteTokens: 200 });
-    const tokens = section('Tokens in this reply');
+    const tokens = section('Tokens');
 
-    expect(tokens?.textContent).toContain('Tokens in this reply1,705');
+    expect(tokens?.textContent).toContain('This reply1,705');
     expect([...(tokens?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
       'From cache 1,408',
       'Written to cache 200',
@@ -295,22 +303,52 @@ describe('ReplyDetails', () => {
     ]);
   });
 
-  it("adds the conversation's tokens through this reply under its own", () => {
-    const conversation = () => section('Tokens in this reply')?.lastElementChild?.textContent;
-    render(reply, '$r3', thread([0.01, 0.02, 0.03], true, [20_000_000, 40_000_000, 1_400_000]));
-    expect(conversation()).toBe('Conversation so far61.4M tokens · 3 replies');
+  it("switches between this reply's tokens and the conversation's through it", () => {
+    const earlier = { cacheRead: 52_000_000, cacheWrite: 8_000_000, input: 1_000_000 };
+    const shown = { cacheRead: 100_000, cacheWrite: 300_000, newInput: 100_000, output: 200_000 };
+    render(reply, '$r2', thread([0.01, 0.02], true, [earlier, shown]));
+    const tokens = () => section('Tokens');
+    const total = () => tokens()?.querySelector('.reply-details-token-total')?.textContent;
+    const legend = () => [...(tokens()?.querySelectorAll('li') ?? [])].map((li) => li.textContent);
+    const button = (name: string) =>
+      [...(tokens()?.querySelectorAll('button') ?? [])].find((item) => item.textContent === name)!;
 
-    // A lower bound is exact: 1,499,999 would round up to 1.5M.
-    render(reply, '$r2', thread([0.01, 0.02], false, [1_000_000, 499_999]));
-    expect(conversation()).toBe('Conversation so far≥ 1,499,999 tokens · 2 loaded replies');
+    // It opens on this reply.
+    expect(button('This reply').getAttribute('aria-checked')).toBe('true');
+    expect(total()).toBe('This reply1,705');
+    act(() => button('Conversation').click());
+    expect(button('Conversation').getAttribute('aria-checked')).toBe('true');
+    // The same parts, summed over the conversation through this reply, add up to its total.
+    expect(total()).toBe('Conversation so far · 2 replies61.7M');
+    expect(legend()).toEqual([
+      'From cache 52.1M',
+      'Written to cache 8.3M',
+      'New input 100K',
+      'Input 1M',
+      'Output 200K',
+    ]);
   });
 
-  it("leaves out the conversation's tokens outside a thread or without a count", () => {
-    render(reply);
-    expect(section('Tokens in this reply')?.textContent).not.toContain('Conversation so far');
+  it("gives the conversation's tokens exactly, as a lower bound, while older replies are not loaded", () => {
+    render(reply, '$r2', thread([0.01, 0.02], false, [{ input: 1_000_000 }, { output: 499_999 }]));
+    const tokens = section('Tokens');
+    act(() => [...(tokens?.querySelectorAll('button') ?? [])][1]!.click());
 
-    render(reply, '$r3', thread([0.01, 0.02, 0.03], true, [5, 5]));
-    expect(section('Tokens in this reply')?.textContent).not.toContain('Conversation so far');
+    expect(tokens?.querySelector('.reply-details-token-total')?.textContent).toBe(
+      'Conversation so far · 2 loaded replies≥ 1,499,999'
+    );
+    expect([...(tokens?.querySelectorAll('li') ?? [])].map((li) => li.textContent)).toEqual([
+      'Input 1,000,000',
+      'Output 499,999',
+    ]);
+  });
+
+  it("shows only this reply's tokens outside a thread or without a conversation count", () => {
+    render(reply);
+    expect(section('Tokens')?.querySelector('[role="radiogroup"]')).toBeNull();
+
+    render(reply, '$r3', thread([0.01, 0.02, 0.03], true, [{ output: 5 }, { output: 5 }]));
+    expect(section('Tokens')?.querySelector('[role="radiogroup"]')).toBeNull();
   });
 
   it('shows how full the context window was', () => {
@@ -321,7 +359,7 @@ describe('ReplyDetails', () => {
     expect(
       section('Context window')?.querySelector('[role="img"]')?.getAttribute('aria-label')
     ).toBe('From cache 49,886 · 19.3%, New input 1,777 · 0.7%');
-    expect(section('Tokens in this reply')?.querySelector('[role="img"]')).toBeNull();
+    expect(section('Tokens')?.querySelector('[role="img"]')).toBeNull();
   });
 
   it('sums up the run activity in one line', () => {

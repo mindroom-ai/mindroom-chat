@@ -864,10 +864,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Alt ajanlar",
-        "tokensInThisReply": "Bu yanıttaki tokenler",
         "writtenToCache": "Önbelleğe yazılan",
         "notCached": "Önbellekte değil",
-        "tokenCount": "{{tokens}} token"
+        "conversation": "Konuşma"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",

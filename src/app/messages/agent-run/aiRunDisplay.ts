@@ -1,5 +1,12 @@
 import type { TFunction } from 'i18next';
-import type { AiRunInfo, AiRunModelInfo } from '../../matrix/protocol/aiRun';
+import {
+  AI_RUN_TOKEN_KINDS,
+  getAiRunTokenCounts,
+  type AiRunInfo,
+  type AiRunModelInfo,
+  type AiRunTokenCounts,
+  type AiRunTokenKind,
+} from '../../matrix/protocol/aiRun';
 
 export const formatAiRunNumber = (value: number | undefined, locale?: string): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
@@ -34,7 +41,7 @@ export const formatAiRunPercentage = (percentage: number, locale?: string): stri
   }).format(percentage / 100);
 
 type AiRunTokenPart = {
-  key: 'cacheRead' | 'cacheWrite' | 'notCached' | 'newInput' | 'input' | 'output';
+  key: AiRunTokenKind;
   label: string;
   tokens: number;
   percentage: number;
@@ -58,38 +65,20 @@ const tokenPartLabel = (key: AiRunTokenPart['key'], t?: TFunction): string => {
   return t ? t(labelKey) : fallback;
 };
 
-type TokenCount = [AiRunTokenPart['key'], number | undefined];
-
-/**
- * A reply's input by where it came from: split by cache only where the backend reported the split,
- * and its uncached part into cache writes and the rest only where it reported the writes. The
- * backend leaves out a zero write count, and some providers cache without counting writes, so
- * without the count the uncached input stays one part.
- */
-const inputTokenCounts = (info: AiRunInfo): TokenCount[] => {
-  const uncached = info.uncachedInputTokens;
-  if (uncached === undefined) return [['input', info.inputTokens]];
-  const cacheRead: TokenCount = ['cacheRead', info.cacheReadTokens];
-  if (info.cacheWriteTokens === undefined) return [cacheRead, ['newInput', uncached]];
-  const writes = Math.min(Math.max(0, info.cacheWriteTokens), uncached);
-  return [cacheRead, ['cacheWrite', writes], ['notCached', uncached - writes]];
-};
-
-/** What a reply's tokens were spent on: its input, by where it came from, and its output. */
-export const getAiRunTokenParts = (
-  info: AiRunInfo,
+/** Token counts as parts of their total, in the order they are shown. */
+export const getAiRunTokenCountParts = (
+  counts: AiRunTokenCounts,
   t?: TFunction
 ): { total: number; parts: AiRunTokenPart[] } | undefined => {
-  const counts: TokenCount[] = [...inputTokenCounts(info), ['output', info.outputTokens]];
-  const used = counts.filter((entry): entry is [AiRunTokenPart['key'], number] => {
-    const tokens = entry[1];
-    return tokens !== undefined && tokens > 0;
+  const used = AI_RUN_TOKEN_KINDS.flatMap((key) => {
+    const tokens = counts[key];
+    return tokens ? [{ key, tokens }] : [];
   });
-  const total = used.reduce((sum, [, tokens]) => sum + tokens, 0);
+  const total = used.reduce((sum, { tokens }) => sum + tokens, 0);
   if (total <= 0) return undefined;
   return {
     total,
-    parts: used.map(([key, tokens]) => ({
+    parts: used.map(({ key, tokens }) => ({
       key,
       label: tokenPartLabel(key, t),
       tokens,
@@ -97,6 +86,10 @@ export const getAiRunTokenParts = (
     })),
   };
 };
+
+/** What a reply's tokens were spent on: its input, by where it came from, and its output. */
+export const getAiRunTokenParts = (info: AiRunInfo, t?: TFunction) =>
+  getAiRunTokenCountParts(getAiRunTokenCounts(info), t);
 
 export const getAiRunModelLabel = (info: AiRunModelInfo): string | undefined => {
   const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');

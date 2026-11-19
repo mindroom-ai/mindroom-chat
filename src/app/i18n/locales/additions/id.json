@@ -851,10 +851,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagen",
-        "tokensInThisReply": "Token di balasan ini",
         "writtenToCache": "Ditulis ke cache",
         "notCached": "Tidak di-cache",
-        "tokenCount": "{{tokens}} token"
+        "conversation": "Percakapan"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",

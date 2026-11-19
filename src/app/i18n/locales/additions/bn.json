@@ -864,10 +864,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "সাব-এজেন্ট",
-        "tokensInThisReply": "এই উত্তরের টোকেন",
         "writtenToCache": "ক্যাশে লেখা",
         "notCached": "ক্যাশে নেই",
-        "tokenCount": "{{tokens}} টোকেন"
+        "conversation": "কথোপকথন"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} ধরে চলছে",

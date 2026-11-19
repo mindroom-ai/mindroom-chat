@@ -2825,6 +2825,7 @@
         "model": "Модель: {{model}}"
       },
       "mindroomReplyDetails": {
+        "tokens": "Токены",
         "cost": "Стоимость",
         "conversationSoFar": "Разговор на данный момент",
         "failed": "Ошибка",

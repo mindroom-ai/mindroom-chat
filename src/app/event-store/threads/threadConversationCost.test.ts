@@ -216,8 +216,13 @@ describe('summarizeThreadConversationCost', () => {
       { history: loaded, isTrustedSender }
     );
 
-    expect(cost?.tokensByEventId.get('$r1')).toEqual({ tokens: 1_494_700, replyCount: 1 });
-    expect(cost?.tokensByEventId.get('$r2')).toEqual({ tokens: 1_495_020, replyCount: 2 });
+    const r1 = { cacheRead: 1_250_000, cacheWrite: 240_600, notCached: 1_400, output: 2_700 };
+    expect(cost?.tokensByEventId.get('$r1')).toEqual({ counts: r1, replyCount: 1 });
+    // A reply without a cache split adds to the input as a whole, so the parts still add up.
+    expect(cost?.tokensByEventId.get('$r2')).toEqual({
+      counts: { ...r1, input: 300, output: 2_720 },
+      replyCount: 2,
+    });
     expect(cost?.tokensByEventId.has('$root')).toBe(false);
     expect(cost?.replies).toEqual([{ eventId: '$r1', usd: 0.5 }]);
   });
@@ -233,7 +238,7 @@ describe('summarizeThreadConversationCost', () => {
     );
 
     expect(cost?.replies).toEqual([]);
-    expect(cost?.tokensByEventId.get('$r1')).toEqual({ tokens: 5, replyCount: 1 });
+    expect(cost?.tokensByEventId.get('$r1')).toEqual({ counts: { output: 5 }, replyCount: 1 });
   });
 
   it('is complete only once the thread start is loaded', () => {

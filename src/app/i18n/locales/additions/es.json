@@ -877,10 +877,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagentes",
-        "tokensInThisReply": "Tokens de esta respuesta",
         "writtenToCache": "Escritos en caché",
         "notCached": "Sin caché",
-        "tokenCount": "{{tokens}} tokens"
+        "conversation": "Conversación"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En ejecución desde hace {{duration}}",

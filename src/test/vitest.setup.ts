@@ -17,6 +17,7 @@ vi.mock('../app/ui/styles/Glass.css', () => ({
   glassExpanded: 'glass-expanded',
   glassSurface: () => 'glass-surface',
 }));
+vi.mock('../app/ui/styles/Segmented.css', () => ({ Segments: 'segments', Segment: 'segment' }));
 vi.mock('../app/ui/ThreadActivity.css', () => ({
   Activity: 'activity',
   Line: 'activity-line',
@@ -86,7 +87,7 @@ vi.mock('../app/messages/reply/ReplyDetails.css', () => {
     Legend: 'reply-details-legend',
     LegendItem: 'reply-details-legend-item',
     Swatch: parts,
-    ConversationTokens: 'reply-details-conversation-tokens',
+    TokenTotal: 'reply-details-token-total',
     Meta: 'reply-details-meta',
     MetaValue: 'reply-details-meta-value',
     TechnicalSummary: 'reply-details-technical-summary',

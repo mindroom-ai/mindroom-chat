@@ -775,7 +775,7 @@ describe('Message reply details menu item', () => {
     });
 
     expect(hasSpanText(renderer, 'Reply details')).toBe(true);
-    expect(hasSpanText(renderer, 'Tokens in this reply')).toBe(true);
+    expect(hasSpanText(renderer, 'Tokens')).toBe(true);
     expect(hasSpanText(renderer, '42')).toBe(true);
     expect(hasSpanText(renderer, 'Input')).toBe(true);
     expect(hasSpanText(renderer, 'Output')).toBe(true);

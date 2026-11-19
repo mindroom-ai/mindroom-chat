@@ -864,10 +864,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagenten",
-        "tokensInThisReply": "Tokens in dit antwoord",
         "writtenToCache": "Naar cache geschreven",
         "notCached": "Niet in cache",
-        "tokenCount": "{{tokens}} tokens"
+        "conversation": "Gesprek"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Loopt al {{duration}}",

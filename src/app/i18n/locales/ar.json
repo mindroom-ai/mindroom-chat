@@ -2935,6 +2935,7 @@
         "model": "النموذج: ⁨{{model}}⁩"
       },
       "mindroomReplyDetails": {
+        "tokens": "الرموز المميزة",
         "cost": "التكلفة",
         "conversationSoFar": "المحادثة حتى الآن",
         "failed": "فشل",

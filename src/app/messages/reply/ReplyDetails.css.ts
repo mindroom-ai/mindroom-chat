@@ -281,14 +281,11 @@ export const Swatch = styleVariants(partColors, (backgroundColor) => ({
   backgroundColor,
 }));
 
-// The conversation's total under this reply's parts, label at the start and figures at the end.
-export const ConversationTokens = style({
+// This reply's or the conversation's total above its bar, label at the start, number at the end.
+export const TokenTotal = style({
   display: 'flex',
   justifyContent: 'space-between',
-  flexWrap: 'wrap',
-  gap: `0 ${config.space.S200}`,
-  marginTop: config.space.S100,
-  fontVariantNumeric: 'tabular-nums',
+  gap: config.space.S200,
 });
 
 export const Meta = style({

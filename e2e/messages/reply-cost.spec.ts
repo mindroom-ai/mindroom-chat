@@ -192,16 +192,15 @@ test('reply details show what a reply and the conversation so far cost', async (
   await history.getByRole('listitem').first().hover();
   await expect(history.getByRole('listitem').first()).toHaveAttribute('data-pointed', 'true');
   await expect(costCard).not.toContainText('This reply · 2 of 3');
-  await section('Tokens in this reply').locator('[aria-hidden] > span').first().hover();
+  await section('Tokens').locator('[aria-hidden] > span').first().hover();
   await expect(page.getByText('1,408 · 82.6%', { exact: true })).toBeVisible();
   await page.mouse.move(0, 0);
   await expect(costCard).toContainText('This reply · 2 of 3');
-  const tokens = section('Tokens in this reply');
-  await expect(tokens).toContainText('Tokens in this reply1,705');
+  const tokens = section('Tokens');
+  await expect(tokens).toContainText('This reply1,705');
   await expect(tokens).toContainText('From cache 1,408');
   await expect(tokens).toContainText('Written to cache 250');
   await expect(tokens).toContainText('Not cached 16');
-  await expect(tokens).toContainText('Conversation so far3.4K tokens · 2 replies');
   await expect(section('Context window')).toContainText('51,663 of 258,000 · 20.0%');
   await expect(dialog).toContainText('2 tool calls');
   await expect(dialog).toContainText('First token 412 ms');
@@ -219,6 +218,17 @@ test('reply details show what a reply and the conversation so far cost', async (
   ).toBeVisible();
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-dark.png') });
+  // The switch shows the conversation's tokens through this reply, from the keyboard too.
+  const conversation = tokens.getByRole('radio', { name: 'Conversation', exact: true });
+  await conversation.focus();
+  await page.keyboard.press('Space');
+  await expect(conversation).toHaveAttribute('aria-checked', 'true');
+  await expect(tokens).toContainText('Conversation so far · 2 replies3.4K');
+  await expect(tokens).toContainText('From cache 2.8K');
+  await expect(tokens).toContainText('Written to cache 500');
+  await expect(tokens).toContainText('Not cached 32');
+  await expect(tokens).toContainText('Output 62');
+  await page.screenshot({ path: testInfo.outputPath('conversation-desktop-dialog-dark.png') });
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
@@ -242,6 +252,10 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(costCard).toContainText('Conversation so far$0.0034');
   await expect(costCard).toContainText('This reply · 1 of 3');
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-dark.png') });
+  // The switch opens on this reply every time.
+  await expect(
+    section('Tokens').getByRole('radio', { name: 'This reply', exact: true })
+  ).toHaveAttribute('aria-checked', 'true');
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-light.png') });
 

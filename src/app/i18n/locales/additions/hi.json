@@ -864,10 +864,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "सब-एजेंट",
-        "tokensInThisReply": "इस जवाब के टोकन",
         "writtenToCache": "कैश में लिखे गए",
         "notCached": "कैश में नहीं",
-        "tokenCount": "{{tokens}} टोकन"
+        "conversation": "बातचीत"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",
