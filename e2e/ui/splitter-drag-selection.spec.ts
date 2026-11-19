@@ -63,6 +63,8 @@ test('a drag on the splitter of a panel at its widest selects no text @webkit', 
   }
   await page.mouse.up();
   expect(await width(page)).toBe(widest);
+  // What a gesture selected anyway goes with the drag.
+  expect(await page.evaluate(() => window.getSelection()!.toString())).toBe('');
   // Once released, the page selects again.
   expect(await dragOverConversation(page)).not.toBe('');
 });

@@ -54,19 +54,19 @@ type Drag = {
 };
 
 /**
- * Keeps every text on the page from being selected until the returned function runs, and clears
- * what a press may have selected. A held mouse that leaves the splitter (a panel at its widest
- * stays put) goes over the conversation, and the Mac app's web view selects there although the
- * press's pointerdown was cancelled.
+ * Keeps every text on the page from being selected until the returned function runs, which drops
+ * what got selected anyway. A held mouse that leaves the splitter (a panel at its widest stays
+ * put) goes over the conversation, and the Mac app's web view selects there although the press's
+ * pointerdown was cancelled.
  */
 const blockSelection = (): (() => void) => {
   const prevent = (event: Event) => event.preventDefault();
   document.addEventListener('selectstart', prevent, true);
   document.documentElement.toggleAttribute(css.RESIZING, true);
-  window.getSelection()?.removeAllRanges();
   return () => {
     document.removeEventListener('selectstart', prevent, true);
     document.documentElement.toggleAttribute(css.RESIZING, false);
+    window.getSelection()?.removeAllRanges();
   };
 };
 
