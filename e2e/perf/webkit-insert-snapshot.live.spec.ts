@@ -15,7 +15,9 @@ import {
  * Saves an open thread's page, its style sheets inlined and its scripts left out, as the page of
  * `scripts/perf/webkit-insert-probe.mjs`, which times inserting message rows under the app's
  * selectors in WebKit and Chromium. Opt in with PERF_WEBKIT_SNAPSHOT=<output file>; run it on the
- * production build (`e2e-slot.sh <n> --preview`). The thread holds placeholder text only.
+ * production build (`e2e-slot.sh <n> --preview`). The thread holds placeholder text only, but the
+ * saved page is the whole document, sidebar included: run it only against a throwaway e2e slot and
+ * write the file outside the repository.
  */
 
 const output = process.env.PERF_WEBKIT_SNAPSHOT;
