@@ -144,9 +144,10 @@ describe('slidePhonePage', () => {
     expect(document.querySelectorAll(`[${PHONE_STAGE}], [data-phone-top-bar]`)).toHaveLength(2);
     expect(still.querySelector('header')!.style.visibility).toBe('hidden');
     expect(document.querySelectorAll('#room, [data-testid="room"]')).toHaveLength(1);
-    // It loads and plays nothing.
-    expect(still.querySelector('iframe')!.hasAttribute('src')).toBe(false);
-    expect(still.querySelector('video')!.outerHTML).toBe('<video></video>');
+    // It loads and plays nothing: a frame and a video are blank boxes of their size.
+    expect(still.querySelector('iframe')!.getAttributeNames()).toEqual(['style']);
+    expect(still.querySelector('video')!.getAttributeNames()).toEqual(['style']);
+    expect(still.querySelector('video')!.style.width).toBe('0px');
 
     // What else ends in the copy is not the slide.
     endAnimation(still.querySelector('ul'), 'spin');
@@ -154,6 +155,160 @@ describe('slidePhonePage', () => {
     endAnimation(still.querySelector('main'), 'phone-page-under-out');
     expect(copy()).toBeNull();
     expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  it('keeps in the copy only the pictures the page has loaded, and loads no other', async () => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<img src="loaded.png" alt="Loaded"><img src="loading.png" srcset="loading-2x.png 2x" alt="Loading">' +
+      '<iframe srcdoc="<p>preview</p>" sandbox=""></iframe><video poster="poster.png"><source src="clip.mp4"></video>' +
+      '<picture><source srcset="loaded.webp"><img src="loaded.png"></picture>';
+    // As a browser has it: the copy of a loaded picture shows at once, one still loading does not.
+    const loaded = function loaded(this: HTMLImageElement) {
+      return this.getAttribute('src') === 'loaded.png';
+    };
+    vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(loaded);
+    vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(function width(
+      this: HTMLImageElement
+    ) {
+      return loaded.call(this) ? 40 : 0;
+    });
+    try {
+      slidePhonePage(() => showThread(true));
+      page.frame();
+      const still = copy()!;
+      const [kept, blank] = still.querySelectorAll('img');
+      expect(kept!.outerHTML).toBe('<img src="loaded.png" alt="Loaded">');
+      expect(blank!.getAttributeNames()).toEqual(['style']);
+      expect(blank!.style.height).toBe('0px');
+      expect(still.querySelector('iframe')!.getAttributeNames()).toEqual(['sandbox', 'style']);
+      expect(still.querySelector('video')!.getAttributeNames()).toEqual(['style']);
+      expect(still.querySelector('video source')!.hasAttribute('src')).toBe(false);
+      // A picture's own source stays: without it the picture would load another.
+      expect(still.querySelector('picture')!.innerHTML).toBe(
+        '<source srcset="loaded.webp"><img src="loaded.png">'
+      );
+      await page.finish();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('leaves the fields of the page as they are, and copies nothing typed', async () => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<form id="ask"></form><label for="secret">Key</label>' +
+      '<input type="radio" name="keep" value="once"><input type="radio" name="keep" value="day">' +
+      '<input id="secret" type="text" name="secret" form="ask"><input type="password"><textarea></textarea>' +
+      '<input type="checkbox" checked>';
+    const [once, day] = stage.querySelectorAll<HTMLInputElement>('[name="keep"]');
+    day!.checked = true;
+    const typed = stage.querySelectorAll<HTMLInputElement>('#secret, [type="password"], textarea');
+    typed.forEach((field) => Object.assign(field, { value: 'typed-secret' }));
+
+    slidePhonePage(() => showThread(true));
+    page.frame();
+    const still = copy()!;
+    // The copy's fields are no part of the page's radio groups or forms, and label none of them.
+    expect(still.querySelectorAll('[name], [form], [for], [id]')).toHaveLength(0);
+    expect(stage.querySelector<HTMLFormElement>('#ask')!.elements).toHaveLength(1);
+    expect([once!.checked, day!.checked]).toEqual([false, true]);
+    // It looks as the page did, but for what was typed.
+    const fields = Array.from(still.querySelectorAll<HTMLInputElement>('input, textarea'));
+    expect(fields.map((field) => field.type)).toEqual([
+      'radio',
+      'radio',
+      'text',
+      'password',
+      'textarea',
+      'checkbox',
+    ]);
+    expect(fields.map((field) => field.checked ?? false)).toEqual([
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+    ]);
+    expect(fields.slice(2, 5).map((field) => field.value)).toEqual(['', '', '']);
+    expect(still.outerHTML).not.toContain('typed-secret');
+
+    await page.finish();
+    expect([once!.checked, day!.checked]).toEqual([false, true]);
+    expect(Array.from(typed).map((field) => field.value)).toEqual(Array(3).fill('typed-secret'));
+  });
+
+  it('leaves no slide behind when a change fails: the next one slides', async () => {
+    const page = browser();
+    const after = vi.fn();
+    slidePhonePage(() => {
+      throw new Error('change failed');
+    });
+    slidePhonePage(after);
+    expect(() => page.frame()).toThrow('change failed');
+    expect(copy()).toBeNull();
+    expect(root.dataset.pageSlide).toBeUndefined();
+
+    // The drawer comes out at once, and the next change slides.
+    const set = vi.fn();
+    movePhoneNavDrawer(true, set);
+    expect(set).toHaveBeenCalledWith(true);
+    slidePhonePage(() => showThread(true));
+    expect(page.request).toHaveBeenCalledTimes(2);
+    page.frame();
+    expect(page.plays).toEqual(['forward']);
+    await page.finish();
+    expect(copy()).toBeNull();
+  });
+
+  it.each([
+    ['is removed (signed out)', (stage: Element) => stage.remove()],
+    [
+      'is a phone layout no more (turned sideways)',
+      (stage: Element) => stage.removeAttribute(PHONE_STAGE),
+    ],
+    ['is hidden', () => document.dispatchEvent(new Event('visibilitychange'))],
+  ])('ends the slide that plays at once when the layout %s', async (_, leave) => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    slidePhonePage(() => showThread(true));
+    page.frame();
+    expect(root.dataset.pageSlide).toBe('forward');
+    expect(copy()).not.toBeNull();
+
+    leave(stage);
+    // What watches the layout hears of it before the next frame.
+    await new Promise((resolve) => {
+      setTimeout(resolve);
+    });
+    expect(root.dataset.pageSlide).toBeUndefined();
+    expect(root.dataset.pageSlideHeld).toBeUndefined();
+    expect(stage.querySelector('[data-page-slide-copy]')).toBeNull();
+
+    // The next change slides again, on the layout that is there then.
+    stage.setAttribute(PHONE_STAGE, '');
+    document.body.append(stage);
+    slidePhonePage(() => showThread(false));
+    expect(page.request).toHaveBeenCalledTimes(2);
+    page.frame();
+    expect(page.plays).toEqual(['forward', 'back']);
+    await page.finish();
+  });
+
+  it('changes the page at once in a hidden tab, which plays no slide', () => {
+    const page = browser();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      const change = vi.fn();
+      slidePhonePage(change);
+      expect(change).toHaveBeenCalledWith(false);
+      expect(page.request).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it('holds the slide at its start until the page that slides in has been drawn', async () => {

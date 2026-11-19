@@ -54,14 +54,14 @@ const FORWARD: Slide = {
   direction: 'forward',
   plays: ['copy phone-page-under-out', 'page phone-page-over-in'],
   copies: 1,
-  tapLandsOn: 'HTML',
+  tapLandsOn: 'the layout',
   startsAt: 100,
 };
 const BACK: Slide = {
   direction: 'back',
   plays: ['copy phone-page-over-out', 'page phone-page-under-in'],
   copies: 1,
-  tapLandsOn: 'HTML',
+  tapLandsOn: 'the layout',
   startsAt: -30,
 };
 
@@ -94,7 +94,9 @@ const recordSlides = (page: Page, heldAt?: number) =>
       const play = `${copy ? 'copy' : 'page'} ${event.animationName}`;
       if (!slide.plays.includes(play)) slide.plays.push(play);
       slide.copies = document.querySelectorAll('[data-page-slide-copy]').length;
-      slide.tapLandsOn = document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.tagName;
+      // On the layout itself, not on a part of it: on the shield the layout lays over its parts.
+      const hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+      slide.tapLandsOn = hit?.hasAttribute('data-phone-stage') ? 'the layout' : hit?.tagName;
       if (!copy && slide.startsAt === undefined) {
         const moved = parseFloat(getComputedStyle(event.target as Element).translate);
         slide.startsAt = Math.round((moved / innerWidth) * 100);
@@ -242,6 +244,55 @@ for (const engine of ENGINES) {
     await onPhone(engine, browser, username, { heldAt: SHOTS ? HELD_AT_MS : undefined }, (page) =>
       slidesItsPages(page, root, engine)
     );
+  });
+
+  test(`${engine}: a slide leaves the page's own fields as they are`, async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { username, root } = await seed(`fields${engine}`);
+    // Held: the copy stays in the page until the slide gives up on its end.
+    await onPhone(engine, browser, username, { heldAt: HELD_AT_MS }, async (page) => {
+      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+      // Fields as a card in the page has them: radio buttons outside a form, and a typed secret.
+      await page.locator('[data-phone-stage] > [data-phone-page]').evaluate((phonePage) => {
+        phonePage.insertAdjacentHTML(
+          'beforeend',
+          '<div data-pps-fields style="position: absolute; pointer-events: none">' +
+            '<input type="radio" name="pps-keep" value="once">' +
+            '<input type="radio" name="pps-keep" value="day">' +
+            '<input type="text" name="pps-secret"></div>'
+        );
+        const [, day, secret] = Array.from(phonePage.querySelectorAll('[data-pps-fields] input'));
+        (day as HTMLInputElement).checked = true;
+        (secret as HTMLInputElement).value = 'typed-secret';
+      });
+      const fields = () =>
+        page.evaluate(() => {
+          const values = (within: Element | null) =>
+            Array.from(within?.querySelectorAll('input') ?? [], (field) =>
+              field.type === 'radio' ? field.checked : field.value
+            );
+          const live = '[data-phone-stage] > [data-phone-page] > [data-pps-fields]';
+          const still = document.querySelector('[data-page-slide-copy] [data-pps-fields]');
+          return {
+            page: values(document.querySelector(live)),
+            copy: values(still),
+            named: still?.querySelectorAll('[name]').length,
+          };
+        });
+
+      await card(page, root).tap();
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
+      // The copy looks as the page did but for what was typed, and is no part of its radio group.
+      expect(await fields(), 'while the copy shows').toEqual({
+        page: [false, true, 'typed-secret'],
+        copy: [false, true, ''],
+        named: 0,
+      });
+      await expect(threadColumn(page)).toBeVisible();
+      await takeSlides(page, 'a thread from its room');
+      expect((await fields()).page, 'after the slide').toEqual([false, true, 'typed-secret']);
+    });
   });
 
   test(`${engine}: nothing slides for someone who asked for reduced motion`, async ({
