@@ -124,9 +124,10 @@ export const isTurnCard = (
   viewerId: string | undefined
 ): boolean => {
   const row = { type: event.getType(), sender: event.getSender() ?? '', content };
-  // As renderAgentMessageContent draws a notice's action as a button.
-  const action = content.msgtype === 'm.notice' && content[CHAT_UI_ACTION_KEY];
-  return (!!action && typeof action === 'object') || !!pickRenderer(config, row, viewerId);
+  // As renderAgentMessageContent draws a notice's action as a button. It keeps an edited one too,
+  // whose action may no longer draw: a row in view that need not be beats a card folded away.
+  const action = content.msgtype === 'm.notice' && !!content[CHAT_UI_ACTION_KEY];
+  return action || !!pickRenderer(config, row, viewerId);
 };
 
 type UseThreadTurnFoldsOptions = {

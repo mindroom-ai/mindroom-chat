@@ -253,10 +253,10 @@ describe('isTurnCard', () => {
     const canvas = { action: 'show_canvas', version: 1, canvas: { title: 'Budget sheet' } };
     expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': canvas })).toBe(true);
   });
-  it("folds an agent's message, also one whose action draws no button", () => {
+  it("folds an agent's message, also one with an action that is not a notice", () => {
     expect(card({})).toBe(false);
     expect(card({ 'io.mindroom.ui_action': { action: 'show_canvas' } })).toBe(false);
-    expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': 'show_canvas' })).toBe(false);
+    expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': '' })).toBe(false);
   });
 });
 
