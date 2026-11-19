@@ -1,4 +1,4 @@
-import { type DragEvent, useEffect, useRef, useState } from 'react';
+import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
@@ -31,23 +31,32 @@ export function SecondThreadDropZone({
   const { t } = useTranslation();
   const drag = useThreadDrag();
   const [over, setOver] = useState(false);
-  // Whether the drag may drop here: not one picked up where the zone then showed, until it leaves
-  // the zone, so a card's end under the zone does not open in it on a twitch.
+  // Whether the drag may drop here: not one picked up where the zone then showed, until it is
+  // anywhere off the zone, so a card's end under the zone does not open in it on a twitch.
   const armed = useRef<boolean>();
+  const zoneRef = useRef<HTMLDivElement>(null);
+  const onZone = (x: number, y: number) => {
+    const box = zoneRef.current?.getBoundingClientRect();
+    return !!box && x > box.left && x < box.right && y > box.top && y < box.bottom;
+  };
   useEffect(() => {
     armed.current = undefined;
-    if (!drag) setOver(false);
+    if (!drag) {
+      setOver(false);
+      return undefined;
+    }
+    const moved = (evt: DragEvent) => {
+      if (!zoneRef.current?.contains(evt.target as Node | null)) armed.current = true;
+    };
+    window.addEventListener('dragover', moved);
+    return () => window.removeEventListener('dragover', moved);
   }, [drag]);
   if (!drag) return null;
 
   // A thread's drag may drop here (its default prevented), and moves its thread.
-  const accept = (evt: DragEvent<HTMLDivElement>) => {
+  const accept = (evt: ReactDragEvent<HTMLDivElement>) => {
     if (!isThreadDrag(evt.dataTransfer)) return;
-    if (armed.current === undefined) {
-      const box = evt.currentTarget.getBoundingClientRect();
-      const { x, y } = drag;
-      armed.current = !(x > box.left && x < box.right && y > box.top && y < box.bottom);
-    }
+    armed.current ??= !onZone(drag.x, drag.y);
     if (!armed.current) return;
     evt.preventDefault();
     // eslint-disable-next-line no-param-reassign -- how a drop target says what the drop does
@@ -56,6 +65,7 @@ export function SecondThreadDropZone({
   };
   return (
     <div
+      ref={zoneRef}
       className={css.DropZone}
       style={{ width: storedWidth(widthKey) }}
       data-over={over || undefined}

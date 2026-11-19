@@ -140,6 +140,24 @@ describe('the drop zone of the second column', () => {
     vi.restoreAllMocks();
   });
 
+  it('takes the drop of a drag picked up under the zone that left it before the zone heard it', () => {
+    const onOpen = vi.fn();
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(1000, 0, 480, 800)
+    );
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    startDragAt(1200);
+    // The drag moves over the room's messages first; the zone hears no leave.
+    document.body.dispatchEvent(
+      new MouseEvent('dragover', { bubbles: true, clientX: 400, clientY: 100 })
+    );
+    const dataTransfer = threadDrag('$c');
+    expect(fireEvent.dragEnter(zone()!, { dataTransfer })).toBe(false);
+    fireEvent.drop(zone()!, { dataTransfer });
+    expect(onOpen.mock.calls).toEqual([['!room:example.org', '$c']]);
+    vi.restoreAllMocks();
+  });
+
   it('goes as the drag ends anywhere else, or Escape cancels it', () => {
     const onOpen = vi.fn();
     render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
