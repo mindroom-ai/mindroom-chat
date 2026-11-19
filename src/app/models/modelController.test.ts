@@ -222,6 +222,40 @@ describe('shared model discovery', () => {
     await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot()).toMatchObject({ eligible: true, loading: false, canMutate: true });
   });
+  it('lets a watcher read a scope without asking for it', async () => {
+    const h = setup();
+    const heard = vi.fn();
+    const unwatch = h.controller.watch(h.room, '$root', heard);
+    await flush();
+    await vi.advanceTimersByTimeAsync(120000);
+    // Watching alone discovers nothing, now or on a retry, and wakes nothing up.
+    h.mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Reconnecting);
+    await flush();
+    expect(h.queue).not.toHaveBeenCalled();
+    expect(h.snapshot().models).toEqual([]);
+
+    // A composer's discovery reaches the watcher too.
+    const unsubscribe = await h.discover();
+    expect(heard).toHaveBeenCalled();
+    expect(h.snapshot().models.map((model) => model.display_name)).toEqual([
+      'Quick',
+      'Reset model',
+    ]);
+    const requests = h.queued.length;
+    unsubscribe();
+    heard.mockClear();
+    // With only the watcher left, a change of the room asks for nothing again.
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(h.queued.length).toBe(requests);
+    expect(heard).toHaveBeenCalled();
+
+    unwatch();
+    heard.mockClear();
+    await h.discover();
+    expect(heard).not.toHaveBeenCalled();
+  });
   it('coalesces subscribers and authenticates actual curve key before exposing capability', async () => {
     const h = setup();
     const a = h.controller.subscribe(h.room, '$root', () => {});

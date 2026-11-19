@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseModelCatalogResponse, parseModelSelectionResult } from './modelProtocol';
+import {
+  parseModelCatalogResponse,
+  parseModelSelectionResult,
+  splitModelReference,
+} from './modelProtocol';
 
 const catalog = {
   version: 1,
@@ -182,4 +186,16 @@ describe('selection result wire validation', () => {
       expect(parseModelSelectionResult({ ...result, ...change })).toBeUndefined();
     }
   );
+});
+
+describe('splitModelReference', () => {
+  it.each([
+    ['sol', { key: 'sol' }],
+    ['sol@high', { key: 'sol', level: 'high' }],
+    // The backend splits at the first `@`, so what follows is the level, whatever it holds.
+    ['sol@high@max', { key: 'sol', level: 'high@max' }],
+    ['sol@', { key: 'sol', level: '' }],
+  ])('splits %s as the backend does', (reference, parts) => {
+    expect(splitModelReference(reference)).toEqual(parts);
+  });
 });
