@@ -752,6 +752,29 @@ const debugDump = async (page: Page, label: string): Promise<void> => {
         firstCards: cardsNow.slice(0, 2).map(describe),
         banner: document.querySelectorAll('[data-thread-context-banner]').length,
         presses: (window as unknown as { __dbgPress?: unknown[] }).__dbgPress,
+        events: (window as unknown as { __dbgEvents?: unknown[] }).__dbgEvents?.slice(-60),
+        dialogs: Array.from(document.querySelectorAll('[role="dialog"],[role="menu"],[popover]')).map(
+          (element) => `${element.tagName} ${element.getAttribute('role')} ${String(element.className).slice(0, 60)}`
+        ),
+        path: location.pathname.split('/').map((part) => part.length),
+        hash: location.hash.length,
+        historyLength: history.length,
+        selection: String(getSelection()).length,
+        scrollers: Array.from(document.querySelectorAll('[data-compact-room-view] *'))
+          .filter((element) => element.scrollHeight > element.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(element).overflowY))
+          .slice(0, 3)
+          .map((element) => [element.scrollTop, element.scrollHeight, element.clientHeight]),
+        atCards: cardsNow.slice(0, 6).map((element) => {
+          const box = element.getBoundingClientRect();
+          const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+          return {
+            root: element.getAttribute('data-thread-root-id')?.length,
+            box: [box.left, box.top, box.width, box.height].map(Math.round),
+            hit: hit ? `${hit.tagName}.${String(hit.className).slice(0, 50)}` : null,
+            hitInside: hit ? element.contains(hit) : false,
+            pointerEvents: getComputedStyle(element).pointerEvents,
+          };
+        }),
         active: document.activeElement?.tagName,
         transitions: document.getAnimations().length,
       };
@@ -810,7 +833,15 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const { page, driver } = run;
   const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
   await throttleCpu(page, run.throttle);
-  const prepared = await SCENARIO[name].prepare(run);
+  let prepared: boolean | void;
+  try {
+    prepared = await SCENARIO[name].prepare(run);
+  } catch (error) {
+    await debugDump(page, `${label}-prepare`).catch((dumpError) =>
+      console.log(`DEBUG dump failed: ${dumpError}`)
+    );
+    throw error;
+  }
   expectDriverRuns(label, driver);
   const from = Date.now();
   const probe = await startProbe(page, { label, outDir: OUT_DIR, profile: PROFILE, trace: TRACE });
@@ -981,6 +1012,39 @@ test.describe('PERF: real work under the backend load', () => {
       appendFileSync(consoleLog, `${Date.now()} pageerror ${String(error.stack ?? error).slice(0, 800)}\n`);
     });
     page.on('crash', () => appendFileSync(consoleLog, `${Date.now()} CRASH\n`));
+    await page.addInitScript(() => {
+      const log: unknown[] = [];
+      (window as unknown as { __dbgEvents?: unknown[] }).__dbgEvents = log;
+      const describe = (target: EventTarget | null) => {
+        if (!(target instanceof Element)) return String(target);
+        const card = target.closest('[data-thread-root-id]');
+        return `${target.tagName}.${String(target.className).slice(0, 40)}${
+          card ? ` in-card:${card.getAttribute('data-thread-root-id')?.slice(-6)}` : ''
+        }${target.closest('[data-thread-context-banner]') ? ' in-banner' : ''}`;
+      };
+      ['pointerdown', 'pointerup', 'pointercancel', 'mousedown', 'mouseup', 'click', 'popstate', 'focusin', 'keydown'].forEach((type) => {
+        window.addEventListener(
+          type,
+          (event) => {
+            const entry = {
+              t: Math.round(performance.now()),
+              type,
+              target: describe(event.target),
+              button: (event as MouseEvent).button,
+              xy: [(event as MouseEvent).clientX, (event as MouseEvent).clientY],
+              prevented: false,
+              path: location.pathname.split('/').map((part) => part.length).join('/'),
+            };
+            log.push(entry);
+            if (log.length > 400) log.shift();
+            setTimeout(() => {
+              entry.prevented = event.defaultPrevented;
+            }, 0);
+          },
+          true
+        );
+      });
+    });
     await installProbe(page);
     await page.addInitScript(watchColdLoad, { flag: COLD_LOAD_FLAG, selector: CARD });
     await dismissRecoveryPrompt(page);
