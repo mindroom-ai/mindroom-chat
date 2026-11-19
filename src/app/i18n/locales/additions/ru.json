@@ -871,12 +871,12 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}",
-        "toolCallFailed": "Ошибка",
-        "toolCallsAlsoFailed": "· с ошибкой: {{failed}}",
-        "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · с ошибкой: {{failed}}",
-        "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · с ошибкой: {{failed}}",
-        "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · с ошибкой: {{failed}}",
-        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · с ошибкой: {{failed}}"
+        "toolCallFailed": "Не завершён",
+        "toolCallsAlsoFailed": "· не завершено: {{failed}}",
+        "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · не завершено: {{failed}}",
+        "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
+        "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · не завершено: {{failed}}",
+        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Настройки названий…"

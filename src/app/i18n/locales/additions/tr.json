@@ -845,10 +845,10 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",
-        "toolCallFailed": "Başarısız",
-        "toolCallsAlsoFailed": "· {{failed}} başarısız",
-        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız",
-        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız"
+        "toolCallFailed": "Tamamlanmadı",
+        "toolCallsAlsoFailed": "· {{failed}} tamamlanmadı",
+        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
+        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Başlık ayarları…"

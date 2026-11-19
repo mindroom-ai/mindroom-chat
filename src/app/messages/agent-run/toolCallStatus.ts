@@ -109,8 +109,8 @@ export const TOOL_STATE_TITLE = {
 } as const satisfies Record<ToolCallState, string>;
 
 /**
- * What happened to each call. The public trace says started or completed, and failed for a
- * completed call its run recorded as failed (`failed`); a denied call completes without a
+ * What happened to each call. The public trace says started or completed, and `is_error` for a
+ * completed call that did not succeed (`failed`: shown as not completed); a denied call completes without a
  * result, so calls that needed approval take their state from the
  * approval card MindRoom posted for this reply. A call that went on as a background job takes
  * the card of the job its handle names first; then each call still without a card takes the one

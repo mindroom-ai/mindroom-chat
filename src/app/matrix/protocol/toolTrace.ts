@@ -10,7 +10,8 @@ export type ToolTraceEvent = {
   started_at?: unknown;
   // The provider's ID of the call, which a secret request names (secretRequest.ts `anchor`).
   tool_call_id?: unknown;
-  // True on a completed call its run recorded as failed.
+  // True on a completed call that did not succeed (an error, refusal, denial, cancellation or
+  // interruption; its result says which).
   is_error?: unknown;
 };
 

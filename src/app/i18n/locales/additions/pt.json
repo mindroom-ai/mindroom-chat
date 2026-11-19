@@ -858,11 +858,11 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Em execução há {{duration}}",
-        "toolCallFailed": "Falhou",
-        "toolCallsAlsoFailed": "· com falha: {{failed}}",
-        "toolCallsRanFailed_one": "{{count}} chamada de ferramenta executada · com falha: {{failed}}",
-        "toolCallsRanFailed_many": "{{count}} chamadas de ferramentas executadas · com falha: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} chamadas de ferramentas executadas · com falha: {{failed}}"
+        "toolCallFailed": "Não concluída",
+        "toolCallsAlsoFailed": "· sem conclusão: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} chamada de ferramenta executada · sem conclusão: {{failed}}",
+        "toolCallsRanFailed_many": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Definições de títulos…"

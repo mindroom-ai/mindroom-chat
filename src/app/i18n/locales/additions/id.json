@@ -832,9 +832,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",
-        "toolCallFailed": "Gagal",
-        "toolCallsAlsoFailed": "· {{failed}} gagal",
-        "toolCallsRanFailed_other": "{{count}} panggilan alat selesai dijalankan · {{failed}} gagal"
+        "toolCallFailed": "Tidak selesai",
+        "toolCallsAlsoFailed": "· {{failed}} tidak selesai",
+        "toolCallsRanFailed_other": "{{count}} panggilan alat selesai dijalankan · {{failed}} tidak selesai"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul…"

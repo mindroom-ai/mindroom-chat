@@ -897,14 +897,14 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
-        "toolCallFailed": "فشل",
-        "toolCallsAlsoFailed": "· فشل: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · فشل: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · فشل: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · فشل: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · فشل: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · فشل: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · فشل: ⁨{{failed}}⁩"
+        "toolCallFailed": "لم يكتمل",
+        "toolCallsAlsoFailed": "· لم يكتمل: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · لم يكتمل: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · لم يكتمل: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · لم يكتمل: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · لم يكتمل: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · لم يكتمل: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · لم يكتمل: ⁨{{failed}}⁩"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "إعدادات العناوين…"

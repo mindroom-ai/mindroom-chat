@@ -845,10 +845,10 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",
-        "toolCallFailed": "विफल",
-        "toolCallsAlsoFailed": "· {{failed}} विफल",
-        "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · {{failed}} विफल",
-        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · {{failed}} विफल"
+        "toolCallFailed": "पूरा नहीं हुआ",
+        "toolCallsAlsoFailed": "· पूरा नहीं हुआ: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · पूरा नहीं हुआ: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · पूरा नहीं हुआ: {{failed}}"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "शीर्षक सेटिंग…"

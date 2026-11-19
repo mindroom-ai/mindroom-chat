@@ -217,7 +217,7 @@ type ToolBlockRenderData = {
   toolCallId?: string;
   result?: string;
   resultInline: boolean;
-  /** Whether the completed call's trace entry says it failed (`is_error`). */
+  /** Whether the completed call's trace entry says it did not succeed (`is_error`). */
   failed?: boolean;
   progress?: string;
   /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
@@ -306,7 +306,9 @@ const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone 
   running: { src: Icons.Terminal, tone: 'neutral' },
   waiting: { src: Icons.Pause, tone: 'warning' },
   done: { src: Icons.Check, tone: 'success' },
-  failed: { src: Icons.Warning, tone: 'critical' },
+  // A call that did not complete (an error, refusal, denial, cancellation or interruption: its
+  // result says which) is not the green check, nor a red alarm.
+  failed: { src: Icons.Warning, tone: 'warning' },
   denied: { src: Icons.Cross, tone: 'critical' },
   expired: { src: Icons.Clock, tone: 'neutral' },
 };

@@ -832,9 +832,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",
-        "toolCallFailed": "失敗",
-        "toolCallsAlsoFailed": "· {{failed}} 個失敗",
-        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個失敗"
+        "toolCallFailed": "未完成",
+        "toolCallsAlsoFailed": "· {{failed}} 個未完成",
+        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "標題設定…"

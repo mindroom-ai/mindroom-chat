@@ -704,7 +704,7 @@ describe('tool call status from approval cards', () => {
     expect(renderShellCall(handle)).toContain('1 tool call waiting for approval');
   });
 
-  it('says in words which calls failed, on the run line, on the call and on the cog', () => {
+  it("says in words which calls didn't complete, on the run line, on the call and on the cog", () => {
     const completed = { type: 'tool_call_completed' };
     const failed = { ...completed, is_error: true };
     // The calls' line and rows, or the folded cog's name, for the two calls' trace entries.
@@ -761,26 +761,28 @@ describe('tool call status from approval cards', () => {
       { ...completed, result_preview: 'notes' },
       { ...failed, ...preview }
     );
-    expect(failedText).toContain('Ran 2 tool calls · 1 failed');
-    expect(failedText).toContain('run_shell_commandFailed');
-    expect(failedText).not.toContain('read_fileFailed');
+    expect(failedText).toContain("Ran 2 tool calls · 1 didn't complete");
+    expect(failedText).toContain("run_shell_commandDidn't complete");
+    expect(failedText).not.toContain("read_fileDidn't complete");
     const workedText = renderCalls(completed, { ...completed, ...preview });
     expect(workedText).toContain('Ran 2 tool calls');
-    expect(workedText).not.toContain('failed');
-    expect(workedText).not.toContain('Failed');
-    // Without a preview, or with a cut one, a call fails just the same.
+    expect(workedText).not.toContain("didn't complete");
+    expect(workedText).not.toContain("Didn't complete");
+    // Without a preview, or with a cut one, a call that did not succeed says so just the same.
     const allFailedText = renderCalls(failed, { ...failed, ...preview, truncated: true });
-    expect(allFailedText).toContain('Ran 2 tool calls · 2 failed');
-    expect(allFailedText).toContain('read_fileFailed');
-    expect(allFailedText).toContain('run_shell_commandFailed');
+    expect(allFailedText).toContain("Ran 2 tool calls · 2 didn't complete");
+    expect(allFailedText).toContain("read_fileDidn't complete");
+    expect(allFailedText).toContain("run_shell_commandDidn't complete");
     // A call that still runs or waits leads, and the failure so far shows beside it.
     const running = { type: 'tool_call_started' };
-    expect(renderCalls(failed, running)).toContain('Running 2 tool calls · 1 failed');
-    expect(renderCalls(failed, running, true)).toBe('Running 2 tool calls · 1 failed');
+    expect(renderCalls(failed, running)).toContain("Running 2 tool calls · 1 didn't complete");
+    expect(renderCalls(failed, running, true)).toBe("Running 2 tool calls · 1 didn't complete");
     approvals.current = { records: [jobCard('pending', { replyToEventId: '$reply' })], now: 0 };
-    expect(renderCalls(failed, completed)).toContain('1 tool call waiting for approval · 1 failed');
+    expect(renderCalls(failed, completed)).toContain(
+      "1 tool call waiting for approval · 1 didn't complete"
+    );
     expect(renderCalls(failed, completed, true)).toBe(
-      '2 tool calls: 1 tool call waiting for approval · 1 failed'
+      "2 tool calls: 1 tool call waiting for approval · 1 didn't complete"
     );
   });
 

@@ -845,10 +845,10 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} ধরে চলছে",
-        "toolCallFailed": "ব্যর্থ",
-        "toolCallsAlsoFailed": "· {{failed}}টি ব্যর্থ",
-        "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · {{failed}}টি ব্যর্থ",
-        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · {{failed}}টি ব্যর্থ"
+        "toolCallFailed": "সম্পূর্ণ হয়নি",
+        "toolCallsAlsoFailed": "· সম্পূর্ণ হয়নি: {{failed}}টি",
+        "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
+        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "শিরোনামের সেটিংস…"

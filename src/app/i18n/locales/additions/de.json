@@ -845,10 +845,10 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Läuft seit {{duration}}",
-        "toolCallFailed": "Fehlgeschlagen",
-        "toolCallsAlsoFailed": "· {{failed}} fehlgeschlagen",
-        "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} fehlgeschlagen",
-        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} fehlgeschlagen"
+        "toolCallFailed": "Nicht abgeschlossen",
+        "toolCallsAlsoFailed": "· {{failed}} nicht abgeschlossen",
+        "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} nicht abgeschlossen",
+        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} nicht abgeschlossen"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titeleinstellungen…"

@@ -832,9 +832,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中",
-        "toolCallFailed": "失敗",
-        "toolCallsAlsoFailed": "· {{failed}} 件失敗",
-        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件失敗"
+        "toolCallFailed": "完了しませんでした",
+        "toolCallsAlsoFailed": "· {{failed}} 件未完了",
+        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件未完了"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "タイトルの設定…"
