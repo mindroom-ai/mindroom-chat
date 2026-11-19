@@ -49,6 +49,12 @@ describe('a compact focus request', () => {
     expect(memory.get(ROOM_ID)).toBe(leftAtTop);
   });
 
+  it('is taken on a return with no saved place, as after a reload', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'b', returned: true });
+    expect(memory.get(ROOM_ID)?.anchors.map((anchor) => anchor.key)).toEqual([CARD]);
+  });
+
   it('is taken again until it is met: taking it, as a render does, does not meet it', () => {
     const memory: ScrollAnchorMemory = new Map();
     takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });

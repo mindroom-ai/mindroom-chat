@@ -19,7 +19,7 @@ export type CompactFocusRequest = {
   pushed?: boolean;
   /**
    * The entry is a return to the room (`RETURN_TO_ROOM_STATE`): the request was the room entry's,
-   * and the place the reader left there stays.
+   * and the place the reader left there stays. With no saved place (after a reload), it is taken.
    */
   returned?: boolean;
 };
@@ -43,7 +43,8 @@ export const takeCompactFocusRequest = (
   request: CompactFocusRequest
 ): void => {
   const key = metKey(request);
-  if (request.returned || (key && metRequests.get(memory)?.has(key))) return;
+  if ((request.returned && memory.has(roomId)) || (key && metRequests.get(memory)?.has(key)))
+    return;
   if (!memory.get(roomId)?.anchors.some((anchor) => anchor.key === request.eventId)) {
     memory.set(roomId, focusedPlace(request.eventId));
   }
