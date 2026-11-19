@@ -1,4 +1,4 @@
-import { createVar, keyframes, style, styleVariants } from '@vanilla-extract/css';
+import { createVar, globalStyle, keyframes, style, styleVariants } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import * as approvals from '../approvals/ThreadApprovals.css';
 import { touchTarget } from '../ui/styles/touchTarget';
@@ -72,6 +72,12 @@ export const Bar = style([
     },
   },
 ]);
+
+// Listed, the bar spans the dock's whole line (DockBars, in RoomOverlay.css, holds it), over the
+// typing strip beside it, which keeps its place, so the dock keeps its rows whatever changes while
+// the jobs are listed. The bar's foot stays at the anchor's: placed as the anchor's only flex item.
+export const Listed = style({ position: 'static' });
+globalStyle(`${Listed} > ${Bar}`, { position: 'absolute', insetInline: 0, zIndex: 1 });
 
 const grid = {
   display: 'grid',

@@ -38,6 +38,7 @@ vi.mock('../threads/fork/ThreadForkDivider', () => ({
 }));
 vi.mock('./BackgroundJobsBar.css', () => ({
   Anchor: 'Anchor',
+  Listed: 'Listed',
   Bar: 'Bar',
   Status: 'Status',
   Action: 'Action',
@@ -245,31 +246,13 @@ it('shows several jobs on one line, and lists them while the title is pressed', 
   expand();
   expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
   expect(container.querySelectorAll('li')).toHaveLength(2);
+  // Listed, the bar spans the dock's line, whatever shares it.
+  expect(container.querySelector('.Anchor')?.classList).toContain('Listed');
   // A mouse leaving does not close a list the title opened.
   pointer('pointerout', 'mouse');
   expect(container.querySelector('ul')).not.toBeNull();
   expand();
   expect(container.querySelector('ul')).toBeNull();
-});
-
-it('takes the whole line while listed only when it shares it', () => {
-  state.jobs = [job('a'), job('b')];
-  render();
-  // The bar's line is the element it renders in.
-  const anchor = container.querySelector<HTMLElement>('.Anchor')!;
-  const width = (value: number) =>
-    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({ width: value } as DOMRect);
-  vi.spyOn(container, 'clientWidth', 'get').mockReturnValue(360);
-  // Beside the typing strip, listed jobs take its place on the line.
-  width(240);
-  expand();
-  expect(anchor.hasAttribute('data-takes-line')).toBe(true);
-  expand();
-  expect(anchor.hasAttribute('data-takes-line')).toBe(false);
-  // Alone on its line, the bar leaves the strip below it.
-  width(360);
-  expand();
-  expect(anchor.hasAttribute('data-takes-line')).toBe(false);
 });
 
 it('counts the live jobs the agents did not list in the main timeline only', () => {
