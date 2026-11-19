@@ -187,6 +187,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   ResolutionBylineDot: 'ResolutionBylineDot',
   ResolverName: 'ResolverName',
   ResolvedButton: 'ResolvedButton',
+  RowActions: 'RowActions',
   ScheduledDot: 'ScheduledDot',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',

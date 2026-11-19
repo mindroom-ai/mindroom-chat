@@ -50,12 +50,15 @@ export const TitleRow = style({
 // (a small phone, Page Zoom) gives the title the banner's full width under them. In rem, since
 // Page Zoom scales the root font size and so the buttons, while the banner keeps its px width.
 const phoneRow = createContainer();
-const narrowPhoneRow = `${phoneRow} (max-width: 21rem)`;
+const narrowPhoneRow = `${phoneRow} (max-width: 19rem)`;
 export const PhoneTitleRow = style({
   containerName: phoneRow,
   containerType: 'inline-size',
   rowGap: config.space.S100,
 });
+
+// The buttons keep the row's end, also while the title takes the row under them.
+export const RowActions = style({ gridColumn: 3 });
 
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({

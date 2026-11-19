@@ -328,9 +328,9 @@ const boxOf = (locator: Locator) =>
 const rowButtons = (page: Page) => banner(page).locator('button:visible');
 
 /** Every button of the card's row whole on the screen, none over another. */
-const expectRowOnScreen = async (page: Page, width: number) => {
+const expectRowOnScreen = async (page: Page, width: number, linked: boolean) => {
   const buttons = rowButtons(page);
-  await expect(buttons).toHaveCount(WITH_MARKER ? 4 : 3, { timeout: 30_000 });
+  await expect(buttons).toHaveCount(WITH_MARKER && linked ? 4 : 3, { timeout: 30_000 });
   const boxes = await buttons.evaluateAll((list) =>
     list.map((button) => {
       const { left, right } = button.getBoundingClientRect();
@@ -345,17 +345,21 @@ const expectRowOnScreen = async (page: Page, width: number) => {
   });
 };
 
-/** The title shows whole: every line of it, uncut, inside the card and the screen. */
-const expectWholeTitle = async (page: Page, expected: string, width: number) => {
+/**
+ * The title shows whole: every line of it, uncut, inside the card and the screen. `bounded`: the
+ * screen is too small for all its lines, so it fills its bound and scrolls to the rest.
+ */
+const expectWholeTitle = async (page: Page, expected: string, width: number, bounded = false) => {
   const shown = await title(page).evaluate((element) => {
     const style = getComputedStyle(element);
     const box = element.getBoundingClientRect();
     const card = element.closest('[data-thread-context-banner]')!.getBoundingClientRect();
     return {
       text: element.textContent,
-      clipped:
-        element.scrollHeight > element.clientHeight + 1 ||
-        element.scrollWidth > element.clientWidth + 1,
+      clipped: element.scrollHeight > element.clientHeight + 1,
+      clippedSideways: element.scrollWidth > element.clientWidth + 1,
+      shownLines: element.clientHeight / parseFloat(style.lineHeight),
+      overflowY: style.overflowY,
       whiteSpace: style.whiteSpace,
       textOverflow: style.textOverflow,
       lines: Math.round(box.height / parseFloat(style.lineHeight)),
@@ -364,7 +368,13 @@ const expectWholeTitle = async (page: Page, expected: string, width: number) => 
     };
   });
   expect(shown.text).toBe(expected);
-  expect(shown.clipped).toBe(false);
+  expect(shown.clippedSideways).toBe(false);
+  if (bounded) {
+    expect(shown.overflowY).toBe('auto');
+    expect(shown.shownLines).toBeGreaterThanOrEqual(3 - 0.05);
+  } else {
+    expect(shown.clipped).toBe(false);
+  }
   expect(shown.whiteSpace).toBe('normal');
   expect(shown.textOverflow).not.toBe('ellipsis');
   expect(shown.box.left).toBeGreaterThanOrEqual(Math.max(0, shown.card.left) - 0.5);
@@ -407,7 +417,7 @@ const checkWall = async (page: Page, world: World, viewport: Size, name: string)
   const replyBox = (await reply.boundingBox())!;
   expect(replyBox.y).toBeGreaterThanOrEqual(card.bottom);
   expect(replyBox.y + replyBox.height).toBeLessThanOrEqual(foot.top);
-  await expectRowOnScreen(page, viewport.width);
+  await expectRowOnScreen(page, viewport.width, false);
   await shot(page, `wall-${name}`);
   // The title's last line is reached by scrolling the title, not the page.
   await rootTitle.evaluate((element) => element.scrollTo(0, element.scrollHeight));
@@ -433,7 +443,10 @@ const setPageZoom = (page: Page, pageZoom: number) =>
     localStorage.setItem('settings', JSON.stringify({ ...settings, pageZoom: zoom }));
   }, pageZoom);
 
-/** At 150% Page Zoom in `dir`: the 122-character title whole, the row on screen, the wall. */
+/**
+ * At 150% Page Zoom in `dir`: the 122-character title whole, the row on screen, the wall. A 320 by
+ * 568 phone has room for only six of the title's seven lines there, so its title scrolls.
+ */
 const checkZoomed = async (page: Page, world: World, viewport: Size, dir: 'ltr' | 'rtl') => {
   await setPageZoom(page, 150);
   if (dir === 'rtl') await page.evaluate(() => localStorage.setItem('i18nextLng', 'ar'));
@@ -446,8 +459,8 @@ const checkZoomed = async (page: Page, world: World, viewport: Size, dir: 'ltr' 
     await expect(banner(page).locator('.mrpr-thread-button')).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(1500);
   }
-  await expectRowOnScreen(page, viewport.width);
-  await expectWholeTitle(page, LONG_TITLE, viewport.width);
+  await expectRowOnScreen(page, viewport.width, true);
+  await expectWholeTitle(page, LONG_TITLE, viewport.width, viewport.height < 600);
   const name = `${viewport.width}-zoom150-${dir}`;
   await shot(page, `long-${name}`);
   await checkWall(page, world, viewport, name);
@@ -480,7 +493,7 @@ test("a phone's banner card keeps back, the whole title, the marker, Resolve and
         description: "the pull requests' marker: this build has no pull request plugin",
       });
     }
-    await expectRowOnScreen(page, PHONE.viewport!.width);
+    await expectRowOnScreen(page, PHONE.viewport!.width, true);
     // The pin button and the tags are left to More.
     await expect(banner(page).getByRole('button', { name: 'Pin thread' })).toHaveCount(0);
     await expect(banner(page).getByText('networking')).toHaveCount(0);

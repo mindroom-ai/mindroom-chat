@@ -588,7 +588,7 @@ export function ThreadContextBanner({
                 </div>
               )}
             </div>
-            <Box alignItems="Center" gap="100" shrink="No">
+            <Box className={css.RowActions} alignItems="Center" gap="100" shrink="No">
               {pluginControls}
               <IconTooltip label={t('threadActions.more')}>
                 {(triggerRef) => (
