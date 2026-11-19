@@ -1039,6 +1039,8 @@
       "modelPicker": {
         "effort": "Aufwand",
         "effortFor": "Aufwand für {{model}}",
+        "effortLevel": "Aufwand: {{level}}",
+        "back": "Zurück",
         "noEffortLevels": "Keine Aufwandsstufen",
         "defaultLevel": "Standard",
         "levelIsDefault": "{{level}}, Standard",

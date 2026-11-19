@@ -1039,6 +1039,8 @@
       "modelPicker": {
         "effort": "Çaba",
         "effortFor": "{{model}} için çaba",
+        "effortLevel": "Çaba: {{level}}",
+        "back": "Geri",
         "noEffortLevels": "Çaba düzeyi yok",
         "defaultLevel": "Varsayılan",
         "levelIsDefault": "{{level}}, varsayılan",

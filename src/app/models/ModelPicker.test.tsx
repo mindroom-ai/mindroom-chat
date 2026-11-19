@@ -23,8 +23,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./ModelPicker.css', () => ({
   Check: 'Check',
   Controls: 'Controls',
+  EffortBack: 'EffortBack',
   EffortColumn: 'EffortColumn',
   EffortDefault: 'EffortDefault',
+  EffortEntry: 'EffortEntry',
+  EffortEntryBar: 'EffortEntryBar',
   EffortHeader: 'EffortHeader',
   EffortLabel: 'EffortLabel',
   EffortLevels: 'EffortLevels',
@@ -32,12 +35,14 @@ vi.mock('./ModelPicker.css', () => ({
   EffortNone: 'EffortNone',
   EffortPanel: 'EffortPanel',
   EffortRow: 'EffortRow',
+  EffortValue: 'EffortValue',
   Empty: 'Empty',
   Error: 'Error',
   ErrorActions: 'ErrorActions',
   Group: 'Group',
   GroupTitle: 'GroupTitle',
   IconImage: 'IconImage',
+  Mirrored: 'Mirrored',
   Option: 'Option',
   OptionDetail: 'OptionDetail',
   OptionIcon: 'OptionIcon',
@@ -47,14 +52,12 @@ vi.mock('./ModelPicker.css', () => ({
   Picker: 'Picker',
   Results: 'Results',
   RoomDefaultDetail: 'RoomDefaultDetail',
-  Rows: 'Rows',
   RuntimeLabel: 'RuntimeLabel',
   RuntimeRow: 'RuntimeRow',
   RuntimeSelect: 'RuntimeSelect',
   SearchIcon: 'SearchIcon',
   SearchInput: 'SearchInput',
   SearchRow: 'SearchRow',
-  StackedScroll: 'StackedScroll',
   StatusRow: 'StatusRow',
   TextButton: 'TextButton',
   Trigger: 'Trigger',
@@ -1171,22 +1174,99 @@ describe('composer model picker', () => {
       ).toBe(named);
     });
 
-    it('stacks the column under the models on a phone', async () => {
-      act(() =>
-        root.render(
+    describe('on a phone', () => {
+      const openOnPhone = async (state: ModelPickerState) => {
+        act(() =>
+          root.render(
+            <ScreenSizeProvider value={ScreenSize.Mobile}>
+              <ModelPicker state={state} />
+            </ScreenSizeProvider>
+          )
+        );
+        await click(trigger());
+      };
+      const entry = () => container.querySelector<HTMLButtonElement>('[data-effort-entry]');
+      const back = () => container.querySelector<HTMLButtonElement>('button[aria-label="Back"]');
+
+      it('shows an Effort row under the models, not the column', async () => {
+        await openOnPhone(levelled({ override: 'sol', reasoning: 'xhigh' }));
+        const dialog = container.querySelector('[role="dialog"]')!;
+        expect(dialog.className).toBe('Panel');
+        expect(column()).toBeNull();
+        expect(entry()?.getAttribute('aria-label')).toBe('Effort: Extra high');
+        expect(entry()?.textContent).toBe('EffortExtra high');
+        expect(
+          entry()?.querySelectorAll('[data-effort-glyph] rect[data-filled="true"]')
+        ).toHaveLength(4);
+        // Pinned under the models' box, outside what scrolls.
+        expect(dialog.lastElementChild?.contains(entry())).toBe(true);
+        expect(dialog.querySelector('.Picker')?.contains(entry())).toBe(false);
+      });
+
+      it('shows no row for a model without levels', async () => {
+        await openOnPhone(levelled({ override: 'reset' }));
+        expect(list()).not.toBeNull();
+        expect(entry()).toBeNull();
+        expect(column()).toBeNull();
+      });
+
+      it('opens the levels in place of the models and sends the picked one', async () => {
+        const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+        await openOnPhone(state);
+        await click(entry()!);
+
+        expect(list()).toBeNull();
+        expect(column()?.getAttribute('data-mode')).toBe('view');
+        expect(header()).toBe('EffortSol');
+        expect(document.activeElement).toBe(radio('Extra high'));
+        expect(radio('High, default').textContent).toBe('HighDefault');
+        expect(radio('Extra high').querySelector('.Check')).not.toBeNull();
+        await click(radio('Low'));
+        expect(state.selectModel).toHaveBeenCalledTimes(1);
+        expect(state.selectModel).toHaveBeenCalledWith('sol', 'low');
+        // The menu closes once the command has run, as beside the models.
+        const phone = (next: ModelPickerState) => (
           <ScreenSizeProvider value={ScreenSize.Mobile}>
-            <ModelPicker state={levelled({ override: 'sol' })} />
+            <ModelPicker state={next} />
           </ScreenSizeProvider>
-        )
-      );
-      await click(trigger());
-      const dialog = container.querySelector('[role="dialog"]')!;
-      expect(dialog.className).toBe('Panel');
-      // Both panes sit in one box, which scrolls them together when a short window fits neither.
-      const panes = dialog.querySelector('.StackedScroll')!;
-      expect(panes.parentElement).toBe(dialog);
-      expect(panes.lastElementChild).toBe(column());
-      expect(radios()).toHaveLength(4);
+        );
+        act(() => root.render(phone({ ...state, pending: true, canMutate: false })));
+        act(() => root.render(phone({ ...state, reasoning: 'low' })));
+        expect(container.querySelector('[role="dialog"]')).toBeNull();
+      });
+
+      it('closes without a command on the level the thread runs at', async () => {
+        const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+        await openOnPhone(state);
+        await click(entry()!);
+        await click(radio('Extra high'));
+        expect(state.selectModel).not.toHaveBeenCalled();
+        expect(container.querySelector('[role="dialog"]')).toBeNull();
+      });
+
+      it('goes back to the models with Back, Escape or ArrowLeft, on the Effort row', async () => {
+        await openOnPhone(levelled({ override: 'sol' }));
+        await click(entry()!);
+        // With no level named, the keys land on the default.
+        expect(document.activeElement).toBe(radio('High, default'));
+        await click(back()!);
+        expect(column()).toBeNull();
+        expect(list()).not.toBeNull();
+        expect(document.activeElement).toBe(entry());
+
+        await keyDown(entry()!, 'ArrowRight');
+        expect(document.activeElement).toBe(radio('High, default'));
+        await keyDown(document.activeElement!, 'Escape');
+        expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+        expect(document.activeElement).toBe(entry());
+
+        await keyDown(list()!, 'ArrowRight');
+        await keyDown(document.activeElement!, 'ArrowLeft');
+        expect(document.activeElement).toBe(entry());
+
+        await keyDown(list()!, 'Escape');
+        expect(container.querySelector('[role="dialog"]')).toBeNull();
+      });
     });
 
     it('adds bars for the level to the button and names the level', () => {

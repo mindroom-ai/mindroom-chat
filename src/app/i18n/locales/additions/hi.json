@@ -1039,6 +1039,8 @@
       "modelPicker": {
         "effort": "प्रयास",
         "effortFor": "{{model}} के लिए प्रयास",
+        "effortLevel": "प्रयास: {{level}}",
+        "back": "वापस",
         "noEffortLevels": "कोई प्रयास स्तर नहीं",
         "defaultLevel": "डिफ़ॉल्ट",
         "levelIsDefault": "{{level}}, डिफ़ॉल्ट",

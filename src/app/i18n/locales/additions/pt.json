@@ -1063,6 +1063,8 @@
       "modelPicker": {
         "effort": "Esforço",
         "effortFor": "Esforço de {{model}}",
+        "effortLevel": "Esforço: {{level}}",
+        "back": "Voltar",
         "noEffortLevels": "Sem níveis de esforço",
         "defaultLevel": "Padrão",
         "levelIsDefault": "{{level}}, padrão",

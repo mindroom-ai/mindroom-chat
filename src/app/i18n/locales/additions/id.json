@@ -1015,6 +1015,8 @@
       "modelPicker": {
         "effort": "Upaya",
         "effortFor": "Upaya untuk {{model}}",
+        "effortLevel": "Upaya: {{level}}",
+        "back": "Kembali",
         "noEffortLevels": "Tidak ada tingkat upaya",
         "defaultLevel": "Bawaan",
         "levelIsDefault": "{{level}}, bawaan",

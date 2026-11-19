@@ -1135,6 +1135,8 @@
       "modelPicker": {
         "effort": "الجهد",
         "effortFor": "الجهد لـ ⁨{{model}}⁩",
+        "effortLevel": "الجهد: ⁨{{level}}⁩",
+        "back": "رجوع",
         "noEffortLevels": "لا توجد مستويات جهد",
         "defaultLevel": "افتراضي",
         "levelIsDefault": "⁨{{level}}⁩، افتراضي",
