@@ -1,4 +1,12 @@
-import { Fragment, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  Fragment,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
@@ -53,6 +61,7 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import type { PhoneThreadHeader } from '../threads/ThreadContextBanner';
+import { TightCallPlace } from '../calls/headerCallPlace';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 import { CompactViewIcon } from './CompactViewIcon';
 import {
@@ -185,6 +194,28 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
   };
 };
 
+// Whether the row's buttons need more width than the row has, the room's name already gone (a
+// small phone at 150% zoom). It holds until the row is as wide as they needed, so that moving
+// some to the menu does not bring them back.
+const useTightRow = (rowRef: RefObject<HTMLElement>, on: boolean) => {
+  const [needed, setNeeded] = useState<number>();
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!on || !row || typeof ResizeObserver === 'undefined') return undefined;
+    const check = () =>
+      setNeeded((was) => {
+        if (was !== undefined) return row.clientWidth < was ? was : undefined;
+        return row.scrollWidth > row.clientWidth ? row.scrollWidth : undefined;
+      });
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(row);
+    if (row.lastElementChild) observer.observe(row.lastElementChild);
+    return () => observer.disconnect();
+  }, [on, rowRef]);
+  return on && needed !== undefined;
+};
+
 /**
  * The room header: avatar, name and topic (only the name on phones), then its actions (the Compact and
  * Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the sub-agents,
@@ -250,6 +281,12 @@ export function RoomViewHeader({
   // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
+  // On a phone the thread that fills the page takes the header: the room gives its name, its
+  // row's buttons and its menu, which the thread's menu opens, and which takes what a row too
+  // narrow leaves out.
+  const threadRows = mobile && !!threadId && phoneThread;
+  const rowRef = useRef<HTMLDivElement>(null);
+  const tight = useTightRow(rowRef, !!threadRows);
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
   // On phones the room menu opens these; they stay with the room they were opened in.
   const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<RectCords>();
@@ -431,7 +468,12 @@ export function RoomViewHeader({
       marker: 'data-subagents-toggle',
     },
     // The call buttons, in the row on phones too, so a call is one tap away.
-    calls && { id: 'call', placement: 'row', row: calls },
+    calls && {
+      id: 'call',
+      placement: 'row',
+      row: tight ? <TightCallPlace.Provider value={{}}>{calls}</TightCallPlace.Provider> : calls,
+      menu: <TightCallPlace.Provider value={{ closeMenu }}>{calls}</TightCallPlace.Provider>,
+    },
     pinnedCount > 0 && {
       id: 'pins',
       label: t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages'),
@@ -491,8 +533,9 @@ export function RoomViewHeader({
         run: () => run(undefined),
       }))
   );
-  const inRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
-  const menuEntries = entries.filter((entry) => !inRow(entry));
+  const inRow = (entry: RoomHeaderEntry) =>
+    showsInRow(entry.placement, mobile) && !(tight && entry.id !== 'call');
+  const menuEntries = entries.filter((entry) => !inRow(entry) || (tight && entry.id === 'call'));
   // What only works in the open room, before the room's own actions in the menu.
   const roomEntries =
     menuEntries.length > 0 &&
@@ -518,10 +561,6 @@ export function RoomViewHeader({
   const menuDot =
     menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
     cornerDot('data-room-menu-dot');
-  // On a phone the thread that fills the page takes the header: the room gives its name, its
-  // row's buttons and its menu, which the thread's menu opens.
-  const threadRows = mobile && !!threadId && phoneThread;
-
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
     // the landmark that names the open room.
@@ -532,6 +571,7 @@ export function RoomViewHeader({
           actions: rowButtons,
           onRoomMenu: setMenuAnchor,
           menuBadge: menuDot,
+          rowRef,
         })
       ) : (
         <>

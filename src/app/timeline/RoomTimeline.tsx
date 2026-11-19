@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useContext,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -82,6 +83,7 @@ import {
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
+import { HeaderResizeHoldContext } from './headerResizeHold';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
@@ -1097,6 +1099,20 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,
   });
+  // A phone's room header holds the thread's banner: its height changes reach the ledger here.
+  const headerHold = useContext(HeaderResizeHoldContext);
+  const { holdThreadBannerResize } = ledger;
+  useLayoutEffect(() => {
+    if (!headerHold) return undefined;
+    headerHold.current = (change, setInset) => {
+      const scrollTop = getScrollElement()?.scrollTop ?? 0;
+      setInset();
+      holdThreadBannerResize(change, scrollTop);
+    };
+    return () => {
+      headerHold.current = undefined;
+    };
+  }, [getScrollElement, headerHold, holdThreadBannerResize]);
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
   // How far the list still reaches below its newest row (`listShrinkNotRendered`).

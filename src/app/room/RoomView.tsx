@@ -291,6 +291,8 @@ export function RoomView({
   const threadBanner = (phoneHeader?: PhoneThreadHeader) =>
     openThreadId && (
       <ThreadContextBanner
+        // A phone's header outlives the thread's view: what the banner holds open goes with the thread.
+        key={phoneHeader && `${room.roomId}:${openThreadId}`}
         room={room}
         threadId={openThreadId}
         summaryInfo={threadState.threadSummaryInfo}

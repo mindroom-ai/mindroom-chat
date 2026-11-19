@@ -4,6 +4,7 @@ import FocusTrap from 'focus-trap-react';
 import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem, type RectCords } from 'folds';
 import { PopOut, TooltipProvider } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { MenuEntry } from '../../ui/MenuEntry';
 import { useRoom } from '../../matrix/hooks/useRoom';
 import type { AgentCallCandidate } from './agentCallCandidates';
 import { useAgentCaller } from './agentCaller';
@@ -13,6 +14,8 @@ type AgentCallHeaderButtonProps = {
   threadId?: string;
   /** The agents to offer, as the header looked them up (`useAgentCallOffer`). */
   candidates: AgentCallCandidate[];
+  /** Draws the room menu's entries, one an agent, in place of the button; runs as one is chosen. */
+  inMenu?: () => void;
 };
 
 type ChooserProps = {
@@ -63,7 +66,8 @@ const AgentChooser = forwardRef<HTMLDivElement, ChooserProps>(function AgentChoo
  * once, several open a menu to choose from. The call is about the open thread, or the room's
  * timeline outside a thread. Call rooms have their call in the room itself, so they show none.
  */
-export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderButtonProps) {
+export function AgentCallHeaderButton(props: AgentCallHeaderButtonProps) {
+  const { threadId, candidates, inMenu } = props;
   const { t } = useTranslation();
   const room = useRoom();
   // The header has no room for the reason a call did not start; the call notices show it.
@@ -85,6 +89,22 @@ export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderB
       threadId,
     });
   };
+
+  if (inMenu)
+    return candidates.map((candidate) => (
+      <MenuEntry
+        key={candidate.userId}
+        icon={Icons.Phone}
+        label={t('mindroomUi.calls.agentCallHeaderButton.callAgent', {
+          name: candidate.displayName,
+        })}
+        disabled={pending}
+        onSelect={() => {
+          inMenu();
+          start(candidate);
+        }}
+      />
+    ));
 
   return (
     <>

@@ -9,6 +9,7 @@ import React, {
   useRef,
   useState,
   type ReactNode,
+  type Ref,
 } from 'react';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
@@ -88,6 +89,8 @@ export type PhoneThreadHeader = {
   onRoomMenu: (anchor: RectCords) => void;
   /** Drawn on More while the room's menu holds what a button of its own would mark. */
   menuBadge?: ReactNode;
+  /** The row, which the header measures: buttons it has no width for go to the room's menu. */
+  rowRef?: Ref<HTMLDivElement>;
 };
 
 const DESKTOP_MAX_PILLS = 3;
@@ -549,17 +552,20 @@ export function ThreadContextBanner({
             triggerRef(node);
             moreButtonRef.current = node;
           }}
-          className={toolbarCss.MessageOptionsButton}
+          className={classNames(toolbarCss.MessageOptionsButton, phoneHeader && css.PhoneMore)}
           variant="SurfaceVariant"
           fill="None"
           aria-label={t('threadActions.more')}
           aria-haspopup="menu"
           aria-expanded={!!activeMenu}
-          disabled={!canOpenMenu}
+          disabled={!canOpenMenu && !phoneHeader}
           style={phoneHeader?.menuBadge ? { position: 'relative' } : undefined}
-          onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-            openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
-          }
+          onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            // A thread the server has not confirmed has no menu yet: a phone's More opens the room's.
+            if (canOpenMenu) openMenu(rect, event.currentTarget);
+            else phoneHeader?.onRoomMenu(rect);
+          }}
         >
           <Icon src={Icons.VerticalDots} size={headerIcon} />
           {phoneHeader?.menuBadge}
@@ -633,7 +639,7 @@ export function ThreadContextBanner({
           tabIndex={-1}
           {...menuKeys}
         >
-          <div className={css.PhoneRow}>
+          <div ref={phoneHeader.rowRef} className={css.PhoneRow}>
             {backButton}
             <h1 className={css.PhoneRoom}>
               <button
@@ -655,7 +661,9 @@ export function ThreadContextBanner({
             </Box>
           </div>
           {(titleNode || isPinned) && (
-            <div className={css.PhoneTitleRow}>
+            // A title long enough to scroll here takes the keyboard's focus to be scrolled.
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+            <div className={css.PhoneTitleRow} tabIndex={0}>
               {titleNode}
               {isPinned && (
                 <Box

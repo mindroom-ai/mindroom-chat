@@ -1,6 +1,7 @@
 import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color, DefaultReset, toRem } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
+import { roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
 import { shortViewport } from '../ui/styles/shortViewport';
 import { touchTarget } from '../ui/styles/touchTarget';
 import { toolbarButtonRestFill } from '../messages/styles.css';
@@ -339,17 +340,28 @@ export const PhoneHeader = style({
   minWidth: 0,
   paddingBottom: config.space.S300,
   '@media': { [shortViewport]: { paddingBottom: config.space.S100 } },
+  '@container': { [shortRoomArea]: { paddingBottom: config.space.S100 } },
 });
 
-// The header's row, as tall as the room header's (on short screens too): back, the room's name,
-// then the buttons.
+// A room area as narrow as a small phone's at 150% zoom: the row gives up its gap and insets.
+const narrowRoomArea = `${roomArea} (max-width: 280px)`;
+const lowRow = { height: toRem(44) };
+
+// The header's row, as tall as the room header's, lower on short screens and under a keyboard:
+// back, the room's name, then the buttons.
 export const PhoneRow = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S100,
   height: toRem(54),
   paddingInline: config.space.S200,
-  '@media': { [shortViewport]: { height: toRem(44) } },
+  '@media': { [shortViewport]: lowRow },
+  '@container': { [shortRoomArea]: lowRow, [narrowRoomArea]: { gap: 0, paddingInline: 0 } },
+});
+
+// More is the room's menu button there too: 40 px, and 44 px for a finger with its reach.
+export const PhoneMore = style({
+  selectors: { '&&&': { inlineSize: toRem(40), blockSize: toRem(40) } },
 });
 
 // The room's name takes the room the buttons leave, and gives way to them.
@@ -360,8 +372,9 @@ export const PhoneRoomButton = style([
   DefaultReset,
   {
     display: 'flex',
+    // All of the cell the buttons leave leads back, however short the name.
+    flex: '1 1 0',
     minWidth: 0,
-    maxWidth: '100%',
     padding: 0,
     border: 0,
     background: 'none',
@@ -375,12 +388,19 @@ export const PhoneRoomButton = style([
 ]);
 
 // The whole title under the row, on the header's content inset; a pinned thread's pin follows.
+// A title taller than three lines or 38% of the room area scrolls here, in itself, so the
+// conversation keeps its room; under a keyboard it keeps one line, or the rename field.
 export const PhoneTitleRow = style({
   display: 'flex',
   alignItems: 'flex-start',
+  flexShrink: 0,
   gap: config.space.S200,
   minWidth: 0,
   paddingInline: config.space.S400,
+  maxBlockSize: `max(calc(3 * ${config.lineHeight.H5}), 38cqh)`,
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  '@container': { [shortRoomArea]: { maxBlockSize: config.lineHeight.H5 } },
 });
 
 // The title in full: it wraps onto as many lines as it needs and is never cut.
@@ -411,6 +431,7 @@ export const PhoneStatus = style({
   marginTop: config.space.S100,
   paddingInline: config.space.S400,
   selectors: { '&:empty': { display: 'none' } },
+  '@container': { [shortRoomArea]: { display: 'none' } },
 });
 
 // The tags in a row of their own, where the header shows them (PHONE_HEADER_TAGS).

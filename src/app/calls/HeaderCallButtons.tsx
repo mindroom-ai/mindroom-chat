@@ -1,3 +1,4 @@
+import { useContext } from 'react';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
 import { RoomCallButton } from './RoomCallButton';
@@ -5,6 +6,7 @@ import { useCallSupport } from './callSupport';
 import { isActiveCallShownIn, useActiveCall, useRoomCallMembers } from './callStore';
 import { AgentCallHeaderButton } from './agent/AgentCallHeaderButton';
 import { useAgentCallOffer } from './agent/useAgentCallOffer';
+import { TightCallPlace } from './headerCallPlace';
 
 /**
  * What the header offers for calls. Nothing new where the deployment has no call service: calls
@@ -30,10 +32,15 @@ const useHeaderCalls = (threadId: string | undefined) => {
 /** The room header's call buttons (see `useHeaderCalls`). */
 export function HeaderCallButtons({ threadId }: { threadId?: string }) {
   const { room, candidates, offerAgent, offerRoom } = useHeaderCalls(threadId);
+  const tight = useContext(TightCallPlace);
+  const agents = (
+    <AgentCallHeaderButton threadId={threadId} candidates={candidates} inMenu={tight?.closeMenu} />
+  );
+  if (tight?.closeMenu) return offerRoom && offerAgent ? agents : null;
   return (
     <>
       {offerRoom && <RoomCallButton room={room} />}
-      {offerAgent && <AgentCallHeaderButton threadId={threadId} candidates={candidates} />}
+      {offerAgent && !(tight && offerRoom) && agents}
     </>
   );
 }

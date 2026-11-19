@@ -19,6 +19,7 @@ import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporti
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { FailedSendActions } from '../messages/FailedSendActions';
+import { HeaderResizeHoldContext, type HeaderResizeHold } from '../timeline/headerResizeHold';
 import { RoomViewFollowing } from '../timeline/RoomViewFollowing';
 import { RoomViewTyping } from '../timeline/typing/RoomViewTyping';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
@@ -86,16 +87,23 @@ const useOverlayInsets = (
   headerRef: RefObject<HTMLElement>,
   footerRef: RefObject<HTMLElement>,
   dockRef: RefObject<HTMLElement>,
-  parts: string
+  parts: string,
+  headerHold: HeaderResizeHold
 ) => {
   useLayoutEffect(() => {
     const area = areaRef.current;
     if (!area || typeof ResizeObserver === 'undefined') return undefined;
+    let shown: number | undefined;
     const measure = () => {
       const header = headerRef.current?.offsetHeight ?? 0;
       const composer = footerRef.current?.offsetHeight ?? 0;
       const dock = dockRef.current?.offsetHeight ?? 0;
-      area.style.setProperty('--room-header-height', `${header}px`);
+      const setHeader = () => area.style.setProperty('--room-header-height', `${header}px`);
+      const change = header - (shown ?? header);
+      // A timeline that holds its reader (a phone's thread) reads its place before the inset moves.
+      if (change && headerHold.current) headerHold.current(change, setHeader);
+      else setHeader();
+      shown = header;
       area.style.setProperty('--room-composer-height', `${composer}px`);
       area.style.setProperty('--room-footer-height', `${composer + dock}px`);
     };
@@ -105,7 +113,7 @@ const useOverlayInsets = (
       if (ref.current) observer.observe(ref.current);
     });
     return () => observer.disconnect();
-  }, [areaRef, dockRef, footerRef, headerRef, parts]);
+  }, [areaRef, dockRef, footerRef, headerHold, headerRef, parts]);
 };
 
 /**
@@ -190,12 +198,14 @@ export function ConversationLayout({
   // active permissions: the thread's approvals reach it from their provider below.
   const threadInHeader = phone && !!threadId && !!shownHeader;
   const [headerApprovals, setHeaderApprovals] = useState<ThreadApprovals>();
+  const headerHold: HeaderResizeHold = useRef();
   useOverlayInsets(
     areaRef,
     headerRef,
     footerRef,
     dockRef,
-    `${threadId ?? ''}|${collapsed}|${!!shownHeader}`
+    `${threadId ?? ''}|${collapsed}|${!!shownHeader}`,
+    headerHold
   );
 
   return (
@@ -207,8 +217,9 @@ export function ConversationLayout({
           data-glass-flat="true"
           className={classNames(
             overlay.Header,
-            css.HeaderInShortArea,
-            // Not on a phone, whose header is the thread's bar.
+            // A phone's header is the thread's bar, with its way back and its title's rename: it
+            // stays in a short area and on a short screen.
+            !threadInHeader && css.HeaderInShortArea,
             threadId && !phone && overlay.HeaderInThread
           )}
         >
@@ -231,7 +242,9 @@ export function ConversationLayout({
             >
               {threadInHeader && <ThreadApprovalsRelay onChange={setHeaderApprovals} />}
               <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
-                {timeline}
+                <HeaderResizeHoldContext.Provider value={threadInHeader ? headerHold : undefined}>
+                  {timeline}
+                </HeaderResizeHoldContext.Provider>
               </Box>
               <div ref={dockRef} style={DOCK_STYLE}>
                 <div className={overlay.DockRow}>
