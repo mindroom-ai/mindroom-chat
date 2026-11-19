@@ -261,7 +261,7 @@ export const TitleText = style({
   overflow: 'hidden',
 });
 
-// An unread thread: a bolder title that starts with an accent dot (4:1 or more on every theme's
+// An unread thread: a bolder title that starts with an accent dot (3.9:1 or more on every theme's
 // cards and tints, past the 3:1 a mark needs). The time beside it stays quiet.
 export const TitleTextUnread = style({
   fontWeight: 600,

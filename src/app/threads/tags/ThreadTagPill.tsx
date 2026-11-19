@@ -20,7 +20,7 @@ const pillStyle: React.CSSProperties = {
   padding: '0.1rem 0.4rem',
   borderRadius: '0.5rem',
   maxWidth: '8rem',
-  color: 'color-mix(in srgb, currentColor 80%, transparent)',
+  color: 'color-mix(in srgb, currentColor 90%, transparent)',
   backgroundColor: 'color-mix(in srgb, currentColor 8%, transparent)',
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
