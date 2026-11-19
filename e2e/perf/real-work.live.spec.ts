@@ -589,6 +589,33 @@ const switchDebug = async (run: Run, turns: number): Promise<Measured> => {
     () => (window as unknown as { __mvPresses?: unknown[] }).__mvPresses ?? []
   );
   writeFileSync(join(OUT_DIR, `mover-${run.engine}.json`), `${JSON.stringify(moverPresses)}\n`);
+  type Snap = { t: number; type: string; cardTop: number; underCard?: string | null; targetCard?: string | null; animations: string[] };
+  type Press = { card: string; downAt: number; upAt?: number; clicked: boolean; clickedCard: boolean; navigated: boolean; snaps: Snap[]; log: { t: number; type: string; row?: string | null; added?: string; removed?: string }[] };
+  (moverPresses as Press[]).forEach((press, index) => {
+    const down = press.snaps.find((snap) => snap.type === 'pointerdown');
+    const up = press.snaps.find((snap) => snap.type === 'pointerup');
+    const moved = down && up ? Math.round((up.cardTop - down.cardTop) * 10) / 10 : null;
+    if (press.navigated && press.clickedCard && !moved) return;
+    const during = press.log.filter((entry) => entry.t >= press.downAt && entry.t <= (press.upAt ?? press.downAt + 400));
+    console.log(
+      `MOVER-PRESS ${run.engine} ${JSON.stringify({
+        index,
+        card: press.card,
+        downAt: press.downAt,
+        ms: up && down ? Math.round((up.t - down.t) * 10) / 10 : null,
+        moved,
+        clicked: press.clicked,
+        clickedCard: press.clickedCard,
+        navigated: press.navigated,
+        upTarget: up?.targetCard,
+        upUnder: up?.underCard,
+        during: during.map((entry) => `${Math.round(entry.t - press.downAt)}:${entry.type}${entry.row ? `:${entry.row}` : ''}${entry.added ? `+${entry.added}` : ''}${entry.removed ? `-${entry.removed}` : ''}`).slice(0, 40),
+        before: press.log.filter((entry) => entry.t < press.downAt && entry.t >= press.downAt - 400 && /animate|mutated|scrollTop/.test(entry.type)).map((entry) => `${Math.round(entry.t - press.downAt)}:${entry.type}${entry.row ? `:${entry.row}` : ''}`).slice(-12),
+        downAnims: down?.animations.slice(0, 8),
+        upAnims: up?.animations.slice(0, 8),
+      })}`
+    );
+  });
   writeFileSync(
     join(OUT_DIR, `switch-debug-${run.engine}.json`),
     `${JSON.stringify({ turns, failed: failures.length, failures }, null, 2)}\n`
@@ -1272,7 +1299,7 @@ test.describe('PERF: real work under the backend load', () => {
       const r1 = (value: number) => Math.round(value * 10) / 10;
       const note = (entry: Entry) => {
         log.push(entry);
-        if (log.length > 3000) log.shift();
+        if (log.length > 8000) log.shift();
       };
       const tag = (element: Element | null) =>
         element
@@ -1309,6 +1336,24 @@ test.describe('PERF: real work under the backend load', () => {
         proto[method] = function hooked(this: Element, ...args: unknown[]) {
           note({ t: now(), type: `call ${method}`, on: tag(this), args: JSON.stringify(args).slice(0, 120), stack: stack() });
           return original.apply(this, args);
+        };
+      });
+      // Every play that starts, pauses, plays on or is cancelled, with the row it shows.
+      const rowOf = (element: Element | null) =>
+        element?.closest('[data-motion-row]')?.getAttribute('data-motion-row')?.slice(-6) ?? null;
+      const animate = Element.prototype.animate;
+      if (animate) {
+        Element.prototype.animate = function hooked(this: Element, ...args: Parameters<Element['animate']>) {
+          note({ t: now(), type: 'animate', on: tag(this), row: rowOf(this), frames: JSON.stringify(args[0]).slice(0, 120) });
+          return animate.apply(this, args);
+        };
+      }
+      (['pause', 'play', 'cancel'] as const).forEach((method) => {
+        const original = Animation.prototype[method];
+        Animation.prototype[method] = function hooked(this: Animation) {
+          const target = (this.effect as KeyframeEffect | null)?.target ?? null;
+          note({ t: now(), type: `anim ${method}`, on: tag(target), row: rowOf(target), state: this.playState, at: r1(Number(this.currentTime ?? -1)) });
+          return original.call(this);
         };
       });
       const focus = HTMLElement.prototype.focus;
@@ -1382,11 +1427,12 @@ test.describe('PERF: real work under the backend load', () => {
           levels,
           animations: document.getAnimations().map((animation) => {
             const target = (animation.effect as KeyframeEffect | null)?.target ?? null;
-            return `${tag(target)} ${animation.playState}`;
-          }).slice(0, 12),
+            return `${rowOf(target)} ${animation.playState} @${r1(Number(animation.currentTime ?? -1))} ${JSON.stringify((animation.effect as KeyframeEffect | null)?.getKeyframes?.()[0] ?? {}).replace(/"(offset|easing|composite|computedOffset)":[^,}]*,?/g, '').slice(0, 60)}`;
+          }).slice(0, 60),
           active: tag(document.activeElement),
         };
       };
+      let press: (Record<string, unknown> & { card: Element; snaps: unknown[]; downAt: number }) | undefined;
       // Every frame: the list's scroll offset and where its first cards are, for the time around a press.
       const frame = () => {
         const view = document.querySelector('[data-compact-room-view]');
@@ -1402,12 +1448,20 @@ test.describe('PERF: real work under the backend load', () => {
               .map((card) => `${card.getAttribute('data-thread-root-id')?.slice(-6)}@${Math.round(card.getBoundingClientRect().top)}`)
               .join(' '),
           });
+          if (press) {
+            const [x, y] = press.xy as [number, number];
+            const under = document.elementFromPoint(x, y);
+            const last = frames[frames.length - 1];
+            if (last) {
+              last.pressTop = r1(press.card.getBoundingClientRect().top);
+              last.underCard = under?.closest('[data-thread-root-id]')?.getAttribute('data-thread-root-id')?.slice(-6) ?? null;
+            }
+          }
           if (frames.length > 400) frames.shift();
         }
         requestAnimationFrame(frame);
       };
       requestAnimationFrame(frame);
-      let press: (Record<string, unknown> & { card: Element; snaps: unknown[]; downAt: number }) | undefined;
       (['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'] as const).forEach((type) => {
         window.addEventListener(
           type,
@@ -1428,24 +1482,33 @@ test.describe('PERF: real work under the backend load', () => {
               under: tag(under),
               underCard: under?.closest('[data-thread-root-id]')?.getAttribute('data-thread-root-id')?.slice(-6) ?? null,
             });
-            if (type !== 'click') return;
-            press = undefined;
-            const clickedCard = target?.closest('[data-thread-root-id]') === mine.card;
+            if (type === 'click') {
+              mine.clicked = true;
+              mine.clickedCard = target?.closest('[data-thread-root-id]') === mine.card;
+            }
+            if (type !== 'pointerup') return;
+            mine.upAt = now();
             const path = location.pathname + location.search;
+            // Whether a click came or not: a press that got none is the one looked for.
             setTimeout(() => {
+              if (press === mine) press = undefined;
               const { card, ...rest } = mine;
               presses.push({
+                clicked: false,
+                clickedCard: false,
                 ...rest,
                 card: card.getAttribute('data-thread-root-id')?.slice(-6),
-                clickedCard,
                 navigated: location.pathname + location.search !== path,
-                log: log.filter((entry) => entry.t >= mine.downAt - 2500 && entry.t <= mine.downAt + 400),
-                frames: frames.filter((entry) => entry.t >= mine.downAt - 1500 && entry.t <= mine.downAt + 400),
+                log: log.filter((entry) => entry.t >= mine.downAt - 2500 && entry.t <= mine.downAt + 800),
+                frames: frames.filter((entry) => entry.t >= mine.downAt - 1500 && entry.t <= mine.downAt + 800),
               });
-            }, 300);
+            }, 400);
           },
           true
         );
+      });
+      window.addEventListener('pointerdown', () => {
+        if (press) press.snaps.push(snap(press.card, 'pointerdown-after'));
       });
     });
     await installProbe(page);

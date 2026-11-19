@@ -18,6 +18,8 @@ export PLAYWRIGHT_WEBKIT_EXECUTABLE=${PLAYWRIGHT_WEBKIT_EXECUTABLE:-$(ls -d "${P
 job=$PWD
 export WK_OUT=$job/test-results/perf
 finish() {
+  # A second copy of the results outside the job's worktree: the runner lost a job's test-results once.
+  mkdir -p "$HOME/mrc-runner/logs" && tar -czf "$HOME/mrc-runner/logs/$run-perf.tgz" -C "$job/test-results" perf 2>/dev/null || true
   cd "$job" && python3 scripts/agent-stack/stack.py "$slot" down || true
   case "$run_dir" in
     /tmp/wk-*) cd / && rm -rf "$run_dir" ;;
@@ -31,7 +33,9 @@ scripts/e2e-slot.sh "$slot" --snapshot --preview bash -c '
   i=0
   for engine in '"$order"'; do
     i=$((i + 1))
-    echo "webkit-ab: run $i $engine starts $(date +%H:%M:%S)"
+    # engine:hogs sets the CPU hogs of that run.
+    case "$engine" in *:*) export PERF_HOGS=${engine#*:}; engine=${engine%%:*} ;; esac
+    echo "webkit-ab: run $i $engine hogs ${PERF_HOGS:-0} starts $(date +%H:%M:%S)"
     npx playwright test e2e/perf/real-work.live.spec.ts --project="$engine"
     rc=$?
     mkdir -p "$WK_OUT/run$i-$engine"
