@@ -106,9 +106,11 @@ test("the example plugin's slash commands show in the command menu, and /greet r
     await expect(page.locator('[data-slash-command="subroom"]')).toContainText(
       'Create a sub-room of this room. Example: /subroom Ideas'
     );
-    const names = await commands.evaluateAll((rows) =>
-      rows.map((row) => row.getAttribute('data-slash-command'))
-    );
+    // A plugin's commands close this app's section, before MindRoom's.
+    const names = await page
+      .getByRole('group', { name: 'This app' })
+      .locator('[data-slash-command]')
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute('data-slash-command')));
     expect(names.slice(-2)).toEqual(['greet', 'subroom']);
     await shot('command-menu');
 

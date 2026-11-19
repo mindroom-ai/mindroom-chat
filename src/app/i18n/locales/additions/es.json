@@ -552,7 +552,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} falló: {{reason}}",
         "usage": "No se pudo ejecutar {{command}}. {{usage}}",
-        "unknown": "{{command}} no es un comando. Para enviarlo como texto, empieza el mensaje con /plain."
+        "unknown": "{{command}} no es un comando. Para enviarlo como texto, empieza el mensaje con /plain.",
+        "thisApp": "Esta app",
+        "mindroomAgents": "Agentes de MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Este servidor no puede buscar mensajes por hora.",

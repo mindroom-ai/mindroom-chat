@@ -534,7 +534,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 실패: {{reason}}",
         "usage": "{{command}}을(를) 실행할 수 없습니다. {{usage}}",
-        "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요."
+        "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요.",
+        "thisApp": "이 앱",
+        "mindroomAgents": "MindRoom 에이전트"
       },
       "jumpToTime": {
         "unsupported": "이 서버는 시간으로 메시지를 찾을 수 없습니다.",

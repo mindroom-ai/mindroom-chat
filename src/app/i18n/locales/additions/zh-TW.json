@@ -534,7 +534,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失敗：{{reason}}",
         "usage": "無法執行 {{command}}。{{usage}}",
-        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。"
+        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。",
+        "thisApp": "此應用程式",
+        "mindroomAgents": "MindRoom AI 代理"
       },
       "jumpToTime": {
         "unsupported": "此伺服器無法依時間尋找訊息。",

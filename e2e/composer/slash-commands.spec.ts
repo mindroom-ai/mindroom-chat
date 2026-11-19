@@ -95,6 +95,13 @@ test('slash commands: the menu, a message command, commands that act, and a refu
   await expect(page.getByText('Commands', { exact: true })).toBeVisible();
   await expect(commands.first()).toHaveText(/\/me/);
   await expect(page.locator('[data-slash-command="invite"]')).toContainText('Invite user to room.');
+  // This app's commands come first, MindRoom's in their own section after them.
+  await expect(
+    page.getByRole('group', { name: 'This app' }).locator('[data-slash-command="me"]')
+  ).toBeVisible();
+  await expect(
+    page.getByRole('group', { name: 'MindRoom agents' }).locator('[data-slash-command="schedule"]')
+  ).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('slash-menu.png') });
 
   // Typing narrows the list; Tab takes the first command and leaves room for its arguments.

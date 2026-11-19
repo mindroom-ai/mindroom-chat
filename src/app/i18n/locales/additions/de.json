@@ -543,7 +543,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} fehlgeschlagen: {{reason}}",
         "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
-        "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain."
+        "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain.",
+        "thisApp": "Diese App",
+        "mindroomAgents": "MindRoom-Agenten"
       },
       "jumpToTime": {
         "unsupported": "Dieser Server kann Nachrichten nicht nach Zeit suchen.",
