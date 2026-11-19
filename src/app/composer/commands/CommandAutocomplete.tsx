@@ -55,8 +55,9 @@ const labelStyle = {
   textAlign: 'start',
 } as const;
 
+// The label lines up with the commands under it.
 const sectionLabelStyle = {
-  paddingInline: config.space.S300,
+  paddingInline: config.space.S400,
   paddingBlock: config.space.S100,
 } as const;
 
