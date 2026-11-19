@@ -99,6 +99,7 @@ vi.mock('../app/ui/styles/RoomOverlay.css', () => ({
   HeaderInThread: 'room-header-in-thread',
   Footer: 'room-footer',
   FooterOnPhone: 'room-footer-on-phone',
+  FooterOverHeader: 'room-footer-over-header',
   DockRow: 'room-dock-row',
   DockBars: 'room-dock-bars',
   Overview: 'room-overview',

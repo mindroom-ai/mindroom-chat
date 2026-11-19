@@ -13,7 +13,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
-import { standInVisualViewport } from '../helpers/keyboardViewport';
+import { composerUncovered, standInVisualViewport } from '../helpers/keyboardViewport';
 import { touch } from '../helpers/touch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
@@ -317,26 +317,6 @@ const setVisualViewport = (page: Page, height: number, offsetTop: number, width?
     [height, offsetTop, width] as const
   );
 
-/** Whether anything covers the composer's box: the element at each sampled point is inside it. */
-const composerUncovered = (page: Page) =>
-  textBox(page).evaluate((editable) => {
-    let box = editable.parentElement;
-    while (box) {
-      const style = getComputedStyle(box);
-      if (style.overflow === 'hidden' && style.borderTopLeftRadius !== '0px') break;
-      box = box.parentElement;
-    }
-    if (!box) return ['no composer box'];
-    const rect = box.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    return [rect.top + 4, rect.top + rect.height / 2, rect.bottom - 4]
-      .map((y) => ({ y, hit: document.elementFromPoint(x, y) }))
-      .filter(({ hit }) => !hit || !box?.contains(hit))
-      .map(
-        ({ y, hit }) => `${Math.round(y)}: ${hit?.tagName ?? 'nothing'} ${hit?.className ?? ''}`
-      );
-  });
-
 /** The bottom of the room's floating header (its top when it is not shown). */
 const headerBottom = (page: Page) =>
   page.evaluate(() => {
@@ -371,7 +351,9 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
   expect(box.bottom, `${engine}: the composer ends above the keyboard`).toBeLessThanOrEqual(
     LANDSCAPE_KEYBOARD_VISIBLE + 1
   );
-  expect(await composerUncovered(page), `${engine}: nothing covers the composer`).toEqual([]);
+  expect(await composerUncovered(textBox(page)), `${engine}: nothing covers the composer`).toEqual(
+    []
+  );
   // A line of the newest message at least.
   expect(rowShown, `${engine}: the newest message shows above the composer`).toBeGreaterThanOrEqual(
     16

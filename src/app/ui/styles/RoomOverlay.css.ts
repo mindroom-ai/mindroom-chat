@@ -58,6 +58,10 @@ export const Footer = style({
   '@media': { [shortViewport]: { vars: { [footerGap]: config.space.S200 } } },
 });
 export const FooterOnPhone = style({ vars: { [footerGap]: config.space.S200 } });
+// Under a phone thread's header, which is taller than the room's: while the focus is in the
+// footer (the composer holds the keyboard) it shows over the header, however short the area.
+// The header keeps its place while the focus is in it (a rename) or nowhere.
+export const FooterOverHeader = style({ selectors: { '&:focus-within': { zIndex: 7 } } });
 globalStyle(`${Footer} > *`, { pointerEvents: 'auto' });
 // The dock's row: the typing strip and the background jobs bar (`DockBars`) and, at its end,
 // who has read the latest message. Only the strip, the bar and the names take clicks, so the

@@ -279,7 +279,11 @@ export function ConversationLayout({
             {/* Outside the approval provider: opening a thread must not remount the composer. */}
             <div
               ref={footerRef}
-              className={classNames(overlay.Footer, phone && overlay.FooterOnPhone)}
+              className={classNames(
+                overlay.Footer,
+                phone && overlay.FooterOnPhone,
+                threadInHeader && overlay.FooterOverHeader
+              )}
               data-room-footer="true"
               data-footer-of={threadId ? 'thread' : 'room'}
             >

@@ -3,7 +3,7 @@ import { createRef, useContext, useLayoutEffect, type ReactNode, type RefObject 
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
-import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
+import { FooterOverHeader, HeaderInThread } from '../ui/styles/RoomOverlay.css';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { useThreadApprovals, type ThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { ThreadApprovalsScope } from '../approvals/ThreadApprovalsRelay';
@@ -219,6 +219,22 @@ it("keeps a phone's header inside a thread on a short screen: it is the thread's
   expect(screen.getByTestId('header').parentElement?.classList.contains(HeaderInShortArea)).toBe(
     true
   );
+});
+
+it("raises only a phone thread's footer over the header while the composer holds the focus", () => {
+  const header = () => <div data-testid="header" />;
+  const raised = (size: ScreenSize, props: Parameters<typeof layout>[0]) => {
+    cleanup();
+    render(<ScreenSizeProvider value={size}>{layout(props)}</ScreenSizeProvider>);
+    const footer = document.querySelector('[data-room-footer="true"]') as HTMLElement;
+    return footer.classList.contains(FooterOverHeader);
+  };
+  expect(raised(ScreenSize.Mobile, { threadId: '$root', header })).toBe(true);
+  // The room's own header is one row, which a short area hides; wider screens keep the card.
+  expect(raised(ScreenSize.Mobile, { header })).toBe(false);
+  expect(raised(ScreenSize.Mobile, { threadId: '$root' })).toBe(false);
+  expect(raised(ScreenSize.Tablet, { threadId: '$root', header })).toBe(false);
+  expect(raised(ScreenSize.Desktop, { threadId: '$root', header })).toBe(false);
 });
 
 it("hands a phone thread header's height changes to the timeline, which holds its reader, before the inset moves", () => {

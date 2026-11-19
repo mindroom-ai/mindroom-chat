@@ -16,6 +16,8 @@ import {
   sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
+import { composerUncovered, standInVisualViewport } from '../helpers/keyboardViewport';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -230,14 +232,8 @@ const header = (page: Page) => page.locator('header[role="banner"]').filter({ vi
 const banner = (page: Page) => page.locator('[data-thread-context-banner]');
 const title = (page: Page) => banner(page).locator('[data-thread-context-summary]');
 
-const signIn = async (
-  browser: Browser,
-  baseURL: string | undefined,
-  world: World,
-  options: BrowserContextOptions
-) => {
-  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
-  const page = await context.newPage();
+/** Signs the reader in on `page`, with the services it asks answered by the page. */
+const prepare = async (page: Page, world: World) => {
   await stubServices(page);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -249,7 +245,30 @@ const signIn = async (
     (key) => localStorage.setItem(key, 'ghp_e2e'),
     `mindroom.plugin:${encodeURIComponent(world.reader.userId)}/pull-requests/githubToken`
   );
+};
+
+const signIn = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  world: World,
+  options: BrowserContextOptions
+) => {
+  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  await prepare(page, world);
   return { context, page };
+};
+
+/** Saves the page where PHONE_HEADER_SHOTS says, WebKit's pages under their own name. */
+const shot = async (page: Page, name: string, height?: number) => {
+  if (!SHOTS) return;
+  mkdirSync(SHOTS, { recursive: true });
+  const engine = page.context().browser()?.browserType().name() === 'webkit' ? '-webkit' : '';
+  const width = page.viewportSize()?.width ?? 0;
+  await page.screenshot({
+    path: path.join(SHOTS, `${name}${engine}.png`),
+    ...(height ? { clip: { x: 0, y: 0, width, height } } : {}),
+  });
 };
 
 const openThread = async (page: Page, world: World, name: ThreadName) => {
@@ -453,9 +472,65 @@ const box = async (page: Page, selector: string) =>
       return { top, bottom, left, right };
     });
 
+type Size = { width: number; height: number };
+const SMALL: Size = { width: 320, height: 568 };
+const SIDEWAYS: Size = { width: 667, height: 375 };
+
+/** A first message of several paragraphs titles the thread: its block scrolls in itself. */
+const checkWall = async (page: Page, world: World, viewport: Size) => {
+  await page.goto(threadUrl(world, world.wall));
+  const rootTitle = banner(page).locator('[data-thread-context-root-title]');
+  await expect(rootTitle).toBeVisible({ timeout: 90_000 });
+  const reply = page.getByText(WALL_REPLY, { exact: true }).first();
+  await expect(reply).toBeVisible({ timeout: 60_000 });
+  await page.addStyleTag({
+    content: '[data-testid="client-sync-status"] { display: none !important; }',
+  });
+  // The whole first message is the title: nothing of it is cut.
+  const whole = (await rootTitle.textContent()) ?? '';
+  expect(whole.length).toBeGreaterThan(600);
+  expect(whole.endsWith(WALL_END)).toBe(true);
+  // It is taller than the header lets it be, so it scrolls in its own block.
+  const block = rootTitle.locator('xpath=..');
+  const sizes = await block.evaluate((element) => ({
+    scroll: element.scrollHeight,
+    shown: element.clientHeight,
+    overflow: getComputedStyle(element).overflowY,
+  }));
+  expect(sizes.overflow).toBe('auto');
+  expect(sizes.scroll).toBeGreaterThan(sizes.shown + 40);
+  // At least three lines of it show, and the header leaves most of the room area alone.
+  expect(sizes.shown).toBeGreaterThanOrEqual(60);
+  const head = await box(page, '[data-thread-context-banner]');
+  const foot = await box(page, '[data-slate-editor="true"]');
+  expect(head.bottom - head.top).toBeLessThan((viewport.height - head.top) * 0.6);
+  // A reply shows in full between the header and the composer.
+  const replyBox = (await reply.boundingBox())!;
+  expect(replyBox.y).toBeGreaterThanOrEqual(head.bottom);
+  expect(replyBox.y + replyBox.height).toBeLessThanOrEqual(foot.top);
+  await shot(page, `phone-wall-${viewport.width}`);
+  // The title's last line is reached by scrolling the title, not the page.
+  await block.evaluate((element) => element.scrollTo(0, element.scrollHeight));
+  const lastLine = await rootTitle.evaluate((element) => {
+    const text = element.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(text, text.length - 1);
+    range.setEnd(text, text.length);
+    const { top, bottom } = range.getBoundingClientRect();
+    const frame = element.parentElement!.getBoundingClientRect();
+    return { top, bottom, frameTop: frame.top, frameBottom: frame.bottom };
+  });
+  expect(lastLine.top).toBeGreaterThanOrEqual(lastLine.frameTop - 1);
+  expect(lastLine.bottom).toBeLessThanOrEqual(lastLine.frameBottom + 1);
+  expect(lastLine.bottom).toBeLessThanOrEqual(foot.top);
+  // The composer takes a tap.
+  await composer(page).tap();
+  await expect(composer(page)).toBeFocused();
+};
+
 for (const [name, viewport] of [
-  ['a 320 px phone', { width: 320, height: 568 }],
-  ['a small phone held sideways', { width: 667, height: 375 }],
+  ['a 320 px phone', SMALL],
+  ['a small phone held sideways', SIDEWAYS],
 ] as const) {
   test(`a first message of several paragraphs as the title leaves the conversation its room on ${name}`, async ({
     browser,
@@ -465,57 +540,7 @@ for (const [name, viewport] of [
     const world = await seedOnce();
     const { context, page } = await signIn(browser, baseURL, world, { ...PHONE, viewport });
     try {
-      await page.goto(threadUrl(world, world.wall));
-      const rootTitle = banner(page).locator('[data-thread-context-root-title]');
-      await expect(rootTitle).toBeVisible({ timeout: 90_000 });
-      const reply = page.getByText(WALL_REPLY, { exact: true }).first();
-      await expect(reply).toBeVisible({ timeout: 60_000 });
-      await page.addStyleTag({
-        content: '[data-testid="client-sync-status"] { display: none !important; }',
-      });
-      // The whole first message is the title: nothing of it is cut.
-      const whole = (await rootTitle.textContent()) ?? '';
-      expect(whole.length).toBeGreaterThan(600);
-      expect(whole.endsWith(WALL_END)).toBe(true);
-      // It is taller than the header lets it be, so it scrolls in its own block.
-      const block = rootTitle.locator('xpath=..');
-      const sizes = await block.evaluate((element) => ({
-        scroll: element.scrollHeight,
-        shown: element.clientHeight,
-        overflow: getComputedStyle(element).overflowY,
-      }));
-      expect(sizes.overflow).toBe('auto');
-      expect(sizes.scroll).toBeGreaterThan(sizes.shown + 40);
-      // At least three lines of it show, and the header leaves most of the room area alone.
-      expect(sizes.shown).toBeGreaterThanOrEqual(60);
-      const head = await box(page, '[data-thread-context-banner]');
-      const foot = await box(page, '[data-slate-editor="true"]');
-      expect(head.bottom - head.top).toBeLessThan((viewport.height - head.top) * 0.6);
-      // A reply shows in full between the header and the composer.
-      const replyBox = (await reply.boundingBox())!;
-      expect(replyBox.y).toBeGreaterThanOrEqual(head.bottom);
-      expect(replyBox.y + replyBox.height).toBeLessThanOrEqual(foot.top);
-      if (SHOTS) {
-        mkdirSync(SHOTS, { recursive: true });
-        await page.screenshot({ path: path.join(SHOTS, `phone-wall-${viewport.width}.png`) });
-      }
-      // The title's last line is reached by scrolling the title, not the page.
-      await block.evaluate((element) => element.scrollTo(0, element.scrollHeight));
-      const lastLine = await rootTitle.evaluate((element) => {
-        const text = element.firstChild as Text;
-        const range = document.createRange();
-        range.setStart(text, text.length - 1);
-        range.setEnd(text, text.length);
-        const { top, bottom } = range.getBoundingClientRect();
-        const frame = element.parentElement!.getBoundingClientRect();
-        return { top, bottom, frameTop: frame.top, frameBottom: frame.bottom };
-      });
-      expect(lastLine.top).toBeGreaterThanOrEqual(lastLine.frameTop - 1);
-      expect(lastLine.bottom).toBeLessThanOrEqual(lastLine.frameBottom + 1);
-      expect(lastLine.bottom).toBeLessThanOrEqual(foot.top);
-      // The composer takes a tap.
-      await composer(page).tap();
-      await expect(composer(page)).toBeFocused();
+      await checkWall(page, world, viewport);
     } finally {
       await context.close();
     }
@@ -531,6 +556,59 @@ const setPageZoom = (page: Page, pageZoom: number) =>
 const rowButtons = (page: Page) =>
   banner(page).locator('> div').first().locator('button:visible:not(h1 *)');
 
+/**
+ * The row at the real 150% Page Zoom: the viewport stays 320 px wide while the root font size
+ * grows. Every button is whole on the screen, and back at 100% they have their 40 px.
+ */
+const checkZoomRow = async (page: Page, world: World, dir: 'ltr' | 'rtl') => {
+  await setPageZoom(page, 150);
+  if (dir === 'rtl') await page.evaluate(() => localStorage.setItem('i18nextLng', 'ar'));
+  await openThread(page, world, 'busy');
+  await expect(page.locator('html')).toHaveAttribute('dir', dir);
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize))
+    .toBe('24px');
+  // The room's name gives its width away first.
+  const buttons = rowButtons(page);
+  await expect(buttons).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
+  if (WITH_MARKER) {
+    // The marker with its count, drawn once (the page's) GitHub has answered.
+    await expect(banner(page).getByRole('button', { name: /pull request/i })).toContainText(
+      String(THREADS.busy.pulls.length)
+    );
+    await page.waitForTimeout(1500);
+  }
+  const boxes = await buttons.evaluateAll((list) =>
+    list.map((button) => {
+      const { left, right } = button.getBoundingClientRect();
+      return { left, right };
+    })
+  );
+  // More is the row's last button, at its end in the reading direction.
+  const more = boxes.at(-1)!;
+  const inOrder = [...boxes].sort((a, b) => a.left - b.left);
+  expect(more).toEqual(dir === 'ltr' ? inOrder.at(-1) : inOrder[0]);
+  // Each whole on the screen and none over another, at the zoomed 32 px or wider.
+  inOrder.forEach(({ left, right }, index) => {
+    expect(left).toBeGreaterThanOrEqual(-0.5);
+    expect(right).toBeLessThanOrEqual(SMALL.width + 0.5);
+    expect(right - left).toBeGreaterThanOrEqual(47.5);
+    if (index > 0) expect(left).toBeGreaterThanOrEqual(inOrder[index - 1]!.right - 0.5);
+  });
+  await shot(page, `phone-busy-zoom150-${dir}`);
+
+  // Back at 100% in the same viewport, Resolve and More are 40 px again.
+  await setPageZoom(page, 100);
+  await openThread(page, world, 'busy');
+  await expect(buttons).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
+  const widths = await buttons.evaluateAll((list) =>
+    list.map((button) => button.getBoundingClientRect().width)
+  );
+  expect(widths.at(-1)).toBeCloseTo(40, 0);
+  // Resolve follows the plugins' controls and leads the call button and More.
+  expect(widths.at(-3)).toBeCloseTo(40, 0);
+};
+
 for (const dir of ['ltr', 'rtl'] as const) {
   test(`the row keeps every button on screen on a 320 px phone at 150% Page Zoom, ${dir}`, async ({
     browser,
@@ -538,59 +616,9 @@ for (const dir of ['ltr', 'rtl'] as const) {
   }) => {
     test.setTimeout(300_000);
     const world = await seedOnce();
-    // The real setting: the viewport stays 320 px wide while the root font size grows.
-    const viewport = { width: 320, height: 568 };
-    const { context, page } = await signIn(browser, baseURL, world, { ...PHONE, viewport });
+    const { context, page } = await signIn(browser, baseURL, world, { ...PHONE, viewport: SMALL });
     try {
-      await setPageZoom(page, 150);
-      if (dir === 'rtl') await page.evaluate(() => localStorage.setItem('i18nextLng', 'ar'));
-      await openThread(page, world, 'busy');
-      await expect(page.locator('html')).toHaveAttribute('dir', dir);
-      await expect
-        .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize))
-        .toBe('24px');
-      // The room's name gives its width away first.
-      const buttons = rowButtons(page);
-      await expect(buttons).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
-      if (WITH_MARKER) {
-        // The marker with its count, drawn once (the page's) GitHub has answered.
-        await expect(banner(page).getByRole('button', { name: /pull request/i })).toContainText(
-          String(THREADS.busy.pulls.length)
-        );
-        await page.waitForTimeout(1500);
-      }
-      const boxes = await buttons.evaluateAll((list) =>
-        list.map((button) => {
-          const { left, right } = button.getBoundingClientRect();
-          return { left, right };
-        })
-      );
-      // More is the row's last button, at its end in the reading direction.
-      const more = boxes.at(-1)!;
-      const inOrder = [...boxes].sort((a, b) => a.left - b.left);
-      expect(more).toEqual(dir === 'ltr' ? inOrder.at(-1) : inOrder[0]);
-      // Each whole on the screen and none over another, at the zoomed 32 px or wider.
-      inOrder.forEach(({ left, right }, index) => {
-        expect(left).toBeGreaterThanOrEqual(-0.5);
-        expect(right).toBeLessThanOrEqual(viewport.width + 0.5);
-        expect(right - left).toBeGreaterThanOrEqual(47.5);
-        if (index > 0) expect(left).toBeGreaterThanOrEqual(inOrder[index - 1]!.right - 0.5);
-      });
-      if (SHOTS) {
-        mkdirSync(SHOTS, { recursive: true });
-        await page.screenshot({ path: path.join(SHOTS, `phone-busy-zoom150-${dir}.png`) });
-      }
-
-      // Back at 100% in the same viewport, Resolve and More are 40 px again.
-      await setPageZoom(page, 100);
-      await openThread(page, world, 'busy');
-      await expect(buttons).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
-      const widths = await buttons.evaluateAll((list) =>
-        list.map((button) => button.getBoundingClientRect().width)
-      );
-      expect(widths.at(-1)).toBeCloseTo(40, 0);
-      // Resolve follows the plugins' controls and leads the call button and More.
-      expect(widths.at(-3)).toBeCloseTo(40, 0);
+      await checkZoomRow(page, world, dir);
     } finally {
       await context.close();
     }
@@ -631,6 +659,78 @@ test('More and the room name take a finger: 44 px for More, the whole cell for t
   }
 });
 
+// What Safari's keyboard leaves of a phone held sideways, its toolbars collapsed
+// (phone-keyboard.spec.ts).
+const KEYBOARD_BAND = 98;
+const DRAFT = 'Typing under the keyboard';
+
+/**
+ * Sideways under Safari's keyboard the top bar leaves the room area about 46 px, less than the
+ * thread's header and less than the composer's box: the composer that holds the keyboard shows
+ * over the header, and what is typed shows in it.
+ */
+const checkKeyboardBand = async (page: Page, world: World) => {
+  await standInVisualViewport(page.context());
+  await openThread(page, world, 'long');
+  await composer(page).tap();
+  await expect(composer(page)).toBeFocused();
+  await page.evaluate(
+    (height) => window.__setKeyboardViewport?.(height, 0, 'resize'),
+    KEYBOARD_BAND
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
+    )
+    .toBe(`${KEYBOARD_BAND}px`);
+  await page.waitForTimeout(1_000);
+  const area = await composer(page).evaluate((editable) => {
+    const rect = (element?: Element | null) => {
+      const box = element?.getBoundingClientRect();
+      return box ? { top: Math.round(box.top), bottom: Math.round(box.bottom) } : undefined;
+    };
+    const room = document.querySelector('[data-room-footer]')?.parentElement?.parentElement;
+    return {
+      roomArea: rect(room),
+      header: rect(document.querySelector('[data-thread-context-banner]')),
+      editable: rect(editable),
+    };
+  });
+  console.log(`keyboard band: ${JSON.stringify(area)}`);
+  // Nothing covers the part of the composer's box that is inside the room area.
+  expect(await composerUncovered(composer(page), true)).toEqual([]);
+  await page.keyboard.type(DRAFT);
+  await expect(composer(page)).toContainText(DRAFT);
+  // The typed line is in the band, and it is what shows there.
+  const typed = await composer(page).evaluate((editable) => {
+    const text = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT).nextNode();
+    if (!text) return undefined;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const { left, top, width, height } = range.getBoundingClientRect();
+    const hit = document.elementFromPoint(left + width / 2, top + height / 2);
+    return { top, bottom: top + height, shown: !!hit && editable.contains(hit) };
+  });
+  expect(typed?.shown).toBe(true);
+  expect(typed!.top).toBeGreaterThanOrEqual(0);
+  expect(typed!.bottom).toBeLessThanOrEqual(KEYBOARD_BAND);
+  await shot(page, 'phone-keyboard-band-typing', KEYBOARD_BAND);
+};
+
+test("sideways under Safari's keyboard the composer shows over the thread's header, with what is typed", async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(300_000);
+  const world = await seedOnce();
+  const { context, page } = await signIn(browser, baseURL, world, { ...PHONE, viewport: SIDEWAYS });
+  try {
+    await checkKeyboardBand(page, world);
+  } finally {
+    await context.close();
+  }
+});
+
 test("a small phone's keyboard leaves the thread's bar, with its way back and an open rename", async ({
   browser,
   baseURL,
@@ -648,6 +748,14 @@ test("a small phone's keyboard leaves the thread's bar, with its way back and an
     await page.setViewportSize({ width: 667, height: 280 });
     await expect(field).toBeInViewport();
     await expect(field).toBeFocused();
+    // The field holds the keyboard: nothing lies over it, the footer included.
+    const onTop = await field.evaluate((input) => {
+      const { left, top, width, height } = input.getBoundingClientRect();
+      return [0.1, 0.5, 0.9].map(
+        (part) => document.elementFromPoint(left + width * part, top + height / 2) === input
+      );
+    });
+    expect(onTop).toEqual([true, true, true]);
     await expect(banner(page).getByRole('button', { name: 'Back', exact: true })).toBeInViewport();
     await expect(composer(page)).toBeInViewport();
     const head = await box(page, '[data-thread-context-banner]');
@@ -661,6 +769,26 @@ test("a small phone's keyboard leaves the thread's bar, with its way back and an
     await context.close();
   }
 });
+
+// WebKit is the engine of this header's phones. Skipped without PLAYWRIGHT_WEBKIT_EXECUTABLE.
+const IPHONE_SAFARI =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1';
+const WEBKIT_CASES: [string, Size, (page: Page, world: World) => Promise<void>][] = [
+  ['the row at 150% Page Zoom', SMALL, (page, world) => checkZoomRow(page, world, 'ltr')],
+  ['a first message of several paragraphs', SMALL, (page, world) => checkWall(page, world, SMALL)],
+  ["the composer in the keyboard's band", SIDEWAYS, checkKeyboardBand],
+];
+for (const [name, viewport, check] of WEBKIT_CASES) {
+  test(`in WebKit: ${name}`, async ({ baseURL }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to run the WebKit cases.');
+    test.setTimeout(420_000);
+    const world = await seedOnce();
+    await onWebKitPage({ ...PHONE, viewport, baseURL, userAgent: IPHONE_SAFARI }, async (page) => {
+      await prepare(page, world);
+      await check(page, world);
+    });
+  });
+}
 
 test('a desktop keeps the thread banner as a card under the room header', async ({
   browser,
