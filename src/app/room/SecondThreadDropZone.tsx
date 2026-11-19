@@ -2,7 +2,6 @@ import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'r
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
-import { isThreadDrag, readThreadDragData } from '../navigation/secondThread';
 import { useThreadDrag } from './useThreadDrag';
 import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import * as css from './SecondThreadDropZone.css';
@@ -58,9 +57,9 @@ export function SecondThreadDropZone({
   }, [drag]);
   if (!drag) return null;
 
-  // A thread's drag may drop here (its default prevented), and moves its thread.
+  // The thread's drag may drop here (its default prevented), and moves its thread. The zone shows
+  // for that drag alone, so it asks the event for no type: the Mac app's WebKit would show none.
   const accept = (evt: ReactDragEvent<HTMLDivElement>) => {
-    if (!isThreadDrag(evt.dataTransfer)) return;
     armed.current ??= !onZone(drag.x, drag.y);
     if (!armed.current) return;
     evt.preventDefault();
@@ -84,10 +83,9 @@ export function SecondThreadDropZone({
         setOver(false);
       }}
       onDrop={(evt) => {
-        const thread = readThreadDragData(evt.dataTransfer);
-        if (!thread || !armed.current) return;
+        if (!armed.current) return;
         evt.preventDefault();
-        onOpen(thread.roomId, thread.rootId);
+        onOpen(drag.roomId, drag.rootId);
       }}
     >
       <div className={css.DropArea}>

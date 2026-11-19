@@ -14,7 +14,7 @@ export const SecondThreadContext = createContext<SecondThreadControl | undefined
 
 /**
  * The drag data type of a thread card dragged toward the second column: JSON `{ roomId, rootId }`.
- * A drag shows only its types until it drops, so the room page tells a thread's drag by this one.
+ * The room page reads it as the drag starts (`useThreadDrag`).
  */
 export const THREAD_DRAG_TYPE = 'application/x-mindroom-thread';
 
@@ -27,11 +27,7 @@ export const setThreadDragData = (data: DataTransfer, thread: ThreadDragData): v
   data.effectAllowed = 'move';
 };
 
-/** Whether a drag under way carries a thread (its data is not readable before it drops). */
-export const isThreadDrag = (data: DataTransfer | null | undefined): boolean =>
-  !!data && Array.from(data.types).includes(THREAD_DRAG_TYPE);
-
-/** The thread a drag dropped, when it carries one. */
+/** The thread a drag that starts carries, when it carries one. */
 export const readThreadDragData = (
   data: DataTransfer | null | undefined
 ): ThreadDragData | undefined => {
