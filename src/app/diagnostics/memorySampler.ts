@@ -117,9 +117,8 @@ let stopSampler: (() => void) | undefined;
  */
 export const startMemorySampler = (): (() => void) => {
   if (stopSampler) return stopSampler;
-  // Before the crypto module loads, so its WebAssembly memory is seen.
-  installMemoryHooks();
   let recording = false;
+  let uninstallHooks: (() => void) | undefined;
   let timer: number | undefined;
 
   const stopTimer = () => {
@@ -143,7 +142,11 @@ export const startMemorySampler = (): (() => void) => {
     const next = isRecordingStatus(status);
     if (next === recording) return;
     recording = next;
+    uninstallHooks?.();
+    uninstallHooks = undefined;
     if (next) {
+      // Only while recording; at launch that is before the crypto module loads.
+      uninstallHooks = installMemoryHooks();
       document.addEventListener('visibilitychange', onVisibility);
       sampleMemory('start');
       startTimer();
@@ -157,6 +160,8 @@ export const startMemorySampler = (): (() => void) => {
     if (stopSampler !== stop) return;
     stopSampler = undefined;
     unsubscribe();
+    uninstallHooks?.();
+    uninstallHooks = undefined;
     document.removeEventListener('visibilitychange', onVisibility);
     stopTimer();
   };

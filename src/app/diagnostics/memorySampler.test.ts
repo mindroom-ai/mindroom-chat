@@ -144,20 +144,35 @@ describe('memory sampler', () => {
     expect(sample).not.toHaveProperty('missing');
   });
 
-  it('reports the WebAssembly memory of a module loaded after the sampler started', async () => {
-    cleanups.push(startMemorySampler());
+  it('watches WebAssembly and object URLs only while the deep trace records', async () => {
+    const { createObjectURL } = URL;
+    const { instantiate } = WebAssembly;
     // A module that exports one memory of 16 pages (1 MiB).
-    await WebAssembly.instantiate(
-      new Uint8Array([
-        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x00, 0x10, 0x07, 0x07,
-        0x01, 0x03, 0x6d, 0x65, 0x6d, 0x02, 0x00,
-      ])
-    );
-    trace.recording = true;
+    const module = new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x00, 0x10, 0x07, 0x07,
+      0x01, 0x03, 0x6d, 0x65, 0x6d, 0x02, 0x00,
+    ]);
+    const stop = startMemorySampler();
+    cleanups.push(stop);
+    expect(WebAssembly.instantiate).toBe(instantiate);
+    expect(URL.createObjectURL).toBe(createObjectURL);
 
+    setStatus('recording');
+    await WebAssembly.instantiate(module);
+    expect(samples().at(-1)).not.toHaveProperty('wasm_memory_mb');
     sampleMemory('interval');
+    expect(samples().at(-1)).toMatchObject({ wasm_memory_mb: 1 });
 
-    expect(samples()[0]).toMatchObject({ wasm_memory_mb: 1 });
+    // Off puts the originals back and forgets the memory.
+    setStatus('disabled');
+    expect(WebAssembly.instantiate).toBe(instantiate);
+    expect(URL.createObjectURL).toBe(createObjectURL);
+    setStatus('recording');
+    expect(samples().at(-1)).not.toHaveProperty('wasm_memory_mb');
+
+    // So does stopping the sampler.
+    stop();
+    expect(WebAssembly.instantiate).toBe(instantiate);
   });
 
   it('reads no gauge while the deep trace is off', () => {
