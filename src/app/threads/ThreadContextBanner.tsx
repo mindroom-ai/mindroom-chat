@@ -82,7 +82,11 @@ const DESKTOP_MAX_PILLS = 3;
 // so the buttons, while the banner keeps its px width.
 const NARROW_PHONE_ROW_REM = 19;
 
-/** Whether a phone's title row is too narrow to hold the title beside its buttons. */
+/**
+ * Whether a phone's title row is too narrow to hold the title beside its buttons. Measured again
+ * when the row resizes and when the root's style changes: Page Zoom sets the root font size, which
+ * moves 19rem while the row can keep its width.
+ */
 const useNarrowRow = (row: HTMLElement | null): boolean => {
   const [narrow, setNarrow] = useState(false);
   useLayoutEffect(() => {
@@ -92,10 +96,15 @@ const useNarrowRow = (row: HTMLElement | null): boolean => {
       setNarrow(row.getBoundingClientRect().width <= NARROW_PHONE_ROW_REM * rem);
     };
     measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(row);
-    return () => observer.disconnect();
+    const zoom =
+      typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(measure);
+    zoom?.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    resize?.observe(row);
+    return () => {
+      zoom?.disconnect();
+      resize?.disconnect();
+    };
   }, [row]);
   return !!row && narrow;
 };

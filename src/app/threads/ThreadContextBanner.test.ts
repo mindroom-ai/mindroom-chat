@@ -770,6 +770,60 @@ describe('ThreadContextBanner rendering', () => {
       }
     });
 
+    it('moves the title under the buttons, and back, when Page Zoom changes at the same width', () => {
+      const tabStops = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root
+          .findAll(
+            (node) =>
+              typeof node.type === 'string' && (node.type === 'button' || node.props.tabIndex === 0)
+          )
+          .map((node) =>
+            node.props['data-thread-context-summary'] ? 'title' : node.props['aria-label']
+          );
+      const row = (element: React.ReactElement) =>
+        (element.props as { className?: string }).className?.startsWith('TitleRow')
+          ? { getBoundingClientRect: () => ({ width: 360 }) }
+          : null;
+      // Page Zoom sets the root's style: its font size, and so 19rem in px.
+      let fontSize = '16px';
+      const rootStyleChanged: (() => void)[] = [];
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize }));
+      vi.stubGlobal(
+        'MutationObserver',
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            rootStyleChanged.push(this.callback);
+          }
+
+          disconnect() {
+            rootStyleChanged.splice(rootStyleChanged.indexOf(this.callback), 1);
+          }
+        }
+      );
+      const zoomTo = (size: string) => {
+        fontSize = size;
+        act(() => rootStyleChanged.forEach((changed) => changed()));
+      };
+      try {
+        screenSize = ScreenSize.Mobile;
+        // 19rem is 304 px at 100%: a 360 px row holds the title beside the buttons.
+        const banner = renderBanner('A concise thread summary', row);
+        expect(tabStops(banner)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        // At 150% it is 456 px, and the same row stacks the title under them.
+        zoomTo('24px');
+        expect(tabStops(banner)).toEqual(['Back', 'Thread options', 'Resolve', 'title']);
+        zoomTo('16px');
+        expect(tabStops(banner)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        banner.unmount();
+        expect(rootStyleChanged).toHaveLength(0);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it("shows a first message's whole start as the title of a thread without a summary", () => {
       const body = 'Notes from the upload review, '.repeat(8).trim();
       bannerMocks.useCachedThreadRoot.mockReturnValue(
