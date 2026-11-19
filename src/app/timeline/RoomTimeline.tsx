@@ -130,6 +130,8 @@ import {
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
+import { useReplyCardPlan } from '../messages/replyCards';
+import { useScheduledTaskEvents } from '../schedules/useScheduledTaskEvents';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
@@ -901,6 +903,13 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
   });
+  // What the open thread's agent replies left behind (a canvas, a reminder), cards under them.
+  const replyCards = useReplyCardPlan({
+    events: ownThreadEvents,
+    taskEvents: useScheduledTaskEvents(room),
+    viewerId: mx.getUserId() ?? undefined,
+    revealed: pluginRevealedRef.current,
+  });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
   // opened, and the rows a fork's lines sit on, keep their turn unfolded.
@@ -920,6 +929,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
           threadSummaryTimeline,
           secretRequestTimeline: { hiddenEventIds: EMPTY_IDS },
           voiceTranscripts,
+          replyCards,
         },
         ignoredUsersSet,
         showHiddenEvents,
@@ -929,6 +939,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       approvalTimeline,
       ignoredUsersSet,
       isHiddenByPlugin,
+      replyCards,
       showHiddenEvents,
       threadSummaryTimeline,
       voiceTranscripts,
@@ -1142,6 +1153,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       pluginHiddenThreadIds.size === 0 &&
       secretRequestTimeline.hiddenEventIds.size === 0 &&
       voiceTranscripts.hiddenEventIds.size === 0 &&
+      replyCards.hiddenEventIds.size === 0 &&
       turnFolds.view.hiddenIds.size === 0
     ) {
       return approvalTimeline.hiddenEventIds;
@@ -1150,6 +1162,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ...approvalTimeline.hiddenEventIds,
       ...[...secretRequestTimeline.hiddenEventIds].filter((id) => !turnFolds.view.breaks.has(id)),
       ...voiceTranscripts.hiddenEventIds,
+      ...replyCards.hiddenEventIds,
       ...pluginHiddenThreadIds,
       ...turnFolds.view.hiddenIds,
     ]);
@@ -1158,6 +1171,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     approvalTimeline.hiddenEventIds,
     secretRequestTimeline.hiddenEventIds,
     voiceTranscripts.hiddenEventIds,
+    replyCards.hiddenEventIds,
     pluginHiddenThreadIds,
     turnFolds.view,
   ]);
@@ -1858,6 +1872,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     threadSummaryTimeline,
     secretRequestTimeline,
     voiceTranscripts,
+    replyCards,
     handleOpenReply,
     forkPrefixEventIds,
   };

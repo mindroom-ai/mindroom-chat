@@ -2995,7 +2995,9 @@
       "computerUnavailable": "O computador deste agente não está disponível.",
       "releaseControl": "Libere o controle do computador antes de abrir outra visualização.",
       "openConversation": "Abra esta solicitação pela conversa da sala.",
-      "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações."
+      "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações.",
+      "canvasCard": "Painel interativo",
+      "reminderCard": "Lembrete · {{when}}"
     },
     "canvas": {
       "panelLabel": "Painel interativo",

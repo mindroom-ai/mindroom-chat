@@ -298,15 +298,13 @@ export const isTimelineRowHidden = (
       threadSummaryTimeline,
       secretRequestTimeline,
       voiceTranscripts,
+      replyCards,
     },
     ignoredUsersSet,
     showHiddenEvents,
     isHiddenByPlugin,
   }: {
-    messageData: Pick<
-      TimelineMessageData,
-      'approvalTimeline' | 'threadSummaryTimeline' | 'secretRequestTimeline' | 'voiceTranscripts'
-    >;
+    messageData: Omit<TimelineMessageData, 'threadRecordMap' | 'handleOpenReply'>;
     ignoredUsersSet: ReadonlySet<string>;
     showHiddenEvents: boolean;
     isHiddenByPlugin: (event: MatrixEvent) => boolean;
@@ -317,7 +315,8 @@ export const isTimelineRowHidden = (
     approvalTimeline.hiddenEventIds.has(id) ||
     threadSummaryTimeline.hiddenEventIds.has(id) ||
     secretRequestTimeline.hiddenEventIds.has(id) ||
-    voiceTranscripts.hiddenEventIds.has(id)
+    voiceTranscripts.hiddenEventIds.has(id) ||
+    !!replyCards?.hiddenEventIds.has(id)
   ) {
     return true;
   }

@@ -2917,7 +2917,9 @@
       "computerUnavailable": "此代理的电脑不可用。",
       "releaseControl": "打开其他视图前，请先释放电脑控制权。",
       "openConversation": "请从房间对话中打开此请求。",
-      "settingsUnavailable": "关闭简单模式以打开此设置部分。"
+      "settingsUnavailable": "关闭简单模式以打开此设置部分。",
+      "canvasCard": "交互式面板",
+      "reminderCard": "提醒 · {{when}}"
     },
     "canvas": {
       "panelLabel": "交互式面板",

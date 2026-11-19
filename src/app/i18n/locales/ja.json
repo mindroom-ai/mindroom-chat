@@ -2917,7 +2917,9 @@
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
-      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。",
+      "canvasCard": "インタラクティブパネル",
+      "reminderCard": "リマインダー · {{when}}"
     },
     "canvas": {
       "panelLabel": "インタラクティブパネル",

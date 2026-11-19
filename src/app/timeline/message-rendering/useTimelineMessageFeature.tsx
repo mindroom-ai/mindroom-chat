@@ -41,6 +41,7 @@ import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+import { ReplyCards } from '../../messages/content/ReplyCards';
 import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
 import { useDecryptionRepaint } from './useDecryptionRepaint';
@@ -726,6 +727,9 @@ export const useTimelineMessageFeature = ({
           )}
         />
       );
+      // A canvas this reply shared and a reminder it scheduled, as cards under it (replyCards.ts).
+      const cards = data.replyCards?.byReply.get(eventId);
+      cards?.forEach((card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas));
       const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
         !readOnly &&
@@ -858,6 +862,7 @@ export const useTimelineMessageFeature = ({
                 }
               </CollapsibleMessage>
               {voiceTranscript}
+              {cards && <ReplyCards cards={cards} />}
               {editNotDecrypted && (
                 <div>
                   <MessageEditNotDecryptedContent />
