@@ -9,7 +9,7 @@ import {
   useChatUiActions,
   type ChatUiActionOptions,
 } from './ChatUiActionProvider';
-import { ChatUiActionButton } from './ChatUiActionButton';
+import { CanvasOffNote, ChatUiActionButton } from './ChatUiActionButton';
 import { makeUiEvent, makeUiRoom } from './testUtils';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -32,8 +32,13 @@ vi.mock('folds', () => ({
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (_key: string, options: { defaultValue?: string }) => options?.defaultValue,
+    t: (key: string, options: { defaultValue?: string }) => options?.defaultValue ?? key,
   }),
+}));
+const copyToClipboard = vi.hoisted(() => vi.fn(async (_text: string) => true));
+vi.mock('../lib/dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/dom')>()),
+  copyToClipboard,
 }));
 
 type HarnessProps = React.PropsWithChildren<ChatUiActionOptions>;
@@ -252,4 +257,72 @@ describe('Chat UI request buttons', () => {
       expect(uncommittedPerform).not.toHaveBeenCalled();
     }
   );
+
+  describe('a canvas while canvases are off in this app', () => {
+    const canvasEvent = () =>
+      makeUiEvent({
+        action: 'show_canvas',
+        canvas: { title: 'Weekly planning', html: '<p>Plan</p>' },
+      });
+    const status = () => container.querySelector('[role="status"]')?.textContent;
+    const button = () => container.querySelector('button')!;
+
+    it('says so beside the title and asks for a text version in the draft, sending nothing', async () => {
+      const askForText = vi.fn(() => true);
+      const { render, perform } = setup(canvasEvent());
+      render({
+        askForText,
+        children: (
+          <>
+            <CanvasOffNote />
+            <ChatUiActionButton event={canvasEvent()} />
+          </>
+        ),
+      });
+      expect(container.textContent).toContain('mindroomUi.uiActions.canvasOff');
+      expect(button().disabled).toBe(false);
+      expect(button().textContent).toBe('mindroomUi.uiActions.askForText');
+      expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.hint');
+      await act(async () => button().click());
+      expect(askForText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadId: '$thread',
+          canvas: expect.objectContaining({ title: 'Weekly planning' }),
+        }),
+        'mindroomUi.uiActions.textVersionRequest'
+      );
+      expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.added');
+      expect(perform).not.toHaveBeenCalled();
+    });
+
+    it('keeps a draft already started and offers to copy the request instead', async () => {
+      const askForText = vi.fn(() => false);
+      const { render } = setup(canvasEvent());
+      render({ askForText });
+      await act(async () => button().click());
+      expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.kept');
+      expect(button().textContent).toBe('mindroomUi.uiActions.copyRequest');
+      await act(async () => button().click());
+      expect(askForText).toHaveBeenCalledTimes(1);
+      expect(copyToClipboard).toHaveBeenCalledWith('mindroomUi.uiActions.textVersionRequest');
+      expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.copied');
+    });
+
+    it('keeps Open canvas with its reason while it is only blocked for now (a call)', () => {
+      const { render } = setup(canvasEvent());
+      render({
+        unavailable: () => 'End the call to open interactive panels.',
+        children: (
+          <>
+            <CanvasOffNote />
+            <ChatUiActionButton event={canvasEvent()} />
+          </>
+        ),
+      });
+      expect(button().textContent).toBe('Open canvas');
+      expect(button().disabled).toBe(true);
+      expect(container.textContent).toContain('End the call');
+      expect(container.textContent).not.toContain('canvasOff');
+    });
+  });
 });

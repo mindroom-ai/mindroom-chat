@@ -38,7 +38,7 @@ function AskForText({ title, ask }: { title: string; ask: (text: string) => bool
   const copying = state === 'kept' || state === 'copied';
   const onClick = () => {
     if (!copying) setState(ask(request) ? 'added' : 'kept');
-    else copyToClipboard(request).then((copied) => copied && setState('copied'));
+    else void copyToClipboard(request).then((copied) => copied && setState('copied'));
   };
   return (
     <Box alignItems="Center" gap="300" wrap="Wrap" style={{ marginTop: '0.5rem' }}>

@@ -2,6 +2,7 @@ import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRoomInputDrafts,
+  fillEmptyDraft,
   getRoomInputDraftKey,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
@@ -97,6 +98,23 @@ describe('restoreTextToDraft', () => {
     store.set(roomIdToMsgDraftAtomFamily(key), typed);
     restoreTextToDraft(store, key, caption);
     expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual([...typed, ...caption]);
+    store.set(roomIdToMsgDraftAtomFamily(key), []);
+  });
+});
+
+describe('fillEmptyDraft', () => {
+  it('fills an empty draft and never replaces text the user has started', () => {
+    const store = createStore();
+    const key = getRoomInputDraftKey('@alice:example.org', '!fill:example.org', '$thread');
+    const request = [
+      { type: 'paragraph', children: [{ text: 'Text version, please' }] },
+    ] as never[];
+    const typed = [{ type: 'paragraph', children: [{ text: 'my own words' }] }] as never[];
+    expect(fillEmptyDraft(store, key, request)).toBe(true);
+    expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual(request);
+    store.set(roomIdToMsgDraftAtomFamily(key), typed);
+    expect(fillEmptyDraft(store, key, request)).toBe(false);
+    expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual(typed);
     store.set(roomIdToMsgDraftAtomFamily(key), []);
   });
 });
