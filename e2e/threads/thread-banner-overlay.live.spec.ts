@@ -101,10 +101,11 @@ for (const viewport of [
         viewportBox!.y + viewportBox!.height,
         'messages extend behind the composer and receipt footer'
       ).toBeGreaterThan(composerBox.y + composerBox.height);
-      // A phone's room header is the summary: the messages start where it does, not above it.
-      const summaryTop = initialBanner!.y + (viewport.width === 390 ? 1 : 0);
+      // A phone's room header is the summary: the messages start where it does, not above it,
+      // and are kept clear of as much as it is tall.
+      const isHeader = viewport.width === 390 ? 1 : 0;
       expect(viewportBox!.y, 'the message viewport extends behind the summary').toBeLessThan(
-        summaryTop
+        initialBanner!.y + isHeader
       );
       await expect
         .poll(() =>
@@ -112,7 +113,7 @@ for (const viewport of [
             Number.parseFloat(getComputedStyle(element).scrollPaddingTop)
           )
         )
-        .toBeGreaterThan(initialBanner!.height);
+        .toBeGreaterThan(initialBanner!.height - isHeader);
 
       await expectInsetScrollbar(page, scroll, banner, page.locator('[data-room-footer]'));
 
