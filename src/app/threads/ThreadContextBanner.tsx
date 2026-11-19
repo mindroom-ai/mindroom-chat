@@ -654,7 +654,7 @@ export function ThreadContextBanner({
                 </Text>
               </button>
             </h1>
-            <Box alignItems="Center" gap="100" shrink="No">
+            <Box className={css.PhoneActions} alignItems="Center" gap="100" shrink="No">
               {pluginControls}
               {resolveButton}
               {phoneHeader.actions}

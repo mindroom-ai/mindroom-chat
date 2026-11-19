@@ -343,7 +343,7 @@ export const PhoneHeader = style({
   '@container': { [shortRoomArea]: { paddingBottom: config.space.S100 } },
 });
 
-// A room area as narrow as a small phone's at 150% zoom: the row gives up its gap and insets.
+// A room area as narrow as a small phone's at 150% zoom: the row and its buttons give up their gaps.
 const narrowRoomArea = `${roomArea} (max-width: 280px)`;
 const lowRow = { height: toRem(44) };
 
@@ -356,7 +356,10 @@ export const PhoneRow = style({
   height: toRem(54),
   paddingInline: config.space.S200,
   '@media': { [shortViewport]: lowRow },
-  '@container': { [shortRoomArea]: lowRow, [narrowRoomArea]: { gap: 0, paddingInline: 0 } },
+  '@container': { [shortRoomArea]: lowRow, [narrowRoomArea]: { gap: 0 } },
+});
+export const PhoneActions = style({
+  '@container': { [narrowRoomArea]: { selectors: { '&&': { gap: 0 } } } },
 });
 
 // Resolve and More, the room's menu button there too: 40 px as the header's own buttons, 44 px
@@ -408,6 +411,10 @@ export const PhoneTitleRow = style({
   gap: config.space.S200,
   minWidth: 0,
   paddingInline: config.space.S400,
+  // Room for the rename field's ring, which the scrolling would cut, without moving the lines.
+  boxSizing: 'content-box',
+  paddingBlock: config.space.S100,
+  marginBlock: `calc(-1 * ${config.space.S100})`,
   maxBlockSize: `max(calc(3 * ${config.lineHeight.H5}), 38cqh)`,
   overflowY: 'auto',
   overscrollBehavior: 'contain',
