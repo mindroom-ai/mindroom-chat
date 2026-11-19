@@ -29,17 +29,19 @@ export const threadRowAuthor = (event: MatrixEvent): ThreadRowAuthor => {
  * answer fold behind one break (`TurnBreak`), as a long reply folds its work (`FinishedWorkFold`).
  */
 export type ThreadTurnFold = {
-  /** The person's message that starts the turn: the reader's choice is kept under its ID. */
+  /** The row that starts the turn (`startsTurn`): the reader's choice is kept under its ID. */
   key: string;
-  /** The rows between that message and the answer, in order; the first one draws the break. */
+  /** The rows between that row and the answer, but cards, in order; the first draws the break. */
   hiddenIds: readonly string[];
   /** How many of them are messages, not quiet markers: what the break counts. */
   count: number;
 };
 
 export type ThreadTurnRules = {
-  /** A message from a person, not an agent, which ends the turn before it and starts its own. */
-  isPersonMessage: (event: MatrixEvent) => boolean;
+  /** A row that ends the turn before it and starts its own: a person's message, a wake-up. */
+  startsTurn: (event: MatrixEvent) => boolean;
+  /** A card the reader opens, which stays in view where it is, its turn folded or not. */
+  keepsRow: (event: MatrixEvent) => boolean;
   /** A row that renders nothing here already: another plan, a plugin, an ignored sender. */
   isSkipped: (event: MatrixEvent) => boolean;
   /** An agent's message that can answer a turn: neither a quiet marker nor a notice. */
@@ -64,10 +66,10 @@ const MIN_FOLDED_MESSAGES = 2;
 
 /**
  * The turns of an open thread's rows (`events`, in order) that fold. A turn runs from a person's
- * message to the next one. Its answer is its last agent message of the best `answerRank`: its last
- * run's reply, else its last message that is not an attachment, else its last message. The rows
- * after it (what the run posted as it worked, attachments, quiet markers) stay, and the rows before
- * it fold once at least `MIN_FOLDED_MESSAGES` of them are messages. A
+ * message or a wake-up to the next. Its answer is its last agent message of the best `answerRank`:
+ * its last run's reply, else its last message that is not an attachment, else its last message.
+ * The rows after it (what the run posted as it worked, attachments, quiet markers) stay, and the
+ * rows before it but cards fold once at least `MIN_FOLDED_MESSAGES` of them are messages. A
  * turn that is not finished (a row holds it, or it is the newest while the thread works) or that
  * would hide a pinned row stays unfolded. Rows without one of their own (edits, reactions) and
  * rows other plans hide take no part.
@@ -97,7 +99,7 @@ export const planThreadTurnFolds = (
       answerRank = rank;
     });
     if (answerAt < 0) return;
-    const hidden = rows.slice(0, answerAt);
+    const hidden = rows.slice(0, answerAt).filter((event) => !rules.keepsRow(event));
     const hiddenIds = hidden.flatMap((event) => event.getId() ?? []);
     if (hiddenIds.length !== hidden.length || hiddenIds.some((id) => rules.pinnedIds.has(id))) {
       return;
@@ -108,7 +110,7 @@ export const planThreadTurnFolds = (
   };
   let turnStart: number | undefined;
   events.forEach((event, index) => {
-    if (isRowlessTimelineEvent(event) || !rules.isPersonMessage(event)) return;
+    if (!rules.startsTurn(event)) return;
     if (turnStart !== undefined) foldTurn(turnStart, index, false);
     turnStart = index;
   });

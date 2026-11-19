@@ -193,7 +193,11 @@ describe('startsTurn', () => {
     ["a schedule's message", kind('scheduled', { 'com.mindroom.original_sender': PERSON }), true],
     [
       'a silent schedule, which has no row',
-      woke({ 'com.mindroom.source_kind': 'silent_scheduled' }, ROUTER, 'io.mindroom.scheduled.trigger'),
+      woke(
+        { 'com.mindroom.source_kind': 'silent_scheduled' },
+        ROUTER,
+        'io.mindroom.scheduled.trigger'
+      ),
       true,
     ],
     ["an external trigger's message", kind('external_trigger'), true],
@@ -211,9 +215,8 @@ describe('startsTurn', () => {
 });
 
 describe('isTurnCard', () => {
-  const draws = (event: { content: Readonly<Record<string, unknown>> }) => CARD_KEY in event.content;
   const card = (content: Record<string, unknown>) =>
-    isTurnCard(message('$c', content), (row) => row.getContent(), draws);
+    isTurnCard(message('$c', content), { msgtype: 'm.text', ...content }, undefined, PERSON);
   it('keeps a card a plugin draws, such as an artifact with its Open button', () => {
     expect(card({ [CARD_KEY]: { title: 'Quarterly plan' } })).toBe(true);
   });
