@@ -37,10 +37,8 @@ export function InvitePage(): JSX.Element {
   const mx = useMatrixClient();
   const navigate = useNavigate();
   const location = useLocation();
-  // The code stays in memory only: it leaves the router's location as soon as it is read.
-  const [link, setLink] = useState(() =>
-    parseInviteFragment(location.hash || takeInviteFragment())
-  );
+  // src/index.tsx holds the link in this tab before the router starts; the page takes it once.
+  const [link, setLink] = useState(() => parseInviteFragment(takeInviteFragment()));
   const [state, setState] = useState<PageState>({ status: 'ready' });
   // Stops what runs now: the claim, the wait for the invitation, or the join.
   const stopRef = useRef<() => void>();
@@ -50,14 +48,13 @@ export function InvitePage(): JSX.Element {
   }, []);
   useEffect(() => halt, [halt]);
   useEffect(() => {
-    if (!location.hash) return;
-    // Every link opened here, also on this page, starts over.
+    // A link opened again on this page starts over.
+    const held = takeInviteFragment();
+    if (!held) return;
     halt();
-    setLink(parseInviteFragment(location.hash));
+    setLink(parseInviteFragment(held));
     setState({ status: 'ready' });
-    const { pathname, search, state: routeState } = location;
-    navigate({ pathname, search }, { replace: true, state: routeState });
-  }, [halt, location, navigate]);
+  }, [halt, location]);
 
   if (window.top !== window.self) {
     return (

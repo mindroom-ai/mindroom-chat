@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InvitePage } from './InvitePage';
 import { startClaim, type ClaimOutcome } from './inviteClaim';
 import { getHomeRoomPath } from '../routes/pathUtils';
-import { holdInviteFragment } from './inviteHandoff';
+import { holdInviteLink } from './inviteHandoff';
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -104,10 +104,17 @@ function AddressProbe() {
   return <output>{`address ${location.pathname}${location.hash}`}</output>;
 }
 
+/** Opens `/invite/<hash>` the way the app does: src/index.tsx holds the link at boot. */
+const openLink = (hash: string) => {
+  window.history.replaceState(null, '', `/invite/${hash}`);
+  holdInviteLink();
+};
+
 const renderPage = async (hash = FRAGMENT) => {
+  openLink(hash);
   await act(async () => {
     renderer = create(
-      <MemoryRouter initialEntries={[`/invite/${hash}`]}>
+      <MemoryRouter initialEntries={['/invite/']}>
         <Routes>
           <Route
             path="/invite/"
@@ -164,6 +171,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  sessionStorage.clear();
   renderer?.unmount();
   renderer = undefined;
   vi.useRealTimers();
@@ -184,7 +192,7 @@ describe('InvitePage', () => {
 
   it('removes the fragment from the address bar', async () => {
     await renderPage();
-    expect(textOf()).toContain('address /invite/');
+    expect(window.location.hash).toBe('');
     expect(textOf()).not.toContain('secret-code');
     await click('Join');
     expect(startClaimMock).toHaveBeenCalledWith(
@@ -214,8 +222,9 @@ describe('InvitePage', () => {
   it('starts over for another link opened on the same page', async () => {
     await renderPage();
     await click('Join');
+    openLink('#r=%40router%3Aexample.org&c=code-b');
     await act(async () => {
-      navigate('/invite/#r=%40router%3Aexample.org&c=code-b');
+      navigate('/invite/');
     });
     await flush();
     expect(stopClaim).toHaveBeenCalled();
@@ -400,7 +409,7 @@ describe('InvitePage', () => {
   });
 
   it('restores the link it held through sign-in, once', async () => {
-    expect(holdInviteFragment('/invite/#r=%40router%3Aexample.org&c=held-code')).toBe('/invite/');
+    openLink('#r=%40router%3Aexample.org&c=held-code');
     await renderPage('');
     await click('Join');
     expect(startClaimMock).toHaveBeenCalledWith(
@@ -415,11 +424,22 @@ describe('InvitePage', () => {
 
   it('shows invalid when the link it held has expired', async () => {
     vi.useFakeTimers();
-    holdInviteFragment('/invite/#r=%40router%3Aexample.org&c=held-code');
+    openLink('#r=%40router%3Aexample.org&c=held-code');
     vi.setSystemTime(Date.now() + 15 * 60_000 + 1);
     await renderPage('');
     expect(textOf()).toContain('This invite link is incomplete.');
     expect(sessionStorage.length).toBe(0);
+  });
+
+  it('shows invalid, without crashing, when session storage is denied', async () => {
+    const denied = () => {
+      throw new DOMException('denied', 'SecurityError');
+    };
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(denied);
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(denied);
+    await renderPage('');
+    expect(textOf()).toContain('This invite link is incomplete.');
+    vi.restoreAllMocks();
   });
 
   it('stops the claim on unmount', async () => {

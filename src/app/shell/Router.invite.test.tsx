@@ -8,6 +8,7 @@ import {
 } from '../routes/afterLoginRedirectPath';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 import { createRouter } from './Router';
+import { holdInviteLink } from '../invites/inviteHandoff';
 
 // The route table is under test, not the pages (whose styles need the build's CSS plugin).
 vi.mock('../account/auth/AuthLayout', () => ({ AuthLayout: () => <p>sign-in pages</p> }));
@@ -26,16 +27,19 @@ afterEach(() => {
 });
 
 describe('an invite link opened signed out', () => {
-  it('returns to /invite/ after sign-in and keeps the code out of localStorage', async () => {
-    window.history.replaceState(null, '', '/invite/#r=%40router%3Aexample.org&c=secret-code');
-    const router = createRouter({});
-    render(<RouterProvider router={router} />);
-    await act(async () => undefined);
-    expect(router.state.location.pathname).toMatch(/^\/login/);
-    router.dispose();
-    expect(getAfterLoginRedirectPath()).toBe('/invite/');
-    expect(JSON.stringify({ ...localStorage })).not.toContain('secret-code');
-    // The code waits in this tab only.
-    expect(JSON.stringify({ ...sessionStorage })).toContain('secret-code');
-  });
+  it.each(['/invite/', '/invite', '/%69nvite/'])(
+    'returns to %s after sign-in and keeps the code out of localStorage',
+    async (path) => {
+      window.history.replaceState(null, '', `${path}#r=%40router%3Aexample.org&c=secret-code`);
+      holdInviteLink(); // What src/index.tsx runs at boot.
+      const router = createRouter({});
+      render(<RouterProvider router={router} />);
+      await act(async () => undefined);
+      expect(router.state.location.pathname).toMatch(/^\/login/);
+      router.dispose();
+      expect(getAfterLoginRedirectPath()).toBe(path);
+      expect(JSON.stringify({ ...localStorage })).not.toContain('secret-code');
+      expect(JSON.stringify({ ...sessionStorage })).toContain('secret-code');
+    }
+  );
 });

@@ -1,12 +1,11 @@
 import { ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { Box } from 'folds';
 import { useAtomValue } from 'jotai';
-import { matchPath, UNSAFE_DataRouterContext, useLocation, useNavigate } from 'react-router-dom';
+import { UNSAFE_DataRouterContext, useLocation, useNavigate } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { getActiveSession, updateSessionLastPath } from '../matrix/session/sessions';
 import { resolveSessionRestorePath } from '../routes/sessionRouteRestore';
-import { INVITE_PATH } from '../routes/paths';
 import {
   canonicalizeSessionPathname,
   pathnameContainsAliasRoute,
@@ -80,8 +79,7 @@ export function ClientLayout({
     pathnameContainsAliasRoute(canonicalizeSessionPathname(mx, pathname));
 
   useEffect(() => {
-    // An invite link's fragment holds its single-use code, which must never be stored.
-    if (!sessionId || isRuntimeHandOffPath(pathname) || matchPath(INVITE_PATH, pathname)) return;
+    if (!sessionId || isRuntimeHandOffPath(pathname)) return;
     if (routeOpener && routeOpener.key === key && routeOpener.sessionId !== sessionId) {
       navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), { replace: true });
       return;

@@ -5,6 +5,7 @@ import { act, create, type ReactTestRendererJSON } from 'react-test-renderer';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from './ClientLayout';
+import { holdInviteLink } from '../invites/inviteHandoff';
 import { resolveRootRouteRedirect } from '../navigation/routeSessionGuards';
 import { getActiveSession, putSession, updateSessionLastPath } from '../matrix/session/sessions';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
@@ -144,8 +145,8 @@ describe('ClientLayout', () => {
     }
   );
 
-  it.each(['/invite/#r=%40router%3Aexample.org&c=secret-code', '/INVITE#c=secret-code'])(
-    'never stores the bearer code of %s',
+  it.each(['/invite/', '/%69nvite/', '/INVITE'])(
+    'never stores the bearer code of an invite link at %s',
     async (path) => {
       putSession({
         baseUrl: 'https://matrix.example.org',
@@ -153,10 +154,12 @@ describe('ClientLayout', () => {
         deviceId: 'DEVICE',
         accessToken: 'fake',
       });
-      updateSessionLastPath(getActiveSession()!.sessionId, ROOM_PATH);
-      await visit(path);
-      expect(getActiveSession()?.lastKnownPath).toBe(ROOM_PATH);
+      window.history.replaceState(null, '', `${path}#r=%40router%3Aexample.org&c=secret-code`);
+      holdInviteLink(); // What src/index.tsx runs at boot.
+      await visit(`${window.location.pathname}${window.location.hash}`);
+      expect(getActiveSession()?.lastKnownPath).not.toContain('secret-code');
       expect(JSON.stringify({ ...localStorage })).not.toContain('secret-code');
+      sessionStorage.clear();
     }
   );
 
