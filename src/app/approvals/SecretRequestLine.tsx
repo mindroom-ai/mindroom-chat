@@ -86,10 +86,10 @@ export function SecretRequestLine({
   const temporary = request.kind === 'temporary';
   const { status } = request;
   const detail = useLineStatus(request);
-  // The line goes when the reply stops showing its call (its calls or its work fold, a newer
-  // frame leaves the call out), and the card's row comes back: focus in the line moves to the
-  // line if it is drawn again, else to the card, else to the closed fold of the reply, else to
-  // the reply, all in the line's own timeline.
+  // The line goes when the reply stops showing its call: its calls or its work fold (the card's
+  // row stays hidden), or a newer frame leaves the call out (the row comes back). Focus in the
+  // line moves to the line if it is drawn again, else to the card, else to the closed fold of the
+  // reply, else to the reply, all in the line's own timeline.
   const ownRef = useRef<HTMLDivElement>(null);
   const line = lineRef ?? ownRef;
   useLayoutEffect(() => {
