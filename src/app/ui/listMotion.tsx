@@ -3,6 +3,7 @@ import {
   type ReactElement,
   type RefObject,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -231,6 +232,15 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * when no row in view stays, with reduced motion, in a page nobody sees, or without Web
  * Animations. Call it after a hook that scrolls the list in a layout effect: the rows are read
  * where that leaves them.
+ *
+ * A press in the list holds its plays where they show until the press's click, or until it is
+ * cancelled: the pressed row stays under the pointer, so the click reaches it. A row that glided
+ * on would take the release to the row beside it, and a browser sends a click whose press and
+ * release hit different elements to the element that holds both, here the list: the pressed row
+ * got none (a Compact card pressed while the list sorted itself anew opened nothing). A finger's
+ * click is aimed after its pointerup, so the release alone does not let go. A press that ends in
+ * neither (a drag, a long press) leaves the plays held until `LONGEST_PLAY_MS` ends them. Plays
+ * that start during a press are not held.
  */
 export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
   const beforeRef = useRef<Before>();
@@ -274,6 +284,37 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
     }
   }, [listRef, order]);
+
+  useEffect(() => {
+    // Rendered outside a page (a unit test in node), there is no press to listen for.
+    if (typeof window === 'undefined') return undefined;
+    const held: Animation[] = [];
+    const letGo = () =>
+      held.splice(0).forEach((animation) => {
+        // Not one that ended or was started again meanwhile.
+        if (animation.playState === 'paused') animation.play();
+      });
+    const hold = (event: PointerEvent) => {
+      const inList = event.target instanceof Node && listRef.current?.contains(event.target);
+      if (event.button !== 0 || !inList) return;
+      runningRef.current.forEach((animation) => {
+        if (animation.playState !== 'running') return;
+        animation.pause();
+        held.push(animation);
+      });
+    };
+    // On the window, in the capture phase: before a handler of the row acts on the press, and
+    // also for a list that mounts after this hook.
+    window.addEventListener('pointerdown', hold, true);
+    window.addEventListener('click', letGo, true);
+    window.addEventListener('pointercancel', letGo, true);
+    return () => {
+      window.removeEventListener('pointerdown', hold, true);
+      window.removeEventListener('click', letGo, true);
+      window.removeEventListener('pointercancel', letGo, true);
+      letGo();
+    };
+  }, [listRef]);
 
   return <BeforeChange order={order} read={read} keep={keep} />;
 };
