@@ -154,6 +154,7 @@ import {
   useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
+  useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
   useTimelineScrollElement,
@@ -638,8 +639,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     typeof lastRoomTimeline?.getPaginationToken(Direction.Forward) === 'string';
 
   // Opening a thread: render and viewport ports for the session, and the runtime it opens with.
-  const viewKeyRef = useLatestRef(viewKey);
-  const openedViewKeyRef = useRef<string>();
+  const openAtLatest = useThreadOpenedAtLatest(viewKey, session.snapshot.open.latestPending);
+  const { startOpen: startOpenAtLatest, pinnedAtLatest } = openAtLatest;
   const renderPort = useMemo<ThreadRenderPort>(
     () => ({
       reset: (nextThreadId) => threadStateRef.current.resetThreadRenderState(nextThreadId),
@@ -654,15 +655,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     () => ({
       resetForOpen: () => {
         backController.reset();
-        openedViewKeyRef.current = viewKeyRef.current;
+        startOpenAtLatest();
       },
       resetAfterLeave: () => backController.reset(),
-      // Queued: the next commit applies it, unless the reader scrolls first.
+      // Queued: the next commit applies it, unless the reader scrolls first. From then on the
+      // opening pin holds the newest row while the rows measure.
       requestLatestPin: () => {
-        backController.requestOpenBottomPin(scrollToBottomRef);
+        if (backController.requestOpenBottomPin(scrollToBottomRef)) pinnedAtLatest();
       },
     }),
-    [backController, viewKeyRef]
+    [backController, pinnedAtLatest, startOpenAtLatest]
   );
   const priorityTargets = windowState.priorityThreadSeedPrewarmRoots;
   const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
@@ -738,14 +740,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     viewport: prependViewport,
   });
 
-  // A thread opened at its latest row stays pinned there until the reader scrolls. Both flags
-  // belong to the open view; the render that switches views starts them over.
-  const openedAtLatestRef = useViewScopedFlag(viewKey);
+  // A thread opened at its latest row stays pinned there until the reader scrolls. Whether the
+  // reader scrolled belongs to the open view; the render that switches views starts it over.
   const readerScrolledRef = useViewScopedFlag(viewKey);
-  const threadLatestOpenPending =
-    !!threadId && session.snapshot.open.latestPending && openedViewKeyRef.current === viewKey;
-  if (threadLatestOpenPending) openedAtLatestRef.current.value = true;
-  const threadOpenedAtLatest = !!threadId && openedAtLatestRef.current.value;
+  const threadLatestOpenPending = !!threadId && openAtLatest.latestOpenPending;
+  const threadOpenedAtLatest = !!threadId && openAtLatest.openedAtLatest;
   const threadUserScrolled = readerScrolledRef.current.value;
 
   const feature = useTimelineMessageFeature({
