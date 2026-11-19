@@ -5,14 +5,21 @@ import { expect, it, vi } from 'vitest';
 import { AgentCallHeaderButton } from './AgentCallHeaderButton';
 
 const call = vi.hoisted(() => vi.fn(async () => undefined));
+const caller = vi.hoisted(() => ({ pending: false }));
 
 vi.mock('../../matrix/hooks/useRoom', () => ({
   useRoom: () => ({ roomId: '!room:example.org', isCallRoom: () => false }),
 }));
-vi.mock('./agentCaller', () => ({ useAgentCaller: () => ({ call, pending: false }) }));
+vi.mock('./agentCaller', () => ({
+  useAgentCaller: () => ({ call, pending: caller.pending }),
+}));
 vi.mock('../../ui/MenuEntry', () => ({
-  MenuEntry: ({ label, onSelect }: { label: string; onSelect: () => void }) =>
-    React.createElement('button', { 'data-entry': label, onClick: onSelect }),
+  MenuEntry: (props: { label: string; disabled?: boolean; onSelect: () => void }) =>
+    React.createElement('button', {
+      'data-entry': props.label,
+      disabled: props.disabled,
+      onClick: props.onSelect,
+    }),
 }));
 
 const candidates = [
@@ -20,7 +27,20 @@ const candidates = [
   { userId: '@mindroom_ops:example.org', displayName: 'Ops' },
 ];
 
-it('lists the agents as entries of the room menu, where a narrow row left its button out', () => {
+it('disables the entries of a menu opened again while an agent call is still starting', () => {
+  caller.pending = true;
+  const menu = create(
+    <AgentCallHeaderButton threadId="$thread" candidates={candidates} inMenu={vi.fn()} />
+  );
+  expect(menu.root.findAllByType('button').map((entry) => entry.props.disabled)).toEqual([
+    true,
+    true,
+  ]);
+  menu.unmount();
+  caller.pending = false;
+});
+
+it("lists the agents as entries of the room menu, where a phone thread's row left its button out", () => {
   const closeMenu = vi.fn();
   const menu = create(
     <AgentCallHeaderButton threadId="$thread" candidates={candidates} inMenu={closeMenu} />

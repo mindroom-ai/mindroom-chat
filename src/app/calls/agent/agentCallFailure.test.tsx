@@ -11,6 +11,7 @@ const support = vi.hoisted(() => ({
   browser: true,
   /** The call service lookup; a test can hold it to switch accounts meanwhile. */
   service: async (): Promise<string | undefined> => undefined,
+  createRoom: async (): Promise<string> => '!call:example.org',
 }));
 const client = vi.hoisted(() => ({ clientRunning: true, getRoom: () => null }));
 
@@ -20,6 +21,12 @@ vi.mock('../callSupport', () => ({
 }));
 vi.mock('../rtcFocus', () => ({
   getLivekitServiceUrl: () => support.service(),
+}));
+// The agent has no call room yet; a test holds the making of one open.
+vi.mock('./agentCall', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./agentCall')>()),
+  findAgentCallRoom: () => undefined,
+  createAgentVoiceRoom: () => support.createRoom(),
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('folds', () => {
@@ -121,6 +128,49 @@ describe('agent calls started from the header or the command palette', () => {
       expect(await starting).toBe(false);
     });
     expect(store.get(agentCallFailureAtom)).toBeUndefined();
+  });
+
+  it('start one at a time, wherever they are asked, so a first call makes one call room', async () => {
+    const store = createStore();
+    // The room menu's entry, which goes away once it is chosen, and the menu opened again.
+    const first = mountCaller(store, true);
+    const second = mountCaller(store, true);
+    support.service = async () => 'https://calls.example.org';
+    let failCreation: (() => void) | undefined;
+    const createRoom = vi.fn(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          failCreation = () => reject(new Error('no room'));
+        })
+    );
+    support.createRoom = createRoom;
+    let starting: Promise<boolean> | undefined;
+    await act(async () => {
+      starting = first.caller.current?.call(target);
+      await vi.waitFor(() => expect(createRoom).toHaveBeenCalledTimes(1));
+    });
+    first.unmount();
+    // The start is still under way for the caller that is left, which starts no second one.
+    expect(second.caller.current?.pending).toBe(true);
+    await act(async () => {
+      expect(await second.caller.current?.call(target)).toBe(false);
+    });
+    expect(createRoom).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      failCreation?.();
+      expect(await starting).toBe(false);
+    });
+    expect(second.caller.current?.pending).toBe(false);
+    expect(mountCaller(store, true).caller.current?.pending).toBe(false);
+    // The next one starts again.
+    support.createRoom = vi.fn(async () => {
+      throw new Error('no room');
+    });
+    await act(async () => {
+      await second.caller.current?.call(target);
+    });
+    expect(support.createRoom).toHaveBeenCalledTimes(1);
   });
 
   it('leave the account-wide notice alone when the caller shows its own error', async () => {

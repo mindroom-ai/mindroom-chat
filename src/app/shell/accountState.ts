@@ -1,6 +1,6 @@
 import type { PrimitiveAtom, useStore } from 'jotai';
 import { forgetCallState } from '../calls/callStore';
-import { agentCallFailureAtom } from '../calls/agent/agentCaller';
+import { agentCallFailureAtom, agentCallPendingAtom } from '../calls/agent/agentCaller';
 import { focusHandOffAtom } from '../calls/window/callWindowState';
 import {
   callTranscriptionAtom,
@@ -111,6 +111,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(transcriptPanelAtom),
   toInitial(subagentsPanelAtom),
   toInitial(agentCallFailureAtom),
+  toInitial(agentCallPendingAtom),
   toInitial(settingsModalAtom),
   toInitial(recoveryDialogAtom),
   toInitial(roomSettingsAtom),

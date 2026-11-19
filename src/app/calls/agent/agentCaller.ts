@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { atom, useStore } from 'jotai';
+import { atom, useAtomValue, useStore } from 'jotai';
 import { RoomStateEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { waitForJoinedRoom } from '../../matrix/waitForJoinedRoom';
@@ -85,6 +85,13 @@ export type AgentCallFailure = { error: AgentCallError; id: number };
 
 export const agentCallFailureAtom = atom<AgentCallFailure | undefined>(undefined);
 
+/**
+ * The agent call start under way, for every caller of the account: one at a time, since each
+ * could make the agent's permanent call room. A caller that goes away while it starts (a menu
+ * entry, the command palette) leaves it set, so the next one waits.
+ */
+export const agentCallPendingAtom = atom<object | undefined>(undefined);
+
 let failureCount = 0;
 
 type StartCall = ReturnType<typeof useCallActions>['startCall'];
@@ -150,7 +157,7 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
   const mx = useMatrixClient();
   const store = useStore();
   const { startCall } = useCallActions(mx);
-  const [pending, setPending] = useState(false);
+  const pending = !!useAtomValue(agentCallPendingAtom);
   const [error, setOwnError] = useState<AgentCallError>();
   const setError = useCallback(
     (next: AgentCallError | undefined) => {
@@ -167,6 +174,8 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
 
   const call = useCallback(
     async ({ agentUserId, displayName, roomId, threadId }: AgentCallTarget): Promise<boolean> => {
+      // One start at a time, wherever it is asked.
+      if (store.get(agentCallPendingAtom)) return false;
       setError(undefined);
       // Another call's room keeps its origin: nothing is written while a call runs.
       if (store.get(activeCallAtom)) {
@@ -177,7 +186,8 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
         setError('browser');
         return false;
       }
-      setPending(true);
+      const start = {};
+      store.set(agentCallPendingAtom, start);
       try {
         if (!(await getLivekitServiceUrl(mx))) {
           setError('homeserver');
@@ -200,7 +210,8 @@ export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) =>
         setError('failed');
         return false;
       } finally {
-        setPending(false);
+        // A start that outlived its account leaves the next account's own alone.
+        if (store.get(agentCallPendingAtom) === start) store.set(agentCallPendingAtom, undefined);
       }
     },
     [mx, setError, startCall, store]
