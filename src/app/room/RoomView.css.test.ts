@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.unmock('../ui/styles/RoomOverlay.css');
 
-type CssRule = { selector: string; rule?: Record<string, unknown> };
+type CssRule = { selector: string; rule?: { display?: unknown } };
 
 describe('the dock styles', () => {
   it('hide the typing strip while the background jobs are listed', async () => {
