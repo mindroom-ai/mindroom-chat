@@ -1,4 +1,4 @@
-import { createElement, useReducer, useRef } from 'react';
+import { createElement, useEffect, useReducer, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -15,6 +15,7 @@ import {
   useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
+  useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
   type RoomRowsPlace,
@@ -55,19 +56,36 @@ type ThreadProps = {
   scroller: ReturnType<typeof fakeThreadScroller>['element'];
   pins: { current: ScrollToBottomState };
   rows: number;
+  /** Whether a render shows the session's open as pending. */
   openPending: boolean;
   /** Whether the request that keeps the newest row in view takes over once the reader scrolls. */
   followsLatest?: boolean;
+  /** Gets the session's request for the newest row (the viewport port's `requestLatestPin`). */
+  onPort?: (requestLatestPin: () => void) => void;
 };
 
 const ignoreRowIndex = () => undefined;
 
 /** The pieces of an open thread that decide its bottom pins, wired as the room timeline does. */
-function OpenThread({ scroller, pins, rows, openPending, followsLatest = false }: ThreadProps) {
+function OpenThread({
+  scroller,
+  pins,
+  rows,
+  openPending,
+  followsLatest = false,
+  onPort,
+}: ThreadProps) {
   const scrollRef = useRef(scroller as unknown as HTMLDivElement);
   const backController = useThreadBackPaginationController();
   const readerScrolledRef = useViewScopedFlag('!room|$thread');
   const [, rerender] = useReducer((value: number) => value + 1, 0);
+  const opened = useThreadOpenedAtLatest('!room|$thread', openPending);
+  // The session starts its open after the commit that shows the thread.
+  const { startOpen, pinnedAtLatest } = opened;
+  useEffect(() => startOpen(), [startOpen]);
+  onPort?.(() => {
+    if (backController.requestOpenBottomPin(pins)) pinnedAtLatest();
+  });
   const gesturePins = useGestureBottomPins({
     backController,
     scrollToBottomRef: pins,
@@ -99,8 +117,8 @@ function OpenThread({ scroller, pins, rows, openPending, followsLatest = false }
     threadFilteredEventsRef: { current: [] },
     threadId: '$thread',
     threadInitialRenderMode: 'live',
-    threadLatestOpenPending: openPending,
-    threadOpenedAtLatest: true,
+    threadLatestOpenPending: opened.latestOpenPending,
+    threadOpenedAtLatest: opened.openedAtLatest,
     threadUserScrolled: readerScrolledRef.current.value,
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
@@ -132,6 +150,10 @@ const openAtLatest = (followsLatest = false) => {
   });
   if (!renderer) throw new Error('Expected a renderer');
   const shown = renderer;
+  // The session started its open after the first commit; the next render shows it pending.
+  act(() => {
+    shown.update(render(20, true));
+  });
   act(() => {
     shown.update(render(20, false));
   });
@@ -147,6 +169,41 @@ const openAtLatest = (followsLatest = false) => {
   };
   return { element, fire, pins, showRows, followNewRow };
 };
+
+describe('useThreadOpenedAtLatest', () => {
+  it('pins the newest rows again when they grow after the pin, though no render showed the open pending', () => {
+    // A switch to a thread the client holds: the open starts and ends before any render shows it
+    // pending, and its one pin request comes when it completes.
+    const { element } = fakeThreadScroller();
+    const pins = { current: { count: 0, smooth: false } };
+    let requestLatestPin: () => void = () => undefined;
+    const onPort = (request: () => void) => {
+      requestLatestPin = request;
+    };
+    const render = () =>
+      createElement(OpenThread, { scroller: element, pins, rows: 20, openPending: false, onPort });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(render());
+    });
+    if (!renderer) throw new Error('Expected a renderer');
+    const shown = renderer;
+    const commit = () =>
+      act(() => {
+        shown.update(render());
+      });
+    requestLatestPin();
+    commit();
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ top: 2400, behavior: 'instant' });
+
+    // The newest rows mount and measure taller than their estimates: the commit that renders the
+    // measurement brings the bottom back, without another request.
+    element.scrollTo.mockClear();
+    element.scrollHeight = 3400;
+    commit();
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ top: 2800, behavior: 'instant' });
+  });
+});
 
 describe('useGestureBottomPins in an open thread', () => {
   it('drops a follow pin a row asked for when the reader touches before it is applied', () => {
