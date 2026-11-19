@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-import type { IContent, MatrixClient, MatrixEvent } from 'matrix-js-sdk';
+import type { IContent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
 import {
   isThinkingPlaceholderBody,
   MINDROOM_THINKING_PLACEHOLDER_BODY,
 } from '../../matrix/protocol/thinkingPlaceholder';
-import { MINDROOM_TOOL_TRACE_KEY } from '../../matrix/protocol/toolTrace';
+import {
+  getContentToolTraceEvents,
+  MINDROOM_TOOL_TRACE_KEY,
+  type ToolTraceEvent,
+} from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
 import { renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from './liveReplyStore';
@@ -55,6 +60,26 @@ export const getLiveVerdict = (
   // The entry stays: the frames after the checkpoint still apply to it.
   if (checkpoint && compareLiveOrder(entry, checkpoint) <= 0) return 'wait';
   return 'show';
+};
+
+/**
+ * The tool calls a reply shows, as its row renders them: its frames' while they show over it, else
+ * its latest edit's trace. A redacted reply shows none.
+ */
+export const getShownToolCalls = (
+  room: Room,
+  reply: MatrixEvent,
+  store: ReturnType<typeof getLiveReplyStore>,
+  now: number
+): ToolTraceEvent[] => {
+  if (reply.isRedacted()) return [];
+  const replyId = reply.getId() ?? '';
+  const thread = reply.threadRootId ? room.getThread(reply.threadRootId) : undefined;
+  const timelineSet = thread?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
+  const content = getLatestMessageContent(reply, getEditedEvent(replyId, reply, timelineSet));
+  const live = store.get(room.roomId, replyId);
+  const shown = live && getLiveVerdict(reply, content, live, now) === 'show';
+  return (shown ? live.docs.tools : getContentToolTraceEvents(content)) ?? [];
 };
 
 const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boolean): IContent => {

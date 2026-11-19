@@ -15,10 +15,18 @@ export type BackgroundJob = {
   tool: string;
   status: string;
   startedAt: string;
+  /** A delegation job's sub-agent (`subagent_id`), whose runs' frames carry it as `meta.subagent`. */
+  subagent?: string;
+  /** A delegation job's run (`delegation_id`): the `run` of its frames. */
+  run?: string;
+  /** A tool job's call, as the agent reply's tool trace names it. */
+  toolCallId?: string;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isKey = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
 const parseJob = (agentId: string, value: unknown): BackgroundJob | undefined => {
   if (!isRecord(value)) return undefined;
@@ -33,7 +41,20 @@ const parseJob = (agentId: string, value: unknown): BackgroundJob | undefined =>
   ) {
     return undefined;
   }
-  return { jobId, agentId, threadId: threadId ?? null, kind, tool, status, startedAt };
+  // Join keys MindRoom before them sends none; one that is malformed is left out, not the job.
+  const { subagent, run, tool_call_id: toolCallId } = value;
+  return {
+    jobId,
+    agentId,
+    threadId: threadId ?? null,
+    kind,
+    tool,
+    status,
+    startedAt,
+    ...(isKey(subagent) ? { subagent } : {}),
+    ...(isKey(run) ? { run } : {}),
+    ...(isKey(toolCallId) ? { toolCallId } : {}),
+  };
 };
 
 /** Read one agent's jobs from state `agentRoomState` already checked the agent published about itself. */

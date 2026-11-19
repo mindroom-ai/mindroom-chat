@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 const ROOM_ID = '!room:example.org';
 const room = { roomId: ROOM_ID } as Room;
 
-vi.mock('../../background-jobs/useRoomBackgroundJobs', () => ({
+vi.mock('../../matrix/hooks/useRoomBackgroundJobs', () => ({
   useRoomBackgroundJobs: () => ({ jobs: [], total: 0 }),
 }));
 vi.mock('../../schedules/useScheduledTaskEvents', () => ({ useScheduledTaskEvents: () => [] }));

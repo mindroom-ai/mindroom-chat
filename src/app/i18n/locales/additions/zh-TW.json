@@ -972,7 +972,22 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
       "finished": "已完成：{{tool}}",
-      "jobCountFinished": "{{count}} 個背景工作已完成"
+      "jobCountFinished": "{{count}} 個背景工作已完成",
+      "groupSubagents": "子代理 · {{number}}",
+      "groupTools": "工具 · {{number}}",
+      "tools_other": "{{count}} 個工具",
+      "needApproval_other": "{{count}} 個待核准",
+      "toolCalls_other": "{{count}} 次工具呼叫",
+      "tokens_other": "{{tokens}} 個權杖",
+      "started": "開始於{{time}}",
+      "open": "開啟",
+      "openFor": "開啟 {{name}}",
+      "column": {
+        "calls": "呼叫",
+        "tokens": "權杖",
+        "cost": "費用",
+        "time": "時間"
+      }
     },
     "subagents": {
       "title": "子代理",

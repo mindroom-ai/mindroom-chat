@@ -12,7 +12,7 @@ import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 import { useThreadIndex } from './useThreadIndex';
 
 const live = vi.hoisted(() => ({ jobs: [] as BackgroundJob[] }));
-vi.mock('../../background-jobs/useRoomBackgroundJobs', () => ({
+vi.mock('../../matrix/hooks/useRoomBackgroundJobs', () => ({
   useRoomBackgroundJobs: () => ({ jobs: live.jobs }),
 }));
 vi.mock('../../schedules/useScheduledTaskEvents', () => {

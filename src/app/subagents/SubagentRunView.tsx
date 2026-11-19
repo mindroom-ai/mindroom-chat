@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { Box, Icon, IconButton, Icons, Text } from 'folds';
+import { useAtomValue } from 'jotai';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
+import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { formatCallDuration } from '../lib/time';
@@ -118,6 +120,7 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
             size="T400"
             priority="300"
             className={css.Task}
+            data-subagent-turn={run.run}
             dir="auto"
             data-subagent-task=""
           >
@@ -208,7 +211,11 @@ export function SubagentRunView({
 
   // A sub-agent at work opens at its newest text; an ended one at its first task.
   const box = useRef<HTMLDivElement>(null);
-  const following = useRef(active);
+  // Opened for one of its turns (the jobs bar's Open), it opens at that turn's task.
+  const opened = useAtomValue(subagentsPanelAtom);
+  const asked = opened?.run;
+  const openAt = node.turns.some(({ run }) => run.run === asked) ? asked : undefined;
+  const following = useRef(active && !openAt);
   /** Where keeping the end left the box, so the scroll event that move fires is not the reader's. */
   const pinnedTop = useRef<number>();
   /** Whether the reader saw the end before the latest change: after it, or since they scrolled. */
@@ -232,6 +239,13 @@ export function SubagentRunView({
     }
     keepEnd();
   }, [keepEnd, newestRun, node]);
+  // Each Open asks anew (a new atom value); frames do not.
+  useLayoutEffect(() => {
+    if (!openAt) return;
+    following.current = false;
+    box.current?.querySelector(`[data-subagent-turn="${openAt}"]`)?.scrollIntoView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on each Open
+  }, [opened]);
   // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
   const getThread = useCallback(() => box.current?.firstElementChild, []);
   useResizeObserver(keepEnd, getThread);

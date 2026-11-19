@@ -988,7 +988,26 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)",
       "finished": "Voltooid: {{tool}}",
-      "jobCountFinished": "{{count}} achtergrondtaken voltooid"
+      "jobCountFinished": "{{count}} achtergrondtaken voltooid",
+      "groupSubagents": "Subagenten · {{number}}",
+      "groupTools": "Tools · {{number}}",
+      "tools_one": "{{count}} tool",
+      "tools_other": "{{count}} tools",
+      "needApproval_one": "{{count}} wacht op goedkeuring",
+      "needApproval_other": "{{count}} wachten op goedkeuring",
+      "toolCalls_one": "{{count}} toolaanroep",
+      "toolCalls_other": "{{count}} toolaanroepen",
+      "tokens_one": "{{tokens}} token",
+      "tokens_other": "{{tokens}} tokens",
+      "started": "Gestart {{time}}",
+      "open": "Openen",
+      "openFor": "Openen: {{name}}",
+      "column": {
+        "calls": "Aanroepen",
+        "tokens": "Tokens",
+        "cost": "Kosten",
+        "time": "Tijd"
+      }
     },
     "subagents": {
       "title": "Subagenten",

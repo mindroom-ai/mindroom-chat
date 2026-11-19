@@ -102,6 +102,35 @@ describe('sub-agent frames', () => {
     expect(parsed?.meta).not.toHaveProperty('model');
   });
 
+  it("reads the run's usage, with its cost only when priced", () => {
+    const usage = { input_tokens: 120000, output_tokens: 8000, tool_calls: 31 };
+    expect(
+      parseSubagentFrame(frame({ meta: { ...meta, usage: { ...usage, cost_usd: 1.3 } } }))?.meta
+        .usage
+    ).toEqual({ inputTokens: 120000, outputTokens: 8000, toolCalls: 31, costUsd: 1.3 });
+    expect(parseSubagentFrame(frame({ meta: { ...meta, usage } }))?.meta.usage).toEqual({
+      inputTokens: 120000,
+      outputTokens: 8000,
+      toolCalls: 31,
+    });
+    expect(
+      parseSubagentFrame(frame({ meta: { ...meta, usage: { ...usage, cost_usd: 'free' } } }))?.meta
+        .usage
+    ).not.toHaveProperty('costUsd');
+    expect(parseSubagentFrame(frame({}))?.meta).not.toHaveProperty('usage');
+  });
+
+  it.each([
+    ['a number', 3],
+    ['missing its tokens', { tool_calls: 2 }],
+    ['negative', { input_tokens: -1, output_tokens: 0, tool_calls: 0 }],
+    ['not finite', { input_tokens: Infinity, output_tokens: 0, tool_calls: 0 }],
+  ])('keeps a frame whose usage is %s, without the usage', (_name, usage) => {
+    const parsed = parseSubagentFrame(frame({ meta: { ...meta, usage } }));
+    expect(parsed?.meta.agent).toBe('researcher');
+    expect(parsed?.meta).not.toHaveProperty('usage');
+  });
+
   it('takes a frame without a sub-agent as a turn of a sub-agent of its own', () => {
     expect(parseSubagentFrame(frame({}))?.meta.subagent).toBe('del-1');
     expect(parseSubagentFrame(frame({ meta: { ...meta, subagent: 'first' } }))?.meta.subagent).toBe(

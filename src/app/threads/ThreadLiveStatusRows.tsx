@@ -5,16 +5,15 @@ import { Text } from 'folds';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
-import { getContentToolTraceEvents, runningToolCalls } from '../matrix/protocol/toolTrace';
+import { runningToolCalls } from '../matrix/protocol/toolTrace';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
 import { getThreadStreamingReplies } from '../event-store/threads/useThreadStreamingState';
 import { useThreadEventRefresh } from '../event-store/threads/useThreadEventRefresh';
 import { summarizeLoadedThreadCost } from '../event-store/threads/threadConversationCost';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
-import { getLiveVerdict } from '../messages/live/useLiveReplyContent';
+import { getShownToolCalls } from '../messages/live/useLiveReplyContent';
 import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
-import { useRoomBackgroundJobs } from '../background-jobs/useRoomBackgroundJobs';
+import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader, subscribeRoomSignals } from './cross-room/threadSignalsReader';
 import { useSnoozeNow } from './tags/useSnoozeNow';
@@ -52,19 +51,10 @@ const useRunningTools = (room: Room, threadId: string, streaming: boolean, roomC
   return useMemo(() => {
     void frames;
     const now = Date.now();
-    const events = replies.flatMap((reply) => {
-      const replyId = reply.getId() ?? '';
-      const content = getLatestMessageContent(
-        reply,
-        getEditedEvent(replyId, reply, thread?.timelineSet)
-      );
-      // The reply's row shows its frames only while they are newer than what it wrote.
-      const live = store.get(room.roomId, replyId);
-      const shown = live && getLiveVerdict(reply, content, live, now) === 'show';
-      return (shown ? live.docs.tools : getContentToolTraceEvents(content)) ?? [];
-    });
+    // The reply's row shows its frames only while they are newer than what it wrote.
+    const events = replies.flatMap((reply) => getShownToolCalls(room, reply, store, now));
     return runningToolCalls(events, replies.length > 0);
-  }, [frames, replies, room.roomId, store, thread]);
+  }, [frames, replies, room, store]);
 };
 
 type ThreadLiveStatusRowsProps = {

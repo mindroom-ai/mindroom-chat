@@ -126,11 +126,11 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   expect(await footerHeight()).toBe(collapsedHeight);
   await page.mouse.move(0, 0);
   await expect(bar.getByRole('listitem')).toHaveCount(0);
-  // From the keyboard, the jobs come right after the title, before Stop all.
+  // From the keyboard, the jobs come right after the title, before Stop all: sub-agents first.
   await title.focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await expect(bar.getByRole('button', { name: 'Stop run_tests' })).toBeFocused();
+  await expect(bar.getByRole('button', { name: 'Stop research (subagent)' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(title).toBeFocused();
   await expect(bar.getByRole('listitem')).toHaveCount(0);

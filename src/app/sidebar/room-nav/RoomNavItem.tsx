@@ -18,7 +18,7 @@ import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { getDirectPartnerId, getRoomAvatarUrl } from '../../matrix/room';
 import { nameInitials } from '../../lib/common';
-import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
+import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';

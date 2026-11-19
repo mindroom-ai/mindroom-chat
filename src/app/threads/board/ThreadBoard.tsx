@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { Room } from 'matrix-js-sdk';
-import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
+import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
 import { useScheduledTaskEvents } from '../../schedules/useScheduledTaskEvents';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { localDigits } from '../../lib/localDigits';

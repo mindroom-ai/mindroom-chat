@@ -972,7 +972,22 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} 个后台任务（显示 {{shown}} 个）",
       "finished": "已完成：{{tool}}",
-      "jobCountFinished": "{{count}} 个后台任务已完成"
+      "jobCountFinished": "{{count}} 个后台任务已完成",
+      "groupSubagents": "子智能体 · {{number}}",
+      "groupTools": "工具 · {{number}}",
+      "tools_other": "{{count}} 个工具",
+      "needApproval_other": "{{count}} 个待批准",
+      "toolCalls_other": "{{count}} 次工具调用",
+      "tokens_other": "{{tokens}} 个令牌",
+      "started": "开始于{{time}}",
+      "open": "打开",
+      "openFor": "打开 {{name}}",
+      "column": {
+        "calls": "调用",
+        "tokens": "令牌",
+        "cost": "费用",
+        "time": "时间"
+      }
     },
     "subagents": {
       "title": "子智能体",
