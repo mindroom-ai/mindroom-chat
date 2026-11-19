@@ -7,7 +7,7 @@ import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { ResizablePanel } from '../../src/app/ui/panels/ResizablePanel';
 
-// A conversation of selectable text beside a side panel on the end side, as a room shows a plugin
+// A conversation of selectable text (as messages are, `.selectable`) beside a side panel on the end side, as a room shows a plugin
 // panel: the panel closes when dragged narrow enough and stops at its widest. Query parameter:
 // `width`, the panel's width before any drag (default its widest).
 applyThemeToDom(LightTheme);
@@ -23,7 +23,7 @@ createRoot(document.getElementById('root')!).render(
   <div style={{ display: 'flex', height: '100vh' }}>
     <main data-testid="conversation" style={{ flex: 1, minWidth: 0, padding: 16 }}>
       {paragraphs.map((text) => (
-        <p key={text} style={{ margin: '0 0 12px' }}>
+        <p key={text} className="selectable" style={{ margin: '0 0 12px' }}>
           {text}
         </p>
       ))}
