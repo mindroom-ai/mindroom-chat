@@ -57,7 +57,7 @@ import { readAgentNoticeMarker } from '../agentNoticeMarker';
 import { sanitizeContent } from '../../matrix/protocol/untrustedContent';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
-import { CanvasOffNote, ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
+import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
 import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
 import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
@@ -708,10 +708,9 @@ export const renderAgentMessageContent = ({
           renderBody={
             canvasTitle
               ? () => (
-                  <Box as="span" alignItems="Center" gap="200" wrap="Wrap" data-canvas-notice-title>
+                  <Box as="span" alignItems="Center" gap="200" data-canvas-notice-title>
                     <Icon size="100" src={Icons.Category} />
                     <span {...ownDirectionLine}>{canvasTitle}</span>
-                    <CanvasOffNote />
                   </Box>
                 )
               : renderBody(content)

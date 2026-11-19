@@ -60,7 +60,6 @@ vi.mock('../html/HtmlBlocks', () => ({
 
 vi.mock('../../ui-actions/ChatUiActionButton', () => ({
   ChatUiActionButton: () => React.createElement('button', { 'data-ui-action': true }),
-  CanvasOffNote: () => null,
 }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>

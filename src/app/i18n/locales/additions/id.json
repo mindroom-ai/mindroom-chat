@@ -1068,7 +1068,7 @@
       "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
     },
     "uiActions": {
-      "canvasOff": "· Panel dibagikan · panel dinonaktifkan di aplikasi ini",
+      "canvasOff": "Panel dibagikan · panel dinonaktifkan di aplikasi ini",
       "askForText": "Minta versi teks",
       "copyRequest": "Salin permintaan",
       "textVersionRequest": "Tolong kirim “{{title}}” di sini sebagai teks saja. Panel interaktif dinonaktifkan di aplikasi saya.",

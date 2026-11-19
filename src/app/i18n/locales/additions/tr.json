@@ -1093,7 +1093,7 @@
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
     },
     "uiActions": {
-      "canvasOff": "· Panel paylaşıldı · bu uygulamada paneller kapalı",
+      "canvasOff": "Panel paylaşıldı · bu uygulamada paneller kapalı",
       "askForText": "Metin sürümü iste",
       "copyRequest": "İsteği kopyala",
       "textVersionRequest": "Lütfen “{{title}}” içeriğini buraya metin olarak gönder. Uygulamamda etkileşimli paneller kapalı.",

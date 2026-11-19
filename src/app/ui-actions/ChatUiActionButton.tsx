@@ -22,18 +22,7 @@ const actionIcon = (action: ChatUiAction) => {
   }
 };
 
-/** Beside a canvas's title while canvases are off in this app: why it stays shut. */
-export function CanvasOffNote() {
-  const { t } = useTranslation();
-  if (!useContext(ChatUiActionContext)?.textRequest) return null;
-  return (
-    <Text as="span" size="T200">
-      {t('mindroomUi.uiActions.canvasOff')}
-    </Text>
-  );
-}
-
-/** With canvases off: a request for a text version, put in the thread's draft or else copied. */
+/** Canvases off: says so (outside the dimmed notice body), and offers a text-version request. */
 function AskForText({ action, request }: { action: CanvasAction; request: TextRequest }) {
   const { t } = useTranslation();
   const text = t('mindroomUi.uiActions.textVersionRequest', { title: action.canvas.title });
@@ -42,26 +31,28 @@ function AskForText({ action, request }: { action: CanvasAction; request: TextRe
   const composer = useAtomValue(offerAtom);
   const [copied, setCopied] = useState(false);
   useEffect(() => setCopied(false), [composer]);
-  if (!request.canPost) return null;
   const onClick = () => {
     if (composer === 'empty') request.fill(action, text);
     else void copyToClipboard(text).then(setCopied);
   };
   const status = { empty: 'hint', offered: 'added', busy: copied ? 'copied' : 'kept' } as const;
   return (
-    <Box alignItems="Center" gap="300" wrap="Wrap" style={{ marginTop: '0.5rem' }}>
-      <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onClick}>
-        <Text size="B300">
-          {t(
-            composer === 'empty'
-              ? 'mindroomUi.uiActions.askForText'
-              : 'mindroomUi.uiActions.copyRequest'
-          )}
-        </Text>
-      </Button>
-      <Text size="T200" priority="300" role="status">
-        {t(`mindroomUi.uiActions.askForTextStatus.${status[composer]}`)}
+    <Box direction="Column" alignItems="Start" gap="200" style={{ marginTop: '0.25rem' }}>
+      <Text size="T200" priority="400">
+        {t('mindroomUi.uiActions.canvasOff')}
       </Text>
+      {request.canPost && (
+        <Box alignItems="Center" gap="300" wrap="Wrap">
+          <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onClick}>
+            <Text size="B300">
+              {t(`mindroomUi.uiActions.${composer === 'empty' ? 'askForText' : 'copyRequest'}`)}
+            </Text>
+          </Button>
+          <Text size="T200" priority="400" role="status">
+            {t(`mindroomUi.uiActions.askForTextStatus.${status[composer]}`)}
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 }

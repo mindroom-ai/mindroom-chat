@@ -28,16 +28,13 @@ export type ChatUiActionOptions = {
   unavailable: (action: ChatUiAction) => string | undefined;
   /** The canvas the room's panel shows, by its request's event ID. */
   openCanvasId?: string;
-  /** Set while canvases are off: asks for a text version in a canvas's thread draft instead. */
+  /** Set while canvases are off: a request for a text version, drafted where the viewer can post. */
   textRequest?: TextRequest;
 };
 
 export type TextRequest = {
-  /** Whether this viewer can post in the room; nothing is drafted where no composer shows. */
   canPost: boolean;
-  /** What the thread's composer holds against `text`: nothing, `text` as offered, or other work. */
   offer: (threadId: string | undefined, text: string) => Atom<'empty' | 'offered' | 'busy'>;
-  /** Puts `text` into the thread's empty draft and shows that thread. */
   fill: (action: ChatUiAction, text: string) => void;
 };
 

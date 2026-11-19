@@ -374,22 +374,18 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
 
-/**
- * What the composers for a thread hold, against a draft offered to it: nothing, the offer as it
- * was put there, or other work (text, a reply or staged files in the room's page or in a view
- * showing the thread, a voice message to send).
- */
+/** A thread's composers against an offered draft: empty, holding the offer, or busy with any work. */
 export const composerOfferAtom = (key: [string, string, string?], offer: Descendant[]) =>
   atom((get): 'empty' | 'offered' | 'busy' => {
     const [, roomId, threadId] = key;
-    const views = get(shownConversationViewsAtom).filter(
-      (place) => place.roomId === roomId && place.threadId === threadId
-    );
+    // The room page's reply and files, and those of each view showing the thread (its column).
+    const views = get(shownConversationViewsAtom).filter((place) => place.threadId === threadId);
     const busy =
-      [undefined, ...views.map((place) => place.view)].some(
-        (view) =>
-          get(composerUploadItemsAtom(roomId, view)).length > 0 ||
-          !!get(composerReplyDraftAtom(roomId, view))
+      [{ view: undefined, roomId }, ...views].some(
+        (place) =>
+          place.roomId === roomId &&
+          (get(composerUploadItemsAtom(roomId, place.view)).length > 0 ||
+            !!get(composerReplyDraftAtom(roomId, place.view)))
       ) || get(pendingVoiceSendDraftAtom)?.context.roomId === roomId;
     const draft = get(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(...key)));
     if (busy || draft.length === 0) return busy ? 'busy' : 'empty';

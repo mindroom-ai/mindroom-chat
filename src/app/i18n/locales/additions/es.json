@@ -1118,7 +1118,7 @@
       "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página."
     },
     "uiActions": {
-      "canvasOff": "· Panel compartido · los paneles están desactivados en esta app",
+      "canvasOff": "Panel compartido · los paneles están desactivados en esta app",
       "askForText": "Pedir una versión en texto",
       "copyRequest": "Copiar solicitud",
       "textVersionRequest": "Envía «{{title}}» aquí como texto, por favor. Los paneles interactivos están desactivados en mi app.",

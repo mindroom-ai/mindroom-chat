@@ -127,9 +127,8 @@ test('a canvas while canvases are off asks for a text version in its thread, nev
   const copy = page.getByRole('button', { name: 'Copy request', exact: true });
   const status = (text: string) => page.getByRole('status').filter({ hasText: text });
   await expect(ask).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator('[data-canvas-notice-title]')).toContainText(
-    `${TITLE}· Canvas shared · panels are off in this app`
-  );
+  await expect(page.locator('[data-canvas-notice-title]')).toHaveText(TITLE);
+  await expect(page.getByText('Canvas shared · panels are off in this app')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open canvas', exact: true })).toHaveCount(0);
   await shot(page, 'after-light');
   await page.emulateMedia({ colorScheme: 'dark' });

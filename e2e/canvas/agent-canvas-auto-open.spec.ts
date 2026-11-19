@@ -82,7 +82,7 @@ test.describe(() => {
     const ask = page.getByRole('button', { name: 'Ask for a text version', exact: true }).first();
     await expect(ask).toBeVisible({ timeout: 90_000 });
     await expect(
-      page.getByText('· Canvas shared · panels are off in this app').first()
+      page.getByText('Canvas shared · panels are off in this app').first()
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open canvas', exact: true })).toHaveCount(0);
     await expect(page.getByRole('complementary', { name: 'Canvas panel' })).toHaveCount(0);

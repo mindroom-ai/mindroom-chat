@@ -1068,7 +1068,7 @@
       "inlineDisclosure": "{{agent}}이(가) 만들었습니다. 계정에는 접근할 수 없지만, 여기에 입력한 내용은 이 페이지 밖으로 전송될 수 있습니다."
     },
     "uiActions": {
-      "canvasOff": "· 패널 공유됨 · 이 앱에서는 패널이 꺼져 있습니다",
+      "canvasOff": "패널 공유됨 · 이 앱에서는 패널이 꺼져 있습니다",
       "askForText": "텍스트 버전 요청",
       "copyRequest": "요청 복사",
       "textVersionRequest": "“{{title}}”을(를) 대신 텍스트로 여기에 보내 주세요. 제 앱에서는 대화형 패널이 꺼져 있습니다.",

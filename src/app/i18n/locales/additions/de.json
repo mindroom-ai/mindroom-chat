@@ -1093,7 +1093,7 @@
       "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
     },
     "uiActions": {
-      "canvasOff": "· Panel geteilt · Panels sind in dieser App deaktiviert",
+      "canvasOff": "Panel geteilt · Panels sind in dieser App deaktiviert",
       "askForText": "Textversion anfordern",
       "copyRequest": "Anfrage kopieren",
       "textVersionRequest": "Bitte schick „{{title}}“ hier stattdessen als Text. Interaktive Panels sind in meiner App deaktiviert.",

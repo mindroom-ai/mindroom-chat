@@ -1068,7 +1068,7 @@
       "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
     },
     "uiActions": {
-      "canvasOff": "· 已分享面板 · 此應用程式已關閉面板",
+      "canvasOff": "已分享面板 · 此應用程式已關閉面板",
       "askForText": "請求文字版本",
       "copyRequest": "複製請求",
       "textVersionRequest": "請改為在這裡以文字形式傳送「{{title}}」。我的應用程式已關閉互動式面板。",

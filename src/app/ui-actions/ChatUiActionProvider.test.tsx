@@ -9,7 +9,7 @@ import {
   useChatUiActions,
   type ChatUiActionOptions,
 } from './ChatUiActionProvider';
-import { CanvasOffNote, ChatUiActionButton } from './ChatUiActionButton';
+import { ChatUiActionButton } from './ChatUiActionButton';
 import { atom, getDefaultStore } from 'jotai';
 import { makeUiEvent, makeUiRoom } from './testUtils';
 
@@ -281,12 +281,6 @@ describe('Chat UI request buttons', () => {
       const { render, perform } = setup(canvasEvent());
       render({
         textRequest,
-        children: (
-          <>
-            <CanvasOffNote />
-            <ChatUiActionButton event={canvasEvent()} />
-          </>
-        ),
       });
       expect(container.textContent).toContain('mindroomUi.uiActions.canvasOff');
       expect(button().textContent).toBe('mindroomUi.uiActions.askForText');
@@ -323,12 +317,6 @@ describe('Chat UI request buttons', () => {
       const { render } = setup(canvasEvent());
       render({
         textRequest: offOptions(false).textRequest,
-        children: (
-          <>
-            <CanvasOffNote />
-            <ChatUiActionButton event={canvasEvent()} />
-          </>
-        ),
       });
       expect(container.querySelector('button')).toBeNull();
       expect(container.textContent).toBe('mindroomUi.uiActions.canvasOff');
@@ -338,12 +326,6 @@ describe('Chat UI request buttons', () => {
       const { render } = setup(canvasEvent());
       render({
         unavailable: () => 'End the call to open interactive panels.',
-        children: (
-          <>
-            <CanvasOffNote />
-            <ChatUiActionButton event={canvasEvent()} />
-          </>
-        ),
       });
       expect(button().textContent).toBe('Open canvas');
       expect(button().disabled).toBe(true);
