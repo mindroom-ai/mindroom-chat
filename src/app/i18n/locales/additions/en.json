@@ -278,6 +278,75 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Some images can't load in this window: the browser runs no service worker for MindRoom here."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Close",
+      "whatItCanDo": "What it can do",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} group",
+      "groupCount_other": "{{count}} groups",
+      "also": "Also {{groups}}",
+      "viewAll_one": "View all {{count}} tool",
+      "viewAll_other": "View all {{count}} tools",
+      "toolsTitle": "{{name}}’s tools",
+      "filter": "Filter tools",
+      "noMatch": "No tools match.",
+      "back": "Back",
+      "more": "More",
+      "worksIn": "Works in",
+      "loading": "Loading what it can do",
+      "groups": {
+        "development": {
+          "title": "Write code and work with files",
+          "name": "Code & files"
+        },
+        "research": {
+          "title": "Search and read the web",
+          "name": "Web & research"
+        },
+        "productivity": {
+          "title": "Plan, schedule and remember",
+          "name": "Planning & memory"
+        },
+        "email": {
+          "title": "Read and send email",
+          "name": "Email"
+        },
+        "mcp": {
+          "title": "Work with connected apps",
+          "name": "Connected apps"
+        },
+        "integrations": {
+          "title": "Use connected services",
+          "name": "Integrations"
+        },
+        "communication": {
+          "title": "Chat and send messages",
+          "name": "Chat & messages"
+        },
+        "entertainment": {
+          "title": "Find and play media",
+          "name": "Media"
+        },
+        "information": {
+          "title": "Look things up",
+          "name": "Information"
+        },
+        "smart_home": {
+          "title": "Control the smart home",
+          "name": "Smart home"
+        },
+        "social": {
+          "title": "Use social networks",
+          "name": "Social"
+        },
+        "other": {
+          "title": "Other tools",
+          "name": "Other"
+        }
+      }
     }
   },
   "featureUi": {

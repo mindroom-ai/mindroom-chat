@@ -28,6 +28,8 @@ import { getMemberRawDisplayName, withoutNameDisguises } from '../../matrix/room
 import { StateEvent } from '../../matrix/types/room';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { ownDirectionBlock } from '../../ui/directional';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { AgentProfileCard } from './AgentProfileCard';
 import { MutualRoomsChip } from './MutualRoomsChip';
 import { PowerChip } from './PowerChip';
 import { moderationAbilities } from './profileModeration';
@@ -128,6 +130,7 @@ export function UserRoomProfile({
 
   const me = client.getSafeUserId();
   const isMe = userId === me;
+  const agent = isMindroomAgentUserIdForViewer(userId, me);
   const member = room.getMember(userId);
   const user = client.getUser(userId);
   // A member event without a name (a ban, the leave that lifts it) names the person by their ID;
@@ -174,25 +177,81 @@ export function UserRoomProfile({
     openRoomSettings(room.roomId, RoomSettingsPage.PermissionsPage);
   };
 
+  const avatar = (
+    <Avatar className={css.ProfileAvatar} size="500" radii="Pill">
+      <UserAvatar
+        alt={name}
+        userId={userId}
+        src={avatarSrc}
+        renderFallback={() => <Text size="H4">{nameInitials(name)}</Text>}
+      />
+    </Avatar>
+  );
+  const userIdLine = (
+    <Text size="T200" priority="300" className={css.ProfileUserId}>
+      {/* A Matrix ID reads left to right, with its @ at the start, in any language. */}
+      <bdi>{userId}</bdi>
+    </Text>
+  );
+  const chips = (
+    <Box gap="200" wrap="Wrap">
+      {tag && (
+        <PowerChip
+          room={room}
+          userId={userId}
+          tag={tag}
+          mine={mine}
+          editable={abilities.changePower && member?.membership === 'join'}
+          onManagePowers={may.stateEvent(StateEvent.RoomPowerLevels, me) ? managePowers : undefined}
+        />
+      )}
+      <ShareChip userId={userId} />
+      {server && <ServerChip server={server} />}
+      {!isMe && !agent && <MutualRoomsChip userId={userId} onOpen={onDone} />}
+    </Box>
+  );
+  const callButton = !isMe && (
+    <AgentCallButton
+      roomId={room.roomId}
+      userId={userId}
+      displayName={name}
+      presenceStatus={user?.presenceStatusMsg}
+      onStarted={onDone}
+    />
+  );
+
+  if (agent) {
+    return (
+      <AgentProfileCard
+        room={room}
+        userId={userId}
+        name={name}
+        avatar={avatar}
+        role={role}
+        onMessage={openDirectRoom}
+        onDone={onDone}
+        call={callButton}
+        more={
+          <>
+            {userIdLine}
+            {chips}
+            <UserModeration room={room} userId={userId} abilities={abilities} />
+            <BlockControl userId={userId} />
+          </>
+        }
+      />
+    );
+  }
+
   return (
     <Box className={css.ProfileCard} direction="Column" gap="400">
       <Box alignItems="Center" gap="300">
-        <Avatar className={css.ProfileAvatar} size="500" radii="Pill">
-          <UserAvatar
-            alt={name}
-            userId={userId}
-            src={avatarSrc}
-            renderFallback={() => <Text size="H4">{nameInitials(name)}</Text>}
-          />
-        </Avatar>
+        {avatar}
         <Box direction="Column" gap="100" style={{ minWidth: 0 }}>
           <Text as="h2" size="H5" className={css.ProfileName}>
             {name}
           </Text>
-          <Text size="T200" priority="300" className={css.ProfileUserId}>
-            {/* A Matrix ID reads left to right, with its @ at the start, in any language. */}
-            <bdi>{userId}</bdi>
-          </Text>
+          {userIdLine}
         </Box>
       </Box>
       {role && (
@@ -200,23 +259,7 @@ export function UserRoomProfile({
           {role}
         </Text>
       )}
-      <Box gap="200" wrap="Wrap">
-        {tag && (
-          <PowerChip
-            room={room}
-            userId={userId}
-            tag={tag}
-            mine={mine}
-            editable={abilities.changePower && member?.membership === 'join'}
-            onManagePowers={
-              may.stateEvent(StateEvent.RoomPowerLevels, me) ? managePowers : undefined
-            }
-          />
-        )}
-        <ShareChip userId={userId} />
-        {server && <ServerChip server={server} />}
-        {!isMe && <MutualRoomsChip userId={userId} onOpen={onDone} />}
-      </Box>
+      {chips}
       {!isMe && (
         <Button
           size="300"
@@ -228,15 +271,7 @@ export function UserRoomProfile({
           <Text size="B300">{t('sharedUi.userRoomProfile.message')}</Text>
         </Button>
       )}
-      {!isMe && (
-        <AgentCallButton
-          roomId={room.roomId}
-          userId={userId}
-          displayName={name}
-          presenceStatus={user?.presenceStatusMsg}
-          onStarted={onDone}
-        />
-      )}
+      {callButton}
       {isMe && (
         <Button
           size="300"

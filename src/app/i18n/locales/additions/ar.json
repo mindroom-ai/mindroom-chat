@@ -294,6 +294,87 @@
     },
     "syncStatus": {
       "mediaUnavailable": "تعذّر تحميل بعض الصور في هذه النافذة: المتصفح لا يشغّل عامل خدمة لـ MindRoom هنا."
+    },
+    "agentCard": {
+      "agent": "وكيل",
+      "close": "إغلاق",
+      "whatItCanDo": "ما يستطيع فعله",
+      "toolCount_zero": "⁨{{count}}⁩ أداة",
+      "toolCount_one": "أداة واحدة (⁨{{count}}⁩)",
+      "toolCount_two": "أداتان (⁨{{count}}⁩)",
+      "toolCount_few": "⁨{{count}}⁩ أدوات",
+      "toolCount_many": "⁨{{count}}⁩ أداةً",
+      "toolCount_other": "⁨{{count}}⁩ أداة",
+      "groupCount_zero": "⁨{{count}}⁩ مجموعة",
+      "groupCount_one": "مجموعة واحدة (⁨{{count}}⁩)",
+      "groupCount_two": "مجموعتان (⁨{{count}}⁩)",
+      "groupCount_few": "⁨{{count}}⁩ مجموعات",
+      "groupCount_many": "⁨{{count}}⁩ مجموعةً",
+      "groupCount_other": "⁨{{count}}⁩ مجموعة",
+      "also": "وأيضًا ⁨{{groups}}⁩",
+      "viewAll_zero": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_one": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_two": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_few": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_many": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_other": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "toolsTitle": "أدوات ⁨{{name}}⁩",
+      "filter": "تصفية الأدوات",
+      "noMatch": "لا توجد أداة مطابقة.",
+      "back": "رجوع",
+      "more": "المزيد",
+      "worksIn": "يعمل في",
+      "loading": "جارٍ تحميل ما يستطيع فعله",
+      "groups": {
+        "development": {
+          "title": "كتابة الشيفرة والعمل على الملفات",
+          "name": "الشيفرة والملفات"
+        },
+        "research": {
+          "title": "البحث في الويب والقراءة",
+          "name": "الويب والبحث"
+        },
+        "productivity": {
+          "title": "التخطيط والجدولة والتذكّر",
+          "name": "التخطيط والذاكرة"
+        },
+        "email": {
+          "title": "قراءة البريد وإرساله",
+          "name": "البريد الإلكتروني"
+        },
+        "mcp": {
+          "title": "العمل مع التطبيقات المتصلة",
+          "name": "التطبيقات المتصلة"
+        },
+        "integrations": {
+          "title": "استخدام الخدمات المتصلة",
+          "name": "التكاملات"
+        },
+        "communication": {
+          "title": "الدردشة وإرسال الرسائل",
+          "name": "الدردشة والرسائل"
+        },
+        "entertainment": {
+          "title": "العثور على الوسائط وتشغيلها",
+          "name": "الوسائط"
+        },
+        "information": {
+          "title": "البحث عن المعلومات",
+          "name": "المعلومات"
+        },
+        "smart_home": {
+          "title": "التحكم في المنزل الذكي",
+          "name": "المنزل الذكي"
+        },
+        "social": {
+          "title": "استخدام الشبكات الاجتماعية",
+          "name": "التواصل الاجتماعي"
+        },
+        "other": {
+          "title": "أدوات أخرى",
+          "name": "أخرى"
+        }
+      }
     }
   },
   "featureUi": {

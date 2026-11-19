@@ -5,11 +5,13 @@ import {
   formatCostUsd,
   getAiRunTokenParts,
   formatAiRunTimeToFirstToken,
-  getAiRunCompactModelLabel,
   getAiRunContextBarSegments,
   getAiRunContextLabel,
-  getAiRunModelLabel,
 } from './aiRunDisplay';
+import {
+  getAiRunCompactModelLabel,
+  getAiRunModelLabel,
+} from '../../matrix/protocol/aiRunModelLabel';
 
 describe('getAiRunModelLabel', () => {
   it('combines config, provider, and model id when present', () => {

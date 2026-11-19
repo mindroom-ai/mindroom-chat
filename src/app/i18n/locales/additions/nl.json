@@ -278,6 +278,75 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Sommige afbeeldingen kunnen in dit venster niet laden: de browser draait hier geen service worker voor MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Sluiten",
+      "whatItCanDo": "Wat hij kan",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} groep",
+      "groupCount_other": "{{count}} groepen",
+      "also": "Ook {{groups}}",
+      "viewAll_one": "Alle {{count}} tools bekijken",
+      "viewAll_other": "Alle {{count}} tools bekijken",
+      "toolsTitle": "Tools van {{name}}",
+      "filter": "Tools filteren",
+      "noMatch": "Geen tool past.",
+      "back": "Terug",
+      "more": "Meer",
+      "worksIn": "Werkt in",
+      "loading": "Laden wat hij kan",
+      "groups": {
+        "development": {
+          "title": "Code schrijven en met bestanden werken",
+          "name": "Code & bestanden"
+        },
+        "research": {
+          "title": "Het web doorzoeken en lezen",
+          "name": "Web & onderzoek"
+        },
+        "productivity": {
+          "title": "Plannen, inplannen en onthouden",
+          "name": "Planning & geheugen"
+        },
+        "email": {
+          "title": "E-mail lezen en versturen",
+          "name": "E-mail"
+        },
+        "mcp": {
+          "title": "Met gekoppelde apps werken",
+          "name": "Gekoppelde apps"
+        },
+        "integrations": {
+          "title": "Gekoppelde diensten gebruiken",
+          "name": "Integraties"
+        },
+        "communication": {
+          "title": "Chatten en berichten sturen",
+          "name": "Chat & berichten"
+        },
+        "entertainment": {
+          "title": "Media zoeken en afspelen",
+          "name": "Media"
+        },
+        "information": {
+          "title": "Dingen opzoeken",
+          "name": "Informatie"
+        },
+        "smart_home": {
+          "title": "Het slimme huis bedienen",
+          "name": "Slim huis"
+        },
+        "social": {
+          "title": "Sociale netwerken gebruiken",
+          "name": "Sociaal"
+        },
+        "other": {
+          "title": "Andere tools",
+          "name": "Overig"
+        }
+      }
     }
   },
   "featureUi": {

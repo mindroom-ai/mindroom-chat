@@ -26,7 +26,12 @@ vi.mock('../useUserProfile', () => ({ useUserProfile: () => ({}) }));
 vi.mock('../../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../../calls/agent/AgentCallButton', () => ({ AgentCallButton: () => null }));
 vi.mock('../../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
-vi.mock('./MutualRoomsChip', () => ({ MutualRoomsChip: () => null }));
+vi.mock('./MutualRoomsChip', () => ({
+  MutualRoomsChip: () => null,
+  useMutualRooms: () => ({ spaces: [], rooms: [], directs: [] }),
+}));
+vi.mock('./useAgentProfile', () => ({ useAgentProfile: () => ({ status: 'none' }) }));
+vi.mock('../../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => ({}) }));
 vi.mock('./PowerChip', () => ({ PowerChip: () => null }));
 vi.mock('./UserChips', () => ({ ServerChip: () => null, ShareChip: () => null }));
 vi.mock('./UserModeration', () => ({ UserModeration: () => null }));
@@ -95,7 +100,8 @@ describe('UserRoomProfile role', () => {
   it('shows the role an agent publishes under its name', async () => {
     const room = await roomWith({ [HELPER]: { api_origin: 'http://localhost:8765', role: ROLE } });
     const text = cardText(room, HELPER);
-    expect(text.slice(0, 3)).toEqual(['Helper', HELPER, ROLE]);
+    // The agent's card keeps its user ID under "More".
+    expect(text.slice(0, 3)).toEqual(['Helper', 'Agent', ROLE]);
     // It may wrap, so its lines start under each other in its own direction.
     const roleText = renderer!.root.find(
       (node) => typeof node.type === 'string' && node.children.join('') === ROLE

@@ -278,6 +278,75 @@
     },
     "syncStatus": {
       "mediaUnavailable": "इस विंडो में कुछ चित्र लोड नहीं हो सकते: ब्राउज़र यहाँ MindRoom के लिए कोई सर्विस वर्कर नहीं चलाता।"
+    },
+    "agentCard": {
+      "agent": "एजेंट",
+      "close": "बंद करें",
+      "whatItCanDo": "यह क्या कर सकता है",
+      "toolCount_one": "{{count}} टूल",
+      "toolCount_other": "{{count}} टूल",
+      "groupCount_one": "{{count}} समूह",
+      "groupCount_other": "{{count}} समूह",
+      "also": "इसके अलावा {{groups}}",
+      "viewAll_one": "सभी {{count}} टूल देखें",
+      "viewAll_other": "सभी {{count}} टूल देखें",
+      "toolsTitle": "{{name}} के टूल",
+      "filter": "टूल फ़िल्टर करें",
+      "noMatch": "कोई टूल मेल नहीं खाता।",
+      "back": "वापस",
+      "more": "और",
+      "worksIn": "यहाँ काम करता है",
+      "loading": "यह क्या कर सकता है, लोड हो रहा है",
+      "groups": {
+        "development": {
+          "title": "कोड लिखना और फ़ाइलों पर काम करना",
+          "name": "कोड और फ़ाइलें"
+        },
+        "research": {
+          "title": "वेब पर खोजना और पढ़ना",
+          "name": "वेब और रिसर्च"
+        },
+        "productivity": {
+          "title": "योजना बनाना, शेड्यूल करना और याद रखना",
+          "name": "योजना और मेमोरी"
+        },
+        "email": {
+          "title": "ईमेल पढ़ना और भेजना",
+          "name": "ईमेल"
+        },
+        "mcp": {
+          "title": "जुड़े ऐप्स के साथ काम करना",
+          "name": "जुड़े ऐप्स"
+        },
+        "integrations": {
+          "title": "जुड़ी सेवाओं का उपयोग करना",
+          "name": "इंटीग्रेशन"
+        },
+        "communication": {
+          "title": "चैट करना और संदेश भेजना",
+          "name": "चैट और संदेश"
+        },
+        "entertainment": {
+          "title": "मीडिया ढूँढना और चलाना",
+          "name": "मीडिया"
+        },
+        "information": {
+          "title": "जानकारी खोजना",
+          "name": "जानकारी"
+        },
+        "smart_home": {
+          "title": "स्मार्ट होम नियंत्रित करना",
+          "name": "स्मार्ट होम"
+        },
+        "social": {
+          "title": "सोशल नेटवर्क का उपयोग करना",
+          "name": "सोशल"
+        },
+        "other": {
+          "title": "अन्य टूल",
+          "name": "अन्य"
+        }
+      }
     }
   },
   "featureUi": {

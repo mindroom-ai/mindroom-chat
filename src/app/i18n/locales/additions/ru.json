@@ -286,6 +286,81 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Некоторые изображения не загружаются в этом окне: браузер не запускает здесь сервис-воркер MindRoom."
+    },
+    "agentCard": {
+      "agent": "Агент",
+      "close": "Закрыть",
+      "whatItCanDo": "Что он умеет",
+      "toolCount_one": "{{count}} инструмент",
+      "toolCount_few": "{{count}} инструмента",
+      "toolCount_many": "{{count}} инструментов",
+      "toolCount_other": "{{count}} инструмента",
+      "groupCount_one": "{{count}} группа",
+      "groupCount_few": "{{count}} группы",
+      "groupCount_many": "{{count}} групп",
+      "groupCount_other": "{{count}} группы",
+      "also": "Ещё: {{groups}}",
+      "viewAll_one": "Все инструменты ({{count}})",
+      "viewAll_few": "Все инструменты ({{count}})",
+      "viewAll_many": "Все инструменты ({{count}})",
+      "viewAll_other": "Все инструменты ({{count}})",
+      "toolsTitle": "Инструменты: {{name}}",
+      "filter": "Фильтр инструментов",
+      "noMatch": "Нет подходящих инструментов.",
+      "back": "Назад",
+      "more": "Ещё",
+      "worksIn": "Работает в",
+      "loading": "Загрузка возможностей",
+      "groups": {
+        "development": {
+          "title": "Писать код и работать с файлами",
+          "name": "Код и файлы"
+        },
+        "research": {
+          "title": "Искать и читать в интернете",
+          "name": "Веб и поиск"
+        },
+        "productivity": {
+          "title": "Планировать, назначать и запоминать",
+          "name": "Планы и память"
+        },
+        "email": {
+          "title": "Читать и отправлять почту",
+          "name": "Почта"
+        },
+        "mcp": {
+          "title": "Работать с подключёнными приложениями",
+          "name": "Подключённые приложения"
+        },
+        "integrations": {
+          "title": "Пользоваться подключёнными сервисами",
+          "name": "Интеграции"
+        },
+        "communication": {
+          "title": "Общаться и отправлять сообщения",
+          "name": "Чаты и сообщения"
+        },
+        "entertainment": {
+          "title": "Искать и воспроизводить медиа",
+          "name": "Медиа"
+        },
+        "information": {
+          "title": "Искать сведения",
+          "name": "Справки"
+        },
+        "smart_home": {
+          "title": "Управлять умным домом",
+          "name": "Умный дом"
+        },
+        "social": {
+          "title": "Пользоваться соцсетями",
+          "name": "Соцсети"
+        },
+        "other": {
+          "title": "Другие инструменты",
+          "name": "Другое"
+        }
+      }
     }
   },
   "featureUi": {

@@ -282,6 +282,78 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Alcune immagini non possono essere caricate in questa finestra: il browser qui non esegue alcun service worker per MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agente",
+      "close": "Chiudi",
+      "whatItCanDo": "Cosa sa fare",
+      "toolCount_one": "{{count}} strumento",
+      "toolCount_many": "{{count}} di strumenti",
+      "toolCount_other": "{{count}} strumenti",
+      "groupCount_one": "{{count}} gruppo",
+      "groupCount_many": "{{count}} di gruppi",
+      "groupCount_other": "{{count}} gruppi",
+      "also": "Inoltre {{groups}}",
+      "viewAll_one": "Vedi tutti i {{count}} strumenti",
+      "viewAll_many": "Vedi tutti i {{count}} di strumenti",
+      "viewAll_other": "Vedi tutti i {{count}} strumenti",
+      "toolsTitle": "Strumenti di {{name}}",
+      "filter": "Filtra strumenti",
+      "noMatch": "Nessuno strumento corrisponde.",
+      "back": "Indietro",
+      "more": "Altro",
+      "worksIn": "Lavora in",
+      "loading": "Caricamento di cosa sa fare",
+      "groups": {
+        "development": {
+          "title": "Scrivere codice e lavorare con i file",
+          "name": "Codice e file"
+        },
+        "research": {
+          "title": "Cercare e leggere sul web",
+          "name": "Web e ricerca"
+        },
+        "productivity": {
+          "title": "Pianificare, programmare e ricordare",
+          "name": "Pianificazione e memoria"
+        },
+        "email": {
+          "title": "Leggere e inviare email",
+          "name": "Email"
+        },
+        "mcp": {
+          "title": "Lavorare con le app collegate",
+          "name": "App collegate"
+        },
+        "integrations": {
+          "title": "Usare servizi collegati",
+          "name": "Integrazioni"
+        },
+        "communication": {
+          "title": "Chattare e inviare messaggi",
+          "name": "Chat e messaggi"
+        },
+        "entertainment": {
+          "title": "Trovare e riprodurre contenuti",
+          "name": "Contenuti multimediali"
+        },
+        "information": {
+          "title": "Cercare informazioni",
+          "name": "Informazioni"
+        },
+        "smart_home": {
+          "title": "Controllare la casa intelligente",
+          "name": "Casa intelligente"
+        },
+        "social": {
+          "title": "Usare i social network",
+          "name": "Social"
+        },
+        "other": {
+          "title": "Altri strumenti",
+          "name": "Altro"
+        }
+      }
     }
   },
   "featureUi": {

@@ -282,6 +282,78 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Algunas imágenes no se pueden cargar en esta ventana: el navegador no ejecuta aquí ningún service worker para MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agente",
+      "close": "Cerrar",
+      "whatItCanDo": "Qué puede hacer",
+      "toolCount_one": "{{count}} herramienta",
+      "toolCount_many": "{{count}} de herramientas",
+      "toolCount_other": "{{count}} herramientas",
+      "groupCount_one": "{{count}} grupo",
+      "groupCount_many": "{{count}} de grupos",
+      "groupCount_other": "{{count}} grupos",
+      "also": "También {{groups}}",
+      "viewAll_one": "Ver las {{count}} herramientas",
+      "viewAll_many": "Ver los {{count}} de herramientas",
+      "viewAll_other": "Ver las {{count}} herramientas",
+      "toolsTitle": "Herramientas de {{name}}",
+      "filter": "Filtrar herramientas",
+      "noMatch": "Ninguna herramienta coincide.",
+      "back": "Atrás",
+      "more": "Más",
+      "worksIn": "Trabaja en",
+      "loading": "Cargando qué puede hacer",
+      "groups": {
+        "development": {
+          "title": "Escribir código y trabajar con archivos",
+          "name": "Código y archivos"
+        },
+        "research": {
+          "title": "Buscar y leer en la web",
+          "name": "Web e investigación"
+        },
+        "productivity": {
+          "title": "Planificar, programar y recordar",
+          "name": "Planificación y memoria"
+        },
+        "email": {
+          "title": "Leer y enviar correos",
+          "name": "Correo"
+        },
+        "mcp": {
+          "title": "Trabajar con apps conectadas",
+          "name": "Apps conectadas"
+        },
+        "integrations": {
+          "title": "Usar servicios conectados",
+          "name": "Integraciones"
+        },
+        "communication": {
+          "title": "Chatear y enviar mensajes",
+          "name": "Chat y mensajes"
+        },
+        "entertainment": {
+          "title": "Buscar y reproducir contenido",
+          "name": "Multimedia"
+        },
+        "information": {
+          "title": "Consultar información",
+          "name": "Información"
+        },
+        "smart_home": {
+          "title": "Controlar la casa inteligente",
+          "name": "Casa inteligente"
+        },
+        "social": {
+          "title": "Usar redes sociales",
+          "name": "Social"
+        },
+        "other": {
+          "title": "Otras herramientas",
+          "name": "Otras"
+        }
+      }
     }
   },
   "featureUi": {

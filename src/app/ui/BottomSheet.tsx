@@ -11,6 +11,8 @@ type BottomSheetProps = {
   /** The close button's label. */
   closeLabel: string;
   requestClose: () => void;
+  /** Only as tall as its content, up to the usual height. */
+  fitContent?: boolean;
   children: ReactNode;
 };
 
@@ -30,7 +32,13 @@ const SHEET_STYLE: CSSProperties = {
  * A dialog that slides up from a phone's bottom edge, with its title over scrolling content. A
  * tap on the backdrop, Escape and the close button close it; the focus returns to its opener.
  */
-export function BottomSheet({ title, closeLabel, requestClose, children }: BottomSheetProps) {
+export function BottomSheet({
+  title,
+  closeLabel,
+  requestClose,
+  fitContent,
+  children,
+}: BottomSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const { overlayProps } = useOverlay(
     { isOpen: true, isDismissable: true, onClose: requestClose },
@@ -43,7 +51,12 @@ export function BottomSheet({ title, closeLabel, requestClose, children }: Botto
     <Overlay open backdrop={<OverlayBackdrop />}>
       <div className={css.SheetContainer}>
         <FocusScope contain restoreFocus autoFocus>
-          <Modal size="500" flexHeight variant="Background" style={SHEET_STYLE}>
+          <Modal
+            size="500"
+            flexHeight
+            variant="Background"
+            style={fitContent ? { ...SHEET_STYLE, height: 'auto' } : SHEET_STYLE}
+          >
             <div
               ref={dialogRef}
               style={{ display: 'flex', flex: '1 1 auto', flexDirection: 'column', minHeight: 0 }}

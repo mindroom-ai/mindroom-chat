@@ -274,6 +274,72 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此視窗無法載入部分圖片：瀏覽器在此處沒有為 MindRoom 執行 Service Worker。"
+    },
+    "agentCard": {
+      "agent": "智慧代理",
+      "close": "關閉",
+      "whatItCanDo": "能做什麼",
+      "toolCount_other": "{{count}} 個工具",
+      "groupCount_other": "{{count}} 個群組",
+      "also": "另有{{groups}}",
+      "viewAll_other": "檢視全部 {{count}} 個工具",
+      "toolsTitle": "{{name}} 的工具",
+      "filter": "篩選工具",
+      "noMatch": "沒有符合的工具。",
+      "back": "返回",
+      "more": "更多",
+      "worksIn": "所在聊天室",
+      "loading": "正在載入能做什麼",
+      "groups": {
+        "development": {
+          "title": "撰寫程式碼並處理檔案",
+          "name": "程式碼與檔案"
+        },
+        "research": {
+          "title": "搜尋並閱讀網頁",
+          "name": "網頁與研究"
+        },
+        "productivity": {
+          "title": "規劃、排程與記憶",
+          "name": "規劃與記憶"
+        },
+        "email": {
+          "title": "讀寫電子郵件",
+          "name": "電子郵件"
+        },
+        "mcp": {
+          "title": "使用已連線的應用程式",
+          "name": "已連線的應用程式"
+        },
+        "integrations": {
+          "title": "使用已連線的服務",
+          "name": "整合"
+        },
+        "communication": {
+          "title": "聊天並傳送訊息",
+          "name": "聊天與訊息"
+        },
+        "entertainment": {
+          "title": "尋找並播放媒體",
+          "name": "媒體"
+        },
+        "information": {
+          "title": "查詢資訊",
+          "name": "資訊"
+        },
+        "smart_home": {
+          "title": "控制智慧家庭",
+          "name": "智慧家庭"
+        },
+        "social": {
+          "title": "使用社群網路",
+          "name": "社群"
+        },
+        "other": {
+          "title": "其他工具",
+          "name": "其他"
+        }
+      }
     }
   },
   "featureUi": {

@@ -12,11 +12,11 @@ import {
   formatAiRunPercentage,
   formatAiRunTimeToFirstToken,
   formatCostUsd,
-  getAiRunCompactModelLabel,
   getAiRunContextBarSegments,
   getAiRunContextLabel,
   getAiRunTokenParts,
 } from '../agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
 import * as css from './ReplyDetails.css';
 
 // Enough bars to read a long thread's shape without each one shrinking to a hairline.

@@ -278,6 +278,75 @@
     },
     "syncStatus": {
       "mediaUnavailable": "এই উইন্ডোতে কিছু ছবি লোড হতে পারে না: ব্রাউজার এখানে MindRoom-এর জন্য কোনো সার্ভিস ওয়ার্কার চালায় না।"
+    },
+    "agentCard": {
+      "agent": "এজেন্ট",
+      "close": "বন্ধ করুন",
+      "whatItCanDo": "এটি কী করতে পারে",
+      "toolCount_one": "{{count}}টি টুল",
+      "toolCount_other": "{{count}}টি টুল",
+      "groupCount_one": "{{count}}টি গ্রুপ",
+      "groupCount_other": "{{count}}টি গ্রুপ",
+      "also": "এ ছাড়াও {{groups}}",
+      "viewAll_one": "সব {{count}}টি টুল দেখুন",
+      "viewAll_other": "সব {{count}}টি টুল দেখুন",
+      "toolsTitle": "{{name}}-এর টুল",
+      "filter": "টুল ফিল্টার করুন",
+      "noMatch": "কোনো টুল মেলেনি।",
+      "back": "ফিরে যান",
+      "more": "আরও",
+      "worksIn": "যেখানে কাজ করে",
+      "loading": "এটি কী করতে পারে, লোড হচ্ছে",
+      "groups": {
+        "development": {
+          "title": "কোড লেখা ও ফাইল নিয়ে কাজ",
+          "name": "কোড ও ফাইল"
+        },
+        "research": {
+          "title": "ওয়েবে খোঁজা ও পড়া",
+          "name": "ওয়েব ও গবেষণা"
+        },
+        "productivity": {
+          "title": "পরিকল্পনা, সময়সূচি ও মনে রাখা",
+          "name": "পরিকল্পনা ও মেমরি"
+        },
+        "email": {
+          "title": "ইমেল পড়া ও পাঠানো",
+          "name": "ইমেল"
+        },
+        "mcp": {
+          "title": "সংযুক্ত অ্যাপ নিয়ে কাজ",
+          "name": "সংযুক্ত অ্যাপ"
+        },
+        "integrations": {
+          "title": "সংযুক্ত পরিষেবা ব্যবহার",
+          "name": "ইন্টিগ্রেশন"
+        },
+        "communication": {
+          "title": "চ্যাট ও বার্তা পাঠানো",
+          "name": "চ্যাট ও বার্তা"
+        },
+        "entertainment": {
+          "title": "মিডিয়া খোঁজা ও চালানো",
+          "name": "মিডিয়া"
+        },
+        "information": {
+          "title": "তথ্য খোঁজা",
+          "name": "তথ্য"
+        },
+        "smart_home": {
+          "title": "স্মার্ট হোম নিয়ন্ত্রণ",
+          "name": "স্মার্ট হোম"
+        },
+        "social": {
+          "title": "সামাজিক নেটওয়ার্ক ব্যবহার",
+          "name": "সামাজিক"
+        },
+        "other": {
+          "title": "অন্যান্য টুল",
+          "name": "অন্যান্য"
+        }
+      }
     }
   },
   "featureUi": {

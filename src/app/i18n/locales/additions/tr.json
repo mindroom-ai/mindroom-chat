@@ -278,6 +278,75 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Bu pencerede bazı görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
+    },
+    "agentCard": {
+      "agent": "Ajan",
+      "close": "Kapat",
+      "whatItCanDo": "Neler yapabilir",
+      "toolCount_one": "{{count}} araç",
+      "toolCount_other": "{{count}} araç",
+      "groupCount_one": "{{count}} grup",
+      "groupCount_other": "{{count}} grup",
+      "also": "Ayrıca {{groups}}",
+      "viewAll_one": "{{count}} aracın tümünü gör",
+      "viewAll_other": "{{count}} aracın tümünü gör",
+      "toolsTitle": "{{name}} araçları",
+      "filter": "Araçları filtrele",
+      "noMatch": "Eşleşen araç yok.",
+      "back": "Geri",
+      "more": "Daha fazla",
+      "worksIn": "Çalıştığı yerler",
+      "loading": "Neler yapabileceği yükleniyor",
+      "groups": {
+        "development": {
+          "title": "Kod yazar ve dosyalarla çalışır",
+          "name": "Kod ve dosyalar"
+        },
+        "research": {
+          "title": "Web’de arar ve okur",
+          "name": "Web ve araştırma"
+        },
+        "productivity": {
+          "title": "Planlar, zamanlar ve hatırlar",
+          "name": "Planlama ve bellek"
+        },
+        "email": {
+          "title": "E-posta okur ve gönderir",
+          "name": "E-posta"
+        },
+        "mcp": {
+          "title": "Bağlı uygulamalarla çalışır",
+          "name": "Bağlı uygulamalar"
+        },
+        "integrations": {
+          "title": "Bağlı hizmetleri kullanır",
+          "name": "Entegrasyonlar"
+        },
+        "communication": {
+          "title": "Sohbet eder ve mesaj gönderir",
+          "name": "Sohbet ve mesajlar"
+        },
+        "entertainment": {
+          "title": "Medya bulur ve oynatır",
+          "name": "Medya"
+        },
+        "information": {
+          "title": "Bilgi arar",
+          "name": "Bilgi"
+        },
+        "smart_home": {
+          "title": "Akıllı evi yönetir",
+          "name": "Akıllı ev"
+        },
+        "social": {
+          "title": "Sosyal ağları kullanır",
+          "name": "Sosyal"
+        },
+        "other": {
+          "title": "Diğer araçlar",
+          "name": "Diğer"
+        }
+      }
     }
   },
   "featureUi": {

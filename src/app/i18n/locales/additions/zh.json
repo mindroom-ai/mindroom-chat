@@ -274,6 +274,72 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此窗口无法加载部分图片：浏览器在此处没有为 MindRoom 运行 Service Worker。"
+    },
+    "agentCard": {
+      "agent": "智能体",
+      "close": "关闭",
+      "whatItCanDo": "能做什么",
+      "toolCount_other": "{{count}} 个工具",
+      "groupCount_other": "{{count}} 个分组",
+      "also": "另有{{groups}}",
+      "viewAll_other": "查看全部 {{count}} 个工具",
+      "toolsTitle": "{{name}} 的工具",
+      "filter": "筛选工具",
+      "noMatch": "没有匹配的工具。",
+      "back": "返回",
+      "more": "更多",
+      "worksIn": "所在房间",
+      "loading": "正在加载能做什么",
+      "groups": {
+        "development": {
+          "title": "编写代码和处理文件",
+          "name": "代码与文件"
+        },
+        "research": {
+          "title": "搜索和阅读网页",
+          "name": "网页与研究"
+        },
+        "productivity": {
+          "title": "计划、安排和记忆",
+          "name": "计划与记忆"
+        },
+        "email": {
+          "title": "读写电子邮件",
+          "name": "电子邮件"
+        },
+        "mcp": {
+          "title": "使用已连接的应用",
+          "name": "已连接的应用"
+        },
+        "integrations": {
+          "title": "使用已连接的服务",
+          "name": "集成"
+        },
+        "communication": {
+          "title": "聊天和发送消息",
+          "name": "聊天与消息"
+        },
+        "entertainment": {
+          "title": "查找和播放媒体",
+          "name": "媒体"
+        },
+        "information": {
+          "title": "查询信息",
+          "name": "信息"
+        },
+        "smart_home": {
+          "title": "控制智能家居",
+          "name": "智能家居"
+        },
+        "social": {
+          "title": "使用社交网络",
+          "name": "社交"
+        },
+        "other": {
+          "title": "其他工具",
+          "name": "其他"
+        }
+      }
     }
   },
   "featureUi": {
