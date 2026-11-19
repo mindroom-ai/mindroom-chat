@@ -157,16 +157,17 @@ describe('slidePhonePage', () => {
     expect(root.dataset.pageSlide).toBeUndefined();
   });
 
-  it('keeps in the copy only the pictures the page has loaded, and loads no other', async () => {
+  it('keeps in the copy only the pictures the page holds in memory, and loads no other', async () => {
     const page = browser();
     const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
     stage.innerHTML =
-      '<img src="loaded.png" alt="Loaded"><img src="loading.png" srcset="loading-2x.png 2x" alt="Loading">' +
+      '<img src="blob:held" srcset="blob:held 2x" loading="lazy" alt="Held"><img src="blob:loading" alt="Loading">' +
+      '<img src="loaded.png" srcset="loaded-2x.png 2x" alt="Loaded">' +
       '<iframe srcdoc="<p>preview</p>" sandbox=""></iframe><video poster="poster.png"><source src="clip.mp4"></video>' +
       '<picture><source srcset="loaded.webp"><img src="loaded.png"></picture>';
-    // As a browser has it: the copy of a loaded picture shows at once, one still loading does not.
+    // As a browser has it: the page has loaded all its pictures but one.
     const loaded = function loaded(this: HTMLImageElement) {
-      return this.getAttribute('src') === 'loaded.png';
+      return this.getAttribute('src') !== 'blob:loading';
     };
     vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(loaded);
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(function width(
@@ -174,21 +175,27 @@ describe('slidePhonePage', () => {
     ) {
       return loaded.call(this) ? 40 : 0;
     });
+    vi.spyOn(HTMLImageElement.prototype, 'currentSrc', 'get').mockImplementation(function src(
+      this: HTMLImageElement
+    ) {
+      return this.getAttribute('src') ?? '';
+    });
     try {
       slidePhonePage(() => showThread(true));
       page.frame();
       const still = copy()!;
-      const [kept, blank] = still.querySelectorAll('img');
-      expect(kept!.outerHTML).toBe('<img src="loaded.png" alt="Loaded">');
-      expect(blank!.getAttributeNames()).toEqual(['style']);
-      expect(blank!.style.height).toBe('0px');
+      // In the page's own document, as the layout is.
+      expect(still.ownerDocument).toBe(document);
+      const [kept, loading, network, inPicture] = still.querySelectorAll('img');
+      expect(kept!.outerHTML).toBe('<img alt="Held" src="blob:held">');
+      // One still loading, and one that came from the network, which would be asked again.
+      for (const blank of [loading!, network!, inPicture!]) {
+        expect(blank.getAttributeNames()).toEqual(['style']);
+        expect(blank.style.height).toBe('0px');
+      }
       expect(still.querySelector('iframe')!.getAttributeNames()).toEqual(['sandbox', 'style']);
       expect(still.querySelector('video')!.getAttributeNames()).toEqual(['style']);
-      expect(still.querySelector('video source')!.hasAttribute('src')).toBe(false);
-      // A picture's own source stays: without it the picture would load another.
-      expect(still.querySelector('picture')!.innerHTML).toBe(
-        '<source srcset="loaded.webp"><img src="loaded.png">'
-      );
+      expect(still.querySelectorAll('source[src], source[srcset]')).toHaveLength(0);
       await page.finish();
     } finally {
       vi.restoreAllMocks();
@@ -296,6 +303,24 @@ describe('slidePhonePage', () => {
     page.frame();
     expect(page.plays).toEqual(['forward', 'back']);
     await page.finish();
+  });
+
+  it('plays no slide when the page is hidden while the change waits for its frame', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const page = browser();
+    const change = vi.fn(() => showThread(true));
+    slidePhonePage(change);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      // No frame comes to a hidden page: the change runs without one.
+      vi.advanceTimersByTime(100);
+      expect(change).toHaveBeenCalledTimes(1);
+      expect(copy()).toBeNull();
+      expect(root.dataset.pageSlide).toBeUndefined();
+      expect(page.plays).toEqual([]);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it('changes the page at once in a hidden tab, which plays no slide', () => {

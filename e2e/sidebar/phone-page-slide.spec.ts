@@ -32,6 +32,11 @@ const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 /** How far into its 280 ms a slide is held for its frame: half its way. */
 const HELD_AT_MS = 60;
+/** A picture of one pixel. */
+const PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
 
 test.use(PHONE);
 
@@ -292,6 +297,73 @@ for (const engine of ENGINES) {
       await expect(threadColumn(page)).toBeVisible();
       await takeSlides(page, 'a thread from its room');
       expect((await fields()).page, 'after the slide').toEqual([false, true, 'typed-secret']);
+    });
+  });
+
+  test(`${engine}: the copy a slide shows asks the network for nothing`, async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { username, root } = await seed(`media${engine}`);
+    // Held: the copy stays in the page until the slide gives up on its end.
+    await onPhone(engine, browser, username, { heldAt: HELD_AT_MS }, async (page) => {
+      // Pictures the browser may not keep: every showing of one from the network is a request.
+      const requests: string[] = [];
+      await page.route('**/pps-media/*', (route) => {
+        requests.push(new URL(route.request().url()).pathname);
+        return route.fulfill({
+          contentType: 'image/png',
+          headers: { 'Cache-Control': 'no-store' },
+          body: PIXEL,
+        });
+      });
+      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+      // In the page: a picture from the network, a `picture` whose source picks another, and one
+      // the page holds in memory, as the app's avatars and message pictures are.
+      await page.locator('[data-phone-stage] > [data-phone-page]').evaluate(async (phonePage) => {
+        const held = URL.createObjectURL(await (await fetch('/pps-media/held.png')).blob());
+        phonePage.insertAdjacentHTML(
+          'beforeend',
+          '<div data-pps-media style="position: absolute; pointer-events: none">' +
+            '<img src="/pps-media/network.png">' +
+            '<picture><source srcset="/pps-media/source.png"><img src="/pps-media/fallback.png">' +
+            `</picture><img src="${held}"></div>`
+        );
+        const pictures = Array.from(phonePage.querySelectorAll('[data-pps-media] img'));
+        await Promise.all(pictures.map((picture) => (picture as HTMLImageElement).decode()));
+      });
+      const before = [...requests].sort();
+      expect(before, 'the page loads each picture once').toEqual(
+        ['held', 'network', 'source'].map((name) => `/pps-media/${name}.png`)
+      );
+
+      await card(page, root).tap();
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
+      const copied = await page
+        .locator('[data-page-slide-copy] [data-pps-media] img')
+        .evaluateAll((pictures) =>
+          pictures.map((picture) => {
+            const { complete, naturalWidth } = picture as HTMLImageElement;
+            const from = picture.getAttribute('src')?.split(':')[0] ?? null;
+            return { from, shows: complete && naturalWidth > 0 };
+          })
+        );
+      // Only the picture held in memory shows in the copy; the others are blank boxes.
+      expect.soft(copied, 'the pictures of the copy').toEqual([
+        { from: null, shows: false },
+        { from: null, shows: false },
+        { from: 'blob', shows: true },
+      ]);
+      expect
+        .soft(
+          await page.locator('[data-page-slide-copy] :is([srcset], source[src])').count(),
+          'the copy names no source to pick from'
+        )
+        .toBe(0);
+      await expect(threadColumn(page)).toBeVisible();
+      await takeSlides(page, 'a thread from its room');
+      // Time for a request that started with the copy to reach the network.
+      await page.waitForTimeout(1_000);
+      expect([...requests].sort(), 'the slide asked the network for no picture').toEqual(before);
     });
   });
 
