@@ -16,6 +16,7 @@
 //   --bisect          also measure the page with each style sheet left out, then with each rule of
 //                     the costliest sheets left out, and list the rules whose removal saves most
 //   --top <n>         rules to list (default 15)
+//   --floor <ms>      smallest saving the bisection follows (default a twentieth of the insert time)
 //   --json <file>     write the results there too
 // Browsers: CHROMIUM_PATH and PLAYWRIGHT_WEBKIT_EXECUTABLE name the executables; unset, Playwright's
 // own. On NixOS, run it in mcr.microsoft.com/playwright:v<version>-noble (the version in
@@ -34,6 +35,7 @@ const { values: opts } = parseArgs({
     engines: { type: 'string', default: 'chromium,webkit' },
     bisect: { type: 'boolean', default: false },
     top: { type: 'string', default: '15' },
+    floor: { type: 'string' },
     json: { type: 'string' },
   },
 });
@@ -75,14 +77,17 @@ const pageProbe = () => {
     const row = document.querySelector('[data-message-item]');
     return row?.parentElement ?? document.getElementById('root') ?? document.body;
   };
-  probe.measure = (rows, runs) => {
+  // In a shadow root the app's selectors do not reach the rows: the engine's own cost.
+  probe.measure = (rows, runs, shadow = false) => {
     const html = rowsHtml(rows);
     const parent = target();
     const insert = [];
     const style = [];
     for (let run = 0; run < runs; run += 1) {
-      const holder = document.createElement('div');
+      let holder = document.createElement('div');
       parent.appendChild(holder);
+      if (shadow)
+        holder = holder.attachShadow({ mode: 'open' }).appendChild(document.createElement('div'));
       void document.body.offsetHeight;
       const t0 = performance.now();
       holder.innerHTML = html;
@@ -91,7 +96,7 @@ const pageProbe = () => {
       const t2 = performance.now();
       insert.push(t1 - t0);
       style.push(t2 - t1);
-      holder.remove();
+      (holder.getRootNode().host ?? holder).remove();
       void document.body.offsetHeight;
     }
     const median = (list) => list.sort((a, b) => a - b)[Math.floor(list.length / 2)];
@@ -150,7 +155,7 @@ const bisect = async (page, base) => {
   const ruleCosts = [];
   // Halves the rules of each sheet that saves at least a tenth of the insert time, keeping every
   // half that still saves that much, down to single rules.
-  const floor = Math.max(base.insertMs / 20, 1);
+  const floor = opts.floor ? Number(opts.floor) : Math.max(base.insertMs / 20, 1);
   const saves = async (sheet, from, to) => {
     await page.evaluate(
       ([s, f, t]) => window.__probe.removeRules(s, f, t),
@@ -198,16 +203,25 @@ for (const engine of opts.engines.split(',')) {
     }, ROW_FALLBACK);
     await page.evaluate(pageProbe);
     const base = await measure(page);
+    const shadow = await page.evaluate(
+      ([rows, runs]) => window.__probe.measure(rows, runs, true),
+      [ROWS, RUNS]
+    );
     const result = {
       ...base,
       insertMsPer1000Rows: perThousand(base.insertMs),
+      shadowRoot: shadow,
       sheets: (await page.evaluate(() => window.__probe.sheets())).length,
       nodes: await page.evaluate(() => document.getElementsByTagName('*').length),
     };
     console.log(
       `${engine}: ${ROWS} rows, insert ${base.insertMs.toFixed(
         1
-      )} ms, style+layout ${base.styleLayoutMs.toFixed(1)} ms (${result.sheets} sheets, ${
+      )} ms, style+layout ${base.styleLayoutMs.toFixed(
+        1
+      )} ms; in a shadow root insert ${shadow.insertMs.toFixed(
+        1
+      )} ms, style+layout ${shadow.styleLayoutMs.toFixed(1)} ms (${result.sheets} sheets, ${
         result.nodes
       } nodes)`
     );
