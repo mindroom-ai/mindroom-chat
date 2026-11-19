@@ -64,12 +64,12 @@ export const Handle = style({
   },
 });
 
-/** On the root while a splitter drag runs: nothing on the page selects, messages included. */
+/**
+ * On the root while a splitter drag runs: nothing on the page selects, messages included (two
+ * selectors' weight, over the one class that makes them selectable).
+ */
 export const RESIZING = 'data-panel-resizing';
-globalStyle(`[${RESIZING}] *`, {
-  userSelect: 'none !important',
-  WebkitUserSelect: 'none !important',
-});
+globalStyle(`:root[${RESIZING}] *`, { userSelect: 'none', WebkitUserSelect: 'none' });
 
 // Keep the scrollbar's hit area clear of the splitter; full-width panels have no handle.
 globalStyle(`${Panel}[data-side='start']:has(> ${Handle})`, {
