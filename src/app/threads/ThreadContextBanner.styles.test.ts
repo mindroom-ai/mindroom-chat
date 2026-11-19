@@ -1,6 +1,7 @@
 import type { StyleRule } from '@vanilla-extract/css';
 import { expect, it, vi } from 'vitest';
 import {
+  PhoneActions,
   PhoneButton,
   PhoneRoom,
   PhoneRoomButton,
@@ -58,6 +59,8 @@ it("bounds a phone header's title block, which scrolls in itself, and keeps one 
     overflowY: 'auto',
     overscrollBehavior: 'contain',
     flexShrink: 0,
+    // The bound counts the lines alone; the room for the rename field's ring is beside it.
+    boxSizing: 'content-box',
     '@container': { 'area (short)': { maxBlockSize: expect.any(String) } },
   });
   // At least three lines, else 38% of the room area's height.
@@ -81,7 +84,10 @@ it('makes Resolve and More 40 px, but not in a room area as narrow as 150% zoom 
   expect(rules.get(PhoneRow)).toMatchObject({
     '@container': {
       'area (short)': { height: '2.75rem' },
-      'area (max-width: 280px)': { gap: 0, paddingInline: 0 },
+      'area (max-width: 280px)': { gap: 0 },
     },
+  });
+  expect(rules.get(PhoneActions)).toEqual({
+    '@container': { 'area (max-width: 280px)': { selectors: { '&&': { gap: 0 } } } },
   });
 });

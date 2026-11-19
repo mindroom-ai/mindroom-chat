@@ -536,14 +536,13 @@ for (const dir of ['ltr', 'rtl'] as const) {
       if (dir === 'rtl') await page.evaluate(() => localStorage.setItem('i18nextLng', 'ar'));
       await openThread(page, world, 'busy');
       await expect(page.locator('html')).toHaveAttribute('dir', dir);
-      const buttons = banner(page).locator('> div').first().locator('button:visible');
-      // Back, (the marker,) Resolve, the call button and More, whatever the language calls them.
-      await expect(buttons).toHaveCount(WITH_MARKER ? 6 : 5, { timeout: 30_000 });
+      // Back, (the marker,) Resolve, the call button and More, whatever the language calls them;
+      // the room's name gives its width away first.
+      const buttons = banner(page).locator('> div').first().locator('button:visible:not(h1 *)');
+      await expect(buttons).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
       if (WITH_MARKER) await page.waitForTimeout(1500);
       const boxes = await buttons.evaluateAll((list) =>
         list
-          // The room's name gives its width away first.
-          .filter((button) => !button.closest('h1'))
           .map((button) => {
             const { left, right } = button.getBoundingClientRect();
             return { left, right };

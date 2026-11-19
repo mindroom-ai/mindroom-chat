@@ -193,6 +193,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
   PhoneHeader: 'PhoneHeader',
+  PhoneActions: 'PhoneActions',
   PhoneButton: 'PhoneButton',
   PhonePin: 'PhonePin',
   PhoneRoom: 'PhoneRoom',
