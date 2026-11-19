@@ -38,6 +38,7 @@ vi.mock('../threads/fork/ThreadForkDivider', () => ({
 }));
 vi.mock('./BackgroundJobsBar.css', () => ({
   Anchor: 'Anchor',
+  Listed: 'Listed',
   Bar: 'Bar',
   Status: 'Status',
   Action: 'Action',
@@ -56,6 +57,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Logo: 'Logo',
   Stack: 'Stack',
   StackedLogo: 'StackedLogo',
+  TitleLogo: 'TitleLogo',
   Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', finished: 'Dot' },
   JobText: 'JobText',
   Headline: 'Headline',
@@ -179,6 +181,8 @@ it('names one job in the title, with Stop and no list', () => {
   render();
   expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
   expect(container.querySelector('.Jobs')).toBeNull();
+  // Its logo takes the title line's small tile, so the logo and its dot stay inside the bar.
+  expect(container.querySelector('.Status .Logo')?.classList).toContain('TitleLogo');
   // Stop is an icon button, named by its label and its tooltip.
   expect(button(cancelA)?.getAttribute('title')).toBe('mindroomUi.backgroundJobs.stop');
 });
@@ -242,6 +246,8 @@ it('shows several jobs on one line, and lists them while the title is pressed', 
   expand();
   expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
   expect(container.querySelectorAll('li')).toHaveLength(2);
+  // Listed, the bar spans the dock's line, whatever shares it.
+  expect(container.querySelector('.Anchor')?.classList).toContain('Listed');
   // A mouse leaving does not close a list the title opened.
   pointer('pointerout', 'mouse');
   expect(container.querySelector('ul')).not.toBeNull();

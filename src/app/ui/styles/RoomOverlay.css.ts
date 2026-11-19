@@ -73,6 +73,7 @@ export const DockRow = style({
 // enough: the strip first, as wide as its text, the bar taking the rest. Too narrow for both,
 // the bar wraps above the strip, and each spans the line.
 export const DockBars = style({
+  position: 'relative',
   display: 'flex',
   flex: '1 1 auto',
   flexWrap: 'wrap-reverse',
