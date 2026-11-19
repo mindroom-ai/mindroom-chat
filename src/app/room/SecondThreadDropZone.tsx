@@ -48,8 +48,13 @@ export function SecondThreadDropZone({
     const moved = (evt: DragEvent) => {
       if (!zoneRef.current?.contains(evt.target as Node | null)) armed.current = true;
     };
+    // One step off the zone may bring only an enter where it lands, no move over it.
+    window.addEventListener('dragenter', moved);
     window.addEventListener('dragover', moved);
-    return () => window.removeEventListener('dragover', moved);
+    return () => {
+      window.removeEventListener('dragenter', moved);
+      window.removeEventListener('dragover', moved);
+    };
   }, [drag]);
   if (!drag) return null;
 
