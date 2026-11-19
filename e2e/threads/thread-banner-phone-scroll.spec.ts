@@ -30,7 +30,8 @@ import {
 // 844, touch) and on a desktop (1440 by 900), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
 // names Playwright's WebKit, in WebKit:
 // - The title is readable beside the schedule: a title cut short has the whole line to itself,
-//   whether it is an AI summary or the start of the first message.
+//   whether it is an AI summary or the start of the first message. A phone shows the thread in
+//   the room's header, with the schedule in a row under the title.
 // - A reader at the end of the thread stays there while the banner's thread menu, its tag picker
 //   and Edit summary open and close, and while keyboard focus moves into the banner (Tab, or focus
 //   handed back by a dialog): the thread does not move. Browsers scrolled it to bring a focused
@@ -253,7 +254,10 @@ const waitForRest = async (page: Page) => {
 const titleLine = (title: Locator) =>
   title.evaluate((element) => {
     const row = element.parentElement as HTMLElement;
-    const scheduled = row.querySelector<HTMLElement>('[role="img"][title]');
+    // Beside the title in the banner's card; in a row under it in a phone's header.
+    const scheduled = element
+      .closest('[data-thread-context-banner]')
+      ?.querySelector<HTMLElement>('[role="img"][title]');
     const titleBox = element.getBoundingClientRect();
     const scheduledBox = scheduled?.getBoundingClientRect();
     return {
@@ -393,8 +397,17 @@ const checkScroll = async (page: Page, world: World, label: string, phone: boole
     await expect(menu).toBeHidden();
   });
 
-  // Phones show the tags in a row of their own; desktops beside the title.
-  const addTag = banner(page)
+  // Desktops show the tags beside the title; a phone's header puts them away, and its menu's
+  // Edit tags shows them.
+  const tagsDialog = page.getByRole('dialog', { name: 'Edit tags' });
+  if (phone) {
+    await expectHeld(page, label, 'tags-open', async () => {
+      await press(page, options, phone);
+      await press(page, menu.getByRole('menuitem', { name: 'Edit tags' }), phone);
+      await expect(tagsDialog).toBeVisible();
+    });
+  }
+  const addTag = (phone ? tagsDialog : banner(page))
     .getByRole('button', { name: 'Add tag', exact: true })
     .filter({ visible: true });
   const filter = page.getByRole('textbox', { name: 'Filter or create tag' });
@@ -406,6 +419,12 @@ const checkScroll = async (page: Page, world: World, label: string, phone: boole
     await page.keyboard.press('Escape');
     await expect(filter).toBeHidden();
   });
+  if (phone && (await tagsDialog.isVisible())) {
+    await expectHeld(page, label, 'tags-done', async () => {
+      await press(page, tagsDialog.getByRole('button', { name: 'Done', exact: true }), phone);
+      await expect(tagsDialog).toBeHidden();
+    });
+  }
 
   const dialog = page.getByRole('dialog', { name: 'Edit summary' });
   await expectHeld(page, label, 'edit-summary-open', async () => {
