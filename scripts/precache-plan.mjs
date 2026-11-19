@@ -151,11 +151,10 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     configResolved(config) {
       assetsDir = config.build.assetsDir;
     },
-    generateBundle(_options, bundle) {
+    writeBundle(_options, bundle) {
+      // Vite can remove style-only chunks and move their CSS to their importers in generateBundle.
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
       inventory = buildInventory(bundle, assetsDir, localeOverlay);
-    },
-    writeBundle() {
       written = true;
     },
   };
