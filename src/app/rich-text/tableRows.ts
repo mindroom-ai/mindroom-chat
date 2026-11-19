@@ -5,9 +5,10 @@ import type { ChildNode, Element } from 'domhandler';
 export type TableRows<T> = { caption?: T; headers: T[]; rows: T[][] };
 
 const SECTIONS = ['thead', 'tbody', 'tfoot'];
-// Anything but an explicit 1 may span: rowspan="0" spans the rest of the row group.
+// Anything but a plain 1 may span: rowspan="0" (or "0x1", which HTML reads as 0) spans the rest
+// of the row group.
 const spans = (cell: Element): boolean =>
-  ['colspan', 'rowspan'].some((span) => span in cell.attribs && Number(cell.attribs[span]) !== 1);
+  ['colspan', 'rowspan'].some((span) => span in cell.attribs && cell.attribs[span]?.trim() !== '1');
 
 /**
  * The cells, rendered on demand, of a table that reads row by row: one header row of at least two
