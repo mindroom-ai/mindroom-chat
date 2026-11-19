@@ -174,6 +174,15 @@ describe('MindroomReasoning', () => {
     return root;
   };
 
+  /** As `renderThinking`, with the bulb opened as the model writes. */
+  const renderThinkingOpen = (content: Record<string, unknown>) => {
+    const root = renderThinking(content);
+    act(() => {
+      header(root).props.onClick();
+    });
+    return root;
+  };
+
   const header = (root: ReturnType<typeof render>) =>
     root.find((node) => node.type === 'button' && node.props.className === 'ReasoningToggle');
 
@@ -192,7 +201,9 @@ describe('MindroomReasoning', () => {
     expect(header(root).props['aria-expanded']).toBe(false);
     expect(root.findAllByType('strong')).toHaveLength(0);
 
-    await act(() => header(root).props.onClick());
+    await act(() => {
+      header(root).props.onClick();
+    });
 
     expect(header(root).props['aria-expanded']).toBe(true);
     expect(text(root.findByType('strong'))).toBe('two');
@@ -210,13 +221,15 @@ describe('MindroomReasoning', () => {
     expect(useLiveMarkdownReady).not.toHaveBeenCalled();
     expect(renderLiveMarkdown).not.toHaveBeenCalled();
 
-    await act(() => header(root).props.onClick());
+    await act(() => {
+      header(root).props.onClick();
+    });
 
     expect(useLiveMarkdownReady).toHaveBeenCalled();
     expect(renderLiveMarkdown).toHaveBeenCalledWith('Compared **two** caches');
   });
 
-  it('renders unchanged live reasoning once, until the answer streams on past it', () => {
+  it('renders unchanged live reasoning once, as written until the answer streams on past it', () => {
     vi.mocked(renderLiveMarkdown).mockClear();
     const streaming = (body: string) => ({
       msgtype: 'm.text',
@@ -224,19 +237,19 @@ describe('MindroomReasoning', () => {
       'io.mindroom.stream_status': 'streaming',
       [LIVE]: 'Checking the cache',
     });
-    const root = renderThinking(streaming('Partial'));
+    const root = renderThinkingOpen(streaming('Partial'));
 
     // The next frame carries the same reasoning and body again.
     act(() => renderer?.update(element(streaming('Partial'))));
 
     // The header, then the segment being written with its own label.
-    expect(text(root)).toBe('ThinkingThinkingChecking the cachePartial');
+    expect(text(root)).toBe('ThinkingThinkingChecking the cacheHide thinkingPartial');
     expect(renderLiveMarkdown).toHaveBeenCalledTimes(1);
 
     // A plain body counts as the reply moving on too.
     act(() => renderer?.update(element(streaming('Partial answer'))));
 
-    expect(text(root)).toBe('ThinkingPartial answer');
+    expect(text(root)).toBe('ThinkingThoughtChecking the cacheHide thinkingPartial answer');
   });
 
   const finished = {
@@ -246,7 +259,7 @@ describe('MindroomReasoning', () => {
     'io.mindroom.reasoning': { text: 'Checking the cache', duration_ms: 2000 },
   };
 
-  it('hides the segment being written into the bulb once the reply finishes', () => {
+  it('keeps a bulb that stayed closed while the reply streamed closed once it finishes', () => {
     const root = renderThinking({
       msgtype: 'm.text',
       body: 'Partial',
@@ -254,7 +267,7 @@ describe('MindroomReasoning', () => {
       [LIVE]: 'Checking the cache',
     });
     expect(header(root).props['aria-expanded']).toBe(false);
-    expect(text(root)).toContain('Checking the cache');
+    expect(text(root)).toBe('ThinkingPartial');
 
     act(() => renderer?.update(element(finished)));
 
@@ -270,7 +283,9 @@ describe('MindroomReasoning', () => {
       'io.mindroom.stream_status': 'streaming',
       [LIVE]: 'Checking the cache',
     });
-    await act(() => header(root).props.onClick());
+    await act(() => {
+      header(root).props.onClick();
+    });
 
     act(() => renderer?.update(element(finished)));
 
@@ -289,7 +304,7 @@ describe('MindroomReasoning', () => {
     expect(text(header(root))).toBe('Thought for 1 s');
   });
 
-  it('shows the reasoning being written above the body and live activity below it', () => {
+  it('shows nothing of the reasoning being written under a closed bulb, and all of it once it opens', () => {
     const root = renderThinking({
       msgtype: 'm.text',
       body: 'Partial answer',
@@ -299,10 +314,17 @@ describe('MindroomReasoning', () => {
     });
 
     expect(text(header(root))).toBe('Thinking');
-    // The bulb is closed: only what the model writes now shows, and nothing offers to hide it.
+    // The bulb starts closed: the label and the comet say the model thinks, not what.
     expect(header(root).props['aria-expanded']).toBe(false);
+    expect(text(root)).toBe('ThinkingPartial answerPreparing isolated worker... 3s elapsed.');
+
+    act(() => {
+      header(root).props.onClick();
+    });
+
+    // Opened, it shows the reasoning above the body, and the live activity stays below it.
     expect(text(root)).toBe(
-      'ThinkingThinkingChecking the cachePartial answerPreparing isolated worker... 3s elapsed.'
+      'ThinkingThinkingChecking the cacheHide thinkingPartial answerPreparing isolated worker... 3s elapsed.'
     );
   });
 
@@ -351,7 +373,7 @@ describe('MindroomReasoning', () => {
   });
 
   it('keeps live reasoning over a covering checkpoint on a long-text reply', () => {
-    const root = renderThinking({
+    const root = renderThinkingOpen({
       msgtype: 'm.text',
       body: '* Long partial answer',
       'm.new_content': {
@@ -366,7 +388,7 @@ describe('MindroomReasoning', () => {
     });
 
     expect(text(header(root))).toBe('Thinking');
-    expect(text(root)).toBe('ThinkingThinkingChecking the cacheLong partial answer');
+    expect(text(root)).toBe('ThinkingThinkingChecking the cacheHide thinkingLong partial answer');
   });
 
   // The element of a segment's text, after its label: it sets how the text keeps newlines.
@@ -374,7 +396,7 @@ describe('MindroomReasoning', () => {
     (blockBody(root).children as ReactTestInstance[])[1]!;
 
   it('keeps multi-paragraph reasoning in one column', () => {
-    const root = renderThinking({
+    const root = renderThinkingOpen({
       msgtype: 'm.text',
       body: 'Partial answer',
       'io.mindroom.stream_status': 'streaming',
@@ -382,8 +404,8 @@ describe('MindroomReasoning', () => {
     });
 
     const body = blockBody(root);
-    // The label, then one host element that holds the paragraphs.
-    expect(body.children).toHaveLength(2);
+    // The label, then one host element that holds the paragraphs, then the button that hides them.
+    expect(body.children).toHaveLength(3);
     expect(reasoningText(root).children).toHaveLength(1);
     expect((reasoningText(root).children[0] as ReactTestInstance).type).toBe('div');
     expect(text(reasoningText(root))).toBe('First thought.Second thought.');
@@ -400,13 +422,17 @@ describe('MindroomReasoning', () => {
       reasoningText(root).children[0] as ReactTestInstance;
 
     let root = render(content);
-    await act(() => header(root).props.onClick());
+    await act(() => {
+      header(root).props.onClick();
+    });
     expect(wrapper(root).props.style).toEqual({ whiteSpace: 'normal' });
 
     act(() => renderer?.unmount());
     root = render(content);
     vi.mocked(useLiveMarkdownReady).mockReturnValueOnce(false);
-    await act(() => header(root).props.onClick());
+    await act(() => {
+      header(root).props.onClick();
+    });
     expect(wrapper(root).props.style).toEqual({ whiteSpace: 'pre-wrap' });
   });
 
@@ -420,7 +446,9 @@ describe('MindroomReasoning', () => {
     });
     // Before the Markdown renderer loads, reasoning shows as plain lines.
     vi.mocked(useLiveMarkdownReady).mockReturnValueOnce(false);
-    await act(() => header(root).props.onClick());
+    await act(() => {
+      header(root).props.onClick();
+    });
 
     expect(text(reasoningText(root))).toBe('Run <U+202E>mr- hs<U+202C> next');
     expect(root.findAllByType('code').map((node) => text(node))).toEqual(['sh<U+202E>nur']);
@@ -428,7 +456,7 @@ describe('MindroomReasoning', () => {
   });
 
   it('shows live reasoning and activity around the thinking placeholder', () => {
-    const root = renderThinking({
+    const root = renderThinkingOpen({
       msgtype: 'm.text',
       body: 'Thinking...',
       'io.mindroom.stream_status': 'streaming',
@@ -436,7 +464,9 @@ describe('MindroomReasoning', () => {
       'io.mindroom.live_activity': 'Starting worker',
     });
 
-    expect(text(root)).toBe('ThinkingThinkingPlanningThinking placeholderStarting worker');
+    expect(text(root)).toBe(
+      'ThinkingThinkingPlanningHide thinkingThinking placeholderStarting worker'
+    );
   });
 
   it('shows reasoning on notices too', () => {
@@ -511,7 +541,9 @@ describe('MindroomReasoning', () => {
       const parses = bodyParses();
       expect(parses).toBeGreaterThan(0);
 
-      await act(() => header(root).props.onClick());
+      await act(() => {
+        header(root).props.onClick();
+      });
 
       expect(segmentTexts(root)).toHaveLength(1);
       expect(bodyParses()).toBe(parses);
@@ -529,7 +561,9 @@ describe('MindroomReasoning', () => {
     it('shows every segment where it happened once the bulb opens, and hides them again', async () => {
       const root = render(reply(SEGMENTS));
 
-      await act(() => header(root).props.onClick());
+      await act(() => {
+        header(root).props.onClick();
+      });
 
       expect(header(root).props['aria-expanded']).toBe(true);
       // Each segment with its own time, the last one without: the header keeps the whole.
@@ -550,7 +584,9 @@ describe('MindroomReasoning', () => {
       expect(order).not.toContain(-1);
       expect(order).toEqual([...order].sort((a, b) => a - b));
 
-      await act(() => header(root).props.onClick());
+      await act(() => {
+        header(root).props.onClick();
+      });
 
       expect(header(root).props['aria-expanded']).toBe(false);
       expect(segmentTexts(root)).toEqual([]);
@@ -563,7 +599,9 @@ describe('MindroomReasoning', () => {
       'hides every segment from the %s of one, and gives the bulb the focus',
       async (_name, of) => {
         const root = render(reply(SEGMENTS));
-        await act(() => header(root).props.onClick());
+        await act(() => {
+          header(root).props.onClick();
+        });
         focused.length = 0;
         const buttons = of(root);
         expect(buttons).toHaveLength(3);
@@ -582,7 +620,9 @@ describe('MindroomReasoning', () => {
     it('shows a reply without segments as one segment at the top', async () => {
       const root = render(reply(undefined));
 
-      await act(() => header(root).props.onClick());
+      await act(() => {
+        header(root).props.onClick();
+      });
 
       expect(segmentTexts(root)).toEqual([`Thought${THOUGHTS.join('')}Hide thinking`]);
       expect(text(root).indexOf(THOUGHTS[2]!)).toBeLessThan(text(root).indexOf('read_file'));
@@ -602,7 +642,9 @@ describe('MindroomReasoning', () => {
       };
       const root = render(content);
 
-      await act(() => header(root).props.onClick());
+      await act(() => {
+        header(root).props.onClick();
+      });
 
       const order = ['read_file', 'The cache is stale.', '🔧 `grep` [2]', 'Done.'].map((part) =>
         text(root).indexOf(part)
@@ -627,28 +669,30 @@ describe('MindroomReasoning', () => {
       ];
       const twoThoughts = THOUGHTS.slice(0, 2).join('\n\n');
 
-      it('shows only the segment being written, at the end, under a closed bulb', () => {
+      /** The segment the open bulb shows as being written, if any; the others are thoughts. */
+      const written = (root: ReturnType<typeof render>) =>
+        segmentTexts(root)
+          .filter((segment) => segment.startsWith('Thinking'))
+          .map((segment) => segment.replace(/Hide thinking$/, ''));
+
+      it('shows no segment under a bulb never touched while the model writes, all once it opens', async () => {
         const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
 
         expect(header(root).props['aria-expanded']).toBe(false);
-        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale.']);
-        expect(text(root).indexOf('read_file')).toBeLessThan(
-          text(root).indexOf('The cache is stale.')
-        );
-        // Nothing hides what only shows while it is written.
-        expect(rails(root).map((rail) => rail.props.disabled)).toEqual([true]);
-        expect(ends(root)).toEqual([]);
-      });
+        expect(segmentTexts(root)).toEqual([]);
+        THOUGHTS.forEach((thought) => expect(text(root)).not.toContain(thought));
 
-      it('shows the earlier segments too once the bulb opens', async () => {
-        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
-
-        await act(() => header(root).props.onClick());
+        await act(() => {
+          header(root).props.onClick();
+        });
 
         expect(segmentTexts(root)).toEqual([
           'ThoughtPlan the search.Hide thinking',
           'ThinkingThe cache is stale.Hide thinking',
         ]);
+        expect(text(root).indexOf('read_file')).toBeLessThan(
+          text(root).indexOf('The cache is stale.')
+        );
       });
 
       it.each([
@@ -659,7 +703,9 @@ describe('MindroomReasoning', () => {
         'shows no segment once the reader closes the bulb with its %s, also while the model writes on',
         async (_name, closer) => {
           const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
-          await act(() => header(root).props.onClick());
+          await act(() => {
+            header(root).props.onClick();
+          });
           await act(() => closer(root)?.props.onClick());
 
           expect(header(root).props['aria-expanded']).toBe(false);
@@ -672,7 +718,9 @@ describe('MindroomReasoning', () => {
           expect(segmentTexts(root)).toEqual([]);
 
           // Opened again, the bulb shows the segment being written as such.
-          await act(() => header(root).props.onClick());
+          await act(() => {
+            header(root).props.onClick();
+          });
 
           expect(segmentTexts(root)).toEqual([
             'ThoughtPlan the search.Hide thinking',
@@ -681,25 +729,28 @@ describe('MindroomReasoning', () => {
         }
       );
 
-      it('shows no segment while the one the model began has no text yet', () => {
+      it('shows no segment as written while the one the model began has no text yet', () => {
         // The thought before it ended when the tool call came, and stays in the bulb.
         const root = render(streaming(twoThoughts, LIVE_SEGMENTS));
+        act(() => {
+          header(root).props.onClick();
+        });
         const begun = [...LIVE_SEGMENTS, { start: twoThoughts.length + 1, after_tool: 1 }];
         act(() => renderer?.update(element(streaming(`${twoThoughts}\n\n`, begun))));
 
-        expect(segmentTexts(root)).toEqual([]);
+        expect(written(root)).toEqual([]);
 
         act(() => renderer?.update(element(streaming(`${twoThoughts}\n\nSo`, begun))));
 
-        expect(segmentTexts(root)).toEqual(['ThinkingSo']);
+        expect(written(root)).toEqual(['ThinkingSo']);
       });
 
       const comet = (root: ReturnType<typeof render>) =>
         root.find((node) => node.props.className === 'ReasoningBulbIcon').props['data-thinking'];
 
-      it('keeps the segment being written open while the model pauses, without parsing the body again', () => {
+      it('keeps showing the segment as written while the model pauses, without parsing the body again', () => {
         vi.useFakeTimers();
-        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+        const root = renderThinkingOpen(streaming(twoThoughts, LIVE_SEGMENTS));
         expect(comet(root)).toBe(true);
         const parses = bodyParses();
         expect(parses).toBeGreaterThan(0);
@@ -711,13 +762,13 @@ describe('MindroomReasoning', () => {
         act(() => renderer?.update(element(streaming(twoThoughts, LIVE_SEGMENTS))));
 
         expect(comet(root)).toBeUndefined();
-        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale.']);
+        expect(written(root)).toEqual(['ThinkingThe cache is stale.']);
         expect(bodyParses()).toBe(parses);
 
         // The model goes on with the same thought.
         act(() => renderer?.update(element(streaming(`${twoThoughts} Clear it.`, LIVE_SEGMENTS))));
 
-        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale. Clear it.']);
+        expect(written(root)).toEqual(['ThinkingThe cache is stale. Clear it.']);
         expect(bodyParses()).toBe(parses);
       });
 
@@ -734,39 +785,49 @@ describe('MindroomReasoning', () => {
       it.each([
         ['its answer', '\n\nThe cache was stale.', '<p>The cache was stale.</p>'],
         ['another tool call', '\n\n🔧 `grep` [2]', marker('grep', 2)],
-      ])('hides the segment into the bulb once the reply goes on with %s', (_name, body, html) => {
+      ])('shows the segment as a thought once the reply goes on with %s', (_name, body, html) => {
         vi.useFakeTimers();
-        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+        const root = renderThinkingOpen(streaming(twoThoughts, LIVE_SEGMENTS));
 
         act(() => renderer?.update(element(goneOn(twoThoughts, body, html))));
 
-        expect(segmentTexts(root)).toEqual([]);
+        expect(written(root)).toEqual([]);
         expect(text(header(root))).toBe('Thinking');
         // It does not come back with the frames that follow, or when the comet stops.
         act(() => {
           vi.advanceTimersByTime(5000);
         });
-        expect(segmentTexts(root)).toEqual([]);
+        expect(written(root)).toEqual([]);
       });
 
-      it('hides the segment when one frame brings its last piece and the tool call after it', () => {
-        const root = renderThinking(streaming(twoThoughts.slice(0, -6), LIVE_SEGMENTS));
-        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is']);
+      it('shows the segment as a thought when one frame brings its last piece and the tool call after it', () => {
+        const root = renderThinkingOpen(streaming(twoThoughts.slice(0, -6), LIVE_SEGMENTS));
+        expect(written(root)).toEqual(['ThinkingThe cache is']);
         const pending = '<p>🔧 <code>grep</code> [2] ⏳</p>';
 
         act(() => renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `grep` [2] ⏳', pending))));
 
         // The call began after the thought did, so the thought has ended, while the call runs too.
-        expect(segmentTexts(root)).toEqual([]);
+        expect(written(root)).toEqual([]);
 
         act(() =>
           renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `grep` [2]', marker('grep', 2))))
         );
 
-        expect(segmentTexts(root)).toEqual([]);
+        expect(written(root)).toEqual([]);
+        // The ended thought stays in the open bulb as a thought, between the two calls.
+        expect(segmentTexts(root)).toEqual([
+          'ThoughtPlan the search.Hide thinking',
+          'ThoughtThe cache is stale.Hide thinking',
+        ]);
+        const order = ['read_file', 'The cache is stale.', 'grep'].map((part) =>
+          text(root).indexOf(part)
+        );
+        expect(order).not.toContain(-1);
+        expect(order).toEqual([...order].sort((x, y) => x - y));
       });
 
-      it('hides the segment when one frame brings its last piece and the first answer text', () => {
+      it('shows the segment as a thought when one frame brings its last piece and the first answer text', () => {
         vi.useFakeTimers();
         // The reply's first thought, over the thinking placeholder: no answer yet.
         const thought = (reasoning: string | undefined, answer?: string) => ({
@@ -781,19 +842,22 @@ describe('MindroomReasoning', () => {
         });
         const root = render(thought(undefined));
         act(() => renderer?.update(element(thought('Checking'))));
-        expect(segmentTexts(root)).toEqual(['ThinkingChecking']);
+        act(() => {
+          header(root).props.onClick();
+        });
+        expect(written(root)).toEqual(['ThinkingChecking']);
 
         act(() => renderer?.update(element(thought('Checking complete.', 'It is stale.'))));
 
         // The answer came after the thought's last piece, so the thought has ended.
-        expect(segmentTexts(root)).toEqual([]);
-        expect(text(root)).toBe('ThinkingIt is stale.');
+        expect(written(root)).toEqual([]);
+        expect(text(root)).toBe('ThinkingThoughtChecking complete.Hide thinkingIt is stale.');
 
         // The answer pauses: no frame follows.
         act(() => {
           vi.advanceTimersByTime(5000);
         });
-        expect(segmentTexts(root)).toEqual([]);
+        expect(written(root)).toEqual([]);
       });
 
       it.each([
@@ -802,7 +866,7 @@ describe('MindroomReasoning', () => {
       ])(
         'shows a new segment whose first piece comes in one frame with %s',
         (_name, body, html, afterTool) => {
-          const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+          const root = renderThinkingOpen(streaming(twoThoughts, LIVE_SEGMENTS));
           const third = `${twoThoughts}\n\nSo`;
 
           act(() =>
@@ -817,7 +881,7 @@ describe('MindroomReasoning', () => {
             )
           );
 
-          expect(segmentTexts(root)).toEqual(['ThinkingSo']);
+          expect(written(root)).toEqual(['ThinkingSo']);
         }
       );
 
@@ -829,23 +893,25 @@ describe('MindroomReasoning', () => {
         ['the same text as other HTML', code(''), code(' class="language-python"')],
         // A mention that the live Markdown spells out.
         ['the same HTML with other text', code('', ' @helper'), code('', ' Helper')],
-      ])('keeps the segment when a checkpoint writes %s', (_name, live, checkpoint) => {
-        const root = renderThinking(live);
+      ])('keeps the segment as written when a checkpoint writes %s', (_name, live, checkpoint) => {
+        const root = renderThinkingOpen(live);
 
         act(() => renderer?.update(element(checkpoint)));
 
-        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale.']);
+        expect(written(root)).toEqual(['ThinkingThe cache is stale.']);
       });
 
       it('shows the live reasoning of a backend that records no segments, whatever calls ran', () => {
-        const root = renderThinking(streaming(twoThoughts, undefined));
+        const root = renderThinkingOpen(streaming(twoThoughts, undefined));
 
-        expect(segmentTexts(root)).toEqual(['ThinkingPlan the search.The cache is stale.']);
+        expect(written(root)).toEqual(['ThinkingPlan the search.The cache is stale.']);
       });
 
       it('reads the tool calls of an open reply again for each change of its HTML', async () => {
         const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
-        await act(() => header(root).props.onClick());
+        await act(() => {
+          header(root).props.onClick();
+        });
         const markerReads = () =>
           vi
             .mocked(readRenderedToolCalls)
