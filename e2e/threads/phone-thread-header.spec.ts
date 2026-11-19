@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import {
   expect,
@@ -765,6 +765,58 @@ test("a small phone's keyboard leaves the thread's bar, with its way back and an
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'phone-keyboard-rename.png') });
     await page.keyboard.press('Escape');
     await expect(title(page)).toHaveText(LONG_TITLE);
+  } finally {
+    await context.close();
+  }
+});
+
+// axe-core comes with eslint-plugin-jsx-a11y (as in e2e/ui/accessibility.spec.ts).
+const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
+/** Critical and serious axe-core findings in the room's header, as `rule: element` lines. */
+const headerAxeFindings = async (page: Page): Promise<string[]> => {
+  await page.addScriptTag({ path: AXE_PATH });
+  return header(page).evaluate(async (element) => {
+    type AxeResult = {
+      violations: { id: string; impact: string | null; nodes: { html: string }[] }[];
+    };
+    const { axe } = window as unknown as {
+      axe: { run: (context: Element) => Promise<AxeResult> };
+    };
+    const result = await axe.run(element);
+    return result.violations
+      .filter((violation) => violation.impact === 'critical' || violation.impact === 'serious')
+      .flatMap((violation) =>
+        violation.nodes.map((node) => `${violation.id}: ${node.html.slice(0, 300)}`)
+      );
+  });
+};
+
+test("a phone's thread header has no critical or serious axe-core findings", async ({
+  browser,
+  baseURL,
+}) => {
+  test.skip(!existsSync(AXE_PATH), 'axe-core is not installed');
+  test.setTimeout(300_000);
+  const world = await seedOnce();
+  const { context, page } = await signIn(browser, baseURL, world, PHONE);
+  try {
+    // The busy thread: the marker with its count (where the plugin is loaded), Resolve, the call
+    // button, More and a title of two lines.
+    await openThread(page, world, 'busy');
+    await expect(rowButtons(page)).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
+    for (const colorScheme of ['light', 'dark'] as const) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.emulateMedia({ colorScheme });
+      // eslint-disable-next-line no-await-in-loop
+      expect(await headerAxeFindings(page), colorScheme).toEqual([]);
+    }
+    await page.emulateMedia({ colorScheme: null });
+    // Under a keyboard, with the title's rename field open.
+    await page.setViewportSize({ width: 390, height: 300 });
+    await title(page).dblclick();
+    await expect(banner(page).getByRole('textbox', { name: 'Summary' })).toBeFocused();
+    expect(await headerAxeFindings(page), 'rename under a keyboard').toEqual([]);
+    await page.keyboard.press('Escape');
   } finally {
     await context.close();
   }
