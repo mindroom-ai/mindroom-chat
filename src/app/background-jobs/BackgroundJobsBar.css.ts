@@ -156,19 +156,24 @@ export const Chevron = style({
   selectors: { '[aria-expanded="true"] > &': { transform: 'rotate(180deg)' } },
 });
 
-// The room a focus ring needs inside the scrolling list, which clips what overflows it.
+// The room a focus ring needs inside the scrolling list, which clips what overflows it. Along
+// the line the rows reach out by their own padding, so the list reaches out as far: wider, they
+// would scroll it sideways.
 const ring = '3px';
+const reach = config.space.S200;
 
 // Several jobs list above the title, sub-agents then tools; many scroll inside the bar. A line
 // sets the list off the title.
 export const Jobs = style({
   gridArea: 'jobs',
-  margin: `-${ring}`,
-  marginBlockEnd: config.space.S100,
-  padding: ring,
-  paddingBlockEnd: config.space.S100,
+  marginBlock: `-${ring} ${config.space.S100}`,
+  marginInline: `calc(-1 * ${reach})`,
+  paddingBlock: `${ring} ${config.space.S100}`,
+  paddingInline: reach,
   borderBlockEnd: `1px solid ${color.SurfaceVariant.ContainerLine}`,
   maxHeight: 'min(45vh, 22rem)',
+  // Up and down only: a finger never drags it sideways, whatever reaches past the rows.
+  overflowX: 'hidden',
   overflowY: 'auto',
 });
 
@@ -208,8 +213,8 @@ export const Job = style([
     position: 'relative',
     minHeight: '2.875rem',
     paddingBlock: config.space.S100,
-    marginInline: `calc(-1 * ${config.space.S200})`,
-    paddingInline: config.space.S200,
+    marginInline: `calc(-1 * ${reach})`,
+    paddingInline: reach,
     borderRadius: config.radii.R300,
     vars: { [rowBackground]: color.SurfaceVariant.Container },
     selectors: {
@@ -431,7 +436,8 @@ export const Actions = style({
 });
 
 // Open, Stop and Stop all: one family of 28 px icon buttons on the bar's own material, Stop
-// turning red under the pointer. To a finger each reaches 44 px.
+// turning red under the pointer. To a finger each reaches 44 px, out into the row's padding at
+// most, so a row's last button never reaches past the list.
 const iconButton = {
   display: 'grid',
   placeItems: 'center',
@@ -449,7 +455,7 @@ const iconButton = {
 const inTitleLine = { blockSize: lineHeight };
 
 export const IconButton = style([
-  touchTarget('8px'),
+  touchTarget(reach),
   {
     ...iconButton,
     selectors: { ...iconButton.selectors, [`${Status} &, ${Action} &`]: inTitleLine },
@@ -459,7 +465,7 @@ export const IconButton = style([
 const stopHover = { background: color.Critical.Container, color: color.Critical.Main };
 
 export const StopButton = style([
-  touchTarget('8px'),
+  touchTarget(reach),
   {
     ...iconButton,
     selectors: {
