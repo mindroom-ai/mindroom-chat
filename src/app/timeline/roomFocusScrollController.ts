@@ -20,6 +20,7 @@ import { isLatestAnchorInReach, scrollToLatestEnd } from './roomTimelineScroll';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 import { shouldPinThreadToBottomOnOpen, type ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
+import { openProbe } from '../diagnostics/openProbe';
 import { getFocusedRoomEventIndex } from '../event-store/timeline/timelinePagination';
 import {
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
@@ -427,6 +428,7 @@ const useThreadOpeningPin = ({
     const scrollArea = scrollRef.current;
     if (!pinned || !scrollArea || !requestThreadOpenBottomPin()) return;
     scrollToBottom(scrollArea, 'instant');
+    openProbe('open-pin-effect');
     setAtBottom(true);
     pinnedInCommitRef.current = true;
     pinnedPositionRef.current = {
@@ -451,8 +453,15 @@ const useThreadOpeningPin = ({
   // measurement pins it again, as long as the opening pin holds and nothing else moved the view
   // up (a script or assistive technology scrolls without the gestures that end the pin).
   useLayoutEffect(() => {
+    const probeArea = scrollRef.current;
+    const probeGap = probeArea
+      ? Math.round(probeArea.scrollHeight - probeArea.clientHeight - probeArea.scrollTop)
+      : null;
+    const why = (reason: string, extra?: Record<string, unknown>) =>
+      openProbe('repin-skip', { reason, gap: probeGap, top: probeArea ? Math.round(probeArea.scrollTop) : null, ...extra });
     if (pinnedInCommitRef.current) {
       pinnedInCommitRef.current = false;
+      why('pinned-in-commit');
       return;
     }
     const scrollArea = scrollRef.current;
@@ -460,15 +469,22 @@ const useThreadOpeningPin = ({
     const correction = readMeasurementCorrectionPx?.() ?? 0;
     if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
       pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
+      why('at-bottom', { correction });
       return;
     }
     const pinnedPosition = pinnedPositionRef.current;
-    if (!pinnedPosition) return;
+    if (!pinnedPosition) {
+      why('no-pinned-position');
+      return;
+    }
     // A shrink correction moves the scroll up even while other rows grow in the same pass.
     // Compare against the position after our own corrections, so only an additional upward
     // scroll hands ownership away. The ledger keeps the sum across its pre-paint renders.
     const correctedTop = pinnedPosition.top + correction - pinnedPosition.correction;
-    if (scrollArea.scrollTop < correctedTop - 1) return;
+    if (scrollArea.scrollTop < correctedTop - 1) {
+      why('moved-up', { correctedTop: Math.round(correctedTop), pinnedTop: Math.round(pinnedPosition.top), correction, pinnedCorrection: pinnedPosition.correction });
+      return;
+    }
     const pinned = shouldPinThreadToBottomOnOpen({
       suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
       threadId,
@@ -478,8 +494,16 @@ const useThreadOpeningPin = ({
       threadInitialRenderMode,
       threadEventCount: threadEventsLength,
     });
-    if (!pinned || !requestThreadOpenBottomPin()) return;
+    if (!pinned) {
+      why('not-pinned', { suppressed: isThreadOpenBottomPinSuppressed(), threadLatestOpenPending, threadOpenedAtLatest, threadUserScrolled, threadInitialRenderMode, threadEventsLength });
+      return;
+    }
+    if (!requestThreadOpenBottomPin()) {
+      why('request-refused');
+      return;
+    }
     scrollToBottom(scrollArea, 'instant');
+    openProbe('repin', { gapBefore: probeGap });
     pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
   });
 };
@@ -616,6 +640,7 @@ const useBottomPinRequests = ({
     if (!scrollArea) return;
     const latestAtTop = !!latestAtTopRef?.current;
     scrollToLatestEnd(scrollArea, latestAtTop, smooth ? 'smooth' : 'instant');
+    openProbe('bottom-pin-apply', { count, top: Math.round(scrollArea.scrollTop) });
     if (smooth && !latestAtTop) {
       finishSmoothBottomPin(
         scrollArea,
