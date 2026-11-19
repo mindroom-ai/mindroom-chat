@@ -4,7 +4,7 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import { useThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { isEventStreaming } from '../event-store/threads/useThreadStreamingState';
 import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
-import { getEventReactions } from '../matrix/room';
+import { getEventReactions, reactionOrEditEvent } from '../matrix/room';
 import { CHAT_UI_ACTION_KEY } from '../matrix/protocol/chatUiProtocol';
 import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
 import { pickRenderer } from '../plugins/messageRenderers';
@@ -103,7 +103,8 @@ const WAKE_UP_KINDS = /^(scheduled|silent_scheduled|external_trigger|hook_dispat
  * relay for a person (a comment on a document). A job's follow-up posts nothing: it stays in turn.
  */
 export const startsTurn = (event: MatrixEvent): boolean => {
-  // As sent: an edit does not move a turn's start.
+  // As sent: an edit does not move a turn's start, nor start one.
+  if (reactionOrEditEvent(event)) return false;
   const content = event.getOriginalContent();
   const kind = content['com.mindroom.source_kind'];
   if (typeof kind === 'string') {
@@ -123,7 +124,14 @@ export const isTurnCard = (
   config: ClientConfig | undefined,
   viewerId: string | undefined
 ): boolean => {
-  const row = { type: event.getType(), sender: event.getSender() ?? '', content };
+  // As RenderMessageContent hands the row to its renderers.
+  const row = {
+    eventId: event.getId(),
+    roomId: event.getRoomId(),
+    type: event.getType(),
+    sender: event.getSender() ?? '',
+    content,
+  };
   // As renderAgentMessageContent draws a notice's action as a button. It keeps an edited one too,
   // whose action may no longer draw: a row in view that need not be beats a card folded away.
   const action = content.msgtype === 'm.notice' && !!content[CHAT_UI_ACTION_KEY];

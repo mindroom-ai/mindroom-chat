@@ -13,6 +13,8 @@ import {
 
 // A plugin that draws a card for each message with its key, as an artifact's card.
 const CARD_KEY = 'io.example.card';
+// One that draws only in its own room, from the row's IDs.
+const PLAN_KEY = 'io.example.plan';
 vi.mock('../plugins/registry', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   registeredPlugins: [
@@ -21,6 +23,18 @@ vi.mock('../plugins/registry', async (importOriginal) => ({
       tag: 'cards@1.0.0',
       messageRenderers: [
         { match: ({ content }: { content: object }) => CARD_KEY in content, Component: () => null },
+        {
+          match: ({
+            roomId,
+            eventId,
+            content,
+          }: {
+            roomId?: string;
+            eventId?: string;
+            content: object;
+          }) => roomId === '!room:example.org' && !!eventId && PLAN_KEY in content,
+          Component: () => null,
+        },
       ],
     },
   ],
@@ -241,6 +255,23 @@ describe('startsTurn', () => {
     );
     expect(startsTurn(sent)).toBe(true);
   });
+
+  it('starts no turn from an edit that carries a wake-up kind', () => {
+    const edit = new MatrixEvent({
+      event_id: '$e2',
+      room_id: ROOM,
+      sender: ROUTER,
+      type: 'm.room.message',
+      origin_server_ts: 2,
+      content: {
+        body: '* Wake',
+        'com.mindroom.source_kind': 'scheduled',
+        'm.new_content': { body: 'Wake', 'com.mindroom.source_kind': 'scheduled' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$w' },
+      },
+    });
+    expect(startsTurn(edit)).toBe(false);
+  });
 });
 
 describe('isTurnCard', () => {
@@ -252,6 +283,9 @@ describe('isTurnCard', () => {
   it("keeps an agent's notice with a button, such as a canvas", () => {
     const canvas = { action: 'show_canvas', version: 1, canvas: { title: 'Budget sheet' } };
     expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': canvas })).toBe(true);
+  });
+  it("keeps a card a plugin draws from the row's room and event IDs", () => {
+    expect(card({ [PLAN_KEY]: true })).toBe(true);
   });
   it("folds an agent's message, also one with an action that is not a notice", () => {
     expect(card({})).toBe(false);
