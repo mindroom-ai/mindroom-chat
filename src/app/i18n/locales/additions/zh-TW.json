@@ -812,6 +812,14 @@
         "diffTruncated": "差異已截斷",
         "diffLabel": "{{path}} 的差異"
       },
+      "modelChangeMarker": {
+        "set": "已設定模型",
+        "reset": "已重設模型",
+        "inherited": "已恢復為繼承的模型",
+        "changedBy": "變更者：{{name}}",
+        "scopeOwn": "適用於此討論串中你可以對話的代理程式和團隊日後的回覆。",
+        "scopeOther": "適用於此討論串中 {{name}} 可以對話的代理程式和團隊日後的回覆。"
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"

@@ -812,6 +812,14 @@
         "diffTruncated": "Diff dipotong",
         "diffLabel": "Diff {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Model diatur",
+        "reset": "Model diatur ulang",
+        "inherited": "Kembali ke model warisan",
+        "changedBy": "Diubah oleh {{name}}",
+        "scopeOwn": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat Anda sapa.",
+        "scopeOther": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat disapa {{name}}."
+      },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"

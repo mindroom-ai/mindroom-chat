@@ -812,6 +812,14 @@
         "diffTruncated": "差异已截断",
         "diffLabel": "{{path}} 的差异"
       },
+      "modelChangeMarker": {
+        "set": "已设置模型",
+        "reset": "已重置模型",
+        "inherited": "已恢复为继承的模型",
+        "changedBy": "更改者：{{name}}",
+        "scopeOwn": "适用于此话题中你可以对话的智能体和团队今后的回复。",
+        "scopeOther": "适用于此话题中 {{name}} 可以对话的智能体和团队今后的回复。"
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"

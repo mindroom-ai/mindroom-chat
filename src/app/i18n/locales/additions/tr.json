@@ -823,6 +823,14 @@
         "diffTruncated": "Diff kısaltıldı",
         "diffLabel": "{{path}} için diff"
       },
+      "modelChangeMarker": {
+        "set": "Model ayarlandı",
+        "reset": "Model sıfırlandı",
+        "inherited": "Devralınan modellere dönüldü",
+        "changedBy": "Değiştiren: {{name}}",
+        "scopeOwn": "Bu ileti dizisinde, hitap edebileceğiniz ajan ve ekiplerin gelecekteki yanıtları için geçerlidir.",
+        "scopeOther": "Bu ileti dizisinde, {{name}} adlı kişinin hitap edebileceği ajan ve ekiplerin gelecekteki yanıtları için geçerlidir."
+      },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"

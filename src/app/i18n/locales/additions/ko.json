@@ -812,6 +812,14 @@
         "diffTruncated": "차이가 잘렸습니다",
         "diffLabel": "{{path}} 차이"
       },
+      "modelChangeMarker": {
+        "set": "모델 설정됨",
+        "reset": "모델 초기화됨",
+        "inherited": "상속된 모델로 돌아감",
+        "changedBy": "변경한 사람: {{name}}",
+        "scopeOwn": "이 스레드에서 내가 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다.",
+        "scopeOther": "이 스레드에서 {{name}} 님이 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다."
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"

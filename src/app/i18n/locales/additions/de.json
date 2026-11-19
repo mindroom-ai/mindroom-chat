@@ -823,6 +823,14 @@
         "diffTruncated": "Diff gekürzt",
         "diffLabel": "Diff von {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Modell festgelegt",
+        "reset": "Modell zurückgesetzt",
+        "inherited": "Zurück zu den geerbten Modellen",
+        "changedBy": "Geändert von {{name}}",
+        "scopeOwn": "Gilt für künftige Antworten in diesem Thread von den Agenten und Teams, die du ansprechen darfst.",
+        "scopeOther": "Gilt für künftige Antworten in diesem Thread von den Agenten und Teams, die {{name}} ansprechen darf."
+      },
       "finishedWork": {
         "workedFor": "{{duration}} gearbeitet",
         "worked": "Gearbeitet"

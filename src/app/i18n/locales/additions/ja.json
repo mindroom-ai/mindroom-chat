@@ -812,6 +812,14 @@
         "diffTruncated": "差分は省略されています",
         "diffLabel": "{{path}} の差分"
       },
+      "modelChangeMarker": {
+        "set": "モデルを設定しました",
+        "reset": "モデルをリセットしました",
+        "inherited": "継承されたモデルに戻りました",
+        "changedBy": "変更者：{{name}}",
+        "scopeOwn": "このスレッドで、あなたが呼びかけられるエージェントとチームの今後の返信に適用されます。",
+        "scopeOther": "このスレッドで、{{name}} が呼びかけられるエージェントとチームの今後の返信に適用されます。"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"

@@ -834,6 +834,14 @@
         "diffTruncated": "Diff troncato",
         "diffLabel": "Diff di {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Modello impostato",
+        "reset": "Modello reimpostato",
+        "inherited": "Ritorno ai modelli ereditati",
+        "changedBy": "Modificato da {{name}}",
+        "scopeOwn": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui puoi rivolgerti.",
+        "scopeOther": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui {{name}} può rivolgersi."
+      },
       "finishedWork": {
         "workedFor": "Ha lavorato per {{duration}}",
         "worked": "Ha lavorato"
