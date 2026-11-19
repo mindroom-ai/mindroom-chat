@@ -206,7 +206,7 @@ Product lines, without tests and the project file: Swift about 140, TypeScript a
 
 1. **Feed location:** the `mac-appcast` prerelease (taken), or `releases/latest/download/appcast.xml` with the gap above.
 2. **Check interval:** 3600 s, Sparkle's minimum (taken).
-3. **A "Check for Updates…" menu item:** none (taken).
+3. **A "Check for Updates…" menu item:** none (taken). Reversed 2026-11-19, Bas asked for it: the app menu has one, after About (docs/ios-release.md, "Updates").
 4. **No write permission:** Sparkle's own window with the administrator prompt (taken), rather than no update at all.
 5. **A scheduled repair of the feed:** none (taken); the next release's run or a re-run repairs it.
 6. **The signed build before the merge:** a throwaway run on a scratch branch (taken; needs no machine of Bas's), or by hand on his Mac.

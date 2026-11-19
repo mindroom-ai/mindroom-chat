@@ -52,10 +52,38 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             modifierFlags: [.control, .alternate]
         )
         builder.insertChild(UIMenu(options: .displayInline, children: [quickCapture]), atStartOfMenu: .window)
+#if !MINDROOM_MAC_APP_STORE
+        let updates = UICommand(title: checkForUpdatesTitle, action: #selector(checkForUpdates))
+        builder.insertSibling(UIMenu(options: .displayInline, children: [updates]), afterMenu: .about)
+#endif
     }
 
     @objc func toggleQuickCapture() {
         QuickCapture.toggle()
+    }
+#endif
+
+#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
+    /// Sparkle's check, with its windows. While a downloaded update waits Sparkle runs no check,
+    /// so the item installs that update instead, as the page's Reload does.
+    @objc func checkForUpdates() {
+        if !MacUpdater.install() { MacUpdater.checkForUpdates() }
+    }
+
+    private var checkForUpdatesTitle: String {
+        MacUpdater.readyVersion == nil
+            ? NSLocalizedString("CHECK_FOR_UPDATES", comment: "App menu: look for a new version")
+            : NSLocalizedString("RESTART_TO_UPDATE", comment: "App menu: install the downloaded version")
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        guard action == #selector(checkForUpdates) else { return super.canPerformAction(action, withSender: sender) }
+        return MacUpdater.readyVersion != nil || MacUpdater.canCheckForUpdates
+    }
+
+    override func validate(_ command: UICommand) {
+        super.validate(command)
+        if command.action == #selector(checkForUpdates) { command.title = checkForUpdatesTitle }
     }
 #endif
 

@@ -11,3 +11,5 @@
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ ने आपको %2$@ में आमंत्रित किया";
 "USER_INVITE_TO_CHAT" = "%1$@ ने आपको चैट के लिए आमंत्रित किया";
 "QUICK_CAPTURE" = "क्विक कैप्चर";
+"CHECK_FOR_UPDATES" = "अपडेट की जाँच करें…";
+"RESTART_TO_UPDATE" = "अपडेट के लिए रीस्टार्ट करें";

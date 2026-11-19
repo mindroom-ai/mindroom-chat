@@ -32,6 +32,13 @@ final class MindRoomMacUpdater: NSObject, MindRoomMacUpdaterProtocol, SPUUpdater
         return true
     }
 
+    var canCheckForUpdates: Bool { updater?.canCheckForUpdates ?? false }
+
+    func checkForUpdates() {
+        guard let updater, updater.canCheckForUpdates else { return }
+        updater.checkForUpdates()
+    }
+
     func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem,
                  immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
         installNow = immediateInstallHandler

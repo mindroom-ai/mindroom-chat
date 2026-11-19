@@ -35,5 +35,12 @@ enum MacUpdater {
     static func install() -> Bool {
         updater?.install() ?? false
     }
+
+    /// False in a build that does not update itself, and while Sparkle is busy.
+    static var canCheckForUpdates: Bool { updater?.canCheckForUpdates ?? false }
+
+    static func checkForUpdates() {
+        updater?.checkForUpdates()
+    }
 }
 #endif
