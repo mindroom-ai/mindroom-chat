@@ -50,7 +50,7 @@ test(
     await showThread(page, stack, streamingId);
     // The reply shows its dots and Stop; the strip above the composer stays empty.
     await expect(
-      messageRow(page, streaming.event_id).getByRole('button', { name: 'Stop', exact: true })
+      messageRow(page, streaming.event_id).getByRole('button', { name: 'Stop reply', exact: true })
     ).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(3_000);
     await expect(typingStrip(page)).toHaveCount(0);
@@ -149,7 +149,7 @@ test.describe('on a phone', () => {
       const recording = recordFrames(page, streaming.event_id, 10_000);
       await showThread(page, stack, rootId);
       await expect(
-        messageRow(page, streaming.event_id).getByRole('button', { name: 'Stop', exact: true })
+        messageRow(page, streaming.event_id).getByRole('button', { name: 'Stop reply', exact: true })
       ).toBeVisible({ timeout: 30_000 });
       await shot(page, `typing-stop-phone-${test.info().project.name}`);
 

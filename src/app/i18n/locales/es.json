@@ -2667,10 +2667,6 @@
       "streamingIndicator": {
         "aiIsResponding": "La IA está respondiendo"
       },
-      "stopButton": {
-        "label": "Detener",
-        "tooltip": "Detener esta respuesta"
-      },
       "threadApprovalControls": {
         "close": "Cerrar",
         "call": "llamada",
@@ -3062,8 +3058,6 @@
       "subagent": "{{tool}} (subagente)",
       "stopAll": "Detener todo",
       "stopping": "Deteniendo…",
-      "stop": "Detener",
-      "stopJob": "Detener {{tool}}",
       "stopFailed": "No se pudo detener {{tool}}. Inténtalo de nuevo.",
       "stopAllFailed": "No se pudieron detener las tareas en segundo plano. Inténtalo de nuevo.",
       "inRoom": "Tareas en segundo plano en curso"

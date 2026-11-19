@@ -36,7 +36,7 @@ export const Reaction = style([
         },
       },
       '&:hover, &:focus-visible': { vars: { [fill]: color.SurfaceVariant.ContainerHover } },
-      '&:disabled': { cursor: 'default' },
+      '&:disabled, &[aria-disabled=true]': { cursor: 'default' },
     },
   },
 ]);

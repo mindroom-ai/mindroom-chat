@@ -857,7 +857,12 @@
         "subagents": "Subagentes"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Em execução há {{duration}}"
+        "toolRunningFor": "Em execução há {{duration}}",
+        "toolCallFailed": "Não concluída",
+        "toolCallsAlsoFailed": "· sem conclusão: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} chamada de ferramenta executada · sem conclusão: {{failed}}",
+        "toolCallsRanFailed_many": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Definições de títulos…"
@@ -927,6 +932,10 @@
       "voiceTranscript": {
         "transcribing": "Transcrevendo…",
         "transcribedBy": "Transcrito por {{name}}"
+      },
+      "stopReply": {
+        "label": "Parar resposta",
+        "stopping": "Parando…"
       }
     },
     "message-search": {
@@ -1027,7 +1036,9 @@
         "tokens": "Tokens",
         "cost": "Custo",
         "time": "Tempo"
-      }
+      },
+      "stopTask": "Parar tarefa",
+      "stopTaskFor": "Parar tarefa: {{tool}}"
     },
     "subagents": {
       "title": "Subagentes",

@@ -844,7 +844,11 @@
         "subagents": "Sub-agents"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Running for {{duration}}"
+        "toolRunningFor": "Running for {{duration}}",
+        "toolCallFailed": "Didn't complete",
+        "toolCallsAlsoFailed": "· {{failed}} didn't complete",
+        "toolCallsRanFailed_one": "Ran {{count}} tool call · {{failed}} didn't complete",
+        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} didn't complete"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Title settings…"
@@ -913,6 +917,10 @@
       "voiceTranscript": {
         "transcribing": "Transcribing…",
         "transcribedBy": "Transcribed by {{name}}"
+      },
+      "stopReply": {
+        "label": "Stop reply",
+        "stopping": "Stopping…"
       }
     },
     "message-search": {
@@ -1007,7 +1015,9 @@
         "tokens": "Tokens",
         "cost": "Cost",
         "time": "Time"
-      }
+      },
+      "stopTask": "Stop task",
+      "stopTaskFor": "Stop task: {{tool}}"
     },
     "subagents": {
       "title": "Sub-agents",

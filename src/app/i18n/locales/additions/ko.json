@@ -831,7 +831,10 @@
         "subagents": "하위 에이전트"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}} 동안 실행 중"
+        "toolRunningFor": "{{duration}} 동안 실행 중",
+        "toolCallFailed": "완료되지 않음",
+        "toolCallsAlsoFailed": "· {{failed}}개 완료되지 않음",
+        "toolCallsRanFailed_other": "도구 호출 {{count}}개 실행됨 · {{failed}}개 완료되지 않음"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "제목 설정…"
@@ -899,6 +902,10 @@
       "voiceTranscript": {
         "transcribing": "받아쓰는 중…",
         "transcribedBy": "{{name}} 님이 받아씀"
+      },
+      "stopReply": {
+        "label": "응답 중지",
+        "stopping": "중지하는 중…"
       }
     },
     "message-search": {
@@ -987,7 +994,9 @@
         "tokens": "토큰",
         "cost": "비용",
         "time": "시간"
-      }
+      },
+      "stopTask": "작업 중지",
+      "stopTaskFor": "작업 중지: {{tool}}"
     },
     "subagents": {
       "title": "하위 에이전트",

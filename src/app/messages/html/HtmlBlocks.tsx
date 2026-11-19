@@ -57,6 +57,7 @@ import {
   ToolApprovalsByNameContext,
   ToolCallState,
   useFoldedToolCalls,
+  withFailures,
 } from '../agent-run/toolCallStatus';
 import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
@@ -216,6 +217,8 @@ type ToolBlockRenderData = {
   toolCallId?: string;
   result?: string;
   resultInline: boolean;
+  /** Whether the completed call's trace entry says it did not succeed (`is_error`). */
+  failed?: boolean;
   progress?: string;
   /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
   startedAt?: number;
@@ -283,6 +286,7 @@ const buildToolRefRenderData = (
       argsPreview,
       result: resultPreview,
       resultInline: !resultPreview.includes('\n'),
+      failed: eventRaw?.is_error === true,
     };
   }
 
@@ -294,6 +298,7 @@ const buildToolRefRenderData = (
     toolName: traceToolName,
     argsPreview,
     resultInline: false,
+    failed: eventRaw?.is_error === true,
   };
 };
 
@@ -301,6 +306,9 @@ const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone 
   running: { src: Icons.Terminal, tone: 'neutral' },
   waiting: { src: Icons.Pause, tone: 'warning' },
   done: { src: Icons.Check, tone: 'success' },
+  // A call that did not complete (an error, refusal, denial, cancellation or interruption: its
+  // result says which) is not the green check, nor a red alarm.
+  failed: { src: Icons.Warning, tone: 'warning' },
   denied: { src: Icons.Cross, tone: 'critical' },
   expired: { src: Icons.Clock, tone: 'neutral' },
 };
@@ -333,6 +341,7 @@ function ToolRefGroupItem({
   parsedTool: ToolBlockRenderData;
   state: ToolCallState;
 }) {
+  const { t } = useTranslation();
   const { src, tone } = TOOL_STATE_ICON[state];
   return (
     <div className={activityCss.Row} data-tool-index={parsedTool.index}>
@@ -342,6 +351,12 @@ function ToolRefGroupItem({
           <span className={activityCss.RowName}>{parsedTool.toolName}</span>
           {state === 'running' && parsedTool.startedAt !== undefined && (
             <ToolElapsed startedAt={parsedTool.startedAt} />
+          )}
+          {/* In words too, so the failure is not only the icon's colour and shape. */}
+          {state === 'failed' && (
+            <span className={activityCss.Elapsed}>
+              {t('mindroomUi.messages.mindroomHtmlBlocks.toolCallFailed')}
+            </span>
           )}
         </span>
         {parsedTool.argsPreview && (
@@ -416,6 +431,7 @@ const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallS
   const calls = loaded.map((tool) => ({
     toolName: tool.toolName,
     pending: tool.status === 'pending',
+    failed: tool.failed,
     job: parseToolJobHandle(tool.result),
     toolCallId: tool.toolCallId,
   }));
@@ -500,7 +516,11 @@ function ToolRefGroupBlock({
       title={
         metadataStatus
           ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
-          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
+          : withFailures(
+              t,
+              t(TOOL_STATE_TITLE[summary.state], { count: summary.count, failed: summary.failed }),
+              summary
+            )
       }
       detail={summary.names}
       aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}
@@ -1010,13 +1030,7 @@ export const useToolTraceMarkerParserOptions = (
   const splitAfterKey = reasoning
     ? [
         ...new Set([
-          ...[...reasoning.placement]
-            .filter(
-              ([, indices]) =>
-                reasoning.open ||
-                (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
-            )
-            .map(([anchor]) => anchor),
+          ...(reasoning.open ? reasoning.placement.keys() : []),
           ...reasoning.compactionsAt.keys(),
         ]),
       ]

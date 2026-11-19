@@ -831,7 +831,10 @@
         "subagents": "Subagen"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Berjalan selama {{duration}}"
+        "toolRunningFor": "Berjalan selama {{duration}}",
+        "toolCallFailed": "Tidak selesai",
+        "toolCallsAlsoFailed": "· {{failed}} tidak selesai",
+        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} tidak selesai"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul…"
@@ -899,6 +902,10 @@
       "voiceTranscript": {
         "transcribing": "Mentranskripsi…",
         "transcribedBy": "Ditranskripsi oleh {{name}}"
+      },
+      "stopReply": {
+        "label": "Hentikan respons",
+        "stopping": "Menghentikan…"
       }
     },
     "message-search": {
@@ -987,7 +994,9 @@
         "tokens": "Token",
         "cost": "Biaya",
         "time": "Waktu"
-      }
+      },
+      "stopTask": "Hentikan tugas",
+      "stopTaskFor": "Hentikan tugas: {{tool}}"
     },
     "subagents": {
       "title": "Subagen",

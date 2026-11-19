@@ -2625,10 +2625,6 @@
       "streamingIndicator": {
         "aiIsResponding": "AI is responding"
       },
-      "stopButton": {
-        "label": "Stop",
-        "tooltip": "Stop this reply"
-      },
       "threadApprovalControls": {
         "callCount_one": "{{count}} call",
         "callCount_other": "{{count}} calls",
@@ -2997,8 +2993,6 @@
       "subagent": "{{tool}} (subagent)",
       "stopAll": "Stop all",
       "stopping": "Stopping…",
-      "stop": "Stop",
-      "stopJob": "Stop {{tool}}",
       "stopFailed": "Could not stop {{tool}}. Try again.",
       "stopAllFailed": "Could not stop the background jobs. Try again.",
       "inRoom": "Background jobs running"

@@ -11,7 +11,7 @@ import type { EventTimeline } from 'matrix-js-sdk';
 import type { ItemRange, ScrollToElement, ScrollToItem } from './useVirtualPaginator';
 import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
-import type { ViewScopedFlag } from './roomTimelineViewScope';
+import { useViewScopedFlag, type ViewScopedFlag } from './roomTimelineViewScope';
 import {
   isScrollNearBottom,
   TIMELINE_BOTTOM_THRESHOLD_PX,
@@ -473,6 +473,31 @@ export const useGestureBottomPins = ({
     [backController]
   );
   return { onThreadGesture, onRoomGesture, shouldApplyBottomPin };
+};
+
+/**
+ * Whether the open thread opened at its newest row, where its opening pin then holds it until the
+ * reader scrolls (`useRoomFocusScrollController`), and whether that open is still pending
+ * (`startOpen` names the view the session opens). A render that shows the open pending counts,
+ * and so does the open's own request for the newest row (`pinnedAtLatest`): a switch to a thread
+ * the client holds can end its open before any render shows it pending, and the newest rows that
+ * measure taller after its pin then stayed below the view until the next pin request. The render
+ * that switches views starts over.
+ */
+export const useThreadOpenedAtLatest = (viewKey: string, latestPending: boolean) => {
+  const viewKeyRef = useLatestRef(viewKey);
+  const openedViewKeyRef = useRef<string>();
+  const openedAtLatestRef = useViewScopedFlag(viewKey);
+  const startOpen = useCallback(() => {
+    openedViewKeyRef.current = viewKeyRef.current;
+  }, [viewKeyRef]);
+  const pinnedAtLatest = useCallback(() => {
+    openedAtLatestRef.current.value = true;
+  }, [openedAtLatestRef]);
+  const latestOpenPending = latestPending && openedViewKeyRef.current === viewKey;
+  if (latestOpenPending) openedAtLatestRef.current.value = true;
+  const openedAtLatest = openedAtLatestRef.current.value;
+  return { latestOpenPending, openedAtLatest, startOpen, pinnedAtLatest };
 };
 
 /** How many frames a far jump goes on aligning its row while the rows around it mount and measure. */

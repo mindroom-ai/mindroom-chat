@@ -1,11 +1,12 @@
 import { createContext, useContext, useId, useLayoutEffect, type ReactNode } from 'react';
 import type { HTMLReactParserOptions } from 'html-react-parser';
+import type { TFunction } from 'i18next';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 import type { ReasoningSegment } from './reasoningSegments';
 
-export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired';
+export type ToolCallState = 'running' | 'waiting' | 'done' | 'failed' | 'denied' | 'expired';
 
 /**
  * The message being rendered: its event ID, so its tool calls can find their approval cards, and
@@ -67,8 +68,7 @@ export type ReasoningSegmentsState = {
   open: boolean;
   /** Closes the bulb and gives it the focus, which scrolls it into view. */
   hide: () => void;
-  /** The segment the model is writing, which shows under a closed bulb too until the reader closes
-   * it. */
+  /** The segment the model is writing, which an open bulb labels as such. */
   liveIndex: number | undefined;
   /** What the segments' Markdown renders with. */
   htmlReactParserOptions: HTMLReactParserOptions;
@@ -102,13 +102,15 @@ export const TOOL_STATE_TITLE = {
   running: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRunning',
   waiting: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsWaiting',
   done: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRan',
+  failed: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRanFailed',
   denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
   expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
 } as const satisfies Record<ToolCallState, string>;
 
 /**
- * What happened to each call. The public trace only says started or completed, and a denied
- * call completes without a result, so calls that needed approval take their state from the
+ * What happened to each call. The public trace says started or completed, and `is_error` for a
+ * completed call that did not succeed (`failed`: shown as not completed); a denied call completes without a
+ * result, so calls that needed approval take their state from the
  * approval card MindRoom posted for this reply. A call that went on as a background job takes
  * the card of the job its handle names first; then each call still without a card takes the one
  * that names its call ID and its tool (a provider may reuse an ID within a reply). While `byName`,
@@ -120,6 +122,7 @@ export const resolveToolCallStates = (
   calls: readonly {
     toolName: string;
     pending: boolean;
+    failed?: boolean;
     job?: ToolJobHandle;
     toolCallId?: string;
   }[],
@@ -146,7 +149,7 @@ export const resolveToolCallStates = (
         ? take((approval) => approval.toolCallId === toolCallId && approval.toolName === toolName)
         : undefined)
   );
-  return calls.map(({ toolName, pending, job, toolCallId }, callIndex) => {
+  return calls.map(({ toolName, pending, failed, job, toolCallId }, callIndex) => {
     const status =
       named[callIndex] ??
       (job || !byName
@@ -156,7 +159,8 @@ export const resolveToolCallStates = (
           ));
     if (status === 'denied' || status === 'expired') return status;
     if (status === 'pending' || (!status && job?.status === 'awaiting_approval')) return 'waiting';
-    return pending ? 'running' : 'done';
+    if (pending) return 'running';
+    return failed ? 'failed' : 'done';
   });
 };
 
@@ -170,6 +174,8 @@ export const ToolApprovalsByNameContext = createContext(true);
 export type ToolCallSummary = {
   state: ToolCallState;
   count: number;
+  /** How many calls failed; a `running` or `waiting` summary has it too, for its failures so far. */
+  failed?: number;
   /** Tool names in call order, with repeats as "send_message ×2". */
   names: string;
 };
@@ -184,10 +190,20 @@ export const summarizeToolCalls = (
     .map(([name, count]) => (count > 1 ? `${name} ×${count}` : name))
     .join(', ');
   const count = (state: ToolCallState) => states.filter((item) => item === state).length;
-  if (count('running') > 0) return { state: 'running', count: calls.length, names };
-  if (count('waiting') > 0) return { state: 'waiting', count: count('waiting'), names };
-  if (count('done') > 0) return { state: 'done', count: count('done'), names };
+  const failed = count('failed') || undefined;
+  if (count('running') > 0) return { state: 'running', count: calls.length, failed, names };
+  if (count('waiting') > 0) return { state: 'waiting', count: count('waiting'), failed, names };
+  // A run that failed ran too, so it counts with the done ones, and the group says how many failed.
+  const ran = count('done') + count('failed');
+  if (failed) return { state: 'failed', count: ran, failed, names };
+  if (ran > 0) return { state: 'done', count: ran, names };
   return count('denied') > 0
     ? { state: 'denied', count: count('denied'), names }
     : { state: 'expired', count: count('expired'), names };
 };
+
+/** A running or waiting run's title, which says how many of its calls failed so far too. */
+export const withFailures = (t: TFunction, title: string, { state, failed }: ToolCallSummary) =>
+  state !== 'failed' && failed
+    ? `${title} ${t('mindroomUi.messages.mindroomHtmlBlocks.toolCallsAlsoFailed', { failed })}`
+    : title;

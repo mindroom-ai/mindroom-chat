@@ -831,7 +831,10 @@
         "subagents": "サブエージェント"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}}実行中"
+        "toolRunningFor": "{{duration}}実行中",
+        "toolCallFailed": "完了しませんでした",
+        "toolCallsAlsoFailed": "· {{failed}} 件未完了",
+        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件未完了"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "タイトルの設定…"
@@ -899,6 +902,10 @@
       "voiceTranscript": {
         "transcribing": "文字起こし中…",
         "transcribedBy": "{{name}} が文字起こし"
+      },
+      "stopReply": {
+        "label": "応答を停止",
+        "stopping": "停止中…"
       }
     },
     "message-search": {
@@ -987,7 +994,9 @@
         "tokens": "トークン",
         "cost": "コスト",
         "time": "時間"
-      }
+      },
+      "stopTask": "タスクを停止",
+      "stopTaskFor": "タスクを停止：{{tool}}"
     },
     "subagents": {
       "title": "サブエージェント",

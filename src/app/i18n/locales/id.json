@@ -2618,10 +2618,6 @@
       "streamingIndicator": {
         "aiIsResponding": "AI sedang merespons"
       },
-      "stopButton": {
-        "label": "Hentikan",
-        "tooltip": "Hentikan respons ini"
-      },
       "threadApprovalControls": {
         "close": "Tutup",
         "call": "panggilan",
@@ -2984,8 +2980,6 @@
       "subagent": "{{tool}} (subagen)",
       "stopAll": "Hentikan semua",
       "stopping": "Menghentikan…",
-      "stop": "Hentikan",
-      "stopJob": "Hentikan {{tool}}",
       "stopFailed": "Tidak dapat menghentikan {{tool}}. Coba lagi.",
       "stopAllFailed": "Tidak dapat menghentikan tugas latar belakang. Coba lagi.",
       "inRoom": "Tugas latar belakang sedang berjalan"

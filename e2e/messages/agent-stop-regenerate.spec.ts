@@ -32,7 +32,7 @@ test("the reply's Stop button ends the stream and the reply says it was cancelle
     { description: 'a streaming reply' }
   );
   const reply = messageRow(page, streaming.event_id);
-  const stop = reply.getByRole('button', { name: 'Stop', exact: true });
+  const stop = reply.getByRole('button', { name: 'Stop reply', exact: true });
   await expect(stop).toBeVisible({ timeout: 30_000 });
   await stop.click();
 

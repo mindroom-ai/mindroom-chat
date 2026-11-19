@@ -42,7 +42,7 @@ test('a running background job shows in the jobs bar until its Stop button cance
     .poll(async () => (await threadJobs(stack, rootId)).map((job) => job.status))
     .toContain('running');
 
-  await bar.getByRole('button', { name: 'Stop run_shell_command' }).click();
+  await bar.getByRole('button', { name: 'Stop task: run_shell_command' }).click();
   await expect(bar).toBeHidden({ timeout: 60_000 });
   // The backend drops the job from the thread's running jobs.
   await expect

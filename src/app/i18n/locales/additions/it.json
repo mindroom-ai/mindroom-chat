@@ -857,7 +857,12 @@
         "subagents": "Sottoagenti"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "In esecuzione da {{duration}}"
+        "toolRunningFor": "In esecuzione da {{duration}}",
+        "toolCallFailed": "Non completata",
+        "toolCallsAlsoFailed": "· chiamate non completate: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} chiamata a strumento eseguita · chiamate non completate: {{failed}}",
+        "toolCallsRanFailed_many": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Impostazioni dei titoli…"
@@ -927,6 +932,10 @@
       "voiceTranscript": {
         "transcribing": "Trascrizione…",
         "transcribedBy": "Trascritto da {{name}}"
+      },
+      "stopReply": {
+        "label": "Ferma risposta",
+        "stopping": "Arresto in corso…"
       }
     },
     "message-search": {
@@ -1027,7 +1036,9 @@
         "tokens": "Token",
         "cost": "Costo",
         "time": "Tempo"
-      }
+      },
+      "stopTask": "Ferma attività",
+      "stopTaskFor": "Ferma attività: {{tool}}"
     },
     "subagents": {
       "title": "Sottoagenti",

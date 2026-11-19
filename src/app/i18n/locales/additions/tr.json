@@ -844,7 +844,11 @@
         "subagents": "Alt ajanlar"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}} süredir çalışıyor"
+        "toolRunningFor": "{{duration}} süredir çalışıyor",
+        "toolCallFailed": "Tamamlanmadı",
+        "toolCallsAlsoFailed": "· {{failed}} tamamlanmadı",
+        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
+        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Başlık ayarları…"
@@ -913,6 +917,10 @@
       "voiceTranscript": {
         "transcribing": "Yazıya dökülüyor…",
         "transcribedBy": "{{name}} yazıya döktü"
+      },
+      "stopReply": {
+        "label": "Yanıtı durdur",
+        "stopping": "Durduruluyor…"
       }
     },
     "message-search": {
@@ -1007,7 +1015,9 @@
         "tokens": "Token",
         "cost": "Maliyet",
         "time": "Süre"
-      }
+      },
+      "stopTask": "Görevi durdur",
+      "stopTaskFor": "Görevi durdur: {{tool}}"
     },
     "subagents": {
       "title": "Alt ajanlar",

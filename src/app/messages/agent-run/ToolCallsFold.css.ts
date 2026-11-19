@@ -38,6 +38,7 @@ export const Cog = style([
       '&[aria-expanded="true"]': { opacity: 1 },
       [`${Fold}[data-state="running"] &`]: { color: color.Primary.Main, opacity: 1 },
       [`${Fold}[data-state="waiting"] &`]: { color: color.Warning.Main, opacity: 1 },
+      [`${Fold}[data-state="failed"] &`]: { color: color.Warning.Main, opacity: 1 },
       '&:focus-visible': {
         opacity: 1,
         outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,

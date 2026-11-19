@@ -40,6 +40,21 @@ export const MessageAvatarWithModel = style({
 /** The reaction chips under a message. */
 export const ReactionsContainer = style({ paddingBlockStart: config.space.S100 });
 
+// The reply's Stop holds Stop reply and Stopping… in one cell, so it keeps the wider one's size.
+export const StopLabels = style({ display: 'inline-grid' });
+export const StopLabel = style({ gridArea: '1 / 1' });
+export const StopLabelHidden = style([StopLabel, { visibility: 'hidden' }]);
+
+// Says Stopping… for screen readers, beside the Stop, whose name stays.
+export const StopStatus = style({
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+});
+
 /** Long reactor lists wrap inside the chip's tooltip instead of stretching it. */
 export const ReactionsTooltipText = style({ maxWidth: toRem(240), wordBreak: 'break-word' });
 

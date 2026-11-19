@@ -45,7 +45,7 @@ const stoppedReply = async (page: Page, stack: AgentStack): Promise<string> => {
   // 400 words, one every quarter second.
   await mentionHelper(page, stack, '#stopme stop this one');
   await expect(page.getByText(/\bword5\b/).first()).toBeVisible({ timeout: 90_000 });
-  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop reply', exact: true }).click();
   await expect(page.getByText('[Response cancelled by user]').first()).toBeVisible({
     timeout: 60_000,
   });

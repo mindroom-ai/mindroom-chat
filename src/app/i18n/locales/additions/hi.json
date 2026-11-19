@@ -844,7 +844,11 @@
         "subagents": "सब-एजेंट"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}} से चल रहा है"
+        "toolRunningFor": "{{duration}} से चल रहा है",
+        "toolCallFailed": "पूरा नहीं हुआ",
+        "toolCallsAlsoFailed": "· अधूरी टूल कॉल की संख्या: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · अधूरी टूल कॉल की संख्या: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · अधूरी टूल कॉल की संख्या: {{failed}}"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "शीर्षक सेटिंग…"
@@ -913,6 +917,10 @@
       "voiceTranscript": {
         "transcribing": "ट्रांसक्राइब हो रहा है…",
         "transcribedBy": "{{name}} ने ट्रांसक्राइब किया"
+      },
+      "stopReply": {
+        "label": "जवाब रोकें",
+        "stopping": "रोका जा रहा है…"
       }
     },
     "message-search": {
@@ -1007,7 +1015,9 @@
         "tokens": "टोकन",
         "cost": "लागत",
         "time": "समय"
-      }
+      },
+      "stopTask": "कार्य रोकें",
+      "stopTaskFor": "कार्य रोकें: {{tool}}"
     },
     "subagents": {
       "title": "सब-एजेंट",

@@ -11,8 +11,8 @@ import {
 // An agent reply's thinking shows where it happened: the bulb on the reasoning line shows every
 // segment of `io.mindroom.reasoning.segments` after the run of tool calls it followed, beside the
 // cog, which shows the runs on their own. Each open segment has a rail and a "Hide thinking"
-// button, which hide them all and give the focus to the bulb. While a reply streams, the segment
-// the model writes shows under a closed bulb until the reply moves past it.
+// button, which hide them all and give the focus to the bulb. A closed bulb shows none, also while
+// the model writes one; an open one labels it as being written until the reply moves past it.
 // Set E2E_SCREENSHOT_DIR=<directory> to save the closed, bulb and timeline states.
 const PASSWORD = 'inline-thinking-spec-password';
 const RUN = Date.now().toString(36);
@@ -353,7 +353,7 @@ test('thinking between two calls in a row splits their run, and old replies thin
   }
 });
 
-test('a streaming reply shows the thought it writes until it moves past it', async ({ page }) => {
+test('a streaming reply shows the thought it writes only in an open bulb', async ({ page }) => {
   test.setTimeout(180_000);
   const {
     reply: sendReply,
@@ -386,26 +386,31 @@ test('a streaming reply shows the thought it writes until it moves past it', asy
   const bulb = reply.getByRole('button', { name: 'Thinking', exact: true });
   await expect(bulb).toHaveAttribute('aria-expanded', 'false');
 
-  // (g) The thought grows on screen: it shows under the closed bulb, as the one being written,
-  // without the end button, and the thought before it stays hidden.
+  // (g) The thought grows on screen, and the comet laps the bulb: the closed bulb shows no thought.
   await edit(replyId, live(`${writing},`, body));
+  await expect(bulb.locator('[data-thinking]')).toHaveCount(1, { timeout: 30_000 });
   const thought = reply.getByText(writing);
-  await expect(thought).toBeVisible({ timeout: 30_000 });
-  await expect(bulb).toHaveAttribute('aria-expanded', 'false');
+  await expect(thought).toHaveCount(0);
   await expect(reply.getByText(first)).toHaveCount(0);
-  await expect(reply.getByRole('button', { name: 'Hide thinking' })).toHaveCount(1);
-  await expect(reply.getByRole('button', { name: 'Hide thinking' })).toBeDisabled();
+  await expect(reply.getByRole('button', { name: 'Hide thinking' })).toHaveCount(0);
+
+  // Opened, the bulb shows the thought before it and the one being written, as such.
+  await bulb.click();
+  await expect(thought).toBeVisible();
+  await expect(reply.getByText(first)).toBeVisible();
+  const thoughtLabels = reply.getByText('Thought', { exact: true });
+  await expect(thoughtLabels).toHaveCount(1);
   await page.mouse.move(0, 0);
   if (SCREENSHOT) await reply.screenshot({ path: `${SCREENSHOT}/inline-thinking-g-live.png` });
 
-  // The model pauses longer than the bulb's comet laps: the thought stays.
+  // The model pauses longer than the bulb's comet laps: the thought is still being written.
   await page.waitForTimeout(3000);
-  await expect(thought).toBeVisible();
+  await expect(thoughtLabels).toHaveCount(1);
 
-  // The answer starts: the thought folds into the closed bulb.
+  // The answer starts: the thought is a thought now.
   const answer = 'The test passes a date with an offset.';
   await edit(replyId, live(`${writing},`, [...body, answer]));
   await expect(reply.getByText(answer)).toBeVisible({ timeout: 30_000 });
-  await expect(thought).toHaveCount(0);
-  await expect(bulb).toHaveAttribute('aria-expanded', 'false');
+  await expect(thoughtLabels).toHaveCount(2);
+  await expect(thought).toBeVisible();
 });

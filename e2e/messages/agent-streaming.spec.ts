@@ -44,10 +44,10 @@ test('a streamed reply grows word by word through live frames and ends without i
     };
     sample();
   });
-  await expect(reply.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+  await expect(reply.getByRole('button', { name: 'Stop reply', exact: true })).toBeVisible();
   await expect.poll(async () => wordCount(await reply.innerText()), { timeout: 60_000 }).toBe(30);
   await waitForAgentReply(stack, rootId, (body) => body.includes('word30'));
-  await expect(reply.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+  await expect(reply.getByRole('button', { name: 'Stop reply', exact: true })).toHaveCount(0);
   // Frames older than 12 s no longer show; the reply then stands on its last edit, which must have
   // arrived (an earlier client kept the first streaming edit, "word1", until a reload).
   await page.waitForTimeout(13_000);

@@ -2625,10 +2625,6 @@
       "streamingIndicator": {
         "aiIsResponding": "Yapay zekâ yanıtlıyor"
       },
-      "stopButton": {
-        "label": "Durdur",
-        "tooltip": "Bu yanıtı durdur"
-      },
       "threadApprovalControls": {
         "close": "Kapat",
         "call": "çağrı",
@@ -2997,8 +2993,6 @@
       "subagent": "{{tool}} (alt ajan)",
       "stopAll": "Tümünü durdur",
       "stopping": "Durduruluyor…",
-      "stop": "Durdur",
-      "stopJob": "{{tool}} durdur",
       "stopFailed": "{{tool}} durdurulamadı. Tekrar deneyin.",
       "stopAllFailed": "Arka plan işleri durdurulamadı. Tekrar deneyin.",
       "inRoom": "Arka plan işleri çalışıyor"

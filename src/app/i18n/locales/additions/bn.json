@@ -844,7 +844,11 @@
         "subagents": "সাব-এজেন্ট"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}} ধরে চলছে"
+        "toolRunningFor": "{{duration}} ধরে চলছে",
+        "toolCallFailed": "সম্পূর্ণ হয়নি",
+        "toolCallsAlsoFailed": "· সম্পূর্ণ হয়নি: {{failed}}টি",
+        "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
+        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "শিরোনামের সেটিংস…"
@@ -913,6 +917,10 @@
       "voiceTranscript": {
         "transcribing": "প্রতিলিপি তৈরি হচ্ছে…",
         "transcribedBy": "প্রতিলিপি করেছে {{name}}"
+      },
+      "stopReply": {
+        "label": "উত্তর থামান",
+        "stopping": "থামানো হচ্ছে…"
       }
     },
     "message-search": {
@@ -1007,7 +1015,9 @@
         "tokens": "টোকেন",
         "cost": "খরচ",
         "time": "সময়"
-      }
+      },
+      "stopTask": "কাজ থামান",
+      "stopTaskFor": "কাজ থামান: {{tool}}"
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
