@@ -15,12 +15,11 @@ import {
 } from '../helpers/disposableAccounts';
 import { addRoomToSpace, joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 
-// A link in a thread to another thread of the same room opens that thread, and Back from it shows
-// the room's cards and stays there. The room is in a space and both have aliases, so the app's
-// links name them by alias and the room ID route replaces the address. On a phone, in Compact,
-// the link showed the room's cards: the alias route's replacement undid the link's redirect into
-// the thread. The linked thread's card opened it, and Back from it went back to the link, whose
-// redirect opened the thread again, every time in the iOS app.
+// A link in a thread to another thread of the same room opens that thread, and one Back from it
+// shows the room's cards and stays there, on a phone, in the iOS app and on a desktop. The room is
+// in a space and both have aliases, so the link names them by alias and the room ID route
+// replaces the address. The link showed the room's cards instead: a delayed alias replacement put
+// the link's event route back over its redirect into the thread (shell/ClientLayout.tsx).
 const PASSWORD = 'thread-link-back-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const TOPICS = 20;
