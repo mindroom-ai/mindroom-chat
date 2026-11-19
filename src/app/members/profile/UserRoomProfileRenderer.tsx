@@ -1,4 +1,6 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
+import type { RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { PopOut } from '../../ui/directional';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -17,6 +19,24 @@ import { UserRoomProfile } from './UserRoomProfile';
 const ENDS_ON = { escapeDeactivates: stopPropagation, clickOutsideDeactivates: true };
 
 /**
+ * The card's anchor, again as a new object whenever the card changes size (its tools arrive, More
+ * opens), so the pop-out places it inside the window once more: it places itself only for a new
+ * anchor or a resized window.
+ */
+const useAnchorFollowingSize = (cords: RectCords | undefined) => {
+  const [anchor, setAnchor] = useState(cords);
+  useEffect(() => setAnchor(cords), [cords]);
+  const observer = useRef<ResizeObserver>();
+  const observe = useCallback((node: HTMLDivElement | null) => {
+    observer.current?.disconnect();
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    observer.current = new ResizeObserver(() => setAnchor((current) => current && { ...current }));
+    observer.current.observe(node);
+  }, []);
+  return [anchor, observe] as const;
+};
+
+/**
  * The member profile card that is open (`userRoomProfileAtom`), floating beside what opened
  * it; an agent's card slides up as a sheet on a phone. A click outside the card or Escape
  * closes it.
@@ -27,16 +47,18 @@ export function UserRoomProfileRenderer() {
   const profile = useUserRoomProfileState();
   const close = useCloseUserRoomProfile();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const [anchor, observeCard] = useAnchorFollowingSize(profile?.cords);
   const room = mx.getRoom(profile?.roomId);
   if (!profile || !room) return null;
 
   if (phone && isMindroomAgentUserIdForViewer(profile.userId, mx.getUserId() ?? undefined)) {
     return (
       <BottomSheet
-        title={t('sharedUi.agentCard.agent')}
+        title={profile.userId}
         closeLabel={t('sharedUi.agentCard.close')}
         requestClose={close}
         fitContent
+        titleHidden
       >
         <UserRoomProfile
           key={`${profile.roomId}:${profile.userId}`}
@@ -50,19 +72,21 @@ export function UserRoomProfileRenderer() {
 
   return (
     <PopOut
-      anchor={profile.cords}
+      anchor={anchor}
       position={profile.position ?? 'Bottom'}
       align="Start"
       offset={8}
       content={
         <FocusTrap focusTrapOptions={{ ...ENDS_ON, initialFocus: false, onDeactivate: close }}>
           <Menu role="dialog" aria-label={profile.userId}>
-            <UserRoomProfile
-              key={`${profile.roomId}:${profile.userId}`}
-              room={room}
-              userId={profile.userId}
-              onDone={close}
-            />
+            <div ref={observeCard}>
+              <UserRoomProfile
+                key={`${profile.roomId}:${profile.userId}`}
+                room={room}
+                userId={profile.userId}
+                onDone={close}
+              />
+            </div>
           </Menu>
         </FocusTrap>
       }

@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 /** The agent's card: wider than a person's for its tool rows, and never taller than the window. */
@@ -87,3 +87,6 @@ export const RoomChipAvatar = style({
   blockSize: toRem(16),
   fontSize: toRem(10),
 });
+
+// Both scroll instead of squeezing what they hold.
+globalStyle(`${AgentCard} > *, ${ToolList} > *`, { flexShrink: 0 });

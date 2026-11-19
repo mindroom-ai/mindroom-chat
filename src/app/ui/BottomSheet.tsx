@@ -13,6 +13,8 @@ type BottomSheetProps = {
   requestClose: () => void;
   /** Only as tall as its content, up to the usual height. */
   fitContent?: boolean;
+  /** The title only names the dialog, for content that starts with its own heading. */
+  titleHidden?: boolean;
   children: ReactNode;
 };
 
@@ -37,6 +39,7 @@ export function BottomSheet({
   closeLabel,
   requestClose,
   fitContent,
+  titleHidden,
   children,
 }: BottomSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -65,9 +68,7 @@ export function BottomSheet({
               <PageScroll
                 header={
                   <Header size="500">
-                    <Box grow="Yes">
-                      <Text size="H4">{title}</Text>
-                    </Box>
+                    <Box grow="Yes">{!titleHidden && <Text size="H4">{title}</Text>}</Box>
                     <IconButton
                       aria-label={closeLabel}
                       size="300"

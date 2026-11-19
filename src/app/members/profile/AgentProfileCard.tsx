@@ -326,6 +326,10 @@ export function AgentProfileCard({
   const [allTools, setAllTools] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const viewAll = useRef<HTMLButtonElement>(null);
+  const moreSection = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (moreOpen) moreSection.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [moreOpen]);
   const profile: AgentProfile | undefined = state.status === 'ready' ? state.profile : undefined;
   const model = profile?.model;
   const modelLabel = model && getAiRunCompactModelLabel(model);
@@ -358,7 +362,13 @@ export function AgentProfileCard({
       </Box>
       {call}
       {moreOpen && (
-        <Box className={css.Section} direction="Column" gap="300" data-agent-card-more="">
+        <Box
+          ref={moreSection}
+          className={css.Section}
+          direction="Column"
+          gap="300"
+          data-agent-card-more=""
+        >
           {more}
         </Box>
       )}
