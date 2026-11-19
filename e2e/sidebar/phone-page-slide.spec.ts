@@ -270,6 +270,12 @@ const slidesItsPages = async (page: Page, root: string, engine: (typeof ENGINES)
       if (!SHOTS || !(pageSlide || slow)) return;
       if (pageSlide) await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
       await page.waitForTimeout(pageSlide ? 300 : 900);
+      // WebKit draws a slide held while it played where it is held only once its style is read.
+      if (pageSlide) {
+        await page
+          .locator('[data-page-slide-copy] > *')
+          .evaluateAll((parts) => parts.map((part) => getComputedStyle(part).translate));
+      }
       await page.screenshot({ path: `${SHOTS}/${engine}-${name}.png` });
     };
 

@@ -500,11 +500,8 @@ for (const engine of ENGINES) {
     try {
       const { context, page } = await signIn(own, await seed(engine, 'launch'));
       try {
-        // Every transform transition the drawer starts, from the first script of the page on,
-        // in a browser without view transitions: with them the whole page slides as the list
-        // comes back (phone-page-slide.spec.ts), and the drawer is out at once.
+        // Every transform transition the drawer starts, from the first script of the page on.
         await context.addInitScript(() => {
-          Object.defineProperty(Document.prototype, 'startViewTransition', { value: undefined });
           const runs: string[] = [];
           Object.assign(window, { drawerSlides: runs });
           document.addEventListener(
