@@ -27,7 +27,7 @@ type ShortcutDefinition = {
   local?: boolean;
   /**
    * A key a browser keeps for itself (its zoom). Only the native apps, which have no browser
-   * around the page, take it, over dialogs and menus too, and only they list it.
+   * around the page, take it, and only they list it.
    */
   browserKey?: boolean;
 };
@@ -71,13 +71,15 @@ const DEFINITIONS = {
     group: 'general',
     field: 'always',
   },
-  // The native apps' page zoom, which steps through the values Settings offers.
+  // The native apps' page zoom (usePageZoom's own listener, also signed out), which steps
+  // through the values Settings offers.
   zoomIn: {
     keys: 'mod+=',
     labelKey: 'shortcuts.actions.zoomIn',
     group: 'general',
     field: 'always',
     repeats: true,
+    local: true,
     browserKey: true,
   },
   zoomOut: {
@@ -86,6 +88,7 @@ const DEFINITIONS = {
     group: 'general',
     field: 'always',
     repeats: true,
+    local: true,
     browserKey: true,
   },
   resetZoom: {
@@ -93,6 +96,7 @@ const DEFINITIONS = {
     labelKey: 'shortcuts.actions.resetZoom',
     group: 'general',
     field: 'always',
+    local: true,
     browserKey: true,
   },
   previousRoom: {
@@ -449,8 +453,8 @@ export const findShortcut = (
       matchesKeys(event, SHORTCUTS[candidate].keys, context.apple)
   );
   if (!id) return undefined;
-  const overlay = SHORTCUTS[id].browserKey ? 'none' : context.overlay;
-  if (overlay === 'other' || (overlay === 'help' && id !== 'help')) return undefined;
+  if (context.overlay === 'other' || (context.overlay === 'help' && id !== 'help'))
+    return undefined;
   return FIELD_ALLOWS[fieldStateOf(event.target)](SHORTCUTS[id].field) ? id : undefined;
 };
 

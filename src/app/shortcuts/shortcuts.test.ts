@@ -8,6 +8,7 @@ import {
   findShortcut,
   formatShortcut,
   matchesKeys,
+  matchesShortcut,
   moveStep,
   shortcutOfAria,
   type ShortcutContext,
@@ -224,25 +225,23 @@ describe('findShortcut', () => {
     expect(findShortcut(help, context({ overlay: 'other' }))).toBeUndefined();
   });
 
-  it('takes the zoom keys of every layout over overlays and from fields with text', () => {
-    const zoom = (keys: Press, overlay: ShortcutContext['overlay'] = 'other') =>
-      findShortcut(press({ metaKey: true, ...keys }), context({ apple: true, overlay }));
+  it('matches the zoom keys of every layout, which only their own listener handles', () => {
+    const zoom = (keys: Press) =>
+      (['zoomIn', 'zoomOut', 'resetZoom'] as const).find((id) =>
+        matchesShortcut(press({ metaKey: true, ...keys }), id, true)
+      );
     expect(zoom({ key: '=', code: 'Equal' })).toBe('zoomIn');
     expect(zoom({ key: '+', code: 'Equal', shiftKey: true })).toBe('zoomIn');
     expect(zoom({ key: '+', code: 'NumpadAdd' })).toBe('zoomIn');
     // A German keyboard's own + key.
     expect(zoom({ key: '+', code: 'BracketRight' })).toBe('zoomIn');
-    expect(zoom({ key: '-', code: 'Minus' }, 'help')).toBe('zoomOut');
+    expect(zoom({ key: '-', code: 'Minus' })).toBe('zoomOut');
     expect(zoom({ key: '-', code: 'NumpadSubtract' })).toBe('zoomOut');
     expect(zoom({ key: '0', code: 'Digit0' })).toBe('resetZoom');
     // French AZERTY types à on the 0 key.
     expect(zoom({ key: 'à', code: 'Digit0' })).toBe('resetZoom');
-    const target = composer('<p>Hello</p>');
-    expect(findShortcut(press({ key: '=', metaKey: true, target }), context({ apple: true }))).toBe(
-      'zoomIn'
-    );
-    expect(findShortcut(press({ key: '=', ctrlKey: true }), context())).toBe('zoomIn');
-    expect(SHORTCUTS.zoomIn.repeats && SHORTCUTS.zoomOut.repeats).toBe(true);
+    // The signed-in dispatcher leaves them alone, so a press steps once.
+    expect(findShortcut(press({ key: '=', ctrlKey: true }), context())).toBeUndefined();
   });
 
   it('in a field with text fires only chords that have no text meaning', () => {

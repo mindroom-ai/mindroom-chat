@@ -2,8 +2,14 @@ import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useSetting } from '../preferences/useSetting';
 import { PAGE_ZOOM_DEFAULT, settingsAtom, stepPageZoom } from '../preferences/settings';
-import { useShortcut } from '../shortcuts/useShortcut';
+import { isComposingKey, matchesShortcut } from '../shortcuts/shortcuts';
 import { usePinchToZoom } from './usePinchToZoom';
+
+const ZOOM_KEYS = [
+  ['zoomIn', (zoom: number) => stepPageZoom(zoom, 1)],
+  ['zoomOut', (zoom: number) => stepPageZoom(zoom, -1)],
+  ['resetZoom', () => PAGE_ZOOM_DEFAULT],
+] as const;
 
 /**
  * Scales the root font size by the page zoom setting. folds sizes everything in rem, so the
@@ -14,14 +20,20 @@ import { usePinchToZoom } from './usePinchToZoom';
 export const usePageZoom = (): void => {
   const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
   usePinchToZoom(pageZoom, setPageZoom);
-  const native = Capacitor.isNativePlatform();
-  const zoomTo = (next: (zoom: number) => number) => {
-    setPageZoom(next);
-    return true;
-  };
-  useShortcut('zoomIn', () => zoomTo((zoom) => stepPageZoom(zoom, 1)), native);
-  useShortcut('zoomOut', () => zoomTo((zoom) => stepPageZoom(zoom, -1)), native);
-  useShortcut('resetZoom', () => zoomTo(() => PAGE_ZOOM_DEFAULT), native);
+
+  // From any field or dialog, signed in or out; held keys repeat.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || isComposingKey(event)) return;
+      const zoom = ZOOM_KEYS.find(([id]) => matchesShortcut(event, id));
+      if (!zoom) return;
+      event.preventDefault();
+      setPageZoom(zoom[1]);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [setPageZoom]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
