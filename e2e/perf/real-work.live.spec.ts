@@ -640,7 +640,22 @@ const SCENARIO: Record<
         current = root;
         openedStreaming &&= streaming;
         const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
-        const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
+        let ms: number;
+        try {
+          ms = await timeToVisible(page, () => card(page, root).click(), ROW);
+        } catch (error) {
+          if (ROUNDS.length === 0) throw error;
+          // Throwaway: a press that opened no thread is noted, dumped and pressed again.
+          timings.push({ name: `lost-${turn}`, ms: 0 });
+          await debugDump(page, `switch-${run.engine}-${run.suffix}-turn${turn}-lost`).catch(
+            () => undefined
+          );
+          await settled().catch(() => undefined);
+          await card(page, root).click();
+          await expect(banner(page)).toBeVisible();
+          await expect(page.locator(ROW).first()).toBeVisible({ timeout: 30_000 });
+          continue;
+        }
         await expect(banner(page)).toBeVisible();
         timings.push({ name: `switch-${turn}`, ms });
         // As long as before when the rows settle at once: 1 s after the first row.
