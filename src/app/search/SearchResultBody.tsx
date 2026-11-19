@@ -160,9 +160,8 @@ export function SearchResultBody({
   // A thread's titles list once (`collapseThreadTitleHits`), as the one it has now.
   const currentTitle = useCurrentThreadTitle(
     room.roomId,
-    target.threadTitle ? target.threadRootId : undefined
+    target.threadTitle && target.threadRootId
   );
-
   if (currentTitle?.summaryText) {
     return (
       <ThreadSummaryCard

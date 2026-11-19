@@ -134,10 +134,9 @@ const groupByRoom = (items: readonly ResultItem[]): ResultGroup[] => {
 };
 
 /**
- * One title per thread over every loaded page. MindRoom titles a thread anew as it grows, each
- * title a notice of its own, so a word in all of them would list the thread once per title. The
- * first stays where the server ranked it (it shows the thread's current title and opens the
- * thread); the others count as hidden. What people and agents wrote stays one hit per message.
+ * One title per thread over all pages: each retitle is a notice of its own, so a word in every
+ * title listed the thread once per title. The first stays where the server ranked it; the rest
+ * count as hidden. What people and agents wrote stays one hit per message.
  */
 export const collapseThreadTitleHits = (
   data: InfiniteData<MessageSearchPage, string | undefined>
@@ -146,9 +145,10 @@ export const collapseThreadTitleHits = (
   const isFirstOfThread = ({ event }: ResultItem) => {
     const { threadTitle, threadRootId } = getSearchResultOpenTarget(event);
     const key = `${event.room_id}\u0000${threadRootId}`;
-    if (threadTitle && listed.has(key)) return false;
-    if (threadTitle) listed.add(key);
-    return true;
+    if (!threadTitle) return true;
+    const first = !listed.has(key);
+    listed.add(key);
+    return first;
   };
   const pages = data.pages.map((page) => {
     const items = page.groups.flatMap((group) => group.items);

@@ -326,18 +326,10 @@ export function CommandPalette({
         return [{ ...section, title: t(TAB_LABEL_KEYS[section.id]) }];
       }
     );
+    const listed = new Set(sections.flatMap((section) => section.items.map((item) => item.id)));
     // The server's messages go below everything the client found itself.
     return getCommandPaletteSectionOrder(tab, searchText.length > 0).includes('messages')
-      ? [
-          ...sections,
-          buildMessageSection(
-            messages,
-            searchText,
-            tab,
-            t,
-            new Set(sections.flatMap((section) => section.items.map((item) => item.id)))
-          ),
-        ]
+      ? [...sections, buildMessageSection(messages, searchText, tab, t, listed)]
       : sections;
   }, [messages, pageId, people, searchText, source, t, tab]);
   const visibleSections = useMemo(
