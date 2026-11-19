@@ -36,6 +36,7 @@ vi.mock('./ModelPicker.css', () => ({
   EffortPanel: 'EffortPanel',
   EffortRow: 'EffortRow',
   EffortValue: 'EffortValue',
+  ViewStatus: 'ViewStatus',
   Empty: 'Empty',
   Error: 'Error',
   ErrorActions: 'ErrorActions',
@@ -1266,6 +1267,66 @@ describe('composer model picker', () => {
 
         await keyDown(list()!, 'Escape');
         expect(container.querySelector('[role="dialog"]')).toBeNull();
+      });
+
+      const show = (state: ModelPickerState, size = ScreenSize.Mobile) =>
+        act(() =>
+          root.render(
+            <ScreenSizeProvider value={size}>
+              <ModelPicker state={state} />
+            </ScreenSizeProvider>
+          )
+        );
+
+      it('shows the wait, a rejection and Retry under the levels', async () => {
+        const state = levelled({ override: 'sol', reasoning: 'xhigh' });
+        await openOnPhone(state);
+        await click(entry()!);
+        await click(radio('Low'));
+        show({ ...state, pending: true, canMutate: false });
+        expect(column()?.getAttribute('data-mode')).toBe('view');
+        expect(container.querySelector('[role="status"]')?.textContent).toContain(
+          'Waiting for model change'
+        );
+        expect(radio('Low').getAttribute('aria-disabled')).toBe('true');
+
+        show({ ...state, error: 'Level rejected.' });
+        expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+        expect(container.querySelector('[role="alert"]')?.textContent).toContain('Level rejected.');
+        expect(column()?.getAttribute('data-mode')).toBe('view');
+        await click(container.querySelector('button[aria-label="Retry"]')!);
+        // Once when the menu opened, once for Retry.
+        expect(state.refresh).toHaveBeenCalledTimes(2);
+      });
+
+      it('leaves the levels when the layout widens, and keeps the keys on a control', async () => {
+        const state = levelled({ override: 'sol' });
+        await openOnPhone(state);
+        await click(entry()!);
+        show(state, ScreenSize.Desktop);
+        expect(column()?.getAttribute('data-mode')).toBe('column');
+        expect(document.activeElement).not.toBe(document.body);
+        show(state);
+        expect(column()).toBeNull();
+        expect(list()).not.toBeNull();
+        expect(document.activeElement).not.toBe(document.body);
+        expect(container.contains(document.activeElement)).toBe(true);
+        await keyDown(entry()!, 'ArrowRight');
+        await keyDown(document.activeElement!, 'Escape');
+        expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+        expect(document.activeElement).toBe(entry());
+      });
+
+      it("leaves the levels for the list when the thread's model loses them", async () => {
+        const state = levelled({ override: 'sol' });
+        await openOnPhone(state);
+        await click(entry()!);
+        expect(document.activeElement).toBe(radio('High, default'));
+        const { reasoning_levels: _levels, reasoning_default: _default, ...plain } = sol;
+        show({ ...state, models: [...createState().models, plain, luna] });
+        expect(column()).toBeNull();
+        expect(entry()).toBeNull();
+        expect(document.activeElement).toBe(list());
       });
     });
 

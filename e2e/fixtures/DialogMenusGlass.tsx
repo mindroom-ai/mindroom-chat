@@ -29,11 +29,16 @@ export function DialogMenusGlass() {
   const [autocomplete, setAutocomplete] = useState(false);
   const [selected, setSelected] = useState('');
   const [inviting, setInviting] = useState(false);
+  const [refreshes, setRefreshes] = useState(0);
   const params = new URLSearchParams(window.location.search);
   const viewer = params.get('viewer');
-  // `?logo=image` gives the models a custom icon; `?effort=0` runs a model without levels.
+  // `?logo=image` gives the models a custom icon; `?effort=0` runs a model without levels;
+  // `?error` shows a discovery error with Retry over the models.
   const iconUrl = params.get('logo') === 'image' ? 'mxc://fixture/model-logo' : undefined;
   const effort = params.get('effort') !== '0';
+  const error = params.has('error')
+    ? 'Model discovery unavailable. The runtime did not answer in time.'
+    : undefined;
   if (viewer) {
     return (
       <Modal
@@ -55,6 +60,7 @@ export function DialogMenusGlass() {
   return (
     <ScreenSizeProvider value={screenSize}>
       <main
+        data-refreshes={refreshes}
         style={{
           padding: 16,
           minHeight: '100vh',
@@ -88,6 +94,7 @@ export function DialogMenusGlass() {
               ],
               loading: false,
               pending: false,
+              error,
               canMutate: true,
               models: Array.from({ length: 24 }, (_, index) => ({
                 key: `model-${index + 1}`,
@@ -97,7 +104,7 @@ export function DialogMenusGlass() {
                 icon_url: iconUrl,
                 ...(FIXTURE_LEVELS[index] ?? {}),
               })),
-              refresh: () => undefined,
+              refresh: () => setRefreshes((count) => count + 1),
               chooseRuntime: () => undefined,
               selectModel: (key, level) => setSelected(level ? `${key}@${level}` : key),
               resetToRoomDefault: () => setSelected('default'),

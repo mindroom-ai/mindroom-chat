@@ -177,6 +177,9 @@ function ModelPickerPanel({
   // They never follow the highlight: a level is picked for the model the thread has.
   const columnShown = state.models.some((model) => model.reasoning_levels);
   const current = currentChoice(state);
+  const levels = current.model?.reasoning_levels;
+  // The view goes with the phone's layout, or with the levels of the model the thread runs on.
+  const levelsOpen = levelsShown && stacked && !!levels;
 
   // A phone's keyboard would come up over the menu, so there the list takes focus, not the filter.
   useEffect(() => {
@@ -186,7 +189,12 @@ function ModelPickerPanel({
   // A control that goes while it has focus (the filter field, Retry, the runtime chooser) leaves
   // the keys to the list.
   useEffect(() => {
-    if (document.activeElement === document.body) listRef.current?.focus();
+    if (document.activeElement !== document.body) return;
+    // In the levels a focused level can go too, when the thread's model changes.
+    (
+      listRef.current ??
+      columnRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')
+    )?.focus();
   });
 
   useEffect(() => {
@@ -200,6 +208,12 @@ function ModelPickerPanel({
   }, [activeId, levelsShown]);
 
   // Opened, the levels take the keys on the checked one, else the default.
+  useEffect(() => {
+    if (levelsShown && !levelsOpen) {
+      backRef.current = true;
+      setLevelsShown(false);
+    }
+  }, [levelsShown, levelsOpen]);
   useEffect(() => {
     if (levelsShown) {
       columnRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')?.focus();
@@ -339,6 +353,37 @@ function ModelPickerPanel({
 
   const controls = filterShown || state.runtimes.length > 1 || state.loading || state.pending;
 
+  // What the menu waits for and what went wrong, with Retry, shown over the models and the levels.
+  const status = (
+    <>
+      {(state.loading || state.pending) && (
+        <div className={css.StatusRow} role="status">
+          <Spinner size="100" variant="Secondary" />
+          {state.pending
+            ? t('mindroomUi.models.modelPicker.pending')
+            : t('mindroomUi.models.modelPicker.loading')}
+        </div>
+      )}
+
+      {state.error && (
+        <div className={css.Error} role="alert">
+          <div>{state.error}</div>
+          <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
+          <div className={css.ErrorActions}>
+            <button
+              type="button"
+              className={css.TextButton}
+              aria-label={t('mindroomUi.models.modelPicker.retry')}
+              onClick={state.refresh}
+            >
+              {t('mindroomUi.models.modelPicker.retry')}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const picker = (
     <>
       {(controls || state.error) && (
@@ -389,31 +434,7 @@ function ModelPickerPanel({
             </div>
           )}
 
-          {(state.loading || state.pending) && (
-            <div className={css.StatusRow} role="status">
-              <Spinner size="100" variant="Secondary" />
-              {state.pending
-                ? t('mindroomUi.models.modelPicker.pending')
-                : t('mindroomUi.models.modelPicker.loading')}
-            </div>
-          )}
-
-          {state.error && (
-            <div className={css.Error} role="alert">
-              <div>{state.error}</div>
-              <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
-              <div className={css.ErrorActions}>
-                <button
-                  type="button"
-                  className={css.TextButton}
-                  aria-label={t('mindroomUi.models.modelPicker.retry')}
-                  onClick={state.refresh}
-                >
-                  {t('mindroomUi.models.modelPicker.retry')}
-                </button>
-              </div>
-            </div>
-          )}
+          {status}
         </div>
       )}
 
@@ -460,7 +481,6 @@ function ModelPickerPanel({
     </>
   );
 
-  const levels = current.model?.reasoning_levels;
   const effort = (mode: 'column' | 'view') => (
     <ModelEffortColumn
       model={current.model}
@@ -503,7 +523,16 @@ function ModelPickerPanel({
           : { maxHeight: `min(${toRem(MAX_HEIGHT)}, ${room})` }
       }
     >
-      {panes && stacked && levelsShown ? effort('view') : panes || picker}
+      {panes && levelsOpen ? (
+        <>
+          {effort('view')}
+          {(state.loading || state.pending || state.error) && (
+            <div className={`${css.Controls} ${css.ViewStatus}`}>{status}</div>
+          )}
+        </>
+      ) : (
+        panes || picker
+      )}
     </Menu>
   );
 }

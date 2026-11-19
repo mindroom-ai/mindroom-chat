@@ -1,4 +1,4 @@
-import { type StyleRule, style } from '@vanilla-extract/css';
+import { type StyleRule, createContainer, globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { touchTarget } from '../ui/styles/touchTarget';
 
@@ -64,15 +64,38 @@ export const EffortPanel = style({
   maxWidth: panelMaxWidth,
 });
 
-// The filter, the status and the rows, which scroll inside it.
+const picker = createContainer();
+
+// The filter, the status and the rows, which scroll inside it. On a phone, over the Effort row, it
+// scrolls as a whole once it is short.
 export const Picker = style([
   column,
   {
     flex: '1 1 auto',
     minWidth: 0,
     minHeight: 0,
+    selectors: {
+      [`${Panel} > &`]: {
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        containerName: picker,
+        containerType: 'size',
+      },
+    },
   },
 ]);
+
+// Too short for the controls and a scrolling list, as with a phone's keyboard up: they take their
+// full heights and scroll together, so a long error or a filter never hides the models or Retry.
+globalStyle(`${Panel} > ${Picker} > *`, {
+  '@container': {
+    [`${picker} (max-height: ${toRem(200)})`]: {
+      flex: 'none',
+      minHeight: 0,
+      overflow: 'visible !important',
+    },
+  },
+});
 
 const effortSurface = `color-mix(in srgb, ${color.SurfaceVariant.Container} 40%, transparent)`;
 
@@ -224,6 +247,14 @@ export const EffortEntry = style([
 ]);
 
 export const EffortValue = style([muted, { flexShrink: 0 }]);
+
+// The status and Retry under the levels; a long error scrolls rather than hiding the levels.
+export const ViewStatus = style({
+  maxHeight: '50%',
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  paddingBlockEnd: config.space.S100,
+});
 
 // The filter field, runtime chooser and status above the rows, which stay while the rows scroll.
 export const Controls = style([
