@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "इस विंडो में कुछ चित्र लोड नहीं हो सकते: ब्राउज़र यहाँ MindRoom के लिए कोई सर्विस वर्कर नहीं चलाता।"
+    },
+    "space": {
+      "overview": "स्पेस का अवलोकन"
     }
   },
   "featureUi": {
@@ -1115,7 +1118,10 @@
       "autoHint": "एजेंट को तय करने दें",
       "settingTitle": "एजेंट के जवाब देते समय भेजें",
       "settingDescription": "किसी एक संदेश के लिए चुनने को भेजें दबाकर रखें।"
-    }
+    },
+    "replyInThread": "थ्रेड में जवाब दें…",
+    "newThreadIn": "{{room}} में नया थ्रेड…",
+    "newThreadWith": "{{name}} के साथ नया थ्रेड…"
   },
   "commandPalette": {
     "state": {

@@ -274,6 +274,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此窗口无法加载部分图片：浏览器在此处没有为 MindRoom 运行 Service Worker。"
+    },
+    "space": {
+      "overview": "空间概览"
     }
   },
   "featureUi": {
@@ -1090,7 +1093,10 @@
       "autoHint": "让智能体决定",
       "settingTitle": "智能体正在回复时发送",
       "settingDescription": "长按发送可为单条消息另选方式。"
-    }
+    },
+    "replyInThread": "在讨论串中回复…",
+    "newThreadIn": "在 {{room}} 中新建讨论串…",
+    "newThreadWith": "与 {{name}} 新建讨论串…"
   },
   "commandPalette": {
     "state": {

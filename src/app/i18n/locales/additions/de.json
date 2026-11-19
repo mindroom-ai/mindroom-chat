@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Einige Bilder können in diesem Fenster nicht geladen werden: Der Browser führt hier keinen Service Worker für MindRoom aus."
+    },
+    "space": {
+      "overview": "Space-Übersicht"
     }
   },
   "featureUi": {
@@ -1115,7 +1118,10 @@
       "autoHint": "Den Agenten entscheiden lassen",
       "settingTitle": "Senden, während ein Agent antwortet",
       "settingDescription": "Halte Senden gedrückt, um für eine Nachricht anders zu wählen."
-    }
+    },
+    "replyInThread": "Im Thread antworten…",
+    "newThreadIn": "Neuer Thread in {{room}}…",
+    "newThreadWith": "Neuer Thread mit {{name}}…"
   },
   "commandPalette": {
     "state": {

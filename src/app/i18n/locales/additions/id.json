@@ -274,6 +274,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Beberapa gambar tidak dapat dimuat di jendela ini: browser tidak menjalankan service worker untuk MindRoom di sini."
+    },
+    "space": {
+      "overview": "Ikhtisar space"
     }
   },
   "featureUi": {
@@ -1090,7 +1093,10 @@
       "autoHint": "Biarkan agen memutuskan",
       "settingTitle": "Kirim saat agen sedang membalas",
       "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
-    }
+    },
+    "replyInThread": "Balas di utas…",
+    "newThreadIn": "Utas baru di {{room}}…",
+    "newThreadWith": "Utas baru dengan {{name}}…"
   },
   "commandPalette": {
     "state": {

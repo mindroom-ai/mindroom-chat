@@ -274,6 +274,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "このウィンドウでは一部の画像を読み込めません: ブラウザーがここで MindRoom のサービスワーカーを実行していません。"
+    },
+    "space": {
+      "overview": "スペースの概要"
     }
   },
   "featureUi": {
@@ -1090,7 +1093,10 @@
       "autoHint": "エージェントに任せる",
       "settingTitle": "エージェントの返信中に送信",
       "settingDescription": "送信を長押しすると、1 件ごとに選べます。"
-    }
+    },
+    "replyInThread": "スレッドに返信…",
+    "newThreadIn": "{{room}} に新しいスレッド…",
+    "newThreadWith": "{{name}} との新しいスレッド…"
   },
   "commandPalette": {
     "state": {

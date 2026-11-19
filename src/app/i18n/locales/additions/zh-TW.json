@@ -274,6 +274,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此視窗無法載入部分圖片：瀏覽器在此處沒有為 MindRoom 執行 Service Worker。"
+    },
+    "space": {
+      "overview": "空間概覽"
     }
   },
   "featureUi": {
@@ -1090,7 +1093,10 @@
       "autoHint": "讓代理程式決定",
       "settingTitle": "代理程式正在回覆時傳送",
       "settingDescription": "長按傳送可為單則訊息另選方式。"
-    }
+    },
+    "replyInThread": "在討論串中回覆…",
+    "newThreadIn": "在 {{room}} 中建立新討論串…",
+    "newThreadWith": "與 {{name}} 建立新討論串…"
   },
   "commandPalette": {
     "state": {

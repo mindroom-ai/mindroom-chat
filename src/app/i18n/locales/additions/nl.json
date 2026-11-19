@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Sommige afbeeldingen kunnen in dit venster niet laden: de browser draait hier geen service worker voor MindRoom."
+    },
+    "space": {
+      "overview": "Space-overzicht"
     }
   },
   "featureUi": {
@@ -1115,7 +1118,10 @@
       "autoHint": "De agent laten beslissen",
       "settingTitle": "Verzenden terwijl een agent antwoordt",
       "settingDescription": "Houd Verzenden ingedrukt om per bericht te kiezen."
-    }
+    },
+    "replyInThread": "Antwoorden in thread…",
+    "newThreadIn": "Nieuwe thread in {{room}}…",
+    "newThreadWith": "Nieuwe thread met {{name}}…"
   },
   "commandPalette": {
     "state": {

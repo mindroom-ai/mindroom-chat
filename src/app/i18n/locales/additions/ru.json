@@ -286,6 +286,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Некоторые изображения не загружаются в этом окне: браузер не запускает здесь сервис-воркер MindRoom."
+    },
+    "space": {
+      "overview": "Обзор пространства"
     }
   },
   "featureUi": {
@@ -1165,7 +1168,10 @@
       "autoHint": "Пусть решит агент",
       "settingTitle": "Отправка, пока агент отвечает",
       "settingDescription": "Удерживайте «Отправить», чтобы выбрать для одного сообщения."
-    }
+    },
+    "replyInThread": "Ответить в ветке…",
+    "newThreadIn": "Новая ветка в {{room}}…",
+    "newThreadWith": "Новая ветка с {{name}}…"
   },
   "commandPalette": {
     "state": {

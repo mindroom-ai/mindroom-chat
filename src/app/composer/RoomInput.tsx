@@ -44,6 +44,9 @@ import { useCommands } from './commands/useCommands';
 import { useComposingCheck } from '../lib/hooks/useComposingCheck';
 import { useImagePackRooms } from '../emoji/useImagePackRooms';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useRoomName } from '../matrix/hooks/useRoomMeta';
+import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
+import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 import { useSetting } from '../preferences/useSetting';
 import {
@@ -63,6 +66,7 @@ import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentM
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from './roomInputSendSession';
+import { getComposerPlaceholderKind } from './composerPlaceholder';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
@@ -240,6 +244,23 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const view = useContext(ConversationViewContext);
     const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
     const replyDraft = forkFrom ? undefined : viewReplyDraft;
+    // The placeholder says where Send goes: into this thread, a new thread, or the timeline.
+    const roomThreadMode = useRoomThreadMode(roomId, true);
+    const placeholderKind = getComposerPlaceholderKind({
+      threadId,
+      replyDraft,
+      threadingEnabled,
+      roomThreadMode,
+    });
+    const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
+    const direct = useAtomValue(mDirectAtom).has(roomId);
+    let placeholder = t('composer.placeholder');
+    if (forkFrom) placeholder = t('threadFork.continueInNewThread');
+    else if (placeholderKind === 'reply-in-thread') placeholder = t('composer.replyInThread');
+    else if (placeholderKind === 'new-thread' && direct)
+      placeholder = t('composer.newThreadWith', { name: roomName });
+    else if (placeholderKind === 'new-thread')
+      placeholder = t('composer.newThreadIn', { room: roomName });
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
@@ -778,7 +799,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           className={glassDenseOverBackdrop}
           // A phone keeps the formatting toolbar in a row of its own however wide its composer.
           inlineBottom={!phone}
-          placeholder={forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')}
+          placeholder={placeholder}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}

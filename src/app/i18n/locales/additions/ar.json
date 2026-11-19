@@ -294,6 +294,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "تعذّر تحميل بعض الصور في هذه النافذة: المتصفح لا يشغّل عامل خدمة لـ MindRoom هنا."
+    },
+    "space": {
+      "overview": "نظرة عامة على المساحة"
     }
   },
   "featureUi": {
@@ -1215,7 +1218,10 @@
       "autoHint": "ترك القرار للوكيل",
       "settingTitle": "الإرسال أثناء رد وكيل",
       "settingDescription": "اضغط مطولًا على إرسال للاختيار لرسالة واحدة."
-    }
+    },
+    "replyInThread": "الرد في سلسلة المحادثة…",
+    "newThreadIn": "سلسلة محادثة جديدة في ⁨{{room}}⁩…",
+    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…"
   },
   "commandPalette": {
     "state": {

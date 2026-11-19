@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "এই উইন্ডোতে কিছু ছবি লোড হতে পারে না: ব্রাউজার এখানে MindRoom-এর জন্য কোনো সার্ভিস ওয়ার্কার চালায় না।"
+    },
+    "space": {
+      "overview": "স্পেসের সংক্ষিপ্ত বিবরণ"
     }
   },
   "featureUi": {
@@ -1115,7 +1118,10 @@
       "autoHint": "এজেন্টকে সিদ্ধান্ত নিতে দিন",
       "settingTitle": "এজেন্ট উত্তর দেওয়ার সময় পাঠান",
       "settingDescription": "একটি বার্তার জন্য বেছে নিতে পাঠান চেপে ধরে রাখুন।"
-    }
+    },
+    "replyInThread": "থ্রেডে উত্তর দিন…",
+    "newThreadIn": "{{room}}-এ নতুন থ্রেড…",
+    "newThreadWith": "{{name}}-এর সাথে নতুন থ্রেড…"
   },
   "commandPalette": {
     "state": {

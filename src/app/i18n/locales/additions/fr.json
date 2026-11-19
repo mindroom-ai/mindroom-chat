@@ -282,6 +282,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Certaines images ne peuvent pas se charger dans cette fenêtre : le navigateur n'exécute ici aucun service worker pour MindRoom."
+    },
+    "space": {
+      "overview": "Vue d'ensemble de l'espace"
     }
   },
   "featureUi": {
@@ -1140,7 +1143,10 @@
       "autoHint": "Laisser l'agent décider",
       "settingTitle": "Envoyer pendant la réponse d'un agent",
       "settingDescription": "Maintenez Envoyer pour choisir pour un seul message."
-    }
+    },
+    "replyInThread": "Répondre dans le fil…",
+    "newThreadIn": "Nouveau fil dans {{room}}…",
+    "newThreadWith": "Nouveau fil avec {{name}}…"
   },
   "commandPalette": {
     "state": {
