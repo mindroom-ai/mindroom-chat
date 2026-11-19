@@ -1137,6 +1137,9 @@
       "help": "Sneltoetsen weergeven",
       "messageSearch": "Berichten zoeken",
       "roomList": "Kamerlijst tonen of verbergen",
+      "zoomIn": "Inzoomen",
+      "zoomOut": "Uitzoomen",
+      "resetZoom": "Zoom herstellen",
       "previousRoom": "Vorige kamer",
       "nextRoom": "Volgende kamer",
       "previousUnread": "Vorige ongelezen kamer",
@@ -1186,7 +1189,8 @@
     "renameHint": "Dubbelklik om de naam te wijzigen",
     "close": "Thread sluiten",
     "resizeSecond": "Breedte van de tweede thread wijzigen",
-    "second": "Tweede thread"
+    "second": "Tweede thread",
+    "dropSecond": "Loslaten om in tweede kolom te openen"
   },
   "threadSnooze": {
     "title": "Snoozen tot",
@@ -1541,6 +1545,6 @@
     "done": "Klaar"
   },
   "threadActions": {
-    "openBeside": "Ernaast openen"
+    "openBeside": "In tweede kolom openen"
   }
 }

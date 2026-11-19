@@ -9,6 +9,14 @@ import {
   toAuthenticatedAvatarUrl,
 } from './avatarMedia';
 
+const memoryGauges = vi.hoisted(() => new Map<string, () => number | undefined>());
+vi.mock('../diagnostics/memorySampler', () => ({
+  registerMemoryGauge: (name: string, read: () => number | undefined) => {
+    memoryGauges.set(name, read);
+    return () => memoryGauges.delete(name);
+  },
+}));
+
 const HS = 'https://hs.test';
 const LEGACY = `${HS}/_matrix/media/v3/thumbnail/hs.test/abc?width=96&height=96&method=crop`;
 const AUTHED = `${HS}/_matrix/client/v1/media/thumbnail/hs.test/abc?width=96&height=96&method=crop`;
@@ -118,6 +126,18 @@ describe('fetchAvatar', () => {
     void clearFetchedAvatars();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('counts its cached avatars in memory samples', async () => {
+    const gauge = memoryGauges.get('avatar_cache_entries');
+    expect(gauge?.()).toBe(0);
+
+    await fetchAvatar(client(), LEGACY);
+    await fetchAvatar(client('@bob:hs.test'), LEGACY);
+    expect(gauge?.()).toBe(2);
+
+    await clearFetchedAvatars();
+    expect(gauge?.()).toBe(0);
   });
 
   it('downloads with the token in a header from the authenticated endpoint', async () => {

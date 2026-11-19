@@ -1113,6 +1113,9 @@
       "help": "키보드 단축키 표시",
       "messageSearch": "메시지 검색",
       "roomList": "방 목록 표시 또는 숨기기",
+      "zoomIn": "확대",
+      "zoomOut": "축소",
+      "resetZoom": "확대/축소 재설정",
       "previousRoom": "이전 방",
       "nextRoom": "다음 방",
       "previousUnread": "이전 읽지 않은 방",
@@ -1162,7 +1165,8 @@
     "renameHint": "두 번 클릭하여 이름 바꾸기",
     "close": "스레드 닫기",
     "resizeSecond": "두 번째 스레드 크기 조정",
-    "second": "두 번째 스레드"
+    "second": "두 번째 스레드",
+    "dropSecond": "놓아서 두 번째 열에서 열기"
   },
   "threadSnooze": {
     "title": "일시 중지 종료 시각",
@@ -1504,6 +1508,6 @@
     "done": "완료"
   },
   "threadActions": {
-    "openBeside": "옆에 열기"
+    "openBeside": "두 번째 열에서 열기"
   }
 }

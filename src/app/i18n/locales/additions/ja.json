@@ -1113,6 +1113,9 @@
       "help": "キーボード ショートカットを表示",
       "messageSearch": "メッセージを検索",
       "roomList": "ルーム一覧の表示/非表示",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "resetZoom": "ズームをリセット",
       "previousRoom": "前のルーム",
       "nextRoom": "次のルーム",
       "previousUnread": "前の未読ルーム",
@@ -1162,7 +1165,8 @@
     "renameHint": "ダブルクリックで名前を変更",
     "close": "スレッドを閉じる",
     "resizeSecond": "2つ目のスレッドのサイズを変更",
-    "second": "2つ目のスレッド"
+    "second": "2つ目のスレッド",
+    "dropSecond": "ドロップして2列目で開く"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
@@ -1504,6 +1508,6 @@
     "done": "完了"
   },
   "threadActions": {
-    "openBeside": "横に開く"
+    "openBeside": "2列目で開く"
   }
 }

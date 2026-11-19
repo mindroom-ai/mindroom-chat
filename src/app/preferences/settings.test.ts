@@ -115,3 +115,16 @@ describe('getSettings', () => {
     }
   });
 });
+
+describe('stepPageZoom', () => {
+  it('steps through the Settings values, from between two steps to the next one, and stops at the ends', async () => {
+    const { PAGE_ZOOM_MAX, PAGE_ZOOM_MIN, stepPageZoom } = await import('./settings');
+    expect(stepPageZoom(100, 1)).toBe(110);
+    expect(stepPageZoom(100, -1)).toBe(90);
+    // A pinch stored 117 %.
+    expect(stepPageZoom(117, 1)).toBe(125);
+    expect(stepPageZoom(117, -1)).toBe(110);
+    expect(stepPageZoom(PAGE_ZOOM_MAX, 1)).toBe(PAGE_ZOOM_MAX);
+    expect(stepPageZoom(PAGE_ZOOM_MIN, -1)).toBe(PAGE_ZOOM_MIN);
+  });
+});

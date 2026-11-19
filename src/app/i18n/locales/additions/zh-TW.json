@@ -1113,6 +1113,9 @@
       "help": "顯示鍵盤快速鍵",
       "messageSearch": "搜尋訊息",
       "roomList": "顯示或隱藏房間列表",
+      "zoomIn": "放大",
+      "zoomOut": "縮小",
+      "resetZoom": "重設縮放",
       "previousRoom": "上一個房間",
       "nextRoom": "下一個房間",
       "previousUnread": "上一個未讀房間",
@@ -1162,7 +1165,8 @@
     "renameHint": "按兩下以重新命名",
     "close": "關閉討論串",
     "resizeSecond": "調整第二個討論串大小",
-    "second": "第二個討論串"
+    "second": "第二個討論串",
+    "dropSecond": "放開以在第二欄開啟"
   },
   "threadSnooze": {
     "title": "延後至",
@@ -1504,6 +1508,6 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在旁邊開啟"
+    "openBeside": "在第二欄開啟"
   }
 }

@@ -1161,6 +1161,9 @@
       "help": "Afficher les raccourcis clavier",
       "messageSearch": "Rechercher des messages",
       "roomList": "Afficher ou masquer la liste des salles",
+      "zoomIn": "Zoom avant",
+      "zoomOut": "Zoom arrière",
+      "resetZoom": "Réinitialiser le zoom",
       "previousRoom": "Salle précédente",
       "nextRoom": "Salle suivante",
       "previousUnread": "Salle non lue précédente",
@@ -1210,7 +1213,8 @@
     "renameHint": "Double-cliquez pour renommer",
     "close": "Fermer le fil",
     "resizeSecond": "Redimensionner le second fil",
-    "second": "Second fil"
+    "second": "Second fil",
+    "dropSecond": "Déposer pour ouvrir dans la seconde colonne"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
@@ -1578,6 +1582,6 @@
     "done": "Terminés"
   },
   "threadActions": {
-    "openBeside": "Ouvrir à côté"
+    "openBeside": "Ouvrir dans la seconde colonne"
   }
 }

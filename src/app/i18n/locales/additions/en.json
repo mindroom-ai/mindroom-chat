@@ -1137,6 +1137,9 @@
       "help": "Show keyboard shortcuts",
       "messageSearch": "Search messages",
       "roomList": "Show or hide the room list",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "resetZoom": "Reset zoom",
       "previousRoom": "Previous room",
       "nextRoom": "Next room",
       "previousUnread": "Previous unread room",
@@ -1186,7 +1189,8 @@
     "renameHint": "Double-click to rename",
     "close": "Close thread",
     "resizeSecond": "Resize second thread",
-    "second": "Second thread"
+    "second": "Second thread",
+    "dropSecond": "Drop to open in second column"
   },
   "threadSnooze": {
     "title": "Snooze until",
@@ -1541,6 +1545,6 @@
     "done": "Done"
   },
   "threadActions": {
-    "openBeside": "Open beside"
+    "openBeside": "Open in second column"
   }
 }
