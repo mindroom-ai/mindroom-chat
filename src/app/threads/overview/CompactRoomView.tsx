@@ -185,6 +185,8 @@ const CompactThreadCardRow = React.memo(
           offered ? (event) => setMousePressed(event.pointerType === 'mouse') : undefined
         }
         onDragStart={(event) => {
+          // A drag of something in the card (an avatar) stays its own.
+          if (event.target !== event.currentTarget) return;
           if (draggable) setThreadDragData(event.dataTransfer, { roomId, rootId });
           else if (offered) event.preventDefault();
         }}

@@ -140,6 +140,10 @@ describe('dragging a compact thread card toward the second column', () => {
     expect(dataTransfer.types).toEqual([]);
     press(shell, 'pen');
     expect(shell.getAttribute('draggable')).toBeNull();
+    // A native drag of something in the card (an avatar) is its own, as without the second column.
+    const avatar = document.createElement('img');
+    shell.append(avatar);
+    expect(fireEvent.dragStart(avatar, { dataTransfer: dragData() })).toBe(true);
   });
 
   it("puts the card's room and thread in the drag, to be moved", () => {
