@@ -444,8 +444,10 @@ const checkWall = async (page: Page, world: World, viewport: Size, name: string)
  * on the same line, so the keyboard reads the row as the screen shows it, the title included.
  */
 const expectTabInScreenOrder = async (page: Page, dir: 'ltr' | 'rtl') => {
+  // Back is the banner's first button (by name only in English; RTL runs in Arabic).
   await banner(page)
-    .getByRole('button', { name: 'Back', exact: true })
+    .locator('button')
+    .first()
     .evaluate((element) => (element as HTMLElement).focus());
   // WebKit, as Safari, tabs to buttons with Option held.
   const key = page.context().browser()?.browserType().name() === 'webkit' ? 'Alt+Tab' : 'Tab';
