@@ -65,7 +65,8 @@ const openRoom = async (page: Page, label: string) => {
     rootIds.push(rootId);
   }
 
-  // Which card each press landed in, and where that card stood then.
+  // Which card each press landed in, and where that card stood once the list had seen the press
+  // (a glide runs on for the milliseconds until then, up to 1.3 px each in WebKit).
   await page.addInitScript(() => {
     const pressed: (string | null)[] = [];
     const tops: number[] = [];
@@ -76,10 +77,13 @@ const openRoom = async (page: Page, label: string) => {
         const card =
           event.target instanceof Element && event.target.closest('[data-thread-root-id]');
         pressed.push(card ? card.getAttribute('data-thread-root-id') : null);
-        if (card) tops.push(card.getBoundingClientRect().top);
       },
       true
     );
+    window.addEventListener('pointerdown', (event) => {
+      const card = event.target instanceof Element && event.target.closest('[data-thread-root-id]');
+      if (card) tops.push(card.getBoundingClientRect().top);
+    });
   });
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
