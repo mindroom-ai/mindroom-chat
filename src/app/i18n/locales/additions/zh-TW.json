@@ -1066,6 +1066,18 @@
       "pageUpdated": "{{agent}} 更新了此頁面。",
       "shownInPanel": "已在面板中顯示",
       "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
+    },
+    "invites": {
+      "invalid": "此邀請連結不完整。請重新開啟郵件中的連結。",
+      "framed": "請在獨立的分頁中開啟此頁面以使用邀請。",
+      "ready": "透過 {{router}} 以 {{user}} 身分加入聊天室",
+      "claiming": "正在領取邀請…",
+      "offline": "此 MindRoom 沒有回應。你的請求已儲存；恢復後，邀請會出現在你的聊天室清單中。",
+      "rejected": "此邀請已失效。請索取新的邀請。",
+      "retry": "沒有成功。請稍後再試。",
+      "joining": "正在加入聊天室…",
+      "join": "加入",
+      "tryAgain": "重試"
     }
   },
   "composer": {

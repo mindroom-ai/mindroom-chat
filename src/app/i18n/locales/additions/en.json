@@ -1091,6 +1091,18 @@
       "pageUpdated": "{{agent}} updated this page.",
       "shownInPanel": "Shown in the panel",
       "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page."
+    },
+    "invites": {
+      "invalid": "This invite link is incomplete. Open the link from the mail again.",
+      "framed": "Open this page in its own tab to use the invitation.",
+      "ready": "Join a room through {{router}} as {{user}}",
+      "claiming": "Claiming the invitation…",
+      "offline": "This MindRoom is not answering. Your request is saved; the invitation will appear in your room list when it is back.",
+      "rejected": "This invitation is no longer valid. Ask for a new one.",
+      "retry": "That did not work. Try again in a moment.",
+      "joining": "Joining the room…",
+      "join": "Join",
+      "tryAgain": "Try again"
     }
   },
   "composer": {

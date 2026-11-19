@@ -132,6 +132,7 @@ const ActivityNav = fromPages((pages) => pages.ActivityNav);
 const ActivityEmpty = fromPages((pages) => pages.ActivityEmpty);
 const ExploreNav = fromPages((pages) => pages.ExploreNav);
 const PluginPageRoute = fromPages((pages) => pages.PluginPageRoute);
+const InvitePage = fromPages((pages) => pages.InvitePage);
 const Room = fromModule(
   () => roomModule,
   loadRoom,
@@ -241,7 +242,14 @@ export const createRouter = (clientConfig: ClientConfig) => {
           }
         />
         {/* A mailed invitation link. Its own route, or it would open as a space named "invite". */}
-        <Route path={INVITE_PATH} element={null} />
+        <Route
+          path={INVITE_PATH}
+          element={
+            <PageMain>
+              <InvitePage />
+            </PageMain>
+          }
+        />
         <Route path={HOME_PATH} element={<SectionPage navId="home" nav={<Home />} />}>
           <Route index element={<SectionIndex page={<WelcomePage />} />} />
           <Route path={HOME_CREATE_PATH} element={<CreateRoomPage />} />

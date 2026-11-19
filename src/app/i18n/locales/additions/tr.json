@@ -1091,6 +1091,18 @@
       "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
       "shownInPanel": "Panelde gösteriliyor",
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
+    },
+    "invites": {
+      "invalid": "Bu davet bağlantısı eksik. Bağlantıyı e-postadan yeniden açın.",
+      "framed": "Daveti kullanmak için bu sayfayı kendi sekmesinde açın.",
+      "ready": "{{router}} üzerinden {{user}} olarak bir odaya katıl",
+      "claiming": "Davet alınıyor…",
+      "offline": "Bu MindRoom yanıt vermiyor. İsteğiniz kaydedildi; davet, MindRoom geri geldiğinde oda listenizde görünecek.",
+      "rejected": "Bu davet artık geçerli değil. Yeni bir tane isteyin.",
+      "retry": "Bu işe yaramadı. Birazdan tekrar deneyin.",
+      "joining": "Odaya katılınıyor…",
+      "join": "Katıl",
+      "tryAgain": "Tekrar dene"
     }
   },
   "composer": {

@@ -1116,6 +1116,18 @@
       "pageUpdated": "{{agent}} ha actualizado esta página.",
       "shownInPanel": "Se muestra en el panel",
       "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página."
+    },
+    "invites": {
+      "invalid": "Este enlace de invitación está incompleto. Vuelve a abrir el enlace del correo.",
+      "framed": "Abre esta página en su propia pestaña para usar la invitación.",
+      "ready": "Unirse a una sala a través de {{router}} como {{user}}",
+      "claiming": "Reclamando la invitación…",
+      "offline": "Este MindRoom no responde. Tu solicitud está guardada; la invitación aparecerá en tu lista de salas cuando vuelva.",
+      "rejected": "Esta invitación ya no es válida. Pide una nueva.",
+      "retry": "No ha funcionado. Inténtalo de nuevo en un momento.",
+      "joining": "Uniéndose a la sala…",
+      "join": "Unirse",
+      "tryAgain": "Reintentar"
     }
   },
   "composer": {
