@@ -3,8 +3,11 @@ import { useClientConfig } from '../config/useClientConfig';
 import { isMacOS } from '../lib/user-agent';
 import { isNativeApp } from './nativeSso';
 
-/** The disk image's name on a release: the Mac workflow attaches it minutes after publishing. */
-const MAC_APP_DMG = 'MindRoom.dmg';
+/**
+ * The disk image's names on a release: the Mac workflow attaches it minutes after publishing.
+ * Releases before the app was called MindRoom Chat on the Mac carry `MindRoom.dmg`.
+ */
+const MAC_APP_DMGS = ['MindRoom-Chat.dmg', 'MindRoom.dmg'];
 
 /** The newest releases, which GitHub serves to any page without sign-in. */
 const MAC_APP_RELEASES_API =
@@ -17,7 +20,7 @@ export const MAC_APP_RELEASES_URL = 'https://github.com/mindroom-ai/mindroom-cha
  * The disk image of the newest release that has one, from GitHub's list of releases (newest
  * first), drafts and pre-releases left out; undefined when none has one or the list is not one.
  * The newest release itself goes without it until the Mac workflow has attached it, which is why
- * `releases/latest/download/MindRoom.dmg` is no link to it.
+ * `releases/latest/download/MindRoom-Chat.dmg` is no link to it.
  */
 export const parseMacAppDownloadUrl = (releases: unknown): string | undefined => {
   if (!Array.isArray(releases)) return undefined;
@@ -25,12 +28,15 @@ export const parseMacAppDownloadUrl = (releases: unknown): string | undefined =>
     if (typeof release !== 'object' || release === null) continue;
     const { draft, prerelease, assets } = release as Record<string, unknown>;
     if (draft === true || prerelease === true || !Array.isArray(assets)) continue;
-    for (const asset of assets as unknown[]) {
-      if (typeof asset !== 'object' || asset === null) continue;
-      const { name, state, browser_download_url: url } = asset as Record<string, unknown>;
-      // A failed upload can leave a `starter` asset of that name, which has nothing to download.
-      const uploaded = name === MAC_APP_DMG && state === 'uploaded';
-      if (uploaded && typeof url === 'string' && url.startsWith('https://')) return url;
+    // The first name wins over the second within a release.
+    for (const dmg of MAC_APP_DMGS) {
+      for (const asset of assets as unknown[]) {
+        if (typeof asset !== 'object' || asset === null) continue;
+        const { name, state, browser_download_url: url } = asset as Record<string, unknown>;
+        // A failed upload can leave a `starter` asset of that name, which has nothing to download.
+        const uploaded = name === dmg && state === 'uploaded';
+        if (uploaded && typeof url === 'string' && url.startsWith('https://')) return url;
+      }
     }
   }
   return undefined;

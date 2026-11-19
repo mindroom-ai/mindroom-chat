@@ -1074,6 +1074,8 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				MINDROOM_BUNDLE_NAME = "$(PRODUCT_NAME)";
+				MINDROOM_DISPLAY_NAME = MindRoom;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -1126,6 +1128,8 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				MINDROOM_BUNDLE_NAME = "$(PRODUCT_NAME)";
+				MINDROOM_DISPLAY_NAME = MindRoom;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
@@ -1151,6 +1155,8 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 4.12.6;
+				"MINDROOM_BUNDLE_NAME[sdk=macosx*]" = "MindRoom Chat";
+				"MINDROOM_DISPLAY_NAME[sdk=macosx*]" = "MindRoom Chat";
 				MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;
 				"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
@@ -1181,6 +1187,8 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 4.12.6;
+				"MINDROOM_BUNDLE_NAME[sdk=macosx*]" = "MindRoom Chat";
+				"MINDROOM_DISPLAY_NAME[sdk=macosx*]" = "MindRoom Chat";
 				MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;
 				"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;
 				MINDROOM_UPDATE_FEED_URL = "https://github.com/mindroom-ai/mindroom-chat/releases/download/mac-appcast/appcast.xml";

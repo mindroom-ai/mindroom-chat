@@ -187,14 +187,14 @@ describe('scripts/macos-updater-info-plist.sh', () => {
 
 describe('scripts/macos-appcast.sh', () => {
   const args = [
-    'MindRoom.dmg',
+    'MindRoom-Chat.dmg',
     'https://example.invalid/v2026.11.10/',
     '2026.11.10',
     'appcast.xml',
   ];
   const item = ({
     version = '2026.11.10',
-    url = 'https://example.invalid/v2026.11.10/MindRoom.dmg',
+    url = 'https://example.invalid/v2026.11.10/MindRoom-Chat.dmg',
     length = 3,
     signature = 's1g=',
   } = {}) =>
@@ -206,7 +206,7 @@ describe('scripts/macos-appcast.sh', () => {
     )}</channel></rss>\n`;
   const withDmg = () => {
     const github = fixture();
-    writeFileSync(join(github.root, 'MindRoom.dmg'), 'dmg');
+    writeFileSync(join(github.root, 'MindRoom-Chat.dmg'), 'dmg');
     return github;
   };
 
@@ -226,7 +226,7 @@ describe('scripts/macos-appcast.sh', () => {
   it.each([
     ['no signature (no SUPublicEDKey, or another key)', feed(item({ signature: '' }))],
     ['another version', feed(item({ version: '2026.11.9' }))],
-    ['another URL', feed(item({ url: 'https://example.invalid/v2026.11.9/MindRoom.dmg' }))],
+    ['another URL', feed(item({ url: 'https://example.invalid/v2026.11.9/MindRoom-Chat.dmg' }))],
     ['another length', feed(item({ length: 4 }))],
     ['a second item', feed(item(), item({ version: '2026.11.9' }))],
     ['no item', feed()],

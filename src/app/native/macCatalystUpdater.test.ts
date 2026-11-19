@@ -1,5 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { getSingleAppTargetBuildSettingValue } from '../../../scripts/ios-xcode-project.mjs';
@@ -71,7 +73,9 @@ describe('the Mac updater in the Xcode project', () => {
     );
     // The one place the key goes: the public half of the SPARKLE_ED_PRIVATE_KEY secret
     // (docs/ios-release.md, "Making the key").
-    expect(release).toContain('MINDROOM_UPDATE_PUBLIC_KEY = "he65VFC6KQjH8xkoYxPKmIe6cbbspSFr7oMsttWYPRE=";');
+    expect(release).toContain(
+      'MINDROOM_UPDATE_PUBLIC_KEY = "he65VFC6KQjH8xkoYxPKmIe6cbbspSFr7oMsttWYPRE=";'
+    );
     expect(project.match(/MINDROOM_UPDATE_(FEED_URL|PUBLIC_KEY) =/g)).toHaveLength(2);
     expect(debug).not.toContain('MINDROOM_UPDATE_');
   });
@@ -115,7 +119,7 @@ describe('the Mac workflow and the update feed', () => {
     );
     expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeGreaterThan(-1);
     expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(
-      upload.indexOf('build/macos/MindRoom.dmg')
+      upload.indexOf('"build/macos/$DMG"')
     );
   });
 
@@ -144,6 +148,38 @@ describe('the Mac workflow and the update feed', () => {
     expect(upload.run).toContain('if [[ $UPDATER == true ]]; then');
     expect(upload.run).not.toContain('-f build/macos/appcast.xml');
   });
+
+  it.each([
+    ['a new tag', ['MindRoom-Chat.dmg'], 'MindRoom-Chat.dmg'],
+    ['a tag from before the rename', ['MindRoom.dmg'], 'MindRoom.dmg'],
+    ['a build with no DMG', [], undefined],
+  ])(
+    'names the DMG the build made for %s, which the appcast, upload and tap use',
+    (_, made, dmg) => {
+      type Step = { name?: string; run?: string; env?: Record<string, string> };
+      const steps = (parse(workflow) as { jobs: { dmg: { steps: Step[] } } }).jobs.dmg.steps;
+      const named = (name: string) => steps.find((step) => step.name === name)!;
+      const dir = mkdtempSync(join(tmpdir(), 'mac-dmg-'));
+      mkdirSync(join(dir, 'build/macos'), { recursive: true });
+      made.forEach((name) => writeFileSync(join(dir, 'build/macos', name), 'dmg'));
+      const output = join(dir, 'output');
+      writeFileSync(output, '');
+      const result = spawnSync('bash', ['-c', named('Find the DMG').run!], {
+        cwd: dir,
+        env: { ...process.env, GITHUB_OUTPUT: output },
+      });
+      expect(result.status).toBe(dmg ? 0 : 1);
+      expect(readFileSync(output, 'utf8')).toBe(dmg ? `name=${dmg}\n` : '');
+      [
+        'Make the appcast',
+        'Attach the appcast and the DMG to the release',
+        'Ask the tap to update its cask',
+      ].forEach((name) => {
+        expect(named(name).env?.DMG).toBe('${{ steps.dmg.outputs.name }}');
+        expect(named(name).run).toContain('$DMG');
+      });
+    }
+  );
 
   it('publishes the feed one run at a time, and writes nothing but for a release tag', () => {
     type Step = { if?: string; run?: string };

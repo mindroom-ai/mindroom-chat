@@ -42,7 +42,7 @@ def problem():
     if len(enclosures) != 1:
         return f'{len(enclosures)} enclosures'
     enclosure = enclosures[0]
-    if enclosure.get('url') != prefix + 'MindRoom.dmg':
+    if enclosure.get('url') != prefix + os.path.basename(dmg):
         return 'another URL'
     if enclosure.get('length') != str(os.path.getsize(dmg)):
         return 'another length'

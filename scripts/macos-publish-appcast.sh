@@ -45,7 +45,8 @@ if [[ $(head -1 <<<"$names") != published ]]; then
   say "The feed stays: $tag is a draft or prerelease."
   exit 0
 fi
-if ! grep -Fqx MindRoom.dmg <<<"$names" || ! grep -Fqx appcast.xml <<<"$names"; then
+# MindRoom.dmg: a release from before the rename.
+if ! grep -Eqx 'MindRoom(-Chat)?\.dmg' <<<"$names" || ! grep -Fqx appcast.xml <<<"$names"; then
   say "The feed stays: $tag has no DMG with its appcast."
   exit 0
 fi
