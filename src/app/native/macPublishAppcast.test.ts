@@ -175,6 +175,16 @@ it.each([
   expect(github.feedNow()).toBe(appcast(after));
 });
 
+it('publishes a release from before the rename, whose DMG is MindRoom.dmg', () => {
+  const github = fixture();
+  github.live('2026.11.9');
+  github.release('v2026.11.10', ['MindRoom.dmg', 'appcast.xml']);
+  const result = github.run('v2026.11.10');
+  expect(result.status, result.stderr).toBe(0);
+  expect(github.uploads(result)).toBe(1);
+  expect(github.feedNow()).toBe(appcast('2026.11.10'));
+});
+
 it.each([
   ['has no DMG yet', ['appcast.xml']],
   ['has no appcast', ['MindRoom-Chat.dmg']],

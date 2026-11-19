@@ -7,7 +7,7 @@ import { isNativeApp } from './nativeSso';
  * The disk image's names on a release: the Mac workflow attaches it minutes after publishing.
  * Releases before the app was called MindRoom Chat on the Mac carry `MindRoom.dmg`.
  */
-const MAC_APP_DMGS: readonly unknown[] = ['MindRoom-Chat.dmg', 'MindRoom.dmg'];
+const MAC_APP_DMGS = ['MindRoom-Chat.dmg', 'MindRoom.dmg'];
 
 /** The newest releases, which GitHub serves to any page without sign-in. */
 const MAC_APP_RELEASES_API =
@@ -28,12 +28,15 @@ export const parseMacAppDownloadUrl = (releases: unknown): string | undefined =>
     if (typeof release !== 'object' || release === null) continue;
     const { draft, prerelease, assets } = release as Record<string, unknown>;
     if (draft === true || prerelease === true || !Array.isArray(assets)) continue;
-    for (const asset of assets as unknown[]) {
-      if (typeof asset !== 'object' || asset === null) continue;
-      const { name, state, browser_download_url: url } = asset as Record<string, unknown>;
-      // A failed upload can leave a `starter` asset of that name, which has nothing to download.
-      const uploaded = MAC_APP_DMGS.includes(name) && state === 'uploaded';
-      if (uploaded && typeof url === 'string' && url.startsWith('https://')) return url;
+    // The first name wins over the second within a release.
+    for (const dmg of MAC_APP_DMGS) {
+      for (const asset of assets as unknown[]) {
+        if (typeof asset !== 'object' || asset === null) continue;
+        const { name, state, browser_download_url: url } = asset as Record<string, unknown>;
+        // A failed upload can leave a `starter` asset of that name, which has nothing to download.
+        const uploaded = name === dmg && state === 'uploaded';
+        if (uploaded && typeof url === 'string' && url.startsWith('https://')) return url;
+      }
     }
   }
   return undefined;

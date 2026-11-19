@@ -112,6 +112,12 @@ describe('parseMacAppDownloadUrl', () => {
     ).toBe(dmg('v1', 'MindRoom.dmg'));
   });
 
+  it('prefers MindRoom-Chat.dmg when a release has both, the old one listed first', () => {
+    expect(parseMacAppDownloadUrl([release('v2', ['MindRoom.dmg', 'MindRoom-Chat.dmg'])])).toBe(
+      dmg('v2')
+    );
+  });
+
   it('passes over an image whose upload never finished (`starter`)', () => {
     expect(
       parseMacAppDownloadUrl([
