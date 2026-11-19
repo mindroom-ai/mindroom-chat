@@ -592,6 +592,82 @@ const switchDebug = async (run: Run, turns: number): Promise<Measured> => {
   return { timings };
 };
 
+/**
+ * Throwaway: presses a card (not the top one) and holds the button until that card has moved under
+ * the pointer (the list changed order, or scrolled) or 6 s passed, then releases, and notes whether
+ * the thread opened and which events the page saw. Says what a press costs when the list moves
+ * between its down and its up.
+ */
+const holdDebug = async (run: Run, turns: number): Promise<Measured> => {
+  const { page } = run;
+  const outcomes: unknown[] = [];
+  await back(page).click();
+  await expect(page.locator(ROW)).toHaveCount(0);
+  for (let turn = 1; turn <= turns; turn += 1) {
+    const shown = await shownThreads(run);
+    // A card below the top ones, which a thread that streams above or below it moves.
+    const root = shown[Math.min(shown.length - 1, 2 + (turn % 4))];
+    if (!root) throw new Error('no card to hold');
+    const target = card(page, root);
+    await target.scrollIntoViewIfNeeded();
+    const box = await target.boundingBox();
+    if (!box) continue;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    const before = await page.evaluate(() => Math.round(performance.now()));
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    const heldFrom = Date.now();
+    let moved = false;
+    // Half the presses are released at once (the control), half held until the card moves.
+    if (turn % 2 === 0) {
+      while (Date.now() - heldFrom < 6_000) {
+        const now = await target.boundingBox().catch(() => null);
+        if (!now || Math.abs(now.y - box.y) > 4) {
+          moved = true;
+          break;
+        }
+        await page.waitForTimeout(30);
+      }
+    }
+    const heldMs = Date.now() - heldFrom;
+    await page.mouse.up();
+    const opened = await banner(page)
+      .waitFor({ state: 'visible', timeout: 3_000 })
+      .then(() => true)
+      .catch(() => false);
+    const events = await page.evaluate(
+      (since) =>
+        ((window as unknown as { __dbgEvents?: { t: number; type: string }[] }).__dbgEvents ?? []).filter(
+          (event) => event.t >= since && /pointerdown|mouseup|click|history|popstate/.test(event.type)
+        ),
+      before
+    );
+    const openedRoot = opened
+      ? await page.evaluate(() => decodeURIComponent(location.pathname).split('/').pop()?.slice(-6))
+      : null;
+    outcomes.push({ turn, held: turn % 2 === 0, heldMs, moved, opened, root: root.slice(-6), openedRoot, events });
+    if (opened) {
+      await expect(page.locator(ROW).first()).toBeVisible({ timeout: 30_000 });
+      await back(page).click();
+      await expect(page.locator(ROW)).toHaveCount(0);
+    }
+    await page.waitForTimeout(700);
+  }
+  writeFileSync(
+    join(OUT_DIR, `hold-debug-${run.engine}.json`),
+    `${JSON.stringify({ turns, outcomes }, null, 2)}\n`
+  );
+  const count = (held: boolean, moved: boolean, opened: boolean) =>
+    (outcomes as { held: boolean; moved: boolean; opened: boolean }[]).filter(
+      (o) => o.held === held && o.moved === moved && o.opened === opened
+    ).length;
+  console.log(
+    `HOLD-DEBUG ${run.engine}: quick press opened ${count(false, false, true)} lost ${count(false, false, false)}; held, card moved: opened ${count(true, true, true)} lost ${count(true, true, false)}; held 6 s, no move: opened ${count(true, false, true)} lost ${count(true, false, false)}`
+  );
+  return { timings: [] };
+};
+
 const SCENARIO: Record<
   Scenario,
   {
@@ -638,6 +714,7 @@ const SCENARIO: Record<
   switch: {
     prepare: showThread,
     measure: async (run) => {
+      if (process.env.PERF_HOLD_DEBUG) return holdDebug(run, Number(process.env.PERF_HOLD_DEBUG));
       if (process.env.PERF_SWITCH_DEBUG) return switchDebug(run, Number(process.env.PERF_SWITCH_DEBUG));
       const { page } = run;
       const timings: Timing[] = [];
