@@ -772,6 +772,19 @@
         "unavailableHint": "Sla je MindRoom-server op via Instellingen → {{page}} om hier sleutels in te voeren.",
         "replaces": "Vervangt de sleutel die nu is opgeslagen.",
         "replaceKey": "Sleutel vervangen",
+        "newService": {
+          "title": "Nieuwe dienst: {{name}}",
+          "hint": "Opslaan voegt deze dienst met de sleutel toe aan je eigen diensten.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Opdrachten krijgen {{names}}",
+          "auth": {
+            "bearer": "bearer-token",
+            "basic": "basic-authenticatie als {{username}}",
+            "header": "header {{name}}",
+            "query": "queryparameter {{name}}"
+          },
+          "unreadable": "Deze kaart voegt een dienst toe die deze versie van MindRoom Chat niet kan tonen, dus hij kan hier niet worden opgeslagen. Werk MindRoom Chat bij om hem te beantwoorden."
+        },
         "temporary": {
           "label": "Geheimverzoek",
           "title": "Geheim voor {{agent}}",
@@ -807,7 +820,8 @@
           "nothingSent": "Er is niets verstuurd of bewaard.",
           "noAnswer": "Geen antwoord op tijd, dus er is niets verstuurd.",
           "askedAs": "Gevraagd voor de opdrachten van {{agent}} in dit gesprek als {{variable}}.",
-          "replaced": "Heeft de eerder opgeslagen sleutel vervangen."
+          "replaced": "Heeft de eerder opgeslagen sleutel vervangen.",
+          "addedService": "Heeft de dienst {{name}} toegevoegd."
         }
       },
       "skillReviewMarker": {

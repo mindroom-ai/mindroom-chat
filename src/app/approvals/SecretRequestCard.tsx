@@ -17,6 +17,8 @@ import { formatLifetime } from '../lib/time';
 import {
   effectiveSecretRequestStatus,
   secretRequestPath,
+  type ProposedService,
+  type ProposedServiceAuth,
   type SecretKeep,
   type SecretRequest,
   type SecretRequestStatus,
@@ -73,6 +75,13 @@ const KEPT_KEYS = {
   disk: 'mindroomUi.messages.secretRequestCard.temporary.kept.disk',
 } as const satisfies Record<SecretKeep, string>;
 
+const AUTH_KEYS = {
+  bearer: 'mindroomUi.messages.secretRequestCard.newService.auth.bearer',
+  basic: 'mindroomUi.messages.secretRequestCard.newService.auth.basic',
+  header: 'mindroomUi.messages.secretRequestCard.newService.auth.header',
+  query: 'mindroomUi.messages.secretRequestCard.newService.auth.query',
+} as const satisfies Record<ProposedServiceAuth['type'], string>;
+
 /** The `detail` of a refusal, cut to a readable length; undefined when it carries none. */
 const readDetail = async (response: Response): Promise<string | undefined> => {
   const body: unknown = await response.json().catch(() => undefined);
@@ -110,6 +119,8 @@ function SecretRequestAnswer({
   const mx = useMatrixClient();
   const { apiUrl, pending } = useAgentMindroomServer(mx, roomId, agentUserId);
   const temporary = request.kind === 'temporary' ? request : undefined;
+  // A new service this client cannot show is never saved here, but the person can still decline.
+  const declineOnly = request.kind === 'key' && request.newService === null;
   const keeps = temporary ? KEEPS.filter((name) => temporary.keep[name] !== undefined) : [];
   // Memory unless the person chooses the file, or the card offers only the file.
   const [keep, setKeep] = useState(keeps[0]);
@@ -227,7 +238,7 @@ function SecretRequestAnswer({
 
   return (
     <div ref={area} className={css.Answer}>
-      {request.url && (
+      {request.url && !declineOnly && (
         // The agent chose the page, so the button names its host as the browser reads it.
         <Button
           as="a"
@@ -280,68 +291,72 @@ function SecretRequestAnswer({
           void send(false);
         }}
       >
-        <Input
-          ref={field}
-          className={visible ? undefined : css.Masked}
-          type="text"
-          size="300"
-          variant="Background"
-          aria-label={
-            request.kind === 'temporary'
-              ? t('mindroomUi.messages.secretRequestCard.temporary.field', {
-                  variable: request.env,
-                })
-              : t('mindroomUi.messages.secretRequestCard.title', { name: request.displayName })
-          }
-          aria-describedby={error ? errorId : undefined}
-          aria-invalid={error ? true : undefined}
-          placeholder={
-            request.placeholder ??
-            (temporary
-              ? t('mindroomUi.messages.secretRequestCard.temporary.placeholder')
-              : t('mindroomUi.messages.secretRequestCard.placeholder'))
-          }
-          onChange={(event) => setHasKey(event.currentTarget.value.trim() !== '')}
-          // Not a sign-in field: browsers and password managers neither fill nor save it.
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          data-1p-ignore
-          data-lpignore="true"
-          data-bwignore
-          data-form-type="other"
-          after={
-            <IconButton
-              type="button"
-              variant="Background"
-              size="300"
-              radii="300"
-              aria-label={visible ? hideLabel : showLabel}
-              aria-pressed={visible}
-              onClick={() => setVisible((current) => !current)}
-            >
-              <Icon size="100" src={visible ? Icons.EyeBlind : Icons.Eye} />
-            </IconButton>
-          }
-        />
-        <div className={sectionCss.Actions}>
-          <Button
-            type="submit"
+        {!declineOnly && (
+          <Input
+            ref={field}
+            className={visible ? undefined : css.Masked}
+            type="text"
             size="300"
-            variant="Primary"
-            fill="Soft"
-            outlined
-            radii="300"
-            // Busy, not disabled, while the answer is on its way: a disabled button would drop its
-            // keyboard focus to the page.
-            className={css.Busy}
-            disabled={!ready || !hasKey}
-            aria-disabled={sending || undefined}
-            onClick={notePress}
-          >
-            <Text size="B300">{saveLabel}</Text>
-          </Button>
+            variant="Background"
+            aria-label={
+              request.kind === 'temporary'
+                ? t('mindroomUi.messages.secretRequestCard.temporary.field', {
+                    variable: request.env,
+                  })
+                : t('mindroomUi.messages.secretRequestCard.title', { name: request.displayName })
+            }
+            aria-describedby={error ? errorId : undefined}
+            aria-invalid={error ? true : undefined}
+            placeholder={
+              request.placeholder ??
+              (temporary
+                ? t('mindroomUi.messages.secretRequestCard.temporary.placeholder')
+                : t('mindroomUi.messages.secretRequestCard.placeholder'))
+            }
+            onChange={(event) => setHasKey(event.currentTarget.value.trim() !== '')}
+            // Not a sign-in field: browsers and password managers neither fill nor save it.
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
+            data-bwignore
+            data-form-type="other"
+            after={
+              <IconButton
+                type="button"
+                variant="Background"
+                size="300"
+                radii="300"
+                aria-label={visible ? hideLabel : showLabel}
+                aria-pressed={visible}
+                onClick={() => setVisible((current) => !current)}
+              >
+                <Icon size="100" src={visible ? Icons.EyeBlind : Icons.Eye} />
+              </IconButton>
+            }
+          />
+        )}
+        <div className={sectionCss.Actions}>
+          {!declineOnly && (
+            <Button
+              type="submit"
+              size="300"
+              variant="Primary"
+              fill="Soft"
+              outlined
+              radii="300"
+              // Busy, not disabled, while the answer is on its way: a disabled button would drop its
+              // keyboard focus to the page.
+              className={css.Busy}
+              disabled={!ready || !hasKey}
+              aria-disabled={sending || undefined}
+              onClick={notePress}
+            >
+              <Text size="B300">{saveLabel}</Text>
+            </Button>
+          )}
           <Button
             type="button"
             size="300"
@@ -404,6 +419,50 @@ function Fact({ icon, children }: { icon: IconSrc; children: ReactNode }) {
 }
 
 /**
+ * The service the agent proposes, which saving the key adds: its name, then where each rule sends
+ * the key and how, and the variables the agent's commands get.
+ */
+function NewService({ service }: { service: ProposedService }) {
+  const { t } = useTranslation();
+  return (
+    <div className={css.Facts} data-secret-request-new-service>
+      <Fact icon={Icons.Plus}>
+        <IsolatedText
+          text={t('mindroomUi.messages.secretRequestCard.newService.title', {
+            name: isolateInSentence(service.displayName),
+          })}
+        />
+      </Fact>
+      {service.rules.map(({ host, port, pathPrefix, auth }) => (
+        <Fact key={`${host}:${port ?? ''}${pathPrefix}`} icon={Icons.Globe}>
+          <IsolatedText
+            text={t('mindroomUi.messages.secretRequestCard.newService.rule', {
+              location: isolateInSentence(`${host}${port ? `:${port}` : ''}${pathPrefix}`),
+              auth: t(AUTH_KEYS[auth.type], {
+                name: isolateInSentence('name' in auth ? auth.name : ''),
+                username: isolateInSentence('username' in auth ? auth.username : ''),
+              }),
+            })}
+          />
+        </Fact>
+      ))}
+      {service.env.length > 0 && (
+        <Fact icon={Icons.Terminal}>
+          <IsolatedText
+            text={t('mindroomUi.messages.secretRequestCard.newService.env', {
+              names: isolateInSentence(service.env.join(', ')),
+            })}
+          />
+        </Fact>
+      )}
+      <Text size="T200" className={sectionCss.SectionMeta}>
+        {t('mindroomUi.messages.secretRequestCard.newService.hint')}
+      </Text>
+    </div>
+  );
+}
+
+/**
  * A done request, read-only, for its card's fold and its line in a reply (SecretRequestLine.tsx):
  * the agent's reason, then what became of the secret, one fact to a line. It names no server: the
  * one the viewer would send to now may not be the one that got the secret.
@@ -425,6 +484,7 @@ export function SecretRequestDetails({
   const saved = status === 'saved';
   const temporary = request.kind === 'temporary' ? request : undefined;
   const hosts = request.kind === 'key' ? request.hosts : [];
+  const added = saved && request.kind === 'key' ? request.newService : undefined;
   const keptSeconds = temporary?.kept ? temporary.keep[temporary.kept] : undefined;
   return (
     <>
@@ -461,6 +521,15 @@ export function SecretRequestDetails({
         {saved && temporary?.kept && keptSeconds !== undefined && (
           <Fact icon={Icons.Clock}>
             {t(KEPT_KEYS[temporary.kept], { duration: formatLifetime(keptSeconds, language) })}
+          </Fact>
+        )}
+        {added && (
+          <Fact icon={Icons.Plus}>
+            <IsolatedText
+              text={t('mindroomUi.messages.secretRequestCard.facts.addedService', {
+                name: isolateInSentence(added.displayName || added.name),
+              })}
+            />
           </Fact>
         )}
         {hosts.length > 0 && (
@@ -537,6 +606,8 @@ export function SecretRequestCard({
   const timeLeft = open ? formatTimeUntil(request.expiresAt, now, language) : undefined;
   const temporary = request.kind === 'temporary' ? request : undefined;
   const hosts = request.kind === 'key' ? request.hosts : [];
+  // The new service saving would add, or null for one this client cannot read and so cannot save.
+  const newService = request.kind === 'key' ? request.newService : undefined;
 
   // Each minute while open, for the time left, and at the deadline, when the card turns expired.
   useEffect(() => {
@@ -652,6 +723,10 @@ export function SecretRequestCard({
             })}
           />
         </Text>
+      )}
+      {open && newService && <NewService service={newService} />}
+      {open && isRequester && newService === null && (
+        <Text size="T200">{t('mindroomUi.messages.secretRequestCard.newService.unreadable')}</Text>
       )}
       {formShown && (
         <SecretRequestAnswer
