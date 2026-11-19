@@ -96,6 +96,7 @@ function LoadedCanvasPanel({
         title: shown.canvas.title,
         html: loaded ? loaded.html : '',
         ...(shown.canvas.raw ? { raw: true as const } : {}),
+        ...(shown.canvas.libraries ? { libraries: shown.canvas.libraries } : {}),
         ...(loaded ? {} : { status: page.status === 'ready' ? 'loading' : page.status }),
       }}
       agentName={agentName}
