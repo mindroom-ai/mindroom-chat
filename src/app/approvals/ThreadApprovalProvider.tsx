@@ -71,6 +71,26 @@ const Context = createContext<ThreadApprovals | undefined>(undefined);
 const historyWaiters = new WeakMap<BackfillScheduler, Map<string, number>>();
 export const useThreadApprovals = () => useContext(Context);
 
+/**
+ * Hands the thread's approvals on as they change, from inside their provider, for a part of the
+ * page outside it that shows them too: a phone's room header, which holds the thread's chips
+ * (`ThreadApprovalsScope`). The provider keeps one value while nothing in it changes, so a render
+ * that follows the handing on hands nothing on again.
+ */
+export function ThreadApprovalsRelay({
+  onChange,
+}: {
+  onChange: (approvals: ThreadApprovals | undefined) => void;
+}) {
+  const approvals = useContext(Context);
+  useLayoutEffect(() => onChange(approvals), [approvals, onChange]);
+  useLayoutEffect(() => () => onChange(undefined), [onChange]);
+  return null;
+}
+
+/** Gives its children the approvals a `ThreadApprovalsRelay` handed on. */
+export const ThreadApprovalsScope = Context.Provider;
+
 export function ThreadApprovalProvider({
   room,
   threadId,

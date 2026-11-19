@@ -1,11 +1,23 @@
-import { type CSSProperties, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Box, Text, color, config } from 'folds';
 import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
-import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
+import {
+  ThreadApprovalProvider,
+  ThreadApprovalsRelay,
+  ThreadApprovalsScope,
+  type ThreadApprovals,
+} from '../approvals/ThreadApprovalProvider';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
@@ -178,6 +190,10 @@ export function ConversationLayout({
   const dockRef = useRef<HTMLDivElement>(null);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const shownHeader = !collapsed && header;
+  // A phone's header shows the open thread (RoomViewHeader `phoneThread`), with the chip of its
+  // active permissions: the thread's approvals reach it from their provider below.
+  const threadInHeader = phone && !!threadId && !!shownHeader;
+  const [headerApprovals, setHeaderApprovals] = useState<ThreadApprovals>();
   useOverlayInsets(
     areaRef,
     headerRef,
@@ -196,11 +212,15 @@ export function ConversationLayout({
           className={classNames(
             overlay.Header,
             css.HeaderInShortArea,
-            // Not on a phone, whose header is the thread's bar (RoomViewHeader `phoneThread`).
+            // Not on a phone, whose header is the thread's bar.
             threadId && !phone && overlay.HeaderInThread
           )}
         >
-          <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>
+          <SurfaceProvider value>
+            <ThreadApprovalsScope value={threadInHeader ? headerApprovals : undefined}>
+              {shownHeader(headerRef)}
+            </ThreadApprovalsScope>
+          </SurfaceProvider>
         </div>
       )}
       {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
@@ -213,6 +233,7 @@ export function ConversationLayout({
               threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
               focusConversation={focusConversation}
             >
+              {threadInHeader && <ThreadApprovalsRelay onChange={setHeaderApprovals} />}
               <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
                 {timeline}
               </Box>

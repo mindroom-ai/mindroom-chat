@@ -5,6 +5,7 @@ import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { useThreadApprovals, type ThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { ConversationLayout } from './ConversationLayout';
 import { HeaderInShortArea } from './RoomView.css';
 
@@ -42,12 +43,29 @@ vi.mock('../bug-reports/error-reporting/errorReporting', () => ({
 vi.mock('../messages/live/subagentRunStore', () => ({
   useRoomSubagentCounts: () => ({ total: 0, active: 0 }),
 }));
-vi.mock('../approvals/ThreadApprovalProvider', () => ({
-  ThreadApprovalProvider: ({ threadId, children }: { threadId?: string; children: ReactNode }) => {
-    seen.approvals.push(threadId);
-    return <>{children}</>;
-  },
-}));
+vi.mock('../approvals/ThreadApprovalProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../approvals/ThreadApprovalProvider')>();
+  const { useMemo } = await import('react');
+  return {
+    ...actual,
+    // A thread's provider gives what it holds the thread's approvals: here only its ID, one value
+    // while it stays the same, as the real provider's.
+    ThreadApprovalProvider: ({
+      threadId,
+      children,
+    }: {
+      threadId?: string;
+      children: ReactNode;
+    }) => {
+      seen.approvals.push(threadId);
+      const value = useMemo(
+        () => (threadId ? ({ threadId } as ThreadApprovals) : undefined),
+        [threadId]
+      );
+      return <actual.ThreadApprovalsScope value={value}>{children}</actual.ThreadApprovalsScope>;
+    },
+  };
+});
 vi.mock('../approvals/ThreadApprovalControls', () => ({
   ThreadApprovalQueue: () => <div data-testid="approval-queue" />,
 }));
@@ -187,6 +205,28 @@ it("keeps a phone's header inside a thread on a short screen: it is the thread's
   );
   const header = screen.getByTestId('header').parentElement as HTMLElement;
   expect(header.classList.contains(HeaderInThread)).toBe(false);
+});
+
+it("gives a phone's header the open thread's approvals, which its chips read; wider screens keep them to the thread", () => {
+  function Chips() {
+    return <div data-testid="chips">{useThreadApprovals()?.threadId ?? 'none'}</div>;
+  }
+  const { rerender } = render(
+    <ScreenSizeProvider value={ScreenSize.Mobile}>
+      {layout({ threadId: '$root', header: () => <Chips /> })}
+    </ScreenSizeProvider>
+  );
+  expect(screen.getByTestId('chips').textContent).toBe('$root');
+  // The room's own messages have no thread, and so nothing to hand on.
+  rerender(
+    <ScreenSizeProvider value={ScreenSize.Mobile}>
+      {layout({ header: () => <Chips /> })}
+    </ScreenSizeProvider>
+  );
+  expect(screen.getByTestId('chips').textContent).toBe('none');
+  cleanup();
+  render(layout({ threadId: '$root', header: () => <Chips /> }));
+  expect(screen.getByTestId('chips').textContent).toBe('none');
 });
 
 it("keeps the element a plugin's cover hides across a collapse, so the cover still holds it", () => {
