@@ -106,7 +106,10 @@ export const elapsedSeconds = (meta: SubagentMeta, now: number): number | undefi
   return meta.endedAt === null ? undefined : meta.endedAt - meta.startedAt;
 };
 
-/** A run that ended badly says why; any other says what it wrote, as a thread card previews it. */
+/**
+ * A run that ended badly, or that a restart cut short, says why; any other says what it wrote, as a thread card
+ * previews it.
+ */
 const runPreview = (meta: SubagentMeta, docs: LiveDocs, t: TFunction): string | undefined => {
   const failed = meta.status === 'failed' || meta.status === 'denied';
   const text = failed && meta.result ? meta.result : docs.md || meta.result;
