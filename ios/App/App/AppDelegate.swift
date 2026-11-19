@@ -5,6 +5,10 @@ import Capacitor
 class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         MindRoomDiagnosticsRecorder.shared.start(application: application)
+#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
+        // Before any page exists, so a broken page cannot stop an update (MacUpdater.swift).
+        MacUpdater.start()
+#endif
 #if targetEnvironment(macCatalyst)
         MacScreenshot.clearFolder()
         MacWindowing.installHotKey { QuickCapture.toggle() }

@@ -13,7 +13,6 @@ import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { editableActiveElement } from '../lib/dom';
-import { shortcutLetter } from '../lib/keyboard';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
@@ -43,6 +42,7 @@ import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
 import { useThreadKeys } from './useThreadKeys';
+import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
@@ -71,23 +71,10 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   focusEventInRoom?: boolean;
   /** The router's key of the history entry whose address this is. */
   entryKey?: string;
+  /** Whether the router pushed that entry (a link followed), not replaced or returned to it. */
+  entryPushed?: boolean;
   onThreadLoadError?: (threadId: string) => void;
 };
-
-// Dialogs, menus and lists keep their own typing (fields, type-ahead), and so does a region
-// marked `data-keeps-typing`.
-const OWNS_TYPING_SELECTOR =
-  '[role="dialog"], [role="menu"], [role="listbox"], [data-keeps-typing]';
-const focusOwnsTyping = (): boolean =>
-  typeof document !== 'undefined' && !!document.activeElement?.closest?.(OWNS_TYPING_SELECTOR);
-
-// Paste (Cmd+V, Ctrl+V), with Shift too for paste as plain text, but no Alt combination. The V is
-// the layout's (Dvorak's sits on the physical period key), or the key's own on a non-Latin layout.
-const isPasteKey = (evt: KeyboardEvent): boolean =>
-  (evt.ctrlKey || evt.metaKey) && !evt.altKey && shortcutLetter(evt) === 'v';
-// A letter or digit without a modifier other than Shift.
-const isTypingKey = (evt: KeyboardEvent): boolean =>
-  !evt.ctrlKey && !evt.metaKey && !evt.altKey && /^(Key[A-Z]|Digit\d)$/.test(evt.code ?? '');
 
 /**
  * Typing a letter or digit with nothing focused starts a message in the composer, pasting there
@@ -134,6 +121,7 @@ export function RoomView({
   forkAt,
   focusEventInRoom,
   entryKey,
+  entryPushed,
   hasMindroomAgents,
   onThreadLoadError,
   ...headerProps
@@ -290,6 +278,7 @@ export function RoomView({
     eventId: openThreadId && !focusEventInRoom ? undefined : eventId,
     focusEventInRoom,
     entryKey,
+    entryPushed,
     hasMindroomAgents,
     summaryMap: threadState.summaryMap,
     onStoreThreadSummary: threadState.storeThreadSummary,

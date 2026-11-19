@@ -895,6 +895,10 @@
           "summarizedBy": "{{model}}，用时 {{duration}}",
           "interrupted": "摘要完成前回复已结束。"
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "正在转写…",
+        "transcribedBy": "由 {{name}} 转写"
       }
     },
     "message-search": {
@@ -1000,6 +1004,12 @@
         "defaultLevel": "默认",
         "levelIsDefault": "{{level}}，默认",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "智能体默认",
+        "roomModel": "房间模型",
+        "defaultChoice": "默认",
+        "threadOnly": "在此选择的模型仅适用于此话题。",
+        "roomOverrideThreadOnly": "已通过 !room_model 为此房间设置。在此选择的模型仅适用于此话题。",
         "levels": {
           "off": "关闭",
           "minimal": "最低",
@@ -1134,7 +1144,10 @@
         "all": "符合其他筛选条件的所有讨论串。"
       }
     },
-    "renameHint": "双击以重命名"
+    "renameHint": "双击以重命名",
+    "close": "关闭讨论串",
+    "resizeSecond": "调整第二个讨论串大小",
+    "second": "第二个讨论串"
   },
   "threadSnooze": {
     "title": "延后至",
@@ -1474,5 +1487,8 @@
     "later": "稍后",
     "open": "未完成",
     "done": "已完成"
+  },
+  "threadActions": {
+    "openBeside": "在旁边打开"
   }
 }

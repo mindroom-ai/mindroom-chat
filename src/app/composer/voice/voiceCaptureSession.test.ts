@@ -12,6 +12,11 @@ vi.mock('../../diagnostics/flightRecorder', () => ({
 }));
 vi.mock('../../diagnostics/deepTrace', () => ({ recordDeepTraceEvent: diagnostics.trace }));
 vi.mock('../../native/nativeSso', () => ({ isNativeApp: () => false }));
+const native = vi.hoisted(() => ({ available: vi.fn(() => false), start: vi.fn() }));
+vi.mock('../../native/nativeVoiceRecorder', () => ({
+  isNativeVoiceRecorderAvailable: native.available,
+  startNativeVoiceRecorder: native.start,
+}));
 
 class Recorder {
   static instances: Recorder[] = [];
@@ -120,6 +125,32 @@ const capture = () => {
   sessions.push(session);
   return session;
 };
+class NativeRecorder extends EventTarget {
+  state: RecordingState = 'recording';
+  mimeType = 'audio/mp4';
+  level = () => 0.25;
+  pause = vi.fn(() => {
+    this.state = 'paused';
+  });
+  resume = vi.fn(() => {
+    this.state = 'recording';
+  });
+  stop = vi.fn(() => {
+    this.state = 'inactive';
+  });
+  deliver(body = 'voice') {
+    this.dispatchEvent(Object.assign(new Event('dataavailable'), { data: new Blob([body]) }));
+    this.dispatchEvent(new Event('stop'));
+  }
+}
+const withoutWebCapture = () => {
+  vi.stubGlobal('navigator', {});
+  vi.stubGlobal('MediaRecorder', undefined);
+  native.available.mockReturnValue(true);
+  const recorder = new NativeRecorder();
+  native.start.mockResolvedValue(recorder);
+  return recorder;
+};
 const latest = () => Recorder.instances.at(-1)!;
 const finish = async (session: VoiceCaptureSession, body = 'voice') => {
   const recorder = latest();
@@ -139,6 +170,8 @@ beforeEach(() => {
   Audio.failure = undefined;
   diagnostics.publish.mockClear();
   diagnostics.trace.mockClear();
+  native.available.mockReset().mockReturnValue(false);
+  native.start.mockReset();
   vi.stubGlobal('window', { isSecureContext: true, AudioContext: Audio });
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
   vi.stubGlobal('MediaRecorder', Recorder);
@@ -638,5 +671,115 @@ describe('voice capture session', () => {
     const result = await finish(session);
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.waveform).toHaveLength(48);
+  });
+});
+
+describe('voice capture session on the native recorder', () => {
+  it('records, pauses and sends through the native recorder', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    expect(await session.start()).toBe(true);
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(session.getSnapshot()).toMatchObject({ phase: 'recording', canPause: true });
+    vi.advanceTimersByTime(250);
+    expect(session.pause()).toBe(true);
+    expect(recorder.pause).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(5000);
+    const finished = session.finish();
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    recorder.deliver();
+    const result = await finished;
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(result.recording.duration).toBe(250);
+    expect(result.recording.file.type).toBe('audio/mp4');
+    expect(result.recording.file.name).toMatch(/^voice-message-.*\.m4a$/);
+    expect(await result.recording.file.text()).toBe('voice');
+    expect(result.recording.waveform).toEqual(Array(48).fill(512));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stops a native recorder whose start outlived the recording', async () => {
+    const recorder = withoutWebCapture();
+    const gate = deferred<NativeRecorder>();
+    native.start.mockReturnValue(gate.promise);
+    const session = capture();
+    const started = session.start();
+    expect(session.getSnapshot().phase).toBe('requesting');
+    session.reset();
+    gate.resolve(recorder);
+    expect(await started).toBe(false);
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(session.getSnapshot().phase).toBe('idle');
+  });
+
+  it('discards a native recording', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    const discarded = session.discard();
+    recorder.deliver();
+    expect(await discarded).toBe(false);
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+  });
+
+  it('keeps the next recording when a timed-out native stop answers late', async () => {
+    const first = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    const failed = session.finish();
+    vi.advanceTimersByTime(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    expect((await failed).status).toBe('failed');
+    expect(session.getSnapshot().errorMessage).toBe('No audio data was captured.');
+    const second = withoutWebCapture();
+    expect(await session.start()).toBe(true);
+    first.deliver('old');
+    expect(session.getSnapshot().phase).toBe('recording');
+    const finished = session.finish();
+    second.deliver('new');
+    const result = await finished;
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(await result.recording.file.text()).toBe('new');
+  });
+
+  it('reports a native recording that ended by itself', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    recorder.state = 'inactive';
+    recorder.dispatchEvent(new Event('stop'));
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'idle',
+      errorMessage: 'Voice recording stopped unexpectedly. Please record again.',
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('shows the microphone message of a failed native start', async () => {
+    withoutWebCapture();
+    native.start.mockRejectedValue(Object.assign(new Error('native'), { name: 'NotFoundError' }));
+    const session = capture();
+    expect(await session.start()).toBe(false);
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'idle',
+      errorMessage: 'No microphone was found on this device.',
+    });
+  });
+
+  it('keeps the web recorder where the web view has media capture', async () => {
+    native.available.mockReturnValue(true);
+    const session = capture();
+    expect(await session.start()).toBe(true);
+    expect(native.start).not.toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledOnce();
+  });
+
+  it('is unsupported without media capture and without the plugin', async () => {
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('MediaRecorder', undefined);
+    const session = capture();
+    expect(await session.start()).toBe(false);
+    expect(session.getSnapshot().errorMessage).toBe(
+      'Voice recording is not supported in this browser.'
+    );
   });
 });

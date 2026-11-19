@@ -1,16 +1,10 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { imageViewerOpenAtom } from './imageViewerState';
 import { useEdgeSwipeForward } from './useEdgeSwipeForward';
-
-const portal = vi.hoisted(() => {
-  const container: { children: unknown[] } = { children: [] };
-  // portalOverlay looks the container up once, when it is imported.
-  vi.stubGlobal('document', { getElementById: () => container });
-  return container;
-});
 
 type Listener = (event: Event) => void;
 
@@ -119,7 +113,7 @@ describe('useEdgeSwipeForward', () => {
       configurable: true,
       value: mockWindow,
     });
-    portal.children = [];
+    document.body.replaceChildren();
   });
 
   afterEach(() => {
@@ -196,9 +190,9 @@ describe('useEdgeSwipeForward', () => {
     expect(onForward).not.toHaveBeenCalled();
   });
 
-  it('does not navigate behind an open portal overlay', () => {
+  it('does not navigate behind a dialog folds portals into the body', () => {
     const onForward = vi.fn();
-    portal.children = [{ getAttribute: () => null }];
+    document.body.innerHTML = '<div><div role="dialog" aria-modal="true"></div></div>';
     renderHook(onForward);
 
     const preventDefault = swipeFromRightEdge();

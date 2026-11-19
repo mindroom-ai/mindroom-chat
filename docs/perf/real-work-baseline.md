@@ -380,12 +380,12 @@ scripts/perf/real-work/matrix.sh $H $OUT/agents gce:80,gce:81,gce:82 -- \
 scripts/perf/real-work/matrix.sh $H $OUT/soak gce:83 -- \
   PERF_WORKLOAD=e2e/perf/workloads/real-work-50.json PERF_STREAMS=50 PERF_CPU_THROTTLE=1 \
   PERF_SOAK=1 PERF_SOAK_GC=1 PERF_SCENARIOS=none
-# the live-room workload (6 streams; its history takes 40 to 50 minutes)
+# the live-room workload (6 streams; most of its job is the history)
 scripts/perf/real-work/matrix.sh $H $OUT/live gce:70,gce:71 -- \
   PERF_WORKLOAD=e2e/perf/workloads/real-work-live.json PERF_CPU_THROTTLE=1,4 PERF_PROFILE=1
 ```
 
-A job takes about 22 minutes for one level at two throttles (11 of them the history), the soak 33. `matrix.sh` runs the three slots of one call at once; this baseline ran the levels at once as well.
+A job of `real-work-50.json` or `real-work-50-agents.json` takes about 22 minutes for one level at two throttles (11 of them the history), the soak 33; a job of `real-work-live.json` at two throttles took 46 to 49 minutes, most of them the history. `matrix.sh` runs the three slots of one call at once; this baseline ran the levels at once as well.
 
 On the M5 (on AC power; the fleet's machine check says so), through `<runner tool> m5 <commit> exec bash -c '...'`, with `E2E_MINDROOM_CHECKOUT` naming the backend clone and `E2E_SNAPSHOT_ROOT` and `E2E_AGENT_STACK_ROOT` in a directory of its own: `PERF_REAL_WORK=1 PERF_WORKLOAD=e2e/perf/workloads/real-work-50.json PERF_STREAMS=7,25,50 PERF_CPU_THROTTLE=1,4 PERF_PROFILE=1 scripts/e2e-slot.sh <n> --snapshot --preview npx playwright test e2e/perf/real-work.live.spec.ts --project=chromium`. One run of three levels takes 19 minutes after 7 minutes of history; use a commit with `fc38edcfe`.
 

@@ -7,10 +7,16 @@ export const AGENT = '@mindroom_dev:example.org';
 export const markers = (count: number) =>
   Array.from({ length: count }, (_value, index) => `🔧 \`shell\` [${index + 1}]`).join('\n\n');
 
-/** An agent reply whose trace names `callIds`. */
+/** An agent reply whose trace names `callIds`; `status` its stream status, `extra` more content. */
 export const replyEvent = (
   id = '$reply',
-  { sender = AGENT, callIds = ['call_1', 'call_2'], body = markers(2) } = {}
+  {
+    sender = AGENT,
+    callIds = ['call_1', 'call_2'],
+    body = markers(2),
+    status = undefined as string | undefined,
+    extra = {} as Record<string, unknown>,
+  } = {}
 ) =>
   new MatrixEvent({
     event_id: id,
@@ -27,6 +33,8 @@ export const replyEvent = (
           tool_call_id: callId,
         })),
       },
+      ...(status ? { 'io.mindroom.stream_status': status } : {}),
+      ...extra,
     },
   });
 

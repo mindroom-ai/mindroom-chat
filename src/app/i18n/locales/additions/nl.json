@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "Het antwoord eindigde voordat de samenvatting klaar was."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Transcriberen…",
+        "transcribedBy": "Getranscribeerd door {{name}}"
       }
     },
     "message-search": {
@@ -1020,6 +1024,12 @@
         "defaultLevel": "Standaard",
         "levelIsDefault": "{{level}}, standaard",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Agentstandaard",
+        "roomModel": "Ruimtemodel",
+        "defaultChoice": "Standaard",
+        "threadOnly": "Een hier gekozen model geldt alleen voor deze thread.",
+        "roomOverrideThreadOnly": "Voor deze ruimte ingesteld met !room_model. Een hier gekozen model geldt alleen voor deze thread.",
         "levels": {
           "off": "Uit",
           "minimal": "Minimaal",
@@ -1154,7 +1164,10 @@
         "all": "Alle threads die aan je andere filters voldoen."
       }
     },
-    "renameHint": "Dubbelklik om de naam te wijzigen"
+    "renameHint": "Dubbelklik om de naam te wijzigen",
+    "close": "Thread sluiten",
+    "resizeSecond": "Breedte van de tweede thread wijzigen",
+    "second": "Tweede thread"
   },
   "threadSnooze": {
     "title": "Snoozen tot",
@@ -1507,5 +1520,8 @@
     "later": "Later",
     "open": "Open",
     "done": "Klaar"
+  },
+  "threadActions": {
+    "openBeside": "Ernaast openen"
   }
 }

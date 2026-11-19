@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "Die Antwort endete, bevor die Zusammenfassung fertig war."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Wird transkribiert…",
+        "transcribedBy": "Transkribiert von {{name}}"
       }
     },
     "message-search": {
@@ -1020,6 +1024,12 @@
         "defaultLevel": "Standard",
         "levelIsDefault": "{{level}}, Standard",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Agent-Standard",
+        "roomModel": "Raummodell",
+        "defaultChoice": "Standard",
+        "threadOnly": "Ein hier gewähltes Modell gilt nur für diesen Thread.",
+        "roomOverrideThreadOnly": "Für diesen Raum mit !room_model festgelegt. Ein hier gewähltes Modell gilt nur für diesen Thread.",
         "levels": {
           "off": "Aus",
           "minimal": "Minimal",
@@ -1154,7 +1164,10 @@
         "all": "Alle Threads, die deinen anderen Filtern entsprechen."
       }
     },
-    "renameHint": "Zum Umbenennen doppelklicken"
+    "renameHint": "Zum Umbenennen doppelklicken",
+    "close": "Thread schließen",
+    "resizeSecond": "Breite des zweiten Threads ändern",
+    "second": "Zweiter Thread"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",
@@ -1507,5 +1520,8 @@
     "later": "Später",
     "open": "Offen",
     "done": "Erledigt"
+  },
+  "threadActions": {
+    "openBeside": "Daneben öffnen"
   }
 }

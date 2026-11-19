@@ -17,7 +17,7 @@ The app fetches `/config.json` from the root of its origin before it shows anyth
 - **Failures.** If the fetch fails, the app shows an error with a retry button, plus a button to go on with the stored copy when there is one. A redirect or a 401 or 403 answer counts as an expired sign-in at an authenticating proxy and starts sign-in recovery (see `__AUTHENTICATION_RECOVERY_CONFIG__` below).
 - **Requests.** `cache: no-store`, same-origin credentials, and redirects are not followed.
 
-The configuration this repository ships (`config/mindroom.json`) sets `homeserverList` (`mindroom.chat`, `matrix.org`), `defaultHomeserver`, `allowCustomHomeservers`, `hashRouter` (off), `auth.allowRegistration`, `auth.requireAppleProvider`, `sidebar.showMindRoom`, `sidebar.mindRoomProvisioningUrl` (`https://mindroom.chat`), `welcome`, `splash`, `mindroom` (its own thinking messages, canvases off, no computer API origin), `messageRendering` (`obsidian`, `readdlespark`) and part of `push.ios` (push stays off).
+The configuration this repository ships (`config/mindroom.json`) sets `homeserverList` (`mindroom.chat`, `matrix.org`), `defaultHomeserver`, `allowCustomHomeservers`, `hashRouter` (off), `auth.allowRegistration`, `auth.requireAppleProvider`, `sidebar.showMindRoom`, `sidebar.mindRoomProvisioningUrl` (`https://mindroom.chat`), `welcome`, `splash`, `mindroom` (its own thinking messages, canvases off, no computer API origin), `messageRendering` (`obsidian`, `readdlespark`) and `push.ios` (push on, through MindRoom's push gateway `push.mindroom.chat`).
 
 ### Sign-in
 

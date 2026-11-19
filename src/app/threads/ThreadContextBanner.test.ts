@@ -410,7 +410,7 @@ describe('ThreadContextBanner rendering', () => {
   const bannerElement = (
     summaryText?: string,
     threadId = '$root',
-    columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull'>
+    columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull' | 'onClose'>
   ) =>
     React.createElement(
       Provider,
@@ -1399,6 +1399,51 @@ describe('ThreadContextBanner rendering', () => {
     expect(press()).toBe(true);
     expect(setResolved).toHaveBeenCalledTimes(1);
     act(() => renderer?.unmount());
+  });
+
+  it("with onClose it advertises no resolve shortcut, which acts on the page's thread", async () => {
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
+      displayTags: [],
+      isResolved: false,
+      canEdit: true,
+      availableTags: [],
+    });
+    const resolveKeys = (renderer: ReturnType<typeof create>) =>
+      renderer.root.findByProps({ 'aria-label': 'Resolve' }).props['aria-keyshortcuts'] as unknown;
+    const main = create(bannerElement());
+    expect(resolveKeys(main)).toBeDefined();
+    main.unmount();
+
+    const second = create(bannerElement(undefined, '$root', { onClose: vi.fn() }));
+    expect(resolveKeys(second)).toBeUndefined();
+    const trigger = {
+      focus: vi.fn(),
+      isConnected: true,
+      getBoundingClientRect: () => ({ x: 20, y: 30, width: 30, height: 30 }),
+    };
+    await act(async () =>
+      second.root.findByProps({ 'aria-label': 'Thread options' }).props.onClick({
+        currentTarget: trigger,
+      })
+    );
+    expect(menuProps.mock.calls.at(-1)?.[0]).toMatchObject({ shortcutless: true });
+    second.unmount();
+  });
+
+  it('with onClose it offers Close thread in place of Back', () => {
+    const onClose = vi.fn();
+    const renderer = create(bannerElement(undefined, '$root', { onClose }));
+    const labels = renderer.root
+      .findAllByType('button')
+      .map((button) => button.props['aria-label'] as unknown);
+    expect(labels).toContain('Close thread');
+    expect(labels).not.toContain('Back');
+    act(() => {
+      renderer.root.findByProps({ 'aria-label': 'Close thread' }).props.onClick();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    renderer.unmount();
   });
 
   it('opens the back tooltip toward the banner in either text direction', () => {

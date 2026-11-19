@@ -895,6 +895,10 @@
           "summarizedBy": "{{model}}，耗時 {{duration}}",
           "interrupted": "摘要完成前回覆已結束。"
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "正在轉寫…",
+        "transcribedBy": "由 {{name}} 轉寫"
       }
     },
     "message-search": {
@@ -1000,6 +1004,12 @@
         "defaultLevel": "預設",
         "levelIsDefault": "{{level}}，預設",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "代理程式預設",
+        "roomModel": "聊天室模型",
+        "defaultChoice": "預設",
+        "threadOnly": "在此選擇的模型只套用於此討論串。",
+        "roomOverrideThreadOnly": "已透過 !room_model 為此聊天室設定。在此選擇的模型只套用於此討論串。",
         "levels": {
           "off": "關閉",
           "minimal": "最低",
@@ -1134,7 +1144,10 @@
         "all": "符合其他篩選條件的所有討論串。"
       }
     },
-    "renameHint": "按兩下以重新命名"
+    "renameHint": "按兩下以重新命名",
+    "close": "關閉討論串",
+    "resizeSecond": "調整第二個討論串大小",
+    "second": "第二個討論串"
   },
   "threadSnooze": {
     "title": "延後至",
@@ -1474,5 +1487,8 @@
     "later": "稍後",
     "open": "未完成",
     "done": "已完成"
+  },
+  "threadActions": {
+    "openBeside": "在旁邊開啟"
   }
 }

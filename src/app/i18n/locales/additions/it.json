@@ -923,6 +923,10 @@
           "summarizedBy": "{{model}} in {{duration}}",
           "interrupted": "La risposta è terminata prima che il riassunto fosse pronto."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Trascrizione…",
+        "transcribedBy": "Trascritto da {{name}}"
       }
     },
     "message-search": {
@@ -1040,6 +1044,12 @@
         "defaultLevel": "Predefinito",
         "levelIsDefault": "{{level}}, predefinito",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Predefinito dell’agente",
+        "roomModel": "Modello della stanza",
+        "defaultChoice": "Predefinito",
+        "threadOnly": "Il modello scelto qui vale solo per questo thread.",
+        "roomOverrideThreadOnly": "Impostato per questa stanza con !room_model. Il modello scelto qui vale solo per questo thread.",
         "levels": {
           "off": "Disattivato",
           "minimal": "Minimo",
@@ -1174,7 +1184,10 @@
         "all": "Tutti i thread che corrispondono agli altri filtri."
       }
     },
-    "renameHint": "Fai doppio clic per rinominare"
+    "renameHint": "Fai doppio clic per rinominare",
+    "close": "Chiudi il thread",
+    "resizeSecond": "Ridimensiona il secondo thread",
+    "second": "Secondo thread"
   },
   "threadSnooze": {
     "title": "Posticipa fino a",
@@ -1540,5 +1553,8 @@
     "later": "Più tardi",
     "open": "Aperti",
     "done": "Fatti"
+  },
+  "threadActions": {
+    "openBeside": "Apri accanto"
   }
 }

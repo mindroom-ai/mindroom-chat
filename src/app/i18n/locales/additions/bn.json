@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}}, {{duration}}-এ",
           "interrupted": "সারাংশ শেষ হওয়ার আগেই উত্তর শেষ হয়েছে।"
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "প্রতিলিপি তৈরি হচ্ছে…",
+        "transcribedBy": "প্রতিলিপি করেছে {{name}}"
       }
     },
     "message-search": {
@@ -1020,6 +1024,12 @@
         "defaultLevel": "ডিফল্ট",
         "levelIsDefault": "{{level}}, ডিফল্ট",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "এজেন্টের ডিফল্ট",
+        "roomModel": "রুম মডেল",
+        "defaultChoice": "ডিফল্ট",
+        "threadOnly": "এখানে বেছে নেওয়া মডেল শুধু এই থ্রেডে প্রযোজ্য।",
+        "roomOverrideThreadOnly": "এই রুমের জন্য !room_model দিয়ে সেট করা। এখানে বেছে নেওয়া মডেল শুধু এই থ্রেডে প্রযোজ্য।",
         "levels": {
           "off": "বন্ধ",
           "minimal": "ন্যূনতম",
@@ -1154,7 +1164,10 @@
         "all": "আপনার অন্যান্য ফিল্টারের সঙ্গে মেলে এমন সব থ্রেড।"
       }
     },
-    "renameHint": "নাম বদলাতে ডাবল-ক্লিক করুন"
+    "renameHint": "নাম বদলাতে ডাবল-ক্লিক করুন",
+    "close": "থ্রেড বন্ধ করুন",
+    "resizeSecond": "দ্বিতীয় থ্রেডের আকার বদলান",
+    "second": "দ্বিতীয় থ্রেড"
   },
   "threadSnooze": {
     "title": "যতক্ষণ পর্যন্ত স্থগিত",
@@ -1507,5 +1520,8 @@
     "later": "পরে",
     "open": "খোলা",
     "done": "সম্পন্ন"
+  },
+  "threadActions": {
+    "openBeside": "পাশে খুলুন"
   }
 }

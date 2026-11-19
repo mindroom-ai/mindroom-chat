@@ -90,6 +90,8 @@ const { mx, room, state } = vi.hoisted(() => {
 });
 
 vi.mock('react-router-dom', () => ({
+  NavigationType: { Push: 'PUSH' },
+  useNavigationType: () => 'POP',
   useLocation: () => ({}),
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams('threadId=%24thread')],
@@ -169,6 +171,14 @@ vi.mock('../navigation/useRoomNavigate', () => ({
 }));
 const { bumpRecentRoom } = vi.hoisted(() => ({ bumpRecentRoom: vi.fn() }));
 vi.mock('../navigation/recentRooms', () => ({ bumpRecentRoom }));
+// The room's own back swipe (RoomView, which has the thread's, is a stub here).
+const edgeSwipe = vi.hoisted(() => ({ onBack: (): void => undefined, enabled: false }));
+vi.mock('../navigation/useEdgeSwipeBack', () => ({
+  useEdgeSwipeBack: (onBack: () => void, enabled = true) => {
+    edgeSwipe.onBack = onBack;
+    edgeSwipe.enabled = enabled;
+  },
+}));
 const { neverLoads } = vi.hoisted(() => ({ neverLoads: new Promise<never>(() => undefined) }));
 /**
  * What the sketch below last saw of its frame, and, while `fillFromEffect`, how often its effect
@@ -382,6 +392,7 @@ describe('the side panels of a room', () => {
 
   beforeEach(() => {
     roomControls = undefined;
+    edgeSwipe.enabled = false;
     state.config = {
       mindroom: {
         computers: { apiUrl: 'https://computer.example.org' },
@@ -999,6 +1010,43 @@ describe('the side panels of a room', () => {
     cleanup();
     await renderRoom();
     expect(board()).toBeNull();
+  });
+
+  it("closes a plugin's panel on phones with a swipe from the left edge, back to the conversation", async () => {
+    await renderRoom(ScreenSize.Mobile);
+    expect(edgeSwipe.enabled).toBe(false);
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(hidden()).toBe(true);
+    expect(edgeSwipe.enabled).toBe(true);
+    await act(async () => edgeSwipe.onBack());
+    expect(notes()).toBeNull();
+    expect(hidden()).toBe(false);
+    expect(edgeSwipe.enabled).toBe(false);
+
+    // A panel of the room's own registers its own swipe, if any.
+    await open('subagents');
+    expect(hidden()).toBe(true);
+    expect(edgeSwipe.enabled).toBe(false);
+  });
+
+  it("leaves the left-edge swipe alone for a plugin's panel off phones, even filling the room", async () => {
+    await renderRoom(ScreenSize.Desktop);
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).not.toBeNull();
+    expect(edgeSwipe.enabled).toBe(false);
+    await act(async () => frameButton('Fill the room with Notes')?.click());
+    expect(hidden()).toBe(true);
+    expect(edgeSwipe.enabled).toBe(false);
+  });
+
+  it("leaves the left-edge swipe to the thread under a plugin's own frame folded on phones", async () => {
+    await renderRoom(ScreenSize.Mobile);
+    await act(async () => state.view?.onPanelToggle?.('notes/sketch'));
+    expect(edgeSwipe.enabled).toBe(true);
+    // Folded to its tab it covers nothing, so the thread keeps the swipe.
+    await act(async () => screen.getByRole('button', { name: 'Hide the sketch' }).click());
+    expect(hidden()).toBe(false);
+    expect(edgeSwipe.enabled).toBe(false);
   });
 
   it("covers the conversation with a plugin's panel on phones, which has no frame", async () => {

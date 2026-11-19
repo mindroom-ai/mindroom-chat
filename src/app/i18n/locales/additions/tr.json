@@ -909,6 +909,10 @@
           "summarizedBy": "{{model}}, {{duration}} içinde",
           "interrupted": "Yanıt, özet bitmeden sona erdi."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Yazıya dökülüyor…",
+        "transcribedBy": "{{name}} yazıya döktü"
       }
     },
     "message-search": {
@@ -1020,6 +1024,12 @@
         "defaultLevel": "Varsayılan",
         "levelIsDefault": "{{level}}, varsayılan",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Ajan varsayılanı",
+        "roomModel": "Oda modeli",
+        "defaultChoice": "Varsayılan",
+        "threadOnly": "Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
+        "roomOverrideThreadOnly": "Bu oda için !room_model ile ayarlandı. Burada seçilen model yalnızca bu ileti dizisi için geçerlidir.",
         "levels": {
           "off": "Kapalı",
           "minimal": "Minimum",
@@ -1154,7 +1164,10 @@
         "all": "Diğer filtrelerinize uyan tüm konular."
       }
     },
-    "renameHint": "Yeniden adlandırmak için çift tıklayın"
+    "renameHint": "Yeniden adlandırmak için çift tıklayın",
+    "close": "Konuyu kapat",
+    "resizeSecond": "İkinci konuyu yeniden boyutlandır",
+    "second": "İkinci konu"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -1507,5 +1520,8 @@
     "later": "Sonra",
     "open": "Açık",
     "done": "Bitti"
+  },
+  "threadActions": {
+    "openBeside": "Yanında aç"
   }
 }

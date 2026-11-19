@@ -75,13 +75,17 @@ const encrypted = (event: MatrixEvent) => {
   return { wire, decrypt };
 };
 
+/** The cards the plan lets a reply draw. */
+const allowed = () =>
+  [...plan().byReply.values()].flatMap((calls) => [...calls.values()].map((call) => call.eventId));
+
 describe('useInlineSecretRequestPlan', () => {
   it.each(['card', 'reply'] as const)(
-    'brings the row back when the %s is redacted in place',
+    'allows the request no longer once the %s is redacted in place',
     (redacted) => {
       const events = { card: cardEvent(), reply: replyEvent() };
       render([events.reply, events.card]);
-      expect([...plan().hiddenEventIds]).toEqual(['$card']);
+      expect(allowed()).toEqual(['$card']);
 
       const redaction = new MatrixEvent({ type: 'm.room.redaction', sender: AGENT, content: {} });
       act(() => {
@@ -89,26 +93,21 @@ describe('useInlineSecretRequestPlan', () => {
         room.emit(RoomEvent.Redaction, redaction, room, '$root');
       });
 
-      expect(plan().hiddenEventIds.size).toBe(0);
+      expect(allowed()).toEqual([]);
     }
   );
 
-  it.each([
-    ['the card, then the reply', ['card', 'reply']],
-    ['the reply, then the card', ['reply', 'card']],
-  ] as const)('draws the request once both decrypt: %s', (_case, order) => {
+  it('allows the request once its card decrypts, whatever its reply shows by then', () => {
     const events = { card: encrypted(cardEvent()), reply: encrypted(replyEvent()) };
     render([events.reply.wire, events.card.wire]);
-    expect(plan().hiddenEventIds.size).toBe(0);
+    expect(allowed()).toEqual([]);
 
-    events[order[0]].decrypt();
-    expect(plan().hiddenEventIds.size).toBe(0);
-    events[order[1]].decrypt();
+    events.card.decrypt();
 
-    expect([...plan().hiddenEventIds]).toEqual(['$card']);
+    expect(allowed()).toEqual(['$card']);
   });
 
-  it('keeps the same plan while the thread changes in ways that draw the same', () => {
+  it('keeps the same plan while the thread changes in ways that allow the same', () => {
     const events = [replyEvent(), cardEvent()];
     render(events);
     const first = plan();
@@ -117,5 +116,15 @@ describe('useInlineSecretRequestPlan', () => {
 
     expect(plans.length).toBeGreaterThan(1);
     expect(plan()).toBe(first);
+  });
+
+  it('keeps one record of the mounted lines for the timeline, through every plan', () => {
+    render([replyEvent()]);
+    const { drawn } = plan();
+
+    render([replyEvent(), cardEvent()]);
+
+    expect(allowed()).toEqual(['$card']);
+    expect(plan().drawn).toBe(drawn);
   });
 });

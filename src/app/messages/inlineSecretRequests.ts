@@ -1,74 +1,88 @@
-import { createContext, useContext } from 'react';
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import {
   MINDROOM_SECRET_REQUEST_KEY,
   parseSecretRequestContent,
   type SecretRequest,
 } from '../matrix/protocol/secretRequest';
-import {
-  MINDROOM_TOOL_TRACE_KEY,
-  getToolTraceV2Events,
-  toolTraceCallId,
-} from '../matrix/protocol/toolTrace';
-import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../matrix/protocol/aiRun';
-import { hasLongTextMetadata } from '../matrix/protocol/longText';
-import { sanitizeCustomHtml } from '../rich-text/sanitize';
-import { MINDROOM_TOOL_REF_ICON, formatMarkdownTextBodyAsHtml } from './html/blocks';
-import { getRenderedToolRefs } from './agent-run/toolRefDom';
 
-/** A done secret request drawn in the reply whose tool call asked, at that call's line. */
+/** A done secret request the reply whose tool call asked may draw, at that call's line. */
 export type InlineSecretRequest = {
-  /** The card's event, whose own row the timeline hides. */
+  /** The card's event, whose own row hides while the line is mounted. */
   eventId: string;
   request: SecretRequest;
   /** The card's sender, the agent that asked. */
   agentUserId: string;
 };
 
-/** The requests each reply draws, by the reply's event ID, then by the marker index of the call. */
-export type InlineSecretRequests = ReadonlyMap<string, ReadonlyMap<number, InlineSecretRequest>>;
+/**
+ * The lines mounted now, by their card's event ID: the one thing that hides a card's row. A line
+ * takes its card as it mounts and gives it back as it unmounts, both before the browser paints,
+ * so no paint shows the card twice or not at all.
+ */
+export type DrawnSecretRequests = {
+  subscribe: (listener: () => void) => () => void;
+  /** The cards with a mounted line; a new set after each change. */
+  getIds: () => ReadonlySet<string>;
+  /** Who mounted the card's line. */
+  drawerOf: (cardId: string) => object | undefined;
+  /** `drawer` mounted the card's line. False when another drawer's line is mounted: one per card. */
+  take: (cardId: string, drawer: object) => boolean;
+  /** `drawer` unmounted it. */
+  release: (cardId: string, drawer: object) => void;
+};
+
+export const createDrawnSecretRequests = (): DrawnSecretRequests => {
+  const drawers = new Map<string, object>();
+  const listeners = new Set<() => void>();
+  let ids: ReadonlySet<string> = new Set();
+  const changed = () => {
+    ids = new Set(drawers.keys());
+    [...listeners].forEach((listener) => listener());
+  };
+  return {
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getIds: () => ids,
+    drawerOf: (cardId) => drawers.get(cardId),
+    take: (cardId, drawer) => {
+      const current = drawers.get(cardId);
+      if (current) return current === drawer;
+      drawers.set(cardId, drawer);
+      changed();
+      return true;
+    },
+    release: (cardId, drawer) => {
+      if (drawers.get(cardId) !== drawer) return;
+      drawers.delete(cardId);
+      changed();
+    },
+  };
+};
 
 export type InlineSecretRequestPlan = {
-  /** Cards drawn in their reply, whose rows the timeline hides. */
-  hiddenEventIds: ReadonlySet<string>;
-  byReply: InlineSecretRequests;
+  /** The requests each reply may draw, by the reply's event ID, then by the ID of the call. */
+  byReply: ReadonlyMap<string, ReadonlyMap<string, InlineSecretRequest>>;
   /** Replies with a request not done yet (its card a row of its own): their work stays unfolded. */
   waitingReplyIds: ReadonlySet<string>;
+  drawn: DrawnSecretRequests;
 };
 
 export const NO_INLINE_SECRET_REQUESTS: InlineSecretRequestPlan = {
-  hiddenEventIds: new Set(),
   byReply: new Map(),
   waitingReplyIds: new Set(),
-};
-
-/**
- * Where a reply can draw a request: from each call ID of its trace to the index of that call's
- * marker, for the markers its body renders as tool lines (getRenderedToolRefs, the renderer's
- * rule, on the HTML the renderer parses). None where the reply may show other content than this:
- * a reply of long text, and one still streaming, which live frames draw over.
- */
-export const secretRequestAttachments = (
-  content: Record<string, unknown>
-): ReadonlyMap<string, number> => {
-  const attachments = new Map<string, number>();
-  const trace = getToolTraceV2Events(content[MINDROOM_TOOL_TRACE_KEY]);
-  if (!trace || hasLongTextMetadata(content)) return attachments;
-  if (ACTIVE_STREAM_STATUSES.has(getStreamStatusFromContent(content) ?? '')) return attachments;
-  const { formatted_body: formatted, body } = content;
-  // As renderAgentMessageContent: a reply without HTML renders its Markdown body.
-  const html =
-    typeof formatted === 'string'
-      ? formatted
-      : typeof body === 'string'
-      ? formatMarkdownTextBodyAsHtml(body)
-      : undefined;
-  if (!html?.includes(MINDROOM_TOOL_REF_ICON)) return attachments;
-  getRenderedToolRefs(sanitizeCustomHtml(html)).toolBlocks.forEach(({ index }) => {
-    const callId = toolTraceCallId(trace[index - 1]);
-    if (callId && !attachments.has(callId)) attachments.set(callId, index);
-  });
-  return attachments;
+  drawn: createDrawnSecretRequests(),
 };
 
 /** The agent cards among `events` that carry a request, the ones a plan reads. */
@@ -83,13 +97,14 @@ export const secretRequestCards = (
   );
 
 /**
- * Which secret request cards a thread's replies draw instead of their rows. Only a request the
- * agent's edit marked done moves: one still open keeps its row, the form in it, right under the
- * reply its call blocks. A done card moves when it names a reply loaded in the thread from the
- * card's agent, which the app renders itself (`pluginRenders` false) and whose body renders the
- * named call's marker (secretRequestAttachments). Every other card keeps its row, as do the
- * thread's root, an ignored sender's card and one the route or a jump opened (`revealed`). Each
- * reply is read once, however many cards name it, as its row shows it (`getContent`).
+ * Which secret request cards a thread's replies may draw at their tool calls, and nothing about
+ * whether they do: a reply draws a request where the body it shows has the named call's line
+ * (HtmlBlocks.tsx `ToolRun`), and the card's row hides while that line is mounted (`drawn`). Only
+ * a request the agent's edit marked done may move: one still open keeps its row, the form in it,
+ * right under the reply its call blocks. A done card may move to the reply it names, loaded in
+ * the thread from the card's agent, at the call it names. Not the thread's root, an ignored
+ * sender's card or one the route or a jump opened (`revealed`), and one card per call: a later
+ * card that names the same call keeps its row.
  */
 export const planInlineSecretRequests = ({
   cards,
@@ -97,7 +112,6 @@ export const planInlineSecretRequests = ({
   getContent,
   ignored,
   revealed,
-  pluginRenders,
   threadId,
 }: {
   cards: readonly MatrixEvent[];
@@ -105,13 +119,10 @@ export const planInlineSecretRequests = ({
   getContent: (event: MatrixEvent) => Record<string, unknown>;
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
-  pluginRenders?: (event: MatrixEvent, content: Record<string, unknown>) => boolean;
   threadId?: string;
-}): InlineSecretRequestPlan => {
-  const hiddenEventIds = new Set<string>();
+}): Omit<InlineSecretRequestPlan, 'drawn'> => {
   const waitingReplyIds = new Set<string>();
-  const byReply = new Map<string, Map<number, InlineSecretRequest>>();
-  const attachments = new Map<string, ReadonlyMap<string, number>>();
+  const byReply = new Map<string, Map<string, InlineSecretRequest>>();
   cards.forEach((card) => {
     const eventId = card.getId();
     const agentUserId = card.getSender();
@@ -127,24 +138,12 @@ export const planInlineSecretRequests = ({
       return;
     }
     if (revealed.has(eventId)) return;
-    let replyAttachments = attachments.get(replyId);
-    if (!replyAttachments) {
-      const content = getContent(reply);
-      replyAttachments = pluginRenders?.(reply, content)
-        ? new Map()
-        : secretRequestAttachments(content);
-      attachments.set(replyId, replyAttachments);
-    }
-    const index = replyAttachments.get(anchor.toolCallId);
-    if (index === undefined) return;
-    const calls = byReply.get(replyId) ?? new Map<number, InlineSecretRequest>();
-    // One request per call; another card naming the same call keeps its row.
-    if (calls.has(index)) return;
-    calls.set(index, { eventId, request, agentUserId });
+    const calls = byReply.get(replyId) ?? new Map<string, InlineSecretRequest>();
+    if (calls.has(anchor.toolCallId)) return;
+    calls.set(anchor.toolCallId, { eventId, request, agentUserId });
     byReply.set(replyId, calls);
-    hiddenEventIds.add(eventId);
   });
-  return { hiddenEventIds, byReply, waitingReplyIds };
+  return { byReply, waitingReplyIds };
 };
 
 /** Plain data the same, as parsed requests are: objects, arrays and primitives. */
@@ -161,23 +160,20 @@ const sameData = (a: unknown, b: unknown): boolean => {
   );
 };
 
-const sameSet = (a: ReadonlySet<string>, b: ReadonlySet<string>) =>
-  a.size === b.size && [...a].every((id) => b.has(id));
-
-/** Whether two plans draw the same: the timeline keeps the older, so its replies do not redraw. */
+/** Whether two plans allow the same: the timeline keeps the older, so its replies do not redraw. */
 export const sameInlineSecretRequestPlan = (
-  a: InlineSecretRequestPlan,
-  b: InlineSecretRequestPlan
+  a: Omit<InlineSecretRequestPlan, 'drawn'>,
+  b: Omit<InlineSecretRequestPlan, 'drawn'>
 ): boolean =>
-  sameSet(a.hiddenEventIds, b.hiddenEventIds) &&
-  sameSet(a.waitingReplyIds, b.waitingReplyIds) &&
+  a.waitingReplyIds.size === b.waitingReplyIds.size &&
+  [...a.waitingReplyIds].every((id) => b.waitingReplyIds.has(id)) &&
   a.byReply.size === b.byReply.size &&
   [...a.byReply].every(([replyId, calls]) => {
     const others = b.byReply.get(replyId);
     return (
       others?.size === calls.size &&
-      [...calls].every(([index, drawn]) => {
-        const other = others.get(index);
+      [...calls].every(([callId, drawn]) => {
+        const other = others.get(callId);
         return other?.eventId === drawn.eventId && sameData(other.request, drawn.request);
       })
     );
@@ -187,12 +183,12 @@ export const sameInlineSecretRequestPlan = (
 export const InlineSecretRequestsContext =
   createContext<InlineSecretRequestPlan>(NO_INLINE_SECRET_REQUESTS);
 
-const NO_CALLS: ReadonlyMap<number, InlineSecretRequest> = new Map();
+const NO_CALLS: ReadonlyMap<string, InlineSecretRequest> = new Map();
 
-/** The requests a reply draws, by marker index; none outside a timeline that plans them. */
+/** The requests a reply may draw, by call ID; none outside a timeline that plans them. */
 export const useInlineSecretRequests = (
   replyEventId: string | undefined
-): ReadonlyMap<number, InlineSecretRequest> => {
+): ReadonlyMap<string, InlineSecretRequest> => {
   const { byReply } = useContext(InlineSecretRequestsContext);
   return (replyEventId && byReply.get(replyEventId)) || NO_CALLS;
 };
@@ -201,4 +197,40 @@ export const useInlineSecretRequests = (
 export const useSecretRequestWaiting = (replyEventId: string | undefined): boolean => {
   const { waitingReplyIds } = useContext(InlineSecretRequestsContext);
   return !!replyEventId && waitingReplyIds.has(replyEventId);
+};
+
+/** The cards whose rows hide: those with a mounted line, read anew as lines mount and unmount. */
+export const useDrawnSecretRequestIds = ({ drawn }: InlineSecretRequestPlan): ReadonlySet<string> =>
+  useSyncExternalStore(drawn.subscribe, drawn.getIds);
+
+/**
+ * For the place a reply would draw a card's line (`wanted`): whether to mount the line, on
+ * `lineRef`, and whether the place is not the line's (`taken`), which leaves it an ordinary tool
+ * line: another place has the line mounted, or this one is in a `<details>` of the page, which
+ * would hide the line while closed and the card's row with it. The line is the card's from the
+ * commit that mounts it to the one that unmounts it; of two that mount in one commit the first
+ * keeps it, and the other, as one in a `<details>`, gives way before the paint.
+ */
+export const useSecretRequestLine = (
+  cardId: string,
+  wanted: boolean
+): { line: boolean; taken: boolean; lineRef: RefObject<HTMLDivElement> } => {
+  const { drawn } = useContext(InlineSecretRequestsContext);
+  const [self] = useState(() => ({}));
+  const lineRef = useRef<HTMLDivElement>(null);
+  const [inDetails, setInDetails] = useState(false);
+  const [, giveWay] = useReducer((count: number) => count + 1, 0);
+  const drawer = useSyncExternalStore(drawn.subscribe, () => drawn.drawerOf(cardId));
+  const taken = inDetails || (drawer !== undefined && drawer !== self);
+  const line = wanted && !taken;
+  useLayoutEffect(() => {
+    if (!line) return undefined;
+    if (lineRef.current?.closest('details')) {
+      setInDetails(true);
+      return undefined;
+    }
+    if (!drawn.take(cardId, self)) giveWay();
+    return () => drawn.release(cardId, self);
+  }, [cardId, drawn, line, self]);
+  return { line, taken, lineRef };
 };

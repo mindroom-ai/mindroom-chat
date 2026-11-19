@@ -31,7 +31,8 @@ export const useReadyNewVersion = (): string | undefined =>
  * page's, found when the page starts, when a part fails to load, when the page is shown again, or
  * by a check every five minutes, and that build's worker has installed, so the reload is quick
  * (src/app/config/appUpdate.ts). While the reload prepares, its button spins and says so.
- * Dismissed, it plays its way out and stays away for the life of the page.
+ * Dismissed, it plays its way out and stays away for the life of the page. In the Mac app it
+ * appears once the app has downloaded an update, and Reload installs it and restarts the app.
  */
 export function NewVersionNotice() {
   const { t } = useTranslation();

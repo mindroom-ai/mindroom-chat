@@ -2,7 +2,11 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider, createStore } from 'jotai';
-import { noteThreadColumnKey, useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
+import {
+  noteThreadColumnKey,
+  noteThreadViewKey,
+  useRoomEscapeReadReceipts,
+} from './useRoomEscapeReadReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import {
@@ -179,6 +183,57 @@ describe('useRoomEscapeReadReceipts', () => {
     expect(markMainTimelineAsReadMock).toHaveBeenCalledTimes(inColumn ? 0 : 1);
     act(() => renderer.unmount());
   });
+
+  it('Escape noted in a second thread view marks that thread read', () => {
+    keyHotkeyMock.mockReturnValue(true);
+    const store = createStore();
+    // The open thread fills the page; the second one shows in a side panel beside it.
+    store.set(conversationUnderThreadAtom, true);
+    store.set(shownConversationViewsAtom, [
+      { view: 'column', roomId: '!room:server', threadId: '$a' },
+      { view: 'panel', roomId: '!room:server', threadId: '$b' },
+    ]);
+    const evt = {} as KeyboardEvent;
+    noteThreadViewKey({ nativeEvent: evt } as React.KeyboardEvent, '$b');
+    const renderer = create(
+      React.createElement(Provider, { store }, React.createElement(Harness, { threadId: '$a' }))
+    );
+    act(() => {
+      state.handler?.(evt);
+    });
+    expect(markThreadAsReadMock).toHaveBeenCalledTimes(1);
+    expect(markThreadAsReadMock).toHaveBeenCalledWith(state.mx, '!room:server', '$b', false);
+    expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it.each([
+    ['marks it read under a cover over the messages', [conversationCoveredAtom], true],
+    ["marks nothing read under a phone's navigation drawer", [phoneNavDrawerOpenAtom], false],
+  ] as const)(
+    'Escape noted in a shown second thread with no open thread %s',
+    (_what, hiding, marks) => {
+      keyHotkeyMock.mockReturnValue(true);
+      const store = createStore();
+      hiding.forEach((atom) => store.set(atom, true));
+      store.set(shownConversationViewsAtom, [
+        { view: 'panel', roomId: '!room:server', threadId: '$b' },
+      ]);
+      const evt = {} as KeyboardEvent;
+      noteThreadViewKey({ nativeEvent: evt } as React.KeyboardEvent, '$b');
+      const renderer = create(
+        React.createElement(Provider, { store }, React.createElement(Harness))
+      );
+      act(() => {
+        state.handler?.(evt);
+      });
+      expect(markThreadAsReadMock).toHaveBeenCalledTimes(marks ? 1 : 0);
+      if (marks)
+        expect(markThreadAsReadMock).toHaveBeenCalledWith(state.mx, '!room:server', '$b', false);
+      expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
+      act(() => renderer.unmount());
+    }
+  );
 
   it('marks only the main timeline read on Escape outside a thread, never the threads', () => {
     keyHotkeyMock.mockReturnValue(true);

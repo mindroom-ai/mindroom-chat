@@ -89,6 +89,10 @@ const parseFinalReasoning = (value: unknown): FinalReasoning | undefined => {
   };
 };
 
+/** Whether a finished reply shows its stored reasoning's line. */
+export const hasFinalReasoning = (content: Record<string, unknown>): boolean =>
+  parseFinalReasoning(content[MINDROOM_REASONING_KEY]) !== undefined;
+
 const nonEmptyString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined;
 

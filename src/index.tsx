@@ -39,6 +39,7 @@ import {
 } from './sw/swSession';
 import { APP_BUILD_VERSION, startAppVersionMonitor } from './app/config/appVersion';
 import { watchForNewVersion } from './app/config/appUpdate';
+import { watchNativeUpdate } from './app/native/nativeUpdate';
 import { createServiceWorkerUrl } from './app/config/serviceWorkerRegistration';
 import { markServiceWorkerUnavailable } from './app/matrix/hooks/useMediaAuthentication';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNavigation';
@@ -261,6 +262,10 @@ prepareDocument();
 runSafely('new version watch', () => {
   // A part that cannot load after a deployment offers the new version (src/app/config/appUpdate.ts).
   watchForNewVersion();
+});
+runSafely('app update watch', () => {
+  // An update the Mac app downloaded itself offers the same card (src/app/native/nativeUpdate.ts).
+  watchNativeUpdate();
 });
 runSafely('recovery marker', () => {
   // Reading sessionStorage throws where site data is blocked; startup must go on.

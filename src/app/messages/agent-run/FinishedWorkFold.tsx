@@ -72,7 +72,13 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
   return (
     <>
       <div className={reasoningCss.Reasoning}>
-        <button type="button" className={reasoningCss.Toggle} aria-expanded={open} onClick={toggle}>
+        <button
+          type="button"
+          className={reasoningCss.Toggle}
+          data-work-fold=""
+          aria-expanded={open}
+          onClick={toggle}
+        >
           <Icon size="50" src={Icons.RecentClock} aria-hidden />
           <span className={reasoningCss.Label}>{label}</span>
           <Icon size="50" src={Icons.ChevronRight} className={reasoningCss.Chevron} aria-hidden />

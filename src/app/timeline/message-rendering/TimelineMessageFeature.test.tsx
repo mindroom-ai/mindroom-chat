@@ -27,6 +27,7 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
+import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
 
 const startFork = vi.hoisted(() => vi.fn());
 vi.mock('../../threads/fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
@@ -178,11 +179,8 @@ const mountFeature = async (
       hiddenEventIds: new Set<string>(),
       markersByEventId: new Map(),
     },
-    secretRequestTimeline: {
-      hiddenEventIds: new Set<string>(),
-      byReply: new Map(),
-      waitingReplyIds: new Set<string>(),
-    },
+    secretRequestTimeline: { hiddenEventIds: new Set<string>() },
+    voiceTranscripts: NO_VOICE_TRANSCRIPTS,
     forkPrefixEventIds,
   };
   const Harness = () => {

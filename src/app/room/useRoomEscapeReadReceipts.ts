@@ -15,6 +15,13 @@ export const noteThreadColumnKey = (evt: ReactKeyboardEvent): void => {
   threadColumnKeys.add(evt.nativeEvent);
 };
 
+// Keys pressed in a view of another thread on the page (the second thread beside the open one),
+// with that thread: Escape there marks it read.
+const threadViewKeys = new WeakMap<Event, string>();
+export const noteThreadViewKey = (evt: ReactKeyboardEvent, threadId: string): void => {
+  threadViewKeys.set(evt.nativeEvent, threadId);
+};
+
 type UseRoomEscapeReadReceiptsOptions = {
   hideActivity: boolean;
   roomId: string;
@@ -36,14 +43,21 @@ export const useRoomEscapeReadReceipts = ({
     window,
     useCallback(
       (evt: KeyboardEvent) => {
-        // A thread in a view of its own (the room page's column) shows while the page's own
-        // conversation is hidden, under a plugin's cover or under that column.
-        const threadShows =
-          !!threadId &&
+        // Whether a view of the thread `id` of its own shows, as the room page's column does
+        // while the page's own conversation is hidden, under a plugin's cover or under that column.
+        const shows = (id: string | undefined) =>
+          !!id &&
           !store.get(phoneNavDrawerOpenAtom) &&
           store
             .get(shownConversationViewsAtom)
-            .some((place) => place.roomId === roomId && place.threadId === threadId);
+            .some((place) => place.roomId === roomId && place.threadId === id);
+        // Escape in a second thread's view (B) reads B where it shows, whatever covers the rest.
+        const noted = threadViewKeys.get(evt);
+        if (noted && isKeyHotkey('escape', evt)) {
+          if (shows(noted)) void markThreadAsRead(mx, roomId, noted, hideActivity);
+          return;
+        }
+        const threadShows = shows(threadId);
         if (store.get(conversationOutOfSightAtom) && !threadShows) return;
         if (!isKeyHotkey('escape', evt)) return;
         // Beside the thread's column, Escape outside the column is the room's messages'. The column

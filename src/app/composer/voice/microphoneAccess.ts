@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { MINDROOM_APP_NAME } from '../../ui/branding/branding';
+import { isMacOS } from '../../lib/user-agent';
 import { isNativeApp } from '../../native/nativeSso';
 
 const getBlockedMicrophoneMessage = (): string => {
@@ -9,7 +10,8 @@ const getBlockedMicrophoneMessage = (): string => {
     return `Microphone access is blocked. Allow microphone access for ${MINDROOM_APP_NAME} in Android app settings and try again.`;
   }
 
-  if (nativePlatform === 'ios') {
+  // The Mac app is the iOS app under Mac Catalyst.
+  if (nativePlatform === 'ios' && !isMacOS()) {
     return `Microphone access is blocked. Allow microphone access for ${MINDROOM_APP_NAME} in iPhone settings and try again.`;
   }
 

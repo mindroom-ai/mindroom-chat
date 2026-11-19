@@ -17,6 +17,8 @@ vi.mock('./ThinkingPlaceholder.css', () => ({
   Mark: 'Mark',
   Placeholder: 'Placeholder',
   Rotor: 'Rotor',
+}));
+vi.mock('./ShimmerText.css', () => ({
   Text: 'Text',
   TextBase: 'TextBase',
   TextSweep: 'TextSweep',

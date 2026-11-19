@@ -184,6 +184,29 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(scheduler.streaming(31.5), 0)
         self.assertEqual(scheduler.posted(), 1)
 
+    def test_job_report_does_not_answer_the_turn(self) -> None:
+        scheduler = self.scheduler(1, 1)
+        scheduler.started("$r0", 0, post="$turn")
+        # The backend's report of ended jobs continues the thread without replying to the post.
+        scheduler.reply_started("$r0", "$report", 0, answers=None)
+        scheduler.reply_started("$r0", "$elsewhere", 0, answers="$other")
+        self.assertEqual(scheduler.streaming(0), 0)
+        self.assertIsNone(scheduler.reply_finished("$report", 1))
+        self.assertEqual(scheduler.posted(), 1)
+        scheduler.reply_started("$r0", "$reply", 2, answers="$turn")
+        self.assertEqual(scheduler.streaming(2), 1)
+        self.assertEqual(scheduler.reply_finished("$reply", 3), "$r0")
+
+    def test_a_reply_to_the_turns_reply_is_the_turns(self) -> None:
+        scheduler = self.scheduler(1, 1)
+        scheduler.started("$r0", 0, post="$turn")
+        # The router hands the post to the agent, whose reply answers the handoff.
+        scheduler.reply_started("$r0", "$handoff", 0, answers="$turn")
+        scheduler.reply_started("$r0", "$reply", 1, answers="$handoff")
+        scheduler.reply_started("$r0", "$report", 1, answers=None)
+        self.assertIsNone(scheduler.reply_finished("$report", 2))
+        self.assertEqual(scheduler.reply_finished("$reply", 3), "$r0")
+
     def test_reply_outside_a_turn_does_not_count(self) -> None:
         scheduler = self.scheduler(1, 1)
         scheduler.reply_started("$r0", "$old", 0)  # no turn under way
@@ -247,7 +270,7 @@ class SchedulerTest(unittest.TestCase):
 
 
 def counts(**values: object) -> dict:
-    return {"frames": 0, "edits": 0, "jobs": 0, "started": [], "active": [], "finished": [], **values}
+    return {"frames": 0, "edits": 0, "jobs": 0, "started": [], "active": [], "finished": [], "answers": {}, **values}
 
 
 def frame(reply: str) -> dict:
@@ -310,6 +333,15 @@ class CountSyncTest(unittest.TestCase):
         )
         self.assertEqual(elsewhere, counts())
 
+    def test_genuine_replies_name_the_post_they_answer(self) -> None:
+        genuine = reply_event("$reply", "$r")
+        genuine["content"]["m.relates_to"] |= {"is_falling_back": False, "m.in_reply_to": {"event_id": "$turn"}}
+        report = reply_event("$report", "$r")
+        report["content"]["m.relates_to"] |= {"is_falling_back": True, "m.in_reply_to": {"event_id": "$reply"}}
+        seen = driver.count_sync(batch([genuine, report]), ROOM, {AGENT}, {})
+        self.assertEqual(seen["started"], ["$reply", "$report"])
+        self.assertEqual(seen["answers"], {"$reply": "$turn"})
+
     def test_reply_that_starts_finished(self) -> None:
         event = reply_event("$reply", "$r")
         event["content"]["io.mindroom.stream_status"] = "completed"
@@ -356,6 +388,16 @@ class ApplyCountsTest(unittest.TestCase):
         ended = counts(active=["$reply", "$stray"], finished=["$stray", "$reply"])
         self.assertEqual(driver.apply_counts(scheduler, ended, reply_roots, 26), ["$r"])
         self.assertEqual(scheduler.posted(), 0)
+
+    def test_a_reply_to_another_post_is_not_the_turns(self) -> None:
+        scheduler = driver.Scheduler(1, NO_PAUSE, 600, random.Random(1))
+        scheduler.add("$r")
+        scheduler.started("$r", 0, post="$turn")
+        reply_roots = {"$report": "$r", "$reply": "$r"}
+        report = counts(started=["$report"], active=["$report"], finished=["$report"], answers={"$report": "$other"})
+        self.assertEqual(driver.apply_counts(scheduler, report, reply_roots, 1), [])
+        reply = counts(started=["$reply"], active=["$reply"], finished=["$reply"], answers={"$reply": "$turn"})
+        self.assertEqual(driver.apply_counts(scheduler, reply, reply_roots, 2), ["$r"])
 
     def test_threads_under_another_name(self) -> None:
         scheduler = driver.Scheduler(1, NO_PAUSE, 600, random.Random(1))
@@ -416,6 +458,8 @@ class FakeLobby:
         self.reply_roots: dict[str, str] = {}
         self.posts: list[tuple[float, str]] = []
         self.failed_posts = 0
+        # Each post tried, as (root, transaction ID).
+        self.attempts: list[tuple[str, str | None]] = []
         self.answer = lambda now, posts: counts()
         self._failing_posts = failing_posts
         self.resolved: list[str] = []
@@ -434,7 +478,8 @@ class FakeLobby:
         self.now += self.tick
         return self.answer(self.now, self.posts)
 
-    def post_turn(self, root: str, body: str) -> str | None:
+    def post_turn(self, root: str, body: str, txn: str | None = None) -> str | None:
+        self.attempts.append((root, txn))
         if self.failed_posts < self._failing_posts:
             self.failed_posts += 1
             return None
@@ -472,6 +517,7 @@ class RunHistoryTest(unittest.TestCase):
                     lobby.reply_roots[reply] = root or f"$turn{index + 1}"
                     lobby.latest_reply[lobby.reply_roots[reply]] = reply
                     seen["started"].append(reply)
+                    seen["answers"][reply] = f"$turn{index + 1}"
                     seen["finished"].append(reply)
             return seen
 
@@ -575,6 +621,13 @@ class RunHistoryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "reply.links"):
             driver.check_profile(profile | {"reply": profile["reply"] | {"links": 2}})
 
+    def test_null_background_jobs_are_refused(self) -> None:
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        for key in ("bg", "links"):
+            nulls = {"bg": None, "bgsec": None} if key == "bg" else {key: None}
+            with self.assertRaisesRegex(ValueError, f"reply.{key}"):
+                driver.check_profile(profile | {"reply": profile["reply"] | nulls})
+
     def test_background_jobs_need_their_seconds(self) -> None:
         profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
         self.assertEqual(driver.check_profile(json.loads(json.dumps(profile)))["live"]["jobs"], 0)
@@ -622,6 +675,7 @@ class RunLiveTest(unittest.TestCase):
                     lobby.reply_roots[reply] = root
                     seen["started"].append(reply)
                     seen["active"].append(reply)
+                    seen["answers"][reply] = f"$turn{index + 1}"
                 elif ends_after is None or now - at < ends_after:
                     seen["frames"] += 1
                     seen["active"].append(reply)
@@ -637,7 +691,11 @@ class RunLiveTest(unittest.TestCase):
         lobby.answer = self.replies(lobby, ends_after=2)
         bodies: list[str] = []
         post = lobby.post_turn
-        lobby.post_turn = lambda root, body: bodies.append(body) or post(root, body)  # type: ignore[method-assign]
+        def posting(root: str, body: str, txn: str | None = None) -> str | None:
+            bodies.append(body)
+            return post(root, body, txn)
+
+        lobby.post_turn = posting  # type: ignore[method-assign]
         profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
         profile["reply"] |= {"bg": NO_PAUSE, "bgsec": {"p50": 300, "p90": 300, "max": 300}}
         profile["live"] |= {"pauseSeconds": NO_PAUSE, "jobs": 2}
@@ -648,8 +706,44 @@ class RunLiveTest(unittest.TestCase):
         self.assertTrue(all(re.search(r" tools=0 bg=1 bgsec=\d+ ", body) for body in bodies[:2]), bodies)
         # They hold their threads as turns, so the streams' first turns wait for their replies to end.
         self.assertEqual(sorted(root for _, root in lobby.posts[2:4]), ["root0", "root1"])
-        self.assertGreater(lobby.posts[2][0], 0)
+        # The seeds' replies end 2 s after their posts; no stream's turn comes before that.
+        self.assertGreaterEqual(min(at for at, _ in lobby.posts[2:]), max(at for at, _ in lobby.posts[:2]) + 2)
         self.assertFalse(any(" bg=" in body for body in bodies[2:]), bodies)
+
+    def run_seeded(self, lobby: FakeLobby, streams: int, jobs: int) -> tuple[int, str]:
+        lobby.answer = self.replies(lobby, ends_after=2)
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        profile["reply"] |= {"bg": NO_PAUSE, "bgsec": {"p50": 300, "p90": 300, "max": 300}}
+        profile["live"] |= {"pauseSeconds": NO_PAUSE, "jobs": jobs}
+        history = {"room": ROOM, "threads": [f"root{index}" for index in range(5)], "quietRooms": []}
+        errors = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(errors), mock.patch("time.sleep"):
+            out = Path(directory) / "l"
+            code = driver.run_live(lobby, profile, history, streams, 10, random.Random(1), out, clock=lobby.clock)
+        return code, errors.getvalue()
+
+    def test_jobs_that_do_not_fit_the_open_threads_fail_the_run(self) -> None:
+        lobby = FakeLobby(tick=0.25)
+        code, errors = self.run_seeded(lobby, streams=2, jobs=4)
+        self.assertEqual(code, 1)
+        self.assertIn("live.jobs", errors)
+        self.assertEqual(lobby.posts, [])
+
+    def test_a_failed_job_post_is_tried_again_and_then_fails_the_run(self) -> None:
+        lobby = FakeLobby(failing_posts=2, tick=0.25)
+        self.assertEqual(self.run_seeded(lobby, streams=2, jobs=2)[0], 0)
+        self.assertEqual([root for _, root in lobby.posts[:2]], ["root2", "root3"])
+        # Every try of one seed sends its one transaction, which a homeserver that took an earlier try answers
+        # with that try's event instead of posting again.
+        seeds = lobby.attempts[:4]
+        self.assertEqual([root for root, _ in seeds], ["root2", "root2", "root2", "root3"])
+        self.assertIsNotNone(seeds[0][1])
+        self.assertEqual({txn for _, txn in seeds[:3]}, {seeds[0][1]})
+        self.assertNotEqual(seeds[3][1], seeds[0][1])
+        lobby = FakeLobby(failing_posts=3, tick=0.25)
+        code, errors = self.run_seeded(lobby, streams=2, jobs=2)
+        self.assertEqual(code, 1)
+        self.assertIn("not posted", errors)
 
     def test_backend_that_keeps_up(self) -> None:
         lobby = FakeLobby(tick=0.25)
@@ -892,6 +986,23 @@ class LobbySyncTest(unittest.TestCase):
             lobby.sync()
         self.assertIn(ROOM, str(stopped.exception.code))
         self.assertEqual(home.asked, ["p1", "p1", "p1"])
+
+    def test_a_retry_with_the_transaction_of_a_post_whose_answer_was_lost_posts_once(self) -> None:
+        lobby = self.lobby()
+        accepted: dict[str, str] = {}
+
+        def homeserver(_server: str, method: str, path: str, _token: str, _body: object = None) -> dict:
+            txn = path.rsplit("/", 1)[1]
+            first = txn not in accepted
+            accepted.setdefault(txn, f"$post{len(accepted)}")
+            if first:
+                raise RuntimeError(f"{method} {path}: 0 connection reset")  # taken, but the answer was lost
+            return {"event_id": accepted[txn]}
+
+        with mock.patch("matrix_http.call", homeserver), contextlib.redirect_stderr(io.StringIO()):
+            self.assertIsNone(lobby.post_turn("$r", "#work", txn="seed1"))
+            self.assertEqual(lobby.post_turn("$r", "#work", txn="seed1"), "$post0")
+        self.assertEqual(accepted, {"seed1": "$post0"})
 
     def test_failed_post_gives_none(self) -> None:
         lobby = self.lobby()

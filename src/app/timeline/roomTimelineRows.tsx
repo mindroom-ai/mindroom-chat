@@ -287,20 +287,25 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
 
 /**
  * Whether a row takes no place in the timeline: the thread's plans hide it (approvals, title
- * markers, secret requests), its sender is ignored, it is redacted and hidden events are not
- * shown, or a plugin hides it.
+ * markers, secret requests), it is a voice echo shown under its voice message, its sender is
+ * ignored, it is redacted and hidden events are not shown, or a plugin hides it.
  */
 export const isTimelineRowHidden = (
   event: MatrixEvent,
   {
-    messageData: { approvalTimeline, threadSummaryTimeline, secretRequestTimeline },
+    messageData: {
+      approvalTimeline,
+      threadSummaryTimeline,
+      secretRequestTimeline,
+      voiceTranscripts,
+    },
     ignoredUsersSet,
     showHiddenEvents,
     isHiddenByPlugin,
   }: {
     messageData: Pick<
       TimelineMessageData,
-      'approvalTimeline' | 'threadSummaryTimeline' | 'secretRequestTimeline'
+      'approvalTimeline' | 'threadSummaryTimeline' | 'secretRequestTimeline' | 'voiceTranscripts'
     >;
     ignoredUsersSet: ReadonlySet<string>;
     showHiddenEvents: boolean;
@@ -311,7 +316,8 @@ export const isTimelineRowHidden = (
   if (
     approvalTimeline.hiddenEventIds.has(id) ||
     threadSummaryTimeline.hiddenEventIds.has(id) ||
-    secretRequestTimeline.hiddenEventIds.has(id)
+    secretRequestTimeline.hiddenEventIds.has(id) ||
+    voiceTranscripts.hiddenEventIds.has(id)
   ) {
     return true;
   }
@@ -462,7 +468,9 @@ export const renderTimelineTiles = ({
         previousEventId: replyNeedingNoQuote(
           event,
           context.inPlaceReplyEventId,
-          isHiddenByPluginId
+          // Nor one of a voice echo shown under its voice message.
+          (replyId) =>
+            isHiddenByPluginId(replyId) || messageData.voiceTranscripts.hiddenEventIds.has(replyId)
         ),
         quietRun,
       };

@@ -965,6 +965,10 @@
           "summarizedBy": "⁨{{model}}⁩ في ⁨{{duration}}⁩",
           "interrupted": "انتهى الرد قبل اكتمال الملخص."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "جارٍ التفريغ…",
+        "transcribedBy": "فرّغه ⁨{{name}}⁩"
       }
     },
     "message-search": {
@@ -1100,6 +1104,12 @@
         "defaultLevel": "افتراضي",
         "levelIsDefault": "⁨{{level}}⁩، افتراضي",
         "withLevel": "⁨{{model}}⁩ · ⁨{{level}}⁩",
+        "roomDefaultWith": "⁨{{label}}⁩ · ⁨{{models}}⁩",
+        "agentDefault": "افتراضي الوكيل",
+        "roomModel": "نموذج الغرفة",
+        "defaultChoice": "افتراضي",
+        "threadOnly": "ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
+        "roomOverrideThreadOnly": "مُعيَّن لهذه الغرفة باستخدام !room_model. ينطبق النموذج الذي تختاره هنا على هذه السلسلة فقط.",
         "levels": {
           "off": "إيقاف",
           "minimal": "أدنى",
@@ -1234,7 +1244,10 @@
         "all": "كل سلاسل المحادثات المطابقة لعوامل التصفية الأخرى."
       }
     },
-    "renameHint": "انقر نقرًا مزدوجًا لإعادة التسمية"
+    "renameHint": "انقر نقرًا مزدوجًا لإعادة التسمية",
+    "close": "إغلاق السلسلة",
+    "resizeSecond": "تغيير حجم السلسلة الثانية",
+    "second": "السلسلة الثانية"
   },
   "threadSnooze": {
     "title": "تأجيل حتى",
@@ -1639,5 +1652,8 @@
     "later": "لاحقًا",
     "open": "مفتوحة",
     "done": "منتهية"
+  },
+  "threadActions": {
+    "openBeside": "فتح بجانبها"
   }
 }

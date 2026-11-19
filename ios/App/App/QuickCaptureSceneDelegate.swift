@@ -143,6 +143,10 @@ class QuickCaptureViewController: MindRoomBridgeViewController {
             webView.scrollView.minimumZoomScale = 1
             webView.scrollView.maximumZoomScale = 1
             webView.scrollView.pinchGestureRecognizer?.isEnabled = false
+            // The page's header lies under the window's hidden title bar, where the system draws a
+            // scroll edge effect of what is under it: the room's button, lit when the mouse is on
+            // it, came out as a smeared white blot on gray. Only the page's list scrolls.
+            if #available(macCatalyst 26.0, *) { webView.scrollView.topEdgeEffect.isHidden = true }
         }
 #endif
         super.viewDidLoad()

@@ -9,7 +9,7 @@ vi.mock('./VoiceWaveform.css', () => ({
   BarActive: 'BarActive',
   BarCompact: 'BarCompact',
   BarCompactUnrecorded: 'BarCompactUnrecorded',
-  CompactStrip: 'CompactStrip',
+  CompactLine: 'CompactLine',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',
@@ -106,11 +106,15 @@ describe('VoiceWaveform', () => {
     expect(container.props.className).toContain('WaveformCompact');
     expect(svg.props.className).toContain('SvgCompact');
     expect(rects).toHaveLength(96);
-    expect(svg.props.viewBox).toBe('0 0 287 32');
-    expect(svg.props.width).toBe(287);
+    // One width whatever the bar count, with the last bar at its right end.
+    expect(svg.props.viewBox).toBe('0 0 6143 32');
+    expect(svg.props.width).toBe(6143);
+    expect(rects[95]!.props.x + rects[95]!.props.width).toBe(6143);
+    expect(rects[95]!.props.x - rects[94]!.props.x).toBe(3);
     expect(svg.props.height).toBe(32);
     expect(svg.props.preserveAspectRatio).toBe('none');
-    expect(svg.props.shapeRendering).toBe('crispEdges');
+    // Antialiased, so the bars glide by fractions of a pixel (see useLiveGlide).
+    expect(svg.props.shapeRendering).toBeUndefined();
 
     renderer.unmount();
   });
@@ -127,7 +131,7 @@ describe('VoiceWaveform', () => {
     const rects = renderer.root.findAllByType('rect');
 
     expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
-    expect(svg.props.viewBox).toBe('0 0 143 32');
+    expect(svg.props.viewBox).toBe('0 0 6143 32');
     expect(rects.slice(0, -1).every((rect) => rect.props.height === 3)).toBe(true);
     expect(rects[0]!.props.className).toContain('BarCompact');
     expect(rects[0]!.props.className).toContain('BarCompactUnrecorded');

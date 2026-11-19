@@ -923,6 +923,10 @@
           "summarizedBy": "{{model}} en {{duration}}",
           "interrupted": "La réponse s’est terminée avant la fin du résumé."
         }
+      },
+      "voiceTranscript": {
+        "transcribing": "Transcription…",
+        "transcribedBy": "Transcrit par {{name}}"
       }
     },
     "message-search": {
@@ -1040,6 +1044,12 @@
         "defaultLevel": "Par défaut",
         "levelIsDefault": "{{level}}, par défaut",
         "withLevel": "{{model}} · {{level}}",
+        "roomDefaultWith": "{{label}} · {{models}}",
+        "agentDefault": "Par défaut de l’agent",
+        "roomModel": "Modèle du salon",
+        "defaultChoice": "Par défaut",
+        "threadOnly": "Le modèle choisi ici s’applique uniquement à ce fil.",
+        "roomOverrideThreadOnly": "Défini pour ce salon avec !room_model. Le modèle choisi ici s’applique uniquement à ce fil.",
         "levels": {
           "off": "Désactivé",
           "minimal": "Minimal",
@@ -1174,7 +1184,10 @@
         "all": "Tous les fils correspondant à vos autres filtres."
       }
     },
-    "renameHint": "Double-cliquez pour renommer"
+    "renameHint": "Double-cliquez pour renommer",
+    "close": "Fermer le fil",
+    "resizeSecond": "Redimensionner le second fil",
+    "second": "Second fil"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
@@ -1540,5 +1553,8 @@
     "later": "Plus tard",
     "open": "Ouverts",
     "done": "Terminés"
+  },
+  "threadActions": {
+    "openBeside": "Ouvrir à côté"
   }
 }

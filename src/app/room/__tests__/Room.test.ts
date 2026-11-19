@@ -136,6 +136,7 @@ vi.mock('folds', () => ({
   OverlayBackdrop: () => React.createElement('div'),
 }));
 
+vi.mock('../SecondThreadPanel', () => ({ SecondThreadPanel: () => null }));
 vi.mock('../MessageLinkCards', () => ({
   MessageLinkCards: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -179,6 +180,8 @@ vi.mock('jotai', async () => {
 });
 
 vi.mock('react-router-dom', () => ({
+  NavigationType: { Push: 'PUSH' },
+  useNavigationType: () => 'PUSH',
   useLocation: () => ({ key: 'entry' }),
   useParams: () => ({ eventId: roomState.eventId }),
   useSearchParams: () => [new URLSearchParams(roomState.search)],
@@ -306,6 +309,9 @@ vi.mock('../../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomState.viewMode, setViewMode: roomState.setViewMode }),
 }));
 
+// A window swipe listener; this suite renders without a DOM.
+vi.mock('../../navigation/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: () => undefined }));
+
 vi.mock('../../matrix/hooks/useRoomMembers', () => ({
   useRoomMembers: () => roomState.members,
 }));
@@ -398,7 +404,7 @@ describe('Room', { timeout: 30_000 }, () => {
     expect(roomState.roomViewProps).toMatchObject({ threadId: '$thread', forkAt: '$point' });
   });
 
-  it("hands the room view the router's key of the entry whose address focuses an event", async () => {
+  it("hands the room view the router's key of the entry whose address focuses an event, and how it came", async () => {
     roomState.eventId = '$root';
     roomState.search = '?focusEvent=1';
     const { Room } = await import('../Room');
@@ -411,6 +417,7 @@ describe('Room', { timeout: 30_000 }, () => {
       eventId: '$root',
       focusEventInRoom: true,
       entryKey: 'entry',
+      entryPushed: true,
     });
   });
 

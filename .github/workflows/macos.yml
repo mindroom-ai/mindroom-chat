@@ -5,9 +5,12 @@
 # - the release event covers a release cut by hand (`just release`). A release that a workflow's
 #   GITHUB_TOKEN creates sends no release event, so the two never both run for one release;
 # - a manual run builds the DMG of the release tag it is given, for a release that has none.
-# A published DMG is never replaced. Once it is up, and while its release is still the newest, the
-# job asks the tap to update its cask. Pull requests that change the Mac build build it unsigned
-# and publish nothing.
+# A published DMG is never replaced. Before it, the job attaches the release's appcast.xml, the
+# update feed item whose DMG is EdDSA-signed (scripts/macos-appcast.sh); once the DMG is up, and while
+# its release is still the newest, the job asks the tap to update its cask. The feed job then copies
+# the appcast.xml to the prerelease mac-appcast, the feed the app reads, unless that names this
+# release or a newer one (docs/ios-release.md "Updates"). Pull requests that change the Mac build
+# build it unsigned and publish nothing.
 name: Mac app
 
 on:
@@ -33,6 +36,10 @@ on:
       - scripts/build-macos-store.sh
       - scripts/macos-store-preflight.mjs
       - scripts/test-macos-support.sh
+      - scripts/fetch-sparkle.sh
+      - scripts/macos-appcast.sh
+      - scripts/macos-publish-appcast.sh
+      - scripts/macos-updater-info-plist.sh
       - .github/workflows/macos.yml
 
 permissions:
@@ -65,6 +72,13 @@ jobs:
             echo "::error::'$RELEASE_TAG' is not a release tag vYYYY.M.N"
             exit 1
           fi
+          # A draft's DMG is not public, and a prerelease is not for stable apps or their feed.
+          kind=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease \
+            --jq 'if .isDraft or .isPrerelease then "unpublished" else "published" end')
+          if [[ $kind != published ]]; then
+            echo "::error::$RELEASE_TAG is a draft or prerelease, not a published release"
+            exit 1
+          fi
           # Its bytes and the cask's checksum stay fixed: changes ship in a new release.
           published=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
             --jq '[.assets[] | select(.name == "MindRoom.dmg")] | length')
@@ -77,6 +91,22 @@ jobs:
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
+      # The one rule for the update feed: a tag from before the updater (no appcast script) gets its
+      # DMG alone and needs no key; any other needs the key before the build and uploads its
+      # appcast.xml before the DMG, or fails.
+      - name: Check the update key
+        if: env.RELEASE_TAG
+        id: updater
+        env:
+          HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY != '' }}
+        run: |
+          if [[ -f scripts/macos-appcast.sh ]]; then
+            if [[ $HAS_SPARKLE_KEY != true ]]; then
+              echo '::error::The secret SPARKLE_ED_PRIVATE_KEY is missing: a release must not ship without its update feed'
+              exit 1
+            fi
+            echo updater=true >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -146,11 +176,29 @@ jobs:
           MINDROOM_RELEASE_VERSION: ${{ env.RELEASE_TAG }}
           NODE_OPTIONS: --max-old-space-size=6144
         run: scripts/build-macos-app.sh --sign
-      - name: Attach the DMG to the release
+      - name: Make the appcast
+        if: steps.updater.outputs.updater == 'true'
+        env:
+          # This step alone gets the key, and the script reads it from standard input only.
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | env -u SPARKLE_ED_PRIVATE_KEY scripts/macos-appcast.sh build/macos/MindRoom.dmg \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/" "$VERSION" build/macos/appcast.xml
+      - name: Attach the appcast and the DMG to the release
         if: env.RELEASE_TAG
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
+          UPDATER: ${{ steps.updater.outputs.updater }}
+        # The DMG, never replaced, goes last: a release that has it has the appcast.xml that signs
+        # it. --clobber replaces an appcast.xml a failed earlier run left.
+        run: |
+          set -euo pipefail
+          if [[ $UPDATER == true ]]; then
+            gh release upload "$RELEASE_TAG" build/macos/appcast.xml --clobber --repo "$GITHUB_REPOSITORY"
+          fi
+          gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
       - name: Check that the release is the newest
         if: env.RELEASE_TAG
         id: newest
@@ -188,3 +236,30 @@ jobs:
         env:
           DIRECTORY: ${{ steps.profile.outputs.directory }}
         run: rm -rf "$DIRECTORY"
+
+  feed:
+    name: Publish the update feed
+    needs: dmg
+    # Also after a dmg job that failed at the tap: the DMG is up then.
+    if: ${{ !cancelled() && needs.dmg.result != 'skipped' && (inputs.tag || github.event.release.tag_name) }}
+    # One at a time across every release's run, every waiting run kept (queue: max), since a run
+    # that finishes late may be older than one waiting. It publishes its release only above what the
+    # feed names, so the order runs finish in does not matter, and a re-run repairs a failed
+    # publication without a rebuild.
+    concurrency:
+      group: mac-appcast
+      queue: max
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Point the feed at this release if it is the newest ready one
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/macos-publish-appcast.sh "$RELEASE_TAG"
