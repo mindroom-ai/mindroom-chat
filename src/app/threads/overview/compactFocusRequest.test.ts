@@ -39,6 +39,16 @@ describe('a compact focus request', () => {
     expect(returnTo(memory, 'a')).toBe(leftAtTop);
   });
 
+  it("keeps the place the reader left on a return that put a new entry in the thread's place", () => {
+    // The iOS app's Back replaces the thread's entry with the room's address, request included:
+    // the request is the room entry's, met there, and the reader has scrolled since.
+    const memory: ScrollAnchorMemory = new Map();
+    meetCompactFocusRequest(memory, { eventId: CARD, entryKey: 'a' });
+    memory.set(ROOM_ID, leftAtTop);
+    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'b', returned: true });
+    expect(memory.get(ROOM_ID)).toBe(leftAtTop);
+  });
+
   it('is taken again until it is met: taking it, as a render does, does not meet it', () => {
     const memory: ScrollAnchorMemory = new Map();
     takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
