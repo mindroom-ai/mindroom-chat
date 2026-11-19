@@ -259,6 +259,11 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
               <span className={css.PillText}>{t('mindroomUi.backgroundJobs.waiting')}</span>
             </span>
           )}
+          {item.finished && (
+            <span className={css.Pill.done} data-job-done>
+              {t('mindroomUi.subagents.completed')}
+            </span>
+          )}
           {item.stopping && (
             // Its Stop's place says so to screen readers.
             <span className={css.Pill.stopping} aria-hidden>

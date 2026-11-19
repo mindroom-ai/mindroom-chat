@@ -389,6 +389,8 @@ export const Pill = styleVariants({
     { background: color.Critical.Container, color: color.Critical.OnContainer },
     hiddenOnPhone,
   ],
+  // A held job's word, at every width: its time has stopped and it has no Stop.
+  done: [pill, { background: color.Secondary.Container, color: color.Secondary.OnContainer }],
 });
 
 export const PillText = style(hiddenOnPhone);

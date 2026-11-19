@@ -65,7 +65,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Model: 'Model',
   Activity: 'Activity',
   Preview: 'Preview',
-  Pill: { waiting: 'Pill', stopping: 'Pill' },
+  Pill: { waiting: 'Pill', stopping: 'Pill', done: 'Pill' },
   PillText: 'PillText',
   PillIcon: 'PillIcon',
   ThreadChip: 'ThreadChip',
@@ -216,6 +216,11 @@ it("keeps a held job's time where it ended as its list folds and opens again", (
     const elapsed = () => container.querySelector('[data-job-elapsed]')?.textContent;
     const ended = elapsed();
     expect(ended).toBeTruthy();
+    // Its time has stopped and it has no Stop: each held row says it is done, in words.
+    const done = [...container.querySelectorAll('.Job')].map(
+      (row) => row.querySelector('[data-job-done]')?.textContent
+    );
+    expect(done).toEqual(['mindroomUi.subagents.completed', 'mindroomUi.subagents.completed']);
     expand();
     expect(elapsed()).toBeUndefined();
     act(() => {
