@@ -4262,10 +4262,8 @@ describe('RoomInput placeholder', () => {
     ).toBe('Reply in thread…');
   });
 
-  it('names the room a send from its main timeline starts a thread in', async () => {
-    expect(await placeholderFor()).toBe(`New thread in ${ROOM_ID}…`);
-    // Some of the room's agents answer in threads.
-    threadModeState.mode = 'mixed';
+  it('names the room a send from its main timeline starts a thread in, where agents answer in threads', async () => {
+    threadModeState.mode = 'thread';
     expect(await placeholderFor()).toBe(`New thread in ${ROOM_ID}…`);
     expect(
       await placeholderFor(undefined, (store) =>
@@ -4274,7 +4272,8 @@ describe('RoomInput placeholder', () => {
     ).toBe(`New thread with ${ROOM_ID}…`);
   });
 
-  it('promises no thread where the main timeline gets none', async () => {
+  it('promises no thread where the main timeline may get none', async () => {
+    threadModeState.mode = 'thread';
     expect(await placeholderFor({ threadingEnabled: false })).toBe('Send a message...');
     // A reply to a message outside any thread stays in the timeline.
     expect(
@@ -4282,9 +4281,11 @@ describe('RoomInput placeholder', () => {
         store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), createReplyDraft('$p1'))
       )
     ).toBe('Send a message...');
-    // The room's agents answer in the main timeline.
-    threadModeState.mode = 'room';
-    expect(await placeholderFor()).toBe('Send a message...');
+    // The room's agents answer in the main timeline, some of them may, or the room names no mode.
+    for (const mode of ['room', 'mixed', undefined] as const) {
+      threadModeState.mode = mode;
+      expect(await placeholderFor(), String(mode)).toBe('Send a message...');
+    }
   });
 });
 

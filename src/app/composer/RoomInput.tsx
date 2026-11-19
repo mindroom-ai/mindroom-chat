@@ -243,9 +243,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const view = useContext(ConversationViewContext);
     const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
     const replyDraft = forkFrom ? undefined : viewReplyDraft;
-    // The placeholder says where Send goes, as the send routes it: into a thread, or a new one from
-    // the timeline, which a classic timeline, a reply outside any thread and agents answering in the
-    // timeline do not start.
+    // The placeholder says where sent text goes: into the thread it joins, or, from the timeline, a
+    // new thread only where every agent of the room answers in threads (mode `thread`); mixed or
+    // unknown modes promise nothing. Files sent with text, or several files, start a thread of their
+    // own (`getRoomInputSendMode`); the placeholder speaks for text alone.
     const roomThreadMode = useRoomThreadMode(roomId, true);
     const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
     const direct = useAtomValue(mDirectAtom).has(roomId);
@@ -253,7 +254,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     if (forkFrom) placeholder = t('threadFork.continueInNewThread');
     else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
       placeholder = t('composer.replyInThread');
-    else if (threadingEnabled && !replyDraft && roomThreadMode !== 'room')
+    else if (threadingEnabled && !replyDraft && roomThreadMode === 'thread')
       placeholder = direct
         ? t('composer.newThreadWith', { name: roomName })
         : t('composer.newThreadIn', { room: roomName });
