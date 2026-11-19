@@ -39,10 +39,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 #if targetEnvironment(macCatalyst)
     /// One main window: no "New Window". The Window menu opens Quick Capture, with its shortcut.
+    /// Format › Font › Bigger and Smaller go: their ⌘+ and ⌘− would take the page's zoom keys.
     override func buildMenu(with builder: UIMenuBuilder) {
         super.buildMenu(with: builder)
         guard builder.system == .main else { return }
         builder.remove(menu: .newScene)
+        builder.remove(menu: .textSize)
         let quickCapture = UIKeyCommand(
             title: NSLocalizedString("QUICK_CAPTURE", comment: "The Quick Capture window"),
             action: #selector(toggleQuickCapture),
