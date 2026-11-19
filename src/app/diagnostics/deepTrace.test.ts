@@ -256,6 +256,25 @@ describe('opt-in deep diagnostic trace', () => {
     });
   });
 
+  it('keeps every media counter beside the sample, within the field limit', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    sampleMemory('interval');
+
+    const snapshot = await readDeepTraceSnapshot();
+    const media = snapshot.events.find((event) => event.name === 'memory.media');
+    expect(Object.keys(media?.data ?? {}).sort()).toEqual([
+      'canvas_mb',
+      'canvases',
+      'image_decoded_mb',
+      'images',
+      'media_elements',
+      'object_url_mb',
+      'object_urls',
+      'reason_interval',
+    ]);
+  });
+
   it('samples memory as a thread opens', async () => {
     await setDeepTraceEnabled(true, storage);
 

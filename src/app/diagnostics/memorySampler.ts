@@ -5,13 +5,16 @@ import {
   type DeepTraceData,
   type DeepTraceRuntimeStatus,
 } from './deepTrace';
+import { installMemoryHooks, readMediaMemory, readWasmMemoryMb } from './mediaMemory';
 
 /**
  * Memory figures in the deep trace. The iOS app is killed for memory without a word in the web
  * view, so each `memory.sample` event records cheap counters (DOM nodes, the JS heap where the
  * engine reports it, rooms, events and threads in the client, open cache transactions): a trace
- * that ends in a reload shows what grew before it. Samples come every minute while the page is
- * visible, once as it hides, and at each thread open, and only while the deep trace records.
+ * that ends in a reload shows what grew before it. A `memory.media` event beside each sample counts
+ * what lives outside the JS heap (object URLs, decoded images, canvases; mediaMemory.ts). Samples
+ * come every minute while the page is visible, once as it hides, and at each thread open, and only
+ * while the deep trace records.
  */
 
 export const MEMORY_SAMPLE_INTERVAL_MS = 60_000;
@@ -41,6 +44,7 @@ const BUILT_IN_GAUGES: ReadonlyArray<readonly [string, MemoryGauge]> = [
   ['dom_nodes', () => document.getElementsByTagName('*').length],
   ['js_heap_used_mb', readJsHeapUsedMb],
   ['uptime_s', () => Math.round(performance.now() / 1000)],
+  ['wasm_memory_mb', readWasmMemoryMb],
 ];
 
 const groups = new Map<string, MemoryGaugeGroup>();
@@ -86,9 +90,19 @@ export const sampleMemory = (reason: MemorySampleReason): void => {
   });
   // A thread open is the step before the reloads this diagnoses, so its sample is written at once,
   // like the one as the page hides: a killed web view loses what was still queued.
-  recordDeepTraceEvent('memory.sample', data, {
-    flush: reason === 'hidden' || reason === 'thread_open',
-  });
+  const flush = reason === 'hidden' || reason === 'thread_open';
+  // Its own event, as the sample would pass the field limit; queued first, so the sample's flush
+  // writes it too.
+  try {
+    recordDeepTraceEvent(
+      'memory.media',
+      { [`reason_${reason}`]: true, ...readMediaMemory() },
+      { flush: false }
+    );
+  } catch {
+    // The media counters are left out; the sample still counts.
+  }
+  recordDeepTraceEvent('memory.sample', data, { flush });
 };
 
 const isRecordingStatus = (status: DeepTraceRuntimeStatus): boolean =>
@@ -103,6 +117,8 @@ let stopSampler: (() => void) | undefined;
  */
 export const startMemorySampler = (): (() => void) => {
   if (stopSampler) return stopSampler;
+  // Before the crypto module loads, so its WebAssembly memory is seen.
+  installMemoryHooks();
   let recording = false;
   let timer: number | undefined;
 
