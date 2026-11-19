@@ -15,9 +15,9 @@ const MODULES = new URL('../node_modules/', import.meta.url);
 /** Each `src:` list keeps only its woff2 face, inline; every browser that runs Chat reads woff2. */
 export const inlineFonts = (/** @type {string} */ css, /** @type {string} */ directory) =>
   css.replace(/src:([^;}]*)/g, (_, /** @type {string} */ sources) => {
-    const woff2 = /url\(["']?([^)"']+\.woff2)["']?\)/.exec(sources);
+    const woff2 = /url\(["']?([^)"']+\.woff2)["']?\)/.exec(sources)?.[1];
     if (!woff2) throw new Error(`No woff2 font in ${sources}`);
-    const font = readFileSync(path.join(directory, woff2[1])).toString('base64');
+    const font = readFileSync(path.join(directory, woff2)).toString('base64');
     return `src:url(data:font/woff2;base64,${font}) format("woff2")`;
   });
 
