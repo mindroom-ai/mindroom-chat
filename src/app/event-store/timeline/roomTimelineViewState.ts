@@ -18,6 +18,18 @@ export const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
 
 export const THREAD_OVERVIEW_METADATA_CACHE_LIMIT = 64;
 
+/**
+ * The filter the Compact cards are listed by. In sections, Later is where snoozed threads go, so the
+ * default that keeps them out of the flat cards (`snoozed: 'exclude'`) does not apply. Only the
+ * listing drops it: the filter bar and the stored filter keep it, so the flat cards still hide
+ * snoozed threads and a search typed while grouped saves it unchanged.
+ */
+export const listedThreadFilterState = (
+  state: ThreadFilterState,
+  threadSections: boolean
+): ThreadFilterState =>
+  threadSections && state.snoozed === 'exclude' ? { ...state, snoozed: 'any' } : state;
+
 export type RoomTimelineViewState = {
   focusedRoomOverviewRequested: boolean;
   requestedThreadFilterState: ThreadFilterState;

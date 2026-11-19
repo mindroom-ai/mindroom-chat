@@ -56,6 +56,7 @@ import { ThreadPeopleFilter } from '../threads/overview/ThreadPeopleFilter';
 import { useThreadSortFreezeController } from '../threads/overview/threadSortFreezeController';
 import {
   DIRECT_ROOM_TIMELINE_FILTER_STATE,
+  listedThreadFilterState,
   resolveRoomTimelineViewState,
 } from '../event-store/timeline/roomTimelineViewState';
 import {
@@ -348,6 +349,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   // the Full view: no filter bar, so no filter or sort of the bar applies there. The Compact
   // cards keep the bar (search and sort) in every room.
   const plainConversation = viewMode === 'threaded' && !hasMindroomAgents;
+  const listedFilterState = useMemo(
+    () => listedThreadFilterState(threadFilterState, props.threadSections === true),
+    [props.threadSections, threadFilterState]
+  );
   const {
     focusedRoomOverviewRequested,
     requestedThreadFilterState,
@@ -355,7 +360,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   } = resolveRoomTimelineViewState({
     eventId,
     focusEventInRoom,
-    threadFilterState: plainConversation ? DIRECT_ROOM_TIMELINE_FILTER_STATE : threadFilterState,
+    threadFilterState: plainConversation ? DIRECT_ROOM_TIMELINE_FILTER_STATE : listedFilterState,
     threadId,
     viewMode,
   });
