@@ -66,18 +66,19 @@ const rows: TableRows<React.ReactNode> = {
   ],
 };
 
-const renderTable = (size = ScreenSize.Mobile, readRows: (() => typeof rows) | null = () => rows) =>
-  render(
-    <ScreenSizeProvider value={size}>
-      <ScrollableTable readRows={readRows ?? undefined}>
-        <tbody>
-          <tr>
-            <td>Wide table</td>
-          </tr>
-        </tbody>
-      </ScrollableTable>
-    </ScreenSizeProvider>
-  );
+const tableAt = (size = ScreenSize.Mobile, readRows: (() => typeof rows) | null = () => rows) => (
+  <ScreenSizeProvider value={size}>
+    <ScrollableTable readRows={readRows ?? undefined}>
+      <tbody>
+        <tr>
+          <td>Wide table</td>
+        </tr>
+      </tbody>
+    </ScrollableTable>
+  </ScreenSizeProvider>
+);
+
+const renderTable = (...args: Parameters<typeof tableAt>) => render(tableAt(...args));
 
 describe('ScrollableTable read by row', () => {
   it('reads a wide simple table on a phone as label: value pairs and switches back', () => {
@@ -108,6 +109,35 @@ describe('ScrollableTable read by row', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show table' }));
     expect(screen.getByRole('table')).toBeTruthy();
     expect(screen.queryByRole('list')).toBeNull();
+  });
+
+  it.each([
+    ['a resize off phones', ScreenSize.Desktop, () => rows],
+    ['a streamed edit that makes the table complex', ScreenSize.Mobile, null],
+  ] as const)('moves focus from the leaving reader to the table on %s', (_, size, readRows) => {
+    const { rerender } = renderTable();
+    fireEvent.click(screen.getByRole('button', { name: 'Read by row' }));
+    screen.getByRole('link', { name: 'Ledger' }).focus();
+    rerender(tableAt(size, readRows));
+    expect(screen.queryByRole('link', { name: 'Ledger' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('table'));
+  });
+
+  it('moves focus from a leaving view chip, but never from outside the table', () => {
+    width = { scroll: 990, client: 300 };
+    const { rerender } = renderTable();
+    screen.getByRole('button', { name: 'Show table' }).focus();
+    rerender(tableAt(ScreenSize.Mobile, null));
+    expect(document.activeElement).toBe(screen.getByRole('table'));
+    cleanup();
+
+    const outside = document.body.appendChild(document.createElement('button'));
+    const view = renderTable();
+    fireEvent.click(screen.getByRole('button', { name: 'Read by row' }));
+    outside.focus();
+    view.rerender(tableAt(ScreenSize.Desktop));
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
   });
 
   it('asks for the rows only while they are read', () => {

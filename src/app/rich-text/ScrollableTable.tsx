@@ -42,6 +42,7 @@ function TableByRow({ caption, headers, rows }: TableRows<ReactNode>) {
 
 export function ScrollableTable({ children, readRows, ...props }: ScrollableTableProps) {
   const { t } = useTranslation();
+  const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const [overflowing, setOverflowing] = useState(false);
@@ -51,6 +52,19 @@ export function ScrollableTable({ children, readRows, ...props }: ScrollableTabl
   const offerByRow = phone && readRows !== undefined && (wide || byRowChosen);
   const byRow = offerByRow && byRowChosen;
   const hintId = useId();
+  // Read before the commit: when the reader leaves (a resize, a streamed edit), so does its focus.
+  const readerFocus = useRef(false);
+  const active = globalThis.document?.activeElement;
+  readerFocus.current =
+    !!containerRef.current?.contains(active) && !scrollRef.current?.contains(active);
+
+  useEffect(() => {
+    // The table, not its scroll area: that loses its tab stop once the table fits.
+    const table = tableRef.current;
+    if (!readerFocus.current || !table || document.activeElement !== document.body) return;
+    if (!table.hasAttribute('tabindex')) table.tabIndex = -1;
+    table.focus();
+  }, [offerByRow]);
 
   useEffect(() => {
     const scroll = scrollRef.current;
@@ -73,7 +87,7 @@ export function ScrollableTable({ children, readRows, ...props }: ScrollableTabl
   }, []);
 
   return (
-    <div className={css.Container}>
+    <div ref={containerRef} className={css.Container}>
       {offerByRow && (
         <div className={css.Views}>
           {[true, false].map((rows) => (

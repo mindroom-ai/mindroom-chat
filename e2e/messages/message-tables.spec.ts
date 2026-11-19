@@ -175,3 +175,29 @@ test('read by row is offered only for wide simple tables on phones', async ({ pa
   await expect(page.getByRole('table')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Read by row' })).toHaveCount(0);
 });
+
+test('focus in the reader moves to the table when the reader leaves', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/e2e/fixtures/message-tables.html?matrix');
+  await page.getByRole('button', { name: 'Read by row' }).focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Ledger M1' })).toBeFocused();
+  // Off phones the reader goes away with the focused link.
+  await page.setViewportSize({ width: 900, height: 844 });
+  await expect(page.getByRole('link', { name: 'Ledger M1' })).toBeVisible();
+  await expect(page.getByRole('table')).toBeFocused();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Read by row' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('list')).toBeVisible();
+  // A streamed edit that adds a spanning row makes the table complex while a chip has focus.
+  await expect(page.getByRole('button', { name: 'Read by row' })).toBeFocused();
+  await page
+    .getByRole('button', { name: 'Add spanning row' })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(page.getByRole('button', { name: 'Read by row' })).toHaveCount(0);
+  await expect(page.getByRole('table')).toBeFocused();
+});

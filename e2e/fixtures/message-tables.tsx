@@ -39,7 +39,8 @@ const values = [
   'Keyboard and touch support',
 ];
 
-// `?matrix`: a wide numeric table with a linked source column; `&span` adds a spanning row.
+// `?matrix`: a wide numeric table with a linked source column; `&span` (or the button) adds a
+// spanning row.
 const matrixHeaders = ['Month', 'Opening cash', 'Revenue', 'Payroll', 'Other opex', 'Capex'];
 const matrixRow = (month: number) =>
   [`M${month}`, '$4,200.0k', '$610.0k', '$520.0k', '$140.0k', '$0.0k']
@@ -49,6 +50,7 @@ const matrixRow = (month: number) =>
 function Fixture() {
   const [wide, setWide] = useState(true);
   const [months, setMonths] = useState(3);
+  const [span, setSpan] = useState(params.has('span'));
   const screenSize = useScreenSize();
   const columns = wide ? headers : ['Item', 'Count'];
   const cells = wide ? values : ['Tea', '2'];
@@ -61,7 +63,7 @@ function Fixture() {
         { length: months },
         (_, index) => `<tr>${matrixRow(index + 1)}</tr>`
       ).join('')}${
-        params.has('span') ? '<tr><td colspan="7">Forecast file missing</td></tr>' : ''
+        span ? '<tr><td colspan="7">Forecast file missing</td></tr>' : ''
       }</tbody></table>`
     : `<table>${caption}<thead><tr>${columns
         .map((header) => `<th>${header}</th>`)
@@ -88,6 +90,9 @@ function Fixture() {
         </button>
         <button type="button" onClick={() => setMonths(months + 1)}>
           Add row
+        </button>
+        <button type="button" onClick={() => setSpan(true)}>
+          Add spanning row
         </button>
         <div style={{ display: 'flex', marginTop: 16 }}>
           <div className={BreakWord} style={{ minWidth: 0, flex: 1, whiteSpace: 'pre-wrap' }}>

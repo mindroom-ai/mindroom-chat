@@ -32,6 +32,10 @@ describe('simpleTableRows', () => {
 
   it.each([
     ['a span', '<table><tr><th>A</th><th>B</th></tr><tr><td colspan="2">x</td></tr></table>'],
+    [
+      'a row span to the end of its group',
+      '<table><tr><th>A</th><th>B</th><th>C</th></tr><tr><td rowspan="0">x</td><td>1</td><td>2</td></tr><tr><td>3</td><td>4</td></tr></table>',
+    ],
     ['a row span', '<table><tr><th>A</th><th rowspan="2">B</th></tr><tr><td>x</td></tr></table>'],
     [
       'a second header row',
