@@ -31,7 +31,6 @@ globalStyle(playing(STAGE), { overflow: 'clip', isolation: 'isolate' });
 globalStyle(COPY, { inset: 0, pointerEvents: 'none' });
 globalStyle(`${forward} ${COPY}`, { zIndex: -1 });
 globalStyle(`${back} ${COPY}`, { zIndex: 2 });
-globalStyle(`${COPY} > [data-phone-top-bar]`, { visibility: 'hidden' });
 // Still: what played in the page when it was copied shows as it ended, and plays no more.
 globalStyle(`${COPY} > * *`, {
   animationDelay: '-100s !important',

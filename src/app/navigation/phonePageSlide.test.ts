@@ -135,7 +135,8 @@ describe('slidePhonePage', () => {
     // Out of reach: of input, and of what looks the layout or its parts up.
     expect(still.getAttribute('aria-hidden')).toBe('true');
     expect(still.hasAttribute('inert')).toBe(true);
-    expect(document.querySelectorAll(`[${PHONE_STAGE}]`)).toHaveLength(1);
+    expect(document.querySelectorAll(`[${PHONE_STAGE}], [data-phone-top-bar]`)).toHaveLength(2);
+    expect(still.querySelector('header')!.style.visibility).toBe('hidden');
     expect(document.querySelectorAll('#room, [data-testid="room"]')).toHaveLength(1);
     // It loads and plays nothing.
     expect(still.querySelector('iframe')!.hasAttribute('src')).toBe(false);

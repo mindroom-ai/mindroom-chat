@@ -14,6 +14,8 @@ export const PHONE_STAGE = 'data-phone-stage';
 /** Marks the page in it, below the top bar: what casts the slide's shadow. */
 export const PHONE_PAGE = 'data-phone-page';
 
+/** Marks the top bar in it (sidebar/PhoneTopBar.tsx), which no slide moves. */
+const PHONE_TOP_BAR = 'data-phone-top-bar';
 /** Marks the still copy of the phone layout that a slide shows (phonePageSlide.css.ts). */
 const COPY = 'data-page-slide-copy';
 /** The slide's keyframes (phonePageSlide.css.ts), apart from any other animation in the page. */
@@ -68,6 +70,11 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
   copy.setAttribute('aria-hidden', 'true');
   copy.setAttribute('inert', '');
   copy.style.position = 'absolute';
+  // The top bar stays above every page: the layout's own shows in the place of the copy's.
+  Array.from(copy.children).forEach((child) => {
+    if (child.hasAttribute(PHONE_TOP_BAR)) (child as HTMLElement).style.visibility = 'hidden';
+    child.removeAttribute(PHONE_TOP_BAR);
+  });
   copy.querySelectorAll('[id], [data-testid]').forEach((element) => {
     element.removeAttribute('id');
     element.removeAttribute('data-testid');
