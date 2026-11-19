@@ -170,6 +170,15 @@ test('a title the word has left still lists the thread once, by the title it has
   await expect(page.getByText('Roadmap sketch for the beta')).toHaveCount(0);
 });
 
+const searchAnswer = (results: unknown[], nextBatch?: string) => ({
+  json: {
+    search_categories: {
+      room_events: { results, count: 4, highlights: ['roadmap'], next_batch: nextBatch },
+    },
+  },
+});
+const isSearch = (url: URL) => url.pathname === '/_matrix/client/v3/search';
+
 test('a failed next page waits for Retry, also below a page of titles shown already', async ({
   page,
 }) => {
@@ -200,25 +209,16 @@ test('a failed next page waits for Retry, also below a page of titles shown alre
   };
   let failing = true;
   let thirdAsked = 0;
-  await page.route(
-    (url) => url.pathname === '/_matrix/client/v3/search',
-    async (route) => {
-      const batch = new URL(route.request().url()).searchParams.get('next_batch') ?? 'first';
-      if (batch === 'third') thirdAsked += 1;
-      if (batch === 'third' && failing) {
-        await route.fulfill({ status: 500, json: { errcode: 'M_UNKNOWN', error: 'down' } });
-        return;
-      }
-      const { results, next_batch } = pages[batch]!;
-      await route.fulfill({
-        json: {
-          search_categories: {
-            room_events: { results, count: 4, highlights: ['roadmap'], next_batch },
-          },
-        },
-      });
+  await page.route(isSearch, async (route) => {
+    const batch = new URL(route.request().url()).searchParams.get('next_batch') ?? 'first';
+    if (batch === 'third') thirdAsked += 1;
+    if (batch === 'third' && failing) {
+      await route.fulfill({ status: 500, json: { errcode: 'M_UNKNOWN', error: 'down' } });
+      return;
     }
-  );
+    const { results, next_batch } = pages[batch]!;
+    await route.fulfill(searchAnswer(results, next_batch));
+  });
   await login(page);
   await page.goto(searchPath);
   await expect(page.getByRole('alert')).toHaveText('Search failed. Try again.', {
@@ -237,4 +237,39 @@ test('a failed next page waits for Retry, also below a page of titles shown alre
   await expect(page.getByText('The roadmap is ready')).toBeVisible();
   await expect(retry).toHaveCount(0);
   expect(thirdAsked).toBe(asked + 1);
+});
+
+test('a failed refresh of the results shown keeps the error at the top, without Retry', async ({
+  page,
+}) => {
+  let asked = 0;
+  await page.route(isSearch, async (route) => {
+    asked += 1;
+    if (asked > 1) {
+      await route.fulfill({ status: 500, json: { errcode: 'M_UNKNOWN', error: 'down' } });
+      return;
+    }
+    const said = {
+      rank: 1,
+      result: {
+        event_id: '$said',
+        room_id: roomId,
+        sender: alice.userId,
+        origin_server_ts: Date.now(),
+        type: 'm.room.message',
+        content: { msgtype: 'm.text', body: 'The roadmap is ready' },
+      },
+    };
+    await route.fulfill(searchAnswer([said]));
+  });
+  await login(page);
+  await page.goto(searchPath);
+  await expect(page.locator('article')).toHaveCount(1, { timeout: 30_000 });
+  // Coming back to the tab refreshes the search, which now fails (after the query's retries).
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.getByRole('alert')).toHaveText('Search failed. Try again.', {
+    timeout: 30_000,
+  });
+  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
+  await expect(page.locator('article')).toHaveCount(1);
 });
