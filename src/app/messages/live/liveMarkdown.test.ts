@@ -39,6 +39,11 @@ describe('live reply Markdown', () => {
       'See <img src="mxc://example.org/image" alt="<title excerpt"> then **bold**',
       '<p>See <img src="mxc://example.org/image" alt="<title excerpt"> then <strong>bold</strong></p>\n',
     ],
+    [
+      "a quoted value of an attribute markdown-it's grammar rejects",
+      `<p><img 1=2 src="mxc://example.org/image" alt="<title name='&amp;'>"></p>`,
+      `<p><img 1=2 src="mxc://example.org/image" alt="<title name='&amp;'>"></p>`,
+    ],
   ])('leaves a <title inside %s as it is', (_name, md, html) => {
     expect(renderLiveMarkdown(md)).toBe(html);
   });

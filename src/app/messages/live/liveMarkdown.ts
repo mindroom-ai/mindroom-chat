@@ -23,16 +23,11 @@ const SUPPORTED_BLOCK_LINE_START = new RegExp(`^ {0,3}</?(?:${BLOCK_TAG_ALTERNAT
 const SUPPORTED_BLOCK_END_TAG = new RegExp(`</(?:${BLOCK_TAG_ALTERNATION})>\\s*$`, 'i');
 const HR_BLOCK_TAG = /^ {0,3}<hr\b[^<>]*\/?>\s*$/i;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
-// markdown-it's HTML grammar (markdown-it/lib/common/html_re): an open tag (name in group 1), a close tag
-// (group 2), a comment, processing instruction, declaration or CDATA section, so quoted values and comments
-// are consumed whole.
-const HTML_ATTRIBUTE =
-  '(?:\\s+[a-zA-Z_:][a-zA-Z0-9:._-]*(?:\\s*=\\s*(?:[^"\'=<>`\\x00-\\x20]+|\'[^\']*\'|"[^"]*"))?)';
-const HTML_CONSTRUCT = new RegExp(
-  `<([A-Za-z][A-Za-z0-9-]*)${HTML_ATTRIBUTE}*\\s*/?>|</([A-Za-z][A-Za-z0-9-]*)\\s*>` +
-    '|<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->|<[?][\\s\\S]*?[?]>|<![A-Za-z][^>]*>|<!\\[CDATA\\[[\\s\\S]*?\\]\\]>',
-  'g'
-);
+// HTML as a browser tokenizes it, in one linear pass: a comment (to EOF when unclosed), a bogus comment to
+// the first `>` (processing instruction, declaration, CDATA), or a tag (name in group 1) whose quoted
+// values are consumed whole; an unclosed quote or tag runs to EOF.
+const HTML_CONSTRUCT =
+  /<!---?>|<!--[\s\S]*?(?:-->|$)|<[?!][^>]*>?|<\/?([A-Za-z][^\t\n\f\r />]*)(?:[^"'>]|"[^"]*(?:"|$)|'[^']*(?:'|$))*(?:>|$)/g;
 // The runtime's HTML parser, and the app's sanitizer, read all text after one of these tags as raw text.
 const RAW_TEXT_TAGS = new Set(
   'script style title textarea xmp iframe noembed noframes noscript plaintext'.split(' ')
@@ -268,10 +263,8 @@ export const renderLiveMarkdown = (md: string): string | undefined =>
         separateSupportedBlockHtml
       )
     )
-    .replace(HTML_CONSTRUCT, (construct, open?: string, close?: string) =>
-      RAW_TEXT_TAGS.has((open ?? close ?? '').toLowerCase())
-        ? escapeLikePython(construct)
-        : construct
+    .replace(HTML_CONSTRUCT, (construct, name?: string) =>
+      RAW_TEXT_TAGS.has((name ?? '').toLowerCase()) ? escapeLikePython(construct) : construct
     );
 
 const subscribeReady = (listener: () => void) => {
