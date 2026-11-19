@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Box, Text, toRem } from 'folds';
+import { Badge, Box, Text, color, toRem } from 'folds';
 import { localDigits } from '../lib/localDigits';
 import { playsMotion } from './listMotion';
 
@@ -12,6 +12,13 @@ type UnreadBadgeProps = {
   /** Direct messages read as personal, like highlights. */
   dm?: boolean;
 };
+
+const MENTION_RING = {
+  outlineStyle: 'solid',
+  outlineWidth: toRem(1.5),
+  outlineColor: color.Primary.Main,
+  outlineOffset: toRem(1.5),
+} as const;
 
 /** The count in the interface language's digits, as every other number on screen. */
 const formatCount = (count: number, language: string): string =>
@@ -37,8 +44,8 @@ export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
   const badgeRef = usePopOnGrowth(count);
   const stressed = highlight || dm;
   if (count <= 0) {
-    // A small accent dot; a mention's dot is larger, so it reads apart even on its own.
-    const dot = toRem(stressed ? 10 : 6);
+    // A small accent dot; a mention's is larger with a ring around it, a shape that reads alone.
+    const dot = toRem(stressed ? 8 : 6);
     return (
       <Badge
         ref={badgeRef}
@@ -46,7 +53,7 @@ export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
         fill="Solid"
         radii="Pill"
         size="200"
-        style={{ minWidth: dot, height: dot, padding: 0 }}
+        style={{ minWidth: dot, height: dot, padding: 0, ...(stressed && MENTION_RING) }}
         aria-hidden="true"
       />
     );

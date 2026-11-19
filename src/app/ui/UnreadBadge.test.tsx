@@ -59,12 +59,16 @@ describe('UnreadBadge', () => {
     expect(mention?.className).toBe(solidAccent);
   });
 
-  it('draws a mention dot larger than a plain unread dot', () => {
+  it('rings a mention dot, so it reads apart from a plain unread dot on its own', () => {
     const plain = render(<UnreadBadge count={0} />).container.firstElementChild as HTMLElement;
     const mention = render(<UnreadBadge count={0} highlight />).container
       .firstElementChild as HTMLElement;
+    const direct = render(<UnreadBadge count={0} dm />).container.firstElementChild as HTMLElement;
 
-    expect(plain.className).toBe(mention.className);
+    expect(plain.style.outlineStyle).toBe('');
+    expect(mention.style.outlineStyle).toBe('solid');
+    expect(parseFloat(mention.style.outlineOffset)).toBeGreaterThan(0);
+    expect(direct.style.outlineStyle).toBe('solid');
     expect(parseFloat(plain.style.height)).toBeLessThan(parseFloat(mention.style.height));
   });
 });
