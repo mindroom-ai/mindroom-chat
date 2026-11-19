@@ -495,6 +495,9 @@ export const StopAll = style([
   },
 ]);
 
+// A single job's "Stop task" beside its icon; on a phone the icon and its tooltip stay.
+export const StopLabel = style(hiddenOnPhone);
+
 // "Stopping…" in Stop's place: a spinner in its slot, its words for screen readers.
 export const Stopping = style({
   display: 'grid',

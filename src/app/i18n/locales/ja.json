@@ -2618,10 +2618,6 @@
       "streamingIndicator": {
         "aiIsResponding": "AI が応答中です"
       },
-      "stopButton": {
-        "label": "停止",
-        "tooltip": "この応答を停止"
-      },
       "threadApprovalControls": {
         "close": "閉じる",
         "call": "呼び出し",
@@ -2984,8 +2980,6 @@
       "subagent": "{{tool}}（サブエージェント）",
       "stopAll": "すべて停止",
       "stopping": "停止中…",
-      "stop": "停止",
-      "stopJob": "{{tool}} を停止",
       "stopFailed": "{{tool}} を停止できませんでした。もう一度お試しください。",
       "stopAllFailed": "バックグラウンドジョブを停止できませんでした。もう一度お試しください。",
       "inRoom": "バックグラウンドジョブを実行中"

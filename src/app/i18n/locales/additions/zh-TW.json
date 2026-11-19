@@ -899,6 +899,10 @@
       "voiceTranscript": {
         "transcribing": "正在轉寫…",
         "transcribedBy": "由 {{name}} 轉寫"
+      },
+      "stopReply": {
+        "label": "停止回覆",
+        "stopping": "正在停止…"
       }
     },
     "message-search": {
@@ -987,7 +991,9 @@
         "tokens": "權杖",
         "cost": "費用",
         "time": "時間"
-      }
+      },
+      "stopTask": "停止任務",
+      "stopTaskFor": "停止任務：{{tool}}"
     },
     "subagents": {
       "title": "子代理",

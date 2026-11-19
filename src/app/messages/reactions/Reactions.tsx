@@ -102,8 +102,10 @@ export function Reactions({
     <Box className={css.ReactionsContainer} gap="200" wrap="Wrap">
       {annotations.map(([key, eventSet]) => {
         const events = Array.from(eventSet);
-        const stopButton = isAgentStopButton(key, events, targetEvent);
+        const stopButton = isAgentStopButton(key, events, targetEvent, myUserId);
         const mine = events.some((event) => event.getSender() === myUserId);
+        // The viewer's own stop, sent or on its way, until the reply ends; a refused one is taken back.
+        const stopping = stopButton && mine;
         const shortcode = reactionShortcode(events);
         return (
           <TooltipProvider
@@ -127,9 +129,19 @@ export function Reactions({
                 useAuthentication={authenticatedMedia}
                 reaction={key}
                 count={events.length}
-                label={stopButton ? t('mindroomUi.messages.stopButton.label') : undefined}
+                label={
+                  stopButton
+                    ? t(
+                        stopping
+                          ? 'mindroomUi.messages.stopReply.stopping'
+                          : 'mindroomUi.messages.stopReply.label'
+                      )
+                    : undefined
+                }
+                // Stopping keeps the chip, and the keyboard on it, until the reply ends.
+                {...(stopping && { 'aria-disabled': true, 'aria-live': 'polite', disabled: false })}
                 onClick={
-                  canToggle
+                  canToggle && !stopping
                     ? () => onReactionToggle(mEventId, key, shortcode, relations)
                     : undefined
                 }

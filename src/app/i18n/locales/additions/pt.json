@@ -927,6 +927,10 @@
       "voiceTranscript": {
         "transcribing": "Transcrevendo…",
         "transcribedBy": "Transcrito por {{name}}"
+      },
+      "stopReply": {
+        "label": "Parar resposta",
+        "stopping": "Parando…"
       }
     },
     "message-search": {
@@ -1027,7 +1031,9 @@
         "tokens": "Tokens",
         "cost": "Custo",
         "time": "Tempo"
-      }
+      },
+      "stopTask": "Parar tarefa",
+      "stopTaskFor": "Parar tarefa: {{tool}}"
     },
     "subagents": {
       "title": "Subagentes",

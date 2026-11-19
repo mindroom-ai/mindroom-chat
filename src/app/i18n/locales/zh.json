@@ -2618,10 +2618,6 @@
       "streamingIndicator": {
         "aiIsResponding": "AI正在响应"
       },
-      "stopButton": {
-        "label": "停止",
-        "tooltip": "停止此回复"
-      },
       "threadApprovalControls": {
         "close": "关闭",
         "call": "调用",
@@ -2984,8 +2980,6 @@
       "subagent": "{{tool}}（子代理）",
       "stopAll": "全部停止",
       "stopping": "正在停止…",
-      "stop": "停止",
-      "stopJob": "停止 {{tool}}",
       "stopFailed": "无法停止 {{tool}}，请重试。",
       "stopAllFailed": "无法停止后台任务，请重试。",
       "inRoom": "后台任务运行中"

@@ -969,6 +969,10 @@
       "voiceTranscript": {
         "transcribing": "جارٍ التفريغ…",
         "transcribedBy": "فرّغه ⁨{{name}}⁩"
+      },
+      "stopReply": {
+        "label": "إيقاف الرد",
+        "stopping": "جارٍ الإيقاف…"
       }
     },
     "message-search": {
@@ -1087,7 +1091,9 @@
         "tokens": "الرموز",
         "cost": "التكلفة",
         "time": "الوقت"
-      }
+      },
+      "stopTask": "إيقاف المهمة",
+      "stopTaskFor": "إيقاف المهمة: ⁨{{tool}}⁩"
     },
     "subagents": {
       "title": "الوكلاء الفرعيون",

@@ -2709,10 +2709,6 @@
       "streamingIndicator": {
         "aiIsResponding": "ИИ отвечает"
       },
-      "stopButton": {
-        "label": "Остановить",
-        "tooltip": "Остановить этот ответ"
-      },
       "threadApprovalControls": {
         "close": "Закрыть",
         "call": "вызов",
@@ -3127,8 +3123,6 @@
       "subagent": "{{tool}} (субагент)",
       "stopAll": "Остановить все",
       "stopping": "Остановка…",
-      "stop": "Остановить",
-      "stopJob": "Остановить {{tool}}",
       "stopFailed": "Не удалось остановить {{tool}}. Попробуйте ещё раз.",
       "stopAllFailed": "Не удалось остановить фоновые задачи. Попробуйте ещё раз.",
       "inRoom": "Выполняются фоновые задачи"
