@@ -9,7 +9,8 @@ protocol MindRoomMacUpdaterProtocol: NSObjectProtocol {
     func start(onChange: @escaping (String?) -> Void)
     /// Quits the app, installs the waiting update and opens it. False when none waits.
     func install() -> Bool
-    /// Sparkle's own flag: false before start() and while a check runs or an update waits.
+    /// Sparkle's own flag: whether a user check may start or refocus Sparkle's update window.
+    /// False before start(), during a background check and while a downloaded update waits.
     var canCheckForUpdates: Bool { get }
     /// A check the user asked for, in Sparkle's windows. Does nothing while it cannot check.
     func checkForUpdates()

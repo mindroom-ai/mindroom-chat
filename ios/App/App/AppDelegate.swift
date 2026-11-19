@@ -53,7 +53,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         )
         builder.insertChild(UIMenu(options: .displayInline, children: [quickCapture]), atStartOfMenu: .window)
 #if !MINDROOM_MAC_APP_STORE
-        let updates = UICommand(title: checkForUpdatesTitle, action: #selector(checkForUpdates))
+        // Rebuilt when an update is staged or withdrawn (MacUpdater.start), so each title has its own action.
+        let updates = MacUpdater.readyVersion == nil
+            ? UICommand(title: NSLocalizedString("CHECK_FOR_UPDATES", comment: "App menu: look for a new version"),
+                        action: #selector(checkForUpdates))
+            : UICommand(title: NSLocalizedString("RESTART_TO_UPDATE", comment: "App menu: install the downloaded version"),
+                        action: #selector(restartToUpdate))
         builder.insertSibling(UIMenu(options: .displayInline, children: [updates]), afterMenu: .about)
 #endif
     }
@@ -64,26 +69,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 #endif
 
 #if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
-    /// Sparkle's check, with its windows. While a downloaded update waits Sparkle runs no check,
-    /// so the item installs that update instead, as the page's Reload does.
+    /// Sparkle's check, with its windows. Never installs.
     @objc func checkForUpdates() {
-        if !MacUpdater.install() { MacUpdater.checkForUpdates() }
+        MacUpdater.checkForUpdates()
     }
 
-    private var checkForUpdatesTitle: String {
-        MacUpdater.readyVersion == nil
-            ? NSLocalizedString("CHECK_FOR_UPDATES", comment: "App menu: look for a new version")
-            : NSLocalizedString("RESTART_TO_UPDATE", comment: "App menu: install the downloaded version")
+    /// While a downloaded update waits Sparkle runs no check; this installs it, as the page's
+    /// Reload does. Does nothing if the update was withdrawn.
+    @objc func restartToUpdate() {
+        guard MacUpdater.readyVersion != nil else { return }
+        _ = MacUpdater.install()
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        guard action == #selector(checkForUpdates) else { return super.canPerformAction(action, withSender: sender) }
-        return MacUpdater.readyVersion != nil || MacUpdater.canCheckForUpdates
-    }
-
-    override func validate(_ command: UICommand) {
-        super.validate(command)
-        if command.action == #selector(checkForUpdates) { command.title = checkForUpdatesTitle }
+        switch action {
+        case #selector(checkForUpdates): return MacUpdater.canCheckForUpdates
+        case #selector(restartToUpdate): return MacUpdater.readyVersion != nil
+        default: return super.canPerformAction(action, withSender: sender)
+        }
     }
 #endif
 
