@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "スクロール可能なテーブル",
-    "scrollHint": "横スクロール"
+    "scrollHint": "横スクロール",
+    "readByRow": "行ごとに読む",
+    "showTable": "表を表示"
   },
   "messageCodeBlock": {
     "actions": "コードブロックの操作",

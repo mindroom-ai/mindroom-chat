@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Scrollable table",
-    "scrollHint": "Scroll horizontally"
+    "scrollHint": "Scroll horizontally",
+    "readByRow": "Read by row",
+    "showTable": "Show table"
   },
   "messageCodeBlock": {
     "actions": "Code block actions",

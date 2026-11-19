@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabela com rolagem",
-    "scrollHint": "Role horizontalmente"
+    "scrollHint": "Role horizontalmente",
+    "readByRow": "Ler por linha",
+    "showTable": "Mostrar tabela"
   },
   "messageCodeBlock": {
     "actions": "Ações do bloco de código",

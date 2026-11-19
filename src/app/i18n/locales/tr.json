@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Kaydırılabilir tablo",
-    "scrollHint": "Yatay kaydır"
+    "scrollHint": "Yatay kaydır",
+    "readByRow": "Satır satır oku",
+    "showTable": "Tabloyu göster"
   },
   "messageCodeBlock": {
     "actions": "Kod bloğu işlemleri",

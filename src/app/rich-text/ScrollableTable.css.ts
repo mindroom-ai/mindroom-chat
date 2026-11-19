@@ -69,3 +69,57 @@ export const Hint = style({
   lineHeight: config.lineHeight.T200,
   opacity: 0.72,
 });
+
+export const Views = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: config.space.S200,
+  marginBottom: config.space.S200,
+});
+
+export const Caption = style({
+  marginBottom: config.space.S200,
+});
+
+export const Rows = style({
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+});
+
+export const Row = style({
+  paddingBlock: config.space.S300,
+  borderTop: `1px solid ${color.Surface.ContainerLine}`,
+});
+
+export const RowTitle = style({
+  marginBottom: config.space.S100,
+  fontWeight: config.fontWeight.W600,
+  overflowWrap: 'anywhere',
+});
+
+export const Pairs = style({
+  display: 'grid',
+  gap: config.space.S100,
+  margin: 0,
+});
+
+export const Pair = style({
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: config.space.S300,
+});
+
+export const Label = style({
+  flexShrink: 0,
+  maxWidth: '50%',
+  opacity: 0.72,
+  overflowWrap: 'anywhere',
+});
+
+export const Value = style({
+  minWidth: 0,
+  margin: 0,
+  textAlign: 'end',
+  overflowWrap: 'anywhere',
+});

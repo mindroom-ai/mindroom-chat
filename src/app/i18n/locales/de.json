@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Scrollbare Tabelle",
-    "scrollHint": "Horizontal scrollen"
+    "scrollHint": "Horizontal scrollen",
+    "readByRow": "Zeilenweise lesen",
+    "showTable": "Tabelle anzeigen"
   },
   "messageCodeBlock": {
     "actions": "Codeblock-Aktionen",

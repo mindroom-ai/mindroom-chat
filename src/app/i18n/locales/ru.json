@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Прокручиваемая таблица",
-    "scrollHint": "Прокрутить по горизонтали"
+    "scrollHint": "Прокрутить по горизонтали",
+    "readByRow": "Читать по строкам",
+    "showTable": "Показать таблицу"
   },
   "messageCodeBlock": {
     "actions": "Действия с блоком кода",

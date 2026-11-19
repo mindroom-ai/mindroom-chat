@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "可滚动表格",
-    "scrollHint": "水平滚动"
+    "scrollHint": "水平滚动",
+    "readByRow": "按行阅读",
+    "showTable": "显示表格"
   },
   "messageCodeBlock": {
     "actions": "代码块操作",
