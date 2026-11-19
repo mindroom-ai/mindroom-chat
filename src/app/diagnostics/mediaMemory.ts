@@ -73,7 +73,8 @@ const hookWebAssembly = (restores: Array<() => void>): void => {
 const blobSize = (obj: Blob | MediaSource): number => {
   try {
     const getter = Object.getOwnPropertyDescriptor(Blob.prototype, 'size')?.get;
-    const size: unknown = obj instanceof Blob ? getter?.call(obj) : 0;
+    // No `instanceof`: a blob from a same-origin frame is another realm's; the getter checks.
+    const size: unknown = getter?.call(obj);
     return typeof size === 'number' ? size : 0;
   } catch {
     return 0;
@@ -89,12 +90,16 @@ const hookObjectUrls = (restores: Array<() => void>): void => {
     if (since === generation) objectUrlBytes.set(url, blobSize(obj));
     return url;
   };
-  URL.revokeObjectURL = (url: string): void => {
-    objectUrlBytes.delete(url);
-    revokeObjectURL.call(URL, url);
-  };
+  // Each restore right after its hook, so a hook that fails leaves none of them behind.
   restores.push(() => {
     URL.createObjectURL = createObjectURL;
+  });
+  // The native call gets the arguments as given, so its errors stay its own.
+  URL.revokeObjectURL = (...args: Parameters<typeof revokeObjectURL>): void => {
+    revokeObjectURL.apply(URL, args);
+    if (args.length > 0) objectUrlBytes.delete(String(args[0]));
+  };
+  restores.push(() => {
     URL.revokeObjectURL = revokeObjectURL;
   });
 };
@@ -153,9 +158,13 @@ export const readMediaMemory = () => {
   });
   let imagePixels = 0;
   const { images } = document;
+  // A source shown several times (an avatar) is decoded once.
+  const sources = new Set<string>();
   for (let index = 0; index < images.length; index += 1) {
     const image = images[index]!;
-    if (image.complete) imagePixels += image.naturalWidth * image.naturalHeight;
+    if (!image.complete || sources.has(image.currentSrc)) continue;
+    sources.add(image.currentSrc);
+    imagePixels += image.naturalWidth * image.naturalHeight;
   }
   let canvasPixels = 0;
   const canvases = document.getElementsByTagName('canvas');

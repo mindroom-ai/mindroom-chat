@@ -56,14 +56,16 @@ describe('media memory', () => {
     expect(readWasmMemoryMb()).toBe(2);
 
     // An instance made from a compiled module counts too.
-    await WebAssembly.instantiate(await WebAssembly.compile(WASM_WITH_MEMORY));
+    const fromModule = await WebAssembly.instantiate(await WebAssembly.compile(WASM_WITH_MEMORY));
     expect(readWasmMemoryMb()).toBe(3);
 
     // The crypto module loads this way.
-    await WebAssembly.instantiateStreaming(
+    const streamed = await WebAssembly.instantiateStreaming(
       new Response(WASM_WITH_MEMORY, { headers: { 'Content-Type': 'application/wasm' } })
     );
     expect(readWasmMemoryMb()).toBe(4);
+    // Kept alive to here: a collected instance's memory leaves the count.
+    expect([instance, fromModule, streamed]).toHaveLength(3);
   });
 
   it('records nothing from a load or a kept wrapper that finishes after uninstall', async () => {
@@ -93,6 +95,25 @@ describe('media memory', () => {
     );
 
     expect(readWasmMemoryMb()).toBe(1);
+  });
+
+  it('passes revocations through unchanged and forgets a URL given as a URL object', () => {
+    const url = URL.createObjectURL(new Blob([new Uint8Array(1024 * 1024)]));
+
+    URL.revokeObjectURL(new URL(url) as unknown as string);
+    expect(readMediaMemory()).toMatchObject({ object_urls: 0, object_url_mb: 0 });
+
+    (URL.revokeObjectURL as () => void)();
+    expect(revokeObjectURL).toHaveBeenLastCalledWith();
+  });
+
+  it('measures a blob made in another realm', () => {
+    // A blob from a same-origin frame is not an instance of this page's Blob.
+    const blob = new Blob([new Uint8Array(1024 * 1024)]);
+    Object.setPrototypeOf(blob, Object.prototype);
+
+    URL.createObjectURL(blob);
+    expect(readMediaMemory()).toMatchObject({ object_urls: 1, object_url_mb: 1 });
   });
 
   it('returns the URL even when the blob cannot be measured', () => {
@@ -128,11 +149,16 @@ describe('media memory', () => {
 
   it('estimates decoded images and canvases in the document, and counts media elements', () => {
     const loaded = document.createElement('img');
-    Object.defineProperties(loaded, {
-      complete: { value: true },
-      naturalWidth: { value: 1024 },
-      naturalHeight: { value: 512 },
-    });
+    // The same avatar shown twice is decoded once.
+    const again = document.createElement('img');
+    [loaded, again].forEach((image) =>
+      Object.defineProperties(image, {
+        complete: { value: true },
+        currentSrc: { value: 'blob:test/avatar' },
+        naturalWidth: { value: 1024 },
+        naturalHeight: { value: 512 },
+      })
+    );
     const loading = document.createElement('img');
     Object.defineProperty(loading, 'complete', { value: false });
     const canvas = document.createElement('canvas');
@@ -140,6 +166,7 @@ describe('media memory', () => {
     canvas.height = 1024;
     document.body.append(
       loaded,
+      again,
       loading,
       canvas,
       document.createElement('video'),
@@ -147,7 +174,7 @@ describe('media memory', () => {
     );
 
     expect(readMediaMemory()).toMatchObject({
-      images: 2,
+      images: 3,
       image_decoded_mb: 2,
       canvases: 1,
       canvas_mb: 2,
