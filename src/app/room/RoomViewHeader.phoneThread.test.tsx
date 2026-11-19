@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { createStore, Provider } from 'jotai';
+import { useContext } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { IconButton, Icons } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { PhoneThreadHeader } from '../threads/ThreadContextBanner';
+import { TightCallPlace } from '../calls/headerCallPlace';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import * as css from './RoomViewHeaderLayout.css';
 
@@ -80,13 +82,15 @@ afterEach(() => {
   screen.size = 'Desktop';
 });
 
-const renderHeader = (props: RoomViewHeaderProps) => {
+/** `row` stands in for the thread's row, which a test renderer has no element for. */
+const renderHeader = (props: RoomViewHeaderProps, row?: object) => {
   act(() => renderer?.unmount());
   act(() => {
     renderer = create(
       <Provider store={createStore()}>
         <RoomViewHeader {...props} />
-      </Provider>
+      </Provider>,
+      { createNodeMock: (element) => (element.props['data-thread-rows'] === '' ? row : null) }
     );
   });
 };
@@ -103,25 +107,28 @@ const PINNED = { id: 'notes/pinned', label: 'Notes', icon: Icons.Bulb, placement
 const calls = <button type="button" aria-label="Start call" />;
 
 /** Renders the header of the open thread, and returns what it gave the thread's rows. */
-const renderInThread = (size: string, props: RoomViewHeaderProps = {}) => {
+const renderInThread = (size: string, props: RoomViewHeaderProps = {}, row?: object) => {
   screen.size = size;
   const given: PhoneThreadHeader[] = [];
-  renderHeader({
-    threadId: '$thread',
-    calls,
-    pluginPanels: [BOARD, PINNED],
-    onPanelToggle: vi.fn(),
-    phoneThread: (parts) => {
-      given.push(parts);
-      return (
-        <section data-thread-rows="">
-          <i>{parts.roomName}</i>
-          {parts.actions}
-        </section>
-      );
+  renderHeader(
+    {
+      threadId: '$thread',
+      calls,
+      pluginPanels: [BOARD, PINNED],
+      onPanelToggle: vi.fn(),
+      phoneThread: (parts) => {
+        given.push(parts);
+        return (
+          <section data-thread-rows="" ref={parts.rowRef}>
+            <i>{parts.roomName}</i>
+            {parts.actions}
+          </section>
+        );
+      },
+      ...props,
     },
-    ...props,
-  });
+    row
+  );
   return given.at(-1);
 };
 
@@ -151,6 +158,58 @@ describe("a phone's room header with a thread filling the page", () => {
     // The panel that is no button on a phone, and the room's own actions.
     expect(menuEntries()).toEqual(expect.arrayContaining(['Board', 'Show Members']));
     expect(menuEntries()).not.toContain('Notes');
+  });
+
+  it('moves what a row too narrow has no width for to the room menu, and keeps one call button', () => {
+    const resized: Array<() => void> = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resized.push(callback);
+        }
+
+        observe = () => undefined;
+
+        disconnect = () => undefined;
+      }
+    );
+    // Says where the header drew the call controls.
+    function Calls() {
+      const tight = useContext(TightCallPlace);
+      const place = tight?.closeMenu ? 'menu' : 'tight row';
+      return <button type="button" aria-label={`calls: ${tight ? place : 'row'}`} />;
+    }
+    const drawn = () =>
+      renderer?.root
+        .findAll((node) => String(node.props['aria-label']).startsWith('calls: '), { deep: false })
+        .map((node) => node.props['aria-label']);
+    const rowPanels = () =>
+      renderer?.root
+        .findByProps({ 'data-thread-rows': '' })
+        .findAllByType(IconButton)
+        .map((node) => node.props['aria-label']);
+    // 320 px at 150% zoom: the buttons need more than the row has, the name already gone.
+    const row = { scrollWidth: 340, clientWidth: 213, lastElementChild: null };
+    const parts = renderInThread('Mobile', { calls: <Calls /> }, row);
+    expect(rowPanels()).toEqual([]);
+    expect(drawn()).toEqual(['calls: tight row']);
+    act(() => parts?.onRoomMenu({ x: 180, y: 60, width: 40, height: 40 }));
+    expect(menuEntries()).toEqual(expect.arrayContaining(['Notes', 'Board', 'Show Members']));
+    expect(drawn()).toEqual(['calls: tight row', 'calls: menu']);
+
+    // Without the buttons that left, the row no longer overflows: they stay in the menu until
+    // the row is as wide as all of them needed.
+    row.scrollWidth = 213;
+    act(() => resized.forEach((callback) => callback()));
+    expect(rowPanels()).toEqual([]);
+    row.clientWidth = 390;
+    row.scrollWidth = 390;
+    act(() => resized.forEach((callback) => callback()));
+    expect(rowPanels()).toEqual(['Notes']);
+    expect(drawn()).toContain('calls: row');
+    expect(menuEntries()).not.toContain('Notes');
+    vi.unstubAllGlobals();
   });
 
   it.each(['Tablet', 'Desktop'])(

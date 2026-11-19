@@ -193,6 +193,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
   PhoneHeader: 'PhoneHeader',
+  PhoneMore: 'PhoneMore',
   PhonePin: 'PhonePin',
   PhoneRoom: 'PhoneRoom',
   PhoneRoomButton: 'PhoneRoomButton',
@@ -1584,12 +1585,12 @@ describe('ThreadContextBanner rendering', () => {
       'Fix the flaky upload retry on slow networks, show progress per file, and keep partial uploads when the app is closed early';
     const onRoomMenu = vi.fn();
     const onExitThread = vi.fn();
-    const renderPhone = (summaryText?: string) =>
+    const renderPhone = (summaryText?: string, threadId = '$root') =>
       create(
         React.createElement(
           ScreenSizeProvider,
           { value: ScreenSize.Mobile },
-          bannerElement(summaryText, '$root', {
+          bannerElement(summaryText, threadId, {
             onExitThread,
             phoneHeader: {
               roomName: 'Design',
@@ -1698,6 +1699,40 @@ describe('ThreadContextBanner rendering', () => {
         className: 'SummaryText',
         truncate: true,
       });
+      card.unmount();
+    });
+
+    it("opens the room's menu from More while the server has not confirmed the thread's root", async () => {
+      const anchor = { x: 340, y: 60, width: 40, height: 40 };
+      const trigger = { getBoundingClientRect: () => anchor, focus: vi.fn(), isConnected: true };
+      const shown = menuProps.mock.calls.length;
+      bannerMocks.useThreadRootEvent.mockReturnValue('~local');
+      const renderer = renderPhone(undefined, '~local');
+      const more = renderer.root.findByProps({ 'aria-label': 'Thread options' });
+      expect(more.props.disabled).toBe(false);
+      await act(async () => more.props.onClick({ currentTarget: trigger }));
+      expect(onRoomMenu).toHaveBeenCalledWith(anchor);
+      // The thread's own menu, with what would change a thread the server does not have, stays shut.
+      expect(menuProps.mock.calls).toHaveLength(shown);
+      renderer.unmount();
+
+      // The card has no room menu to open: its More waits for the root.
+      const card = create(bannerElement(undefined, '~local'));
+      expect(card.root.findByProps({ 'aria-label': 'Thread options' }).props.disabled).toBe(true);
+      card.unmount();
+    });
+
+    it("gives More the header buttons' size, and the title a block that takes the focus to be scrolled", () => {
+      const renderer = renderPhone(LONG_TITLE);
+      expect(renderer.root.findByProps({ 'aria-label': 'Thread options' }).props.className).toBe(
+        'MessageOptionsButton PhoneMore'
+      );
+      expect(renderer.root.findByProps({ className: 'PhoneTitleRow' }).props.tabIndex).toBe(0);
+      renderer.unmount();
+      const card = renderBanner(LONG_TITLE);
+      expect(card.root.findByProps({ 'aria-label': 'Thread options' }).props.className).toBe(
+        'MessageOptionsButton'
+      );
       card.unmount();
     });
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HeaderCallButtons } from './HeaderCallButtons';
+import { TightCallPlace } from './headerCallPlace';
 
 const state = vi.hoisted(() => ({
   candidates: [] as { userId: string; displayName: string }[],
@@ -27,7 +28,8 @@ vi.mock('./callStore', () => ({
   useRoomCallMembers: () => Array.from({ length: state.callMembers }),
 }));
 vi.mock('./agent/AgentCallHeaderButton', () => ({
-  AgentCallHeaderButton: () => React.createElement('button', { 'data-kind': 'agent-call' }),
+  AgentCallHeaderButton: ({ inMenu }: { inMenu?: () => void }) =>
+    React.createElement('button', { 'data-kind': inMenu ? 'agent-entries' : 'agent-call' }),
 }));
 // The room's voice agents are the candidates given here; the rule for offering them is real.
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
@@ -84,6 +86,30 @@ describe('HeaderCallButtons', () => {
     state.candidates = [agent];
     state.callRoom = true;
     expect(kinds(render(<HeaderCallButtons />))).toEqual(['room-call']);
+  });
+
+  it('keeps one button in a row too narrow for two, and lists the agents it left out in the menu', () => {
+    const inRow = (
+      <TightCallPlace.Provider value={{}}>
+        <HeaderCallButtons />
+      </TightCallPlace.Provider>
+    );
+    const inMenu = (
+      <TightCallPlace.Provider value={{ closeMenu: () => undefined }}>
+        <HeaderCallButtons />
+      </TightCallPlace.Provider>
+    );
+    // An agent alone keeps its button: a call stays one tap away.
+    state.candidates = [agent];
+    expect(kinds(render(inRow))).toEqual(['agent-call']);
+    expect(kinds(render(inMenu))).toEqual([]);
+    // With a call on in the room, the room's call takes the button and the menu the agents.
+    state.callMembers = 2;
+    expect(kinds(render(inRow))).toEqual(['room-call']);
+    expect(kinds(render(inMenu))).toEqual(['agent-entries']);
+    state.candidates = [];
+    expect(kinds(render(inRow))).toEqual(['room-call']);
+    expect(kinds(render(inMenu))).toEqual([]);
   });
 });
 

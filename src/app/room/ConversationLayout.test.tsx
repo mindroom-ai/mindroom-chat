@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { createRef, type ReactNode, type RefObject } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { createRef, useContext, useLayoutEffect, type ReactNode, type RefObject } from 'react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { useThreadApprovals, type ThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { ThreadApprovalsScope } from '../approvals/ThreadApprovalsRelay';
+import { HeaderResizeHoldContext } from '../timeline/headerResizeHold';
 import { ConversationLayout } from './ConversationLayout';
 import { HeaderInShortArea } from './RoomView.css';
 
@@ -206,6 +207,88 @@ it("keeps a phone's header inside a thread on a short screen: it is the thread's
   );
   const header = screen.getByTestId('header').parentElement as HTMLElement;
   expect(header.classList.contains(HeaderInThread)).toBe(false);
+  // Nor does a short area (a keyboard up) take it away: it holds the way back and the rename.
+  expect(header.classList.contains(HeaderInShortArea)).toBe(false);
+  cleanup();
+  // The room's own header still gives its place away there.
+  render(
+    <ScreenSizeProvider value={ScreenSize.Mobile}>
+      {layout({ header: () => <div data-testid="header" /> })}
+    </ScreenSizeProvider>
+  );
+  expect(screen.getByTestId('header').parentElement?.classList.contains(HeaderInShortArea)).toBe(
+    true
+  );
+});
+
+it("hands a phone thread header's height changes to the timeline, which holds its reader, before the inset moves", () => {
+  const resized: Array<() => void> = [];
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: () => void) {
+        resized.push(callback);
+      }
+
+      observe = () => undefined;
+
+      disconnect = () => undefined;
+    }
+  );
+  const held: Array<{ inset?: string; change: number }> = [];
+  function Timeline() {
+    const hold = useContext(HeaderResizeHoldContext);
+    useLayoutEffect(() => {
+      if (!hold) return undefined;
+      hold.current = (change, setInset) => {
+        held.push({ inset: area.current?.style.getPropertyValue('--room-header-height'), change });
+        setInset();
+      };
+      return () => {
+        hold.current = undefined;
+      };
+    }, [hold]);
+    return <div data-testid="held">{hold ? 'held' : 'free'}</div>;
+  }
+  const area = createRef<HTMLDivElement>();
+  const phoneThread = (threadId?: string) => (
+    <ScreenSizeProvider value={ScreenSize.Mobile}>
+      {layout({
+        areaRef: area,
+        threadId,
+        timeline: <Timeline />,
+        header: () => <div data-testid="header" />,
+      })}
+    </ScreenSizeProvider>
+  );
+  let height = 110;
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+  const setHeight = (next: number) => {
+    height = next;
+    act(() => resized.forEach((callback) => callback()));
+  };
+  render(phoneThread('$root'));
+  expect(screen.getByTestId('held').textContent).toBe('held');
+  // The first height is the inset as the thread opens: nothing moved under a reader.
+  expect(held).toEqual([]);
+  expect(area.current?.style.getPropertyValue('--room-header-height')).toBe('110px');
+  // A resolver's line arrives, then goes: the timeline reads its place under the old inset.
+  setHeight(134);
+  setHeight(110);
+  setHeight(110);
+  expect(held).toEqual([
+    { inset: '110px', change: 24 },
+    { inset: '134px', change: -24 },
+  ]);
+  expect(area.current?.style.getPropertyValue('--room-header-height')).toBe('110px');
+  cleanup();
+  // The room's own messages on a phone, and a thread on wider screens, keep their own ways.
+  render(phoneThread());
+  expect(screen.getByTestId('held').textContent).toBe('free');
+  cleanup();
+  render(layout({ threadId: '$root', timeline: <Timeline /> }));
+  expect(screen.getByTestId('held').textContent).toBe('free');
+  vi.unstubAllGlobals();
 });
 
 it("gives a phone's header the open thread's approvals, which its chips read; wider screens keep them to the thread", () => {

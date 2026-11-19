@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
@@ -173,12 +173,14 @@ vi.mock('../approvals/ThreadApprovalProvider', () => ({
 vi.mock('../approvals/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
 vi.mock('../threads/ThreadContextBanner', () => ({
   ThreadContextBanner: ({
+    threadId,
     onShowBeside,
     onShowFull,
     onExitThread,
     phoneHeader,
   }: ThreadContextBannerProps) => (
     <div data-testid="thread-banner" data-room={phoneHeader?.roomName}>
+      <HeldOpen threadId={threadId} />
       <button type="button" onClick={onExitThread}>
         Back
       </button>
@@ -195,6 +197,18 @@ vi.mock('../threads/ThreadContextBanner', () => ({
     </div>
   ),
 }));
+// What the banner holds open for its thread, such as the dialog of its permissions.
+function HeldOpen({ threadId }: { threadId: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Permissions
+      </button>
+      {open && <div role="dialog">{`Permissions of ${threadId}`}</div>}
+    </>
+  );
+}
 // The column's view, which reports its last thread as it unmounts, and whose composer takes the
 // files dropped on the element the page names, else on the view.
 vi.mock('./ThreadView', async () => {
@@ -531,6 +545,17 @@ it("returns the focus to the messages' composer when the column closes", () => {
   state.thread = undefined;
   rerenderView(rerender);
   expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+});
+
+it("closes what a phone's header held open for a thread as another thread takes its place", () => {
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  fireEvent.click(screen.getByRole('button', { name: 'Permissions' }));
+  expect(screen.getByRole('dialog').textContent).toBe('Permissions of $thread');
+  // The same header, the same room: the thread's dialog goes with the thread.
+  state.thread = '$other';
+  rerender(tree({}, ScreenSize.Mobile));
+  expect(screen.getByTestId('thread-banner')).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
 
 it('leaves the focus alone on a phone as the thread closes, which would raise the keyboard', () => {
