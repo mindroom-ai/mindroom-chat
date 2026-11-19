@@ -1036,6 +1036,7 @@
       "failed": "Failed",
       "cancelled": "Stopped",
       "denied": "Denied",
+      "interrupted": "Interrupted",
       "count_one": "{{count}} active",
       "count_other": "{{count}} active",
       "show": "Show sub-agents",

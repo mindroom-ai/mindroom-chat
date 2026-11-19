@@ -1013,6 +1013,7 @@
       "failed": "실패",
       "cancelled": "중지됨",
       "denied": "거부됨",
+      "interrupted": "중단됨",
       "count_other": "{{count}}개 활성",
       "show": "하위 에이전트 표시",
       "hide": "하위 에이전트 숨기기",

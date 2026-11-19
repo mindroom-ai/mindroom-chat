@@ -638,6 +638,38 @@ describe('SubagentsPanel', () => {
     expect(view()?.querySelector('[data-subagent-failure]')?.textContent).toBe('Tool crashed.');
   });
 
+  it('shows a turn a restart cut short as interrupted, with its reason, not as failed', () => {
+    const reason = 'Interrupted by a restart; MindRoom continues it when it can.';
+    ingest(
+      'cut',
+      meta('failed', { result: reason, interruptedByRestart: true }),
+      docs('Trying.', [], false)
+    );
+    render();
+
+    expect(card('cut').textContent).toContain('Interrupted');
+    expect(card('cut').textContent).not.toContain('Failed');
+    expect(card('cut').textContent).toContain(reason);
+    open('cut');
+    expect(view()?.querySelector('[data-subagent-failure]')).toBeNull();
+    expect(view()?.querySelector('[data-subagent-interruption]')?.textContent).toBe(reason);
+    expect(view()?.textContent).not.toContain('Failed');
+  });
+
+  it('reads only a failed turn as interrupted, whatever else carries the restart mark', () => {
+    ingest('working', meta('running', { interruptedByRestart: true }), docs('Going.'));
+    ingest(
+      'done',
+      meta('completed', { result: 'All done.', interruptedByRestart: true }),
+      docs('All done.', [], false)
+    );
+    render();
+
+    expect(card('working').textContent).toContain('Running');
+    expect(card('done').textContent).toContain('Done');
+    expect(cards().some((element) => element.textContent?.includes('Interrupted'))).toBe(false);
+  });
+
   it('says why a failed run that wrote nothing ended, not as its answer', () => {
     ingest('broke', meta('failed', { result: 'Tool crashed.' }), docs('', [], false));
     render();

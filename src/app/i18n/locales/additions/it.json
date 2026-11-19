@@ -1059,6 +1059,7 @@
       "failed": "Non riuscito",
       "cancelled": "Interrotto",
       "denied": "Negato",
+      "interrupted": "Interrotto dal riavvio",
       "count_one": "{{count}} attivo",
       "count_many": "{{count}} attivi",
       "count_other": "{{count}} attivi",

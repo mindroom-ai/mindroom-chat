@@ -16,8 +16,9 @@ import { mxcUrlToHttp } from '../matrix/matrix';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import {
   isActiveSubagentStatus,
+  isFailedRun,
+  isRestartInterrupted,
   type SubagentMeta,
-  type SubagentStatus,
 } from '../matrix/protocol/subagentFrame';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
@@ -84,9 +85,13 @@ export function AgentAvatar({ agent, size }: { agent: AgentProfile; size: '200' 
   );
 }
 
-/** How the run stands: a dot in the status's color, then its word. */
-export function RunStatus({ status }: { status: SubagentStatus }) {
+/**
+ * How the run stands: a dot in the status's color, then its word. A turn a restart cut short reads
+ * as interrupted, not failed, since MindRoom may continue it.
+ */
+export function RunStatus({ meta }: { meta: SubagentMeta }) {
   const { t } = useTranslation();
+  const status = isRestartInterrupted(meta) ? 'interrupted' : meta.status;
   return (
     <span className={css.Status}>
       <span className={css.StatusDot[status]} />
@@ -101,7 +106,10 @@ export const elapsedSeconds = (meta: SubagentMeta, now: number): number | undefi
   return meta.endedAt === null ? undefined : meta.endedAt - meta.startedAt;
 };
 
-/** A run that ended badly says why; any other says what it wrote, as a thread card previews it. */
+/**
+ * A run that ended badly, or that a restart cut short, says why; any other says what it wrote, as a thread card
+ * previews it.
+ */
 const runPreview = (meta: SubagentMeta, docs: LiveDocs, t: TFunction): string | undefined => {
   const failed = meta.status === 'failed' || meta.status === 'denied';
   const text = failed && meta.result ? meta.result : docs.md || meta.result;
@@ -145,7 +153,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
   const time = active ? formatCallDuration(now / 1000 - meta.startedAt, language) : ago;
   const title = node.turns[0].run.meta.task?.split('\n', 1)[0] || agent.name;
   const preview = runPreview(meta, run.docs, t);
-  const failed = meta.status === 'failed' || meta.status === 'denied';
+  const failed = isFailedRun(meta);
 
   return (
     <button
@@ -191,7 +199,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
           </Text>
         )}
         <Text as="span" size="T200" priority="300">
-          <RunStatus status={meta.status} />
+          <RunStatus meta={meta} />
         </Text>
         {(node.turns.length > 1 || nested > 0) && (
           <Text as="span" size="T200" priority="300" className={css.Counts}>

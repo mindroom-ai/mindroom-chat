@@ -139,6 +139,17 @@ describe('sub-agent frames', () => {
     expect(parseSubagentFrame(frame({ meta: { ...meta, subagent: 7 } }))).toBeNull();
   });
 
+  it('marks only a turn MindRoom says a restart cut short', () => {
+    const ended = { ...meta, status: 'failed', ended_at: 1762790005 };
+    expect(
+      parseSubagentFrame(frame({ meta: { ...ended, interrupted_by_restart: true } }))?.meta
+        .interruptedByRestart
+    ).toBe(true);
+    expect(parseSubagentFrame(frame({ meta: ended }))?.meta).not.toHaveProperty(
+      'interruptedByRestart'
+    );
+  });
+
   it('treats a null result as absent and keeps a text result', () => {
     const ended = { ...meta, status: 'completed', ended_at: 1762790005 };
     expect(

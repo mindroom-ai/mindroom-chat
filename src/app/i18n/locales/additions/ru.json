@@ -1082,6 +1082,7 @@
       "failed": "Ошибка",
       "cancelled": "Остановлено",
       "denied": "Запрещено",
+      "interrupted": "Прервано",
       "count_one": "Активно: {{count}}",
       "count_few": "Активно: {{count}}",
       "count_many": "Активно: {{count}}",

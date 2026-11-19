@@ -1059,6 +1059,7 @@
       "failed": "Falhou",
       "cancelled": "Parado",
       "denied": "Recusado",
+      "interrupted": "Interrompido",
       "count_one": "{{count}} ativo",
       "count_many": "{{count}} ativos",
       "count_other": "{{count}} ativos",

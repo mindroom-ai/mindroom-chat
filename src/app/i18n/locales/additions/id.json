@@ -1013,6 +1013,7 @@
       "failed": "Gagal",
       "cancelled": "Dihentikan",
       "denied": "Ditolak",
+      "interrupted": "Terinterupsi",
       "count_other": "{{count}} aktif",
       "show": "Tampilkan subagen",
       "hide": "Sembunyikan subagen",

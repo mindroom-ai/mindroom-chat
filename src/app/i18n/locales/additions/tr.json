@@ -1036,6 +1036,7 @@
       "failed": "Başarısız",
       "cancelled": "Durduruldu",
       "denied": "Reddedildi",
+      "interrupted": "Kesintiye uğradı",
       "count_one": "{{count}} etkin",
       "count_other": "{{count}} etkin",
       "show": "Alt ajanları göster",

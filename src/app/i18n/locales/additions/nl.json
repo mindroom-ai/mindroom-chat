@@ -1036,6 +1036,7 @@
       "failed": "Mislukt",
       "cancelled": "Gestopt",
       "denied": "Geweigerd",
+      "interrupted": "Onderbroken",
       "count_one": "{{count}} actief",
       "count_other": "{{count}} actief",
       "show": "Subagenten tonen",

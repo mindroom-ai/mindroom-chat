@@ -1036,6 +1036,7 @@
       "failed": "Fehlgeschlagen",
       "cancelled": "Gestoppt",
       "denied": "Abgelehnt",
+      "interrupted": "Unterbrochen",
       "count_one": "{{count}} aktiv",
       "count_other": "{{count}} aktiv",
       "show": "Sub-Agenten anzeigen",
