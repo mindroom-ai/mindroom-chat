@@ -201,7 +201,12 @@ afterEach(() => {
 
 it("renders again for a frame of a listed job's run that changes its row, not for others", () => {
   const seqs = new Map<string, number>();
-  const frame = (run: string, md: string, task = 'Task') => ({
+  const frame = (
+    run: string,
+    md: string,
+    task = 'Task',
+    tools: { type: string; tool_name: string }[] = []
+  ) => ({
     run,
     sid: SID,
     seq: seqs.set(run, (seqs.get(run) ?? -1) + 1).get(run)!,
@@ -218,10 +223,15 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
       endedAt: null,
       task,
     },
-    snapshot: { md, reasoning: '', tools: [], status: 'streaming', activity: '', segments: [] },
+    snapshot: { md, reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
   });
-  const ingest = (run: string, md: string, task?: string) =>
-    act(() => getSubagentRunStore(mx as never).ingest(ROOM, AGENT, frame(run, md, task), 0));
+  const ingest = (
+    run: string,
+    md: string,
+    task?: string,
+    tools?: { type: string; tool_name: string }[]
+  ) =>
+    act(() => getSubagentRunStore(mx as never).ingest(ROOM, AGENT, frame(run, md, task, tools), 0));
   const jobs: BackgroundJob[] = [
     {
       jobId: 'job_1',
@@ -247,9 +257,15 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
   // Text the row does not show, and another sub-agent's frame, render nothing.
   ingest('mine', 'Hi there');
   ingest('other', 'Elsewhere');
+  // A sub-agent's row shows none of its calls.
+  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
   expect(renders).toBe(shown);
   ingest('mine', 'Hi there', 'New task');
   expect(container.textContent).toBe('New task');
+  // The whole task is the headline's tooltip, so a change past its first line renders.
+  const before = renders;
+  ingest('mine', 'Hi there', 'New task\nwith tests');
+  expect(renders).toBeGreaterThan(before);
 });
 
 it("follows a reply's frames while the list shows, beside another subscriber of that reply", () => {
