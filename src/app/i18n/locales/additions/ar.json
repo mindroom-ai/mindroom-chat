@@ -1005,7 +1005,8 @@
         "resultCountFor_two": "نتيجتان (⁨{{count}}⁩) «⁨{{term}}⁩»",
         "resultCountFor_few": "⁨{{count}}⁩ نتائج «⁨{{term}}⁩»",
         "resultCountFor_many": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
-        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»"
+        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
+        "retry": "إعادة المحاولة"
       }
     },
     "notifications": {

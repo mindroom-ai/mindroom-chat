@@ -169,3 +169,72 @@ test('a title the word has left still lists the thread once, by the title it has
   await expect(hits.nth(0)).toContainText('Beta and launch dates');
   await expect(page.getByText('Roadmap sketch for the beta')).toHaveCount(0);
 });
+
+test('a failed next page waits for Retry, also below a page of titles shown already', async ({
+  page,
+}) => {
+  const hit = (eventId: string, content: Record<string, unknown>) => ({
+    rank: 1,
+    result: {
+      event_id: eventId,
+      room_id: roomId,
+      sender: helper.userId,
+      origin_server_ts: Date.now(),
+      type: 'm.room.message',
+      content,
+    },
+  });
+  const titleHit = (eventId: string) =>
+    hit(eventId, {
+      msgtype: 'm.notice',
+      body: 'Roadmap sketch for the beta',
+      'io.mindroom.thread_summary': { version: 1, summary: 'Roadmap sketch for the beta' },
+      ...inThread(root, root),
+    });
+  // A title, then a page of only more titles of that thread, which shows nothing new, then a
+  // page that fails until the server is back.
+  const pages: Record<string, { results: unknown[]; next_batch?: string }> = {
+    first: { results: [titleHit('$title-1')], next_batch: 'second' },
+    second: { results: [titleHit('$title-2'), titleHit('$title-3')], next_batch: 'third' },
+    third: { results: [hit('$said', { msgtype: 'm.text', body: 'The roadmap is ready' })] },
+  };
+  let failing = true;
+  let thirdAsked = 0;
+  await page.route(
+    (url) => url.pathname === '/_matrix/client/v3/search',
+    async (route) => {
+      const batch = new URL(route.request().url()).searchParams.get('next_batch') ?? 'first';
+      if (batch === 'third') thirdAsked += 1;
+      if (batch === 'third' && failing) {
+        await route.fulfill({ status: 500, json: { errcode: 'M_UNKNOWN', error: 'down' } });
+        return;
+      }
+      const { results, next_batch } = pages[batch]!;
+      await route.fulfill({
+        json: {
+          search_categories: {
+            room_events: { results, count: 4, highlights: ['roadmap'], next_batch },
+          },
+        },
+      });
+    }
+  );
+  await login(page);
+  await page.goto(searchPath);
+  await expect(page.getByRole('alert')).toHaveText('Search failed. Try again.', {
+    timeout: 30_000,
+  });
+  // The query's own retries are done; nothing asks again on its own.
+  const asked = thirdAsked;
+  await page.waitForTimeout(3000);
+  expect(thirdAsked).toBe(asked);
+  await expect(page.locator('article')).toHaveCount(1);
+  const retry = page.getByRole('button', { name: 'Retry', exact: true });
+
+  failing = false;
+  await retry.click();
+  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.getByText('The roadmap is ready')).toBeVisible();
+  await expect(retry).toHaveCount(0);
+  expect(thirdAsked).toBe(asked + 1);
+});

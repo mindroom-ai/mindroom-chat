@@ -957,7 +957,8 @@
         "searchFailed": "La búsqueda falló. Inténtalo de nuevo.",
         "resultCountFor_one": "{{count}} resultado para «{{term}}»",
         "resultCountFor_many": "{{count}} de resultados para «{{term}}»",
-        "resultCountFor_other": "{{count}} resultados para «{{term}}»"
+        "resultCountFor_other": "{{count}} resultados para «{{term}}»",
+        "retry": "Reintentar"
       }
     },
     "notifications": {

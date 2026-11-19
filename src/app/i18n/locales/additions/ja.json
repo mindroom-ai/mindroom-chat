@@ -925,7 +925,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "検索に失敗しました。もう一度試してください。",
-        "resultCountFor_other": "「{{term}}」の結果 {{count}} 件"
+        "resultCountFor_other": "「{{term}}」の結果 {{count}} 件",
+        "retry": "再試行"
       }
     },
     "notifications": {

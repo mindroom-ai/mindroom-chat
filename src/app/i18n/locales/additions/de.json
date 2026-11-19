@@ -941,7 +941,8 @@
       "messageSearch": {
         "searchFailed": "Die Suche ist fehlgeschlagen. Versuche es erneut.",
         "resultCountFor_one": "{{count}} Ergebnis für „{{term}}“",
-        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“"
+        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“",
+        "retry": "Erneut versuchen"
       }
     },
     "notifications": {

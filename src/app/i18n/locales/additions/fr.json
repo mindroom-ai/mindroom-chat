@@ -957,7 +957,8 @@
         "searchFailed": "La recherche a échoué. Réessayez.",
         "resultCountFor_one": "{{count}} résultat pour « {{term}} »",
         "resultCountFor_many": "{{count}} de résultats pour « {{term}} »",
-        "resultCountFor_other": "{{count}} résultats pour « {{term}} »"
+        "resultCountFor_other": "{{count}} résultats pour « {{term}} »",
+        "retry": "Réessayer"
       }
     },
     "notifications": {

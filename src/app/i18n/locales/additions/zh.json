@@ -925,7 +925,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "搜索失败，请重试。",
-        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果"
+        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果",
+        "retry": "重试"
       }
     },
     "notifications": {
