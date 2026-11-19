@@ -18,6 +18,8 @@ test.afterEach(async ({ context }) => {
 });
 
 const SHOTS = process.env.FOLD_SHOTS;
+/** How much wider than its tab a folded panel's box may be: the room's gap (S200). */
+const GAP = 8;
 
 /** The panel's box, its card (the box's first child) and the conversation beside it, in px. */
 const widths = async (page: Page, panel: Locator) => ({
@@ -41,24 +43,33 @@ for (const start of ['default', 'widest'] as const) {
       panel.evaluate((element) =>
         Promise.all(element.getAnimations().map((animation) => animation.finished))
       );
-    if (start === 'widest') {
-      await panel.locator(':scope > [role="separator"]').press('End');
-      await expect.poll(async () => (await widths(page, panel)).conversation).toBeLessThan(500);
-    }
     await settled();
+    if (start === 'widest') {
+      const opened = await widthOf(panel);
+      const splitter = panel.locator(':scope > [role="separator"]');
+      await splitter.press('End');
+      const widest = Number(await splitter.getAttribute('aria-valuemax'));
+      await expect
+        .poll(async () => Number(await splitter.getAttribute('aria-valuenow')))
+        .toBeGreaterThanOrEqual(widest - 1);
+      await settled();
+      await expect.poll(() => widthOf(panel)).toBeGreaterThan(opened);
+    }
     const beside = await widths(page, panel);
 
     await panel.getByRole('button', { name: 'Fold Computer to the edge', exact: true }).click();
     const tab = panel.getByRole('button', { name: 'Unfold Computer', exact: true });
     await expect(tab).toBeVisible();
     await settled();
-    const folded = await widths(page, panel);
+    const folded = { ...(await widths(page, panel)), tab: await widthOf(tab) };
     // eslint-disable-next-line no-console
     console.log(`${browserName} ${start}:`, JSON.stringify({ beside, folded }));
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${browserName}-${start}.png` });
-    // The tab, and the room's gap beside it.
-    expect(folded.panel).toBeLessThan(60);
-    expect(folded.card).toBeLessThanOrEqual(folded.panel);
+    // The box and its card are the tab, and at most the room's gap beside it.
+    for (const box of [folded.panel, folded.card]) {
+      expect(box).toBeGreaterThanOrEqual(folded.tab - 1);
+      expect(box).toBeLessThanOrEqual(folded.tab + GAP);
+    }
     expect(folded.conversation).toBeGreaterThan(beside.conversation + beside.panel - 60);
 
     await tab.click();
