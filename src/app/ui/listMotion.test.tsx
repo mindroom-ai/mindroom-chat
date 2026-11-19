@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  FRAME_MS,
   type MotionPlay,
   ROW_HEIGHT,
   ROW_WIDTH,
@@ -276,6 +277,28 @@ describe('useListMotion', () => {
 
       pointer('click', row('c'));
       expect(states()).toEqual(['running']);
+    });
+
+    it('holds each row where it shows at the press, and starts its glide again from there', () => {
+      reorder();
+      motion.frame();
+      const times = () => motion.plays.map(({ animation }) => animation.currentTime);
+      // Where the page shows a row that glides.
+      const style = vi
+        .spyOn(window, 'getComputedStyle')
+        .mockReturnValue({ translate: '0px 40px' } as CSSStyleDeclaration);
+
+      pointer('pointerdown', row('c'));
+      style.mockRestore();
+      const held = times();
+      // The browser's next frame, which a pause alone waits for.
+      motion.frame();
+      expect(times()).toEqual(held);
+      expect(playedByRow().c).toEqual([[{ translate: '0px 40px' }, { translate: 'none' }]]);
+
+      pointer('click', row('c'));
+      motion.frame();
+      expect(times()).toEqual(held.map((time) => time + FRAME_MS));
     });
 
     it('lets go when the press is cancelled, as when it became a scroll', () => {

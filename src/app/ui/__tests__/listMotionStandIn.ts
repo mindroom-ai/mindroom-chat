@@ -2,12 +2,13 @@ import { vi } from 'vitest';
 
 export const ROW_HEIGHT = 100;
 export const ROW_WIDTH = 300;
+export const FRAME_MS = 16;
 
 export type MotionPlay = {
   element: HTMLElement;
   keyframes: Keyframe[];
   options: KeyframeAnimationOptions;
-  animation: { playState: AnimationPlayState };
+  animation: { playState: AnimationPlayState; currentTime: number };
 };
 
 /**
@@ -15,11 +16,14 @@ export type MotionPlay = {
  * The rows (`data-motion-row`) stack in one column, `ROW_HEIGHT` apart; an element stands where
  * the row it is, is inside of, or holds first stands. `plays` holds every animation started, none
  * of which ends before `finish()`, and each can be paused and played on; `cancel` counts the
- * animations cancelled. Call `restore()` after each test.
+ * animations cancelled. As in a browser, a play runs on after `pause()` until the next frame
+ * (`frame()`, which moves every play that runs on by `FRAME_MS`), unless its `currentTime` is set
+ * meanwhile. Call `restore()` after each test.
  */
 export const standInForListMotion = () => {
   const plays: MotionPlay[] = [];
   const finishes: (() => void)[] = [];
+  const frames: (() => void)[] = [];
   const cancel = vi.fn();
   const rects = vi
     .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
@@ -35,9 +39,28 @@ export const standInForListMotion = () => {
     writable: true,
     value(this: HTMLElement, keyframes: Keyframe[], options: KeyframeAnimationOptions) {
       let abort: () => void = () => undefined;
+      let time = 0;
+      let pausing = false;
+      frames.push(() => {
+        if (animation.playState === 'running' || pausing) time += FRAME_MS;
+        pausing = false;
+      });
       const animation = {
         playState: 'running' as AnimationPlayState,
-        effect: { target: this },
+        get currentTime() {
+          return time;
+        },
+        set currentTime(value: number) {
+          time = value;
+          pausing = false;
+        },
+        effect: {
+          target: this,
+          getKeyframes: () => play.keyframes,
+          setKeyframes: (next: Keyframe[]) => {
+            play.keyframes = next;
+          },
+        },
         finished: new Promise<void>((resolve, reject) => {
           finishes.push(() => {
             if (animation.playState === 'running') animation.playState = 'finished';
@@ -51,13 +74,16 @@ export const standInForListMotion = () => {
           abort();
         },
         pause: () => {
-          if (animation.playState === 'running') animation.playState = 'paused';
+          if (animation.playState !== 'running') return;
+          animation.playState = 'paused';
+          pausing = true;
         },
         play: () => {
           if (animation.playState === 'paused') animation.playState = 'running';
         },
       };
-      plays.push({ element: this, keyframes, options, animation });
+      const play: MotionPlay = { element: this, keyframes, options, animation };
+      plays.push(play);
       // As in a browser, an animation that is cancelled never finishes, which is no error
       // when nothing waits for it.
       animation.finished.catch(() => undefined);
@@ -76,6 +102,8 @@ export const standInForListMotion = () => {
     /** The rows that left and fade as copies outside the rows. */
     left: () =>
       plays.filter(({ element }) => element.hasAttribute('inert')).map((play) => play.element),
+    /** The browser's next frame. */
+    frame: () => frames.forEach((advance) => advance()),
     finish: async () => {
       finishes.splice(0).forEach((resolve) => resolve());
       await Promise.resolve();
