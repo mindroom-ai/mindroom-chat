@@ -19,11 +19,11 @@ describe('the dock styles', () => {
     });
     try {
       await import('./RoomView.css');
-      const { Toggle } = await import('../background-jobs/BackgroundJobsBar.css');
+      const { Anchor } = await import('../background-jobs/BackgroundJobsBar.css');
       const { TypingStrip } = await import('../timeline/typing/RoomViewTyping.css');
       const { DockBars } = await import('../ui/styles/RoomOverlay.css');
       const hidden = rules.filter((css) => css.rule?.display === 'none').map((css) => css.selector);
-      expect(hidden).toContain(`${DockBars}:has(${Toggle}[aria-expanded="true"]) > ${TypingStrip}`);
+      expect(hidden).toContain(`${DockBars}:has(> ${Anchor}[data-takes-line]) > ${TypingStrip}`);
     } finally {
       adapter.removeAdapter();
     }

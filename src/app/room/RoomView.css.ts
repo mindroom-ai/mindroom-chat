@@ -1,5 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { Toggle } from '../background-jobs/BackgroundJobsBar.css';
+import { Anchor } from '../background-jobs/BackgroundJobsBar.css';
 import { TypingStrip } from '../timeline/typing/RoomViewTyping.css';
 import { DockBars } from '../ui/styles/RoomOverlay.css';
 import { roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
@@ -15,6 +15,6 @@ export const HeaderInShortArea = style({
 
 // Listed background jobs take the dock's whole line: the typing strip beside their bar gives way
 // until the list folds, so on a phone the rows are not squeezed into what the strip leaves.
-globalStyle(`${DockBars}:has(${Toggle}[aria-expanded="true"]) > ${TypingStrip}`, {
+globalStyle(`${DockBars}:has(> ${Anchor}[data-takes-line]) > ${TypingStrip}`, {
   display: 'none',
 });

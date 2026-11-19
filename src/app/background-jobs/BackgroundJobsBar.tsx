@@ -88,13 +88,20 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   // While listed, the bar keeps its one-line place in the footer and grows over the timeline,
   // so the timeline, which pads itself for the footer, does not move under the pointer.
   const [anchorHeight, setAnchorHeight] = useState<number>();
+  // Beside the typing strip, listed jobs take the whole line (RoomView.css hides the strip). Above
+  // it, the bar spans the line already, and the strip stays, so the footer keeps its height.
+  const [besideStrip, setBesideStrip] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const listId = useId();
   const hoverTimer = useRef<number>();
   const show = (mode: OpenMode) => {
     window.clearTimeout(hoverTimer.current);
     // Fractional, so the footer keeps its exact height while the jobs are listed.
-    if (!open) setAnchorHeight(anchor.current?.getBoundingClientRect().height);
+    if (!open && anchor.current) {
+      const { width, height } = anchor.current.getBoundingClientRect();
+      setAnchorHeight(height);
+      setBesideStrip(width < (anchor.current.parentElement?.clientWidth ?? 0) - 1);
+    }
     setOpen(mode);
   };
   const hide = useCallback(() => {
@@ -245,6 +252,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       ref={anchor}
       className={css.Anchor}
       style={expanded ? { height: anchorHeight } : undefined}
+      data-takes-line={(expanded && besideStrip) || undefined}
       onKeyDown={(event) => {
         if (event.key !== 'Escape' || !expanded) return;
         // In the bar, Escape closes the list as a menu does, back on its title, and goes no further.
