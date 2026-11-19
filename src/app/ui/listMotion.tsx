@@ -239,15 +239,12 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * release hit different elements to the element that holds both, here the list: the pressed row
  * got none (a Compact card pressed while the list sorted itself anew opened nothing). A finger's
  * click is aimed after its pointerup, so the release alone does not let go. A press that ends in
- * neither (a drag, a long press) leaves the plays held until `LONGEST_PLAY_MS` ends them. A
- * change of `order` during a press starts its plays held, at the frame that shows each row where
- * it was; one that comes `LONGEST_PLAY_MS` or more after the pointer went down plays at once.
+ * neither (a drag, a long press) leaves the plays held until `LONGEST_PLAY_MS` ends them. Plays
+ * that start during a press are not held.
  */
 export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
-  // The press that holds plays: when its pointer went down, and the plays it holds.
-  const pressRef = useRef<{ at: number; held: Animation[] }>();
   const read = useCallback(
     () => (listRef.current ? readBefore(listRef.current) : undefined),
     [listRef]
@@ -282,11 +279,6 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     });
     const started = play(list, before);
     runningRef.current = [...kept, ...started];
-    const press = pressRef.current;
-    if (press && performance.now() - press.at < LONGEST_PLAY_MS) {
-      started.forEach((animation) => animation.pause());
-      press.held.push(...started);
-    }
     // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
     if (started.length > 0) {
       setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
@@ -296,23 +288,20 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
   useEffect(() => {
     // Rendered outside a page (a unit test in node), there is no press to listen for.
     if (typeof window === 'undefined') return undefined;
-    const letGo = () => {
-      pressRef.current?.held.forEach((animation) => {
+    const held: Animation[] = [];
+    const letGo = () =>
+      held.splice(0).forEach((animation) => {
         // Not one that ended or was started again meanwhile.
         if (animation.playState === 'paused') animation.play();
       });
-      pressRef.current = undefined;
-    };
     const hold = (event: PointerEvent) => {
       const inList = event.target instanceof Node && listRef.current?.contains(event.target);
       if (event.button !== 0 || !inList) return;
-      const running = runningRef.current.filter(({ playState }) => playState === 'running');
-      running.forEach((animation) => animation.pause());
-      // With the plays of a press that ended in neither a click nor a cancel.
-      pressRef.current = {
-        at: performance.now(),
-        held: [...(pressRef.current?.held ?? []), ...running],
-      };
+      runningRef.current.forEach((animation) => {
+        if (animation.playState !== 'running') return;
+        animation.pause();
+        held.push(animation);
+      });
     };
     // On the window, in the capture phase: before a handler of the row acts on the press, and
     // also for a list that mounts after this hook.
