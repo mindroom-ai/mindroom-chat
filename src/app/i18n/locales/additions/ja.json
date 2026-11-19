@@ -899,6 +899,10 @@
       "voiceTranscript": {
         "transcribing": "文字起こし中…",
         "transcribedBy": "{{name}} が文字起こし"
+      },
+      "stopReply": {
+        "label": "応答を停止",
+        "stopping": "停止中…"
       }
     },
     "message-search": {
@@ -987,7 +991,9 @@
         "tokens": "トークン",
         "cost": "コスト",
         "time": "時間"
-      }
+      },
+      "stopTask": "タスクを停止",
+      "stopTaskFor": "タスクを停止：{{tool}}"
     },
     "subagents": {
       "title": "サブエージェント",

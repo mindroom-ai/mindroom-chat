@@ -913,6 +913,10 @@
       "voiceTranscript": {
         "transcribing": "ट्रांसक्राइब हो रहा है…",
         "transcribedBy": "{{name}} ने ट्रांसक्राइब किया"
+      },
+      "stopReply": {
+        "label": "जवाब रोकें",
+        "stopping": "रोका जा रहा है…"
       }
     },
     "message-search": {
@@ -1007,7 +1011,9 @@
         "tokens": "टोकन",
         "cost": "लागत",
         "time": "समय"
-      }
+      },
+      "stopTask": "कार्य रोकें",
+      "stopTaskFor": "कार्य रोकें: {{tool}}"
     },
     "subagents": {
       "title": "सब-एजेंट",

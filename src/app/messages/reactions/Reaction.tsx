@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
@@ -14,7 +15,7 @@ type ReactionProps = {
   reaction: string;
   count: number;
   /** Replaces the emoji with text, such as an agent's stop control. */
-  label?: string;
+  label?: ReactNode;
   useAuthentication?: boolean;
 };
 

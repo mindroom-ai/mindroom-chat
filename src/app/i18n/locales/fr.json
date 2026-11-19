@@ -2667,10 +2667,6 @@
       "streamingIndicator": {
         "aiIsResponding": "L’IA répond"
       },
-      "stopButton": {
-        "label": "Arrêter",
-        "tooltip": "Arrêter cette réponse"
-      },
       "threadApprovalControls": {
         "close": "Fermer",
         "call": "appel",
@@ -3062,8 +3058,6 @@
       "subagent": "{{tool}} (sous-agent)",
       "stopAll": "Tout arrêter",
       "stopping": "Arrêt…",
-      "stop": "Arrêter",
-      "stopJob": "Arrêter {{tool}}",
       "stopFailed": "Impossible d’arrêter {{tool}}. Réessayez.",
       "stopAllFailed": "Impossible d’arrêter les tâches en arrière-plan. Réessayez.",
       "inRoom": "Tâches en arrière-plan en cours"

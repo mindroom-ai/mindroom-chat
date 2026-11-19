@@ -63,6 +63,6 @@ test('a streaming reply keeps the text it showed when the connection drops', asy
   await context.unroute(toHomeserver, hold);
   await Promise.all(held.map((route) => route.continue().catch(() => undefined)));
   await expect.poll(() => highestWord(reply), { timeout: 60_000 }).toBeGreaterThan(shownAtDrop);
-  await reply.getByRole('button', { name: 'Stop', exact: true }).click();
+  await reply.getByRole('button', { name: 'Stop reply', exact: true }).click();
   await expect(reply).toContainText('[Response cancelled by user]', { timeout: 30_000 });
 });

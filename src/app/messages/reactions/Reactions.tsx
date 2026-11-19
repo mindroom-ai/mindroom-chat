@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { Box, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
@@ -26,8 +26,10 @@ type ReactionsProps = {
     targetEventId: string,
     key: string,
     shortcode: string | undefined,
-    relations: Relations
-  ) => void;
+    relations: Relations,
+    /** Stop sends a fresh stop, taking back one an earlier run left. */
+    resend?: boolean
+  ) => void | Promise<boolean>;
 };
 
 const reactionShortcode = (events: MatrixEvent[]): string | undefined => {
@@ -86,6 +88,9 @@ export function Reactions({
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   useRelationsUpdates(relations);
+  // The agent's 🛑 the viewer pressed: the run it marks is stopping from the press on, through
+  // taking back an earlier run's stop and sending this one; a refused request makes it pressable.
+  const [pressedStop, setPressedStop] = useState<string>();
 
   const myUserId = client.getUserId();
   // A MindRoom agent's question card shows its options and the answer; their chips would repeat them.
@@ -98,11 +103,32 @@ export function Reactions({
 
   if (annotations.length === 0) return null;
 
+  // The agent's 🛑 on its streaming reply is the reply's Stop. Pressed, it reads Stopping… while
+  // that 🛑 stays; a new run brings a new 🛑.
+  const stopEntry = annotations.find(([key, set]) => isAgentStopButton(key, [...set], targetEvent));
+  const stopMarker = [...(stopEntry?.[1] ?? [])]
+    .find((e) => e.getSender() === targetEvent?.getSender())
+    ?.getId();
+  const stopping = !!stopMarker && stopMarker === pressedStop;
+  const stopLabel = (text: string, shown: boolean) => (
+    <span className={shown ? css.StopLabel : css.StopLabelHidden} aria-hidden={!shown}>
+      {text}
+    </span>
+  );
+
   return (
     <Box className={css.ReactionsContainer} gap="200" wrap="Wrap">
-      {annotations.map(([key, eventSet]) => {
+      {/* Mounted with the Stop, so its Stopping… is announced once; the Stop keeps its name. */}
+      {stopEntry && (
+        <span role="status" className={css.StopStatus}>
+          {stopping ? t('mindroomUi.messages.stopReply.stopping') : ''}
+        </span>
+      )}
+      {annotations.map((annotation) => {
+        const [key, eventSet] = annotation;
         const events = Array.from(eventSet);
-        const stopButton = isAgentStopButton(key, events, targetEvent);
+        const stopButton = annotation === stopEntry;
+        const pending = stopButton && stopping;
         const mine = events.some((event) => event.getSender() === myUserId);
         const shortcode = reactionShortcode(events);
         return (
@@ -122,15 +148,39 @@ export function Reactions({
             {(triggerRef) => (
               <Reaction
                 ref={triggerRef}
-                aria-pressed={mine}
+                // Stop is a command, not a toggle.
+                aria-pressed={stopButton ? undefined : mine}
+                aria-label={stopButton ? t('mindroomUi.messages.stopReply.label') : undefined}
                 mx={client}
                 useAuthentication={authenticatedMedia}
                 reaction={key}
                 count={events.length}
-                label={stopButton ? t('mindroomUi.messages.stopButton.label') : undefined}
+                // Both labels in one cell: the chip keeps the wider one's size.
+                label={
+                  stopButton && (
+                    <span className={css.StopLabels}>
+                      {stopLabel(t('mindroomUi.messages.stopReply.label'), !pending)}
+                      {stopLabel(t('mindroomUi.messages.stopReply.stopping'), pending)}
+                    </span>
+                  )
+                }
+                // Stopping keeps the chip, and the keyboard on it, until the reply ends.
+                {...(pending && { 'aria-disabled': true, disabled: false })}
                 onClick={
-                  canToggle
-                    ? () => onReactionToggle(mEventId, key, shortcode, relations)
+                  canToggle && !pending
+                    ? () => {
+                        if (stopButton) setPressedStop(stopMarker);
+                        void Promise.resolve(
+                          onReactionToggle(mEventId, key, shortcode, relations, stopButton)
+                        ).then(
+                          (sent) =>
+                            sent === false &&
+                            // A failure reopens only its own marker's Stop, not a newer run's.
+                            setPressedStop((pressed) =>
+                              pressed === stopMarker ? undefined : pressed
+                            )
+                        );
+                      }
                     : undefined
                 }
               />

@@ -913,6 +913,10 @@
       "voiceTranscript": {
         "transcribing": "Transcriberen…",
         "transcribedBy": "Getranscribeerd door {{name}}"
+      },
+      "stopReply": {
+        "label": "Antwoord stoppen",
+        "stopping": "Wordt gestopt…"
       }
     },
     "message-search": {
@@ -1007,7 +1011,9 @@
         "tokens": "Tokens",
         "cost": "Kosten",
         "time": "Tijd"
-      }
+      },
+      "stopTask": "Taak stoppen",
+      "stopTaskFor": "Taak stoppen: {{tool}}"
     },
     "subagents": {
       "title": "Subagenten",

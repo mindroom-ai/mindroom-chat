@@ -899,6 +899,10 @@
       "voiceTranscript": {
         "transcribing": "Mentranskripsi…",
         "transcribedBy": "Ditranskripsi oleh {{name}}"
+      },
+      "stopReply": {
+        "label": "Hentikan respons",
+        "stopping": "Menghentikan…"
       }
     },
     "message-search": {
@@ -987,7 +991,9 @@
         "tokens": "Token",
         "cost": "Biaya",
         "time": "Waktu"
-      }
+      },
+      "stopTask": "Hentikan tugas",
+      "stopTaskFor": "Hentikan tugas: {{tool}}"
     },
     "subagents": {
       "title": "Subagen",

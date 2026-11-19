@@ -50,7 +50,7 @@ const stopAheadOfStoredText = async (page: Page, stack: AgentStack) => {
     { description: 'a streaming reply' }
   );
   const reply = messageRow(page, streaming.event_id);
-  const stop = reply.getByRole('button', { name: 'Stop', exact: true });
+  const stop = reply.getByRole('button', { name: 'Stop reply', exact: true });
   await expect(stop).toBeVisible({ timeout: 30_000 });
   const shownNow = async () => highestWord(await reply.innerText());
 
@@ -90,7 +90,7 @@ test('a stopped reply shows the text its cancelled event holds', async ({ page, 
   const { reply, kept } = await stopAheadOfStoredText(page, stack);
   await expect(reply).toContainText('[Response cancelled by user]', { timeout: 30_000 });
   await expect.poll(async () => highestWord(await reply.innerText())).toBe(kept);
-  await expect(reply.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+  await expect(reply.getByRole('button', { name: 'Stop reply', exact: true })).toHaveCount(0);
 });
 
 test('a stopped reply keeps every word the reader saw when pressing Stop', async ({

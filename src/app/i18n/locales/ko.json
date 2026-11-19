@@ -2618,10 +2618,6 @@
       "streamingIndicator": {
         "aiIsResponding": "AI가 응답 중입니다"
       },
-      "stopButton": {
-        "label": "중지",
-        "tooltip": "이 응답 중지"
-      },
       "threadApprovalControls": {
         "close": "닫기",
         "call": "호출",
@@ -2984,8 +2980,6 @@
       "subagent": "{{tool}} (하위 에이전트)",
       "stopAll": "모두 중지",
       "stopping": "중지하는 중…",
-      "stop": "중지",
-      "stopJob": "{{tool}} 중지",
       "stopFailed": "{{tool}}을(를) 중지하지 못했습니다. 다시 시도하세요.",
       "stopAllFailed": "백그라운드 작업을 중지하지 못했습니다. 다시 시도하세요.",
       "inRoom": "백그라운드 작업 실행 중"

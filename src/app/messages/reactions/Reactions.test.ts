@@ -63,11 +63,9 @@ vi.mock('./Reaction', () => ({
     reactionRenderSpy({ reaction, count, label, props });
     return React.createElement(
       'button',
-      {
-        type: 'button',
-        onClick,
-      },
-      `${reaction} ${label ?? count}`
+      { type: 'button', onClick, ...props },
+      reaction,
+      label || count
     );
   },
 }));
@@ -79,6 +77,10 @@ vi.mock('./ReactionViewer', () => ({
 vi.mock('../styles.css', () => ({
   ReactionsContainer: 'ReactionsContainer',
   ReactionsTooltipText: 'ReactionsTooltipText',
+  StopLabels: 'StopLabels',
+  StopLabel: 'StopLabel',
+  StopLabelHidden: 'StopLabelHidden',
+  StopStatus: 'StopStatus',
 }));
 
 class MockRelations {
@@ -118,6 +120,41 @@ const render = (element: React.ReactElement) => {
   return renderer;
 };
 
+const AGENT = '@agent:mindroom.chat';
+const VIEWER = '@bas:mindroom.chat';
+const reaction = (sender: string, id = `$${sender}`) =>
+  ({
+    getId: () => id,
+    getSender: () => sender,
+    getTs: () => 0,
+    getRelation: () => ({ rel_type: 'm.annotation' }),
+    isRedacted: () => false,
+  } as MatrixEvent);
+const stops = (senders: string[]) =>
+  new MockRelations([['🛑', new Set(senders.map((sender) => reaction(sender)))]]);
+const streamingReply = () =>
+  ({
+    getSender: () => AGENT,
+    getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
+  } as MatrixEvent);
+const stopProps = (
+  relations: MockRelations,
+  targetEvent: MatrixEvent,
+  onReactionToggle: ReturnType<typeof vi.fn>
+) => ({
+  room: {} as never,
+  mEventId: '$event',
+  targetEvent,
+  canSendReaction: true,
+  relations: relations as never,
+  onReactionToggle,
+});
+const stopChip = (renderer: ReturnType<typeof create>) => renderer.root.findByType('button');
+const shownLabel = (renderer: ReturnType<typeof create>) =>
+  renderer.root.find((node) => node.props['aria-hidden'] === false).props.children;
+const status = (renderer: ReturnType<typeof create>) =>
+  renderer.root.find((node) => node.props.role === 'status').props.children;
+
 describe('Reactions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -153,7 +190,7 @@ describe('Reactions', () => {
       button.props.onClick();
     });
 
-    expect(onReactionToggle).toHaveBeenCalledWith('$event', '🔄', undefined, relations);
+    expect(onReactionToggle).toHaveBeenCalledWith('$event', '🔄', undefined, relations, false);
   });
 
   it('does not toggle a reaction on an unconfirmed target', () => {
@@ -329,62 +366,164 @@ describe('Reactions', () => {
   });
 
   it.each([
-    ["labels the agent's stop button", '@agent:mindroom.chat', 'Stop'],
-    ["counts a person's stop reaction", '@bas:mindroom.chat', undefined],
-  ])('%s while the target message is still streaming', (_, sender, label) => {
-    const relations = new MockRelations([
-      [
-        '🛑',
-        new Set([
-          {
-            getSender: () => sender,
-            getTs: () => 0,
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => false,
-          } as MatrixEvent,
-        ]),
-      ],
-    ]);
-    const targetEvent = {
-      getSender: () => '@agent:mindroom.chat',
-      getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
-    } as MatrixEvent;
+    ["names the agent's stop button Stop reply", '@agent:mindroom.chat', 'Stop reply', true],
+    ["counts another person's stop reaction", '@alice:mindroom.chat', undefined, false],
+  ])('%s while the target message is still streaming', (_, sender, name, resend) => {
+    const relations = stops([sender]);
     const onReactionToggle = vi.fn();
-
     const renderer = render(
-      React.createElement(Reactions, {
-        room: {} as never,
-        mEventId: '$event',
-        targetEvent,
-        canSendReaction: true,
-        relations: relations as never,
-        onReactionToggle,
-      })
+      React.createElement(Reactions, stopProps(relations, streamingReply(), onReactionToggle))
     );
 
-    expect(reactionRenderSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ reaction: '🛑', count: 1, label })
-    );
+    expect(renderer.root.findByType('button').props['aria-label']).toBe(name);
     act(() => {
       renderer.root.findByType('button').props.onClick();
     });
-    expect(onReactionToggle).toHaveBeenCalledWith('$event', '🛑', undefined, relations);
+    expect(onReactionToggle).toHaveBeenCalledWith('$event', '🛑', undefined, relations, resend);
+  });
+
+  it('reads Stopping… from the press on, keeping its name, its size and the keyboard', async () => {
+    let finish!: (sent: boolean) => void;
+    const onReactionToggle = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
+    const target = streamingReply();
+    // A Stop on a regenerated reply first takes back the viewer's stop of the earlier run.
+    const view = (who: string[]) => stopProps(stops(who), target, onReactionToggle);
+    const renderer = render(React.createElement(Reactions, view([AGENT, VIEWER])));
+    expect(shownLabel(renderer)).toBe('Stop reply');
+    expect(status(renderer)).toBe('');
+    act(() => {
+      stopChip(renderer).props.onClick();
+    });
+
+    const chip = () => stopChip(renderer);
+    expect(shownLabel(renderer)).toBe('Stopping…');
+    // Both labels stay in the chip, one hidden, so it keeps the wider one's size.
+    expect(renderer.root.findAll((node) => node.props['aria-hidden'] === true)).toHaveLength(1);
+    expect(chip().props).toMatchObject({ 'aria-label': 'Stop reply', 'aria-disabled': true });
+    expect(chip().props.disabled).toBe(false);
+    expect(chip().props['aria-pressed']).toBeUndefined();
+    expect(status(renderer)).toBe('Stopping…');
+
+    // Sync drops the earlier stop while its redaction is pending: still Stopping…, and a second
+    // press sends nothing more.
+    act(() => renderer.update(React.createElement(Reactions, view([AGENT]))));
+    expect(shownLabel(renderer)).toBe('Stopping…');
+    act(() => {
+      chip().props.onClick?.();
+    });
+    expect(onReactionToggle).toHaveBeenCalledTimes(1);
+
+    // Sent, it stays Stopping… until the agent's 🛑 goes.
+    await act(async () => finish(true));
+    act(() => renderer.update(React.createElement(Reactions, view([AGENT, VIEWER]))));
+    expect(shownLabel(renderer)).toBe('Stopping…');
+  });
+
+  it("makes Stop pressable again when taking back the earlier run's stop is refused", async () => {
+    const onReactionToggle = vi.fn(async () => false);
+    // The refused redaction leaves the earlier stop in place.
+    const props = stopProps(stops([AGENT, VIEWER]), streamingReply(), onReactionToggle);
+    const renderer = render(React.createElement(Reactions, props));
+    await act(async () => stopChip(renderer).props.onClick());
+
+    expect(shownLabel(renderer)).toBe('Stop reply');
+    expect(status(renderer)).toBe('');
+    expect(stopChip(renderer).props['aria-disabled']).toBeUndefined();
+    await act(async () => stopChip(renderer).props.onClick());
+    expect(onReactionToggle).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a newer run's Stopping… when an earlier run's stop fails late", async () => {
+    let finishFirst: (sent: boolean) => void = () => {};
+    const onReactionToggle = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (finishFirst = resolve)))
+      .mockImplementation(() => new Promise<boolean>(() => {}));
+    const view = (who: [string, string][]) =>
+      stopProps(
+        new MockRelations([['🛑', new Set(who.map(([s, id]) => reaction(s, id)))]]),
+        streamingReply(),
+        onReactionToggle
+      );
+    const renderer = render(React.createElement(Reactions, view([[AGENT, '$stop1']])));
+    act(() => {
+      stopChip(renderer).props.onClick();
+    });
+    // A new run brings a new 🛑 before the first stop settles; the viewer presses its Stop.
+    act(() => renderer.update(React.createElement(Reactions, view([[AGENT, '$stop2']]))));
+    act(() => {
+      stopChip(renderer).props.onClick();
+    });
+    expect(shownLabel(renderer)).toBe('Stopping…');
+
+    // The first run's stop fails now: the second run's Stop stays pending and takes no press.
+    await act(async () => finishFirst(false));
+    expect(shownLabel(renderer)).toBe('Stopping…');
+    act(() => {
+      stopChip(renderer).props.onClick?.();
+    });
+    expect(onReactionToggle).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops a later run of the same reply again, after a reload too', () => {
+    const onReactionToggle = vi.fn();
+    let content: Record<string, unknown> = { 'io.mindroom.stream_status': 'streaming' };
+    const target = { getSender: () => AGENT, getContent: () => content } as MatrixEvent;
+    const view = (who: [string, string][]) =>
+      stopProps(
+        new MockRelations([['🛑', new Set(who.map(([s, id]) => reaction(s, id)))]]),
+        target,
+        onReactionToggle
+      );
+    const firstRun = view([[AGENT, '$stop1']]);
+    const renderer = render(React.createElement(Reactions, firstRun));
+    act(() => {
+      stopChip(renderer).props.onClick();
+    });
+    act(() =>
+      renderer.update(
+        React.createElement(
+          Reactions,
+          view([
+            [AGENT, '$stop1'],
+            [VIEWER, '$mine'],
+          ])
+        )
+      )
+    );
+    expect(shownLabel(renderer)).toBe('Stopping…');
+
+    // The run ends; an edit of the message it answers regenerates the same reply, with a new 🛑.
+    content = { 'io.mindroom.stream_status': 'cancelled' };
+    act(() => renderer.update(React.createElement(Reactions, view([[VIEWER, '$mine']]))));
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
+    content = { 'io.mindroom.stream_status': 'streaming' };
+    const secondRun = view([
+      [VIEWER, '$mine'],
+      [AGENT, '$stop2'],
+    ]);
+    act(() => renderer.update(React.createElement(Reactions, secondRun)));
+    expect(shownLabel(renderer)).toBe('Stop reply');
+    act(() => {
+      stopChip(renderer).props.onClick();
+    });
+    expect(onReactionToggle).toHaveBeenLastCalledWith(
+      '$event',
+      '🛑',
+      undefined,
+      secondRun.relations,
+      true
+    );
+    expect(shownLabel(renderer)).toBe('Stopping…');
+
+    // A reload forgets the press, and the earlier run's stop does not count for this run.
+    const reloaded = render(React.createElement(Reactions, secondRun));
+    expect(shownLabel(reloaded)).toBe('Stop reply');
+    expect(stopChip(reloaded).props['aria-disabled']).toBeUndefined();
   });
 
   it('drops the stop chip once the target finishes streaming in place', () => {
-    const relations = new MockRelations([
-      [
-        '🛑',
-        new Set([
-          {
-            getSender: () => '@agent:mindroom.chat',
-            getTs: () => 0,
-            getRelation: () => ({ rel_type: 'm.annotation' }),
-            isRedacted: () => false,
-          } as MatrixEvent,
-        ]),
-      ],
-    ]);
+    const relations = stops([AGENT]);
     let content: Record<string, unknown> = { 'io.mindroom.stream_status': 'streaming' };
     const targetEvent = {
       getSender: () => '@agent:mindroom.chat',

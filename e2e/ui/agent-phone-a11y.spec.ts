@@ -267,7 +267,7 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
         );
         await go(page, threadUrl(stack, seeded.thread));
         await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
-        await expect(page.getByRole('button', { name: 'Stop run_shell_command' })).toBeVisible({
+        await expect(page.getByRole('button', { name: 'Stop task: run_shell_command' })).toBeVisible({
           timeout: 120_000,
         });
         await expect(page.getByRole('button', { name: 'Drop Typing Status' })).toBeVisible();

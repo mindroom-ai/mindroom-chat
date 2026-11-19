@@ -899,6 +899,10 @@
       "voiceTranscript": {
         "transcribing": "正在转写…",
         "transcribedBy": "由 {{name}} 转写"
+      },
+      "stopReply": {
+        "label": "停止回复",
+        "stopping": "正在停止…"
       }
     },
     "message-search": {
@@ -987,7 +991,9 @@
         "tokens": "令牌",
         "cost": "费用",
         "time": "时间"
-      }
+      },
+      "stopTask": "停止任务",
+      "stopTaskFor": "停止任务：{{tool}}"
     },
     "subagents": {
       "title": "子智能体",

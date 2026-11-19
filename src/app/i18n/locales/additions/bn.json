@@ -913,6 +913,10 @@
       "voiceTranscript": {
         "transcribing": "প্রতিলিপি তৈরি হচ্ছে…",
         "transcribedBy": "প্রতিলিপি করেছে {{name}}"
+      },
+      "stopReply": {
+        "label": "উত্তর থামান",
+        "stopping": "থামানো হচ্ছে…"
       }
     },
     "message-search": {
@@ -1007,7 +1011,9 @@
         "tokens": "টোকেন",
         "cost": "খরচ",
         "time": "সময়"
-      }
+      },
+      "stopTask": "কাজ থামান",
+      "stopTaskFor": "কাজ থামান: {{tool}}"
     },
     "subagents": {
       "title": "সাব-এজেন্ট",

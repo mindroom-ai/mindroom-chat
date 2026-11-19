@@ -941,6 +941,10 @@
       "voiceTranscript": {
         "transcribing": "Расшифровка…",
         "transcribedBy": "Расшифровал(а) {{name}}"
+      },
+      "stopReply": {
+        "label": "Остановить ответ",
+        "stopping": "Остановка…"
       }
     },
     "message-search": {
@@ -1047,7 +1051,9 @@
         "tokens": "Токены",
         "cost": "Стоимость",
         "time": "Время"
-      }
+      },
+      "stopTask": "Остановить задачу",
+      "stopTaskFor": "Остановить задачу: {{tool}}"
     },
     "subagents": {
       "title": "Субагенты",

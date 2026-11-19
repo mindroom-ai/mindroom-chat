@@ -59,7 +59,7 @@ const readySignIn = async (
   return page;
 };
 
-const stop = (page: Page) => page.getByRole('button', { name: 'Stop', exact: true });
+const stop = (page: Page) => page.getByRole('button', { name: 'Stop reply', exact: true });
 
 /** The stream status the helper's newest edit carries in the clear, as the server has it. */
 const serverStatus = async (stack: AgentStack, roomId: string): Promise<string> => {

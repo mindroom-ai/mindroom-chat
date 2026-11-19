@@ -370,7 +370,7 @@ const expectRoomRead = async (
   }
 };
 
-const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop', exact: true });
+const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop reply', exact: true });
 
 /** Waits for a reply to start streaming and then to finish: its Stop button comes and goes. */
 const watchReplyToItsEnd = async (page: Page): Promise<void> => {

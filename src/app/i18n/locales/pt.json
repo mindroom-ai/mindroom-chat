@@ -2667,10 +2667,6 @@
       "streamingIndicator": {
         "aiIsResponding": "A IA está a responder"
       },
-      "stopButton": {
-        "label": "Parar",
-        "tooltip": "Parar esta resposta"
-      },
       "threadApprovalControls": {
         "close": "Fechar",
         "call": "chamada",
@@ -3062,8 +3058,6 @@
       "subagent": "{{tool}} (subagente)",
       "stopAll": "Parar tudo",
       "stopping": "Parando…",
-      "stop": "Parar",
-      "stopJob": "Parar {{tool}}",
       "stopFailed": "Não foi possível parar {{tool}}. Tente novamente.",
       "stopAllFailed": "Não foi possível parar as tarefas em segundo plano. Tente novamente.",
       "inRoom": "Tarefas em segundo plano em execução"

@@ -1365,10 +1365,6 @@
       "streamingIndicator": {
         "aiIsResponding": "এআই সাড়া দিচ্ছে"
       },
-      "stopButton": {
-        "label": "থামান",
-        "tooltip": "এই উত্তরটি থামান"
-      },
       "threadApprovalControls": {
         "activePermissionCount_one": "{{count}} সক্রিয় অনুমতি",
         "activePermissionCount_other": "{{count}} সক্রিয় অনুমতি",
@@ -1760,8 +1756,6 @@
       "subagent": "{{tool}} (সাব-এজেন্ট)",
       "stopAll": "সব থামান",
       "stopping": "থামানো হচ্ছে…",
-      "stop": "থামান",
-      "stopJob": "{{tool}} থামান",
       "stopFailed": "{{tool}} থামানো যায়নি। আবার চেষ্টা করুন।",
       "stopAllFailed": "ব্যাকগ্রাউন্ড কাজগুলো থামানো যায়নি। আবার চেষ্টা করুন।",
       "inRoom": "ব্যাকগ্রাউন্ড কাজ চলছে"

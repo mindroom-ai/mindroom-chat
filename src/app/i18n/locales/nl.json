@@ -2625,10 +2625,6 @@
       "streamingIndicator": {
         "aiIsResponding": "AI antwoordt"
       },
-      "stopButton": {
-        "label": "Stoppen",
-        "tooltip": "Dit antwoord stoppen"
-      },
       "threadApprovalControls": {
         "close": "Sluiten",
         "call": "aanroep",
@@ -2997,8 +2993,6 @@
       "subagent": "{{tool}} (subagent)",
       "stopAll": "Alles stoppen",
       "stopping": "Wordt gestopt…",
-      "stop": "Stoppen",
-      "stopJob": "{{tool}} stoppen",
       "stopFailed": "Kon {{tool}} niet stoppen. Probeer het opnieuw.",
       "stopAllFailed": "Kon de achtergrondtaken niet stoppen. Probeer het opnieuw.",
       "inRoom": "Achtergrondtaken actief"

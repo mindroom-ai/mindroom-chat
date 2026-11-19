@@ -913,6 +913,10 @@
       "voiceTranscript": {
         "transcribing": "Transcribing…",
         "transcribedBy": "Transcribed by {{name}}"
+      },
+      "stopReply": {
+        "label": "Stop reply",
+        "stopping": "Stopping…"
       }
     },
     "message-search": {
@@ -1007,7 +1011,9 @@
         "tokens": "Tokens",
         "cost": "Cost",
         "time": "Time"
-      }
+      },
+      "stopTask": "Stop task",
+      "stopTaskFor": "Stop task: {{tool}}"
     },
     "subagents": {
       "title": "Sub-agents",

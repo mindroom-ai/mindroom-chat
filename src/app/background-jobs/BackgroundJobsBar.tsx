@@ -189,9 +189,10 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       t('mindroomUi.backgroundJobs.stopAllFailed')
     );
   };
-  // Stop and Stop all are icon buttons on the bar's own material, red under the pointer. A
-  // stopping job shows a spinner in its Stop's place; a finished job has none.
-  const stop = (item: BackgroundJobsBarItem) => {
+  // Stop and Stop all are buttons on the bar's own material, red under the pointer: Stop all and
+  // a single job's Stop say so beside their icon, where the bar has room. A stopping job shows a
+  // spinner in its Stop's place; a finished job has none.
+  const stop = (item: BackgroundJobsBarItem, labelled = false) => {
     if (item.finished) return null;
     if (item.stopping) {
       return (
@@ -202,18 +203,22 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       );
     }
     if (!canCancel) return null;
-    const label = t('mindroomUi.backgroundJobs.stopJob', { tool: item.name });
+    // A task runs on apart from the reply, whose own Stop stops only the reply.
+    const label = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: item.name });
     return (
       <button
         key={item.jobId}
         type="button"
-        className={css.StopButton}
+        className={labelled ? css.StopAll : css.StopButton}
         aria-label={label}
-        title={t('mindroomUi.backgroundJobs.stop')}
+        title={label}
         data-cancel-job
         onClick={(event) => stopJob(item, event.currentTarget)}
       >
         <IconPlayerStopFilled size={16} aria-hidden />
+        {labelled && (
+          <span className={css.StopLabel}>{t('mindroomUi.backgroundJobs.stopTask')}</span>
+        )}
       </button>
     );
   };
@@ -380,7 +385,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   {t('mindroomUi.backgroundJobs.stopAll')}
                 </button>
               )
-            : !single!.stopping && stop(single!)}
+            : !single!.stopping && stop(single!, true)}
         </div>
         {shownFailures.length > 0 && (
           <Text as="small" size="T200" role="alert" className={css.Alert}>

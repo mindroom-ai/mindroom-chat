@@ -11,6 +11,8 @@ type ReactionToggle = {
   shortcode?: string;
   /** The reactions the message has, to find the user's own. */
   relations?: Relations;
+  /** Sends the reaction again after taking back the user's own, as a Stop for a later run does. */
+  resend?: boolean;
 };
 
 /** The ID of the user's own reaction `key` among `relations`, unless it was taken back. */
@@ -31,14 +33,16 @@ const ownReactionId = (relations: Relations | undefined, key: string, userId: st
  */
 export const toggleReaction = async (
   mx: MatrixClient,
-  { room, threadId, targetEventId, key, shortcode, relations }: ReactionToggle
+  { room, threadId, targetEventId, key, shortcode, relations, resend }: ReactionToggle
 ): Promise<void> => {
   const ownId = ownReactionId(relations, key, mx.getUserId());
-  const txnId = mx.makeTxnId();
+  let txnId = mx.makeTxnId();
   try {
     if (ownId) {
       await mx.redactEvent(room.roomId, ownId, txnId);
-      return;
+      if (!resend) return;
+      // The server refuses a second equal reaction, so the earlier one goes first.
+      txnId = mx.makeTxnId();
     }
     const content = {
       'm.relates_to': { rel_type: RelationType.Annotation, event_id: targetEventId, key },
