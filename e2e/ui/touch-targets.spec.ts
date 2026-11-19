@@ -49,7 +49,8 @@ const REPLIES = [
 const COMPOSER = ['More actions', 'Record voice message', 'Send message'];
 // A phone's room header keeps the name and More Options; the rest is in the room menu.
 const HEADER = ['More Options'];
-const BANNER = ['Thread options', 'Pin thread', 'Resolve'];
+// A phone's thread banner keeps Thread options and Resolve; the pin is in Thread options' menu.
+const BANNER = ['Thread options', 'Resolve'];
 
 test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
