@@ -141,7 +141,7 @@ for (const theme of ['light', 'dark']) {
       page
         .getByTestId('tool')
         .locator('[data-tool-index="2"]')
-        .getByText('read_file', { exact: true })
+        .getByText('Read file', { exact: true })
     ).toBeVisible();
     const history = page.getByTestId('history').locator('[data-message-disclosure]').first();
     await history.locator(':scope > button').click();
