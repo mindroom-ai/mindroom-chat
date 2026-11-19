@@ -223,7 +223,7 @@ describe("a thread's model changes in the open thread", () => {
     try {
       expect(lines(renderer)).toHaveLength(2);
       // The edit decrypts after the timeline change that brought it: only its own event says so.
-      Object.assign(threadRenderStateMock.threadEvents[1]!, {
+      Object.assign(threadRenderStateMock.threadEvents[1] as object, {
         __pendingEdits: [],
         __editedEvent: makeEvent('$set-edit', { content: { body: 'never mind' } }),
       });
