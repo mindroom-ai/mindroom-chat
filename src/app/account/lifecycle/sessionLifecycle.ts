@@ -28,7 +28,7 @@ import {
   renewExpiredCloudflareAccess,
 } from '../../native/cloudflareAccess';
 import { stopSyncEngineForClient } from '../../event-store/engine/syncEngine';
-import { getCanvasStateDbName } from '../../canvas/canvasStateStore';
+import { getCanvasStateDbName } from '../../messages/canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
 import { forgetAccountInPlugins } from '../../plugins/forgetAccountInPlugins';
 import { revokeClientSessions } from '../../computer/clientSessions';

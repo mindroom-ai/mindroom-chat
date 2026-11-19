@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSessionId, putSession, removeSession } from '../matrix/session/sessions';
+import { createSessionId, putSession, removeSession } from '../../matrix/session/sessions';
 import { loadCanvasState, saveCanvasState } from './canvasStateStore';
 import { type CanvasSavedState, useCanvasSavedState } from './useCanvasSavedState';
 

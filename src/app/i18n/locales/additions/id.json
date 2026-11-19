@@ -1037,6 +1037,11 @@
           "max": "Maksimum"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} memperbarui halaman ini.",
+      "shownInPanel": "Ditampilkan di panel",
+      "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
     }
   },
   "composer": {

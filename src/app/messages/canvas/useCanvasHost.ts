@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   canvasDocumentKey,
   CANVAS_ESCAPE_MESSAGE,
+  CANVAS_SUBMIT_MESSAGE,
   canvasFrameWindow,
   type CanvasColorScheme,
   type CanvasSaved,
@@ -36,6 +37,8 @@ export type CanvasView = {
   raw?: true;
   /** The libraries Chat serves that this revision names. */
   libraries?: string[];
+  /** The viewport width a page in the thread is laid out at, shrunk to fit its column. */
+  width?: number;
   /** An uploaded page that is still downloading, or could not be loaded. */
   status?: 'loading' | 'failed';
 };
@@ -161,19 +164,32 @@ export function useCanvasHost({
   const incomingHtmlKey = useMemo(() => canvasDocumentKey(canvas.html), [canvas.html]);
   const displayedHtmlKey = useMemo(() => canvasDocumentKey(displayed.html), [displayed.html]);
   const handledRevision = useRef(revisionKey(canvas, incomingHtmlKey));
+  // The update held behind Load update; its page finishing its download is not a new update.
+  const heldRevisionId = useRef<string>();
 
+  const shownRevisionId = displayed.revisionEventId;
+  const frameRevisionId = useRef(shownRevisionId);
   useEffect(() => {
-    touched.current = false;
+    // The same revision starting again (a restart after an escape) keeps an answer the user already
+    // sent from it and that is still uploading, with its Discard and, if the upload fails, Send.
+    const sameRevision = frameRevisionId.current === shownRevisionId;
+    frameRevisionId.current = shownRevisionId;
+    const current = stagedNow.current;
+    const sending =
+      sameRevision && current && current.submission === uploadingSubmission.current
+        ? current
+        : undefined;
+    touched.current = !!sending;
     used.current = false;
     lastStageAt.current = 0;
-    setStaged(undefined);
+    setStaged(sending);
     setSendError(false);
     // An answer still sending or failed stays, with its Retry and Delete, across a new page.
     setLastAnswer((current) => (isUnresolved(current) ? current : undefined));
-    setUpdateAvailable(false);
+    // An update held behind Load update stays held when the same page starts again.
     setPageErrors(NO_PAGE_ERRORS);
     seenErrors.current = new Set();
-  }, [frameKey]);
+  }, [frameKey, shownRevisionId]);
 
   // An update loads at once unless it would discard work the user has not sent.
   const incomingRevision = revisionKey(canvas, incomingHtmlKey);
@@ -183,6 +199,7 @@ export function useCanvasHost({
   useEffect(() => {
     if (incomingRevision === displayedRevision) {
       handledRevision.current = incomingRevision;
+      heldRevisionId.current = undefined;
       setUpdateAvailable(false);
       return;
     }
@@ -198,7 +215,8 @@ export function useCanvasHost({
         colorScheme: latest.current.colorScheme,
         theme: latest.current.theme,
       });
-    } else {
+    } else if (heldRevisionId.current !== latest.current.canvas.revisionEventId) {
+      heldRevisionId.current = latest.current.canvas.revisionEventId;
       // An answer the user is already sending stays until it is sent or its upload fails.
       setStaged((current) =>
         current && current.submission === uploadingSubmission.current ? current : undefined
@@ -251,6 +269,8 @@ export function useCanvasHost({
         setPageErrors(next);
         return;
       }
+      // Size reports and other messages leave the snapshot budget alone.
+      if (event.data?.type !== CANVAS_SUBMIT_MESSAGE) return;
       const now = Date.now();
       // Bound bridge traffic before parsing; a canvas cannot flood the host with snapshots.
       if (now - lastStageAt.current < STAGE_INTERVAL_MS) return;

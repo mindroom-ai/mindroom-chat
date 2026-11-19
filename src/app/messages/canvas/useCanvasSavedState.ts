@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { createSessionId, listSessions } from '../matrix/session/sessions';
-import type { CanvasSaved } from '../messages/canvas/canvasDocument';
+import { createSessionId, listSessions } from '../../matrix/session/sessions';
+import type { CanvasSaved } from './canvasDocument';
 import { loadCanvasState, saveCanvasState } from './canvasStateStore';
 
 // A page may save on every keystroke; the store sees at most one write per interval.

@@ -1037,6 +1037,11 @@
           "max": "最大"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} がこのページを更新しました。",
+      "shownInPanel": "パネルに表示中",
+      "inlineDisclosure": "{{agent}} が作成しました。アカウントにはアクセスできませんが、ここに入力した内容はこのページの外に送信される可能性があります。"
     }
   },
   "composer": {

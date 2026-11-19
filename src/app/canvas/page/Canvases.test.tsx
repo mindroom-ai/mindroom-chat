@@ -8,7 +8,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../matrix/session/sessions';
 import { recordCanvas, type CanvasListEntry } from '../canvasIndexStore';
-import { saveCanvasState } from '../canvasStateStore';
+import { saveCanvasState } from '../../messages/canvas/canvasStateStore';
 import { PINNED_CANVASES_TYPE } from '../pinnedCanvases';
 import { Canvases } from './Canvases';
 

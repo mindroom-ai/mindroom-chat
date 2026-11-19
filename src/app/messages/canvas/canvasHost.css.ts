@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { footerInset } from '../../ui/styles/RoomOverlay.css';
 
 export const Error = style({
   color: color.Critical.Main,
@@ -30,4 +31,16 @@ export const Data = style({
   overflow: 'auto',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
+});
+
+// A themed page in the thread can be far taller than the screen.
+export const StickyAnswer = style({
+  backgroundColor: color.Surface.Container,
+  borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  // Above the room's composer, which floats over the end of the conversation, and above Jump to
+  // Latest, which floats S400 over the composer and is 44 px tall to a finger.
+  bottom: `calc(${footerInset} + ${config.space.S400} + 44px + ${config.space.S200})`,
+  paddingBlock: config.space.S200,
+  position: 'sticky',
+  zIndex: 1,
 });

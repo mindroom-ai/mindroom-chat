@@ -1037,6 +1037,11 @@
           "max": "최대"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}}이(가) 이 페이지를 업데이트했습니다.",
+      "shownInPanel": "패널에 표시됨",
+      "inlineDisclosure": "{{agent}}이(가) 만들었습니다. 계정에는 접근할 수 없지만, 여기에 입력한 내용은 이 페이지 밖으로 전송될 수 있습니다."
     }
   },
   "composer": {

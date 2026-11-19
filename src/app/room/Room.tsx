@@ -795,6 +795,7 @@ function RoomContent() {
     perform,
     navigate: showConversation,
     unavailable,
+    openCanvasId,
   });
 
   // A canvas chosen in the header may still load; any change of what the side panel shows

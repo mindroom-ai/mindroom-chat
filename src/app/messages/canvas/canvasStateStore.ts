@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { CanvasSaved } from '../messages/canvas/canvasDocument';
+import type { CanvasSaved } from './canvasDocument';
 
 /** Canvases whose saved state is kept per session; the ones saved longest ago are forgotten first. */
 export const MAX_STORED_CANVAS_STATES = 100;

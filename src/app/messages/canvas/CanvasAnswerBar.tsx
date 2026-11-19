@@ -13,19 +13,25 @@ export function CanvasAnswerBar({
   room,
   agentName,
   shared,
+  inline = false,
 }: {
   host: CanvasHost;
   room: Room;
   agentName: string;
   /** The agent can read what the user does in the page, so the host says so. */
   shared: boolean;
+  /**
+   * In the thread, under the page: the answer stays in view while the page scrolls past, and the
+   * page's disclosure shows only with an answer to send, not under every chart.
+   */
+  inline?: boolean;
 }) {
   const { t } = useTranslation();
   const { staged, busy, lastAnswer, answer, footer, sendError } = host;
   return (
     <>
       {staged && (
-        <div className={css.Staged}>
+        <div className={inline ? `${css.Staged} ${css.StickyAnswer}` : css.Staged}>
           <Text size="T300">
             {t('mindroomUi.canvas.sendTo', { agent: agentName })}{' '}
             <b>{staged.submission.label ?? t('mindroomUi.canvas.unlabeled')}</b>
@@ -43,6 +49,11 @@ export function CanvasAnswerBar({
             </summary>
             <pre className={css.Data}>{formatData(staged.submission.data)}</pre>
           </details>
+          {inline && (
+            <Text size="T200" priority="300">
+              {t('mindroomUi.canvas.inlineDisclosure', { agent: agentName })}
+            </Text>
+          )}
           <Box gap="200">
             <Button
               size="300"
@@ -90,7 +101,8 @@ export function CanvasAnswerBar({
             {footer === 'sent' &&
               lastAnswer &&
               t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
-            {(footer === 'idle' || footer === 'cancelled') &&
+            {!inline &&
+              (footer === 'idle' || footer === 'cancelled') &&
               t('mindroomUi.canvas.disclosure', { agent: agentName })}
           </Text>
         )}

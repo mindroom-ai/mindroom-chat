@@ -3,13 +3,13 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CanvasSaved } from '../messages/canvas/canvasDocument';
+import type { CanvasSaved } from './canvasDocument';
 import { CANVAS_STATE_EVENT_TYPE, useCanvasStateShare } from './useCanvasStateShare';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const sidecars = vi.hoisted(() => ({ upload: vi.fn() }));
-vi.mock('../matrix/send/longTextSidecarUpload', () => ({
+vi.mock('../../matrix/send/longTextSidecarUpload', () => ({
   uploadLongTextSidecar: sidecars.upload,
 }));
 
