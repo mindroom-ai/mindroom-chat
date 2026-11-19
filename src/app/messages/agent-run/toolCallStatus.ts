@@ -68,8 +68,7 @@ export type ReasoningSegmentsState = {
   open: boolean;
   /** Closes the bulb and gives it the focus, which scrolls it into view. */
   hide: () => void;
-  /** The segment the model is writing, which shows under a closed bulb too until the reader closes
-   * it. */
+  /** The segment the model is writing, which an open bulb labels as such. */
   liveIndex: number | undefined;
   /** What the segments' Markdown renders with. */
   htmlReactParserOptions: HTMLReactParserOptions;

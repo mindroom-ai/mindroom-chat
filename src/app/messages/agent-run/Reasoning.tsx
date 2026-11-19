@@ -236,17 +236,16 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   }
 
   // The bulb starts closed on every reply, as the cog does, and stays as the reader left it when
-  // the reply finishes. Until the reader first closes it, the segment the model writes shows under
-  // it; once they have, nothing does.
-  const [bulb, setBulb] = useState<'untouched' | 'open' | 'closed'>('untouched');
-  const open = bulb === 'open';
+  // the reply finishes. A closed bulb shows no reasoning, also while the model writes it: the label
+  // and the comet say it thinks.
+  const [open, setOpen] = useState(false);
   const bulbRef = useRef<HTMLButtonElement>(null);
   // Long replies put the bulb far above: a segment's rail and end button hide the thinking from
   // where the reader is, and give the focus to the bulb, which scrolls into view if it is off
   // screen.
   const hide = useCallback(() => {
     bulbRef.current?.focus();
-    setBulb('closed');
+    setOpen(false);
   }, []);
 
   const text = live ?? final?.text;
@@ -266,9 +265,8 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // calls, and end the segment the model writes; the body is read for them only then.
   const sanitizeOptions = useBodySanitizeOptions();
   const readsCalls =
-    (open && segments.some(({ afterTool }) => afterTool > 0)) ||
-    compactions.some(({ afterTool }) => afterTool > 0) ||
-    (grew.seen && !!last);
+    (open && (segments.some(({ afterTool }) => afterTool > 0) || (grew.seen && !!last))) ||
+    compactions.some(({ afterTool }) => afterTool > 0);
   const markers = useMemo(
     () =>
       readsCalls && html?.includes(MINDROOM_TOOL_REF_ICON)
@@ -286,7 +284,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const movedOn = grew.body !== body && (grew.html !== html || html === undefined);
   const ended = !!last && (last.blank || markers.some((marker) => marker > last.afterTool));
   const writing = live !== undefined && grew.seen && !movedOn && !ended;
-  const liveIndex = writing && bulb !== 'closed' ? segments.length - 1 : undefined;
+  const liveIndex = open && writing ? segments.length - 1 : undefined;
   const placement = useMemo(() => placeReasoningSegments(segments, markers), [segments, markers]);
   const compactionsAt = useMemo(() => {
     const at = new Map<number, ReplyCompaction[]>();
@@ -331,7 +329,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
         label={label}
         open={open}
         thinking={thinking}
-        onToggle={() => setBulb(open ? 'closed' : 'open')}
+        onToggle={() => setOpen(!open)}
         bulbRef={bulbRef}
       />
       {children}
@@ -346,11 +344,10 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
  * the reply streams) shows as a seam where it ran, placed as the reasoning segments are. The
  * reasoning line above the body says how long the model thought, or that it thinks
  * (`io.mindroom.live_reasoning`, `io.mindroom.reasoning`); its bulb shows each reasoning segment
- * where it happened, at the top or after the tool calls of `html` it followed, and while the
- * reply streams the segment being written shows there under a closed bulb too, until the body
- * goes on or the reader closes the bulb. The live activity line (`io.mindroom.live_activity`)
- * goes below the body. While the reply's tool calls are hidden, their cog sits on the reasoning's
- * line, or in its place above the body.
+ * where it happened, at the top or after the tool calls of `html` it followed, and labels the one
+ * being written as such. A closed bulb shows none, also while the model writes. The live activity
+ * line (`io.mindroom.live_activity`) goes below the body. While the reply's tool calls are hidden,
+ * their cog sits on the reasoning's line, or in its place above the body.
  */
 export const withReasoning = (
   content: Record<string, unknown>,

@@ -115,12 +115,11 @@ export const Rail = style({
     background: color.SurfaceVariant.ContainerLine,
   },
   selectors: {
-    '&:disabled': { cursor: 'default' },
     '&:focus-visible::before': { background: color.Primary.Main },
   },
   '@media': {
     '(hover: hover)': {
-      selectors: { '&:enabled:hover::before': { background: color.Primary.Main } },
+      selectors: { '&:hover::before': { background: color.Primary.Main } },
     },
     '(prefers-reduced-motion: no-preference)': {
       selectors: { '&::before': { transition: 'background 150ms ease' } },

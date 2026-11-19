@@ -218,8 +218,8 @@ test.describe('agent reasoning header', () => {
       2
     );
 
-    // The streaming reply shows the same header, closed as every bulb starts: its reasoning shows
-    // under the closed bulb only while it grows on screen.
+    // The streaming reply shows the same header, closed as every bulb starts: a closed bulb shows
+    // none of its reasoning, also while the model writes it.
     const thinking = page
       .locator('[data-message-item]')
       .filter({ has: page.getByRole('button', { name: 'Thinking' }) });

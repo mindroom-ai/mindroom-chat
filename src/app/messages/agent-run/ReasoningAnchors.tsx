@@ -59,21 +59,21 @@ export function CompactionSeamsAt({ anchor }: { anchor: number }) {
 
 /**
  * The reasoning segments placed at `anchor` (0 for the top of the reply, else the index of the
- * tool marker a run of calls ends at) that show: all of them while the reply's bulb is open, else
- * only the one the model is writing. Each has a rail along it and a button at its end, which close
- * the bulb from where the reader is, however far above it is.
+ * tool marker a run of calls ends at), which show while the reply's bulb is open. Each has a rail
+ * along it and a button at its end, which close the bulb from where the reader is, however far
+ * above it is.
  */
 export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
   const { t } = useTranslation();
   const reasoning = useContext(ReasoningSegmentsContext);
-  if (!reasoning) return null;
-  const { segments, placement, open, hide, liveIndex, htmlReactParserOptions } = reasoning;
+  if (!reasoning?.open) return null;
+  const { segments, placement, hide, liveIndex, htmlReactParserOptions } = reasoning;
   const hideLabel = t('mindroomUi.messages.mindroomReasoning.hide');
   return (
     <>
       {placement.get(anchor)?.map((index) => {
         const segment = segments[index];
-        if (!segment || !(open || index === liveIndex)) return null;
+        if (!segment) return null;
         let label = t('mindroomUi.messages.mindroomReasoning.thought');
         if (index === liveIndex) label = t('mindroomUi.messages.mindroomReasoning.thinking');
         else if (segment.durationMs !== undefined) {
@@ -83,23 +83,14 @@ export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
         }
         return (
           <div key={index} className={css.Segment}>
-            {/* Under a closed bulb the segment only shows while it is written: nothing to hide. */}
-            <button
-              type="button"
-              className={css.Rail}
-              aria-label={hideLabel}
-              disabled={!open}
-              onClick={hide}
-            />
+            <button type="button" className={css.Rail} aria-label={hideLabel} onClick={hide} />
             <div className={css.Body}>
               <span className={css.Label}>{label}</span>
               <ReasoningText text={segment.text} htmlReactParserOptions={htmlReactParserOptions} />
-              {open && (
-                <button type="button" className={css.CollapseEnd} onClick={hide}>
-                  <Icon size="50" src={Icons.ChevronTop} aria-hidden />
-                  <span className={css.Label}>{hideLabel}</span>
-                </button>
-              )}
+              <button type="button" className={css.CollapseEnd} onClick={hide}>
+                <Icon size="50" src={Icons.ChevronTop} aria-hidden />
+                <span className={css.Label}>{hideLabel}</span>
+              </button>
             </div>
           </div>
         );

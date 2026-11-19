@@ -1030,13 +1030,7 @@ export const useToolTraceMarkerParserOptions = (
   const splitAfterKey = reasoning
     ? [
         ...new Set([
-          ...[...reasoning.placement]
-            .filter(
-              ([, indices]) =>
-                reasoning.open ||
-                (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
-            )
-            .map(([anchor]) => anchor),
+          ...(reasoning.open ? reasoning.placement.keys() : []),
           ...reasoning.compactionsAt.keys(),
         ]),
       ]
