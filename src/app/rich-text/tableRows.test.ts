@@ -6,18 +6,11 @@ import { simpleTableRows } from './tableRows';
 
 const rowsOf = (html: string) => {
   const [table] = htmlToDOM(html);
-  const cells = table && isTag(table) ? simpleTableRows(table.children) : undefined;
   const text = (nodes: ChildNode[]): string =>
     nodes
       .map((node) => (isText(node) ? node.data : isTag(node) ? text(node.children) : ''))
       .join('');
-  return (
-    cells && {
-      caption: cells.caption && text(cells.caption),
-      headers: cells.headers.map(text),
-      rows: cells.rows.map((row) => row.map(text)),
-    }
-  );
+  return table && isTag(table) ? simpleTableRows(table.children, text)?.() : undefined;
 };
 
 describe('simpleTableRows', () => {
