@@ -24,8 +24,10 @@ test.describe('live composer i18n', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
+    // A room without agents shows Threads, where Send starts a thread.
+    const roomName = `Composer i18n ${Date.now()}`;
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
-      name: `Composer i18n ${Date.now()}`,
+      name: roomName,
       topic: 'Live fixture for composer translation checks.',
     });
     await sendRoomMessage(homeserver, session.accessToken, roomId, {
@@ -36,15 +38,15 @@ test.describe('live composer i18n', () => {
     await loginWithPassword(page, { homeserver, username, password });
 
     await openRoomComposer(page, roomId);
-    await expect(composerPlaceholder(page)).toHaveText('Send a message...');
+    await expect(composerPlaceholder(page)).toHaveText(`New thread in ${roomName}…`);
     await expect(page.getByRole('button', { name: 'Record voice message' })).toBeVisible();
     // Settle time so fonts/paint finish before the documentation screenshot.
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'ui-audit/i18n-composer-en.png' });
 
     const cases = [
-      ['de', 'Nachricht senden...', 'Sprachnachricht aufnehmen'],
-      ['nl', 'Stuur een bericht...', 'Spraakbericht opnemen'],
+      ['de', `Neuer Thread in ${roomName}…`, 'Sprachnachricht aufnehmen'],
+      ['nl', `Nieuwe thread in ${roomName}…`, 'Spraakbericht opnemen'],
     ] as const;
 
     for (const [lng, expectedPlaceholder, voiceLabel] of cases) {

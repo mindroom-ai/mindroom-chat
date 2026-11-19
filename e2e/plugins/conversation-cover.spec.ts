@@ -13,6 +13,7 @@ import { createRoom } from '../helpers/createRoom';
 import { dropFile } from '../helpers/fileDrop';
 import { joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { serveBuild } from '../helpers/staticBuildServer';
+import { COMPOSER_NAME } from '../helpers/composerName';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. Its "Show example cover"
@@ -106,7 +107,7 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await expect(page.getByText(SEEDED)).toBeVisible({ timeout: 60_000 });
     const activity = recordActivity(page);
     // Under the cover the composer is hidden from assistive technology, so its role is too.
-    const composer = page.getByRole('textbox', { name: 'Send a message...', includeHidden: true });
+    const composer = page.getByRole('textbox', { name: COMPOSER_NAME, includeHidden: true });
     const cover = page.locator('[data-conversation-cover]');
     const opener = page.getByRole('button', { name: 'Show example cover' });
 
