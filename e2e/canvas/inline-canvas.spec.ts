@@ -158,10 +158,16 @@ test('a website preview sized by its viewport stops at a browser window and scro
   const animated =
     '<style>@keyframes pulse{50%{opacity:.4}}h1{animation:pulse 1s infinite}</style>' +
     '<header><h1>Brand</h1></header><section style="height:100vh">Hero</section><footer>Footer</footer>';
+  // Each is checked as the newest message: a window as tall as these scrolls the earlier ones out
+  // of the timeline, which then lets them go.
   await sendInlineCanvas(room, 'Hero page', hero, { raw: true });
+  await expectWindow(page, 'Hero page');
   await sendInlineCanvas(room, 'Hero site', hero, { raw: true, width: 1440 });
+  await expectWindow(page, 'Hero site', { width: 1440 });
   await sendInlineCanvas(room, 'Two heroes', heroes, { raw: true });
+  await expectWindow(page, 'Two heroes');
   await sendInlineCanvas(room, 'Animated hero', animated, { raw: true });
+  await expectWindow(page, 'Animated hero');
   // Exactly 100vh fills the window and has nothing to scroll.
   await sendInlineCanvas(
     room,
@@ -169,10 +175,6 @@ test('a website preview sized by its viewport stops at a browser window and scro
     '<style>body{margin:0}</style><div style="height:100vh">Exact</div>',
     { raw: true }
   );
-  await expectWindow(page, 'Hero page');
-  await expectWindow(page, 'Hero site', { width: 1440 });
-  await expectWindow(page, 'Two heroes');
-  await expectWindow(page, 'Animated hero');
   await expectWindow(page, 'Exact viewport', { scrolls: false });
 });
 
