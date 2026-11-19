@@ -45,7 +45,7 @@ import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
 import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
 import { ThreadHeaderSlot } from './ThreadHeaderSlot';
@@ -76,7 +76,6 @@ export interface ThreadContextBannerProps {
 }
 
 const DESKTOP_MAX_PILLS = 3;
-const MOBILE_MAX_PILLS = 2;
 
 function TagPills({
   tags,
@@ -287,7 +286,8 @@ export function ThreadContextBanner({
     return true;
   });
 
-  const hasTags = headerModel.displayTags.length > 0;
+  // A phone's banner leaves the tags and the pin to More, so the whole title has the room.
+  const hasTags = !phone && headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
@@ -403,7 +403,7 @@ export function ThreadContextBanner({
             </IconTooltip>
           </Box>
         ) : (
-          <div className={css.TitleRow}>
+          <div className={classNames(css.TitleRow, phone && css.PhoneTitleRow)}>
             {backButton}
             <div className={css.TitleColumn}>
               <Box className={css.EyebrowRow} direction="Row" alignItems="Center" gap="200">
@@ -414,10 +414,9 @@ export function ThreadContextBanner({
                 )}
                 <AutoApproveChip room={room} threadId={threadId} />
                 <ThreadApprovalPermissions />
-                {/* Desktop: tags inline on title row */}
                 {/* More adds the first tag; + tag joins the ones already set. */}
                 {hasTags && (
-                  <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
+                  <div className={classNames(css.TagsRow, css.CompactHidden)}>
                     <TagPills
                       tags={headerModel.displayTags}
                       maxPills={DESKTOP_MAX_PILLS}
@@ -447,22 +446,29 @@ export function ThreadContextBanner({
                             as="span"
                             data-thread-context-summary="true"
                             className={classNames(
-                              css.SummaryText,
+                              phone ? css.PhoneTitle : css.SummaryText,
                               summaryChanged && css.SummaryTextChanged
                             )}
+                            // A title taller than its bound scrolls, also from the keyboard.
+                            tabIndex={phone ? 0 : undefined}
                             onAnimationEnd={() =>
                               setShownSummary((shown) => ({ ...shown, changed: false }))
                             }
                             onDoubleClick={onDoubleClick}
                             size="T300"
-                            truncate
+                            truncate={!phone}
                             title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
-                            {...ownDirectionLine}
+                            {...(phone ? ownDirectionBlock : ownDirectionLine)}
                           >
                             {revealDirectionControls(headerModel.summaryText)}
                           </Text>
                         ) : (
-                          <ThreadRootTitle text={title} hint={hint} onDoubleClick={onDoubleClick} />
+                          <ThreadRootTitle
+                            text={title}
+                            hint={hint}
+                            onDoubleClick={onDoubleClick}
+                            whole={phone}
+                          />
                         )
                       }
                     </InlineThreadTitleEditor>
@@ -606,7 +612,7 @@ export function ThreadContextBanner({
                   </IconButton>
                 )}
               </IconTooltip>
-              {pinning.canPin && mutableThreadRootId ? (
+              {phone ? null : pinning.canPin && mutableThreadRootId ? (
                 <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
                   {(triggerRef) => (
                     <IconButton
@@ -674,25 +680,6 @@ export function ThreadContextBanner({
                 </IconTooltip>
               )}
             </Box>
-            {/* Mobile: tags in a row of their own, under the title and the actions */}
-            {hasTags && (
-              <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
-                <TagPills
-                  tags={headerModel.displayTags}
-                  maxPills={MOBILE_MAX_PILLS}
-                  allTags={headerModel.displayTags}
-                  canEdit={headerModel.canEdit}
-                  onRemove={handleRemoveTag}
-                />
-                {headerModel.canEdit && (
-                  <ThreadTagPicker
-                    availableTags={headerModel.availableTags}
-                    onAddTag={handleAddTag}
-                    disabled={headerModel.pickerDisabled}
-                  />
-                )}
-              </div>
-            )}
           </div>
         )}
         {!!pinning.error && (

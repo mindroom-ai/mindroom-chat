@@ -21,6 +21,7 @@ import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadCont
 import { settingsAtom } from '../preferences/settings';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { runShortcut } from '../shortcuts/useShortcut';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
 const menuProps = vi.hoisted(() => vi.fn());
 const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
@@ -58,6 +59,11 @@ const pinningMocks = vi.hoisted(() => ({
 }));
 vi.mock('../event-store/threads/useThreadPinning', () => ({
   useThreadPinning: () => pinningMocks,
+}));
+
+vi.mock('../ui/page/PhoneBackButton', () => ({
+  PhoneBackButton: ({ label, onBack }: { label: string; onBack: () => void }) =>
+    React.createElement('button', { 'aria-label': label, onClick: onBack }),
 }));
 
 const ISO_1 = '2026-04-07T00:00:01.000Z';
@@ -172,11 +178,11 @@ vi.mock('./ThreadContextBanner.css', () => ({
   BannerSnoozed: 'BannerSnoozed',
   Collapsed: 'Collapsed',
   CompactHidden: 'CompactHidden',
-  DesktopOnlyTags: 'DesktopOnlyTags',
   EyebrowRow: 'EyebrowRow',
   MetadataDot: 'MetadataDot',
-  MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
+  PhoneTitle: 'PhoneTitle',
+  PhoneTitleRow: 'PhoneTitleRow',
   ResolutionByline: 'ResolutionByline',
   ResolutionBylineDot: 'ResolutionBylineDot',
   ResolverName: 'ResolverName',
@@ -382,7 +388,9 @@ describe('ThreadContextBanner rendering', () => {
   afterEach(() => {
     platform.mockRestore();
   });
+  let screenSize: ScreenSize = ScreenSize.Desktop;
   beforeEach(() => {
+    screenSize = ScreenSize.Desktop;
     store = createStore();
     menuProps.mockClear();
     pinningMocks.pinnedEventIds = [];
@@ -413,26 +421,31 @@ describe('ThreadContextBanner rendering', () => {
     columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull' | 'onClose'>
   ) =>
     React.createElement(
-      Provider,
-      { store },
-      React.createElement(ThreadContextBanner, {
-        room: {
-          roomId: '!room:example.org',
-          getThread: () => undefined,
-          findEventById: () => undefined,
-          getMember: (userId: string) =>
-            userId === '@alice:example.org'
-              ? { rawDisplayName: 'Alice', name: 'Alice' }
-              : undefined,
-          hasEncryptionStateEvent: () => false,
-          on: vi.fn(),
-          removeListener: vi.fn(),
-        } as unknown as Room,
-        threadId,
-        summaryInfo: summaryText ? { summaryText } : undefined,
-        onExitThread: vi.fn(),
-        ...columnProps,
-      })
+      ScreenSizeProvider,
+      { value: screenSize },
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(ThreadContextBanner, {
+          room: {
+            roomId: '!room:example.org',
+            getThread: () => undefined,
+            findEventById: () => undefined,
+            getUnfilteredTimelineSet: () => undefined,
+            getMember: (userId: string) =>
+              userId === '@alice:example.org'
+                ? { rawDisplayName: 'Alice', name: 'Alice' }
+                : undefined,
+            hasEncryptionStateEvent: () => false,
+            on: vi.fn(),
+            removeListener: vi.fn(),
+          } as unknown as Room,
+          threadId,
+          summaryInfo: summaryText ? { summaryText } : undefined,
+          onExitThread: vi.fn(),
+          ...columnProps,
+        })
+      )
     );
   const renderBanner = (
     summaryText?: string,
@@ -627,7 +640,7 @@ describe('ThreadContextBanner rendering', () => {
         });
 
     const summarized = renderBanner('A concise thread summary');
-    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve', 'MobileOnlyTags']);
+    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve']);
     const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
     expect(more.props.className).toBe('MessageOptionsButton');
     summarized.unmount();
@@ -656,6 +669,98 @@ describe('ThreadContextBanner rendering', () => {
     expect(hidden(pinned)).toEqual([]);
     expect(pinned.root.findByProps({ 'aria-label': 'Unpin thread' })).toBeDefined();
     pinned.unmount();
+  });
+
+  describe('on a phone', () => {
+    const tagged = {
+      tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
+      displayTags: ['bug'],
+      isResolved: false,
+      canEdit: true,
+      availableTags: ['urgent'],
+    };
+    const buttons = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAllByType('button')
+        .map((button) => button.props['aria-label'] ?? text(button));
+
+    it('leaves the tags and the pin to More, and keeps Resolve unless the thread is pinned', () => {
+      pinningMocks.canPin = true;
+      bannerMocks.useThreadTags.mockReturnValue(tagged);
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner('A concise thread summary');
+      expect(buttons(phone)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(phone.root.findAll((node) => node.children.includes('bug'))).toHaveLength(0);
+      expect(phone.root.findAllByProps({ className: 'TagsRow CompactHidden' })).toHaveLength(0);
+      phone.unmount();
+
+      // Pinned, the row shows neither the pin nor Resolve; More unpins.
+      pinningMocks.pinnedEventIds = ['$root'];
+      const pinned = renderBanner('A concise thread summary');
+      expect(buttons(pinned)).toEqual(['Back', 'Thread options']);
+      expect(pinned.root.findAllByProps({ 'aria-label': 'Pinned' })).toHaveLength(0);
+      pinned.unmount();
+
+      // A tablet keeps both, as before.
+      pinningMocks.pinnedEventIds = [];
+      screenSize = ScreenSize.Tablet;
+      const tablet = renderBanner('A concise thread summary');
+      expect(buttons(tablet)).toEqual(['Back', '+ tag', 'Thread options', 'Pin thread', 'Resolve']);
+      expect(tablet.root.findAll((node) => node.children.includes('bug'))).toHaveLength(1);
+      tablet.unmount();
+    });
+
+    it('shows the whole title, wrapping and bounded, where a tablet cuts it to one line', () => {
+      const title = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.findByProps({ 'data-thread-context-summary': 'true' });
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner('A concise thread summary');
+      expect(title(phone).props).toMatchObject({
+        className: 'PhoneTitle',
+        tabIndex: 0,
+        truncate: false,
+      });
+      expect(title(phone).props['data-own-direction']).toBe('block');
+      expect(phone.root.findByProps({ className: 'TitleRow PhoneTitleRow' })).toBeDefined();
+      phone.unmount();
+
+      screenSize = ScreenSize.Tablet;
+      const tablet = renderBanner('A concise thread summary');
+      expect(title(tablet).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect(title(tablet).props.tabIndex).toBeUndefined();
+      expect(tablet.root.findByProps({ className: 'TitleRow' })).toBeDefined();
+      tablet.unmount();
+    });
+
+    it("shows a first message's whole start as the title of a thread without a summary", () => {
+      const body = 'Notes from the upload review, '.repeat(8).trim();
+      bannerMocks.useCachedThreadRoot.mockReturnValue(
+        new MatrixEvent({
+          event_id: '$root',
+          type: 'm.room.message',
+          room_id: '!room:example.org',
+          sender: '@bob:example.org',
+          origin_server_ts: 1,
+          content: { msgtype: 'm.text', body },
+        })
+      );
+      const rootTitle = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.findByProps({ 'data-thread-context-root-title': 'true' });
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner();
+      expect(rootTitle(phone).props).toMatchObject({
+        className: 'PhoneTitle',
+        tabIndex: 0,
+        truncate: false,
+      });
+      expect(text(rootTitle(phone))).toBe(body);
+      phone.unmount();
+
+      screenSize = ScreenSize.Desktop;
+      const desktop = renderBanner();
+      expect(rootTitle(desktop).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      desktop.unmount();
+    });
   });
 
   it('leaves Show beside and Show in full to its More menu, with no button of their own', async () => {
@@ -807,10 +912,10 @@ describe('ThreadContextBanner rendering', () => {
       displayTags: ['bug'],
     });
     const tagged = renderBanner('A concise thread summary');
-    // One picker beside the desktop tags, one beside the mobile tags row.
+    // One picker, beside the tags.
     expect(
       tagged.root.findAll((node) => node.type === 'button' && node.children.includes('+ tag'))
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     tagged.unmount();
   });
 
