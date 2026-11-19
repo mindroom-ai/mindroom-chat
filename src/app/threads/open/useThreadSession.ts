@@ -211,10 +211,10 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           return () => logTimelineDebug(debugTraceId, 'thread-open-close');
         }
         countCacheProbe('threadOpens');
-        viewport.resetForOpen();
+        const shouldScrollToLatestOnOpen = !eventId;
+        viewport.resetForOpen(shouldScrollToLatestOnOpen);
         reset();
         render.reset(threadId);
-        const shouldScrollToLatestOnOpen = !eventId;
         const threadOpenSeedSession = createThreadOpenSeedSession({
           debugTraceId,
           seed: runtime.seed,

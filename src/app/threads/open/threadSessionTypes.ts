@@ -47,7 +47,8 @@ export type ThreadRenderPort = {
   invalidateTimeline(): void;
 };
 export type ThreadOpenViewportPort = {
-  resetForOpen(): void;
+  /** A new open starts, at the thread's newest row unless it opens at an event. */
+  resetForOpen(opensAtLatest: boolean): void;
   resetAfterLeave(): void;
   requestLatestPin(): void;
 };

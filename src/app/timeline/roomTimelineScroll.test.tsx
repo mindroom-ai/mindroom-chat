@@ -1,4 +1,4 @@
-import { createElement, useReducer, useRef } from 'react';
+import { createElement, useEffect, useReducer, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -15,6 +15,7 @@ import {
   useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
+  useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
   type RoomRowsPlace,
@@ -55,6 +56,7 @@ type ThreadProps = {
   scroller: ReturnType<typeof fakeThreadScroller>['element'];
   pins: { current: ScrollToBottomState };
   rows: number;
+  /** Whether a render shows the session's open as pending. */
   openPending: boolean;
   /** Whether the request that keeps the newest row in view takes over once the reader scrolls. */
   followsLatest?: boolean;
@@ -68,6 +70,10 @@ function OpenThread({ scroller, pins, rows, openPending, followsLatest = false }
   const backController = useThreadBackPaginationController();
   const readerScrolledRef = useViewScopedFlag('!room|$thread');
   const [, rerender] = useReducer((value: number) => value + 1, 0);
+  const opened = useThreadOpenedAtLatest('!room|$thread', openPending);
+  // The session starts its open after the commit that shows the thread, at its newest row.
+  const { startOpen } = opened;
+  useEffect(() => startOpen(true), [startOpen]);
   const gesturePins = useGestureBottomPins({
     backController,
     scrollToBottomRef: pins,
@@ -99,8 +105,8 @@ function OpenThread({ scroller, pins, rows, openPending, followsLatest = false }
     threadFilteredEventsRef: { current: [] },
     threadId: '$thread',
     threadInitialRenderMode: 'live',
-    threadLatestOpenPending: openPending,
-    threadOpenedAtLatest: true,
+    threadLatestOpenPending: opened.latestOpenPending,
+    threadOpenedAtLatest: opened.openedAtLatest,
     threadUserScrolled: readerScrolledRef.current.value,
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
@@ -147,6 +153,37 @@ const openAtLatest = (followsLatest = false) => {
   };
   return { element, fire, pins, showRows, followNewRow };
 };
+
+describe('useThreadOpenedAtLatest', () => {
+  it('pins the newest rows again when they grow after the pin, though no render showed the open pending', () => {
+    // A switch to a thread the client holds: the open starts and ends before any render shows it
+    // pending, and its one pin request comes when it completes.
+    const { element } = fakeThreadScroller();
+    const pins = { current: { count: 0, smooth: false } };
+    const render = () =>
+      createElement(OpenThread, { scroller: element, pins, rows: 20, openPending: false });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(render());
+    });
+    if (!renderer) throw new Error('Expected a renderer');
+    const shown = renderer;
+    const commit = () =>
+      act(() => {
+        shown.update(render());
+      });
+    pins.current.count += 1;
+    commit();
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ top: 2400, behavior: 'instant' });
+
+    // The newest rows mount and measure taller than their estimates: the commit that renders the
+    // measurement brings the bottom back, without another request.
+    element.scrollTo.mockClear();
+    element.scrollHeight = 3400;
+    commit();
+    expect(element.scrollTo).toHaveBeenLastCalledWith({ top: 2800, behavior: 'instant' });
+  });
+});
 
 describe('useGestureBottomPins in an open thread', () => {
   it('drops a follow pin a row asked for when the reader touches before it is applied', () => {
