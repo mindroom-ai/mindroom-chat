@@ -33,7 +33,7 @@ vi.mock('../messages/canvas/useCanvasPage', () => ({
 }));
 // Saved state is read from IndexedDB; these tests decide when it is ready.
 const saved = vi.hoisted(() => ({ ready: true, value: {} as CanvasSaved }));
-vi.mock('./useCanvasSavedState', () => ({
+vi.mock('../messages/canvas/useCanvasSavedState', () => ({
   useCanvasSavedState: () => ({
     ready: saved.ready,
     read: () => saved.value,
@@ -44,7 +44,7 @@ vi.mock('./useCanvasSavedState', () => ({
 }));
 // Sharing sends Matrix events; these tests check what the panel asks it to share.
 const shares = vi.hoisted(() => ({ enabled: [] as boolean[], saves: [] as CanvasSaved[] }));
-vi.mock('./useCanvasStateShare', () => ({
+vi.mock('../messages/canvas/useCanvasStateShare', () => ({
   useCanvasStateShare: (_mx: unknown, _room: unknown, _canvasId: string, enabled: boolean) => {
     shares.enabled.push(enabled);
     return (record: CanvasSaved) => shares.saves.push(record);

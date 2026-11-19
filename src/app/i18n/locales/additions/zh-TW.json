@@ -1037,6 +1037,11 @@
           "max": "最高"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} 更新了此頁面。",
+      "shownInPanel": "已在面板中顯示",
+      "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
     }
   },
   "composer": {

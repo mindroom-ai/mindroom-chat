@@ -25,6 +25,8 @@ export type ChatUiActionOptions = {
   navigate: (threadId: string | undefined) => void;
   /** Why an action cannot run now, for its button to say; undefined when it can. */
   unavailable: (action: ChatUiAction) => string | undefined;
+  /** The canvas the room's panel shows, by its request's event ID. */
+  openCanvasId?: string;
 };
 
 type ChatUiActions = {
@@ -33,6 +35,8 @@ type ChatUiActions = {
   unavailable: (action: ChatUiAction) => string | undefined;
   /** Runs a message's action on an explicit click, after showing its conversation. */
   activate: (event: MatrixEvent) => void;
+  /** The canvas the room's panel shows, which runs nowhere else in this window. */
+  openCanvasId?: string;
 };
 
 /** What message buttons use to run MindRoom UI requests (`io.mindroom.ui_action`). */
@@ -99,7 +103,7 @@ export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions =>
     [mx, room]
   );
   // What a button shows follows this render; what runs on an event follows the committed one.
-  const { unavailable } = options;
+  const { unavailable, openCanvasId } = options;
   const activate = useCallback(
     (event: MatrixEvent) => {
       // Membership and authority are read again now; what rendered earlier may be stale.
@@ -109,5 +113,8 @@ export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions =>
     [read, run]
   );
 
-  return useMemo(() => ({ read, unavailable, activate }), [activate, read, unavailable]);
+  return useMemo(
+    () => ({ read, unavailable, activate, openCanvasId }),
+    [activate, read, unavailable, openCanvasId]
+  );
 };

@@ -47,7 +47,7 @@ import {
   getLegacyThreadEventCacheDbName as getThreadEventCacheDbName,
   getLegacyThreadSummaryCacheDbName as getThreadSummaryCacheDbName,
 } from '../../event-store/cache/db';
-import { getCanvasStateDbName } from '../../canvas/canvasStateStore';
+import { getCanvasStateDbName } from '../../messages/canvas/canvasStateStore';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../../event-store/threads/recentThreadViewModel';

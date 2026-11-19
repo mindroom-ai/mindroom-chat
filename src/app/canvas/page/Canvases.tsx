@@ -17,7 +17,7 @@ import {
   watchCanvasIndex,
 } from '../canvasIndex';
 import { listCanvases, type CanvasListEntry } from '../canvasIndexStore';
-import { listSavedCanvasIds } from '../canvasStateStore';
+import { listSavedCanvasIds } from '../../messages/canvas/canvasStateStore';
 import {
   PINNED_CANVASES_TYPE,
   readPinnedCanvases,

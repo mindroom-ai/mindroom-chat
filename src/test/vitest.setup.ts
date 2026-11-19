@@ -47,6 +47,7 @@ vi.mock('../app/messages/canvas/canvasHost.css', () => ({
   Notice: 'Notice',
   Staged: 'Staged',
   Data: 'Data',
+  StickyAnswer: 'StickyAnswer',
 }));
 vi.mock('../app/messages/reply/ReplyDetails.css', () => {
   const parts = {

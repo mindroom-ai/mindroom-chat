@@ -1085,6 +1085,11 @@
           "max": "Máximo"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} ha actualizado esta página.",
+      "shownInPanel": "Se muestra en el panel",
+      "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página."
     }
   },
   "composer": {

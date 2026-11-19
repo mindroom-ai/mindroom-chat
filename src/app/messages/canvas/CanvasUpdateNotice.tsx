@@ -4,12 +4,25 @@ import type { CanvasHost } from './useCanvasHost';
 import * as css from './canvasHost.css';
 
 /** The agent changed the page while the user worked in it; the update waits for their click. */
-export function CanvasUpdateNotice({ host, agentName }: { host: CanvasHost; agentName: string }) {
+export function CanvasUpdateNotice({
+  host,
+  agentName,
+  inline = false,
+}: {
+  host: CanvasHost;
+  agentName: string;
+  /** In the thread the update is to a page, not a panel. */
+  inline?: boolean;
+}) {
   const { t } = useTranslation();
   if (!host.updateAvailable) return null;
   return (
     <div className={css.Notice} role="status">
-      <Text size="T300">{t('mindroomUi.canvas.updated', { agent: agentName })}</Text>
+      <Text size="T300">
+        {t(inline ? 'mindroomUi.canvas.pageUpdated' : 'mindroomUi.canvas.updated', {
+          agent: agentName,
+        })}
+      </Text>
       <Button
         size="300"
         variant="Secondary"

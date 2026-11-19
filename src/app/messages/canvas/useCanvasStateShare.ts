@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
-import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
-import type { CanvasSaved } from '../messages/canvas/canvasDocument';
-import { contentBytes, MAX_EVENT_CONTENT_BYTES } from '../matrix/protocol/longText';
+import { uploadLongTextSidecar } from '../../matrix/send/longTextSidecarUpload';
+import { discardFailedLocalEcho } from '../../matrix/protocol/pendingLocalEcho';
+import type { CanvasSaved } from './canvasDocument';
+import { contentBytes, MAX_EVENT_CONTENT_BYTES } from '../../matrix/protocol/longText';
 
 /** A copy of a canvas's saved state for its agent, a reference to the canvas, read by `read_canvas_state`. */
 export const CANVAS_STATE_EVENT_TYPE = 'io.mindroom.canvas_state';

@@ -716,10 +716,10 @@ export const renderAgentMessageContent = ({
               : renderBody(content)
           }
           // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
-          // An inline page is display-only, so it still shows there.
+          // An inline page still shows there, display-only.
           renderAfterBody={
             <>
-              {canvasTitle && <InlineCanvasFrame event={mEvent} />}
+              {canvasTitle && <InlineCanvasFrame event={mEvent} readOnly={readOnly} />}
               {!readOnly && <ChatUiActionButton event={mEvent} />}
             </>
           }
