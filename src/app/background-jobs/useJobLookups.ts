@@ -60,11 +60,13 @@ export const indexJobToolCalls = (
   return index;
 };
 
-/** What a row shows of a run, so frames that change nothing shown render nothing. */
-const shownOfRun = ({ run, meta, docs }: SubagentRun) => {
-  const { tool_name: tool, args_preview: preview } = docs.tools.at(-1) ?? {};
-  const { task, result: _result, ...rest } = meta;
-  return [run, rest, task?.split('\n', 1)[0], tool, preview];
+/**
+ * What a row shows of a run, so frames that change nothing shown render nothing: its meta, title
+ * and whole task (the headline's tooltip) included, but not its result or tool calls.
+ */
+const shownOfRun = ({ run, meta }: SubagentRun) => {
+  const { result: _result, ...shown } = meta;
+  return [run, shown];
 };
 
 /** The runs of the listed sub-agent jobs, rendered again only when what their rows show changes. */
