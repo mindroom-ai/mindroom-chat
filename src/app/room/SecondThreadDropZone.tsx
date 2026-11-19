@@ -1,4 +1,4 @@
-import { type DragEvent, useEffect, useState } from 'react';
+import { type DragEvent, useEffect, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
@@ -31,7 +31,11 @@ export function SecondThreadDropZone({
   const { t } = useTranslation();
   const drag = useThreadDrag();
   const [over, setOver] = useState(false);
+  // Whether the drag may drop here: not one picked up where the zone then showed, until it leaves
+  // the zone, so a card's end under the zone does not open in it on a twitch.
+  const armed = useRef<boolean>();
   useEffect(() => {
+    armed.current = undefined;
     if (!drag) setOver(false);
   }, [drag]);
   if (!drag) return null;
@@ -39,6 +43,12 @@ export function SecondThreadDropZone({
   // A thread's drag may drop here (its default prevented), and moves its thread.
   const accept = (evt: DragEvent<HTMLDivElement>) => {
     if (!isThreadDrag(evt.dataTransfer)) return;
+    if (armed.current === undefined) {
+      const box = evt.currentTarget.getBoundingClientRect();
+      const { x, y } = drag;
+      armed.current = !(x > box.left && x < box.right && y > box.top && y < box.bottom);
+    }
+    if (!armed.current) return;
     evt.preventDefault();
     // eslint-disable-next-line no-param-reassign -- how a drop target says what the drop does
     evt.dataTransfer.dropEffect = 'move';
@@ -54,11 +64,13 @@ export function SecondThreadDropZone({
       onDragEnter={accept}
       onDragOver={accept}
       onDragLeave={(evt) => {
-        if (!evt.currentTarget.contains(evt.relatedTarget as Node | null)) setOver(false);
+        if (evt.currentTarget.contains(evt.relatedTarget as Node | null)) return;
+        armed.current = true;
+        setOver(false);
       }}
       onDrop={(evt) => {
         const thread = readThreadDragData(evt.dataTransfer);
-        if (!thread) return;
+        if (!thread || !armed.current) return;
         evt.preventDefault();
         onOpen(thread.roomId, thread.rootId);
       }}

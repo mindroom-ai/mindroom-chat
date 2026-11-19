@@ -23,6 +23,16 @@ const startDrag = (dataTransfer: ReturnType<typeof dragData>, from: Element = do
   });
 };
 
+// A drag starting at x on the page.
+const startDragAt = (x: number) => {
+  const start = new MouseEvent('dragstart', { bubbles: true, clientX: x, clientY: 100 });
+  Object.defineProperty(start, 'dataTransfer', { value: threadDrag('$c') });
+  document.body.dispatchEvent(start);
+  act(() => {
+    vi.runAllTimers();
+  });
+};
+
 beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
@@ -104,6 +114,30 @@ describe('the drop zone of the second column', () => {
     fireEvent.drop(target, { dataTransfer });
     expect(onOpen.mock.calls).toEqual([['!room:example.org', '$c']]);
     expect(zone()).toBeNull();
+  });
+
+  it('takes no drop from a drag that started where the zone shows until it left the zone', () => {
+    const onOpen = vi.fn();
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(1000, 0, 480, 800)
+    );
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    // A card's end under the zone, picked up there.
+    startDragAt(1200);
+    const target = zone()!;
+    const dataTransfer = threadDrag('$c');
+    expect(fireEvent.dragEnter(target, { dataTransfer })).toBe(true);
+    expect(fireEvent.dragOver(target, { dataTransfer })).toBe(true);
+    expect(target.dataset.over).toBeUndefined();
+    fireEvent.drop(target, { dataTransfer });
+    expect(onOpen).not.toHaveBeenCalled();
+    // Out of the zone and back, it takes the drop.
+    startDragAt(1200);
+    fireEvent.dragLeave(zone()!, { dataTransfer, relatedTarget: document.body });
+    expect(fireEvent.dragEnter(zone()!, { dataTransfer })).toBe(false);
+    fireEvent.drop(zone()!, { dataTransfer });
+    expect(onOpen.mock.calls).toEqual([['!room:example.org', '$c']]);
+    vi.restoreAllMocks();
   });
 
   it('goes as the drag ends anywhere else, or Escape cancels it', () => {
