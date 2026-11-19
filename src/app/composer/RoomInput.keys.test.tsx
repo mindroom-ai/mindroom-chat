@@ -120,6 +120,12 @@ vi.mock('./commands/useCommands', () => ({
 }));
 vi.mock('../lib/hooks/useComposingCheck', () => ({ useComposingCheck: () => () => false }));
 vi.mock('../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
+// The room fakes have no event emitter; the composer reads their name as it is.
+vi.mock('../matrix/hooks/useRoomMeta', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/hooks/useRoomMeta')>()),
+  useRoomName: (room: Room) => room.name,
+}));
+vi.mock('../matrix/hooks/useRoomThreadMode', () => ({ useRoomThreadMode: () => undefined }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
 }));
