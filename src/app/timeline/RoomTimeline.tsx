@@ -1,3 +1,4 @@
+import { openProbe } from '../diagnostics/openProbe';
 import type { ThreadWorkflowTab } from '../event-store/threads/threadWorkflow';
 import {
   type Dispatch,
@@ -495,6 +496,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     [forkPoint, ownThreadEvents]
   );
   const { threadEventIndexMapRef, threadInitialRenderMode } = threadState;
+  if (threadId) openProbe('mode', { mode: threadInitialRenderMode });
   const threadEventIndexMap = threadState.threadEventIndexMap ?? threadEventIndexMapRef.current;
   const threadTailLoaded = session.snapshot.history.tailLoaded;
   const threadHasMoreCachedBack = session.snapshot.history.hasMoreCachedBack;
@@ -655,6 +657,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       resetForOpen: () => {
         backController.reset();
         openedViewKeyRef.current = viewKeyRef.current;
+        openProbe('reset-for-open', { key: viewKeyRef.current });
       },
       resetAfterLeave: () => backController.reset(),
       // Queued: the next commit applies it, unless the reader scrolls first.
@@ -745,6 +748,15 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const threadLatestOpenPending =
     !!threadId && session.snapshot.open.latestPending && openedViewKeyRef.current === viewKey;
   if (threadLatestOpenPending) openedAtLatestRef.current.value = true;
+  if (threadId)
+    openProbe('render', {
+      latestPending: session.snapshot.open.latestPending,
+      openedKey: openedViewKeyRef.current === viewKey ? 'same' : String(openedViewKeyRef.current),
+      viewKey,
+      flag: openedAtLatestRef.current.value,
+      flagKey: openedAtLatestRef.current.viewKey === viewKey,
+      held: session.snapshot.open.firstPaintHeld,
+    });
   const threadOpenedAtLatest = !!threadId && openedAtLatestRef.current.value;
   const threadUserScrolled = readerScrolledRef.current.value;
 
