@@ -2,6 +2,7 @@
 // The scenarios run one after the other on one page, and the results go to the console as well.
 import { spawn, spawnSync } from 'node:child_process';
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
@@ -700,6 +701,59 @@ const throttleCpu = async (page: Page, rate: number): Promise<void> => {
   await session.send('Emulation.setCPUThrottlingRate', { rate });
 };
 
+const debugDump = async (page: Page, label: string): Promise<void> => {
+  mkdirSync(OUT_DIR, { recursive: true });
+  await page
+    .screenshot({ path: join(OUT_DIR, `${label}-failed.png`), timeout: 10_000 })
+    .catch((error) => console.log(`DEBUG screenshot failed: ${error}`));
+  const state = await page.evaluate(
+    ({ row, cardSelector }) => {
+      const describe = (element: Element) => {
+        const box = element.getBoundingClientRect();
+        const chain: string[] = [];
+        for (let at: Element | null = element; at && chain.length < 12; at = at.parentElement) {
+          const style = getComputedStyle(at);
+          chain.push(
+            `${at.tagName}.${String(at.className).slice(0, 40)} d=${style.display} v=${
+              style.visibility
+            } o=${style.opacity} cv=${style.contentVisibility} h=${Math.round(
+              at.getBoundingClientRect().height
+            )}`
+          );
+        }
+        return {
+          id: element.getAttribute('data-message-id') ?? element.getAttribute('data-thread-root-id'),
+          box: [box.left, box.top, box.width, box.height].map(Math.round),
+          checkVisibility: element.checkVisibility
+            ? element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+            : 'none',
+          plain: element.checkVisibility ? element.checkVisibility() : 'none',
+          chain,
+        };
+      };
+      const rows = Array.from(document.querySelectorAll(row));
+      const cardsNow = Array.from(document.querySelectorAll(cardSelector));
+      return {
+        href: location.pathname.length,
+        visibility: document.visibilityState,
+        inner: [innerWidth, innerHeight],
+        now: performance.now(),
+        rows: rows.length,
+        firstRows: rows.slice(0, 4).map(describe),
+        lastRows: rows.slice(-2).map(describe),
+        cards: cardsNow.length,
+        firstCards: cardsNow.slice(0, 2).map(describe),
+        banner: document.querySelectorAll('[data-thread-context-banner]').length,
+        presses: (window as unknown as { __dbgPress?: unknown[] }).__dbgPress,
+        active: document.activeElement?.tagName,
+        transitions: document.getAnimations().length,
+      };
+    },
+    { row: ROW, cardSelector: CARD }
+  );
+  writeFileSync(join(OUT_DIR, `${label}-failed.json`), `${JSON.stringify(state, null, 2)}\n`);
+};
+
 const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const { page, driver } = run;
   const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
@@ -727,6 +781,7 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
       extra.openedStreaming = (extra.openedStreaming ?? true) && measured.openedStreaming;
     }
   } catch (error) {
+    await debugDump(page, label).catch((dumpError) => console.log(`DEBUG dump failed: ${dumpError}`));
     await probe.stop({ ...extra, failed: String(error) }).catch(() => undefined);
     throw error;
   }
@@ -860,6 +915,17 @@ test.describe('PERF: real work under the backend load', () => {
   });
 
   const open = async (page: Page, running: AgentStack): Promise<void> => {
+    mkdirSync(OUT_DIR, { recursive: true });
+    const consoleLog = join(OUT_DIR, `console-${Date.now()}.log`);
+    page.on('console', (message) => {
+      if (message.type() === 'error' || message.type() === 'warning') {
+        appendFileSync(consoleLog, `${Date.now()} ${message.type()} ${message.text().slice(0, 500)}\n`);
+      }
+    });
+    page.on('pageerror', (error) => {
+      appendFileSync(consoleLog, `${Date.now()} pageerror ${String(error.stack ?? error).slice(0, 800)}\n`);
+    });
+    page.on('crash', () => appendFileSync(consoleLog, `${Date.now()} CRASH\n`));
     await installProbe(page);
     await page.addInitScript(watchColdLoad, { flag: COLD_LOAD_FLAG, selector: CARD });
     await dismissRecoveryPrompt(page);

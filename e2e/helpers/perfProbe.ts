@@ -606,6 +606,16 @@ export const timeToVisible = async (
       const now = performance.now();
       const age = now - event.timeStamp;
       const startedAt = age >= 0 && age < 60_000 ? event.timeStamp : now;
+      const dbg = window as unknown as { __dbgPress?: unknown[] };
+      (dbg.__dbgPress ??= []).push({
+        watched,
+        now,
+        ts: event.timeStamp,
+        age,
+        type: event.type,
+        trusted: event.isTrusted,
+        target: (event.target as Element | null)?.outerHTML?.slice(0, 200),
+      });
       const tick = () => {
         if (cancelled) return;
         // Not the frame time given to the callback: that is when the frame began, before the
