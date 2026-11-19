@@ -15,7 +15,8 @@ const roomThreadExitTargetMemory = new Map<string, RoomThreadExitTarget>();
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
-const getHistoryEntryKey = (historyState: unknown): string | undefined => {
+/** The router's key of the history entry whose state `historyState` is, once the router wrote one. */
+export const getHistoryEntryKey = (historyState: unknown): string | undefined => {
   if (!isRecord(historyState)) return undefined;
   const key = historyState.key;
   return typeof key === 'string' && key.length > 0 ? key : undefined;

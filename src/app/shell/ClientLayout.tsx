@@ -6,6 +6,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { getActiveSession, updateSessionLastPath } from '../matrix/session/sessions';
 import { resolveSessionRestorePath } from '../routes/sessionRouteRestore';
+import { getHistoryEntryKey } from '../routes/roomNavigateState';
 import {
   canonicalizeSessionPathname,
   pathnameContainsAliasRoute,
@@ -94,6 +95,11 @@ export function ClientLayout({
       .then((resolved) => {
         if (cancelled) return;
         setResolvedAliasPath(pathname);
+        // A navigation since, which the page may not show yet (a phone's slide waits a frame),
+        // such as a link's redirect into its thread, has an address of its own to keep.
+        const currentKey =
+          typeof window === 'undefined' ? undefined : getHistoryEntryKey(window.history.state);
+        if (currentKey && currentKey !== key) return;
         if (resolved !== pathname) navigate(`${resolved}${search}${hash}`, { replace: true });
       })
       .catch(() => {
@@ -102,7 +108,7 @@ export function ClientLayout({
     return () => {
       cancelled = true;
     };
-  }, [mx, sessionId, hasAlias, pathname, search, hash, navigate]);
+  }, [mx, sessionId, hasAlias, pathname, search, hash, key, navigate]);
 
   // One tree on every screen size, so a phone turned sideways keeps the page mounted: the page's
   // wrapper draws no box beside the rail, and on phones holds the page below the top bar.

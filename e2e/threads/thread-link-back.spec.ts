@@ -148,6 +148,10 @@ const followLinkAndBack = async (
   }
   await page.goto(`/${encodeURIComponent(spaceId)}/${encodeURIComponent(roomId)}/`);
   await expect(compactRoom(page)).toBeVisible({ timeout: 60_000 });
+  const platform = await page.evaluate(() =>
+    (window as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.()
+  );
+  expect(platform, 'the platform the app runs on').toBe(ios ? 'ios' : 'web');
   await expect(card(page, sourceRootId)).toBeVisible({ timeout: 60_000 });
   await press(touch, card(page, sourceRootId));
   await expectThread(page, sourceRootId, TOPICS, 'the card opens its thread');
