@@ -199,7 +199,7 @@ function CompactThreadCardBase({
             as="span"
             className={css.TimeText}
             size="T200"
-            priority="300"
+            priority="400"
             title={lastActivityTitle}
           >
             {relativeTime}
@@ -323,7 +323,7 @@ function CompactThreadCardBase({
               as="span"
               className={css.ReplyCount}
               size="T200"
-              priority="300"
+              priority="400"
               title={messageCountLabel}
               data-compact-card-reply-count="true"
             >
