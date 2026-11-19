@@ -859,10 +859,66 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}",
-        "toolCallFailed": "Didn't complete",
-        "toolCallsAlsoFailed": "· {{failed}} didn't complete",
-        "toolCallsRanFailed_one": "Ran {{count}} tool call · {{failed}} didn't complete",
-        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} didn't complete"
+        "toolCallFailed": "Failed",
+        "toolCallsAlsoFailed": "· {{failed}} failed",
+        "toolCallsRanFailed_one": "Ran {{count}} tool call · {{failed}} failed",
+        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} failed",
+        "toolWords": {
+          "read": {
+            "row": "Read file",
+            "title_one": "read {{count}} file",
+            "title_other": "read {{count}} files"
+          },
+          "write": {
+            "row": "Wrote file",
+            "title_one": "wrote {{count}} file",
+            "title_other": "wrote {{count}} files"
+          },
+          "edit": {
+            "row": "Edited file",
+            "title_one": "made {{count}} edit",
+            "title_other": "made {{count}} edits"
+          },
+          "command": {
+            "row": "Ran command",
+            "title_one": "ran {{count}} command",
+            "title_other": "ran {{count}} commands"
+          },
+          "searchFiles": {
+            "row": "Searched files",
+            "title": "searched files"
+          },
+          "searchWeb": {
+            "row": "Searched the web",
+            "title": "searched the web"
+          },
+          "readPage": {
+            "row": "Read web page",
+            "title_one": "read {{count}} web page",
+            "title_other": "read {{count}} web pages"
+          },
+          "schedule": {
+            "row": "Scheduled",
+            "title_one": "scheduled {{count}} task",
+            "title_other": "scheduled {{count}} tasks"
+          },
+          "listFiles": {
+            "row": "Listed files",
+            "title": "listed files"
+          },
+          "attachments": {
+            "row": "Checked attachments",
+            "title": "checked attachments"
+          },
+          "room": {
+            "row": "Looked up the room",
+            "title": "looked up the room"
+          },
+          "moreTools_one": "used {{count}} more tool",
+          "moreTools_other": "used {{count}} more tools",
+          "moreSteps_one": "Show {{count}} more step: {{steps}}",
+          "moreSteps_other": "Show {{count}} more steps: {{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Title settings…"

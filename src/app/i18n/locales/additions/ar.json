@@ -911,14 +911,102 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
-        "toolCallFailed": "لم يكتمل",
-        "toolCallsAlsoFailed": "· عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩"
+        "toolCallFailed": "فشل",
+        "toolCallsAlsoFailed": "· عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolWords": {
+          "read": {
+            "row": "قراءة ملف",
+            "title_zero": "قراءة ⁨{{count}}⁩ ملف",
+            "title_one": "قراءة ⁨{{count}}⁩ ملف",
+            "title_two": "قراءة ملفين (⁨{{count}}⁩)",
+            "title_few": "قراءة ⁨{{count}}⁩ ملفات",
+            "title_many": "قراءة ⁨{{count}}⁩ ملفًا",
+            "title_other": "قراءة ⁨{{count}}⁩ ملف"
+          },
+          "write": {
+            "row": "كتابة ملف",
+            "title_zero": "كتابة ⁨{{count}}⁩ ملف",
+            "title_one": "كتابة ⁨{{count}}⁩ ملف",
+            "title_two": "كتابة ملفين (⁨{{count}}⁩)",
+            "title_few": "كتابة ⁨{{count}}⁩ ملفات",
+            "title_many": "كتابة ⁨{{count}}⁩ ملفًا",
+            "title_other": "كتابة ⁨{{count}}⁩ ملف"
+          },
+          "edit": {
+            "row": "تعديل ملف",
+            "title_zero": "إجراء ⁨{{count}}⁩ تعديل",
+            "title_one": "إجراء ⁨{{count}}⁩ تعديل",
+            "title_two": "إجراء تعديلين (⁨{{count}}⁩)",
+            "title_few": "إجراء ⁨{{count}}⁩ تعديلات",
+            "title_many": "إجراء ⁨{{count}}⁩ تعديلًا",
+            "title_other": "إجراء ⁨{{count}}⁩ تعديل"
+          },
+          "command": {
+            "row": "تشغيل أمر",
+            "title_zero": "تشغيل ⁨{{count}}⁩ أمر",
+            "title_one": "تشغيل ⁨{{count}}⁩ أمر",
+            "title_two": "تشغيل أمرين (⁨{{count}}⁩)",
+            "title_few": "تشغيل ⁨{{count}}⁩ أوامر",
+            "title_many": "تشغيل ⁨{{count}}⁩ أمرًا",
+            "title_other": "تشغيل ⁨{{count}}⁩ أمر"
+          },
+          "searchFiles": {
+            "row": "البحث في الملفات",
+            "title": "البحث في الملفات"
+          },
+          "searchWeb": {
+            "row": "البحث في الويب",
+            "title": "البحث في الويب"
+          },
+          "readPage": {
+            "row": "قراءة صفحة ويب",
+            "title_zero": "قراءة ⁨{{count}}⁩ صفحة ويب",
+            "title_one": "قراءة ⁨{{count}}⁩ صفحة ويب",
+            "title_two": "قراءة صفحتي ويب (⁨{{count}}⁩)",
+            "title_few": "قراءة ⁨{{count}}⁩ صفحات ويب",
+            "title_many": "قراءة ⁨{{count}}⁩ صفحة ويب",
+            "title_other": "قراءة ⁨{{count}}⁩ صفحة ويب"
+          },
+          "schedule": {
+            "row": "جدولة",
+            "title_zero": "جدولة ⁨{{count}}⁩ مهمة",
+            "title_one": "جدولة ⁨{{count}}⁩ مهمة",
+            "title_two": "جدولة مهمتين (⁨{{count}}⁩)",
+            "title_few": "جدولة ⁨{{count}}⁩ مهام",
+            "title_many": "جدولة ⁨{{count}}⁩ مهمة",
+            "title_other": "جدولة ⁨{{count}}⁩ مهمة"
+          },
+          "listFiles": {
+            "row": "عرض قائمة الملفات",
+            "title": "عرض قائمة الملفات"
+          },
+          "attachments": {
+            "row": "التحقق من المرفقات",
+            "title": "التحقق من المرفقات"
+          },
+          "room": {
+            "row": "الاطلاع على معلومات الغرفة",
+            "title": "الاطلاع على معلومات الغرفة"
+          },
+          "moreTools_zero": "استخدام ⁨{{count}}⁩ أداة أخرى",
+          "moreTools_one": "استخدام ⁨{{count}}⁩ أداة أخرى",
+          "moreTools_two": "استخدام أداتين أخريين (⁨{{count}}⁩)",
+          "moreTools_few": "استخدام ⁨{{count}}⁩ أدوات أخرى",
+          "moreTools_many": "استخدام ⁨{{count}}⁩ أداة أخرى",
+          "moreTools_other": "استخدام ⁨{{count}}⁩ أداة أخرى",
+          "moreSteps_zero": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
+          "moreSteps_one": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
+          "moreSteps_two": "عرض خطوتين أخريين (⁨{{count}}⁩): ⁨{{steps}}⁩",
+          "moreSteps_few": "عرض ⁨{{count}}⁩ خطوات أخرى: ⁨{{steps}}⁩",
+          "moreSteps_many": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
+          "moreSteps_other": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "إعدادات العناوين…"

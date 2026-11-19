@@ -846,9 +846,57 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",
-        "toolCallFailed": "Tidak selesai",
-        "toolCallsAlsoFailed": "· {{failed}} tidak selesai",
-        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} tidak selesai"
+        "toolCallFailed": "Gagal",
+        "toolCallsAlsoFailed": "· {{failed}} gagal",
+        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} gagal",
+        "toolWords": {
+          "read": {
+            "row": "Membaca file",
+            "title_other": "membaca {{count}} file"
+          },
+          "write": {
+            "row": "Menulis file",
+            "title_other": "menulis {{count}} file"
+          },
+          "edit": {
+            "row": "Mengedit file",
+            "title_other": "membuat {{count}} suntingan"
+          },
+          "command": {
+            "row": "Menjalankan perintah",
+            "title_other": "menjalankan {{count}} perintah"
+          },
+          "searchFiles": {
+            "row": "Mencari di file",
+            "title": "mencari di file"
+          },
+          "searchWeb": {
+            "row": "Mencari di web",
+            "title": "mencari di web"
+          },
+          "readPage": {
+            "row": "Membaca halaman web",
+            "title_other": "membaca {{count}} halaman web"
+          },
+          "schedule": {
+            "row": "Menjadwalkan",
+            "title_other": "menjadwalkan {{count}} tugas"
+          },
+          "listFiles": {
+            "row": "Melihat daftar file",
+            "title": "melihat daftar file"
+          },
+          "attachments": {
+            "row": "Memeriksa lampiran",
+            "title": "memeriksa lampiran"
+          },
+          "room": {
+            "row": "Melihat info ruang",
+            "title": "melihat info ruang"
+          },
+          "moreTools_other": "memakai {{count}} alat lain",
+          "moreSteps_other": "Tampilkan {{count}} langkah lagi: {{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul…"

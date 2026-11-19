@@ -859,10 +859,66 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Läuft seit {{duration}}",
-        "toolCallFailed": "Nicht abgeschlossen",
-        "toolCallsAlsoFailed": "· {{failed}} nicht abgeschlossen",
-        "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} nicht abgeschlossen",
-        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} nicht abgeschlossen"
+        "toolCallFailed": "Fehlgeschlagen",
+        "toolCallsAlsoFailed": "· {{failed}} fehlgeschlagen",
+        "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} fehlgeschlagen",
+        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} fehlgeschlagen",
+        "toolWords": {
+          "read": {
+            "row": "Datei gelesen",
+            "title_one": "{{count}} Datei gelesen",
+            "title_other": "{{count}} Dateien gelesen"
+          },
+          "write": {
+            "row": "Datei geschrieben",
+            "title_one": "{{count}} Datei geschrieben",
+            "title_other": "{{count}} Dateien geschrieben"
+          },
+          "edit": {
+            "row": "Datei bearbeitet",
+            "title_one": "{{count}} Änderung vorgenommen",
+            "title_other": "{{count}} Änderungen vorgenommen"
+          },
+          "command": {
+            "row": "Befehl ausgeführt",
+            "title_one": "{{count}} Befehl ausgeführt",
+            "title_other": "{{count}} Befehle ausgeführt"
+          },
+          "searchFiles": {
+            "row": "Dateien durchsucht",
+            "title": "Dateien durchsucht"
+          },
+          "searchWeb": {
+            "row": "Im Web gesucht",
+            "title": "im Web gesucht"
+          },
+          "readPage": {
+            "row": "Webseite gelesen",
+            "title_one": "{{count}} Webseite gelesen",
+            "title_other": "{{count}} Webseiten gelesen"
+          },
+          "schedule": {
+            "row": "Geplant",
+            "title_one": "{{count}} Aufgabe geplant",
+            "title_other": "{{count}} Aufgaben geplant"
+          },
+          "listFiles": {
+            "row": "Dateien aufgelistet",
+            "title": "Dateien aufgelistet"
+          },
+          "attachments": {
+            "row": "Anhänge geprüft",
+            "title": "Anhänge geprüft"
+          },
+          "room": {
+            "row": "Raum nachgeschlagen",
+            "title": "den Raum nachgeschlagen"
+          },
+          "moreTools_one": "{{count}} weiteres Tool verwendet",
+          "moreTools_other": "{{count}} weitere Tools verwendet",
+          "moreSteps_one": "{{count}} weiteren Schritt zeigen: {{steps}}",
+          "moreSteps_other": "{{count}} weitere Schritte zeigen: {{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titeleinstellungen…"

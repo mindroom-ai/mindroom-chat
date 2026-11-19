@@ -846,9 +846,57 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중",
-        "toolCallFailed": "완료되지 않음",
-        "toolCallsAlsoFailed": "· {{failed}}개 완료되지 않음",
-        "toolCallsRanFailed_other": "도구 호출 {{count}}개 실행됨 · {{failed}}개 완료되지 않음"
+        "toolCallFailed": "실패",
+        "toolCallsAlsoFailed": "· {{failed}}개 실패",
+        "toolCallsRanFailed_other": "도구 호출 {{count}}개 실행됨 · {{failed}}개 실패",
+        "toolWords": {
+          "read": {
+            "row": "파일 읽음",
+            "title_other": "파일 {{count}}개 읽음"
+          },
+          "write": {
+            "row": "파일 작성함",
+            "title_other": "파일 {{count}}개 작성함"
+          },
+          "edit": {
+            "row": "파일 편집함",
+            "title_other": "{{count}}건 편집함"
+          },
+          "command": {
+            "row": "명령 실행함",
+            "title_other": "명령 {{count}}개 실행함"
+          },
+          "searchFiles": {
+            "row": "파일 검색함",
+            "title": "파일 검색함"
+          },
+          "searchWeb": {
+            "row": "웹 검색함",
+            "title": "웹 검색함"
+          },
+          "readPage": {
+            "row": "웹 페이지 읽음",
+            "title_other": "웹 페이지 {{count}}개 읽음"
+          },
+          "schedule": {
+            "row": "예약함",
+            "title_other": "작업 {{count}}개 예약함"
+          },
+          "listFiles": {
+            "row": "파일 목록 확인",
+            "title": "파일 목록 확인"
+          },
+          "attachments": {
+            "row": "첨부 파일 확인",
+            "title": "첨부 파일 확인"
+          },
+          "room": {
+            "row": "방 정보 확인",
+            "title": "방 정보 확인"
+          },
+          "moreTools_other": "도구 {{count}}개 더 사용",
+          "moreSteps_other": "단계 {{count}}개 더 보기: {{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "제목 설정…"

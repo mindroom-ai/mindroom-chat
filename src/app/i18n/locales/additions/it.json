@@ -872,11 +872,75 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "In esecuzione da {{duration}}",
-        "toolCallFailed": "Non completata",
-        "toolCallsAlsoFailed": "· chiamate non completate: {{failed}}",
-        "toolCallsRanFailed_one": "{{count}} chiamata a strumento eseguita · chiamate non completate: {{failed}}",
-        "toolCallsRanFailed_many": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}"
+        "toolCallFailed": "Non riuscita",
+        "toolCallsAlsoFailed": "· chiamate non riuscite: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} chiamata a strumento eseguita · chiamate non riuscite: {{failed}}",
+        "toolCallsRanFailed_many": "{{count}} chiamate a strumenti eseguite · chiamate non riuscite: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} chiamate a strumenti eseguite · chiamate non riuscite: {{failed}}",
+        "toolWords": {
+          "read": {
+            "row": "File letto",
+            "title_one": "{{count}} file letto",
+            "title_many": "{{count}} file letti",
+            "title_other": "{{count}} file letti"
+          },
+          "write": {
+            "row": "File scritto",
+            "title_one": "{{count}} file scritto",
+            "title_many": "{{count}} file scritti",
+            "title_other": "{{count}} file scritti"
+          },
+          "edit": {
+            "row": "File modificato",
+            "title_one": "{{count}} modifica apportata",
+            "title_many": "{{count}} modifiche apportate",
+            "title_other": "{{count}} modifiche apportate"
+          },
+          "command": {
+            "row": "Comando eseguito",
+            "title_one": "{{count}} comando eseguito",
+            "title_many": "{{count}} comandi eseguiti",
+            "title_other": "{{count}} comandi eseguiti"
+          },
+          "searchFiles": {
+            "row": "Ricerca nei file",
+            "title": "ricerca nei file"
+          },
+          "searchWeb": {
+            "row": "Ricerca sul web",
+            "title": "ricerca sul web"
+          },
+          "readPage": {
+            "row": "Pagina web letta",
+            "title_one": "{{count}} pagina web letta",
+            "title_many": "{{count}} pagine web lette",
+            "title_other": "{{count}} pagine web lette"
+          },
+          "schedule": {
+            "row": "Pianificato",
+            "title_one": "{{count}} attività pianificata",
+            "title_many": "{{count}} attività pianificate",
+            "title_other": "{{count}} attività pianificate"
+          },
+          "listFiles": {
+            "row": "File elencati",
+            "title": "file elencati"
+          },
+          "attachments": {
+            "row": "Allegati controllati",
+            "title": "allegati controllati"
+          },
+          "room": {
+            "row": "Stanza consultata",
+            "title": "stanza consultata"
+          },
+          "moreTools_one": "{{count}} altro strumento usato",
+          "moreTools_many": "{{count}} altri strumenti usati",
+          "moreTools_other": "{{count}} altri strumenti usati",
+          "moreSteps_one": "Mostra {{count}} altro passaggio: {{steps}}",
+          "moreSteps_many": "Mostra altri {{count}} passaggi: {{steps}}",
+          "moreSteps_other": "Mostra altri {{count}} passaggi: {{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Impostazioni dei titoli…"

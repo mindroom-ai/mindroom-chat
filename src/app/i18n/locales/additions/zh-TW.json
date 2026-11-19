@@ -846,9 +846,57 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",
-        "toolCallFailed": "未完成",
-        "toolCallsAlsoFailed": "· {{failed}} 個未完成",
-        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成"
+        "toolCallFailed": "失敗",
+        "toolCallsAlsoFailed": "· {{failed}} 個失敗",
+        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個失敗",
+        "toolWords": {
+          "read": {
+            "row": "讀取檔案",
+            "title_other": "讀取了 {{count}} 個檔案"
+          },
+          "write": {
+            "row": "寫入檔案",
+            "title_other": "寫入了 {{count}} 個檔案"
+          },
+          "edit": {
+            "row": "編輯檔案",
+            "title_other": "進行了 {{count}} 處編輯"
+          },
+          "command": {
+            "row": "執行指令",
+            "title_other": "執行了 {{count}} 個指令"
+          },
+          "searchFiles": {
+            "row": "搜尋檔案",
+            "title": "搜尋了檔案"
+          },
+          "searchWeb": {
+            "row": "搜尋網路",
+            "title": "搜尋了網路"
+          },
+          "readPage": {
+            "row": "讀取網頁",
+            "title_other": "讀取了 {{count}} 個網頁"
+          },
+          "schedule": {
+            "row": "已排程",
+            "title_other": "排程了 {{count}} 項工作"
+          },
+          "listFiles": {
+            "row": "列出檔案",
+            "title": "列出了檔案"
+          },
+          "attachments": {
+            "row": "查看附件",
+            "title": "查看了附件"
+          },
+          "room": {
+            "row": "查詢聊天室資訊",
+            "title": "查詢了聊天室資訊"
+          },
+          "moreTools_other": "使用了另外 {{count}} 個工具",
+          "moreSteps_other": "顯示另外 {{count}} 個步驟：{{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "標題設定…"

@@ -182,6 +182,50 @@ export const RowName = style({
   lineHeight: toRem(22),
 });
 
+// A known tool's call in words ("Read file"), and what it acts on, muted on the rest of the line.
+export const RowWords = style({
+  flexShrink: 0,
+  fontSize: toRem(13),
+  fontWeight: config.fontWeight.W600,
+  lineHeight: toRem(22),
+});
+
+export const RowTarget = style({
+  flex: '1 1 0px',
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: toRem(12),
+  opacity: config.opacity.P400,
+});
+
+// Opens the run's folded bookkeeping calls, under its other calls.
+export const MoreSteps = style([
+  DefaultReset,
+  {
+    display: 'block',
+    width: '100%',
+    padding: `${toRem(8)} ${toRem(14)} ${toRem(10)} ${toRem(44)}`,
+    border: 'none',
+    borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    background: 'none',
+    color: color.Surface.OnContainer,
+    font: 'inherit',
+    fontSize: toRem(12),
+    textAlign: 'start',
+    opacity: config.opacity.P400,
+    cursor: 'pointer',
+    selectors: {
+      '&:focus-visible': {
+        outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+        outlineOffset: toRem(-2),
+      },
+      '&:hover': { textDecoration: 'underline' },
+    },
+  },
+]);
+
 // A row's name and, while the call runs long, how long it has run.
 export const RowHead = style({
   display: 'flex',

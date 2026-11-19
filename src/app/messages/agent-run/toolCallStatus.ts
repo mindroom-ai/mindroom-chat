@@ -180,15 +180,18 @@ export type ToolCallSummary = {
   names: string;
 };
 
+/** Tool names in call order, with repeats as "send_message ×2". */
+export const toolNames = (calls: readonly { toolName: string }[]): string => {
+  const repeats = new Map<string, number>();
+  calls.forEach(({ toolName }) => repeats.set(toolName, (repeats.get(toolName) ?? 0) + 1));
+  return [...repeats].map(([name, count]) => (count > 1 ? `${name} ×${count}` : name)).join(', ');
+};
+
 export const summarizeToolCalls = (
   calls: readonly { toolName: string }[],
   states: readonly ToolCallState[]
 ): ToolCallSummary => {
-  const repeats = new Map<string, number>();
-  calls.forEach(({ toolName }) => repeats.set(toolName, (repeats.get(toolName) ?? 0) + 1));
-  const names = [...repeats]
-    .map(([name, count]) => (count > 1 ? `${name} ×${count}` : name))
-    .join(', ');
+  const names = toolNames(calls);
   const count = (state: ToolCallState) => states.filter((item) => item === state).length;
   const failed = count('failed') || undefined;
   if (count('running') > 0) return { state: 'running', count: calls.length, failed, names };

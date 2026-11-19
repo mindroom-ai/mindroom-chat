@@ -859,10 +859,66 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",
-        "toolCallFailed": "Tamamlanmadı",
-        "toolCallsAlsoFailed": "· {{failed}} tamamlanmadı",
-        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
-        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı"
+        "toolCallFailed": "Başarısız",
+        "toolCallsAlsoFailed": "· {{failed}} başarısız",
+        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız",
+        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız",
+        "toolWords": {
+          "read": {
+            "row": "Dosya okundu",
+            "title_one": "{{count}} dosya okundu",
+            "title_other": "{{count}} dosya okundu"
+          },
+          "write": {
+            "row": "Dosya yazıldı",
+            "title_one": "{{count}} dosya yazıldı",
+            "title_other": "{{count}} dosya yazıldı"
+          },
+          "edit": {
+            "row": "Dosya düzenlendi",
+            "title_one": "{{count}} düzenleme yapıldı",
+            "title_other": "{{count}} düzenleme yapıldı"
+          },
+          "command": {
+            "row": "Komut çalıştırıldı",
+            "title_one": "{{count}} komut çalıştırıldı",
+            "title_other": "{{count}} komut çalıştırıldı"
+          },
+          "searchFiles": {
+            "row": "Dosyalarda arandı",
+            "title": "dosyalarda arandı"
+          },
+          "searchWeb": {
+            "row": "Web'de arandı",
+            "title": "web'de arandı"
+          },
+          "readPage": {
+            "row": "Web sayfası okundu",
+            "title_one": "{{count}} web sayfası okundu",
+            "title_other": "{{count}} web sayfası okundu"
+          },
+          "schedule": {
+            "row": "Zamanlandı",
+            "title_one": "{{count}} görev zamanlandı",
+            "title_other": "{{count}} görev zamanlandı"
+          },
+          "listFiles": {
+            "row": "Dosyalar listelendi",
+            "title": "dosyalar listelendi"
+          },
+          "attachments": {
+            "row": "Ekler kontrol edildi",
+            "title": "ekler kontrol edildi"
+          },
+          "room": {
+            "row": "Oda bilgisi alındı",
+            "title": "oda bilgisi alındı"
+          },
+          "moreTools_one": "{{count}} araç daha kullanıldı",
+          "moreTools_other": "{{count}} araç daha kullanıldı",
+          "moreSteps_one": "{{count}} adım daha göster: {{steps}}",
+          "moreSteps_other": "{{count}} adım daha göster: {{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Başlık ayarları…"

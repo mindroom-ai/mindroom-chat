@@ -71,9 +71,10 @@ import { toToolArgumentFields } from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { formatWorkDuration } from '../../lib/time';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
-import { revealDirectionControls } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
 import { useToolCallsShown } from '../toolCallVisibility';
+import { describeToolRun, describeToolSteps, isToolStep, toolRowWords } from '../agent-run/toolWords';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -343,12 +344,27 @@ function ToolRefGroupItem({
 }) {
   const { t } = useTranslation();
   const { src, tone } = TOOL_STATE_ICON[state];
+  const words = toolRowWords(t, parsedTool.toolName, parsedTool.argsPreview);
+  const rest = words?.rest;
   return (
     <div className={activityCss.Row} data-tool-index={parsedTool.index}>
       <ActivityIcon src={src} tone={tone} pending={state === 'running'} />
       <div className={activityCss.RowBody}>
         <span className={activityCss.RowHead}>
-          <span className={activityCss.RowName}>{parsedTool.toolName}</span>
+          {words ? (
+            <>
+              <span className={activityCss.RowWords} title={parsedTool.toolName}>
+                {words.label}
+              </span>
+              {words.target && (
+                <span className={activityCss.RowTarget} title={words.target} {...ownDirectionLine}>
+                  {words.target}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className={activityCss.RowName}>{parsedTool.toolName}</span>
+          )}
           {state === 'running' && parsedTool.startedAt !== undefined && (
             <ToolElapsed startedAt={parsedTool.startedAt} />
           )}
@@ -359,9 +375,12 @@ function ToolRefGroupItem({
             </span>
           )}
         </span>
-        {parsedTool.argsPreview && (
+        {(rest ? rest.length > 0 : parsedTool.argsPreview) && (
           <div className={activityCss.RowText}>
-            <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
+            <ApprovalArgumentFields
+              value={parsedTool.argsPreview}
+              parse={rest ? () => ({ fields: rest }) : toToolArgumentFields}
+            />
           </div>
         )}
         {parsedTool.result && <ActivityResult text={parsedTool.result} />}
@@ -476,9 +495,11 @@ function ToolRefGroupBlock({
   replyTools: ReplyToolCalls;
 }) {
   const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
+  const [stepsShown, setStepsShown] = useState(false);
   const loadedTools = parsedTools.filter(isLoadedTool);
   const replyStates = useToolCallStates(replyTools);
   const metadataStatus = parsedTools.find((tool) => !isLoadedTool(tool))?.status;
@@ -503,6 +524,20 @@ function ToolRefGroupBlock({
   const icon = metadataStatus
     ? { src: Icons.Terminal, tone: 'neutral' as const }
     : TOOL_STATE_ICON[summary.state];
+  // A finished run says what it did in words, where its tools have them.
+  const words =
+    !metadataStatus && (summary.state === 'done' || summary.state === 'failed')
+      ? describeToolRun(
+          t,
+          language,
+          calls.filter((tool) => ['done', 'failed'].includes(stateOf(tool)))
+        )
+      : undefined;
+  // Finished bookkeeping calls fold under the run's other calls.
+  const steps = stepsShown
+    ? []
+    : loadedTools.filter((tool, index) => states[index] === 'done' && isToolStep(tool.toolName));
+  const folded = steps.length < loadedTools.length ? steps : [];
 
   return (
     <ThreadActivity
@@ -516,13 +551,26 @@ function ToolRefGroupBlock({
       title={
         metadataStatus
           ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
-          : withFailures(
-              t,
-              t(TOOL_STATE_TITLE[summary.state], { count: summary.count, failed: summary.failed }),
-              summary
-            )
+          : words
+            ? [
+                words.title,
+                summary.failed &&
+                  t('mindroomUi.messages.mindroomHtmlBlocks.toolCallsAlsoFailed', {
+                    failed: summary.failed,
+                  }),
+              ]
+                .filter(Boolean)
+                .join(' ')
+            : withFailures(
+                t,
+                t(TOOL_STATE_TITLE[summary.state], {
+                  count: summary.count,
+                  failed: summary.failed,
+                }),
+                summary
+              )
       }
-      detail={summary.names}
+      detail={words ? words.detail : summary.names}
       aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}
       preview={
         outputTool?.progress && (
@@ -537,13 +585,24 @@ function ToolRefGroupBlock({
         )
       }
     >
-      {loadedTools.map((parsedTool, index) => (
-        <ToolRefGroupItem
-          key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
-          parsedTool={parsedTool}
-          state={states[index]!}
-        />
-      ))}
+      {loadedTools.map(
+        (parsedTool, index) =>
+          !folded.includes(parsedTool) && (
+            <ToolRefGroupItem
+              key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
+              parsedTool={parsedTool}
+              state={states[index]!}
+            />
+          )
+      )}
+      {folded.length > 0 && (
+        <button type="button" className={activityCss.MoreSteps} onClick={() => setStepsShown(true)}>
+          {t('mindroomUi.messages.mindroomHtmlBlocks.toolWords.moreSteps', {
+            count: folded.length,
+            steps: describeToolSteps(t, language, folded),
+          })}
+        </button>
+      )}
       {metadataStatus && (
         <div className={activityCss.Row}>
           <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />

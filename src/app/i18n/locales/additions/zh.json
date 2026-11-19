@@ -846,9 +846,57 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已运行 {{duration}}",
-        "toolCallFailed": "未完成",
-        "toolCallsAlsoFailed": "· {{failed}} 个未完成",
-        "toolCallsRanFailed_other": "已执行 {{count}} 次工具调用 · {{failed}} 个未完成"
+        "toolCallFailed": "失败",
+        "toolCallsAlsoFailed": "· {{failed}} 个失败",
+        "toolCallsRanFailed_other": "已执行 {{count}} 次工具调用 · {{failed}} 个失败",
+        "toolWords": {
+          "read": {
+            "row": "读取文件",
+            "title_other": "读取了 {{count}} 个文件"
+          },
+          "write": {
+            "row": "写入文件",
+            "title_other": "写入了 {{count}} 个文件"
+          },
+          "edit": {
+            "row": "编辑文件",
+            "title_other": "进行了 {{count}} 处编辑"
+          },
+          "command": {
+            "row": "运行命令",
+            "title_other": "运行了 {{count}} 条命令"
+          },
+          "searchFiles": {
+            "row": "搜索文件",
+            "title": "搜索了文件"
+          },
+          "searchWeb": {
+            "row": "搜索网页",
+            "title": "搜索了网页"
+          },
+          "readPage": {
+            "row": "读取网页",
+            "title_other": "读取了 {{count}} 个网页"
+          },
+          "schedule": {
+            "row": "已安排",
+            "title_other": "安排了 {{count}} 个任务"
+          },
+          "listFiles": {
+            "row": "列出文件",
+            "title": "列出了文件"
+          },
+          "attachments": {
+            "row": "查看附件",
+            "title": "查看了附件"
+          },
+          "room": {
+            "row": "查询房间信息",
+            "title": "查询了房间信息"
+          },
+          "moreTools_other": "使用了另外 {{count}} 个工具",
+          "moreSteps_other": "显示另外 {{count}} 个步骤：{{steps}}"
+        }
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "标题设置…"
