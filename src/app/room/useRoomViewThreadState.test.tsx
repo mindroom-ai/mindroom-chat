@@ -440,37 +440,12 @@ describe('useRoomViewThreadState', () => {
 
     expect(current().threadSections).toBe(true);
     expect(store.get(getCompactRoomSectionsAtom(USER_ID)).on).toBe(true);
-    // Sections group whatever the filters show: no filter changes with them, except the hidden
-    // default that keeps snoozed threads out, as they have their own Later section.
-    expect(current().threadFilterState).toEqual({ ...before, snoozed: 'any' });
+    // Sections group whatever the filters show: no filter changes with them.
+    expect(current().threadFilterState).toEqual(before);
 
     act(() => current().handleToggleThreadSections());
     expect(current().threadSections).toBe(false);
     expect(current().threadFilterState).toEqual(before);
-  });
-
-  it('shows snoozed threads in Simple mode sections, which have a Later section for them', () => {
-    storeFilter({ ...createDefaultThreadFilterState(), resolved: 'any', snoozed: 'exclude' });
-    const { current } = mountThreadState();
-    expect(current().threadFilterState.snoozed).toBe('exclude');
-
-    act(() => current().handleToggleThreadSections());
-    expect(current().threadFilterState.snoozed).toBe('any');
-    expect(localStorage.getItem(getRoomThreadFilterStorageKey(USER_ID, ROOM_ID))).toContain(
-      '"snoozed":"exclude"'
-    );
-
-    act(() => current().handleToggleThreadSections());
-    expect(current().threadFilterState.snoozed).toBe('exclude');
-  });
-
-  it('keeps a filter for only snoozed threads while Compact shows sections', () => {
-    storeFilter({ ...createDefaultThreadFilterState(), snoozed: 'include' });
-    const { current } = mountThreadState({ advancedFilters: true });
-
-    act(() => current().handleToggleThreadSections());
-
-    expect(current().threadFilterState.snoozed).toBe('include');
   });
 
   it('keeps the selected tab while Compact shows sections', () => {

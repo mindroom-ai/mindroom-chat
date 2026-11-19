@@ -142,31 +142,27 @@ export const useRoomViewThreadState = ({
       snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
     };
   }, [effectiveViewMode, storedThreadFilterState, hasMindroomAgents, simpleMode]);
-  const [compactSections, updateCompactSections] = useAtom(
-    useMemo(() => getCompactRoomSectionsAtom(userId), [userId])
-  );
-  // Only agent rooms have the workflow buckets; a room without agents keeps its cards' sort.
-  const threadSections = effectiveViewMode === 'compact' && hasMindroomAgents && compactSections.on;
   // Project stored filters onto the controls that are currently visible.
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
   // become available again.
   const effectiveThreadFilterState = useMemo(() => {
-    const visible = simpleMode
-      ? hasMindroomAgents
+    if (simpleMode) {
+      return hasMindroomAgents
         ? simplifyThreadFilterState(threadFilterState)
-        : simplifyAgentlessSimpleThreadFilterState(threadFilterState)
-      : hasMindroomAgents
+        : simplifyAgentlessSimpleThreadFilterState(threadFilterState);
+    }
+    return hasMindroomAgents
       ? threadFilterState.tab
         ? selectThreadWorkflowTab(threadFilterState, threadFilterState.tab)
         : threadFilterState
       : simplifyAgentlessThreadFilterState(threadFilterState);
-    // Sections have a Later section for snoozed threads, so the hidden default that keeps them
-    // out of the flat cards (no control shows it) does not apply there.
-    return threadSections && visible.snoozed === 'exclude'
-      ? { ...visible, snoozed: 'any' as const }
-      : visible;
-  }, [hasMindroomAgents, simpleMode, threadFilterState, threadSections]);
+  }, [hasMindroomAgents, simpleMode, threadFilterState]);
+  const [compactSections, updateCompactSections] = useAtom(
+    useMemo(() => getCompactRoomSectionsAtom(userId), [userId])
+  );
+  // Only agent rooms have the workflow buckets; a room without agents keeps its cards' sort.
+  const threadSections = effectiveViewMode === 'compact' && hasMindroomAgents && compactSections.on;
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
