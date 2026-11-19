@@ -53,8 +53,9 @@ export const PhoneTitleRow = style({ rowGap: config.space.S100 });
 // the buttons in the DOM there, so the tab order reads as the screen does.
 export const NarrowPhoneTitleRow = style({});
 
-// Beside a title at least as tall as them one above the other (the banner measures it), a phone's
-// buttons stack at the row's end, in their order, and the title takes the width they leave.
+// Beside a title that, next to them side by side, is at least as tall as them one above the other
+// (the banner measures it), a phone's buttons stack at the row's end, in their order, and the
+// title takes the width they leave.
 export const StackedPhoneTitleRow = style({});
 
 // The buttons keep the row's end, also while the title takes the row under them.

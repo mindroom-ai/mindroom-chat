@@ -749,10 +749,14 @@ describe('ThreadContextBanner rendering', () => {
      * The title row's node: `width` wide; its title column and buttons as tall as `heights` says
      * for the row's classes at the moment they are measured.
      */
+    let lastRow: { className: string } | undefined;
     const rowOf =
       (
         width: number,
-        heights: (classes: Set<string>) => { title: number; actions: number } = () => ({
+        heights: (
+          classes: Set<string>,
+          part: 'title' | 'actions'
+        ) => { title: number; actions: number } = () => ({
           title: 20,
           actions: 80,
         })
@@ -763,15 +767,15 @@ describe('ThreadContextBanner rendering', () => {
         }
         const classes = new Set<string>();
         const part = (name: 'title' | 'actions') => ({
-          getBoundingClientRect: () => ({ height: heights(classes)[name] }),
+          getBoundingClientRect: () => ({ height: heights(classes, name)[name] }),
         });
         const title = part('title');
         const actions = part('actions');
-        return {
+        lastRow = {
           getBoundingClientRect: () => ({ width }),
           classList: {
             add: (name: string) => classes.add(name),
-            remove: (name: string) => classes.delete(name),
+            remove: (...names: string[]) => names.forEach((name) => classes.delete(name)),
           },
           get className() {
             return [...classes].join(' ');
@@ -786,6 +790,7 @@ describe('ThreadContextBanner rendering', () => {
           querySelector: (selector: string) =>
             ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions }[selector] ?? null),
         };
+        return lastRow;
       };
 
     it('puts a title under the buttons after them in the tab order, as on the screen', () => {
@@ -819,7 +824,7 @@ describe('ThreadContextBanner rendering', () => {
         ).props.className;
       try {
         screenSize = ScreenSize.Mobile;
-        // Stacked, three buttons take 96 px: a title column of 120 px holds them beside it.
+        // Stacked, three buttons take 96 px: a title of 120 px beside them in a row holds them.
         const tall = renderBanner(
           'A concise thread summary',
           rowOf(360, () => ({ title: 120, actions: 96 }))
@@ -842,7 +847,7 @@ describe('ThreadContextBanner rendering', () => {
       }
     });
 
-    it('decides with the buttons stacked, so the layout it picks cannot flip it back', () => {
+    it('decides by the title beside the row and the buttons stacked, so its pick cannot flip it back', () => {
       // Page Zoom (the root's style) makes the banner measure again, as a resize would.
       const measuredAgain: (() => void)[] = [];
       vi.stubGlobal('document', { documentElement: {} });
@@ -865,26 +870,29 @@ describe('ThreadContextBanner rendering', () => {
         ).props.className;
       try {
         screenSize = ScreenSize.Mobile;
-        // Beside the buttons in a row the title takes 100 px, taller than the 96 px they take
-        // stacked; stacked, the title is wider and takes only 80 px. Deciding by the row's look
-        // would stack them, then unstack them, and so on.
-        const seen: boolean[] = [];
+        // Beside the buttons side by side the title takes 100 px, as tall as the 96 px they take
+        // one above the other; stacked, the title is wider and takes only 80 px. Deciding by the
+        // layout the row shows would stack them, then put them back in a row, and so on.
+        const seen: string[] = [];
         const banner = renderBanner(
           'A concise thread summary',
-          rowOf(360, (classes) => {
+          rowOf(360, (classes, part) => {
             const stacked = classes.has('StackedPhoneTitleRow');
-            seen.push(stacked);
+            seen.push(`${part} ${stacked ? 'stacked' : 'row'}`);
             return stacked ? { title: 80, actions: 96 } : { title: 100, actions: 32 };
           })
         );
-        expect(rowClass(banner)).toBe('TitleRow PhoneTitleRow');
+        const stackedClass = 'TitleRow PhoneTitleRow StackedPhoneTitleRow';
+        expect(rowClass(banner)).toBe(stackedClass);
         for (let again = 0; again < 3; again += 1) {
+          // The row as the screen now shows it, which the measurement leaves as it found it.
+          lastRow!.className = stackedClass;
           act(() => measuredAgain.forEach((measure) => measure()));
-          expect(rowClass(banner)).toBe('TitleRow PhoneTitleRow');
+          expect(rowClass(banner)).toBe(stackedClass);
+          expect(lastRow!.className).toBe(stackedClass);
         }
-        // Every measurement had the buttons stacked.
-        expect(seen.length).toBeGreaterThan(0);
-        expect(seen.every(Boolean)).toBe(true);
+        // The title is measured beside the buttons in a row, the buttons stacked, every time.
+        expect(new Set(seen)).toEqual(new Set(['title row', 'actions stacked']));
         banner.unmount();
       } finally {
         vi.unstubAllGlobals();

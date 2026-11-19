@@ -626,6 +626,8 @@ test("a phone's banner card keeps back, the whole title, the marker, Resolve and
     expect(shown.lines).toBeGreaterThanOrEqual(2);
     // Beside the buttons, the title comes before them from the keyboard.
     await expectTabInScreenOrder(page, 'ltr');
+    // Six lines beside the marker, More and Resolve side by side: they stack, the title widens.
+    await expectEndButtons(page, '[data-thread-context-summary]', true);
 
     const menu = page.getByRole('menu', { name: 'Thread options' });
     await more.tap();

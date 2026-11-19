@@ -87,9 +87,10 @@ type RowLayout = 'row' | 'stacked' | 'narrow';
 /**
  * A phone's title row:
  * - `narrow`: too narrow to hold the title beside its buttons, which take the line above it.
- * - `stacked`: beside a title at least as tall as the buttons one above the other, they stack so
- *   the title gets their width. Measured with them stacked, so the answer does not depend on the
- *   layout it picks and cannot flip back and forth.
+ * - `stacked`: when the title, beside the buttons side by side, is at least as tall as the buttons
+ *   one above the other, they stack and the title gets their width; the card gets no taller.
+ *   Each is measured in its own layout, whichever the row shows, so the answer does not depend on
+ *   the layout it picks and cannot flip back and forth.
  * - `row`: the buttons side by side, beside a short title.
  * Measured again when the row, the title or the buttons resize, and when the root's style changes:
  * Page Zoom sets the root font size, which moves 19rem while the row can keep its width.
@@ -110,11 +111,12 @@ const usePhoneRowLayout = (row: HTMLElement | null): RowLayout => {
         setLayout('row');
         return;
       }
-      // Lay the row out stacked for a moment (no paint in between), measure, and restore.
+      // Lay the row out each way for a moment (no paint in between), measure, and restore.
       const shown = row.className;
-      row.classList.remove(css.NarrowPhoneTitleRow);
+      row.classList.remove(css.NarrowPhoneTitleRow, css.StackedPhoneTitleRow);
+      const titleHeight = title.getBoundingClientRect().height;
       row.classList.add(css.StackedPhoneTitleRow);
-      const fits = actions.getBoundingClientRect().height <= title.getBoundingClientRect().height;
+      const fits = actions.getBoundingClientRect().height <= titleHeight;
       row.className = shown;
       setLayout(fits ? 'stacked' : 'row');
     };
