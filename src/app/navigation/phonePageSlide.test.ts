@@ -213,6 +213,8 @@ describe('slidePhonePage', () => {
     const [once, day] = stage.querySelectorAll<HTMLInputElement>('[name="keep"]');
     day!.checked = true;
     const typed = stage.querySelectorAll<HTMLInputElement>('#secret, [type="password"], textarea');
+    // React writes a controlled field's value into its markup too (`value=` / a textarea's text).
+    typed.forEach((field) => Object.assign(field, { defaultValue: 'typed-secret' }));
     typed.forEach((field) => Object.assign(field, { value: 'typed-secret' }));
 
     slidePhonePage(() => showThread(true));

@@ -110,7 +110,7 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
   });
   copy
     .querySelectorAll<HTMLInputElement>(TYPED)
-    .forEach((field) => Object.assign(field, { value: '' }));
+    .forEach((field) => Object.assign(field, { defaultValue: '', value: '' }));
   return (over) => {
     over.append(copy);
     scrolled.forEach(([element, scrollTop, scrollLeft]) =>
