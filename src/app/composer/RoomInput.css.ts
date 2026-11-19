@@ -11,9 +11,10 @@ export const ComposerPickerButton = style([
     width: 'auto',
     minWidth: 0,
     maxWidth: '11.25rem',
-    gap: '0.375rem',
-    paddingInline: '0.5rem',
+    gap: '0.25rem',
+    paddingInline: '0.375rem',
     flexShrink: 1,
+    fontSize: '0.875rem',
   },
 ]);
 

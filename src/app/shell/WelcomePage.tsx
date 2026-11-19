@@ -205,7 +205,7 @@ function Greeting() {
   const { displayName } = useUserProfile(userId);
   const name = displayName || getMxIdLocalPart(userId) || userId;
   return (
-    <Text as="h1" size="H2" className={css.Greeting}>
+    <Text as="h1" size="H2" align="Center">
       {t(greetingKey(new Date().getHours()), { name })}
     </Text>
   );

@@ -26,9 +26,8 @@ export const Column = style({
   gap: config.space.S500,
 });
 
-export const Greeting = style({ textAlign: 'center', marginBlockEnd: config.space.S200 });
-
-export const PickerAvatar = style({ width: toRem(18), height: toRem(18), flexShrink: 0 });
+/** The pictures of pickers and thread rows, 1.25rem across. */
+export const PickerAvatar = style({ width: toRem(20), height: toRem(20), flexShrink: 0 });
 globalStyle(`${PickerAvatar} *`, { fontSize: toRem(10) });
 
 /** A picker's choice, cut short when the row has no room for it. */
@@ -114,9 +113,6 @@ export const ThreadRow = style({
   },
   '@media': { [PHONE]: { alignItems: 'start' } },
 });
-
-export const ThreadAvatar = style({ width: toRem(20), height: toRem(20) });
-globalStyle(`${ThreadAvatar} *`, { fontSize: toRem(10) });
 
 export const ThreadDotSlot = style({ display: 'flex', justifyContent: 'center' });
 

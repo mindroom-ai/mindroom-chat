@@ -74,7 +74,7 @@ function RecentThreadRow({ entry }: { entry: CrossRoomThreadIndexEntry }) {
           .filter(Boolean)
           .join('. ')}
       >
-        <Avatar size="200" radii="Pill" className={css.ThreadAvatar} aria-hidden="true">
+        <Avatar size="200" radii="Pill" className={css.PickerAvatar} aria-hidden="true">
           {face && (
             <UserAvatar
               userId={face.userId}

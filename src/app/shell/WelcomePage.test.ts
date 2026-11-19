@@ -70,7 +70,6 @@ vi.mock('../members/useUserProfile', () => ({ useUserProfile: () => ({ displayNa
 vi.mock('./Home.css', () => ({
   Scroll: 'scroll',
   Column: 'column',
-  Greeting: 'greeting',
   Footer: 'footer',
 }));
 vi.mock('../account/verification/UnverifiedDeviceCard', () => ({

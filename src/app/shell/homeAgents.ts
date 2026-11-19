@@ -6,6 +6,7 @@ import { findDirectRoom } from '../matrix/createRoom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { agentRoomState } from '../matrix/protocol/agentRoomState';
+import { getMemberAvatarMxc, getMemberRawDisplayName } from '../matrix/room';
 import { navigationRoomsAtom } from '../matrix/state/archivedRooms';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import {
@@ -18,6 +19,9 @@ const ROUTER = /^mindroom_router(?:_[a-z0-9]{4,32})?$/;
 
 export type HomeAgent = {
   userId: string;
+  /** Its display name and avatar as the first of its rooms knows them. */
+  name: string;
+  avatarMxc?: string;
   /** The rooms it is in, the one last used with it first, then by latest activity. */
   roomIds: string[];
   /** Its direct chat with the account, if there is one. */
@@ -72,8 +76,13 @@ export const readHomeAgents = (
     );
     const lastUsedTs = Math.max(0, ...usedIn.values());
     const directRoomId = findDirectRoom(mx, userId);
+    const known = mx.getRoom(sorted[0]);
+    const localpart = getMxIdLocalPart(userId) ?? userId;
     return {
       userId,
+      name:
+        (known && getMemberRawDisplayName(known, userId)) || localpart.replace(/^mindroom_/, ''),
+      avatarMxc: known ? getMemberAvatarMxc(known, userId) : undefined,
       roomIds: sorted,
       directRoomId,
       defaultRoomId: lastUsedTs > 0 ? sorted[0] : directRoomId,

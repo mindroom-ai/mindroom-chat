@@ -102,6 +102,7 @@ describe('WelcomePage greeting', () => {
   it('greets the person over the ask field while the rooms have an agent', () => {
     const agent: HomeAgent = {
       userId: '@mindroom_helper:mindroom.chat',
+      name: 'Helper',
       roomIds: [],
       lastUsedTs: 0,
     };
