@@ -1,6 +1,6 @@
 {
-  "comment": "Gzip bytes a first visit downloads before the app runs (scripts/perf/bundle-report.mjs). Measured 2026-11-13 with `npx vite build` at c157793e3: initial JS 719,611 (one entry chunk), initial CSS 18,996; the limits are about 3% above. CI (after its build) and the push gate fail a build over these; they catch sudden growth, they are not a target. Raise them only on purpose, in the commit that needs it. Raised 2026-11-18 for the memory diagnostics (#612): CI read 724.0 KiB at 22c136833, about 2 KiB above a local build.",
-  "initialJsGzipBytes": 743000,
-  "entryJsGzipBytes": 743000,
+  "comment": "Gzip bytes a first visit downloads before the app runs (scripts/perf/bundle-report.mjs). Measured 2026-11-13 with `npx vite build` at c157793e3: initial JS 719,611 (one entry chunk), initial CSS 18,996; the limits are about 3% above. CI (after its build) and the push gate fail a build over these; they catch sudden growth, they are not a target. Raise them only on purpose, in the commit that needs it. Raised 2026-11-18 for the memory diagnostics (#612): CI read 724.0 KiB at 22c136833, about 2 KiB above a local build. Raised 2026-11-18 for the native zoom shortcuts (#618): CI read 726.5 KiB on its merge with main.",
+  "initialJsGzipBytes": 745000,
+  "entryJsGzipBytes": 745000,
   "initialCssGzipBytes": 19600
 }
