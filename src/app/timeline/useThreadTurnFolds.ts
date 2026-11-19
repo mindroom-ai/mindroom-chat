@@ -103,10 +103,13 @@ const WAKE_UP_KINDS = /^(scheduled|silent_scheduled|external_trigger|hook_dispat
  * relay for a person (a comment on a document). A job's follow-up posts nothing: it stays in turn.
  */
 export const startsTurn = (event: MatrixEvent): boolean => {
-  const content = event.getContent();
-  const kind = String(content['com.mindroom.source_kind']);
-  const relay = kind === 'hook' && 'com.mindroom.original_sender' in content;
-  if (relay || WAKE_UP_KINDS.test(kind)) return true;
+  // As sent: an edit does not move a turn's start.
+  const content = event.getOriginalContent();
+  const kind = content['com.mindroom.source_kind'];
+  if (typeof kind === 'string') {
+    const relay = kind === 'hook' && 'com.mindroom.original_sender' in content;
+    if (relay || WAKE_UP_KINDS.test(kind)) return true;
+  }
   return !isRowlessTimelineEvent(event) && threadRowAuthor(event) === 'person';
 };
 
@@ -121,7 +124,9 @@ export const isTurnCard = (
   viewerId: string | undefined
 ): boolean => {
   const row = { type: event.getType(), sender: event.getSender() ?? '', content };
-  return CHAT_UI_ACTION_KEY in content || !!pickRenderer(config, row, viewerId);
+  // As renderAgentMessageContent draws a notice's action as a button.
+  const action = content.msgtype === 'm.notice' && content[CHAT_UI_ACTION_KEY];
+  return (!!action && typeof action === 'object') || !!pickRenderer(config, row, viewerId);
 };
 
 type UseThreadTurnFoldsOptions = {

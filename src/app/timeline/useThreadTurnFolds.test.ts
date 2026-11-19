@@ -209,8 +209,37 @@ describe('startsTurn', () => {
     ],
     ["a hook's progress notice", kind('hook'), false],
     ["an agent's message to another agent", kind('trusted_internal_relay'), false],
+    [
+      'a kind that is not a string',
+      woke({ msgtype: 'm.text', body: 'Wake', 'com.mindroom.source_kind': ['scheduled'] }),
+      false,
+    ],
+    [
+      'a kind that cannot become a string',
+      woke({ msgtype: 'm.text', body: 'Wake', 'com.mindroom.source_kind': { toString: null } }),
+      false,
+    ],
   ])('reads %s', (_name, event, expected) => {
     expect(startsTurn(event)).toBe(expected);
+  });
+
+  it('reads the kind a row was sent with, not an edit of it', () => {
+    const sent = kind('external_trigger');
+    sent.makeReplaced(
+      new MatrixEvent({
+        event_id: '$e',
+        room_id: ROOM,
+        sender: '@mindroom_router:example.org',
+        type: 'm.room.message',
+        origin_server_ts: 2,
+        content: {
+          body: '* Wake',
+          'm.new_content': { body: 'Wake', 'com.mindroom.source_kind': 'hook' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$w' },
+        },
+      })
+    );
+    expect(startsTurn(sent)).toBe(true);
   });
 });
 
@@ -224,8 +253,10 @@ describe('isTurnCard', () => {
     const canvas = { action: 'show_canvas', version: 1, canvas: { title: 'Budget sheet' } };
     expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': canvas })).toBe(true);
   });
-  it("folds an agent's message", () => {
+  it("folds an agent's message, also one whose action draws no button", () => {
     expect(card({})).toBe(false);
+    expect(card({ 'io.mindroom.ui_action': { action: 'show_canvas' } })).toBe(false);
+    expect(card({ msgtype: 'm.notice', 'io.mindroom.ui_action': 'show_canvas' })).toBe(false);
   });
 });
 
