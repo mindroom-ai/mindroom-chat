@@ -522,47 +522,75 @@ for (const [name, viewport] of [
   });
 }
 
+const setPageZoom = (page: Page, pageZoom: number) =>
+  page.evaluate((zoom) => {
+    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
+    localStorage.setItem('settings', JSON.stringify({ ...settings, pageZoom: zoom }));
+  }, pageZoom);
+// Back, (the marker,) Resolve, the call button and More, whatever the language calls them.
+const rowButtons = (page: Page) =>
+  banner(page).locator('> div').first().locator('button:visible:not(h1 *)');
+
 for (const dir of ['ltr', 'rtl'] as const) {
-  test(`the row keeps every button on screen on a 320 px phone at 150% zoom, ${dir}`, async ({
+  test(`the row keeps every button on screen on a 320 px phone at 150% Page Zoom, ${dir}`, async ({
     browser,
     baseURL,
   }) => {
     test.setTimeout(300_000);
     const world = await seedOnce();
-    // 320 px at 150% Page Zoom lays out as 213 CSS px.
-    const viewport = { width: 213, height: 379 };
+    // The real setting: the viewport stays 320 px wide while the root font size grows.
+    const viewport = { width: 320, height: 568 };
     const { context, page } = await signIn(browser, baseURL, world, { ...PHONE, viewport });
     try {
+      await setPageZoom(page, 150);
       if (dir === 'rtl') await page.evaluate(() => localStorage.setItem('i18nextLng', 'ar'));
       await openThread(page, world, 'busy');
       await expect(page.locator('html')).toHaveAttribute('dir', dir);
-      // Back, (the marker,) Resolve, the call button and More, whatever the language calls them;
-      // the room's name gives its width away first.
-      const buttons = banner(page).locator('> div').first().locator('button:visible:not(h1 *)');
+      await expect
+        .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize))
+        .toBe('24px');
+      // The room's name gives its width away first.
+      const buttons = rowButtons(page);
       await expect(buttons).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
-      if (WITH_MARKER) await page.waitForTimeout(1500);
+      if (WITH_MARKER) {
+        // The marker with its count, drawn once (the page's) GitHub has answered.
+        await expect(banner(page).getByRole('button', { name: /pull request/i })).toContainText(
+          String(THREADS.busy.pulls.length)
+        );
+        await page.waitForTimeout(1500);
+      }
       const boxes = await buttons.evaluateAll((list) =>
-        list
-          .map((button) => {
-            const { left, right } = button.getBoundingClientRect();
-            return { left, right };
-          })
-          .sort((a, b) => a.left - b.left)
+        list.map((button) => {
+          const { left, right } = button.getBoundingClientRect();
+          return { left, right };
+        })
       );
-      // Each whole on the screen, More (the last in the row) too, and none over another.
-      boxes.forEach(({ left, right }, index) => {
+      // More is the row's last button, at its end in the reading direction.
+      const more = boxes.at(-1)!;
+      const inOrder = [...boxes].sort((a, b) => a.left - b.left);
+      expect(more).toEqual(dir === 'ltr' ? inOrder.at(-1) : inOrder[0]);
+      // Each whole on the screen and none over another, at the zoomed 32 px or wider.
+      inOrder.forEach(({ left, right }, index) => {
         expect(left).toBeGreaterThanOrEqual(-0.5);
         expect(right).toBeLessThanOrEqual(viewport.width + 0.5);
-        expect(right - left).toBeGreaterThanOrEqual(32);
-        if (index > 0) expect(left).toBeGreaterThanOrEqual(boxes[index - 1]!.right - 0.5);
+        expect(right - left).toBeGreaterThanOrEqual(47.5);
+        if (index > 0) expect(left).toBeGreaterThanOrEqual(inOrder[index - 1]!.right - 0.5);
       });
-      const more = await buttons.last().boundingBox();
-      expect(more!.x).toBeGreaterThanOrEqual(0);
-      expect(more!.x + more!.width).toBeLessThanOrEqual(viewport.width + 0.5);
       if (SHOTS) {
         mkdirSync(SHOTS, { recursive: true });
         await page.screenshot({ path: path.join(SHOTS, `phone-busy-zoom150-${dir}.png`) });
       }
+
+      // Back at 100% in the same viewport, Resolve and More are 40 px again.
+      await setPageZoom(page, 100);
+      await openThread(page, world, 'busy');
+      await expect(buttons).toHaveCount(WITH_MARKER ? 5 : 4, { timeout: 30_000 });
+      const widths = await buttons.evaluateAll((list) =>
+        list.map((button) => button.getBoundingClientRect().width)
+      );
+      expect(widths.at(-1)).toBeCloseTo(40, 0);
+      // Resolve follows the plugins' controls and leads the call button and More.
+      expect(widths.at(-3)).toBeCloseTo(40, 0);
     } finally {
       await context.close();
     }

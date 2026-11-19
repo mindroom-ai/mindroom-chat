@@ -1,7 +1,7 @@
 import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color, DefaultReset, toRem } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
-import { roomArea, shortRoomArea } from '../ui/styles/roomArea.css';
+import { roomArea } from '../ui/styles/roomArea.css';
 import { shortViewport } from '../ui/styles/shortViewport';
 import { touchTarget } from '../ui/styles/touchTarget';
 import { toolbarButtonRestFill } from '../messages/styles.css';
@@ -332,6 +332,13 @@ export const BannerSnoozed = style([
   { color: color.Warning.OnContainer },
 ]);
 
+// The phone header's two container thresholds are in rem: Page Zoom scales the root font size
+// and so the header's rows and buttons, while the room area keeps its px size.
+// A room area under a keyboard, too short for the whole header (240 px at 100% zoom).
+const shortArea = `${roomArea} (max-height: 15rem)`;
+// A room area too narrow for the row's 40 px buttons and gaps (a small phone at 150% zoom).
+const narrowArea = `${roomArea} (max-width: 17.5rem)`;
+
 // On a phone the thread that fills the page shows in the room header's own rows (RoomViewHeader),
 // flat as that header: no card.
 export const PhoneHeader = style({
@@ -340,15 +347,13 @@ export const PhoneHeader = style({
   minWidth: 0,
   paddingBottom: config.space.S300,
   '@media': { [shortViewport]: { paddingBottom: config.space.S100 } },
-  '@container': { [shortRoomArea]: { paddingBottom: config.space.S100 } },
+  '@container': { [shortArea]: { paddingBottom: config.space.S100 } },
 });
 
-// A room area as narrow as a small phone's at 150% zoom: the row and its buttons give up their gaps.
-const narrowRoomArea = `${roomArea} (max-width: 280px)`;
 const lowRow = { height: toRem(44) };
 
 // The header's row, as tall as the room header's, lower on short screens and under a keyboard:
-// back, the room's name, then the buttons.
+// back, the room's name, then the buttons. A narrow room area closes the gaps between them.
 export const PhoneRow = style({
   display: 'flex',
   alignItems: 'center',
@@ -356,20 +361,18 @@ export const PhoneRow = style({
   height: toRem(54),
   paddingInline: config.space.S200,
   '@media': { [shortViewport]: lowRow },
-  '@container': { [shortRoomArea]: lowRow, [narrowRoomArea]: { gap: 0 } },
+  '@container': { [shortArea]: lowRow, [narrowArea]: { gap: 0 } },
 });
 export const PhoneActions = style({
-  '@container': { [narrowRoomArea]: { selectors: { '&&': { gap: 0 } } } },
+  '@container': { [narrowArea]: { selectors: { '&&': { gap: 0 } } } },
 });
 
 // Resolve and More, the room's menu button there too: 40 px as the header's own buttons, 44 px
-// for a finger with their reach; a narrow room area keeps their 32 px.
+// for a finger with their reach; 32 px in a narrow room area.
+const square = (size: number) => ({ inlineSize: toRem(size), blockSize: toRem(size) });
 export const PhoneButton = style({
-  '@container': {
-    [`${roomArea} (min-width: 281px)`]: {
-      selectors: { '&&&': { inlineSize: toRem(40), blockSize: toRem(40) } },
-    },
-  },
+  selectors: { '&&&': square(40) },
+  '@container': { [narrowArea]: { selectors: { '&&&': square(32) } } },
 });
 
 // The room's name takes the room the buttons leave, and gives way to them, down to nothing.
@@ -418,7 +421,7 @@ export const PhoneTitleRow = style({
   maxBlockSize: `max(calc(3 * ${config.lineHeight.H5}), 38cqh)`,
   overflowY: 'auto',
   overscrollBehavior: 'contain',
-  '@container': { [shortRoomArea]: { maxBlockSize: config.lineHeight.H5 } },
+  '@container': { [shortArea]: { maxBlockSize: config.lineHeight.H5 } },
 });
 
 // The title in full: it wraps onto as many lines as it needs and is never cut.
@@ -449,7 +452,7 @@ export const PhoneStatus = style({
   marginTop: config.space.S100,
   paddingInline: config.space.S400,
   selectors: { '&:empty': { display: 'none' } },
-  '@container': { [shortRoomArea]: { display: 'none' } },
+  '@container': { [shortArea]: { display: 'none' } },
 });
 
 // The tags in a row of their own, where the header shows them (PHONE_HEADER_TAGS).

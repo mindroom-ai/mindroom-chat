@@ -3,6 +3,7 @@ import { expect, it, vi } from 'vitest';
 import {
   PhoneActions,
   PhoneButton,
+  PhoneHeader,
   PhoneRoom,
   PhoneRoomButton,
   PhoneRow,
@@ -29,6 +30,10 @@ vi.mock('../ui/styles/Glass.css', () => ({
 }));
 vi.mock('../messages/styles.css', () => ({ toolbarButtonRestFill: '--rest-fill' }));
 vi.mock('../ui/styles/roomArea.css', () => ({ roomArea: 'area', shortRoomArea: 'area (short)' }));
+
+// The phone header's two thresholds on the room area: under a keyboard, and at 150% Page Zoom.
+const SHORT = 'area (max-height: 15rem)';
+const NARROW = 'area (max-width: 17.5rem)';
 
 it("wraps a phone header's title onto as many lines as it needs, cutting none", () => {
   const title = rules.get(PhoneTitle) as Record<string, unknown>;
@@ -61,33 +66,38 @@ it("bounds a phone header's title block, which scrolls in itself, and keeps one 
     flexShrink: 0,
     // The bound counts the lines alone; the room for the rename field's ring is beside it.
     boxSizing: 'content-box',
-    '@container': { 'area (short)': { maxBlockSize: expect.any(String) } },
+    '@container': { [SHORT]: { maxBlockSize: expect.any(String) } },
   });
   // At least three lines, else 38% of the room area's height.
   expect(block.maxBlockSize).toMatch(/^max\(calc\(3 \* .+\), 38cqh\)$/);
   // What is set on the thread gives its row away there too.
   expect(rules.get(PhoneStatus)).toMatchObject({
-    '@container': { 'area (short)': { display: 'none' } },
+    '@container': { [SHORT]: { display: 'none' } },
   });
 });
 
-it('makes Resolve and More 40 px, but not in a room area as narrow as 150% zoom leaves, whose row closes its gaps', () => {
+it('makes Resolve and More 40 px, and 32 px in a narrow room area, whose row closes its gaps', () => {
+  const square = (size: string) => ({
+    selectors: { '&&&': { inlineSize: size, blockSize: size } },
+  });
   expect(rules.get(PhoneButton)).toEqual({
-    '@container': {
-      'area (min-width: 281px)': {
-        selectors: { '&&&': { inlineSize: '2.5rem', blockSize: '2.5rem' } },
-      },
-    },
+    ...square('2.5rem'),
+    '@container': { [NARROW]: square('2rem') },
   });
   // The name gives all its width away there, and shows no cut letter.
   expect(rules.get(PhoneRoom)).toMatchObject({ minWidth: 0, overflowX: 'clip' });
   expect(rules.get(PhoneRow)).toMatchObject({
-    '@container': {
-      'area (short)': { height: '2.75rem' },
-      'area (max-width: 280px)': { gap: 0 },
-    },
+    '@container': { [SHORT]: { height: '2.75rem' }, [NARROW]: { gap: 0 } },
   });
   expect(rules.get(PhoneActions)).toEqual({
-    '@container': { 'area (max-width: 280px)': { selectors: { '&&': { gap: 0 } } } },
+    '@container': { [NARROW]: { selectors: { '&&': { gap: 0 } } } },
   });
+});
+
+it("asks the room area in rem, which Page Zoom scales with the header's buttons, never in px", () => {
+  const queries = [PhoneHeader, PhoneRow, PhoneActions, PhoneButton, PhoneTitleRow, PhoneStatus]
+    .flatMap((name) => Object.keys((rules.get(name) as StyleRule)['@container'] ?? {}))
+    .filter((query, index, all) => all.indexOf(query) === index);
+  expect(queries.sort()).toEqual([SHORT, NARROW].sort());
+  queries.forEach((query) => expect(query).not.toMatch(/\dpx/));
 });
