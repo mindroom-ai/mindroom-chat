@@ -241,7 +241,7 @@ describe('example plugin', () => {
     const ui = () => <panel.Component roomId="!lobby:example.org" />;
     const options = { id: 'example', plugin, client };
     expect((await renderPluginComponent(ui(), options)).container.textContent).toBe(
-      'No example thread'
+      'Example threadClose Example threadNo example thread'
     );
     cleanup();
 
@@ -264,6 +264,23 @@ describe('example plugin', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(close).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(thread, { key: 'Escape' })).toBe(false);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows its own title and Close in its thread panel, where the room draws none', async () => {
+    const panel = plugin.sidePanels?.find(({ id }) => id === 'thread');
+    if (!panel) throw new Error('the example plugin has no thread panel');
+    expect(panel.title).toBe('own');
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const close = vi.fn();
+    roomPage.closeThreadPanel = close;
+    const view = await renderPluginComponent(<panel.Component roomId="!lobby:example.org" />, {
+      id: 'example',
+      plugin,
+      client,
+    });
+    expect(view.getByRole('heading', { name: 'Example thread' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: 'Close Example thread' }));
     expect(close).toHaveBeenCalledTimes(1);
   });
   it("names its greeting's sender as the app names them in the room, apart from a member of the same name, and shows the account's own profile card", async () => {
