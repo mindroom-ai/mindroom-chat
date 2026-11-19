@@ -181,26 +181,15 @@ const play = (list: HTMLElement, before: Before): Animation[] => {
 };
 
 /**
- * Holds a play where its row shows now. A pause alone takes hold at the browser's next frame,
- * which a busy page draws late, at the place the play has reached by then: a pressed row glided
- * on (17 to 67 px in Chromium, 100 ms of its way in WebKit) and left the pointer all the same.
- * Setting a play's time ends the pending pause at once, but the time a play reports can be the
- * last frame's, behind where the row shows and the press was aimed (WebKit). So a glide starts
- * again from the place the page reports for its row, and holds there.
+ * Holds a play at the frame it shows now. A pause alone takes hold at the browser's next frame,
+ * at the place the play has reached by then: a pressed row glided on for that long (17 to 67 px
+ * in Chromium) and left the pointer all the same. Set to its own time, the play holds at once.
  */
 const holdNow = (animation: Animation): void => {
-  const effect = animation.effect as KeyframeEffect | null;
-  const [first] = effect?.getKeyframes() ?? [];
-  let time = animation.currentTime;
-  // A glide, or the play that raises its row over the others: not a row that comes or leaves.
-  if (effect?.target && first && !('opacity' in first)) {
-    const shown = getComputedStyle(effect.target).translate;
-    if ('translate' in first) effect.setKeyframes([{ translate: shown }, { translate: 'none' }]);
-    time = 0;
-  }
+  const { currentTime } = animation;
   animation.pause();
   // eslint-disable-next-line no-param-reassign -- the one way to end a pause that is pending
-  animation.currentTime = time;
+  animation.currentTime = currentTime;
 };
 
 type BeforeChangeProps = {
@@ -261,8 +250,7 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * on would take the release to the row beside it, and a browser sends a click whose press and
  * release hit different elements to the element that holds both, here the list: the pressed row
  * got none (a Compact card pressed while the list sorted itself anew opened nothing). A finger's
- * click is aimed after its pointerup, so the release alone does not let go. A glide that was held
- * starts again from where its row stood. A press that ends in
+ * click is aimed after its pointerup, so the release alone does not let go. A press that ends in
  * neither (a drag, a long press) leaves the plays held until `LONGEST_PLAY_MS` ends them. A
  * change of `order` during a press starts its plays held, at the frame that shows each row where
  * it was; one that comes `LONGEST_PLAY_MS` or more after the pointer went down plays at once.
@@ -308,8 +296,7 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     runningRef.current = [...kept, ...started];
     const press = pressRef.current;
     if (press && performance.now() - press.at < LONGEST_PLAY_MS) {
-      // At their first frame, which shows each row where it was: a pause holds them there.
-      started.forEach((animation) => animation.pause());
+      started.forEach(holdNow);
       press.held.push(...started);
     }
     // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
