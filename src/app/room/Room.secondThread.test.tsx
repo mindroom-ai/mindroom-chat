@@ -9,13 +9,17 @@ import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
+import {
+  SecondThreadContext,
+  type SecondThreadControl,
+  THREAD_DRAG_TYPE,
+} from '../navigation/secondThread';
 import { secondThreadStorageKey } from '../preferences/accountStorageKeys';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
 // The second thread (B) beside the one the room page shows (A): a side panel of the room, which
-// the thread menu's Open beside opens through the page's SecondThreadContext.
+// the thread menu's Open in second column opens through the page's SecondThreadContext.
 
 const { mx, room, state } = vi.hoisted(() => {
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
@@ -235,7 +239,7 @@ afterEach(() => {
 });
 
 describe('the second thread beside the open one', () => {
-  it('Open beside shows the thread in a second column', async () => {
+  it('Open in second column shows the thread in a second column', async () => {
     await renderRoom('$a');
     await openBeside('$b');
     const view = panel()?.querySelector('[data-thread-view]');
@@ -294,6 +298,15 @@ describe('the second thread beside the open one', () => {
     expect(JSON.parse(localStorage.getItem(storageKey) ?? '{}')).toEqual({});
   });
 
+  it('lays the open thread out beside the messages while B shows, and as stored once B goes', async () => {
+    await renderRoom('$a');
+    expect(state.view?.besideWhileSecond).toBe(false);
+    await openBeside('$b');
+    expect(state.view?.besideWhileSecond).toBe(true);
+    await act(async () => screen.getByRole('button', { name: 'Close thread' }).click());
+    expect(state.view?.besideWhileSecond).toBe(false);
+  });
+
   it("a letter typed in B's column goes to B's composer", async () => {
     await renderRoom('$a');
     await openBeside('$b');
@@ -310,11 +323,34 @@ describe('the second thread beside the open one', () => {
     expect(state.focusComposer).toHaveBeenCalledTimes(1);
   });
 
+  it("a thread card dropped on the room's end edge opens in the second column", async () => {
+    await renderRoom('$a');
+    await openBeside('$b');
+    const dataTransfer = {
+      types: [THREAD_DRAG_TYPE],
+      getData: () => JSON.stringify({ roomId: '!r', rootId: '$c' }),
+      dropEffect: 'none',
+    };
+    fireEvent.dragStart(document.body, { dataTransfer });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    const zone = screen.getByTestId('second-thread-drop-zone');
+    fireEvent.dragEnter(zone, { dataTransfer });
+    await act(async () => fireEvent.drop(zone, { dataTransfer }));
+    expect(panel()?.querySelector('[data-thread-view]')?.getAttribute('data-thread-view')).toBe(
+      '$c'
+    );
+    expect(screen.queryByTestId('second-thread-drop-zone')).toBeNull();
+  });
+
   it('phone: no context and no panel', async () => {
     localStorage.setItem(storageKey, JSON.stringify({ '!r': '$b' }));
     await renderRoom('$a', ScreenSize.Mobile);
     expect(state.second).toBeUndefined();
     expect(panel()).toBeNull();
+    // Nothing there to drop a card on either.
+    fireEvent.dragStart(document.body, { dataTransfer: { types: [THREAD_DRAG_TYPE] } });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(screen.queryByTestId('second-thread-drop-zone')).toBeNull();
   });
 
   it('a remembered B shows again with its room', async () => {
@@ -429,7 +465,7 @@ describe('the second thread beside the open one', () => {
     expect(document.activeElement).toBe(screen.getByTestId('a-composer'));
   });
 
-  it('only an explicit Open beside takes the focus, not a restored B', async () => {
+  it('only an explicit Open in second column takes the focus, not a restored B', async () => {
     localStorage.setItem(storageKey, JSON.stringify({ '!r': '$b' }));
     await renderRoom('$a');
     expect(panel()?.querySelector('[data-thread-view="$b"]')?.getAttribute('data-auto-focus')).toBe(

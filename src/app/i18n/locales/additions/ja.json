@@ -1162,7 +1162,8 @@
     "renameHint": "ダブルクリックで名前を変更",
     "close": "スレッドを閉じる",
     "resizeSecond": "2つ目のスレッドのサイズを変更",
-    "second": "2つ目のスレッド"
+    "second": "2つ目のスレッド",
+    "dropSecond": "ドロップして2列目で開く"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
@@ -1504,6 +1505,6 @@
     "done": "完了"
   },
   "threadActions": {
-    "openBeside": "横に開く"
+    "openBeside": "2列目で開く"
   }
 }

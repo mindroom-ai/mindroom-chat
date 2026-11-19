@@ -21,6 +21,9 @@ export const THREAD_COLUMN_WIDTH_KEY = 'mindroom.threadColumn.width';
 
 const LAYOUT_KEY = 'mindroom.threadColumn.layout';
 
+/** The second thread's column width until it is resized (its panel and its drop zone). */
+export const SECOND_THREAD_DEFAULT_WIDTH = 480;
+
 /** The stored layout as storage has it now. */
 const storedThreadLayout = (): ThreadLayout =>
   getLocalStorageItem<unknown>(LAYOUT_KEY, undefined) === 'beside' ? 'beside' : 'full';

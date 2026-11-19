@@ -12,11 +12,10 @@ import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { usePanelPresence } from '../ui/panels/panelPresence';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { ThreadView } from './ThreadView';
+import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import { noteThreadViewKey } from './useRoomEscapeReadReceipts';
 import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 
-/** The thread column's own width, at first. */
-const DEFAULT_WIDTH = 480;
 const MAX_WIDTH = 4096;
 const COLUMN_STYLE: CSSProperties = {
   display: 'flex',
@@ -45,9 +44,9 @@ function FocusProbe({
 /**
  * A second thread (B) beside the one the room page shows, in a side panel of its own: its banner
  * with a Close button, its timeline and its composer. Typing on no field in it goes to its composer,
- * and Escape in it marks it read. It takes the focus with `autoFocus` (an explicit Open beside).
- * Closing, it moves out as an empty shell: the thread's view goes at once, so nothing reads, sends
- * or shows it as seen once it is no longer the room's second thread.
+ * and Escape in it marks it read. It takes the focus with `autoFocus` (an explicit Open in second
+ * column). Closing, it moves out as an empty shell: the thread's view goes at once, so nothing
+ * reads, sends or shows it as seen once it is no longer the room's second thread.
  */
 export function SecondThreadPanel({
   room,
@@ -87,7 +86,7 @@ export function SecondThreadPanel({
     <ResizablePanel
       side="end"
       storageKey={widthKey}
-      defaultWidth={DEFAULT_WIDTH}
+      defaultWidth={SECOND_THREAD_DEFAULT_WIDTH}
       minContentWidth={CONVERSATION_MIN_WIDTH}
       maxPanelWidth={MAX_WIDTH}
       resizeLabel={t('thread.resizeSecond')}

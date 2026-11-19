@@ -227,7 +227,7 @@ describe('ThreadActionsMenu rows', () => {
     expect(rowOf(items, 'resolve')?.querySelector('[data-keys]')).toBeNull();
   });
 
-  describe('Open beside', () => {
+  describe('Open in second column', () => {
     const menuIn = (
       second: SecondThreadControl | undefined,
       props: Partial<ThreadActionsMenuProps>
@@ -249,19 +249,19 @@ describe('ThreadActionsMenu rows', () => {
       return [...host.querySelectorAll<HTMLElement>('[role="menuitem"]')];
     };
 
-    it('offers Open beside right after Open when the room page does', () => {
+    it('offers Open in second column right after Open when the room page does', () => {
       const items = menuIn({ offers: () => true, open: vi.fn() }, {});
       expect(
         rows(items)
           .slice(0, 3)
           .map((row) => row.label)
-      ).toEqual(['Open thread', 'Open beside', 'Edit tags']);
+      ).toEqual(['Open thread', 'Open in second column', 'Edit tags']);
       expect(rowOf(items, 'openBeside')?.querySelector('svg')?.innerHTML).toBe(
         glyph(Icons.ThreadPlus)
       );
     });
 
-    it('selecting Open beside opens the thread and closes the menu', () => {
+    it('selecting Open in second column opens the thread and closes the menu', () => {
       const open = vi.fn();
       const onClose = vi.fn();
       const offers = vi.fn(() => true);
@@ -272,7 +272,7 @@ describe('ThreadActionsMenu rows', () => {
       expect(onClose).toHaveBeenCalledOnce();
     });
 
-    it('no Open beside without the room page or for a thread it shows', () => {
+    it('no Open in second column without the room page or for a thread it shows', () => {
       expect(rowOf(menuIn(undefined, {}), 'openBeside')).toBeUndefined();
       expect(
         rowOf(menuIn({ offers: () => false, open: vi.fn() }, {}), 'openBeside')
