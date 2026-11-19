@@ -299,10 +299,13 @@ const checkSurfaces = async (
         banner.locator('[data-thread-context-summary]')
       );
       // The banner sits flush under the room header: no strip between them where scrolled text
-      // shows sharp and cut in half.
-      const headerBox = (await roomHeader(page).boundingBox())!;
-      const bannerBox = (await banner.boundingBox())!;
-      gaps[`${prefix}-banner-gap`] = Math.round(bannerBox.y - (headerBox.y + headerBox.height));
+      // shows sharp and cut in half. A phone has no banner under it: the header's rows are the
+      // thread's.
+      if (size !== 'phone') {
+        const headerBox = (await roomHeader(page).boundingBox())!;
+        const bannerBox = (await banner.boundingBox())!;
+        gaps[`${prefix}-banner-gap`] = Math.round(bannerBox.y - (headerBox.y + headerBox.height));
+      }
       if (size === 'desktop') {
         await measure(
           page,

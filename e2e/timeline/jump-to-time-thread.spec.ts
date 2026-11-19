@@ -1,6 +1,7 @@
 import { devices, expect, test, type Page, type Route } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { openRoomMenu } from '../helpers/roomMenu';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -106,7 +107,8 @@ const runJumps = async (
 
   const press = (locator: ReturnType<Page['locator']>) => (phone ? locator.tap() : locator.click());
   const openDialog = async () => {
-    await press(page.getByRole('button', { name: 'More Options' }).first());
+    // The room menu; a phone's thread reaches it through its own menu.
+    await openRoomMenu(page);
     await press(page.getByRole('menuitem', { name: 'Jump to Time' }));
     const dialog = page.getByRole('dialog', { name: 'Jump to Time' });
     await expect(dialog).toBeVisible();

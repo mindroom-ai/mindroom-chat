@@ -11,7 +11,7 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
-import { openRoomPins } from '../helpers/roomMenu';
+import { openRoomMenu, openRoomPins } from '../helpers/roomMenu';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -495,7 +495,8 @@ const FLOWS: Record<string, Flow> = {
 
   'Jump to Time': async (page, { garden, gardenRoot }, testInfo) => {
     const jump = async () => {
-      await page.getByRole('button', { name: 'More Options' }).first().tap();
+      // The room menu, which a thread's menu leads to.
+      await openRoomMenu(page);
       await page.getByRole('menuitem', { name: 'Jump to Time' }).tap();
       const dialog = page.getByRole('dialog', { name: 'Jump to Time' });
       await dialog.getByRole('button', { name: 'Beginning' }).tap();

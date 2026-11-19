@@ -16,6 +16,24 @@ export const roomMoreOptions = (page: Page): Locator =>
   roomHeader(page).getByRole('button', { name: 'More Options', exact: true });
 
 /**
+ * Opens the room menu, and returns the button that opened it: the header's More Options, or, where
+ * a phone shows a thread in the header, the thread's menu, whose Room options entry leads to it.
+ */
+export const openRoomMenu = async (page: Page): Promise<Locator> => {
+  const threadOptions = page
+    .locator('[data-thread-phone-header]')
+    .getByRole('button', { name: 'Thread options', exact: true });
+  await expect(roomMoreOptions(page).or(threadOptions)).toBeVisible({ timeout: 60_000 });
+  if (!(await threadOptions.isVisible())) {
+    await roomMoreOptions(page).click();
+    return roomMoreOptions(page);
+  }
+  await threadOptions.click();
+  await page.getByRole('menuitem', { name: 'Room options', exact: true }).click();
+  return threadOptions;
+};
+
+/**
  * Opens the room's pinned messages: the header's Pinned Messages button, or on a phone the room
  * menu's entry. Returns the control focus belongs on after the list closes.
  */
@@ -25,8 +43,7 @@ export const openRoomPins = async (page: Page): Promise<Locator> => {
     await button.click();
     return button;
   }
-  await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
-  await roomMoreOptions(page).click();
+  const opener = await openRoomMenu(page);
   await page.getByRole('menuitem', { name: 'Pinned Messages', exact: true }).click();
-  return roomMoreOptions(page);
+  return opener;
 };

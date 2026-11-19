@@ -201,7 +201,12 @@ test.describe('pinned announcement threads', () => {
     await expect(pin).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('pinned-mobile.png') });
     await pin.click();
-    await expect(page.getByRole('button', { name: 'Unpin thread', exact: true })).toBeVisible();
+    // A phone shows the open thread in the room's header: its pin beside the title, no Resolve,
+    // and Unpin in the thread's menu.
+    const header = page.locator('[data-thread-phone-header]');
+    await expect(header.getByRole('img', { name: 'Pinned', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Resolve', exact: true })).toHaveCount(0);
+    await header.getByRole('button', { name: 'Thread options', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Unpin thread', exact: true })).toBeVisible();
   });
 });

@@ -22,11 +22,11 @@ import {
 // The thread banner's buttons and a message's hover toolbar have no tile at rest and show a
 // surface while a pointer hovers them. A touch screen keeps :hover on the element tapped last, so
 // there a tapped button kept that surface and read as pressed: after Unpin the pin still looked
-// pinned. On a phone (390 by 844, touch) a tap leaves no surface behind, while the pressed pin, the
-// resolved check and keyboard focus keep theirs, and a mouse still gets the hover surface. WebKit
-// also hovered the button that slid under the finger after a tap and opened its tooltip (Resolve
-// after Unpin); on the phone no tooltip opens after a tap, while keyboard focus and a mouse still
-// open them. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
+// pinned. On a phone (390 by 844, touch), whose room header holds the thread's Resolve and menu
+// buttons (the pin is in the menu), a tap leaves no surface behind, while the resolved check and
+// keyboard focus keep theirs, and a mouse still gets the hover surface. WebKit also hovered the
+// button that slid under the finger after a tap and opened its tooltip; on the phone no tooltip
+// opens after a tap, while keyboard focus and a mouse still open them. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
 // in WebKit.
 // Set BANNER_TOUCH_SHOTS=<directory> to save the banner after each step.
 const PASSWORD = 'thread-banner-touch-hover-spec-password';
@@ -188,23 +188,8 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
     await page.touchscreen.tap(x, y);
   };
 
-  await tap('Pin thread');
-  await expect(button('Unpin thread')).toHaveAttribute('aria-pressed', 'true', {
-    timeout: 20_000,
-  });
-  await page.waitForTimeout(400);
-  const pinned = await look(button('Unpin thread'));
-  expect(pinned.alpha, `${engine}: the pressed pin keeps its surface`).toBeGreaterThan(0.01);
-  await shot(page, banner, `banner-pinned-${engine}-phone`);
-  await expectNoTooltip(page, `banner-pinned-${engine}-phone`, `${engine} after Pin`);
-
-  await tap('Unpin thread');
-  await expect(button('Pin thread')).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(400);
-  await shot(page, banner, `banner-after-unpin-${engine}-phone`);
-  await expectNoTooltip(page, `banner-after-unpin-${engine}-phone`, `${engine} after Unpin`);
-  await expectNoLeftoverSurface(banner, `${engine} after Unpin`);
-
+  // A phone shows the thread in the room's header, whose row holds Resolve and Thread options;
+  // the pin is in the thread's menu there.
   await tap('Resolve');
   await expect(button('Resolved')).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(400);
@@ -222,21 +207,21 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   await expectNoTooltip(page, `banner-after-reopen-${engine}-phone`, `${engine} after reopening`);
   await expectNoLeftoverSurface(banner, `${engine} after reopening`);
 
-  // A keyboard keeps its focus surface: Tab from Thread options to the pin. WebKit, as Safari,
+  // A keyboard keeps its focus surface: Tab from Resolve to Thread options. WebKit, as Safari,
   // tabs to buttons with Option held.
+  await expect(button('Resolve')).toBeEnabled({ timeout: 20_000 });
   await expect(button('Thread options')).toBeEnabled({ timeout: 20_000 });
-  await expect(button('Pin thread')).toBeEnabled({ timeout: 20_000 });
-  await button('Thread options').focus();
+  await button('Resolve').focus();
   await page.keyboard.press(engine === 'webkit' ? 'Alt+Tab' : 'Tab');
   const focused = await look(page.locator(':focus'));
   console.log(`${engine} Tab: ${JSON.stringify(focused)}`);
-  expect(focused.name, `${engine}: Tab reaches the pin`).toBe('Pin thread');
-  expect(focused.focusVisible, `${engine}: the pin shows keyboard focus`).toBe(true);
+  expect(focused.name, `${engine}: Tab reaches the thread's menu`).toBe('Thread options');
+  expect(focused.focusVisible, `${engine}: the menu's button shows keyboard focus`).toBe(true);
   expect(focused.alpha, `${engine}: keyboard focus keeps its surface`).toBeGreaterThan(0.01);
   // Keyboard focus still names the button in its tooltip.
   await expect(
-    shownTooltips(page).filter({ hasText: 'Pin thread' }),
-    `${engine}: Tab to the pin opens its tooltip`
+    shownTooltips(page).filter({ hasText: 'Thread options' }),
+    `${engine}: Tab to the menu's button opens its tooltip`
   ).toHaveCount(1);
 
   // A message's toolbar shares the style: a hovering pointer leaves no surface on a touch screen.
