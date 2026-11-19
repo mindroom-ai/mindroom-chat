@@ -12,11 +12,10 @@ import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { usePanelPresence } from '../ui/panels/panelPresence';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { ThreadView } from './ThreadView';
+import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import { noteThreadViewKey } from './useRoomEscapeReadReceipts';
 import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 
-/** The thread column's own width, at first. */
-const DEFAULT_WIDTH = 480;
 const MAX_WIDTH = 4096;
 const COLUMN_STYLE: CSSProperties = {
   display: 'flex',
@@ -87,7 +86,7 @@ export function SecondThreadPanel({
     <ResizablePanel
       side="end"
       storageKey={widthKey}
-      defaultWidth={DEFAULT_WIDTH}
+      defaultWidth={SECOND_THREAD_DEFAULT_WIDTH}
       minContentWidth={CONVERSATION_MIN_WIDTH}
       maxPanelWidth={MAX_WIDTH}
       resizeLabel={t('thread.resizeSecond')}

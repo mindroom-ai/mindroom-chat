@@ -4,14 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
 import { isThreadDrag, readThreadDragData } from '../navigation/secondThread';
 import { useThreadDrag } from './useThreadDrag';
+import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import * as css from './SecondThreadDropZone.css';
-
-/** The second column's width until it is resized (`SecondThreadPanel`). */
-const DEFAULT_WIDTH = 480;
 
 const storedWidth = (key: string): number => {
   const value = getLocalStorageItem<unknown>(key, undefined);
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_WIDTH;
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : SECOND_THREAD_DEFAULT_WIDTH;
 };
 
 /**
