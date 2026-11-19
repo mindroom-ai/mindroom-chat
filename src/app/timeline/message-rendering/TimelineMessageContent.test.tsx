@@ -11,6 +11,7 @@ import { MessageEvent } from '../../matrix/types/room';
 import { defined } from '../../../test/utils/defined';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { NO_VOICE_TRANSCRIPTS, type VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
 
 // The transcript's own test draws it; here only what the row gives it counts.
@@ -38,6 +39,7 @@ const emptyData = (): {
   },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 });
 
 /** Renders one row; `content()` gives the props its message content received last. */
