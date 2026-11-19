@@ -97,6 +97,12 @@ const dragData = () => {
 };
 const shellOf = (rootId: string) =>
   document.querySelector<HTMLElement>(`[data-scroll-anchor="${rootId}"]`)!;
+// jsdom has no PointerEvent: a mouse event with the pointer's kind.
+const press = (target: Element, pointerType: string) => {
+  const event = new MouseEvent('pointerdown', { bubbles: true });
+  Object.assign(event, { pointerId: 1, pointerType, isPrimary: true });
+  fireEvent(target, event);
+};
 const onPage = (second: SecondThreadControl | undefined, ids: string[]) =>
   render(<SecondThreadContext.Provider value={second}>{list(ids)}</SecondThreadContext.Provider>);
 
@@ -109,17 +115,37 @@ describe('dragging a compact thread card toward the second column', () => {
   it('makes a card draggable only while the room page offers its thread a second column', () => {
     const offers = vi.fn((roomId: string, rootId: string) => roomId === ROOM_ID && rootId !== '$a');
     onPage({ offers, open: vi.fn() }, ['$a', '$b']);
+    press(shellOf('$a'), 'mouse');
+    press(shellOf('$b'), 'mouse');
     expect(shellOf('$a').getAttribute('draggable')).toBeNull();
     expect(shellOf('$b').getAttribute('draggable')).toBe('true');
     cleanup();
     // Off a room page (the Threads page, search) or on a phone, no card drags.
     onPage(undefined, ['$b']);
+    press(shellOf('$b'), 'mouse');
     expect(shellOf('$b').getAttribute('draggable')).toBeNull();
+  });
+
+  it('drags for a mouse press only: a finger or a pen keeps its swipe and long press', () => {
+    onPage({ offers: () => true, open: vi.fn() }, ['$b']);
+    const shell = shellOf('$b');
+    expect(shell.getAttribute('draggable')).toBeNull();
+    press(shell, 'mouse');
+    expect(shell.getAttribute('draggable')).toBe('true');
+    press(shell, 'touch');
+    expect(shell.getAttribute('draggable')).toBeNull();
+    // A native drag a finger starts anyway carries no thread.
+    const dataTransfer = dragData();
+    expect(fireEvent.dragStart(shell, { dataTransfer })).toBe(false);
+    expect(dataTransfer.types).toEqual([]);
+    press(shell, 'pen');
+    expect(shell.getAttribute('draggable')).toBeNull();
   });
 
   it("puts the card's room and thread in the drag, to be moved", () => {
     onPage({ offers: () => true, open: vi.fn() }, ['$b']);
     const dataTransfer = dragData();
+    press(shellOf('$b'), 'mouse');
     fireEvent.dragStart(shellOf('$b'), { dataTransfer });
     expect(JSON.parse(dataTransfer.getData(THREAD_DRAG_TYPE))).toEqual({
       roomId: ROOM_ID,
