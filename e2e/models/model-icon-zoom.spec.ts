@@ -8,8 +8,8 @@ const ICON =
 const proportions = (page: Page, name: string) =>
   page.getByRole('button', { name }).evaluate((button) => {
     const box = button.getBoundingClientRect();
-    const parts = [button.firstElementChild!, button.querySelector('[data-effort-glyph]')!];
-    const [logo, bars] = parts.map((part) => part.getBoundingClientRect());
+    const logo = button.firstElementChild!.getBoundingClientRect();
+    const bars = button.querySelector('[data-effort-glyph]')!.getBoundingClientRect();
     const round = (value: number) => Math.round(value * 1000) / 1000;
     return {
       logo: round(logo.height / box.height),
@@ -53,7 +53,7 @@ test('the model button keeps its logo and effort bars in proportion at every Pag
   const zoomedOut = await measure(page, 75);
   const zoomedIn = await measure(page, 150);
   // eslint-disable-next-line no-console
-  console.log(`model button proportions: 75% ${JSON.stringify(zoomedOut)}, 150% ${JSON.stringify(zoomedIn)}`);
+  console.log('model button proportions', JSON.stringify({ zoomedOut, zoomedIn }));
   expect(zoomedIn).toEqual(zoomedOut);
   expect(zoomedOut.custom.inside && zoomedOut.mark.inside).toBe(true);
 });
