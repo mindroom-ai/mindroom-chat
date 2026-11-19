@@ -169,7 +169,16 @@ test('a canvas page can load only the exact library files it names, not other fi
   context,
   page,
 }) => {
-  const requests = canvasRequests(page);
+  const answered: string[] = [];
+  const stopped: Array<{ url: string; reason?: string }> = [];
+  page.on('requestfinished', (request) => {
+    if (request.frame().parentFrame()) answered.push(request.url());
+  });
+  page.on('requestfailed', (request) => {
+    if (request.frame().parentFrame()) {
+      stopped.push({ url: request.url(), reason: request.failure()?.errorText });
+    }
+  });
   const room = await openPanelRoom(context, page);
   await sendCanvas(room, 'Escape probe', ESCAPE_PAGE, ['d3']);
   const frame = page.frameLocator('iframe[title="Escape probe"]').frameLocator('iframe');
@@ -188,10 +197,11 @@ test('a canvas page can load only the exact library files it names, not other fi
     }),
     { timeout: 60_000 }
   );
-  // The policy stopped each one in the frame: the only request that left it was d3 itself.
-  expect(
-    requests.map((url) => new URL(url).pathname.replace(/canvas-libs-[0-9a-f]+/, 'canvas-libs'))
-  ).toEqual(['/assets/canvas-libs/d3.min.js']);
+  // The policy stopped each one in the frame: only d3 itself reached a server.
+  const path = (url: string) =>
+    new URL(url).pathname.replace(/canvas-libs-[0-9a-f]+/, 'canvas-libs');
+  expect(answered.map(path)).toEqual(['/assets/canvas-libs/d3.min.js']);
+  expect(stopped.map(({ reason }) => reason)).toEqual(Array(6).fill('csp'));
 });
 
 test('a canvas that names a library Chat does not serve says so in the errors the user can report', async ({
