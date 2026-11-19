@@ -93,9 +93,9 @@ test('slash commands: the menu, a message command, commands that act, and a refu
   await page.keyboard.type('/');
   const commands = page.locator('[data-slash-command]');
   await expect(page.getByText('Commands', { exact: true })).toBeVisible();
-  await expect(commands.first()).toHaveText(/\/me/);
+  await expect(commands.first()).toHaveText(/\/help/);
   await expect(page.locator('[data-slash-command="invite"]')).toContainText('Invite user to room.');
-  // This app's commands come first, MindRoom's in their own section after them.
+  // MindRoom's commands come first, this app's in their own section after them.
   await expect(
     page.getByRole('group', { name: 'This app' }).locator('[data-slash-command="me"]')
   ).toBeVisible();
@@ -135,14 +135,15 @@ test('slash commands: the menu, a message command, commands that act, and a refu
   await expect(page.locator('[data-slash-command="schedule"]')).toContainText('/schedule <task>');
   await page.screenshot({ path: testInfo.outputPath('slash-menu-mindroom.png') });
   // The arrow keys cross the line between the sections and wrap at both ends; Enter picks the
-  // active row.
+  // active row. MindRoom's section comes first.
   await expect(commands).toHaveCount(2);
   const active = page.locator('[data-slash-command][aria-selected="true"]');
   for (const [key, name] of [
-    ['ArrowDown', 'startdm'],
     ['ArrowDown', 'schedule'],
     ['ArrowDown', 'startdm'],
-    ['ArrowUp', 'schedule'],
+    ['ArrowDown', 'schedule'],
+    ['ArrowUp', 'startdm'],
+    ['ArrowDown', 'schedule'],
   ] as const) {
     // eslint-disable-next-line no-await-in-loop
     await page.keyboard.press(key);

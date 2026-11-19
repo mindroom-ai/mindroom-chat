@@ -16,7 +16,7 @@ import { MINDROOM_COMMANDS } from './agentCommands';
 export type CommandSource = 'app' | 'mindroom';
 
 /** The menu's sections, in order; commands without a source are listed without a label. */
-const SECTIONS = [undefined, 'app', 'mindroom'] as const;
+const SECTIONS = [undefined, 'mindroom', 'app'] as const;
 
 const SECTION_LABELS = {
   app: 'featureUi.room.commandAutocomplete.thisApp',
@@ -67,7 +67,7 @@ const separatorStyle = { marginBlock: config.space.S100 } as const;
  * The command menu, open while the message's first word starts with a command prefix (`/` or
  * `!`): each command that starts with the typed letters, with what it does. Picking one (click,
  * Tab or Enter) writes the prefix and the name into the composer, ready for the arguments.
- * Commands with a source are listed in labelled sections, this app's first, with a line between.
+ * Commands with a source are listed in labelled sections, MindRoom's first, with a line between.
  */
 export function CommandAutocomplete({
   editor,

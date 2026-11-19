@@ -106,7 +106,7 @@ test("the example plugin's slash commands show in the command menu, and /greet r
     await expect(page.locator('[data-slash-command="subroom"]')).toContainText(
       'Create a sub-room of this room. Example: /subroom Ideas'
     );
-    // A plugin's commands close this app's section, before MindRoom's.
+    // A plugin's commands close this app's section, which follows MindRoom's.
     const names = await page
       .getByRole('group', { name: 'This app' })
       .locator('[data-slash-command]')

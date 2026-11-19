@@ -192,7 +192,7 @@ it("shows a MindRoom command's / syntax among the slash commands, and a pick wri
   expect(toPlainText(editor.children, false)).toBe('/list_schedules ');
 });
 
-it("lists this app's commands, a line, then MindRoom's, in the order Tab picks from", () => {
+it("lists MindRoom's commands, a line, then this app's, in the order Tab picks from", () => {
   const { editor, query, requestClose } = editorWith('/s');
   act(() => {
     renderer = create(
@@ -220,8 +220,8 @@ it("lists this app's commands, a line, then MindRoom's, in the order Tab picks f
     rows: group.findAllByType('button').map((row) => row.props['data-slash-command']),
   }));
   expect(sections).toEqual([
-    { label: 'This app', rows: ['shout'] },
     { label: 'MindRoom agents', rows: ['schedule', 'skip'] },
+    { label: 'This app', rows: ['shout'] },
   ]);
   expect(renderer!.root.findAllByType(Line)).toHaveLength(1);
 
@@ -234,7 +234,7 @@ it("lists this app's commands, a line, then MindRoom's, in the order Tab picks f
     preventDefault: vi.fn(),
   };
   act(() => defined(windowKeyDown.listener, 'the window key listener')(tab));
-  expect(toPlainText(editor.children, false)).toBe('/shout ');
+  expect(toPlainText(editor.children, false)).toBe('/schedule ');
 });
 
 it("lists MindRoom's commands with their syntax, and a pick writes the ! command", () => {
