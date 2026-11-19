@@ -10,6 +10,7 @@ import {
 import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
+import { holdInviteFragment } from '../invites/inviteHandoff';
 import { useHistoryStackRecorder } from '../routes/historyStack';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import {
@@ -182,7 +183,8 @@ function RootRedirect() {
 function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'] }) {
   const decision = resolveProtectedRouteRedirect(currentHref(), hashRouter);
   if (decision) {
-    if (decision.afterLoginPath) setAfterLoginRedirectPath(decision.afterLoginPath);
+    if (decision.afterLoginPath)
+      setAfterLoginRedirectPath(holdInviteFragment(decision.afterLoginPath));
     return <Navigate to={decision.redirectTo} replace />;
   }
   preloadSignedInPages();

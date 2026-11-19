@@ -12,6 +12,8 @@ import { getHomeRoomPath } from '../routes/pathUtils';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { CLAIM_TIMEOUT_MS, inviterOf, startClaim } from './inviteClaim';
 import { parseInviteFragment } from './inviteLink';
+import { takeInviteFragment } from './inviteHandoff';
+import { IsolatedText, isolateInSentence } from '../ui/directional';
 
 type PageState =
   | { status: 'ready' | 'claiming' | 'offline' | 'rejected' | 'retry' | 'joining' }
@@ -36,7 +38,9 @@ export function InvitePage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   // The code stays in memory only: it leaves the router's location as soon as it is read.
-  const [link, setLink] = useState(() => parseInviteFragment(location.hash));
+  const [link, setLink] = useState(() =>
+    parseInviteFragment(location.hash || takeInviteFragment())
+  );
   const [state, setState] = useState<PageState>({ status: 'ready' });
   // Stops what runs now: the claim, the wait for the invitation, or the join.
   const stopRef = useRef<() => void>();
@@ -148,10 +152,10 @@ export function InvitePage(): JSX.Element {
       </Box>
     );
   } else {
-    const values = { router: link.routerId, user: mx.getSafeUserId() };
+    const [router, user] = [link.routerId, mx.getSafeUserId()].map(isolateInSentence);
     message = (
       <Text size="T300" style={{ overflowWrap: 'anywhere' }}>
-        {t(`mindroomUi.invites.${state.status}`, values)}
+        <IsolatedText text={t(`mindroomUi.invites.${state.status}`, { router, user })} />
       </Text>
     );
   }

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InvitePage } from './InvitePage';
 import { startClaim, type ClaimOutcome } from './inviteClaim';
 import { getHomeRoomPath } from '../routes/pathUtils';
+import { holdInviteFragment } from './inviteHandoff';
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -175,7 +176,10 @@ describe('InvitePage', () => {
     expect(startClaimMock).not.toHaveBeenCalled();
     expect(mx.sendToDevice).not.toHaveBeenCalled();
     expect(buttons()).toEqual(['Join']);
-    expect(textOf()).toContain(`Join a room through ${ROUTER} as ${ME}`);
+    expect(textOf()).toContain('Join a room through');
+    // Each ID reads in its own direction, whatever the sentence's.
+    const isolated = renderer?.root.findAllByType('bdi').map((node) => textOf(node).trim());
+    expect(isolated).toEqual([ROUTER, ME]);
   });
 
   it('removes the fragment from the address bar', async () => {
@@ -393,6 +397,29 @@ describe('InvitePage', () => {
     await click('Try again');
     expect(mx.joinRoom).toHaveBeenCalledTimes(1);
     expect(textOf()).toContain('Joining the room');
+  });
+
+  it('restores the link it held through sign-in, once', async () => {
+    expect(holdInviteFragment('/invite/#r=%40router%3Aexample.org&c=held-code')).toBe('/invite/');
+    await renderPage('');
+    await click('Join');
+    expect(startClaimMock).toHaveBeenCalledWith(
+      mx,
+      { routerId: ROUTER, code: 'held-code' },
+      expect.any(Function)
+    );
+    act(() => renderer?.unmount());
+    await renderPage('');
+    expect(textOf()).toContain('This invite link is incomplete.');
+  });
+
+  it('shows invalid when the link it held has expired', async () => {
+    vi.useFakeTimers();
+    holdInviteFragment('/invite/#r=%40router%3Aexample.org&c=held-code');
+    vi.setSystemTime(Date.now() + 15 * 60_000 + 1);
+    await renderPage('');
+    expect(textOf()).toContain('This invite link is incomplete.');
+    expect(sessionStorage.length).toBe(0);
   });
 
   it('stops the claim on unmount', async () => {
