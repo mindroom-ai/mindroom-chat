@@ -47,7 +47,7 @@
     "@tabler/icons-react": "3.40.0",
     "@tanstack/react-query": "5.24.1",
     "@tanstack/react-virtual": "3.14.5",
-    "@vanilla-extract/css": "1.9.3",
+    "@vanilla-extract/css": "1.21.3",
     "@vanilla-extract/recipes": "0.3.0",
     "await-to-js": "3.0.0",
     "blurhash": "2.0.5",
@@ -113,11 +113,11 @@
     "@types/react-dom": "18.2.17",
     "@types/react-test-renderer": "^18.3.1",
     "@types/sanitize-html": "^2.16.2",
-    "@typescript-eslint/eslint-plugin": "7.18.0",
-    "@typescript-eslint/parser": "7.18.0",
-    "@vanilla-extract/vite-plugin": "3.7.1",
+    "@typescript-eslint/eslint-plugin": "8.73.0",
+    "@typescript-eslint/parser": "8.73.0",
+    "@vanilla-extract/vite-plugin": "5.2.6",
     "@vitejs/plugin-react": "4.7.0",
-    "esbuild": "0.19.12",
+    "esbuild": "0.28.2",
     "eslint": "8.57.1",
     "eslint-config-prettier": "9.1.0",
     "eslint-plugin-import": "^2.31.0",
@@ -131,12 +131,12 @@
     "prettier": "2.8.8",
     "react-test-renderer": "18.2.0",
     "typescript": "5.4.2",
-    "vite": "5.4.21",
-    "vite-plugin-pwa": "0.21.2",
-    "vite-plugin-static-copy": "2.3.2",
-    "vitest": "2.1.8",
-    "workbox-build": "7.3.0",
-    "workbox-window": "7.3.0"
+    "vite": "7.3.8",
+    "vite-plugin-pwa": "2.0.0",
+    "vite-plugin-static-copy": "4.1.1",
+    "vitest": "4.1.12",
+    "workbox-build": "7.4.1",
+    "workbox-window": "7.4.1"
   },
   "overrides": {
     "scheduler": "0.23.2",
@@ -150,6 +150,9 @@
     },
     "@vanilla-extract/vite-plugin": {
       "vite": "$vite"
+    },
+    "vite": {
+      "yaml": "$yaml"
     }
   },
   "prettier": {

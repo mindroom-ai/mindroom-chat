@@ -202,6 +202,9 @@ export default defineConfig({
     __MINDROOM_SPEECH_MODEL__: JSON.stringify(SPEECH_MODEL_DIR),
     __MINDROOM_CANVAS_LIBRARIES__: JSON.stringify(CANVAS_LIBRARY_DIR),
   },
+  // Imported JSON as objects, as before Vite 6: its default turns a large file into
+  // `JSON.parse("...")`, which makes the entry chunk about 0.7 KiB (gzip) larger.
+  json: { stringify: false },
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
   plugins: [
     // Only active when Playwright (see playwright.config.ts) or a live deployment (the dev repo's

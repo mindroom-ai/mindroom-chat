@@ -89,10 +89,8 @@ export default defineConfig({
       './src/test/vitest.katex.setup.ts',
     ],
     // Setting process.env.TZ moves the time zone only in a process of its own: a worker thread
-    // keeps the zone it started in, so these files stay in a fork under `--pool=threads` too.
-    poolMatchGlobs: [
-      ['**/src/app/lib/time.formatterCache.test.ts', 'forks'],
-      ['**/src/app/threads/tags/snoozePresets.test.ts', 'forks'],
-    ],
+    // keeps the zone it started in, so src/app/lib/time.formatterCache.test.ts and
+    // src/app/threads/tags/snoozePresets.test.ts need forks (Vitest 4 has no pool per file).
+    pool: 'forks',
   },
 });
