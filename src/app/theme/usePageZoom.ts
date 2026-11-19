@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { useSetting } from '../preferences/useSetting';
 import { PAGE_ZOOM_DEFAULT, settingsAtom, stepPageZoom } from '../preferences/settings';
 import { isComposingKey, matchesShortcut } from '../shortcuts/shortcuts';
+import { isQuickCapturePath } from '../routes/pathUtils';
 import { usePinchToZoom } from './usePinchToZoom';
 
 const ZOOM_KEYS = [
@@ -21,11 +22,13 @@ export const usePageZoom = (): void => {
   const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
   usePinchToZoom(pageZoom, setPageZoom);
 
-  // From any field or dialog, signed in or out; held keys repeat.
+  // From any field or dialog, signed in or out; held keys repeat. The Quick Capture window keeps
+  // its own size whatever the page zoom (QuickCapturePage.css.ts), so its keys change nothing.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isComposingKey(event)) return;
+      if (isQuickCapturePath(window.location.pathname)) return;
       const zoom = ZOOM_KEYS.find(([id]) => matchesShortcut(event, id));
       if (!zoom) return;
       event.preventDefault();

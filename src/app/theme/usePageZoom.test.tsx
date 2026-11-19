@@ -60,6 +60,19 @@ describe('usePageZoom zoom keys', () => {
     expect(document.documentElement.style.fontSize).toBe('');
   });
 
+  it('changes nothing from the Quick Capture window, which keeps its own size', () => {
+    window.history.pushState({}, '', '/quick-capture/');
+    try {
+      setup(true, 110);
+      expect(pressInDialog('=').defaultPrevented).toBe(false);
+      expect(pressInDialog('-', true).defaultPrevented).toBe(false);
+      expect(pressInDialog('0').defaultPrevented).toBe(false);
+      expect(zoom()).toBe(110);
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
+
   it('leaves the keys to the browser elsewhere', () => {
     setup(false, 110);
     expect(pressInDialog('=').defaultPrevented).toBe(false);
