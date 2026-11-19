@@ -14,7 +14,11 @@ import {
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
-import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
+import {
+  getRoomInputDraftKey,
+  openVoiceRecorderAtom,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
 import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
@@ -701,6 +705,20 @@ it('shows the messages beside the thread while a second thread shows, without st
   expect(screen.queryByTestId('messages')).toBeNull();
   expect(storedLayout()).toBeNull();
   expect(state.viewMounts).toBe(1);
+});
+it('keeps the messages beside the thread while a recording runs as the second thread closes', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  const store = getDefaultStore();
+  const { rerender } = renderView({ besideWhileSecond: true });
+  // A voice message being recorded, which the messages' composer would lose with them.
+  act(() => store.set(openVoiceRecorderAtom, Symbol('recorder')));
+  rerenderView(rerender);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(screen.getByTestId('messages')).toBeDefined();
+  // Sent or discarded, the stored layout holds again.
+  act(() => store.set(openVoiceRecorderAtom, undefined));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(storedLayout()).toBeNull();
 });
 it('fills the page with the column while a second thread shows on a page too narrow for both', () => {
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
