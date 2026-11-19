@@ -37,24 +37,26 @@ export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
   const badgeRef = usePopOnGrowth(count);
   const stressed = highlight || dm;
   if (count <= 0) {
+    // A small accent dot; a mention's dot is larger, so it reads apart even on its own.
+    const dot = toRem(stressed ? 10 : 6);
     return (
       <Badge
         ref={badgeRef}
-        variant={stressed ? 'Primary' : 'Secondary'}
+        variant="Primary"
         fill="Solid"
         radii="Pill"
         size="200"
-        style={{ minWidth: toRem(8), height: toRem(8), padding: 0 }}
+        style={{ minWidth: dot, height: dot, padding: 0 }}
         aria-hidden="true"
       />
     );
   }
-  // A plain count is a quiet grey chip with a hairline ring; mentions and direct messages
+  // A plain count is a quiet pale accent chip with a hairline ring; mentions and direct messages
   // stay solid so they stand out (docs/design/reference/home.png).
   return (
     <Badge
       ref={badgeRef}
-      variant={stressed ? 'Primary' : 'Secondary'}
+      variant="Primary"
       fill={stressed ? 'Solid' : 'Soft'}
       outlined={!stressed}
       radii="Pill"
