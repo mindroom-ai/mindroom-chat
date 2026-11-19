@@ -10,6 +10,8 @@ export type ToolTraceEvent = {
   started_at?: unknown;
   // The provider's ID of the call, which a secret request names (secretRequest.ts `anchor`).
   tool_call_id?: unknown;
+  // True on a completed call its run recorded as failed.
+  is_error?: unknown;
 };
 
 export type ToolMetadataStatus = 'loading' | 'unavailable';

@@ -5,7 +5,7 @@ import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 import type { ReasoningSegment } from './reasoningSegments';
 
-export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired';
+export type ToolCallState = 'running' | 'waiting' | 'done' | 'failed' | 'denied' | 'expired';
 
 /**
  * The message being rendered: its event ID, so its tool calls can find their approval cards, and
@@ -102,13 +102,15 @@ export const TOOL_STATE_TITLE = {
   running: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRunning',
   waiting: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsWaiting',
   done: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRan',
+  failed: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRanFailed',
   denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
   expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
 } as const satisfies Record<ToolCallState, string>;
 
 /**
- * What happened to each call. The public trace only says started or completed, and a denied
- * call completes without a result, so calls that needed approval take their state from the
+ * What happened to each call. The public trace says started or completed, and failed for a
+ * completed call its run recorded as failed (`failed`); a denied call completes without a
+ * result, so calls that needed approval take their state from the
  * approval card MindRoom posted for this reply. A call that went on as a background job takes
  * the card of the job its handle names first; then each call still without a card takes the one
  * that names its call ID and its tool (a provider may reuse an ID within a reply). While `byName`,
@@ -120,6 +122,7 @@ export const resolveToolCallStates = (
   calls: readonly {
     toolName: string;
     pending: boolean;
+    failed?: boolean;
     job?: ToolJobHandle;
     toolCallId?: string;
   }[],
@@ -146,7 +149,7 @@ export const resolveToolCallStates = (
         ? take((approval) => approval.toolCallId === toolCallId && approval.toolName === toolName)
         : undefined)
   );
-  return calls.map(({ toolName, pending, job, toolCallId }, callIndex) => {
+  return calls.map(({ toolName, pending, failed, job, toolCallId }, callIndex) => {
     const status =
       named[callIndex] ??
       (job || !byName
@@ -156,7 +159,8 @@ export const resolveToolCallStates = (
           ));
     if (status === 'denied' || status === 'expired') return status;
     if (status === 'pending' || (!status && job?.status === 'awaiting_approval')) return 'waiting';
-    return pending ? 'running' : 'done';
+    if (pending) return 'running';
+    return failed ? 'failed' : 'done';
   });
 };
 
@@ -170,6 +174,8 @@ export const ToolApprovalsByNameContext = createContext(true);
 export type ToolCallSummary = {
   state: ToolCallState;
   count: number;
+  /** Of the calls that ran (`count`), how many failed; only a `failed` summary has it. */
+  failed?: number;
   /** Tool names in call order, with repeats as "send_message ×2". */
   names: string;
 };
@@ -186,7 +192,10 @@ export const summarizeToolCalls = (
   const count = (state: ToolCallState) => states.filter((item) => item === state).length;
   if (count('running') > 0) return { state: 'running', count: calls.length, names };
   if (count('waiting') > 0) return { state: 'waiting', count: count('waiting'), names };
-  if (count('done') > 0) return { state: 'done', count: count('done'), names };
+  // A run that failed ran too, so it counts with the done ones, and the group says how many failed.
+  const ran = count('done') + count('failed');
+  if (count('failed') > 0) return { state: 'failed', count: ran, failed: count('failed'), names };
+  if (ran > 0) return { state: 'done', count: ran, names };
   return count('denied') > 0
     ? { state: 'denied', count: count('denied'), names }
     : { state: 'expired', count: count('expired'), names };

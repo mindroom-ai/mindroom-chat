@@ -37,7 +37,7 @@ function Cog({ calls, open, onToggle }: CogProps) {
     summary.state === 'done'
       ? 'mindroomUi.messages.mindroomHtmlBlocks.usedToolCount'
       : TOOL_STATE_TITLE[summary.state],
-    { count: summary.count }
+    { count: summary.count, failed: summary.failed }
   );
   // Where that names fewer calls than the cog shows, its name starts with the number it shows.
   const name =

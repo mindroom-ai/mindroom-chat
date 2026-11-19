@@ -216,6 +216,8 @@ type ToolBlockRenderData = {
   toolCallId?: string;
   result?: string;
   resultInline: boolean;
+  /** Whether the completed call's trace entry says it failed (`is_error`). */
+  failed?: boolean;
   progress?: string;
   /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
   startedAt?: number;
@@ -283,6 +285,7 @@ const buildToolRefRenderData = (
       argsPreview,
       result: resultPreview,
       resultInline: !resultPreview.includes('\n'),
+      failed: eventRaw?.is_error === true,
     };
   }
 
@@ -294,6 +297,7 @@ const buildToolRefRenderData = (
     toolName: traceToolName,
     argsPreview,
     resultInline: false,
+    failed: eventRaw?.is_error === true,
   };
 };
 
@@ -301,6 +305,7 @@ const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone 
   running: { src: Icons.Terminal, tone: 'neutral' },
   waiting: { src: Icons.Pause, tone: 'warning' },
   done: { src: Icons.Check, tone: 'success' },
+  failed: { src: Icons.Warning, tone: 'critical' },
   denied: { src: Icons.Cross, tone: 'critical' },
   expired: { src: Icons.Clock, tone: 'neutral' },
 };
@@ -333,6 +338,7 @@ function ToolRefGroupItem({
   parsedTool: ToolBlockRenderData;
   state: ToolCallState;
 }) {
+  const { t } = useTranslation();
   const { src, tone } = TOOL_STATE_ICON[state];
   return (
     <div className={activityCss.Row} data-tool-index={parsedTool.index}>
@@ -342,6 +348,12 @@ function ToolRefGroupItem({
           <span className={activityCss.RowName}>{parsedTool.toolName}</span>
           {state === 'running' && parsedTool.startedAt !== undefined && (
             <ToolElapsed startedAt={parsedTool.startedAt} />
+          )}
+          {/* In words too, so the failure is not only the icon's colour and shape. */}
+          {state === 'failed' && (
+            <span className={activityCss.Elapsed}>
+              {t('mindroomUi.messages.mindroomHtmlBlocks.toolCallFailed')}
+            </span>
           )}
         </span>
         {parsedTool.argsPreview && (
@@ -416,6 +428,7 @@ const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallS
   const calls = loaded.map((tool) => ({
     toolName: tool.toolName,
     pending: tool.status === 'pending',
+    failed: tool.failed,
     job: parseToolJobHandle(tool.result),
     toolCallId: tool.toolCallId,
   }));
@@ -500,7 +513,7 @@ function ToolRefGroupBlock({
       title={
         metadataStatus
           ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
-          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
+          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count, failed: summary.failed })
       }
       detail={summary.names}
       aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}

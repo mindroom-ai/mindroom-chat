@@ -24,6 +24,25 @@ describe('resolveToolCallStates', () => {
     ]);
   });
 
+  it('marks a completed call its trace says failed, and only that one', () => {
+    expect(
+      resolveToolCallStates(
+        [
+          { toolName: 'schedule', pending: false, failed: true },
+          call('read_file'),
+          { toolName: 'web_search', pending: true, failed: true },
+        ],
+        []
+      )
+    ).toEqual(['failed', 'done', 'running']);
+    expect(
+      resolveToolCallStates(
+        [{ toolName: 'run_shell_command', pending: false, failed: true }],
+        [{ toolName: 'run_shell_command', status: 'denied' }]
+      )
+    ).toEqual(['denied']);
+  });
+
   it('treats a denied or expired call as not run even though the trace completed it', () => {
     expect(
       resolveToolCallStates(
@@ -174,6 +193,20 @@ describe('summarizeToolCalls', () => {
     });
     expect(summarizeToolCalls([call('a'), call('b')], ['expired', 'expired'])).toEqual({
       state: 'expired',
+      count: 2,
+      names: 'a, b',
+    });
+  });
+
+  it('counts failed calls as run and says how many failed', () => {
+    expect(
+      summarizeToolCalls(
+        [call('a'), call('b'), call('c'), call('d')],
+        ['done', 'failed', 'done', 'denied']
+      )
+    ).toEqual({ state: 'failed', count: 3, failed: 1, names: 'a, b, c, d' });
+    expect(summarizeToolCalls([call('a'), call('b')], ['failed', 'running'])).toEqual({
+      state: 'running',
       count: 2,
       names: 'a, b',
     });

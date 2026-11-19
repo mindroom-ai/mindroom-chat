@@ -704,6 +704,53 @@ describe('tool call status from approval cards', () => {
     expect(renderShellCall(handle)).toContain('1 tool call waiting for approval');
   });
 
+  it('says in words which calls failed, on the run line and on the call', () => {
+    const renderCalls = (failed: boolean) => {
+      const opts = markerParserOptions(createBaseOpts(), {
+        formatted_body:
+          '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>',
+        'io.mindroom.tool_trace': {
+          version: 2,
+          events: [
+            { type: 'tool_call_completed', tool_name: 'read_file', result_preview: 'notes' },
+            {
+              type: 'tool_call_completed',
+              tool_name: 'schedule',
+              result_preview: 'Missing required argument: when',
+              ...(failed ? { is_error: true } : {}),
+            },
+          ],
+        },
+      });
+      let renderer: ReactTestRenderer | undefined;
+      act(() => {
+        renderer = create(
+          React.createElement(
+            ToolCallMessageContext.Provider,
+            { value: { eventId: '$reply' } },
+            parse(
+              '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>',
+              opts
+            )
+          )
+        );
+      });
+      const tree = renderer as ReactTestRenderer;
+      // The run's line opens its panel, which shows each call.
+      act(() => tree.root.findByType('button').props.onClick());
+      return collectTextContent(tree.toJSON());
+    };
+    approvals.current = { records: [], now: 0 };
+    const failedText = renderCalls(true);
+    expect(failedText).toContain('Ran 2 tool calls · 1 failed');
+    expect(failedText).toContain('scheduleFailed');
+    expect(failedText).not.toContain('read_fileFailed');
+    const workedText = renderCalls(false);
+    expect(workedText).toContain('Ran 2 tool calls');
+    expect(workedText).not.toContain('failed');
+    expect(workedText).not.toContain('Failed');
+  });
+
   it('reads the trace alone outside a thread with approvals', () => {
     expect(collectTextContent(renderInMessage('$reply').toJSON())).toContain(
       'Running 2 tool calls'
