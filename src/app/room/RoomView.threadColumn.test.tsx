@@ -14,6 +14,7 @@ import {
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
+import type { RoomViewHeaderProps } from './RoomViewHeader';
 import {
   getRoomInputDraftKey,
   openVoiceRecorderAtom,
@@ -94,7 +95,14 @@ vi.mock('./useRoomViewThreadState', () => ({
     },
   }),
 }));
-vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => <div data-testid="room-header" /> }));
+// The room's header, which draws the open thread's rows where the page gives it them (a phone).
+vi.mock('./RoomViewHeader', () => ({
+  RoomViewHeader: ({ phoneThread }: RoomViewHeaderProps) => (
+    <div data-testid="room-header">
+      {phoneThread?.({ roomName: 'Design', onRoomMenu: () => undefined })}
+    </div>
+  ),
+}));
 // A plugin of the build whose header slot shows a marker.
 vi.mock('../plugins/pluginEntries', async () => {
   const { useEffect } = await import('react');
@@ -164,8 +172,13 @@ vi.mock('../approvals/ThreadApprovalProvider', () => ({
 }));
 vi.mock('../approvals/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
 vi.mock('../threads/ThreadContextBanner', () => ({
-  ThreadContextBanner: ({ onShowBeside, onShowFull, onExitThread }: ThreadContextBannerProps) => (
-    <div>
+  ThreadContextBanner: ({
+    onShowBeside,
+    onShowFull,
+    onExitThread,
+    phoneHeader,
+  }: ThreadContextBannerProps) => (
+    <div data-testid="thread-banner" data-room={phoneHeader?.roomName}>
       <button type="button" onClick={onExitThread}>
         Back
       </button>
@@ -241,7 +254,7 @@ vi.mock('./ThreadView', async () => {
               {roomHeader(headerRef)}
             </div>
           )}
-          {header}
+          <div data-testid="thread-messages">{header}</div>
           <div ref={reply} contentEditable suppressContentEditableWarning aria-label="Reply" />
           {/* A menu it opens renders outside it, as the app's menus and dialogs do. */}
           {createPortal(<button type="button">Column menu item</button>, document.body)}
@@ -573,6 +586,27 @@ it.each([
   expect(within(screen.getByTestId('thread-column')).getByTestId('room-header')).toBeDefined();
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
 });
+
+it("draws a phone's thread in the room's header, with no banner over its messages", () => {
+  renderView({}, ScreenSize.Mobile);
+  const header = within(screen.getByTestId('thread-column')).getByTestId('room-header');
+  // The banner is the header's rows there, given the room's part of them.
+  expect(within(header).getByTestId('thread-banner').dataset.room).toBe('Design');
+  expect(screen.getAllByTestId('thread-banner')).toHaveLength(1);
+  expect(screen.getByTestId('thread-messages').childElementCount).toBe(0);
+});
+
+it.each([ScreenSize.Tablet, ScreenSize.Desktop])(
+  'keeps the banner over the messages of a thread that fills the page on a %s screen',
+  (size) => {
+    renderView({}, size);
+    expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+    const banner = within(screen.getByTestId('thread-messages')).getByTestId('thread-banner');
+    expect(banner.dataset.room).toBeUndefined();
+    const header = within(screen.getByTestId('thread-column')).getByTestId('room-header');
+    expect(within(header).queryByTestId('thread-banner')).toBeNull();
+  }
+);
 
 it('shows a thread that is not found as such, with the way back, instead of its view', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));

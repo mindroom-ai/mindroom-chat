@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ConversationLayout } from './ConversationLayout';
 import { HeaderInShortArea } from './RoomView.css';
 
@@ -176,6 +177,16 @@ it("marks its header for the short screen's place, and for the banner's inside a
   expect(header().classList.contains(HeaderInThread)).toBe(false);
   rerender(layout({ threadId: '$root', header: () => <div data-testid="header" /> }));
   expect(header().classList.contains(HeaderInThread)).toBe(true);
+});
+
+it("keeps a phone's header inside a thread on a short screen: it is the thread's bar there", () => {
+  render(
+    <ScreenSizeProvider value={ScreenSize.Mobile}>
+      {layout({ threadId: '$root', header: () => <div data-testid="header" /> })}
+    </ScreenSizeProvider>
+  );
+  const header = screen.getByTestId('header').parentElement as HTMLElement;
+  expect(header.classList.contains(HeaderInThread)).toBe(false);
 });
 
 it("keeps the element a plugin's cover hides across a collapse, so the cover still holds it", () => {

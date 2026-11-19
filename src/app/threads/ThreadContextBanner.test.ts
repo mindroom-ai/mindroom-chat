@@ -21,6 +21,7 @@ import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadCont
 import { settingsAtom } from '../preferences/settings';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { runShortcut } from '../shortcuts/useShortcut';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
 const menuProps = vi.hoisted(() => vi.fn());
 const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
@@ -44,9 +45,23 @@ vi.mock('../approvals/auto-approve/AutoApproveChip', () => ({
     React.createElement('i', { 'data-auto-approve': threadId }),
 }));
 
-// The optical glass needs a real DOM node; pass the banner's own ref through.
+// The optical glass needs a real DOM node; pass the banner's own ref through, and say whether the
+// banner asked for glass.
+const glass = vi.hoisted(() => ({ enabled: undefined as boolean | undefined }));
 vi.mock('../ui/glass/liquid/useLiquidGlass', () => ({
-  useLiquidGlass: (ref?: unknown) => ref,
+  useLiquidGlass: (ref?: unknown, enabled = true) => {
+    glass.enabled = enabled;
+    return ref;
+  },
+}));
+// A phone's back chevron, without the theme its real one reads.
+vi.mock('../ui/page/PhoneBackButton', () => ({
+  PhoneBackButton: ({ label, onBack }: { label: string; onBack: () => void }) =>
+    React.createElement('button', {
+      'aria-label': label,
+      'data-phone-back': 'true',
+      onClick: onBack,
+    }),
 }));
 
 const pinningMocks = vi.hoisted(() => ({
@@ -177,6 +192,15 @@ vi.mock('./ThreadContextBanner.css', () => ({
   MetadataDot: 'MetadataDot',
   MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
+  PhoneHeader: 'PhoneHeader',
+  PhonePin: 'PhonePin',
+  PhoneRoom: 'PhoneRoom',
+  PhoneRoomButton: 'PhoneRoomButton',
+  PhoneRow: 'PhoneRow',
+  PhoneStatus: 'PhoneStatus',
+  PhoneTags: 'PhoneTags',
+  PhoneTitle: 'PhoneTitle',
+  PhoneTitleRow: 'PhoneTitleRow',
   ResolutionByline: 'ResolutionByline',
   ResolutionBylineDot: 'ResolutionBylineDot',
   ResolverName: 'ResolverName',
@@ -410,7 +434,10 @@ describe('ThreadContextBanner rendering', () => {
   const bannerElement = (
     summaryText?: string,
     threadId = '$root',
-    columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull' | 'onClose'>
+    columnProps?: Pick<
+      ThreadContextBannerProps,
+      'onShowBeside' | 'onShowFull' | 'onClose' | 'onExitThread' | 'phoneHeader'
+    >
   ) =>
     React.createElement(
       Provider,
@@ -1546,5 +1573,192 @@ describe('ThreadContextBanner rendering', () => {
       pinned.root.findAllByProps({ 'data-thread-resolution-byline': 'true' }, { deep: false })
     ).toHaveLength(0);
     pinned.unmount();
+  });
+
+  describe("as the rows of a phone's room header", () => {
+    // 122 characters, invented.
+    const LONG_TITLE =
+      'Fix the flaky upload retry on slow networks, show progress per file, and keep partial uploads when the app is closed early';
+    const onRoomMenu = vi.fn();
+    const onExitThread = vi.fn();
+    const renderPhone = (summaryText?: string) =>
+      create(
+        React.createElement(
+          ScreenSizeProvider,
+          { value: ScreenSize.Mobile },
+          bannerElement(summaryText, '$root', {
+            onExitThread,
+            phoneHeader: {
+              roomName: 'Design',
+              actions: React.createElement('button', { 'aria-label': 'Call' }),
+              onRoomMenu,
+              menuBadge: React.createElement('em', { 'data-room-menu-dot': '' }),
+            },
+          })
+        )
+      );
+    /** What the row holds, in order: each control by its label or its marker. */
+    const rowOrder = (renderer: ReturnType<typeof renderPhone>) =>
+      renderer.root
+        .findByProps({ className: 'PhoneRow' })
+        .findAll(
+          (node) => typeof node.type === 'string' && (node.type === 'button' || node.type === 'u'),
+          { deep: true }
+        )
+        .map((node) =>
+          String(node.props['aria-label'] ?? node.props['data-thread-header-slot'] ?? text(node))
+        );
+    const editable = (tags: string[] = []) =>
+      bannerMocks.useThreadTags.mockReturnValue({
+        tags: {},
+        displayTags: tags,
+        isResolved: false,
+        canEdit: true,
+        availableTags: [],
+      });
+    beforeEach(() => {
+      onRoomMenu.mockClear();
+      onExitThread.mockClear();
+      pinningMocks.canPin = true;
+      editable();
+    });
+
+    it('holds back, the room, the plugins, Resolve, the calls and More in one row, without pin or card', () => {
+      const renderer = renderPhone(LONG_TITLE);
+      expect(rowOrder(renderer)).toEqual([
+        'Back',
+        'Design',
+        '!room:example.org $root',
+        'Resolve',
+        'Call',
+        'Thread options',
+      ]);
+      // Flat rows of the header: no glass card, and the marker the banner's rules hang on.
+      expect(glass.enabled).toBe(false);
+      expect(renderer.root.findAllByProps({ className: 'Banner' })).toHaveLength(0);
+      const header = renderer.root.findByProps({ className: 'PhoneHeader' });
+      expect(header.props).toMatchObject({
+        'data-thread-context-banner': 'true',
+        'data-thread-phone-header': 'true',
+      });
+      // Pin is the menu's there; Resolve stays in view on short screens too.
+      const labels = header.findAllByType('button').map((button) => button.props['aria-label']);
+      expect(labels).not.toContain('Pin thread');
+      expect(header.findByProps({ 'aria-label': 'Resolve' }).props.className).not.toContain(
+        'CompactHidden'
+      );
+      // The room menu's dot shows on More.
+      expect(
+        header.findByProps({ 'aria-label': 'Thread options' }).findAllByProps({
+          'data-room-menu-dot': '',
+        })
+      ).toHaveLength(1);
+      renderer.unmount();
+    });
+
+    it("leads back from the chevron and from the room's name", () => {
+      const renderer = renderPhone(LONG_TITLE);
+      act(() => renderer.root.findByProps({ 'data-phone-back': 'true' }).props.onClick());
+      const name = renderer.root.findByProps({ className: 'PhoneRoomButton' });
+      expect(name.props.title).toBe('Back to room');
+      expect(name.parent?.type).toBe('h1');
+      act(() => name.props.onClick());
+      expect(onExitThread).toHaveBeenCalledTimes(2);
+      renderer.unmount();
+    });
+
+    it('shows the whole title under the row: it wraps and no line is cut', () => {
+      const renderer = renderPhone(LONG_TITLE);
+      const title = renderer.root.findByProps({ 'data-thread-context-summary': 'true' });
+      expect(text(title)).toBe(LONG_TITLE);
+      expect(title.props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      expect(title.props['data-own-direction']).toBe('block');
+      // Under the row, not in it.
+      const summary = { 'data-thread-context-summary': 'true' };
+      expect(
+        renderer.root
+          .findByProps({ className: 'PhoneTitleRow' })
+          .findAllByProps(summary, { deep: false })
+      ).toHaveLength(1);
+      expect(
+        renderer.root.findByProps({ className: 'PhoneRow' }).findAllByProps(summary)
+      ).toHaveLength(0);
+      renderer.unmount();
+
+      // The banner card keeps its one cut line.
+      const card = renderBanner(LONG_TITLE);
+      expect(card.root.findByProps(summary).props).toMatchObject({
+        className: 'SummaryText',
+        truncate: true,
+      });
+      card.unmount();
+    });
+
+    it('puts the tags away, and marks a pinned thread beside its title in place of Resolve', () => {
+      editable(['triage', 'networking']);
+      const tagged = renderPhone(LONG_TITLE);
+      const shown = JSON.stringify(tagged.toJSON());
+      expect(shown).not.toContain('triage');
+      expect(shown).not.toContain('+ tag');
+      expect(tagged.root.findAllByProps({ className: 'PhonePin' })).toHaveLength(0);
+      tagged.unmount();
+
+      pinningMocks.pinnedEventIds = ['$root'];
+      const pinned = renderPhone(LONG_TITLE);
+      const pin = pinned.root.findByProps({ className: 'PhonePin' });
+      expect(pin.props).toMatchObject({ role: 'img', 'aria-label': 'Pinned' });
+      expect(
+        pinned.root.findByProps({ className: 'PhoneTitleRow' }).findAll((node) => node === pin)
+      ).toHaveLength(1);
+      expect(rowOrder(pinned)).not.toContain('Resolve');
+      pinned.unmount();
+    });
+
+    it("opens the room's menu from the thread's, where More is, and offers no Hide details", async () => {
+      // A stored Hide details folds the card only: the header's rows stay.
+      store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
+      const renderer = renderPhone(LONG_TITLE);
+      expect(renderer.root.findAllByProps({ 'aria-label': 'Show thread details' })).toHaveLength(0);
+      const more = renderer.root.findByProps({ 'aria-label': 'Thread options' });
+      const anchor = { x: 340, y: 60, width: 32, height: 32 };
+      const trigger = { getBoundingClientRect: () => anchor, focus: vi.fn(), isConnected: true };
+      await act(async () => more.props.onClick({ currentTarget: trigger }));
+      const menu = menuProps.mock.calls.at(-1)![0];
+      expect(menu.onHideDetails).toBeUndefined();
+      act(() => menu.onRoomMenu());
+      expect(onRoomMenu).toHaveBeenCalledWith(anchor);
+      renderer.unmount();
+
+      // The card's menu has no room menu to open.
+      const card = renderBanner(LONG_TITLE);
+      await act(async () =>
+        card.root
+          .findByProps({ 'aria-label': 'Show thread details' })
+          .props.onClick({ currentTarget: trigger })
+      );
+      await act(async () =>
+        card.root.findByProps({ 'aria-label': 'Thread options' }).props.onClick({
+          currentTarget: trigger,
+        })
+      );
+      expect(menuProps.mock.calls.at(-1)![0].onRoomMenu).toBeFalsy();
+      card.unmount();
+    });
+
+    it('keeps a schedule, a snooze and the resolver in a row under the title', () => {
+      bannerMocks.useThreadHeaderInfo.mockReturnValue({
+        scheduledTaskCount: 1,
+        nextScheduledTs: undefined,
+        scheduledDisplayText: 'in 12m',
+      });
+      const renderer = renderPhone(LONG_TITLE);
+      const status = renderer.root.findByProps({ className: 'PhoneStatus' });
+      expect(JSON.stringify(renderer.toJSON())).toContain('in 12m');
+      expect(status.findAllByProps({ 'data-auto-approve': '$root' })).toHaveLength(1);
+      expect(status.findAllByProps({ 'data-approvals': 'true' })).toHaveLength(1);
+      // No separator dot: the row is the status's own.
+      expect(status.findAllByProps({ 'aria-hidden': 'true' }).map(text)).not.toContain('·');
+      renderer.unmount();
+    });
   });
 });

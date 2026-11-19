@@ -593,7 +593,7 @@ export function ThreadContextBanner({
       {t('thread.pinFailed')}
     </Text>
   );
-  const menu = activeMenu && (
+  const threadMenu = activeMenu && (
     <Suspense fallback={null}>
       <ThreadActionsMenu
         key={`${room.roomId}:${threadRootId}`}
@@ -675,7 +675,7 @@ export function ThreadContextBanner({
           )}
           {pinError}
         </div>
-        {menu}
+        {threadMenu}
       </>
     );
   }
@@ -797,7 +797,7 @@ export function ThreadContextBanner({
         )}
         {pinError}
       </div>
-      {menu}
+      {threadMenu}
     </>
   );
 }

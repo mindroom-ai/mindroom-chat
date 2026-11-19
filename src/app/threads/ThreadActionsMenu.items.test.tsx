@@ -197,6 +197,28 @@ describe('ThreadActionsMenu rows', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("ends a phone header's menu with the room's menu, after the tags and Pin it holds there", () => {
+    const order: string[] = [];
+    const items = renderMenu({
+      onRoomMenu: () => order.push('room menu'),
+      onClose: () => order.push('close'),
+    });
+
+    // A phone's header shows no tags and no pin button: its menu offers both.
+    const actions = rows(items).map((row) => row.action);
+    expect(actions).toEqual(expect.arrayContaining(['tags', 'pin']));
+    expect(rows(items).at(-1)).toEqual({
+      action: 'roomMenu',
+      label: 'Room options',
+      icon: glyph(Icons.Hash),
+    });
+    // The thread's menu goes first: the room's then opens with the focus back on their button.
+    act(() => rowOf(items, 'roomMenu')?.click());
+    expect(order).toEqual(['close', 'room menu']);
+    // The banner's card and a thread card have no room menu to open.
+    expect(rowOf(renderMenu(), 'roomMenu')).toBeUndefined();
+  });
+
   it('starts a card menu with Open thread, and gives Reopen its own icon', () => {
     state.resolved = true;
     const menuItems = renderMenu({ onOpenThread: () => undefined });
