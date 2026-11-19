@@ -214,6 +214,8 @@ export type RoomTimelineProps = {
   entryKey?: string;
   /** Whether the router pushed that entry (a link followed), not replaced or returned to it. */
   entryPushed?: boolean;
+  /** Whether the app's Back put that entry in a thread's place (`RETURN_TO_ROOM_STATE`). */
+  entryReturned?: boolean;
   summaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
@@ -305,6 +307,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     focusEventInRoom,
     entryKey,
     entryPushed,
+    entryReturned,
     summaryMap,
     onStoreThreadSummary,
     threadFilterState,
@@ -1822,7 +1825,9 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     // place the list saved with that card in view; one opened from a link has none, so its card
     // takes a place below the bar, and the list's memory brings it there as cards render.
     const focusRequest =
-      eventId && focusEventInRoom ? { eventId, entryKey, pushed: entryPushed } : undefined;
+      eventId && focusEventInRoom
+        ? { eventId, entryKey, pushed: entryPushed, returned: entryReturned }
+        : undefined;
     if (focusRequest) {
       takeCompactFocusRequest(compactRoomScrollStateRef.current, room.roomId, focusRequest);
     }

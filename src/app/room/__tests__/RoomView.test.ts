@@ -8,6 +8,7 @@ import {
   setRoomThreadExitTargetForHistoryState,
 } from '../../routes/roomNavigateState';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import { RETURN_TO_ROOM_STATE } from '../../routes/historyStack';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 type MockThreadContextBannerProps = {
@@ -130,7 +131,9 @@ vi.stubGlobal('window', {
   },
 });
 
-vi.mock('../../threads/useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
+vi.mock('../../threads/useInitializeShownThread', () => ({
+  useInitializeShownThread: () => undefined,
+}));
 vi.mock('../../event-store/engine/engineContext', () => ({ useSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -502,6 +505,9 @@ const createCompactScrollElement = () => ({
 
 importBeforeTests(() => import('../RoomView'));
 
+/** The app's Back where it does not step back in history: the room, as a return to it. */
+const RETURN = { replace: true, state: RETURN_TO_ROOM_STATE };
+
 // Every test resets the module registry and imports RoomView again, which evaluates its whole
 // module graph: well under a second, but over 5 s on a loaded machine, so each test gets 30 s.
 describe('RoomView', { timeout: 30_000 }, () => {
@@ -748,7 +754,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       threadContextBannerState.props?.onExitThread?.();
     });
 
-    expect(navigatePathMock).toHaveBeenCalledWith(exitPath, { replace: true });
+    expect(navigatePathMock).toHaveBeenCalledWith(exitPath, RETURN);
 
     scrollElement = createCompactScrollElement();
     await act(async () => {
@@ -1248,9 +1254,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
     });
 
     expect(historyBackMock).not.toHaveBeenCalled();
-    expect(navigatePathMock).toHaveBeenCalledWith(`/home/${encodeURIComponent(room.roomId)}`, {
-      replace: true,
-    });
+    expect(navigatePathMock).toHaveBeenCalledWith(
+      `/home/${encodeURIComponent(room.roomId)}`,
+      RETURN
+    );
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
   });
 
@@ -1305,7 +1312,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
-    expect(navigatePathMock).toHaveBeenCalledWith(exitPath, { replace: true });
+    expect(navigatePathMock).toHaveBeenCalledWith(exitPath, RETURN);
     expect(store.get(lastExitedThreadAtom)).toEqual({
       roomId: room.roomId,
       threadId: '$thread',
@@ -1338,9 +1345,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
     });
 
     expect(historyBackMock).not.toHaveBeenCalled();
-    expect(navigatePathMock).toHaveBeenCalledWith(`/home/${encodeURIComponent(room.roomId)}`, {
-      replace: true,
-    });
+    expect(navigatePathMock).toHaveBeenCalledWith(
+      `/home/${encodeURIComponent(room.roomId)}`,
+      RETURN
+    );
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
   });
 
@@ -2176,6 +2184,5 @@ vi.mock('../ThreadView', () => ({
   }: {
     header?: React.ReactNode;
     roomHeader?: (headerRef: React.RefObject<HTMLDivElement>) => React.ReactNode;
-  }) =>
-    React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
+  }) => React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
 }));
