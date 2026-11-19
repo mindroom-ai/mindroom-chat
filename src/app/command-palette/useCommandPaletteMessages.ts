@@ -15,7 +15,6 @@ import {
   getCrossRoomThreadIndexKey,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { getSearchResultOpenTarget } from '../search/searchResultOpenTarget';
-import { getCommandPaletteThreadItemId } from './commandPaletteItems';
 import {
   getSearchResultBodySnippet,
   getSearchResultEffectiveContent,
@@ -155,9 +154,9 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
       const room = client.getRoom(roomId);
       return hits.map(({ event }) => {
         const target = getSearchResultOpenTarget(event);
-        const thread = target.threadRootId
-          ? threadIndex.entries.get(getCrossRoomThreadIndexKey(roomId, target.threadRootId))
-          : undefined;
+        const threadKey =
+          target.threadRootId && getCrossRoomThreadIndexKey(roomId, target.threadRootId);
+        const thread = threadKey ? threadIndex.entries.get(threadKey) : undefined;
         return {
           id: `message:${roomId}:${event.event_id}`,
           kind: 'message',
@@ -171,9 +170,8 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
               ? thread?.summaryText || thread?.rootPreviewText || ''
               : undefined,
           // A thread's titles list once (`collapseThreadTitleHits`), as the one it has now.
-          ...(target.threadTitle && target.threadRootId
-            ? { titleOfThreadId: getCommandPaletteThreadItemId(roomId, target.threadRootId) }
-            : {}),
+          // Its thread's row has this id (`useCommandPaletteSource`).
+          ...(target.threadTitle && threadKey ? { titleOfThreadId: `thread:${threadKey}` } : {}),
           snippet:
             (target.threadTitle && thread?.summaryText) || getPlainSnippet(event, highlights, t),
           highlights,
