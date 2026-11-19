@@ -64,6 +64,8 @@ export type CommandPaletteRoomItem = CommandPaletteBaseItem & {
   canonicalAlias?: string;
   topic?: string;
   parentNames?: string[];
+  /** The word for its kind, Room or Space, found only beside a word of the row ("space garden"). */
+  tag?: string;
   unreadCount?: number;
   unreadHighlight?: boolean;
 };
