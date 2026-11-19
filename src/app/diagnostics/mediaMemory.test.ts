@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installMemoryHooks, readMediaMemory, readWasmMemoryMb } from './mediaMemory';
 
 // A module that exports one memory of 16 pages (1 MiB).
@@ -14,15 +14,35 @@ const createObjectURL = vi.fn(() => `blob:test/${(nextUrl += 1)}`);
 const revokeObjectURL = vi.fn();
 
 describe('media memory', () => {
-  beforeAll(() => {
+  let uninstall: () => void;
+
+  beforeEach(() => {
     // jsdom has no object URLs; the hooks wrap whatever the page has when they install.
     Object.assign(URL, { createObjectURL, revokeObjectURL });
-    installMemoryHooks();
-    installMemoryHooks();
+    createObjectURL.mockClear();
+    uninstall = installMemoryHooks();
+    // A second install while installed changes nothing.
+    expect(installMemoryHooks()).toBe(uninstall);
   });
 
   afterEach(() => {
+    uninstall();
     document.body.replaceChildren();
+  });
+
+  it('puts the original functions back and forgets what it saw once uninstalled', async () => {
+    const { instantiate, instantiateStreaming } = WebAssembly;
+    await WebAssembly.instantiate(WASM_WITH_MEMORY);
+    URL.createObjectURL(new Blob(['x']));
+
+    uninstall();
+
+    expect(URL.createObjectURL).toBe(createObjectURL);
+    expect(URL.revokeObjectURL).toBe(revokeObjectURL);
+    expect(WebAssembly.instantiate).not.toBe(instantiate);
+    expect(WebAssembly.instantiateStreaming).not.toBe(instantiateStreaming);
+    expect(readWasmMemoryMb()).toBeUndefined();
+    expect(readMediaMemory()).toMatchObject({ object_urls: 0, object_url_mb: 0 });
   });
 
   it('reports no WebAssembly memory before a module loads, then the size of its memory', async () => {
@@ -44,6 +64,34 @@ describe('media memory', () => {
       new Response(WASM_WITH_MEMORY, { headers: { 'Content-Type': 'application/wasm' } })
     );
     expect(readWasmMemoryMb()).toBe(4);
+  });
+
+  it('counts a memory once, however many exports or instances share it', async () => {
+    const { instance } = await WebAssembly.instantiate(WASM_WITH_MEMORY);
+    const shared = instance.exports.mem as WebAssembly.Memory;
+    // Imports `env.mem` and exports it under two names.
+    await WebAssembly.instantiate(
+      new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x02, 0x0c, 0x01, 0x03, 0x65, 0x6e, 0x76,
+        0x03, 0x6d, 0x65, 0x6d, 0x02, 0x00, 0x10, 0x07, 0x09, 0x02, 0x01, 0x61, 0x02, 0x00, 0x01,
+        0x62, 0x02, 0x00,
+      ]),
+      { env: { mem: shared } }
+    );
+
+    expect(readWasmMemoryMb()).toBe(1);
+  });
+
+  it('returns the URL even when the blob cannot be measured', () => {
+    const blob = new Blob(['x']);
+    Object.defineProperty(blob, 'size', {
+      get: () => {
+        throw new Error('no size');
+      },
+    });
+
+    expect(URL.createObjectURL(blob)).toMatch(/^blob:test\//);
+    expect(readMediaMemory()).toMatchObject({ object_urls: 1, object_url_mb: 0 });
   });
 
   it('counts live object URLs and the bytes of their blobs until they are revoked', () => {

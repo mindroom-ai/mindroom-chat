@@ -5,9 +5,9 @@
  * URLs, decoded images, media elements and canvases.
  *
  * WebAssembly memories and object URLs can only be seen as they are made, so `installMemoryHooks`
- * wraps their constructors once, at diagnostics start and before the crypto module loads. A browser
- * that turns debug mode on later sees only what is made after that, until it reloads. The wrappers
- * stay in place after the sampler stops: they keep a map of live object URLs, nothing else.
+ * wraps their constructors while the deep trace records. The crypto module's memory is seen only
+ * when the trace already records as the app starts (it stays on across launches); turned on later,
+ * it needs a reload.
  */
 
 const BYTES_PER_MB = 1024 * 1024;
@@ -15,12 +15,16 @@ const BYTES_PER_MB = 1024 * 1024;
 const toMb = (bytes: number): number => Math.round((bytes / BYTES_PER_MB) * 10) / 10;
 
 const wasmMemories: WeakRef<WebAssembly.Memory>[] = [];
+// The same memory can be exported under several names or by several instances.
+let seenMemories = new WeakSet<WebAssembly.Memory>();
 const objectUrlBytes = new Map<string, number>();
-let installed = false;
+let uninstallHooks: (() => void) | undefined;
 
 const trackInstance = (instance: WebAssembly.Instance): void => {
   Object.values(instance.exports).forEach((value) => {
-    if (value instanceof WebAssembly.Memory) wasmMemories.push(new WeakRef(value));
+    if (!(value instanceof WebAssembly.Memory) || seenMemories.has(value)) return;
+    seenMemories.add(value);
+    wasmMemories.push(new WeakRef(value));
   });
 };
 
@@ -37,43 +41,79 @@ const trackResult = <T>(result: T): T => {
   return result;
 };
 
-const hookWebAssembly = (): void => {
+const hookWebAssembly = (restores: Array<() => void>): void => {
   if (typeof WebAssembly === 'undefined') return;
   const { instantiate, instantiateStreaming } = WebAssembly;
   if (typeof instantiate === 'function') {
     WebAssembly.instantiate = ((...args: Parameters<typeof instantiate>) =>
       instantiate.apply(WebAssembly, args).then(trackResult)) as typeof instantiate;
+    restores.push(() => {
+      WebAssembly.instantiate = instantiate;
+    });
   }
   if (typeof instantiateStreaming === 'function') {
     WebAssembly.instantiateStreaming = ((...args: Parameters<typeof instantiateStreaming>) =>
-      instantiateStreaming.apply(WebAssembly, args).then(trackResult)) as typeof instantiateStreaming;
+      instantiateStreaming
+        .apply(WebAssembly, args)
+        .then(trackResult)) as typeof instantiateStreaming;
+    restores.push(() => {
+      WebAssembly.instantiateStreaming = instantiateStreaming;
+    });
   }
 };
 
-const hookObjectUrls = (): void => {
+// The browser's own getter: a blob's `size` property could be anything.
+const blobSize = (obj: Blob | MediaSource): number => {
+  try {
+    const getter = Object.getOwnPropertyDescriptor(Blob.prototype, 'size')?.get;
+    const size: unknown = obj instanceof Blob ? getter?.call(obj) : 0;
+    return typeof size === 'number' ? size : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const hookObjectUrls = (restores: Array<() => void>): void => {
   const { createObjectURL, revokeObjectURL } = URL;
   if (typeof createObjectURL !== 'function' || typeof revokeObjectURL !== 'function') return;
   URL.createObjectURL = (obj: Blob | MediaSource): string => {
     const url = createObjectURL.call(URL, obj);
-    objectUrlBytes.set(url, obj instanceof Blob ? obj.size : 0);
+    objectUrlBytes.set(url, blobSize(obj));
     return url;
   };
   URL.revokeObjectURL = (url: string): void => {
     objectUrlBytes.delete(url);
     revokeObjectURL.call(URL, url);
   };
+  restores.push(() => {
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+  });
 };
 
-/** Wraps WebAssembly instantiation and object URL creation once; later calls do nothing. */
-export const installMemoryHooks = (): void => {
-  if (installed) return;
-  installed = true;
+/**
+ * Wraps WebAssembly instantiation and object URL creation; while installed, a second call returns
+ * the same function. That function puts the originals back and forgets what was seen.
+ */
+export const installMemoryHooks = (): (() => void) => {
+  if (uninstallHooks) return uninstallHooks;
+  const restores: Array<() => void> = [];
   try {
-    hookWebAssembly();
-    hookObjectUrls();
+    hookWebAssembly(restores);
+    hookObjectUrls(restores);
   } catch {
     // A browser that refuses the wrappers just reports fewer counters.
   }
+  const uninstall = () => {
+    if (uninstallHooks !== uninstall) return;
+    uninstallHooks = undefined;
+    restores.forEach((restore) => restore());
+    wasmMemories.length = 0;
+    seenMemories = new WeakSet();
+    objectUrlBytes.clear();
+  };
+  uninstallHooks = uninstall;
+  return uninstall;
 };
 
 /** MB of the WebAssembly memories still alive; undefined until a module with one has loaded. */
