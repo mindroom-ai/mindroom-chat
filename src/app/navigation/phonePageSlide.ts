@@ -23,6 +23,11 @@ const KEYFRAMES = 'phone-page-';
 /** How long the frame before the changes, and the slide itself, may take: a hidden tab has neither. */
 const FRAME_MS = 100;
 const PLAY_MS = 2000;
+/** What would load or play to show in the copy. A `source` of a `picture` picks its picture. */
+const MEDIA = 'img, iframe, video, audio, video source, audio source';
+/** The fields whose value shows as the text a person typed, which may be a secret. */
+const TYPED =
+  'textarea, input:not([type]), input:is([type=text], [type=password], [type=search], [type=email], [type=url], [type=tel], [type=number])';
 
 /** A change to the page; `sliding` tells whether it runs inside a slide. */
 type Change = (sliding: boolean) => void;
@@ -45,16 +50,29 @@ const depth = (): number => {
 /**
  * A still copy of the phone layout as it is, scrolled as it is, to show in `stage` while the
  * layout itself shows the next page: it takes no input, no name a lookup by id or test id would
- * find twice, and loads and plays nothing.
+ * find twice, and loads and plays nothing. Its fields are no part of the page's forms or groups of
+ * radio buttons, and hold nothing typed.
  */
 const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
   const copy = stage.cloneNode(true) as HTMLElement;
-  const copies = copy.querySelectorAll('*');
+  const copies = copy.querySelectorAll<HTMLElement>('*');
   const scrolled: [Element, number, number][] = [];
-  stage.querySelectorAll('*').forEach((element, index) => {
+  stage.querySelectorAll<HTMLElement>('*').forEach((element, index) => {
     const twin = copies[index];
-    if (twin && (element.scrollTop || element.scrollLeft)) {
+    if (!twin) return;
+    if (element.scrollTop || element.scrollLeft) {
       scrolled.push([twin, element.scrollTop, element.scrollLeft]);
+    }
+    // A picture the page has loaded shows in the copy at once, with no request. Anything else
+    // that would load or play (a picture still loading, a frame, a video) is a blank box of its
+    // size: a frame's page cannot be copied, and loading it again would outlast the slide.
+    const picture = twin as Partial<HTMLImageElement>;
+    if (element.matches(MEDIA) && !(picture.complete && picture.naturalWidth)) {
+      ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'alt'].forEach((name) =>
+        twin.removeAttribute(name)
+      );
+      const { offsetWidth, offsetHeight } = element;
+      twin.style.cssText += `;box-sizing:border-box;width:${offsetWidth}px;height:${offsetHeight}px`;
     }
   });
   // A canvas is copied empty: it shows what its original does.
@@ -75,13 +93,14 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     if (child.hasAttribute(PHONE_TOP_BAR)) (child as HTMLElement).style.visibility = 'hidden';
     child.removeAttribute(PHONE_TOP_BAR);
   });
-  copy.querySelectorAll('[id], [data-testid]').forEach((element) => {
-    element.removeAttribute('id');
-    element.removeAttribute('data-testid');
+  // `name` and `form`: a radio button of the copy would uncheck the page's own of that name, and
+  // a field of it would join the page's form.
+  copy.querySelectorAll('[id], [data-testid], [name], [form], [for]').forEach((element) => {
+    ['id', 'data-testid', 'name', 'form', 'for'].forEach((name) => element.removeAttribute(name));
   });
-  copy.querySelectorAll('iframe, video, audio, source').forEach((element) => {
-    ['src', 'srcdoc', 'autoplay'].forEach((name) => element.removeAttribute(name));
-  });
+  copy
+    .querySelectorAll<HTMLInputElement>(TYPED)
+    .forEach((field) => Object.assign(field, { value: '' }));
   return (over) => {
     over.append(copy);
     scrolled.forEach(([element, scrollTop, scrollLeft]) =>
@@ -125,11 +144,12 @@ export const slidePhonePage = (change: Change): void => {
     waiting.push(change);
     return;
   }
-  // No document: a test that renders without one.
+  // No document: a test that renders without one. A hidden one plays nothing.
   const page = typeof document === 'undefined' ? undefined : document;
   if (
     playing ||
     !page?.querySelector(`[${PHONE_STAGE}]`) ||
+    page.visibilityState === 'hidden' ||
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   ) {
     change(false);
@@ -148,6 +168,7 @@ export const slidePhonePage = (change: Change): void => {
   let frame = 0;
   let timer = 0;
   let copy: HTMLElement | undefined;
+  let watch: MutationObserver | undefined;
   let ended = false;
   let finish: () => void = () => undefined;
   const finished = new Promise<void>((resolve) => {
@@ -158,6 +179,8 @@ export const slidePhonePage = (change: Change): void => {
     ended = true;
     window.cancelAnimationFrame(frame);
     window.clearTimeout(timer);
+    watch?.disconnect();
+    page.removeEventListener('visibilitychange', end);
     copy?.remove();
     playing = false;
     active = undefined;
@@ -172,19 +195,42 @@ export const slidePhonePage = (change: Change): void => {
     waiting = undefined;
     playing = true;
     const shown = sliding && from !== 0 ? page.querySelector(`[${PHONE_STAGE}]`) : null;
-    const show = shown ? copyOf(shown) : undefined;
-    flushSync(() => changes.forEach((each) => each(true)));
+    let show: ReturnType<typeof copyOf> | undefined;
+    try {
+      show = shown ? copyOf(shown) : undefined;
+    } catch {
+      // No copy: the page still changes, with nothing sliding.
+    }
+    try {
+      flushSync(() => changes.forEach((each) => each(true)));
+    } catch (error) {
+      // A change that fails leaves no slide behind: the next one plays.
+      end();
+      throw error;
+    }
     const to = depth();
     const stage = page.querySelector(`[${PHONE_STAGE}]`);
     // Nothing to slide from the list, nor where the page is as deep as it was, and nothing where
     // the copy would not fit: the phone layout is gone (signed out, turned sideways), or a
     // dialog still open over the page would show under it.
-    if (!show || to === from || !stage || hasBlockingPortalOverlay()) {
+    if (ended || !show || to === from || !stage || hasBlockingPortalOverlay()) {
       end();
       return;
     }
     root.dataset.pageSlide = to > from ? 'forward' : 'back';
     copy = show(stage);
+    // The slide is over at once where the phone layout goes while it plays (signed out, turned
+    // sideways), which takes the copy or its slide with it, and where the page is hidden.
+    watch = new MutationObserver(() => {
+      if (!stage.isConnected || !stage.hasAttribute(PHONE_STAGE)) end();
+    });
+    watch.observe(page, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: [PHONE_STAGE],
+    });
+    page.addEventListener('visibilitychange', end);
     // Held at its start (phonePageSlide.css.ts) until the page that slides in has been drawn: that
     // frame is long, and the slide's clock would run through most of its way before it shows.
     // It starts with the frame after the one that draws the page.

@@ -15,10 +15,11 @@ const forward = "html[data-page-slide='forward']";
 const back = "html[data-page-slide='back']";
 const playing = (selector: string) => `${forward} ${selector}, ${back} ${selector}`;
 
-// The page takes no taps while it slides: they would land on what moves.
-globalStyle(`${forward}::after, ${back}::after`, {
+// The layout takes no taps while it slides: they would land on what moves. Over the layout only,
+// and gone with it: a page that takes its place (signed out, turned sideways) takes taps at once.
+globalStyle(playing(`${STAGE}::after`), {
   content: '""',
-  position: 'fixed',
+  position: 'absolute',
   inset: 0,
   zIndex: 2147483647,
 });
