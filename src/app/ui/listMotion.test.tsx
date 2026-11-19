@@ -308,6 +308,42 @@ describe('useListMotion', () => {
       expect(states()).toEqual(['idle']);
     });
 
+    it('starts the plays of a change during the press held, and lets them go at the click', () => {
+      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+
+      pointer('pointerdown', row('b'));
+      rerender(<List order={['c', 'a', 'b']} />);
+      expect(states()).toEqual(['paused']);
+
+      pointer('click', row('b'));
+      expect(states()).toEqual(['running']);
+    });
+
+    it('holds a glide that a change during the press starts again', () => {
+      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+      rerender(<List order={['c', 'a', 'b']} />);
+
+      pointer('pointerdown', row('c'));
+      rerender(<List order={['b', 'c', 'a']} />);
+      // The glides the press held first were ended: every row moved again.
+      expect(states()).toEqual(['idle', 'paused']);
+
+      pointer('click', row('c'));
+      expect(states()).toEqual(['idle', 'running']);
+    });
+
+    it('plays a change at once that comes long after the pointer went down', () => {
+      vi.useFakeTimers({ toFake: ['performance'] });
+      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+
+      // A press that ended in neither a click nor a cancel: a drag, a long press.
+      pointer('pointerdown', row('b'));
+      vi.advanceTimersByTime(LONGEST_PLAY_MS);
+      rerender(<List order={['c', 'a', 'b']} />);
+
+      expect(states()).toEqual(['running']);
+    });
+
     it('lets go when the list goes during the press', () => {
       reorder();
       const { plays } = motion;
