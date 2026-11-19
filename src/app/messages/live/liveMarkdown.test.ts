@@ -27,6 +27,27 @@ describe('live reply Markdown', () => {
     expect(renderLiveMarkdown(md)).toBe(html);
   });
 
+  // Not in the parity fixture: the runtime's sanitizer also escapes the comment and the `<` in the value.
+  it.each([
+    [
+      'a comment',
+      'Before <!-- <title --> **after**',
+      '<p>Before <!-- <title --> <strong>after</strong></p>\n',
+    ],
+    [
+      'a quoted attribute value',
+      'See <img src="mxc://example.org/image" alt="<title excerpt"> then **bold**',
+      '<p>See <img src="mxc://example.org/image" alt="<title excerpt"> then <strong>bold</strong></p>\n',
+    ],
+    [
+      "a quoted value of an attribute markdown-it's grammar rejects",
+      `<p><img 1=2 src="mxc://example.org/image" alt="<title name='&amp;'>"></p>`,
+      `<p><img 1=2 src="mxc://example.org/image" alt="<title name='&amp;'>"></p>`,
+    ],
+  ])('leaves a <title inside %s as it is', (_name, md, html) => {
+    expect(renderLiveMarkdown(md)).toBe(html);
+  });
+
   it('keeps HTML openers inside fenced code as code', () => {
     expect(renderLiveMarkdown('```\n<!-- note -->\n<script>\n```')).toBe(
       '<pre><code>&lt;!-- note --&gt;\n&lt;script&gt;\n</code></pre>\n'
