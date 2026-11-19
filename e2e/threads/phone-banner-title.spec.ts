@@ -468,12 +468,17 @@ const expectTabInScreenOrder = async (page: Page, dir: 'ltr' | 'rtl') => {
   }
   console.log(`tab order (${dir}): ${stops.map((stop) => stop.name).join(' > ')}`);
   expect(stops.map((stop) => stop.name)).toContain('title');
-  for (const [index, next] of stops.slice(1).entries()) {
-    const before = stops[index];
+  let before: (typeof stops)[number] | undefined;
+  for (const next of stops) {
+    if (!before) {
+      before = next;
+      continue;
+    }
     const lowerLine = next.top >= before.bottom - 1;
     const sameLine = next.top < before.bottom && next.bottom > before.top;
     const further = dir === 'ltr' ? next.left >= before.right - 1 : next.right <= before.left + 1;
     expect(lowerLine || (sameLine && further), `${before.name} then ${next.name}`).toBe(true);
+    before = next;
   }
 };
 
