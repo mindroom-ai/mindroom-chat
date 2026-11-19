@@ -167,17 +167,17 @@ describe('startupPrecache', () => {
       shellFiles: ['index.html', 'pdf-frame.html'],
       localeOverlay: OVERLAY,
     });
-    const generateBundle = plugin.generateBundle as unknown as (
+    const writeBundle = plugin.writeBundle as unknown as (
       options: unknown,
       output: OutputBundle
     ) => void;
     const renderWorker = workerPlugin.renderChunk as unknown as (code: string) => { code: string };
-    return { generateBundle, manifestTransform, renderWorker };
+    return { writeBundle, manifestTransform, renderWorker };
   };
 
   it('writes the build inventory into the worker in place of its marker', () => {
-    const { generateBundle, renderWorker } = plan();
-    generateBundle({}, bundle());
+    const { writeBundle, renderWorker } = plan();
+    writeBundle({}, bundle());
     const { code } = renderWorker('const inventory = self.__MINDROOM_BUILD_INVENTORY;');
     const written = JSON.parse(code.slice('const inventory = '.length, -1)) as {
       files: string[];
@@ -191,14 +191,14 @@ describe('startupPrecache', () => {
     expect(() => plan().renderWorker('self.__MINDROOM_BUILD_INVENTORY')).toThrow(
       'the build never reported its bundle'
     );
-    const { generateBundle, renderWorker } = plan();
-    generateBundle({}, bundle());
+    const { writeBundle, renderWorker } = plan();
+    writeBundle({}, bundle());
     expect(() => renderWorker('const inventory = undefined;')).toThrow('0 times, not once');
   });
 
   it('keeps only the shell and the startup files in the precache list', () => {
-    const { generateBundle, manifestTransform } = plan();
-    generateBundle({}, bundle());
+    const { writeBundle, manifestTransform } = plan();
+    writeBundle({}, bundle());
     const globbed = [
       'index.html',
       'pdf-frame.html',
@@ -228,8 +228,8 @@ describe('startupPrecache', () => {
   });
 
   it('fails when a startup file never reached the precache globs', () => {
-    const { generateBundle, manifestTransform } = plan();
-    generateBundle({}, bundle());
+    const { writeBundle, manifestTransform } = plan();
+    writeBundle({}, bundle());
     expect(() =>
       manifestTransform(['index.html', 'pdf-frame.html', 'assets/index-e1.js'].map(entry))
     ).toThrow('startup files outside the precache globs: assets/index-e1.css');
@@ -242,7 +242,7 @@ describe('startupPrecache', () => {
   });
 });
 
-describe('a build that fails before its bundle is written', () => {
+describe('writing the production bundle', () => {
   // Its real path: Vite names the emitted pages by their path from the root.
   const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'precache-plan-')));
   const dist = path.join(dir, 'app/dist');
@@ -252,7 +252,8 @@ describe('a build that fails before its bundle is written', () => {
     path.join(dir, 'app/index.html'),
     '<script type="module" src="./main.js"></script>\n'
   );
-  writeFileSync(path.join(dir, 'app/main.js'), 'export {};\n');
+  writeFileSync(path.join(dir, 'app/main.js'), "import './style.css';\n");
+  writeFileSync(path.join(dir, 'app/style.css'), 'body { color: red; }\n');
   writeFileSync(
     path.join(dir, 'app/sw.js'),
     'console.log(self.__WB_MANIFEST, self.__MINDROOM_BUILD_INVENTORY);\n'
@@ -305,7 +306,12 @@ describe('a build that fails before its bundle is written', () => {
           })
         ),
       ],
-      build: { outDir },
+      build: {
+        outDir,
+        rollupOptions: {
+          output: { manualChunks: { panel: [path.join(dir, 'app/style.css')] } },
+        },
+      },
     });
   };
 
@@ -338,10 +344,12 @@ describe('a build that fails before its bundle is written', () => {
     60_000
   );
 
-  it('builds the worker, with the inventory, once the bundle is written', async () => {
+  it('precaches CSS from a removed style-only chunk and writes the build inventory', async () => {
     await buildWith({ name: 'passes' });
     const worker = readFileSync(path.join(dist, 'sw.js'), 'utf8');
     expect(worker).not.toContain('__MINDROOM_BUILD_INVENTORY');
     expect(worker).toMatch(/"?files"?:\[/);
+    expect(worker).toMatch(/assets\/panel-[\w-]+\.css/);
+    expect(worker).not.toMatch(/assets\/panel-[\w-]+\.js/);
   }, 60_000);
 });
