@@ -287,8 +287,9 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
 
 /**
  * Whether a row takes no place in the timeline: the thread's plans hide it (approvals, title
- * markers, secret requests), it is a voice echo shown under its voice message, its sender is
- * ignored, it is redacted and hidden events are not shown, or a plugin hides it.
+ * markers, secret requests), it is a voice echo shown under its voice message or a model command
+ * its router's reply shows as one line, its sender is ignored, it is redacted and hidden events
+ * are not shown, or a plugin hides it.
  */
 export const isTimelineRowHidden = (
   event: MatrixEvent,
@@ -298,6 +299,7 @@ export const isTimelineRowHidden = (
       threadSummaryTimeline,
       secretRequestTimeline,
       voiceTranscripts,
+      modelChanges,
     },
     ignoredUsersSet,
     showHiddenEvents,
@@ -305,7 +307,11 @@ export const isTimelineRowHidden = (
   }: {
     messageData: Pick<
       TimelineMessageData,
-      'approvalTimeline' | 'threadSummaryTimeline' | 'secretRequestTimeline' | 'voiceTranscripts'
+      | 'approvalTimeline'
+      | 'threadSummaryTimeline'
+      | 'secretRequestTimeline'
+      | 'voiceTranscripts'
+      | 'modelChanges'
     >;
     ignoredUsersSet: ReadonlySet<string>;
     showHiddenEvents: boolean;
@@ -317,7 +323,8 @@ export const isTimelineRowHidden = (
     approvalTimeline.hiddenEventIds.has(id) ||
     threadSummaryTimeline.hiddenEventIds.has(id) ||
     secretRequestTimeline.hiddenEventIds.has(id) ||
-    voiceTranscripts.hiddenEventIds.has(id)
+    voiceTranscripts.hiddenEventIds.has(id) ||
+    modelChanges.hiddenEventIds.has(id)
   ) {
     return true;
   }

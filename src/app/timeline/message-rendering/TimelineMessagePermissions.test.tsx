@@ -9,6 +9,7 @@ import type { IPowerLevels } from '../../matrix/hooks/usePowerLevels';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
 
 const ME = '@alice:example.org';
 const OTHER = '@bob:example.org';
@@ -52,6 +53,7 @@ const emptyData = () => ({
   },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 });
 
 /** Renders the rows and returns the `canDelete` and `canPinEvent` props each message received. */

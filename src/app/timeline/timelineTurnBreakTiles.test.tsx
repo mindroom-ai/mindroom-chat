@@ -8,6 +8,7 @@ import type { TimelineMessageData, TimelineMessageRow } from './message-renderin
 import { viewThreadTurnFolds, type ThreadTurnFold } from './threadTurnFolds';
 import { estimateMessageRowHeight } from './timelineRowEstimate';
 import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 
 vi.mock('./TurnBreak.css', () => ({
   TurnBreak: 'TurnBreak',
@@ -40,6 +41,7 @@ const messageData = {
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and what it shows in order: its break (`break`) and its row. */
