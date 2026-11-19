@@ -68,8 +68,10 @@ const isWorking = ({ status }: SubagentMeta): boolean =>
 const nextMeta = (held: SubagentMeta | undefined, latest: SubagentMeta): SubagentMeta => {
   const meta = { ...latest };
   const task = latest.task ?? held?.task;
+  const title = latest.title ?? held?.title;
   const result = latest.result ?? held?.result;
   if (task !== undefined) meta.task = task;
+  if (title !== undefined) meta.title = title;
   if (result !== undefined) meta.result = result;
   return meta;
 };

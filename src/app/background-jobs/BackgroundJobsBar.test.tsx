@@ -679,7 +679,19 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
   expect(container.querySelector('[data-job-logo]')?.getAttribute('data-job-logo')).toBe('tool');
 });
 
-it("shows a sub-agent's agent, model, task, what it does now and what it used", () => {
+it("shows a sub-agent's title, with its task as the title's tooltip", () => {
+  ingestRun('s1', { title: 'Refactor login form', task: 'Refactor the login form\nwith tests' }, [
+    { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
+  ]);
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
+  render();
+  expand();
+  const task = container.querySelector('li[data-job-kind="subagent"] .Task');
+  expect(task?.textContent).toBe('Refactor login form');
+  expect(task?.getAttribute('title')).toBe('Refactor the login form\nwith tests');
+});
+
+it("shows an untitled sub-agent's agent, model, task and what it used, never its current call", () => {
   ingestRun(
     's1',
     {
@@ -701,7 +713,8 @@ it("shows a sub-agent's agent, model, task, what it does now and what it used", 
   );
   expect(row.querySelector('[data-job-model]')?.textContent).toBe('Opus');
   expect(row.querySelector('.Task')?.textContent).toBe('Port the fix');
-  expect(row.querySelector('[data-job-activity]')?.textContent).toBe('run_shell_command just test');
+  expect(row.querySelector('[data-job-activity]')).toBeNull();
+  expect(row.textContent).not.toContain('run_shell_command');
   // Each number in its column, bare, with its words as its title.
   const cells = [...row.querySelectorAll('[data-job-stat]')];
   expect(cells.map((cell) => cell.textContent)).toEqual(['31', '1.9M', '$1.30']);

@@ -218,10 +218,10 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 }
 
 /**
- * One listed job on the bar's grid: its task as the headline, with at most one pill; under it who,
- * on what model, doing what, and the thread it runs in when that is not the view's. Then its
- * calls, tokens and cost, its time, Open and Stop, each in its column. A job without its run's
- * frames shows its name alone, as before.
+ * One listed job on the bar's grid: its title, else its task, as the headline, with at most one
+ * pill; under it who, on what model, a tool job's arguments, and the thread it runs in when that
+ * is not the view's. Then its calls, tokens and cost, its time, Open and Stop, each in its column.
+ * A job without its run's frames shows its name alone, as before.
  */
 export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, stop }: RowProps) {
   const { t } = useTranslation();
@@ -232,12 +232,13 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
   const [calls, tokens, cost] = useUsageCells(meta?.usage);
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
-  const headline = task || name;
+  const described = meta?.title || task;
+  const headline = described || name;
   const nested = item.depth > 0;
-  const { activity } = item;
-  const doing = activity && (item.subagent || activity.preview);
+  // A tool job's headline is its tool already: its line 2 is the call's arguments.
+  const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
-  const detail = (task && meta) || doing || elsewhere;
+  const detail = (described && meta) || doing || elsewhere;
   return (
     <li
       className={classNames(css.Job, nested && css.Nested)}
@@ -248,7 +249,7 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
       <JobLogo room={room} item={item} small={nested} />
       <span className={css.JobText}>
         <span className={css.Headline}>
-          <span className={css.Task} title={task ? task : item.name} dir="auto">
+          <span className={css.Task} title={meta?.task || item.name} dir="auto">
             {headline}
           </span>
           {waiting && (
@@ -273,12 +274,12 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
         </span>
         {detail && (
           <span className={css.Detail}>
-            {task && meta && (
+            {described && meta && (
               <span className={css.Name} title={agent.name}>
                 {agent.name}
               </span>
             )}
-            {task && modelLabel && (
+            {described && modelLabel && (
               <span
                 className={css.Model}
                 title={meta?.model && getAiRunModelLabel(meta.model)}
@@ -287,21 +288,9 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
                 {modelLabel}
               </span>
             )}
-            {task && modelLabel && doing && (
-              <span className={css.Model} aria-hidden>
-                ·
-              </span>
-            )}
             {doing && (
-              // A tool job's headline is its tool already: its line 2 is the call's arguments.
               <span className={css.Activity} data-job-activity>
-                {item.subagent && activity.tool}
-                {activity.preview && (
-                  <span className={css.Preview}>
-                    {item.subagent && ' '}
-                    {activity.preview}
-                  </span>
-                )}
+                <span className={css.Preview}>{doing}</span>
               </span>
             )}
             {elsewhere && <ThreadChip room={room} threadId={item.threadId!} />}

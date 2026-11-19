@@ -50,6 +50,8 @@ export type SubagentMeta = {
   usage?: SubagentUsage;
   /** Only on snapshots. */
   task?: string;
+  /** Only on snapshots of a run its `run_subagent` call named; MindRoom before the field sends none. */
+  title?: string;
   /** Only on snapshots of an ended run. */
   result?: string;
   /** On a failed turn a restart cut short, which MindRoom may continue with a later turn. */
@@ -90,7 +92,7 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
   if (!isRecord(value)) return null;
   const { agent, caller, root, parent, thread_id: threadId, source, status } = value;
   const { subagent = run, started_at: startedAt, ended_at: endedAt, model, task, result } = value;
-  const { interrupted_by_restart: interruptedByRestart } = value;
+  const { interrupted_by_restart: interruptedByRestart, title } = value;
   const usage = parseUsage(value.usage);
   if (typeof agent !== 'string' || typeof caller !== 'string' || typeof root !== 'string') {
     return null;
@@ -120,6 +122,7 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
     ...(modelInfo ? { model: modelInfo } : {}),
     ...(usage ? { usage } : {}),
     ...(task === undefined ? {} : { task }),
+    ...(typeof title === 'string' && title ? { title } : {}),
     ...(typeof result === 'string' ? { result } : {}),
     ...(interruptedByRestart === true ? { interruptedByRestart } : {}),
   };

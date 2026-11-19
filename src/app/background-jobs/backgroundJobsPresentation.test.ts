@@ -230,28 +230,15 @@ describe('presentBackgroundJobs, rich rows', () => {
     expect(item).not.toHaveProperty('activity');
   });
 
-  it("takes a sub-agent's activity from its run's newest tool, with its preview when sent", () => {
+  it('gives a sub-agent job no activity, whatever tool its run calls now', () => {
     const tools = [
-      { type: 'tool_call_completed', tool_name: 'read_file', args_preview: 'a.ts' },
       { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
     ];
-    const withPreview = present(
+    const presented = present(
       [subagentJob('job_1', 's1')],
       lookups([subagentRun('s1', { tools })])
     );
-    expect(withPreview?.items[0]!.activity).toEqual({
-      tool: 'run_shell_command',
-      preview: 'just test',
-    });
-    // With `show_tool_calls` off the frame carries no previews.
-    const bare = [{ type: 'tool_call_started', tool_name: 'run_shell_command' }];
-    const withoutPreview = present(
-      [subagentJob('job_1', 's1')],
-      lookups([subagentRun('s1', { tools: bare })])
-    );
-    expect(withoutPreview?.items[0]!.activity).toEqual({ tool: 'run_shell_command' });
-    const none = present([subagentJob('job_1', 's1')], lookups([subagentRun('s1')]));
-    expect(none?.items[0]).not.toHaveProperty('activity');
+    expect(presented?.items[0]).not.toHaveProperty('activity');
   });
 
   it("takes a tool job's activity from its reply's call, and none without the call's ID", () => {

@@ -25,7 +25,7 @@ export type BackgroundJobsBarItem = {
   startedAt: number;
   // A sub-agent's newest turn, joined by the sub-agent the job names; none before its first frame.
   run?: SubagentRun;
-  // What it does now: a sub-agent's newest tool call, or a tool job's own call in its reply.
+  // A tool job's own call in its reply; a sub-agent's row names its run instead of its calls.
   activity?: JobActivity;
   // How many listed sub-agent jobs it runs under, at most `MAX_JOB_DEPTH`.
   depth: number;
@@ -98,12 +98,7 @@ const joinJob = (
 ): Pick<BackgroundJobsBarItem, 'run' | 'activity' | 'agent'> => {
   if (job.kind === 'subagent') {
     const run = runOfJob(runs, job);
-    const activity = toolActivity(run?.docs.tools.at(-1));
-    return {
-      agent: run?.meta.agent ?? job.tool,
-      ...(run ? { run } : {}),
-      ...(activity ? { activity } : {}),
-    };
+    return { agent: run?.meta.agent ?? job.tool, ...(run ? { run } : {}) };
   }
   const activity = toolCallFor(job);
   return activity ? { activity } : {};

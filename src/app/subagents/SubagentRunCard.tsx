@@ -151,7 +151,8 @@ export const SubagentRunCard = memo(function SubagentRunCard({
     'compact'
   );
   const time = active ? formatCallDuration(now / 1000 - meta.startedAt, language) : ago;
-  const title = node.turns[0].run.meta.task?.split('\n', 1)[0] || agent.name;
+  const first = node.turns[0].run.meta;
+  const title = first.title || first.task?.split('\n', 1)[0] || agent.name;
   const preview = runPreview(meta, run.docs, t);
   const failed = isFailedRun(meta);
 

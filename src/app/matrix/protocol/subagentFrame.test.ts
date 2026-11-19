@@ -92,6 +92,16 @@ describe('sub-agent frames', () => {
     expect(parseSubagentFrame(frame({}))?.meta).not.toHaveProperty('model');
   });
 
+  it("keeps the run's title, and has none for a missing, empty or malformed one", () => {
+    const titled = frame({ meta: { ...meta, title: 'Measure cold start' } });
+    expect(parseSubagentFrame(titled)?.meta.title).toBe('Measure cold start');
+    [undefined, '', 3].forEach((title) =>
+      expect(parseSubagentFrame(frame({ meta: { ...meta, title } }))?.meta).not.toHaveProperty(
+        'title'
+      )
+    );
+  });
+
   it.each([
     ['a string', 'opus'],
     ['a number', 3],

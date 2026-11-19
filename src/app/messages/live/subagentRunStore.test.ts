@@ -107,13 +107,18 @@ describe('SubagentRunStore', () => {
     ]);
   });
 
-  it('takes the meta of the latest frame and the task and result of the latest snapshot', () => {
-    store.ingest(ROOM, AGENT, snapshot(0, 'Hello'), 1000);
+  it('takes the meta of the latest frame and the task, title and result of the latest snapshot', () => {
+    store.ingest(
+      ROOM,
+      AGENT,
+      snapshot(0, 'Hello', { extra: { task: 'Look it up.', title: 'Look up' } }),
+      1000
+    );
     store.ingest(ROOM, AGENT, append(1, 'Hello', '!', { status: 'awaiting_approval' }), 1100);
     expect(run()).toMatchObject({
       seq: 1,
       docs: docs('Hello!'),
-      meta: { status: 'awaiting_approval', task: 'Look it up.' },
+      meta: { status: 'awaiting_approval', task: 'Look it up.', title: 'Look up' },
     });
 
     store.ingest(
@@ -128,7 +133,7 @@ describe('SubagentRunStore', () => {
     store.ingest(ROOM, AGENT, append(3, 'Hello!', '?', { status: 'completed' }), 1300);
 
     expect(run()?.meta).toEqual(
-      meta('completed', { task: 'Look it up again.', result: 'Found it.' })
+      meta('completed', { task: 'Look it up again.', title: 'Look up', result: 'Found it.' })
     );
   });
 
