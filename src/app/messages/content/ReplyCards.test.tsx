@@ -17,7 +17,7 @@ const action = {
   revisionEventId: '$canvas',
   event: notice,
   requesterId: '@alice:example.org',
-} as ChatUiAction;
+} as Extract<ChatUiAction, { action: 'show_canvas' }>;
 const reminder: ParsedScheduledTask = {
   taskId: 'task1234',
   status: 'pending',
@@ -34,7 +34,7 @@ const renderCards = (enabled: boolean, unavailable?: string) => {
       <ChatUiActionContext.Provider
         value={{ read: () => action, unavailable: () => unavailable, activate }}
       >
-        <ReplyCards cards={[{ canvas: notice }, { reminder }]} />
+        <ReplyCards cards={[{ canvas: action }, { reminder }]} />
       </ChatUiActionContext.Provider>
     </ClientConfigProvider>
   );
@@ -51,13 +51,6 @@ describe('ReplyCards', () => {
     expect(activate).toHaveBeenCalledWith(notice);
     expect(screen.getByText('Weekly planning review')).toBeTruthy();
     expect(screen.getByText(/^Reminder · /)).toBeTruthy();
-  });
-
-  it('draws no canvas card, not even a disabled one, with canvases turned off', () => {
-    renderCards(false);
-
-    expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText('Weekly planning review')).toBeTruthy();
   });
 
   it('says why a canvas cannot open now', () => {

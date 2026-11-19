@@ -728,7 +728,9 @@ export const useTimelineMessageFeature = ({
         />
       );
       const cards = data.replyCards?.byReply.get(eventId);
-      cards?.forEach((card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas));
+      cards?.forEach(
+        (card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas.event)
+      );
       const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
         !readOnly &&

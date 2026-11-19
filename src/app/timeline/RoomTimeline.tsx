@@ -131,7 +131,6 @@ import {
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
 import { useReplyCardPlan } from './replyCards';
-import { useScheduledTaskEvents } from '../schedules/useScheduledTaskEvents';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
@@ -904,10 +903,11 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     revealed: pluginRevealedRef.current,
   });
   // What the open thread's agent replies left behind (a canvas, a reminder), cards under them.
-  const replyCards = useReplyCardPlan({
+  const replyCards = useReplyCardPlan(room, {
+    threadId,
     events: ownThreadEvents,
-    taskEvents: useScheduledTaskEvents(room),
     viewerId: mx.getUserId() ?? undefined,
+    isHidden: isHiddenByPlugin,
     revealed: pluginRevealedRef.current,
   });
   // A finished turn of the open thread folds its rows between the person's message and the answer

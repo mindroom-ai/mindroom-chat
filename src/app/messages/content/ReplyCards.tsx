@@ -1,16 +1,18 @@
 import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { MatrixEvent } from 'matrix-js-sdk';
 import { Icon, Icons, Text, type IconSrc } from 'folds';
 import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
-import { useClientConfig } from '../../config/useClientConfig';
+import type { ChatUiAction } from '../../matrix/protocol/chatUiProtocol';
 import {
   parseScheduleTimestamp,
   type ParsedScheduledTask,
 } from '../../matrix/protocol/scheduledTaskContract';
 import * as css from './ReplyCards.css';
 
-export type ReplyCard = { canvas: MatrixEvent } | { reminder: ParsedScheduledTask };
+/** A canvas as the viewer may open it (`readChatUiAction`), or a task. */
+export type ReplyCard =
+  | { canvas: Extract<ChatUiAction, { action: 'show_canvas' }> }
+  | { reminder: ParsedScheduledTask };
 
 const dateTime = (time: number, locale?: string) =>
   new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(time);
@@ -18,11 +20,10 @@ const dateTime = (time: number, locale?: string) =>
 type Drawn = { key: string; icon: IconSrc; title?: string; detail: string; open?: () => void };
 
 /** Cards under an agent's reply (timeline/replyCards.ts): a canvas it shared, which opens on click
- * or says why not (none with canvases off), and a reminder it scheduled. */
+ * or says why not, and a reminder it scheduled. */
 export function ReplyCards({ cards }: { cards: readonly ReplyCard[] }) {
   const { t, i18n } = useTranslation();
   const actions = useContext(ChatUiActionContext);
-  const canvasEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
   const drawn = cards.flatMap((card): Drawn[] => {
     if ('reminder' in card) {
       const { reminder } = card;
@@ -35,11 +36,11 @@ export function ReplyCards({ cards }: { cards: readonly ReplyCard[] }) {
       const detail = t('mindroomUi.uiActions.reminderCard', { when });
       return [{ key: reminder.taskId, icon: Icons.Clock, title: reminder.description, detail }];
     }
-    const action = canvasEnabled ? actions?.read(card.canvas) : undefined;
-    if (!actions || action?.action !== 'show_canvas') return [];
+    const action = card.canvas;
+    if (!actions) return [];
     const detail = actions.unavailable(action) ?? t('mindroomUi.uiActions.canvasCard');
     const { title } = action.canvas;
-    const open = () => actions.activate(card.canvas);
+    const open = () => actions.activate(action.event);
     return [{ key: action.eventId, icon: Icons.Category, title, detail, open }];
   });
   if (drawn.length === 0) return null;

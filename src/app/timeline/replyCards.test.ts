@@ -5,6 +5,8 @@ import {
   MINDROOM_SCHEDULED_TASK_EVENT,
   parseScheduledTaskStateEvent,
 } from '../matrix/protocol/scheduledTaskContract';
+import { readChatUiAction } from '../matrix/protocol/chatUiProtocol';
+import { getPendingRoomSchedules } from '../schedules/roomSchedules';
 
 const HELPER = '@mindroom_helper:example.org';
 const SCOUT = '@mindroom_scout:example.org';
@@ -70,17 +72,31 @@ const task = (workflow: Record<string, unknown>, status = 'pending') =>
     },
   });
 
+// Alice and the agents are joined; an agent that left can no longer show its canvas.
+const room = (left: string[] = []) => ({
+  roomId: '!room:example.org',
+  getMember: (userId: string) => ({ membership: left.includes(userId) ? 'leave' : 'join' }),
+});
+const read = (left?: string[]) => (event: MatrixEvent) =>
+  readChatUiAction(event, ALICE, room(left) as never);
+
 const plan = (
   events: MatrixEvent[],
   taskEvents: MatrixEvent[] = [],
-  revealed = new Set<string>()
+  opts: Partial<Omit<Parameters<typeof planReplyCards>[0], 'events' | 'tasks'>> = {}
 ) =>
   planReplyCards({
-    events,
-    taskEvents,
+    threadId: THREAD,
     viewerId: ALICE,
-    revealed,
+    readCanvas: read(),
+    isHidden: () => false,
+    revealed: new Set(),
+    ...opts,
+    events,
+    tasks: getPendingRoomSchedules(taskEvents),
   });
+
+const canvasOf = (notice: MatrixEvent) => ({ canvas: read()(notice) });
 
 describe('planReplyCards', () => {
   it("puts a canvas under its agent's reply to the same message and hides the notice", () => {
@@ -91,7 +107,7 @@ describe('planReplyCards', () => {
       notice,
     ]);
 
-    expect(result.byReply.get('$reply')).toEqual([{ canvas: notice }]);
+    expect(result.byReply.get('$reply')).toEqual([canvasOf(notice)]);
     expect([...result.hiddenEventIds]).toEqual(['$canvas']);
   });
 
@@ -113,7 +129,23 @@ describe('planReplyCards', () => {
 
   it('keeps an inline canvas, which is its own page, and a notice a jump opened', () => {
     expect(plan([reply('$reply'), canvasNotice('$canvas', { inline: true })])).toBe(NO_REPLY_CARDS);
-    expect(plan([reply('$reply'), canvasNotice('$canvas')], [], new Set(['$canvas']))).toBe(
+    const notice = canvasNotice('$canvas');
+    expect(plan([reply('$reply'), notice], [], { revealed: new Set(['$canvas']) })).toBe(
+      NO_REPLY_CARDS
+    );
+  });
+
+  it('keeps the notice where no card can show: canvases off, its agent left, its reply hidden', () => {
+    const events = [reply('$reply'), canvasNotice('$canvas')];
+    expect(plan(events, [], { readCanvas: undefined })).toBe(NO_REPLY_CARDS);
+    expect(plan(events, [], { readCanvas: read([HELPER]) })).toBe(NO_REPLY_CARDS);
+    expect(plan(events, [], { isHidden: (event) => event.getId() === '$reply' })).toBe(
+      NO_REPLY_CARDS
+    );
+  });
+
+  it('plans nothing outside a thread view', () => {
+    expect(plan([reply('$reply'), canvasNotice('$canvas')], [], { threadId: '' })).toBe(
       NO_REPLY_CARDS
     );
   });
@@ -125,8 +157,14 @@ describe('planReplyCards', () => {
     const events = [reply('$scout', SCOUT), notice, reply('$reply'), reply('$x', HELPER, '$y')];
     const result = plan(events, [task({ source_event_id: '$ask' })]);
 
-    expect(result.byReply.get('$reply')).toEqual([{ canvas: notice }, { reminder }]);
+    expect(result.byReply.get('$reply')).toEqual([canvasOf(notice), { reminder }]);
     expect([...result.byReply.keys()]).toEqual(['$reply']);
+  });
+
+  it("shows a reminder only in its own thread, not under another thread's reply to the message", () => {
+    const tasks = [task({ source_event_id: '$ask' })];
+    expect(plan([reply('$reply')], tasks, { threadId: '$other-root' })).toBe(NO_REPLY_CARDS);
+    expect(plan([reply('$reply')], tasks).byReply.get('$reply')).toHaveLength(1);
   });
 
   it('shows no reminder for a task saved before the link, or one no longer pending', () => {
