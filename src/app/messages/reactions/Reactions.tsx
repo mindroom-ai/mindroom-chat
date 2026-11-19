@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { Box, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +26,9 @@ type ReactionsProps = {
     targetEventId: string,
     key: string,
     shortcode: string | undefined,
-    relations: Relations
+    relations: Relations,
+    /** Stop sends a fresh stop, taking back one an earlier run left. */
+    resend?: boolean
   ) => void;
 };
 
@@ -86,6 +88,8 @@ export function Reactions({
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   useRelationsUpdates(relations);
+  // The agent's 🛑 the viewer pressed: the run it marks is stopping.
+  const [pressedStop, setPressedStop] = useState<string>();
 
   const myUserId = client.getUserId();
   // A MindRoom agent's question card shows its options and the answer; their chips would repeat them.
@@ -98,14 +102,35 @@ export function Reactions({
 
   if (annotations.length === 0) return null;
 
+  // The agent's 🛑 on its streaming reply is the reply's Stop. Pressed, it reads Stopping… while
+  // that 🛑 and the viewer's stop stay: a refused stop is taken back, a new run brings a new 🛑.
+  const stopEntry = annotations.find(([key, set]) => isAgentStopButton(key, [...set], targetEvent));
+  const stopEvents = stopEntry ? [...stopEntry[1]] : [];
+  const stopMarker = stopEvents.find((e) => e.getSender() === targetEvent?.getSender())?.getId();
+  const stopping =
+    !!stopMarker &&
+    stopMarker === pressedStop &&
+    stopEvents.some((e) => e.getSender() === myUserId);
+  const stopLabel = (text: string, shown: boolean) => (
+    <span className={shown ? css.StopLabel : css.StopLabelHidden} aria-hidden={!shown}>
+      {text}
+    </span>
+  );
+
   return (
     <Box className={css.ReactionsContainer} gap="200" wrap="Wrap">
-      {annotations.map(([key, eventSet]) => {
+      {/* Mounted with the Stop, so its Stopping… is announced once; the Stop keeps its name. */}
+      {stopEntry && (
+        <span role="status" className={css.StopStatus}>
+          {stopping ? t('mindroomUi.messages.stopReply.stopping') : ''}
+        </span>
+      )}
+      {annotations.map((annotation) => {
+        const [key, eventSet] = annotation;
         const events = Array.from(eventSet);
-        const stopButton = isAgentStopButton(key, events, targetEvent, myUserId);
+        const stopButton = annotation === stopEntry;
+        const pending = stopButton && stopping;
         const mine = events.some((event) => event.getSender() === myUserId);
-        // The viewer's own stop, sent or on its way, until the reply ends; a refused one is taken back.
-        const stopping = stopButton && mine;
         const shortcode = reactionShortcode(events);
         return (
           <TooltipProvider
@@ -124,25 +149,30 @@ export function Reactions({
             {(triggerRef) => (
               <Reaction
                 ref={triggerRef}
-                aria-pressed={mine}
+                // Stop is a command, not a toggle.
+                aria-pressed={stopButton ? undefined : mine}
+                aria-label={stopButton ? t('mindroomUi.messages.stopReply.label') : undefined}
                 mx={client}
                 useAuthentication={authenticatedMedia}
                 reaction={key}
                 count={events.length}
+                // Both labels in one cell: the chip keeps the wider one's size.
                 label={
-                  stopButton
-                    ? t(
-                        stopping
-                          ? 'mindroomUi.messages.stopReply.stopping'
-                          : 'mindroomUi.messages.stopReply.label'
-                      )
-                    : undefined
+                  stopButton && (
+                    <span className={css.StopLabels}>
+                      {stopLabel(t('mindroomUi.messages.stopReply.label'), !pending)}
+                      {stopLabel(t('mindroomUi.messages.stopReply.stopping'), pending)}
+                    </span>
+                  )
                 }
                 // Stopping keeps the chip, and the keyboard on it, until the reply ends.
-                {...(stopping && { 'aria-disabled': true, 'aria-live': 'polite', disabled: false })}
+                {...(pending && { 'aria-disabled': true, disabled: false })}
                 onClick={
-                  canToggle && !stopping
-                    ? () => onReactionToggle(mEventId, key, shortcode, relations)
+                  canToggle && !pending
+                    ? () => {
+                        if (stopButton) setPressedStop(stopMarker);
+                        onReactionToggle(mEventId, key, shortcode, relations, stopButton);
+                      }
                     : undefined
                 }
               />

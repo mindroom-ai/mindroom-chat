@@ -43,21 +43,16 @@ export const getRenderableAnnotationsByKey = (
 /**
  * The stop button itself: the agent's 🛑 reaction on its reply while
  * that reply streams. Clicking it adds the viewer's stop reaction, which
- * stops the reply. The viewer's own 🛑 keeps the button until the reply
- * ends: the agent takes its 🛑 back before its last edit.
+ * stops the reply.
  */
 export const isAgentStopButton = (
   key: string,
   events: readonly MatrixEvent[],
-  targetEvent: MatrixEvent | undefined,
-  viewerId?: string | null
+  targetEvent: MatrixEvent | undefined
 ): boolean =>
   key === '🛑' &&
   !!targetEvent &&
   (isUnreadableYet(targetEvent)
     ? isStreamingByServer(targetEvent) === true
     : isAiRunStreaming((getReadableContent(targetEvent) as Record<string, unknown>) ?? {})) &&
-  events.some((event) => {
-    const sender = event.getSender();
-    return sender === targetEvent.getSender() || (!!viewerId && sender === viewerId);
-  });
+  events.some((event) => event.getSender() === targetEvent.getSender());

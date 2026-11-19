@@ -464,6 +464,10 @@ export const IconButton = style([
 ]);
 
 const stopHover = { background: color.Critical.Container, color: color.Critical.Main };
+// In forced colors, where the hover tint is gone, a Stop keeps an edge.
+const stopEdge = {
+  '(forced-colors: active)': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
+};
 
 export const StopButton = style([
   touchTarget('8px'),
@@ -474,9 +478,7 @@ export const StopButton = style([
       '&:hover': stopHover,
       [`${Status} &, ${Action} &`]: inTitleLine,
     },
-    '@media': {
-      '(forced-colors: active)': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
-    },
+    '@media': stopEdge,
   },
 ]);
 
@@ -492,6 +494,7 @@ export const StopAll = style([
     paddingInline: config.space.S200,
     whiteSpace: 'nowrap',
     selectors: { '&:hover': stopHover, '&:focus-visible': keyboardRing },
+    '@media': stopEdge,
   },
 ]);
 

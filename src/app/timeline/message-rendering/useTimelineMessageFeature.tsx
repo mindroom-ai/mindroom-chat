@@ -174,7 +174,8 @@ type ReactionToggle = (
   targetEventId: string,
   key: string,
   shortcode: string | undefined,
-  relations?: Relations
+  relations?: Relations,
+  resend?: boolean
 ) => void;
 
 /** How long the note that a reaction could not be changed stays under its message. */
@@ -237,7 +238,7 @@ const useReactionToggle = (room: Room, threadId: string | undefined) => {
     return () => clearTimeout(timer);
   }, [failure]);
   const toggle = useCallback<ReactionToggle>(
-    (targetEventId, key, shortcode, relations) => {
+    (targetEventId, key, shortcode, relations, resend) => {
       sendReactionToggle(client, {
         room,
         threadId,
@@ -245,6 +246,7 @@ const useReactionToggle = (room: Room, threadId: string | undefined) => {
         key,
         shortcode,
         relations,
+        resend,
       }).catch(() => setFailure({ eventId: targetEventId }));
     },
     [client, room, threadId]

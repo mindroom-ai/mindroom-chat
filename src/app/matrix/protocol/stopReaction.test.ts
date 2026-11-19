@@ -104,15 +104,6 @@ describe('isAgentStopButton', () => {
     expect(isAgentStopButton('🛑', [reaction('@agent:mindroom.chat')], streaming)).toBe(true);
   });
 
-  it("stays the stop button with only the viewer's own stop, until the reply ends", () => {
-    const viewer = '@bas:mindroom.chat';
-    expect(isAgentStopButton('🛑', [reaction(viewer)], streaming, viewer)).toBe(true);
-    expect(isAgentStopButton('🛑', [reaction(viewer)], reply({}), viewer)).toBe(false);
-    expect(isAgentStopButton('🛑', [reaction('@alice:mindroom.chat')], streaming, viewer)).toBe(
-      false
-    );
-  });
-
   it.each([
     ['a person reacted', '🛑', '@bas:mindroom.chat', streaming],
     ['another key', '⏹️', '@agent:mindroom.chat', streaming],

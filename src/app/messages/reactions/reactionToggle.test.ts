@@ -109,4 +109,32 @@ describe('toggleReaction', () => {
         .filter((event) => event.status === EventStatus.NOT_SENT)
     ).toEqual([]);
   });
+
+  it('resends a reaction the user left earlier, as a Stop for a later run does', async () => {
+    const { mx, room, reactions, fetchFn } = await setup(200);
+    const earlier = new MatrixEvent({
+      event_id: '$earlier',
+      type: EventType.Reaction,
+      room_id: ROOM_ID,
+      sender: ME,
+      origin_server_ts: 2,
+      content: {
+        'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$message', key: '🛑' },
+      },
+    });
+    await room.addLiveEvents([earlier], { addToState: false });
+
+    await toggleReaction(mx, {
+      room,
+      targetEventId: '$message',
+      key: '🛑',
+      relations: reactions(),
+      resend: true,
+    });
+
+    // The server refuses a second equal reaction: the earlier one is taken back first.
+    const urls = fetchFn.mock.calls.map((call) => String((call as unknown[])[0]));
+    expect(urls.map((url) => url.match(/\/(redact|send)\//)?.[1])).toEqual(['redact', 'send']);
+    expect(urls[0]).toContain('/redact/%24earlier/');
+  });
 });
