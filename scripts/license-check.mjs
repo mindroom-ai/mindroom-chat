@@ -37,6 +37,7 @@ const EXCEPTIONS = {
   'require-like': 'MIT license text ships in the package; package.json has no license field',
   'caniuse-lite': 'CC-BY-4.0 browser data used by build tooling only, never shipped in the bundle',
   jsonify: 'Public Domain (no SPDX id); dev-only, pulled in by @capacitor/cli, never shipped',
+  khroma: 'MIT license text ships in the package; package.json has no license field (in Mermaid)',
 };
 
 // SPDX expression grammar: or := and (OR and)*; and := atom (AND atom)*; atom := '(' or ')' | id [WITH id].

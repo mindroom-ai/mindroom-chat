@@ -18,6 +18,7 @@ import {
 } from './scripts/e2e-plugin-pages.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
 import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
+import { CANVAS_LIBRARY_DIR, canvasLibraryFiles } from './scripts/canvas-libraries.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
 import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
@@ -93,6 +94,8 @@ const precacheGlobIgnores = [
   'authentication-recovery.js',
   'version.json',
   `${SPEECH_MODEL_DIR}/**`,
+  // Only canvas pages that name a library load it, from a frame the worker does not serve.
+  `${CANVAS_LIBRARY_DIR}/**`,
 ];
 
 // The added string overlays (src/app/i18n/localeAdditions.ts): one JSON file per language, in the
@@ -195,7 +198,10 @@ const repository = fileURLToPath(new URL('.', import.meta.url));
 const pluginDirs = pluginDirectories(process.env.E2E_PLUGIN_DIRS, repository);
 
 export default defineConfig({
-  define: { __MINDROOM_SPEECH_MODEL__: JSON.stringify(SPEECH_MODEL_DIR) },
+  define: {
+    __MINDROOM_SPEECH_MODEL__: JSON.stringify(SPEECH_MODEL_DIR),
+    __MINDROOM_CANVAS_LIBRARIES__: JSON.stringify(CANVAS_LIBRARY_DIR),
+  },
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
   plugins: [
     // Only active when Playwright (see playwright.config.ts) or a live deployment (the dev repo's
@@ -221,6 +227,7 @@ export default defineConfig({
           thirdPartyNoticesPlugin(),
           // Before startup.plugin, which reads the bundle's inventory.
           speechModelFiles(),
+          canvasLibraryFiles(),
           startup.plugin,
           // The worker only once the app's bundle is written, so a failed build keeps its own error.
           ...startup.afterWrittenBundle(serviceWorkerPlugin),

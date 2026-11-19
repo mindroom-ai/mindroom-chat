@@ -1,3 +1,4 @@
+import { CANVAS_LIBRARY_NAMES, canvasLibraries } from './canvasLibraries';
 import { canvasThemeCss, FALLBACK_CANVAS_THEMES, type CanvasTheme } from './canvasTheme';
 
 export const CANVAS_SUBMIT_MESSAGE = 'mindroom.canvas.submit';
@@ -63,7 +64,7 @@ export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
  */
 export const CANVAS_WRAPPER_SANDBOX = 'allow-scripts allow-forms';
 
-/** Any npm package at a version; the only source a deployment can let canvases load libraries from. */
+/** Any npm package at a version; the only outside source a deployment can let canvases load libraries from. */
 export const CANVAS_LIBRARY_SOURCE = 'https://cdn.jsdelivr.net/npm/';
 
 /**
@@ -73,14 +74,21 @@ export const CANVAS_LIBRARY_SOURCE = 'https://cdn.jsdelivr.net/npm/';
  * With remote assets on, it may load scripts, styles, fonts, images, and media from any https:
  * address, for previews that use a site's real assets; the same exposure, to any host, so that is
  * a separate opt-in. Connections, frames, workers, and form submissions stay blocked either way.
+ * A page that names libraries Chat serves itself may load scripts and styles from their directory
+ * (`pinned`, their exact addresses by type), which involves no third party.
  */
-export const canvasPolicy = (libraries: boolean, remote = false): string => {
+export const canvasPolicy = (
+  libraries: boolean,
+  remote = false,
+  pinned: { scripts: readonly string[]; styles: readonly string[] } = { scripts: [], styles: [] }
+): string => {
   const https = remote ? ' https:' : '';
   const source = `${libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : ''}${https}`;
+  const own = (urls: readonly string[]) => urls.map((url) => ` ${url}`).join('');
   return [
     "default-src 'none'",
-    `script-src 'unsafe-inline'${source}`,
-    `style-src 'unsafe-inline'${source}`,
+    `script-src 'unsafe-inline'${own(pinned.scripts)}${source}`,
+    `style-src 'unsafe-inline'${own(pinned.styles)}${source}`,
     `img-src data: blob:${https}`,
     `font-src data:${source}`,
     `media-src data: blob:${https}`,
@@ -305,7 +313,8 @@ const bridgeScript = (
   colorScheme: CanvasColorScheme,
   lineOffset: number,
   saved: CanvasSaved,
-  inline: boolean
+  inline: boolean,
+  unknownLibraries: string[]
 ): string => `(() => {
   // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
   const userActive = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined;
@@ -362,7 +371,14 @@ ${inline ? sizeScript : ''}  const post = (data, options) => {
     blocked.add(event.blockedURI);
     report('Blocked ' + (event.blockedURI || 'inline code') + ' (' + event.effectiveDirective + ')');
   });
-  const saveState = (value) => {
+${unknownLibraries
+  .map(
+    (name) =>
+      `  report(${scriptLiteral(
+        `Unknown library "${name}"; Chat serves ${CANVAS_LIBRARY_NAMES.join(', ')}`
+      )});\n`
+  )
+  .join('')}  const saveState = (value) => {
     const json = JSON.stringify(value);
     if (json === undefined) throw new TypeError('mindroom.saveState needs a JSON value.');
     if (json.length > ${CANVAS_STATE_MAX_LENGTH}) {
@@ -398,9 +414,15 @@ const BASE_STYLE =
 
 /**
  * How a page is shown: in the thread, fitted to its height (`inline`); exactly as written, with no
- * theme variables, base style, or color scheme from Chat (`raw`); and with remote assets (`remote`).
+ * theme variables, base style, or color scheme from Chat (`raw`); with remote assets (`remote`); and
+ * with the libraries Chat serves that its revision names (`pinned`, from `canvas.libraries`).
  */
-export type CanvasDisplay = { inline?: boolean; raw?: boolean; remote?: boolean };
+export type CanvasDisplay = {
+  inline?: boolean;
+  raw?: boolean;
+  remote?: boolean;
+  pinned?: readonly string[];
+};
 
 /** A frame with both schemes uses the browser's preferred one, whatever Chat's theme is. */
 export const RAW_COLOR_SCHEME = 'light dark';
@@ -422,16 +444,23 @@ export const buildCanvasPage = (
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false,
   saved: CanvasSaved = {},
-  { inline = false, raw = false, remote = false }: CanvasDisplay = {}
+  { inline = false, raw = false, remote = false, pinned }: CanvasDisplay = {}
 ): string => {
+  const served = canvasLibraries(pinned);
   const head = (lineOffset: number) =>
     [
       '<!doctype html><html><head><meta charset="utf-8">',
-      `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries, remote)}">`,
+      `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(
+        libraries,
+        remote,
+        served
+      )}">`,
       raw ? '' : `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
       raw ? '' : pageStyle(theme, inline),
-      `<script>${bridgeScript(colorScheme, lineOffset, saved, inline)}</script>`,
+      `<script>${bridgeScript(colorScheme, lineOffset, saved, inline, served.unknown)}</script>`,
+      // After the bridge, so a library that fails to load is reported.
+      served.tags,
       '</head><body>',
     ].join('');
   // The agent's markup starts on the line after this many line breaks; the number adds none.
@@ -442,7 +471,7 @@ export const buildCanvasPage = (
 /**
  * The document of the panel's frame: it creates the canvas frame itself, so the load listener is in
  * place before the canvas loads. The canvas's document is inline, so a second load means it navigated.
- * The canvas frame inherits this policy on top of its own, so it allows the same library source.
+ * The canvas frame inherits this policy on top of its own, so it allows the same library sources.
  */
 export const buildCanvasDocument = (
   html: string,
@@ -457,7 +486,8 @@ export const buildCanvasDocument = (
     '<!doctype html><html><head><meta charset="utf-8">',
     `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(
       libraries,
-      display.remote
+      display.remote,
+      canvasLibraries(display.pinned)
     )}">`,
     // A raw page's prefers-color-scheme follows its frame's color scheme, so its frames take the
     // browser's preference instead of Chat's theme, as if the page were opened on its own.

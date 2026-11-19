@@ -173,9 +173,19 @@ function LoadedInlineCanvas({
               inline: true,
               raw: action.canvas.raw === true,
               remote,
+              pinned: action.canvas.libraries,
             }
           ),
-    [html, colorScheme, theme, action.canvas.title, action.canvas.raw, libraries, remote]
+    [
+      html,
+      colorScheme,
+      theme,
+      action.canvas.title,
+      action.canvas.raw,
+      action.canvas.libraries,
+      libraries,
+      remote,
+    ]
   );
   if (doc === undefined)
     return (

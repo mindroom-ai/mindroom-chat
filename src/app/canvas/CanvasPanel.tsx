@@ -44,6 +44,8 @@ export type CanvasView = {
   html: string;
   /** Shown exactly as written, without Chat's styles. */
   raw?: true;
+  /** The libraries Chat serves that this revision names. */
+  libraries?: string[];
   /** An uploaded page that is still downloading, or could not be loaded. */
   status?: 'loading' | 'failed';
 };
@@ -158,7 +160,7 @@ export function CanvasPanel({
         displayed.title,
         libraries,
         savedState?.(),
-        { raw: displayed.raw === true, remote }
+        { raw: displayed.raw === true, remote, pinned: displayed.libraries }
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [displayed, libraries, remote, reloads]
