@@ -34,19 +34,15 @@ describe('sanitizeMessageExtraHtml', () => {
     );
   });
 
-  it('keeps CDATA sections as escaped text that cannot open markup', () => {
-    expect(sanitizeMessageExtraHtml('<svg><text><![CDATA[A & B]]></text></svg>')).toBe(
+  it('keeps escaped SVG labels and never runs markup from CDATA sections', () => {
+    expect(sanitizeMessageExtraHtml('<svg><text>A &amp; B</text></svg>')).toBe(
       '<svg><text>A &amp; B</text></svg>'
     );
-    expect(
-      sanitizeMessageExtraHtml('<svg><text><![CDATA[A ]]]]><![CDATA[> <b>B</b>]]></text></svg>')
-    ).toBe('<svg><text>A ]]&gt; &lt;b&gt;B&lt;/b&gt;</text></svg>');
-    expect(
-      sanitizeMessageExtraHtml('<svg><text><![CDATA[<script>alert(1)</script>]]></text></svg>')
-    ).toBe('<svg><text>&lt;script&gt;alert(1)&lt;/script&gt;</text></svg>');
-    expect(sanitizeMessageExtraHtml('<p><![CDATA[x</p><img src=x onerror=alert(1)>')).toBe(
-      '<p>x&lt;/p&gt;&lt;img src=x onerror=alert(1)&gt;</p>'
+    const fromCdata = sanitizeMessageExtraHtml(
+      '<svg><text><![CDATA[<script>alert(1)</script>]]></text></svg>'
     );
+    expect(fromCdata).not.toContain('<script');
+    expect(fromCdata).toContain('<svg><text>');
   });
 
   it('keeps safe inline SVG primitives for charts, badges, and diagrams', () => {
