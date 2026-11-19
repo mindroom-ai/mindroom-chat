@@ -14,7 +14,7 @@ case "$run" in wk-*) ;; *) echo "webkit-ab: bad WK_RUN" >&2; exit 2 ;; esac
 run_dir=/tmp/$run
 export E2E_SNAPSHOT_ROOT=$run_dir/snap E2E_AGENT_STACK_ROOT=$run_dir/agents
 export PERF_REAL_WORK=1
-export PLAYWRIGHT_WEBKIT_EXECUTABLE=${PLAYWRIGHT_WEBKIT_EXECUTABLE:-$(ls -d "$HOME"/Library/Caches/ms-playwright/webkit-*/pw_run.sh | tail -n 1)}
+export PLAYWRIGHT_WEBKIT_EXECUTABLE=${PLAYWRIGHT_WEBKIT_EXECUTABLE:-$(ls -d "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"/webkit-*/pw_run.sh | tail -n 1)}
 job=$PWD
 export WK_OUT=$job/test-results/perf
 finish() {
@@ -37,6 +37,7 @@ scripts/e2e-slot.sh "$slot" --snapshot --preview bash -c '
     mkdir -p "$WK_OUT/run$i-$engine"
     cp -a test-results/perf/real-work/. "$WK_OUT/run$i-$engine/" || true
     echo "$rc" >"$WK_OUT/run$i-$engine/exit"
+    find test-results -name error-context.md -exec cp {} "$WK_OUT/run$i-$engine/" \; 2>/dev/null || true
     echo "webkit-ab: run $i $engine exit $rc $(date +%H:%M:%S)"
   done
 '

@@ -526,6 +526,56 @@ const idle = async (run: Run): Promise<void> => {
   await run.page.waitForTimeout(30_000);
 };
 
+/**
+ * Throwaway: Back and a card, `turns` times, waiting 5 s for the thread; a press that opened none
+ * is dumped (the input events the page saw, what is under the card, a screenshot) and pressed again.
+ */
+const switchDebug = async (run: Run, turns: number): Promise<Measured> => {
+  const { page } = run;
+  const failures: unknown[] = [];
+  const timings: Timing[] = [];
+  let current = run.shown;
+  for (let turn = 1; turn <= turns; turn += 1) {
+    await back(page).click();
+    await expect(page.locator(ROW)).toHaveCount(0);
+    const { root } = await pickThread(run, current);
+    current = root;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const before = await page.evaluate(() => Math.round(performance.now()));
+      const startedAt = Date.now();
+      await card(page, root).click();
+      const opened = await banner(page)
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (opened) {
+        await expect(page.locator(ROW).first()).toBeVisible({ timeout: 30_000 });
+        timings.push({ name: `debug-switch-${turn}`, ms: Date.now() - startedAt });
+        break;
+      }
+      const label = `switch-debug-${run.engine}-turn${turn}-attempt${attempt}`;
+      await debugDump(page, label);
+      const state = JSON.parse(readFileSync(join(OUT_DIR, `${label}-failed.json`), 'utf8')) as {
+        events?: { t: number }[];
+      };
+      failures.push({
+        turn,
+        attempt,
+        root: root.slice(-6),
+        clickStartedAt: before,
+        eventsSince: (state.events ?? []).filter((event) => event.t >= before - 5),
+      });
+    }
+    await page.waitForTimeout(500);
+  }
+  writeFileSync(
+    join(OUT_DIR, `switch-debug-${run.engine}.json`),
+    `${JSON.stringify({ turns, failed: failures.length, failures }, null, 2)}\n`
+  );
+  console.log(`SWITCH-DEBUG ${run.engine}: ${failures.length} of ${turns} presses opened no thread`);
+  return { timings };
+};
+
 const SCENARIO: Record<
   Scenario,
   {
@@ -572,6 +622,7 @@ const SCENARIO: Record<
   switch: {
     prepare: showThread,
     measure: async (run) => {
+      if (process.env.PERF_SWITCH_DEBUG) return switchDebug(run, Number(process.env.PERF_SWITCH_DEBUG));
       const { page } = run;
       const timings: Timing[] = [];
       let openedStreaming = true;
@@ -1034,6 +1085,12 @@ test.describe('PERF: real work under the backend load', () => {
               xy: [(event as MouseEvent).clientX, (event as MouseEvent).clientY],
               prevented: false,
               path: location.pathname.split('/').map((part) => part.length).join('/'),
+              cardTop: (() => {
+                const card = event.target instanceof Element ? event.target.closest('[data-thread-root-id]') : null;
+                return card ? Math.round(card.getBoundingClientRect().top) : null;
+              })(),
+              connected: event.target instanceof Node ? event.target.isConnected : null,
+              detail: (event as MouseEvent).detail,
             };
             log.push(entry);
             if (log.length > 400) log.shift();
