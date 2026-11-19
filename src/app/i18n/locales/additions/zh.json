@@ -831,7 +831,10 @@
         "subagents": "子智能体"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "已运行 {{duration}}"
+        "toolRunningFor": "已运行 {{duration}}",
+        "toolCallFailed": "未完成",
+        "toolCallsAlsoFailed": "· {{failed}} 个未完成",
+        "toolCallsRanFailed_other": "已执行 {{count}} 次工具调用 · {{failed}} 个未完成"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "标题设置…"

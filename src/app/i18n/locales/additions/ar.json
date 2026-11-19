@@ -896,7 +896,15 @@
         "subagents": "الوكلاء الفرعيون"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩"
+        "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
+        "toolCallFailed": "لم يكتمل",
+        "toolCallsAlsoFailed": "· عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "إعدادات العناوين…"

@@ -844,7 +844,11 @@
         "subagents": "Sub-agents"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Running for {{duration}}"
+        "toolRunningFor": "Running for {{duration}}",
+        "toolCallFailed": "Didn't complete",
+        "toolCallsAlsoFailed": "· {{failed}} didn't complete",
+        "toolCallsRanFailed_one": "Ran {{count}} tool call · {{failed}} didn't complete",
+        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} didn't complete"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Title settings…"

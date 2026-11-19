@@ -870,7 +870,13 @@
         "subagents": "Субагенты"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Выполняется уже {{duration}}"
+        "toolRunningFor": "Выполняется уже {{duration}}",
+        "toolCallFailed": "Не завершён",
+        "toolCallsAlsoFailed": "· не завершено: {{failed}}",
+        "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · не завершено: {{failed}}",
+        "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
+        "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · не завершено: {{failed}}",
+        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Настройки названий…"

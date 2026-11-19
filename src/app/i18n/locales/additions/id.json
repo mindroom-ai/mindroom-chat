@@ -831,7 +831,10 @@
         "subagents": "Subagen"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Berjalan selama {{duration}}"
+        "toolRunningFor": "Berjalan selama {{duration}}",
+        "toolCallFailed": "Tidak selesai",
+        "toolCallsAlsoFailed": "· {{failed}} tidak selesai",
+        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} tidak selesai"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul…"
