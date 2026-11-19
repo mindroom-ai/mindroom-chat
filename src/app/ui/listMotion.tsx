@@ -286,6 +286,8 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
   }, [listRef, order]);
 
   useEffect(() => {
+    // Rendered outside a page (a unit test in node), there is no press to listen for.
+    if (typeof window === 'undefined') return undefined;
     const held: Animation[] = [];
     const letGo = () =>
       held.splice(0).forEach((animation) => {
