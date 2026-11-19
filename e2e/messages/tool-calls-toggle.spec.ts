@@ -62,8 +62,8 @@ const seed = async () => {
     agent.accessToken,
     roomId,
     threadReply(doneRoot, {
-      body: `🔧 \`web_search\` [1]\n\n${BETWEEN}\n\n🔧 \`run_python_code\` [2]\n\n${ANSWER}`,
-      formatted_body: `<p>🔧 <code>web_search</code> [1]</p><p>${BETWEEN}</p><p>🔧 <code>run_python_code</code> [2]</p><p>${ANSWER}</p>`,
+      body: `🔧 \`search_arxiv\` [1]\n\n${BETWEEN}\n\n🔧 \`run_python_code\` [2]\n\n${ANSWER}`,
+      formatted_body: `<p>🔧 <code>search_arxiv</code> [1]</p><p>${BETWEEN}</p><p>🔧 <code>run_python_code</code> [2]</p><p>${ANSWER}</p>`,
       'io.mindroom.stream_status': 'completed',
       'io.mindroom.reasoning': {
         text: 'Benchmarks first, then our Q3 numbers.',
@@ -72,7 +72,7 @@ const seed = async () => {
       'io.mindroom.tool_trace': {
         version: 2,
         events: [
-          { type: 'tool_call_completed', tool_name: 'web_search', result_preview: '8 results' },
+          { type: 'tool_call_completed', tool_name: 'search_arxiv', result_preview: '8 results' },
           { type: 'tool_call_completed', tool_name: 'run_python_code', result_preview: '0.029' },
         ],
       },
@@ -165,7 +165,7 @@ test('agent replies hide their tool calls until a thread or room shows them', as
   await expect(cog).toHaveAttribute('data-state', 'done');
   await expect(cogButton).toHaveAccessibleName('Used 2 tools');
   await expect(cogButton).toHaveText('2');
-  await expect(toolLines(page, 'web_search')).toHaveCount(0);
+  await expect(toolLines(page, 'search_arxiv')).toHaveCount(0);
   await expect(toolLines(page, 'run_python_code')).toHaveCount(0);
   const thought = page.getByRole('button', { name: 'Thought for 12 s' });
   await expect(thought).toBeVisible();
@@ -180,7 +180,7 @@ test('agent replies hide their tool calls until a thread or room shows them', as
 
   // Open, each run shows where it ran, folded as when tool calls show; its line opens its calls.
   await cogButton.click();
-  const search = toolLines(page, 'web_search');
+  const search = toolLines(page, 'search_arxiv');
   const python = toolLines(page, 'run_python_code');
   await expect(search).toHaveAttribute('aria-expanded', 'false');
   await expect(python).toHaveAttribute('aria-expanded', 'false');
@@ -193,21 +193,21 @@ test('agent replies hide their tool calls until a thread or room shows them', as
   await expect(page.getByText('8 results', { exact: true })).toBeVisible();
   await shot(page, 'thread-cog-run-open');
   await cogButton.click();
-  await expect(toolLines(page, 'web_search')).toHaveCount(0);
+  await expect(toolLines(page, 'search_arxiv')).toHaveCount(0);
 
   // The thread menu shows them in this thread, and the choice stays.
   await chooseShowToolCalls(page, 'Thread options', false, 'menu-thread');
-  await expect(toolLines(page, 'web_search')).toHaveCount(1);
+  await expect(toolLines(page, 'search_arxiv')).toHaveCount(1);
   await expect(cog).toHaveCount(0);
   await page.reload();
   await expect(answer).toBeVisible({ timeout: 60_000 });
-  await expect(toolLines(page, 'web_search')).toHaveCount(1);
+  await expect(toolLines(page, 'search_arxiv')).toHaveCount(1);
   await chooseShowToolCalls(page, 'Thread options', true);
-  await expect(toolLines(page, 'web_search')).toHaveCount(0);
+  await expect(toolLines(page, 'search_arxiv')).toHaveCount(0);
 
   // The room menu shows them in every thread of the room.
   await chooseShowToolCalls(page, 'More Options', false, 'menu-room');
-  await expect(toolLines(page, 'web_search')).toHaveCount(1);
+  await expect(toolLines(page, 'search_arxiv')).toHaveCount(1);
   await openThread(world.runningRoot);
   await expect(toolLines(page, 'fetch_invoices')).toHaveCount(1, { timeout: 60_000 });
   await expect(cog).toHaveCount(0);

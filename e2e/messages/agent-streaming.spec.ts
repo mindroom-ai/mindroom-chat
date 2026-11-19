@@ -80,7 +80,7 @@ test('tool calls show a running row, then one row for the run that expands to ea
   });
   const done = await waitForAgentReply(stack, rootId, (body) => /Finished \*{0,2}multi/.test(body));
   const reply = messageRow(page, done.event_id);
-  const tools = reply.getByRole('button', { name: /^Ran 3 tool calls/ });
+  const tools = reply.getByRole('button', { name: /^Ran 3 commands/ });
   await expect(tools).toBeVisible({ timeout: 30_000 });
   // The answer sits a paragraph's spacing (8 px) below the row: the blank line MindRoom writes
   // after each tool marker leaves no empty line, in the live frames and in the final edit.
@@ -94,7 +94,6 @@ test('tool calls show a running row, then one row for the run that expands to ea
   await page.waitForTimeout(13_000);
   await expect(tools).toBeVisible();
   expect(Math.abs((await gapBelowRow()) - 8)).toBeLessThanOrEqual(2);
-  await expect(tools).toContainText('run_shell_command ×3');
   await expect(reply.getByText('step two', { exact: false })).toHaveCount(0);
 
   await tools.click();

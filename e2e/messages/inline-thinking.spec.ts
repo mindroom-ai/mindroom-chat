@@ -31,10 +31,11 @@ const LONG_STEPS = Array.from(
 const LONG_DONE = 'Every case checked.';
 
 type Tool = { name: string; args: string; result: string };
-const READ: Tool = { name: 'read_file', args: 'path=src/date.ts', result: '84 lines' };
-const GREP: Tool = { name: 'grep', args: 'pattern=parseDate', result: '3 matches' };
+// Tools the rows name as they are (toolWords.ts names the most used ones in words).
+const READ: Tool = { name: 'read_notes', args: 'path=src/date.ts', result: '84 lines' };
+const GREP: Tool = { name: 'search_notes', args: 'pattern=parseDate', result: '3 matches' };
 const GREP_TESTS: Tool = {
-  name: 'grep',
+  name: 'search_notes',
   args: 'pattern=offset src/date.test.ts',
   result: '1 match',
 };
@@ -234,10 +235,10 @@ test('the bulb shows each thought after the run it followed, beside the cog', as
     .locator(':scope > [id]');
   await expect(calls).toBeVisible();
   // Its calls, in the order they ran.
-  await expect(calls.getByText(/^(read_file|grep|shell)$/)).toHaveText([
-    'read_file',
-    'grep',
-    'grep',
+  await expect(calls.getByText(/^(read_notes|search_notes|shell)$/)).toHaveText([
+    'read_notes',
+    'search_notes',
+    'search_notes',
   ]);
   await expectInOrder(
     [segments[0]!, firstRun, calls, segments[1]!, between, shellRun, segments[2]!, done],
@@ -325,10 +326,10 @@ test('thinking between two calls in a row splits their run, and old replies thin
       second,
       toolRows(split).nth(1),
     ],
-    ['thought 1', 'read_file', 'thought 2', 'grep']
+    ['thought 1', 'read_notes', 'thought 2', 'search_notes']
   );
-  await expect(toolRows(split).nth(0)).toContainText('read_file');
-  await expect(toolRows(split).nth(1)).toContainText('grep');
+  await expect(toolRows(split).nth(0)).toContainText('read_notes');
+  await expect(toolRows(split).nth(1)).toContainText('search_notes');
   await splitBulb.click();
   await expect(second).toHaveCount(0);
   await expect(toolRows(split)).toHaveCount(1);

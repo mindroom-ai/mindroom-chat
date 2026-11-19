@@ -30,9 +30,9 @@ const VIEWPORTS = [
 
 type ListWatch = { changes: string[] };
 
-/** The reply's tool-call line: the button that opens its list. */
+/** The reply's tool-call line: the button that opens its list ("Ran 3 commands" once done). */
 const toolLine = (row: Locator): Locator =>
-  row.getByRole('button', { name: /\d+ tool calls?\b/ });
+  row.getByRole('button', { name: /\d+ (?:tool calls?|commands?)\b/ });
 
 /**
  * Marks the open list's button, and every element up to the reply's row, and records each change
@@ -44,13 +44,13 @@ const watchList = (page: Page, eventId: string) =>
     const watch: ListWatch = { changes: [] };
     (window as unknown as { listWatch: ListWatch }).listWatch = watch;
     const started = performance.now();
-    // The line's text runs its title into its detail ("Ran 3 tool callsrun_shell_command").
+    // The line's text runs its title into its detail ("Running 3 tool callsrun_shell_command ×3").
     const find = () =>
       [
         ...document.querySelectorAll(
           `[data-message-id="${id}"] [data-message-disclosure] > button[aria-expanded]`
         ),
-      ].find((button) => /\d+ tool calls?/.test(button.textContent ?? ''));
+      ].find((button) => /\d+ (?:tool calls?|commands?)/.test(button.textContent ?? ''));
     for (
       let element: Element | null = find() ?? null;
       element && !element.hasAttribute('data-message-id');
@@ -134,7 +134,7 @@ for (const { name, viewport, hasTouch } of VIEWPORTS) {
         await watchList(page, replyId);
 
         await waitForAgentReply(stack, rootId, (body) => /Finished \*{0,2}multi/.test(body));
-        await expect(line).toContainText('Ran 3 tool calls', { timeout: 30_000 });
+        await expect(line).toContainText('Ran 3 commands', { timeout: 30_000 });
         // Past the live frames' freshness the reply shows its final edit.
         await page.waitForTimeout(13_000);
         expect(await listChanges(page)).toEqual([]);

@@ -21,7 +21,8 @@ import {
 test.describe.configure({ timeout: 300_000 });
 
 const APPROVAL_EVENT = 'io.mindroom.tool_approval';
-const RAN = /^Ran \d+ tool calls?$/;
+// A shell call that ran says so in words (toolWords.ts).
+const RAN = /^Ran \d+ (?:tool calls?|commands?)$/;
 
 // APPROVAL_STATES_SHOTS=<directory> saves the states the tests check as screenshots there.
 const shot = async (page: Page, name: string) => {
@@ -54,10 +55,10 @@ const waitForShellReply = (stack: AgentStack, rootId: string): Promise<MatrixEve
     { description: "the helper's reply with its shell call" }
   );
 
-/** The title of a reply's tool row, as "Ran 1 tool call" or "Denied 1 tool call". */
+/** The title of a reply's tool row, as "Ran 1 command" or "Denied 1 tool call". */
 const toolRowTitle = (page: Page, replyId: string) =>
   messageRow(page, replyId)
-    .getByText(/tool calls?/)
+    .getByText(/tool calls?|commands?$/)
     .first();
 
 const openReview = async (page: Page) => {
@@ -124,7 +125,7 @@ test('a call the reply stopped waiting for shows as waiting until it is approved
   await expect(dialog).toContainText('Approved', { timeout: 60_000 });
   await dialog.getByRole('button', { name: 'Close' }).click();
   await waitForApproval(stack, rootId, 'approved');
-  await expect(toolRowTitle(page, reply.event_id)).toHaveText('Ran 1 tool call', {
+  await expect(toolRowTitle(page, reply.event_id)).toHaveText('Ran 1 command', {
     timeout: 30_000,
   });
   await shot(page, 'late-approved-row');
@@ -140,7 +141,10 @@ test('Stop on a reply that waits for approval never says the call ran, and stopp
   await waitForApproval(stack, rootId, 'pending');
   const reply = await waitForShellReply(stack, rootId);
 
-  const stop = messageRow(page, reply.event_id).getByRole('button', { name: 'Stop reply', exact: true });
+  const stop = messageRow(page, reply.event_id).getByRole('button', {
+    name: 'Stop reply',
+    exact: true,
+  });
   await expect(stop).toBeVisible({ timeout: 30_000 });
   await stop.click();
   await waitForThreadEvent(

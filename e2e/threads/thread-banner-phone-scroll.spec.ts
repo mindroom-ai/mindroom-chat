@@ -444,7 +444,7 @@ const lineLook = (line: Locator) =>
 
 const checkToolLineTap = async (page: Page, world: World, label: string) => {
   await openThread(page, world, world.rootId, lastReply);
-  const line = page.getByRole('button', { name: /Ran 1 tool call/ }).last();
+  const line = page.getByRole('button', { name: /Ran 1 command/ }).last();
   await expect(line).toBeVisible({ timeout: 60_000 });
   await line.evaluate((element) => element.scrollIntoView({ block: 'center' }));
   await waitForRest(page);
@@ -465,7 +465,7 @@ const checkToolLineTap = async (page: Page, world: World, label: string) => {
 
 const checkToolLineHover = async (page: Page, world: World, label: string) => {
   await openThread(page, world, world.rootId, lastReply);
-  const line = page.getByRole('button', { name: /Ran 1 tool call/ }).last();
+  const line = page.getByRole('button', { name: /Ran 1 command/ }).last();
   await expect(line).toBeVisible({ timeout: 60_000 });
   await line.evaluate((element) => element.scrollIntoView({ block: 'center' }));
   await waitForRest(page);

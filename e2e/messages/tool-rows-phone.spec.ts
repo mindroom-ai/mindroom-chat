@@ -82,13 +82,13 @@ const seed = async (engine: string) => {
   const mention = `<a href="https://matrix.to/#/${reader.userId}">${reader.username}</a>`;
   const compared = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
-    body: `🔧 \`web_search\` [1]\n\n🔧 \`run_python_code\` [2]\n\n${reader.username}: Q3 monthly churn came in at 2.9%, down from 3.4% in Q2.`,
+    body: `🔧 \`search_arxiv\` [1]\n\n🔧 \`run_python_code\` [2]\n\n${reader.username}: Q3 monthly churn came in at 2.9%, down from 3.4% in Q2.`,
     format: 'org.matrix.custom.html',
-    formatted_body: `<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>run_python_code</code> [2]</p><p>${mention}: Q3 monthly churn came in at 2.9%, down from 3.4% in Q2.</p>`,
+    formatted_body: `<p>🔧 <code>search_arxiv</code> [1]</p><p>🔧 <code>run_python_code</code> [2]</p><p>${mention}: Q3 monthly churn came in at 2.9%, down from 3.4% in Q2.</p>`,
     'm.mentions': { user_ids: [reader.userId] },
     'io.mindroom.stream_status': 'completed',
     'io.mindroom.tool_trace': traceOf(
-      ['web_search', `query=${QUERY}`, RESULT],
+      ['search_arxiv', `query=${QUERY}`, RESULT],
       ['run_python_code', 'code=churn = cancelled / start_of_month', 'q3_churn=0.029']
     ),
     ...inThread(rootId),
@@ -259,7 +259,7 @@ const readsLeftToRight = async (target: Locator, first: string, second: string) 
 /** The thread in a language, with the tool line of the reply that searched the web. */
 const openToolLine = async (page: Page, world: World, language: 'en' | 'ar') => {
   await openIn(page, language, threadRoute(world));
-  const tools = disclosures(page).filter({ hasText: 'web_search' });
+  const tools = disclosures(page).filter({ hasText: 'search_arxiv' });
   await expect(tools).toHaveCount(1, { timeout: 60_000 });
   return tools;
 };
@@ -277,7 +277,7 @@ const checkOutputDirection = async (
   const where = `${engine}, ${language}`;
   const tools = await openToolLine(page, world, language);
   // A detail cut short keeps its start: the first tool's name shows whole.
-  const names = await placeTexts(tools.getByText(/^web_search, /), ['web_search']);
+  const names = await placeTexts(tools.getByText(/^search_arxiv, /), ['search_arxiv']);
   await tap(page, tools);
   await expect(tools).toHaveAttribute('aria-expanded', 'true');
   const panel = tools.locator('xpath=..');
