@@ -9,7 +9,7 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 
-// Open beside: a thread card's menu keeps the open thread (A) and shows the card's thread (B) in a
+// Open in second column: a thread card's menu keeps the open thread (A) and shows the card's thread (B) in a
 // second column, a side panel of the room with its own banner, timeline and composer. On a wide
 // page the room's messages stay beside A (three columns); narrower, A fills the page beside B. B
 // survives a reload, Close removes it and takes the focus back to A's composer, and a phone does
@@ -28,7 +28,7 @@ const openCardMenu = async (page: Page, rootId: string) => {
   return menu;
 };
 
-test('Open beside shows a second thread in its own column at each width', async ({
+test('Open in second column shows a second thread in its own column at each width', async ({
   page,
 }, testInfo) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix accounts required');
@@ -81,7 +81,9 @@ test('Open beside shows a second thread in its own column at each width', async 
   await expect(card(page, beta)).toBeVisible({ timeout: 30_000 });
 
   // Wide: messages | A | B.
-  await (await openCardMenu(page, beta)).getByRole('menuitem', { name: 'Open beside' }).click();
+  await (await openCardMenu(page, beta))
+    .getByRole('menuitem', { name: 'Open in second column' })
+    .click();
   await expect(second(page).getByText('Example thread beta reply')).toBeVisible({
     timeout: 30_000,
   });
@@ -126,5 +128,5 @@ test('Open beside shows a second thread in its own column at each width', async 
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   const menu = await openCardMenu(page, beta);
   await expect(menu.getByRole('menuitem', { name: 'Open thread' })).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: 'Open beside' })).toHaveCount(0);
+  await expect(menu.getByRole('menuitem', { name: 'Open in second column' })).toHaveCount(0);
 });

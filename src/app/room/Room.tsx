@@ -509,8 +509,8 @@ function RoomContent() {
       ),
     },
     {
-      // A second thread beside the open one (Open beside), never on phones. It has no frame: it
-      // never fills the room nor folds.
+      // A second thread beside the open one (Open in second column), never on phones. It has no
+      // frame: it never fills the room nor folds.
       id: 'thread',
       open: !mobile && !!secondId,
       close: closeSecond,

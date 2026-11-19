@@ -45,9 +45,9 @@ function FocusProbe({
 /**
  * A second thread (B) beside the one the room page shows, in a side panel of its own: its banner
  * with a Close button, its timeline and its composer. Typing on no field in it goes to its composer,
- * and Escape in it marks it read. It takes the focus with `autoFocus` (an explicit Open beside).
- * Closing, it moves out as an empty shell: the thread's view goes at once, so nothing reads, sends
- * or shows it as seen once it is no longer the room's second thread.
+ * and Escape in it marks it read. It takes the focus with `autoFocus` (an explicit Open in second
+ * column). Closing, it moves out as an empty shell: the thread's view goes at once, so nothing
+ * reads, sends or shows it as seen once it is no longer the room's second thread.
  */
 export function SecondThreadPanel({
   room,
