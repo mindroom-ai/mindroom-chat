@@ -105,7 +105,10 @@ const measure = (page: Page) =>
       .filter((el) => el.getBoundingClientRect().right > edge + 0.5 && !clipped(el))
       .slice(0, 5)
       .map((el) => `${el.tagName}.${el.className} right=${el.getBoundingClientRect().right}`);
-    return { ...before, scrollLeft, edge, wide };
+    // A finger's area of a row's last button, its Stop.
+    const stop = list.querySelector('li button:last-of-type');
+    const touch = stop && getComputedStyle(stop, '::after').width;
+    return { ...before, scrollLeft, edge, touch, wide };
   });
 
 // Two phones at root font sizes a Page Zoom of 100, 87.5 and 75 % gives, and the larger phone as
