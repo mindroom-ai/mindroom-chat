@@ -172,7 +172,14 @@ export function Reactions({
                         if (stopButton) setPressedStop(stopMarker);
                         void Promise.resolve(
                           onReactionToggle(mEventId, key, shortcode, relations, stopButton)
-                        ).then((sent) => sent === false && setPressedStop(undefined));
+                        ).then(
+                          (sent) =>
+                            sent === false &&
+                            // A failure reopens only its own marker's Stop, not a newer run's.
+                            setPressedStop((pressed) =>
+                              pressed === stopMarker ? undefined : pressed
+                            )
+                        );
                       }
                     : undefined
                 }

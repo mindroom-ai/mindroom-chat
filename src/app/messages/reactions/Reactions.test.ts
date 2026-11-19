@@ -433,6 +433,38 @@ describe('Reactions', () => {
     expect(onReactionToggle).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps a newer run's Stopping… when an earlier run's stop fails late", async () => {
+    let finishFirst: (sent: boolean) => void = () => {};
+    const onReactionToggle = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (finishFirst = resolve)))
+      .mockImplementation(() => new Promise<boolean>(() => {}));
+    const view = (who: [string, string][]) =>
+      stopProps(
+        new MockRelations([['🛑', new Set(who.map(([s, id]) => reaction(s, id)))]]),
+        streamingReply(),
+        onReactionToggle
+      );
+    const renderer = render(React.createElement(Reactions, view([[AGENT, '$stop1']])));
+    act(() => {
+      stopChip(renderer).props.onClick();
+    });
+    // A new run brings a new 🛑 before the first stop settles; the viewer presses its Stop.
+    act(() => renderer.update(React.createElement(Reactions, view([[AGENT, '$stop2']]))));
+    act(() => {
+      stopChip(renderer).props.onClick();
+    });
+    expect(shownLabel(renderer)).toBe('Stopping…');
+
+    // The first run's stop fails now: the second run's Stop stays pending and takes no press.
+    await act(async () => finishFirst(false));
+    expect(shownLabel(renderer)).toBe('Stopping…');
+    act(() => {
+      stopChip(renderer).props.onClick?.();
+    });
+    expect(onReactionToggle).toHaveBeenCalledTimes(2);
+  });
+
   it('stops a later run of the same reply again, after a reload too', () => {
     const onReactionToggle = vi.fn();
     let content: Record<string, unknown> = { 'io.mindroom.stream_status': 'streaming' };
