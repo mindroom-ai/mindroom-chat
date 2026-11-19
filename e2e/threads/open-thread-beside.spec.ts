@@ -164,6 +164,23 @@ test('Open in second column shows a second thread in its own column at each widt
   });
   await expect(second(page).getByText('Example thread gamma reply')).toHaveCount(0);
 
+  // With beside stored, A open first, then B from a card: messages | A | B.
+  await page.evaluate(() =>
+    window.localStorage.setItem('mindroom.threadColumn.layout', '"beside"')
+  );
+  await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(beta)}`);
+  await expect(column(page).getByText('Example thread beta reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
+  await (await openCardMenu(page, gamma))
+    .getByRole('menuitem', { name: 'Open in second column' })
+    .click();
+  await expect(second(page).getByText('Example thread gamma reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
+
   // A phone does not offer it.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
