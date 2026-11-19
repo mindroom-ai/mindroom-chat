@@ -358,6 +358,33 @@ describe('readChatUiAction', () => {
       }
     });
 
+    it("reads each revision's library names, keeping unknown ones for the page to report", () => {
+      const { room } = makeUiRoom();
+      const page = { ...canvas, libraries: ['chartjs', 'mermaid', 'plotly'] };
+      const original = makeUiEvent({ action: 'show_canvas', canvas: page });
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({ canvas: page });
+      original.makeReplaced(canvasEdit({ canvas: { title: 'Next', html: '<p>2</p>' } }));
+      const updated = readChatUiAction(original, viewerId, room);
+      expect(updated && 'canvas' in updated ? updated.canvas : {}).not.toHaveProperty('libraries');
+      const names = [1, '', 'x'.repeat(65), null, ...Array.from({ length: 20 }, (_, i) => `l${i}`)];
+      const capped = readChatUiAction(
+        makeUiEvent({ action: 'show_canvas', canvas: { ...canvas, libraries: names } }),
+        viewerId,
+        room
+      );
+      expect(capped && 'canvas' in capped ? capped.canvas.libraries : []).toEqual(
+        Array.from({ length: 16 }, (_, i) => `l${i}`)
+      );
+      for (const libraries of ['chartjs', [], [3], { chartjs: true }]) {
+        const shown = readChatUiAction(
+          makeUiEvent({ action: 'show_canvas', canvas: { ...canvas, libraries } }),
+          viewerId,
+          room
+        );
+        expect(shown && 'canvas' in shown ? shown.canvas : {}).not.toHaveProperty('libraries');
+      }
+    });
+
     it('keeps inline presentation fixed through revisions', () => {
       const { room } = makeUiRoom();
       const original = makeUiEvent({ action: 'show_canvas', canvas, inline: true });

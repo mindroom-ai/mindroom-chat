@@ -1,5 +1,5 @@
 import { JSDOM } from 'jsdom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CANVAS_SIZE_MESSAGE,
   readCanvasSize,
@@ -903,6 +903,91 @@ describe('inline canvas sizing', () => {
       { remote: true }
     );
     expect(doc.match(/img-src data: blob: https:/g)).toHaveLength(2);
+  });
+
+  describe('libraries Chat serves', () => {
+    const DIRECTORY = 'https://chat.example/assets/canvas-libs/';
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const KATEX = {
+      scripts: [`${DIRECTORY}katex.min.js`, `${DIRECTORY}auto-render.min.js`],
+      styles: [`${DIRECTORY}katex.min.css`],
+    };
+
+    it('lets each script and style sheet load from its exact address alone, and only when a page names one', () => {
+      const policy = canvasPolicy(true, false, KATEX);
+      expect(policy).toContain(
+        `script-src 'unsafe-inline' ${DIRECTORY}katex.min.js ${DIRECTORY}auto-render.min.js ${CANVAS_LIBRARY_SOURCE};`
+      );
+      expect(policy).toContain(
+        `style-src 'unsafe-inline' ${DIRECTORY}katex.min.css ${CANVAS_LIBRARY_SOURCE};`
+      );
+      // No source of Chat's own ends in a slash: a directory would match whatever a server resolves under it.
+      const own = policy
+        .split(/[; ]+/)
+        .filter((source) => source.startsWith('https://chat.example'));
+      expect(own).toHaveLength(3);
+      expect(own.every((source) => /\/[\w.-]+\.(?:js|css)$/.test(source))).toBe(true);
+      // Fonts come inline; everything else stays as strict as without libraries.
+      const others = (value: string) =>
+        value.split('; ').filter((directive) => !/^(script|style)-src /.test(directive));
+      expect(others(canvasPolicy(false, false, KATEX))).toEqual(others(CANVAS_CSP));
+      expect(canvasPolicy(false, false)).toBe(CANVAS_CSP);
+      expect(buildCanvasDocument('<p>hi</p>', 'light', undefined, '', false, {}, {})).not.toContain(
+        'canvas-libs'
+      );
+    });
+
+    it("writes the tags after Chat's bridge and before the page, and allows them in both policies", () => {
+      vi.stubGlobal('window', { location: { href: 'https://chat.example/rooms' } });
+      const display = { pinned: ['mermaid'] };
+      const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, display);
+      const tag = `<script src="${DIRECTORY}mermaid.min.js"></script>`;
+      expect(page.indexOf(tag)).toBeGreaterThan(page.indexOf('mindroom.canvas.error'));
+      expect(page.indexOf(tag)).toBeLessThan(page.indexOf('<p>hi</p>'));
+      const policy = `content="${canvasPolicy(false, false, {
+        scripts: [`${DIRECTORY}mermaid.min.js`],
+        styles: [],
+      })}"`;
+      expect(page).toContain(policy);
+      const doc = buildCanvasDocument('<p>hi</p>', 'light', undefined, '', false, {}, display);
+      expect(doc.indexOf(policy)).toBeGreaterThan(0);
+      expect(doc).toContain(
+        JSON.stringify(buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, display))
+          .replace(/</g, '\\u003c')
+          .slice(1, -1)
+      );
+    });
+
+    it('reports each library name Chat does not serve as an error of the page, and still runs it', async () => {
+      const { window } = new JSDOM(
+        buildCanvasPage(
+          '<p id="p">x</p><script>p.textContent = "ran"</script>',
+          'light',
+          undefined,
+          false,
+          {},
+          {
+            pinned: ['plotly', 'three'],
+          }
+        ),
+        { runScripts: 'dangerously' }
+      );
+      const errors: string[] = [];
+      window.addEventListener('message', (event) => {
+        if (event.data.type === CANVAS_ERROR_MESSAGE) errors.push(event.data.message);
+      });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+      expect(errors).toEqual([
+        'Unknown library "plotly"; Chat serves chartjs, d3, mermaid, katex',
+        'Unknown library "three"; Chat serves chartjs, d3, mermaid, katex',
+      ]);
+      expect(window.document.getElementById('p')?.textContent).toBe('ran');
+    });
   });
 
   it("gives a raw page's frames the browser's color scheme instead of Chat's", () => {

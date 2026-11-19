@@ -104,13 +104,11 @@ import { SecondThreadContext, type SecondThreadControl } from '../navigation/sec
 import { SecondThreadPanel } from './SecondThreadPanel';
 import { SecondThreadDropZone } from './SecondThreadDropZone';
 import { useSecondThread } from './useSecondThread';
+import { ROOM_COMPOSER, THREAD_COLUMN_COMPOSER } from './composerSelectors';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
 // The composers the focus goes back to from the second thread: the open thread's, else the room's.
-const MAIN_COMPOSERS = [
-  '[data-testid="thread-column"] [data-room-footer="true"] [data-editable-name="RoomInput"]',
-  '[data-room-footer="true"][data-footer-of="room"] [data-editable-name="RoomInput"]',
-];
+const MAIN_COMPOSERS = [THREAD_COLUMN_COMPOSER, ROOM_COMPOSER];
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;

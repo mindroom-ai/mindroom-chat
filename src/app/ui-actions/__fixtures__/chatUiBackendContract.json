@@ -626,6 +626,7 @@
             "agent_user_id": "@mindroom_researcher:localhost",
             "canvas": {
               "html": "<form data-mindroom-label=\"Plan chosen\"><label><input type=\"radio\" name=\"plan\" value=\"pro\" checked> Pro</label><button>Choose</button></form>",
+              "libraries": ["chartjs", "katex"],
               "raw": true,
               "title": "Choose a plan",
               "width": 1440
@@ -1160,6 +1161,7 @@
             "agent_user_id": "@mindroom_researcher:localhost",
             "canvas": {
               "html": "<form data-mindroom-label=\"Plan chosen\"><label><input type=\"radio\" name=\"plan\" value=\"pro\" checked> Pro</label><button>Choose</button></form>",
+              "libraries": ["chartjs", "katex"],
               "raw": true,
               "title": "Choose a plan",
               "width": 1440

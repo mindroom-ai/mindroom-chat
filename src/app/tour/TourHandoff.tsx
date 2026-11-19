@@ -2,13 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Editor } from '../editor/Editor.css';
 import { hasOpenOverlay } from '../lib/openOverlay';
+import { ROOM_COMPOSER } from '../room/composerSelectors';
 import * as css from './TourHandoff.css';
 import { hasCoarsePointer, prefersReducedMotion } from './tourMotion';
 import { SPOTLIGHT_GAP } from './TourSpotlight';
-
-/** The text box of a room's own composer, which starts threads; an open thread's replies. */
-const COMPOSER =
-  '[data-room-footer="true"][data-footer-of="room"] [data-editable-name="RoomInput"]';
 
 /**
  * The open room's composer, if it can be typed in: a thread that fills the page puts the room's
@@ -17,7 +14,7 @@ const COMPOSER =
  */
 const roomComposer = (): HTMLElement | undefined => {
   if (hasOpenOverlay()) return undefined;
-  const composer = document.querySelector<HTMLElement>(COMPOSER);
+  const composer = document.querySelector<HTMLElement>(ROOM_COMPOSER);
   return composer && !composer.closest('[inert]') ? composer : undefined;
 };
 

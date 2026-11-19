@@ -25,16 +25,22 @@ export type ChatUiCanvasDocument = {
 };
 
 /**
- * How one revision of a page asks to be shown: exactly as written (`raw`), and at a viewport this
- * many CSS pixels wide (`width`), which an inline frame scales down to fit.
+ * How one revision of a page asks to be shown: exactly as written (`raw`), at a viewport this
+ * many CSS pixels wide (`width`), which an inline frame scales down to fit, and with the libraries
+ * Chat serves that it names (`libraries`; names this Chat does not know are kept, so the page can
+ * report them).
  */
-export type ChatUiCanvasPresentation = { raw?: true; width?: number };
+export type ChatUiCanvasPresentation = { raw?: true; width?: number; libraries?: string[] };
 
 export type ChatUiCanvas = ChatUiCanvasPresentation &
   ({ title: string; html: string } | { title: string; document: ChatUiCanvasDocument });
 
 export const MIN_CANVAS_WIDTH = 320;
 export const MAX_CANVAS_WIDTH = 2560;
+
+/** At most this many library names of at most this many characters; more makes no sense. */
+const MAX_CANVAS_LIBRARIES = 16;
+const MAX_CANVAS_LIBRARY_NAME_LENGTH = 64;
 
 export const MAX_CANVAS_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
@@ -113,6 +119,17 @@ const readCanvasDocument = (value: unknown): ChatUiCanvasDocument | undefined =>
   return isMxc(value.url) ? { mxcUrl: value.url, size: value.size } : undefined;
 };
 
+const readLibraries = (value: unknown): { libraries?: string[] } => {
+  if (!Array.isArray(value)) return {};
+  const names = value
+    .filter(
+      (name): name is string =>
+        typeof name === 'string' && name.length > 0 && name.length <= MAX_CANVAS_LIBRARY_NAME_LENGTH
+    )
+    .slice(0, MAX_CANVAS_LIBRARIES);
+  return names.length > 0 ? { libraries: names } : {};
+};
+
 /** Presentation a client does not understand is left out, so the page still shows. */
 const readPresentation = (value: Record<string, unknown>): ChatUiCanvasPresentation => ({
   ...(value.raw === true ? { raw: true as const } : {}),
@@ -122,6 +139,7 @@ const readPresentation = (value: Record<string, unknown>): ChatUiCanvasPresentat
   value.width <= MAX_CANVAS_WIDTH
     ? { width: value.width }
     : {}),
+  ...readLibraries(value.libraries),
 });
 
 const readCanvas = (value: unknown): ChatUiCanvas | undefined => {

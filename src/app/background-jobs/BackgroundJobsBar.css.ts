@@ -1,4 +1,4 @@
-import { createVar, keyframes, style, styleVariants } from '@vanilla-extract/css';
+import { createVar, globalStyle, keyframes, style, styleVariants } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import * as approvals from '../approvals/ThreadApprovals.css';
 import { touchTarget } from '../ui/styles/touchTarget';
@@ -30,6 +30,10 @@ const calls = createVar();
 const tokens = createVar();
 const cost = createVar();
 const time = createVar();
+// The logo tile of a nested job, of several jobs' stacked sub-agents and of one job's title.
+const smallLogo = '1.25rem';
+// The background behind a logo, which its status dot's ring takes so it never shows as a halo.
+const rowBackground = createVar();
 const button = config.size.X500;
 // The title line keeps the typing strip's height beside it: its controls are a line tall.
 const lineHeight = '1.5rem';
@@ -54,6 +58,7 @@ export const Bar = style([
     fontVariantNumeric: 'tabular-nums',
     vars: {
       [logoSize]: config.size.X500,
+      [rowBackground]: color.SurfaceVariant.Container,
       [gap]: config.space.S300,
       [calls]: '2.5rem',
       [tokens]: '3.25rem',
@@ -67,6 +72,12 @@ export const Bar = style([
     },
   },
 ]);
+
+// Listed, the bar spans the dock's whole line (DockBars, in RoomOverlay.css, holds it), over the
+// typing strip beside it, which keeps its place, so the dock keeps its rows whatever changes while
+// the jobs are listed. The bar's foot stays at the anchor's: placed as the anchor's only flex item.
+export const Listed = style({ position: 'static' });
+globalStyle(`${Listed} > ${Bar}`, { position: 'absolute', insetInline: 0, zIndex: 1 });
 
 const grid = {
   display: 'grid',
@@ -158,17 +169,24 @@ export const Chevron = style({
 
 // The room a focus ring needs inside the scrolling list, which clips what overflows it.
 const ring = '3px';
+// How far a row reaches out past the list's content, its hover background behind its padding.
+const reach = config.space.S200;
+// The list reaches out at least as far as its rows and as a finger's area of a row's last button
+// (8 px past it, at the row's padding), so neither ever scrolls it sideways, at any root size.
+const listReach = `max(${reach}, 8px)`;
 
 // Several jobs list above the title, sub-agents then tools; many scroll inside the bar. A line
 // sets the list off the title.
 export const Jobs = style({
   gridArea: 'jobs',
-  margin: `-${ring}`,
-  marginBlockEnd: config.space.S100,
-  padding: ring,
-  paddingBlockEnd: config.space.S100,
+  marginBlock: `-${ring} ${config.space.S100}`,
+  marginInline: `calc(-1 * ${listReach})`,
+  paddingBlock: `${ring} ${config.space.S100}`,
+  paddingInline: listReach,
   borderBlockEnd: `1px solid ${color.SurfaceVariant.ContainerLine}`,
   maxHeight: 'min(45vh, 22rem)',
+  // Up and down only: a finger never drags it sideways, whatever reaches past the rows.
+  overflowX: 'hidden',
   overflowY: 'auto',
 });
 
@@ -195,8 +213,6 @@ export const ColumnName = style({ textAlign: 'end', opacity: config.opacity.P300
 
 export const StatColumn = style([ColumnName, hiddenOnPhone]);
 
-// The row's own background, which the status dot's ring takes so it never shows as a halo.
-const rowBackground = createVar();
 // One step of nesting: a nested job's logo and text move in by it; its columns stay.
 const step = '1.75rem';
 
@@ -208,10 +224,9 @@ export const Job = style([
     position: 'relative',
     minHeight: '2.875rem',
     paddingBlock: config.space.S100,
-    marginInline: `calc(-1 * ${config.space.S200})`,
-    paddingInline: config.space.S200,
+    marginInline: `calc(-1 * ${reach})`,
+    paddingInline: reach,
     borderRadius: config.radii.R300,
-    vars: { [rowBackground]: color.SurfaceVariant.Container },
     selectors: {
       '&:hover': {
         background: color.SurfaceVariant.ContainerHover,
@@ -232,7 +247,7 @@ export const Job = style([
 
 // A nested job: smaller logo, moved in by its depth, with an elbow from its parent's logo.
 export const Nested = style({
-  vars: { [logoSize]: '1.25rem' },
+  vars: { [logoSize]: smallLogo },
   paddingInlineStart: `calc(${config.space.S200} + var(--job-depth) * ${step})`,
   selectors: {
     '&::before': {
@@ -268,11 +283,14 @@ export const Logo = style({
 export const Stack = style({
   display: 'inline-flex',
   flex: 'none',
-  vars: { [logoSize]: '1.25rem' },
+  vars: { [logoSize]: smallLogo },
   '@container': {
     [phone]: { selectors: { [`${Toggle}:has([data-needs-approval]) &`]: { display: 'none' } } },
   },
 });
+
+// One job's title logo, small enough that it and its dot stay within the title line.
+export const TitleLogo = style({ vars: { [logoSize]: smallLogo } });
 
 export const StackedLogo = style({
   boxShadow: `inset 0 0 0 1px ${color.SurfaceVariant.ContainerLine}, 0 0 0 2px ${color.SurfaceVariant.Container}`,

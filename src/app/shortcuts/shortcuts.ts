@@ -25,6 +25,11 @@ type ShortcutDefinition = {
    * the window listener leaves it alone. The table still names and formats it.
    */
   local?: boolean;
+  /**
+   * A key a browser keeps for itself (its zoom). Only the native apps, which have no browser
+   * around the page, take it, and only they list it.
+   */
+  browserKey?: boolean;
 };
 
 /**
@@ -65,6 +70,34 @@ const DEFINITIONS = {
     labelKey: 'shortcuts.actions.callView',
     group: 'general',
     field: 'always',
+  },
+  // The native apps' page zoom (usePageZoom's own listener, also signed out), which steps
+  // through the values Settings offers.
+  zoomIn: {
+    keys: 'mod+=',
+    labelKey: 'shortcuts.actions.zoomIn',
+    group: 'general',
+    field: 'always',
+    repeats: true,
+    local: true,
+    browserKey: true,
+  },
+  zoomOut: {
+    keys: 'mod+-',
+    labelKey: 'shortcuts.actions.zoomOut',
+    group: 'general',
+    field: 'always',
+    repeats: true,
+    local: true,
+    browserKey: true,
+  },
+  resetZoom: {
+    keys: 'mod+0',
+    labelKey: 'shortcuts.actions.resetZoom',
+    group: 'general',
+    field: 'always',
+    local: true,
+    browserKey: true,
   },
   previousRoom: {
     keys: 'alt+up',
@@ -261,12 +294,19 @@ const NAMED_KEYS: Record<string, string> = {
   escape: 'Escape',
 };
 
-/** Where the punctuation keys sit on a US keyboard, for layouts that type something else there. */
+/**
+ * Where the punctuation keys and 0 sit on a US keyboard, for layouts that type something else
+ * there (French types à on the 0 key).
+ */
 const PUNCTUATION_CODES: Record<string, string> = {
   ',': 'Comma',
   '/': 'Slash',
   '\\': 'Backslash',
+  '0': 'Digit0',
 };
+
+/** `+` is the `=` key's other character (Shift, the number pad, a German keyboard's own key). */
+const SAME_KEY: Record<string, string> = { '=': '+' };
 
 /**
  * A key that types no ASCII character: another script's letter (Cyrillic, Greek), a dead key.
@@ -301,7 +341,8 @@ export const matchesKeys = (event: KeyEventLike, keys: string, apple: boolean): 
       : event.key.toLowerCase() === spec.key;
   }
   // Some layouts need Shift for the character itself (German types `/` with Shift and 7).
-  if (event.key === spec.key) return spec.shift ? event.shiftKey : true;
+  if (event.key === spec.key || event.key === SAME_KEY[spec.key])
+    return spec.shift ? event.shiftKey : true;
   return byCode && event.shiftKey === spec.shift && event.code === PUNCTUATION_CODES[spec.key];
 };
 
@@ -427,6 +468,7 @@ const MAC_SYMBOLS: Record<string, string> = {
   right: KeySymbol.ArrowRight,
   enter: KeySymbol.Enter,
   escape: 'Esc',
+  '=': '+',
 };
 
 const OTHER_NAMES: Record<string, string> = {
@@ -439,6 +481,7 @@ const OTHER_NAMES: Record<string, string> = {
   right: KeySymbol.ArrowRight,
   enter: 'Enter',
   escape: 'Esc',
+  '=': '+',
 };
 
 const ORDER = ['mod', 'alt', 'shift'] as const;
