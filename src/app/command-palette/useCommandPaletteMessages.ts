@@ -15,6 +15,7 @@ import {
   getCrossRoomThreadIndexKey,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { getSearchResultOpenTarget } from '../search/searchResultOpenTarget';
+import { getCommandPaletteThreadItemId } from './commandPaletteItems';
 import {
   getSearchResultBodySnippet,
   getSearchResultEffectiveContent,
@@ -165,10 +166,16 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
             getMxIdLocalPart(event.sender) ??
             event.sender,
           roomName: room?.name ?? roomId,
-          threadName: target.threadRootId
-            ? thread?.summaryText || thread?.rootPreviewText || ''
-            : undefined,
-          snippet: getPlainSnippet(event, highlights, t),
+          threadName:
+            target.threadRootId && !target.threadTitle
+              ? thread?.summaryText || thread?.rootPreviewText || ''
+              : undefined,
+          // A thread's titles list once (`collapseThreadTitleHits`), as the one it has now.
+          ...(target.threadTitle && target.threadRootId
+            ? { titleOfThreadId: getCommandPaletteThreadItemId(roomId, target.threadRootId) }
+            : {}),
+          snippet:
+            (target.threadTitle && thread?.summaryText) || getPlainSnippet(event, highlights, t),
           highlights,
           timestamp: event.origin_server_ts,
           onSelect: () => {

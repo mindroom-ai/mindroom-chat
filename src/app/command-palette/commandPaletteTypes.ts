@@ -109,6 +109,8 @@ export type CommandPaletteMessageItem = CommandPaletteBaseItem & {
   roomName: string;
   /** Set for a message in a thread: the thread's title, or empty when it is not known. */
   threadName?: string;
+  /** Set for a thread's title: the id of that thread's row, which it must not repeat. */
+  titleOfThreadId?: string;
   /** One line of the message around its first match. */
   snippet: string;
   /** The words the server matched, to mark in the snippet. */

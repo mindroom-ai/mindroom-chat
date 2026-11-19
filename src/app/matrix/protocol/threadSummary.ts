@@ -228,12 +228,13 @@ type ThreadSummaryEventLike = {
   replacingEvent?(): { status?: string | null } | null;
 };
 
+/** A thread title's content: MindRoom's `m.notice` carrying thread-summary metadata. */
+export const isThreadSummaryContent = (content: Record<string, unknown>): boolean =>
+  content.msgtype === 'm.notice' && !!content[THREAD_SUMMARY_METADATA_KEY];
+
 export const isThreadSummaryEvent = (event: ThreadSummaryEventLike): boolean => {
   if (event.status != null && event.status !== 'sent') return false;
-  const content = event.getContent();
-  const msgtype = content.msgtype;
-  if (msgtype !== 'm.notice') return false;
-  return !!content[THREAD_SUMMARY_METADATA_KEY];
+  return isThreadSummaryContent(event.getContent());
 };
 
 export const getThreadSummaryPreviewText = (event: ThreadSummaryEventLike): string | undefined => {

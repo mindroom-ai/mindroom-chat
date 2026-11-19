@@ -99,6 +99,10 @@ type CommandPaletteSourceOptions = {
   onLogout?: () => void;
 };
 
+/** A thread's row id, which a title hit in the messages names so as not to list it twice. */
+export const getCommandPaletteThreadItemId = (roomId: string, threadId: string): string =>
+  `thread:${getCrossRoomThreadIndexKey(roomId, threadId)}`;
+
 const liveState = (room: Room) => room.getLiveTimeline().getState(EventTimeline.FORWARDS);
 
 const roomTopic = (room: Room): string | undefined => {
@@ -211,14 +215,12 @@ export const useCommandPaletteSource = ({
   ]);
 
   const threads = useMemo<Executable<CommandPaletteThreadItem>[]>(() => {
-    const threadItemId = (roomId: string, threadId: string) =>
-      `thread:${getCrossRoomThreadIndexKey(roomId, threadId)}`;
     return withRecentVisits(
       Array.from(threadIndex.entries.values())
         .filter((entry) => isRoomVisible(entry.roomId, archivedRooms))
         .sort((a, b) => b.lastActivityTs - a.lastActivityTs)
         .map((entry, index, entries) => ({
-          id: `thread:${entry.key}`,
+          id: getCommandPaletteThreadItemId(entry.roomId, entry.threadRootId),
           kind: 'thread',
           roomId: entry.roomId,
           threadId: entry.threadRootId,
@@ -235,9 +237,9 @@ export const useCommandPaletteSource = ({
           boost: entry.isUnread ? 10 : 0,
           onSelect: () => navigateRoomThread(entry.roomId, entry.threadRootId),
         })),
-      recentThreads.map((visit) => threadItemId(visit.roomId, visit.threadId)),
+      recentThreads.map((visit) => getCommandPaletteThreadItemId(visit.roomId, visit.threadId)),
       selectedRoomId && selectedThreadId
-        ? threadItemId(selectedRoomId, selectedThreadId)
+        ? getCommandPaletteThreadItemId(selectedRoomId, selectedThreadId)
         : undefined
     );
   }, [
