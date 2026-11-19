@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { disposableHomeserverIsUp, DISPOSABLE_HOMESERVER } from '../helpers/disposableAccounts';
 import { matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { openPanelRoom, type PanelRoom } from '../helpers/sidePanels';
@@ -86,9 +86,9 @@ const sendRuns = async (room: PanelRoom) => {
 };
 
 /** The list's widths and how far it scrolled sideways after a try. */
-const measure = (page: Page) =>
-  page.evaluate(() => {
-    const list = document.querySelector('[role="region"] ul[role="list"]')?.parentElement;
+const measure = (bar: Locator) =>
+  bar.evaluate((region) => {
+    const list = region.querySelector('ul[role="list"]')?.parentElement;
     if (!list) throw new Error('No listed jobs');
     const before = { scrollWidth: list.scrollWidth, clientWidth: list.clientWidth };
     list.scrollLeft = 200;
@@ -105,10 +105,7 @@ const measure = (page: Page) =>
       .filter((el) => el.getBoundingClientRect().right > edge + 0.5 && !clipped(el))
       .slice(0, 5)
       .map((el) => `${el.tagName}.${el.className} right=${el.getBoundingClientRect().right}`);
-    // A finger's area of a row's last button, its Stop.
-    const stop = list.querySelector('li button:last-of-type');
-    const touch = stop && getComputedStyle(stop, '::after').width;
-    return { ...before, scrollLeft, edge, touch, wide };
+    return { ...before, scrollLeft, edge, wide };
   });
 
 // Two phones at root font sizes a Page Zoom of 100, 87.5 and 75 % gives, and the larger phone as
@@ -217,19 +214,13 @@ for (const { rootSizes, ...viewport } of [
       );
       const stats = await bar.locator('li [data-job-stat="calls"]').first().isVisible();
       const barWidth = await bar.evaluate((el) => el.getBoundingClientRect().width);
-      const sizes = await measure(page);
+      const sizes = await measure(bar);
       testInfo.annotations.push({
         type: 'measure',
         description: `${viewport.width}px root ${rootSize}: bar ${barWidth}px, stats ${
           stats ? 'shown' : 'hidden'
         }, ${JSON.stringify(sizes)}`,
       });
-      console.log(
-        `${viewport.width}px root ${rootSize}: bar ${barWidth}px stats ${
-          stats ? 'shown' : 'hidden'
-        }`,
-        JSON.stringify(sizes)
-      );
       await bar.screenshot({
         path: testInfo.outputPath(`jobs-list-${viewport.width}-${rootSize.replace('%', '')}.png`),
       });
