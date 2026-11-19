@@ -94,16 +94,16 @@ xcodebuild archive \
   ${version_args[@]+"${version_args[@]}"} \
   "${signing_args[@]}"
 
-# MindRoom.dmg: the app beside an Applications link on a background (scripts/macos-dmg).
+# MindRoom-Chat.dmg: the app beside an Applications link on a background (scripts/macos-dmg).
 pack_dmg() {
   # A fresh environment each build, so it always holds exactly the pinned versions.
   local venv=build/macos/dmgbuild-venv
   rm -rf "$venv"
   python3 -m venv "$venv"
   "$venv/bin/pip" install --quiet --disable-pip-version-check --require-hashes --only-binary :all: -r scripts/macos-dmg/requirements.txt
-  "$venv/bin/dmgbuild" -s scripts/macos-dmg/settings.py -D "app=$1" MindRoom "$dmg_path"
+  "$venv/bin/dmgbuild" -s scripts/macos-dmg/settings.py -D "app=$1" "MindRoom Chat" "$dmg_path"
 }
-dmg_path="build/macos/MindRoom.dmg"
+dmg_path="build/macos/MindRoom-Chat.dmg"
 
 if [[ "$sign" -eq 0 ]]; then
   # Packs the unsigned app too, so pull requests check the DMG.

@@ -148,8 +148,8 @@ describe('Mac release build script', () => {
       'scripts/macos-dmg/settings.py',
       '-D',
       'app=build/macos/MindRoomChat.xcarchive/Products/Applications/MindRoom.chat.app',
-      'MindRoom',
-      'build/macos/MindRoom.dmg',
+      'MindRoom Chat',
+      'build/macos/MindRoom-Chat.dmg',
     ]);
   });
 
@@ -252,8 +252,8 @@ describe('Mac release build script', () => {
     ]);
     expect(lifecycle[2]).toMatchObject({ appExists: true });
     expect(lifecycle[0]!.args[2]).toMatch(/\.zip$/);
-    expect(lifecycle[4]!.args[2]).toMatch(/MindRoom\.dmg$/);
-    expect(readFileSync(join(root, 'build/macos/MindRoom.dmg'), 'utf8')).toBe('fixture dmg');
+    expect(lifecycle[4]!.args[2]).toMatch(/MindRoom-Chat\.dmg$/);
+    expect(readFileSync(join(root, 'build/macos/MindRoom-Chat.dmg'), 'utf8')).toBe('fixture dmg');
   });
 
   it.each([

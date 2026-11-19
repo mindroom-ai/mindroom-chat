@@ -75,8 +75,8 @@ describe('useOffersMacApp', () => {
   });
 });
 
-const dmg = (tag: string) =>
-  `https://github.com/mindroom-ai/mindroom-chat/releases/download/${tag}/MindRoom.dmg`;
+const dmg = (tag: string, name = 'MindRoom-Chat.dmg') =>
+  `https://github.com/mindroom-ai/mindroom-chat/releases/download/${tag}/${name}`;
 
 const release = (
   tag: string,
@@ -90,7 +90,7 @@ const release = (
   assets: assets.map((name) => ({
     name,
     state,
-    browser_download_url: name === 'MindRoom.dmg' ? dmg(tag) : `https://example.org/${name}`,
+    browser_download_url: name.endsWith('.dmg') ? dmg(tag, name) : `https://example.org/${name}`,
   })),
   ...extra,
 });
@@ -100,17 +100,23 @@ describe('parseMacAppDownloadUrl', () => {
     expect(
       parseMacAppDownloadUrl([
         release('v3', ['MindRoom.ipa']),
-        release('v2', ['notes.txt', 'MindRoom.dmg']),
-        release('v1', ['MindRoom.dmg']),
+        release('v2', ['notes.txt', 'MindRoom-Chat.dmg']),
+        release('v1', ['MindRoom-Chat.dmg']),
       ])
     ).toBe(dmg('v2'));
+  });
+
+  it('takes the MindRoom.dmg of a release from before the app was MindRoom Chat', () => {
+    expect(
+      parseMacAppDownloadUrl([release('v2', ['notes.txt']), release('v1', ['MindRoom.dmg'])])
+    ).toBe(dmg('v1', 'MindRoom.dmg'));
   });
 
   it('passes over an image whose upload never finished (`starter`)', () => {
     expect(
       parseMacAppDownloadUrl([
-        release('v3', ['MindRoom.dmg'], {}, 'starter'),
-        release('v2', ['MindRoom.dmg']),
+        release('v3', ['MindRoom-Chat.dmg'], {}, 'starter'),
+        release('v2', ['MindRoom-Chat.dmg']),
       ])
     ).toBe(dmg('v2'));
   });
@@ -118,9 +124,9 @@ describe('parseMacAppDownloadUrl', () => {
   it('leaves out drafts and pre-releases', () => {
     expect(
       parseMacAppDownloadUrl([
-        release('v4', ['MindRoom.dmg'], { draft: true }),
-        release('v3', ['MindRoom.dmg'], { prerelease: true }),
-        release('v2', ['MindRoom.dmg']),
+        release('v4', ['MindRoom-Chat.dmg'], { draft: true }),
+        release('v3', ['MindRoom-Chat.dmg'], { prerelease: true }),
+        release('v2', ['MindRoom-Chat.dmg']),
       ])
     ).toBe(dmg('v2'));
   });
@@ -131,11 +137,11 @@ describe('parseMacAppDownloadUrl', () => {
     expect(parseMacAppDownloadUrl({ message: 'API rate limit exceeded' })).toBeUndefined();
     expect(parseMacAppDownloadUrl(null)).toBeUndefined();
     expect(
-      parseMacAppDownloadUrl([null, 'v1', { assets: 'MindRoom.dmg' }, { assets: [null] }])
+      parseMacAppDownloadUrl([null, 'v1', { assets: 'MindRoom-Chat.dmg' }, { assets: [null] }])
     ).toBeUndefined();
     expect(
       parseMacAppDownloadUrl([
-        { assets: [{ name: 'MindRoom.dmg', state: 'uploaded', browser_download_url: 7 }] },
+        { assets: [{ name: 'MindRoom-Chat.dmg', state: 'uploaded', browser_download_url: 7 }] },
       ])
     ).toBeUndefined();
   });
@@ -167,7 +173,7 @@ describe('useMacAppDownloadUrl', () => {
     expect(result.current).toBe(MAC_APP_RELEASES_URL);
 
     await act(async () => {
-      respond(new Response(JSON.stringify([release('v2', ['MindRoom.dmg'])])));
+      respond(new Response(JSON.stringify([release('v2', ['MindRoom-Chat.dmg'])])));
     });
 
     expect(result.current).toBe(dmg('v2'));
@@ -186,7 +192,7 @@ describe('useMacAppDownloadUrl', () => {
   });
 
   it('asks GitHub once for every link on the page, a later one included', async () => {
-    answer([release('v2', ['MindRoom.dmg'])]);
+    answer([release('v2', ['MindRoom-Chat.dmg'])]);
     const first = renderHook(() => useMacAppDownloadUrl());
     const second = renderHook(() => useMacAppDownloadUrl());
     await act(async () => {});
@@ -199,7 +205,7 @@ describe('useMacAppDownloadUrl', () => {
   });
 
   it('asks nothing while not enabled', async () => {
-    answer([release('v2', ['MindRoom.dmg'])]);
+    answer([release('v2', ['MindRoom-Chat.dmg'])]);
     const { result, rerender } = renderHook(({ on }) => useMacAppDownloadUrl(on), {
       initialProps: { on: false },
     });

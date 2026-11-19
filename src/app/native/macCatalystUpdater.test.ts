@@ -115,7 +115,7 @@ describe('the Mac workflow and the update feed', () => {
     );
     expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeGreaterThan(-1);
     expect(upload.indexOf('build/macos/appcast.xml --clobber')).toBeLessThan(
-      upload.indexOf('build/macos/MindRoom.dmg')
+      upload.indexOf('build/macos/MindRoom-Chat.dmg')
     );
   });
 

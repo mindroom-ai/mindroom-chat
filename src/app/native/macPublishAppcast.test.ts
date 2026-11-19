@@ -19,7 +19,7 @@ afterEach(() =>
 
 /** A release's appcast.xml as scripts/macos-appcast.sh passes it on: one item of this version. */
 const appcast = (version: string) =>
-  `<?xml version="1.0" standalone="yes"?>\n<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><title>MindRoom</title><item><title>${version}</title><sparkle:version>${version}</sparkle:version><enclosure url="https://example.invalid/v${version}/MindRoom.dmg" length="3" type="application/octet-stream" sparkle:edSignature="s1g="/></item></channel></rss>\n`;
+  `<?xml version="1.0" standalone="yes"?>\n<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0"><channel><title>MindRoom</title><item><title>${version}</title><sparkle:version>${version}</sparkle:version><enclosure url="https://example.invalid/v${version}/MindRoom-Chat.dmg" length="3" type="application/octet-stream" sparkle:edSignature="s1g="/></item></channel></rss>\n`;
 
 // A folder plays GitHub: github/<release>/<asset>. The real script runs against stubs of gh, curl
 // and sleep that read and write it, and log each call.
@@ -112,7 +112,7 @@ if (command === 'gh') {
   return {
     release,
     asset: (release: string, name: string) => join(github, release, name),
-    ready: (tag: string) => release(tag, ['MindRoom.dmg', 'appcast.xml']),
+    ready: (tag: string) => release(tag, ['MindRoom-Chat.dmg', 'appcast.xml']),
     live: (version?: string, text = version && appcast(version)) => {
       mkdirSync(join(github, 'mac-appcast'));
       writeFileSync(join(github, 'mac-appcast', '.flags'), 'prerelease');
@@ -177,7 +177,7 @@ it.each([
 
 it.each([
   ['has no DMG yet', ['appcast.xml']],
-  ['has no appcast', ['MindRoom.dmg']],
+  ['has no appcast', ['MindRoom-Chat.dmg']],
 ])('writes nothing for a release that %s', (_name, assets) => {
   const github = fixture();
   github.live('2026.11.9');
@@ -190,7 +190,7 @@ it.each([
 it.each([['draft'], ['prerelease']])('writes nothing for a %s, also with both assets', (kind) => {
   const github = fixture();
   github.live('2026.11.9');
-  github.release('v2026.11.10', ['MindRoom.dmg', 'appcast.xml'], kind);
+  github.release('v2026.11.10', ['MindRoom-Chat.dmg', 'appcast.xml'], kind);
   const result = github.run('v2026.11.10');
   expect(result.status).toBe(0);
   expect(github.uploads(result)).toBe(0);

@@ -1,5 +1,5 @@
 # The Mac app outside the App Store: a Developer ID signed and notarized Mac Catalyst DMG
-# (scripts/build-macos-app.sh), attached to its release as MindRoom.dmg, which the Homebrew cask
+# (scripts/build-macos-app.sh), attached to its release as MindRoom-Chat.dmg, which the Homebrew cask
 # mindroom-ai/tap/mindroom-chat installs (docs/ios-release.md "Mac DMG"):
 # - release.yml calls this workflow after it cuts an automatic release;
 # - the release event covers a release cut by hand (`just release`). A release that a workflow's
@@ -81,9 +81,9 @@ jobs:
           fi
           # Its bytes and the cask's checksum stay fixed: changes ship in a new release.
           published=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
-            --jq '[.assets[] | select(.name == "MindRoom.dmg")] | length')
+            --jq '[.assets[] | select(.name == "MindRoom-Chat.dmg")] | length')
           if [[ $published != 0 ]]; then
-            echo "::error::$RELEASE_TAG already has MindRoom.dmg, which is never replaced"
+            echo "::error::$RELEASE_TAG already has MindRoom-Chat.dmg, which is never replaced"
             exit 1
           fi
           echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
@@ -184,7 +184,7 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | env -u SPARKLE_ED_PRIVATE_KEY scripts/macos-appcast.sh build/macos/MindRoom.dmg \
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | env -u SPARKLE_ED_PRIVATE_KEY scripts/macos-appcast.sh build/macos/MindRoom-Chat.dmg \
             "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/" "$VERSION" build/macos/appcast.xml
       - name: Attach the appcast and the DMG to the release
         if: env.RELEASE_TAG
@@ -198,7 +198,7 @@ jobs:
           if [[ $UPDATER == true ]]; then
             gh release upload "$RELEASE_TAG" build/macos/appcast.xml --clobber --repo "$GITHUB_REPOSITORY"
           fi
-          gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
+          gh release upload "$RELEASE_TAG" build/macos/MindRoom-Chat.dmg --repo "$GITHUB_REPOSITORY"
       - name: Check that the release is the newest
         if: env.RELEASE_TAG
         id: newest
@@ -230,7 +230,7 @@ jobs:
           gh api repos/mindroom-ai/homebrew-tap/dispatches \
             -f event_type=mindroom-chat-release \
             -f "client_payload[tag_name]=$RELEASE_TAG" \
-            -f "client_payload[asset_url]=https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/MindRoom.dmg"
+            -f "client_payload[asset_url]=https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/MindRoom-Chat.dmg"
       - name: Remove the provisioning profile
         if: always() && steps.profile.outputs.directory != ''
         env:
