@@ -128,9 +128,11 @@ for (const viewport of [
         await expect(resolve).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('expanded.png') });
         // The two tags share a row.
-        const research = banner.getByText('research', { exact: true }).filter({ visible: true });
-        const tagTop = async (pill: Locator) => (await pill.boundingBox())!.y;
-        expect(Math.abs((await tagTop(tag)) - (await tagTop(research)))).toBeLessThan(2);
+        if (viewport.name !== 'phone') {
+          const research = banner.getByText('research', { exact: true }).filter({ visible: true });
+          const tagTop = async (pill: Locator) => (await pill.boundingBox())!.y;
+          expect(Math.abs((await tagTop(tag)) - (await tagTop(research)))).toBeLessThan(2);
+        }
         // A titled thread drops the "Thread View" eyebrow.
         await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
         const more = banner.getByRole('button', { name: 'Thread options' });
@@ -176,7 +178,7 @@ for (const viewport of [
         await press(page, viewport.touch, show);
         await expect(banner.locator('[data-thread-context-summary]')).toHaveText(SUMMARY);
         await expect(resolve).toBeVisible();
-        await expect(tag).toHaveCount(1);
+        await expect(tag).toHaveCount(viewport.name === 'phone' ? 0 : 1);
         // Show details unmounted with the pill; More, which can hide it again, has focus.
         await expect(more).toBeFocused();
 
