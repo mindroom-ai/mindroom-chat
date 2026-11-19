@@ -134,16 +134,18 @@ describe('the drop zone of the second column', () => {
     const onOpen = vi.fn();
     render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
     // A drag that comes in from another app starts none on the page: the zone still shows.
-    [{ Files: '' }, { 'text/plain': 'example' }, { 'text/uri-list': 'https://example.org' }]
-      .map(dragData)
-      .forEach((dataTransfer) => {
-        startDrag(threadDrag('$c'));
-        expect(fireEvent.dragEnter(zone()!, { dataTransfer })).toBe(true);
-        expect(fireEvent.dragOver(zone()!, { dataTransfer })).toBe(true);
-        expect(zone()!.dataset.over).toBeUndefined();
-        fireEvent.drop(zone()!, { dataTransfer });
-        expect(onOpen).not.toHaveBeenCalled();
-      });
+    [
+      dragData({ Files: '' }),
+      dragData({ 'text/plain': 'example' }),
+      dragData({ 'text/uri-list': 'https://example.org' }),
+    ].forEach((dataTransfer) => {
+      startDrag(threadDrag('$c'));
+      expect(fireEvent.dragEnter(zone()!, { dataTransfer })).toBe(true);
+      expect(fireEvent.dragOver(zone()!, { dataTransfer })).toBe(true);
+      expect(zone()!.dataset.over).toBeUndefined();
+      fireEvent.drop(zone()!, { dataTransfer });
+      expect(onOpen).not.toHaveBeenCalled();
+    });
     // Any other drag that starts on the page ends the thread's.
     startDrag(threadDrag('$c'));
     expect(zone()).not.toBeNull();
