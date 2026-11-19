@@ -1552,6 +1552,7 @@
     "done": "Done"
   },
   "threadActions": {
-    "openBeside": "Open in second column"
+    "openBeside": "Open in second column",
+    "roomOptions": "Room options"
   }
 }

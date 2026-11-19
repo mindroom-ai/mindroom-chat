@@ -1515,6 +1515,7 @@
     "done": "完了"
   },
   "threadActions": {
-    "openBeside": "2列目で開く"
+    "openBeside": "2列目で開く",
+    "roomOptions": "ルームのオプション"
   }
 }

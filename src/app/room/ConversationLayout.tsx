@@ -196,7 +196,8 @@ export function ConversationLayout({
           className={classNames(
             overlay.Header,
             css.HeaderInShortArea,
-            threadId && overlay.HeaderInThread
+            // Not on a phone, whose header is the thread's bar (RoomViewHeader `phoneThread`).
+            threadId && !phone && overlay.HeaderInThread
           )}
         >
           <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>

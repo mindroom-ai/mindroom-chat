@@ -1552,6 +1552,7 @@
     "done": "সম্পন্ন"
   },
   "threadActions": {
-    "openBeside": "দ্বিতীয় কলামে খুলুন"
+    "openBeside": "দ্বিতীয় কলামে খুলুন",
+    "roomOptions": "রুমের বিকল্প"
   }
 }

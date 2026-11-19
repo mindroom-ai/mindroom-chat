@@ -1,7 +1,8 @@
 import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
-import { config, color } from 'folds';
+import { config, color, DefaultReset, toRem } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { shortViewport } from '../ui/styles/shortViewport';
+import { touchTarget } from '../ui/styles/touchTarget';
 import { toolbarButtonRestFill } from '../messages/styles.css';
 
 // Collapsed, the banner shrinks to a pill with back and Show details at the
@@ -329,6 +330,95 @@ export const BannerSnoozed = style([
   glassDenseOverBackdrop,
   { color: color.Warning.OnContainer },
 ]);
+
+// On a phone the thread that fills the page shows in the room header's own rows (RoomViewHeader),
+// flat as that header: no card.
+export const PhoneHeader = style({
+  display: 'flex',
+  flexDirection: 'column',
+  minWidth: 0,
+  paddingBottom: config.space.S300,
+});
+
+// The header's row, as tall as the room header's: back, the room's name, then the buttons.
+export const PhoneRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  height: toRem(54),
+  paddingInline: config.space.S200,
+});
+
+// The room's name takes the room the buttons leave, and gives way to them.
+export const PhoneRoom = style({ display: 'flex', flex: '1 1 0', minWidth: 0, margin: 0 });
+
+// The name is a quiet button that leads back to the room, as the chevron before it does.
+export const PhoneRoomButton = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    minWidth: 0,
+    maxWidth: '100%',
+    padding: 0,
+    border: 0,
+    background: 'none',
+    color: 'inherit',
+    font: 'inherit',
+    cursor: 'pointer',
+    ':focus-visible': { outlineOffset: 2 },
+  },
+  // Its 20 px line grows to 44 px for a finger.
+  touchTarget('0px', '', { blockReach: '12px' }),
+]);
+
+// The whole title under the row, on the header's content inset; a pinned thread's pin follows.
+export const PhoneTitleRow = style({
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: config.space.S200,
+  minWidth: 0,
+  paddingInline: config.space.S400,
+});
+
+// The title in full: it wraps onto as many lines as it needs and is never cut.
+export const PhoneTitle = style({
+  display: 'block',
+  flex: '1 1 0',
+  minWidth: 0,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+});
+
+// The pin sits on the title's first line.
+export const PhonePin = style({
+  display: 'flex',
+  alignItems: 'center',
+  flexShrink: 0,
+  height: config.lineHeight.H5,
+});
+
+// What is set on the thread (auto-approval, a schedule, a snooze, who resolved it) takes a row
+// under the title, and no room while there is none.
+export const PhoneStatus = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: `${config.space.S100} ${config.space.S200}`,
+  minWidth: 0,
+  marginTop: config.space.S100,
+  paddingInline: config.space.S400,
+  selectors: { '&:empty': { display: 'none' } },
+});
+
+// The tags in a row of their own, where the header shows them (PHONE_HEADER_TAGS).
+export const PhoneTags = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: '0.3rem',
+  marginTop: config.space.S200,
+  paddingInline: config.space.S400,
+});
 
 export const BannerDisabled = style({
   opacity: 0.6,

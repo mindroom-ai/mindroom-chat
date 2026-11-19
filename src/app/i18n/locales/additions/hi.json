@@ -1552,6 +1552,7 @@
     "done": "पूरे"
   },
   "threadActions": {
-    "openBeside": "दूसरे कॉलम में खोलें"
+    "openBeside": "दूसरे कॉलम में खोलें",
+    "roomOptions": "रूम के विकल्प"
   }
 }

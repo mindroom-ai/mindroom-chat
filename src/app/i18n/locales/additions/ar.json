@@ -1700,6 +1700,7 @@
     "done": "منتهية"
   },
   "threadActions": {
-    "openBeside": "فتح في العمود الثاني"
+    "openBeside": "فتح في العمود الثاني",
+    "roomOptions": "خيارات الغرفة"
   }
 }

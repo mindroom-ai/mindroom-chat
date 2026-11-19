@@ -1515,6 +1515,7 @@
     "done": "Selesai"
   },
   "threadActions": {
-    "openBeside": "Buka di kolom kedua"
+    "openBeside": "Buka di kolom kedua",
+    "roomOptions": "Opsi ruang"
   }
 }

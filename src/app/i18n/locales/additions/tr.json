@@ -1552,6 +1552,7 @@
     "done": "Bitti"
   },
   "threadActions": {
-    "openBeside": "İkinci sütunda aç"
+    "openBeside": "İkinci sütunda aç",
+    "roomOptions": "Oda seçenekleri"
   }
 }

@@ -8,6 +8,7 @@ import React, {
   useReducer,
   useRef,
   useState,
+  type ReactNode,
 } from 'react';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
@@ -45,7 +46,7 @@ import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
 import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
 import { ThreadHeaderSlot } from './ThreadHeaderSlot';
@@ -73,10 +74,26 @@ export interface ThreadContextBannerProps {
   onShowFull?: () => void;
   /** Given, the banner starts with a Close button in place of Back (a second thread's view). */
   onClose?: () => void;
+  /** Given, the banner draws as the rows of a phone's room header instead of its card. */
+  phoneHeader?: PhoneThreadHeader;
 }
+
+/** What a phone's room header gives the thread that fills its page, whose rows it shows. */
+export type PhoneThreadHeader = {
+  /** The room's name, which leads back to the room as the chevron before it does. */
+  roomName: string;
+  /** The header's own row buttons (the call buttons), which follow Resolve. */
+  actions?: ReactNode;
+  /** Opens the room's menu where the thread's menu was; that menu offers it. */
+  onRoomMenu: (anchor: RectCords) => void;
+  /** Drawn on More while the room's menu holds what a button of its own would mark. */
+  menuBadge?: ReactNode;
+};
 
 const DESKTOP_MAX_PILLS = 3;
 const MOBILE_MAX_PILLS = 2;
+/** Whether a phone's header shows the tags in a row under the title; put away, More edits them. */
+const PHONE_HEADER_TAGS = false;
 
 function TagPills({
   tags,
@@ -116,12 +133,15 @@ export function ThreadContextBanner({
   onShowBeside,
   onShowFull,
   onClose,
+  phoneHeader,
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const bannerRef = useRef<HTMLDivElement>(null);
-  const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
-  const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
+  // The header's rows are its flat chrome: no glass card, and nothing to fold away.
+  const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef, !phoneHeader);
+  const [bannerCollapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
+  const collapsed = bannerCollapsed && !phoneHeader;
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -345,6 +365,321 @@ export function ThreadContextBanner({
     </IconTooltip>
   );
 
+  // The thread's menu opens on a right-click in the banner (a long press on touch) and on the
+  // menu keys.
+  const menuKeys = {
+    onContextMenu: (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openMenu({ x: event.clientX, y: event.clientY, width: 0, height: 0 }, event.currentTarget);
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
+      if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openMenu(event.currentTarget.getBoundingClientRect(), event.target as HTMLElement);
+    },
+  };
+  const tagsEditor = (maxPills: number) => (
+    <>
+      <TagPills
+        tags={headerModel.displayTags}
+        maxPills={maxPills}
+        allTags={headerModel.displayTags}
+        canEdit={headerModel.canEdit}
+        onRemove={handleRemoveTag}
+      />
+      {headerModel.canEdit && (
+        <ThreadTagPicker
+          availableTags={headerModel.availableTags}
+          onAddTag={handleAddTag}
+          disabled={headerModel.pickerDisabled}
+        />
+      )}
+    </>
+  );
+  const titleNode = title && (
+    <InlineThreadTitleEditor room={room} rootId={threadRootId} text={title}>
+      {({ onDoubleClick, hint }) =>
+        headerModel.summaryText ? (
+          <Text
+            // Remounting replays the tint for each new summary.
+            key={headerModel.summaryText}
+            as="span"
+            data-thread-context-summary="true"
+            className={classNames(
+              phoneHeader ? css.PhoneTitle : css.SummaryText,
+              summaryChanged && css.SummaryTextChanged
+            )}
+            onAnimationEnd={() => setShownSummary((shown) => ({ ...shown, changed: false }))}
+            onDoubleClick={onDoubleClick}
+            size={phoneHeader ? 'H5' : 'T300'}
+            truncate={!phoneHeader}
+            title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
+            {...(phoneHeader ? ownDirectionBlock : ownDirectionLine)}
+          >
+            {revealDirectionControls(headerModel.summaryText)}
+          </Text>
+        ) : (
+          <ThreadRootTitle text={title} hint={hint} onDoubleClick={onDoubleClick} />
+        )
+      }
+    </InlineThreadTitleEditor>
+  );
+  const scheduledNode = hasScheduled && (
+    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+      {!phoneHeader && (headerModel.summaryText || rootTitle) && (
+        <Text
+          as="span"
+          className={classNames(css.MetadataDot, css.ScheduledDot)}
+          size="T200"
+          priority="300"
+          aria-hidden="true"
+        >
+          ·
+        </Text>
+      )}
+      <Box
+        as="span"
+        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+        alignItems="Center"
+        gap="100"
+        role="img"
+        aria-label={headerModel.scheduledLabel}
+        title={headerModel.scheduledLabel}
+      >
+        <IconCalendarEvent
+          size={12}
+          stroke={1.8}
+          className={threadIndicatorCss.ThreadScheduledIcon}
+          aria-hidden="true"
+        />
+        <Text as="span" size="T200" priority="300" truncate>
+          {headerModel.bannerScheduledText}
+        </Text>
+      </Box>
+    </Box>
+  );
+  const snoozedNode = snoozedText && (
+    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+      {!phoneHeader && (headerModel.summaryText || rootTitle || hasScheduled) && (
+        <Text
+          as="span"
+          className={classNames(css.MetadataDot, css.ScheduledDot)}
+          size="T200"
+          priority="300"
+          aria-hidden="true"
+        >
+          ·
+        </Text>
+      )}
+      <Box
+        as="span"
+        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+        alignItems="Center"
+        gap="100"
+        data-thread-snoozed="true"
+      >
+        <IconClock
+          size={12}
+          stroke={1.8}
+          className={threadIndicatorCss.ThreadScheduledIcon}
+          aria-hidden="true"
+        />
+        <Text as="span" size="T200" priority="300" truncate>
+          {snoozedText}
+        </Text>
+      </Box>
+      {headerModel.canEdit && (
+        <button
+          type="button"
+          className={css.SnoozeAction}
+          data-thread-unsnooze="true"
+          disabled={headerModel.pickerDisabled}
+          onClick={handleUnsnooze}
+        >
+          {t('thread.unsnooze')}
+        </button>
+      )}
+    </Box>
+  );
+  const resolverNode = showResolver && (
+    <Box
+      as="span"
+      className={classNames(css.ResolutionByline, css.CompactHidden)}
+      id={resolverBylineId}
+      data-thread-resolution-byline="true"
+      alignItems="Center"
+      gap="100"
+      role="img"
+      aria-label={resolvedByLabel}
+      title={resolvedByLabel}
+    >
+      {!phoneHeader && hasSubtitle && (
+        <Text
+          as="span"
+          className={classNames(css.MetadataDot, css.ResolutionBylineDot)}
+          size="T200"
+          priority="300"
+          aria-hidden="true"
+        >
+          ·
+        </Text>
+      )}
+      <Icon src={Icons.Check} size="50" aria-hidden="true" />
+      <Text as="span" className={css.ResolverName} size="T200" priority="300" truncate>
+        {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
+      </Text>
+    </Box>
+  );
+  const moreButton = (
+    <IconTooltip label={t('threadActions.more')}>
+      {(triggerRef) => (
+        <IconButton
+          ref={(node: HTMLButtonElement | null) => {
+            triggerRef(node);
+            moreButtonRef.current = node;
+          }}
+          className={toolbarCss.MessageOptionsButton}
+          variant="SurfaceVariant"
+          fill="None"
+          aria-label={t('threadActions.more')}
+          aria-haspopup="menu"
+          aria-expanded={!!activeMenu}
+          disabled={!canOpenMenu}
+          style={phoneHeader?.menuBadge ? { position: 'relative' } : undefined}
+          onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+            openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+          }
+        >
+          <Icon src={Icons.VerticalDots} size="100" />
+          {phoneHeader?.menuBadge}
+        </IconButton>
+      )}
+    </IconTooltip>
+  );
+  const resolveButton = !isPinned && (
+    // Resolve is in More, but a resolved status stays visible for readers; a phone's header
+    // keeps the button on short screens too.
+    <IconTooltip
+      label={headerModel.isResolved ? resolvedByLabel ?? t('thread.resolved') : t('thread.resolve')}
+      hint={headerModel.isResolved && headerModel.canEdit ? t('threadActions.reopen') : undefined}
+      shortcut={resolveShortcut}
+    >
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
+          className={classNames(
+            toolbarCss.MessageOptionsButton,
+            headerModel.isResolved ? css.ResolvedButton : !phoneHeader && css.CompactHidden
+          )}
+          variant="SurfaceVariant"
+          fill="None"
+          aria-describedby={showResolver ? resolverBylineId : undefined}
+          onClick={handleToggleResolve}
+          disabled={resolveDisabled}
+          {...shortcutAttributes(resolveShortcut)}
+        >
+          <Icon src={Icons.Check} size="100" />
+        </IconButton>
+      )}
+    </IconTooltip>
+  );
+  const pinError = !!pinning.error && (
+    <Text role="alert" size="T200">
+      {t('thread.pinFailed')}
+    </Text>
+  );
+  const menu = activeMenu && (
+    <Suspense fallback={null}>
+      <ThreadActionsMenu
+        key={`${room.roomId}:${threadRootId}`}
+        room={room}
+        rootId={threadRootId}
+        summaryText={headerModel.summaryText}
+        onHideDetails={collapsed || phoneHeader ? undefined : () => toggleCollapsed(true)}
+        onShowBeside={onShowBeside}
+        onShowFull={onShowFull}
+        shortcutless={!!onClose}
+        onRoomMenu={phoneHeader && (() => phoneHeader.onRoomMenu(activeMenu.anchor))}
+        anchor={activeMenu.anchor}
+        onClose={() => closeMenu(activeMenu)}
+      />
+    </Suspense>
+  );
+
+  if (phoneHeader) {
+    // A phone's room header (RoomViewHeader) shows the thread that fills its page in its own
+    // rows: back, the room's name, the plugins' controls, Resolve, the call buttons and More in
+    // the first, and under it the whole title, which wraps as far as it needs. More holds Pin, the
+    // tags and the room's menu; a pinned thread shows its pin beside the title.
+    return (
+      <>
+        <div
+          ref={glassRef}
+          className={css.PhoneHeader}
+          data-thread-context-banner="true"
+          data-thread-phone-header="true"
+          tabIndex={-1}
+          {...menuKeys}
+        >
+          <div className={css.PhoneRow}>
+            {backButton}
+            <h1 className={css.PhoneRoom}>
+              <button
+                type="button"
+                className={css.PhoneRoomButton}
+                title={t('thread.backToRoom')}
+                onClick={onExitThread}
+              >
+                <Text as="span" size="T300" priority="300" truncate {...ownDirectionLine}>
+                  {phoneHeader.roomName}
+                </Text>
+              </button>
+            </h1>
+            <Box alignItems="Center" gap="100" shrink="No">
+              {pluginControls}
+              {resolveButton}
+              {phoneHeader.actions}
+              {moreButton}
+            </Box>
+          </div>
+          {(titleNode || isPinned) && (
+            <div className={css.PhoneTitleRow}>
+              {titleNode}
+              {isPinned && (
+                <Box
+                  as="span"
+                  className={css.PhonePin}
+                  role="img"
+                  aria-label={t('threadNav.pinned')}
+                  title={t('threadNav.pinned')}
+                >
+                  <Icon src={Icons.Pin} size="50" filled />
+                </Box>
+              )}
+            </div>
+          )}
+          <div className={css.PhoneStatus}>
+            <AutoApproveChip room={room} threadId={threadId} />
+            <ThreadApprovalPermissions />
+            {scheduledNode}
+            {snoozedNode}
+            {resolverNode}
+          </div>
+          {PHONE_HEADER_TAGS && hasTags && (
+            <div className={css.PhoneTags}>{tagsEditor(Infinity)}</div>
+          )}
+          {pinError}
+        </div>
+        {menu}
+      </>
+    );
+  }
+
   return (
     <>
       <div
@@ -359,22 +694,7 @@ export function ThreadContextBanner({
         )}
         data-thread-context-banner="true"
         tabIndex={-1}
-        onContextMenu={(event) => {
-          if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          openMenu(
-            { x: event.clientX, y: event.clientY, width: 0, height: 0 },
-            event.currentTarget
-          );
-        }}
-        onKeyDown={(event) => {
-          if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
-          if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
-          event.preventDefault();
-          event.stopPropagation();
-          openMenu(event.currentTarget.getBoundingClientRect(), event.target as HTMLElement);
-        }}
+        {...menuKeys}
       >
         {collapsed ? (
           // Collapsed to back and Show details; the tint still says resolved or snoozed, and
@@ -415,197 +735,24 @@ export function ThreadContextBanner({
                 <AutoApproveChip room={room} threadId={threadId} />
                 <ThreadApprovalPermissions />
                 {/* Desktop: tags inline on title row */}
-                {/* More adds the first tag; + tag joins the ones already set. */}
                 {hasTags && (
                   <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
-                    <TagPills
-                      tags={headerModel.displayTags}
-                      maxPills={DESKTOP_MAX_PILLS}
-                      allTags={headerModel.displayTags}
-                      canEdit={headerModel.canEdit}
-                      onRemove={handleRemoveTag}
-                    />
-                    {headerModel.canEdit && (
-                      <ThreadTagPicker
-                        availableTags={headerModel.availableTags}
-                        onAddTag={handleAddTag}
-                        disabled={headerModel.pickerDisabled}
-                      />
-                    )}
+                    {tagsEditor(DESKTOP_MAX_PILLS)}
                   </div>
                 )}
               </Box>
               {(hasSubtitle || showResolver) && (
                 <div className={css.SubtitleRow}>
-                  {title && (
-                    <InlineThreadTitleEditor room={room} rootId={threadRootId} text={title}>
-                      {({ onDoubleClick, hint }) =>
-                        headerModel.summaryText ? (
-                          <Text
-                            // Remounting replays the tint for each new summary.
-                            key={headerModel.summaryText}
-                            as="span"
-                            data-thread-context-summary="true"
-                            className={classNames(
-                              css.SummaryText,
-                              summaryChanged && css.SummaryTextChanged
-                            )}
-                            onAnimationEnd={() =>
-                              setShownSummary((shown) => ({ ...shown, changed: false }))
-                            }
-                            onDoubleClick={onDoubleClick}
-                            size="T300"
-                            truncate
-                            title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
-                            {...ownDirectionLine}
-                          >
-                            {revealDirectionControls(headerModel.summaryText)}
-                          </Text>
-                        ) : (
-                          <ThreadRootTitle text={title} hint={hint} onDoubleClick={onDoubleClick} />
-                        )
-                      }
-                    </InlineThreadTitleEditor>
-                  )}
-                  {hasScheduled && (
-                    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                      {(headerModel.summaryText || rootTitle) && (
-                        <Text
-                          as="span"
-                          className={classNames(css.MetadataDot, css.ScheduledDot)}
-                          size="T200"
-                          priority="300"
-                          aria-hidden="true"
-                        >
-                          ·
-                        </Text>
-                      )}
-                      <Box
-                        as="span"
-                        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
-                        alignItems="Center"
-                        gap="100"
-                        role="img"
-                        aria-label={headerModel.scheduledLabel}
-                        title={headerModel.scheduledLabel}
-                      >
-                        <IconCalendarEvent
-                          size={12}
-                          stroke={1.8}
-                          className={threadIndicatorCss.ThreadScheduledIcon}
-                          aria-hidden="true"
-                        />
-                        <Text as="span" size="T200" priority="300" truncate>
-                          {headerModel.bannerScheduledText}
-                        </Text>
-                      </Box>
-                    </Box>
-                  )}
-                  {snoozedText && (
-                    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                      {(headerModel.summaryText || rootTitle || hasScheduled) && (
-                        <Text
-                          as="span"
-                          className={classNames(css.MetadataDot, css.ScheduledDot)}
-                          size="T200"
-                          priority="300"
-                          aria-hidden="true"
-                        >
-                          ·
-                        </Text>
-                      )}
-                      <Box
-                        as="span"
-                        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
-                        alignItems="Center"
-                        gap="100"
-                        data-thread-snoozed="true"
-                      >
-                        <IconClock
-                          size={12}
-                          stroke={1.8}
-                          className={threadIndicatorCss.ThreadScheduledIcon}
-                          aria-hidden="true"
-                        />
-                        <Text as="span" size="T200" priority="300" truncate>
-                          {snoozedText}
-                        </Text>
-                      </Box>
-                      {headerModel.canEdit && (
-                        <button
-                          type="button"
-                          className={css.SnoozeAction}
-                          data-thread-unsnooze="true"
-                          disabled={headerModel.pickerDisabled}
-                          onClick={handleUnsnooze}
-                        >
-                          {t('thread.unsnooze')}
-                        </button>
-                      )}
-                    </Box>
-                  )}
-                  {showResolver && (
-                    <Box
-                      as="span"
-                      className={classNames(css.ResolutionByline, css.CompactHidden)}
-                      id={resolverBylineId}
-                      data-thread-resolution-byline="true"
-                      alignItems="Center"
-                      gap="100"
-                      role="img"
-                      aria-label={resolvedByLabel}
-                      title={resolvedByLabel}
-                    >
-                      {hasSubtitle && (
-                        <Text
-                          as="span"
-                          className={classNames(css.MetadataDot, css.ResolutionBylineDot)}
-                          size="T200"
-                          priority="300"
-                          aria-hidden="true"
-                        >
-                          ·
-                        </Text>
-                      )}
-                      <Icon src={Icons.Check} size="50" aria-hidden="true" />
-                      <Text
-                        as="span"
-                        className={css.ResolverName}
-                        size="T200"
-                        priority="300"
-                        truncate
-                      >
-                        {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
-                      </Text>
-                    </Box>
-                  )}
+                  {titleNode}
+                  {scheduledNode}
+                  {snoozedNode}
+                  {resolverNode}
                 </div>
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
               {pluginControls}
-              <IconTooltip label={t('threadActions.more')}>
-                {(triggerRef) => (
-                  <IconButton
-                    ref={(node: HTMLButtonElement | null) => {
-                      triggerRef(node);
-                      moreButtonRef.current = node;
-                    }}
-                    className={toolbarCss.MessageOptionsButton}
-                    variant="SurfaceVariant"
-                    fill="None"
-                    aria-label={t('threadActions.more')}
-                    aria-haspopup="menu"
-                    aria-expanded={!!activeMenu}
-                    disabled={!canOpenMenu}
-                    onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                      openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
-                    }
-                  >
-                    <Icon src={Icons.VerticalDots} size="100" />
-                  </IconButton>
-                )}
-              </IconTooltip>
+              {moreButton}
               {pinning.canPin && mutableThreadRootId ? (
                 <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
                   {(triggerRef) => (
@@ -638,85 +785,19 @@ export function ThreadContextBanner({
                   </Box>
                 )
               )}
-              {!isPinned && (
-                // Resolve is in More, but a resolved status stays visible for readers.
-                <IconTooltip
-                  label={
-                    headerModel.isResolved
-                      ? resolvedByLabel ?? t('thread.resolved')
-                      : t('thread.resolve')
-                  }
-                  hint={
-                    headerModel.isResolved && headerModel.canEdit
-                      ? t('threadActions.reopen')
-                      : undefined
-                  }
-                  shortcut={resolveShortcut}
-                >
-                  {(triggerRef) => (
-                    <IconButton
-                      ref={triggerRef}
-                      aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
-                      className={classNames(
-                        toolbarCss.MessageOptionsButton,
-                        headerModel.isResolved ? css.ResolvedButton : css.CompactHidden
-                      )}
-                      variant="SurfaceVariant"
-                      fill="None"
-                      aria-describedby={showResolver ? resolverBylineId : undefined}
-                      onClick={handleToggleResolve}
-                      disabled={resolveDisabled}
-                      {...shortcutAttributes(resolveShortcut)}
-                    >
-                      <Icon src={Icons.Check} size="100" />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-              )}
+              {resolveButton}
             </Box>
             {/* Mobile: tags in a row of their own, under the title and the actions */}
             {hasTags && (
               <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
-                <TagPills
-                  tags={headerModel.displayTags}
-                  maxPills={MOBILE_MAX_PILLS}
-                  allTags={headerModel.displayTags}
-                  canEdit={headerModel.canEdit}
-                  onRemove={handleRemoveTag}
-                />
-                {headerModel.canEdit && (
-                  <ThreadTagPicker
-                    availableTags={headerModel.availableTags}
-                    onAddTag={handleAddTag}
-                    disabled={headerModel.pickerDisabled}
-                  />
-                )}
+                {tagsEditor(MOBILE_MAX_PILLS)}
               </div>
             )}
           </div>
         )}
-        {!!pinning.error && (
-          <Text role="alert" size="T200">
-            {t('thread.pinFailed')}
-          </Text>
-        )}
+        {pinError}
       </div>
-      {activeMenu && (
-        <Suspense fallback={null}>
-          <ThreadActionsMenu
-            key={`${room.roomId}:${threadRootId}`}
-            room={room}
-            rootId={threadRootId}
-            summaryText={headerModel.summaryText}
-            onHideDetails={collapsed ? undefined : () => toggleCollapsed(true)}
-            onShowBeside={onShowBeside}
-            onShowFull={onShowFull}
-            shortcutless={!!onClose}
-            anchor={activeMenu.anchor}
-            onClose={() => closeMenu(activeMenu)}
-          />
-        </Suspense>
-      )}
+      {menu}
     </>
   );
 }

@@ -1552,6 +1552,7 @@
     "done": "Erledigt"
   },
   "threadActions": {
-    "openBeside": "In zweiter Spalte öffnen"
+    "openBeside": "In zweiter Spalte öffnen",
+    "roomOptions": "Raumoptionen"
   }
 }

@@ -40,7 +40,7 @@ import {
 import { useInert } from '../lib/hooks/useInert';
 import { ROOM_MESSAGES_VIEW, useShownConversationView } from '../navigation/conversationView';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
-import { ThreadContextBanner } from '../threads/ThreadContextBanner';
+import { ThreadContextBanner, type PhoneThreadHeader } from '../threads/ThreadContextBanner';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
@@ -285,17 +285,21 @@ export function RoomView({
   }, [openThreadId, focusConversation, phone, unlessCardTakesFocus]);
 
   // The open thread's banner, with the way to fill the page or to go beside the messages. While a
-  // second thread keeps it beside them, filling the page would not take, so it offers neither.
-  const threadBanner = openThreadId && (
-    <ThreadContextBanner
-      room={room}
-      threadId={openThreadId}
-      summaryInfo={threadState.threadSummaryInfo}
-      onExitThread={threadState.handleExitThread}
-      onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
-      onShowFull={columnFills || besideForSecond ? undefined : showFull}
-    />
-  );
+  // second thread keeps it beside them, filling the page would not take, so it offers neither. On
+  // a phone, where a thread always fills the page, it draws as the rows of the room's header
+  // (`phoneHeader`, which that header gives) and the thread's messages start without a banner.
+  const threadBanner = (phoneHeader?: PhoneThreadHeader) =>
+    openThreadId && (
+      <ThreadContextBanner
+        room={room}
+        threadId={openThreadId}
+        summaryInfo={threadState.threadSummaryInfo}
+        onExitThread={threadState.handleExitThread}
+        onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
+        onShowFull={columnFills || besideForSecond ? undefined : showFull}
+        phoneHeader={phoneHeader}
+      />
+    );
   const timelineProps: RoomTimelineProps = {
     room,
     // The event the address names is the thread's, unless it asks for it in the room.
@@ -418,7 +422,7 @@ export function RoomView({
                 threadId={openThreadId}
                 eventId={focusEventInRoom ? undefined : eventId}
                 forkAt={forkAt}
-                header={threadBanner}
+                header={phone ? undefined : threadBanner()}
                 // The banner's title follows the summaries the thread's own events bring.
                 summaryMap={timelineProps.summaryMap}
                 onStoreThreadSummary={timelineProps.onStoreThreadSummary}
@@ -431,6 +435,7 @@ export function RoomView({
                             hasMindroomAgents={hasMindroomAgents}
                             threadId={openThreadId}
                             threadFilterState={threadState.threadFilterState}
+                            phoneThread={phone ? threadBanner : undefined}
                             {...headerProps}
                           />
                           <RoomHeaderSlot room={room} headerRef={headerRef} />

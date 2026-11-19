@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactElement } from 'react';
+import { Fragment, useState, type ReactElement, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
@@ -52,6 +52,7 @@ import {
   hasChosenThreadFilters,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
+import type { PhoneThreadHeader } from '../threads/ThreadContextBanner';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 import { CompactViewIcon } from './CompactViewIcon';
 import {
@@ -102,6 +103,11 @@ export type RoomViewHeaderProps = {
   pluginPanels?: readonly Pick<SidePanel, 'id' | 'label' | 'icon' | 'placement'>[];
   /** The plugins' header actions, each in the row or the room menu by its placement. */
   pluginActions?: readonly PluginHeaderAction[];
+  /**
+   * On a phone, draws the open thread (`threadId`) as the header's rows, given the room's part of
+   * them: the thread's banner (`ThreadContextBanner` with `phoneHeader`).
+   */
+  phoneThread?: (parts: PhoneThreadHeader) => ReactNode;
 };
 
 // A count on a button's top end corner, out of the pointer's way, in a badge tall enough for its
@@ -185,7 +191,10 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
  * calls, pinned messages, members, and the plugins' actions) and the room menu, which offers those
  * its row leaves out, and whether this room shows tool calls. Phones keep the name, the call
  * buttons and the room menu, so a long name keeps its room. The top bar's menu button, not the
- * header, leads back to the list there.
+ * header, leads back to the list there. A thread that fills the page there shows in the header
+ * (`phoneThread`): its row then holds back, the room's name, the thread's buttons, the row's own
+ * buttons and the thread's menu, which opens the room menu, and the thread's whole title follows
+ * under it.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -206,6 +215,7 @@ export function RoomViewHeader({
   onPanelToggle,
   pluginPanels = [],
   pluginActions = [],
+  phoneThread,
 }: RoomViewHeaderProps) {
   const room = useRoom();
   const { t } = useTranslation();
@@ -494,81 +504,98 @@ export function RoomViewHeader({
       )
     );
 
+  const rowButtons = entries
+    .filter(inRow)
+    .map((entry) =>
+      drawnByHeader(entry) ? (
+        <HeaderActionButton key={entry.id} action={entry} />
+      ) : (
+        <Fragment key={entry.id}>{entry.row}</Fragment>
+      )
+    );
+  // A dot marks what the menu holds that a button would show: join requests, active sub-agents
+  // or hidden active filters, on phones.
+  const menuDot =
+    menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
+    cornerDot('data-room-menu-dot');
+  // On a phone the thread that fills the page takes the header: the room gives its name, its
+  // row's buttons and its menu, which the thread's menu opens.
+  const threadRows = mobile && !!threadId && phoneThread;
+
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
     // the landmark that names the open room.
-    <PageHeader role="banner" className={css.Header}>
-      {/* On phones the name leads: the top bar's menu button above it reaches the list. */}
-      <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
-        {!mobile && (
-          <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
-            <RoomAvatar
-              alt={roomName}
-              src={avatarSrc}
-              roomId={room.roomId}
-              fallbackId={direct ? getDirectPartnerId(room) : undefined}
-              renderFallback={() =>
-                direct ? (
-                  <Text as="span" size="H5">
-                    {nameInitials(roomName)}
-                  </Text>
-                ) : (
-                  <RoomIcon size="200" joinRule={room.getJoinRule()} filled subRoom={subRoom} />
-                )
-              }
-            />
-          </Avatar>
-        )}
-        <Box direction="Column" style={{ minWidth: 0 }}>
-          <Text as="h1" size="H5" truncate {...ownDirectionLine}>
-            {roomName}
-          </Text>
-          {topic && (
-            <button
-              type="button"
-              className={classNames(HeaderTopic, css.Topic)}
-              onClick={() => setTopicOpen(true)}
-            >
-              <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
-                {topic}
+    <PageHeader role="banner" className={threadRows ? css.ThreadHeader : css.Header}>
+      {threadRows ? (
+        threadRows({
+          roomName,
+          actions: rowButtons,
+          onRoomMenu: setMenuAnchor,
+          menuBadge: menuDot,
+        })
+      ) : (
+        <>
+          {/* On phones the name leads: the top bar's menu button above it reaches the list. */}
+          <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
+            {!mobile && (
+              <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
+                <RoomAvatar
+                  alt={roomName}
+                  src={avatarSrc}
+                  roomId={room.roomId}
+                  fallbackId={direct ? getDirectPartnerId(room) : undefined}
+                  renderFallback={() =>
+                    direct ? (
+                      <Text as="span" size="H5">
+                        {nameInitials(roomName)}
+                      </Text>
+                    ) : (
+                      <RoomIcon size="200" joinRule={room.getJoinRule()} filled subRoom={subRoom} />
+                    )
+                  }
+                />
+              </Avatar>
+            )}
+            <Box direction="Column" style={{ minWidth: 0 }}>
+              <Text as="h1" size="H5" truncate {...ownDirectionLine}>
+                {roomName}
               </Text>
-            </button>
-          )}
-          {topic && topicOpen && (
-            <RoomTopicViewer
-              name={roomName}
-              topic={topic}
-              requestClose={() => setTopicOpen(false)}
+              {topic && (
+                <button
+                  type="button"
+                  className={classNames(HeaderTopic, css.Topic)}
+                  onClick={() => setTopicOpen(true)}
+                >
+                  <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
+                    {topic}
+                  </Text>
+                </button>
+              )}
+              {topic && topicOpen && (
+                <RoomTopicViewer
+                  name={roomName}
+                  topic={topic}
+                  requestClose={() => setTopicOpen(false)}
+                />
+              )}
+            </Box>
+          </Box>
+          {/* A small gap, so a tinted button never touches its neighbour. */}
+          <Box shrink="No" alignItems="Center" gap="100">
+            {rowButtons}
+            <HeaderActionButton
+              action={{
+                label: t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions'),
+                icon: Icons.VerticalDots,
+                popup: 'menu',
+                expanded: !!menuAnchor,
+                run: setMenuAnchor,
+                badge: menuDot,
+              }}
             />
-          )}
-        </Box>
-      </Box>
-      {/* A small gap, so a tinted button never touches its neighbour. */}
-      <Box shrink="No" alignItems="Center" gap="100">
-        {entries
-          .filter(inRow)
-          .map((entry) =>
-            drawnByHeader(entry) ? (
-              <HeaderActionButton key={entry.id} action={entry} />
-            ) : (
-              <Fragment key={entry.id}>{entry.row}</Fragment>
-            )
-          )}
-        <HeaderActionButton
-          action={{
-            label: t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions'),
-            icon: Icons.VerticalDots,
-            popup: 'menu',
-            expanded: !!menuAnchor,
-            run: setMenuAnchor,
-            // A dot marks what the menu holds that a button would show: join requests, active
-            // sub-agents or hidden active filters, on phones.
-            badge:
-              menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
-              cornerDot('data-room-menu-dot'),
-          }}
-        />
-      </Box>
+          </Box>
+        </>
+      )}
       <PopOut
         anchor={pinAnchor}
         position="Bottom"

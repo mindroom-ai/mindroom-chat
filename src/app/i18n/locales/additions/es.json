@@ -1589,6 +1589,7 @@
     "done": "Hechos"
   },
   "threadActions": {
-    "openBeside": "Abrir en la segunda columna"
+    "openBeside": "Abrir en la segunda columna",
+    "roomOptions": "Opciones de la sala"
   }
 }

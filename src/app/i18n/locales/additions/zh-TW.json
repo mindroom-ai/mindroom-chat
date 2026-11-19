@@ -1515,6 +1515,7 @@
     "done": "已完成"
   },
   "threadActions": {
-    "openBeside": "在第二欄開啟"
+    "openBeside": "在第二欄開啟",
+    "roomOptions": "房間選項"
   }
 }

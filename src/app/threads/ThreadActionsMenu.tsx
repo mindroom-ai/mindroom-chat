@@ -82,6 +82,8 @@ export type ThreadActionsMenuProps = {
   onShowFull?: () => void;
   /** The menu of a view the keys do not act on (a second thread's banner): it advertises none. */
   shortcutless?: boolean;
+  /** Offered where the thread's menu stands in for the room's (a phone's header): opens that. */
+  onRoomMenu?: () => void;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
@@ -115,6 +117,7 @@ export function ThreadActionsMenu({
   onShowBeside,
   onShowFull,
   shortcutless = false,
+  onRoomMenu,
   plugins = registeredPlugins,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
@@ -619,6 +622,18 @@ export function ThreadActionsMenu({
       onSelect: () => {
         onHideDetails();
         onClose();
+      },
+    });
+  }
+  if (onRoomMenu) {
+    items.push({
+      action: 'roomMenu',
+      label: t('threadActions.roomOptions'),
+      icon: Icons.Hash,
+      // The thread's menu goes first, so the room's opens with the focus back on their button.
+      onSelect: () => {
+        onClose();
+        onRoomMenu();
       },
     });
   }

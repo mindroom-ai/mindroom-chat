@@ -1589,6 +1589,7 @@
     "done": "Concluídos"
   },
   "threadActions": {
-    "openBeside": "Abrir na segunda coluna"
+    "openBeside": "Abrir na segunda coluna",
+    "roomOptions": "Opções da sala"
   }
 }

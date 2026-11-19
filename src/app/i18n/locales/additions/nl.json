@@ -1552,6 +1552,7 @@
     "done": "Klaar"
   },
   "threadActions": {
-    "openBeside": "In tweede kolom openen"
+    "openBeside": "In tweede kolom openen",
+    "roomOptions": "Kameropties"
   }
 }
