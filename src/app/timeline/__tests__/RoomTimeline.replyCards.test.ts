@@ -68,7 +68,7 @@ const openThread = async ({ canvasEnabled, opens }: { canvasEnabled: boolean; op
     revisionEventId: '$canvas',
     canvas: { title: 'Project Alpha KPIs', html: '<p>KPIs</p>' },
     event: notice,
-  } as ChatUiAction;
+  } as unknown as ChatUiAction;
   const actions = {
     read: () => (opens ? action : undefined),
     unavailable: () => undefined,
