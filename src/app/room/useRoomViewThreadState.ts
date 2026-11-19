@@ -29,14 +29,7 @@ import {
   getRoomThreadExitTargetFromHistoryState,
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
-import {
-  historyPageOf,
-  previousHistoryOrigin,
-  routeEventId,
-  showsRoom,
-  type HistoryPage,
-} from '../routes/historyStack';
-import { getRoomEventThreadOpenTarget } from '../routes/roomDeepLink';
+import { historyPageOf, previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
@@ -109,24 +102,6 @@ export type RoomViewThreadState = {
   /** The open thread is not in this room, and no joined room the client knows holds it. */
   threadNotFound: boolean;
   viewMode: RoomViewMode;
-};
-
-/**
- * Whether the room's page `page` opens `threadId` again: the room at an event of the thread does
- * outside Classic (`openRoomEventRoute`), unless it asks only to focus the event.
- */
-const reopensThread = (
-  page: HistoryPage,
-  room: Room,
-  threadId: string | undefined,
-  viewMode: RoomViewMode
-): boolean => {
-  const eventId = routeEventId(page);
-  if (!eventId || !threadId || viewMode === 'classic') return false;
-  if (new URLSearchParams(page.search).get('focusEvent') === '1') return false;
-  return (
-    eventId === threadId || getRoomEventThreadOpenTarget({ eventId, room })?.threadId === threadId
-  );
 };
 
 export const useRoomViewThreadState = ({
@@ -248,12 +223,8 @@ export const useRoomViewThreadState = ({
           )
       );
       const originPath = origin?.path ?? exitTarget?.exitPath;
-      // The room itself, with no thread open in it and none that it opens.
-      if (
-        !originPath ||
-        !showsRoom(historyPageOf(originPath), addresses, ['']) ||
-        reopensThread(historyPageOf(originPath), room, effectiveThreadId, effectiveViewMode)
-      ) {
+      // The room itself, with no thread open in it.
+      if (!originPath || !showsRoom(historyPageOf(originPath), addresses, [''])) {
         toRoom();
         return;
       }
@@ -263,7 +234,7 @@ export const useRoomViewThreadState = ({
       else if (!origin || origin.steps === 1) window.history.back();
       else window.history.go(-origin.steps);
     },
-    [effectiveThreadId, effectiveViewMode, mx, navigatePath, room, roomId, threadId]
+    [effectiveThreadId, mx, navigatePath, roomId, threadId]
   );
 
   const handleExitThread = useCallback(() => {

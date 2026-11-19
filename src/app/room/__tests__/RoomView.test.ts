@@ -130,9 +130,7 @@ vi.stubGlobal('window', {
   },
 });
 
-vi.mock('../../threads/useInitializeShownThread', () => ({
-  useInitializeShownThread: () => undefined,
-}));
+vi.mock('../../threads/useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('../../event-store/engine/engineContext', () => ({ useSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -1430,35 +1428,6 @@ describe('RoomView', { timeout: 30_000 }, () => {
     });
   });
 
-  it('leaves a thread for its room on native iOS when it was opened from a link to it', async () => {
-    isNativeIOSMock.mockReturnValue(true);
-    const room = makeRoom(nextRoomId('room-a'));
-    // The link's own page opens the thread again: leaving for it would come straight back.
-    historyStub.state = {
-      usr: {
-        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
-          exitPath: `/home/${encodeURIComponent(room.roomId)}/%24thread`,
-          roomId: room.roomId,
-          threadId: '$thread',
-          useHistoryBack: false,
-        },
-      },
-    };
-    const { RoomView } = await import('../RoomView');
-    await act(async () => {
-      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
-    });
-
-    await act(async () => {
-      threadContextBannerState.props?.onExitThread?.();
-    });
-
-    expect(navigatePathMock).not.toHaveBeenCalled();
-    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
-      replace: true,
-    });
-  });
-
   describe('with the pages the app has shown', () => {
     /** Shows `paths` one after another, as the app's router does, recording them as the app does. */
     const showPages = async (paths: string[]) => {
@@ -1513,40 +1482,6 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
       expect(historyGoMock).toHaveBeenCalledWith(-2);
       expect(historyBackMock).not.toHaveBeenCalled();
-      expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
-      recorder?.unmount();
-    });
-
-    it('leaves for the room when the page before was a link to the thread, which opens it again', async () => {
-      const room = makeRoom(nextRoomId('room-a'));
-      const roomPath = `/home/${encodeURIComponent(room.roomId)}/`;
-      const recorder = await showPages([
-        `${roomPath}?threadId=%24other`,
-        `${roomPath}%24thread`,
-        `${roomPath}?threadId=%24thread`,
-      ]);
-
-      await exitThread(room);
-
-      expect(historyBackMock).not.toHaveBeenCalled();
-      expect(historyGoMock).not.toHaveBeenCalled();
-      expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
-        replace: true,
-      });
-      recorder?.unmount();
-    });
-
-    it('steps back to a link that only focuses the thread in its room', async () => {
-      const room = makeRoom(nextRoomId('room-a'));
-      const roomPath = `/home/${encodeURIComponent(room.roomId)}/`;
-      const recorder = await showPages([
-        `${roomPath}%24thread?focusEvent=1`,
-        `${roomPath}?threadId=%24thread`,
-      ]);
-
-      await exitThread(room);
-
-      expect(historyBackMock).toHaveBeenCalled();
       expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
       recorder?.unmount();
     });
@@ -2241,5 +2176,6 @@ vi.mock('../ThreadView', () => ({
   }: {
     header?: React.ReactNode;
     roomHeader?: (headerRef: React.RefObject<HTMLDivElement>) => React.ReactNode;
-  }) => React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
+  }) =>
+    React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
 }));

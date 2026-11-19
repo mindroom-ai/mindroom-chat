@@ -138,12 +138,6 @@ export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: st
   routeRooms(page.pathname).some((address) => addresses.includes(address)) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));
 
-/** The event a page's route names after its room (`/<section>/<room>/<event>`), if any. */
-export const routeEventId = (page: HistoryPage): string | undefined => {
-  const segment = decodeRouteParam(page.pathname.split('/')[3] ?? '');
-  return segment.startsWith('$') ? segment : undefined;
-};
-
 /** The page an app path (`<pathname><search>`) opens, such as a path recorded earlier. */
 export const historyPageOf = (path: string): HistoryPage => {
   const { pathname, search } = new URL(path, 'https://app.invalid');

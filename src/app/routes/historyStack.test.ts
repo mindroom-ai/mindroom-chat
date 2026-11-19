@@ -15,7 +15,6 @@ import {
   OPENED_FROM_OUTSIDE_STATE,
   previousHistoryOrigin,
   previousHistoryPathname,
-  routeEventId,
   showsRoom,
   useHistoryStackRecorder,
   type HistoryStack,
@@ -233,17 +232,5 @@ describe('findHistoryOrigin', () => {
   it('finds nothing when every page the app has shown is the room', () => {
     const history = stack(page('a', `/home/${room}/`), page('b', `/home/${room}/`, '?threadId=x'));
     expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toBeUndefined();
-  });
-});
-
-describe('routeEventId', () => {
-  it("names the event after a room's address, in a section or a space", () => {
-    expect(routeEventId(historyPageOf('/home/!room%3Ahs/%24event/'))).toBe('$event');
-    expect(routeEventId(historyPageOf('/%23space%3Ahs/%23room%3Ahs/%24event?x=1'))).toBe('$event');
-  });
-
-  it('names none for a room, a thread or a page of a space', () => {
-    expect(routeEventId(historyPageOf('/home/!room%3Ahs/?threadId=%24root'))).toBeUndefined();
-    expect(routeEventId(historyPageOf('/%23space%3Ahs/lobby/'))).toBeUndefined();
   });
 });
