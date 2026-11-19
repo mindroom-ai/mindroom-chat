@@ -1,33 +1,37 @@
 import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { Icon, Icons, Text, type IconSrc } from 'folds';
 import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
 import { useClientConfig } from '../../config/useClientConfig';
-import { parseScheduleTimestamp } from '../../matrix/protocol/scheduledTaskContract';
-import type { ReplyCard } from '../replyCards';
+import {
+  parseScheduleTimestamp,
+  type ParsedScheduledTask,
+} from '../../matrix/protocol/scheduledTaskContract';
 import * as css from './ReplyCards.css';
+
+export type ReplyCard = { canvas: MatrixEvent } | { reminder: ParsedScheduledTask };
+
+const dateTime = (time: number, locale?: string) =>
+  new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(time);
 
 type Drawn = { key: string; icon: IconSrc; title?: string; detail: string; open?: () => void };
 
-/**
- * What an agent's reply left behind, as cards under it (replyCards.ts): a canvas, which opens on
- * click or says why it cannot now (no card with canvases turned off), and a reminder it scheduled.
- */
+/** Cards under an agent's reply (timeline/replyCards.ts): a canvas it shared, which opens on click
+ * or says why not (none with canvases off), and a reminder it scheduled. */
 export function ReplyCards({ cards }: { cards: readonly ReplyCard[] }) {
   const { t, i18n } = useTranslation();
   const actions = useContext(ChatUiActionContext);
   const canvasEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
-  const formatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
   const drawn = cards.flatMap((card): Drawn[] => {
     if ('reminder' in card) {
       const { reminder } = card;
       const time = parseScheduleTimestamp(reminder.executeAt);
       const when =
         reminder.cronDescription ??
-        (time === undefined ? t('roomSchedules.unknownTime') : formatter.format(time));
+        (time === undefined
+          ? t('roomSchedules.unknownTime')
+          : dateTime(time, i18n.resolvedLanguage));
       const detail = t('mindroomUi.uiActions.reminderCard', { when });
       return [{ key: reminder.taskId, icon: Icons.Clock, title: reminder.description, detail }];
     }

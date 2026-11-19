@@ -727,7 +727,6 @@ export const useTimelineMessageFeature = ({
           )}
         />
       );
-      // A canvas this reply shared and a reminder it scheduled, as cards under it (replyCards.ts).
       const cards = data.replyCards?.byReply.get(eventId);
       cards?.forEach((card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas));
       const relations = getEventReactions(timelineSet, eventId);

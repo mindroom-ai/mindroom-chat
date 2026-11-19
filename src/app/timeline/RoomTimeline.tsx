@@ -130,7 +130,7 @@ import {
 } from '../approvals/useThreadApprovalTimeline';
 import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
 import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
-import { useReplyCardPlan } from '../messages/replyCards';
+import { useReplyCardPlan } from './replyCards';
 import { useScheduledTaskEvents } from '../schedules/useScheduledTaskEvents';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';

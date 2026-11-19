@@ -3192,7 +3192,7 @@
       "openConversation": "افتح هذا الطلب من محادثة الغرفة.",
       "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات.",
       "canvasCard": "لوحة تفاعلية",
-      "reminderCard": "تذكير · {{when}}"
+      "reminderCard": "تذكير · ⁨{{when}}⁩"
     },
     "canvas": {
       "panelLabel": "لوحة تفاعلية",

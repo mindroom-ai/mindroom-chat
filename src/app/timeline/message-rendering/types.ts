@@ -4,7 +4,7 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 import type { useThreadApprovalTimeline } from '../../approvals/useThreadApprovalTimeline';
 import type { ThreadSummaryTimelinePlan } from '../../event-store/threads/threadSummaryTimeline';
 import type { VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
-import type { ReplyCardPlan } from '../../messages/replyCards';
+import type { ReplyCardPlan } from '../replyCards';
 
 export type TimelineMessageRow = Readonly<{
   eventId: string;

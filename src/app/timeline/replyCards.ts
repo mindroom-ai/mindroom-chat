@@ -5,10 +5,9 @@ import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity
 import {
   isPendingScheduledTaskStatus,
   parseScheduledTaskStateEvent,
-  type ParsedScheduledTask,
 } from '../matrix/protocol/scheduledTaskContract';
-
-export type ReplyCard = { canvas: MatrixEvent } | { reminder: ParsedScheduledTask };
+import type { ReplyCard } from '../messages/content/ReplyCards';
+import { genuineReplyEventId } from './timelineRowFold';
 
 /** What a thread's agent replies left behind, as cards under each reply; the notices' rows hide. */
 export type ReplyCardPlan = {
@@ -40,17 +39,15 @@ export const planReplyCards = ({
   const notices: [MatrixEvent, string][] = [];
   events.forEach((event) => {
     const id = event.getId();
-    const key = `${event.getSender()} ${event.replyEventId}`;
-    // A thread's fallback reply names the latest message, not one it answers.
-    const fallback = event.getWireContent()['m.relates_to']?.is_falling_back === true;
-    const agent = isMindroomAgentUserIdForViewer(event.getSender(), viewerId);
-    if (!id || !event.replyEventId || fallback || !agent || event.isRedacted()) return;
+    const answered = genuineReplyEventId(event);
+    if (!id || !answered || !isMindroomAgentUserIdForViewer(event.getSender(), viewerId)) return;
+    if (event.isRedacted()) return;
     const content = event.getOriginalContent();
     const action = content[CHAT_UI_ACTION_KEY] as Record<string, unknown> | undefined;
     if (action?.action === 'show_canvas' && action.inline !== true) {
-      if (!revealed.has(id)) notices.push([event, key]);
+      if (!revealed.has(id)) notices.push([event, `${event.getSender()} ${answered}`]);
     } else if (!action && content.msgtype === 'm.text') {
-      replies.set(key, id).set(event.replyEventId, id);
+      replies.set(`${event.getSender()} ${answered}`, id).set(answered, id);
     }
   });
   const hiddenEventIds = new Set<string>();
