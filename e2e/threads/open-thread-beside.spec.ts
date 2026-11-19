@@ -172,7 +172,12 @@ test('Open in second column shows a second thread in its own column at each widt
   await expect(column(page).getByText('Example thread beta reply')).toBeVisible({
     timeout: 30_000,
   });
-  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
+  // The B remembered from the drags goes first, so the card opens a B rather than replacing one.
+  await expect(second(page).getByText('Example thread alpha reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await second(page).getByRole('button', { name: 'Close thread' }).click();
+  await expect(second(page)).toHaveCount(0);
   await (await openCardMenu(page, gamma))
     .getByRole('menuitem', { name: 'Open in second column' })
     .click();
