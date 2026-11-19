@@ -3,6 +3,7 @@ import {
   type ReactElement,
   type RefObject,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -179,6 +180,29 @@ const play = (list: HTMLElement, before: Before): Animation[] => {
   return started;
 };
 
+/**
+ * Holds a play where its row shows now. A pause alone takes hold at the browser's next frame,
+ * which a busy page draws late, at the place the play has reached by then: a pressed row glided
+ * on (17 to 67 px in Chromium, 100 ms of its way in WebKit) and left the pointer all the same.
+ * Setting a play's time ends the pending pause at once, but the time a play reports can be the
+ * last frame's, behind where the row shows and the press was aimed (WebKit). So a glide starts
+ * again from the place the page reports for its row, and holds there.
+ */
+const holdNow = (animation: Animation): void => {
+  const effect = animation.effect as KeyframeEffect | null;
+  const [first] = effect?.getKeyframes() ?? [];
+  let time = animation.currentTime;
+  // A glide, or the play that raises its row over the others: not a row that comes or leaves.
+  if (effect?.target && first && !('opacity' in first)) {
+    const shown = getComputedStyle(effect.target).translate;
+    if ('translate' in first) effect.setKeyframes([{ translate: shown }, { translate: 'none' }]);
+    time = 0;
+  }
+  animation.pause();
+  // eslint-disable-next-line no-param-reassign -- the one way to end a pause that is pending
+  animation.currentTime = time;
+};
+
 type BeforeChangeProps = {
   order: string;
   read: () => Before | undefined;
@@ -231,10 +255,23 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * when no row in view stays, with reduced motion, in a page nobody sees, or without Web
  * Animations. Call it after a hook that scrolls the list in a layout effect: the rows are read
  * where that leaves them.
+ *
+ * A press in the list holds its plays where they show until the press's click, or until it is
+ * cancelled: the pressed row stays under the pointer, so the click reaches it. A row that glided
+ * on would take the release to the row beside it, and a browser sends a click whose press and
+ * release hit different elements to the element that holds both, here the list: the pressed row
+ * got none (a Compact card pressed while the list sorted itself anew opened nothing). A finger's
+ * click is aimed after its pointerup, so the release alone does not let go. A glide that was held
+ * starts again from where its row stood. A press that ends in
+ * neither (a drag, a long press) leaves the plays held until `LONGEST_PLAY_MS` ends them. A
+ * change of `order` during a press starts its plays held, at the frame that shows each row where
+ * it was; one that comes `LONGEST_PLAY_MS` or more after the pointer went down plays at once.
  */
 export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
+  // The press that holds plays: when its pointer went down, and the plays it holds.
+  const pressRef = useRef<{ at: number; held: Animation[] }>();
   const read = useCallback(
     () => (listRef.current ? readBefore(listRef.current) : undefined),
     [listRef]
@@ -269,11 +306,51 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     });
     const started = play(list, before);
     runningRef.current = [...kept, ...started];
+    const press = pressRef.current;
+    if (press && performance.now() - press.at < LONGEST_PLAY_MS) {
+      // At their first frame, which shows each row where it was: a pause holds them there.
+      started.forEach((animation) => animation.pause());
+      press.held.push(...started);
+    }
     // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
     if (started.length > 0) {
       setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
     }
   }, [listRef, order]);
+
+  useEffect(() => {
+    // Rendered outside a page (a unit test in node), there is no press to listen for.
+    if (typeof window === 'undefined') return undefined;
+    const letGo = () => {
+      pressRef.current?.held.forEach((animation) => {
+        // Not one that ended or was started again meanwhile.
+        if (animation.playState === 'paused') animation.play();
+      });
+      pressRef.current = undefined;
+    };
+    const hold = (event: PointerEvent) => {
+      const inList = event.target instanceof Node && listRef.current?.contains(event.target);
+      if (event.button !== 0 || !inList) return;
+      const running = runningRef.current.filter(({ playState }) => playState === 'running');
+      running.forEach(holdNow);
+      // With the plays of a press that ended in neither a click nor a cancel.
+      pressRef.current = {
+        at: performance.now(),
+        held: [...(pressRef.current?.held ?? []), ...running],
+      };
+    };
+    // On the window, in the capture phase: before a handler of the row acts on the press, and
+    // also for a list that mounts after this hook.
+    window.addEventListener('pointerdown', hold, true);
+    window.addEventListener('click', letGo, true);
+    window.addEventListener('pointercancel', letGo, true);
+    return () => {
+      window.removeEventListener('pointerdown', hold, true);
+      window.removeEventListener('click', letGo, true);
+      window.removeEventListener('pointercancel', letGo, true);
+      letGo();
+    };
+  }, [listRef]);
 
   return <BeforeChange order={order} read={read} keep={keep} />;
 };
