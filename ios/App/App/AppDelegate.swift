@@ -52,10 +52,41 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             modifierFlags: [.control, .alternate]
         )
         builder.insertChild(UIMenu(options: .displayInline, children: [quickCapture]), atStartOfMenu: .window)
+#if !MINDROOM_MAC_APP_STORE
+        // Rebuilt when an update is staged or withdrawn (MacUpdater.start), so each title has its own action.
+        let updates = MacUpdater.readyVersion == nil
+            ? UICommand(title: NSLocalizedString("CHECK_FOR_UPDATES", comment: "App menu: look for a new version"),
+                        action: #selector(checkForUpdates))
+            : UICommand(title: NSLocalizedString("RESTART_TO_UPDATE", comment: "App menu: install the downloaded version"),
+                        action: #selector(restartToUpdate))
+        builder.insertSibling(UIMenu(options: .displayInline, children: [updates]), afterMenu: .about)
+#endif
     }
 
     @objc func toggleQuickCapture() {
         QuickCapture.toggle()
+    }
+#endif
+
+#if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
+    /// Sparkle's check, with its windows. Never installs.
+    @objc func checkForUpdates() {
+        MacUpdater.checkForUpdates()
+    }
+
+    /// While a downloaded update waits Sparkle runs no check; this installs it, as the page's
+    /// Reload does. Does nothing if the update was withdrawn.
+    @objc func restartToUpdate() {
+        guard MacUpdater.readyVersion != nil else { return }
+        _ = MacUpdater.install()
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        switch action {
+        case #selector(checkForUpdates): return MacUpdater.canCheckForUpdates
+        case #selector(restartToUpdate): return MacUpdater.readyVersion != nil
+        default: return super.canPerformAction(action, withSender: sender)
+        }
     }
 #endif
 
