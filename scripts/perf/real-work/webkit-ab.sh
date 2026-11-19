@@ -41,7 +41,8 @@ scripts/e2e-slot.sh "$slot" --snapshot --preview bash -c '
     [ -z "$press" ] || export PERF_PRESS_MS=$press
     [ -z "$throttle" ] || export PERF_CPU_THROTTLE=$throttle
     echo "webkit-ab: run $i $engine hogs ${PERF_HOGS:-0} press ${PERF_PRESS_MS:-0} ms throttle ${PERF_CPU_THROTTLE:-} starts $(date +%H:%M:%S)"
-    npx playwright test e2e/perf/real-work.live.spec.ts --project="$engine"
+    # WK_CPUS: the test, its browser and its CPU hogs share these cores (a small loaded machine on a large one).
+    ${WK_CPUS:+taskset -c "$WK_CPUS"} npx playwright test e2e/perf/real-work.live.spec.ts --project="$engine"
     rc=$?
     mkdir -p "$WK_OUT/run$i-$engine"
     cp -a test-results/perf/real-work/. "$WK_OUT/run$i-$engine/" || true
