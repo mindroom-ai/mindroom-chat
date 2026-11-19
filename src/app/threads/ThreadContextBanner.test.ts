@@ -16,7 +16,7 @@ import {
   RESOLVED_TAG,
   type ThreadTagsContent,
 } from '../event-store/threads/threadTags';
-import { tagColor, TAG_TEXT_COLOR } from './tags/threadTagColor';
+import { tagColor } from './tags/threadTagColor';
 import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadContextBanner';
 import { settingsAtom } from '../preferences/settings';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -307,10 +307,6 @@ describe('ThreadContextBanner data flow', () => {
 
     it('produces HSL format', () => {
       expect(tagColor('bug')).toMatch(/^hsl\(\d+, 65%, 82%\)$/);
-    });
-
-    it('has correct dark text color constant', () => {
-      expect(TAG_TEXT_COLOR).toBe('#1a1a1a');
     });
   });
 

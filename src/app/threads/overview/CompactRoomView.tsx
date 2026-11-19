@@ -672,7 +672,6 @@ export function CompactRoomView({
         className={`${SwipeList} ${css.Cards}`}
         style={overlay.overviewInsetStop}
         direction="Column"
-        gap="100"
         shrink="No"
         data-order-held={orderHeld || undefined}
         {...pointerHandlers}
@@ -697,7 +696,6 @@ export function CompactRoomView({
           <Box
             as="section"
             direction="Column"
-            gap="100"
             className={css.PinnedSection}
             aria-label={t('threadNav.pinned')}
             data-pinned-threads="true"

@@ -51,14 +51,11 @@ test('compact cards give the title and preview the full width on a phone', async
     expect(Math.abs(card.menuCenter - card.metadataCenter)).toBeLessThanOrEqual(1);
   });
 
-  // Unread threads are marked by an accent edge, not a dot.
+  // Unread threads are marked by a dot inside the title and a bolder title.
   const unread = page.locator('[data-thread-unread="true"]');
   await expect(unread).toHaveCount(2);
-  await expect(unread.first()).not.toHaveCSS('box-shadow', 'none');
-  await expect(page.locator('[data-thread-root-id]:not([data-thread-unread])').first()).toHaveCSS(
-    'box-shadow',
-    'none'
-  );
+  await expect(unread.locator('[data-compact-card-unread-dot]')).toHaveCount(2);
+  await expect(page.locator('[data-compact-card-unread-dot]')).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath('compact-thread-cards-phone.png') });
 
   // A resolver name wider than the row ends in an ellipsis inside the card, on the row's shown line.
@@ -117,7 +114,7 @@ test("a phone card's last row shows each mark whole or not at all, clear of the 
           (rect.top + rect.bottom) / 2
         );
         // A tag clips its label, not its pill; the plugin's chips clip their group.
-        const clipper = mark.matches('.thread-tag-pill') ? mark.firstElementChild! : mark;
+        const clipper = mark.matches('.thread-tag-pill') ? mark.querySelector('[dir="auto"]')! : mark;
         return {
           plugin: mark.matches('[data-fixture-plugin-chips]'),
           inRow: rect.top >= row.top - 1 && rect.bottom <= row.bottom + 1,

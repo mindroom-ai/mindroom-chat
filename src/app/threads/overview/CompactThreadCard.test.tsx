@@ -31,9 +31,10 @@ vi.mock('./CompactRoomView.css', () => ({
   StreamingStatus: 'StreamingStatus',
   StreamingLabel: 'StreamingLabel',
   TimeText: 'TimeText',
-  TimeTextUnread: 'TimeTextUnread',
   TitleRow: 'TitleRow',
   TitleText: 'TitleText',
+  TitleTextUnread: 'TitleTextUnread',
+  UnreadDot: 'UnreadDot',
 }));
 
 vi.mock('../../messages/ThreadIndicator.css', () => ({
@@ -319,7 +320,7 @@ describe('CompactThreadCard', () => {
     renderer.unmount();
   });
 
-  it('marks unread threads with an accent edge and accented time instead of a dot', () => {
+  it('marks unread threads with a dot and a bolder title, and keeps their time quiet', () => {
     relativeTime.value = '2d';
     const readRenderer = create(
       <CompactThreadCard
@@ -334,6 +335,8 @@ describe('CompactThreadCard', () => {
     expect(readButton.props.className).toBe('Card');
     expect(readButton.props['data-thread-unread']).toBeUndefined();
     expect(readRenderer.root.findByProps({ className: 'TimeText' }).props.children).toBe('2d');
+    expect(readRenderer.root.findAllByProps({ className: 'TitleText' })).not.toHaveLength(0);
+    expect(JSON.stringify(readRenderer.toJSON())).not.toContain('UnreadDot');
     readRenderer.unmount();
 
     const unreadRenderer = create(
@@ -344,12 +347,11 @@ describe('CompactThreadCard', () => {
     );
     const button = unreadRenderer.root.findByType('button');
 
-    expect(button.props.className).toBe('Card CardResolved CardUnread');
+    expect(button.props.className).toBe('Card CardResolved');
     expect(button.props['data-thread-unread']).toBe('true');
-    expect(
-      unreadRenderer.root.findByProps({ className: 'TimeText TimeTextUnread' }).props.children
-    ).toBe('2d');
-    expect(JSON.stringify(unreadRenderer.toJSON())).not.toContain('UnreadDot');
+    expect(unreadRenderer.root.findByProps({ className: 'TimeText' }).props.children).toBe('2d');
+    const title = unreadRenderer.root.findAllByProps({ className: 'TitleText TitleTextUnread' })[0]!;
+    expect(title.findByProps({ className: 'UnreadDot' })).toBeTruthy();
     expect(button.props['aria-label']).toContain('Unread messages');
     unreadRenderer.unmount();
     relativeTime.value = '';

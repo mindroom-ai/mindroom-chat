@@ -73,9 +73,9 @@ export const Card = style([
     flexDirection: 'column',
     rowGap: config.space.S100,
     padding: `${config.space.S200} ${config.space.S300}`,
-    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    // Rows on hairlines, not boxed cards: a line under each, and square corners so it runs straight.
+    borderBlockEnd: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     inlineSize: '100%',
-    borderRadius: config.radii.R400,
     backgroundColor: color.SurfaceVariant.Container,
     minInlineSize: 0,
     color: color.SurfaceVariant.OnContainer,
@@ -207,14 +207,6 @@ globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardA
   pointerEvents: 'auto',
 });
 
-export const CardUnread = style({
-  boxShadow: `inset ${toRem(3)} 0 0 ${color.Primary.Main}`,
-});
-
-globalStyle(`[dir='rtl'] ${CardUnread}`, {
-  boxShadow: `inset -${toRem(3)} 0 0 ${color.Primary.Main}`,
-});
-
 export const CardResolved = style({
   borderColor: color.Success.ContainerLine,
   backgroundColor: color.Success.Container,
@@ -269,6 +261,22 @@ export const TitleText = style({
   overflow: 'hidden',
 });
 
+// An unread thread: a bolder title that starts with an accent dot (4:1 or more on every theme's
+// cards and tints, past the 3:1 a mark needs). The time beside it stays quiet.
+export const TitleTextUnread = style({
+  fontWeight: 600,
+});
+
+export const UnreadDot = style({
+  display: 'inline-block',
+  inlineSize: toRem(7),
+  blockSize: toRem(7),
+  marginInlineEnd: config.space.S100,
+  borderRadius: '50%',
+  backgroundColor: color.Primary.Main,
+  verticalAlign: toRem(1),
+});
+
 // A fixed slot for the short ages ("now", "1m", "59m", "23h"): a label that ticks to another
 // width would wrap the title beside it again, and the card would change its height on screen.
 export const TimeText = style({
@@ -277,19 +285,6 @@ export const TimeText = style({
   minInlineSize: '4ch',
   textAlign: 'end',
   fontVariantNumeric: 'tabular-nums',
-});
-
-export const TimeTextUnread = style({
-  // MainActive keeps 4.5:1 on the dark theme's cards, where Main has 4.0:1.
-  color: color.Primary.MainActive,
-  fontWeight: 600,
-  opacity: 1,
-});
-
-// On a tinted card MainActive can fall under 4.5:1 (4.4:1 on the orange theme's amber, 4.2:1 on
-// its green); MainLine, a step further from the tints, keeps it in every theme.
-globalStyle(`${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}`, {
-  color: color.Primary.MainLine,
 });
 
 export const MessagePreview = style({
@@ -427,7 +422,7 @@ globalStyle(
   [CardResolved, CardSnoozed]
     .flatMap((tint) => [
       `${tint} ${MessageText}`,
-      `${tint} ${TimeText}:not(${TimeTextUnread})`,
+      `${tint} ${TimeText}`,
       `${tint} ${StreamingStatus}`,
       `${tint} ${ReplyCount}`,
     ])

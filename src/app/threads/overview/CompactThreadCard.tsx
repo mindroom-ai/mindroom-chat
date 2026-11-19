@@ -157,14 +157,9 @@ function CompactThreadCardBase({
     .filter(Boolean)
     .join('. ');
 
-  // Unread threads carry an accent edge and an accented time rather than a
-  // dot, so no card reserves a leading gutter that most of them never use.
-  const cardClassName = [
-    css.Card,
-    isResolved && css.CardResolved,
-    snoozedText && css.CardSnoozed,
-    isUnread && css.CardUnread,
-  ]
+  // An unread thread's title is bolder and starts with an accent dot inside it, so no card
+  // reserves a leading gutter that most of them never use.
+  const cardClassName = [css.Card, isResolved && css.CardResolved, snoozedText && css.CardSnoozed]
     .filter(Boolean)
     .join(' ');
 
@@ -180,7 +175,13 @@ function CompactThreadCardBase({
       aria-label={ariaLabel}
     >
       <Box className={css.TitleRow}>
-        <Text className={css.TitleText} size="B300" title={titleText} {...ownDirectionBlock}>
+        <Text
+          className={isUnread ? `${css.TitleText} ${css.TitleTextUnread}` : css.TitleText}
+          size="B400"
+          title={titleText}
+          {...ownDirectionBlock}
+        >
+          {isUnread && <span className={css.UnreadDot} data-compact-card-unread-dot="true" />}
           {isResolved && (
             <span className={css.ResolvedBadge} data-compact-card-resolved-badge="true">
               <Icon size="50" src={Icons.Check} aria-hidden="true" />
@@ -196,7 +197,7 @@ function CompactThreadCardBase({
         {relativeTime && (
           <Text
             as="span"
-            className={isUnread ? `${css.TimeText} ${css.TimeTextUnread}` : css.TimeText}
+            className={css.TimeText}
             size="T200"
             priority="300"
             title={lastActivityTitle}

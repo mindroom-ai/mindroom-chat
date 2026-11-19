@@ -2,7 +2,7 @@
  * Deterministic HSL color from tag name.
  * Ported from ISSUE-035a CompactThreadCard pattern (commit 2056e7db).
  *
- * Produces a pastel background color suitable for dark text.
+ * A pastel colour, for a tag's dot and its swatch in the tag filter.
  */
 
 const hashString = (str: string): number => {
@@ -26,6 +26,3 @@ export const tagColor = (name: string): string => {
   const hue = hashString(name) % 360;
   return `hsl(${hue}, 65%, 82%)`;
 };
-
-/** Dark text color for contrast on pastel backgrounds. */
-export const TAG_TEXT_COLOR = '#1a1a1a';

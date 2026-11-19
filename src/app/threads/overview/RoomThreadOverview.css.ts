@@ -15,7 +15,6 @@ export const Overview = style([
     minWidth: 0,
     borderRadius: config.radii.R500,
     padding: config.space.S200,
-    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // room-light.png: a line outside the glass rim
   },
 ]);
 
@@ -89,8 +88,9 @@ export const ToggleButton = style([
     padding: 0,
     boxSizing: 'border-box',
     borderRadius: config.radii.R400,
-    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // a light rim, as on every bar control
-    backgroundColor: color.SurfaceVariant.Container,
+    // Plain words in one row: no rim or fill until hovered, pressed or on.
+    border: `${config.borderWidth.B300} solid transparent`,
+    backgroundColor: 'transparent',
     color: color.SurfaceVariant.OnContainer,
     opacity: '0.72',
     cursor: 'pointer',
@@ -126,8 +126,9 @@ export const SortButton = style([
     paddingInlineEnd: config.space.S200,
     boxSizing: 'border-box',
     borderRadius: config.radii.R400,
-    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // matches the toggles
-    backgroundColor: color.SurfaceVariant.Container,
+    // Plain words in one row: no rim or fill until hovered, pressed or on.
+    border: `${config.borderWidth.B300} solid transparent`,
+    backgroundColor: 'transparent',
     color: color.SurfaceVariant.OnContainer,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
@@ -149,7 +150,6 @@ export const SortButton = style([
 
 export const SortButtonActive = style({
   backgroundColor: color.Primary.Container,
-  borderColor: color.Primary.ContainerLine,
   color: color.Primary.OnContainer,
 
   '@media': {
@@ -189,8 +189,9 @@ export const FilterButton = style({
   paddingInlineEnd: config.space.S200,
   boxSizing: 'border-box',
   borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // matches the toggles
-  backgroundColor: color.SurfaceVariant.Container,
+  // Plain words in one row: no rim or fill until hovered, pressed or on.
+  border: `${config.borderWidth.B300} solid transparent`,
+  backgroundColor: 'transparent',
   color: color.SurfaceVariant.OnContainer,
   cursor: 'pointer',
   whiteSpace: 'nowrap',

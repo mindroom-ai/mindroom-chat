@@ -35,7 +35,6 @@ export const SwipeAction = style({
   gap: config.space.S200,
   paddingInline: config.space.S400,
   overflow: 'hidden',
-  borderRadius: config.radii.R400,
   backgroundColor: color.SurfaceVariant.Container,
   fontWeight: 500,
   color: color.SurfaceVariant.OnContainer,
