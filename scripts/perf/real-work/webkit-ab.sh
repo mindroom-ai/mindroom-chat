@@ -15,6 +15,15 @@ run_dir=${WK_TMP:-/tmp}/$run
 export E2E_SNAPSHOT_ROOT=$run_dir/snap E2E_AGENT_STACK_ROOT=$run_dir/agents
 export PERF_REAL_WORK=1
 export PLAYWRIGHT_WEBKIT_EXECUTABLE=${PLAYWRIGHT_WEBKIT_EXECUTABLE:-$(ls -d "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"/webkit-*/pw_run.sh | tail -n 1)}
+if [ "$(uname)" = Linux ]; then
+  # Playwright's WebKit runs on NixOS only inside the runner's FHS environment (as the runner's e2e jobs start it).
+  runner=${MRC_RUNNER:-/work/mrc-runner}
+  raw=$(ls -d "$runner"/ms-playwright/webkit-*/pw_run.sh | tail -n 1)
+  mkdir -p "$run_dir"
+  printf '#!%s\nexec %q %q "$@"\n' "$runner/nix/tools/bin/bash" "$runner/nix/webkit-fhs/bin/mrc-webkit-fhs" "$raw" >"$run_dir/webkit"
+  chmod 755 "$run_dir/webkit"
+  export PLAYWRIGHT_WEBKIT_EXECUTABLE=$run_dir/webkit
+fi
 job=$PWD
 export WK_OUT=$job/test-results/perf
 finish() {
