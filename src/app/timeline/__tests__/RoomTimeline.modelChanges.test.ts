@@ -1,4 +1,5 @@
 import React from 'react';
+import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -46,9 +47,10 @@ const result = (commandId: string, fields: Record<string, unknown>) => ({
 /**
  * A thread where a person set a model from the picker (`$set`), reset it by typing (`$reset`) and
  * asked for a model nobody has (`$unknown`), each answered by `ROUTER`; the room's state names
- * `router` as its router. `forkAt` names a message of the thread another thread was forked at.
+ * `router` as its router. `forkAt` names a message of the thread another thread was forked at,
+ * and `setEdit` is an edit of `$set` that has not decrypted yet.
  */
-const openThread = async (router?: string, forkAt?: string) => {
+const openThread = async (router?: string, forkAt?: string, setEdit?: MatrixEvent) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
     powerLevelsContextMock.levels = { users: { [router]: 50 } };
@@ -134,6 +136,7 @@ const openThread = async (router?: string, forkAt?: string) => {
       },
     }),
   ];
+  if (setEdit) Object.assign(events[1]!, { __pendingEdits: [setEdit] });
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
   const fork = makeEvent('$fork', {
@@ -204,6 +207,34 @@ describe("a thread's model changes in the open thread", () => {
       expect(getRenderedEventIds(renderer)).toEqual([
         threadId,
         '$set',
+        '$reset-ack',
+        '$unknown',
+        '$unknown-ack',
+      ]);
+      expect(lines(renderer)).toEqual([['$reset-ack', 'reset:']]);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('gives a command its row back when an edit of it decrypts into another message', async () => {
+    const edit = new MatrixEvent({ event_id: '$set-edit', type: 'm.room.encrypted', content: {} });
+    const renderer = await openThread(ROUTER, undefined, edit);
+    try {
+      expect(lines(renderer)).toHaveLength(2);
+      // The edit decrypts after the timeline change that brought it: only its own event says so.
+      Object.assign(threadRenderStateMock.threadEvents[1]!, {
+        __pendingEdits: [],
+        __editedEvent: makeEvent('$set-edit', { content: { body: 'never mind' } }),
+      });
+      await act(async () => {
+        edit.emit(MatrixEventEvent.Decrypted, edit);
+        await flushAsyncWork();
+      });
+      expect(getRenderedEventIds(renderer)).toEqual([
+        threadId,
+        '$set',
+        '$set-ack',
         '$reset-ack',
         '$unknown',
         '$unknown-ack',
