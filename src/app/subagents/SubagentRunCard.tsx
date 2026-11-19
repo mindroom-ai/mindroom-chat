@@ -127,7 +127,8 @@ type CardProps = {
 };
 
 /**
- * One sub-agent as the room's compact view shows a thread: its first task as the title, how long
+ * One sub-agent as the room's compact view shows a thread: the title its first turn's call named,
+ * else that turn's task, as the title, how long
  * its newest turn has been at it or how long ago it ended, a line of what that turn wrote, then the
  * agent, the model that turn ran on, how it stands, how many turns it took and how many
  * sub-agents it started. Pressing it opens the sub-agent.
