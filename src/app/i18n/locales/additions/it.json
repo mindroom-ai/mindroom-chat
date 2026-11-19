@@ -1213,7 +1213,8 @@
     "renameHint": "Fai doppio clic per rinominare",
     "close": "Chiudi il thread",
     "resizeSecond": "Ridimensiona il secondo thread",
-    "second": "Secondo thread"
+    "second": "Secondo thread",
+    "dropSecond": "Rilascia per aprire nella seconda colonna"
   },
   "threadSnooze": {
     "title": "Posticipa fino a",
@@ -1581,6 +1582,6 @@
     "done": "Fatti"
   },
   "threadActions": {
-    "openBeside": "Apri accanto"
+    "openBeside": "Apri nella seconda colonna"
   }
 }

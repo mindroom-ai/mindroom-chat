@@ -1189,7 +1189,8 @@
     "renameHint": "Zum Umbenennen doppelklicken",
     "close": "Thread schließen",
     "resizeSecond": "Breite des zweiten Threads ändern",
-    "second": "Zweiter Thread"
+    "second": "Zweiter Thread",
+    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",
@@ -1544,6 +1545,6 @@
     "done": "Erledigt"
   },
   "threadActions": {
-    "openBeside": "Daneben öffnen"
+    "openBeside": "In zweiter Spalte öffnen"
   }
 }

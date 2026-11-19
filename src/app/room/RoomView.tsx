@@ -1,4 +1,11 @@
-import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -16,7 +23,7 @@ import { editableActiveElement } from '../lib/dom';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
-import { moveMessageDraft } from '../composer/roomInputDrafts';
+import { moveMessageDraft, openVoiceRecorderAtom } from '../composer/roomInputDrafts';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
@@ -74,6 +81,11 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   /** Whether the router pushed that entry (a link followed), not replaced or returned to it. */
   entryPushed?: boolean;
   onThreadLoadError?: (threadId: string) => void;
+  /**
+   * A second thread shows beside the page (Open in second column): the open thread then goes
+   * beside the room's messages while the page has room, whatever layout is stored.
+   */
+  besideWhileSecond?: boolean;
 };
 
 /**
@@ -124,6 +136,7 @@ export function RoomView({
   entryPushed,
   hasMindroomAgents,
   onThreadLoadError,
+  besideWhileSecond = false,
   ...headerProps
 }: RoomViewProps) {
   const { t } = useTranslation();
@@ -156,8 +169,18 @@ export function RoomView({
   );
   const threadLayout = useThreadLayout(pageRef);
   // Every open thread shows in the column: beside the room's messages while the person chose that
-  // and the page has room, else filling the page, over the room's conversation, which goes.
-  const columnFills = !!openThreadId && (threadLayout.layout === 'full' || !threadLayout.roomy);
+  // (or a second thread shows) and the page has room, else filling the page, over the room's
+  // conversation, which goes. A second thread changes no stored layout: closed, it holds again.
+  // A voice message recorded as the second thread closes keeps the thread beside until it is sent
+  // or discarded: filling the page would take the messages' composer, and its recording, away.
+  const recording = useAtomValue(openVoiceRecorderAtom) !== undefined;
+  // The room the hold was taken in: the view outlives a room switch, the hold must not.
+  const [heldIn, setHeldIn] = useState<string>();
+  const besideForSecond = besideWhileSecond || (heldIn === roomId && recording);
+  const holdIn = besideForSecond ? roomId : undefined;
+  if (heldIn !== holdIn) setHeldIn(holdIn);
+  const columnFills =
+    !!openThreadId && ((threadLayout.layout === 'full' && !besideForSecond) || !threadLayout.roomy);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>();
   useLocalEchoRoot(room, openThreadId, () => {
@@ -261,7 +284,8 @@ export function RoomView({
     });
   }, [openThreadId, focusConversation, phone, unlessCardTakesFocus]);
 
-  // The open thread's banner, with the way to fill the page or to go beside the messages.
+  // The open thread's banner, with the way to fill the page or to go beside the messages. While a
+  // second thread keeps it beside them, filling the page would not take, so it offers neither.
   const threadBanner = openThreadId && (
     <ThreadContextBanner
       room={room}
@@ -269,7 +293,7 @@ export function RoomView({
       summaryInfo={threadState.threadSummaryInfo}
       onExitThread={threadState.handleExitThread}
       onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
-      onShowFull={columnFills ? undefined : showFull}
+      onShowFull={columnFills || besideForSecond ? undefined : showFull}
     />
   );
   const timelineProps: RoomTimelineProps = {
@@ -352,7 +376,8 @@ export function RoomView({
           maxPanelWidth={THREAD_COLUMN_MAX_WIDTH}
           fullWidth={columnFills}
           resizeLabel={t('thread.resize')}
-          onExpand={showFull}
+          // While a second thread keeps it beside the messages, filling the page would not take.
+          onExpand={besideForSecond ? undefined : showFull}
           expandLabel={t('thread.showFull')}
           testId="thread-column"
           onKeyDown={noteThreadColumnKey}

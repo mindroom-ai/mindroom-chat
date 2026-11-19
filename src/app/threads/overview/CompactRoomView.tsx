@@ -4,6 +4,7 @@ import React, {
   lazy,
   Suspense,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -27,6 +28,7 @@ import * as overlay from '../../ui/styles/RoomOverlay.css';
 import { useThreadPinning } from '../../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { useInitializeShownThread } from '../useInitializeShownThread';
+import { SecondThreadContext, setThreadDragData } from '../../navigation/secondThread';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
@@ -165,6 +167,12 @@ const CompactThreadCardRow = React.memo(
     const longPress = useLongPress(openMenuAt, (evt) =>
       evt.currentTarget.contains(evt.target as Node)
     );
+    // A card the room page could show in its second column drags there, pressed with a mouse (a
+    // finger or a pen keeps its swipe and long press). A plain click still opens it: a drag needs
+    // the mouse to move.
+    const offered = !!useContext(SecondThreadContext)?.offers(roomId, rootId);
+    const [mousePressed, setMousePressed] = useState(false);
+    const draggable = offered && mousePressed;
 
     return (
       <div
@@ -172,6 +180,16 @@ const CompactThreadCardRow = React.memo(
         ref={shownRef}
         className={css.CardShell}
         data-scroll-anchor={rootId}
+        draggable={draggable || undefined}
+        onPointerDown={
+          offered ? (event) => setMousePressed(event.pointerType === 'mouse') : undefined
+        }
+        onDragStart={(event) => {
+          // A drag of something in the card (an avatar) stays its own.
+          if (event.target !== event.currentTarget) return;
+          if (draggable) setThreadDragData(event.dataTransfer, { roomId, rootId });
+          else if (offered) event.preventDefault();
+        }}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();

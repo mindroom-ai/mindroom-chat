@@ -1213,7 +1213,8 @@
     "renameHint": "Haz doble clic para cambiar el nombre",
     "close": "Cerrar el hilo",
     "resizeSecond": "Cambiar el tamaño del segundo hilo",
-    "second": "Segundo hilo"
+    "second": "Segundo hilo",
+    "dropSecond": "Suelta para abrir en la segunda columna"
   },
   "threadSnooze": {
     "title": "Posponer hasta",
@@ -1581,6 +1582,6 @@
     "done": "Hechos"
   },
   "threadActions": {
-    "openBeside": "Abrir al lado"
+    "openBeside": "Abrir en la segunda columna"
   }
 }

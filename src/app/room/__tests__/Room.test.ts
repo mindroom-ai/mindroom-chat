@@ -137,6 +137,7 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('../SecondThreadPanel', () => ({ SecondThreadPanel: () => null }));
+vi.mock('../SecondThreadDropZone', () => ({ SecondThreadDropZone: () => null }));
 vi.mock('../MessageLinkCards', () => ({
   MessageLinkCards: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),

@@ -148,6 +148,19 @@ describe('createDrawnSecretRequests', () => {
     expect(changes).not.toHaveBeenCalled();
   });
 
+  it("gives a hidden line's card to a shown one, and no line's to a hidden one", () => {
+    const drawn = createDrawnSecretRequests();
+    const hidden = {};
+    const shown = {};
+    expect(drawn.take('$card', hidden, true)).toBe(true);
+    expect(drawn.shows('$card')).toBe(false);
+    expect(drawn.take('$card', shown)).toBe(true);
+    expect(drawn.drawerOf('$card')).toBe(shown);
+    expect(drawn.shows('$card')).toBe(true);
+    expect(drawn.take('$card', hidden, true)).toBe(false);
+    expect([...drawn.getIds()]).toEqual(['$card']);
+  });
+
   it('tells no one who stopped listening', () => {
     const drawn = createDrawnSecretRequests();
     const changes = vi.fn();
