@@ -2,7 +2,7 @@ import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'r
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
-import { THREAD_DRAG_TYPE } from '../navigation/secondThread';
+import { readThreadDragData, THREAD_DRAG_TYPE } from '../navigation/secondThread';
 import { useThreadDrag } from './useThreadDrag';
 import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import * as css from './SecondThreadDropZone.css';
@@ -89,8 +89,14 @@ export function SecondThreadDropZone({
       }}
       onDrop={(evt) => {
         if (!armed.current || other(evt)) return;
+        // A drag that shows its type names its thread, one from another window too; only the Mac
+        // app's, which shows none, takes the thread the page read as it started.
+        const thread = evt.dataTransfer.types.includes(THREAD_DRAG_TYPE)
+          ? readThreadDragData(evt.dataTransfer)
+          : drag;
+        if (!thread) return;
         evt.preventDefault();
-        onOpen(drag.roomId, drag.rootId);
+        onOpen(thread.roomId, thread.rootId);
       }}
     >
       <div className={css.DropArea}>

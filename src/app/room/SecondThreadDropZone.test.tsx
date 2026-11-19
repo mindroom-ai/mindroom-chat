@@ -153,6 +153,22 @@ describe('the drop zone of the second column', () => {
     expect(zone()).toBeNull();
   });
 
+  it('opens the thread a drop names, not one whose drag the page did not hear end', () => {
+    const onOpen = vi.fn();
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    // Thread $c's end went unheard; thread $d comes in from another window, starting none here.
+    startDrag(threadDrag('$c'));
+    fireEvent.dragEnter(zone()!, { dataTransfer: threadDrag('$d') });
+    fireEvent.drop(zone()!, { dataTransfer: threadDrag('$d') });
+    expect(onOpen.mock.calls).toEqual([['!room:example.org', '$d']]);
+    // A drop that shows the thread type but names no thread opens nothing.
+    startDrag(threadDrag('$c'));
+    const broken = dragData({ [THREAD_DRAG_TYPE]: 'not json' });
+    fireEvent.dragEnter(zone()!, { dataTransfer: broken });
+    fireEvent.drop(zone()!, { dataTransfer: broken });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
   it('takes no drop from a drag that started where the zone shows until it left the zone', () => {
     const onOpen = vi.fn();
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
