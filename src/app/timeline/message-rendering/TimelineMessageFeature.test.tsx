@@ -708,14 +708,21 @@ describe('timeline message feature', () => {
       ts: 5_000,
       content: { msgtype: 'm.notice', body: 'This thread now uses invented-swift.' },
     }) as unknown as MatrixEvent;
+    // The hidden command, with an edit of it that has not decrypted yet.
+    const commandEdit = encryptedEvent('$command-edit');
+    const command = Object.assign(encryptedEvent('$command'), { __pendingEdits: [commandEdit] });
     const change = {
-      commandId: '$command',
+      command,
       operation: 'set',
       model: 'invented-swift',
       senderId: '@bob:example.org',
       threadId: '$thread',
+      runtimeUserId: '@mindroom_router:example.org',
+      runtimeDeviceId: 'DEVICE',
     } as const;
     const planned = { hiddenEventIds: new Set(['$command']), byAckId: new Map([['$ack', change]]) };
+    const watched = () =>
+      [command, commandEdit].map((event) => event.listenerCount(MatrixEventEvent.Decrypted));
     const noSet = {} as EventTimelineSet;
 
     const thread = await mountFeature([rowFor(ack)], '$thread');
@@ -733,6 +740,11 @@ describe('timeline message feature', () => {
     expect(thread.feature().isQuietMarkerRow(ack, thread.data as never, noSet)).toBe(true);
     // Its details open under it, so it never shares a row with other markers.
     expect(thread.feature().joinsQuietMarkerRun(ack, thread.data as never, noSet)).toBe(false);
+    // The line stands for the command too: an edit of it that decrypts into another message
+    // repaints, so the plan gives the command its row back.
+    expect(watched()).toEqual([1, 1]);
+    act(() => thread.renderer.unmount());
+    expect(watched()).toEqual([0, 0]);
 
     const roomView = await mountFeature([rowFor(ack)]);
     roomView.data.modelChanges = planned;

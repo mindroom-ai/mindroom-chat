@@ -91,7 +91,8 @@ const plan = (
   events: MatrixEvent[],
   options: {
     ignored?: ReadonlySet<string>;
-    revealed?: ReadonlySet<string>;
+    /** Rows that must stay as they are. */
+    kept?: string[];
     routerUserId?: string | undefined;
   } = {}
 ) =>
@@ -103,20 +104,23 @@ const plan = (
     // The room's router, unless a test names another or none (an explicit undefined).
     routerUserId: ROUTER,
     ignored: new Set<string>(),
-    revealed: new Set<string>(),
+    keeps: (eventId) => !!options.kept?.includes(eventId),
     ...options,
   });
 
 describe('planModelChanges', () => {
   it('pairs a typed change with its acknowledgement and hides the command', () => {
-    const made = plan([typed('!model fast'), ack()]);
+    const command = typed('!model fast');
+    const made = plan([command, ack()]);
     expect([...made.hiddenEventIds]).toEqual(['$command']);
     expect(made.byAckId.get('$ack')).toEqual({
-      commandId: '$command',
+      command,
       operation: 'set',
       model: 'fast',
       senderId: PERSON,
       threadId: ROOT,
+      runtimeUserId: ROUTER,
+      runtimeDeviceId: 'DEVICE',
     });
   });
 
@@ -143,7 +147,7 @@ describe('planModelChanges', () => {
     expect(made.byAckId.get('$ack')).toMatchObject({ operation: 'reset', model: undefined });
   });
 
-  it("pairs the picker's command by its structured operation, whatever its body says", () => {
+  it("pairs the picker's command, whose structured operation and text both say the change", () => {
     const set = picked('set', 'fast');
     expect(plan([set, ack()]).byAckId.get('$ack')).toMatchObject({ operation: 'set' });
     const reset = picked('reset');
@@ -284,6 +288,38 @@ describe('planModelChanges', () => {
     expect(plan([edited, ack()])).toBe(NO_MODEL_CHANGES);
   });
 
+  it("keeps both rows of a picker's command whose text an edit changed, though the edit keeps its operation", () => {
+    const original = picked('set', 'fast');
+    const edited = replaceWith(original, {
+      ...original.getContent(),
+      body: 'never mind',
+      'm.relates_to': undefined,
+    });
+    // Hiding it would hide the text the person wrote over it.
+    expect(plan([edited, ack()])).toBe(NO_MODEL_CHANGES);
+  });
+
+  it.each([
+    ['a typed command', typed('!model fast')],
+    ["the picker's command", picked('set', 'fast')],
+  ])(
+    'pairs %s edited into the same change: an edit carries no thread relation, the event does',
+    (_case, command) => {
+      // As Chat's editor sends an edit: `m.new_content` holds the text alone.
+      const edited = replaceWith(command, { msgtype: 'm.text', body: '!MODEL fast' });
+      expect([...plan([edited, ack()]).hiddenEventIds]).toEqual(['$command']);
+    }
+  );
+
+  it('reads the thread of an edited acknowledgement from the event itself', () => {
+    const edited = replaceWith(ack(), {
+      msgtype: 'm.text',
+      body: '✅ applied',
+      [RESULT]: result(),
+    });
+    expect(plan([typed('!model fast'), edited]).byAckId.size).toBe(1);
+  });
+
   it('reads the result from the latest version of the acknowledgement', () => {
     const rejected = result({ status: 'rejected', override: undefined });
     const now = { msgtype: 'm.text', body: '✅ applied', ...inThread() };
@@ -303,10 +339,10 @@ describe('planModelChanges', () => {
     expect(plan([command, encryptedAck]).byAckId.size).toBe(1);
   });
 
-  it('keeps the rows the route or a jump opened', () => {
+  it('keeps both rows when either must stay as it is: opened by the route or a jump, hidden by a plugin, the point of a fork', () => {
     const events = [typed('!model fast'), ack()];
-    expect(plan(events, { revealed: new Set(['$command']) })).toBe(NO_MODEL_CHANGES);
-    expect(plan(events, { revealed: new Set(['$ack']) })).toBe(NO_MODEL_CHANGES);
+    expect(plan(events, { kept: ['$command'] })).toBe(NO_MODEL_CHANGES);
+    expect(plan(events, { kept: ['$ack'] })).toBe(NO_MODEL_CHANGES);
   });
 
   it('pairs a command once: a second acknowledgement of it keeps its row', () => {
@@ -324,20 +360,28 @@ describe('planModelChanges', () => {
       ack(result({ ...RESET, command_event_id: '$second' }), { id: '$ack2' }),
     ]);
     expect([...made.hiddenEventIds]).toEqual(['$first', '$second']);
-    expect(made.byAckId.get('$ack1')).toMatchObject({ commandId: '$first', operation: 'set' });
-    expect(made.byAckId.get('$ack2')).toMatchObject({ commandId: '$second', operation: 'reset' });
+    expect(made.byAckId.get('$ack1')).toMatchObject({ operation: 'set' });
+    expect(made.byAckId.get('$ack1')?.command.getId()).toBe('$first');
+    expect(made.byAckId.get('$ack2')).toMatchObject({ operation: 'reset' });
+    expect(made.byAckId.get('$ack2')?.command.getId()).toBe('$second');
   });
 });
 
 describe('sameModelChangePlan', () => {
   it('holds while the plans draw the same lines', () => {
-    const first = plan([typed('!model fast'), ack()]);
-    expect(sameModelChangePlan(first, plan([typed('!model fast'), ack()]))).toBe(true);
+    const command = typed('!model fast');
+    const first = plan([command, ack()]);
+    expect(sameModelChangePlan(first, plan([command, ack()]))).toBe(true);
     expect(sameModelChangePlan(first, NO_MODEL_CHANGES)).toBe(false);
     const other = plan([
       typed('!model fast@high'),
       ack(result({ model: 'fast@high', override: 'fast@high' })),
     ]);
     expect(sameModelChangePlan(first, other)).toBe(false);
+    // Another runtime's acknowledgement names its own catalog.
+    const elsewhere = plan([command, ack(result({ runtime_device_id: 'OTHER' }))]);
+    expect(sameModelChangePlan(first, elsewhere)).toBe(false);
+    // Another copy of the command is the one the line listens to from then on.
+    expect(sameModelChangePlan(first, plan([typed('!model fast'), ack()]))).toBe(false);
   });
 });

@@ -609,6 +609,15 @@ export const useTimelineMessageFeature = ({
             )
           : null;
       if (quietMarker) {
+        // A model change's line stands for its hidden command too, so it repaints when the
+        // command, or an edit of it into another message, decrypts.
+        const command = data.modelChanges.byAckId.get(eventId)?.command;
+        if (command) {
+          renderedEventsRef.current?.push(
+            command,
+            ...getPendingEdits(command.getId() ?? '', command, timelineSet)
+          );
+        }
         // The run's later markers fold into this row, beside it, each keeping its own ID. A lone
         // marker keeps the same elements, so one that a new marker joins stays mounted.
         const later = (row.quietRun ?? []).flatMap((marker) => {
@@ -1006,6 +1015,7 @@ export const useTimelineMessageFeature = ({
     renderEvent,
     isQuietMarkerRow,
     joinsQuietMarkerRun,
+    forksByPoint,
     wrapExpansion,
     markLiveExpansionCandidate,
     editingEventId,

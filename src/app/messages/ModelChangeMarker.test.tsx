@@ -1,17 +1,24 @@
 // @vitest-environment jsdom
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import ar from '../i18n/locales/additions/ar.json';
 import type { ModelCatalogEntry } from '../models/modelProtocol';
 import type { ModelChange } from './modelChanges';
 import { ModelChangeMarker } from './ModelChangeMarker';
 
 const VIEWER = '@sam:example.org';
 const catalog = vi.hoisted(() => ({ models: [] as ModelCatalogEntry[], watched: [] as unknown[] }));
+/** Another language's template for a key, in place of the English one. */
+const translated = vi.hoisted(() => ({ templates: {} as Record<string, string> }));
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');
-  return { useTranslation: () => ({ t: translateFromEn, i18n: { language: 'en' } }) };
+  const t = (key: string, options?: Record<string, unknown>) =>
+    translated.templates[key]?.replace(/\{\{(\w+)\}\}/g, (_match, name: string) =>
+      String(options?.[name])
+    ) ?? translateFromEn(key, options);
+  return { useTranslation: () => ({ t, i18n: { language: 'en' } }) };
 });
 vi.mock('./ModelChangeMarker.css', () => ({
   Marker: 'Marker',
@@ -50,11 +57,13 @@ const QUICK: ModelCatalogEntry = {
 const room = { roomId: '!room:example.org' } as unknown as Room;
 
 const change = (changes: Partial<ModelChange> = {}): ModelChange => ({
-  commandId: '$command',
+  command: {} as MatrixEvent,
   operation: 'set',
   model: 'fast',
   senderId: VIEWER,
   threadId: '$root',
+  runtimeUserId: '@mindroom_router:example.org',
+  runtimeDeviceId: 'DEVICE',
   ...changes,
 });
 
@@ -66,14 +75,28 @@ const show = (shown: ModelChange, models: ModelCatalogEntry[] = [QUICK]) => {
   return render(<ModelChangeMarker change={shown} room={room} ts={TS} />);
 };
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  translated.templates = {};
+});
 
 describe('ModelChangeMarker', () => {
   it("names the model a set chose by the name the viewer's catalog gives its key", () => {
     show(change());
     const trigger = screen.getByRole('button');
     expect(trigger.textContent).toBe('Model setQuick helper');
-    expect(catalog.watched).toEqual([room, '$root']);
+    // Only the catalog of the runtime that acknowledged the change names its model.
+    expect(catalog.watched).toEqual([room, '$root', '@mindroom_router:example.org', 'DEVICE']);
+  });
+
+  it("writes out a direction control of the model's name, and keeps the ones its translation isolates the name and the level with", () => {
+    translated.templates = {
+      'mindroomUi.models.modelPicker.withLevel': ar.mindroomUi.models.modelPicker.withLevel,
+    };
+    show(change({ model: 'fast@high' }), [{ ...QUICK, display_name: 'Quick\u202Ehelper' }]);
+    expect(screen.getByRole('button').textContent).toBe(
+      'Model set\u2068Quick<U+202E>helper\u2069 · \u2068High\u2069'
+    );
   });
 
   it('adds the level a set named', () => {

@@ -104,6 +104,7 @@ type Command = {
   acknowledged?: boolean;
   timer: ReturnType<typeof setTimeout>;
 };
+const NO_MODELS: ModelCatalogEntry[] = [];
 const emptySnapshot = (): ModelPickerSnapshot => ({
   eligible: false,
   runtimes: [],
@@ -240,6 +241,22 @@ export class ModelController {
 
   getSnapshot = (room: Room, threadId?: string): ModelPickerSnapshot =>
     this.scope(room, threadId).snapshot;
+
+  /**
+   * The models of the runtime `userId` runs on `deviceId`, while the catalog the scope shows is
+   * that runtime's: its chosen runtime's, or its one runtime's from the room's cache. None for
+   * any other runtime, whose models may carry the same keys under other names.
+   */
+  runtimeModels = (
+    room: Room,
+    threadId: string | undefined,
+    userId: string,
+    deviceId: string
+  ): ModelCatalogEntry[] => {
+    const { runtime, runtimes, models } = this.scope(room, threadId).snapshot;
+    const shown = runtime ?? (runtimes.length === 1 ? runtimes[0] : undefined);
+    return shown?.userId === userId && shown.deviceId === deviceId ? models : NO_MODELS;
+  };
 
   private publish(scope: Scope, patch: Partial<ModelPickerSnapshot>): void {
     scope.snapshot = { ...scope.snapshot, ...patch };

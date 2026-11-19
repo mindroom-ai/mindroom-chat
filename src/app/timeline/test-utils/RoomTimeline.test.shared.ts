@@ -1243,6 +1243,7 @@ const makeEvent = (
     getAssociatedId: () => opts.associatedId,
     getContent: () => opts.content ?? { body: eventId },
     getOriginalContent: () => opts.content ?? { body: eventId },
+    getWireContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,
     getRelation: () => opts.relation,
     replyEventId: opts.replyTo,

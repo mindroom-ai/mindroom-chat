@@ -25,7 +25,8 @@ const KEY = 'mindroomUi.messages.modelChangeMarker';
 /**
  * How a set's reference reads: the name the viewer's catalog gives its key, else the key, and the
  * level it names, by the picker's own name for it. A level the client does not know leaves the
- * reference as the command wrote it.
+ * reference as the command wrote it. The name comes from a catalog or a command, so its direction
+ * controls are written out here, before a translation isolates it with controls of its own.
  */
 const describeModel = (
   reference: string,
@@ -33,8 +34,10 @@ const describeModel = (
 ): { name: string; level?: ReasoningLevel } => {
   const { key, level } = splitModelReference(reference);
   const known = (REASONING_LEVELS as readonly string[]).includes(level ?? '');
-  if (level !== undefined && !known) return { name: reference };
-  const name = models.find((model) => model.key === key)?.display_name ?? key;
+  if (level !== undefined && !known) return { name: revealDirectionControls(reference) };
+  const name = revealDirectionControls(
+    models.find((model) => model.key === key)?.display_name ?? key
+  );
   return level === undefined ? { name } : { name, level: level as ReasoningLevel };
 };
 
@@ -52,7 +55,12 @@ type ModelChangeMarkerProps = {
 export function ModelChangeMarker({ change, room, ts }: ModelChangeMarkerProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const models = useThreadModelCatalog(room, change.threadId);
+  const models = useThreadModelCatalog(
+    room,
+    change.threadId,
+    change.runtimeUserId,
+    change.runtimeDeviceId
+  );
   const [hour24Clock] = useHour24Clock();
   const dateFormatString = useSettingValue(settingsAtom, 'dateFormatString');
   const [expanded, setExpanded] = useState(false);
@@ -86,7 +94,7 @@ export function ModelChangeMarker({ change, room, ts }: ModelChangeMarkerProps) 
           {t(set ? `${KEY}.set` : `${KEY}.reset`)}
         </Text>
         <Text as="span" size="T200" className={css.Model}>
-          {modelLabel ? revealDirectionControls(modelLabel) : t(`${KEY}.inherited`)}
+          {modelLabel ?? t(`${KEY}.inherited`)}
         </Text>
         <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
       </button>

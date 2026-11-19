@@ -9,6 +9,7 @@ import {
   makeEvent,
   makeRoom,
   makeTimeline,
+  pluginRowHiddenMock,
   roomTimelineVirtualizerState,
   powerLevelsContextMock,
   stateEventsByTypeMock,
@@ -45,9 +46,9 @@ const result = (commandId: string, fields: Record<string, unknown>) => ({
 /**
  * A thread where a person set a model from the picker (`$set`), reset it by typing (`$reset`) and
  * asked for a model nobody has (`$unknown`), each answered by `ROUTER`; the room's state names
- * `router` as its router.
+ * `router` as its router. `forkAt` names a message of the thread another thread was forked at.
  */
-const openThread = async (router?: string) => {
+const openThread = async (router?: string, forkAt?: string) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
     powerLevelsContextMock.levels = { users: { [router]: 50 } };
@@ -135,7 +136,11 @@ const openThread = async (router?: string) => {
   ];
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
-  const room = makeRoom({ liveEvents: [rootEvent] });
+  const fork = makeEvent('$fork', {
+    ts: 8_000,
+    content: { body: 'fork', 'io.mindroom.fork': { thread_id: threadId, event_id: forkAt } },
+  });
+  const room = makeRoom({ liveEvents: forkAt ? [rootEvent, fork] : [rootEvent] });
   room.getThread = () =>
     ({
       rootEvent,
@@ -170,6 +175,7 @@ describe("a thread's model changes in the open thread", () => {
   afterEach(() => {
     stateEventsByTypeMock.clear();
     powerLevelsContextMock.levels = {};
+    pluginRowHiddenMock.test = undefined;
   });
 
   it('draws each applied change as one line at its acknowledgement and hides its command', async () => {
@@ -190,6 +196,43 @@ describe("a thread's model changes in the open thread", () => {
       act(() => renderer.unmount());
     }
   });
+
+  it('keeps the command of an acknowledgement a plugin hides, as it shows without the line', async () => {
+    pluginRowHiddenMock.test = (event) => event.eventId === '$set-ack';
+    const renderer = await openThread(ROUTER);
+    try {
+      expect(getRenderedEventIds(renderer)).toEqual([
+        threadId,
+        '$set',
+        '$reset-ack',
+        '$unknown',
+        '$unknown-ack',
+      ]);
+      expect(lines(renderer)).toEqual([['$reset-ack', 'reset:']]);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it.each(['$set', '$set-ack'])(
+    'keeps both messages of a change when a thread was forked at %s, whose row links to the fork',
+    async (forkAt) => {
+      const renderer = await openThread(ROUTER, forkAt);
+      try {
+        expect(getRenderedEventIds(renderer)).toEqual([
+          threadId,
+          '$set',
+          '$set-ack',
+          '$reset-ack',
+          '$unknown',
+          '$unknown-ack',
+        ]);
+        expect(lines(renderer)).toEqual([['$reset-ack', 'reset:']]);
+      } finally {
+        act(() => renderer.unmount());
+      }
+    }
+  );
 
   it.each([
     ['names no router', undefined],

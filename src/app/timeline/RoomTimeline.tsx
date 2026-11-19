@@ -899,13 +899,17 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     revealed: pluginRevealedRef.current,
   });
   // The open thread's model changes the same router applied: one line each at its reply, the
-  // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages.
+  // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages,
+  // as does a change with a row the route or a jump opened, a reply a plugin hides (its command
+  // shows without it), or a row a fork was made at, which links to the fork.
+  const { forksByPoint } = feature;
   const modelChanges = useModelChangePlan({
     events: threadEvents,
     getContent: getRowContent,
     routerUserId,
     ignored: ignoredUsersSet,
-    revealed: pluginRevealedRef.current,
+    keeps: (id) =>
+      pluginRevealedRef.current.has(id) || pluginHiddenThreadIds.has(id) || forksByPoint.has(id),
   });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump

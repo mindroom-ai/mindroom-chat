@@ -20,11 +20,17 @@ export const useModelControllerLifetime = (): void => {
 };
 
 /**
- * The models the thread's picker lists, as its discovery last answered. Read only: it watches the
- * scope without asking for it (`ModelController.watch`), so it is empty until a composer's picker
- * has discovered the thread's catalog, and for a viewer the router answers nothing.
+ * The models the thread's picker lists for one runtime (`ModelController.runtimeModels`), as its
+ * discovery last answered. Read only: it watches the scope without asking for it
+ * (`ModelController.watch`), so it is empty until a composer's picker has discovered the thread's
+ * catalog, while the picker shows another runtime's, and for a viewer the router answers nothing.
  */
-export const useThreadModelCatalog = (room: Room, threadId: string): ModelCatalogEntry[] => {
+export const useThreadModelCatalog = (
+  room: Room,
+  threadId: string,
+  runtimeUserId: string,
+  runtimeDeviceId: string
+): ModelCatalogEntry[] => {
   const mx = useMatrixClient();
   const controller = useMemo(() => getModelController(mx), [mx]);
   const watch = useCallback(
@@ -32,8 +38,8 @@ export const useThreadModelCatalog = (room: Room, threadId: string): ModelCatalo
     [controller, room, threadId]
   );
   const getModels = useCallback(
-    () => controller.getSnapshot(room, threadId).models,
-    [controller, room, threadId]
+    () => controller.runtimeModels(room, threadId, runtimeUserId, runtimeDeviceId),
+    [controller, room, threadId, runtimeUserId, runtimeDeviceId]
   );
   return useSyncExternalStore(watch, getModels, getModels);
 };
