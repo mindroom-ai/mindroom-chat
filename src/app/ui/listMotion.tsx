@@ -326,9 +326,15 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       pressRef.current = undefined;
     };
     const hold = (event: PointerEvent) => {
-      const inList = event.target instanceof Node && listRef.current?.contains(event.target);
-      if (event.button !== 0 || !inList) return;
-      const running = runningRef.current.filter(({ playState }) => playState === 'running');
+      const { target } = event;
+      if (event.button !== 0 || !(target instanceof Node)) return;
+      if (!listRef.current?.contains(target)) return;
+      const pressed = ({ effect }: Animation) =>
+        Number(!!(effect as KeyframeEffect | null)?.target?.contains(target));
+      // The pressed row first: WebKit takes a millisecond a play, and a row glides on until its turn.
+      const running = runningRef.current
+        .filter(({ playState }) => playState === 'running')
+        .sort((a, b) => pressed(b) - pressed(a));
       running.forEach(holdNow);
       // With the plays of a press that ended in neither a click nor a cancel.
       const held = [...(pressRef.current?.held ?? []), ...running];

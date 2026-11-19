@@ -301,6 +301,16 @@ describe('useListMotion', () => {
       expect(times()).toEqual(held.map((time) => time + FRAME_MS));
     });
 
+    it('holds the pressed row before the others, which glide on until their turn', () => {
+      reorder();
+
+      // The last row of the three whose plays started: in their order it would be held last.
+      pointer('pointerdown', row('b'));
+
+      expect(motion.paused[0]).toBe(row('b'));
+      expect(new Set(motion.paused)).toEqual(new Set([row('a'), row('b'), row('c')]));
+    });
+
     it('lets go when the press is cancelled, as when it became a scroll', () => {
       reorder();
 
