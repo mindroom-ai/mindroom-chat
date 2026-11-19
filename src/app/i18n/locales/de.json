@@ -2715,7 +2715,6 @@
         "model": "Modell: {{model}}"
       },
       "mindroomReplyDetails": {
-        "tokens": "Token",
         "cost": "Kosten",
         "conversationSoFar": "Unterhaltung bisher",
         "failed": "Fehlgeschlagen",

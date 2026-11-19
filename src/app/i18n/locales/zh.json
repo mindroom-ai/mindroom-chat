@@ -2702,7 +2702,6 @@
         "model": "模型：{{model}}"
       },
       "mindroomReplyDetails": {
-        "tokens": "词元",
         "cost": "费用",
         "conversationSoFar": "目前对话",
         "failed": "失败",

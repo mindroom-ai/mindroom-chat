@@ -863,7 +863,11 @@
         "nameChose": "Gekozen door {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagenten"
+        "subagents": "Subagenten",
+        "tokensInThisReply": "Tokens in dit antwoord",
+        "writtenToCache": "Naar cache geschreven",
+        "notCached": "Niet in cache",
+        "tokenCount": "{{tokens}} tokens"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Loopt al {{duration}}",

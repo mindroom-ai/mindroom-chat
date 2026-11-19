@@ -863,7 +863,11 @@
         "nameChose": "{{name}} seçti"
       },
       "mindroomReplyDetails": {
-        "subagents": "Alt ajanlar"
+        "subagents": "Alt ajanlar",
+        "tokensInThisReply": "Bu yanıttaki tokenler",
+        "writtenToCache": "Önbelleğe yazılan",
+        "notCached": "Önbellekte değil",
+        "tokenCount": "{{tokens}} token"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",

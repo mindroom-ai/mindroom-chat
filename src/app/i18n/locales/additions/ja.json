@@ -850,7 +850,11 @@
         "nameChose": "{{name}} が選択"
       },
       "mindroomReplyDetails": {
-        "subagents": "サブエージェント"
+        "subagents": "サブエージェント",
+        "tokensInThisReply": "この返信のトークン",
+        "writtenToCache": "キャッシュに書き込み",
+        "notCached": "キャッシュなし",
+        "tokenCount": "{{tokens}} トークン"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中",

@@ -2702,7 +2702,6 @@
         "model": "모델: {{model}}"
       },
       "mindroomReplyDetails": {
-        "tokens": "토큰",
         "cost": "비용",
         "conversationSoFar": "지금까지의 대화",
         "failed": "실패",

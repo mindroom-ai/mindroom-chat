@@ -889,7 +889,11 @@
         "nameChose": "Выбор: {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Субагенты"
+        "subagents": "Субагенты",
+        "tokensInThisReply": "Токены в этом ответе",
+        "writtenToCache": "Записано в кеш",
+        "notCached": "Без кеша",
+        "tokenCount": "{{tokens}} токенов"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}",

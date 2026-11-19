@@ -30,8 +30,12 @@ const reply: AiRunInfo = {
   costUsd: 0.0051,
 };
 
-/** A thread whose third of `costs` is the reply shown. */
-const thread = (costs: number[], complete = true): ThreadConversationCost => {
+/** A thread whose third of `costs` is the reply shown, its replies having used `tokens`. */
+const thread = (
+  costs: number[],
+  complete = true,
+  tokens: number[] = []
+): ThreadConversationCost => {
   let total = 0;
   const byEventId = new Map<string, { usd: number; replyCount: number }>();
   const replies = costs.map((usd, index) => {
@@ -39,7 +43,14 @@ const thread = (costs: number[], complete = true): ThreadConversationCost => {
     byEventId.set(`$r${index + 1}`, { usd: total, replyCount: index + 1 });
     return { eventId: `$r${index + 1}`, usd };
   });
-  return { complete, byEventId, replies };
+  let tokenTotal = 0;
+  const tokensByEventId = new Map(
+    tokens.map((count, index) => {
+      tokenTotal += count;
+      return [`$r${index + 1}`, { tokens: tokenTotal, replyCount: index + 1 }] as const;
+    })
+  );
+  return { complete, byEventId, replies, tokensByEventId };
 };
 
 let container: HTMLDivElement;
@@ -261,14 +272,44 @@ describe('ReplyDetails', () => {
 
   it('shows what the tokens were spent on', () => {
     render(reply);
-    const tokens = section('Tokens');
+    const tokens = section('Tokens in this reply');
 
-    expect(tokens?.textContent).toContain('Tokens1,705');
+    expect(tokens?.textContent).toContain('Tokens in this reply1,705');
     expect([...(tokens?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
       'From cache 1,408',
       'New input 266',
       'Output 31',
     ]);
+  });
+
+  it('splits the new input into cache writes and the rest when the writes are counted', () => {
+    render({ ...reply, cacheWriteTokens: 200 });
+    const tokens = section('Tokens in this reply');
+
+    expect(tokens?.textContent).toContain('Tokens in this reply1,705');
+    expect([...(tokens?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
+      'From cache 1,408',
+      'Written to cache 200',
+      'Not cached 66',
+      'Output 31',
+    ]);
+  });
+
+  it("adds the conversation's tokens through this reply under its own", () => {
+    const conversation = () => section('Tokens in this reply')?.lastElementChild?.textContent;
+    render(reply, '$r3', thread([0.01, 0.02, 0.03], true, [20_000_000, 40_000_000, 1_400_000]));
+    expect(conversation()).toBe('Conversation so far61.4M tokens · 3 replies');
+
+    render(reply, '$r3', thread([0.01, 0.02, 0.03], false, [20_000_000, 40_000_000, 1_400_000]));
+    expect(conversation()).toBe('Conversation so far≥ 61.4M tokens · 3 loaded replies');
+  });
+
+  it("leaves out the conversation's tokens outside a thread or without a count", () => {
+    render(reply);
+    expect(section('Tokens in this reply')?.textContent).not.toContain('Conversation so far');
+
+    render(reply, '$r3', thread([0.01, 0.02, 0.03], true, [5, 5]));
+    expect(section('Tokens in this reply')?.textContent).not.toContain('Conversation so far');
   });
 
   it('shows how full the context window was', () => {
@@ -279,7 +320,7 @@ describe('ReplyDetails', () => {
     expect(
       section('Context window')?.querySelector('[role="img"]')?.getAttribute('aria-label')
     ).toBe('From cache 49,886 · 19.3%, New input 1,777 · 0.7%');
-    expect(section('Tokens')?.querySelector('[role="img"]')).toBeNull();
+    expect(section('Tokens in this reply')?.querySelector('[role="img"]')).toBeNull();
   });
 
   it('sums up the run activity in one line', () => {

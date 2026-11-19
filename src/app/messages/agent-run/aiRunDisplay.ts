@@ -4,6 +4,10 @@ import type { AiRunInfo, AiRunModelInfo } from '../../matrix/protocol/aiRun';
 export const formatAiRunNumber = (value: number | undefined, locale?: string): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
 
+/** A large count in the reader's short style, such as 61.4M. */
+export const formatAiRunCompactNumber = (value: number, locale?: string): string =>
+  new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+
 export const formatAiRunTimeToFirstToken = (value: number | undefined): string | undefined => {
   if (typeof value !== 'number' || value < 0) return undefined;
   return `${Math.round(value * 1000)} ms`;
@@ -30,7 +34,7 @@ export const formatAiRunPercentage = (percentage: number, locale?: string): stri
   }).format(percentage / 100);
 
 type AiRunTokenPart = {
-  key: 'cacheRead' | 'newInput' | 'input' | 'output';
+  key: 'cacheRead' | 'cacheWrite' | 'notCached' | 'newInput' | 'input' | 'output';
   label: string;
   tokens: number;
   percentage: number;
@@ -42,6 +46,8 @@ type AiRunContextBarSegment = AiRunTokenPart & {
 
 const TOKEN_PART_LABELS = {
   cacheRead: ['mindroomUi.messages.mindroomReplyDetails.fromCache', 'From cache'],
+  cacheWrite: ['mindroomUi.messages.mindroomReplyDetails.writtenToCache', 'Written to cache'],
+  notCached: ['mindroomUi.messages.mindroomReplyDetails.notCached', 'Not cached'],
   newInput: ['mindroomUi.messages.mindroomReplyDetails.newInput', 'New input'],
   input: ['mindroomUi.messages.mindroomReplyDetails.input', 'Input'],
   output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
@@ -52,22 +58,29 @@ const tokenPartLabel = (key: AiRunTokenPart['key'], t?: TFunction): string => {
   return t ? t(labelKey) : fallback;
 };
 
-/** What a reply's tokens were spent on; input splits by cache only where the backend reported the split. */
+type TokenCount = [AiRunTokenPart['key'], number | undefined];
+
+/**
+ * A reply's input by where it came from: split by cache only where the backend reported the split,
+ * and its uncached part into cache writes and the rest only where it reported the writes. The
+ * backend leaves out a zero write count, and some providers cache without counting writes, so
+ * without the count the uncached input stays one part.
+ */
+const inputTokenCounts = (info: AiRunInfo): TokenCount[] => {
+  const uncached = info.uncachedInputTokens;
+  if (uncached === undefined) return [['input', info.inputTokens]];
+  const cacheRead: TokenCount = ['cacheRead', info.cacheReadTokens];
+  if (info.cacheWriteTokens === undefined) return [cacheRead, ['newInput', uncached]];
+  const writes = Math.min(Math.max(0, info.cacheWriteTokens), uncached);
+  return [cacheRead, ['cacheWrite', writes], ['notCached', uncached - writes]];
+};
+
+/** What a reply's tokens were spent on: its input, by where it came from, and its output. */
 export const getAiRunTokenParts = (
   info: AiRunInfo,
   t?: TFunction
 ): { total: number; parts: AiRunTokenPart[] } | undefined => {
-  const counts: [AiRunTokenPart['key'], number | undefined][] =
-    info.uncachedInputTokens === undefined
-      ? [
-          ['input', info.inputTokens],
-          ['output', info.outputTokens],
-        ]
-      : [
-          ['cacheRead', info.cacheReadTokens],
-          ['newInput', info.uncachedInputTokens],
-          ['output', info.outputTokens],
-        ];
+  const counts: TokenCount[] = [...inputTokenCounts(info), ['output', info.outputTokens]];
   const used = counts.filter((entry): entry is [AiRunTokenPart['key'], number] => {
     const tokens = entry[1];
     return tokens !== undefined && tokens > 0;

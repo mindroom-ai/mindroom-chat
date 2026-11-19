@@ -2702,7 +2702,6 @@
         "model": "Model: {{model}}"
       },
       "mindroomReplyDetails": {
-        "tokens": "Token",
         "cost": "Biaya",
         "conversationSoFar": "Percakapan sejauh ini",
         "failed": "Gagal",

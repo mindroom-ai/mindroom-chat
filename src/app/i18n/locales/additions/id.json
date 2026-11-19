@@ -850,7 +850,11 @@
         "nameChose": "Dipilih oleh {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagen"
+        "subagents": "Subagen",
+        "tokensInThisReply": "Token di balasan ini",
+        "writtenToCache": "Ditulis ke cache",
+        "notCached": "Tidak di-cache",
+        "tokenCount": "{{tokens}} token"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",

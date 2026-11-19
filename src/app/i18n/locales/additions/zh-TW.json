@@ -850,7 +850,11 @@
         "nameChose": "{{name}} 已選擇"
       },
       "mindroomReplyDetails": {
-        "subagents": "子代理"
+        "subagents": "子代理",
+        "tokensInThisReply": "這則回覆的詞元",
+        "writtenToCache": "寫入快取",
+        "notCached": "未快取",
+        "tokenCount": "{{tokens}} 個詞元"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",

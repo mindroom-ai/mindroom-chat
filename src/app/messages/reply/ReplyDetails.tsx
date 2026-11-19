@@ -8,6 +8,7 @@ import type { ThreadConversationCost } from '../../event-store/threads/threadCon
 import { useThreadConversationCost } from '../../event-store/threads/useThreadConversationCost';
 import { AiRunInfo } from '../../matrix/protocol/aiRun';
 import {
+  formatAiRunCompactNumber,
   formatAiRunNumber,
   formatAiRunPercentage,
   formatAiRunTimeToFirstToken,
@@ -262,14 +263,46 @@ function CostCard({
   );
 }
 
-function Tokens({ info }: { info: AiRunInfo }) {
+/** What the conversation used through this reply, as the cost card counts its cost. */
+function ConversationTokens({ eventId }: { eventId: string | undefined }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const threadCost = useThreadConversationCost();
+  const throughReply = eventId ? threadCost?.tokensByEventId.get(eventId) : undefined;
+  if (!threadCost || !throughReply) return null;
+  const tokens = t('mindroomUi.messages.mindroomReplyDetails.tokenCount', {
+    tokens: formatAiRunCompactNumber(throughReply.tokens, language),
+  });
+  const replies = t(
+    threadCost.complete
+      ? 'mindroomUi.messages.mindroomReplyDetails.replyCount'
+      : 'mindroomUi.messages.mindroomReplyDetails.loadedReplyCount',
+    { count: throughReply.replyCount }
+  );
+  return (
+    <Text as="div" size="T200" priority="300" className={css.ConversationTokens}>
+      <span>{t('mindroomUi.messages.mindroomReplyDetails.conversationSoFar')}</span>
+      <span>
+        <span className={css.MetaValue}>
+          {threadCost.complete
+            ? tokens
+            : t('mindroomUi.messages.mindroomReplyDetails.atLeastCost', { cost: tokens })}
+        </span>
+        {' · '}
+        {replies}
+      </span>
+    </Text>
+  );
+}
+
+function Tokens({ info, eventId }: { info: AiRunInfo; eventId: string | undefined }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const tokens = getAiRunTokenParts(info, t);
   if (!tokens) return null;
   return (
     <Section
-      title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
+      title={t('mindroomUi.messages.mindroomReplyDetails.tokensInThisReply')}
       value={formatAiRunNumber(tokens.total, language)}
     >
       <Meter parts={tokens.parts} legend />
@@ -284,6 +317,7 @@ function Tokens({ info }: { info: AiRunInfo }) {
           </Text>
         ))}
       </ul>
+      <ConversationTokens eventId={eventId} />
     </Section>
   );
 }
@@ -332,13 +366,7 @@ const isFlaggedStatus = (status: string | undefined): status is keyof typeof STA
   status === 'error' || status === 'cancelled';
 
 /** What a MindRoom reply ran on, what it and the conversation cost, and what it used. */
-export function ReplyDetails({
-  info,
-  eventId,
-}: {
-  info: AiRunInfo;
-  eventId?: string;
-}) {
+export function ReplyDetails({ info, eventId }: { info: AiRunInfo; eventId?: string }) {
   const { t } = useTranslation();
   const modelLabel = getAiRunCompactModelLabel(info);
   const modelSource = [info.modelProvider, info.modelId].filter(Boolean).join(' · ');
@@ -377,7 +405,7 @@ export function ReplyDetails({
           eventId={eventId}
         />
       )}
-      <Tokens info={info} />
+      <Tokens info={info} eventId={eventId} />
       <ContextWindow info={info} />
       <Activity info={info} />
       {(info.modelConfig || info.runId || info.sessionId) && (

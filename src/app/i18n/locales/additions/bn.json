@@ -863,7 +863,11 @@
         "nameChose": "{{name}} বেছে নিয়েছেন"
       },
       "mindroomReplyDetails": {
-        "subagents": "সাব-এজেন্ট"
+        "subagents": "সাব-এজেন্ট",
+        "tokensInThisReply": "এই উত্তরের টোকেন",
+        "writtenToCache": "ক্যাশে লেখা",
+        "notCached": "ক্যাশে নেই",
+        "tokenCount": "{{tokens}} টোকেন"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} ধরে চলছে",

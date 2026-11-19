@@ -52,6 +52,8 @@ vi.mock('../app/messages/canvas/canvasHost.css', () => ({
 vi.mock('../app/messages/reply/ReplyDetails.css', () => {
   const parts = {
     cacheRead: 'part-cache-read',
+    cacheWrite: 'part-cache-write',
+    notCached: 'part-not-cached',
     newInput: 'part-new-input',
     input: 'part-input',
     output: 'part-output',
@@ -84,6 +86,7 @@ vi.mock('../app/messages/reply/ReplyDetails.css', () => {
     Legend: 'reply-details-legend',
     LegendItem: 'reply-details-legend-item',
     Swatch: parts,
+    ConversationTokens: 'reply-details-conversation-tokens',
     Meta: 'reply-details-meta',
     MetaValue: 'reply-details-meta-value',
     TechnicalSummary: 'reply-details-technical-summary',

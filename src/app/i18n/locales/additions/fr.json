@@ -876,7 +876,11 @@
         "nameChose": "Choix de {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sous-agents"
+        "subagents": "Sous-agents",
+        "tokensInThisReply": "Jetons de cette réponse",
+        "writtenToCache": "Écrits dans le cache",
+        "notCached": "Hors cache",
+        "tokenCount": "{{tokens}} jetons"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En cours depuis {{duration}}",

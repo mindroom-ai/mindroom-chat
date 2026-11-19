@@ -876,7 +876,11 @@
         "nameChose": "{{name}} eligió"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagentes"
+        "subagents": "Subagentes",
+        "tokensInThisReply": "Tokens de esta respuesta",
+        "writtenToCache": "Escritos en caché",
+        "notCached": "Sin caché",
+        "tokenCount": "{{tokens}} tokens"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En ejecución desde hace {{duration}}",

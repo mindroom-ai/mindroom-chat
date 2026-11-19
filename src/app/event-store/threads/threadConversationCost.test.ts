@@ -187,6 +187,55 @@ describe('summarizeThreadConversationCost', () => {
     ).toBeUndefined();
   });
 
+  it("sums each agent reply's own tokens through each reply, priced or not", () => {
+    const used = (usage: Record<string, number>, cost?: Record<string, string>) => ({
+      'io.mindroom.ai_run': { version: 1, status: 'completed', usage, cost },
+    });
+    const cost = summarizeThreadConversationCost(
+      [
+        message('$root', PERSON, undefined, used({ input_tokens: 999 })),
+        message(
+          '$r1',
+          AGENT,
+          undefined,
+          used(
+            {
+              input_tokens: 2_000,
+              cache_read_tokens: 1_250_000,
+              cache_write_tokens: 240_600,
+              uncached_input_tokens: 242_000,
+              output_tokens: 2_700,
+            },
+            // The subagents' cost counts, but the metadata carries no tokens of theirs.
+            { usd: '0.4', subagents_usd: '0.1' }
+          )
+        ),
+        // An unpriced model's reply has no cost but still used tokens.
+        message('$r2', AGENT, undefined, used({ input_tokens: 300, output_tokens: 20 })),
+      ],
+      { history: loaded, isTrustedSender }
+    );
+
+    expect(cost?.tokensByEventId.get('$r1')).toEqual({ tokens: 1_494_700, replyCount: 1 });
+    expect(cost?.tokensByEventId.get('$r2')).toEqual({ tokens: 1_495_020, replyCount: 2 });
+    expect(cost?.tokensByEventId.has('$root')).toBe(false);
+    expect(cost?.replies).toEqual([{ eventId: '$r1', usd: 0.5 }]);
+  });
+
+  it('sums tokens when no reply is priced', () => {
+    const cost = summarizeThreadConversationCost(
+      [
+        message('$r1', AGENT, undefined, {
+          'io.mindroom.ai_run': { version: 1, status: 'completed', usage: { output_tokens: 5 } },
+        }),
+      ],
+      { history: loaded, isTrustedSender }
+    );
+
+    expect(cost?.replies).toEqual([]);
+    expect(cost?.tokensByEventId.get('$r1')).toEqual({ tokens: 5, replyCount: 1 });
+  });
+
   it('is complete only once the thread start is loaded', () => {
     const events = [message('$r1', AGENT, '0.01')];
     const options = { isTrustedSender };

@@ -239,8 +239,12 @@ export const Meter = style({
   backgroundColor: color.SurfaceVariant.Container,
 });
 
+// Cache writes keep the colour of the new input they are part of; the rest takes the neutral
+// buttons' colour, which every theme sets apart from its surfaces.
 const partColors = {
   cacheRead: color.Success.Main,
+  cacheWrite: color.Primary.Main,
+  notCached: color.Secondary.Main,
   newInput: color.Primary.Main,
   input: color.Primary.Main,
   output: color.Warning.Main,
@@ -276,6 +280,16 @@ export const Swatch = styleVariants(partColors, (backgroundColor) => ({
   flexShrink: 0,
   backgroundColor,
 }));
+
+// The conversation's total under this reply's parts, label at the start and figures at the end.
+export const ConversationTokens = style({
+  display: 'flex',
+  justifyContent: 'space-between',
+  flexWrap: 'wrap',
+  gap: `0 ${config.space.S200}`,
+  marginTop: config.space.S100,
+  fontVariantNumeric: 'tabular-nums',
+});
 
 export const Meta = style({
   display: 'flex',

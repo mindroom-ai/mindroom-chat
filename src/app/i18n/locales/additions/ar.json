@@ -915,7 +915,11 @@
         "nameChose": "اختار ⁨{{name}}⁩"
       },
       "mindroomReplyDetails": {
-        "subagents": "الوكلاء الفرعيون"
+        "subagents": "الوكلاء الفرعيون",
+        "tokensInThisReply": "الرموز المميزة في هذا الرد",
+        "writtenToCache": "مكتوبة في الذاكرة المؤقتة",
+        "notCached": "غير مخزنة مؤقتًا",
+        "tokenCount": "⁨{{tokens}}⁩ رمز مميز"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",

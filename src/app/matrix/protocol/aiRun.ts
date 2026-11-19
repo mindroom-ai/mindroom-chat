@@ -11,6 +11,7 @@ type AiRunUsage = {
   input_tokens?: unknown;
   output_tokens?: unknown;
   cache_read_tokens?: unknown;
+  cache_write_tokens?: unknown;
   uncached_input_tokens?: unknown;
   time_to_first_token?: unknown;
 };
@@ -57,6 +58,8 @@ export type AiRunInfo = {
   cacheReadTokens?: number;
   /** Input that was not read from cache, split by the backend with each provider's cache accounting. */
   uncachedInputTokens?: number;
+  /** The part of the uncached input written to cache; the backend leaves out a zero count. */
+  cacheWriteTokens?: number;
   timeToFirstToken?: number;
   contextInputTokens?: number;
   contextWindowTokens?: number;
@@ -147,6 +150,7 @@ export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | unde
     outputTokens: asFiniteNumber(usage?.output_tokens),
     cacheReadTokens: asFiniteNumber(usage?.cache_read_tokens),
     uncachedInputTokens: asFiniteNumber(usage?.uncached_input_tokens),
+    cacheWriteTokens: asFiniteNumber(usage?.cache_write_tokens),
     timeToFirstToken: asNonNegativeDecimal(usage?.time_to_first_token),
     contextInputTokens: asFiniteNumber(context?.input_tokens),
     contextWindowTokens: asFiniteNumber(context?.window_tokens),
@@ -160,6 +164,13 @@ export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | unde
   const hasAnyInfo = Object.values(info).some((value) => value !== undefined);
   return hasAnyInfo ? info : undefined;
 };
+
+/** The tokens a reply's own model requests used: its input, from cache or not, and its output. */
+export const getAiRunTokenTotal = (info: AiRunInfo): number =>
+  (info.uncachedInputTokens === undefined
+    ? [info.inputTokens, info.outputTokens]
+    : [info.cacheReadTokens, info.uncachedInputTokens, info.outputTokens]
+  ).reduce<number>((sum, tokens) => sum + Math.max(0, tokens ?? 0), 0);
 
 /** The run details without their costs, for a sender whose cost does not count. */
 export const withoutAiRunCost = (info: AiRunInfo): AiRunInfo => ({

@@ -2702,7 +2702,6 @@
         "model": "モデル: {{model}}"
       },
       "mindroomReplyDetails": {
-        "tokens": "トークン",
         "cost": "コスト",
         "conversationSoFar": "これまでの会話",
         "failed": "失敗",

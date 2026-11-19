@@ -38,6 +38,7 @@ const aiRun = (usd: string) => ({
     output_tokens: 31,
     total_tokens: 1705,
     cache_read_tokens: 1408,
+    cache_write_tokens: 250,
     uncached_input_tokens: 266,
     time_to_first_token: '0.412',
   },
@@ -191,13 +192,16 @@ test('reply details show what a reply and the conversation so far cost', async (
   await history.getByRole('listitem').first().hover();
   await expect(history.getByRole('listitem').first()).toHaveAttribute('data-pointed', 'true');
   await expect(costCard).not.toContainText('This reply · 2 of 3');
-  await section('Tokens').locator('[aria-hidden] > span').first().hover();
+  await section('Tokens in this reply').locator('[aria-hidden] > span').first().hover();
   await expect(page.getByText('1,408 · 82.6%', { exact: true })).toBeVisible();
   await page.mouse.move(0, 0);
   await expect(costCard).toContainText('This reply · 2 of 3');
-  await expect(section('Tokens')).toContainText('Tokens1,705');
-  await expect(section('Tokens')).toContainText('From cache 1,408');
-  await expect(section('Tokens')).toContainText('New input 266');
+  const tokens = section('Tokens in this reply');
+  await expect(tokens).toContainText('Tokens in this reply1,705');
+  await expect(tokens).toContainText('From cache 1,408');
+  await expect(tokens).toContainText('Written to cache 250');
+  await expect(tokens).toContainText('Not cached 16');
+  await expect(tokens).toContainText('Conversation so far3.4K tokens · 2 replies');
   await expect(section('Context window')).toContainText('51,663 of 258,000 · 20.0%');
   await expect(dialog).toContainText('2 tool calls');
   await expect(dialog).toContainText('First token 412 ms');
