@@ -10,6 +10,7 @@ import {
   type ChatUiActionOptions,
 } from './ChatUiActionProvider';
 import { CanvasOffNote, ChatUiActionButton } from './ChatUiActionButton';
+import { atom, getDefaultStore } from 'jotai';
 import { makeUiEvent, makeUiRoom } from './testUtils';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -267,11 +268,19 @@ describe('Chat UI request buttons', () => {
     const status = () => container.querySelector('[role="status"]')?.textContent;
     const button = () => container.querySelector('button')!;
 
+    // The composer's state as Room derives it; a test sets it as the user would change the draft.
+    const composer = atom<'empty' | 'offered' | 'busy'>('empty');
+    const offOptions = (canPost = true) => {
+      const fill = vi.fn(() => getDefaultStore().set(composer, 'offered'));
+      return { fill, textRequest: { canPost, offer: () => composer, fill } };
+    };
+    afterEach(() => act(() => getDefaultStore().set(composer, 'empty')));
+
     it('says so beside the title and asks for a text version in the draft, sending nothing', async () => {
-      const askForText = vi.fn(() => true);
+      const { fill, textRequest } = offOptions();
       const { render, perform } = setup(canvasEvent());
       render({
-        askForText,
+        textRequest,
         children: (
           <>
             <CanvasOffNote />
@@ -280,11 +289,10 @@ describe('Chat UI request buttons', () => {
         ),
       });
       expect(container.textContent).toContain('mindroomUi.uiActions.canvasOff');
-      expect(button().disabled).toBe(false);
       expect(button().textContent).toBe('mindroomUi.uiActions.askForText');
       expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.hint');
       await act(async () => button().click());
-      expect(askForText).toHaveBeenCalledWith(
+      expect(fill).toHaveBeenCalledWith(
         expect.objectContaining({
           threadId: '$thread',
           canvas: expect.objectContaining({ title: 'Weekly planning' }),
@@ -295,17 +303,35 @@ describe('Chat UI request buttons', () => {
       expect(perform).not.toHaveBeenCalled();
     });
 
-    it('keeps a draft already started and offers to copy the request instead', async () => {
-      const askForText = vi.fn(() => false);
+    it('copies instead while the composer holds work, and asks again once it is empty', async () => {
+      const { fill, textRequest } = offOptions();
+      act(() => getDefaultStore().set(composer, 'busy'));
       const { render } = setup(canvasEvent());
-      render({ askForText });
-      await act(async () => button().click());
+      render({ textRequest });
       expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.kept');
       expect(button().textContent).toBe('mindroomUi.uiActions.copyRequest');
       await act(async () => button().click());
-      expect(askForText).toHaveBeenCalledTimes(1);
+      expect(fill).not.toHaveBeenCalled();
       expect(copyToClipboard).toHaveBeenCalledWith('mindroomUi.uiActions.textVersionRequest');
       expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.copied');
+      act(() => getDefaultStore().set(composer, 'empty'));
+      expect(button().textContent).toBe('mindroomUi.uiActions.askForText');
+      expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.hint');
+    });
+
+    it('offers no request where the viewer cannot post, and still says why', () => {
+      const { render } = setup(canvasEvent());
+      render({
+        textRequest: offOptions(false).textRequest,
+        children: (
+          <>
+            <CanvasOffNote />
+            <ChatUiActionButton event={canvasEvent()} />
+          </>
+        ),
+      });
+      expect(container.querySelector('button')).toBeNull();
+      expect(container.textContent).toBe('mindroomUi.uiActions.canvasOff');
     });
 
     it('keeps Open canvas with its reason while it is only blocked for now (a call)', () => {

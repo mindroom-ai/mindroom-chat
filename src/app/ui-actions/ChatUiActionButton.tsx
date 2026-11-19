@@ -1,10 +1,13 @@
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box, Button, Icon, Icons, Text } from 'folds';
 import type { ChatUiAction } from '../matrix/protocol/chatUiProtocol';
-import { ChatUiActionContext } from './ChatUiActionProvider';
+import { ChatUiActionContext, type TextRequest } from './ChatUiActionProvider';
 import { copyToClipboard } from '../lib/dom';
+
+type CanvasAction = Extract<ChatUiAction, { action: 'show_canvas' }>;
 
 const actionIcon = (action: ChatUiAction) => {
   switch (action.action) {
@@ -22,33 +25,42 @@ const actionIcon = (action: ChatUiAction) => {
 /** Beside a canvas's title while canvases are off in this app: why it stays shut. */
 export function CanvasOffNote() {
   const { t } = useTranslation();
-  if (!useContext(ChatUiActionContext)?.askForText) return null;
+  if (!useContext(ChatUiActionContext)?.textRequest) return null;
   return (
-    <Text as="span" size="T200" priority="300">
+    <Text as="span" size="T200">
       {t('mindroomUi.uiActions.canvasOff')}
     </Text>
   );
 }
 
 /** With canvases off: a request for a text version, put in the thread's draft or else copied. */
-function AskForText({ title, ask }: { title: string; ask: (text: string) => boolean }) {
+function AskForText({ action, request }: { action: CanvasAction; request: TextRequest }) {
   const { t } = useTranslation();
-  const [state, setState] = useState<'hint' | 'added' | 'kept' | 'copied'>('hint');
-  const request = t('mindroomUi.uiActions.textVersionRequest', { title });
-  const copying = state === 'kept' || state === 'copied';
+  const text = t('mindroomUi.uiActions.textVersionRequest', { title: action.canvas.title });
+  const offerAtom = useMemo(() => request.offer(action.threadId, text), [request, action, text]);
+  // Follows the composer: Copy only while it holds other work (or the request), Ask once it is empty.
+  const composer = useAtomValue(offerAtom);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => setCopied(false), [composer]);
+  if (!request.canPost) return null;
   const onClick = () => {
-    if (!copying) setState(ask(request) ? 'added' : 'kept');
-    else void copyToClipboard(request).then((copied) => copied && setState('copied'));
+    if (composer === 'empty') request.fill(action, text);
+    else void copyToClipboard(text).then(setCopied);
   };
+  const status = { empty: 'hint', offered: 'added', busy: copied ? 'copied' : 'kept' } as const;
   return (
     <Box alignItems="Center" gap="300" wrap="Wrap" style={{ marginTop: '0.5rem' }}>
       <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onClick}>
         <Text size="B300">
-          {t(copying ? 'mindroomUi.uiActions.copyRequest' : 'mindroomUi.uiActions.askForText')}
+          {t(
+            composer === 'empty'
+              ? 'mindroomUi.uiActions.askForText'
+              : 'mindroomUi.uiActions.copyRequest'
+          )}
         </Text>
       </Button>
       <Text size="T200" priority="300" role="status">
-        {t(`mindroomUi.uiActions.askForTextStatus.${state}`)}
+        {t(`mindroomUi.uiActions.askForTextStatus.${status[composer]}`)}
       </Text>
     </Box>
   );
@@ -64,9 +76,8 @@ export function ChatUiActionButton({ event }: { event: MatrixEvent }) {
   const actions = useContext(ChatUiActionContext);
   const action = actions?.read(event);
   if (!actions || !action) return null;
-  const { askForText } = actions;
-  if (action.action === 'show_canvas' && askForText) {
-    return <AskForText title={action.canvas.title} ask={(text) => askForText(action, text)} />;
+  if (action.action === 'show_canvas' && actions.textRequest) {
+    return <AskForText action={action} request={actions.textRequest} />;
   }
 
   let label: string;

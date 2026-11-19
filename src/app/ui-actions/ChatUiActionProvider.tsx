@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import type { Atom } from 'jotai';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { listenForChatUiActions } from './chatUiController';
 import { type ChatUiAction, readChatUiAction } from '../matrix/protocol/chatUiProtocol';
@@ -27,8 +28,17 @@ export type ChatUiActionOptions = {
   unavailable: (action: ChatUiAction) => string | undefined;
   /** The canvas the room's panel shows, by its request's event ID. */
   openCanvasId?: string;
-  /** Set while canvases are off: puts a request into its thread's empty draft; false if not empty. */
-  askForText?: (action: ChatUiAction, text: string) => boolean;
+  /** Set while canvases are off: asks for a text version in a canvas's thread draft instead. */
+  textRequest?: TextRequest;
+};
+
+export type TextRequest = {
+  /** Whether this viewer can post in the room; nothing is drafted where no composer shows. */
+  canPost: boolean;
+  /** What the thread's composer holds against `text`: nothing, `text` as offered, or other work. */
+  offer: (threadId: string | undefined, text: string) => Atom<'empty' | 'offered' | 'busy'>;
+  /** Puts `text` into the thread's empty draft and shows that thread. */
+  fill: (action: ChatUiAction, text: string) => void;
 };
 
 type ChatUiActions = {
@@ -39,7 +49,7 @@ type ChatUiActions = {
   activate: (event: MatrixEvent) => void;
   /** The canvas the room's panel shows, which runs nowhere else in this window. */
   openCanvasId?: string;
-  askForText?: ChatUiActionOptions['askForText'];
+  textRequest?: TextRequest;
 };
 
 /** What message buttons use to run MindRoom UI requests (`io.mindroom.ui_action`). */
@@ -106,7 +116,7 @@ export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions =>
     [mx, room]
   );
   // What a button shows follows this render; what runs on an event follows the committed one.
-  const { unavailable, openCanvasId, askForText } = options;
+  const { unavailable, openCanvasId, textRequest } = options;
   const activate = useCallback(
     (event: MatrixEvent) => {
       // Membership and authority are read again now; what rendered earlier may be stale.
@@ -117,7 +127,7 @@ export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions =>
   );
 
   return useMemo(
-    () => ({ read, unavailable, activate, openCanvasId, askForText }),
-    [activate, read, unavailable, openCanvasId, askForText]
+    () => ({ read, unavailable, activate, openCanvasId, textRequest }),
+    [activate, read, unavailable, openCanvasId, textRequest]
   );
 };

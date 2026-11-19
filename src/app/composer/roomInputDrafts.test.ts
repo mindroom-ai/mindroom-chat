@@ -2,11 +2,14 @@ import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRoomInputDrafts,
-  fillEmptyDraft,
+  composerOfferAtom,
+  composerReplyDraftAtom,
+  composerUploadItemsAtom,
   getRoomInputDraftKey,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
 
 const KEY = JSON.stringify(['@alice:example.org', '!room:example.org', '$thread']);
 const draft = [{ type: 'paragraph' as const, children: [{ text: 'Unsent draft', bold: true }] }];
@@ -102,19 +105,44 @@ describe('restoreTextToDraft', () => {
   });
 });
 
-describe('fillEmptyDraft', () => {
-  it('fills an empty draft and never replaces text the user has started', () => {
+describe('composerOfferAtom', () => {
+  it('is busy with any work in the composer: text, a staged file or a reply, not only text', () => {
     const store = createStore();
-    const key = getRoomInputDraftKey('@alice:example.org', '!fill:example.org', '$thread');
-    const request = [
-      { type: 'paragraph', children: [{ text: 'Text version, please' }] },
-    ] as never[];
-    const typed = [{ type: 'paragraph', children: [{ text: 'my own words' }] }] as never[];
-    expect(fillEmptyDraft(store, key, request)).toBe(true);
-    expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual(request);
-    store.set(roomIdToMsgDraftAtomFamily(key), typed);
-    expect(fillEmptyDraft(store, key, request)).toBe(false);
-    expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual(typed);
-    store.set(roomIdToMsgDraftAtomFamily(key), []);
+    const roomId = '!offer:example.org';
+    const key: [string, string, string] = ['@alice:example.org', roomId, '$thread'];
+    const offer = [{ type: 'paragraph', children: [{ text: 'Text version, please' }] }] as never[];
+    const draft = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(...key));
+    const state = composerOfferAtom(key, offer);
+    expect(store.get(state)).toBe('empty');
+    store.set(draft, offer);
+    expect(store.get(state)).toBe('offered');
+    store.set(draft, [{ type: 'paragraph', children: [{ text: 'my own words' }] }] as never[]);
+    expect(store.get(state)).toBe('busy');
+    store.set(draft, []);
+    // Another thread's text is not this composer's work.
+    store.set(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(key[0], roomId, '$other')), offer);
+    expect(store.get(state)).toBe('empty');
+    const file = new File(['x'], 'notes.txt');
+    const staged = (f: File) => [
+      { file: f, originalFile: f, encInfo: undefined, metadata: { markedAsSpoiler: false } },
+    ];
+    store.set(composerUploadItemsAtom(roomId, undefined), { type: 'PUT', item: staged(file) });
+    expect(store.get(state)).toBe('busy');
+    store.set(composerUploadItemsAtom(roomId, undefined), { type: 'RESET' });
+    expect(store.get(state)).toBe('empty');
+    // A view showing the thread (its column) stages files of its own.
+    store.set(composerUploadItemsAtom(roomId, 'column'), { type: 'PUT', item: staged(file) });
+    expect(store.get(state)).toBe('empty');
+    store.set(shownConversationViewsAtom, [{ view: 'column', roomId, threadId: '$thread' }]);
+    expect(store.get(state)).toBe('busy');
+    store.set(shownConversationViewsAtom, [{ view: 'column', roomId, threadId: '$other' }]);
+    expect(store.get(state)).toBe('empty');
+    store.set(composerReplyDraftAtom(roomId, undefined), {
+      userId: '@bob:example.org',
+      eventId: '$event',
+      body: 'Earlier message',
+    });
+    expect(store.get(state)).toBe('busy');
+    store.set(composerReplyDraftAtom(roomId, undefined), undefined);
   });
 });

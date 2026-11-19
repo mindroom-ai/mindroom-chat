@@ -105,7 +105,15 @@ import { SecondThreadPanel } from './SecondThreadPanel';
 import { SecondThreadDropZone } from './SecondThreadDropZone';
 import { useSecondThread } from './useSecondThread';
 import { ROOM_COMPOSER, THREAD_COLUMN_COMPOSER } from './composerSelectors';
-import { fillEmptyDraft, getRoomInputDraftKey } from '../composer/roomInputDrafts';
+import {
+  composerOfferAtom,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { StateEvent } from '../matrix/types/room';
 import { isDraftShown } from '../composer/useRoomInputDraft';
 import { createParagraphElement } from '../editor/utils';
 
@@ -207,6 +215,7 @@ function RoomContent() {
   }, [roomId]);
   const client = useMatrixClient();
   const ownUserId = client.getSafeUserId();
+  const powerLevels = usePowerLevels(room);
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const { t } = useTranslation();
   const members = useRoomMembers(client, roomId);
@@ -789,16 +798,21 @@ function RoomContent() {
     [navigateRoom, navigateRoomThread, roomId, setViewMode, viewMode]
   );
 
-  // With canvases off, a canvas asks for a text version in its thread's draft, never over one.
-  const askForText = useCallback(
-    (action: ChatUiAction, text: string) => {
+  // With canvases off, a canvas asks for a text version in its thread's draft, never over work.
+  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
+  const permissions = useRoomPermissions(useRoomCreators(room), powerLevels);
+  const canPost = !tombstone && permissions.event('m.room.message', ownUserId);
+  const textRequest = useMemo(() => {
+    const offer = (threadId: string | undefined, text: string) =>
+      composerOfferAtom([ownUserId, roomId, threadId], [createParagraphElement(text)]);
+    const fill = (action: ChatUiAction, text: string) => {
+      if (store.get(offer(action.threadId, text)) !== 'empty') return;
       const draftKey = getRoomInputDraftKey(ownUserId, roomId, action.threadId);
-      if (!fillEmptyDraft(store, draftKey, [createParagraphElement(text)])) return false;
+      store.set(roomIdToMsgDraftAtomFamily(draftKey), [createParagraphElement(text)]);
       if (!isDraftShown(draftKey)) showConversation(action.threadId);
-      return true;
-    },
-    [ownUserId, roomId, showConversation, store]
-  );
+    };
+    return { canPost, offer, fill };
+  }, [canPost, ownUserId, roomId, showConversation, store]);
 
   const uiActions = useChatUiActions({
     mx: client,
@@ -810,7 +824,7 @@ function RoomContent() {
     navigate: showConversation,
     unavailable,
     openCanvasId,
-    askForText: canvasEnabled ? undefined : askForText,
+    textRequest: canvasEnabled ? undefined : textRequest,
   });
 
   // A canvas chosen in the header may still load; any change of what the side panel shows
@@ -886,7 +900,6 @@ function RoomContent() {
   });
   useRoomEscapeReadReceipts({ hideActivity, roomId, threadId });
 
-  const powerLevels = usePowerLevels(room);
   // The header's side panel controls, whose state the room owns, and the plugins' actions.
   const headerPanels: RoomViewHeaderProps = {
     computerAvailable: !!computerTarget.apiUrl,

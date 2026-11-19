@@ -23,7 +23,7 @@ const shot = async (page: Page, name: string) => {
   await page.screenshot({ path: `${dir}/${name}.png` });
 };
 
-test('a canvas while canvases are off asks for a text version in the draft, never over one', async ({
+test('a canvas while canvases are off asks for a text version in its thread, never over work', async ({
   page,
   context,
 }) => {
@@ -60,6 +60,10 @@ test('a canvas while canvases are off asks for a text version in the draft, neve
     invite: [agent.user_id],
   });
   await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
+  const otherRootId = await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
+    msgtype: 'm.text',
+    body: 'Release notes for version two',
+  });
   const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId } };
   await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
@@ -99,11 +103,29 @@ test('a canvas while canvases are off asks for a text version in the draft, neve
   });
   await page.setViewportSize({ width: 1280, height: 800 });
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
-  await page.goto(
-    `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
-  );
+
+  // The room opens in its Full view, with drafts of its own and of another thread.
+  const draftKey = (threadId?: string) =>
+    `roomInputDraft:${JSON.stringify(
+      threadId ? [viewer.user_id, fixture.roomId, threadId] : [viewer.user_id, fixture.roomId]
+    )}`;
+  const paragraph = (text: string) => JSON.stringify([{ type: 'paragraph', children: [{ text }] }]);
+  const seeded = {
+    [`roomViewMode:${fixture.roomId}`]: JSON.stringify('classic'),
+    [draftKey()]: paragraph('Room note'),
+    [draftKey(otherRootId)]: paragraph('Other thread note'),
+  };
+  await page.evaluate((items) => {
+    Object.entries(items).forEach(([key, value]) => localStorage.setItem(key, value));
+  }, seeded);
+  await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+  await expect(page.locator(COMPOSER).filter({ hasText: 'Room note' })).toBeVisible({
+    timeout: 60_000,
+  });
 
   const ask = page.getByRole('button', { name: 'Ask for a text version', exact: true });
+  const copy = page.getByRole('button', { name: 'Copy request', exact: true });
+  const status = (text: string) => page.getByRole('status').filter({ hasText: text });
   await expect(ask).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('[data-canvas-notice-title]')).toContainText(
     `${TITLE}· Canvas shared · panels are off in this app`
@@ -114,31 +136,57 @@ test('a canvas while canvases are off asks for a text version in the draft, neve
   await shot(page, 'after-dark');
   await page.emulateMedia({ colorScheme: 'light' });
 
-  // The request goes into the thread's composer; nothing reaches the room until Send.
+  // Ask opens the canvas's thread (the room's threads come back) with the request in its draft;
+  // the room's draft and the other thread's stay as they were, and nothing is sent.
   await ask.click();
-  const composer = page.locator(COMPOSER).filter({ hasText: REQUEST });
-  await expect(composer).toHaveCount(1);
-  await expect(
-    page.getByRole('status').filter({ hasText: 'Request added to the composer' })
-  ).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(fixture.rootId)}`));
+  await expect(page.locator(COMPOSER).filter({ hasText: REQUEST })).toHaveCount(1);
+  await expect(status('Request added to the composer')).toBeVisible();
+  await expect(copy).toBeVisible();
   await shot(page, 'after-filled');
-  const messages = await matrixFetch<{ chunk: { content: { body?: string } }[] }>(
-    HOMESERVER,
-    `/rooms/${encodeURIComponent(fixture.roomId)}/messages?dir=b&limit=50`,
-    { accessToken: viewer.access_token }
+  const stored = await page.evaluate(
+    (keys) => keys.map((key) => localStorage.getItem(key)),
+    Object.keys(seeded)
   );
-  expect(messages.chunk.some((event) => event.content.body === REQUEST)).toBe(false);
+  // The Full view is left for good, as a thread link leaves it (the threaded view is the default).
+  expect(stored).toEqual([null, ...Object.values(seeded).slice(1)]);
+  const messages = () =>
+    matrixFetch<{ chunk: { content: Record<string, unknown> }[] }>(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(fixture.roomId)}/messages?dir=b&limit=50`,
+      { accessToken: viewer.access_token }
+    ).then(({ chunk }) => chunk.filter((event) => event.content.body === REQUEST));
+  expect(await messages()).toHaveLength(0);
 
-  // A draft the user has written stays; the request is offered to copy instead.
-  await composer.click();
-  await page.keyboard.press('ControlOrMeta+A');
-  await page.keyboard.type('My own note');
-  await ask.click();
-  await expect(page.getByRole('status').filter({ hasText: 'Your draft was kept' })).toBeVisible();
-  await expect(page.locator(COMPOSER).filter({ hasText: 'My own note' })).toHaveCount(1);
-  await expect(page.locator(COMPOSER).filter({ hasText: REQUEST })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Copy request', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Request copied' })).toBeVisible();
+  // The user sends it, into the thread; the empty composer can take a request again.
+  await page.locator(COMPOSER).filter({ hasText: REQUEST }).click();
+  await page.keyboard.press('Enter');
+  await expect
+    .poll(async () => (await messages()).map((event) => event.content['m.relates_to']))
+    .toEqual([expect.objectContaining({ rel_type: 'm.thread', event_id: fixture.rootId })]);
+  await expect(ask).toBeVisible();
+  await expect(status('Puts a request in the composer')).toBeVisible();
+
+  // A staged file is work in the composer too: it stays, and the request is offered to copy.
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Attach files' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'notes.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('Placeholder notes'),
+  });
+  await expect(copy).toBeVisible();
+  await expect(status('Your draft was kept')).toBeVisible();
+  await copy.click();
+  await expect(status('Request copied')).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(REQUEST);
+  await expect(page.locator(COMPOSER).filter({ hasText: REQUEST })).toHaveCount(0);
   await shot(page, 'after-kept');
+
+  // Back leads to the room, in the threaded view Ask chose, with its own draft.
+  await page.goBack();
+  await expect(page).not.toHaveURL(/threadId=/);
+  await expect(page.locator(COMPOSER).filter({ hasText: 'Room note' })).toBeVisible();
 });
