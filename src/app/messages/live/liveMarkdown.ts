@@ -23,6 +23,7 @@ const SUPPORTED_BLOCK_LINE_START = new RegExp(`^ {0,3}</?(?:${BLOCK_TAG_ALTERNAT
 const SUPPORTED_BLOCK_END_TAG = new RegExp(`</(?:${BLOCK_TAG_ALTERNATION})>\\s*$`, 'i');
 const HR_BLOCK_TAG = /^ {0,3}<hr\b[^<>]*\/?>\s*$/i;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
+const RAW_INLINE_TAG = /^<(\/?)([A-Za-z][A-Za-z0-9-]*)/;
 
 /** Python's `html.escape`, which the runtime uses for escaped openers and preserved math. */
 const escapeLikePython = (text: string): string =>
@@ -222,6 +223,17 @@ const buildRenderer = (MarkdownItConstructor: typeof MarkdownIt): MarkdownIt => 
     escapeLikePython(`$${tokens[index]!.content}$`);
   md.renderer.rules.math_block = (tokens, index) =>
     `<div>${escapeLikePython(`$$\n${tokens[index]!.content.trim()}\n$$`)}</div>\n`;
+  // Inline HTML the runtime's sanitizer escapes is escaped here, before an HTML parser reads all text
+  // after a raw `<title>` as text; comments, declarations and processing instructions too.
+  md.renderer.rules.html_inline = (tokens, index) => {
+    const { content } = tokens[index]!;
+    const tag = RAW_INLINE_TAG.exec(content);
+    if (!tag) return escapeLikePython(content);
+    const name = tag[2]!.toLowerCase();
+    if (ALLOWED_TAGS.has(name)) return content;
+    // The runtime writes a disallowed end tag lowercased and without attributes.
+    return escapeLikePython(tag[1] ? `</${name}>` : content);
+  };
   return md;
 };
 
