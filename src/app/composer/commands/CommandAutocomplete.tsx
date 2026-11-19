@@ -1,7 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { Fragment, useCallback, useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Editor, Transforms } from 'slate';
-import { Text } from 'folds';
+import { config, Line, Text } from 'folds';
 import { AutocompleteMenu } from '../../editor/autocomplete/AutocompleteMenu';
 import {
   AutocompletePrefix,
@@ -12,9 +12,22 @@ import { MenuItem } from '../../ui/glass/GlassPrimitives';
 import { getCommandSuggestions } from '../slashCommandQuery';
 import { MINDROOM_COMMANDS } from './agentCommands';
 
+/** Who implements a command: this app, or MindRoom, whose agents answer it in the room. */
+export type CommandSource = 'app' | 'mindroom';
+
+/** The menu's sections, in order; commands without a source are listed without a label. */
+const SECTIONS = [undefined, 'mindroom', 'app'] as const;
+
+const SECTION_LABELS = {
+  app: 'featureUi.room.commandAutocomplete.thisApp',
+  mindroom: 'featureUi.room.commandAutocomplete.mindroomAgents',
+} as const;
+
 /** A command the menu can offer. */
 export type CommandMenuItem = {
   name: string;
+  /** Which section lists it; the `!` menu's commands have none. */
+  source?: CommandSource;
   /** What the command does, in the person's language. */
   description: string;
   /** How to call it, with its arguments; without one the row shows the prefix and the name. */
@@ -42,10 +55,19 @@ const labelStyle = {
   textAlign: 'start',
 } as const;
 
+// The label lines up with the commands under it.
+const sectionLabelStyle = {
+  paddingInline: config.space.S400,
+  paddingBlock: config.space.S100,
+} as const;
+
+const separatorStyle = { marginBlock: config.space.S100 } as const;
+
 /**
  * The command menu, open while the message's first word starts with a command prefix (`/` or
  * `!`): each command that starts with the typed letters, with what it does. Picking one (click,
  * Tab or Enter) writes the prefix and the name into the composer, ready for the arguments.
+ * Commands with a source are listed in labelled sections, MindRoom's first, with a line between.
  */
 export function CommandAutocomplete({
   editor,
@@ -54,10 +76,16 @@ export function CommandAutocomplete({
   commands,
   requestClose,
 }: CommandAutocompleteProps) {
-  const matching = useMemo(
-    () => getCommandSuggestions(commands, query.text),
-    [commands, query.text]
-  );
+  const { t } = useTranslation();
+  const sectionId = useId();
+  const sections = useMemo(() => {
+    const matching = getCommandSuggestions(commands, query.text);
+    return SECTIONS.map((source) => matching.filter((command) => command.source === source)).filter(
+      (items) => items.length > 0
+    );
+  }, [commands, query.text]);
+  // The rows in the order they show, so Tab, Enter and the arrow keys start at the top one.
+  const matching = useMemo(() => sections.flat(), [sections]);
 
   const pick = useCallback(
     ({ name }: CommandMenuItem) => {
@@ -74,28 +102,45 @@ export function CommandAutocomplete({
 
   // Slash command rows carry their name for the browser tests.
   const isSlash = query.prefix === AutocompletePrefix.Command;
+  const renderRow = (command: CommandMenuItem) => (
+    <MenuItem
+      key={command.name}
+      as="button"
+      type="button"
+      radii="300"
+      data-slash-command={isSlash ? command.name : undefined}
+      onKeyDown={pickOnTab(() => pick(command))}
+      onClick={() => pick(command)}
+      after={
+        <Text size="T200" priority="300" truncate>
+          {command.description}
+        </Text>
+      }
+    >
+      <Text style={labelStyle} size="B400" truncate>
+        {command.syntax ?? `${query.prefix}${command.name}`}
+      </Text>
+    </MenuItem>
+  );
   return (
     <AutocompleteMenu requestClose={requestClose} headerContent={<Text size="L400">{title}</Text>}>
-      {matching.map((command) => (
-        <MenuItem
-          key={command.name}
-          as="button"
-          type="button"
-          radii="300"
-          data-slash-command={isSlash ? command.name : undefined}
-          onKeyDown={pickOnTab(() => pick(command))}
-          onClick={() => pick(command)}
-          after={
-            <Text size="T200" priority="300" truncate>
-              {command.description}
-            </Text>
-          }
-        >
-          <Text style={labelStyle} size="B400" truncate>
-            {command.syntax ?? `${query.prefix}${command.name}`}
-          </Text>
-        </MenuItem>
-      ))}
+      {sections.map((items, index) => {
+        const source = items[0]?.source;
+        const rows = items.map(renderRow);
+        if (!source) return <Fragment key="all">{rows}</Fragment>;
+        const labelId = `${sectionId}-${source}`;
+        return (
+          <Fragment key={source}>
+            {index > 0 && <Line variant="Surface" size="300" style={separatorStyle} />}
+            <div role="group" aria-labelledby={labelId}>
+              <Text id={labelId} size="L400" priority="300" style={sectionLabelStyle}>
+                {t(SECTION_LABELS[source])}
+              </Text>
+              {rows}
+            </div>
+          </Fragment>
+        );
+      })}
     </AutocompleteMenu>
   );
 }

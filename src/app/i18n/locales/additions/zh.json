@@ -534,7 +534,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失败：{{reason}}",
         "usage": "无法运行 {{command}}。{{usage}}",
-        "unknown": "{{command}} 不是命令。要作为文本发送，请在消息开头加上 /plain。"
+        "unknown": "{{command}} 不是命令。要作为文本发送，请在消息开头加上 /plain。",
+        "thisApp": "此应用",
+        "mindroomAgents": "MindRoom 智能体"
       },
       "jumpToTime": {
         "unsupported": "此服务器无法按时间查找消息。",

@@ -534,7 +534,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
+        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain.",
+        "thisApp": "Aplikasi ini",
+        "mindroomAgents": "Agen MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Server ini tidak dapat mencari pesan berdasarkan waktu.",
