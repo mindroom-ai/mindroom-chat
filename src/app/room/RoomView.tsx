@@ -32,6 +32,7 @@ import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
 import { ConversationCover } from './ConversationCover';
+import { ROOM_COMPOSER } from './composerSelectors';
 import {
   conversationBehindPanelAtom,
   conversationHiddenAtom,
@@ -211,9 +212,7 @@ export function RoomView({
   useEffect(() => () => engine.clearRoomFocus(roomId), [engine, roomId]);
 
   const focusConversation = useCallback(() => {
-    areaRef.current
-      ?.querySelector<HTMLElement>('[data-room-footer="true"] [contenteditable="true"]')
-      ?.focus();
+    areaRef.current?.querySelector<HTMLElement>(ROOM_COMPOSER)?.focus();
   }, []);
   // Before the effect below that sends the focus of a closed thread column to the composer: the
   // card of a thread the keys left takes it first.
