@@ -1039,6 +1039,8 @@
       "modelPicker": {
         "effort": "প্রচেষ্টা",
         "effortFor": "{{model}}-এর প্রচেষ্টা",
+        "effortLevel": "প্রচেষ্টা: {{level}}",
+        "back": "পিছনে",
         "noEffortLevels": "কোনো প্রচেষ্টার স্তর নেই",
         "defaultLevel": "ডিফল্ট",
         "levelIsDefault": "{{level}}, ডিফল্ট",

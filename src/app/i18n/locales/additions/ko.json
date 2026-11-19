@@ -1015,6 +1015,8 @@
       "modelPicker": {
         "effort": "추론 수준",
         "effortFor": "{{model}}의 추론 수준",
+        "effortLevel": "추론 수준: {{level}}",
+        "back": "뒤로",
         "noEffortLevels": "추론 수준 없음",
         "defaultLevel": "기본값",
         "levelIsDefault": "{{level}}, 기본값",

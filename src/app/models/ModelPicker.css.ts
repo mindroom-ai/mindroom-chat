@@ -64,24 +64,10 @@ export const EffortPanel = style({
   maxWidth: panelMaxWidth,
 });
 
-const stack = createContainer();
+const picker = createContainer();
 
-// On a phone the column sits under the models instead, in the plain menu: the two panes under
-// each other, inside its rim.
-export const StackedScroll = style([
-  column,
-  {
-    flex: '1 1 auto',
-    minHeight: 0,
-    overflowY: 'auto',
-    overscrollBehavior: 'contain',
-    containerName: stack,
-    containerType: 'size',
-  },
-]);
-
-// The filter, the status and the rows, which scroll inside it. Stacked on a phone, it takes the
-// height the levels leave.
+// The filter, the status and the rows, which scroll inside it. On a phone, over the Effort row, it
+// scrolls as a whole once it is short.
 export const Picker = style([
   column,
   {
@@ -89,13 +75,27 @@ export const Picker = style([
     minWidth: 0,
     minHeight: 0,
     selectors: {
-      [`${StackedScroll} > &`]: { flexBasis: 0, minHeight: toRem(160) },
+      [`${Panel} > &`]: {
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        containerName: picker,
+        containerType: 'size',
+      },
     },
   },
 ]);
 
-// The models' scroller, whose own style makes it scroll.
-export const Rows = style({});
+// Too short for the controls and a scrolling list, as with a phone's keyboard up: they take their
+// full heights and scroll together, so a long error or a filter never hides the models or Retry.
+globalStyle(`${Panel} > ${Picker} > *`, {
+  '@container': {
+    [`${picker} (max-height: ${toRem(200)})`]: {
+      flex: 'none',
+      minHeight: 0,
+      overflow: 'visible !important',
+    },
+  },
+});
 
 const effortSurface = `color-mix(in srgb, ${color.SurfaceVariant.Container} 40%, transparent)`;
 
@@ -108,13 +108,12 @@ export const EffortColumn = style([
     borderInlineStart: hairline(color.SurfaceVariant.ContainerLine),
     backgroundColor: effortSurface,
     selectors: {
-      // Under the models it shrinks with a short window down to its header and a row, which scroll.
-      [`${StackedScroll} > &`]: {
+      // On a phone the levels fill the menu in place of the models.
+      '&[data-mode="view"]': {
+        flex: '1 1 auto',
         width: 'auto',
-        flex: `0 1 ${toRem(256)}`,
-        minHeight: toRem(80),
         borderInlineStart: 'none',
-        borderBlockStart: hairline(color.SurfaceVariant.ContainerLine),
+        backgroundColor: 'transparent',
       },
     },
   },
@@ -130,8 +129,39 @@ export const EffortHeader = style([
     marginBlockStart: config.space.S100,
     borderBlockEnd: hairline(color.SurfaceVariant.ContainerLine),
     fontSize: config.fontSize.T300,
+    selectors: {
+      // The view's header holds Back, a finger's height.
+      '[data-mode="view"] > &': {
+        gap: toRem(4),
+        height: toRem(48),
+        marginInline: 0,
+        marginBlockStart: 0,
+        paddingInline: `${toRem(2)} ${config.space.S300}`,
+        fontWeight: config.fontWeight.W500,
+      },
+    },
   },
 ]);
+
+// Back to the models, 44 px square to a finger.
+export const EffortBack = style([
+  control,
+  {
+    flex: 'none',
+    display: 'grid',
+    placeItems: 'center',
+    width: toRem(44),
+    height: toRem(44),
+    borderRadius: config.radii.R300,
+    outline: 'none',
+    selectors: {
+      '&:hover, &:focus-visible': { backgroundColor: color.Surface.ContainerHover },
+    },
+  },
+]);
+
+// A chevron that points the way the text runs.
+export const Mirrored = style({ selectors: { '[dir=rtl] &': { transform: 'scaleX(-1)' } } });
 
 export const EffortModel = style([
   ellipsis,
@@ -155,22 +185,6 @@ export const EffortLevels = style([
   },
 ]);
 
-// A window that leaves the stack less than its panes' smallest heights, as with a phone's keyboard
-// up: the panes take their full heights and the stack is the only box that scrolls, so a swipe
-// that starts on a model reaches the levels.
-globalStyle(
-  `${StackedScroll} > ${Picker}, ${StackedScroll} > ${EffortColumn}, ${StackedScroll} ${Rows}, ${StackedScroll} ${EffortLevels}`,
-  {
-    '@container': {
-      [`${stack} (max-height: ${toRem(160 + 80)})`]: {
-        flex: 'none',
-        minHeight: 0,
-        overflow: 'visible !important',
-      },
-    },
-  }
-);
-
 export const EffortRow = style([
   control,
   centeredRow(config.space.S200),
@@ -183,12 +197,13 @@ export const EffortRow = style([
     fontSize: config.fontSize.T300,
     textAlign: 'start',
     outline: 'none',
+    '@media': { '(pointer: coarse)': { height: toRem(40) } },
     selectors: {
       '&:hover, &:focus-visible': { backgroundColor: color.Surface.ContainerHover },
       '&[aria-checked="true"]': { fontWeight: config.fontWeight.W500 },
       '&[aria-disabled="true"]': { cursor: 'default', opacity: config.opacity.Disabled },
+      '[data-mode="view"] &': { height: toRem(40) },
     },
-    '@media': { '(pointer: coarse)': { height: toRem(40) } },
   },
 ]);
 
@@ -204,6 +219,42 @@ export const EffortNone = style([
     fontSize: config.fontSize.T300,
   },
 ]);
+
+// On a phone, pinned under the models over a rule: the row that opens the levels.
+export const EffortEntryBar = style([
+  column,
+  {
+    flex: 'none',
+    padding: config.space.S100,
+    borderBlockStart: hairline(color.SurfaceVariant.ContainerLine),
+  },
+]);
+
+export const EffortEntry = style([
+  control,
+  centeredRow(config.space.S200),
+  {
+    height: toRem(48),
+    paddingInline: `${config.space.S300} ${config.space.S200}`,
+    borderRadius: config.radii.R300,
+    fontSize: config.fontSize.T300,
+    textAlign: 'start',
+    outline: 'none',
+    selectors: {
+      '&:hover, &:focus-visible': { backgroundColor: color.Surface.ContainerHover },
+    },
+  },
+]);
+
+export const EffortValue = style([muted, { flexShrink: 0 }]);
+
+// The status and Retry under the levels; a long error scrolls rather than hiding the levels.
+export const ViewStatus = style({
+  maxHeight: '50%',
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  paddingBlockEnd: config.space.S100,
+});
 
 // The filter field, runtime chooser and status above the rows, which stay while the rows scroll.
 export const Controls = style([

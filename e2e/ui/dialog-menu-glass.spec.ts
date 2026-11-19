@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop -- Menus share focus and must open sequentially. */
-import { expect, test } from '@playwright/test';
+import { type Locator, expect, test } from '@playwright/test';
 import { fingersOn } from '../helpers/fingers';
 import { expectFloatingNavHeader, pixelDifference, sampleScreenshot } from '../helpers/glassVisual';
 
@@ -315,7 +315,7 @@ test('the model button is framed like the composer buttons after it, its logo ce
   expect(await background(trigger)).toBe(pressed);
 });
 
-test('a short phone window keeps room for both the models and the effort levels', async ({
+test('a short phone window keeps the Effort row under the models, and the levels in their place', async ({
   page,
 }, testInfo) => {
   // About 300 px above the model button, as with a phone's keyboard up.
@@ -327,30 +327,46 @@ test('a short phone window keeps room for both the models and the effort levels'
   const menu = (await dialog.boundingBox())!;
   expect(menu.y).toBeGreaterThanOrEqual(0);
   expect(menu.y + menu.height).toBeLessThanOrEqual((await trigger.boundingBox())!.y);
-  // The models keep a scrolling list of more than two rows, and the levels a header and rows.
+  expect(menu.width).toBeLessThanOrEqual(273);
+  await expect(dialog.locator('[data-effort-column]')).toHaveCount(0);
+  // The models keep a scrolling list of more than two rows; the row stays at the menu's foot.
   const models = (await dialog.getByRole('listbox').locator('..').boundingBox())!;
   expect(models.height).toBeGreaterThanOrEqual(110);
-  const column = (await dialog.locator('[data-effort-column]').boundingBox())!;
-  expect(column.height).toBeGreaterThanOrEqual(80);
-  expect(column.y + column.height).toBeLessThanOrEqual(menu.y + menu.height + 1);
-  // Both scroll: the last model and the last level come into view.
+  const entry = dialog.getByRole('button', { name: 'Effort: Extra high' });
+  const pinned = async () => {
+    const box = (await entry.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(47.5);
+    expect(box.y + box.height).toBeLessThanOrEqual(menu.y + menu.height + 1);
+    expect(box.y).toBeGreaterThanOrEqual(models.y + models.height - 1);
+  };
+  await pinned();
   const lastModel = dialog.getByRole('option', { name: /^Studio model 24 / });
   await lastModel.scrollIntoViewIfNeeded();
   await expect(lastModel).toBeInViewport({ ratio: 1 });
-  const levels = dialog.getByRole('radio');
-  const lastLevel = levels.last();
-  await lastLevel.scrollIntoViewIfNeeded();
-  const level = (await lastLevel.boundingBox())!;
-  expect(level.y).toBeGreaterThanOrEqual(column.y);
-  expect(level.y + level.height).toBeLessThanOrEqual(column.y + column.height + 1);
+  await pinned();
   await page.screenshot({ path: testInfo.outputPath('short-phone.png'), scale: 'css' });
+
+  // The levels fill the same box, and scroll in it to the last one.
+  await entry.click();
+  await expect(dialog.getByRole('listbox')).toHaveCount(0);
+  expect(await dialog.boundingBox()).toEqual(menu);
+  await expect(dialog.getByRole('radio', { name: 'Extra high' })).toBeFocused();
+  const levels = dialog.getByRole('radio');
+  await levels.first().scrollIntoViewIfNeeded();
+  await expect(levels.first()).toBeInViewport({ ratio: 1 });
+  const first = (await levels.first().boundingBox())!;
+  expect(first.y + first.height).toBeLessThanOrEqual(menu.y + menu.height + 1);
+  await page.screenshot({ path: testInfo.outputPath('short-phone-levels.png'), scale: 'css' });
+  await page.keyboard.press('Escape');
+  await expect(entry).toBeFocused();
+  await expect(dialog).toBeVisible();
 });
 
-test.describe('a phone window too short for both panes', () => {
+test.describe('a phone window with little room above the model button', () => {
   test.use({ hasTouch: true });
 
   for (const height of [248, 200]) {
-    test(`a swipe from a model reaches the levels, and a tap applies one, with ${
+    test(`a tap on the Effort row opens the levels, and a tap applies one, with ${
       height - 64
     } px above the model button`, async ({ page }) => {
       await page.setViewportSize({ width: 390, height });
@@ -361,59 +377,82 @@ test.describe('a phone window too short for both panes', () => {
       const menu = (await dialog.boundingBox())!;
       expect(menu.y).toBeGreaterThanOrEqual(0);
       expect(menu.y + menu.height).toBeLessThanOrEqual((await trigger.boundingBox())!.y);
-      // The models and the levels scroll in one box: neither scrolls inside it, where a swipe
-      // would stop at the end of the models.
-      const scrollers = await dialog.evaluate(
-        (element) =>
-          [...element.querySelectorAll('*')].filter((child) =>
-            ['auto', 'scroll'].includes(getComputedStyle(child).overflowY)
-          ).length
-      );
-      expect(scrollers).toBe(1);
-
-      // The room default runs Studio model 01 at Extra high; Low is the first of its levels, under
-      // all the models. A finger goes down on a model row and swipes up until it shows.
+      // The room default runs Studio model 01 at Extra high. Its row shows whole in the menu.
+      const entry = dialog.getByRole('button', { name: 'Effort: Extra high' });
+      const box = (await entry.boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(menu.y);
+      expect(box.y + box.height).toBeLessThanOrEqual(menu.y + menu.height + 1);
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
       const low = dialog.getByRole('radio', { name: 'Low', exact: true });
-      const shown = async () => {
-        const box = (await low.boundingBox())!;
-        return box.y >= menu.y && box.y + box.height <= menu.y + menu.height + 1;
-      };
-      const touch = await fingersOn(page);
-      const x = menu.x + menu.width / 2;
-      // The lowest row whose middle shows is where the finger goes down.
-      const middles = await dialog
-        .getByRole('option')
-        .evaluateAll((rows) =>
-          rows.map((row) => row.getBoundingClientRect()).map((box) => box.y + box.height / 2)
-        );
-      const from = Math.max(...middles.filter((y) => y < menu.y + menu.height - 4));
-      const startsOnModel = await page.evaluate(
-        ([left, top]) => !!document.elementFromPoint(left!, top!)?.closest('[role="option"]'),
-        [x, from]
-      );
-      expect(startsOnModel).toBe(true);
-      await expect
-        .poll(
-          async () => {
-            if (await shown()) return true;
-            // Short swipes, so the level cannot pass through the menu in one, and a finger that
-            // rests before it lifts, so the menu does not glide on.
-            const to = Math.max(from - 64, menu.y + 4);
-            await touch('touchStart', [[1, x, from]]);
-            for (let y = from - 8; y >= to; y -= 8) await touch('touchMove', [[1, x, y]]);
-            await page.waitForTimeout(150);
-            await touch('touchMove', [[1, x, to]]);
-            await touch('touchEnd', []);
-            return shown();
-          },
-          { timeout: 60_000, intervals: [50] }
-        )
-        .toBe(true);
-      // No swipe counted as a tap on a model.
-      await expect(page.locator('output')).toHaveText('');
+      await low.scrollIntoViewIfNeeded();
       const row = (await low.boundingBox())!;
+      expect(row.y).toBeGreaterThanOrEqual(menu.y);
+      expect(row.y + row.height).toBeLessThanOrEqual(menu.y + menu.height + 1);
+      // Opening the levels sent nothing.
+      await expect(page.locator('output')).toHaveText('');
       await page.touchscreen.tap(row.x + row.width / 2, row.y + row.height / 2);
       await expect(page.locator('output')).toHaveText('model-1@low');
     });
   }
+
+  test('with an error over the models, swipes reach Retry and the models', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 200 });
+    await page.goto('/e2e/fixtures/glass-surfaces.html?menus&error&theme=silver');
+    const trigger = page.getByRole('button', { name: /^Choose model / });
+    await trigger.tap();
+    const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
+    const menu = (await dialog.boundingBox())!;
+    const bar = (await dialog.locator('[data-effort-entry]').boundingBox())!;
+    expect(bar.y + bar.height).toBeLessThanOrEqual(menu.y + menu.height + 1);
+    // The filter, the error and the models scroll as one box over the Effort row.
+    const scrollers = await dialog.evaluate(
+      (element) =>
+        [...element.querySelectorAll('*')].filter(
+          (child) =>
+            ['auto', 'scroll'].includes(getComputedStyle(child).overflowY) &&
+            child.scrollHeight > child.clientHeight
+        ).length
+    );
+    expect(scrollers).toBe(1);
+    const whole = (box: { y: number; height: number } | null) =>
+      !!box && box.y >= menu.y - 1 && box.y + box.height <= bar.y + 1;
+    const touch = await fingersOn(page);
+    // Short swipes in the box over the Effort row, toward the target, until it shows whole.
+    const swipeTo = async (target: Locator) => {
+      await expect
+        .poll(
+          async () => {
+            const box = await target.boundingBox();
+            if (whole(box)) return true;
+            const up = !box || box.y > menu.y;
+            const from = up ? bar.y - 6 : menu.y + 6;
+            const to = up ? from - 24 : from + 24;
+            const x = menu.x + menu.width / 2;
+            await touch('touchStart', [[1, x, from]]);
+            for (let step = 1; step <= 3; step += 1) {
+              await touch('touchMove', [[1, x, from + ((to - from) * step) / 3]]);
+            }
+            // The finger rests before it lifts, so the box does not glide on.
+            await page.waitForTimeout(150);
+            await touch('touchMove', [[1, x, to]]);
+            await touch('touchEnd', []);
+            return whole(await target.boundingBox());
+          },
+          { timeout: 30_000, intervals: [50] }
+        )
+        .toBe(true);
+    };
+    const retry = dialog.getByRole('button', { name: 'Retry' });
+    await swipeTo(retry);
+    const button = (await retry.boundingBox())!;
+    // Opening the menu asked once; Retry asks again.
+    await expect(page.locator('main')).toHaveAttribute('data-refreshes', '1');
+    await page.touchscreen.tap(button.x + button.width / 2, button.y + button.height / 2);
+    await expect(page.locator('main')).toHaveAttribute('data-refreshes', '2');
+    const model = dialog.getByRole('option', { name: /^Studio model 01 / });
+    await swipeTo(model);
+    const row = (await model.boundingBox())!;
+    await page.touchscreen.tap(row.x + row.width / 2, row.y + row.height / 2);
+    await expect(page.locator('output')).toHaveText('model-1');
+  });
 });

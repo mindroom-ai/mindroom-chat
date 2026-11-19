@@ -1015,6 +1015,8 @@
       "modelPicker": {
         "effort": "推理強度",
         "effortFor": "{{model}} 的推理強度",
+        "effortLevel": "推理強度：{{level}}",
+        "back": "返回",
         "noEffortLevels": "無推理強度等級",
         "defaultLevel": "預設",
         "levelIsDefault": "{{level}}，預設",

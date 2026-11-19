@@ -1015,6 +1015,8 @@
       "modelPicker": {
         "effort": "推論レベル",
         "effortFor": "{{model}} の推論レベル",
+        "effortLevel": "推論レベル：{{level}}",
+        "back": "戻る",
         "noEffortLevels": "推論レベルなし",
         "defaultLevel": "デフォルト",
         "levelIsDefault": "{{level}}、デフォルト",

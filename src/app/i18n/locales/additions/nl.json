@@ -1039,6 +1039,8 @@
       "modelPicker": {
         "effort": "Inspanning",
         "effortFor": "Inspanning voor {{model}}",
+        "effortLevel": "Inspanning: {{level}}",
+        "back": "Terug",
         "noEffortLevels": "Geen inspanningsniveaus",
         "defaultLevel": "Standaard",
         "levelIsDefault": "{{level}}, standaard",

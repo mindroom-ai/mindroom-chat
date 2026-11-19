@@ -1087,6 +1087,8 @@
       "modelPicker": {
         "effort": "Усилие",
         "effortFor": "Усилие для {{model}}",
+        "effortLevel": "Усилие: {{level}}",
+        "back": "Назад",
         "noEffortLevels": "Нет уровней усилия",
         "defaultLevel": "По умолчанию",
         "levelIsDefault": "{{level}}, по умолчанию",
