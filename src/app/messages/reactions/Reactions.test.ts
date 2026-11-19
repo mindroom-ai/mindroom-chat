@@ -329,8 +329,8 @@ describe('Reactions', () => {
   });
 
   it.each([
-    ["labels the agent's stop button", '@agent:mindroom.chat', 'Stop'],
-    ["counts a person's stop reaction", '@bas:mindroom.chat', undefined],
+    ["labels the agent's stop button", '@agent:mindroom.chat', 'Stop reply'],
+    ["counts another person's stop reaction", '@alice:mindroom.chat', undefined],
   ])('%s while the target message is still streaming', (_, sender, label) => {
     const relations = new MockRelations([
       [
@@ -369,6 +369,69 @@ describe('Reactions', () => {
       renderer.root.findByType('button').props.onClick();
     });
     expect(onReactionToggle).toHaveBeenCalledWith('$event', '🛑', undefined, relations);
+  });
+
+  it.each([
+    ['beside the agent', ['@agent:mindroom.chat', '@bas:mindroom.chat']],
+    ['after the agent took its own back', ['@bas:mindroom.chat']],
+  ])("shows the viewer's stop as Stopping… until the reply ends, %s", (_, senders) => {
+    const stops = (who: string[]) =>
+      new MockRelations([
+        [
+          '🛑',
+          new Set(
+            who.map(
+              (sender) =>
+                ({
+                  getSender: () => sender,
+                  getTs: () => 0,
+                  getRelation: () => ({ rel_type: 'm.annotation' }),
+                  isRedacted: () => false,
+                } as MatrixEvent)
+            )
+          ),
+        ],
+      ]);
+    const targetEvent = {
+      getSender: () => '@agent:mindroom.chat',
+      getContent: () => ({ 'io.mindroom.stream_status': 'streaming' }),
+    } as MatrixEvent;
+    const onReactionToggle = vi.fn();
+    const props = {
+      room: {} as never,
+      mEventId: '$event',
+      targetEvent,
+      canSendReaction: true,
+      relations: stops(senders) as never,
+      onReactionToggle,
+    };
+    const renderer = render(React.createElement(Reactions, props));
+
+    expect(reactionRenderSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        reaction: '🛑',
+        label: 'Stopping…',
+        props: expect.objectContaining({ 'aria-disabled': true, 'aria-live': 'polite' }),
+      })
+    );
+    // Pressed again, it does not take the stop back.
+    act(() => {
+      renderer.root.findByType('button').props.onClick?.();
+    });
+    expect(onReactionToggle).not.toHaveBeenCalled();
+
+    // A refused stop drops the viewer's reaction: Stop reply again.
+    act(() => {
+      renderer.update(
+        React.createElement(Reactions, {
+          ...props,
+          relations: stops(['@agent:mindroom.chat']) as never,
+        })
+      );
+    });
+    expect(reactionRenderSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ reaction: '🛑', label: 'Stop reply' })
+    );
   });
 
   it('drops the stop chip once the target finishes streaming in place', () => {

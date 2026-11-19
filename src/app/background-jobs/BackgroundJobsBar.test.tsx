@@ -76,6 +76,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   IconButton: 'IconButton',
   StopButton: 'StopButton',
   StopAll: 'StopAll',
+  StopLabel: 'StopLabel',
   Stopping: 'Stopping',
   Summary: 'Summary',
   SummaryWaiting: 'SummaryWaiting',
@@ -120,8 +121,8 @@ const render = (threadId: string | null = '$thread', canCancel = true) =>
   act(() => {
     root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
   });
-const cancelA = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}';
-const cancelB = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_b"}';
+const cancelA = 'mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}';
+const cancelB = 'mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_b"}';
 const stoppingA = 'mindroomUi.backgroundJobs.stoppingJob{"tool":"tool_a"}';
 const title = () => container.querySelector('[role="region"]')?.getAttribute('aria-label');
 const click = (label: string) =>
@@ -179,8 +180,18 @@ it('names one job in the title, with Stop and no list', () => {
   render();
   expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
   expect(container.querySelector('.Jobs')).toBeNull();
-  // Stop is an icon button, named by its label and its tooltip.
-  expect(button(cancelA)?.getAttribute('title')).toBe('mindroomUi.backgroundJobs.stop');
+  // One job's Stop says it stops the task, which runs apart from the reply, and names it.
+  expect(button(cancelA)?.getAttribute('title')).toBe(cancelA);
+  expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stopTask');
+});
+
+it("names each listed job's Stop the task it stops, with its icon only", () => {
+  state.jobs = [job('a'), job('b')];
+  render();
+  expand();
+  expect(button(cancelA)?.getAttribute('title')).toBe(cancelA);
+  expect(button(cancelB)?.getAttribute('title')).toBe(cancelB);
+  expect(button(cancelA)?.textContent).toBe('');
 });
 
 it('keeps the jobs it showed for a moment after they end, as finished and without Stop', async () => {
@@ -647,7 +658,7 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
     'running'
   );
   expect(container.querySelector('[data-job-elapsed]')).not.toBeNull();
-  expect(button(tr('mindroomUi.backgroundJobs.stopJob', { tool: subagentName }))).toBeDefined();
+  expect(button(tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: subagentName }))).toBeDefined();
   await act(async () => open?.click());
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
@@ -831,10 +842,10 @@ it('restores the button and shows an error when the send fails', async () => {
   state.send = vi.fn().mockRejectedValue(new Error('offline'));
   render();
   await act(async () => {
-    button('mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}')?.click();
+    button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')?.click();
   });
   expect(container.textContent).not.toContain('mindroomUi.backgroundJobs.stopping');
-  expect(button('mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}')).toBeDefined();
+  expect(button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')).toBeDefined();
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('stopFailed');
 });
 
@@ -856,6 +867,6 @@ it('stop all sends one event for the view and marks every job stopping', async (
   });
   expect(state.send).toHaveBeenCalledTimes(1);
   expect(
-    container.querySelectorAll('button[aria-label^="mindroomUi.backgroundJobs.stopJob"]')
+    container.querySelectorAll('button[aria-label^="mindroomUi.backgroundJobs.stopTaskFor"]')
   ).toHaveLength(0);
 });
