@@ -68,6 +68,10 @@ private extension MindRoomDiagnosticState {
         if let emptyBounds { value["emptyBounds"] = emptyBounds }
         if let errorDomain { value["errorDomain"] = errorDomain.rawValue }
         if let errorCode { value["errorCode"] = errorCode }
+        // TEMP-DIAG(webview-kill):
+        if let terminationReason { value["terminationReason"] = terminationReason }
+        if let availableMemoryBytes { value["availableMemoryBytes"] = availableMemoryBytes }
+        if let msSinceMemoryWarning { value["msSinceMemoryWarning"] = msSinceMemoryWarning }
         return value
     }
 }
