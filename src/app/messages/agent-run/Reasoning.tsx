@@ -43,6 +43,7 @@ import * as css from './Reasoning.css';
 import { CompactionSeamsAt, ReasoningSegmentsAt, thoughtSeconds } from './ReasoningAnchors';
 
 const NO_MARKERS: readonly number[] = [];
+const NO_PLACEMENT: ReadonlyMap<number, readonly number[]> = new Map();
 const CONTENTS = { display: 'contents' } as const;
 
 /** Final reasoning the runtime stores on a finished reply. */
@@ -285,7 +286,11 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const ended = !!last && (last.blank || markers.some((marker) => marker > last.afterTool));
   const writing = live !== undefined && grew.seen && !movedOn && !ended;
   const liveIndex = open && writing ? segments.length - 1 : undefined;
-  const placement = useMemo(() => placeReasoningSegments(segments, markers), [segments, markers]);
+  // A closed bulb shows no segment: nothing to place.
+  const placement = useMemo(
+    () => (open ? placeReasoningSegments(segments, markers) : NO_PLACEMENT),
+    [open, segments, markers]
+  );
   const compactionsAt = useMemo(() => {
     const at = new Map<number, ReplyCompaction[]>();
     placeReasoningSegments(compactions, markers).forEach((indices, anchor) =>

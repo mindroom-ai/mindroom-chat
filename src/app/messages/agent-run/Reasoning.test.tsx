@@ -815,6 +815,16 @@ describe('MindroomReasoning', () => {
         );
 
         expect(written(root)).toEqual([]);
+        // The ended thought stays in the open bulb as a thought, between the two calls.
+        expect(segmentTexts(root)).toEqual([
+          'ThoughtPlan the search.Hide thinking',
+          'ThoughtThe cache is stale.Hide thinking',
+        ]);
+        const order = ['read_file', 'The cache is stale.', 'grep'].map((part) =>
+          text(root).indexOf(part)
+        );
+        expect(order).not.toContain(-1);
+        expect(order).toEqual([...order].sort((x, y) => x - y));
       });
 
       it('shows the segment as a thought when one frame brings its last piece and the first answer text', () => {
