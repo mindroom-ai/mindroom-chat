@@ -538,45 +538,57 @@ const switchDebug = async (run: Run, turns: number): Promise<Measured> => {
   const { page } = run;
   const failures: unknown[] = [];
   const timings: Timing[] = [];
+  const hogs = Array.from({ length: Number(process.env.PERF_HOGS ?? 0) }, () =>
+    spawn('sh', ['-c', 'yes > /dev/null'], { stdio: 'ignore' })
+  );
   let current = run.shown;
-  for (let turn = 1; turn <= turns; turn += 1) {
-    await back(page).click();
-    await expect(page.locator(ROW)).toHaveCount(0);
-    const { root } = await pickThread(run, current);
-    current = root;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const before = await page.evaluate(() => Math.round(performance.now()));
-      const startedAt = Date.now();
-      await card(page, root).click();
-      const opened = await banner(page)
-        .waitFor({ state: 'visible', timeout: 5_000 })
-        .then(() => true)
-        .catch(() => false);
-      if (opened) {
-        await expect(page.locator(ROW).first()).toBeVisible({ timeout: 30_000 });
-        timings.push({ name: `debug-switch-${turn}`, ms: Date.now() - startedAt });
-        break;
+  try {
+    for (let turn = 1; turn <= turns; turn += 1) {
+      const backMs = await timeToVisible(page, () => back(page).click(), CARD);
+      await expect(page.locator(ROW)).toHaveCount(0);
+      timings.push({ name: `back-${turn}`, ms: backMs });
+      const { root } = await pickThread(run, current);
+      current = root;
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const before = await page.evaluate(() => Math.round(performance.now()));
+        const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
+        const ms = await timeToVisible(page, () => card(page, root).click(), ROW, 5_000).catch(
+          () => undefined
+        );
+        if (ms !== undefined) {
+          timings.push({ name: `switch-${turn}`, ms });
+          await Promise.all([settled().catch(() => undefined), page.waitForTimeout(1_000)]);
+          break;
+        }
+        const label = `switch-debug-${run.engine}-turn${turn}-attempt${attempt}`;
+        await debugDump(page, label);
+        const state = JSON.parse(readFileSync(join(OUT_DIR, `${label}-failed.json`), 'utf8')) as {
+          events?: { t: number }[];
+          banner?: number;
+          rows?: number;
+        };
+        failures.push({
+          turn,
+          attempt,
+          root: root.slice(-6),
+          clickStartedAt: before,
+          banner: state.banner,
+          rows: state.rows,
+          eventsSince: (state.events ?? []).filter((event) => event.t >= before - 2_000),
+        });
+        // A thread that did open (its rows only came late) is left again for the next attempt.
+        if ((await banner(page).count()) > 0) break;
       }
-      const label = `switch-debug-${run.engine}-turn${turn}-attempt${attempt}`;
-      await debugDump(page, label);
-      const state = JSON.parse(readFileSync(join(OUT_DIR, `${label}-failed.json`), 'utf8')) as {
-        events?: { t: number }[];
-      };
-      failures.push({
-        turn,
-        attempt,
-        root: root.slice(-6),
-        clickStartedAt: before,
-        eventsSince: (state.events ?? []).filter((event) => event.t >= before - 5),
-      });
     }
-    await page.waitForTimeout(500);
+  } finally {
+    hogs.forEach((hog) => hog.kill('SIGKILL'));
+    spawnSync('pkill', ['-x', 'yes']);
   }
   writeFileSync(
     join(OUT_DIR, `switch-debug-${run.engine}.json`),
     `${JSON.stringify({ turns, failed: failures.length, failures }, null, 2)}\n`
   );
-  console.log(`SWITCH-DEBUG ${run.engine}: ${failures.length} of ${turns} presses opened no thread`);
+  console.log(`SWITCH-DEBUG ${run.engine}: ${failures.length} of ${turns} presses showed no row in 5 s`);
   return { timings };
 };
 
@@ -1109,6 +1121,23 @@ test.describe('PERF: real work under the backend load', () => {
           card ? ` in-card:${card.getAttribute('data-thread-root-id')?.slice(-6)}` : ''
         }${target.closest('[data-thread-context-banner]') ? ' in-banner' : ''}`;
       };
+      const shape = () => location.pathname.split('/').map((part) => part.length).join('/') + (location.search ? `?${location.search.length}` : '');
+      (['pushState', 'replaceState', 'back', 'go', 'forward'] as const).forEach((method) => {
+        const original = history[method] as (...args: unknown[]) => unknown;
+        (history as unknown as Record<string, unknown>)[method] = function hooked(this: History, ...args: unknown[]) {
+          const before = shape();
+          const result = original.apply(this, args);
+          log.push({
+            t: Math.round(performance.now()),
+            type: `history.${method}`,
+            before,
+            after: shape(),
+            arg: method === 'go' ? args[0] : typeof args[2] === 'string' ? args[2].split('/').map((part) => part.length).join('/') : undefined,
+            length: history.length,
+          });
+          return result;
+        };
+      });
       ['pointerdown', 'pointerup', 'pointercancel', 'mousedown', 'mouseup', 'click', 'popstate', 'focusin', 'keydown'].forEach((type) => {
         window.addEventListener(
           type,
@@ -1120,7 +1149,7 @@ test.describe('PERF: real work under the backend load', () => {
               button: (event as MouseEvent).button,
               xy: [(event as MouseEvent).clientX, (event as MouseEvent).clientY],
               prevented: false,
-              path: location.pathname.split('/').map((part) => part.length).join('/'),
+              path: shape(),
               cardTop: (() => {
                 const card = event.target instanceof Element ? event.target.closest('[data-thread-root-id]') : null;
                 return card ? Math.round(card.getBoundingClientRect().top) : null;

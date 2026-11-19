@@ -585,9 +585,10 @@ export const startProbe = async (
 export const timeToVisible = async (
   page: Page,
   act: () => Promise<void>,
-  selector: string
+  selector: string,
+  limitMs = 60_000
 ): Promise<number> => {
-  await page.evaluate((watched) => {
+  await page.evaluate(({ watched, limitMs: limit }) => {
     const visible = (element: Element) => {
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return false;
@@ -623,8 +624,8 @@ export const timeToVisible = async (
         const elapsed = performance.now() - startedAt;
         if (Array.from(document.querySelectorAll(watched)).some(visible)) {
           settle({ ms: elapsed });
-        } else if (elapsed > 60_000) {
-          settle({ error: `timeToVisible: ${watched} was not visible within 60 s` });
+        } else if (elapsed > limit) {
+          settle({ error: `timeToVisible: ${watched} was not visible within ${limit / 1000} s` });
         } else {
           requestAnimationFrame(tick);
         }
@@ -653,7 +654,7 @@ export const timeToVisible = async (
         unlisten();
       },
     };
-  }, selector);
+  }, { watched: selector, limitMs });
   try {
     await act();
     const outcome = await page.evaluate(
