@@ -237,8 +237,12 @@ test('the thread header says whose tool calls run without approval cards, and un
   await page.screenshot({ path: testInfo.outputPath('phone-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
   await options.click();
+  // The menu loads on its first opening: wait for it, so Escape reaches it and not the page.
+  const roomOptions = page.getByRole('menuitem', { name: 'Room options' });
+  await expect(roomOptions).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Hide thread details' })).toHaveCount(0);
   await page.keyboard.press('Escape');
+  await expect(roomOptions).toHaveCount(0);
   // On the narrowest phones no control leaves the screen or sits under a chip.
   await page.setViewportSize({ width: 320, height: 640 });
   await expect(options).toBeInViewport();
