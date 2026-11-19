@@ -9,7 +9,8 @@ export type ThreadDragStart = ThreadDragData & { x: number; y: number };
  * WebKit shows `THREAD_DRAG_TYPE` to no later event before the drop) and where it
  * started: from its start until it drops anywhere or ends, which is also how Escape cancels it. The
  * card hears its own end where the window may not (a card that left the page mid-drag), and a card
- * that leaves the page ends it at once. A drag its card refused is none. It answers a task after
+ * that leaves the page ends it at once, as does any other drag that starts, whose own end the page
+ * may have missed. A drag its card refused is none. It answers a task after
  * the drag starts, so nothing it shows changes the page under the card being picked up.
  */
 export const useThreadDrag = (): ThreadDragStart | undefined => {
@@ -30,9 +31,9 @@ export const useThreadDrag = (): ThreadDragStart | undefined => {
       setDrag(undefined);
     }
     const start = (evt: DragEvent) => {
+      end();
       const thread = evt.defaultPrevented ? undefined : readThreadDragData(evt.dataTransfer);
       if (!thread) return;
-      end();
       const from = { ...thread, x: evt.clientX, y: evt.clientY };
       if (evt.target instanceof Node) {
         const card = evt.target;

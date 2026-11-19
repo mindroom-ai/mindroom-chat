@@ -78,7 +78,7 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         // The web view has its drop interaction once it is in a window. WebKit adds its own again
         // as it restarts the page's process after a crash, and the page then loads anew.
         if pageLoadObservation == nil {
-            pageLoadObservation = webView?.observe(\.isLoading, options: .initial) { [weak self] webView, _ in
+            pageLoadObservation = webView?.observe(\.isLoading, options: [.initial, .new]) { [weak self] webView, _ in
                 MainActor.assumeIsolated {
                     if let namer = FilePromiseDropNamer.install(in: webView) { self?.filePromiseDropNamer = namer }
                 }

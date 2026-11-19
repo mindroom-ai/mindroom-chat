@@ -92,7 +92,10 @@ final class FilePromiseDropNamerTests: XCTestCase {
 
         let namer = try XCTUnwrap(FilePromiseDropNamer.install(in: webView))
         XCTAssertTrue(drops().count == 1 && drops()[0].delegate === namer)
+        // Each change of the page's loading installs again: the namer in place stays, alone.
         XCTAssertNil(FilePromiseDropNamer.install(in: webView), "a namer stands in already")
+        XCTAssertNil(FilePromiseDropNamer.install(in: webView))
+        XCTAssertTrue(drops().count == 1 && drops()[0].delegate === namer)
 
         // WebKit adds its own interaction again as it restarts the page's process.
         content.addInteraction(UIDropInteraction(delegate: webKit))

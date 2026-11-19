@@ -130,6 +130,24 @@ describe('the drop zone of the second column', () => {
     expect(onOpen.mock.calls).toEqual([['!room:example.org', '$c']]);
   });
 
+  it('takes no other drag for a thread whose drag the page did not hear end', () => {
+    const onOpen = vi.fn();
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    // A file dragged in from another app starts no drag on the page: the zone still shows.
+    startDrag(threadDrag('$c'));
+    const files = dragData({ Files: '' });
+    expect(fireEvent.dragEnter(zone()!, { dataTransfer: files })).toBe(true);
+    expect(fireEvent.dragOver(zone()!, { dataTransfer: files })).toBe(true);
+    expect(zone()!.dataset.over).toBeUndefined();
+    fireEvent.drop(zone()!, { dataTransfer: files });
+    expect(onOpen).not.toHaveBeenCalled();
+    // Any other drag that starts on the page ends the thread's.
+    startDrag(threadDrag('$c'));
+    expect(zone()).not.toBeNull();
+    startDrag(dragData({ 'text/plain': 'example' }));
+    expect(zone()).toBeNull();
+  });
+
   it('takes no drop from a drag that started where the zone shows until it left the zone', () => {
     const onOpen = vi.fn();
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(

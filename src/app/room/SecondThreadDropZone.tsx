@@ -59,7 +59,10 @@ export function SecondThreadDropZone({
 
   // The thread's drag may drop here (its default prevented), and moves its thread. The zone shows
   // for that drag alone, so it asks the event for no type: the Mac app's WebKit would show none.
+  // Files are another drag's, come in while the page missed the end of the thread's.
+  const files = (evt: ReactDragEvent<HTMLDivElement>) => evt.dataTransfer.types.includes('Files');
   const accept = (evt: ReactDragEvent<HTMLDivElement>) => {
+    if (files(evt)) return;
     armed.current ??= !onZone(drag.x, drag.y);
     if (!armed.current) return;
     evt.preventDefault();
@@ -83,7 +86,7 @@ export function SecondThreadDropZone({
         setOver(false);
       }}
       onDrop={(evt) => {
-        if (!armed.current) return;
+        if (!armed.current || files(evt)) return;
         evt.preventDefault();
         onOpen(drag.roomId, drag.rootId);
       }}
