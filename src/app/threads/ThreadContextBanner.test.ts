@@ -180,6 +180,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   CompactHidden: 'CompactHidden',
   EyebrowRow: 'EyebrowRow',
   MetadataDot: 'MetadataDot',
+  NarrowPhoneTitleRow: 'NarrowPhoneTitleRow',
   OverflowChip: 'OverflowChip',
   PhoneTitle: 'PhoneTitle',
   PhoneTitleRow: 'PhoneTitleRow',
@@ -731,6 +732,42 @@ describe('ThreadContextBanner rendering', () => {
       expect(title(tablet).props.tabIndex).toBeUndefined();
       expect(tablet.root.findByProps({ className: 'TitleRow' })).toBeDefined();
       tablet.unmount();
+    });
+
+    it('puts a title under the buttons after them in the tab order, as on the screen', () => {
+      // The tab stops in DOM order: buttons by name, the title by its role here.
+      const tabStops = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root
+          .findAll(
+            (node) =>
+              typeof node.type === 'string' && (node.type === 'button' || node.props.tabIndex === 0)
+          )
+          .map((node) =>
+            node.props['data-thread-context-summary'] ? 'title' : node.props['aria-label']
+          );
+      const rowOf = (width: number) => (element: React.ReactElement) =>
+        (element.props as { className?: string }).className?.startsWith('TitleRow')
+          ? { getBoundingClientRect: () => ({ width }) }
+          : null;
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      try {
+        screenSize = ScreenSize.Mobile;
+        // 19rem is 304 px: a 280 px row stacks the title under the buttons.
+        const narrow = renderBanner('A concise thread summary', rowOf(280));
+        expect(tabStops(narrow)).toEqual(['Back', 'Thread options', 'Resolve', 'title']);
+        expect(
+          narrow.root.findByProps({ className: 'TitleRow PhoneTitleRow NarrowPhoneTitleRow' })
+        ).toBeDefined();
+        narrow.unmount();
+
+        const wide = renderBanner('A concise thread summary', rowOf(360));
+        expect(tabStops(wide)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        expect(wide.root.findByProps({ className: 'TitleRow PhoneTitleRow' })).toBeDefined();
+        wide.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it("shows a first message's whole start as the title of a thread without a summary", () => {

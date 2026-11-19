@@ -1,4 +1,4 @@
-import { createContainer, keyframes, style, type CSSProperties } from '@vanilla-extract/css';
+import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { shortViewport } from '../ui/styles/shortViewport';
@@ -46,16 +46,12 @@ export const TitleRow = style({
   minHeight: '1.5rem',
 });
 
-// On a phone the row is a container: one too narrow to hold the whole title beside its buttons
-// (a small phone, Page Zoom) gives the title the banner's full width under them. In rem, since
-// Page Zoom scales the root font size and so the buttons, while the banner keeps its px width.
-const phoneRow = createContainer();
-const narrowPhoneRow = `${phoneRow} (max-width: 19rem)`;
-export const PhoneTitleRow = style({
-  containerName: phoneRow,
-  containerType: 'inline-size',
-  rowGap: config.space.S100,
-});
+export const PhoneTitleRow = style({ rowGap: config.space.S100 });
+
+// A phone's row too narrow to hold the whole title beside its buttons (a small phone, Page Zoom;
+// the banner measures it) gives the title the banner's full width under them. The title follows
+// the buttons in the DOM there, so the tab order reads as the screen does.
+export const NarrowPhoneTitleRow = style({});
 
 // The buttons keep the row's end, also while the title takes the row under them.
 export const RowActions = style({ gridColumn: 3 });
@@ -98,7 +94,7 @@ export const TitleColumn = style({
   minWidth: 0,
   gap: 0,
   ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
-  '@container': { [narrowPhoneRow]: { gridColumn: '1 / -1', gridRow: 2 } },
+  selectors: { [`${NarrowPhoneTitleRow} > &`]: { gridColumn: '1 / -1', gridRow: 2 } },
 });
 
 // The tags take the room the status chips leave, and wrap onto another line where they do not
@@ -205,12 +201,17 @@ export const PhoneTitle = style({
   maxBlockSize: `max(calc(3 * ${config.lineHeight.T300}), 38cqh)`,
   overflowY: 'auto',
   overscrollBehavior: 'contain',
-  '@container': {
+  selectors: {
     // Under the buttons, the row's 2rem and its gap count toward the 38%.
-    [narrowPhoneRow]: {
+    [`${NarrowPhoneTitleRow} &`]: {
       maxBlockSize: `max(calc(3 * ${config.lineHeight.T300}), calc(38cqh - 2rem - ${config.space.S100}))`,
     },
-    [`${roomArea} (max-height: 15rem)`]: { maxBlockSize: config.lineHeight.T300 },
+  },
+  '@container': {
+    [`${roomArea} (max-height: 15rem)`]: {
+      maxBlockSize: config.lineHeight.T300,
+      selectors: { [`${NarrowPhoneTitleRow} &`]: { maxBlockSize: config.lineHeight.T300 } },
+    },
   },
 });
 

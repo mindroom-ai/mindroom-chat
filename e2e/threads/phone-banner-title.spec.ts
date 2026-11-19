@@ -439,6 +439,44 @@ const checkWall = async (page: Page, world: World, viewport: Size, name: string)
   await expect(composer(page)).toBeFocused();
 };
 
+/**
+ * Tab from Back through the banner: each stop is on a later line than the one before, or after it
+ * on the same line, so the keyboard reads the row as the screen shows it, the title included.
+ */
+const expectTabInScreenOrder = async (page: Page, dir: 'ltr' | 'rtl') => {
+  await banner(page)
+    .getByRole('button', { name: 'Back', exact: true })
+    .evaluate((element) => (element as HTMLElement).focus());
+  // WebKit, as Safari, tabs to buttons with Option held.
+  const key = page.context().browser()?.browserType().name() === 'webkit' ? 'Alt+Tab' : 'Tab';
+  const stops: { name: string; top: number; bottom: number; left: number; right: number }[] = [];
+  for (let step = 0; step < 8; step += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const stop = await page.evaluate(() => {
+      const element = document.activeElement as HTMLElement | null;
+      if (!element?.closest('[data-thread-context-banner]')) return undefined;
+      const { top, bottom, left, right } = element.getBoundingClientRect();
+      const name = element.hasAttribute('data-thread-context-summary')
+        ? 'title'
+        : element.getAttribute('aria-label') ?? element.textContent ?? '';
+      return { name, top, bottom, left, right };
+    });
+    if (!stop) break;
+    stops.push(stop);
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press(key);
+  }
+  console.log(`tab order (${dir}): ${stops.map((stop) => stop.name).join(' > ')}`);
+  expect(stops.map((stop) => stop.name)).toContain('title');
+  for (const [index, next] of stops.slice(1).entries()) {
+    const before = stops[index];
+    const lowerLine = next.top >= before.bottom - 1;
+    const sameLine = next.top < before.bottom && next.bottom > before.top;
+    const further = dir === 'ltr' ? next.left >= before.right - 1 : next.right <= before.left + 1;
+    expect(lowerLine || (sameLine && further), `${before.name} then ${next.name}`).toBe(true);
+  }
+};
+
 const setPageZoom = (page: Page, pageZoom: number) =>
   page.evaluate((zoom) => {
     const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
@@ -464,6 +502,8 @@ const checkZoomed = async (page: Page, world: World, viewport: Size, dir: 'ltr' 
   const name = `${viewport.width}-zoom150-${dir}`;
   await shot(page, `long-${name}`);
   await expectRowOnScreen(page, viewport.width, true);
+  // Under the buttons, the title follows them from the keyboard too.
+  await expectTabInScreenOrder(page, dir);
   await expectWholeTitle(page, LONG_TITLE, viewport.width, viewport.height < 600);
   await checkWall(page, world, viewport, name);
 };
@@ -504,6 +544,8 @@ test("a phone's banner card keeps back, the whole title, the marker, Resolve and
     // The whole title, on as many lines as it needs, nothing cut.
     const shown = await expectWholeTitle(page, LONG_TITLE, PHONE.viewport!.width);
     expect(shown.lines).toBeGreaterThanOrEqual(2);
+    // Beside the buttons, the title comes before them from the keyboard.
+    await expectTabInScreenOrder(page, 'ltr');
 
     const menu = page.getByRole('menu', { name: 'Thread options' });
     await more.tap();
