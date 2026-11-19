@@ -484,6 +484,7 @@ export function SecretRequestDetails({
   const saved = status === 'saved';
   const temporary = request.kind === 'temporary' ? request : undefined;
   const hosts = request.kind === 'key' ? request.hosts : [];
+  const added = saved && request.kind === 'key' ? request.newService : undefined;
   const keptSeconds = temporary?.kept ? temporary.keep[temporary.kept] : undefined;
   return (
     <>
@@ -520,6 +521,15 @@ export function SecretRequestDetails({
         {saved && temporary?.kept && keptSeconds !== undefined && (
           <Fact icon={Icons.Clock}>
             {t(KEPT_KEYS[temporary.kept], { duration: formatLifetime(keptSeconds, language) })}
+          </Fact>
+        )}
+        {added && (
+          <Fact icon={Icons.Plus}>
+            <IsolatedText
+              text={t('mindroomUi.messages.secretRequestCard.facts.addedService', {
+                name: isolateInSentence(added.displayName || added.name),
+              })}
+            />
           </Fact>
         )}
         {hosts.length > 0 && (

@@ -829,7 +829,8 @@
           "nothingSent": "Rien n'a été envoyé ni conservé.",
           "noAnswer": "Pas de réponse à temps, donc rien n'a été envoyé.",
           "askedAs": "Demandé pour les commandes de {{agent}} dans cette conversation sous le nom {{variable}}.",
-          "replaced": "A remplacé la clé enregistrée auparavant."
+          "replaced": "A remplacé la clé enregistrée auparavant.",
+          "addedService": "A ajouté le service {{name}}."
         }
       },
       "skillReviewMarker": {

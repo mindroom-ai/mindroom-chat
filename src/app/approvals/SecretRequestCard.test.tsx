@@ -975,6 +975,28 @@ describe('SecretRequestCard', () => {
     expect(button('Save')).toBeDefined();
   });
 
+  it.each([
+    ['saved', 'Acme', 'Added the service Acme.'],
+    ['saved', '', 'Added the service acme.'],
+    ['declined', 'Acme', undefined],
+    ['expired', 'Acme', undefined],
+  ] as const)('on a %s card with a proposed service named %j, says %j', (state, name, line) => {
+    const proposed = { name: 'acme', displayName: name, env: [] };
+    const rules = [{ host: 'api.acme.test', pathPrefix: '/', auth: { type: 'bearer' } }] as const;
+    render(
+      request({
+        status: state,
+        service: 'acme',
+        hosts: ['api.acme.test'],
+        newService: { ...proposed, rules: [...rules] },
+      })
+    );
+
+    if (line) expect(text()).toContain(line);
+    else expect(text()).not.toContain('Added the service');
+    expect(text()).toContain('Used only for');
+  });
+
   it('offers only Decline for a new service this client cannot read', async () => {
     env.send.mockResolvedValue(answer(204));
     render(request({ newService: null, url: 'https://github.com/settings/tokens' }));

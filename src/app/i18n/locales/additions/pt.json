@@ -829,7 +829,8 @@
           "nothingSent": "Nada foi enviado nem guardado.",
           "noAnswer": "Sem resposta a tempo, por isso nada foi enviado.",
           "askedAs": "Pedido para os comandos de {{agent}} nesta conversa como {{variable}}.",
-          "replaced": "Substituiu a chave guardada antes."
+          "replaced": "Substituiu a chave guardada antes.",
+          "addedService": "Adicionou o serviço {{name}}."
         }
       },
       "skillReviewMarker": {

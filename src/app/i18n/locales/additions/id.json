@@ -811,7 +811,8 @@
           "nothingSent": "Tidak ada yang dikirim atau disimpan.",
           "noAnswer": "Tidak ada jawaban tepat waktu, jadi tidak ada yang dikirim.",
           "askedAs": "Diminta untuk perintah {{agent}} dalam percakapan ini sebagai {{variable}}.",
-          "replaced": "Menggantikan kunci yang tersimpan sebelumnya."
+          "replaced": "Menggantikan kunci yang tersimpan sebelumnya.",
+          "addedService": "Menambahkan layanan {{name}}."
         }
       },
       "skillReviewMarker": {

@@ -820,7 +820,8 @@
           "nothingSent": "Hiçbir şey gönderilmedi veya saklanmadı.",
           "noAnswer": "Zamanında yanıt gelmedi, bu yüzden hiçbir şey gönderilmedi.",
           "askedAs": "Bu konuşmada {{agent}} adlı ajanın komutları için {{variable}} olarak istendi.",
-          "replaced": "Önceden kayıtlı anahtarın yerini aldı."
+          "replaced": "Önceden kayıtlı anahtarın yerini aldı.",
+          "addedService": "{{name}} hizmetini ekledi."
         }
       },
       "skillReviewMarker": {

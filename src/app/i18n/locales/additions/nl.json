@@ -820,7 +820,8 @@
           "nothingSent": "Er is niets verstuurd of bewaard.",
           "noAnswer": "Geen antwoord op tijd, dus er is niets verstuurd.",
           "askedAs": "Gevraagd voor de opdrachten van {{agent}} in dit gesprek als {{variable}}.",
-          "replaced": "Heeft de eerder opgeslagen sleutel vervangen."
+          "replaced": "Heeft de eerder opgeslagen sleutel vervangen.",
+          "addedService": "Heeft de dienst {{name}} toegevoegd."
         }
       },
       "skillReviewMarker": {

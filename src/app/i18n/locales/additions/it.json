@@ -829,7 +829,8 @@
           "nothingSent": "Non è stato inviato né conservato nulla.",
           "noAnswer": "Nessuna risposta in tempo, quindi non è stato inviato nulla.",
           "askedAs": "Richiesto per i comandi di {{agent}} in questa conversazione come {{variable}}.",
-          "replaced": "Ha sostituito la chiave salvata prima."
+          "replaced": "Ha sostituito la chiave salvata prima.",
+          "addedService": "Ha aggiunto il servizio {{name}}."
         }
       },
       "skillReviewMarker": {
