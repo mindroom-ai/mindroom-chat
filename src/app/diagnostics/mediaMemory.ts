@@ -97,7 +97,7 @@ export const readWasmMemoryMb = (): number | undefined => {
  * from the elements in the document only: an image still decoded after it left the DOM, or a
  * canvas never attached, is not seen.
  */
-export const readMediaMemory = (): Record<string, number> => {
+export const readMediaMemory = () => {
   let blobBytes = 0;
   objectUrlBytes.forEach((size) => {
     blobBytes += size;
