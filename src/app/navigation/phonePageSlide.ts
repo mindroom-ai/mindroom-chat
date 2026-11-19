@@ -11,13 +11,22 @@ import './phonePageSlide.css';
  * is laid out for a phone.
  */
 export const PHONE_STAGE = 'data-phone-stage';
+/** Marks the page in it, below the top bar: what casts the slide's shadow. */
+export const PHONE_PAGE = 'data-phone-page';
+
+/** Marks the still copy of the phone layout that a slide shows (phonePageSlide.css.ts). */
+const COPY = 'data-page-slide-copy';
+/** The slide's keyframes (phonePageSlide.css.ts), apart from any other animation in the page. */
+const KEYFRAMES = 'phone-page-';
+/** How long the frame before the changes, and the slide itself, may take: a hidden tab has neither. */
+const FRAME_MS = 100;
+const PLAY_MS = 2000;
 
 /** A change to the page; `sliding` tells whether it runs inside a slide. */
 type Change = (sliding: boolean) => void;
 
-// TypeScript's DOM types (5.4) do not have view transitions yet.
-type ViewTransition = { finished: Promise<void>; ready: Promise<void>; skipTransition: () => void };
-type SlidingDocument = Document & { startViewTransition?: (update: () => void) => ViewTransition };
+/** A slide: `skip` runs its changes with nothing sliding, or cuts it short while it plays. */
+type Slide = { finished: Promise<void>; skip: () => void };
 
 type Router = ReturnType<typeof createBrowserRouter>;
 
@@ -31,11 +40,55 @@ const depth = (): number => {
   return store.get(conversationUnderThreadAtom) ? 2 : 1;
 };
 
-/** The changes of the slide that waits for the browser's picture of the page as it is. */
+/**
+ * A still copy of the phone layout as it is, scrolled as it is, to show in `stage` while the
+ * layout itself shows the next page: it takes no input, no name a lookup by id or test id would
+ * find twice, and loads and plays nothing.
+ */
+const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
+  const copy = stage.cloneNode(true) as HTMLElement;
+  const copies = copy.querySelectorAll('*');
+  const scrolled: [Element, number, number][] = [];
+  stage.querySelectorAll('*').forEach((element, index) => {
+    const twin = copies[index];
+    if (twin && (element.scrollTop || element.scrollLeft)) {
+      scrolled.push([twin, element.scrollTop, element.scrollLeft]);
+    }
+  });
+  // A canvas is copied empty: it shows what its original does.
+  const canvases = copy.querySelectorAll('canvas');
+  stage.querySelectorAll('canvas').forEach((canvas, index) => {
+    if (canvas.width && canvas.height) {
+      canvases[index]?.getContext('2d')?.drawImage(canvas, 0, 0);
+    }
+  });
+  copy.removeAttribute(PHONE_STAGE);
+  copy.removeAttribute('id');
+  copy.setAttribute(COPY, '');
+  copy.setAttribute('aria-hidden', 'true');
+  copy.setAttribute('inert', '');
+  copy.style.position = 'absolute';
+  copy.querySelectorAll('[id], [data-testid]').forEach((element) => {
+    element.removeAttribute('id');
+    element.removeAttribute('data-testid');
+  });
+  copy.querySelectorAll('iframe, video, audio, source').forEach((element) => {
+    ['src', 'srcdoc', 'autoplay'].forEach((name) => element.removeAttribute(name));
+  });
+  return (over) => {
+    over.append(copy);
+    scrolled.forEach(([element, scrollTop, scrollLeft]) =>
+      Object.assign(element, { scrollTop, scrollLeft })
+    );
+    return copy;
+  };
+};
+
+/** The changes of the slide that waits for the frame that shows the page as it is. */
 let waiting: Change[] | undefined;
 let playing = false;
-/** The slide from its call until it has played, waiting for its picture or playing. */
-let active: ViewTransition | undefined;
+/** The slide from its call until it has played, waiting for its frame or playing. */
+let active: Slide | undefined;
 
 /**
  * Runs `change`, which may change what a phone shows, and slides when it shows deeper or less
@@ -47,17 +100,17 @@ let active: ViewTransition | undefined;
  * room in it: the drawer slides away to the start edge on its own over the page the change shows
  * (sidebar/PhoneNavDrawer.css.ts).
  *
- * The browser plays the slide between two pictures of the page (a view transition), so no element
- * moves and nothing that measures the page sees it. It takes the first picture a frame after the
- * call: `change` waits for that, with every change asked for meanwhile, and they run together, in
- * order and committed before they return. While the slide plays, the page takes no taps (what
- * is in a picture answers none), and further changes run at once, which the picture that slides
- * in shows as they happen.
+ * The slide plays between a still copy of the phone layout as it was (`copyOf`), laid over the
+ * layout, and the layout as it is: both move with `translate` under the top bar, which changes no
+ * layout, and the copy goes when the slide ends. (Not a view transition: the iOS web view's page
+ * process crashed in them.) The copy is taken a frame after the call: `change` waits for that,
+ * with every change asked for meanwhile, and they run together, in order and committed before
+ * they return. While the slide plays, the page takes no taps (phonePageSlide.css.ts), and
+ * further changes run at once, which the page that slides in shows as they happen.
  *
- * `change` runs at once, and nothing slides, off the phone layout, in a browser without view
- * transitions and with reduced motion. Nothing slides either when the change leaves the phone
- * layout, or leaves a dialog open over the page (one that closes with the change, as a search
- * that opens a thread, does not count).
+ * `change` runs at once, and nothing slides, off the phone layout and with reduced motion.
+ * Nothing slides either when the change leaves the phone layout, or leaves a dialog open over
+ * the page (one that closes with the change, as a search that opens a thread, does not count).
  */
 export const slidePhonePage = (change: Change): void => {
   if (waiting) {
@@ -65,11 +118,10 @@ export const slidePhonePage = (change: Change): void => {
     return;
   }
   // No document: a test that renders without one.
-  const page = typeof document === 'undefined' ? undefined : (document as SlidingDocument);
+  const page = typeof document === 'undefined' ? undefined : document;
   if (
     playing ||
-    !page?.startViewTransition ||
-    !page.querySelector(`[${PHONE_STAGE}]`) ||
+    !page?.querySelector(`[${PHONE_STAGE}]`) ||
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   ) {
     change(false);
@@ -80,41 +132,70 @@ export const slidePhonePage = (change: Change): void => {
   const from = depth();
   const changes = [change];
   waiting = changes;
-  // Names what slides (phonePageSlide.css.ts) for the picture of the page as it is. Nothing slides
-  // from the list, which goes away on its own: the drawer keeps its slide, which the name would
-  // turn off. Its changes still wait for the picture, so the room a tap in the list opens comes
-  // with the drawer going away, and a slide asked for meanwhile does not stop the drawer's.
+  // Marks the page as inside a slide (phonePageSlide.css.ts). Not from the list, which goes away
+  // on its own and where nothing slides: the drawer keeps its slide, which the marker would turn
+  // off. Its changes still wait for the frame, so the room a tap in the list opens comes with the
+  // drawer going away, and a slide asked for meanwhile does not stop the drawer's.
   if (from !== 0) root.dataset.pageSlide = '';
-  const transition = page.startViewTransition(() => {
+  let frame = 0;
+  let timer = 0;
+  let copy: HTMLElement | undefined;
+  let ended = false;
+  let finish: () => void = () => undefined;
+  const finished = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const end = () => {
+    if (ended) return;
+    ended = true;
+    window.clearTimeout(timer);
+    copy?.remove();
+    playing = false;
+    active = undefined;
+    delete root.dataset.pageSlide;
+    finish();
+  };
+  const run = (sliding: boolean) => {
+    if (waiting !== changes) return;
+    window.cancelAnimationFrame(frame);
+    window.clearTimeout(timer);
     waiting = undefined;
     playing = true;
+    const shown = sliding && from !== 0 ? page.querySelector(`[${PHONE_STAGE}]`) : null;
+    const show = shown ? copyOf(shown) : undefined;
     flushSync(() => changes.forEach((each) => each(true)));
     const to = depth();
+    const stage = page.querySelector(`[${PHONE_STAGE}]`);
     // Nothing to slide from the list, nor where the page is as deep as it was, and nothing where
-    // the pictures would not fit: the phone layout is gone (signed out, turned sideways), or a
-    // dialog still open over the page would show under them.
-    if (
-      from === 0 ||
-      to === from ||
-      !page.querySelector(`[${PHONE_STAGE}]`) ||
-      hasBlockingPortalOverlay()
-    ) {
-      transition.skipTransition();
-    } else root.dataset.pageSlide = to > from ? 'forward' : 'back';
-  });
-  active = transition;
-  const done = () => {
-    playing = false;
-    if (active === transition) active = undefined;
-    delete root.dataset.pageSlide;
+    // the copy would not fit: the phone layout is gone (signed out, turned sideways), or a
+    // dialog still open over the page would show under it.
+    if (!show || to === from || !stage || hasBlockingPortalOverlay()) {
+      end();
+      return;
+    }
+    root.dataset.pageSlide = to > from ? 'forward' : 'back';
+    copy = show(stage);
+    // The copy's own slide ends with the layout's; a tab that is hidden plays neither.
+    copy.addEventListener('animationend', (event) => {
+      if (event.animationName.startsWith(KEYFRAMES)) end();
+    });
+    timer = window.setTimeout(end, PLAY_MS);
   };
-  transition.finished.then(done, done);
-  // A slide that is skipped rejects it.
-  transition.ready.catch(() => undefined);
+  active = {
+    finished,
+    // As a person's own gesture asks (`movePhoneNavDrawer`): the changes of a slide that waits
+    // run after the gesture's handler, and one that plays is over at once.
+    skip: () => {
+      if (waiting === changes) queueMicrotask(() => run(false));
+      else end();
+    },
+  };
+  frame = window.requestAnimationFrame(() => run(true));
+  timer = window.setTimeout(() => run(true), FRAME_MS);
 };
 
 /**
- * Runs `change` now, or after the changes that wait for a slide's picture: what it sets is how
+ * Runs `change` now, or after the changes that wait for a slide's frame: what it sets is how
  * the page is left when they have run.
  */
 export const afterWaitingSlide = (change: () => void): void => {
@@ -129,7 +210,7 @@ export const afterWaitingSlide = (change: () => void): void => {
  *
  * Brought out, it never comes inside a page slide, whose marker turns off the drawer's own slide
  * and whose depth would slide the whole page back. The person's gesture wins: a slide that waits
- * for its picture is skipped (its changes still run, with nothing sliding), one that plays jumps
+ * for its frame is skipped (its changes still run, with nothing sliding), one that plays jumps
  * to its end, and the drawer comes out once the slide is over and its marker gone. It stays away
  * if the phone layout went meanwhile (a phone turned sideways), which takes the drawer with it.
  *
@@ -146,12 +227,11 @@ export const movePhoneNavDrawer = (open: boolean, set: (open: boolean) => void):
     set(true);
     return;
   }
-  slide.skipTransition();
-  const bringOut = () => {
+  slide.skip();
+  // After the slide's own end (`end` in `slidePhonePage`), which takes its marker away.
+  void slide.finished.then(() => {
     if (document.querySelector(`[${PHONE_STAGE}]`)) set(true);
-  };
-  // After the slide's own end (`done` in `slidePhonePage`), which takes its marker away.
-  slide.finished.then(bringOut, bringOut);
+  });
 };
 
 /**

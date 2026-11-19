@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   createPrivateRoom,
   matrixFetch,
@@ -17,49 +18,83 @@ import {
 // stays. The menu button brings the list out over the page, which stays put while the drawer
 // slides in from the left on its own. Where the list goes away (a room tapped in it, the menu
 // button again), the page stays put too and the drawer slides away to the left over it. Nothing
-// slides between two pages of the same depth, or for someone who asked for reduced motion. 390 by
-// 844 with touch.
-// Set PAGE_SLIDE_SHOTS=<directory> to save a frame of each slide with the motion slowed to a tenth.
+// slides between two pages of the same depth, or for someone who asked for reduced motion. The
+// slide is the page's own (a still copy of the layout as it was, and the layout, moved past each
+// other), never a view transition of the browser, and the copy is gone when it ends. 390 by 844
+// with touch, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
+// WebKit.
+// Set PAGE_SLIDE_SHOTS=<directory> to save a frame of each slide: a page slide held half-way,
+// and in Chromium the drawer's with the motion slowed to a tenth.
 const PASSWORD = 'phone-page-slide-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.PAGE_SLIDE_SHOTS;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
+const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+/** How far into its 280 ms a slide is held for its frame: half its way. */
+const HELD_AT_MS = 60;
 
-test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+test.use(PHONE);
 
-/** A slide: its direction, and what the browser played on which picture. */
-type Slide = { direction: string; plays: string[] };
+/**
+ * A slide: its direction, what played on the layout (`page`) and on the copy of the layout as it
+ * was, how many copies showed, and what a tap in the middle of the screen would land on.
+ */
+type Slide = { direction: string; plays: string[]; copies?: number; tapLandsOn?: string };
+type Recorded = { pageSlides: Slide[]; viewTransitions: number; drawerSlides: string[] };
 
 const FORWARD: Slide = {
   direction: 'forward',
-  plays: [
-    '::view-transition-new(phone-stage) phone-page-over-in',
-    '::view-transition-old(phone-stage) phone-page-under-out',
-  ],
+  plays: ['copy phone-page-under-out', 'page phone-page-over-in'],
+  copies: 1,
+  tapLandsOn: 'HTML',
 };
 const BACK: Slide = {
   direction: 'back',
-  plays: [
-    '::view-transition-new(phone-stage) phone-page-under-in',
-    '::view-transition-old(phone-stage) phone-page-over-out',
-  ],
+  plays: ['copy phone-page-over-out', 'page phone-page-under-in'],
+  copies: 1,
+  tapLandsOn: 'HTML',
 };
 
-const recordSlides = (page: Page) =>
-  page.addInitScript(() => {
+const recordSlides = (page: Page, heldAt?: number) =>
+  page.addInitScript((held) => {
     const slides: Slide[] = [];
-    (window as unknown as { pageSlides: Slide[] }).pageSlides = slides;
+    const recorded = window as unknown as Recorded;
+    recorded.pageSlides = slides;
+    recorded.viewTransitions = 0;
+    // Every view transition the page asks the browser for: none.
+    const browser = Document.prototype as unknown as {
+      startViewTransition?: (...args: unknown[]) => unknown;
+    };
+    const start = browser.startViewTransition;
+    if (start) {
+      browser.startViewTransition = function counted(...args) {
+        recorded.viewTransitions += 1;
+        return start.apply(this, args);
+      };
+    }
     // The document has no root element yet: both listen on the document.
     new MutationObserver(() => {
       const direction = document.documentElement.getAttribute('data-page-slide');
       if (direction) slides.push({ direction, plays: [] });
     }).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-page-slide'] });
     document.addEventListener('animationstart', (event) => {
-      if (!event.pseudoElement.startsWith('::view-transition')) return;
-      slides.at(-1)?.plays.push(`${event.pseudoElement} ${event.animationName}`);
+      const slide = slides.at(-1);
+      if (!slide || !event.animationName.startsWith('phone-page-')) return;
+      const copy = (event.target as Element).closest('[data-page-slide-copy]');
+      const play = `${copy ? 'copy' : 'page'} ${event.animationName}`;
+      if (!slide.plays.includes(play)) slide.plays.push(play);
+      slide.copies = document.querySelectorAll('[data-page-slide-copy]').length;
+      slide.tapLandsOn = document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.tagName;
+      if (held === undefined) return;
+      document.getAnimations().forEach((animation) => {
+        if (!(animation as CSSAnimation).animationName?.startsWith('phone-page-')) return;
+        animation.pause();
+        animation.currentTime = held;
+      });
     });
     // What the drawer's own slide does: it starts, and plays to its end or is cut short.
     const drawerSlides: string[] = [];
-    (window as unknown as { drawerSlides: string[] }).drawerSlides = drawerSlides;
+    recorded.drawerSlides = drawerSlides;
     for (const type of ['transitionrun', 'transitionend', 'transitioncancel'] as const) {
       document.addEventListener(
         type,
@@ -71,7 +106,7 @@ const recordSlides = (page: Page) =>
         true
       );
     }
-  });
+  }, heldAt);
 
 /** What the drawer's own slide did since the last call, which forgets it. */
 const spliceDrawerSlides = (page: Page): Promise<string[]> =>
@@ -100,10 +135,11 @@ const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
       message: `${step}: the slide ends`,
     })
     .toBe(false);
+  await expect(page.locator('[data-page-slide-copy]'), `${step}: the copy is gone`).toHaveCount(0);
   const slides = await page.evaluate(() =>
     (window as unknown as { pageSlides: Slide[] }).pageSlides.splice(0)
   );
-  return slides.map(({ direction, plays }) => ({ direction, plays: [...plays].sort() }));
+  return slides.map((slide) => ({ ...slide, plays: [...slide.plays].sort() }));
 };
 
 const text = (body: string) => ({ msgtype: 'm.text', body });

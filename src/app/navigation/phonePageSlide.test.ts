@@ -22,52 +22,51 @@ type Listener = Parameters<Router['subscribe']>[0];
 const store = getImperativeJotaiStore();
 const root = document.documentElement;
 
-/** The browser's side of a slide: it takes the page's picture, then asks for the change. */
+/** The still copy of the layout a slide that plays shows. */
+const copy = () => document.querySelector<HTMLElement>('[data-page-slide-copy]');
+
+/** An animation of `name` ends on `element`. */
+const endAnimation = (element: Element | null, name: string) =>
+  element?.dispatchEvent(
+    Object.assign(new Event('animationend', { bubbles: true }), { animationName: name })
+  );
+
+/** The browser's side of a slide: the frame its changes wait for, and the slide's end. */
 const browser = () => {
-  let update: (() => void) | undefined;
-  let end: () => void = () => undefined;
-  let skipped = false;
+  let next: (() => void) | undefined;
   /** The direction of each slide that played, as its change left it. */
-  const plays: string[] = [];
-  const takePicture = () => {
-    const run = update;
-    update = undefined;
-    run?.();
-    const direction = root.dataset.pageSlide;
-    if (run && !skipped && direction) plays.push(direction);
-  };
-  // As the browser does: a slide skipped before its picture still runs its change, and it ends
-  // after that; one skipped later jumps to its end.
-  const skipTransition = vi.fn(() => {
-    skipped = true;
-    void Promise.resolve().then(() => {
-      takePicture();
-      end();
-    });
+  const plays: (string | undefined)[] = [];
+  const request = vi.fn((callback: () => void) => {
+    next = callback;
+    return 1;
   });
-  const start = vi.fn((callback: () => void) => {
-    update = callback;
-    skipped = false;
-    const finished = new Promise<void>((resolve) => {
-      end = resolve;
-    });
-    return { finished, ready: Promise.resolve(), skipTransition };
+  vi.stubGlobal('requestAnimationFrame', request);
+  vi.stubGlobal('cancelAnimationFrame', () => {
+    next = undefined;
   });
-  Object.defineProperty(document, 'startViewTransition', { value: start, configurable: true });
-  return {
-    start,
-    skipTransition,
+  const page = {
+    /** The frames slides asked for: one each. */
+    request,
     plays,
-    /** The picture is taken: the page changes. */
-    takePicture,
+    /** The frame comes: the page changes. */
+    frame: () => {
+      const run = next;
+      next = undefined;
+      run?.();
+      if (run && copy()) plays.push(root.dataset.pageSlide);
+    },
     /** The slide has played to its end. */
     finish: async () => {
-      end();
+      endAnimation(copy(), 'phone-page-over-out');
       await Promise.resolve();
       await Promise.resolve();
     },
   };
+  shown = page;
+  return page;
 };
+/** The browser of the test that runs. */
+let shown: ReturnType<typeof browser> | undefined;
 
 const showList = (shown: boolean) => store.set(phoneNavDrawerOpenAtom, shown);
 const showThread = (shown: boolean) => store.set(conversationUnderThreadAtom, shown);
@@ -82,18 +81,93 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  // A slide a test left waiting or playing ends, so the next test starts with none.
+  shown?.frame();
+  await shown?.finish();
+  shown = undefined;
   document.body.replaceChildren();
-  Reflect.deleteProperty(document, 'startViewTransition');
+  vi.useRealTimers();
   vi.unstubAllGlobals();
-  // A slide a test left playing ends, so the next test starts with none.
   delete root.dataset.pageSlide;
 });
 
 describe('slidePhonePage', () => {
-  it('changes the page at once in a browser without view transitions', () => {
-    const change = vi.fn();
+  it('slides without a view transition of the browser', async () => {
+    const page = browser();
+    const startViewTransition = vi.fn();
+    Object.defineProperty(document, 'startViewTransition', {
+      value: startViewTransition,
+      configurable: true,
+    });
+    try {
+      slidePhonePage(() => showThread(true));
+      page.frame();
+      expect(page.plays).toEqual(['forward']);
+      await page.finish();
+      expect(startViewTransition).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, 'startViewTransition');
+    }
+  });
+
+  it('shows a still copy of the layout as it was over the layout while it plays', async () => {
+    const page = browser();
+    const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
+    stage.innerHTML =
+      '<header data-phone-top-bar></header>' +
+      '<main id="room" data-testid="room"><ul>room</ul><iframe src="about:blank"></iframe>' +
+      '<video src="clip.mp4" autoplay></video></main>';
+    stage.querySelector('ul')!.scrollTop = 120;
+    slidePhonePage(() => {
+      stage.querySelector('ul')!.textContent = 'thread';
+      showThread(true);
+    });
+    // Not before the frame: the layout is as it was.
+    expect(copy()).toBeNull();
+
+    page.frame();
+    const still = copy()!;
+    // In the layout, whose own page shows the change.
+    expect(still.parentElement).toBe(stage);
+    expect(stage.querySelector('ul')!.textContent).toBe('thread');
+    expect(still.querySelector('ul')!.textContent).toBe('room');
+    expect(still.querySelector('ul')!.scrollTop).toBe(120);
+    // Out of reach: of input, and of what looks the layout or its parts up.
+    expect(still.getAttribute('aria-hidden')).toBe('true');
+    expect(still.hasAttribute('inert')).toBe(true);
+    expect(document.querySelectorAll(`[${PHONE_STAGE}]`)).toHaveLength(1);
+    expect(document.querySelectorAll('#room, [data-testid="room"]')).toHaveLength(1);
+    // It loads and plays nothing.
+    expect(still.querySelector('iframe')!.hasAttribute('src')).toBe(false);
+    expect(still.querySelector('video')!.outerHTML).toBe('<video></video>');
+
+    // What else ends in the copy is not the slide.
+    endAnimation(still.querySelector('ul'), 'spin');
+    expect(copy()).toBe(still);
+    endAnimation(still.querySelector('main'), 'phone-page-under-out');
+    expect(copy()).toBeNull();
+    expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  it('changes the page without a frame, and ends a slide that never plays: a hidden tab', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const page = browser();
+    const change = vi.fn(() => showThread(true));
     slidePhonePage(change);
-    expect(change).toHaveBeenCalledWith(false);
+    vi.advanceTimersByTime(100);
+    expect(change).toHaveBeenCalledWith(true);
+    expect(root.dataset.pageSlide).toBe('forward');
+    expect(copy()).not.toBeNull();
+    // The frame, should it still come, changes nothing.
+    page.frame();
+    expect(change).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(2000);
+    expect(copy()).toBeNull();
+    expect(root.dataset.pageSlide).toBeUndefined();
+    // The next change slides again.
+    slidePhonePage(() => showThread(false));
+    expect(page.request).toHaveBeenCalledTimes(2);
   });
 
   it('changes the page at once outside the phone layout', () => {
@@ -102,7 +176,7 @@ describe('slidePhonePage', () => {
     const change = vi.fn();
     slidePhonePage(change);
     expect(change).toHaveBeenCalledWith(false);
-    expect(page.start).not.toHaveBeenCalled();
+    expect(page.request).not.toHaveBeenCalled();
   });
 
   it('changes the page at once for someone who asked for reduced motion', () => {
@@ -111,7 +185,7 @@ describe('slidePhonePage', () => {
     const change = vi.fn();
     slidePhonePage(change);
     expect(change).toHaveBeenCalledWith(false);
-    expect(page.start).not.toHaveBeenCalled();
+    expect(page.request).not.toHaveBeenCalled();
   });
 
   it('plays nothing when the list gives way to a page: the drawer slides away on its own', async () => {
@@ -119,14 +193,14 @@ describe('slidePhonePage', () => {
     showList(true);
     const change = vi.fn(() => showList(false));
     slidePhonePage(change);
-    // The picture of the list is not taken yet: the list stays, and nothing turns off the
+    // The frame has not come yet: the list stays, and nothing turns off the
     // drawer's own slide.
     expect(change).not.toHaveBeenCalled();
     expect(root.dataset.pageSlide).toBeUndefined();
 
-    page.takePicture();
+    page.frame();
     expect(change).toHaveBeenCalledWith(true);
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(page.plays).toEqual([]);
     expect(root.dataset.pageSlide).toBeUndefined();
 
     await page.finish();
@@ -140,8 +214,8 @@ describe('slidePhonePage', () => {
       showList(false);
       showThread(true);
     });
-    page.takePicture();
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    page.frame();
+    expect(page.plays).toEqual([]);
     expect(root.dataset.pageSlide).toBeUndefined();
     await page.finish();
   });
@@ -149,7 +223,7 @@ describe('slidePhonePage', () => {
   it('slides forward when a thread fills the page', async () => {
     const page = browser();
     slidePhonePage(() => showThread(true));
-    page.takePicture();
+    page.frame();
     expect(root.dataset.pageSlide).toBe('forward');
     await page.finish();
   });
@@ -160,12 +234,12 @@ describe('slidePhonePage', () => {
     const page = browser();
     showThread(true);
     slidePhonePage(() => showThread(false));
-    page.takePicture();
+    page.frame();
     expect(root.dataset.pageSlide).toBe('back');
     await page.finish();
 
     slidePhonePage(() => showList(true));
-    page.takePicture();
+    page.frame();
     expect(root.dataset.pageSlide).toBe('back');
     await page.finish();
   });
@@ -174,15 +248,14 @@ describe('slidePhonePage', () => {
     const page = browser();
     const change = vi.fn();
     slidePhonePage(change);
-    page.takePicture();
-    expect(change).toHaveBeenCalledWith(true);
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
     expect(root.dataset.pageSlide).toBe('');
-    await page.finish();
+    page.frame();
+    expect(change).toHaveBeenCalledWith(true);
+    expect(page.plays).toEqual([]);
     expect(root.dataset.pageSlide).toBeUndefined();
   });
 
-  it('takes changes that come while it waits for the picture into the same slide, in order', async () => {
+  it('takes changes that come while it waits for the frame into the same slide, in order', async () => {
     const page = browser();
     showList(true);
     const order: string[] = [];
@@ -192,12 +265,12 @@ describe('slidePhonePage', () => {
     });
     slidePhonePage(() => order.push('room'));
     expect(order).toEqual([]);
-    expect(page.start).toHaveBeenCalledTimes(1);
+    expect(page.request).toHaveBeenCalledTimes(1);
 
-    page.takePicture();
+    page.frame();
     expect(order).toEqual(['list away', 'room']);
     // The list went away: the drawer's slide shows it, not the page's.
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(page.plays).toEqual([]);
     expect(root.dataset.pageSlide).toBeUndefined();
     await page.finish();
   });
@@ -205,36 +278,35 @@ describe('slidePhonePage', () => {
   it('changes the page at once while a slide plays', async () => {
     const page = browser();
     slidePhonePage(() => showThread(true));
-    page.takePicture();
+    page.frame();
 
     const change = vi.fn(() => showThread(false));
     slidePhonePage(change);
     expect(change).toHaveBeenCalledWith(false);
-    expect(page.start).toHaveBeenCalledTimes(1);
+    expect(page.request).toHaveBeenCalledTimes(1);
     // The slide that plays keeps its direction.
     expect(root.dataset.pageSlide).toBe('forward');
     await page.finish();
 
     // The next change slides again.
     slidePhonePage(() => showThread(true));
-    expect(page.start).toHaveBeenCalledTimes(2);
-    page.takePicture();
+    expect(page.request).toHaveBeenCalledTimes(2);
+    page.frame();
     await page.finish();
   });
 });
 
-describe('slidePhonePage, where its pictures would not fit', () => {
-  it('plays nothing under a dialog that stays open, which the pictures would cover', async () => {
+describe('slidePhonePage, where its copy would not fit', () => {
+  it('plays nothing under a dialog that stays open, which the copy would cover', async () => {
     const page = browser();
     overlay.open = true;
     const change = vi.fn(() => showThread(true));
     slidePhonePage(change);
-    page.takePicture();
+    page.frame();
 
     expect(change).toHaveBeenCalledWith(true);
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
-    expect(root.dataset.pageSlide).toBe('');
-    await page.finish();
+    expect(page.plays).toEqual([]);
+    expect(root.dataset.pageSlide).toBeUndefined();
   });
 
   it('slides when the dialog goes with the change, as a search that opens a thread does', async () => {
@@ -244,10 +316,9 @@ describe('slidePhonePage, where its pictures would not fit', () => {
       overlay.open = false;
       showThread(true);
     });
-    page.takePicture();
+    page.frame();
 
-    expect(root.dataset.pageSlide).toBe('forward');
-    expect(page.skipTransition).not.toHaveBeenCalled();
+    expect(page.plays).toEqual(['forward']);
     await page.finish();
   });
 
@@ -258,16 +329,15 @@ describe('slidePhonePage, where its pictures would not fit', () => {
       document.body.replaceChildren();
       showThread(false);
     });
-    page.takePicture();
+    page.frame();
 
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
-    expect(root.dataset.pageSlide).toBe('');
-    await page.finish();
+    expect(page.plays).toEqual([]);
+    expect(root.dataset.pageSlide).toBeUndefined();
   });
 });
 
 describe('afterWaitingSlide', () => {
-  it('runs a change at once when no slide waits for its picture', () => {
+  it('runs a change at once when no slide waits for its frame', () => {
     browser();
     const change = vi.fn();
     afterWaitingSlide(change);
@@ -280,10 +350,10 @@ describe('afterWaitingSlide', () => {
     afterWaitingSlide(() => showList(false));
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
 
-    page.takePicture();
+    page.frame();
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     // The list never showed: nothing slides.
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(page.plays).toEqual([]);
     await page.finish();
   });
 });
@@ -296,7 +366,7 @@ describe('movePhoneNavDrawer', () => {
     movePhoneNavDrawer(true, set);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     // Nothing turns off the drawer's own slide, not even for a moment.
-    expect(page.start).not.toHaveBeenCalled();
+    expect(page.request).not.toHaveBeenCalled();
     expect(root.dataset.pageSlide).toBeUndefined();
   });
 
@@ -310,19 +380,21 @@ describe('movePhoneNavDrawer', () => {
     return { markers, set: setNoting };
   };
 
-  it('skips a slide that waits for its picture, whose change still runs, and comes out after it', async () => {
+  it('skips a slide that waits for its frame, whose change still runs, and comes out after it', async () => {
     const page = browser();
     slidePhonePage(() => showThread(true));
     expect(root.dataset.pageSlide).toBe('');
     const drawer = noting();
     movePhoneNavDrawer(true, drawer.set);
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
 
-    // The browser runs the skipped slide's change, then ends it.
+    // The skipped slide's change runs, and it ends.
     await vi.waitFor(() => expect(store.get(phoneNavDrawerOpenAtom)).toBe(true));
     expect(store.get(conversationUnderThreadAtom)).toBe(true);
     // No slide played, and the drawer came out with no marker to turn off its own slide.
+    expect(copy()).toBeNull();
+    // The frame it waited for, should it still come, changes nothing.
+    page.frame();
     expect(page.plays).toEqual([]);
     expect(drawer.markers).toEqual([undefined]);
     expect(root.dataset.pageSlide).toBeUndefined();
@@ -331,19 +403,20 @@ describe('movePhoneNavDrawer', () => {
   it('cuts a slide that plays short and comes out once its marker is gone', async () => {
     const page = browser();
     slidePhonePage(() => showThread(true));
-    page.takePicture();
+    page.frame();
     expect(page.plays).toEqual(['forward']);
     const drawer = noting();
     movePhoneNavDrawer(true, drawer.set);
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    // The copy goes at once, with the slide.
+    expect(copy()).toBeNull();
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
 
     await vi.waitFor(() => expect(store.get(phoneNavDrawerOpenAtom)).toBe(true));
     expect(drawer.markers).toEqual([undefined]);
     // The next change slides again.
     slidePhonePage(() => showThread(false));
-    expect(page.start).toHaveBeenCalledTimes(2);
-    page.takePicture();
+    expect(page.request).toHaveBeenCalledTimes(2);
+    page.frame();
     await page.finish();
   });
 
@@ -364,14 +437,14 @@ describe('movePhoneNavDrawer', () => {
     const page = browser();
     showList(true);
     movePhoneNavDrawer(false, set);
-    // It waits for the picture with the navigation a tap on a link in the list starts.
-    expect(page.start).toHaveBeenCalledTimes(1);
+    // It waits for the frame with the navigation a tap on a link in the list starts.
+    expect(page.request).toHaveBeenCalledTimes(1);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     expect(root.dataset.pageSlide).toBeUndefined();
 
-    page.takePicture();
+    page.frame();
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
-    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(page.plays).toEqual([]);
     expect(root.dataset.pageSlide).toBeUndefined();
     await page.finish();
   });
@@ -416,7 +489,7 @@ describe('withPhonePageSlide', () => {
     emit(next);
     expect(listener).not.toHaveBeenCalled();
 
-    page.takePicture();
+    page.frame();
     expect(listener).toHaveBeenCalledWith(next, expect.objectContaining({ flushSync: true }));
     expect(root.dataset.pageSlide).toBe('forward');
     await page.finish();
@@ -431,7 +504,7 @@ describe('withPhonePageSlide', () => {
     const same = stateAt('a');
     emit(same);
     expect(listener).toHaveBeenCalledWith(same, expect.objectContaining({ flushSync: false }));
-    expect(page.start).not.toHaveBeenCalled();
+    expect(page.request).not.toHaveBeenCalled();
   });
 
   it('keeps the order of what the router tells while a location waits for its slide', async () => {
@@ -446,7 +519,7 @@ describe('withPhonePageSlide', () => {
     emit(settled);
     expect(seen).toEqual([]);
 
-    page.takePicture();
+    page.frame();
     expect(seen).toEqual([moved, settled]);
     await page.finish();
   });
@@ -463,12 +536,12 @@ describe('withPhonePageSlide', () => {
     const back = stateAt('a', 'POP');
     emit(back);
     expect(listener).toHaveBeenCalledWith(back, expect.objectContaining({ flushSync: false }));
-    expect(page.start).not.toHaveBeenCalled();
+    expect(page.request).not.toHaveBeenCalled();
 
     // The next step back, which the browser did not show, slides.
     window.dispatchEvent(new Event('popstate'));
     emit(stateAt('z', 'POP'));
-    expect(page.start).toHaveBeenCalledTimes(1);
+    expect(page.request).toHaveBeenCalledTimes(1);
   });
 
   it('stops telling a listener that unsubscribed', () => {
