@@ -164,7 +164,15 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
             </div>
           )}
           {failed && docs.md !== meta.result && (
-            <Text as="p" size="T300" className={css.Failure} dir="auto" data-subagent-failure="">
+            <Text
+              as="p"
+              size="T300"
+              priority={meta.interruptedByRestart ? '300' : undefined}
+              className={meta.interruptedByRestart ? css.Interruption : css.Failure}
+              dir="auto"
+              data-subagent-failure={meta.interruptedByRestart ? undefined : ''}
+              data-subagent-interruption={meta.interruptedByRestart ? '' : undefined}
+            >
               {meta.result}
             </Text>
           )}
@@ -281,7 +289,7 @@ export function SubagentRunView({
                 {modelLabel}
               </span>
             )}
-            <RunStatus status={meta.status} />
+            <RunStatus meta={meta} />
             {elapsed !== undefined && <span>{formatCallDuration(elapsed, language)}</span>}
           </Text>
         </div>

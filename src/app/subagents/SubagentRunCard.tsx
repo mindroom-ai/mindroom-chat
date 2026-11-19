@@ -14,11 +14,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/matrix';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
-import {
-  isActiveSubagentStatus,
-  type SubagentMeta,
-  type SubagentStatus,
-} from '../matrix/protocol/subagentFrame';
+import { isActiveSubagentStatus, type SubagentMeta } from '../matrix/protocol/subagentFrame';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
@@ -84,9 +80,13 @@ export function AgentAvatar({ agent, size }: { agent: AgentProfile; size: '200' 
   );
 }
 
-/** How the run stands: a dot in the status's color, then its word. */
-export function RunStatus({ status }: { status: SubagentStatus }) {
+/**
+ * How the run stands: a dot in the status's color, then its word. A turn a restart cut short reads
+ * as interrupted, not failed, since MindRoom may continue it.
+ */
+export function RunStatus({ meta }: { meta: SubagentMeta }) {
   const { t } = useTranslation();
+  const status = meta.interruptedByRestart ? 'interrupted' : meta.status;
   return (
     <span className={css.Status}>
       <span className={css.StatusDot[status]} />
@@ -145,7 +145,8 @@ export const SubagentRunCard = memo(function SubagentRunCard({
   const time = active ? formatCallDuration(now / 1000 - meta.startedAt, language) : ago;
   const title = node.turns[0].run.meta.task?.split('\n', 1)[0] || agent.name;
   const preview = runPreview(meta, run.docs, t);
-  const failed = meta.status === 'failed' || meta.status === 'denied';
+  const failed =
+    (meta.status === 'failed' || meta.status === 'denied') && !meta.interruptedByRestart;
 
   return (
     <button
@@ -191,7 +192,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
           </Text>
         )}
         <Text as="span" size="T200" priority="300">
-          <RunStatus status={meta.status} />
+          <RunStatus meta={meta} />
         </Text>
         {(node.turns.length > 1 || nested > 0) && (
           <Text as="span" size="T200" priority="300" className={css.Counts}>

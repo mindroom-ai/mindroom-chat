@@ -1036,6 +1036,7 @@
       "failed": "विफल",
       "cancelled": "रोका गया",
       "denied": "अस्वीकृत",
+      "interrupted": "बाधित",
       "count_one": "{{count}} सक्रिय",
       "count_other": "{{count}} सक्रिय",
       "show": "सब-एजेंट दिखाएँ",

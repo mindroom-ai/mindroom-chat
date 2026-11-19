@@ -1128,6 +1128,7 @@
       "failed": "فشل",
       "cancelled": "تم الإيقاف",
       "denied": "تم الرفض",
+      "interrupted": "تمت المقاطعة",
       "count_zero": "نشطة: ⁨{{count}}⁩",
       "count_one": "نشطة: ⁨{{count}}⁩",
       "count_two": "نشطة: ⁨{{count}}⁩",
