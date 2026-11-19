@@ -152,6 +152,12 @@ describe('parseSecretRequestContent', () => {
       { ...valid, placeholder_env: { API_KEY: 7 } },
       { ...valid, placeholder_env: undefined },
     ].forEach((value) => expect(newService(value)).toBeNull());
+    // Host sets compare exactly, never as joined text.
+    const twoHosts = { ...valid, rules: [rule, { ...rule, host: 'x.test' }] };
+    const joined = parseSecretRequestContent(
+      content(inner({ hosts: ['openrouter.ai,x.test'], new_service: twoHosts }))
+    );
+    expect(joined?.kind === 'key' && joined.newService).toBeNull();
     const longName = `${'A'.repeat(70)}_KEY`;
     expect(
       newService({ ...valid, placeholder_env: { [longName]: 'mindroom-brokered' } })

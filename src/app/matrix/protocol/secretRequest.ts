@@ -185,6 +185,12 @@ const readRule = (value: unknown): ProposedServiceRule | null => {
   return { host, pathPrefix, ...(typeof port === 'number' && { port }), auth };
 };
 
+const sameSet = (left: string[], right: string[]): boolean => {
+  const a = new Set(left);
+  const b = new Set(right);
+  return a.size === b.size && [...a].every((item) => b.has(item));
+};
+
 /**
  * The service a key card proposes as `service`, or null for one this client cannot read or whose
  * rules send the key to other hosts than the card's.
@@ -202,8 +208,10 @@ const readNewService = (
     typeof displayName !== 'string' ||
     read.length === 0 ||
     !read.every((rule): rule is ProposedServiceRule => rule !== null) ||
-    [...new Set(read.map((rule) => rule.host))].sort().join() !==
-      [...new Set(hosts)].sort().join() ||
+    !sameSet(
+      read.map((rule) => rule.host),
+      hosts
+    ) ||
     !isRecord(env) ||
     !Object.entries(env).every(
       ([variable, text]) => PLACEHOLDER_NAME.test(variable) && typeof text === 'string'
