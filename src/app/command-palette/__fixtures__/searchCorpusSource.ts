@@ -352,7 +352,11 @@ const buildSource = (language: CorpusLanguage): CorpusSource => {
         languageRows
       ),
     ],
-    rooms,
+    // The word for each row's kind, as the palette's source sets it.
+    rooms: rooms.map((room) => ({
+      ...room,
+      tag: translate(room.kind === 'space' ? 'commandPalette.space' : 'commandPalette.room'),
+    })),
     threads,
     users,
   };

@@ -177,6 +177,7 @@ export const useCommandPaletteSource = ({
         canonicalAlias: room.getCanonicalAlias() ?? undefined,
         topic: roomTopic(room),
         parentNames: parentNames.length > 0 ? parentNames : undefined,
+        tag: space ? t('commandPalette.space') : t('commandPalette.room'),
         unreadCount: unread?.total,
         unreadHighlight: (unread?.highlight ?? 0) > 0,
         ...getCommandPaletteRoomRanking({
@@ -206,6 +207,7 @@ export const useCommandPaletteSource = ({
     roomToUnread,
     selectedRoomId,
     selectedSpaceId,
+    t,
   ]);
 
   const threads = useMemo<Executable<CommandPaletteThreadItem>[]>(() => {
