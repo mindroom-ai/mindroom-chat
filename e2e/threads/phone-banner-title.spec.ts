@@ -396,6 +396,7 @@ const checkWall = async (page: Page, world: World, viewport: Size, name: string)
   await page.addStyleTag({
     content: '[data-testid="client-sync-status"] { display: none !important; }',
   });
+  await shot(page, `wall-${name}`);
   // The whole first message is the title: nothing of it is cut.
   const whole = (await rootTitle.textContent()) ?? '';
   expect(whole.length).toBeGreaterThan(600);
@@ -418,7 +419,6 @@ const checkWall = async (page: Page, world: World, viewport: Size, name: string)
   expect(replyBox.y).toBeGreaterThanOrEqual(card.bottom);
   expect(replyBox.y + replyBox.height).toBeLessThanOrEqual(foot.top);
   await expectRowOnScreen(page, viewport.width, false);
-  await shot(page, `wall-${name}`);
   // The title's last line is reached by scrolling the title, not the page.
   await rootTitle.evaluate((element) => element.scrollTo(0, element.scrollHeight));
   const lastLine = await rootTitle.evaluate((element) => {
@@ -445,7 +445,7 @@ const setPageZoom = (page: Page, pageZoom: number) =>
 
 /**
  * At 150% Page Zoom in `dir`: the 122-character title whole, the row on screen, the wall. A 320 by
- * 568 phone has room for only six of the title's seven lines there, so its title scrolls.
+ * 568 phone has room for only part of the title's seven lines there, so its title scrolls.
  */
 const checkZoomed = async (page: Page, world: World, viewport: Size, dir: 'ltr' | 'rtl') => {
   await setPageZoom(page, 150);
@@ -459,10 +459,10 @@ const checkZoomed = async (page: Page, world: World, viewport: Size, dir: 'ltr' 
     await expect(banner(page).locator('.mrpr-thread-button')).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(1500);
   }
-  await expectRowOnScreen(page, viewport.width, true);
-  await expectWholeTitle(page, LONG_TITLE, viewport.width, viewport.height < 600);
   const name = `${viewport.width}-zoom150-${dir}`;
   await shot(page, `long-${name}`);
+  await expectRowOnScreen(page, viewport.width, true);
+  await expectWholeTitle(page, LONG_TITLE, viewport.width, viewport.height < 600);
   await checkWall(page, world, viewport, name);
 };
 

@@ -205,7 +205,13 @@ export const PhoneTitle = style({
   maxBlockSize: `max(calc(3 * ${config.lineHeight.T300}), 38cqh)`,
   overflowY: 'auto',
   overscrollBehavior: 'contain',
-  '@container': { [`${roomArea} (max-height: 15rem)`]: { maxBlockSize: config.lineHeight.T300 } },
+  '@container': {
+    // Under the buttons, the row's 2rem and its gap count toward the 38%.
+    [narrowPhoneRow]: {
+      maxBlockSize: `max(calc(3 * ${config.lineHeight.T300}), calc(38cqh - 2rem - ${config.space.S100}))`,
+    },
+    [`${roomArea} (max-height: 15rem)`]: { maxBlockSize: config.lineHeight.T300 },
+  },
 });
 
 // The thread title is the one thing in this bar that differs per thread, so
