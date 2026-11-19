@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import { createStore, Provider } from 'jotai';
-import { useContext } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { IconButton, Icons } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { PhoneThreadHeader } from '../threads/ThreadContextBanner';
-import { TightCallPlace } from '../calls/headerCallPlace';
+import { HeaderCallButtons } from '../calls/HeaderCallButtons';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import * as css from './RoomViewHeaderLayout.css';
 
@@ -16,6 +15,8 @@ import * as css from './RoomViewHeaderLayout.css';
 // header they had.
 
 const screen = vi.hoisted(() => ({ size: 'Desktop' }));
+// What the room offers for calls: its voice agents, and whether a call is on in it.
+const offer = vi.hoisted(() => ({ agents: [] as { displayName: string }[], callOn: false }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 // The room menu renders in place of folds' portal while it has an anchor.
@@ -75,22 +76,56 @@ vi.mock('../navigation/useRoomViewMode', () => ({
   }),
 }));
 
+// The real rule for the call buttons (`HeaderCallButtons`), over stand-ins for the buttons.
+vi.mock('../calls/callSupport', () => ({ useCallSupport: () => 'supported' }));
+vi.mock('../calls/callStore', () => ({
+  isActiveCallShownIn: () => false,
+  useActiveCall: () => undefined,
+  useRoomCallMembers: () => (offer.callOn ? [{}] : []),
+}));
+vi.mock('../calls/agent/useAgentCallOffer', () => ({ useAgentCallOffer: () => offer.agents }));
+vi.mock('../calls/RoomCallButton', () => ({
+  RoomCallButton: () => <button type="button" data-call="room" />,
+}));
+vi.mock('../calls/agent/AgentCallHeaderButton', async () => {
+  const { MenuEntry: Entry } = await import('../ui/MenuEntry');
+  const { Icons: icons } = await import('folds');
+  return {
+    AgentCallHeaderButton: (props: {
+      candidates: { displayName: string }[];
+      inMenu?: () => void;
+    }) =>
+      props.inMenu ? (
+        props.candidates.map((agent) => (
+          <Entry
+            icon={icons.Phone}
+            key={agent.displayName}
+            label={`Call ${agent.displayName}`}
+            onSelect={vi.fn()}
+          />
+        ))
+      ) : (
+        <button type="button" data-call="agent" />
+      ),
+  };
+});
+
 let renderer: ReactTestRenderer | undefined;
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   screen.size = 'Desktop';
+  offer.agents = [];
+  offer.callOn = false;
 });
 
-/** `row` stands in for the thread's row, which a test renderer has no element for. */
-const renderHeader = (props: RoomViewHeaderProps, row?: object) => {
+const renderHeader = (props: RoomViewHeaderProps) => {
   act(() => renderer?.unmount());
   act(() => {
     renderer = create(
       <Provider store={createStore()}>
         <RoomViewHeader {...props} />
-      </Provider>,
-      { createNodeMock: (element) => (element.props['data-thread-rows'] === '' ? row : null) }
+      </Provider>
     );
   });
 };
@@ -107,41 +142,36 @@ const PINNED = { id: 'notes/pinned', label: 'Notes', icon: Icons.Bulb, placement
 const calls = <button type="button" aria-label="Start call" />;
 
 /** Renders the header of the open thread, and returns what it gave the thread's rows. */
-const renderInThread = (size: string, props: RoomViewHeaderProps = {}, row?: object) => {
+const renderInThread = (size: string, props: RoomViewHeaderProps = {}) => {
   screen.size = size;
   const given: PhoneThreadHeader[] = [];
-  renderHeader(
-    {
-      threadId: '$thread',
-      calls,
-      pluginPanels: [BOARD, PINNED],
-      onPanelToggle: vi.fn(),
-      phoneThread: (parts) => {
-        given.push(parts);
-        return (
-          <section data-thread-rows="" ref={parts.rowRef}>
-            <i>{parts.roomName}</i>
-            {parts.actions}
-          </section>
-        );
-      },
-      ...props,
+  renderHeader({
+    threadId: '$thread',
+    calls,
+    pluginPanels: [BOARD, PINNED],
+    onPanelToggle: vi.fn(),
+    phoneThread: (parts) => {
+      given.push(parts);
+      return (
+        <section data-thread-rows="">
+          <i>{parts.roomName}</i>
+          {parts.actions}
+        </section>
+      );
     },
-    row
-  );
+    ...props,
+  });
   return given.at(-1);
 };
 
 describe("a phone's room header with a thread filling the page", () => {
-  it("is the thread's rows, given the room's name and the row's buttons, without a name or menu button of its own", () => {
+  it("is the thread's rows, given the room's name and the call button, without a name or menu button of its own", () => {
     const parts = renderInThread('Mobile');
     expect(parts?.roomName).toBe('General');
     const rows = renderer?.root.findByProps({ 'data-thread-rows': '' });
-    // The call buttons and a plugin panel placed in the row stay one tap away, in the thread's row.
+    // The call stays one tap away, in the thread's row, which holds no other entry of the room's.
     expect(rows?.findAllByProps({ 'aria-label': 'Start call' })).toHaveLength(1);
-    expect(rows?.findAllByType(IconButton).map((node) => node.props['aria-label'])).toEqual([
-      'Notes',
-    ]);
+    expect(rows?.findAllByType(IconButton)).toHaveLength(0);
     expect(rowButton('More Options')).toBeUndefined();
     expect(heading()).toHaveLength(0);
     // As tall as the rows need, not the header's one line.
@@ -155,61 +185,54 @@ describe("a phone's room header with a thread filling the page", () => {
     const parts = renderInThread('Mobile');
     expect(menuEntries()).toEqual([]);
     act(() => parts?.onRoomMenu({ x: 340, y: 60, width: 32, height: 32 }));
-    // The panel that is no button on a phone, and the room's own actions.
-    expect(menuEntries()).toEqual(expect.arrayContaining(['Board', 'Show Members']));
-    expect(menuEntries()).not.toContain('Notes');
+    // The plugins' panels, a toggle placed in the row among them, and the room's own actions.
+    expect(menuEntries()).toEqual(expect.arrayContaining(['Notes', 'Board', 'Show Members']));
   });
 
-  it('moves what a row too narrow has no width for to the room menu, and keeps one call button', () => {
-    const resized: Array<() => void> = [];
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: () => void) {
-          resized.push(callback);
-        }
+  // What the header drew in its row, in order: the call buttons and the plugins' toggles.
+  const inRow = (root: ReactTestInstance | undefined) =>
+    root
+      ?.findAll((node) => node.type === IconButton || !!node.props['data-call'], { deep: false })
+      .map((node) => node.props['data-call'] ?? node.props['aria-label']);
+  const threadRow = () => inRow(renderer?.root.findByProps({ 'data-thread-rows': '' }));
+  const openRoomMenu = (parts: PhoneThreadHeader | undefined) =>
+    act(() => parts?.onRoomMenu({ x: 280, y: 60, width: 40, height: 40 }));
 
-        observe = () => undefined;
-
-        disconnect = () => undefined;
-      }
+  it("holds one call button, the room's, and gives the room menu each row toggle and the agents' calls", () => {
+    offer.agents = [{ displayName: 'Code' }, { displayName: 'Notes' }];
+    offer.callOn = true;
+    // At any width: what the row shows does not follow a measurement.
+    const parts = renderInThread('Mobile', { calls: <HeaderCallButtons /> });
+    expect(threadRow()).toEqual(['room']);
+    openRoomMenu(parts);
+    expect(menuEntries()).toEqual(
+      expect.arrayContaining(['Notes', 'Board', 'Call Code', 'Call Notes', 'Show Members'])
     );
-    // Says where the header drew the call controls.
-    function Calls() {
-      const tight = useContext(TightCallPlace);
-      const place = tight?.closeMenu ? 'menu' : 'tight row';
-      return <button type="button" aria-label={`calls: ${tight ? place : 'row'}`} />;
-    }
-    const drawn = () =>
-      renderer?.root
-        .findAll((node) => String(node.props['aria-label']).startsWith('calls: '), { deep: false })
-        .map((node) => node.props['aria-label']);
-    const rowPanels = () =>
-      renderer?.root
-        .findByProps({ 'data-thread-rows': '' })
-        .findAllByType(IconButton)
-        .map((node) => node.props['aria-label']);
-    // 320 px at 150% zoom: the buttons need more than the row has, the name already gone.
-    const row = { scrollWidth: 340, clientWidth: 213, lastElementChild: null };
-    const parts = renderInThread('Mobile', { calls: <Calls /> }, row);
-    expect(rowPanels()).toEqual([]);
-    expect(drawn()).toEqual(['calls: tight row']);
-    act(() => parts?.onRoomMenu({ x: 180, y: 60, width: 40, height: 40 }));
-    expect(menuEntries()).toEqual(expect.arrayContaining(['Notes', 'Board', 'Show Members']));
-    expect(drawn()).toEqual(['calls: tight row', 'calls: menu']);
+    expect(threadRow()).toEqual(['room']);
+  });
 
-    // Without the buttons that left, the row no longer overflows: they stay in the menu until
-    // the row is as wide as all of them needed.
-    row.scrollWidth = 213;
-    act(() => resized.forEach((callback) => callback()));
-    expect(rowPanels()).toEqual([]);
-    row.clientWidth = 390;
-    row.scrollWidth = 390;
-    act(() => resized.forEach((callback) => callback()));
-    expect(rowPanels()).toEqual(['Notes']);
-    expect(drawn()).toContain('calls: row');
+  it("holds the agent's call where it is the only one, and the room menu then has no call", () => {
+    offer.agents = [{ displayName: 'Code' }];
+    const parts = renderInThread('Mobile', { calls: <HeaderCallButtons /> });
+    expect(threadRow()).toEqual(['agent']);
+    openRoomMenu(parts);
+    expect(menuEntries()).toContain('Notes');
+    expect(menuEntries().filter((label) => label.startsWith('Call '))).toEqual([]);
+  });
+
+  it("keeps the row toggle and both calls in the row of a phone's room without a thread", () => {
+    offer.agents = [{ displayName: 'Code' }];
+    offer.callOn = true;
+    renderInThread('Mobile', { calls: <HeaderCallButtons />, threadId: undefined });
+    expect(inRow(renderer?.root)).toEqual(['room', 'agent', 'Notes', 'More Options']);
+    act(() => {
+      rowButton('More Options')?.props.onClick({
+        currentTarget: { getBoundingClientRect: () => ({}) },
+      });
+    });
+    expect(menuEntries()).toContain('Board');
     expect(menuEntries()).not.toContain('Notes');
-    vi.unstubAllGlobals();
+    expect(menuEntries().filter((label) => label.startsWith('Call '))).toEqual([]);
   });
 
   it.each(['Tablet', 'Desktop'])(

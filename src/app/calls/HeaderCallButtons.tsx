@@ -6,15 +6,15 @@ import { useCallSupport } from './callSupport';
 import { isActiveCallShownIn, useActiveCall, useRoomCallMembers } from './callStore';
 import { AgentCallHeaderButton } from './agent/AgentCallHeaderButton';
 import { useAgentCallOffer } from './agent/useAgentCallOffer';
-import { TightCallPlace } from './headerCallPlace';
+import { PhoneThreadCallPlace } from './headerCallPlace';
 
 /**
  * What the header offers for calls. Nothing new where the deployment has no call service: calls
  * run only on its own (`chooseCallService`). Where a voice-capable agent is in the room, calling
  * it takes the place of the room's own call; call rooms and rooms without such an agent offer the
  * room's call. A call that is on is always shown, service or not. Phones show the same buttons
- * as wide screens. Which agents are offered is `useAgentCallOffer`'s rule, which the command
- * palette follows too.
+ * as wide screens, but for a thread that fills a phone's page (`PhoneThreadCallPlace`). Which
+ * agents are offered is `useAgentCallOffer`'s rule, which the command palette follows too.
  */
 const useHeaderCalls = (threadId: string | undefined) => {
   const mx = useMatrixClient();
@@ -32,15 +32,15 @@ const useHeaderCalls = (threadId: string | undefined) => {
 /** The room header's call buttons (see `useHeaderCalls`). */
 export function HeaderCallButtons({ threadId }: { threadId?: string }) {
   const { room, candidates, offerAgent, offerRoom } = useHeaderCalls(threadId);
-  const tight = useContext(TightCallPlace);
+  const place = useContext(PhoneThreadCallPlace);
   const agents = (
-    <AgentCallHeaderButton threadId={threadId} candidates={candidates} inMenu={tight?.closeMenu} />
+    <AgentCallHeaderButton threadId={threadId} candidates={candidates} inMenu={place?.closeMenu} />
   );
-  if (tight?.closeMenu) return offerRoom && offerAgent ? agents : null;
+  if (place?.closeMenu) return offerRoom && offerAgent ? agents : null;
   return (
     <>
       {offerRoom && <RoomCallButton room={room} />}
-      {offerAgent && !(tight && offerRoom) && agents}
+      {offerAgent && !(place && offerRoom) && agents}
     </>
   );
 }

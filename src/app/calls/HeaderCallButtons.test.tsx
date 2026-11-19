@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HeaderCallButtons } from './HeaderCallButtons';
-import { TightCallPlace } from './headerCallPlace';
+import { PhoneThreadCallPlace } from './headerCallPlace';
 
 const state = vi.hoisted(() => ({
   candidates: [] as { userId: string; displayName: string }[],
@@ -88,16 +88,16 @@ describe('HeaderCallButtons', () => {
     expect(kinds(render(<HeaderCallButtons />))).toEqual(['room-call']);
   });
 
-  it('keeps one button in a row too narrow for two, and lists the agents it left out in the menu', () => {
+  it("keeps one button in a phone thread's row, and lists the agents it left out in the room menu", () => {
     const inRow = (
-      <TightCallPlace.Provider value={{}}>
+      <PhoneThreadCallPlace.Provider value={{}}>
         <HeaderCallButtons />
-      </TightCallPlace.Provider>
+      </PhoneThreadCallPlace.Provider>
     );
     const inMenu = (
-      <TightCallPlace.Provider value={{ closeMenu: () => undefined }}>
+      <PhoneThreadCallPlace.Provider value={{ closeMenu: () => undefined }}>
         <HeaderCallButtons />
-      </TightCallPlace.Provider>
+      </PhoneThreadCallPlace.Provider>
     );
     // An agent alone keeps its button: a call stays one tap away.
     state.candidates = [agent];

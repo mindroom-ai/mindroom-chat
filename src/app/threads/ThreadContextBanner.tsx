@@ -9,7 +9,6 @@ import React, {
   useRef,
   useState,
   type ReactNode,
-  type Ref,
 } from 'react';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
@@ -83,14 +82,12 @@ export interface ThreadContextBannerProps {
 export type PhoneThreadHeader = {
   /** The room's name, which leads back to the room as the chevron before it does. */
   roomName: string;
-  /** The header's own row buttons (the call buttons), which follow Resolve. */
+  /** The header's own row button (one call button), which follows Resolve. */
   actions?: ReactNode;
   /** Opens the room's menu where the thread's menu was; that menu offers it. */
   onRoomMenu: (anchor: RectCords) => void;
   /** Drawn on More while the room's menu holds what a button of its own would mark. */
   menuBadge?: ReactNode;
-  /** The row, which the header measures: buttons it has no width for go to the room's menu. */
-  rowRef?: Ref<HTMLDivElement>;
 };
 
 const DESKTOP_MAX_PILLS = 3;
@@ -640,7 +637,7 @@ export function ThreadContextBanner({
           tabIndex={-1}
           {...menuKeys}
         >
-          <div ref={phoneHeader.rowRef} className={css.PhoneRow}>
+          <div className={css.PhoneRow}>
             {backButton}
             <h1 className={css.PhoneRoom}>
               <button
