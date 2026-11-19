@@ -19,6 +19,14 @@ const MembersOverlayContext = createContext(false);
 export const useMembersOverlay = (): boolean => useContext(MembersOverlayContext);
 
 /**
+ * True inside a row that laid out too narrow to read the conversation beside the members: there
+ * they start closed (useMembersDrawer). Once the row is wide it stays false, so a resize, a stream
+ * or a table never closes members already shown.
+ */
+const MembersStartClosedContext = createContext(false);
+export const useMembersStartClosed = (): boolean => useContext(MembersStartClosedContext);
+
+/**
  * The width of the row the room lays out in now, measured before its content mounts; 0 outside a
  * row or before it has a layout. A function, so the row's resizes render nothing.
  */
@@ -27,6 +35,11 @@ export const usePanelRowWidth = (): (() => number) => useContext(RowWidthContext
 
 /** The members panel's default width (ResizableMembersPanel) beside the conversation's minimum. */
 const MEMBERS_BESIDE_MIN_WIDTH = 266 + CONVERSATION_MIN_WIDTH;
+/**
+ * The members panel beside a conversation wide enough to read: a 1280 px window with the sidebar
+ * leaves it 692 px, a 1440 px one 852 px.
+ */
+const MEMBERS_BESIDE_READING_WIDTH = 266 + 768;
 
 // Positioned, so what lies over the row (the second column's drop zone) takes its edges.
 const ROW_STYLE: CSSProperties = { minWidth: 0, minHeight: 0, position: 'relative' };
@@ -40,13 +53,18 @@ const ROW_STYLE: CSSProperties = { minWidth: 0, minHeight: 0, position: 'relativ
 export function PanelRow({ children }: { children: ReactNode }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [overlay, setOverlay] = useState<boolean>();
+  const [startClosed, setStartClosed] = useState<boolean>();
   const rowWidth = useCallback(() => rowRef.current?.clientWidth ?? 0, []);
 
   useLayoutEffect(() => {
     const row = rowRef.current;
     // A row without a layout (hidden, or a test renderer) keeps the members beside it.
-    const measure = () =>
-      setOverlay(!!row && row.clientWidth > 0 && row.clientWidth < MEMBERS_BESIDE_MIN_WIDTH);
+    const measure = () => {
+      const width = row?.clientWidth ?? 0;
+      setOverlay(width > 0 && width < MEMBERS_BESIDE_MIN_WIDTH);
+      // Narrow from its first layout on, until it is wide once.
+      if (width > 0) setStartClosed((was) => (was ?? true) && width < MEMBERS_BESIDE_READING_WIDTH);
+    };
     measure();
     if (!row || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
@@ -58,7 +76,9 @@ export function PanelRow({ children }: { children: ReactNode }) {
     <Box ref={rowRef} grow="Yes" style={ROW_STYLE} data-panel-row>
       {overlay !== undefined && (
         <MembersOverlayContext.Provider value={overlay}>
-          <RowWidthContext.Provider value={rowWidth}>{children}</RowWidthContext.Provider>
+          <MembersStartClosedContext.Provider value={startClosed ?? false}>
+            <RowWidthContext.Provider value={rowWidth}>{children}</RowWidthContext.Provider>
+          </MembersStartClosedContext.Provider>
         </MembersOverlayContext.Provider>
       )}
     </Box>

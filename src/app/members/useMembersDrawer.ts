@@ -5,7 +5,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getScreenSize, ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
-import { useMembersOverlay } from './PanelRow';
+import { useMembersOverlay, useMembersStartClosed } from './PanelRow';
 
 // On phones the members drawer covers the room, so it opens only when asked and is not saved;
 // this is that per-account, in-memory state.
@@ -17,13 +17,16 @@ const isPhoneViewport = (): boolean =>
 /**
  * Whether the room's members drawer is open, and a setter. Beside the room (tablet, desktop) it
  * is the saved `isPeopleDrawer` setting; over it (phones, and rooms too narrow for it beside
- * them) it opens only when asked and does not change that setting.
+ * them) it opens only when asked and does not change that setting. Beside a room too narrow to
+ * read beside it, it starts closed unless it was opened there before (`membersBesideNarrowRoom`).
  */
 export const useMembersDrawer = (): [boolean, (open: boolean) => void] => {
   const userId = useMatrixClient().getSafeUserId();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const overlay = useMembersOverlay();
+  const startClosed = useMembersStartClosed();
   const [isPeopleDrawer, setPeopleDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
+  const [keptNarrow, setKeptNarrow] = useSetting(settingsAtom, 'membersBesideNarrowRoom');
   const [phoneOpen, setPhoneOpen] = useAtom(phoneDrawerOpenAtom);
 
   const setOpen = useCallback(
@@ -33,12 +36,14 @@ export const useMembersDrawer = (): [boolean, (open: boolean) => void] => {
         setPhoneOpen((current) => ({ ...current, [userId]: open }));
         return;
       }
+      if (startClosed) setKeptNarrow(open);
       setPeopleDrawer(open);
     },
-    [overlay, setPeopleDrawer, setPhoneOpen, userId]
+    [overlay, startClosed, setKeptNarrow, setPeopleDrawer, setPhoneOpen, userId]
   );
 
-  return [mobile || overlay ? phoneOpen[userId] ?? false : isPeopleDrawer, setOpen];
+  if (mobile || overlay) return [phoneOpen[userId] ?? false, setOpen];
+  return [isPeopleDrawer && (keptNarrow || !startClosed), setOpen];
 };
 
 /**
