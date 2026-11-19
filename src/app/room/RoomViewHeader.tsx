@@ -547,6 +547,7 @@ export function RoomViewHeader({
           roomName,
           actions: rowButtons,
           onRoomMenu: setMenuAnchor,
+          roomMenuOpen: !!menuAnchor,
           menuBadge: menuDot,
         })
       ) : (

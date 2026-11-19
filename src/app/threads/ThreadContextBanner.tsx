@@ -86,6 +86,8 @@ export type PhoneThreadHeader = {
   actions?: ReactNode;
   /** Opens the room's menu where the thread's menu was; that menu offers it. */
   onRoomMenu: (anchor: RectCords) => void;
+  /** Whether the room's menu is open: More, which it opened from, says so. */
+  roomMenuOpen?: boolean;
   /** Drawn on More while the room's menu holds what a button of its own would mark. */
   menuBadge?: ReactNode;
 };
@@ -541,8 +543,15 @@ export function ThreadContextBanner({
       </Text>
     </Box>
   );
+  // A thread the server has not confirmed has no menu yet: a phone's More is then the room's
+  // menu button, and is named as that one is.
+  const moreLabel = t(
+    phoneHeader && !canOpenMenu
+      ? 'mindroomUi.threads.mindroomRoomViewHeader.moreOptions'
+      : 'threadActions.more'
+  );
   const moreButton = (
-    <IconTooltip label={t('threadActions.more')}>
+    <IconTooltip label={moreLabel}>
       {(triggerRef) => (
         <IconButton
           ref={(node: HTMLButtonElement | null) => {
@@ -552,14 +561,13 @@ export function ThreadContextBanner({
           className={classNames(toolbarCss.MessageOptionsButton, phoneHeader && css.PhoneButton)}
           variant="SurfaceVariant"
           fill="None"
-          aria-label={t('threadActions.more')}
+          aria-label={moreLabel}
           aria-haspopup="menu"
-          aria-expanded={!!activeMenu}
+          aria-expanded={!!activeMenu || !!phoneHeader?.roomMenuOpen}
           disabled={!canOpenMenu && !phoneHeader}
           style={phoneHeader?.menuBadge ? { position: 'relative' } : undefined}
           onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
             const rect = event.currentTarget.getBoundingClientRect();
-            // A thread the server has not confirmed has no menu yet: a phone's More opens the room's.
             if (canOpenMenu) openMenu(rect, event.currentTarget);
             else phoneHeader?.onRoomMenu(rect);
           }}

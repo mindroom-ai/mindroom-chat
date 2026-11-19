@@ -141,6 +141,9 @@ const BOARD = { id: 'notes/board', label: 'Board', icon: Icons.Star, placement: 
 const PINNED = { id: 'notes/pinned', label: 'Notes', icon: Icons.Bulb, placement: 'row' } as const;
 const calls = <button type="button" aria-label="Start call" />;
 
+/** What the header gave the thread's rows on its newest render. */
+let latest: PhoneThreadHeader | undefined;
+
 /** Renders the header of the open thread, and returns what it gave the thread's rows. */
 const renderInThread = (size: string, props: RoomViewHeaderProps = {}) => {
   screen.size = size;
@@ -152,6 +155,7 @@ const renderInThread = (size: string, props: RoomViewHeaderProps = {}) => {
     onPanelToggle: vi.fn(),
     phoneThread: (parts) => {
       given.push(parts);
+      latest = parts;
       return (
         <section data-thread-rows="">
           <i>{parts.roomName}</i>
@@ -187,6 +191,17 @@ describe("a phone's room header with a thread filling the page", () => {
     act(() => parts?.onRoomMenu({ x: 340, y: 60, width: 32, height: 32 }));
     // The plugins' panels, a toggle placed in the row among them, and the room's own actions.
     expect(menuEntries()).toEqual(expect.arrayContaining(['Notes', 'Board', 'Show Members']));
+    // More, which opened it, is told that it is open, and that it has closed.
+    expect(parts?.roomMenuOpen).toBe(false);
+    expect(latest?.roomMenuOpen).toBe(true);
+    const notes = renderer?.root
+      .findAllByType(MenuEntry)
+      .find((node) => node.props.label === 'Notes');
+    act(() => {
+      notes?.props.onSelect();
+    });
+    expect(menuEntries()).toEqual([]);
+    expect(latest?.roomMenuOpen).toBe(false);
   });
 
   // What the header drew in its row, in order: the call buttons and the plugins' toggles.
