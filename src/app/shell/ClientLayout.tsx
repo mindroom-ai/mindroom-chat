@@ -15,7 +15,7 @@ import { RUNTIME_NAVIGATION_PATHS } from '../../boot/serviceWorkerNavigation';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
 import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
-import { PHONE_STAGE } from '../navigation/phonePageSlide';
+import { PHONE_PAGE, PHONE_STAGE } from '../navigation/phonePageSlide';
 import { NoticeSlot } from '../ui/noticeSlots';
 import * as css from './ClientLayout.css';
 
@@ -124,7 +124,11 @@ export function ClientLayout({
       {!phone && <NoticeSlot place="page" />}
       {phone ? phoneTopBar : nav}
       {phone && <NoticeSlot place="page" phone covered={layerOpen} />}
-      <div ref={pageRef} className={phone ? css.PhonePage : css.PassThrough}>
+      <div
+        ref={pageRef}
+        className={phone ? css.PhonePage : css.PassThrough}
+        {...(phone ? { [PHONE_PAGE]: '' } : {})}
+      >
         {waitingForAlias && sessionId ? null : children}
       </div>
       {phone && phoneNavDrawer}
