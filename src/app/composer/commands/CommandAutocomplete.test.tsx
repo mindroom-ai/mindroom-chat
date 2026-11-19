@@ -202,8 +202,8 @@ it("lists MindRoom's commands, a line, then this app's, in the order Tab picks f
         title="Commands"
         commands={[
           { name: 'me', description: 'Sends an action.', source: 'app' },
-          { name: 'schedule', description: 'Plans a task.', source: 'mindroom' },
           { name: 'shout', description: 'Says it louder.', source: 'app' },
+          { name: 'schedule', description: 'Plans a task.', source: 'mindroom' },
           { name: 'skip', description: 'Skips a turn.', source: 'mindroom' },
         ]}
         requestClose={requestClose}
