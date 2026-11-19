@@ -288,10 +288,10 @@ test("a phone's thread shows in the room header: back, room, marker, Resolve, ca
     const room = row.getByRole('heading', { level: 1 }).getByRole('button', { name: 'Design' });
     const marker = row.getByRole('button', { name: /pull request/i });
     const resolve = row.getByRole('button', { name: 'Resolve', exact: true });
-    const call = row.getByRole('button', { name: 'Start call', exact: true });
+    const call = row.getByRole('button', { name: 'Start a call', exact: true });
     const more = row.getByRole('button', { name: 'Thread options', exact: true });
     const inRow = [back, room, ...(WITH_MARKER ? [marker] : []), resolve, call, more];
-    const boxes = [];
+    const boxes: { x: number; y: number; width: number; height: number }[] = [];
     for (const control of inRow) {
       // eslint-disable-next-line no-await-in-loop
       await expect(control).toBeVisible({ timeout: 30_000 });

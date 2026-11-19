@@ -434,9 +434,11 @@ describe('ThreadContextBanner rendering', () => {
   const bannerElement = (
     summaryText?: string,
     threadId = '$root',
-    columnProps?: Pick<
-      ThreadContextBannerProps,
-      'onShowBeside' | 'onShowFull' | 'onClose' | 'onExitThread' | 'phoneHeader'
+    columnProps?: Partial<
+      Pick<
+        ThreadContextBannerProps,
+        'onShowBeside' | 'onShowFull' | 'onClose' | 'onExitThread' | 'phoneHeader'
+      >
     >
   ) =>
     React.createElement(

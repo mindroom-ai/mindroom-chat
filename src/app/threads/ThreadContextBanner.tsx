@@ -320,6 +320,8 @@ export function ThreadContextBanner({
   // which hide it.
   const resolverBylineId = useId();
   // Plugins' controls, for a thread the server has, as the menu's details are.
+  // In a phone's header Resolve and More sit beside the header's own, larger icons.
+  const headerIcon = phoneHeader ? '200' : '100';
   const pluginControls = canOpenMenu ? (
     <ThreadHeaderSlot room={room} threadId={threadRootId} />
   ) : null;
@@ -554,7 +556,7 @@ export function ThreadContextBanner({
             openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
           }
         >
-          <Icon src={Icons.VerticalDots} size="100" />
+          <Icon src={Icons.VerticalDots} size={headerIcon} />
           {phoneHeader?.menuBadge}
         </IconButton>
       )}
@@ -583,7 +585,7 @@ export function ThreadContextBanner({
           disabled={resolveDisabled}
           {...shortcutAttributes(resolveShortcut)}
         >
-          <Icon src={Icons.Check} size="100" />
+          <Icon src={Icons.Check} size={headerIcon} />
         </IconButton>
       )}
     </IconTooltip>
