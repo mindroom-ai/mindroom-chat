@@ -761,6 +761,51 @@ const debugDump = async (page: Page, label: string): Promise<void> => {
   writeFileSync(join(OUT_DIR, `${label}-failed.json`), `${JSON.stringify(state, null, 2)}\n`);
 };
 
+/** Seconds of macOS `sample` per scenario, from just before its measured part. */
+const SAMPLE_SECONDS: Record<Scenario, number> = {
+  'compact-idle': 30,
+  'compact-scroll': 20,
+  'thread-open': 4,
+  'thread-idle': 30,
+  'thread-type': 10,
+  switch: 12,
+  'cold-load': 8,
+};
+
+/**
+ * With PERF_SAMPLE=1 in WebKit on a Mac: `sample` of every WebContent process of Playwright's
+ * WebKit, started before the scenario's measured part. The function it returns waits for them.
+ */
+const startSamples = async (run: Run, name: Scenario, label: string): Promise<() => Promise<void>> => {
+  if (process.env.PERF_SAMPLE !== '1' || run.engine !== 'webkit') return async () => undefined;
+  const listed = spawnSync('pgrep', ['-f', 'ms-playwright/webkit.*WebContent'], { encoding: 'utf8' });
+  const pids = listed.stdout.split('\n').filter(Boolean);
+  writeFileSync(
+    join(OUT_DIR, `${label}-ps.txt`),
+    spawnSync('ps', ['-axo', 'pid,ppid,pcpu,rss,time,command'], { encoding: 'utf8' })
+      .stdout.split('\n')
+      .filter((line) => /webkit|Playwright/i.test(line))
+      .join('\n')
+  );
+  const done = pids.map(
+    (pid) =>
+      new Promise<void>((resolve) => {
+        const child = spawn(
+          'sample',
+          [pid, String(SAMPLE_SECONDS[name]), '1', '-file', join(OUT_DIR, `${label}-${pid}.sample.txt`)],
+          { stdio: 'ignore' }
+        );
+        child.on('exit', () => resolve());
+        child.on('error', () => resolve());
+      })
+  );
+  // `sample` takes a moment to attach.
+  await run.page.waitForTimeout(1_500);
+  return async () => {
+    await Promise.all(done);
+  };
+};
+
 const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const { page, driver } = run;
   const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
@@ -771,6 +816,7 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const probe = await startProbe(page, { label, outDir: OUT_DIR, profile: PROFILE, trace: TRACE });
   const extra = {
     scenario: name,
+    epoch: from,
     engine: run.engine,
     throttle: run.throttle,
     viewport: VIEWPORT,
@@ -780,8 +826,10 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     // Whether every thread the scenario opened showed the streaming marker when pressed.
     openedStreaming: typeof prepared === 'boolean' ? prepared : undefined,
   };
+  const sampling = await startSamples(run, name, label);
   try {
     const measured = await SCENARIO[name].measure(run);
+    await sampling();
     if (measured?.timings) extra.timings = measured.timings;
     extra.typing = measured?.typing;
     if (measured?.openedStreaming !== undefined) {
