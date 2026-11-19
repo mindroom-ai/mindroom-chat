@@ -268,6 +268,11 @@ const shoot = async (page: Page, world: World) => {
     // eslint-disable-next-line no-await-in-loop
     await page.emulateMedia({ colorScheme: null });
   }
+  // A small phone held sideways: the header's row is lower there, the title still whole.
+  await page.setViewportSize({ width: 667, height: 375 });
+  await openThread(page, world, 'long');
+  await page.screenshot({ path: path.join(SHOTS, 'phone-long-sideways.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
 };
 
 test.beforeEach(async () => {
