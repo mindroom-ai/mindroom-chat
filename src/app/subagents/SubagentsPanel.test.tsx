@@ -656,6 +656,20 @@ describe('SubagentsPanel', () => {
     expect(view()?.textContent).not.toContain('Failed');
   });
 
+  it('reads only a failed turn as interrupted, whatever else carries the restart mark', () => {
+    ingest('working', meta('running', { interruptedByRestart: true }), docs('Going.'));
+    ingest(
+      'done',
+      meta('completed', { result: 'All done.', interruptedByRestart: true }),
+      docs('All done.', [], false)
+    );
+    render();
+
+    expect(card('working').textContent).toContain('Running');
+    expect(card('done').textContent).toContain('Done');
+    expect(cards().some((element) => element.textContent?.includes('Interrupted'))).toBe(false);
+  });
+
   it('says why a failed run that wrote nothing ended, not as its answer', () => {
     ingest('broke', meta('failed', { result: 'Tool crashed.' }), docs('', [], false));
     render();

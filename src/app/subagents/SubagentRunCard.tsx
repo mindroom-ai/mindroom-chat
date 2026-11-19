@@ -14,7 +14,12 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/matrix';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
-import { isActiveSubagentStatus, type SubagentMeta } from '../matrix/protocol/subagentFrame';
+import {
+  isActiveSubagentStatus,
+  isFailedRun,
+  isRestartInterrupted,
+  type SubagentMeta,
+} from '../matrix/protocol/subagentFrame';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
@@ -86,7 +91,7 @@ export function AgentAvatar({ agent, size }: { agent: AgentProfile; size: '200' 
  */
 export function RunStatus({ meta }: { meta: SubagentMeta }) {
   const { t } = useTranslation();
-  const status = meta.interruptedByRestart ? 'interrupted' : meta.status;
+  const status = isRestartInterrupted(meta) ? 'interrupted' : meta.status;
   return (
     <span className={css.Status}>
       <span className={css.StatusDot[status]} />
@@ -145,8 +150,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
   const time = active ? formatCallDuration(now / 1000 - meta.startedAt, language) : ago;
   const title = node.turns[0].run.meta.task?.split('\n', 1)[0] || agent.name;
   const preview = runPreview(meta, run.docs, t);
-  const failed =
-    (meta.status === 'failed' || meta.status === 'denied') && !meta.interruptedByRestart;
+  const failed = isFailedRun(meta);
 
   return (
     <button

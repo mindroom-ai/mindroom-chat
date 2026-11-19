@@ -150,3 +150,11 @@ export const subagentToolStartedAt = ({
 
 export const isActiveSubagentStatus = (status: SubagentStatus): boolean =>
   ACTIVE_STATUSES.has(status);
+
+/** Whether a restart cut the turn short: it failed, and MindRoom marked it so, as it may continue it. */
+export const isRestartInterrupted = (meta: SubagentMeta): boolean =>
+  meta.status === 'failed' && meta.interruptedByRestart === true;
+
+/** Whether the turn ended badly: failed or denied, and not a restart's cut, which reads neutral. */
+export const isFailedRun = (meta: SubagentMeta): boolean =>
+  (meta.status === 'failed' || meta.status === 'denied') && !isRestartInterrupted(meta);

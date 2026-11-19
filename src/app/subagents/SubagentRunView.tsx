@@ -10,7 +10,7 @@ import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { formatCallDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
-import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
+import { isActiveSubagentStatus, isRestartInterrupted } from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
 import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
@@ -100,6 +100,7 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   // to stream. A run that wrote nothing answers with its result, unless that says why it failed.
   const working = newest && meta.status === 'running';
   const failed = (meta.status === 'failed' || meta.status === 'denied') && !!meta.result;
+  const interrupted = isRestartInterrupted(meta);
   const docs = useMemo((): LiveDocs => {
     const status = working ? run.docs.status : 'completed';
     const quiet = run.docs.md === '' && run.docs.tools.length === 0;
@@ -167,11 +168,11 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
             <Text
               as="p"
               size="T300"
-              priority={meta.interruptedByRestart ? '300' : undefined}
-              className={meta.interruptedByRestart ? css.Interruption : css.Failure}
+              priority={interrupted ? '300' : undefined}
+              className={interrupted ? css.Interruption : css.Failure}
               dir="auto"
-              data-subagent-failure={meta.interruptedByRestart ? undefined : ''}
-              data-subagent-interruption={meta.interruptedByRestart ? '' : undefined}
+              data-subagent-failure={interrupted ? undefined : ''}
+              data-subagent-interruption={interrupted ? '' : undefined}
             >
               {meta.result}
             </Text>
