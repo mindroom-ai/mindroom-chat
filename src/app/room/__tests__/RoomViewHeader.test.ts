@@ -7,8 +7,8 @@ import { conversationBehindPanelAtom } from '../../navigation/conversationCover'
 import { runShortcut } from '../../shortcuts/useShortcut';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
-const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
-  () => ({
+const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState, topicState } =
+  vi.hoisted(() => ({
     navigateSpy: vi.fn(),
     membersState: { open: false, setOpen: vi.fn() },
     encryptionState: {
@@ -21,8 +21,10 @@ const { encryptionState, navigateSpy, permissionState, screenSizeState, membersS
     screenSizeState: {
       value: 'Desktop',
     },
-  })
-);
+    topicState: {
+      value: undefined as string | undefined,
+    },
+  }));
 
 vi.mock('react-i18next', async (importOriginal) => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
@@ -246,7 +248,7 @@ vi.mock('../../lib/dom', () => ({
 vi.mock('../../matrix/hooks/useRoomMeta', () => ({
   useRoomAvatar: () => undefined,
   useRoomName: () => 'General',
-  useRoomTopic: () => undefined,
+  useRoomTopic: () => topicState.value,
 }));
 
 vi.mock('../../lib/hooks/useScreenSize', () => ({
@@ -391,6 +393,7 @@ afterEach(() => {
   membersState.setOpen.mockClear();
   encryptionState.value = undefined;
   screenSizeState.value = 'Desktop';
+  topicState.value = undefined;
   permissionState.canInvite = true;
   permissionState.canKick = true;
 });
@@ -442,6 +445,21 @@ describe('RoomViewHeader', () => {
     for (const entry of ['Scheduled tasks (0)', 'Show Canvas', 'Show Members']) {
       expect(findMenuEntries(renderer, entry), entry).toHaveLength(1);
     }
+    act(() => renderer.unmount());
+  });
+
+  it.each([
+    { screen: 'Desktop', shown: true },
+    { screen: 'Tablet', shown: true },
+    { screen: 'Mobile', shown: false },
+  ])('shows the topic under the name on $screen: $shown', async ({ screen, shown }) => {
+    screenSizeState.value = screen;
+    topicState.value = 'Weekly plans and notes';
+    const { renderer } = await renderHeader();
+    const topicButtons = renderer.root.findAll(
+      (node) => node.type === 'button' && textOf(node) === 'Weekly plans and notes'
+    );
+    expect(topicButtons).toHaveLength(shown ? 1 : 0);
     act(() => renderer.unmount());
   });
 

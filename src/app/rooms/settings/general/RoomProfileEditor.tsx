@@ -10,6 +10,7 @@ import { useRoomName, useRoomTopic } from '../../../matrix/hooks/useRoomMeta';
 import { useRoomPermissions } from '../../../matrix/hooks/useRoomPermissions';
 import { StateEvent } from '../../../matrix/types/room';
 import { revealDirectionControls } from '../../../ui/directional';
+import { TOPIC_TEXT_STYLE } from '../../../ui/styles/topicText';
 
 const PROFILE = 'featureUi.commonSettings.general.roomProfile';
 
@@ -67,7 +68,10 @@ export function RoomProfileEditor({ room }: { room: Room }) {
       <SettingTile
         // Shown with direction controls as code points; the fields below edit the exact text.
         title={revealDirectionControls(name)}
-        description={topic ? revealDirectionControls(topic) : undefined}
+        // The whole topic, wrapped: phones show it nowhere else.
+        description={
+          topic ? <span style={TOPIC_TEXT_STYLE}>{revealDirectionControls(topic)}</span> : undefined
+        }
         after={
           (canName || canTopic) && (
             <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={startEditing}>
