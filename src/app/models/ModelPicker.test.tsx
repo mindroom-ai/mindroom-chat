@@ -1297,6 +1297,18 @@ describe('composer model picker', () => {
         await click(container.querySelector('button[aria-label="Retry"]')!);
         // Once when the menu opened, once for Retry.
         expect(state.refresh).toHaveBeenCalledTimes(2);
+
+        // Escape and ArrowLeft on Retry go back to the models, as from a level.
+        const retry = () =>
+          container.querySelector<HTMLButtonElement>('button[aria-label="Retry"]')!;
+        retry().focus();
+        await keyDown(retry(), 'Escape');
+        expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+        expect(document.activeElement).toBe(entry());
+        await click(entry()!);
+        retry().focus();
+        await keyDown(retry(), 'ArrowLeft');
+        expect(document.activeElement).toBe(entry());
       });
 
       it('leaves the levels when the layout widens, and keeps the keys on a control', async () => {

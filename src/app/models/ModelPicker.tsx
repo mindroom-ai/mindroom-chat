@@ -527,7 +527,18 @@ function ModelPickerPanel({
         <>
           {effort('view')}
           {(state.loading || state.pending || state.error) && (
-            <div className={`${css.Controls} ${css.ViewStatus}`}>{status}</div>
+            // Retry here sits outside the levels' keys, so it takes the same way back.
+            <div
+              className={`${css.Controls} ${css.ViewStatus}`}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return;
+                event.preventDefault();
+                event.stopPropagation();
+                closeLevels();
+              }}
+            >
+              {status}
+            </div>
           )}
         </>
       ) : (
