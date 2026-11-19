@@ -44,13 +44,37 @@ const result = (commandId: string, fields: Record<string, unknown>) => ({
   ...fields,
 });
 
+/** The router's answer to `$set`, as its row reads once readable. */
+const SET_ACK = {
+  threadRootId: threadId,
+  ts: 3_000,
+  sender: ROUTER,
+  content: {
+    ...inThread,
+    msgtype: 'm.notice',
+    body: 'This thread now uses invented-swift@high.',
+    'io.mindroom.model_selection_result': result('$set', {
+      operation: 'set',
+      model: 'invented-swift@high',
+      status: 'applied',
+      override: 'invented-swift@high',
+    }),
+  },
+};
+
 /**
  * A thread where a person set a model from the picker (`$set`), reset it by typing (`$reset`) and
  * asked for a model nobody has (`$unknown`), each answered by `ROUTER`; the room's state names
  * `router` as its router. `forkAt` names a message of the thread another thread was forked at,
- * and `setEdit` is an edit of `$set` that has not decrypted yet.
+ * `setEdit` is an edit of `$set` that has not decrypted yet, and `setAck` stands in for the
+ * answer to `$set`.
  */
-const openThread = async (router?: string, forkAt?: string, setEdit?: MatrixEvent) => {
+const openThread = async (
+  router?: string,
+  forkAt?: string,
+  setEdit?: MatrixEvent,
+  setAck = makeEvent('$set-ack', SET_ACK)
+) => {
   if (router) {
     // The router bound itself and holds the level the binding takes.
     powerLevelsContextMock.levels = { users: { [router]: 50 } };
@@ -78,22 +102,7 @@ const openThread = async (router?: string, forkAt?: string, setEdit?: MatrixEven
         },
       },
     }),
-    makeEvent('$set-ack', {
-      threadRootId: threadId,
-      ts: 3_000,
-      sender: ROUTER,
-      content: {
-        ...inThread,
-        msgtype: 'm.notice',
-        body: 'This thread now uses invented-swift@high.',
-        'io.mindroom.model_selection_result': result('$set', {
-          operation: 'set',
-          model: 'invented-swift@high',
-          status: 'applied',
-          override: 'invented-swift@high',
-        }),
-      },
-    }),
+    setAck,
     makeEvent('$reset', {
       threadRootId: threadId,
       ts: 4_000,
@@ -204,6 +213,39 @@ describe("a thread's model changes in the open thread", () => {
     pluginRowHiddenMock.test = (event) => event.eventId === '$set-ack';
     const renderer = await openThread(ROUTER);
     try {
+      expect(getRenderedEventIds(renderer)).toEqual([
+        threadId,
+        '$set',
+        '$reset-ack',
+        '$unknown',
+        '$unknown-ack',
+      ]);
+      expect(lines(renderer)).toEqual([['$reset-ack', 'reset:']]);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('keeps the command when its acknowledgement decrypts into a row a plugin hides', async () => {
+    pluginRowHiddenMock.test = (event) =>
+      event.eventId === '$set-ack' && event.content.msgtype === 'm.notice';
+    // Unreadable at first, with only its relation in the clear; `makeEvent` reads these live.
+    const sealed = { ...SET_ACK, type: 'm.room.encrypted', content: inThread, encrypted: true };
+    const listeners = new Set<(event: unknown) => void>();
+    const ack = Object.assign(makeEvent('$set-ack', sealed), {
+      on: (_name: string, listener: (event: unknown) => void) => listeners.add(listener),
+      removeListener: (_name: string, listener: (event: unknown) => void) =>
+        listeners.delete(listener),
+    });
+    const renderer = await openThread(ROUTER, undefined, undefined, ack);
+    try {
+      expect(getRenderedEventIds(renderer)).toContain('$set');
+      // It decrypts in place: the thread's rows are the same array, and only its own event says so.
+      Object.assign(sealed, { type: 'm.room.message', content: SET_ACK.content });
+      await act(async () => {
+        listeners.forEach((listener) => listener(ack));
+        await flushAsyncWork();
+      });
       expect(getRenderedEventIds(renderer)).toEqual([
         threadId,
         '$set',
