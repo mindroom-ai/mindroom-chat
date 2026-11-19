@@ -19,6 +19,8 @@ const wasmMemories: WeakRef<WebAssembly.Memory>[] = [];
 let seenMemories = new WeakSet<WebAssembly.Memory>();
 const objectUrlBytes = new Map<string, number>();
 let uninstallHooks: (() => void) | undefined;
+// Bumped by each uninstall: a load or a kept wrapper of an older installation records nothing.
+let generation = 0;
 
 const trackInstance = (instance: WebAssembly.Instance): void => {
   Object.values(instance.exports).forEach((value) => {
@@ -28,25 +30,29 @@ const trackInstance = (instance: WebAssembly.Instance): void => {
   });
 };
 
-const trackResult = <T>(result: T): T => {
-  try {
-    const instance =
-      result instanceof WebAssembly.Instance
-        ? result
-        : (result as Partial<WebAssembly.WebAssemblyInstantiatedSource>).instance;
-    if (instance instanceof WebAssembly.Instance) trackInstance(instance);
-  } catch {
-    // Tracking must never fail the module's own load.
-  }
-  return result;
-};
+// For a load started now: its result counts only if the hooks are still the same installation.
+const trackResult =
+  (since = generation) =>
+  <T>(result: T): T => {
+    if (since !== generation) return result;
+    try {
+      const instance =
+        result instanceof WebAssembly.Instance
+          ? result
+          : (result as Partial<WebAssembly.WebAssemblyInstantiatedSource>).instance;
+      if (instance instanceof WebAssembly.Instance) trackInstance(instance);
+    } catch {
+      // Tracking must never fail the module's own load.
+    }
+    return result;
+  };
 
 const hookWebAssembly = (restores: Array<() => void>): void => {
   if (typeof WebAssembly === 'undefined') return;
   const { instantiate, instantiateStreaming } = WebAssembly;
   if (typeof instantiate === 'function') {
     WebAssembly.instantiate = ((...args: Parameters<typeof instantiate>) =>
-      instantiate.apply(WebAssembly, args).then(trackResult)) as typeof instantiate;
+      instantiate.apply(WebAssembly, args).then(trackResult())) as typeof instantiate;
     restores.push(() => {
       WebAssembly.instantiate = instantiate;
     });
@@ -55,7 +61,7 @@ const hookWebAssembly = (restores: Array<() => void>): void => {
     WebAssembly.instantiateStreaming = ((...args: Parameters<typeof instantiateStreaming>) =>
       instantiateStreaming
         .apply(WebAssembly, args)
-        .then(trackResult)) as typeof instantiateStreaming;
+        .then(trackResult())) as typeof instantiateStreaming;
     restores.push(() => {
       WebAssembly.instantiateStreaming = instantiateStreaming;
     });
@@ -76,9 +82,10 @@ const blobSize = (obj: Blob | MediaSource): number => {
 const hookObjectUrls = (restores: Array<() => void>): void => {
   const { createObjectURL, revokeObjectURL } = URL;
   if (typeof createObjectURL !== 'function' || typeof revokeObjectURL !== 'function') return;
+  const since = generation;
   URL.createObjectURL = (obj: Blob | MediaSource): string => {
     const url = createObjectURL.call(URL, obj);
-    objectUrlBytes.set(url, blobSize(obj));
+    if (since === generation) objectUrlBytes.set(url, blobSize(obj));
     return url;
   };
   URL.revokeObjectURL = (url: string): void => {
@@ -107,6 +114,7 @@ export const installMemoryHooks = (): (() => void) => {
   const uninstall = () => {
     if (uninstallHooks !== uninstall) return;
     uninstallHooks = undefined;
+    generation += 1;
     restores.forEach((restore) => restore());
     wasmMemories.length = 0;
     seenMemories = new WeakSet();

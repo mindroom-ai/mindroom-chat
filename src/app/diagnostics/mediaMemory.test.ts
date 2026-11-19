@@ -66,6 +66,17 @@ describe('media memory', () => {
     expect(readWasmMemoryMb()).toBe(4);
   });
 
+  it('records nothing from a load or a kept wrapper that finishes after uninstall', async () => {
+    const pending = WebAssembly.instantiate(WASM_WITH_MEMORY);
+    const keptCreate = URL.createObjectURL;
+    uninstall();
+    await pending;
+    keptCreate(new Blob(['x']));
+
+    expect(readWasmMemoryMb()).toBeUndefined();
+    expect(readMediaMemory()).toMatchObject({ object_urls: 0 });
+  });
+
   it('counts a memory once, however many exports or instances share it', async () => {
     const { instance } = await WebAssembly.instantiate(WASM_WITH_MEMORY);
     const shared = instance.exports.mem as WebAssembly.Memory;
