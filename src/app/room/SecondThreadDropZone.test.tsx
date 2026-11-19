@@ -16,8 +16,8 @@ const threadDrag = (rootId = '$b', roomId = '!room:example.org') =>
   dragData({ [THREAD_DRAG_TYPE]: JSON.stringify({ roomId, rootId }) });
 const zone = () => screen.queryByTestId('second-thread-drop-zone');
 // A drag starting somewhere on the page, which the window hears.
-const startDrag = (dataTransfer: ReturnType<typeof dragData>) => {
-  fireEvent.dragStart(document.body, { dataTransfer });
+const startDrag = (dataTransfer: ReturnType<typeof dragData>, from: Element = document.body) => {
+  fireEvent.dragStart(from, { dataTransfer });
   act(() => {
     vi.runAllTimers();
   });
@@ -33,6 +33,39 @@ afterEach(() => {
 });
 
 describe('the drop zone of the second column', () => {
+  it('goes as the drag ends on its card, also one that left the page, which the window misses', async () => {
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={vi.fn()} />);
+    const card = document.createElement('div');
+    document.body.append(card);
+    fireEvent.dragStart(card, { dataTransfer: threadDrag() });
+    act(() => {
+      vi.runAllTimers();
+    });
+    // The card's own end, which does not reach the window.
+    act(() => {
+      card.dispatchEvent(new Event('dragend'));
+    });
+    expect(zone()).toBeNull();
+    // A card that leaves the page mid-drag ends it: its end may never come.
+    fireEvent.dragStart(card, { dataTransfer: threadDrag() });
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(zone()).not.toBeNull();
+    await act(async () => card.remove());
+    expect(zone()).toBeNull();
+  });
+
+  it('shows nothing for a drag its card refused', () => {
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={vi.fn()} />);
+    const card = document.createElement('div');
+    document.body.append(card);
+    card.addEventListener('dragstart', (evt) => evt.preventDefault());
+    startDrag(threadDrag(), card);
+    expect(zone()).toBeNull();
+    card.remove();
+  });
+
   it("shows while a thread card's drag is under way, and not for a file's", () => {
     render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={vi.fn()} />);
     expect(zone()).toBeNull();

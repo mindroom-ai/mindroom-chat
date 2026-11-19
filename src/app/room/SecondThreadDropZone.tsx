@@ -29,12 +29,12 @@ export function SecondThreadDropZone({
   onOpen: (roomId: string, rootId: string) => void;
 }) {
   const { t } = useTranslation();
-  const dragging = useThreadDrag();
+  const drag = useThreadDrag();
   const [over, setOver] = useState(false);
   useEffect(() => {
-    if (!dragging) setOver(false);
-  }, [dragging]);
-  if (!dragging) return null;
+    if (!drag) setOver(false);
+  }, [drag]);
+  if (!drag) return null;
 
   // A thread's drag may drop here (its default prevented), and moves its thread.
   const accept = (evt: DragEvent<HTMLDivElement>) => {
