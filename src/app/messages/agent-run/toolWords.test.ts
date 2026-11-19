@@ -1,6 +1,6 @@
 import i18next from 'i18next';
 import { describe, expect, it } from 'vitest';
-import { describeToolRun, describeToolSteps, isToolStep, toolRowWords } from './toolWords';
+import { describeToolRun, isToolStep, toolRowWords } from './toolWords';
 
 const t = i18next.t.bind(i18next);
 const calls = (...names: string[]) => names.map((toolName) => ({ toolName }));
@@ -26,6 +26,12 @@ describe('describeToolRun', () => {
   it('names bookkeeping when the run did nothing else', () => {
     expect(describeToolRun(t, 'en', calls('list_files', 'matrix_room'))?.title).toBe(
       'Listed files and looked up the room'
+    );
+  });
+
+  it('says how many calls failed', () => {
+    expect(describeToolRun(t, 'en', calls('bash', 'bash'), 1)?.title).toBe(
+      'Ran 2 commands · 1 failed'
     );
   });
 
@@ -66,14 +72,14 @@ describe('toolRowWords', () => {
   });
 });
 
-it('folds only bookkeeping, and names it', () => {
+it('folds only bookkeeping, and names it alone', () => {
   expect(['list_files', 'ls', 'list_attachments', 'read_file'].map(isToolStep)).toEqual([
     true,
     true,
     true,
     false,
   ]);
-  expect(describeToolSteps(t, 'en', calls('list_files', 'ls', 'list_attachments'))).toBe(
-    'listed files and checked attachments'
+  expect(describeToolRun(t, 'en', calls('list_files', 'ls', 'list_attachments'))?.title).toBe(
+    'Listed files and checked attachments'
   );
 });

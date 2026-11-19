@@ -895,7 +895,7 @@
             "title": "查询了房间信息"
           },
           "moreTools_other": "使用了另外 {{count}} 个工具",
-          "moreSteps_other": "显示另外 {{count}} 个步骤：{{steps}}"
+          "moreSteps_other": "另外 {{count}} 个步骤：{{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

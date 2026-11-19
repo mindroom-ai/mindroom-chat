@@ -916,8 +916,8 @@
           },
           "moreTools_one": "{{count}} andere tool gebruikt",
           "moreTools_other": "{{count}} andere tools gebruikt",
-          "moreSteps_one": "Nog {{count}} stap tonen: {{steps}}",
-          "moreSteps_other": "Nog {{count}} stappen tonen: {{steps}}"
+          "moreSteps_one": "Nog {{count}} stap: {{steps}}",
+          "moreSteps_other": "Nog {{count}} stappen: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

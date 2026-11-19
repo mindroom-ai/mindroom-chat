@@ -1000,12 +1000,12 @@
           "moreTools_few": "استخدام ⁨{{count}}⁩ أدوات أخرى",
           "moreTools_many": "استخدام ⁨{{count}}⁩ أداة أخرى",
           "moreTools_other": "استخدام ⁨{{count}}⁩ أداة أخرى",
-          "moreSteps_zero": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
-          "moreSteps_one": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
-          "moreSteps_two": "عرض خطوتين أخريين (⁨{{count}}⁩): ⁨{{steps}}⁩",
-          "moreSteps_few": "عرض ⁨{{count}}⁩ خطوات أخرى: ⁨{{steps}}⁩",
-          "moreSteps_many": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
-          "moreSteps_other": "عرض ⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩"
+          "moreSteps_zero": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
+          "moreSteps_one": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
+          "moreSteps_two": "خطوتان أخريان (⁨{{count}}⁩): ⁨{{steps}}⁩",
+          "moreSteps_few": "⁨{{count}}⁩ خطوات أخرى: ⁨{{steps}}⁩",
+          "moreSteps_many": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
+          "moreSteps_other": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩"
         }
       },
       "mindroomThreadSummaryMarker": {

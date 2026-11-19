@@ -1306,43 +1306,29 @@ describe('useToolTraceMarkerParserOptions', () => {
     expect(rows[1]!.findByType('pre').children.join('')).toBe('reading the changelog');
   });
 
-  it('folds the finished bookkeeping calls of a run under its others, until asked', () => {
+  it('folds the finished bookkeeping calls of a run under its others', () => {
     const names = ['read_file', 'list_files', 'run_shell_command'];
     const html = names
       .map((name, index) => `<p>🔧 <code>${name}</code> [${index + 1}]</p>`)
       .join('');
-    const content = {
+    const renderer = renderTreeWithToolTrace(html, {
       'io.mindroom.tool_trace': {
         version: 2,
         events: names.map((name) => ({ type: 'tool_call_completed', tool_name: name })),
       },
-    };
-    const parsed = parse(html, markerParserOptions(createBaseOpts(), content));
-    const focus = vi.fn();
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(React.createElement(React.Fragment, null, parsed), {
-        createNodeMock: () => ({ focus }),
-      });
     });
     expect(collectTextContent(renderer.toJSON())).toBe('Read 1 file and ran 1 command');
     act(() => {
       renderer.root.findByType('button').props.onClick();
     });
-    const rows = () =>
-      renderer.root
-        .findAll((node) => typeof node.type === 'string' && node.props['data-tool-index'])
-        .map((node) => node.props['data-tool-index']);
-    expect(rows()).toEqual([1, 3]);
-    const more = renderer.root.findByProps({ className: 'activity-more-steps' });
-    expect(nodeText(more)).toBe('Show 1 more step: listed files');
-    act(() => {
-      more.props.onClick();
-    });
-    // In call order, and the shown call takes the focus of the button, which goes.
-    expect(rows()).toEqual([1, 2, 3]);
-    expect(renderer.root.findAllByProps({ className: 'activity-more-steps' })).toHaveLength(0);
-    expect(focus).toHaveBeenCalledTimes(1);
+    const rowsIn = (node: ReactTestInstance) =>
+      node
+        .findAll((child) => typeof child.type === 'string' && child.props['data-tool-index'])
+        .map((child) => child.props['data-tool-index']);
+    const steps = renderer.root.findByType('details');
+    expect(rowsIn(renderer.root)).toEqual([1, 3, 2]);
+    expect(rowsIn(steps)).toEqual([2]);
+    expect(nodeText(steps.findByType('summary'))).toBe('1 more step: Listed files');
     expect(toolRowText(renderer, 2)).toContain('Listed files');
   });
 

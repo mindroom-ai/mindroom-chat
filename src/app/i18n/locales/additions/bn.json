@@ -916,8 +916,8 @@
           },
           "moreTools_one": "আরও {{count}}টি টুল ব্যবহার করা হয়েছে",
           "moreTools_other": "আরও {{count}}টি টুল ব্যবহার করা হয়েছে",
-          "moreSteps_one": "আরও {{count}}টি ধাপ দেখান: {{steps}}",
-          "moreSteps_other": "আরও {{count}}টি ধাপ দেখান: {{steps}}"
+          "moreSteps_one": "আরও {{count}}টি ধাপ: {{steps}}",
+          "moreSteps_other": "আরও {{count}}টি ধাপ: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

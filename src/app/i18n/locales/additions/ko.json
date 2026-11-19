@@ -895,7 +895,7 @@
             "title": "방 정보 확인"
           },
           "moreTools_other": "도구 {{count}}개 더 사용",
-          "moreSteps_other": "단계 {{count}}개 더 보기: {{steps}}"
+          "moreSteps_other": "단계 {{count}}개 더: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

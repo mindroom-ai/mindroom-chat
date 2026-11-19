@@ -182,55 +182,20 @@ export const RowName = style({
   lineHeight: toRem(22),
 });
 
-// A known tool's call in words ("Read file"), and what it acts on, muted on the rest of the line.
-export const RowWords = style({
-  flexShrink: 0,
-  fontSize: toRem(13),
-  fontWeight: config.fontWeight.W600,
-  lineHeight: toRem(22),
+// A known tool's call in words ("Read file"), which its target follows as the line's detail.
+export const RowWords = style({ flexShrink: 0, fontWeight: config.fontWeight.W600 });
+
+// A run's folded bookkeeping calls, under its others.
+export const Steps = style({
+  borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
 });
 
-// Like the line's detail: it takes only the room the words leave, so it stays on their line.
-export const RowTarget = style({
-  flex: '1 1 0px',
-  maxWidth: 'max-content',
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
+export const StepsSummary = style({
+  padding: `${toRem(8)} ${toRem(14)}`,
   fontSize: toRem(12),
   opacity: config.opacity.P400,
+  cursor: 'pointer',
 });
-
-// Opens the run's folded bookkeeping calls, under its other calls.
-export const MoreSteps = style([
-  DefaultReset,
-  {
-    display: 'block',
-    width: '100%',
-    // Under the rows' text, past their icon column (Row).
-    paddingBlock: `${toRem(8)} ${toRem(10)}`,
-    paddingInline: `${toRem(44)} ${toRem(14)}`,
-    border: 'none',
-    borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-    background: 'none',
-    color: color.Surface.OnContainer,
-    font: 'inherit',
-    fontSize: toRem(12),
-    textAlign: 'start',
-    opacity: config.opacity.P400,
-    cursor: 'pointer',
-    selectors: {
-      '&:focus-visible': {
-        outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-        outlineOffset: toRem(-2),
-      },
-    },
-    '@media': {
-      '(hover: hover)': { selectors: { '&:hover': { textDecoration: 'underline' } } },
-    },
-  },
-]);
 
 // A row's name and, while the call runs long, how long it has run.
 export const RowHead = style({

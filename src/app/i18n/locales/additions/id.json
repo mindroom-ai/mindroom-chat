@@ -895,7 +895,7 @@
             "title": "melihat info ruang"
           },
           "moreTools_other": "memakai {{count}} alat lain",
-          "moreSteps_other": "Tampilkan {{count}} langkah lagi: {{steps}}"
+          "moreSteps_other": "{{count}} langkah lagi: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

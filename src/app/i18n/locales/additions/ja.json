@@ -895,7 +895,7 @@
             "title": "ルーム情報を確認"
           },
           "moreTools_other": "ほか {{count}} 件のツールを使用",
-          "moreSteps_other": "残り {{count}} 件のステップを表示: {{steps}}"
+          "moreSteps_other": "残り {{count}} 件のステップ: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

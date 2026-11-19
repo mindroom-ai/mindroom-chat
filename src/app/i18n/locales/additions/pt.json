@@ -937,9 +937,9 @@
           "moreTools_one": "{{count}} outra ferramenta usada",
           "moreTools_many": "{{count}} outras ferramentas usadas",
           "moreTools_other": "{{count}} outras ferramentas usadas",
-          "moreSteps_one": "Mostrar mais {{count}} etapa: {{steps}}",
-          "moreSteps_many": "Mostrar mais {{count}} etapas: {{steps}}",
-          "moreSteps_other": "Mostrar mais {{count}} etapas: {{steps}}"
+          "moreSteps_one": "Mais {{count}} etapa: {{steps}}",
+          "moreSteps_many": "Mais {{count}} etapas: {{steps}}",
+          "moreSteps_other": "Mais {{count}} etapas: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

@@ -895,7 +895,7 @@
             "title": "查詢了聊天室資訊"
           },
           "moreTools_other": "使用了另外 {{count}} 個工具",
-          "moreSteps_other": "顯示另外 {{count}} 個步驟：{{steps}}"
+          "moreSteps_other": "另外 {{count}} 個步驟：{{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

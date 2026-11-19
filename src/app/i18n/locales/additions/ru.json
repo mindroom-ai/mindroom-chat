@@ -958,10 +958,10 @@
           "moreTools_few": "использовано ещё {{count}} инструмента",
           "moreTools_many": "использовано ещё {{count}} инструментов",
           "moreTools_other": "использовано ещё {{count}} инструмента",
-          "moreSteps_one": "Показать ещё {{count}} шаг: {{steps}}",
-          "moreSteps_few": "Показать ещё {{count}} шага: {{steps}}",
-          "moreSteps_many": "Показать ещё {{count}} шагов: {{steps}}",
-          "moreSteps_other": "Показать ещё {{count}} шага: {{steps}}"
+          "moreSteps_one": "Ещё {{count}} шаг: {{steps}}",
+          "moreSteps_few": "Ещё {{count}} шага: {{steps}}",
+          "moreSteps_many": "Ещё {{count}} шагов: {{steps}}",
+          "moreSteps_other": "Ещё {{count}} шага: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {

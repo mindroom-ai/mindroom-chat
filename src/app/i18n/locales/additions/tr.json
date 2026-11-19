@@ -916,8 +916,8 @@
           },
           "moreTools_one": "{{count}} araç daha kullanıldı",
           "moreTools_other": "{{count}} araç daha kullanıldı",
-          "moreSteps_one": "{{count}} adım daha göster: {{steps}}",
-          "moreSteps_other": "{{count}} adım daha göster: {{steps}}"
+          "moreSteps_one": "{{count}} adım daha: {{steps}}",
+          "moreSteps_other": "{{count}} adım daha: {{steps}}"
         }
       },
       "mindroomThreadSummaryMarker": {
