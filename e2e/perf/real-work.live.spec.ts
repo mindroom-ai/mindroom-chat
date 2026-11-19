@@ -584,6 +584,11 @@ const switchDebug = async (run: Run, turns: number): Promise<Measured> => {
     hogs.forEach((hog) => hog.kill('SIGKILL'));
     spawnSync('pkill', ['-x', 'yes']);
   }
+  await page.waitForTimeout(500);
+  const moverPresses = await page.evaluate(
+    () => (window as unknown as { __mvPresses?: unknown[] }).__mvPresses ?? []
+  );
+  writeFileSync(join(OUT_DIR, `mover-${run.engine}.json`), `${JSON.stringify(moverPresses)}\n`);
   writeFileSync(
     join(OUT_DIR, `switch-debug-${run.engine}.json`),
     `${JSON.stringify({ turns, failed: failures.length, failures }, null, 2)}\n`
@@ -1249,6 +1254,195 @@ test.describe('PERF: real work under the backend load', () => {
             setTimeout(() => {
               entry.prevented = event.defaultPrevented;
             }, 0);
+          },
+          true
+        );
+      });
+    });
+    // Throwaway: what moved a pressed card between its pointerdown and its pointerup.
+    await page.addInitScript(() => {
+      type Entry = Record<string, unknown> & { t: number };
+      const log: Entry[] = [];
+      const frames: Entry[] = [];
+      const presses: unknown[] = [];
+      const w = window as unknown as { __mvPresses?: unknown[]; __mvLog?: Entry[] };
+      w.__mvPresses = presses;
+      w.__mvLog = log;
+      const now = () => Math.round(performance.now() * 10) / 10;
+      const r1 = (value: number) => Math.round(value * 10) / 10;
+      const note = (entry: Entry) => {
+        log.push(entry);
+        if (log.length > 3000) log.shift();
+      };
+      const tag = (element: Element | null) =>
+        element
+          ? `${element.tagName}.${String(element.className).slice(0, 24)}${
+              element.hasAttribute('data-compact-room-view') ? '[view]' : ''
+            }${element.hasAttribute('data-thread-root-id') ? `[card:${element.getAttribute('data-thread-root-id')?.slice(-6)}]` : ''}`
+          : 'null';
+      const stack = () =>
+        String(new Error().stack ?? '')
+          .split('\n')
+          .slice(2, 12)
+          .map((line) => line.trim().replace(/https?:\/\/[^/]+\//, '').slice(0, 110))
+          .join(' | ');
+      // Writers of a scroll offset, each with its caller.
+      const top = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+      if (top?.set && top.get) {
+        const { set, get } = top;
+        Object.defineProperty(Element.prototype, 'scrollTop', {
+          configurable: true,
+          get() {
+            return get.call(this);
+          },
+          set(value: number) {
+            const before = get.call(this) as number;
+            set.call(this, value);
+            note({ t: now(), type: 'write scrollTop', on: tag(this as Element), before: r1(before), asked: r1(Number(value)), after: r1(get.call(this) as number), stack: stack() });
+          },
+        });
+      }
+      (['scrollTo', 'scrollBy', 'scroll', 'scrollIntoView', 'scrollIntoViewIfNeeded'] as const).forEach((method) => {
+        const proto = Element.prototype as unknown as Record<string, unknown>;
+        const original = proto[method] as ((...args: unknown[]) => unknown) | undefined;
+        if (!original) return;
+        proto[method] = function hooked(this: Element, ...args: unknown[]) {
+          note({ t: now(), type: `call ${method}`, on: tag(this), args: JSON.stringify(args).slice(0, 120), stack: stack() });
+          return original.apply(this, args);
+        };
+      });
+      const focus = HTMLElement.prototype.focus;
+      HTMLElement.prototype.focus = function hooked(this: HTMLElement, ...args: [FocusOptions?]) {
+        note({ t: now(), type: 'call focus', on: tag(this), args: JSON.stringify(args).slice(0, 80), stack: stack() });
+        return focus.apply(this, args);
+      };
+      document.addEventListener(
+        'scroll',
+        (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          note({ t: now(), type: 'scroll event', on: tag(target), scrollTop: target ? r1(target.scrollTop) : r1(scrollY) });
+        },
+        true
+      );
+      const cardsOf = (nodes: NodeList) =>
+        Array.from(nodes).flatMap((node) =>
+          node instanceof Element
+            ? [
+                ...(node.hasAttribute('data-thread-root-id') ? [node] : []),
+                ...Array.from(node.querySelectorAll('[data-thread-root-id]')),
+              ].map((card) => card.getAttribute('data-thread-root-id')?.slice(-6))
+            : []
+        );
+      const watch = () => {
+        new MutationObserver((records) => {
+          const added = records.flatMap((record) => cardsOf(record.addedNodes));
+          const removed = records.flatMap((record) => cardsOf(record.removedNodes));
+          if (added.length || removed.length) note({ t: now(), type: 'cards mutated', added: added.join(','), removed: removed.join(',') });
+        }).observe(document.documentElement, { childList: true, subtree: true });
+      };
+      if (document.documentElement) watch();
+      else document.addEventListener('DOMContentLoaded', watch);
+      const scrollerOf = (element: Element): Element | null => {
+        for (let at: Element | null = element; at; at = at.parentElement) {
+          if (/auto|scroll/.test(getComputedStyle(at).overflowY)) return at;
+        }
+        return null;
+      };
+      /** Where the card and everything above it in the list is: tells a scroll from a change above. */
+      const snap = (card: Element, type: string) => {
+        const scroller = scrollerOf(card);
+        const view = card.closest('[data-compact-room-view]') ?? document;
+        const scrollerTop = scroller?.getBoundingClientRect().top ?? 0;
+        const scrollTop = scroller?.scrollTop ?? 0;
+        const box = card.getBoundingClientRect();
+        const levels: unknown[] = [];
+        for (let at: Element | null = card; at && at !== scroller; at = at.parentElement) {
+          const before: unknown[] = [];
+          for (let sibling = at.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+            before.push([tag(sibling), r1(sibling.getBoundingClientRect().height)]);
+          }
+          levels.push({ at: tag(at), offset: r1(at.getBoundingClientRect().top - scrollerTop + scrollTop), before: before.slice(0, 60) });
+        }
+        return {
+          t: now(),
+          type,
+          card: card.getAttribute('data-thread-root-id')?.slice(-6),
+          connected: card.isConnected,
+          cardTop: r1(box.top),
+          cardHeight: r1(box.height),
+          scroller: tag(scroller),
+          scrollTop: r1(scrollTop),
+          scrollHeight: scroller?.scrollHeight,
+          scrollerTop: r1(scrollerTop),
+          offset: r1(box.top - scrollerTop + scrollTop),
+          order: Array.from(view.querySelectorAll('[data-thread-root-id]')).map((other) => {
+            const rect = other.getBoundingClientRect();
+            return [other.getAttribute('data-thread-root-id')?.slice(-6), r1(rect.top), r1(rect.height)];
+          }),
+          levels,
+          animations: document.getAnimations().map((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target ?? null;
+            return `${tag(target)} ${animation.playState}`;
+          }).slice(0, 12),
+          active: tag(document.activeElement),
+        };
+      };
+      // Every frame: the list's scroll offset and where its first cards are, for the time around a press.
+      const frame = () => {
+        const view = document.querySelector('[data-compact-room-view]');
+        const first = view?.querySelector('[data-thread-root-id]');
+        if (view && first) {
+          const scroller = scrollerOf(first);
+          frames.push({
+            t: now(),
+            scrollTop: scroller ? r1(scroller.scrollTop) : null,
+            scrollHeight: scroller?.scrollHeight,
+            tops: Array.from(view.querySelectorAll('[data-thread-root-id]'))
+              .slice(0, 8)
+              .map((card) => `${card.getAttribute('data-thread-root-id')?.slice(-6)}@${Math.round(card.getBoundingClientRect().top)}`)
+              .join(' '),
+          });
+          if (frames.length > 400) frames.shift();
+        }
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+      let press: (Record<string, unknown> & { card: Element; snaps: unknown[]; downAt: number }) | undefined;
+      (['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'] as const).forEach((type) => {
+        window.addEventListener(
+          type,
+          (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (type === 'pointerdown') {
+              const card = target?.closest('[data-compact-room-view] [data-thread-root-id]') ?? null;
+              press = card ? { card, snaps: [], downAt: now(), xy: [(event as MouseEvent).clientX, (event as MouseEvent).clientY] } : undefined;
+            }
+            if (!press) return;
+            const mine = press;
+            const { clientX, clientY } = event as MouseEvent;
+            const under = document.elementFromPoint(clientX, clientY);
+            mine.snaps.push({
+              ...snap(mine.card, type),
+              target: tag(target),
+              targetCard: target?.closest('[data-thread-root-id]')?.getAttribute('data-thread-root-id')?.slice(-6) ?? null,
+              under: tag(under),
+              underCard: under?.closest('[data-thread-root-id]')?.getAttribute('data-thread-root-id')?.slice(-6) ?? null,
+            });
+            if (type !== 'click') return;
+            press = undefined;
+            const clickedCard = target?.closest('[data-thread-root-id]') === mine.card;
+            const path = location.pathname + location.search;
+            setTimeout(() => {
+              const { card, ...rest } = mine;
+              presses.push({
+                ...rest,
+                card: card.getAttribute('data-thread-root-id')?.slice(-6),
+                clickedCard,
+                navigated: location.pathname + location.search !== path,
+                log: log.filter((entry) => entry.t >= mine.downAt - 2500 && entry.t <= mine.downAt + 400),
+                frames: frames.filter((entry) => entry.t >= mine.downAt - 1500 && entry.t <= mine.downAt + 400),
+              });
+            }, 300);
           },
           true
         );
