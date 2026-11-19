@@ -12,6 +12,8 @@ import { RoomProfileEditor } from './RoomProfileEditor';
 const NAME = 'Payroll ‮sevihcra‬';
 const TOPIC = 'Where we file ‮stpiecer‬ for the audit';
 
+const permission = vi.hoisted(() => ({ edit: true }));
+
 const client = {
   getSafeUserId: () => '@me:example.org',
   setRoomName: vi.fn(async () => ({})),
@@ -26,7 +28,7 @@ vi.mock('../../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () =>
 vi.mock('../../../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
 vi.mock('../../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../../../matrix/hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({ stateEvent: () => true }),
+  useRoomPermissions: () => ({ stateEvent: () => permission.edit }),
 }));
 vi.mock('../../../matrix/hooks/useRoomMeta', () => ({
   useRoomName: () => NAME,
@@ -81,4 +83,19 @@ it('shows the name and topic with code points and edits their exact text', () =>
   expect(client.setRoomName).not.toHaveBeenCalled();
   expect(client.setRoomTopic).not.toHaveBeenCalled();
   act(() => renderer.unmount());
+});
+
+it('wraps the whole topic and keeps its line breaks, for a reader who may not edit it', () => {
+  permission.edit = false;
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(<RoomProfileEditor room={{ roomId: '!r:example.org' } as Room} />);
+  });
+  const topic = renderer.root.find(
+    (node) => node.type === 'span' && node.children.join('').includes('for the audit')
+  );
+  expect(topic.props.style).toMatchObject({ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
+  expect(renderer.root.findAllByType('button')).toHaveLength(0);
+  act(() => renderer.unmount());
+  permission.edit = true;
 });

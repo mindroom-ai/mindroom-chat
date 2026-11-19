@@ -16,6 +16,7 @@ import {
 import { Header, IconButton, Modal } from '../ui/glass/GlassPrimitives';
 import { PageScroll } from '../ui/page/PageScroll';
 import { stopPropagation } from '../lib/keyboard';
+import { TOPIC_TEXT_STYLE } from '../ui/styles/topicText';
 
 type RoomTopicViewerProps = {
   name: string;
@@ -28,12 +29,10 @@ const VIEWER_STYLE: CSSProperties = {
   width: `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(440)})`,
   maxHeight: `calc(100dvh - 2 * ${config.space.S400})`,
 };
-// Paragraphs and line breaks as the room's members wrote them; long links wrap.
 const TOPIC_STYLE: CSSProperties = {
   margin: 0,
   padding: `${config.space.S200} ${config.space.S400} ${config.space.S400}`,
-  whiteSpace: 'pre-wrap',
-  overflowWrap: 'anywhere',
+  ...TOPIC_TEXT_STYLE,
 };
 
 // The viewer closes on Escape, which it keeps from the room behind it, or a click outside.
