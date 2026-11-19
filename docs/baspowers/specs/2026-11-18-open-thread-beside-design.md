@@ -144,15 +144,19 @@ with the default layout opening B hid the room's messages. Three changes:
    `besideWhileSecond` to RoomView, and `columnFills` is
    `!!openThreadId && ((layout === 'full' && !besideWhileSecond) || !roomy)`. Nothing is stored;
    closing B brings the stored layout back. Meanwhile A's banner offers neither Show beside nor
-   Show in full (the second could not take effect while B shows).
+   Show in full, and A's splitter no expansion (neither could take effect while B shows). A voice
+   message being recorded as B closes keeps A beside until it is sent or discarded, so the room's
+   composer keeps its take.
 3. **Drag a card to open it in the second column** (mouse only). A Compact card the page offers
-   (`SecondThreadContext.offers`) is `draggable` with a fine pointer; its drag carries
-   `application/x-mindroom-thread` = `{ roomId, rootId }` (`navigation/secondThread.ts`, shared by
-   `threads` and `room`). `room/useThreadDrag.ts` tells a thread's drag by its type from window
-   `dragstart` until `dragend` or `drop` (Escape ends a drag too), and
-   `room/SecondThreadDropZone.tsx` shows a primary-tinted zone along the room row's end edge, as
-   wide as B's stored width or 480px and never wider than the row, fading in over 150 ms (none with
-   reduced motion), lit while the drag is over it. Dropping calls `SecondThreadContext.open`, so B
+   (`SecondThreadContext.offers`) turns `draggable` on a mouse press (not touch or pen); its drag
+   carries `application/x-mindroom-thread` = `{ roomId, rootId }` (`navigation/secondThread.ts`,
+   shared by `threads` and `room`). `room/useThreadDrag.ts` tells a thread's drag by its type from
+   window `dragstart` until `dragend` or `drop` (Escape ends a drag too), also hearing the card's
+   own `dragend` and ending as the card leaves the page, and `room/SecondThreadDropZone.tsx` shows
+   a primary-tinted zone along the room row's end edge, as wide as B's stored width or 480px and
+   never wider than the row, fading in over 150 ms (none with reduced motion), lit while the drag
+   is over it. Dropping calls `SecondThreadContext.open`, so B
    moves in through the panel presence, or replaces the B that shows. The zone is `aria-hidden`:
    the menu entry is the keyboard's way. Phones have no context, so neither drag nor zone. The
-   panel row is now positioned (`position: relative`) so the zone takes its edges.
+   panel row is now positioned (`position: relative`) so the zone takes its edges. A drag picked up
+   under the zone drops there only after leaving it once.
