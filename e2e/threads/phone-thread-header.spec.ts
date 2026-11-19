@@ -153,6 +153,12 @@ const seed = async () => {
   return { reader, roomId, roots };
 };
 type World = Awaited<ReturnType<typeof seed>>;
+// One room for the file's tests: the desktop reads a thread the phone leaves as it was.
+let seeded: Promise<World> | undefined;
+const seedOnce = () => {
+  seeded ??= seed();
+  return seeded;
+};
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -273,7 +279,7 @@ test("a phone's thread shows in the room header: back, room, marker, Resolve, ca
   baseURL,
 }) => {
   test.setTimeout(420_000);
-  const world = await seed();
+  const world = await seedOnce();
   const { context, page } = await signIn(browser, baseURL, world, PHONE);
   try {
     await openThread(page, world, 'long');
@@ -412,10 +418,10 @@ test('a desktop keeps the thread banner as a card under the room header', async 
   baseURL,
 }) => {
   test.setTimeout(300_000);
-  const world = await seed();
+  const world = await seedOnce();
   const { context, page } = await signIn(browser, baseURL, world, DESKTOP);
   try {
-    await openThread(page, world, 'long');
+    await openThread(page, world, 'busy');
     await expect(banner(page)).toHaveCount(1);
     await expect(page.locator('[data-thread-phone-header]')).toHaveCount(0);
     await expect(header(page).locator('[data-thread-context-banner]')).toHaveCount(0);
