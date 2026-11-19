@@ -4,6 +4,7 @@ import React, {
   lazy,
   Suspense,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -27,6 +28,7 @@ import * as overlay from '../../ui/styles/RoomOverlay.css';
 import { useThreadPinning } from '../../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { useInitializeShownThread } from '../useInitializeShownThread';
+import { SecondThreadContext, setThreadDragData } from '../../navigation/secondThread';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
@@ -116,6 +118,10 @@ type CompactThreadCardRowProps = {
   onOpenMenu: (menu: ThreadActionsMenuState) => void;
 };
 
+/** Whether a mouse or another fine pointer is at hand; a test renderer without media counts. */
+const hasFinePointer = (): boolean =>
+  globalThis.matchMedia?.('(any-pointer: fine)').matches ?? true;
+
 const CompactThreadCardRow = React.memo(
   ({
     room,
@@ -165,6 +171,10 @@ const CompactThreadCardRow = React.memo(
     const longPress = useLongPress(openMenuAt, (evt) =>
       evt.currentTarget.contains(evt.target as Node)
     );
+    // A card the room page could show in its second column drags there, with a mouse (a finger
+    // keeps its swipe and long press). A plain click still opens it: a drag needs the mouse to move.
+    const second = useContext(SecondThreadContext);
+    const draggable = !!second?.offers(roomId, rootId) && hasFinePointer();
 
     return (
       <div
@@ -172,6 +182,12 @@ const CompactThreadCardRow = React.memo(
         ref={shownRef}
         className={css.CardShell}
         data-scroll-anchor={rootId}
+        draggable={draggable || undefined}
+        onDragStart={
+          draggable
+            ? (event) => setThreadDragData(event.dataTransfer, { roomId, rootId })
+            : undefined
+        }
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();

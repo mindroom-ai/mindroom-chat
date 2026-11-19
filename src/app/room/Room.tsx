@@ -102,6 +102,7 @@ import {
 } from '../preferences/accountStorageKeys';
 import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
 import { SecondThreadPanel } from './SecondThreadPanel';
+import { SecondThreadDropZone } from './SecondThreadDropZone';
 import { useSecondThread } from './useSecondThread';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
@@ -940,6 +941,13 @@ function RoomContent() {
               </MessageLinkCards>
             </Box>
             {sidePanel}
+            {/* A thread card dragged on the page drops at the room's end edge into B. */}
+            {secondThread && (
+              <SecondThreadDropZone
+                widthKey={secondThreadWidthStorageKey(ownUserId)}
+                onOpen={secondThread.open}
+              />
+            )}
           </SecondThreadContext.Provider>
         </PluginPanelControlsContext.Provider>
       </ChatUiActionContext.Provider>

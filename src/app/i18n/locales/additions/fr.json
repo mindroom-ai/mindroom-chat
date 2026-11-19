@@ -1187,7 +1187,8 @@
     "renameHint": "Double-cliquez pour renommer",
     "close": "Fermer le fil",
     "resizeSecond": "Redimensionner le second fil",
-    "second": "Second fil"
+    "second": "Second fil",
+    "dropSecond": "Déposer pour ouvrir dans la seconde colonne"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",

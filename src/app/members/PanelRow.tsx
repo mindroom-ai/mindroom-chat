@@ -1,5 +1,6 @@
 import {
   createContext,
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useContext,
@@ -27,6 +28,9 @@ export const usePanelRowWidth = (): (() => number) => useContext(RowWidthContext
 /** The members panel's default width (ResizableMembersPanel) beside the conversation's minimum. */
 const MEMBERS_BESIDE_MIN_WIDTH = 266 + CONVERSATION_MIN_WIDTH;
 
+// Positioned, so what lies over the row (the second column's drop zone) takes its edges.
+const ROW_STYLE: CSSProperties = { minWidth: 0, minHeight: 0, position: 'relative' };
+
 /**
  * The row a room or a lobby lays out in: the conversation, and a side panel beside it. Narrower
  * than the members panel and the conversation together, it shows the members over the
@@ -51,7 +55,7 @@ export function PanelRow({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Box ref={rowRef} grow="Yes" style={{ minWidth: 0, minHeight: 0 }} data-panel-row>
+    <Box ref={rowRef} grow="Yes" style={ROW_STYLE} data-panel-row>
       {overlay !== undefined && (
         <MembersOverlayContext.Provider value={overlay}>
           <RowWidthContext.Provider value={rowWidth}>{children}</RowWidthContext.Provider>

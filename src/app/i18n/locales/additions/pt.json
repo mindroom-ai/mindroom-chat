@@ -1187,7 +1187,8 @@
     "renameHint": "Faça duplo clique para mudar o nome",
     "close": "Fechar o tópico",
     "resizeSecond": "Redimensionar o segundo tópico",
-    "second": "Segundo tópico"
+    "second": "Segundo tópico",
+    "dropSecond": "Solte para abrir na segunda coluna"
   },
   "threadSnooze": {
     "title": "Adiar até",

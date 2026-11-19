@@ -1167,7 +1167,8 @@
     "renameHint": "Dubbelklik om de naam te wijzigen",
     "close": "Thread sluiten",
     "resizeSecond": "Breedte van de tweede thread wijzigen",
-    "second": "Tweede thread"
+    "second": "Tweede thread",
+    "dropSecond": "Loslaten om in tweede kolom te openen"
   },
   "threadSnooze": {
     "title": "Snoozen tot",

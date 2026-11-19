@@ -1147,7 +1147,8 @@
     "renameHint": "双击以重命名",
     "close": "关闭讨论串",
     "resizeSecond": "调整第二个讨论串大小",
-    "second": "第二个讨论串"
+    "second": "第二个讨论串",
+    "dropSecond": "松开以在第二栏打开"
   },
   "threadSnooze": {
     "title": "延后至",

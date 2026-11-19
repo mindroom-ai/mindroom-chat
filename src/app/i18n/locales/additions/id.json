@@ -1147,7 +1147,8 @@
     "renameHint": "Klik dua kali untuk mengganti nama",
     "close": "Tutup utas",
     "resizeSecond": "Ubah ukuran utas kedua",
-    "second": "Utas kedua"
+    "second": "Utas kedua",
+    "dropSecond": "Lepas untuk membuka di kolom kedua"
   },
   "threadSnooze": {
     "title": "Tunda hingga",

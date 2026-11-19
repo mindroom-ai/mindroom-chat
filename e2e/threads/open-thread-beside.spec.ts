@@ -13,7 +13,8 @@ import {
 // (B) in a second column, a side panel of the room with its own banner, timeline and composer. On
 // a wide page the room's messages stay beside A while B shows (three columns), whatever layout is
 // stored; narrower, A fills the page beside B. B survives a reload, Close removes it and takes the
-// focus back to A's composer, the stored layout holding again, and a phone does not offer it.
+// focus back to A's composer, the stored layout holding again. A card dragged to the room's end
+// edge opens there too, and a phone does not offer it.
 
 const column = (page: Page): Locator => page.getByTestId('thread-column');
 const second = (page: Page): Locator => page.getByTestId('second-thread-panel');
@@ -59,6 +60,7 @@ test('Open in second column shows a second thread in its own column at each widt
   };
   const alpha = await thread('Example thread alpha');
   const beta = await thread('Example thread beta');
+  const gamma = await thread('Example thread gamma');
 
   await page.setViewportSize({ width: 1920, height: 1080 });
   await loginWithPassword(page, { homeserver, ...credentials });
@@ -128,6 +130,39 @@ test('Open in second column shows a second thread in its own column at each widt
   expect(
     await page.evaluate(() => window.localStorage.getItem('mindroom.threadColumn.layout'))
   ).not.toBe('"beside"');
+
+  // A card dragged with the mouse to the room's end edge opens there in the second column, and
+  // replaces the one it shows. Playwright's dragTo finds its target before the drag starts, and
+  // the drop zone shows only during one, so the mouse drags step by step.
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+  await expect(card(page, gamma)).toBeVisible({ timeout: 30_000 });
+  await expect(second(page)).toHaveCount(0);
+  const dropZone = page.getByTestId('second-thread-drop-zone');
+  const dragCard = async (rootId: string) => {
+    const from = await card(page, rootId).boundingBox();
+    if (!from) throw new Error('the card has no box');
+    const x = from.x + from.width / 4;
+    const y = from.y + from.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 24, y + 8, { steps: 4 });
+    await expect(dropZone).toBeVisible();
+    const to = await dropZone.boundingBox();
+    if (!to) throw new Error('the drop zone has no box');
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await expect(dropZone).toHaveAttribute('data-over', 'true');
+    await page.mouse.up();
+    await expect(dropZone).toHaveCount(0);
+  };
+  await dragCard(gamma);
+  await expect(second(page).getByText('Example thread gamma reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await dragCard(alpha);
+  await expect(second(page).getByText('Example thread alpha reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(second(page).getByText('Example thread gamma reply')).toHaveCount(0);
 
   // A phone does not offer it.
   await page.setViewportSize({ width: 390, height: 844 });

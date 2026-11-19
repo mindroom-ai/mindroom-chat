@@ -1167,7 +1167,8 @@
     "renameHint": "Yeniden adlandırmak için çift tıklayın",
     "close": "Konuyu kapat",
     "resizeSecond": "İkinci konuyu yeniden boyutlandır",
-    "second": "İkinci konu"
+    "second": "İkinci konu",
+    "dropSecond": "İkinci sütunda açmak için bırakın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
