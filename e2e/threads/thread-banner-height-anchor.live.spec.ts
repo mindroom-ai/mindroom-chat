@@ -168,60 +168,66 @@ const resolve = ({ homeserver, session, roomId, rootId }: Fixture, resolved: boo
     resolved ? { set_by: session.userId, set_at: new Date().toISOString() } : {}
   );
 
-test.describe('thread banner height changes keep the reader in place', () => {
-  test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
-  test.setTimeout(180_000);
+// A phone's room header holds the banner: its height is the inset above the rows there, and the
+// layout that measures it hands each change to the same hold.
+for (const phone of [false, true]) {
+  const where = phone ? ", in a phone's room header" : '';
+  test.describe(`thread banner height changes keep the reader in place${where}`, () => {
+    if (phone) test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
+    test.setTimeout(180_000);
 
-  test('a thread summary arriving keeps a mid-thread reader in place', async ({ page }) => {
-    const diagnostics = attachBrowserDiagnostics(page);
-    // A title replaces the "Thread View" eyebrow in the same row; with a tag,
-    // the eyebrow row stays for the tags and the title adds a row below it.
-    const fixture = await openThread(page, { tagged: true });
-    await scrollMidThread(page);
-    await expectReaderHeld(page, async () => {
-      await sendRoomMessage(fixture.homeserver, fixture.session.accessToken, fixture.roomId, {
-        msgtype: 'm.notice',
-        body: 'Banner anchor summary',
-        'io.mindroom.thread_summary': {
-          version: 1,
-          summary: 'Banner anchor summary',
-          generated_at: Date.now(),
-          message_count: REPLY_COUNT,
-        },
-        'm.relates_to': threadRelation(fixture.rootId),
+    test('a thread summary arriving keeps a mid-thread reader in place', async ({ page }) => {
+      const diagnostics = attachBrowserDiagnostics(page);
+      // A title replaces the "Thread View" eyebrow in the same row; with a tag,
+      // the eyebrow row stays for the tags and the title adds a row below it.
+      const fixture = await openThread(page, { tagged: true });
+      await scrollMidThread(page);
+      await expectReaderHeld(page, async () => {
+        await sendRoomMessage(fixture.homeserver, fixture.session.accessToken, fixture.roomId, {
+          msgtype: 'm.notice',
+          body: 'Banner anchor summary',
+          'io.mindroom.thread_summary': {
+            version: 1,
+            summary: 'Banner anchor summary',
+            generated_at: Date.now(),
+            message_count: REPLY_COUNT,
+          },
+          'm.relates_to': threadRelation(fixture.rootId),
+        });
       });
+      await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-banner-summary');
     });
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-banner-summary');
-  });
 
-  // Banner state of its own: no timeline commit carries these changes.
-  test('resolving and reopening the thread keeps a mid-thread reader in place', async ({
-    page,
-  }) => {
-    const diagnostics = attachBrowserDiagnostics(page);
-    const fixture = await openThread(page);
-    await scrollMidThread(page);
-    await expectReaderHeld(page, () => resolve(fixture, true));
-    await expectReaderHeld(page, () => resolve(fixture, false));
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-banner-resolve');
-  });
-
-  // A shrink that reached layout before its fold would clamp the scroll here.
-  test('a reader at the latest reply stays there as the banner grows and shrinks', async ({
-    page,
-  }) => {
-    const diagnostics = attachBrowserDiagnostics(page);
-    const fixture = await openThread(page);
-    // The opening can rest a few pixels short of the bottom.
-    await scroller(page).evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
+    // Banner state of its own: no timeline commit carries these changes.
+    test('resolving and reopening the thread keeps a mid-thread reader in place', async ({
+      page,
+    }) => {
+      const diagnostics = attachBrowserDiagnostics(page);
+      const fixture = await openThread(page);
+      await scrollMidThread(page);
+      await expectReaderHeld(page, () => resolve(fixture, true));
+      await expectReaderHeld(page, () => resolve(fixture, false));
+      await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-banner-resolve');
     });
-    await waitForRest(page);
-    expect(await bottomGap(page)).toBeLessThan(1);
-    await expectReaderHeld(page, () => resolve(fixture, true));
-    expect(await bottomGap(page)).toBeLessThan(1);
-    await expectReaderHeld(page, () => resolve(fixture, false));
-    expect(await bottomGap(page)).toBeLessThan(1);
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-banner-latest');
+
+    // A shrink that reached layout before its fold would clamp the scroll here.
+    test('a reader at the latest reply stays there as the banner grows and shrinks', async ({
+      page,
+    }) => {
+      const diagnostics = attachBrowserDiagnostics(page);
+      const fixture = await openThread(page);
+      // The opening can rest a few pixels short of the bottom.
+      await scroller(page).evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await waitForRest(page);
+      expect(await bottomGap(page)).toBeLessThan(1);
+      await expectReaderHeld(page, () => resolve(fixture, true));
+      expect(await bottomGap(page)).toBeLessThan(1);
+      await expectReaderHeld(page, () => resolve(fixture, false));
+      expect(await bottomGap(page)).toBeLessThan(1);
+      await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-banner-latest');
+    });
   });
-});
+}
