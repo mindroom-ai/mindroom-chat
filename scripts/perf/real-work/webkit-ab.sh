@@ -2,12 +2,13 @@
 # Throwaway: one job that runs the real-work spec several times on one slot, one engine per run,
 # with the history made once. Runs on the host in the job's worktree (remote-test.sh exec).
 #   WK_SLOT   the e2e slot
-#   WK_ORDER  engines in order, e.g. "chromium webkit chromium webkit"
+#   WK_ORDER  engines in order, e.g. chromium,webkit,chromium,webkit
 #   WK_RUN    the run directory's name under /tmp
 # Results: test-results/perf/run<i>-<engine>/ in the job's worktree.
 set -u
 slot=${WK_SLOT:?}
 order=${WK_ORDER:?}
+order=${order//,/ }
 run=${WK_RUN:?}
 case "$run" in wk-*) ;; *) echo "webkit-ab: bad WK_RUN" >&2; exit 2 ;; esac
 run_dir=/tmp/$run
