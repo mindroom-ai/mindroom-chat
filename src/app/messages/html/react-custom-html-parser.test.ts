@@ -707,8 +707,7 @@ describe('tool call status from approval cards', () => {
   it('says in words which calls failed, on the run line and on the call', () => {
     const renderCalls = (failed: boolean) => {
       const opts = markerParserOptions(createBaseOpts(), {
-        formatted_body:
-          '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>',
+        formatted_body: '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>',
         'io.mindroom.tool_trace': {
           version: 2,
           events: [
@@ -728,16 +727,15 @@ describe('tool call status from approval cards', () => {
           React.createElement(
             ToolCallMessageContext.Provider,
             { value: { eventId: '$reply' } },
-            parse(
-              '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>',
-              opts
-            )
+            parse('<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>schedule</code> [2]</p>', opts)
           )
         );
       });
       const tree = renderer as ReactTestRenderer;
       // The run's line opens its panel, which shows each call.
-      act(() => tree.root.findByType('button').props.onClick());
+      act(() => {
+        tree.root.findByType('button').props.onClick();
+      });
       return collectTextContent(tree.toJSON());
     };
     approvals.current = { records: [], now: 0 };
