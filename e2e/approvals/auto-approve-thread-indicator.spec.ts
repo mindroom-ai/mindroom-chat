@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { expect, test, type BrowserContext } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendStateEvent } from '../helpers/matrix';
@@ -246,6 +247,33 @@ test('the thread header says whose tool calls run without approval cards, and un
     expect(await under(status, options)).toBe(true);
   }
   await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
+
+  // Under a keyboard the room area is short. The header keeps both approval controls there,
+  // which nothing else offers, and gives the line of who resolved the thread away.
+  await page.setViewportSize({ width: 667, height: 375 });
+  await banner.getByRole('button', { name: 'Resolve', exact: true }).click();
+  const byline = banner.locator('[data-thread-resolution-byline="true"]');
+  await expect(byline).toBeVisible();
+  await page.setViewportSize({ width: 667, height: 280 });
+  await expect(byline).toBeHidden();
+  for (const status of [chip, permissions]) {
+    await expect(status).toBeInViewport();
+    expect(await under(status, options)).toBe(true);
+    expect(await fullText(status)).toBe(true);
+  }
+  const shots = process.env.PHONE_HEADER_SHOTS;
+  await page.screenshot({
+    path: shots
+      ? path.join(shots, 'phone-short-area-approvals.png')
+      : testInfo.outputPath('phone-short-area-light.png'),
+  });
+  await permissions.click();
+  const grants = page.getByRole('dialog', { name: 'Active permissions' });
+  await expect(grants).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(grants).toHaveCount(0);
+  await banner.getByRole('button', { name: 'Resolved', exact: true }).click();
+  await expect(byline).toHaveCount(0);
   await page.setViewportSize({ width: 1280, height: 800 });
 
   // A phone held sideways, wider than a phone's layout, keeps the banner card, which puts the chips

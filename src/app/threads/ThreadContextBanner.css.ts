@@ -1,4 +1,4 @@
-import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color, DefaultReset, toRem } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { roomArea } from '../ui/styles/roomArea.css';
@@ -441,8 +441,10 @@ export const PhonePin = style({
   height: config.lineHeight.H5,
 });
 
-// What is set on the thread (auto-approval, a schedule, a snooze, who resolved it) takes a row
-// under the title, and no room while there is none.
+// What is set on the thread (auto-approval, active permissions, a schedule, a snooze, who
+// resolved it) takes a row under the title, and no room while there is none. Under a keyboard
+// it keeps the two approval controls, which nothing else offers, and gives the rest away.
+const approvalControl = '[data-thread-status-chip]';
 export const PhoneStatus = style({
   display: 'flex',
   flexWrap: 'wrap',
@@ -452,6 +454,11 @@ export const PhoneStatus = style({
   marginTop: config.space.S100,
   paddingInline: config.space.S400,
   selectors: { '&:empty': { display: 'none' } },
+  '@container': {
+    [shortArea]: { selectors: { [`&:not(:has(> ${approvalControl}))`]: { display: 'none' } } },
+  },
+});
+globalStyle(`${PhoneStatus} > :not(${approvalControl})`, {
   '@container': { [shortArea]: { display: 'none' } },
 });
 

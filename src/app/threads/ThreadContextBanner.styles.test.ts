@@ -22,6 +22,7 @@ vi.mock('@vanilla-extract/css', () => ({
     return name;
   },
   keyframes: () => 'keyframes',
+  globalStyle: (selector: string, rule: unknown) => rules.set(selector, rule),
 }));
 vi.mock('../ui/styles/Glass.css', () => ({
   glassSurface: () => 'glass',
@@ -70,9 +71,18 @@ it("bounds a phone header's title block, which scrolls in itself, and keeps one 
   });
   // At least three lines, else 38% of the room area's height.
   expect(block.maxBlockSize).toMatch(/^max\(calc\(3 \* .+\), 38cqh\)$/);
-  // What is set on the thread gives its row away there too.
-  expect(rules.get(PhoneStatus)).toMatchObject({
+});
+
+it('keeps the approval controls in a short area, and gives the rest of the status row away', () => {
+  const control = '[data-thread-status-chip]';
+  // The schedule, the snooze and the resolver leave; the auto-approve chip and the active
+  // permissions button, which nothing else offers, stay.
+  expect(rules.get(`${PhoneStatus} > :not(${control})`)).toEqual({
     '@container': { [SHORT]: { display: 'none' } },
+  });
+  // The row takes no room while neither control shows, and is never hidden whole.
+  expect((rules.get(PhoneStatus) as StyleRule)['@container']).toEqual({
+    [SHORT]: { selectors: { [`&:not(:has(> ${control}))`]: { display: 'none' } } },
   });
 });
 
