@@ -179,7 +179,7 @@ vi.mock('../../ui/IconTooltip', () => ({
     children(() => undefined),
 }));
 
-vi.mock('../../background-jobs/useRoomBackgroundJobs', () => ({
+vi.mock('../../matrix/hooks/useRoomBackgroundJobs', () => ({
   useRoomBackgroundJobs: () => ({
     jobs: testState.backgroundJobs,
     total: testState.backgroundJobs.length,

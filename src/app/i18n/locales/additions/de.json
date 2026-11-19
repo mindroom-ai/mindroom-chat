@@ -988,7 +988,26 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} Hintergrundaufgaben ({{shown}} angezeigt)",
       "finished": "Abgeschlossen: {{tool}}",
-      "jobCountFinished": "{{count}} Hintergrundaufgaben abgeschlossen"
+      "jobCountFinished": "{{count}} Hintergrundaufgaben abgeschlossen",
+      "groupSubagents": "Sub-Agenten · {{number}}",
+      "groupTools": "Werkzeuge · {{number}}",
+      "tools_one": "{{count}} Werkzeug",
+      "tools_other": "{{count}} Werkzeuge",
+      "needApproval_one": "{{count}} braucht Freigabe",
+      "needApproval_other": "{{count}} brauchen Freigabe",
+      "toolCalls_one": "{{count}} Werkzeugaufruf",
+      "toolCalls_other": "{{count}} Werkzeugaufrufe",
+      "tokens_one": "{{tokens}} Token",
+      "tokens_other": "{{tokens}} Tokens",
+      "started": "Gestartet {{time}}",
+      "open": "Öffnen",
+      "openFor": "Öffnen: {{name}}",
+      "column": {
+        "calls": "Aufrufe",
+        "tokens": "Tokens",
+        "cost": "Kosten",
+        "time": "Zeit"
+      }
     },
     "subagents": {
       "title": "Sub-Agenten",

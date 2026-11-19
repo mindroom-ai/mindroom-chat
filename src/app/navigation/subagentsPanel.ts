@@ -5,20 +5,31 @@ type Store = ReturnType<typeof useStore>;
 
 /**
  * The room whose Sub-agents side panel is open, and the conversation it was opened for (a thread
- * root's ID, or `null` the room's own timeline), when it was opened for a run's. Every opening is
- * a new value, so the room hears one for a panel that already shows (folded, it unfolds).
+ * root's ID, or `null` the room's own timeline), when it was opened for a run's, with the run
+ * it then shows. Every opening is a new value, so the room hears one for a panel that already
+ * shows (folded, it unfolds).
  */
-export const subagentsPanelAtom = atom<{ roomId: string; threadId?: string | null } | undefined>(
-  undefined
-);
+export const subagentsPanelAtom = atom<
+  { roomId: string; threadId?: string | null; run?: string } | undefined
+>(undefined);
 
 /**
  * Opens the room's Sub-agents panel, as the header's toggle and a sub-agent job in the jobs bar do;
  * the room then closes its other panels by their rule (src/app/ui/panels/roomPanels.ts). Given the
- * conversation of the job's run, the room shows that conversation, whose runs alone the panel lists.
+ * conversation of the job's run, the room shows that conversation, whose runs alone the panel lists;
+ * given its run too, the panel shows that run's sub-agent at that run, once it has it.
  */
-export const openSubagentsPanel = (store: Store, roomId: string, threadId?: string | null): void =>
-  store.set(subagentsPanelAtom, threadId === undefined ? { roomId } : { roomId, threadId });
+export const openSubagentsPanel = (
+  store: Store,
+  roomId: string,
+  threadId?: string | null,
+  run?: string
+): void =>
+  store.set(subagentsPanelAtom, {
+    roomId,
+    ...(threadId === undefined ? {} : { threadId }),
+    ...(run === undefined ? {} : { run }),
+  });
 
 /**
  * The conversation the room must show so that the panel, opened for `requested`, lists its runs:

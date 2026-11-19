@@ -1,5 +1,6 @@
 import type { Room } from 'matrix-js-sdk';
-import { Chip, Icon, Icons, Text } from 'folds';
+import { Icon, Icons, Spinner, Text } from 'folds';
+import { IconPlayerStopFilled } from '@tabler/icons-react';
 import classNames from 'classnames';
 import React, {
   useCallback,
@@ -18,19 +19,24 @@ import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
+import {
+  BackgroundJobRow,
+  BackgroundJobsSummary,
+  JobElapsed,
+  JobLogo,
+  OpenButton,
+} from './BackgroundJobRow';
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';
 import { forgetCancel, keepCancelsOf, markCancelSent, useSentCancels } from './sentCancels';
-import { useRoomBackgroundJobs } from './useRoomBackgroundJobs';
+import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import { useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
+import { useJobLookups } from './useJobLookups';
 
 type BackgroundJobsBarProps = {
   room: Room;
   threadId: string | null;
   // Whether the viewer may send the cancel event here; without it the jobs show without controls.
   canCancel: boolean;
-  // Whether the room's Sub-agents panel has runs; only then do sub-agent jobs link to it, since
-  // older backends announce the jobs without sending the panel's frames.
-  subagentRuns: boolean;
 };
 
 // The last failed cancel of a job, with the view it was sent from, where it shows.
@@ -43,12 +49,7 @@ type OpenMode = 'hover' | 'pinned';
  * The view's background jobs above the composer, on one line: one job with Stop, or several with
  * Stop all, which list each job with its own Stop on hover or when the title is pressed.
  */
-export function BackgroundJobsBar({
-  room,
-  threadId,
-  canCancel,
-  subagentRuns,
-}: BackgroundJobsBarProps) {
+export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const store = useStore();
@@ -74,6 +75,15 @@ export function BackgroundJobsBar({
 
   const [open, setOpen] = useState<OpenMode>();
   const expanded = several && !!open;
+  // Only listed rows show the tool jobs' calls, so a folded bar reads none.
+  const lookups = useJobLookups(room, jobs, expanded);
+  // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
+  const ended = useRef(new Map<string, number>()).current;
+  const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
+    if (finished && !ended.has(jobId))
+      ended.set(jobId, (run?.meta.endedAt ?? Date.now() / 1000) * 1000);
+    return finished ? ended.get(jobId) : undefined;
+  };
   const anchor = useRef<HTMLDivElement>(null);
   // While listed, the bar keeps its one-line place in the footer and grows over the timeline,
   // so the timeline, which pads itself for the footer, does not move under the pointer.
@@ -141,7 +151,7 @@ export function BackgroundJobsBar({
 
   // The agents count their live jobs per room, so only the main timeline knows of jobs they do not list.
   const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
-  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total);
+  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups);
   if (!model) return null;
   const stoppable = model.items.filter((item) => !item.stopping && !item.finished);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
@@ -179,40 +189,53 @@ export function BackgroundJobsBar({
       t('mindroomUi.backgroundJobs.stopAllFailed')
     );
   };
-  // Stop and Stop all are text on the bar's own material: no control adds a fill, rim or border.
-  // A row's Stop is regular weight, under the bar's own Stop or Stop all. A finished job has none.
-  const stop = (item: BackgroundJobsBarItem, inRow: boolean) =>
-    !item.finished &&
-    (item.stopping ? (
-      <Text as="span" size="T200" className={css.Stopping}>
-        {t('mindroomUi.backgroundJobs.stopping')}
-      </Text>
-    ) : (
-      canCancel && (
-        <Chip
-          key={item.jobId}
-          type="button"
-          variant="SurfaceVariant"
-          fill="None"
-          radii="Pill"
-          className={css.Plain}
-          aria-label={t('mindroomUi.backgroundJobs.stopJob', { tool: item.name })}
-          data-cancel-job
-          onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-            stopJob(item, event.currentTarget)
-          }
-        >
-          <Text size={inRow ? 'T200' : 'B300'}>{t('mindroomUi.backgroundJobs.stop')}</Text>
-        </Chip>
-      )
-    ));
+  // Stop and Stop all are icon buttons on the bar's own material, red under the pointer. A
+  // stopping job shows a spinner in its Stop's place; a finished job has none.
+  const stop = (item: BackgroundJobsBarItem) => {
+    if (item.finished) return null;
+    if (item.stopping) {
+      return (
+        <span className={css.Stopping} title={t('mindroomUi.backgroundJobs.stopping')}>
+          <Spinner size="100" variant="Secondary" aria-hidden />
+          <span className={css.VisuallyHidden}>{t('mindroomUi.backgroundJobs.stopping')}</span>
+        </span>
+      );
+    }
+    if (!canCancel) return null;
+    const label = t('mindroomUi.backgroundJobs.stopJob', { tool: item.name });
+    return (
+      <button
+        key={item.jobId}
+        type="button"
+        className={css.StopButton}
+        aria-label={label}
+        title={t('mindroomUi.backgroundJobs.stop')}
+        data-cancel-job
+        onClick={(event) => stopJob(item, event.currentTarget)}
+      >
+        <IconPlayerStopFilled size={16} aria-hidden />
+      </button>
+    );
+  };
   const [single] = model.items;
   const finished = model.items.every((item) => item.finished);
+  // A sub-agent job whose run the Sub-agents panel has opens it there, on that run.
+  const openRun = (item: BackgroundJobsBarItem) => {
+    const run = item.run?.run;
+    return run && (() => openSubagentsPanel(store, room.roomId, item.threadId, run));
+  };
+  const openSingle = single && openRun(single);
   // Only the title text is live, so a change is announced once, not with the button around it.
   const status = (
     <>
-      <Icon src={finished ? Icons.Check : Icons.Clock} size="50" aria-hidden />
-      <Text as="span" size="T200" truncate role="status" title={model.title}>
+      {several ? (
+        <span className={css.TitleIcon}>
+          <Icon src={finished ? Icons.Check : Icons.Clock} size="100" aria-hidden />
+        </span>
+      ) : (
+        <JobLogo room={room} item={single!} small />
+      )}
+      <Text as="span" size="T200" truncate role="status" title={model.title} className={css.Title}>
         {model.title}
       </Text>
     </>
@@ -278,22 +301,18 @@ export function BackgroundJobsBar({
               onClick={() => (open === 'pinned' ? hide() : show('pinned'))}
             >
               {status}
-              <Icon src={Icons.ChevronTop} size="50" className={css.Chevron} aria-hidden />
+              <BackgroundJobsSummary room={room} model={model} />
+              <span className={css.Chevron}>
+                <Icon src={Icons.ChevronTop} size="100" aria-hidden />
+              </span>
             </button>
           ) : (
             <>
               {status}
-              {single?.subagent && subagentRuns && (
+              <JobElapsed startedAt={single!.startedAt} endedAt={endedAt(single!)} />
+              {openSingle && (
                 // Beside the title, which stays the live status, not inside a button around it.
-                <button
-                  type="button"
-                  className={css.TitleLink}
-                  onClick={() => openSubagentsPanel(store, room.roomId, single.threadId)}
-                >
-                  <Text as="span" size="B300">
-                    {t('mindroomUi.subagents.show')}
-                  </Text>
-                </button>
+                <OpenButton name={single.name} onOpen={openSingle} />
               )}
             </>
           )}
@@ -301,57 +320,67 @@ export function BackgroundJobsBar({
         {expanded && (
           // Shown above the title, so the title and Stop all stay under the pointer, but read and
           // reached right after the title, before Stop all. Focus in the list keeps it listed.
-          // Lists without bullets keep their role in WebKit only when it is stated.
-          // eslint-disable-next-line jsx-a11y/no-redundant-roles
-          <ul id={listId} role="list" className={css.Jobs} onFocus={() => setOpen('pinned')}>
-            {model.items.map((item) => (
-              <li key={item.jobId} className={css.Job}>
-                {item.subagent && subagentRuns ? (
-                  // A sub-agent's run shows in the room's Sub-agents panel, which its name opens;
-                  // its title says so, while its name stays the job's.
-                  <button
-                    type="button"
-                    className={css.LabelButton}
-                    title={t('mindroomUi.subagents.showFor', { name: item.name })}
-                    onClick={() => openSubagentsPanel(store, room.roomId, item.threadId)}
-                  >
-                    <Text as="span" size="T200" truncate>
-                      {item.name}
-                    </Text>
-                  </button>
-                ) : (
-                  <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
-                    {item.name}
-                  </Text>
-                )}
-                {item.waiting && !item.stopping && (
-                  <Text as="span" size="T200" truncate className={css.Muted}>
-                    {t('mindroomUi.backgroundJobs.waiting')}
-                  </Text>
-                )}
-                {stop(item, true)}
-              </li>
+          // Sub-agents and tools are lists of their own, headed when both show.
+          <div id={listId} className={css.Jobs} onFocus={() => setOpen('pinned')}>
+            {model.groups.map((group) => (
+              <React.Fragment key={group.kind}>
+                {/* The group's name, when both show, over the names of its number columns. */}
+                <div className={css.GroupHeading}>
+                  {model.groups.length > 1 ? (
+                    <h3 className={css.GroupName} id={`${listId}-${group.kind}`}>
+                      {t(
+                        group.kind === 'subagent'
+                          ? 'mindroomUi.backgroundJobs.groupSubagents'
+                          : 'mindroomUi.backgroundJobs.groupTools',
+                        { number: group.items.length }
+                      )}
+                    </h3>
+                  ) : (
+                    <span className={css.GroupName} />
+                  )}
+                  {(['calls', 'tokens', 'cost'] as const).map((column) => (
+                    <span key={column} className={css.StatColumn} aria-hidden>
+                      {group.kind === 'subagent' && t(`mindroomUi.backgroundJobs.column.${column}`)}
+                    </span>
+                  ))}
+                  <span className={css.ColumnName} aria-hidden>
+                    {t('mindroomUi.backgroundJobs.column.time')}
+                  </span>
+                </div>
+                {/* Lists without bullets keep their role in WebKit only when it is stated. */}
+                {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
+                <ul
+                  role="list"
+                  className={css.JobList}
+                  aria-labelledby={model.groups.length > 1 ? `${listId}-${group.kind}` : undefined}
+                >
+                  {group.items.map((item) => (
+                    <BackgroundJobRow
+                      key={item.jobId}
+                      room={room}
+                      item={item}
+                      viewThreadId={threadId}
+                      endedAt={endedAt(item)}
+                      onOpen={openRun(item) || undefined}
+                      stop={stop(item)}
+                    />
+                  ))}
+                </ul>
+              </React.Fragment>
             ))}
-          </ul>
+          </div>
         )}
         <div className={css.Action}>
           {several
             ? canCancel &&
               stoppable.length > 0 && (
                 // Its own button, so a focused Stop never turns into Stop all when a job arrives.
-                <Chip
-                  key="all"
-                  type="button"
-                  variant="SurfaceVariant"
-                  fill="None"
-                  radii="Pill"
-                  className={css.Plain}
-                  onClick={stopAll}
-                >
-                  <Text size="B300">{t('mindroomUi.backgroundJobs.stopAll')}</Text>
-                </Chip>
+                <button key="all" type="button" className={css.StopAll} onClick={stopAll}>
+                  <IconPlayerStopFilled size={16} aria-hidden />
+                  {t('mindroomUi.backgroundJobs.stopAll')}
+                </button>
               )
-            : !single!.stopping && stop(single!, false)}
+            : !single!.stopping && stop(single!)}
         </div>
         {shownFailures.length > 0 && (
           <Text as="small" size="T200" role="alert" className={css.Alert}>

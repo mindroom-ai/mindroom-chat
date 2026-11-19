@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
+import { useAtomValue } from 'jotai';
 import { useInterval } from '../lib/hooks/useInterval';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
@@ -16,6 +17,7 @@ import {
   type SubagentRun,
 } from '../messages/live/subagentRunStore';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
+import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { SubagentRunCard, latestTurn, type SubagentNode } from './SubagentRunCard';
@@ -114,6 +116,17 @@ export function SubagentsPanel({
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId === null ? undefined : byId.get(openId);
   const section = useRef<HTMLElement>(null);
+  // Opened for a sub-agent (Open in the jobs bar), the panel shows its run, once it lists it: the
+  // room may first have to show the run's conversation. Each opening asks once.
+  const opened = useAtomValue(subagentsPanelAtom);
+  const asked = useRef<typeof opened>();
+  useEffect(() => {
+    const wanted = opened?.roomId === room.roomId ? opened.run : undefined;
+    const subagent = runs.find(({ run }) => run === wanted)?.meta.subagent;
+    if (asked.current === opened || subagent === undefined || !byId.has(subagent)) return;
+    asked.current = opened;
+    setOpenId(subagent);
+  }, [byId, opened, room.roomId, runs]);
   // A sub-agent the store let go (no frame for a while) closes, so its next frame does not reopen
   // it; the focus its view held goes to the panel, not the page.
   useEffect(() => {

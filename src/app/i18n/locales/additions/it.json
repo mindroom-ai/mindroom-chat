@@ -1004,7 +1004,30 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)",
       "finished": "Completato: {{tool}}",
-      "jobCountFinished": "{{count}} attività in background completate"
+      "jobCountFinished": "{{count}} attività in background completate",
+      "groupSubagents": "Sottoagenti · {{number}}",
+      "groupTools": "Strumenti · {{number}}",
+      "tools_one": "{{count}} strumento",
+      "tools_many": "{{count}} strumenti",
+      "tools_other": "{{count}} strumenti",
+      "needApproval_one": "{{count}} richiede approvazione",
+      "needApproval_many": "{{count}} richiedono approvazione",
+      "needApproval_other": "{{count}} richiedono approvazione",
+      "toolCalls_one": "{{count}} chiamata a strumento",
+      "toolCalls_many": "{{count}} chiamate a strumenti",
+      "toolCalls_other": "{{count}} chiamate a strumenti",
+      "tokens_one": "{{tokens}} token",
+      "tokens_many": "{{tokens}} token",
+      "tokens_other": "{{tokens}} token",
+      "started": "Avviato {{time}}",
+      "open": "Apri",
+      "openFor": "Apri {{name}}",
+      "column": {
+        "calls": "Chiamate",
+        "tokens": "Token",
+        "cost": "Costo",
+        "time": "Tempo"
+      }
     },
     "subagents": {
       "title": "Sottoagenti",

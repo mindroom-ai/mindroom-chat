@@ -60,6 +60,31 @@ describe('parseBackgroundJobsStateEvent', () => {
     ]);
   });
 
+  it("reads a delegation job's sub-agent and run, and a tool job's call", () => {
+    const [delegation, tool] = parseBackgroundJobsStateEvent(
+      jobsEvent([
+        job('job_1', { kind: 'subagent', subagent: 's1', run: 'd1' }),
+        job('job_2', { tool_call_id: 'call_1' }),
+      ])
+    );
+    expect(delegation).toMatchObject({ subagent: 's1', run: 'd1' });
+    expect(delegation).not.toHaveProperty('toolCallId');
+    expect(tool).toMatchObject({ toolCallId: 'call_1' });
+    expect(tool).not.toHaveProperty('subagent');
+  });
+
+  it.each([
+    ['missing', {}],
+    ['empty', { subagent: '', run: '', tool_call_id: '' }],
+    ['of the wrong type', { subagent: 7, run: null, tool_call_id: ['call_1'] }],
+  ])('keeps a job whose join keys are %s, without them', (_name, keys) => {
+    const [parsed] = parseBackgroundJobsStateEvent(jobsEvent([job('job_1', keys)]));
+    expect(parsed?.jobId).toBe('job_1');
+    expect(parsed).not.toHaveProperty('subagent');
+    expect(parsed).not.toHaveProperty('run');
+    expect(parsed).not.toHaveProperty('toolCallId');
+  });
+
   it('maps a missing thread to the main timeline', () => {
     const [parsed] = parseBackgroundJobsStateEvent(jobsEvent([job('job_1', { thread_id: null })]));
     expect(parsed!.threadId).toBeNull();

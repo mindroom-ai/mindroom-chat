@@ -972,7 +972,22 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})",
       "finished": "Selesai: {{tool}}",
-      "jobCountFinished": "{{count}} tugas latar belakang selesai"
+      "jobCountFinished": "{{count}} tugas latar belakang selesai",
+      "groupSubagents": "Subagen · {{number}}",
+      "groupTools": "Alat · {{number}}",
+      "tools_other": "{{count}} alat",
+      "needApproval_other": "{{count}} perlu persetujuan",
+      "toolCalls_other": "{{count}} panggilan alat",
+      "tokens_other": "{{tokens}} token",
+      "started": "Dimulai {{time}}",
+      "open": "Buka",
+      "openFor": "Buka {{name}}",
+      "column": {
+        "calls": "Panggilan",
+        "tokens": "Token",
+        "cost": "Biaya",
+        "time": "Waktu"
+      }
     },
     "subagents": {
       "title": "Subagen",

@@ -167,10 +167,10 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 4 | `avatars`, `models`, `navigation`, `plugins`, `rich-text`, `server-admin`, `ui-actions` |
 | 5 | `computer`, `emoji`, `event-store` |
 | 6 | `approvals`, `bug-reports`, `calls`, `connections`, `editor` |
-| 7 | `background-jobs`, `members`, `messages` |
+| 7 | `members`, `messages` |
 | 8 | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents` |
 | 9 | `rooms`, `threads` |
-| 10 | `account`, `activity`, `quick-capture`, `spaces`, `timeline` |
+| 10 | `account`, `activity`, `background-jobs`, `quick-capture`, `spaces`, `timeline` |
 | 11 | `local-mindroom`, `room` |
 | 12 | `settings`, `tour` |
 | 13 | `command-palette` |

@@ -1,4 +1,4 @@
-import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
+import { useRoomBackgroundJobs } from '../../matrix/hooks/useRoomBackgroundJobs';
 import {
   indexThreadBackgroundJobs,
   type ThreadBackgroundState,

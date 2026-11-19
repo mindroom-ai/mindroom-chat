@@ -988,7 +988,26 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}} बैकग्राउंड कार्य ({{shown}} दिखाए गए)",
       "finished": "पूरा हुआ: {{tool}}",
-      "jobCountFinished": "{{count}} बैकग्राउंड कार्य पूरे हुए"
+      "jobCountFinished": "{{count}} बैकग्राउंड कार्य पूरे हुए",
+      "groupSubagents": "सब-एजेंट · {{number}}",
+      "groupTools": "टूल · {{number}}",
+      "tools_one": "{{count}} टूल",
+      "tools_other": "{{count}} टूल",
+      "needApproval_one": "{{count}} को मंज़ूरी चाहिए",
+      "needApproval_other": "{{count}} को मंज़ूरी चाहिए",
+      "toolCalls_one": "{{count}} टूल कॉल",
+      "toolCalls_other": "{{count}} टूल कॉल",
+      "tokens_one": "{{tokens}} टोकन",
+      "tokens_other": "{{tokens}} टोकन",
+      "started": "{{time}} शुरू हुआ",
+      "open": "खोलें",
+      "openFor": "खोलें: {{name}}",
+      "column": {
+        "calls": "कॉल",
+        "tokens": "टोकन",
+        "cost": "लागत",
+        "time": "समय"
+      }
     },
     "subagents": {
       "title": "सब-एजेंट",

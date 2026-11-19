@@ -6,6 +6,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
+import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
+import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
+import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 import { keepCancelsOf } from './sentCancels';
 
@@ -14,33 +17,77 @@ const state = vi.hoisted(() => ({
   total: undefined as number | undefined,
   send: vi.fn(),
 }));
-vi.mock('./useRoomBackgroundJobs', () => ({
+// One client, whose sends go to the test's current `send`, so the stores it keys stay.
+const mx = vi.hoisted(() => ({
+  sendEvent: (...args: unknown[]) => state.send(...args),
+  makeTxnId: () => 'txn',
+}));
+vi.mock('../matrix/hooks/useRoomBackgroundJobs', () => ({
   useRoomBackgroundJobs: () => ({ jobs: state.jobs, total: state.total ?? state.jobs.length }),
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ sendEvent: state.send, makeTxnId: () => 'txn' }),
+  useMatrixClient: () => mx,
+}));
+const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
+vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
+vi.mock('../threads/cross-room/threadSignalsReader', () => ({
+  subscribeRoomSignals: () => () => undefined,
+}));
+vi.mock('../threads/fork/ThreadForkDivider', () => ({
+  useThreadTitle: (_room: unknown, threadId: string) => `Title of ${threadId}`,
 }));
 vi.mock('./BackgroundJobsBar.css', () => ({
   Anchor: 'Anchor',
   Bar: 'Bar',
-  Toggle: 'Toggle',
-  Chevron: 'Chevron',
   Status: 'Status',
-  Jobs: 'Jobs',
-  Job: 'Job',
-  Label: 'Label',
-  LabelButton: 'LabelButton',
-  TitleLink: 'TitleLink',
-  Muted: 'Muted',
-  Stopping: 'Stopping',
   Action: 'Action',
-  Plain: 'Plain',
+  Toggle: 'Toggle',
+  TitleIcon: 'TitleIcon',
+  Title: 'Title',
+  Chevron: 'Chevron',
+  Jobs: 'Jobs',
+  JobList: 'JobList',
+  GroupHeading: 'GroupHeading',
+  GroupName: 'GroupName',
+  ColumnName: 'ColumnName',
+  StatColumn: 'StatColumn',
+  Job: 'Job',
+  Nested: 'Nested',
+  Logo: 'Logo',
+  Stack: 'Stack',
+  StackedLogo: 'StackedLogo',
+  Dot: { running: 'Dot', waiting: 'Dot', stopping: 'Dot', finished: 'Dot' },
+  JobText: 'JobText',
+  Headline: 'Headline',
+  Detail: 'Detail',
+  Task: 'Task',
+  Name: 'Name',
+  Model: 'Model',
+  Activity: 'Activity',
+  Preview: 'Preview',
+  Pill: { waiting: 'Pill', stopping: 'Pill', done: 'Pill' },
+  PillText: 'PillText',
+  PillIcon: 'PillIcon',
+  ThreadChip: 'ThreadChip',
+  ThreadTitle: 'ThreadTitle',
+  Num: 'Num',
+  Stat: 'Stat',
+  Actions: 'Actions',
+  IconButton: 'IconButton',
+  StopButton: 'StopButton',
+  StopAll: 'StopAll',
+  Stopping: 'Stopping',
+  Summary: 'Summary',
+  SummaryWaiting: 'SummaryWaiting',
+  Elapsed: 'Elapsed',
+  VisuallyHidden: 'VisuallyHidden',
   Alert: 'Alert',
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, unknown>) =>
       `${key}${values ? JSON.stringify(values) : ''}`,
+    i18n: { language: 'en', resolvedLanguage: 'en' },
   }),
 }));
 
@@ -61,22 +108,17 @@ const room = {
   // The agent's reply is not loaded, so it never reads as streaming.
   getThread: () => null,
   getLiveTimeline: () => ({ getEvents: () => [] }),
+  getUnfilteredTimelineSet: () => undefined,
+  getJoinedMembers: () => [],
   on: () => undefined,
   removeListener: () => undefined,
 } as unknown as Room;
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (threadId: string | null = '$thread', canCancel = true, subagentRuns = false) =>
+const render = (threadId: string | null = '$thread', canCancel = true) =>
   act(() => {
-    root.render(
-      <BackgroundJobsBar
-        room={room}
-        threadId={threadId}
-        canCancel={canCancel}
-        subagentRuns={subagentRuns}
-      />
-    );
+    root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
   });
 const cancelA = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}';
 const cancelB = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_b"}';
@@ -123,6 +165,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   getDefaultStore().set(subagentsPanelAtom, undefined);
+  getSubagentRunStore(mx as never).clear();
   vi.unstubAllGlobals();
 });
 
@@ -136,7 +179,8 @@ it('names one job in the title, with Stop and no list', () => {
   render();
   expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
   expect(container.querySelector('.Jobs')).toBeNull();
-  expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stop');
+  // Stop is an icon button, named by its label and its tooltip.
+  expect(button(cancelA)?.getAttribute('title')).toBe('mindroomUi.backgroundJobs.stop');
 });
 
 it('keeps the jobs it showed for a moment after they end, as finished and without Stop', async () => {
@@ -156,6 +200,34 @@ it('keeps the jobs it showed for a moment after they end, as finished and withou
     expect(button('mindroomUi.backgroundJobs.stopAll')).toBeUndefined();
     await act(() => vi.advanceTimersByTime(2_000));
     expect(container.innerHTML).toBe('');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("keeps a held job's time where it ended as its list folds and opens again", () => {
+  vi.useFakeTimers({ now: Date.parse('2026-10-11T00:00:10+00:00') });
+  try {
+    state.jobs = [job('a'), job('b')];
+    render();
+    state.jobs = [];
+    render();
+    expand();
+    const elapsed = () => container.querySelector('[data-job-elapsed]')?.textContent;
+    const ended = elapsed();
+    expect(ended).toBeTruthy();
+    // Its time has stopped and it has no Stop: each held row says it is done, in words.
+    const done = [...container.querySelectorAll('.Job')].map(
+      (row) => row.querySelector('[data-job-done]')?.textContent
+    );
+    expect(done).toEqual(['mindroomUi.subagents.completed', 'mindroomUi.subagents.completed']);
+    expand();
+    expect(elapsed()).toBeUndefined();
+    act(() => {
+      vi.advanceTimersByTime(1_500);
+    });
+    expand();
+    expect(elapsed()).toBe(ended);
   } finally {
     vi.useRealTimers();
   }
@@ -491,70 +563,221 @@ it('leaves focus where the person moved it when the jobs change later', async ()
 const subagentName = 'mindroomUi.backgroundJobs.subagent{"tool":"run_subagent"}';
 const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
 
-it("opens the room's Sub-agents panel from a sub-agent job's name in its row, and from no other", async () => {
+// A frame of sub-agent `subagent`'s run `run-<subagent>`, as the room's Sub-agents panel gets it.
+const ingestRun = (
+  subagent: string,
+  extra: Partial<SubagentMeta> = {},
+  tools: ToolTraceEvent[] = []
+) =>
+  act(() =>
+    getSubagentRunStore(mx as never).ingest(
+      room.roomId,
+      '@mindroom_code:example.org',
+      {
+        run: `run-${subagent}`,
+        sid: 'sid',
+        seq: 0,
+        meta: {
+          agent: 'mindroom_dev',
+          subagent,
+          caller: 'code',
+          root: 'code',
+          parent: null,
+          threadId: '$thread',
+          source: 'delegate',
+          status: 'running',
+          startedAt: 1,
+          endedAt: null,
+          ...extra,
+        },
+        snapshot: { md: '', reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
+      },
+      Date.now()
+    )
+  );
+const subagentJob = (jobId: string, overrides: Partial<BackgroundJob> = {}) =>
+  job(jobId, { kind: 'subagent', tool: 'run_subagent', ...overrides });
+
+it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and from no other", async () => {
+  ingestRun('s1');
   // The room's bar lists every thread's jobs: the panel opens for the job's own thread.
   state.jobs = [
-    job('a', { kind: 'subagent', tool: 'run_subagent', threadId: '$other' }),
+    subagentJob('a', { threadId: '$other', subagent: 's1', run: 'run-s1' }),
+    // An older backend names no sub-agent, and one whose run sent no frame yet has none to show.
+    subagentJob('c'),
+    subagentJob('d', { subagent: 's2' }),
     job('b'),
   ];
-  render(null, true, true);
+  render(null);
   expand();
-  const [subagent, tool] = [...container.querySelectorAll('li')];
-  const link = subagent?.querySelector('button:not([data-cancel-job])');
-  expect(link?.textContent).toBe(subagentName);
-  // Its name stays the job's; its title says what it opens.
-  expect(link?.getAttribute('title')).toBe(
-    tr('mindroomUi.subagents.showFor', { name: subagentName })
+  const opens = [...container.querySelectorAll('[data-job-open]')];
+  expect(opens).toHaveLength(1);
+  expect(opens[0]?.closest('li')?.textContent).toContain('mindroom_dev');
+  expect(opens[0]?.getAttribute('aria-label')).toBe(
+    tr('mindroomUi.backgroundJobs.openFor', { name: 'mindroom_dev' })
   );
-  expect(tool?.querySelector('button:not([data-cancel-job])')).toBeNull();
-  await click(subagentName);
+  // The name is no button.
+  expect(button('mindroom_dev')).toBeUndefined();
+  await act(async () => (opens[0] as HTMLButtonElement).click());
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
     threadId: '$other',
+    run: 'run-s1',
   });
   // The list stays as it was; the panel opens beside it.
-  expect(container.querySelectorAll('li')).toHaveLength(2);
+  expect(container.querySelectorAll('li')).toHaveLength(4);
 });
 
-it("opens the room's Sub-agents panel from beside the title of one sub-agent job, whose title stays the status", async () => {
-  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' })];
-  render('$thread', true, true);
-  const show = button('mindroomUi.subagents.show');
-  expect(show).toBeDefined();
+it("opens one sub-agent job's run from beside its title, whose title stays the status", async () => {
+  ingestRun('s1');
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
+  render('$thread');
+  const open = container.querySelector<HTMLButtonElement>('[data-job-open]');
+  expect(open?.getAttribute('aria-label')).toBe(
+    tr('mindroomUi.backgroundJobs.openFor', { name: subagentName })
+  );
   // The title's live text is not inside the button, so its changes are still announced.
-  expect(show?.querySelector('[role="status"]')).toBeNull();
+  expect(open?.querySelector('[role="status"]')).toBeNull();
   expect(container.querySelector('[role="status"]')?.textContent).toBe(
     tr('mindroomUi.backgroundJobs.running', { tool: subagentName })
   );
+  // The one job's row: its logo with its dot, its title, how long it has run, Open, then Stop.
+  expect(container.querySelector('[data-job-logo]')?.getAttribute('data-job-logo')).toBe('agent');
+  expect(container.querySelector('[data-job-state]')?.getAttribute('data-job-state')).toBe(
+    'running'
+  );
+  expect(container.querySelector('[data-job-elapsed]')).not.toBeNull();
   expect(button(tr('mindroomUi.backgroundJobs.stopJob', { tool: subagentName }))).toBeDefined();
-  await click('mindroomUi.subagents.show');
+  await act(async () => open?.click());
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
     threadId: '$thread',
+    run: 'run-s1',
   });
 
-  // One tool job has no such button.
-  getDefaultStore().set(subagentsPanelAtom, undefined);
+  // One tool job has no Open, and shows a terminal for a logo.
   state.jobs = [job('a')];
   render();
-  expect(button('mindroomUi.subagents.show')).toBeUndefined();
+  expect(container.querySelector('[data-job-open]')).toBeNull();
+  expect(container.querySelector('[data-job-logo]')?.getAttribute('data-job-logo')).toBe('tool');
 });
 
-it('links no sub-agent job to the Sub-agents panel while the room has no runs to show there', () => {
-  // Older backends announce sub-agent jobs without sending the panel's frames.
-  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' })];
-  render();
-  expect(button('mindroomUi.subagents.show')).toBeUndefined();
-  expect(container.querySelector('[role="status"]')?.textContent).toBe(
-    tr('mindroomUi.backgroundJobs.running', { tool: subagentName })
+it("shows a sub-agent's agent, model, task, what it does now and what it used", () => {
+  ingestRun(
+    's1',
+    {
+      model: { modelConfig: 'opus', modelProvider: 'anthropic', modelId: 'claude-opus-5.5' },
+      task: 'Port the fix\nwith tests',
+      usage: { inputTokens: 1_850_000, outputTokens: 50_000, toolCalls: 31, costUsd: 1.3 },
+    },
+    [
+      { type: 'tool_call_completed', tool_name: 'read_file', args_preview: 'a.ts' },
+      { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
+    ]
   );
-
-  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' }), job('b')];
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
   render();
   expand();
-  const [subagent] = [...container.querySelectorAll('li')];
-  expect(subagent?.textContent).toContain(subagentName);
-  expect(subagent?.querySelector('button:not([data-cancel-job])')).toBeNull();
+  const row = container.querySelector('li[data-job-kind="subagent"]')!;
+  expect(row.querySelector('[data-job-logo]')?.getAttribute('data-model-provider')).toBe(
+    'anthropic'
+  );
+  expect(row.querySelector('[data-job-model]')?.textContent).toBe('Opus');
+  expect(row.querySelector('.Task')?.textContent).toBe('Port the fix');
+  expect(row.querySelector('[data-job-activity]')?.textContent).toBe('run_shell_command just test');
+  // Each number in its column, bare, with its words as its title.
+  const cells = [...row.querySelectorAll('[data-job-stat]')];
+  expect(cells.map((cell) => cell.textContent)).toEqual(['31', '1.9M', '$1.30']);
+  expect(cells.map((cell) => cell.getAttribute('title'))).toEqual([
+    tr('mindroomUi.backgroundJobs.toolCalls', { count: 31 }),
+    tr('mindroomUi.backgroundJobs.tokens', { count: 1_900_000, tokens: '1.9M' }),
+    '$1.30',
+  ]);
+  // The job runs in the view's thread, so it names no thread.
+  expect(row.querySelector('[data-job-thread]')).toBeNull();
+});
+
+it('shows no cost before any token, and counts one token as one', () => {
+  const stats = (usage: SubagentMeta['usage']) => {
+    getSubagentRunStore(mx as never).clear();
+    ingestRun('s1', { usage });
+    state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
+    render();
+    if (!toggle()?.getAttribute('aria-expanded')?.includes('true')) expand();
+    return [...container.querySelectorAll('li [data-job-stat]')]
+      .slice(0, 3)
+      .map((cell) => cell.getAttribute('title') ?? '');
+  };
+  expect(stats({ inputTokens: 0, outputTokens: 0, toolCalls: 2, costUsd: 0 })).toEqual([
+    tr('mindroomUi.backgroundJobs.toolCalls', { count: 2 }),
+    '',
+    '',
+  ]);
+  expect(stats({ inputTokens: 1, outputTokens: 0, toolCalls: 0 })).toEqual([
+    '',
+    tr('mindroomUi.backgroundJobs.tokens', { count: 1, tokens: '1' }),
+    '',
+  ]);
+});
+
+it("names the thread of a job that runs outside the view's, and shows it when pressed", async () => {
+  state.jobs = [job('a', { threadId: '$other' }), job('b')];
+  render(null);
+  expand();
+  const chips = [...container.querySelectorAll<HTMLButtonElement>('[data-job-thread]')];
+  expect(chips.map((chip) => chip.textContent)).toEqual(['Title of $other', 'Title of $thread']);
+  await act(async () => chips[0]?.click());
+  expect(navigation.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$other');
+
+  render('$thread');
+  expect(container.querySelectorAll('[data-job-thread]')).toHaveLength(0);
+});
+
+it('heads the sub-agents and the tools only when both are listed, and sums them up in the title', () => {
+  state.jobs = [job('a'), subagentJob('b'), job('c', { status: 'awaiting_approval' })];
+  render();
+  expand();
+  expect([...container.querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual([
+    tr('mindroomUi.backgroundJobs.groupSubagents', { number: 1 }),
+    tr('mindroomUi.backgroundJobs.groupTools', { number: 2 }),
+  ]);
+  expect(container.querySelector('.Summary')?.textContent).toBe(
+    [
+      tr('mindroomUi.subagents.nested', { count: 1 }),
+      tr('mindroomUi.backgroundJobs.tools', { count: 2 }),
+    ].join(' · ')
+  );
+  // Its leading "· " comes from the style, which a phone leaves out.
+  expect(container.querySelector('.SummaryWaiting')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.needApproval', { count: 1 })
+  );
+
+  state.jobs = [job('a'), job('c')];
+  render();
+  expect(container.querySelectorAll('h3')).toHaveLength(0);
+  expect(container.querySelector('.Summary')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.tools', { count: 2 })
+  );
+});
+
+it('ticks the time each job has run out of the screen reader, which hears when it started', () => {
+  vi.useFakeTimers({ now: Date.parse('2026-10-11T00:00:10+00:00') });
+  try {
+    state.jobs = [job('a')];
+    render();
+    const elapsed = container.querySelector('[data-job-elapsed]');
+    expect(elapsed?.getAttribute('aria-hidden')).toBe('true');
+    const before = elapsed?.textContent;
+    act(() => {
+      vi.advanceTimersByTime(2_000);
+    });
+    expect(container.querySelector('[data-job-elapsed]')?.textContent).not.toBe(before);
+    expect(container.querySelector('.VisuallyHidden')?.textContent).toContain(
+      'mindroomUi.backgroundJobs.started'
+    );
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('says in its row that a job waits for approval, until it is stopping', () => {

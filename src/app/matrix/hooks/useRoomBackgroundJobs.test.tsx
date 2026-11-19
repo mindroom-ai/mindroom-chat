@@ -1,7 +1,10 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it } from 'vitest';
-import { MINDROOM_BACKGROUND_JOBS_EVENT, type BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
+import {
+  MINDROOM_BACKGROUND_JOBS_EVENT,
+  type BackgroundJob,
+} from '../protocol/backgroundJobsContract';
 import { useRoomBackgroundJobs } from './useRoomBackgroundJobs';
 
 const viewer = '@alice:example.org';

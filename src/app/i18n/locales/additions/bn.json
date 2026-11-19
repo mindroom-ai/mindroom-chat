@@ -988,7 +988,26 @@
     "backgroundJobs": {
       "jobCountShowing": "{{count}}টি ব্যাকগ্রাউন্ড কাজ ({{shown}}টি দেখানো হচ্ছে)",
       "finished": "শেষ হয়েছে: {{tool}}",
-      "jobCountFinished": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+      "jobCountFinished": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "groupSubagents": "সাব-এজেন্ট · {{number}}",
+      "groupTools": "টুল · {{number}}",
+      "tools_one": "{{count}}টি টুল",
+      "tools_other": "{{count}}টি টুল",
+      "needApproval_one": "{{count}}টির অনুমোদন দরকার",
+      "needApproval_other": "{{count}}টির অনুমোদন দরকার",
+      "toolCalls_one": "{{count}}টি টুল কল",
+      "toolCalls_other": "{{count}}টি টুল কল",
+      "tokens_one": "{{tokens}} টোকেন",
+      "tokens_other": "{{tokens}} টোকেন",
+      "started": "শুরু হয়েছে {{time}}",
+      "open": "খুলুন",
+      "openFor": "খুলুন: {{name}}",
+      "column": {
+        "calls": "কল",
+        "tokens": "টোকেন",
+        "cost": "খরচ",
+        "time": "সময়"
+      }
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
