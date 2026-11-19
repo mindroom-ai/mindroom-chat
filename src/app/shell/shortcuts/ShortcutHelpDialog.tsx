@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Capacitor } from '@capacitor/core';
 import { Box, Icon, IconButton, Icons, Line, Switch, Text, config } from 'folds';
 import { Modal500 } from '../../ui/Modal500';
 import { settingsAtom } from '../../preferences/settings';
@@ -36,6 +37,7 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const switchId = useId();
   const apple = usesCommandKey();
+  const native = Capacitor.isNativePlatform();
   const [hintsOn, setHintsOn] = useSetting(settingsAtom, 'shortcutHints');
   // With Enter for new lines, ⌘ or Ctrl and Enter sends.
   const enterForNewline = useSettingValue(settingsAtom, 'enterForNewline');
@@ -79,7 +81,9 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
                 <Text as="h3" size="L400" priority="300">
                   {t(`shortcuts.groups.${group}`)}
                 </Text>
-                {SHORTCUT_IDS.filter((id) => SHORTCUTS[id].group === group).map((id) => (
+                {SHORTCUT_IDS.filter(
+                  (id) => SHORTCUTS[id].group === group && (native || !SHORTCUTS[id].browserKey)
+                ).map((id) => (
                   <div key={id} className={css.HelpRow} data-shortcut-row={id}>
                     <Text size="T300">{t(SHORTCUTS[id].labelKey)}</Text>
                     <KeyCaps caps={capsOf(id)} />

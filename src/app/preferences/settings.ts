@@ -38,6 +38,14 @@ export type MessageSpacing = (typeof MESSAGE_SPACINGS)[number];
 export const PAGE_ZOOM_MIN = 50;
 export const PAGE_ZOOM_MAX = 150;
 export const PAGE_ZOOM_DEFAULT = 100;
+/** The page zoom values Settings offers, which the native apps' zoom keys step through. */
+export const PAGE_ZOOM_STEPS = [50, 75, 90, 100, 110, 125, 150];
+
+/** The next step up or down from `zoom`, which may lie between steps (a pinch); the ends stay. */
+export const stepPageZoom = (zoom: number, direction: 1 | -1): number =>
+  (direction > 0
+    ? PAGE_ZOOM_STEPS.find((step) => step > zoom)
+    : PAGE_ZOOM_STEPS.findLast((step) => step < zoom)) ?? zoom;
 
 /** The on/off settings, in the order of the settings pages that show them. */
 const BOOLEAN_SETTING_KEYS = [
