@@ -20,11 +20,12 @@ export const hasShortcutHandler = (id: ShortcutId): boolean => (handlers.get(id)
 export const runShortcut = (id: ShortcutId, event: KeyboardEvent): boolean =>
   [...(handlers.get(id) ?? [])].reverse().some((ref) => ref.current(event));
 
-/** Gives the shortcut `id` its action while the calling component is mounted. */
-export const useShortcut = (id: ShortcutId, handler: ShortcutHandler): void => {
+/** Gives the shortcut `id` its action while the calling component is mounted (and `enabled`). */
+export const useShortcut = (id: ShortcutId, handler: ShortcutHandler, enabled = true): void => {
   const ref = useRef(handler);
   ref.current = handler;
   useEffect(() => {
+    if (!enabled) return undefined;
     const stack = handlers.get(id) ?? [];
     stack.push(ref);
     handlers.set(id, stack);
@@ -33,5 +34,5 @@ export const useShortcut = (id: ShortcutId, handler: ShortcutHandler): void => {
       if (remaining.length > 0) handlers.set(id, remaining);
       else handlers.delete(id);
     };
-  }, [id]);
+  }, [id, enabled]);
 };

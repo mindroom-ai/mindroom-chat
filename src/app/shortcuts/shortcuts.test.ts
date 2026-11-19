@@ -165,6 +165,9 @@ describe('formatShortcut and ariaShortcut', () => {
     ['openThread', '⌥→', 'Alt+→'],
     ['leaveThread', '⌥←', 'Alt+←'],
     ['focusComposer', 'Esc', 'Esc'],
+    ['zoomIn', '⌘+', 'Ctrl++'],
+    ['zoomOut', '⌘-', 'Ctrl+-'],
+    ['resetZoom', '⌘0', 'Ctrl+0'],
   ])('%s is %s on Apple platforms and %s elsewhere', (id, apple, other) => {
     expect(formatShortcut(id, true)).toBe(apple);
     expect(formatShortcut(id, false)).toBe(other);
@@ -219,6 +222,27 @@ describe('findShortcut', () => {
     expect(findShortcut(help, context({ overlay: 'help' }))).toBe('help');
     expect(findShortcut(members, context({ overlay: 'help' }))).toBeUndefined();
     expect(findShortcut(help, context({ overlay: 'other' }))).toBeUndefined();
+  });
+
+  it('takes the zoom keys of every layout over overlays and from fields with text', () => {
+    const zoom = (keys: Press, overlay: ShortcutContext['overlay'] = 'other') =>
+      findShortcut(press({ metaKey: true, ...keys }), context({ apple: true, overlay }));
+    expect(zoom({ key: '=', code: 'Equal' })).toBe('zoomIn');
+    expect(zoom({ key: '+', code: 'Equal', shiftKey: true })).toBe('zoomIn');
+    expect(zoom({ key: '+', code: 'NumpadAdd' })).toBe('zoomIn');
+    // A German keyboard's own + key.
+    expect(zoom({ key: '+', code: 'BracketRight' })).toBe('zoomIn');
+    expect(zoom({ key: '-', code: 'Minus' }, 'help')).toBe('zoomOut');
+    expect(zoom({ key: '-', code: 'NumpadSubtract' })).toBe('zoomOut');
+    expect(zoom({ key: '0', code: 'Digit0' })).toBe('resetZoom');
+    // French AZERTY types à on the 0 key.
+    expect(zoom({ key: 'à', code: 'Digit0' })).toBe('resetZoom');
+    const target = composer('<p>Hello</p>');
+    expect(findShortcut(press({ key: '=', metaKey: true, target }), context({ apple: true }))).toBe(
+      'zoomIn'
+    );
+    expect(findShortcut(press({ key: '=', ctrlKey: true }), context())).toBe('zoomIn');
+    expect(SHORTCUTS.zoomIn.repeats && SHORTCUTS.zoomOut.repeats).toBe(true);
   });
 
   it('in a field with text fires only chords that have no text meaning', () => {
