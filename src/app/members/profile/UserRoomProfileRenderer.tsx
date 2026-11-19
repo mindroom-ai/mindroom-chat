@@ -18,6 +18,9 @@ import { UserRoomProfile } from './UserRoomProfile';
 // Escape (which goes no further than the card) and clicks outside end the trap and the card.
 const ENDS_ON = { escapeDeactivates: stopPropagation, clickOutsideDeactivates: true };
 
+// A DOMRect keeps its sides on its prototype, so a spread would copy none of them.
+const copy = ({ x, y, width, height }: RectCords): RectCords => ({ x, y, width, height });
+
 /**
  * The card's anchor, again as a new object whenever the card changes size (its tools arrive, More
  * opens), so the pop-out places it inside the window once more: it places itself only for a new
@@ -30,7 +33,7 @@ const useAnchorFollowingSize = (cords: RectCords | undefined) => {
   const observe = useCallback((node: HTMLDivElement | null) => {
     observer.current?.disconnect();
     if (!node || typeof ResizeObserver === 'undefined') return;
-    observer.current = new ResizeObserver(() => setAnchor((current) => current && { ...current }));
+    observer.current = new ResizeObserver(() => setAnchor((current) => current && copy(current)));
     observer.current.observe(node);
   }, []);
   return [anchor, observe] as const;
