@@ -15,13 +15,15 @@ import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Browser, Page } from '@playwright/test';
+import { devices, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   STACK_SCRIPT,
   composer,
   expect,
   openLobby,
+  openNewSession,
+  routeClientConfig,
   test,
   type AgentStack,
 } from '../helpers/agentStack';
@@ -165,6 +167,8 @@ const OUT_DIR = 'test-results/perf/real-work';
 const DRIVER = fileURLToPath(new URL('../../scripts/perf/real-work/driver.py', import.meta.url));
 /** The driver's ramp (its `--ramp`), which its shortfall check leaves out as well. */
 const RAMP_MS = 60_000;
+/** Throwaway: engines in order, each one round of the scenarios, all under one driver session. */
+const ROUNDS = list('PERF_ENGINE_ROUNDS', '');
 /** The driver reports every 5 s. */
 const REPORT_SECONDS = 5;
 const SHARE = 0.8;
@@ -672,6 +676,14 @@ const SCENARIO: Record<
  */
 const checkLoad = (label: string, driver: Driver, achieved: Achieved | undefined): void => {
   const ended = driver.ended();
+  if (ROUNDS.length > 0) {
+    if (ended !== undefined || (achieved?.streaming ?? 0) < SHARE * driver.streams) {
+      console.log(
+        `ROUND-LOAD-SHORT ${label}: ended=${ended} streaming=${achieved?.streaming} of ${driver.streams}`
+      );
+    }
+    return;
+  }
   expect
     .soft(
       ended,
@@ -935,7 +947,16 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
 
 const runScenarios = async (run: Run): Promise<void> => {
   for (const name of scenarios) {
-    await test.step(name, () => runScenario(run, name));
+    if (ROUNDS.length > 0) {
+      // A failed scenario is noted and the round goes on: a failed test would restart the driver.
+      await runScenario(run, name).catch((error) => {
+        const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
+        console.log(`ROUND-SCENARIO-FAILED ${label}: ${String(error).slice(0, 600)}`);
+        writeFileSync(join(OUT_DIR, `${label}-error.txt`), `${String(error)}\n`);
+      });
+    } else {
+      await test.step(name, () => runScenario(run, name));
+    }
   }
 };
 
@@ -1119,6 +1140,7 @@ test.describe('PERF: real work under the backend load', () => {
         // As long as this load level's tests may take together, and its ramp.
         const limit =
           RAMP_MS +
+          ROUNDS.length * 10 * 60_000 +
           THROTTLES.reduce((total, throttle) => total + scenariosTimeout(throttle), 0) +
           (SOAK ? SOAK_TIMEOUT : 0);
         driver = startDriver(stateFile, historyFile, streams, Math.ceil(limit / 1000) + 600);
@@ -1149,6 +1171,7 @@ test.describe('PERF: real work under the backend load', () => {
         // The tag lets the `webkit` project (PLAYWRIGHT_WEBKIT_EXECUTABLE) run it as well.
         test(`scenarios at ${throttle}x CPU`, { tag: '@webkit' }, async ({ page, browserName }) => {
           test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
+          test.skip(ROUNDS.length > 0, 'PERF_ENGINE_ROUNDS runs the rounds instead');
           test.skip(throttle !== 1 && browserName !== 'chromium', 'CPU throttling needs Chromium');
           test.setTimeout(scenariosTimeout(throttle));
           if (!stack || !driver) throw new Error('the stack or the driver did not start');
@@ -1163,6 +1186,42 @@ test.describe('PERF: real work under the backend load', () => {
           });
         });
       }
+
+      ROUNDS.forEach((engine, index) => {
+        test(`round ${index + 1} in ${engine}`, async ({ page, browserName, playwright, baseURL }) => {
+          test.skip(browserName !== 'chromium', 'the rounds start from the Chromium project');
+          test.setTimeout(scenariosTimeout(1));
+          if (!stack || !driver) throw new Error('the stack or the driver did not start');
+          const suffix = `${streams}s-r${index + 1}`;
+          console.log(`ROUND ${index + 1} ${engine} starts ${new Date().toISOString()}`);
+          if (engine === 'chromium') {
+            await open(page, stack);
+            await runScenarios({ page, engine, throttle: 1, suffix, driver, ...history() });
+            return;
+          }
+          const browser = await playwright.webkit.launch({
+            executablePath: process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE,
+          });
+          try {
+            const options = { ...devices['Desktop Safari'], viewport: VIEWPORT, baseURL };
+            // One WebKit session for the stack, as the worker fixture keeps one per browser.
+            const file = join(stack.dir, 'browser-state', 'tester-webkit-rounds.json');
+            let webkitPage: Page;
+            if (existsSync(file)) {
+              webkitPage = await (await browser.newContext({ ...options, storageState: file })).newPage();
+              await routeClientConfig(webkitPage, stack);
+            } else {
+              webkitPage = await openNewSession(browser, stack, options);
+              await webkitPage.context().storageState({ path: file, indexedDB: true });
+            }
+            webkitPage.setDefaultTimeout(15_000);
+            await open(webkitPage, stack);
+            await runScenarios({ page: webkitPage, engine, throttle: 1, suffix, driver, ...history() });
+          } finally {
+            await browser.close();
+          }
+        });
+      });
 
       test('soak', async ({ page, browserName }) => {
         test.skip(!SOAK, 'PERF_SOAK=1 runs it');
