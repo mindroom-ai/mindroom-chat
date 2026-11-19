@@ -844,7 +844,10 @@
         "subagents": "Alt ajanlar"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}} süredir çalışıyor"
+        "toolRunningFor": "{{duration}} süredir çalışıyor",
+        "toolCallFailed": "Başarısız",
+        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız",
+        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Başlık ayarları…"

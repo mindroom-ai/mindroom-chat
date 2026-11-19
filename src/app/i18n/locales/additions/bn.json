@@ -844,7 +844,10 @@
         "subagents": "সাব-এজেন্ট"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}} ধরে চলছে"
+        "toolRunningFor": "{{duration}} ধরে চলছে",
+        "toolCallFailed": "ব্যর্থ",
+        "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · {{failed}}টি ব্যর্থ",
+        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · {{failed}}টি ব্যর্থ"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "শিরোনামের সেটিংস…"

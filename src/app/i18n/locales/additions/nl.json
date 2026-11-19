@@ -844,7 +844,10 @@
         "subagents": "Subagenten"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Loopt al {{duration}}"
+        "toolRunningFor": "Loopt al {{duration}}",
+        "toolCallFailed": "Mislukt",
+        "toolCallsRanFailed_one": "{{count}} toolaanroep uitgevoerd · {{failed}} mislukt",
+        "toolCallsRanFailed_other": "{{count}} toolaanroepen uitgevoerd · {{failed}} mislukt"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titelinstellingen…"

@@ -844,7 +844,10 @@
         "subagents": "सब-एजेंट"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "{{duration}} से चल रहा है"
+        "toolRunningFor": "{{duration}} से चल रहा है",
+        "toolCallFailed": "विफल",
+        "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · {{failed}} विफल",
+        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · {{failed}} विफल"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "शीर्षक सेटिंग…"

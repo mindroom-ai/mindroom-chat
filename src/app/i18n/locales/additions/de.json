@@ -844,7 +844,10 @@
         "subagents": "Sub-Agenten"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "Läuft seit {{duration}}"
+        "toolRunningFor": "Läuft seit {{duration}}",
+        "toolCallFailed": "Fehlgeschlagen",
+        "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} fehlgeschlagen",
+        "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} fehlgeschlagen"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titeleinstellungen…"

@@ -831,7 +831,9 @@
         "subagents": "子代理"
       },
       "mindroomHtmlBlocks": {
-        "toolRunningFor": "已執行 {{duration}}"
+        "toolRunningFor": "已執行 {{duration}}",
+        "toolCallFailed": "失敗",
+        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個失敗"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "標題設定…"
