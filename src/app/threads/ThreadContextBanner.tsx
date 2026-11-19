@@ -552,7 +552,7 @@ export function ThreadContextBanner({
             triggerRef(node);
             moreButtonRef.current = node;
           }}
-          className={classNames(toolbarCss.MessageOptionsButton, phoneHeader && css.PhoneMore)}
+          className={classNames(toolbarCss.MessageOptionsButton, phoneHeader && css.PhoneButton)}
           variant="SurfaceVariant"
           fill="None"
           aria-label={t('threadActions.more')}
@@ -587,6 +587,7 @@ export function ThreadContextBanner({
           aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
           className={classNames(
             toolbarCss.MessageOptionsButton,
+            phoneHeader && css.PhoneButton,
             headerModel.isResolved ? css.ResolvedButton : !phoneHeader && css.CompactHidden
           )}
           variant="SurfaceVariant"

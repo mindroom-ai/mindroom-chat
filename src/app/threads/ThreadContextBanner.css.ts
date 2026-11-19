@@ -359,13 +359,24 @@ export const PhoneRow = style({
   '@container': { [shortRoomArea]: lowRow, [narrowRoomArea]: { gap: 0, paddingInline: 0 } },
 });
 
-// More is the room's menu button there too: 40 px, and 44 px for a finger with its reach.
-export const PhoneMore = style({
-  selectors: { '&&&': { inlineSize: toRem(40), blockSize: toRem(40) } },
+// Resolve and More, the room's menu button there too: 40 px as the header's own buttons, 44 px
+// for a finger with their reach; a narrow room area keeps their 32 px.
+export const PhoneButton = style({
+  '@container': {
+    [`${roomArea} (min-width: 281px)`]: {
+      selectors: { '&&&': { inlineSize: toRem(40), blockSize: toRem(40) } },
+    },
+  },
 });
 
-// The room's name takes the room the buttons leave, and gives way to them.
-export const PhoneRoom = style({ display: 'flex', flex: '1 1 0', minWidth: 0, margin: 0 });
+// The room's name takes the room the buttons leave, and gives way to them, down to nothing.
+export const PhoneRoom = style({
+  display: 'flex',
+  flex: '1 1 0',
+  minWidth: 0,
+  margin: 0,
+  overflowX: 'clip',
+});
 
 // The name is a quiet button that leads back to the room, as the chevron before it does.
 export const PhoneRoomButton = style([
