@@ -254,8 +254,18 @@ const hasUnsafeSvgUrlReference = (value: string): boolean => {
   return false;
 };
 
+// sanitize-html 2.18 reads `<![CDATA[` as a comment that ends at the first `>`, as a browser does
+// outside SVG, which blanks an SVG label written as CDATA. Each section (an unclosed one runs to the
+// end) becomes escaped text before sanitizing, so it shows as text and can never open markup.
+const CDATA_SECTION = /<!\[CDATA\[([\s\S]*?)(?:\]\]>|$)/g;
+
+const cdataToText = (html: string): string =>
+  html.replace(CDATA_SECTION, (_section, text: string) =>
+    text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  );
+
 export const sanitizeMessageExtraHtml = (html: string): string =>
-  sanitizeHtml(html, {
+  sanitizeHtml(cdataToText(html), {
     allowedTags: [...allowedTags, ...svgTags],
     allowedAttributes: {
       a: ['href', 'target', 'rel'],

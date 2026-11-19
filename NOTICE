@@ -211,7 +211,7 @@ Modified dependencies
     lib/store/indexeddb-local-backend.d.ts.
 
   folds 2.7.3 (Apache-2.0), patches/folds+2.7.3.patch modifies:
-    dist/style.css.
+    dist/index.js, dist/style.css.
 
   @capacitor/android 8.6.2 (MIT), patches/@capacitor+android+8.6.2.patch
   modifies, under capacitor/src/main/java/com/getcapacitor/:

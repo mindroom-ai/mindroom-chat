@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { sanitizeCustomHtml, customHtmlSanitizerPolicy } from './sanitize';
 
 describe('customHtmlSanitizerPolicy', () => {
+  it('drops a disallowed iframe with its fallback markup', () => {
+    expect(
+      sanitizeCustomHtml('a<iframe src="https://example.test"><b>fallback</b></iframe>b')
+    ).toBe('ab');
+  });
+
   it('keeps paste markers and Matrix math attributes needed by MindRoom rendering', () => {
     expect(customHtmlSanitizerPolicy.allowedAttributes?.span).toEqual(
       expect.arrayContaining([
