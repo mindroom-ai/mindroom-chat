@@ -93,7 +93,7 @@ const expectedCases = new Map<string, ExpectedAction>();
     },
     inline: true,
   });
-  // A page preview: shown inline, exactly as written, at a desktop viewport.
+  // A page preview: shown inline, exactly as written, at a desktop viewport, with libraries Chat serves.
   expectedCases.set(`${scope}/show_canvas/page`, {
     action: 'show_canvas',
     canvas: {
@@ -101,6 +101,7 @@ const expectedCases = new Map<string, ExpectedAction>();
       html: '<form data-mindroom-label="Plan chosen"><label><input type="radio" name="plan" value="pro" checked> Pro</label><button>Choose</button></form>',
       raw: true,
       width: 1440,
+      libraries: ['chartjs', 'katex'],
     },
     inline: true,
   });
