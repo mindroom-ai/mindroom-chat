@@ -112,3 +112,66 @@ test('table grid has faint inner dividers and no outer border in both themes', a
     expect(color).not.toBe(await table.evaluate((el) => getComputedStyle(el).color));
   }
 });
+
+test('a wide numeric table reads by row on a phone, by keyboard, while it grows', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/e2e/fixtures/message-tables.html?matrix');
+  const byRow = page.getByRole('button', { name: 'Read by row' });
+  const showTable = page.getByRole('button', { name: 'Show table' });
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(showTable).toHaveAttribute('aria-pressed', 'true');
+
+  await byRow.focus();
+  await page.keyboard.press('Enter');
+  // One accessibility tree at a time: the rows replace the table.
+  await expect(page.getByRole('table')).toHaveCount(0);
+  await expect(page.getByText('Scroll horizontally')).toBeHidden();
+  await expect(byRow).toBeFocused();
+  await expect(byRow).toHaveAttribute('aria-pressed', 'true');
+  const items = page.getByRole('listitem');
+  await expect(items).toHaveCount(3);
+  const first = items.first();
+  await expect(first.getByText('M1', { exact: true })).toBeVisible();
+  // Each label sits on the same line as its value, both readable without panning.
+  const label = first.getByRole('term').filter({ hasText: 'Capex' });
+  const value = first.getByRole('definition').filter({ hasText: '$0.0k' });
+  await expect(label).toBeInViewport({ ratio: 1 });
+  await expect(value).toBeInViewport({ ratio: 1 });
+  expect(Math.abs((await label.boundingBox())!.y - (await value.boundingBox())!.y)).toBeLessThan(4);
+  await expect(first.getByRole('link', { name: 'Ledger M1' })).toHaveAttribute(
+    'href',
+    'https://example.com/ledger/1'
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+
+  // A streaming edit that adds a row shows it in the reader too.
+  await page.getByRole('button', { name: 'Add row' }).click();
+  await expect(items).toHaveCount(4);
+
+  await showTable.focus();
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.getByRole('list')).toHaveCount(0);
+  await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(4);
+  await expect(showTable).toBeFocused();
+});
+
+test('read by row is offered only for wide simple tables on phones', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/e2e/fixtures/message-tables.html?matrix&span');
+  await expect(page.getByText('Scroll horizontally')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Read by row' })).toHaveCount(0);
+
+  await page.goto('/e2e/fixtures/message-tables.html?matrix');
+  await expect(page.getByRole('button', { name: 'Read by row' })).toBeVisible();
+  await page.setViewportSize({ width: 900, height: 844 });
+  await expect(page.getByRole('button', { name: 'Read by row' })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/e2e/fixtures/message-tables.html');
+  await page.getByRole('button', { name: 'Toggle table width' }).click();
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Read by row' })).toHaveCount(0);
+});
