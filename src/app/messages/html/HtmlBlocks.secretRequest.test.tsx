@@ -267,6 +267,34 @@ describe('a secret request in its reply', () => {
 });
 
 describe("a secret request card's row", () => {
+  it('goes to the copy of the reply whose cog opens, from a hidden copy, and stays hidden', () => {
+    showToolCalls(false);
+    const plan = secrets('saved');
+    render(
+      plan,
+      <>
+        <Reply />
+        <Reply />
+      </>
+    );
+    expect(lines()).toEqual([]);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+
+    act(() => {
+      renderer!.root
+        .findAllByProps({ 'aria-expanded': false, title: 'Used 4 tools' })[1]!
+        .props.onClick();
+    });
+    expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+
+    act(() => {
+      renderer!.root.findByProps({ 'aria-expanded': true, title: 'Used 4 tools' }).props.onClick();
+    });
+    expect(lines()).toEqual([]);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+  });
+
   beforeEach(() => {
     showToolCalls(true);
     env.mounts = 0;

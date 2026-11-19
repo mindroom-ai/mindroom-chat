@@ -552,7 +552,8 @@ const SECRET_REQUEST_CALL_STATE = {
  * The card's row hides while this line is mounted and at no other time (useSecretRequestLine): a
  * reply that hides its calls counts the request with them and keeps the line mounted but hidden,
  * as the done card asks nothing, and where another place has the card's line (the reply drawn
- * twice) or the place is in a `<details>`, the call keeps its own line.
+ * twice; a shown line takes it from a hidden one) or the place is in a `<details>`, the call
+ * keeps its own line.
  */
 function InlineSecretRequestBlock({
   secret,
@@ -569,13 +570,14 @@ function InlineSecretRequestBlock({
   const { eventId, request, agentUserId } = secret;
   const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
   const roomId = message?.roomId;
-  const { line, taken, lineRef } = useSecretRequestLine(eventId, !!roomId);
+  const hidden = !shown && !!fold && !fold.open;
+  const { line, taken, lineRef } = useSecretRequestLine(eventId, !!roomId, hidden);
   useFoldedToolCalls(
     shown || taken ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
   );
   if (taken) return <ToolRefGroupBlock parsedTools={[tool]} replyTools={replyTools} />;
   if (!roomId || !line) return null;
-  if (!shown && fold && !fold.open) return <div ref={lineRef} hidden />;
+  if (hidden) return <div ref={lineRef} hidden />;
   return (
     <SecretRequestLine
       lineRef={lineRef}
