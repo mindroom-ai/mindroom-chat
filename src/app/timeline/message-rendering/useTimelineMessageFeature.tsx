@@ -176,7 +176,7 @@ type ReactionToggle = (
   shortcode: string | undefined,
   relations?: Relations,
   resend?: boolean
-) => void;
+) => Promise<boolean>;
 
 /** How long the note that a reaction could not be changed stays under its message. */
 const REACTION_FAILURE_MS = 6000;
@@ -239,7 +239,7 @@ const useReactionToggle = (room: Room, threadId: string | undefined) => {
   }, [failure]);
   const toggle = useCallback<ReactionToggle>(
     (targetEventId, key, shortcode, relations, resend) => {
-      sendReactionToggle(client, {
+      return sendReactionToggle(client, {
         room,
         threadId,
         targetEventId,
@@ -247,7 +247,13 @@ const useReactionToggle = (room: Room, threadId: string | undefined) => {
         shortcode,
         relations,
         resend,
-      }).catch(() => setFailure({ eventId: targetEventId }));
+      }).then(
+        () => true,
+        () => {
+          setFailure({ eventId: targetEventId });
+          return false;
+        }
+      );
     },
     [client, room, threadId]
   );
@@ -820,7 +826,7 @@ export const useTimelineMessageFeature = ({
             onReactionToggle={
               readOnly
                 ? undefined
-                : (key, shortcode) => toggleReaction(eventId, key, shortcode, relations)
+                : (key, shortcode) => void toggleReaction(eventId, key, shortcode, relations)
             }
             hideReadReceipts={hideActivity}
             hour24Clock={hour24Clock}

@@ -29,7 +29,7 @@ type ReactionsProps = {
     relations: Relations,
     /** Stop sends a fresh stop, taking back one an earlier run left. */
     resend?: boolean
-  ) => void;
+  ) => void | Promise<boolean>;
 };
 
 const reactionShortcode = (events: MatrixEvent[]): string | undefined => {
@@ -88,7 +88,8 @@ export function Reactions({
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   useRelationsUpdates(relations);
-  // The agent's 🛑 the viewer pressed: the run it marks is stopping.
+  // The agent's 🛑 the viewer pressed: the run it marks is stopping from the press on, through
+  // taking back an earlier run's stop and sending this one; a refused request makes it pressable.
   const [pressedStop, setPressedStop] = useState<string>();
 
   const myUserId = client.getUserId();
@@ -103,14 +104,12 @@ export function Reactions({
   if (annotations.length === 0) return null;
 
   // The agent's 🛑 on its streaming reply is the reply's Stop. Pressed, it reads Stopping… while
-  // that 🛑 and the viewer's stop stay: a refused stop is taken back, a new run brings a new 🛑.
+  // that 🛑 stays; a new run brings a new 🛑.
   const stopEntry = annotations.find(([key, set]) => isAgentStopButton(key, [...set], targetEvent));
-  const stopEvents = stopEntry ? [...stopEntry[1]] : [];
-  const stopMarker = stopEvents.find((e) => e.getSender() === targetEvent?.getSender())?.getId();
-  const stopping =
-    !!stopMarker &&
-    stopMarker === pressedStop &&
-    stopEvents.some((e) => e.getSender() === myUserId);
+  const stopMarker = [...(stopEntry?.[1] ?? [])]
+    .find((e) => e.getSender() === targetEvent?.getSender())
+    ?.getId();
+  const stopping = !!stopMarker && stopMarker === pressedStop;
   const stopLabel = (text: string, shown: boolean) => (
     <span className={shown ? css.StopLabel : css.StopLabelHidden} aria-hidden={!shown}>
       {text}
@@ -171,7 +170,9 @@ export function Reactions({
                   canToggle && !pending
                     ? () => {
                         if (stopButton) setPressedStop(stopMarker);
-                        onReactionToggle(mEventId, key, shortcode, relations, stopButton);
+                        void Promise.resolve(
+                          onReactionToggle(mEventId, key, shortcode, relations, stopButton)
+                        ).then((sent) => sent === false && setPressedStop(undefined));
                       }
                     : undefined
                 }

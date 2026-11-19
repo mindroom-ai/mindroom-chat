@@ -382,34 +382,55 @@ describe('Reactions', () => {
     expect(onReactionToggle).toHaveBeenCalledWith('$event', '🛑', undefined, relations, resend);
   });
 
-  it('reads Stopping… once pressed, keeping its name, its size and the keyboard, until refused', () => {
-    const onReactionToggle = vi.fn();
+  it('reads Stopping… from the press on, keeping its name, its size and the keyboard', async () => {
+    let finish!: (sent: boolean) => void;
+    const onReactionToggle = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
     const target = streamingReply();
+    // A Stop on a regenerated reply first takes back the viewer's stop of the earlier run.
     const view = (who: string[]) => stopProps(stops(who), target, onReactionToggle);
-    const renderer = render(React.createElement(Reactions, view([AGENT])));
+    const renderer = render(React.createElement(Reactions, view([AGENT, VIEWER])));
+    expect(shownLabel(renderer)).toBe('Stop reply');
     expect(status(renderer)).toBe('');
     act(() => {
       stopChip(renderer).props.onClick();
     });
-    act(() => renderer.update(React.createElement(Reactions, view([AGENT, VIEWER]))));
 
-    const chip = stopChip(renderer);
+    const chip = () => stopChip(renderer);
     expect(shownLabel(renderer)).toBe('Stopping…');
     // Both labels stay in the chip, one hidden, so it keeps the wider one's size.
     expect(renderer.root.findAll((node) => node.props['aria-hidden'] === true)).toHaveLength(1);
-    expect(chip.props).toMatchObject({ 'aria-label': 'Stop reply', 'aria-disabled': true });
-    expect(chip.props.disabled).toBe(false);
-    expect(chip.props['aria-pressed']).toBeUndefined();
+    expect(chip().props).toMatchObject({ 'aria-label': 'Stop reply', 'aria-disabled': true });
+    expect(chip().props.disabled).toBe(false);
+    expect(chip().props['aria-pressed']).toBeUndefined();
     expect(status(renderer)).toBe('Stopping…');
+
+    // Sync drops the earlier stop while its redaction is pending: still Stopping…, and a second
+    // press sends nothing more.
+    act(() => renderer.update(React.createElement(Reactions, view([AGENT]))));
+    expect(shownLabel(renderer)).toBe('Stopping…');
     act(() => {
-      chip.props.onClick?.();
+      chip().props.onClick?.();
     });
     expect(onReactionToggle).toHaveBeenCalledTimes(1);
 
-    // A refused stop drops the viewer's reaction: Stop reply again.
-    act(() => renderer.update(React.createElement(Reactions, view([AGENT]))));
+    // Sent, it stays Stopping… until the agent's 🛑 goes.
+    await act(async () => finish(true));
+    act(() => renderer.update(React.createElement(Reactions, view([AGENT, VIEWER]))));
+    expect(shownLabel(renderer)).toBe('Stopping…');
+  });
+
+  it("makes Stop pressable again when taking back the earlier run's stop is refused", async () => {
+    const onReactionToggle = vi.fn(async () => false);
+    // The refused redaction leaves the earlier stop in place.
+    const props = stopProps(stops([AGENT, VIEWER]), streamingReply(), onReactionToggle);
+    const renderer = render(React.createElement(Reactions, props));
+    await act(async () => stopChip(renderer).props.onClick());
+
     expect(shownLabel(renderer)).toBe('Stop reply');
     expect(status(renderer)).toBe('');
+    expect(stopChip(renderer).props['aria-disabled']).toBeUndefined();
+    await act(async () => stopChip(renderer).props.onClick());
+    expect(onReactionToggle).toHaveBeenCalledTimes(2);
   });
 
   it('stops a later run of the same reply again, after a reload too', () => {
