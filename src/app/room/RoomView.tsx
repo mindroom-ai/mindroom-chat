@@ -362,7 +362,8 @@ export function RoomView({
           maxPanelWidth={THREAD_COLUMN_MAX_WIDTH}
           fullWidth={columnFills}
           resizeLabel={t('thread.resize')}
-          onExpand={showFull}
+          // While a second thread keeps it beside the messages, filling the page would not take.
+          onExpand={besideWhileSecond ? undefined : showFull}
           expandLabel={t('thread.showFull')}
           testId="thread-column"
           onKeyDown={noteThreadColumnKey}

@@ -491,6 +491,22 @@ it("fills the page with the column when its edge is dragged past the messages' l
   expect(storedLayout()).toBe('"full"');
 });
 
+it('keeps the stored layout as the edge is dragged past the expansion while a second thread shows', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  const { rerender } = renderView({ besideWhileSecond: true });
+  const handle = screen.getByRole('separator', { name: 'Resize the thread' });
+  fireEvent.pointerDown(handle, { clientX: 520, button: 0 });
+  fireEvent.pointerMove(handle, { clientX: 100 });
+  expect(screen.getByTestId('thread-column').dataset.expandPreview).toBeUndefined();
+  expect(handle.getAttribute('aria-valuetext')).not.toBe('Show the thread in full');
+  fireEvent.pointerUp(handle, { clientX: 100 });
+  expect(storedLayout()).toBe('"beside"');
+  // The second thread closed, the thread stays beside the messages.
+  rerenderView(rerender);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+});
+
 it("returns the focus to the messages' composer when the column closes", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const { rerender } = renderView();
