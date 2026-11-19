@@ -911,15 +911,30 @@ describe('inline canvas sizing', () => {
       vi.unstubAllGlobals();
     });
 
-    it('lets scripts and styles load from their directory alone, and only when a page names one', () => {
-      const policy = canvasPolicy(true, false, DIRECTORY);
-      expect(policy).toContain(`script-src 'unsafe-inline' ${DIRECTORY} ${CANVAS_LIBRARY_SOURCE};`);
-      expect(policy).toContain(`style-src 'unsafe-inline' ${DIRECTORY} ${CANVAS_LIBRARY_SOURCE};`);
+    const KATEX = {
+      scripts: [`${DIRECTORY}katex.min.js`, `${DIRECTORY}auto-render.min.js`],
+      styles: [`${DIRECTORY}katex.min.css`],
+    };
+
+    it('lets each script and style sheet load from its exact address alone, and only when a page names one', () => {
+      const policy = canvasPolicy(true, false, KATEX);
+      expect(policy).toContain(
+        `script-src 'unsafe-inline' ${DIRECTORY}katex.min.js ${DIRECTORY}auto-render.min.js ${CANVAS_LIBRARY_SOURCE};`
+      );
+      expect(policy).toContain(
+        `style-src 'unsafe-inline' ${DIRECTORY}katex.min.css ${CANVAS_LIBRARY_SOURCE};`
+      );
+      // No source of Chat's own ends in a slash: a directory would match whatever a server resolves under it.
+      const own = policy
+        .split(/[; ]+/)
+        .filter((source) => source.startsWith('https://chat.example'));
+      expect(own).toHaveLength(3);
+      expect(own.every((source) => /\/[\w.-]+\.(?:js|css)$/.test(source))).toBe(true);
       // Fonts come inline; everything else stays as strict as without libraries.
       const others = (value: string) =>
         value.split('; ').filter((directive) => !/^(script|style)-src /.test(directive));
-      expect(others(canvasPolicy(false, false, DIRECTORY))).toEqual(others(CANVAS_CSP));
-      expect(canvasPolicy(false, false, undefined)).toBe(CANVAS_CSP);
+      expect(others(canvasPolicy(false, false, KATEX))).toEqual(others(CANVAS_CSP));
+      expect(canvasPolicy(false, false)).toBe(CANVAS_CSP);
       expect(buildCanvasDocument('<p>hi</p>', 'light', undefined, '', false, {}, {})).not.toContain(
         'canvas-libs'
       );
@@ -932,7 +947,10 @@ describe('inline canvas sizing', () => {
       const tag = `<script src="${DIRECTORY}mermaid.min.js"></script>`;
       expect(page.indexOf(tag)).toBeGreaterThan(page.indexOf('mindroom.canvas.error'));
       expect(page.indexOf(tag)).toBeLessThan(page.indexOf('<p>hi</p>'));
-      const policy = `content="${canvasPolicy(false, false, DIRECTORY)}"`;
+      const policy = `content="${canvasPolicy(false, false, {
+        scripts: [`${DIRECTORY}mermaid.min.js`],
+        styles: [],
+      })}"`;
       expect(page).toContain(policy);
       const doc = buildCanvasDocument('<p>hi</p>', 'light', undefined, '', false, {}, display);
       expect(doc.indexOf(policy)).toBeGreaterThan(0);

@@ -87,14 +87,11 @@ const expectLibrariesWork = async (frame: FrameLocator) => {
   await expect(frame.locator('#math .katex')).toBeVisible();
 };
 
-const libraryRequests = (page: Page) => {
+/** Every request the canvas frames make (the page's own frames make none), by its full address. */
+const canvasRequests = (page: Page) => {
   const requests: string[] = [];
   page.on('request', (request) => {
-    if (request.resourceType() === 'script' || request.resourceType() === 'stylesheet') {
-      requests.push(
-        new URL(request.url()).pathname.replace(/canvas-libs-[0-9a-f]+/, 'canvas-libs')
-      );
-    }
+    if (request.frame().parentFrame()) requests.push(request.url());
   });
   return requests;
 };
@@ -103,7 +100,7 @@ test("a canvas runs Chart.js, D3, Mermaid and KaTeX from Chat's own origin, inli
   context,
   page,
 }) => {
-  const requests = libraryRequests(page);
+  const requests = canvasRequests(page);
   const room = await openPanelRoom(context, page);
   await sendCanvas(room, 'Library tour', LIBRARY_PAGE, ['chartjs', 'd3', 'mermaid', 'katex']);
 
@@ -123,17 +120,78 @@ test("a canvas runs Chart.js, D3, Mermaid and KaTeX from Chat's own origin, inli
   await expect(panel.locator('pre')).toHaveCount(0);
   await panel.screenshot({ path: test.info().outputPath('canvas-libraries-panel.png') });
 
-  const loaded = requests.filter((path) => path.includes('/canvas-libs/'));
-  expect(new Set(loaded)).toEqual(
+  // Every library request goes to Chat's own origin (jsDelivr is off), and nothing else is requested.
+  const origin = new URL(page.url()).origin;
+  const directory = new RegExp(
+    `^${origin.replace(/[.]/g, '\\.')}/assets/canvas-libs-[0-9a-f]{12}/`
+  );
+  expect(requests.length).toBeGreaterThan(0);
+  expect(requests.filter((url) => !directory.test(url))).toEqual([]);
+  expect(new Set(requests.map((url) => url.replace(directory, '')))).toEqual(
     new Set([
-      '/assets/canvas-libs/chart.umd.min.js',
-      '/assets/canvas-libs/d3.min.js',
-      '/assets/canvas-libs/mermaid.min.js',
-      '/assets/canvas-libs/katex.min.css',
-      '/assets/canvas-libs/katex.min.js',
-      '/assets/canvas-libs/auto-render.min.js',
+      'chart.umd.min.js',
+      'd3.min.js',
+      'mermaid.min.js',
+      'katex.min.css',
+      'katex.min.js',
+      'auto-render.min.js',
     ])
   );
+});
+
+// Only the exact files a page names are allowed: another library file, an address that climbs out
+// of the directory, and its encoded spellings are all blocked before a request leaves the frame.
+const ESCAPE_PAGE = `<pre id="result">running</pre>
+<script>
+  const blocked = [];
+  document.addEventListener('securitypolicyviolation', (event) => blocked.push(event.blockedURI));
+  const directory = document.querySelector('script[src$="d3.min.js"]').src.replace(/d3[.]min[.]js$/, '');
+  const tries = [
+    ['script', 'chart.umd.min.js'],
+    ['script', '../../runtime-config.js'],
+    ['script', '%2e%2e/%2e%2e/runtime-config.js'],
+    ['script', '..%2F..%2Fruntime-config.js'],
+    ['script', '..%252F..%252Fruntime-config.js'],
+    ['style', '..%2F..%2Fpublic%2Flicenses%2FNOTICE'],
+  ];
+  Promise.all(tries.map(([kind, path]) => new Promise((resolve) => {
+    const element = document.createElement(kind === 'script' ? 'script' : 'link');
+    if (kind === 'script') element.src = directory + path; else { element.rel = 'stylesheet'; element.href = directory + path; }
+    element.onload = () => resolve(path + ' loaded');
+    element.onerror = () => resolve(path + ' failed');
+    document.head.append(element);
+  }))).then((results) => setTimeout(() => {
+    document.getElementById('result').textContent = JSON.stringify({ d3: typeof d3, results, blocked: blocked.length > 0 });
+  }, 200));
+</script>`;
+
+test('a canvas page can load only the exact library files it names, not other files of the directory or outside it', async ({
+  context,
+  page,
+}) => {
+  const requests = canvasRequests(page);
+  const room = await openPanelRoom(context, page);
+  await sendCanvas(room, 'Escape probe', ESCAPE_PAGE, ['d3']);
+  const frame = page.frameLocator('iframe[title="Escape probe"]').frameLocator('iframe');
+  await expect(frame.locator('#result')).toHaveText(
+    JSON.stringify({
+      d3: 'object',
+      results: [
+        'chart.umd.min.js failed',
+        '../../runtime-config.js failed',
+        '%2e%2e/%2e%2e/runtime-config.js failed',
+        '..%2F..%2Fruntime-config.js failed',
+        '..%252F..%252Fruntime-config.js failed',
+        '..%2F..%2Fpublic%2Flicenses%2FNOTICE failed',
+      ],
+      blocked: true,
+    }),
+    { timeout: 60_000 }
+  );
+  // The policy stopped each one in the frame: the only request that left it was d3 itself.
+  expect(
+    requests.map((url) => new URL(url).pathname.replace(/canvas-libs-[0-9a-f]+/, 'canvas-libs'))
+  ).toEqual(['/assets/canvas-libs/d3.min.js']);
 });
 
 test('a canvas that names a library Chat does not serve says so in the errors the user can report', async ({

@@ -9,6 +9,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const MODULES = new URL('../node_modules/', import.meta.url);
 
@@ -39,7 +40,7 @@ export const CANVAS_LIBRARY_FILES = [
   {
     name: 'katex.min.css',
     source: Buffer.from(
-      inlineFonts(readFileSync(new URL('katex.min.css', KATEX), 'utf8'), KATEX.pathname)
+      inlineFonts(readFileSync(new URL('katex.min.css', KATEX), 'utf8'), fileURLToPath(KATEX))
     ),
   },
 ];

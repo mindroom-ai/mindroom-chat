@@ -35,8 +35,12 @@ export const canvasLibraryDirectory = (): string =>
   ).href;
 
 export type CanvasLibraries = {
-  /** The directory the page's policy allows scripts and styles from; undefined when none is named. */
-  directory?: string;
+  /**
+   * The exact addresses of the scripts and style sheets the page loads, which alone its policy
+   * allows: a directory would also let in any address a server resolves into or out of it.
+   */
+  scripts: string[];
+  styles: string[];
   /** The tags for the page's head. */
   tags: string;
   /** Names this Chat does not serve, which the page reports as an error. */
@@ -51,16 +55,14 @@ export const canvasLibraries = (
   const wanted = [...new Set(names)];
   const served = wanted.filter(known);
   const unknown = wanted.filter((name) => !known(name));
-  if (served.length === 0) return { tags: '', unknown };
+  if (served.length === 0) return { scripts: [], styles: [], tags: '', unknown };
   const base = directory();
   const files = served.map((name): { styles?: string[]; scripts: string[] } => LIBRARIES[name]);
+  const styles = files.flatMap((file) => (file.styles ?? []).map((name) => `${base}${name}`));
+  const scripts = files.flatMap((file) => file.scripts.map((name) => `${base}${name}`));
   const tags = [
-    ...files.flatMap(({ styles = [] }) =>
-      styles.map((file) => `<link rel="stylesheet" href="${base}${file}">`)
-    ),
-    ...files.flatMap(({ scripts }) =>
-      scripts.map((file) => `<script src="${base}${file}"></script>`)
-    ),
+    ...styles.map((url) => `<link rel="stylesheet" href="${url}">`),
+    ...scripts.map((url) => `<script src="${url}"></script>`),
   ].join('');
-  return { directory: base, tags, unknown };
+  return { scripts, styles, tags, unknown };
 };

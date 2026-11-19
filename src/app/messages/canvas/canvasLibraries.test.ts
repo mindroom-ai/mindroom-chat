@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CANVAS_LIBRARY_DIR,
@@ -15,11 +16,16 @@ afterEach(() => {
 
 describe('canvasLibraries', () => {
   it('writes the style sheets first, then the scripts, once per library and in the order named', () => {
-    const { directory, tags, unknown } = canvasLibraries(
+    const { scripts, styles, tags, unknown } = canvasLibraries(
       ['katex', 'chartjs', 'katex'],
       () => DIRECTORY
     );
-    expect(directory).toBe(DIRECTORY);
+    expect(styles).toEqual([`${DIRECTORY}katex.min.css`]);
+    expect(scripts).toEqual([
+      `${DIRECTORY}katex.min.js`,
+      `${DIRECTORY}auto-render.min.js`,
+      `${DIRECTORY}chart.umd.min.js`,
+    ]);
     expect(unknown).toEqual([]);
     expect(tags).toBe(
       `<link rel="stylesheet" href="${DIRECTORY}katex.min.css">` +
@@ -29,13 +35,14 @@ describe('canvasLibraries', () => {
     );
   });
 
-  it('allows no directory for a page that names none Chat serves, and lists the unknown names', () => {
+  it('allows no file for a page that names none Chat serves, and lists the unknown names', () => {
     const directory = vi.fn(() => DIRECTORY);
+    const none = { scripts: [], styles: [], tags: '' };
     expect(canvasLibraries(['plotly', 'toString', '__proto__'], directory)).toEqual({
-      tags: '',
+      ...none,
       unknown: ['plotly', 'toString', '__proto__'],
     });
-    expect(canvasLibraries(undefined, directory)).toEqual({ tags: '', unknown: [] });
+    expect(canvasLibraries(undefined, directory)).toEqual({ ...none, unknown: [] });
     expect(directory).not.toHaveBeenCalled();
     expect(canvasLibraries(['d3', 'three'], () => DIRECTORY).unknown).toEqual(['three']);
   });
@@ -66,7 +73,7 @@ describe('canvasLibraries', () => {
   });
 
   it('keeps only the woff2 face of each font, and fails on a font without one', () => {
-    const fonts = new URL('../../../../node_modules/katex/dist/', import.meta.url).pathname;
+    const fonts = fileURLToPath(new URL('../../../../node_modules/katex/dist/', import.meta.url));
     const font = readFileSync(`${fonts}fonts/KaTeX_Main-Regular.woff2`).toString('base64');
     expect(
       inlineFonts(

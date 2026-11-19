@@ -75,16 +75,20 @@ export const CANVAS_LIBRARY_SOURCE = 'https://cdn.jsdelivr.net/npm/';
  * address, for previews that use a site's real assets; the same exposure, to any host, so that is
  * a separate opt-in. Connections, frames, workers, and form submissions stay blocked either way.
  * A page that names libraries Chat serves itself may load scripts and styles from their directory
- * (`pinned`), which involves no third party.
+ * (`pinned`, their exact addresses by type), which involves no third party.
  */
-export const canvasPolicy = (libraries: boolean, remote = false, pinned?: string): string => {
+export const canvasPolicy = (
+  libraries: boolean,
+  remote = false,
+  pinned: { scripts: readonly string[]; styles: readonly string[] } = { scripts: [], styles: [] }
+): string => {
   const https = remote ? ' https:' : '';
   const source = `${libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : ''}${https}`;
-  const code = `${pinned ? ` ${pinned}` : ''}${source}`;
+  const own = (urls: readonly string[]) => urls.map((url) => ` ${url}`).join('');
   return [
     "default-src 'none'",
-    `script-src 'unsafe-inline'${code}`,
-    `style-src 'unsafe-inline'${code}`,
+    `script-src 'unsafe-inline'${own(pinned.scripts)}${source}`,
+    `style-src 'unsafe-inline'${own(pinned.styles)}${source}`,
     `img-src data: blob:${https}`,
     `font-src data:${source}`,
     `media-src data: blob:${https}`,
@@ -449,7 +453,7 @@ export const buildCanvasPage = (
       `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(
         libraries,
         remote,
-        served.directory
+        served
       )}">`,
       raw ? '' : `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -483,7 +487,7 @@ export const buildCanvasDocument = (
     `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(
       libraries,
       display.remote,
-      canvasLibraries(display.pinned).directory
+      canvasLibraries(display.pinned)
     )}">`,
     // A raw page's prefers-color-scheme follows its frame's color scheme, so its frames take the
     // browser's preference instead of Chat's theme, as if the page were opened on its own.
