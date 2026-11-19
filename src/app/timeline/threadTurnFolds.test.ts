@@ -9,9 +9,10 @@ import {
 } from './threadTurnFolds';
 
 /**
- * One row of a thread: `p` a person's message, `a` an agent's message, `m` a quiet marker,
- * `n` an agent's notice, `e` an edit (no row of its own). Flags: `s` streaming or waiting on the
- * reader, `h` hidden by another plan, `r` a run's reply, `i` an attachment.
+ * One row of a thread: `p` a person's message, `w` MindRoom's message that wakes an agent from
+ * outside the thread, `a` an agent's message, `m` a quiet marker, `n` an agent's notice, `e` an
+ * edit (no row of its own). Flags: `s` streaming or waiting on the reader, `h` hidden by another
+ * plan, `r` a run's reply, `i` an attachment, `c` a card the reader opens.
  */
 type Row = string;
 
@@ -33,7 +34,8 @@ const rowOf = (event: MatrixEvent): Row => (event as unknown as { row: Row }).ro
 const plan = (rows: Row[], rules: Partial<ThreadTurnRules> = {}) => {
   const events = rows.map(toEvent);
   const folds = planThreadTurnFolds(events, {
-    isPersonMessage: (event) => rowOf(event).startsWith('p'),
+    startsTurn: (event) => /^[pw]/.test(rowOf(event)),
+    keepsRow: (event) => rowOf(event).includes('c'),
     isSkipped: (event) => rowOf(event).includes('h'),
     isAnswer: (event) => rowOf(event).startsWith('a'),
     answerRank: (event) => (rowOf(event).includes('r') ? 0 : rowOf(event).includes('i') ? 2 : 1),
@@ -77,6 +79,27 @@ describe('planThreadTurnFolds', () => {
     ['folds nothing before the first person message', ['a', 'a', 'a', 'p', 'a'], []],
     ['skips edits, which have no row', ['p', 'a', 'e', 'a', 'e', 'a', 'e'], ['0: 1,3 (2)']],
     ['leaves rows other plans hide out of the count', ['p', 'a', 'ah', 'a'], []],
+    [
+      'keeps a card in view between the rows it folds, the break on the first of them',
+      ['p', 'a', 'ac', 'a', 'a'],
+      ['0: 1,3 (2)'],
+    ],
+    ['leaves cards out of the count', ['p', 'a', 'ac', 'ac', 'a'], []],
+    [
+      'starts a turn at a wake-up from outside the thread, one no row shows too',
+      ['p', 'ar', 'ac', 'ac', 'ac', 'wh', 'ar'],
+      [],
+    ],
+    [
+      'folds a wake-up turn on its own',
+      ['p', 'a', 'a', 'a', 'w', 'a', 'a', 'ar'],
+      ['0: 1,2 (2)', '4: 5,6 (2)'],
+    ],
+    [
+      "keeps a job's follow-up reply in its turn, which posts nothing before it",
+      ['p', 'ar', 'a', 'ar'],
+      ['0: 1,2 (2)'],
+    ],
     [
       'keeps a turn with a streaming reply unfolded',
       ['p', 'a', 'as', 'a', 'p', 'a', 'a', 'a'],
