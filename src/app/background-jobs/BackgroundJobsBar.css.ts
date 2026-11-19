@@ -158,17 +158,24 @@ export const Chevron = style({
 
 // The room a focus ring needs inside the scrolling list, which clips what overflows it.
 const ring = '3px';
+// How far a row reaches out past the list's content, its hover background behind its padding.
+const reach = config.space.S200;
+// The list reaches out at least as far as its rows and as a finger's area of a row's last button
+// (8 px past it, at the row's padding), so neither ever scrolls it sideways, at any root size.
+const listReach = `max(${reach}, 8px)`;
 
 // Several jobs list above the title, sub-agents then tools; many scroll inside the bar. A line
 // sets the list off the title.
 export const Jobs = style({
   gridArea: 'jobs',
-  margin: `-${ring}`,
-  marginBlockEnd: config.space.S100,
-  padding: ring,
-  paddingBlockEnd: config.space.S100,
+  marginBlock: `-${ring} ${config.space.S100}`,
+  marginInline: `calc(-1 * ${listReach})`,
+  paddingBlock: `${ring} ${config.space.S100}`,
+  paddingInline: listReach,
   borderBlockEnd: `1px solid ${color.SurfaceVariant.ContainerLine}`,
   maxHeight: 'min(45vh, 22rem)',
+  // Up and down only: a finger never drags it sideways, whatever reaches past the rows.
+  overflowX: 'hidden',
   overflowY: 'auto',
 });
 
@@ -208,8 +215,8 @@ export const Job = style([
     position: 'relative',
     minHeight: '2.875rem',
     paddingBlock: config.space.S100,
-    marginInline: `calc(-1 * ${config.space.S200})`,
-    paddingInline: config.space.S200,
+    marginInline: `calc(-1 * ${reach})`,
+    paddingInline: reach,
     borderRadius: config.radii.R300,
     vars: { [rowBackground]: color.SurfaceVariant.Container },
     selectors: {
