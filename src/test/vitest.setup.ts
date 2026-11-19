@@ -41,6 +41,13 @@ vi.mock('../app/ui/ThreadActivity.css', () => ({
   Result: 'activity-result',
 }));
 vi.mock('../app/avatars/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
+// The canvas hosts' tests replace folds with stand-ins that have no theme colors.
+vi.mock('../app/messages/canvas/canvasHost.css', () => ({
+  Error: 'Error',
+  Notice: 'Notice',
+  Staged: 'Staged',
+  Data: 'Data',
+}));
 vi.mock('../app/messages/reply/ReplyDetails.css', () => {
   const parts = {
     cacheRead: 'part-cache-read',
