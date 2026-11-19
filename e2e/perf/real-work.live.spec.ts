@@ -905,7 +905,17 @@ const startSamples = async (run: Run, name: Scenario, label: string): Promise<()
       new Promise<void>((resolve) => {
         const child = spawn(
           'sample',
-          [pid, String(SAMPLE_SECONDS[name]), '1', '-file', join(OUT_DIR, `${label}-${pid}.sample.txt`)],
+          [
+            pid,
+            String(
+              name === 'switch' && process.env.PERF_SWITCH_DEBUG
+                ? Math.ceil(2.6 * Number(process.env.PERF_SWITCH_DEBUG))
+                : SAMPLE_SECONDS[name]
+            ),
+            process.env.PERF_SAMPLE_INTERVAL ?? '10',
+            '-file',
+            join(OUT_DIR, `${label}-${pid}.sample.txt`),
+          ],
           { stdio: 'ignore' }
         );
         child.on('exit', () => resolve());
