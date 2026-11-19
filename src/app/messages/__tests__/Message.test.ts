@@ -157,6 +157,7 @@ vi.mock('folds', async () => {
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
       createElement('span', props, children),
     Tooltip: div(),
+    toRem: (px: number) => `${px / 16}rem`,
     TooltipProvider: ({
       children,
     }: {
