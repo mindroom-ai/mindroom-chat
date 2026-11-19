@@ -35,14 +35,20 @@ export type DrawnSecretRequests = {
   getIds: () => ReadonlySet<string>;
   /** Who mounted the card's line. */
   drawerOf: (cardId: string) => object | undefined;
-  /** `drawer` mounted the card's line. False when another drawer's line is mounted: one per card. */
-  take: (cardId: string, drawer: object) => boolean;
+  /** Whether the card's mounted line shows, not kept hidden with its reply's calls. */
+  shows: (cardId: string) => boolean;
+  /**
+   * `drawer` mounted the card's line, `hidden` with its reply's calls or not. False when another
+   * drawer's line is mounted (one per card), unless that one is hidden and this one shows.
+   */
+  take: (cardId: string, drawer: object, hidden?: boolean) => boolean;
   /** `drawer` unmounted it. */
   release: (cardId: string, drawer: object) => void;
 };
 
 export const createDrawnSecretRequests = (): DrawnSecretRequests => {
   const drawers = new Map<string, object>();
+  const hiddenIds = new Set<string>();
   const listeners = new Set<() => void>();
   let ids: ReadonlySet<string> = new Set();
   const changed = () => {
@@ -56,16 +62,21 @@ export const createDrawnSecretRequests = (): DrawnSecretRequests => {
     },
     getIds: () => ids,
     drawerOf: (cardId) => drawers.get(cardId),
-    take: (cardId, drawer) => {
+    shows: (cardId) => drawers.has(cardId) && !hiddenIds.has(cardId),
+    take: (cardId, drawer, hidden = false) => {
       const current = drawers.get(cardId);
-      if (current) return current === drawer;
+      if (current === drawer) return true;
+      if (current && (hidden || !hiddenIds.has(cardId))) return false;
       drawers.set(cardId, drawer);
+      if (hidden) hiddenIds.add(cardId);
+      else hiddenIds.delete(cardId);
       changed();
       return true;
     },
     release: (cardId, drawer) => {
       if (drawers.get(cardId) !== drawer) return;
       drawers.delete(cardId);
+      hiddenIds.delete(cardId);
       changed();
     },
   };
@@ -204,16 +215,19 @@ export const useDrawnSecretRequestIds = ({ drawn }: InlineSecretRequestPlan): Re
   useSyncExternalStore(drawn.subscribe, drawn.getIds);
 
 /**
- * For the place a reply would draw a card's line (`wanted`): whether to mount the line, on
- * `lineRef`, and whether the place is not the line's (`taken`), which leaves it an ordinary tool
- * line: another place has the line mounted, or this one is in a `<details>` of the page, which
+ * For the place a reply would draw a card's line (`wanted`), kept `hidden` while its reply hides
+ * its calls: whether to mount the line, on `lineRef`, and whether the place is not the line's
+ * (`taken`), which leaves it an ordinary tool line: another place has the line mounted (and
+ * shown, unless this one is hidden too), or this one is in a `<details>` of the page, which
  * would hide the line while closed and the card's row with it. The line is the card's from the
  * commit that mounts it to the one that unmounts it; of two that mount in one commit the first
- * keeps it, and the other, as one in a `<details>`, gives way before the paint.
+ * keeps it, and the other, as one in a `<details>`, gives way before the paint. A shown line
+ * takes the card from a hidden one, which gives way.
  */
 export const useSecretRequestLine = (
   cardId: string,
-  wanted: boolean
+  wanted: boolean,
+  hidden = false
 ): { line: boolean; taken: boolean; lineRef: RefObject<HTMLDivElement> } => {
   const { drawn } = useContext(InlineSecretRequestsContext);
   const [self] = useState(() => ({}));
@@ -221,7 +235,8 @@ export const useSecretRequestLine = (
   const [inDetails, setInDetails] = useState(false);
   const [, giveWay] = useReducer((count: number) => count + 1, 0);
   const drawer = useSyncExternalStore(drawn.subscribe, () => drawn.drawerOf(cardId));
-  const taken = inDetails || (drawer !== undefined && drawer !== self);
+  const holderShows = useSyncExternalStore(drawn.subscribe, () => drawn.shows(cardId));
+  const taken = inDetails || (drawer !== undefined && drawer !== self && (hidden || holderShows));
   const line = wanted && !taken;
   useLayoutEffect(() => {
     if (!line) return undefined;
@@ -229,8 +244,8 @@ export const useSecretRequestLine = (
       setInDetails(true);
       return undefined;
     }
-    if (!drawn.take(cardId, self)) giveWay();
+    if (!drawn.take(cardId, self, hidden)) giveWay();
     return () => drawn.release(cardId, self);
-  }, [cardId, drawn, line, self]);
+  }, [cardId, drawn, hidden, line, self]);
   return { line, taken, lineRef };
 };

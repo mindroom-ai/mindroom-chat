@@ -1,5 +1,6 @@
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
+import { EffortGlyph } from './EffortGlyph';
 import { ProviderModelIcon } from './ProviderModelIcon';
 
 describe('ProviderModelIcon', () => {
@@ -58,4 +59,22 @@ describe('ProviderModelIcon', () => {
       expect(renderer.root.findByType('svg').props.className).toContain('tabler-icon-brand-openai');
     }
   );
+
+  // Page Zoom sets the root font size, so a size in px would stay put while the composer scales.
+  it.each([
+    ['anthropic', 'claude-opus-5-5'],
+    ['openai', 'gpt-6-sol'],
+  ])('draws the %s logo and the effort bars in rem so they follow Page Zoom', (provider, id) => {
+    const logo = create(<ProviderModelIcon provider={provider} id={id} size={20} />);
+    const bars = create(<EffortGlyph count={3} filled={2} />);
+
+    expect(logo.root.findByType('svg').props.style).toEqual({
+      width: '1.25rem',
+      height: '1.25rem',
+    });
+    expect(bars.root.findByType('svg').props.style).toEqual({
+      width: '0.625rem',
+      height: '0.75rem',
+    });
+  });
 });

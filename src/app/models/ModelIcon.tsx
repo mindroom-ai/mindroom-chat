@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/matrix';
-import { ProviderModelIcon } from './ProviderModelIcon';
+import { ProviderModelIcon, iconSizeStyle } from './ProviderModelIcon';
 import * as css from './ModelPicker.css';
 
 type ModelIconProps = {
@@ -35,6 +35,7 @@ export function ModelIcon({ provider, id, iconUrl, size, className }: ModelIconP
         src={src}
         width={size}
         height={size}
+        style={iconSizeStyle(size)}
         alt=""
         aria-hidden="true"
         draggable={false}

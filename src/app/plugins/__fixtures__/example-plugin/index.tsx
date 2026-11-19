@@ -84,7 +84,8 @@
 // A third side panel, "Example thread", toggled from the room menu, shows the thread the room showed
 // as it opened, as the room's page shows it (`ThreadView`), and keeps it while the room shows
 // another; an Escape in it that nothing took, as on one of its rows, closes the panel, and one that
-// closes the thread's menus, or a profile card its rows opened, leaves it open.
+// closes the thread's menus, or a profile card its rows opened, leaves it open. It shows its own
+// title and "Close Example thread" (`title: 'own'`), so the room draws no title row above it.
 // A fourth, "Example board", toggled from the room menu, shows the room's threads as a board by
 // state (`ThreadBoard`), and above it the thread the board opened last and how many it opened.
 import {
@@ -913,12 +914,28 @@ function ExampleThread({ roomId }: { roomId: string }) {
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [close]);
   const room = client.getRoom(roomId);
-  if (!room || !threadId) return <p>No example thread</p>;
+  // Its own title row (`title: 'own'`): the room draws none above it.
+  const title = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px' }}>
+      <h2 style={{ flex: '1 1 auto', fontSize: '1rem' }}>Example thread</h2>
+      <button type="button" onClick={close}>
+        Close Example thread
+      </button>
+    </div>
+  );
+  if (!room || !threadId)
+    return (
+      <>
+        {title}
+        <p>No example thread</p>
+      </>
+    );
   return (
     <div
       ref={boxRef}
       style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 }}
     >
+      {title}
       <ThreadView room={room} threadId={threadId} />
     </div>
   );
@@ -1245,7 +1262,7 @@ const plugin: ClientPlugin = {
       opensOverMembers: true,
     },
     { id: 'card', label: 'Example card', Component: ExampleCard, frame: 'own' },
-    { id: 'thread', label: 'Example thread', Component: ExampleThread },
+    { id: 'thread', label: 'Example thread', Component: ExampleThread, title: 'own' },
     { id: 'board', label: 'Example board', Component: ExampleBoard },
   ],
   headerActions: [

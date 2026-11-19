@@ -30,10 +30,11 @@ and notice files of the production dependencies into THIRD_PARTY_NOTICES.txt
 MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Zlib,
 Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
 MPL-2.0 (used unmodified), Python-2.0 (argparse), and Unlicense (big-integer
-and stream-buffers, under @capacitor/cli). It accepts three packages by name:
-require-like (MIT license text, no license field), caniuse-lite (CC-BY-4.0
-browser data, build tooling only, not in the bundle), and jsonify (public
-domain, development only).
+and stream-buffers, under @capacitor/cli). It accepts four packages by name:
+require-like and khroma (MIT license text, no license field; khroma is part of
+Mermaid's build for canvases), caniuse-lite (CC-BY-4.0 browser data, build
+tooling only, not in the bundle), and jsonify (public domain, development
+only).
 
 matrix-rust-sdk (Apple Watch app)
   matrix-sdk-ffi and the other crates of matrix-rust-sdk, Copyright The

@@ -1,3 +1,4 @@
+import { toRem } from 'folds';
 import type { ReasoningLevel } from './modelProtocol';
 
 /** The glyph's height, the composer icon's less its padding; every bar fits it in whole pixels. */
@@ -27,7 +28,10 @@ export const effortBarHeights = (count: number, maxBar: number): number[] => {
   );
 };
 
-/** Rising bars on whole pixels, sharp on 1x displays; their color follows the text. */
+/**
+ * Rising bars on whole pixels, sharp on 1x displays at 100 % Page Zoom; drawn in rem, so they scale
+ * with the zoom like the logo before them. Their color follows the text.
+ */
 export function EffortGlyph({
   count,
   filled,
@@ -43,6 +47,7 @@ export function EffortGlyph({
       aria-hidden="true"
       width={width}
       height={GLYPH_HEIGHT}
+      style={{ width: toRem(width), height: toRem(GLYPH_HEIGHT) }}
       viewBox={`0 0 ${width} ${GLYPH_HEIGHT}`}
       className={className}
       data-effort-glyph=""

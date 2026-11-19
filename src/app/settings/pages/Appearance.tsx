@@ -7,6 +7,7 @@ import {
   MessageLayout,
   type MessageSpacing,
   PAGE_ZOOM_DEFAULT,
+  PAGE_ZOOM_STEPS,
   settingsAtom,
 } from '../../preferences/settings';
 import {
@@ -20,8 +21,6 @@ import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/Set
 import { SettingsSection } from '../../ui/settings/SettingsSection';
 import { AdvancedFold } from '../../ui/settings/AdvancedFold';
 import { ChoiceButton } from '../../ui/settings/ChoiceButton';
-
-const ZOOM_STEPS = [50, 75, 90, 100, 110, 125, 150];
 
 export const LAYOUT_CHOICES = [
   [MessageLayout.Modern, 'options.messageLayout.modern'],
@@ -154,9 +153,9 @@ function PageZoomTile() {
   const { t } = useTranslation();
   const [pageZoom, setPageZoom] = useSetting(settingsAtom, 'pageZoom');
   // A pinch on a phone can store a value between the steps; it stays selectable.
-  const steps = ZOOM_STEPS.includes(pageZoom)
-    ? ZOOM_STEPS
-    : [...ZOOM_STEPS, pageZoom].sort((a, b) => a - b);
+  const steps = PAGE_ZOOM_STEPS.includes(pageZoom)
+    ? PAGE_ZOOM_STEPS
+    : [...PAGE_ZOOM_STEPS, pageZoom].sort((a, b) => a - b);
   const label = t('settings.general.appearance.pageZoom');
 
   return (

@@ -85,6 +85,8 @@ describe('Mac Catalyst shell', () => {
     expect(widgetSceneSource).toContain('static let activityType = "chat.mindroom.quick-capture"');
     expect(widgetSceneSource).toContain('static let configurationName = "Quick Capture"');
     expect(appDelegateSource).toContain('builder.remove(menu: .newScene)');
+    // Format › Font › Bigger and Smaller (⌘+, ⌘−) would take the page zoom's keys.
+    expect(appDelegateSource).toContain('builder.remove(menu: .textSize)');
     expect(appDelegateSource).toMatch(/input: " ",\s*modifierFlags: \[\.control, \.alternate\]/);
     expect(sceneSource).toMatch(
       /\$0 !== scene && \$0\.delegate is SceneDelegate[\s\S]*?requestSceneSessionDestruction\(session/

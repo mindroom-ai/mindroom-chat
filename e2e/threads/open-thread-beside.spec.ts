@@ -9,11 +9,12 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 
-// Open beside: a thread card's menu keeps the open thread (A) and shows the card's thread (B) in a
-// second column, a side panel of the room with its own banner, timeline and composer. On a wide
-// page the room's messages stay beside A (three columns); narrower, A fills the page beside B. B
-// survives a reload, Close removes it and takes the focus back to A's composer, and a phone does
-// not offer it.
+// Open in second column: a thread card's menu keeps the open thread (A) and shows the card's thread
+// (B) in a second column, a side panel of the room with its own banner, timeline and composer. On
+// a wide page the room's messages stay beside A while B shows (three columns), whatever layout is
+// stored; narrower, A fills the page beside B. B survives a reload, Close removes it and takes the
+// focus back to A's composer, the stored layout holding again. A card dragged to the room's end
+// edge opens there too, and a phone does not offer it.
 
 const column = (page: Page): Locator => page.getByTestId('thread-column');
 const second = (page: Page): Locator => page.getByTestId('second-thread-panel');
@@ -28,7 +29,7 @@ const openCardMenu = async (page: Page, rootId: string) => {
   return menu;
 };
 
-test('Open beside shows a second thread in its own column at each width', async ({
+test('Open in second column shows a second thread in its own column at each width', async ({
   page,
 }, testInfo) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix accounts required');
@@ -59,6 +60,7 @@ test('Open beside shows a second thread in its own column at each width', async 
   };
   const alpha = await thread('Example thread alpha');
   const beta = await thread('Example thread beta');
+  const gamma = await thread('Example thread gamma');
 
   await page.setViewportSize({ width: 1920, height: 1080 });
   await loginWithPassword(page, { homeserver, ...credentials });
@@ -70,26 +72,18 @@ test('Open beside shows a second thread in its own column at each width', async 
     viewMode: 'compact',
     filterState: createDefaultThreadFilterState(),
   });
-  // The thread column beside the room's messages where the page has room.
-  await page.addInitScript(() =>
-    window.localStorage.setItem('mindroom.threadColumn.layout', '"beside"')
-  );
-  await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(alpha)}`);
-  await expect(column(page).getByText('Example thread alpha reply')).toBeVisible({
-    timeout: 30_000,
-  });
+  // The stored layout stays the default, full, so a thread alone fills the page.
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
   await expect(card(page, beta)).toBeVisible({ timeout: 30_000 });
 
-  // Wide: messages | A | B.
-  await (await openCardMenu(page, beta)).getByRole('menuitem', { name: 'Open beside' }).click();
+  // Wide: messages | B.
+  await (await openCardMenu(page, beta))
+    .getByRole('menuitem', { name: 'Open in second column' })
+    .click();
   await expect(second(page).getByText('Example thread beta reply')).toBeVisible({
     timeout: 30_000,
   });
-  await expect(column(page)).toBeVisible();
-  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
-  await expect(card(page, alpha)).toBeVisible();
   await expect(composerIn(second(page))).toBeFocused();
-  await page.screenshot({ path: testInfo.outputPath('open-beside-1920.png') });
 
   // Typing in B goes to B.
   await page.keyboard.type('Example message beta');
@@ -98,6 +92,16 @@ test('Open beside shows a second thread in its own column at each width', async 
     timeout: 30_000,
   });
   await expect(column(page).getByText('Example message beta', { exact: true })).toHaveCount(0);
+
+  // Opening A keeps the messages beside it while B shows: messages | A | B.
+  await card(page, alpha).click();
+  await expect(column(page).getByText('Example thread alpha reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
+  await expect(card(page, alpha)).toBeVisible();
+  await expect(second(page)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('open-beside-1920.png') });
 
   // B survives a reload.
   await page.reload();
@@ -120,11 +124,72 @@ test('Open beside shows a second thread in its own column at each width', async 
   await second(page).getByRole('button', { name: 'Close thread' }).click();
   await expect(second(page)).toHaveCount(0);
   await expect(composerIn(column(page))).toBeFocused();
+  // B gone, the stored layout (full) holds again, also on a wide page.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect(column(page)).toHaveAttribute('data-filled', 'true');
+  expect(
+    await page.evaluate(() => window.localStorage.getItem('mindroom.threadColumn.layout'))
+  ).not.toBe('"beside"');
+
+  // A card dragged with the mouse to the room's end edge opens there in the second column, and
+  // replaces the one it shows. Playwright's dragTo finds its target before the drag starts, and
+  // the drop zone shows only during one, so the mouse drags step by step.
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+  await expect(card(page, gamma)).toBeVisible({ timeout: 30_000 });
+  await expect(second(page)).toHaveCount(0);
+  const dropZone = page.getByTestId('second-thread-drop-zone');
+  const dragCard = async (rootId: string) => {
+    const from = await card(page, rootId).boundingBox();
+    if (!from) throw new Error('the card has no box');
+    const x = from.x + from.width / 4;
+    const y = from.y + from.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 24, y + 8, { steps: 4 });
+    await expect(dropZone).toBeVisible();
+    const to = await dropZone.boundingBox();
+    if (!to) throw new Error('the drop zone has no box');
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await expect(dropZone).toHaveAttribute('data-over', 'true');
+    await page.mouse.up();
+    await expect(dropZone).toHaveCount(0);
+  };
+  await dragCard(gamma);
+  await expect(second(page).getByText('Example thread gamma reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await dragCard(alpha);
+  await expect(second(page).getByText('Example thread alpha reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(second(page).getByText('Example thread gamma reply')).toHaveCount(0);
+
+  // With beside stored, A open first, then B from a card: messages | A | B.
+  await page.evaluate(() =>
+    window.localStorage.setItem('mindroom.threadColumn.layout', '"beside"')
+  );
+  await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(beta)}`);
+  await expect(column(page).getByText('Example thread beta reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  // The B remembered from the drags goes first, so the card opens a B rather than replacing one.
+  await expect(second(page).getByText('Example thread alpha reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await second(page).getByRole('button', { name: 'Close thread' }).click();
+  await expect(second(page)).toHaveCount(0);
+  await (await openCardMenu(page, gamma))
+    .getByRole('menuitem', { name: 'Open in second column' })
+    .click();
+  await expect(second(page).getByText('Example thread gamma reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
 
   // A phone does not offer it.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   const menu = await openCardMenu(page, beta);
   await expect(menu.getByRole('menuitem', { name: 'Open thread' })).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: 'Open beside' })).toHaveCount(0);
+  await expect(menu.getByRole('menuitem', { name: 'Open in second column' })).toHaveCount(0);
 });

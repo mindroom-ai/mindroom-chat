@@ -84,7 +84,7 @@ export function CanvasPanel({
         shown.title,
         libraries,
         savedState?.(),
-        { raw: shown.raw === true, remote }
+        { raw: shown.raw === true, remote, pinned: shown.libraries }
       ),
     buildKey: `${libraries}:${remote}:${reloads}`,
     onSaveState,

@@ -34,6 +34,8 @@ export type CanvasView = {
   html: string;
   /** Shown exactly as written, without Chat's styles. */
   raw?: true;
+  /** The libraries Chat serves that this revision names. */
+  libraries?: string[];
   /** An uploaded page that is still downloading, or could not be loaded. */
   status?: 'loading' | 'failed';
 };

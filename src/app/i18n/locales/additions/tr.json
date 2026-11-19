@@ -1137,6 +1137,9 @@
       "help": "Klavye kısayollarını göster",
       "messageSearch": "Mesajlarda ara",
       "roomList": "Oda listesini göster veya gizle",
+      "zoomIn": "Yakınlaştır",
+      "zoomOut": "Uzaklaştır",
+      "resetZoom": "Yakınlaştırmayı sıfırla",
       "previousRoom": "Önceki oda",
       "nextRoom": "Sonraki oda",
       "previousUnread": "Önceki okunmamış oda",
@@ -1186,7 +1189,8 @@
     "renameHint": "Yeniden adlandırmak için çift tıklayın",
     "close": "Konuyu kapat",
     "resizeSecond": "İkinci konuyu yeniden boyutlandır",
-    "second": "İkinci konu"
+    "second": "İkinci konu",
+    "dropSecond": "İkinci sütunda açmak için bırakın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -1541,6 +1545,6 @@
     "done": "Bitti"
   },
   "threadActions": {
-    "openBeside": "Yanında aç"
+    "openBeside": "İkinci sütunda aç"
   }
 }

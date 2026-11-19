@@ -102,14 +102,13 @@ import {
 } from '../preferences/accountStorageKeys';
 import { SecondThreadContext, type SecondThreadControl } from '../navigation/secondThread';
 import { SecondThreadPanel } from './SecondThreadPanel';
+import { SecondThreadDropZone } from './SecondThreadDropZone';
 import { useSecondThread } from './useSecondThread';
+import { ROOM_COMPOSER, THREAD_COLUMN_COMPOSER } from './composerSelectors';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
 // The composers the focus goes back to from the second thread: the open thread's, else the room's.
-const MAIN_COMPOSERS = [
-  '[data-testid="thread-column"] [data-room-footer="true"] [data-editable-name="RoomInput"]',
-  '[data-room-footer="true"][data-footer-of="room"] [data-editable-name="RoomInput"]',
-];
+const MAIN_COMPOSERS = [THREAD_COLUMN_COMPOSER, ROOM_COMPOSER];
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -509,8 +508,8 @@ function RoomContent() {
       ),
     },
     {
-      // A second thread beside the open one (Open beside), never on phones. It has no frame: it
-      // never fills the room nor folds.
+      // A second thread beside the open one (Open in second column), never on phones. It has no
+      // frame: it never fills the room nor folds.
       id: 'thread',
       open: !mobile && !!secondId,
       close: closeSecond,
@@ -934,11 +933,19 @@ function RoomContent() {
                   hasMindroomAgents={hasMindroomAgents}
                   joinRequestCount={joinRequestCount}
                   onThreadLoadError={onThreadLoadError}
+                  besideWhileSecond={!!secondShown}
                   {...headerPanels}
                 />
               </MessageLinkCards>
             </Box>
             {sidePanel}
+            {/* A thread card dragged on the page drops at the room's end edge into B. */}
+            {secondThread && (
+              <SecondThreadDropZone
+                widthKey={secondThreadWidthStorageKey(ownUserId)}
+                onOpen={secondThread.open}
+              />
+            )}
           </SecondThreadContext.Provider>
         </PluginPanelControlsContext.Provider>
       </ChatUiActionContext.Provider>

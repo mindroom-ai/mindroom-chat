@@ -14,7 +14,11 @@ import {
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
-import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
+import {
+  getRoomInputDraftKey,
+  openVoiceRecorderAtom,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
 import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
@@ -491,6 +495,22 @@ it("fills the page with the column when its edge is dragged past the messages' l
   expect(storedLayout()).toBe('"full"');
 });
 
+it('keeps the stored layout as the edge is dragged past the expansion while a second thread shows', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  const { rerender } = renderView({ besideWhileSecond: true });
+  const handle = screen.getByRole('separator', { name: 'Resize the thread' });
+  fireEvent.pointerDown(handle, { clientX: 520, button: 0 });
+  fireEvent.pointerMove(handle, { clientX: 100 });
+  expect(screen.getByTestId('thread-column').dataset.expandPreview).toBeUndefined();
+  expect(handle.getAttribute('aria-valuetext')).not.toBe('Show the thread in full');
+  fireEvent.pointerUp(handle, { clientX: 100 });
+  expect(storedLayout()).toBe('"beside"');
+  // The second thread closed, the thread stays beside the messages.
+  rerenderView(rerender);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+});
+
 it("returns the focus to the messages' composer when the column closes", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const { rerender } = renderView();
@@ -669,6 +689,53 @@ it('fills the page with the column while the page is too narrow for it beside th
   expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
   expect(storedLayout()).toBe('"beside"');
   expect(state.viewMounts).toBe(1);
+});
+it('shows the messages beside the thread while a second thread shows, without storing that', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  // The stored layout is full; with the second thread showing on a roomy page the column goes
+  // beside the messages, with no way to fill the page or to go beside them.
+  const { rerender } = renderView({ besideWhileSecond: true });
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
+  // The second thread closed, the stored layout holds again.
+  rerenderView(rerender);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(storedLayout()).toBeNull();
+  expect(state.viewMounts).toBe(1);
+});
+it('keeps the messages beside the thread while a recording runs as the second thread closes', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  const store = getDefaultStore();
+  const { rerender } = renderView({ besideWhileSecond: true });
+  // A voice message being recorded, which the messages' composer would lose with them.
+  act(() => store.set(openVoiceRecorderAtom, Symbol('recorder')));
+  rerenderView(rerender);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(screen.getByTestId('messages')).toBeDefined();
+  // Sent or discarded, the stored layout holds again.
+  act(() => store.set(openVoiceRecorderAtom, undefined));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(storedLayout()).toBeNull();
+});
+it('holds the thread beside the messages for a recording in the room it was taken in, not the next', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  const store = getDefaultStore();
+  const { rerender } = renderView({ besideWhileSecond: true });
+  act(() => store.set(openVoiceRecorderAtom, Symbol('recorder')));
+  // The second thread closed, and straight on to another room with its thread open.
+  rerender(tree({ room: new Room('!other:example.org', mx, '@alice:example.org') }));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.getByRole('button', { name: 'Beside' })).toBeDefined();
+  act(() => store.set(openVoiceRecorderAtom, undefined));
+});
+it('fills the page with the column while a second thread shows on a page too narrow for both', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
+  renderView({ besideWhileSecond: true });
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
 });
 it("keeps the thread's view as its unsent root gets its own ID", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));

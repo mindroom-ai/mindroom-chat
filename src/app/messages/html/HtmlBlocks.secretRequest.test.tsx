@@ -227,23 +227,74 @@ describe('a secret request in its reply', () => {
     expect(hiddenRows(other)).toEqual([]);
   });
 
-  it('counts with the hidden calls, its card a row, until the cog opens and draws its line', () => {
+  it('counts with the hidden calls and keeps its card no row, until the cog opens its line', () => {
+    const hiddenLines = () =>
+      renderer!.root.findAll((node) => node.type === 'div' && node.props.hidden === true);
+    const toggleCog = (open: boolean) =>
+      act(() => {
+        renderer!.root
+          .findByProps({ 'aria-expanded': open, title: 'Used 4 tools' })
+          .props.onClick();
+      });
     showToolCalls(false);
     const plan = secrets('saved');
     render(plan);
 
+    // Shown once, on the cog: the done card asks nothing, so its row stays hidden.
     expect(lines()).toEqual([]);
     expect(cog()?.props['data-state']).toBe('done');
-    expect(hiddenRows(plan)).toEqual([]);
-    act(() => {
-      renderer!.root.findByProps({ 'aria-expanded': false, title: 'Used 4 tools' }).props.onClick();
-    });
+    expect(hiddenLines()).toHaveLength(1);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+
+    toggleCog(false);
+    expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
+    expect(hiddenLines()).toHaveLength(0);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+
+    toggleCog(true);
+    expect(lines()).toEqual([]);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+
+    showToolCalls(true);
     expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
     expect(hiddenRows(plan)).toEqual(['$card']);
+
+    // Only a mounted reply claims: the reply gone, the row comes back.
+    showToolCalls(false);
+    render(plan, null);
+    expect(hiddenRows(plan)).toEqual([]);
   });
 });
 
 describe("a secret request card's row", () => {
+  it('goes to the copy of the reply whose cog opens, from a hidden copy, and stays hidden', () => {
+    showToolCalls(false);
+    const plan = secrets('saved');
+    render(
+      plan,
+      <>
+        <Reply />
+        <Reply />
+      </>
+    );
+    expect(lines()).toEqual([]);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+
+    act(() => {
+      renderer!.root
+        .findAllByProps({ 'aria-expanded': false, title: 'Used 4 tools' })[1]!
+        .props.onClick();
+    });
+    expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+
+    act(() => {
+      renderer!.root.findByProps({ 'aria-expanded': true, title: 'Used 4 tools' }).props.onClick();
+    });
+    expect(lines()).toEqual([]);
+    expect(hiddenRows(plan)).toEqual(['$card']);
+  });
+
   beforeEach(() => {
     showToolCalls(true);
     env.mounts = 0;
