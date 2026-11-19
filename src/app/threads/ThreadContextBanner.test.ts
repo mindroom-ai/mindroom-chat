@@ -695,11 +695,11 @@ describe('ThreadContextBanner rendering', () => {
       expect(phone.root.findAllByProps({ className: 'TagsRow CompactHidden' })).toHaveLength(0);
       phone.unmount();
 
-      // Pinned, the row shows neither the pin nor Resolve; More unpins.
+      // Pinned, the solid pin takes Resolve's place as a status, not a button; More unpins.
       pinningMocks.pinnedEventIds = ['$root'];
       const pinned = renderBanner('A concise thread summary');
       expect(buttons(pinned)).toEqual(['Back', 'Thread options']);
-      expect(pinned.root.findAllByProps({ 'aria-label': 'Pinned' })).toHaveLength(0);
+      expect(pinned.root.findByProps({ role: 'img', 'aria-label': 'Pinned' })).toBeDefined();
       pinned.unmount();
 
       // A tablet keeps both, as before.

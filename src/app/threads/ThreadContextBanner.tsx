@@ -612,7 +612,8 @@ export function ThreadContextBanner({
                   </IconButton>
                 )}
               </IconTooltip>
-              {phone ? null : pinning.canPin && mutableThreadRootId ? (
+              {/* A phone pins from More; its row still says a thread is pinned. */}
+              {!phone && pinning.canPin && mutableThreadRootId ? (
                 <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
                   {(triggerRef) => (
                     <IconButton

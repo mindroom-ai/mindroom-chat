@@ -122,7 +122,8 @@ for (const viewport of [
           );
         await expect.poll(bottomGap).toBeLessThan(2);
         const tag = banner.getByText('protocol', { exact: true }).filter({ visible: true });
-        await expect(tag).toHaveCount(1);
+        // A phone leaves the tags to More.
+        await expect(tag).toHaveCount(viewport.name === 'phone' ? 0 : 1);
         const resolve = banner.getByRole('button', { name: 'Resolve', includeHidden: true });
         await expect(resolve).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('expanded.png') });

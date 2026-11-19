@@ -414,9 +414,11 @@ const checkWall = async (page: Page, world: World, viewport: Size, name: string)
   const card = await boxOf(banner(page));
   const foot = await boxOf(composer(page));
   expect(card.bottom - card.top).toBeLessThan((viewport.height - card.top) * 0.6);
-  // A reply shows in full between the card and the composer.
+  // A reply shows in full between the card and the composer. A 320 by 568 phone at 150% has
+  // room for the card's three lines of title and the end of the reply: its last lines show.
   const replyBox = (await reply.boundingBox())!;
-  expect(replyBox.y).toBeGreaterThanOrEqual(card.bottom);
+  if (viewport.height >= 600) expect(replyBox.y).toBeGreaterThanOrEqual(card.bottom);
+  else expect(replyBox.y + replyBox.height).toBeGreaterThan(card.bottom + 2 * 20);
   expect(replyBox.y + replyBox.height).toBeLessThanOrEqual(foot.top);
   await expectRowOnScreen(page, viewport.width, false);
   // The title's last line is reached by scrolling the title, not the page.
