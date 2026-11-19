@@ -3,8 +3,8 @@
 import { EventEmitter } from 'events';
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { RoomEvent } from 'matrix-js-sdk';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { ClientEvent, RoomEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InvitePage } from './InvitePage';
 import { startClaim, type ClaimOutcome } from './inviteClaim';
@@ -94,13 +94,29 @@ const flush = () =>
     await Promise.resolve();
   });
 
+let navigate: ReturnType<typeof useNavigate>;
+
+/** The router's own address while the page shows. */
+function AddressProbe() {
+  const location = useLocation();
+  navigate = useNavigate();
+  return <output>{`address ${location.pathname}${location.hash}`}</output>;
+}
+
 const renderPage = async (hash = FRAGMENT) => {
-  window.history.replaceState(null, '', `/invite/${hash}`);
   await act(async () => {
     renderer = create(
-      <MemoryRouter initialEntries={['/invite/']}>
+      <MemoryRouter initialEntries={[`/invite/${hash}`]}>
         <Routes>
-          <Route path="/invite/" element={<InvitePage />} />
+          <Route
+            path="/invite/"
+            element={
+              <>
+                <InvitePage />
+                <AddressProbe />
+              </>
+            }
+          />
           <Route path="*" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -164,8 +180,8 @@ describe('InvitePage', () => {
 
   it('removes the fragment from the address bar', async () => {
     await renderPage();
-    expect(window.location.hash).toBe('');
-    expect(window.location.pathname).toBe('/invite/');
+    expect(textOf()).toContain('address /invite/');
+    expect(textOf()).not.toContain('secret-code');
     await click('Join');
     expect(startClaimMock).toHaveBeenCalledWith(
       mx,
@@ -175,12 +191,37 @@ describe('InvitePage', () => {
     expect(textOf()).toContain('Claiming the invitation');
   });
 
-  it('shows invalid for a bad fragment', async () => {
-    await renderPage('#r=router&c=x');
+  it('shows invalid for a bad fragment, and removes it too', async () => {
+    await renderPage('#r=router&c=secret-code');
     expect(textOf()).toContain(
       'This invite link is incomplete. Open the link from the mail again.'
     );
     expect(buttons()).toEqual([]);
+    expect(textOf()).not.toContain('secret-code');
+  });
+
+  it('announces each state in a status region', async () => {
+    await renderPage();
+    await click('Join');
+    const status = renderer?.root.find((node) => node.props.role === 'status');
+    expect(textOf(status)).toContain('Claiming the invitation');
+  });
+
+  it('starts over for another link opened on the same page', async () => {
+    await renderPage();
+    await click('Join');
+    await act(async () => {
+      navigate('/invite/#r=%40router%3Aexample.org&c=code-b');
+    });
+    await flush();
+    expect(stopClaim).toHaveBeenCalled();
+    expect(textOf()).not.toContain('code-b');
+    await click('Join');
+    expect(startClaimMock).toHaveBeenLastCalledWith(
+      mx,
+      { routerId: ROUTER, code: 'code-b' },
+      expect.any(Function)
+    );
   });
 
   it('shows framed inside a frame', async () => {
@@ -289,6 +330,69 @@ describe('InvitePage', () => {
     expect(mx.joinRoom).toHaveBeenCalledTimes(2);
     expect(startClaimMock).toHaveBeenCalledTimes(1);
     expect(textOf()).toContain(ROOM_PATH);
+  });
+
+  // matrix-js-sdk's order for a room it has not seen: the membership change, then the room is
+  // stored, then ClientEvent.Room.
+  const firstInvite = async (room: FakeRoom, membershipEvent = true) => {
+    await act(async () => {
+      if (membershipEvent) mx.emit(RoomEvent.MyMembership, room, 'invite');
+      mx.rooms.push(room);
+      mx.emit(ClientEvent.Room, room);
+    });
+    await flush();
+  };
+
+  it("joins a first invitation that arrives in the SDK's order after invited", async () => {
+    vi.useFakeTimers();
+    await renderPage();
+    await click('Join');
+    await outcome({ status: 'invited', roomId: ROOM });
+    await firstInvite(fakeRoom('invite', ROUTER));
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(mx.joinRoom).toHaveBeenCalledTimes(1);
+    expect(mx.joinRoom).toHaveBeenCalledWith(ROOM, { viaServers: ['example.org'] });
+    expect(textOf()).not.toContain('no longer valid');
+  });
+
+  it('joins when the invitation itself reported invited before the room was stored', async () => {
+    vi.useFakeTimers();
+    await renderPage();
+    await click('Join');
+    // The claim's fallback reports inside the membership event, before the SDK stores the room.
+    await outcome({ status: 'invited', roomId: ROOM });
+    await firstInvite(fakeRoom('invite', ROUTER), false);
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(mx.joinRoom).toHaveBeenCalledTimes(1);
+    expect(textOf()).not.toContain('no longer valid');
+  });
+
+  it('checks the invitation again before it retries a failed join', async () => {
+    mx.rooms = [fakeRoom('invite', ROUTER)];
+    mx.joinRoom.mockRejectedValueOnce(new Error('join refused'));
+    await renderPage();
+    await click('Join');
+    await outcome({ status: 'invited', roomId: ROOM });
+    mx.rooms = [fakeRoom('invite', '@bas:example.org')];
+    await click('Try again');
+    expect(mx.joinRoom).toHaveBeenCalledTimes(1);
+    expect(textOf()).toContain(ROOM_PATH);
+  });
+
+  it('does not retry a join whose invitation is gone', async () => {
+    mx.rooms = [fakeRoom('invite', ROUTER)];
+    mx.joinRoom.mockRejectedValueOnce(new Error('join refused'));
+    await renderPage();
+    await click('Join');
+    await outcome({ status: 'invited', roomId: ROOM });
+    mx.rooms = [];
+    await click('Try again');
+    expect(mx.joinRoom).toHaveBeenCalledTimes(1);
+    expect(textOf()).toContain('Joining the room');
   });
 
   it('stops the claim on unmount', async () => {

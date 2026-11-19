@@ -16,6 +16,8 @@ describe('parseInviteFragment', () => {
     '#r=router&c=x',
     '#r=%40a%3Ab&c=',
     `#r=%40router%3Aexample.org&c=${'a'.repeat(129)}`,
+    // A right-to-left override would show the router's server name reversed.
+    '#r=%40router%3A%E2%80%AEgro.elpmaxe&c=x',
   ])('rejects incomplete or malformed fragments: %s', (hash) => {
     expect(parseInviteFragment(hash)).toBeUndefined();
   });

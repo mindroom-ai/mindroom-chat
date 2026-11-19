@@ -24,22 +24,10 @@ export type ClaimOutcome =
   | { status: 'offline' };
 
 /** Who invited this account to `room`, while that invitation is pending. */
-const inviterOf = (mx: MatrixClient, room: Room): string | undefined =>
+export const inviterOf = (mx: MatrixClient, room: Room): string | undefined =>
   matchesEnum(room.getMyMembership(), KnownMembership.Invite)
     ? room.getMember(mx.getSafeUserId())?.events.member?.getSender()
     : undefined;
-
-/** The room this account is invited to by `routerId`, limited to `roomId` when given. */
-export const pendingRouterInvite = (
-  mx: MatrixClient,
-  routerId: string,
-  roomId?: string
-): string | undefined =>
-  mx
-    .getRooms()
-    .find(
-      (room) => (roomId === undefined || room.roomId === roomId) && inviterOf(mx, room) === routerId
-    )?.roomId;
 
 /** The final outcome a result from the router carries, or undefined for any other shape. */
 const parseResult = (content: Record<string, unknown>): ClaimOutcome | undefined => {
@@ -69,10 +57,15 @@ export const startClaim = (
       .map((room) => room.roomId)
   );
 
+  let stopped = false;
+  let failedSends = 0;
   const send = (): void => {
-    // A failed send ends in `offline`, like a claim the router never answers.
+    // Both sends failing means the claim never left this device: that is `retry`, not `offline`.
     mx.sendToDevice(CLAIM_EVENT, new Map([[link.routerId, new Map([['*', content]])]])).catch(
-      () => undefined
+      () => {
+        failedSends += 1;
+        if (failedSends === 2 && !stopped) finish({ status: 'retry' });
+      }
     );
   };
 
@@ -98,6 +91,7 @@ export const startClaim = (
   const offline = setTimeout(() => onOutcome({ status: 'offline' }), CLAIM_TIMEOUT_MS);
 
   function stop(): void {
+    stopped = true;
     clearTimeout(resend);
     clearTimeout(offline);
     mx.removeListener(ClientEvent.ReceivedToDeviceMessage, onMessage);

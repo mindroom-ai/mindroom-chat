@@ -1,13 +1,7 @@
 import { EventEmitter } from 'events';
-import { ClientEvent, RoomEvent, type MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, RoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  CLAIM_EVENT,
-  RESULT_EVENT,
-  pendingRouterInvite,
-  startClaim,
-  type ClaimOutcome,
-} from './inviteClaim';
+import { CLAIM_EVENT, RESULT_EVENT, inviterOf, startClaim, type ClaimOutcome } from './inviteClaim';
 
 const ROUTER = '@router:example.org';
 const ME = '@alice:example.org';
@@ -168,6 +162,22 @@ describe('startClaim', () => {
     expect(outcomes).toEqual([]);
   });
 
+  it('reports retry when neither send reaches the homeserver', async () => {
+    mx.sendToDevice.mockRejectedValue(new Error('offline'));
+    start();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(outcomes).toEqual([{ status: 'retry' }]);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(outcomes).toEqual([{ status: 'retry' }]);
+  });
+
+  it('still waits for the router when the resend reaches the homeserver', async () => {
+    mx.sendToDevice.mockRejectedValueOnce(new Error('offline'));
+    start();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(outcomes).toEqual([{ status: 'offline' }]);
+  });
+
   it('stop removes listeners and timers', () => {
     start();
     stop?.();
@@ -181,17 +191,12 @@ describe('startClaim', () => {
   });
 });
 
-describe('pendingRouterInvite', () => {
-  it("finds the router's pending invitation, limited to a room when given", () => {
-    mx.rooms = [
-      fakeRoom('!joined:example.org', 'join', ROUTER),
-      fakeRoom('!other:example.org', 'invite', '@bas:example.org'),
-      fakeRoom(ROOM, 'invite', ROUTER),
-    ];
+describe('inviterOf', () => {
+  it('names who invited this account to a room while the invitation is pending', () => {
     const client = mx as unknown as MatrixClient;
-    expect(pendingRouterInvite(client, ROUTER)).toBe(ROOM);
-    expect(pendingRouterInvite(client, ROUTER, ROOM)).toBe(ROOM);
-    expect(pendingRouterInvite(client, ROUTER, '!other:example.org')).toBeUndefined();
-    expect(pendingRouterInvite(client, '@bas:example.org')).toBe('!other:example.org');
+    const of = (room: FakeRoom) => inviterOf(client, room as unknown as Room);
+    expect(of(fakeRoom(ROOM, 'invite', ROUTER))).toBe(ROUTER);
+    expect(of(fakeRoom(ROOM, 'invite', '@bas:example.org'))).toBe('@bas:example.org');
+    expect(of(fakeRoom(ROOM, 'join', ROUTER))).toBeUndefined();
   });
 });

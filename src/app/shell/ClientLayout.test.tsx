@@ -144,6 +144,22 @@ describe('ClientLayout', () => {
     }
   );
 
+  it.each(['/invite/#r=%40router%3Aexample.org&c=secret-code', '/INVITE#c=secret-code'])(
+    'never stores the bearer code of %s',
+    async (path) => {
+      putSession({
+        baseUrl: 'https://matrix.example.org',
+        userId: '@alice:example.org',
+        deviceId: 'DEVICE',
+        accessToken: 'fake',
+      });
+      updateSessionLastPath(getActiveSession()!.sessionId, ROOM_PATH);
+      await visit(path);
+      expect(getActiveSession()?.lastKnownPath).toBe(ROOM_PATH);
+      expect(JSON.stringify({ ...localStorage })).not.toContain('secret-code');
+    }
+  );
+
   it('puts the notice place first wider than a phone, and under the top bar on a phone, inert under its drawer', async () => {
     const layout = (screen: ScreenSize) => (
       <ScreenSizeProvider value={screen}>
