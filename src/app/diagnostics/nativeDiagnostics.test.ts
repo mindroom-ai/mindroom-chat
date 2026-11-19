@@ -122,6 +122,41 @@ describe('native diagnostics reader', () => {
     });
   });
 
+  // TEMP-DIAG(webview-kill):
+  it('passes the WebContent termination reason and memory headroom through', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    const event = (sequence: number, terminationReason: string) => ({
+      at: sequence,
+      monotonicMs: sequence,
+      sequence,
+      sessionId,
+      name: 'webview.termination_reason',
+      data: { terminationReason, availableMemoryBytes: 1024, msSinceMemoryWarning: 50 },
+    });
+    nativePlugin.read.mockResolvedValue({
+      schemaVersion: 1,
+      status: 'available',
+      currentSessionId: sessionId,
+      events: [event(1, 'memory'), event(2, 'unknown(7)')],
+      droppedEventCount: 0,
+    });
+    await expect(readDiagnostics()).resolves.toMatchObject({
+      status: 'available',
+      events: [event(1, 'memory'), event(2, 'unknown(7)')],
+    });
+
+    nativePlugin.read.mockResolvedValue({
+      schemaVersion: 1,
+      status: 'available',
+      currentSessionId: sessionId,
+      events: [event(1, 'secret free text')],
+      droppedEventCount: 0,
+    });
+    await expect(readDiagnostics()).resolves.toMatchObject({ status: 'invalid' });
+  });
+
   it('accepts every event name declared by the Swift diagnostics store', async () => {
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);

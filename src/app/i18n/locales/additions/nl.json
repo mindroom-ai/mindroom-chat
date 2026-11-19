@@ -1045,6 +1045,8 @@
       "modelPicker": {
         "effort": "Inspanning",
         "effortFor": "Inspanning voor {{model}}",
+        "effortLevel": "Inspanning: {{level}}",
+        "back": "Terug",
         "noEffortLevels": "Geen inspanningsniveaus",
         "defaultLevel": "Standaard",
         "levelIsDefault": "{{level}}, standaard",
@@ -1065,6 +1067,11 @@
           "max": "Maximaal"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} heeft deze pagina bijgewerkt.",
+      "shownInPanel": "Getoond in het paneel",
+      "inlineDisclosure": "Gemaakt door {{agent}}. De pagina heeft geen toegang tot je account, maar wat je hier invoert kan deze pagina verlaten."
     }
   },
   "composer": {

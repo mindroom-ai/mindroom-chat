@@ -182,6 +182,17 @@ describe('useMarkdownHtml', () => {
     expect(kept?.getAttribute('src')).toBe('https://x.example/a.png');
     expect(kept?.getAttribute('alt')).toBe('a');
   });
+
+  it('renders the Markdown after an inline <title> as HTML, the tag as text', async () => {
+    const { result } = renderHook(() =>
+      useMarkdownHtml('Set the <title> of `index.html`\n\n- **one**')
+    );
+    await waitFor(() => expect(result.current).toBeDefined());
+    const shown = elementsOf(result.current ?? '');
+    expect(shown.querySelector('p')?.textContent).toBe('Set the <title> of index.html');
+    expect(shown.querySelector('code')?.textContent).toBe('index.html');
+    expect(shown.querySelector('li strong')?.textContent).toBe('one');
+  });
 });
 
 describe('MarkdownContent', () => {

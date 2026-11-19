@@ -21,7 +21,7 @@ import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
 import { glassExpanded } from '../ui/styles/Glass.css';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EffortGlyph, effortBars } from './EffortGlyph';
-import { ModelEffortColumn } from './ModelEffortColumn';
+import { ModelEffortColumn, ModelEffortEntry } from './ModelEffortColumn';
 import type { ModelCatalogEntry, ModelInheritedEntry, ReasoningLevel } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
@@ -31,10 +31,12 @@ import * as css from './ModelPicker.css';
 const FILTER_AFTER = 8;
 /** The gap between the menu and its button. */
 const POP_OUT_OFFSET = 8;
-/** The menu's height without the effort column, and its one height beside or above it. */
+/**
+ * The menu's height without levels, its one height on a phone with them, and beside the effort
+ * column.
+ */
 const MAX_HEIGHT = 420;
 const EFFORT_HEIGHT = 344;
-const STACKED_EFFORT_HEIGHT = 560;
 
 type ModelPickerPanelProps = {
   state: ModelPickerState;
@@ -125,6 +127,11 @@ function ModelPickerPanel({
   const { t } = useTranslation();
   const stacked = useScreenSizeContext() === ScreenSize.Mobile;
   const columnRef = useRef<HTMLDivElement>(null);
+  /** On a phone the levels show in place of the models, opened from the Effort row under them. */
+  const [levelsShown, setLevelsShown] = useState(false);
+  const entryRef = useRef<HTMLButtonElement>(null);
+  /** Back from the levels, the keys return to the Effort row. */
+  const backRef = useRef(false);
   /** The filter field or the list, whichever the keys left for the levels. */
   const columnOriginRef = useRef<HTMLElement>();
   const [query, setQuery] = useState('');
@@ -170,6 +177,9 @@ function ModelPickerPanel({
   // They never follow the highlight: a level is picked for the model the thread has.
   const columnShown = state.models.some((model) => model.reasoning_levels);
   const current = currentChoice(state);
+  const levels = current.model?.reasoning_levels;
+  // The view goes with the phone's layout, or with the levels of the model the thread runs on.
+  const levelsOpen = levelsShown && stacked && !!levels;
 
   // A phone's keyboard would come up over the menu, so there the list takes focus, not the filter.
   useEffect(() => {
@@ -179,7 +189,12 @@ function ModelPickerPanel({
   // A control that goes while it has focus (the filter field, Retry, the runtime chooser) leaves
   // the keys to the list.
   useEffect(() => {
-    if (document.activeElement === document.body) listRef.current?.focus();
+    if (document.activeElement !== document.body) return;
+    // In the levels a focused level can go too, when the thread's model changes.
+    (
+      listRef.current ??
+      columnRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')
+    )?.focus();
   });
 
   useEffect(() => {
@@ -187,9 +202,26 @@ function ModelPickerPanel({
     setMovedIndex(Math.max(items.length - 1, 0));
   }, [movedIndex, items.length]);
 
+  // The list comes back from the levels at its top, so the highlight scrolls in again.
   useEffect(() => {
     document.getElementById(activeId ?? '')?.scrollIntoView?.({ block: 'nearest' });
-  }, [activeId]);
+  }, [activeId, levelsShown]);
+
+  // Opened, the levels take the keys on the checked one, else the default.
+  useEffect(() => {
+    if (levelsShown && !levelsOpen) {
+      backRef.current = true;
+      setLevelsShown(false);
+    }
+  }, [levelsShown, levelsOpen]);
+  useEffect(() => {
+    if (levelsShown) {
+      columnRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')?.focus();
+    } else if (backRef.current) {
+      backRef.current = false;
+      entryRef.current?.focus();
+    }
+  }, [levelsShown]);
 
   const selectItem = (item: PickerItem) => {
     if (mutationsDisabled) return;
@@ -220,6 +252,10 @@ function ModelPickerPanel({
     const origin = columnOriginRef.current;
     (origin?.isConnected ? origin : listRef.current)?.focus();
   };
+  const closeLevels = () => {
+    backRef.current = true;
+    setLevelsShown(false);
+  };
 
   // The filter field or the list holds focus; the arrows move the highlight.
   const handleKeyDown: KeyboardEventHandler<HTMLElement> = (event) => {
@@ -248,6 +284,10 @@ function ModelPickerPanel({
       (!field || field.selectionStart === field.value.length)
     ) {
       event.preventDefault();
+      if (stacked) {
+        setLevelsShown(true);
+        return;
+      }
       columnOriginRef.current = event.currentTarget;
       columnRef.current?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')?.focus();
       return;
@@ -313,6 +353,37 @@ function ModelPickerPanel({
 
   const controls = filterShown || state.runtimes.length > 1 || state.loading || state.pending;
 
+  // What the menu waits for and what went wrong, with Retry, shown over the models and the levels.
+  const status = (
+    <>
+      {(state.loading || state.pending) && (
+        <div className={css.StatusRow} role="status">
+          <Spinner size="100" variant="Secondary" />
+          {state.pending
+            ? t('mindroomUi.models.modelPicker.pending')
+            : t('mindroomUi.models.modelPicker.loading')}
+        </div>
+      )}
+
+      {state.error && (
+        <div className={css.Error} role="alert">
+          <div>{state.error}</div>
+          <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
+          <div className={css.ErrorActions}>
+            <button
+              type="button"
+              className={css.TextButton}
+              aria-label={t('mindroomUi.models.modelPicker.retry')}
+              onClick={state.refresh}
+            >
+              {t('mindroomUi.models.modelPicker.retry')}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const picker = (
     <>
       {(controls || state.error) && (
@@ -363,38 +434,13 @@ function ModelPickerPanel({
             </div>
           )}
 
-          {(state.loading || state.pending) && (
-            <div className={css.StatusRow} role="status">
-              <Spinner size="100" variant="Secondary" />
-              {state.pending
-                ? t('mindroomUi.models.modelPicker.pending')
-                : t('mindroomUi.models.modelPicker.loading')}
-            </div>
-          )}
-
-          {state.error && (
-            <div className={css.Error} role="alert">
-              <div>{state.error}</div>
-              <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
-              <div className={css.ErrorActions}>
-                <button
-                  type="button"
-                  className={css.TextButton}
-                  aria-label={t('mindroomUi.models.modelPicker.retry')}
-                  onClick={state.refresh}
-                >
-                  {t('mindroomUi.models.modelPicker.retry')}
-                </button>
-              </div>
-            </div>
-          )}
+          {status}
         </div>
       )}
 
       {/* The rows scroll inside the menu's rim, which stays put around them. */}
       <Scroll
         ref={resultsRef}
-        className={css.Rows}
         size="300"
         hideTrack
         visibility="Hover"
@@ -435,23 +481,37 @@ function ModelPickerPanel({
     </>
   );
 
+  const effort = (mode: 'column' | 'view') => (
+    <ModelEffortColumn
+      model={current.model}
+      active={current.level}
+      modelName={current.model?.display_name ?? state.override ?? defaults.label}
+      disabled={mutationsDisabled}
+      columnRef={columnRef}
+      onPick={selectLevel}
+      mode={mode}
+      onLeave={mode === 'view' ? closeLevels : leaveColumn}
+    />
+  );
+  // On a phone the levels take the models' place, opened from a row pinned under them; a model
+  // without levels has no row, so it opens nothing.
   const panes = columnShown && (
     <>
       <div className={css.Picker}>{picker}</div>
-      <ModelEffortColumn
-        model={current.model}
-        active={current.level}
-        modelName={current.model?.display_name ?? state.override ?? defaults.label}
-        disabled={mutationsDisabled}
-        columnRef={columnRef}
-        onPick={selectLevel}
-        onLeave={leaveColumn}
-      />
+      {!stacked && effort('column')}
+      {stacked && levels && (
+        <ModelEffortEntry
+          levels={levels}
+          active={current.level}
+          entryRef={entryRef}
+          onOpen={() => setLevelsShown(true)}
+        />
+      )}
     </>
   );
-  // With the column the menu has one height, so a model with more levels never resizes it; on a
-  // phone the levels sit under the models.
-  const limit = toRem(stacked ? STACKED_EFFORT_HEIGHT : EFFORT_HEIGHT);
+  // With levels the menu has one height, so a model with more levels never resizes it, and the
+  // levels on a phone fill the models' box.
+  const limit = toRem(stacked ? MAX_HEIGHT : EFFORT_HEIGHT);
   return (
     <Menu
       role="dialog"
@@ -463,7 +523,27 @@ function ModelPickerPanel({
           : { maxHeight: `min(${toRem(MAX_HEIGHT)}, ${room})` }
       }
     >
-      {panes && stacked ? <div className={css.StackedScroll}>{panes}</div> : panes || picker}
+      {panes && levelsOpen ? (
+        <>
+          {effort('view')}
+          {(state.loading || state.pending || state.error) && (
+            // Retry here sits outside the levels' keys, so it takes the same way back.
+            <div
+              className={`${css.Controls} ${css.ViewStatus}`}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'Escape') return;
+                event.preventDefault();
+                event.stopPropagation();
+                closeLevels();
+              }}
+            >
+              {status}
+            </div>
+          )}
+        </>
+      ) : (
+        panes || picker
+      )}
     </Menu>
   );
 }

@@ -1069,6 +1069,8 @@
       "modelPicker": {
         "effort": "Impegno",
         "effortFor": "Impegno per {{model}}",
+        "effortLevel": "Impegno: {{level}}",
+        "back": "Indietro",
         "noEffortLevels": "Nessun livello di impegno",
         "defaultLevel": "Predefinito",
         "levelIsDefault": "{{level}}, predefinito",
@@ -1089,6 +1091,11 @@
           "max": "Massimo"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} ha aggiornato questa pagina.",
+      "shownInPanel": "Mostrata nel pannello",
+      "inlineDisclosure": "Creata da {{agent}}. Non può accedere al tuo account; ciò che inserisci qui può uscire da questa pagina."
     }
   },
   "composer": {

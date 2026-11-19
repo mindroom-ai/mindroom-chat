@@ -1,7 +1,8 @@
-import { IconCheck } from '@tabler/icons-react';
+import { IconCheck, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { KeyboardEventHandler, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { EffortGlyph, effortBars } from './EffortGlyph';
 import type { ModelCatalogEntry, ReasoningLevel } from './modelProtocol';
 import * as css from './ModelPicker.css';
 
@@ -15,13 +16,15 @@ type ModelEffortColumnProps = {
   disabled: boolean;
   columnRef: RefObject<HTMLDivElement>;
   onPick: (level: ReasoningLevel) => void;
-  /** ArrowLeft or Escape: the keys go back to the models. */
+  /** A column beside the models, or on a phone a view in their place with a way back to them. */
+  mode: 'column' | 'view';
+  /** ArrowLeft, Escape or the view's Back: the keys go back to the models. */
   onLeave: () => void;
 };
 
 /**
- * The column beside the models: the levels of the model the thread runs on, each a radio, with a
- * check on the level it runs at and the model's default marked.
+ * The levels of the model the thread runs on, each a radio, with a check on the level it runs at
+ * and the model's default marked.
  */
 export function ModelEffortColumn({
   model,
@@ -30,13 +33,14 @@ export function ModelEffortColumn({
   disabled,
   columnRef,
   onPick,
+  mode,
   onLeave,
 }: ModelEffortColumnProps) {
   const { t } = useTranslation();
   const levelLabel = (level: ReasoningLevel) => t(`mindroomUi.models.modelPicker.levels.${level}`);
 
   // Up and Down move between the levels, which stop at either end; Left and Escape leave.
-  const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
+  const handleKeyDown: KeyboardEventHandler<HTMLElement> = (event) => {
     if (event.key === 'ArrowLeft' || event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -55,8 +59,19 @@ export function ModelEffortColumn({
   };
 
   return (
-    <div ref={columnRef} className={css.EffortColumn} data-effort-column="">
+    <div ref={columnRef} className={css.EffortColumn} data-effort-column="" data-mode={mode}>
       <div className={css.EffortHeader}>
+        {mode === 'view' && (
+          <button
+            type="button"
+            className={css.EffortBack}
+            aria-label={t('mindroomUi.models.modelPicker.back')}
+            onClick={onLeave}
+            onKeyDown={handleKeyDown}
+          >
+            <IconChevronLeft className={css.Mirrored} size={20} aria-hidden="true" />
+          </button>
+        )}
         <span>{t('mindroomUi.models.modelPicker.effort')}</span>
         <span className={css.EffortModel}>{modelName}</span>
       </div>
@@ -108,6 +123,59 @@ export function ModelEffortColumn({
       ) : (
         <div className={css.EffortNone}>{t('mindroomUi.models.modelPicker.noEffortLevels')}</div>
       )}
+    </div>
+  );
+}
+
+/**
+ * On a phone, under the models of a model with levels: the level it runs at, a row that opens the
+ * levels in place of the models.
+ */
+export function ModelEffortEntry({
+  levels,
+  active,
+  entryRef,
+  onOpen,
+}: {
+  levels: readonly ReasoningLevel[];
+  /** None while the agents' levels differ. */
+  active?: ReasoningLevel;
+  entryRef: RefObject<HTMLButtonElement>;
+  onOpen: () => void;
+}) {
+  const { t } = useTranslation();
+  const bars = effortBars(levels, active ?? 'off');
+  const level = active && t(`mindroomUi.models.modelPicker.levels.${active}`);
+  return (
+    <div className={css.EffortEntryBar}>
+      <button
+        ref={entryRef}
+        type="button"
+        className={css.EffortEntry}
+        aria-label={
+          level
+            ? t('mindroomUi.models.modelPicker.effortLevel', { level })
+            : t('mindroomUi.models.modelPicker.effort')
+        }
+        data-effort-entry=""
+        onClick={onOpen}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          onOpen();
+        }}
+      >
+        <span className={css.OptionIcon} aria-hidden="true">
+          {bars.count > 0 && <EffortGlyph count={bars.count} filled={bars.filled} />}
+        </span>
+        <span className={css.EffortLabel}>{t('mindroomUi.models.modelPicker.effort')}</span>
+        {level && <span className={css.EffortValue}>{level}</span>}
+        <IconChevronRight
+          className={`${css.EffortValue} ${css.Mirrored}`}
+          size={16}
+          aria-hidden="true"
+        />
+      </button>
     </div>
   );
 }

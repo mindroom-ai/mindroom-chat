@@ -11,8 +11,8 @@ import { CanvasPanel } from './CanvasPanel';
 import { readCanvasTheme } from '../messages/canvas/canvasTheme';
 import { useCanvasPage } from '../messages/canvas/useCanvasPage';
 import { useCanvasVersions } from './useCanvasVersions';
-import { useCanvasSavedState } from './useCanvasSavedState';
-import { useCanvasStateShare } from './useCanvasStateShare';
+import { useCanvasSavedState } from '../messages/canvas/useCanvasSavedState';
+import { useCanvasStateShare } from '../messages/canvas/useCanvasStateShare';
 import { canvasWidthStorageKey } from '../preferences/accountStorageKeys';
 
 type RoomCanvasPanelProps = {

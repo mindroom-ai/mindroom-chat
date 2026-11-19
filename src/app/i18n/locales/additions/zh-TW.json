@@ -1021,6 +1021,8 @@
       "modelPicker": {
         "effort": "推理強度",
         "effortFor": "{{model}} 的推理強度",
+        "effortLevel": "推理強度：{{level}}",
+        "back": "返回",
         "noEffortLevels": "無推理強度等級",
         "defaultLevel": "預設",
         "levelIsDefault": "{{level}}，預設",
@@ -1041,6 +1043,11 @@
           "max": "最高"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} 更新了此頁面。",
+      "shownInPanel": "已在面板中顯示",
+      "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
     }
   },
   "composer": {

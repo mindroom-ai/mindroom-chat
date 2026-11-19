@@ -1069,6 +1069,8 @@
       "modelPicker": {
         "effort": "Esforço",
         "effortFor": "Esforço de {{model}}",
+        "effortLevel": "Esforço: {{level}}",
+        "back": "Voltar",
         "noEffortLevels": "Sem níveis de esforço",
         "defaultLevel": "Padrão",
         "levelIsDefault": "{{level}}, padrão",
@@ -1089,6 +1091,11 @@
           "max": "Máximo"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} atualizou esta página.",
+      "shownInPanel": "Mostrada no painel",
+      "inlineDisclosure": "Criada por {{agent}}. Não pode acessar sua conta; o que você digitar aqui pode sair desta página."
     }
   },
   "composer": {

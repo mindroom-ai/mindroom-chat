@@ -1045,6 +1045,8 @@
       "modelPicker": {
         "effort": "प्रयास",
         "effortFor": "{{model}} के लिए प्रयास",
+        "effortLevel": "प्रयास: {{level}}",
+        "back": "वापस",
         "noEffortLevels": "कोई प्रयास स्तर नहीं",
         "defaultLevel": "डिफ़ॉल्ट",
         "levelIsDefault": "{{level}}, डिफ़ॉल्ट",
@@ -1065,6 +1067,11 @@
           "max": "अधिकतम"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} ने यह पेज अपडेट किया।",
+      "shownInPanel": "पैनल में दिखाया गया",
+      "inlineDisclosure": "{{agent}} ने बनाया। यह आपके खाते तक नहीं पहुँच सकता; यहाँ आप जो दर्ज करते हैं, वह इस पेज से बाहर जा सकता है।"
     }
   },
   "composer": {

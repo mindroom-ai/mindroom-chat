@@ -1045,6 +1045,8 @@
       "modelPicker": {
         "effort": "Aufwand",
         "effortFor": "Aufwand für {{model}}",
+        "effortLevel": "Aufwand: {{level}}",
+        "back": "Zurück",
         "noEffortLevels": "Keine Aufwandsstufen",
         "defaultLevel": "Standard",
         "levelIsDefault": "{{level}}, Standard",
@@ -1065,6 +1067,11 @@
           "max": "Maximal"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
+      "shownInPanel": "Im Panel angezeigt",
+      "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
     }
   },
   "composer": {

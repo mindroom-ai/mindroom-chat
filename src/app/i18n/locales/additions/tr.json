@@ -1045,6 +1045,8 @@
       "modelPicker": {
         "effort": "Çaba",
         "effortFor": "{{model}} için çaba",
+        "effortLevel": "Çaba: {{level}}",
+        "back": "Geri",
         "noEffortLevels": "Çaba düzeyi yok",
         "defaultLevel": "Varsayılan",
         "levelIsDefault": "{{level}}, varsayılan",
@@ -1065,6 +1067,11 @@
           "max": "Maksimum"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
+      "shownInPanel": "Panelde gösteriliyor",
+      "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
     }
   },
   "composer": {

@@ -1093,6 +1093,8 @@
       "modelPicker": {
         "effort": "Усилие",
         "effortFor": "Усилие для {{model}}",
+        "effortLevel": "Усилие: {{level}}",
+        "back": "Назад",
         "noEffortLevels": "Нет уровней усилия",
         "defaultLevel": "По умолчанию",
         "levelIsDefault": "{{level}}, по умолчанию",
@@ -1113,6 +1115,11 @@
           "max": "Максимальное"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "{{agent}} обновил эту страницу.",
+      "shownInPanel": "Показана в панели",
+      "inlineDisclosure": "Создано {{agent}}. У страницы нет доступа к вашему аккаунту, но то, что вы вводите здесь, может покинуть эту страницу."
     }
   },
   "composer": {

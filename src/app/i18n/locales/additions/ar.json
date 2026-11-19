@@ -1141,6 +1141,8 @@
       "modelPicker": {
         "effort": "الجهد",
         "effortFor": "الجهد لـ ⁨{{model}}⁩",
+        "effortLevel": "الجهد: ⁨{{level}}⁩",
+        "back": "رجوع",
         "noEffortLevels": "لا توجد مستويات جهد",
         "defaultLevel": "افتراضي",
         "levelIsDefault": "⁨{{level}}⁩، افتراضي",
@@ -1161,6 +1163,11 @@
           "max": "أقصى"
         }
       }
+    },
+    "canvas": {
+      "pageUpdated": "حدّث ⁨{{agent}}⁩ هذه الصفحة.",
+      "shownInPanel": "معروضة في اللوحة",
+      "inlineDisclosure": "أنشأها ⁨{{agent}}⁩. لا يمكنها الوصول إلى حسابك، وقد يخرج ما تُدخله هنا من هذه الصفحة."
     }
   },
   "composer": {

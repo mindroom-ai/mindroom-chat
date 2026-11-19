@@ -23,6 +23,15 @@ const SUPPORTED_BLOCK_LINE_START = new RegExp(`^ {0,3}</?(?:${BLOCK_TAG_ALTERNAT
 const SUPPORTED_BLOCK_END_TAG = new RegExp(`</(?:${BLOCK_TAG_ALTERNATION})>\\s*$`, 'i');
 const HR_BLOCK_TAG = /^ {0,3}<hr\b[^<>]*\/?>\s*$/i;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
+// HTML as a browser tokenizes it, in one linear pass: a comment (to EOF when unclosed), a bogus comment to
+// the first `>` (processing instruction, declaration, CDATA), or a tag (name in group 1) whose quoted
+// values are consumed whole; an unclosed quote or tag runs to EOF.
+const HTML_CONSTRUCT =
+  /<!---?>|<!--[\s\S]*?(?:-->|$)|<[?!][^>]*>?|<\/?([A-Za-z][^\t\n\f\r />]*)(?:[^"'>]|"[^"]*(?:"|$)|'[^']*(?:'|$))*(?:>|$)/g;
+// The runtime's HTML parser, and the app's sanitizer, read all text after one of these tags as raw text.
+const RAW_TEXT_TAGS = new Set(
+  'script style title textarea xmp iframe noembed noframes noscript plaintext'.split(' ')
+);
 
 /** Python's `html.escape`, which the runtime uses for escaped openers and preserved math. */
 const escapeLikePython = (text: string): string =>
@@ -247,12 +256,16 @@ export const loadLiveMarkdown = (): Promise<void> => {
 
 /** The HTML for live Markdown, or undefined until the renderer has loaded. */
 export const renderLiveMarkdown = (md: string): string | undefined =>
-  renderer?.render(
-    transformOutsideFencedCode(
-      transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
-      separateSupportedBlockHtml
+  renderer
+    ?.render(
+      transformOutsideFencedCode(
+        transformOutsideFencedCode(md.replace(/\r\n?/g, '\n'), escapeHtmlBlockOpeners),
+        separateSupportedBlockHtml
+      )
     )
-  );
+    .replace(HTML_CONSTRUCT, (construct, name?: string) =>
+      RAW_TEXT_TAGS.has((name ?? '').toLowerCase()) ? escapeLikePython(construct) : construct
+    );
 
 const subscribeReady = (listener: () => void) => {
   readyListeners.add(listener);
