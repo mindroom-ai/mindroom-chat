@@ -30,9 +30,9 @@ const trackInstance = (instance: WebAssembly.Instance): void => {
   });
 };
 
-// For a load started now: its result counts only if the hooks are still the same installation.
+// A load's result counts only if the hooks are still the installation that wrapped it.
 const trackResult =
-  (since = generation) =>
+  (since: number) =>
   <T>(result: T): T => {
     if (since !== generation) return result;
     try {
@@ -50,9 +50,10 @@ const trackResult =
 const hookWebAssembly = (restores: Array<() => void>): void => {
   if (typeof WebAssembly === 'undefined') return;
   const { instantiate, instantiateStreaming } = WebAssembly;
+  const since = generation;
   if (typeof instantiate === 'function') {
     WebAssembly.instantiate = ((...args: Parameters<typeof instantiate>) =>
-      instantiate.apply(WebAssembly, args).then(trackResult())) as typeof instantiate;
+      instantiate.apply(WebAssembly, args).then(trackResult(since))) as typeof instantiate;
     restores.push(() => {
       WebAssembly.instantiate = instantiate;
     });
@@ -61,7 +62,7 @@ const hookWebAssembly = (restores: Array<() => void>): void => {
     WebAssembly.instantiateStreaming = ((...args: Parameters<typeof instantiateStreaming>) =>
       instantiateStreaming
         .apply(WebAssembly, args)
-        .then(trackResult())) as typeof instantiateStreaming;
+        .then(trackResult(since))) as typeof instantiateStreaming;
     restores.push(() => {
       WebAssembly.instantiateStreaming = instantiateStreaming;
     });

@@ -69,9 +69,11 @@ describe('media memory', () => {
   it('records nothing from a load or a kept wrapper that finishes after uninstall', async () => {
     const pending = WebAssembly.instantiate(WASM_WITH_MEMORY);
     const keptCreate = URL.createObjectURL;
+    const keptInstantiate = WebAssembly.instantiate;
     uninstall();
     await pending;
     keptCreate(new Blob(['x']));
+    await keptInstantiate(WASM_WITH_MEMORY);
 
     expect(readWasmMemoryMb()).toBeUndefined();
     expect(readMediaMemory()).toMatchObject({ object_urls: 0 });
