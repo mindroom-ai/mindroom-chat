@@ -2,6 +2,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { authenticatedMediaRequestInit, supportsAuthenticatedMedia } from '../matrix/mediaUrl';
 import { getBlobSafeMimeType } from '../lib/mimeTypes';
 import { forgetAvatars, recallAvatar, rememberAvatar } from '../../sw/avatarCache';
+import { registerMemoryGauge } from '../diagnostics/memorySampler';
 
 // Avatar images normally load straight from their media URL: on the web the service worker adds
 // the access token to authenticated media requests (Matrix 1.11, MSC3916). A page without a
@@ -121,6 +122,8 @@ type CachedAvatar = {
   cleared?: boolean;
 };
 const fetchedAvatars = new Map<string, CachedAvatar>();
+// Their blobs count in `memory.media`'s object URL bytes; this says how many are avatars.
+registerMemoryGauge('avatar_cache_entries', () => fetchedAvatars.size);
 
 // Each account has its own entries, so one account never reuses what another fetched.
 const cacheKey = (mx: AvatarMediaClient, target: string): string => {
