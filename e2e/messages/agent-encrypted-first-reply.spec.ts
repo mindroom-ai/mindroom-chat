@@ -35,7 +35,7 @@ const firstReplyStreams = async (page: Page, stack: AgentStack): Promise<void> =
   await mentionHelper(page, stack, `#stopme ${uniqueWord('first')}`);
 
   const unsupported = page.getByText('Unsupported message');
-  const stop = page.getByRole('button', { name: 'Stop', exact: true });
+  const stop = page.getByRole('button', { name: 'Stop reply', exact: true });
   // What the reader saw each half second, for a failure's report.
   const samples: string[] = [];
   const started = Date.now();

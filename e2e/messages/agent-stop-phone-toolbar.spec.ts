@@ -38,7 +38,7 @@ test.describe('on a phone', () => {
         { description: 'a streaming reply' }
       );
       const reply = messageRow(page, streaming.event_id);
-      const stop = reply.getByRole('button', { name: 'Stop', exact: true });
+      const stop = reply.getByRole('button', { name: 'Stop reply', exact: true });
       await expect(stop).toBeVisible({ timeout: 30_000 });
       await expect
         .poll(async () => wordCount(await reply.innerText()), { timeout: 60_000 })

@@ -130,7 +130,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await title.focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
-  await expect(bar.getByRole('button', { name: 'Stop research (subagent)' })).toBeFocused();
+  await expect(bar.getByRole('button', { name: 'Stop task: research (subagent)' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(title).toBeFocused();
   await expect(bar.getByRole('listitem')).toHaveCount(0);
@@ -162,7 +162,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
 
   // Stop sends the job's cancel in its thread, and the job shows Stopping… until it leaves the state.
-  await bar.getByRole('button', { name: 'Stop run_tests' }).click();
+  await bar.getByRole('button', { name: 'Stop task: run_tests' }).click();
   await expect(bar).toContainText('Stopping…');
   await expect
     .poll(async () => {
@@ -185,9 +185,9 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
       },
     ]);
   await publish(coder, [{ ...coderJobs[0], status: 'cancel_requested' }, coderJobs[1]!]);
-  await expect(bar.getByRole('button', { name: 'Stop run_tests' })).toHaveCount(0);
+  await expect(bar.getByRole('button', { name: 'Stop task: run_tests' })).toHaveCount(0);
   // A job cancelled from another client shows Stopping… here too, without its Stop.
-  const researchCancel = bar.getByRole('button', { name: 'Stop research (subagent)' });
+  const researchCancel = bar.getByRole('button', { name: 'Stop task: research (subagent)' });
   await expect(researchCancel).toBeVisible();
   await publish(researcher, [
     job('job_3', fixture.rootId, 'research', { kind: 'subagent', status: 'cancel_requested' }),
@@ -311,7 +311,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   );
   const crowded = page.getByRole('region', { name: '15 background jobs' });
   await expect(crowded).toBeVisible();
-  const longCancel = crowded.getByRole('button', { name: `Stop ${longTool}` });
+  const longCancel = crowded.getByRole('button', { name: `Stop task: ${longTool}` });
   await longCancel.scrollIntoViewIfNeeded();
   const cancelBox = await longCancel.boundingBox();
   expect(cancelBox && cancelBox.x + cancelBox.width).toBeLessThanOrEqual(390);
@@ -327,7 +327,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await expect(single).toBeVisible();
   const singleBox = await single.boundingBox();
   expect(singleBox && singleBox.x + singleBox.width).toBeLessThanOrEqual(390);
-  await expect(single.getByRole('button', { name: `Stop ${longTool}` })).toBeInViewport();
+  await expect(single.getByRole('button', { name: `Stop task: ${longTool}` })).toBeInViewport();
 
   // When the last job ends, the bar goes away.
   await publish(coder, []);
