@@ -119,6 +119,8 @@ function SecretRequestAnswer({
   const mx = useMatrixClient();
   const { apiUrl, pending } = useAgentMindroomServer(mx, roomId, agentUserId);
   const temporary = request.kind === 'temporary' ? request : undefined;
+  // A new service this client cannot show is never saved here, but the person can still decline.
+  const declineOnly = request.kind === 'key' && request.newService === null;
   const keeps = temporary ? KEEPS.filter((name) => temporary.keep[name] !== undefined) : [];
   // Memory unless the person chooses the file, or the card offers only the file.
   const [keep, setKeep] = useState(keeps[0]);
@@ -236,7 +238,7 @@ function SecretRequestAnswer({
 
   return (
     <div ref={area} className={css.Answer}>
-      {request.url && (
+      {request.url && !declineOnly && (
         // The agent chose the page, so the button names its host as the browser reads it.
         <Button
           as="a"
@@ -289,68 +291,72 @@ function SecretRequestAnswer({
           void send(false);
         }}
       >
-        <Input
-          ref={field}
-          className={visible ? undefined : css.Masked}
-          type="text"
-          size="300"
-          variant="Background"
-          aria-label={
-            request.kind === 'temporary'
-              ? t('mindroomUi.messages.secretRequestCard.temporary.field', {
-                  variable: request.env,
-                })
-              : t('mindroomUi.messages.secretRequestCard.title', { name: request.displayName })
-          }
-          aria-describedby={error ? errorId : undefined}
-          aria-invalid={error ? true : undefined}
-          placeholder={
-            request.placeholder ??
-            (temporary
-              ? t('mindroomUi.messages.secretRequestCard.temporary.placeholder')
-              : t('mindroomUi.messages.secretRequestCard.placeholder'))
-          }
-          onChange={(event) => setHasKey(event.currentTarget.value.trim() !== '')}
-          // Not a sign-in field: browsers and password managers neither fill nor save it.
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          data-1p-ignore
-          data-lpignore="true"
-          data-bwignore
-          data-form-type="other"
-          after={
-            <IconButton
-              type="button"
-              variant="Background"
-              size="300"
-              radii="300"
-              aria-label={visible ? hideLabel : showLabel}
-              aria-pressed={visible}
-              onClick={() => setVisible((current) => !current)}
-            >
-              <Icon size="100" src={visible ? Icons.EyeBlind : Icons.Eye} />
-            </IconButton>
-          }
-        />
-        <div className={sectionCss.Actions}>
-          <Button
-            type="submit"
+        {!declineOnly && (
+          <Input
+            ref={field}
+            className={visible ? undefined : css.Masked}
+            type="text"
             size="300"
-            variant="Primary"
-            fill="Soft"
-            outlined
-            radii="300"
-            // Busy, not disabled, while the answer is on its way: a disabled button would drop its
-            // keyboard focus to the page.
-            className={css.Busy}
-            disabled={!ready || !hasKey}
-            aria-disabled={sending || undefined}
-            onClick={notePress}
-          >
-            <Text size="B300">{saveLabel}</Text>
-          </Button>
+            variant="Background"
+            aria-label={
+              request.kind === 'temporary'
+                ? t('mindroomUi.messages.secretRequestCard.temporary.field', {
+                    variable: request.env,
+                  })
+                : t('mindroomUi.messages.secretRequestCard.title', { name: request.displayName })
+            }
+            aria-describedby={error ? errorId : undefined}
+            aria-invalid={error ? true : undefined}
+            placeholder={
+              request.placeholder ??
+              (temporary
+                ? t('mindroomUi.messages.secretRequestCard.temporary.placeholder')
+                : t('mindroomUi.messages.secretRequestCard.placeholder'))
+            }
+            onChange={(event) => setHasKey(event.currentTarget.value.trim() !== '')}
+            // Not a sign-in field: browsers and password managers neither fill nor save it.
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-lpignore="true"
+            data-bwignore
+            data-form-type="other"
+            after={
+              <IconButton
+                type="button"
+                variant="Background"
+                size="300"
+                radii="300"
+                aria-label={visible ? hideLabel : showLabel}
+                aria-pressed={visible}
+                onClick={() => setVisible((current) => !current)}
+              >
+                <Icon size="100" src={visible ? Icons.EyeBlind : Icons.Eye} />
+              </IconButton>
+            }
+          />
+        )}
+        <div className={sectionCss.Actions}>
+          {!declineOnly && (
+            <Button
+              type="submit"
+              size="300"
+              variant="Primary"
+              fill="Soft"
+              outlined
+              radii="300"
+              // Busy, not disabled, while the answer is on its way: a disabled button would drop its
+              // keyboard focus to the page.
+              className={css.Busy}
+              disabled={!ready || !hasKey}
+              aria-disabled={sending || undefined}
+              onClick={notePress}
+            >
+              <Text size="B300">{saveLabel}</Text>
+            </Button>
+          )}
           <Button
             type="button"
             size="300"
@@ -610,7 +616,7 @@ export function SecretRequestCard({
   // and opens it again, takes the focus the page got. Focus moved elsewhere on purpose stays there.
   // Without such an answer none moves (the form gave up its focus): focus put in the row would
   // show the row's toolbar as if it came from the keyboard.
-  const formShown = open && isRequester && newService !== null;
+  const formShown = open && isRequester;
   useEffect(() => {
     if (formShown || !keyboardAnswer.current) return;
     keyboardAnswer.current = false;

@@ -975,13 +975,21 @@ describe('SecretRequestCard', () => {
     expect(button('Save')).toBeDefined();
   });
 
-  it('offers no field or Save for a new service this client cannot read', () => {
-    render(request({ newService: null }));
+  it('offers only Decline for a new service this client cannot read', async () => {
+    env.send.mockResolvedValue(answer(204));
+    render(request({ newService: null, url: 'https://github.com/settings/tokens' }));
 
     expect(text()).toContain('GitHub key');
     expect(text()).toContain('This card adds a service this version of MindRoom Chat cannot show');
     expect(input()).toBeNull();
     expect(button('Save')).toBeUndefined();
+    expect(host.querySelector('a[href]')).toBeNull();
+
+    await act(async () => button('Decline')?.click());
+
+    expect(env.send.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ decline: true }));
+    await settle();
+    expect(status()?.textContent).toBe('Declined, waiting for the agent');
   });
 
   it('asks for a temporary secret with its variable and how long to keep it', () => {

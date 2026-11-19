@@ -93,7 +93,8 @@ describe('parseSecretRequestContent', () => {
       ],
       placeholder_env: { OPENROUTER_API_KEY: 'mindroom-brokered' },
     };
-    const request = parseSecretRequestContent(content(inner({ new_service: newService })));
+    const hosts = ['dav.example.test', 'git.example.test', 'openrouter.ai'];
+    const request = parseSecretRequestContent(content(inner({ hosts, new_service: newService })));
 
     expect(request).toMatchObject({
       kind: 'key',
@@ -144,9 +145,19 @@ describe('parseSecretRequestContent', () => {
       { ...valid, rules: [{ ...rule, auth: { type: 'oauth' } }] },
       { ...valid, rules: [{ ...rule, auth: { type: 'header' } }] },
       { ...valid, rules: [{ ...rule, auth: { type: 'basic' } }] },
+      { ...valid, rules: [{ ...rule, path_prefix: 'api/' }] },
+      { ...valid, rules: [rule, { ...rule, host: 'other.example.test' }] },
       { ...valid, placeholder_env: { 'NOT-A-NAME': 'x' } },
+      { ...valid, placeholder_env: { lower_key: 'x' } },
+      { ...valid, placeholder_env: { API_KEY: 7 } },
       { ...valid, placeholder_env: undefined },
     ].forEach((value) => expect(newService(value)).toBeNull());
+    const longName = `${'A'.repeat(70)}_KEY`;
+    expect(
+      newService({ ...valid, placeholder_env: { [longName]: 'mindroom-brokered' } })
+    ).toMatchObject({
+      env: [longName],
+    });
   });
 
   it('reads the keep an answered temporary secret has', () => {

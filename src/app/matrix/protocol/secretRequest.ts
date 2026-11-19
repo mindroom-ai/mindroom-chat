@@ -93,6 +93,8 @@ const KEEPS: readonly SecretKeep[] = ['memory', 'disk'];
 const REQUEST_ID = /^[A-Za-z0-9_-]{1,128}$/;
 // A name every shell takes as a variable.
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+// A placeholder a service of the person's own sets, as the backend checks its name.
+const PLACEHOLDER_NAME = /^[A-Z][A-Z0-9_]*$/;
 
 // What the backend cuts a label or a field hint to, and the longest link it posts.
 const MAX_LINE_LENGTH = 80;
@@ -179,11 +181,19 @@ const readRule = (value: unknown): ProposedServiceRule | null => {
   const portOk =
     port === undefined || (Number.isInteger(port) && Number(port) >= 1 && Number(port) <= 65_535);
   if (typeof host !== 'string' || typeof pathPrefix !== 'string' || !portOk || !auth) return null;
+  if (!pathPrefix.startsWith('/')) return null;
   return { host, pathPrefix, ...(typeof port === 'number' && { port }), auth };
 };
 
-/** The service a key card proposes as `service`, or null for one this client cannot read. */
-const readNewService = (value: unknown, service: string): ProposedService | null => {
+/**
+ * The service a key card proposes as `service`, or null for one this client cannot read or whose
+ * rules send the key to other hosts than the card's.
+ */
+const readNewService = (
+  value: unknown,
+  service: string,
+  hosts: string[]
+): ProposedService | null => {
   if (!isRecord(value)) return null;
   const { name, display_name: displayName, rules, placeholder_env: env } = value;
   const read = Array.isArray(rules) ? rules.map(readRule) : [];
@@ -192,8 +202,12 @@ const readNewService = (value: unknown, service: string): ProposedService | null
     typeof displayName !== 'string' ||
     read.length === 0 ||
     !read.every((rule): rule is ProposedServiceRule => rule !== null) ||
+    [...new Set(read.map((rule) => rule.host))].sort().join() !==
+      [...new Set(hosts)].sort().join() ||
     !isRecord(env) ||
-    !Object.keys(env).every((variable) => ENV_NAME.test(variable))
+    !Object.entries(env).every(
+      ([variable, text]) => PLACEHOLDER_NAME.test(variable) && typeof text === 'string'
+    )
   ) {
     return null;
   }
@@ -272,7 +286,9 @@ const readRequest = (value: unknown): SecretRequest | null => {
     hosts,
     replaces: value.replaces === true,
   };
-  if (value.new_service !== undefined) key.newService = readNewService(value.new_service, service);
+  if (value.new_service !== undefined) {
+    key.newService = readNewService(value.new_service, service, hosts);
+  }
   return key;
 };
 
