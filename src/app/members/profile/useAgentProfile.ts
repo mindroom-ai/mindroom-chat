@@ -36,13 +36,13 @@ const fetchProfile = async (
  * agent, asked once per minute at most. A server that has none, refuses, or cannot be reached gives
  * `none`, so the card keeps what the room itself says about the agent.
  */
-export const useAgentProfile = (roomId: string, agentUserId: string, enabled: boolean) => {
+export const useAgentProfile = (roomId: string, agentUserId: string): AgentProfileState => {
   const mx = useMatrixClient();
   const { apiUrl, pending } = useAgentMindroomServer(mx, roomId, agentUserId);
   const [state, setState] = useState<AgentProfileState>({ status: 'loading' });
 
   useEffect(() => {
-    if (!enabled || pending) return undefined;
+    if (pending) return undefined;
     if (!apiUrl) {
       setState({ status: 'none' });
       return undefined;
@@ -53,11 +53,16 @@ export const useAgentProfile = (roomId: string, agentUserId: string, enabled: bo
     const key = `${apiUrl}${path}`;
     let entry = entries.get(key);
     if (!entry || Date.now() - entry.at > FRESH_MS) {
-      const answer = fetchProfile(mx, apiUrl, path).catch(() => undefined);
-      entry = { at: Date.now(), answer };
-      entries.set(key, entry);
+      const asked: Cached = {
+        at: Date.now(),
+        answer: fetchProfile(mx, apiUrl, path).catch(() => undefined),
+      };
+      entries.set(key, asked);
       // A failed ask is not kept, so the next card asks again.
-      void answer.then((profile) => profile || entries.delete(key));
+      void asked.answer.then((profile) => {
+        if (!profile && entries.get(key) === asked) entries.delete(key);
+      });
+      entry = asked;
     }
     let current = true;
     void entry.answer.then((profile) => {
@@ -66,7 +71,7 @@ export const useAgentProfile = (roomId: string, agentUserId: string, enabled: bo
     return () => {
       current = false;
     };
-  }, [mx, apiUrl, pending, roomId, agentUserId, enabled]);
+  }, [mx, apiUrl, pending, roomId, agentUserId]);
 
-  return enabled ? state : ({ status: 'none' } as const);
+  return state;
 };

@@ -322,7 +322,7 @@ export function AgentProfileCard({
   more,
 }: AgentProfileCardProps) {
   const { t } = useTranslation();
-  const state = useAgentProfile(room.roomId, userId, true);
+  const state = useAgentProfile(room.roomId, userId);
   const [allTools, setAllTools] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const viewAll = useRef<HTMLButtonElement>(null);
