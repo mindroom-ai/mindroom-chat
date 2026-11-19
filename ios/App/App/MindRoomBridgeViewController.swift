@@ -145,15 +145,14 @@ final class FilePromiseDropNamer: NSObject, UIDropInteractionDelegate {
 
     /// Replaces the drop interaction of the web view's content with one that names promises first.
     /// Returns the namer to keep, or nil when the content has no drop interaction of WebKit's (none
-    /// yet, or a namer stands in for it already).
+    /// yet, or a namer stands in for it already). WebKit's content view is its own drop delegate.
     static func install(in webView: WKWebView) -> FilePromiseDropNamer? {
         for view in webView.scrollView.subviews {
             let drops = view.interactions.compactMap { $0 as? UIDropInteraction }
-            guard let delegate = drops.lazy.compactMap({ $0.delegate }).first(where: { !($0 is FilePromiseDropNamer) })
-            else { continue }
-            // One drop interaction: UIKit gives a drop to one of them, and a namer of before stays
-            // on the view when WebKit adds its own again.
-            drops.forEach(view.removeInteraction)
+            guard let delegate = drops.lazy.compactMap({ $0.delegate }).first(where: { $0 === view }) else { continue }
+            // UIKit gives a drop to one interaction, and a namer of before stays on the view when
+            // WebKit adds its own again: both go, and any other interaction stays.
+            drops.filter { $0.delegate === view || $0.delegate is FilePromiseDropNamer }.forEach(view.removeInteraction)
             let namer = FilePromiseDropNamer(standingInFor: delegate)
             view.addInteraction(UIDropInteraction(delegate: namer))
             return namer
@@ -178,9 +177,12 @@ final class FilePromiseDropNamer: NSObject, UIDropInteractionDelegate {
                   provider.registeredTypeIdentifiers.contains(Self.promiseType) else { continue }
             let proposed = board?
                 .data(forPasteboardType: Self.proposedNameType, inItemSet: IndexSet(integer: index))?
-                .first.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-            // WebKit adds the file's extension to a name that lacks it.
-            provider.suggestedName = proposed.isEmpty ? "File" : proposed
+                .first.flatMap { String(data: $0, encoding: .utf8) }
+            // WebKit puts the name in a path of its own, so it is one path component without control
+            // characters. WebKit adds the file's extension to a name that lacks it.
+            let name = MindRoomFileSavePlugin.safeFileName(proposed, fallback: "File")
+            let controls = name.unicodeScalars.contains { $0.properties.generalCategory == .control }
+            provider.suggestedName = controls ? "File" : name
         }
         webKit?.dropInteraction?(interaction, performDrop: session)
     }

@@ -2,6 +2,7 @@ import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'r
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
+import { THREAD_DRAG_TYPE } from '../navigation/secondThread';
 import { useThreadDrag } from './useThreadDrag';
 import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import * as css from './SecondThreadDropZone.css';
@@ -58,11 +59,12 @@ export function SecondThreadDropZone({
   if (!drag) return null;
 
   // The thread's drag may drop here (its default prevented), and moves its thread. The zone shows
-  // for that drag alone, so it asks the event for no type: the Mac app's WebKit would show none.
-  // Files are another drag's, come in while the page missed the end of the thread's.
-  const files = (evt: ReactDragEvent<HTMLDivElement>) => evt.dataTransfer.types.includes('Files');
+  // for that drag, which shows its type or none at all: the Mac app's WebKit shows none before the
+  // drop. Other types alone are another drag's, come in while the page missed the thread's end.
+  const other = ({ dataTransfer: { types } }: ReactDragEvent<HTMLDivElement>) =>
+    types.length > 0 && !types.includes(THREAD_DRAG_TYPE);
   const accept = (evt: ReactDragEvent<HTMLDivElement>) => {
-    if (files(evt)) return;
+    if (other(evt)) return;
     armed.current ??= !onZone(drag.x, drag.y);
     if (!armed.current) return;
     evt.preventDefault();
@@ -86,7 +88,7 @@ export function SecondThreadDropZone({
         setOver(false);
       }}
       onDrop={(evt) => {
-        if (!armed.current || files(evt)) return;
+        if (!armed.current || other(evt)) return;
         evt.preventDefault();
         onOpen(drag.roomId, drag.rootId);
       }}

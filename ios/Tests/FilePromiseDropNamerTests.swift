@@ -64,11 +64,29 @@ final class FilePromiseDropNamerTests: XCTestCase {
         super.tearDown()
     }
 
-    func testAFilePromiseHasItsProposedNameWhenWebKitReadsTheDrop() throws {
+    private func propose(_ name: String) throws {
         let board = try XCTUnwrap(UIPasteboard(name: FilePromiseDropNamer.dragPasteboard, create: true))
-        board.setData(Data("Example recording.mov".utf8), forPasteboardType: FilePromiseDropNamer.proposedNameType)
+        board.setData(Data(name.utf8), forPasteboardType: FilePromiseDropNamer.proposedNameType)
+    }
+
+    func testAFilePromiseHasItsProposedNameWhenWebKitReadsTheDrop() throws {
+        try propose("Example recording.mov")
 
         XCTAssertEqual(drop([promise()]), ["Example recording.mov"])
+    }
+
+    func testAProposedNameReachesWebKitAsOneFileNameOrNotAtAll() throws {
+        // WebKit puts the name in a path of its own: the drag's source must not choose the folder.
+        let names = [
+            "Example 11.35.49\u{202F}AM.mov": "Example 11.35.49\u{202F}AM.mov",
+            "../../example/Example.mov": "Example.mov", "/example/Example.mov": "Example.mov",
+            "example/..": "File", "..": "File", ".": "File", "/": "File", "  ": "File",
+            "Example\u{0}.mov": "File", "Example\nrecording.mov": "File", "Example\u{7F}.mov": "File",
+        ]
+        for (proposed, expected) in names {
+            try propose(proposed)
+            XCTAssertEqual(drop([promise()]), [expected], "for \(proposed.debugDescription)")
+        }
     }
 
     func testAFilePromiseWithoutAProposedNameStillGetsAName() {
@@ -87,20 +105,25 @@ final class FilePromiseDropNamerTests: XCTestCase {
     func testTheWebViewKeepsOneDropInteractionWhichTheNamerOwns() async throws {
         let (_, webView) = try await loadNativeTestFixture()
         let content = try XCTUnwrap(webView.scrollView.subviews.first { $0.interactions.contains { $0 is UIDropInteraction } })
-        let drops = { content.interactions.compactMap { $0 as? UIDropInteraction } }
-        let webKit = try XCTUnwrap(drops().first?.delegate)
+        // The delegates of the content's drop interactions, bar those of `other`.
+        let other = UIDropInteraction(delegate: self.webKit)
+        let drops = {
+            content.interactions.compactMap { $0 as? UIDropInteraction }.filter { $0 !== other }.map(\.delegate)
+        }
+        let webKit = try XCTUnwrap(drops().first ?? nil)
+        XCTAssertTrue(webKit === content, "WebKit's content view is its own drop delegate")
+        // A drop interaction that is not WebKit's stays through every install.
+        content.addInteraction(other)
 
         let namer = try XCTUnwrap(FilePromiseDropNamer.install(in: webView))
-        XCTAssertTrue(drops().count == 1 && drops()[0].delegate === namer)
-        // Each change of the page's loading installs again: the namer in place stays, alone.
+        XCTAssertTrue(drops().count == 1 && drops()[0] === namer)
         XCTAssertNil(FilePromiseDropNamer.install(in: webView), "a namer stands in already")
-        XCTAssertNil(FilePromiseDropNamer.install(in: webView))
-        XCTAssertTrue(drops().count == 1 && drops()[0].delegate === namer)
 
         // WebKit adds its own interaction again as it restarts the page's process.
         content.addInteraction(UIDropInteraction(delegate: webKit))
         let next = try XCTUnwrap(FilePromiseDropNamer.install(in: webView))
-        XCTAssertTrue(drops().count == 1 && drops()[0].delegate === next)
+        XCTAssertTrue(drops().count == 1 && drops()[0] === next)
+        XCTAssertTrue(content.interactions.contains { $0 === other })
     }
 
     func testEveryOtherCallReachesWebKit() {
