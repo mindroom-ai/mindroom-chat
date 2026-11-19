@@ -69,7 +69,8 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  * or a switch to a thread also has `<name>-settled`: the time from the same press to the last
  * frame in which a message row came into view for the first time, once 1 s passed without
  * another, with `rows`, how many were in view then. A thread shows its first row before its
- * history is there, so the first row alone can come early on an open that keeps changing),
+ * history is there, so the first row alone can come early on an open that keeps changing;
+ * `lostPresses` counts the presses on a card that opened no thread, each pressed again),
  * `typing` (key latency), `target` (the streams asked for) and `achieved` (what the driver saw in
  * its 5 s reports that overlap the window: replies streaming on average, live frames, edits and
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
@@ -368,6 +369,8 @@ type Run = {
   heavy?: string[];
   /** The thread `showThread` opened last, which the first step of `switch` leaves. */
   shown?: string;
+  /** How many presses on a card opened no thread so far (`pressCard`). */
+  lostPresses?: number;
 };
 
 const cards = (page: Page) => page.locator(CARD);
@@ -408,6 +411,44 @@ const pickThread = async (run: Run, except = ''): Promise<{ root: string; stream
 const card = (page: Page, root: string) =>
   page.locator(`${CARD}[data-thread-root-id="${root}"]`).first();
 
+/** How long a pressed card's thread may take to show its banner before the press counts as lost. */
+const LOST_PRESS_MS = 10_000;
+
+class LostPress extends Error {}
+
+/**
+ * Presses a card and waits for its thread's banner. A card that moves from under the pointer
+ * between the press's down and its up gets no click (the browser sends it to what the two
+ * targets share, the list), so no thread opens and no row ever comes. Such a press is counted in
+ * `run.lostPresses` and throws `LostPress` after `LOST_PRESS_MS`, rather than a wait of a minute
+ * for a row.
+ */
+const pressCard = async (run: Run, root: string): Promise<void> => {
+  const { page } = run;
+  await card(page, root).click();
+  try {
+    await banner(page).waitFor({ state: 'visible', timeout: LOST_PRESS_MS });
+  } catch {
+    run.lostPresses = (run.lostPresses ?? 0) + 1;
+    throw new LostPress(`a press on a card opened no thread within ${LOST_PRESS_MS / 1000} s`);
+  }
+};
+
+/** How often a card is pressed again after a press that opened nothing. */
+const PRESS_ATTEMPTS = 3;
+
+/** Presses a card until its thread opens: a lost press is counted and the card pressed again. */
+const openCard = async (run: Run, root: string): Promise<void> => {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await pressCard(run, root);
+      return;
+    } catch (error) {
+      if (!(error instanceof LostPress) || attempt === PRESS_ATTEMPTS) throw error;
+    }
+  }
+};
+
 /** Shows the Compact view, leaving an open thread through its Back button. */
 const showCompact = async (page: Page): Promise<void> => {
   if ((await banner(page).count()) > 0) await back(page).click();
@@ -425,8 +466,7 @@ const showThread = async (run: Run): Promise<boolean> => {
   await showCompact(page);
   const { root, streaming } = await pickThread(run);
   run.shown = root;
-  await card(page, root).click();
-  await expect(banner(page)).toBeVisible({ timeout: 60_000 });
+  await openCard(run, root);
   await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
   return streaming;
 };
@@ -521,6 +561,26 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
 
 type Measured = { timings?: Timing[]; typing?: Stats; openedStreaming?: boolean };
 
+/**
+ * Presses a card and times its thread to the first row; `settled` gives the settled rows' timing
+ * of the same press. A lost press (`pressCard`) is counted and the card pressed again, so the
+ * times are those of the press that opened the thread.
+ */
+const timedOpen = async (
+  run: Run,
+  root: string,
+  settledName: string
+): Promise<{ ms: number; settled: () => Promise<Timing> }> => {
+  for (let attempt = 1; ; attempt += 1) {
+    const settled = await watchRowsSettled(run.page, settledName);
+    try {
+      return { ms: await timeToVisible(run.page, () => pressCard(run, root), ROW), settled };
+    } catch (error) {
+      if (!(error instanceof LostPress) || attempt === PRESS_ATTEMPTS) throw error;
+    }
+  }
+};
+
 const idle = async (run: Run): Promise<void> => {
   await run.page.waitForTimeout(30_000);
 };
@@ -552,9 +612,7 @@ const SCENARIO: Record<
     measure: async (run) => {
       const { page } = run;
       const { root, streaming } = await pickThread(run);
-      const settled = await watchRowsSettled(page, 'open-settled');
-      const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
-      await expect(banner(page)).toBeVisible();
+      const { ms, settled } = await timedOpen(run, root, 'open-settled');
       // The rest of the thread arrives and settles inside the window, which lasts 5 s as before,
       // or until the rows settled when that takes longer.
       const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(5_000)]);
@@ -583,9 +641,7 @@ const SCENARIO: Record<
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;
-        const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
-        const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
-        await expect(banner(page)).toBeVisible();
+        const { ms, settled } = await timedOpen(run, root, `switch-${turn}-settled`);
         timings.push({ name: `switch-${turn}`, ms });
         // As long as before when the rows settle at once: 1 s after the first row.
         const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(1_000)]);
@@ -672,7 +728,13 @@ const expectDriverRuns = (label: string, driver: Driver | undefined): void => {
 
 const report = (
   result: ProbeResult,
-  extra: { timings: Timing[]; typing?: Stats; openedStreaming?: boolean; target: number | null },
+  extra: {
+    timings: Timing[];
+    typing?: Stats;
+    openedStreaming?: boolean;
+    lostPresses?: number;
+    target: number | null;
+  },
   achieved: Achieved | undefined,
   driver?: Driver
 ): void => {
@@ -711,6 +773,7 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const { page, driver } = run;
   const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
   await throttleCpu(page, run.throttle);
+  const lostBefore = run.lostPresses ?? 0;
   const prepared = await SCENARIO[name].prepare(run);
   expectDriverRuns(label, driver);
   const from = Date.now();
@@ -725,9 +788,13 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     typing: undefined as Stats | undefined,
     // Whether every thread the scenario opened showed the streaming marker when pressed.
     openedStreaming: typeof prepared === 'boolean' ? prepared : undefined,
+    // Presses on a card, in the scenario's setup or its window, that opened no thread.
+    lostPresses: 0,
   };
   try {
-    const measured = await SCENARIO[name].measure(run);
+    const measured = await SCENARIO[name].measure(run).finally(() => {
+      extra.lostPresses = (run.lostPresses ?? 0) - lostBefore;
+    });
     if (measured?.timings) extra.timings = measured.timings;
     extra.typing = measured?.typing;
     if (measured?.openedStreaming !== undefined) {
