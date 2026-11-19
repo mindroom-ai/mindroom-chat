@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { EventType, RelationType, type MatrixEvent } from 'matrix-js-sdk';
+import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import {
   MODEL_RESULT,
@@ -139,7 +139,7 @@ export const planModelChanges = ({
     if (
       !command ||
       !senderId ||
-      command.getType() !== EventType.RoomMessage ||
+      command.getType() !== 'm.room.message' ||
       command.isRedacted() ||
       command.getRoomId() !== result.room_id ||
       ignored.has(senderId) ||
