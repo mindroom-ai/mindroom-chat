@@ -250,8 +250,7 @@ vi.mock('./ThreadView', async () => {
     },
   };
 });
-// The composer is its Slate text box, named as the real one is, and takes the files dropped on the
-// element it is given.
+// The composer is its Slate text box, and takes the files dropped on the element it is given.
 vi.mock('../composer/RoomInput', async () => {
   const { useFileDropZone } = await import('../lib/hooks/useFileDrop');
   const dropToRoom = () => state.dropped.push('room');
@@ -261,7 +260,7 @@ vi.mock('../composer/RoomInput', async () => {
       state.roomMessageSent = onRoomMessageSent;
       return (
         <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
-          <Editable aria-label="Message" data-editable-name="RoomInput" />
+          <Editable aria-label="Message" />
         </Slate>
       );
     },
