@@ -333,16 +333,89 @@ const expectRowOnScreen = async (page: Page, width: number, linked: boolean) => 
   await expect(buttons).toHaveCount(WITH_MARKER && linked ? 4 : 3, { timeout: 30_000 });
   const boxes = await buttons.evaluateAll((list) =>
     list.map((button) => {
-      const { left, right } = button.getBoundingClientRect();
-      return { left, right };
+      const { left, right, top, bottom } = button.getBoundingClientRect();
+      return { left, right, top, bottom };
     })
   );
-  const inOrder = [...boxes].sort((a, b) => a.left - b.left);
-  inOrder.forEach(({ left, right }, index) => {
+  boxes.forEach(({ left, right }, index) => {
     expect(left, `button ${index} starts on the screen`).toBeGreaterThanOrEqual(-0.5);
     expect(right, `button ${index} ends on the screen`).toBeLessThanOrEqual(width + 0.5);
-    if (index > 0) expect(left).toBeGreaterThanOrEqual(inOrder[index - 1]!.right - 0.5);
+    // Side by side or one above the other, never over another.
+    boxes.slice(0, index).forEach((other, before) => {
+      const apart =
+        left >= other.right - 0.5 ||
+        right <= other.left + 0.5 ||
+        boxes[index]!.top >= other.bottom - 0.5 ||
+        boxes[index]!.bottom <= other.top + 0.5;
+      expect(apart, `button ${index} clear of button ${before}`).toBe(true);
+    });
   });
+};
+
+/**
+ * The buttons after Back, as the screen shows them, and the title's width now and with those
+ * buttons side by side (the row's look beside a short title).
+ */
+const endButtonsLayout = (page: Page, titleSelector: string) =>
+  banner(page).evaluate((card, selector) => {
+    const titleElement = card.querySelector<HTMLElement>(selector)!;
+    const more = card.querySelector<HTMLElement>('button[aria-label="Thread options"]')!;
+    let row = titleElement.parentElement!;
+    while (getComputedStyle(row).display !== 'grid') row = row.parentElement!;
+    const actions = [...row.children].find((child) => child.contains(more)) as HTMLElement;
+    const buttons = [...actions.querySelectorAll<HTMLElement>('button')].filter(
+      (button) => button.getBoundingClientRect().width > 0
+    );
+    const boxes = buttons.map((button) => {
+      const { left, right, top, bottom } = button.getBoundingClientRect();
+      return { left, right, top, bottom };
+    });
+    const titleWidth = titleElement.getBoundingClientRect().width;
+    const was = actions.style.flexDirection;
+    actions.style.flexDirection = 'row';
+    const rowTitleWidth = titleElement.getBoundingClientRect().width;
+    actions.style.flexDirection = was;
+    const box = card.getBoundingClientRect();
+    return {
+      boxes,
+      titleWidth,
+      rowTitleWidth,
+      card: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+    };
+  }, titleSelector);
+
+/**
+ * Beside a tall title the buttons after Back stack, in their order, each inside the card, and the
+ * title takes the width they leave; beside a short one they stay side by side.
+ */
+const expectEndButtons = async (page: Page, titleSelector: string, stacked: boolean) => {
+  const layout = await endButtonsLayout(page, titleSelector);
+  console.log(`end buttons (${stacked ? 'stacked' : 'row'}): ${JSON.stringify(layout)}`);
+  expect(layout.boxes.length).toBeGreaterThanOrEqual(2);
+  layout.boxes.forEach((box, index) => {
+    expect(box.left, `button ${index} inside the card`).toBeGreaterThanOrEqual(
+      layout.card.left - 0.5
+    );
+    expect(box.right, `button ${index} inside the card`).toBeLessThanOrEqual(
+      layout.card.right + 0.5
+    );
+    expect(box.top, `button ${index} inside the card`).toBeGreaterThanOrEqual(
+      layout.card.top - 0.5
+    );
+    expect(box.bottom, `button ${index} inside the card`).toBeLessThanOrEqual(
+      layout.card.bottom + 0.5
+    );
+    const before = layout.boxes[index - 1];
+    if (!before) return;
+    if (stacked)
+      expect(box.top, `button ${index} under the one before`).toBeGreaterThanOrEqual(
+        before.bottom - 0.5
+      );
+    else
+      expect(box.top, `button ${index} on the line of the one before`).toBeLessThan(before.bottom);
+  });
+  if (stacked) expect(layout.titleWidth).toBeGreaterThan(layout.rowTitleWidth + 20);
+  else expect(layout.titleWidth).toBeCloseTo(layout.rowTitleWidth, 0);
 };
 
 /**
@@ -604,6 +677,47 @@ test('in WebKit: at 150% Page Zoom on a 320 px phone the title shows whole and t
       await checkZoomed(page, world, SMALL, 'ltr');
     }
   );
+});
+
+/** A first message of six paragraphs stacks the buttons beside it; a short title does not. */
+const checkEndButtons = async (page: Page, world: World) => {
+  await page.goto(threadUrl(world, world.wall));
+  const rootTitle = '[data-thread-context-root-title]';
+  await expect(banner(page).locator(rootTitle)).toBeVisible({ timeout: 90_000 });
+  await expect(banner(page).getByRole('button', { name: 'Thread options' })).toBeVisible();
+  await page.waitForTimeout(500);
+  await expectRowOnScreen(page, page.viewportSize()!.width, false);
+  await expectEndButtons(page, rootTitle, true);
+
+  await openThread(page, world, 'short');
+  await expectRowOnScreen(page, page.viewportSize()!.width, false);
+  await expectEndButtons(page, '[data-thread-context-summary]', false);
+};
+
+test("a phone's buttons stack beside a tall title and stay in a row beside a short one", async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(300_000);
+  const world = await seedOnce();
+  const { context, page } = await signIn(browser, baseURL, world, PHONE);
+  try {
+    await checkEndButtons(page, world);
+  } finally {
+    await context.close();
+  }
+});
+
+test("in WebKit: a phone's buttons stack beside a tall title and stay in a row beside a short one", async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to run the WebKit case.');
+  test.setTimeout(300_000);
+  const world = await seedOnce();
+  await onWebKitPage({ ...PHONE, baseURL, userAgent: IPHONE_SAFARI }, async (page) => {
+    await prepare(page, world);
+    await checkEndButtons(page, world);
+  });
 });
 
 test('a desktop keeps the tags and the pin in the banner card', async ({ browser, baseURL }) => {

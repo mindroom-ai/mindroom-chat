@@ -53,8 +53,19 @@ export const PhoneTitleRow = style({ rowGap: config.space.S100 });
 // the buttons in the DOM there, so the tab order reads as the screen does.
 export const NarrowPhoneTitleRow = style({});
 
+// Beside a title at least as tall as them one above the other (the banner measures it), a phone's
+// buttons stack at the row's end, in their order, and the title takes the width they leave.
+export const StackedPhoneTitleRow = style({});
+
 // The buttons keep the row's end, also while the title takes the row under them.
-export const RowActions = style({ gridColumn: 3 });
+export const RowActions = style({
+  gridColumn: 3,
+  selectors: {
+    // A phone's buttons stay on the first line whatever their order in the DOM.
+    [`${PhoneTitleRow} > &`]: { gridRow: 1 },
+    [`${StackedPhoneTitleRow} > &`]: { flexDirection: 'column' },
+  },
+});
 
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({
@@ -94,7 +105,11 @@ export const TitleColumn = style({
   minWidth: 0,
   gap: 0,
   ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
-  selectors: { [`${NarrowPhoneTitleRow} > &`]: { gridColumn: '1 / -1', gridRow: 2 } },
+  selectors: {
+    // Placed, so the banner can lay the row out as it would be and measure it.
+    [`${PhoneTitleRow} > &`]: { gridColumn: 2, gridRow: 1 },
+    [`${NarrowPhoneTitleRow} > &`]: { gridColumn: '1 / -1', gridRow: 2 },
+  },
 });
 
 // The tags take the room the status chips leave, and wrap onto another line where they do not

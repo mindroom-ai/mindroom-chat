@@ -181,6 +181,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   EyebrowRow: 'EyebrowRow',
   MetadataDot: 'MetadataDot',
   NarrowPhoneTitleRow: 'NarrowPhoneTitleRow',
+  StackedPhoneTitleRow: 'StackedPhoneTitleRow',
   OverflowChip: 'OverflowChip',
   PhoneTitle: 'PhoneTitle',
   PhoneTitleRow: 'PhoneTitleRow',
@@ -734,21 +735,60 @@ describe('ThreadContextBanner rendering', () => {
       tablet.unmount();
     });
 
+    // The tab stops in DOM order: buttons by name, the title by its role here.
+    const tabStops = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAll(
+          (node) =>
+            typeof node.type === 'string' && (node.type === 'button' || node.props.tabIndex === 0)
+        )
+        .map((node) =>
+          node.props['data-thread-context-summary'] ? 'title' : node.props['aria-label']
+        );
+    /**
+     * The title row's node: `width` wide; its title column and buttons as tall as `heights` says
+     * for the row's classes at the moment they are measured.
+     */
+    const rowOf =
+      (
+        width: number,
+        heights: (classes: Set<string>) => { title: number; actions: number } = () => ({
+          title: 20,
+          actions: 80,
+        })
+      ) =>
+      (element: React.ReactElement) => {
+        if (!(element.props as { className?: string }).className?.startsWith('TitleRow')) {
+          return null;
+        }
+        const classes = new Set<string>();
+        const part = (name: 'title' | 'actions') => ({
+          getBoundingClientRect: () => ({ height: heights(classes)[name] }),
+        });
+        const title = part('title');
+        const actions = part('actions');
+        return {
+          getBoundingClientRect: () => ({ width }),
+          classList: {
+            add: (name: string) => classes.add(name),
+            remove: (name: string) => classes.delete(name),
+          },
+          get className() {
+            return [...classes].join(' ');
+          },
+          set className(value: string) {
+            classes.clear();
+            value
+              .split(' ')
+              .filter(Boolean)
+              .forEach((name) => classes.add(name));
+          },
+          querySelector: (selector: string) =>
+            ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions }[selector] ?? null),
+        };
+      };
+
     it('puts a title under the buttons after them in the tab order, as on the screen', () => {
-      // The tab stops in DOM order: buttons by name, the title by its role here.
-      const tabStops = (renderer: ReturnType<typeof renderBanner>) =>
-        renderer.root
-          .findAll(
-            (node) =>
-              typeof node.type === 'string' && (node.type === 'button' || node.props.tabIndex === 0)
-          )
-          .map((node) =>
-            node.props['data-thread-context-summary'] ? 'title' : node.props['aria-label']
-          );
-      const rowOf = (width: number) => (element: React.ReactElement) =>
-        (element.props as { className?: string }).className?.startsWith('TitleRow')
-          ? { getBoundingClientRect: () => ({ width }) }
-          : null;
       vi.stubGlobal('document', { documentElement: {} });
       vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
       try {
@@ -770,20 +810,89 @@ describe('ThreadContextBanner rendering', () => {
       }
     });
 
+    it('stacks the buttons beside a title as tall as them, keeps them in a row beside a short one', () => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      try {
+        screenSize = ScreenSize.Mobile;
+        // Stacked, three buttons take 96 px: a title column of 120 px holds them beside it.
+        const tall = renderBanner(
+          'A concise thread summary',
+          rowOf(360, () => ({ title: 120, actions: 96 }))
+        );
+        expect(rowClass(tall)).toBe('TitleRow PhoneTitleRow StackedPhoneTitleRow');
+        // Their order, and the tab order, stay as in the row: top to bottom as left to right.
+        expect(tabStops(tall)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        tall.unmount();
+
+        // A title of a line or two (40 px) keeps them side by side: stacked, they would make the
+        // card taller than its title.
+        const short = renderBanner(
+          'A concise thread summary',
+          rowOf(360, () => ({ title: 40, actions: 96 }))
+        );
+        expect(rowClass(short)).toBe('TitleRow PhoneTitleRow');
+        short.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('decides with the buttons stacked, so the layout it picks cannot flip it back', () => {
+      // Page Zoom (the root's style) makes the banner measure again, as a resize would.
+      const measuredAgain: (() => void)[] = [];
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      vi.stubGlobal(
+        'MutationObserver',
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            measuredAgain.push(this.callback);
+          }
+
+          disconnect() {}
+        }
+      );
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      try {
+        screenSize = ScreenSize.Mobile;
+        // Beside the buttons in a row the title takes 100 px, taller than the 96 px they take
+        // stacked; stacked, the title is wider and takes only 80 px. Deciding by the row's look
+        // would stack them, then unstack them, and so on.
+        const seen: boolean[] = [];
+        const banner = renderBanner(
+          'A concise thread summary',
+          rowOf(360, (classes) => {
+            const stacked = classes.has('StackedPhoneTitleRow');
+            seen.push(stacked);
+            return stacked ? { title: 80, actions: 96 } : { title: 100, actions: 32 };
+          })
+        );
+        expect(rowClass(banner)).toBe('TitleRow PhoneTitleRow');
+        for (let again = 0; again < 3; again += 1) {
+          act(() => measuredAgain.forEach((measure) => measure()));
+          expect(rowClass(banner)).toBe('TitleRow PhoneTitleRow');
+        }
+        // Every measurement had the buttons stacked.
+        expect(seen.length).toBeGreaterThan(0);
+        expect(seen.every(Boolean)).toBe(true);
+        banner.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('moves the title under the buttons, and back, when Page Zoom changes at the same width', () => {
-      const tabStops = (renderer: ReturnType<typeof renderBanner>) =>
-        renderer.root
-          .findAll(
-            (node) =>
-              typeof node.type === 'string' && (node.type === 'button' || node.props.tabIndex === 0)
-          )
-          .map((node) =>
-            node.props['data-thread-context-summary'] ? 'title' : node.props['aria-label']
-          );
-      const row = (element: React.ReactElement) =>
-        (element.props as { className?: string }).className?.startsWith('TitleRow')
-          ? { getBoundingClientRect: () => ({ width: 360 }) }
-          : null;
+      const row = rowOf(360);
       // Page Zoom sets the root's style: its font size, and so 19rem in px.
       let fontSize = '16px';
       const rootStyleChanged: (() => void)[] = [];
