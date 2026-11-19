@@ -326,8 +326,8 @@ const checkMembers = async (run: Run) => {
       .toBe(false);
     await shot(run, `members-lobby-800-${direction}-${scheme}`);
   }
-  // Wide enough, the members stay beside the room, as the setting says.
-  await page.setViewportSize({ width: 1280, height: 900 });
+  // Wide enough to read the room beside them, the members stay beside it, as the setting says.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
   await expect.poll(() => membersBeside(page)).toBe(true);
   // The resize separator shows keyboard focus (L8-F027).

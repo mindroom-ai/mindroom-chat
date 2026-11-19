@@ -37,8 +37,10 @@ test('the members header buttons fill while hovered, as the room header buttons 
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
 
+  // A 1280 px window leaves the room too narrow to read beside the members: they start closed.
+  await page.getByRole('button', { name: 'Show Members', exact: true }).click({ timeout: 60_000 });
   const invite = page.getByRole('button', { name: 'Invite people' });
-  await expect(invite).toBeVisible({ timeout: 60_000 });
+  await expect(invite).toBeVisible();
   const close = invite.locator('xpath=..').getByRole('button', { name: 'Close', exact: true });
   const hideMembers = page.getByRole('button', { name: 'Hide Members' });
 
