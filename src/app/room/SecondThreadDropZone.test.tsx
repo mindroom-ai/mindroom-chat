@@ -116,6 +116,59 @@ describe('the drop zone of the second column', () => {
     expect(zone()).toBeNull();
   });
 
+  it("takes a drag that shows its thread only as it starts, as the Mac app's WebKit does", () => {
+    const onOpen = vi.fn();
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    startDrag(threadDrag('$c'));
+    const target = zone()!;
+    // Mac Catalyst's WebKit lists a custom type as the drag starts and not again before the drop.
+    const dataTransfer = dragData({});
+    expect(fireEvent.dragEnter(target, { dataTransfer })).toBe(false);
+    expect(fireEvent.dragOver(target, { dataTransfer })).toBe(false);
+    expect(target.dataset.over).toBe('true');
+    fireEvent.drop(target, { dataTransfer });
+    expect(onOpen.mock.calls).toEqual([['!room:example.org', '$c']]);
+  });
+
+  it('takes no other drag for a thread whose drag the page did not hear end', () => {
+    const onOpen = vi.fn();
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    // A drag that comes in from another app starts none on the page: the zone still shows.
+    [
+      dragData({ Files: '' }),
+      dragData({ 'text/plain': 'example' }),
+      dragData({ 'text/uri-list': 'https://example.org' }),
+    ].forEach((dataTransfer) => {
+      startDrag(threadDrag('$c'));
+      expect(fireEvent.dragEnter(zone()!, { dataTransfer })).toBe(true);
+      expect(fireEvent.dragOver(zone()!, { dataTransfer })).toBe(true);
+      expect(zone()!.dataset.over).toBeUndefined();
+      fireEvent.drop(zone()!, { dataTransfer });
+      expect(onOpen).not.toHaveBeenCalled();
+    });
+    // Any other drag that starts on the page ends the thread's.
+    startDrag(threadDrag('$c'));
+    expect(zone()).not.toBeNull();
+    startDrag(dragData({ 'text/plain': 'example' }));
+    expect(zone()).toBeNull();
+  });
+
+  it('opens the thread a drop names, not one whose drag the page did not hear end', () => {
+    const onOpen = vi.fn();
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);
+    // Thread $c's end went unheard; thread $d comes in from another window, starting none here.
+    startDrag(threadDrag('$c'));
+    fireEvent.dragEnter(zone()!, { dataTransfer: threadDrag('$d') });
+    fireEvent.drop(zone()!, { dataTransfer: threadDrag('$d') });
+    expect(onOpen.mock.calls).toEqual([['!room:example.org', '$d']]);
+    // A drop that shows the thread type but names no thread opens nothing.
+    startDrag(threadDrag('$c'));
+    const broken = dragData({ [THREAD_DRAG_TYPE]: 'not json' });
+    fireEvent.dragEnter(zone()!, { dataTransfer: broken });
+    fireEvent.drop(zone()!, { dataTransfer: broken });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
   it('takes no drop from a drag that started where the zone shows until it left the zone', () => {
     const onOpen = vi.fn();
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(

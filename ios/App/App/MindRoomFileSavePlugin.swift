@@ -31,7 +31,7 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
             call.reject("Save page is missing", "INVALID_PAGE")
             return
         }
-        let fileName = safeFileName(call.getString("fileName"))
+        let fileName = Self.safeFileName(call.getString("fileName"))
 
         saveQueue.async { [weak self] in
             guard let self = self else {
@@ -253,13 +253,14 @@ public class MindRoomFileSavePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPick
         activeSession = nil
     }
 
-    private func safeFileName(_ requestedName: String?) -> String {
+    /// The last path component of a name from outside, or `fallback` when that is no file name.
+    static func safeFileName(_ requestedName: String?, fallback: String = "attachment") -> String {
         guard let requestedName = requestedName?.trimmingCharacters(in: .whitespacesAndNewlines),
               !requestedName.isEmpty else {
-            return "attachment"
+            return fallback
         }
 
         let name = (requestedName as NSString).lastPathComponent
-        return name.isEmpty || name == "/" || name == "." || name == ".." ? "attachment" : name
+        return name.isEmpty || name == "/" || name == "." || name == ".." ? fallback : name
     }
 }
