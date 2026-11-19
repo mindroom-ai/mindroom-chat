@@ -65,3 +65,4 @@ The plan is made on each render in one pass that reads one key of each row, like
 - **Open thread only.** The classic room view, thread cards, previews, search and notifications show the two messages as before.
 - **Typed changes need the backend change.** With an older backend only the picker's changes become a line.
 - **A fork's prefix** shows its parent's changes as lines too; the scope sentence there speaks of the parent's thread.
+- **A change made while an agent works** still starts a turn of its own for the thread's turn folds, as the hidden command is a person's message: when that turn folds, the line folds behind its break with the turn's other quiet markers.
