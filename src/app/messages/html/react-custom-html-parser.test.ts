@@ -691,7 +691,7 @@ describe('tool call status from approval cards', () => {
     approvals.current = { records: [jobCard('pending', { replyToEventId: '$reply' })], now: 0 };
     expect(renderShellCall()).toContain('1 tool call waiting for approval');
     approvals.current = { records: [jobCard('denied', { replyToEventId: '$other' })], now: 0 };
-    expect(renderShellCall('not now')).toContain('Ran 1 tool call');
+    expect(renderShellCall('not now')).toContain('Ran 1 command');
   });
 
   it("gives a detached call the state of the job's card its handle names", () => {
@@ -699,12 +699,12 @@ describe('tool call status from approval cards', () => {
     approvals.current = { records: [jobCard('expired', { jobId: 'j1' })], now: 0 };
     expect(renderShellCall(handle)).toContain('1 tool call expired');
     approvals.current = { records: [jobCard('approved', { jobId: 'j1' })], now: 0 };
-    expect(renderShellCall(handle)).toContain('Ran 1 tool call');
+    expect(renderShellCall(handle)).toContain('Ran 1 command');
     approvals.current = { records: [], now: 0 };
     expect(renderShellCall(handle)).toContain('1 tool call waiting for approval');
   });
 
-  it("says in words which calls didn't complete, on the run line, on the call and on the cog", () => {
+  it('says in words which calls failed, on the run line, on the call and on the cog', () => {
     const completed = { type: 'tool_call_completed' };
     const failed = { ...completed, is_error: true };
     // The calls' line and rows, or the folded cog's name, for the two calls' trace entries.
@@ -761,28 +761,26 @@ describe('tool call status from approval cards', () => {
       { ...completed, result_preview: 'notes' },
       { ...failed, ...preview }
     );
-    expect(failedText).toContain("Ran 2 tool calls · 1 didn't complete");
-    expect(failedText).toContain("run_shell_commandDidn't complete");
-    expect(failedText).not.toContain("read_fileDidn't complete");
+    expect(failedText).toContain('Read 1 file and ran 1 command · 1 failed');
+    expect(failedText).toContain('Ran commandFailed');
+    expect(failedText).not.toContain('Read fileFailed');
     const workedText = renderCalls(completed, { ...completed, ...preview });
-    expect(workedText).toContain('Ran 2 tool calls');
-    expect(workedText).not.toContain("didn't complete");
-    expect(workedText).not.toContain("Didn't complete");
+    expect(workedText).toContain('Read 1 file and ran 1 command');
+    expect(workedText).not.toContain('failed');
+    expect(workedText).not.toContain('Failed');
     // Without a preview, or with a cut one, a call that did not succeed says so just the same.
     const allFailedText = renderCalls(failed, { ...failed, ...preview, truncated: true });
-    expect(allFailedText).toContain("Ran 2 tool calls · 2 didn't complete");
-    expect(allFailedText).toContain("read_fileDidn't complete");
-    expect(allFailedText).toContain("run_shell_commandDidn't complete");
+    expect(allFailedText).toContain('Read 1 file and ran 1 command · 2 failed');
+    expect(allFailedText).toContain('Read fileFailed');
+    expect(allFailedText).toContain('Ran commandFailed');
     // A call that still runs or waits leads, and the failure so far shows beside it.
     const running = { type: 'tool_call_started' };
-    expect(renderCalls(failed, running)).toContain("Running 2 tool calls · 1 didn't complete");
-    expect(renderCalls(failed, running, true)).toBe("Running 2 tool calls · 1 didn't complete");
+    expect(renderCalls(failed, running)).toContain('Running 2 tool calls · 1 failed');
+    expect(renderCalls(failed, running, true)).toBe('Running 2 tool calls · 1 failed');
     approvals.current = { records: [jobCard('pending', { replyToEventId: '$reply' })], now: 0 };
-    expect(renderCalls(failed, completed)).toContain(
-      "1 tool call waiting for approval · 1 didn't complete"
-    );
+    expect(renderCalls(failed, completed)).toContain('1 tool call waiting for approval · 1 failed');
     expect(renderCalls(failed, completed, true)).toBe(
-      "2 tool calls: 1 tool call waiting for approval · 1 didn't complete"
+      '2 tool calls: 1 tool call waiting for approval · 1 failed'
     );
   });
 
@@ -909,14 +907,14 @@ describe('useToolTraceMarkerParserOptions', () => {
     });
 
     const toolsHtml = (pending: boolean) =>
-      `<p>🔧 <code>web_search</code> [1]${pending ? ' ⏳' : ''}</p><p>Answer.</p>`;
+      `<p>🔧 <code>search_arxiv</code> [1]${pending ? ' ⏳' : ''}</p><p>Answer.</p>`;
     // Two runs of tool calls with text between them; the last call still runs or is done.
     const twoRunsHtml = (pending: boolean) =>
       [
         '<p>Looking it up.</p>',
-        '<p>🔧 <code>web_search</code> [1]</p>',
+        '<p>🔧 <code>search_arxiv</code> [1]</p>',
         '<p>Between.</p>',
-        '<p>🔧 <code>run_shell_command</code> [2]</p>',
+        '<p>🔧 <code>run_notebook</code> [2]</p>',
         `<p>🔧 <code>share_app</code> [3]${pending ? ' ⏳' : ''}</p>`,
         '<p>Answer.</p>',
       ].join('');
@@ -992,11 +990,11 @@ describe('useToolTraceMarkerParserOptions', () => {
     it("shows a thread's tool calls where the thread menu showed them", () => {
       stored.set(storageKey, JSON.stringify({ [ROOM]: { threads: { $root: true } } }));
       const shown = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$root' });
-      expect(shown.text()).toContain('web_search');
+      expect(shown.text()).toContain('search_arxiv');
       expect(shown.cogs()).toHaveLength(0);
       shown.unmount();
       const other = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$other' });
-      expect(other.text()).not.toContain('web_search');
+      expect(other.text()).not.toContain('search_arxiv');
       expect(other.cogs()).toHaveLength(1);
       other.unmount();
     });
@@ -1004,7 +1002,7 @@ describe('useToolTraceMarkerParserOptions', () => {
     it("hides a room's tool calls where the room menu hid them", () => {
       stored.set(storageKey, JSON.stringify({ [ROOM]: { room: false } }));
       const reply = renderReply(toolsHtml(false), { shownByDefault: true, threadId: '$root' });
-      expect(reply.text()).not.toContain('web_search');
+      expect(reply.text()).not.toContain('search_arxiv');
       expect(reply.text()).toContain('Answer.');
       reply.unmount();
     });
@@ -1121,7 +1119,7 @@ describe('useToolTraceMarkerParserOptions', () => {
 
       // No run shows, and the cog still counts the three calls of the runs the thinking parts.
       expect(cog().props['aria-expanded']).toBe(false);
-      expect(text()).not.toMatch(/tool call|web_search|run_shell_command|share_app/);
+      expect(text()).not.toMatch(/tool call|search_arxiv|run_notebook|share_app/);
       expect(cog().children.at(-1)).toBe('3');
       const order = [
         'Search first.',
@@ -1184,7 +1182,7 @@ describe('useToolTraceMarkerParserOptions', () => {
         };
       };
       const emailAndSearch =
-        '<p>🔧 <code>send_email</code> [1]</p><p>🔧 <code>web_search</code> [2]</p><p>Answer.</p>';
+        '<p>🔧 <code>send_email</code> [1]</p><p>🔧 <code>search_arxiv</code> [2]</p><p>Answer.</p>';
 
       it('tints the cog while a call waits for approval', () => {
         cards(['send_email', 'pending']);
@@ -1233,7 +1231,7 @@ describe('useToolTraceMarkerParserOptions', () => {
 
       await act(() => reply.cogButton().props.onClick());
       expect(reply.runLines()).toHaveLength(0);
-      expect(reply.text()).not.toContain('web_search');
+      expect(reply.text()).not.toContain('search_arxiv');
       reply.unmount();
     });
   });
@@ -1245,7 +1243,7 @@ describe('useToolTraceMarkerParserOptions', () => {
       body: 'preview',
       formatted_body: html,
     });
-    expect(previewMarkup).toMatch(toolCountLabel(1));
+    expect(previewMarkup).toContain('Searched the web');
     expect(previewMarkup).not.toContain('🔧');
 
     const hydratedMarkup = renderWithToolTrace(html, {
@@ -1256,7 +1254,8 @@ describe('useToolTraceMarkerParserOptions', () => {
         events: [{ type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Done' }],
       },
     });
-    expect(hydratedMarkup).toMatch(toolCountLabel(1));
+    // With its details, the finished call says what it did.
+    expect(hydratedMarkup).toContain('Searched the web');
   });
 
   it('summarizes tool calls and lists each with its arguments and result', () => {
@@ -1297,14 +1296,54 @@ describe('useToolTraceMarkerParserOptions', () => {
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
         .join(' ');
+    // A call in words leads with what it acts on; its other arguments follow as fields.
+    expect(textOf(rows[0]!)).toContain('Searched the web MindRoom release notes');
     expect(rows[0]!.findAllByType('dt').map((node) => node.children.join(''))).toEqual([
-      'query',
       'max_results',
     ]);
-    expect(textOf(rows[0]!)).toContain('MindRoom release notes');
     expect(textOf(rows[0]!)).toContain('5 results');
     expect(rows[1]!.findAll((node) => node.props.variant === 'Secondary')).not.toHaveLength(0);
     expect(rows[1]!.findByType('pre').children.join('')).toBe('reading the changelog');
+  });
+
+  it('folds the finished bookkeeping calls of a run under its others, until asked', () => {
+    const names = ['read_file', 'list_files', 'run_shell_command'];
+    const html = names
+      .map((name, index) => `<p>🔧 <code>${name}</code> [${index + 1}]</p>`)
+      .join('');
+    const content = {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: names.map((name) => ({ type: 'tool_call_completed', tool_name: name })),
+      },
+    };
+    const parsed = parse(html, markerParserOptions(createBaseOpts(), content));
+    const focus = vi.fn();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(React.Fragment, null, parsed), {
+        createNodeMock: () => ({ focus }),
+      });
+    });
+    expect(collectTextContent(renderer.toJSON())).toBe('Read 1 file and ran 1 command');
+    act(() => {
+      renderer.root.findByType('button').props.onClick();
+    });
+    const rows = () =>
+      renderer.root
+        .findAll((node) => typeof node.type === 'string' && node.props['data-tool-index'])
+        .map((node) => node.props['data-tool-index']);
+    expect(rows()).toEqual([1, 3]);
+    const more = renderer.root.findByProps({ className: 'activity-more-steps' });
+    expect(nodeText(more)).toBe('Show 1 more step: listed files');
+    act(() => {
+      more.props.onClick();
+    });
+    // In call order, and the shown call takes the focus of the button, which goes.
+    expect(rows()).toEqual([1, 2, 3]);
+    expect(renderer.root.findAllByProps({ className: 'activity-more-steps' })).toHaveLength(0);
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(toolRowText(renderer, 2)).toContain('Listed files');
   });
 
   it('shows the last lines of a running call output under the collapsed tool calls', () => {
@@ -1407,7 +1446,7 @@ describe('useToolTraceMarkerParserOptions', () => {
   });
 
   it('expands marker-only tool refs with the marker tool name', () => {
-    const markerHtml = '<p>🔧 <code>run_shell_command</code> [1]</p>';
+    const markerHtml = '<p>🔧 <code>run_notebook</code> [1]</p>';
     const renderer = renderTreeWithToolTrace(markerHtml, { formatted_body: markerHtml });
 
     expect(collectTextContent(renderer.toJSON())).toMatch(toolCountLabel(1));
@@ -1418,7 +1457,7 @@ describe('useToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(toolRowText(renderer, 1)).toContain('run_shell_command');
+    expect(toolRowText(renderer, 1)).toContain('run_notebook');
     expect(renderer.root.findAll((node) => node.props.src === 'Check')).not.toHaveLength(0);
     expect(expanded).not.toContain('🔧');
   });
@@ -1597,8 +1636,8 @@ describe('useToolTraceMarkerParserOptions', () => {
   it('does not merge marker-prefix paragraphs when each has trailing text', () => {
     const markup = renderWithToolTrace(
       [
-        '<p>🔧 <code>run_shell_command</code> [1]<br/>Now let me find one</p>',
-        '<p>🔧 <code>run_shell_command</code> [2]<br/>Now let me find two</p>',
+        '<p>🔧 <code>run_notebook</code> [1]<br/>Now let me find one</p>',
+        '<p>🔧 <code>run_notebook</code> [2]<br/>Now let me find two</p>',
       ].join(''),
       {
         'io.mindroom.tool_trace': {
@@ -1606,10 +1645,10 @@ describe('useToolTraceMarkerParserOptions', () => {
           events: [
             {
               type: 'tool_call_completed',
-              tool_name: 'run_shell_command',
+              tool_name: 'run_notebook',
               result_preview: 'FIRST',
             },
-            { type: 'tool_call_started', tool_name: 'run_shell_command' },
+            { type: 'tool_call_started', tool_name: 'run_notebook' },
           ],
         },
       }
@@ -1711,11 +1750,11 @@ describe('useToolTraceMarkerParserOptions', () => {
   });
 
   it('renders single tool call using group path with Tool #1 label', () => {
-    const renderer = renderTreeWithToolTrace('<p>🔧 <code>search_web</code> [1]</p>', {
+    const renderer = renderTreeWithToolTrace('<p>🔧 <code>search_arxiv</code> [1]</p>', {
       'io.mindroom.tool_trace': {
         version: 2,
         events: [
-          { type: 'tool_call_completed', tool_name: 'search_web', result_preview: 'Found it' },
+          { type: 'tool_call_completed', tool_name: 'search_arxiv', result_preview: 'Found it' },
         ],
       },
     });
@@ -1729,7 +1768,7 @@ describe('useToolTraceMarkerParserOptions', () => {
     });
 
     const expanded = collectTextContent(renderer.toJSON());
-    expect(toolRowText(renderer, 1)).toContain('search_web');
+    expect(toolRowText(renderer, 1)).toContain('search_arxiv');
     expect(expanded).toContain('Found it');
   });
 

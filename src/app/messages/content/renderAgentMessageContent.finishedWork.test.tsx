@@ -151,9 +151,9 @@ const workHtml = (rows: number) =>
     ...Array.from({ length: rows - 3 }, (_, n) => (n === 0 ? 'Let me look.' : `Step ${n}.`)).map(
       (note) => `<p>${note}</p>`
     ),
-    marker('web_search', 1),
+    marker('search_arxiv', 1),
     '<p>Now the file.</p>',
-    marker('read_file', 2),
+    marker('read_notes', 2),
   ].join('');
 // Enough work to fold by default, with a short answer.
 const WORK = workHtml(8);
@@ -161,7 +161,7 @@ const WORK = workHtml(8);
 const BODY = 'Placeholder line.\n'.repeat(9);
 // Too few rows to fold, in its plain body and its HTML.
 const SHORT_BODY =
-  'Let me look.\n\n🔧 `web_search` [1]\n\nNow the file.\n\n🔧 `read_file` [2]\n\nThe answer.';
+  'Let me look.\n\n🔧 `search_arxiv` [1]\n\nNow the file.\n\n🔧 `read_notes` [2]\n\nThe answer.';
 const SHORT_HTML = `${workHtml(4)}<p>The answer.</p>`;
 
 /** A reply that searched, read a file, then answered, with enough work to fold by default. */
@@ -174,7 +174,7 @@ const reply = (
   body,
   format: 'org.matrix.custom.html',
   formatted_body: html,
-  'io.mindroom.tool_trace': toolTrace('web_search', 'read_file'),
+  'io.mindroom.tool_trace': toolTrace('search_arxiv', 'read_notes'),
   ...(status === undefined ? {} : { 'io.mindroom.ai_run': { version: 1, status } }),
 });
 
@@ -284,7 +284,7 @@ describe('finished agent work', () => {
     expect(workedRow().props['aria-expanded']).toBe(true);
     expect(text()).toContain('Let me look.');
     expect(text()).toContain('Now the file.');
-    expect(toolCalls()).toEqual(['web_search', 'read_file']);
+    expect(toolCalls()).toEqual(['search_arxiv', 'read_notes']);
     expect(text()).toContain('The answer.');
   });
 
@@ -295,7 +295,7 @@ describe('finished agent work', () => {
 
       expect(text()).not.toContain('Worked');
       expect(text()).toContain('Let me look.');
-      expect(toolCalls()).toEqual(['web_search', 'read_file']);
+      expect(toolCalls()).toEqual(['search_arxiv', 'read_notes']);
     }
   );
 
@@ -307,7 +307,7 @@ describe('finished agent work', () => {
   });
 
   it('does not fold a reply that ends in a tool call', () => {
-    render(reply('completed', `<p>Let me look.</p>${marker('web_search', 1)}`));
+    render(reply('completed', `<p>Let me look.</p>${marker('search_arxiv', 1)}`));
 
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
@@ -355,7 +355,7 @@ describe('finished agent work', () => {
 
     const asked = {
       ...reply('completed'),
-      'io.mindroom.tool_trace': toolTrace('web_search', 'request_temporary_secret'),
+      'io.mindroom.tool_trace': toolTrace('search_arxiv', 'request_temporary_secret'),
     };
     render(asked, true, undefined, done);
     expect(text()).toContain('Worked for 2m 13s');
@@ -409,7 +409,7 @@ describe('finished agent work', () => {
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
     expect(text()).toContain('The answer.');
-    expect(toolCalls()).toEqual(['web_search', 'read_file']);
+    expect(toolCalls()).toEqual(['search_arxiv', 'read_notes']);
   });
 
   it('does not fold a reply that search highlights', () => {
@@ -450,11 +450,11 @@ describe('finished agent work', () => {
     expect(reasoningToggle().props['aria-expanded']).toBe(true);
     const before = firstParagraph();
 
-    render(streaming('Let me look. Searching.', `${blocks}${marker('web_search', 1)}`));
+    render(streaming('Let me look. Searching.', `${blocks}${marker('search_arxiv', 1)}`));
     expect(reasoningToggle().props['aria-expanded']).toBe(true);
     // Compared as a boolean: a failed toBe would print the whole fiber tree.
     expect(firstParagraph() === before).toBe(true);
-    expect(toolCalls()).toEqual(['web_search']);
+    expect(toolCalls()).toEqual(['search_arxiv']);
   });
 
   it('keeps every reasoning segment inside the folded work, and none in the answer', () => {
@@ -502,7 +502,7 @@ describe('finished agent work', () => {
     );
     expect(inWork(answer)).toBe(false);
     // In the order it happened: the last thought after the last tool call, before the answer.
-    const order = [first, 'web_search', 'read_file', last, 'The answer.'].map((part) =>
+    const order = [first, 'search_arxiv', 'read_notes', last, 'The answer.'].map((part) =>
       text().indexOf(part)
     );
     expect(order).not.toContain(-1);

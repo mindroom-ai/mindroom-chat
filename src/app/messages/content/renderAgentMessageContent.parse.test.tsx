@@ -180,7 +180,7 @@ describe('renderAgentMessageContent parsing', () => {
   });
 
   it('parses only the reply that changed when another reply with tool calls streams', () => {
-    const done = agentReply('Finished the search.', toolTrace('web_search'));
+    const done = agentReply('Finished the search.', toolTrace('search_arxiv'));
     let streaming = agentReply('Working on it.', toolTrace('browser_control'));
     render([done, streaming]);
     expect(parsesOf(done)).toBe(1);
@@ -196,31 +196,31 @@ describe('renderAgentMessageContent parsing', () => {
     expect(parsesOf(done)).toBe(1);
     expect(text()).toContain('Working on it, step 3.');
     expect(text()).not.toContain('step 2');
-    expect(toolCalls()).toEqual(['web_search', 'browser_control']);
+    expect(toolCalls()).toEqual(['search_arxiv', 'browser_control']);
   });
 
   it('parses a reply again when only its tool trace changes', () => {
-    const before = agentReply('Searching.', toolTrace('web_search'));
+    const before = agentReply('Searching.', toolTrace('search_arxiv'));
     render([before]);
-    const after = { ...before, 'io.mindroom.tool_trace': toolTrace('web_search') };
+    const after = { ...before, 'io.mindroom.tool_trace': toolTrace('search_arxiv') };
     render([after]);
 
     expect(parsesOf(before)).toBe(2);
   });
 
   it('renders the tool calls of a reply parsed again for another reason', () => {
-    const reply = agentReply('Searching.', toolTrace('web_search'));
+    const reply = agentReply('Searching.', toolTrace('search_arxiv'));
     render([reply]);
     // A search highlight parses the same reply again with the same parser options.
     render([reply], /Searching/);
 
     expect(parsesOf(reply)).toBe(2);
-    expect(toolCalls()).toEqual(['web_search']);
+    expect(toolCalls()).toEqual(['search_arxiv']);
   });
 
   it('parses the extras of a reply that did not change only once while another reply streams', () => {
     const done = {
-      ...agentReply('Finished.', toolTrace('web_search')),
+      ...agentReply('Finished.', toolTrace('search_arxiv')),
       [MINDROOM_MESSAGE_EXTRAS_KEY]: {
         version: 1,
         sections: [{ title: 'Trace', content_type: 'text/markdown', content: '🔧 `lookup` [1]' }],
@@ -242,7 +242,7 @@ describe('renderAgentMessageContent parsing', () => {
 
   it('parses a long reply again when its tool metadata status changes', () => {
     const reply = {
-      ...agentReply('Long answer.', toolTrace('web_search')),
+      ...agentReply('Long answer.', toolTrace('search_arxiv')),
       url: 'mxc://example.org/long-text',
       'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
     };
@@ -256,6 +256,6 @@ describe('renderAgentMessageContent parsing', () => {
     render([{ ...reply }]);
 
     expect(parsesOf(reply)).toBe(2);
-    expect(toolCalls()).toEqual(['web_search']);
+    expect(toolCalls()).toEqual(['search_arxiv']);
   });
 });

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, useContext, useMemo, useState } from 'react';
+import React, { ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Element,
   HTMLReactParserOptions,
@@ -74,7 +74,12 @@ import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
 import { useToolCallsShown } from '../toolCallVisibility';
-import { describeToolRun, describeToolSteps, isToolStep, toolRowWords } from '../agent-run/toolWords';
+import {
+  describeToolRun,
+  describeToolSteps,
+  isToolStep,
+  toolRowWords,
+} from '../agent-run/toolWords';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -338,16 +343,28 @@ function ToolElapsed({ startedAt }: { startedAt: number }) {
 function ToolRefGroupItem({
   parsedTool,
   state,
+  focus = false,
 }: {
   parsedTool: ToolBlockRenderData;
   state: ToolCallState;
+  /** Takes the focus of the button that showed it, which goes. */
+  focus?: boolean;
 }) {
   const { t } = useTranslation();
   const { src, tone } = TOOL_STATE_ICON[state];
   const words = toolRowWords(t, parsedTool.toolName, parsedTool.argsPreview);
   const rest = words?.rest;
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focus) ref.current?.focus();
+  }, [focus]);
   return (
-    <div className={activityCss.Row} data-tool-index={parsedTool.index}>
+    <div
+      ref={ref}
+      className={activityCss.Row}
+      data-tool-index={parsedTool.index}
+      tabIndex={focus ? -1 : undefined}
+    >
       <ActivityIcon src={src} tone={tone} pending={state === 'running'} />
       <div className={activityCss.RowBody}>
         <span className={activityCss.RowHead}>
@@ -499,7 +516,8 @@ function ToolRefGroupBlock({
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
-  const [stepsShown, setStepsShown] = useState(false);
+  // The first folded call once they show, by its index.
+  const [stepsShownAt, setStepsShownAt] = useState<number>();
   const loadedTools = parsedTools.filter(isLoadedTool);
   const replyStates = useToolCallStates(replyTools);
   const metadataStatus = parsedTools.find((tool) => !isLoadedTool(tool))?.status;
@@ -534,10 +552,28 @@ function ToolRefGroupBlock({
         )
       : undefined;
   // Finished bookkeeping calls fold under the run's other calls.
-  const steps = stepsShown
-    ? []
-    : loadedTools.filter((tool, index) => states[index] === 'done' && isToolStep(tool.toolName));
+  const steps =
+    stepsShownAt !== undefined
+      ? []
+      : loadedTools.filter((tool, index) => states[index] === 'done' && isToolStep(tool.toolName));
   const folded = steps.length < loadedTools.length ? steps : [];
+  let title: string;
+  if (metadataStatus) {
+    title = t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length });
+  } else if (words) {
+    const { failed } = summary;
+    title = failed
+      ? `${words.title} ${t('mindroomUi.messages.mindroomHtmlBlocks.toolCallsAlsoFailed', {
+          failed,
+        })}`
+      : words.title;
+  } else {
+    title = withFailures(
+      t,
+      t(TOOL_STATE_TITLE[summary.state], { count: summary.count, failed: summary.failed }),
+      summary
+    );
+  }
 
   return (
     <ThreadActivity
@@ -548,28 +584,7 @@ function ToolRefGroupBlock({
           pending={!metadataStatus && summary.state === 'running'}
         />
       }
-      title={
-        metadataStatus
-          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
-          : words
-            ? [
-                words.title,
-                summary.failed &&
-                  t('mindroomUi.messages.mindroomHtmlBlocks.toolCallsAlsoFailed', {
-                    failed: summary.failed,
-                  }),
-              ]
-                .filter(Boolean)
-                .join(' ')
-            : withFailures(
-                t,
-                t(TOOL_STATE_TITLE[summary.state], {
-                  count: summary.count,
-                  failed: summary.failed,
-                }),
-                summary
-              )
-      }
+      title={title}
       detail={words ? words.detail : summary.names}
       aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}
       preview={
@@ -592,11 +607,16 @@ function ToolRefGroupBlock({
               key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
               parsedTool={parsedTool}
               state={states[index]!}
+              focus={parsedTool.index === stepsShownAt}
             />
           )
       )}
       {folded.length > 0 && (
-        <button type="button" className={activityCss.MoreSteps} onClick={() => setStepsShown(true)}>
+        <button
+          type="button"
+          className={activityCss.MoreSteps}
+          onClick={() => setStepsShownAt(folded[0]!.index)}
+        >
           {t('mindroomUi.messages.mindroomHtmlBlocks.toolWords.moreSteps', {
             count: folded.length,
             steps: describeToolSteps(t, language, folded),

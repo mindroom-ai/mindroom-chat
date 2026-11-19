@@ -190,8 +190,10 @@ export const RowWords = style({
   lineHeight: toRem(22),
 });
 
+// Like the line's detail: it takes only the room the words leave, so it stays on their line.
 export const RowTarget = style({
   flex: '1 1 0px',
+  maxWidth: 'max-content',
   minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -206,7 +208,9 @@ export const MoreSteps = style([
   {
     display: 'block',
     width: '100%',
-    padding: `${toRem(8)} ${toRem(14)} ${toRem(10)} ${toRem(44)}`,
+    // Under the rows' text, past their icon column (Row).
+    paddingBlock: `${toRem(8)} ${toRem(10)}`,
+    paddingInline: `${toRem(44)} ${toRem(14)}`,
     border: 'none',
     borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     background: 'none',
@@ -221,7 +225,9 @@ export const MoreSteps = style([
         outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
         outlineOffset: toRem(-2),
       },
-      '&:hover': { textDecoration: 'underline' },
+    },
+    '@media': {
+      '(hover: hover)': { selectors: { '&:hover': { textDecoration: 'underline' } } },
     },
   },
 ]);

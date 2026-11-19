@@ -997,7 +997,7 @@ describe('LongTextText hydration identity', () => {
       longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
       const content = {
         ...createPreviewContent(),
-        body: ['Update `notes.md`.', '', '🔧 `read_file` [1]', '', '🔧 `edit_file` [2]'].join('\n'),
+        body: ['Update `notes.md`.', '', '🔧 `read_notes` [1]', '', '🔧 `edit_notes` [2]'].join('\n'),
       };
       let renderer!: ReactTestRenderer;
       await act(async () => {
@@ -1040,18 +1040,18 @@ describe('LongTextText hydration identity', () => {
               : {
                   ...preview,
                   formatted_body:
-                    '<p>Update <code>notes.md</code>.</p><p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>edit_file</code> [2]</p>',
+                    '<p>Update <code>notes.md</code>.</p><p>🔧 <code>read_notes</code> [1]</p><p>🔧 <code>edit_notes</code> [2]</p>',
                   'io.mindroom.tool_trace': {
                     version: 2,
                     events: [
                       {
                         type: 'tool_call_completed',
-                        tool_name: 'read_file',
+                        tool_name: 'read_notes',
                         result_preview: 'Read notes',
                       },
                       {
                         type: 'tool_call_completed',
-                        tool_name: 'edit_file',
+                        tool_name: 'edit_notes',
                         result_preview: 'Saved notes',
                       },
                     ],

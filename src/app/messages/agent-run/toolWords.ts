@@ -84,7 +84,7 @@ export const describeToolSteps = (
   language: string,
   calls: readonly { toolName: string }[]
 ): string =>
-  new Intl.ListFormat(language, { style: 'short', type: 'unit' }).format(
+  new Intl.ListFormat(language).format(
     [...new Set(calls.flatMap(({ toolName }) => groupOf(toolName) ?? []))].map((group) =>
       t(`mindroomUi.messages.mindroomHtmlBlocks.toolWords.${group}.title`, { count: 1 })
     )
@@ -117,7 +117,7 @@ export const describeToolRun = (
       t('mindroomUi.messages.mindroomHtmlBlocks.toolWords.moreTools', { count: others.length })
     );
   }
-  const title = new Intl.ListFormat(language, { style: 'short', type: 'unit' }).format(phrases);
+  const title = new Intl.ListFormat(language).format(phrases);
   return {
     title: capitalize(title, language),
     detail: others.length > 0 ? toolNames(others) : undefined,

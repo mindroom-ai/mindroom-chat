@@ -504,9 +504,9 @@ describe('MindroomReasoning', () => {
       body: 'Read, searched and ran.',
       format: 'org.matrix.custom.html',
       formatted_body: [
-        marker('read_file', 1),
-        marker('grep', 2),
-        marker('grep', 3),
+        marker('read_notes', 1),
+        marker('search_notes', 2),
+        marker('search_notes', 3),
         '<p>Found it.</p>',
         marker('shell', 4),
         '<p>Done.</p>',
@@ -574,7 +574,7 @@ describe('MindroomReasoning', () => {
       ]);
       const order = [
         'Plan the search.',
-        'read_file, grep ×2',
+        'read_notes, search_notes ×2',
         'The cache is stale.',
         'Found it.',
         'shell',
@@ -625,7 +625,7 @@ describe('MindroomReasoning', () => {
       });
 
       expect(segmentTexts(root)).toEqual([`Thought${THOUGHTS.join('')}Hide thinking`]);
-      expect(text(root).indexOf(THOUGHTS[2]!)).toBeLessThan(text(root).indexOf('read_file'));
+      expect(text(root).indexOf(THOUGHTS[2]!)).toBeLessThan(text(root).indexOf('read_notes'));
     });
 
     it('places a segment after the last marker that renders as a run, not one inside code', async () => {
@@ -636,9 +636,9 @@ describe('MindroomReasoning', () => {
         ]),
         // The second marker is code the reply quotes: no run of calls renders for it.
         formatted_body: `${marker(
-          'read_file',
+          'read_notes',
           1
-        )}<pre><code>🔧 \`grep\` [2]</code></pre><p>Done.</p>`,
+        )}<pre><code>🔧 \`search_notes\` [2]</code></pre><p>Done.</p>`,
       };
       const root = render(content);
 
@@ -646,7 +646,7 @@ describe('MindroomReasoning', () => {
         header(root).props.onClick();
       });
 
-      const order = ['read_file', 'The cache is stale.', '🔧 `grep` [2]', 'Done.'].map((part) =>
+      const order = ['read_notes', 'The cache is stale.', '🔧 `search_notes` [2]', 'Done.'].map((part) =>
         text(root).indexOf(part)
       );
       expect(order).not.toContain(-1);
@@ -658,7 +658,7 @@ describe('MindroomReasoning', () => {
         msgtype: 'm.text',
         body: 'Reading.',
         format: 'org.matrix.custom.html',
-        formatted_body: `<p>Reading.</p>${marker('read_file', 1)}`,
+        formatted_body: `<p>Reading.</p>${marker('read_notes', 1)}`,
         'io.mindroom.stream_status': 'streaming',
         [LIVE]: reasoning,
         'io.mindroom.live_reasoning_segments': segments,
@@ -690,7 +690,7 @@ describe('MindroomReasoning', () => {
           'ThoughtPlan the search.Hide thinking',
           'ThinkingThe cache is stale.Hide thinking',
         ]);
-        expect(text(root).indexOf('read_file')).toBeLessThan(
+        expect(text(root).indexOf('read_notes')).toBeLessThan(
           text(root).indexOf('The cache is stale.')
         );
       });
@@ -784,7 +784,7 @@ describe('MindroomReasoning', () => {
 
       it.each([
         ['its answer', '\n\nThe cache was stale.', '<p>The cache was stale.</p>'],
-        ['another tool call', '\n\n🔧 `grep` [2]', marker('grep', 2)],
+        ['another tool call', '\n\n🔧 `search_notes` [2]', marker('search_notes', 2)],
       ])('shows the segment as a thought once the reply goes on with %s', (_name, body, html) => {
         vi.useFakeTimers();
         const root = renderThinkingOpen(streaming(twoThoughts, LIVE_SEGMENTS));
@@ -803,15 +803,15 @@ describe('MindroomReasoning', () => {
       it('shows the segment as a thought when one frame brings its last piece and the tool call after it', () => {
         const root = renderThinkingOpen(streaming(twoThoughts.slice(0, -6), LIVE_SEGMENTS));
         expect(written(root)).toEqual(['ThinkingThe cache is']);
-        const pending = '<p>🔧 <code>grep</code> [2] ⏳</p>';
+        const pending = '<p>🔧 <code>search_notes</code> [2] ⏳</p>';
 
-        act(() => renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `grep` [2] ⏳', pending))));
+        act(() => renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `search_notes` [2] ⏳', pending))));
 
         // The call began after the thought did, so the thought has ended, while the call runs too.
         expect(written(root)).toEqual([]);
 
         act(() =>
-          renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `grep` [2]', marker('grep', 2))))
+          renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `search_notes` [2]', marker('search_notes', 2))))
         );
 
         expect(written(root)).toEqual([]);
@@ -820,7 +820,7 @@ describe('MindroomReasoning', () => {
           'ThoughtPlan the search.Hide thinking',
           'ThoughtThe cache is stale.Hide thinking',
         ]);
-        const order = ['read_file', 'The cache is stale.', 'grep'].map((part) =>
+        const order = ['read_notes', 'The cache is stale.', 'search_notes'].map((part) =>
           text(root).indexOf(part)
         );
         expect(order).not.toContain(-1);
@@ -861,7 +861,7 @@ describe('MindroomReasoning', () => {
       });
 
       it.each([
-        ['the tool call before it', '\n\n🔧 `grep` [2]', marker('grep', 2), 2],
+        ['the tool call before it', '\n\n🔧 `search_notes` [2]', marker('search_notes', 2), 2],
         ['answer text before it', '\n\nStale so far.', '<p>Stale so far.</p>', 1],
       ])(
         'shows a new segment whose first piece comes in one frame with %s',
@@ -932,8 +932,8 @@ describe('MindroomReasoning', () => {
             element(
               goneOn(
                 twoThoughts,
-                '\n\nStale. Yes.\n\n🔧 `grep` [2]',
-                `<p>Stale. Yes.</p>${marker('grep', 2)}`
+                '\n\nStale. Yes.\n\n🔧 `search_notes` [2]',
+                `<p>Stale. Yes.</p>${marker('search_notes', 2)}`
               )
             )
           )
@@ -941,7 +941,7 @@ describe('MindroomReasoning', () => {
 
         expect(markerReads()).toBe(reads + 3);
         // The thought after the first call still sits between the two runs.
-        const order = ['read_file', 'The cache is stale.', 'Stale. Yes.', 'grep'].map((part) =>
+        const order = ['read_notes', 'The cache is stale.', 'Stale. Yes.', 'search_notes'].map((part) =>
           text(root).indexOf(part)
         );
         expect(order).not.toContain(-1);
