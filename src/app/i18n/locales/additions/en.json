@@ -1091,6 +1091,18 @@
       "pageUpdated": "{{agent}} updated this page.",
       "shownInPanel": "Shown in the panel",
       "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page."
+    },
+    "uiActions": {
+      "canvasOff": "· Canvas shared · panels are off in this app",
+      "askForText": "Ask for a text version",
+      "copyRequest": "Copy request",
+      "textVersionRequest": "Please send “{{title}}” here as text instead. Interactive panels are off in my app.",
+      "askForTextStatus": {
+        "hint": "Puts a request in the composer. Nothing is sent until you press Send.",
+        "added": "Request added to the composer. Nothing is sent until you press Send.",
+        "kept": "Your draft was kept as it is. Copy the request to add it yourself.",
+        "copied": "Request copied. Paste it into your draft."
+      }
     }
   },
   "composer": {

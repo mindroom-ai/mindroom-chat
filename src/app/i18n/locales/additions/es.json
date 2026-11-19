@@ -1116,6 +1116,18 @@
       "pageUpdated": "{{agent}} ha actualizado esta página.",
       "shownInPanel": "Se muestra en el panel",
       "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página."
+    },
+    "uiActions": {
+      "canvasOff": "· Panel compartido · los paneles están desactivados en esta app",
+      "askForText": "Pedir una versión en texto",
+      "copyRequest": "Copiar solicitud",
+      "textVersionRequest": "Envía «{{title}}» aquí como texto, por favor. Los paneles interactivos están desactivados en mi app.",
+      "askForTextStatus": {
+        "hint": "Pone una solicitud en el redactor. No se envía nada hasta que pulses Enviar.",
+        "added": "Solicitud añadida al redactor. No se envía nada hasta que pulses Enviar.",
+        "kept": "Tu borrador se mantiene tal cual. Copia la solicitud para añadirla tú.",
+        "copied": "Solicitud copiada. Pégala en tu borrador."
+      }
     }
   },
   "composer": {

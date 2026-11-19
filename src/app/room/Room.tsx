@@ -105,6 +105,9 @@ import { SecondThreadPanel } from './SecondThreadPanel';
 import { SecondThreadDropZone } from './SecondThreadDropZone';
 import { useSecondThread } from './useSecondThread';
 import { ROOM_COMPOSER, THREAD_COLUMN_COMPOSER } from './composerSelectors';
+import { fillEmptyDraft, getRoomInputDraftKey } from '../composer/roomInputDrafts';
+import { isDraftShown } from '../composer/useRoomInputDraft';
+import { createParagraphElement } from '../editor/utils';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
 // The composers the focus goes back to from the second thread: the open thread's, else the room's.
@@ -786,6 +789,17 @@ function RoomContent() {
     [navigateRoom, navigateRoomThread, roomId, setViewMode, viewMode]
   );
 
+  // With canvases off, a canvas asks for a text version in its thread's draft, never over one.
+  const askForText = useCallback(
+    (action: ChatUiAction, text: string) => {
+      const draftKey = getRoomInputDraftKey(ownUserId, roomId, action.threadId);
+      if (!fillEmptyDraft(store, draftKey, [createParagraphElement(text)])) return false;
+      if (!isDraftShown(draftKey)) showConversation(action.threadId);
+      return true;
+    },
+    [ownUserId, roomId, showConversation, store]
+  );
+
   const uiActions = useChatUiActions({
     mx: client,
     room,
@@ -796,6 +810,7 @@ function RoomContent() {
     navigate: showConversation,
     unavailable,
     openCanvasId,
+    askForText: canvasEnabled ? undefined : askForText,
   });
 
   // A canvas chosen in the header may still load; any change of what the side panel shows

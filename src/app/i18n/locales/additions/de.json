@@ -1091,6 +1091,18 @@
       "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
       "shownInPanel": "Im Panel angezeigt",
       "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
+    },
+    "uiActions": {
+      "canvasOff": "· Panel geteilt · Panels sind in dieser App deaktiviert",
+      "askForText": "Textversion anfordern",
+      "copyRequest": "Anfrage kopieren",
+      "textVersionRequest": "Bitte schick „{{title}}“ hier stattdessen als Text. Interaktive Panels sind in meiner App deaktiviert.",
+      "askForTextStatus": {
+        "hint": "Setzt eine Anfrage ins Eingabefeld. Gesendet wird erst, wenn du auf Senden drückst.",
+        "added": "Anfrage ins Eingabefeld gesetzt. Gesendet wird erst, wenn du auf Senden drückst.",
+        "kept": "Dein Entwurf bleibt unverändert. Kopiere die Anfrage, um sie selbst einzufügen.",
+        "copied": "Anfrage kopiert. Füge sie in deinen Entwurf ein."
+      }
     }
   },
   "composer": {

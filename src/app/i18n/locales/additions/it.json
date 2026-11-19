@@ -1116,6 +1116,18 @@
       "pageUpdated": "{{agent}} ha aggiornato questa pagina.",
       "shownInPanel": "Mostrata nel pannello",
       "inlineDisclosure": "Creata da {{agent}}. Non può accedere al tuo account; ciò che inserisci qui può uscire da questa pagina."
+    },
+    "uiActions": {
+      "canvasOff": "· Pannello condiviso · i pannelli sono disattivati in questa app",
+      "askForText": "Chiedi una versione testuale",
+      "copyRequest": "Copia richiesta",
+      "textVersionRequest": "Per favore invia «{{title}}» qui come testo. I pannelli interattivi sono disattivati nella mia app.",
+      "askForTextStatus": {
+        "hint": "Inserisce una richiesta nel compositore. Non viene inviato nulla finché non premi Invia.",
+        "added": "Richiesta aggiunta al compositore. Non viene inviato nulla finché non premi Invia.",
+        "kept": "La tua bozza è rimasta com’era. Copia la richiesta per aggiungerla tu.",
+        "copied": "Richiesta copiata. Incollala nella tua bozza."
+      }
     }
   },
   "composer": {

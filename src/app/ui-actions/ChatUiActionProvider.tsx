@@ -27,6 +27,8 @@ export type ChatUiActionOptions = {
   unavailable: (action: ChatUiAction) => string | undefined;
   /** The canvas the room's panel shows, by its request's event ID. */
   openCanvasId?: string;
+  /** Set while canvases are off: puts a request into its thread's empty draft; false if not empty. */
+  askForText?: (action: ChatUiAction, text: string) => boolean;
 };
 
 type ChatUiActions = {
@@ -37,6 +39,7 @@ type ChatUiActions = {
   activate: (event: MatrixEvent) => void;
   /** The canvas the room's panel shows, which runs nowhere else in this window. */
   openCanvasId?: string;
+  askForText?: ChatUiActionOptions['askForText'];
 };
 
 /** What message buttons use to run MindRoom UI requests (`io.mindroom.ui_action`). */
@@ -103,7 +106,7 @@ export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions =>
     [mx, room]
   );
   // What a button shows follows this render; what runs on an event follows the committed one.
-  const { unavailable, openCanvasId } = options;
+  const { unavailable, openCanvasId, askForText } = options;
   const activate = useCallback(
     (event: MatrixEvent) => {
       // Membership and authority are read again now; what rendered earlier may be stale.
@@ -114,7 +117,7 @@ export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions =>
   );
 
   return useMemo(
-    () => ({ read, unavailable, activate, openCanvasId }),
-    [activate, read, unavailable, openCanvasId]
+    () => ({ read, unavailable, activate, openCanvasId, askForText }),
+    [activate, read, unavailable, openCanvasId, askForText]
   );
 };

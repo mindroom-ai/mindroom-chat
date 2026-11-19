@@ -1091,6 +1091,18 @@
       "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
       "shownInPanel": "Panelde gösteriliyor",
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
+    },
+    "uiActions": {
+      "canvasOff": "· Panel paylaşıldı · bu uygulamada paneller kapalı",
+      "askForText": "Metin sürümü iste",
+      "copyRequest": "İsteği kopyala",
+      "textVersionRequest": "Lütfen “{{title}}” içeriğini buraya metin olarak gönder. Uygulamamda etkileşimli paneller kapalı.",
+      "askForTextStatus": {
+        "hint": "Yazma alanına bir istek koyar. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "added": "İstek yazma alanına eklendi. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "kept": "Taslağın olduğu gibi bırakıldı. Kendin eklemek için isteği kopyala.",
+        "copied": "İstek kopyalandı. Taslağına yapıştır."
+      }
     }
   },
   "composer": {

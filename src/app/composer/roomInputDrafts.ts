@@ -161,6 +161,14 @@ export const restoreTextToDraft = (
   store.set(draftAtom, [...store.get(draftAtom), ...fragment]);
 };
 
+/** Puts `fragment` into the stored draft `draftKey` unless it holds text; whether it did. */
+export const fillEmptyDraft = (store: JotaiStore, draftKey: string, fragment: Descendant[]) => {
+  const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+  if (store.get(draftAtom).length > 0) return false;
+  store.set(draftAtom, fragment);
+  return true;
+};
+
 /** Moves a thread's draft to another composer's in the room, after the text that one holds. */
 export const moveMessageDraft = (
   store: JotaiStore,
