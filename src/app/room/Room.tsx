@@ -934,6 +934,7 @@ function RoomContent() {
                   hasMindroomAgents={hasMindroomAgents}
                   joinRequestCount={joinRequestCount}
                   onThreadLoadError={onThreadLoadError}
+                  besideWhileSecond={!!secondShown}
                   {...headerPanels}
                 />
               </MessageLinkCards>

@@ -74,6 +74,11 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   /** Whether the router pushed that entry (a link followed), not replaced or returned to it. */
   entryPushed?: boolean;
   onThreadLoadError?: (threadId: string) => void;
+  /**
+   * A second thread shows beside the page (Open in second column): the open thread then goes
+   * beside the room's messages while the page has room, whatever layout is stored.
+   */
+  besideWhileSecond?: boolean;
 };
 
 /**
@@ -124,6 +129,7 @@ export function RoomView({
   entryPushed,
   hasMindroomAgents,
   onThreadLoadError,
+  besideWhileSecond = false,
   ...headerProps
 }: RoomViewProps) {
   const { t } = useTranslation();
@@ -156,8 +162,11 @@ export function RoomView({
   );
   const threadLayout = useThreadLayout(pageRef);
   // Every open thread shows in the column: beside the room's messages while the person chose that
-  // and the page has room, else filling the page, over the room's conversation, which goes.
-  const columnFills = !!openThreadId && (threadLayout.layout === 'full' || !threadLayout.roomy);
+  // (or a second thread shows) and the page has room, else filling the page, over the room's
+  // conversation, which goes. A second thread changes no stored layout: closed, it holds again.
+  const columnFills =
+    !!openThreadId &&
+    ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>();
   useLocalEchoRoot(room, openThreadId, () => {
@@ -261,7 +270,8 @@ export function RoomView({
     });
   }, [openThreadId, focusConversation, phone, unlessCardTakesFocus]);
 
-  // The open thread's banner, with the way to fill the page or to go beside the messages.
+  // The open thread's banner, with the way to fill the page or to go beside the messages. While a
+  // second thread keeps it beside them, filling the page would not take, so it offers neither.
   const threadBanner = openThreadId && (
     <ThreadContextBanner
       room={room}
@@ -269,7 +279,7 @@ export function RoomView({
       summaryInfo={threadState.threadSummaryInfo}
       onExitThread={threadState.handleExitThread}
       onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
-      onShowFull={columnFills ? undefined : showFull}
+      onShowFull={columnFills || besideWhileSecond ? undefined : showFull}
     />
   );
   const timelineProps: RoomTimelineProps = {

@@ -9,11 +9,11 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 
-// Open in second column: a thread card's menu keeps the open thread (A) and shows the card's thread (B) in a
-// second column, a side panel of the room with its own banner, timeline and composer. On a wide
-// page the room's messages stay beside A (three columns); narrower, A fills the page beside B. B
-// survives a reload, Close removes it and takes the focus back to A's composer, and a phone does
-// not offer it.
+// Open in second column: a thread card's menu keeps the open thread (A) and shows the card's thread
+// (B) in a second column, a side panel of the room with its own banner, timeline and composer. On
+// a wide page the room's messages stay beside A while B shows (three columns), whatever layout is
+// stored; narrower, A fills the page beside B. B survives a reload, Close removes it and takes the
+// focus back to A's composer, the stored layout holding again, and a phone does not offer it.
 
 const column = (page: Page): Locator => page.getByTestId('thread-column');
 const second = (page: Page): Locator => page.getByTestId('second-thread-panel');
@@ -70,28 +70,18 @@ test('Open in second column shows a second thread in its own column at each widt
     viewMode: 'compact',
     filterState: createDefaultThreadFilterState(),
   });
-  // The thread column beside the room's messages where the page has room.
-  await page.addInitScript(() =>
-    window.localStorage.setItem('mindroom.threadColumn.layout', '"beside"')
-  );
-  await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(alpha)}`);
-  await expect(column(page).getByText('Example thread alpha reply')).toBeVisible({
-    timeout: 30_000,
-  });
+  // The stored layout stays the default, full, so a thread alone fills the page.
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
   await expect(card(page, beta)).toBeVisible({ timeout: 30_000 });
 
-  // Wide: messages | A | B.
+  // Wide: messages | B.
   await (await openCardMenu(page, beta))
     .getByRole('menuitem', { name: 'Open in second column' })
     .click();
   await expect(second(page).getByText('Example thread beta reply')).toBeVisible({
     timeout: 30_000,
   });
-  await expect(column(page)).toBeVisible();
-  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
-  await expect(card(page, alpha)).toBeVisible();
   await expect(composerIn(second(page))).toBeFocused();
-  await page.screenshot({ path: testInfo.outputPath('open-beside-1920.png') });
 
   // Typing in B goes to B.
   await page.keyboard.type('Example message beta');
@@ -100,6 +90,16 @@ test('Open in second column shows a second thread in its own column at each widt
     timeout: 30_000,
   });
   await expect(column(page).getByText('Example message beta', { exact: true })).toHaveCount(0);
+
+  // Opening A keeps the messages beside it while B shows: messages | A | B.
+  await card(page, alpha).click();
+  await expect(column(page).getByText('Example thread alpha reply')).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
+  await expect(card(page, alpha)).toBeVisible();
+  await expect(second(page)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('open-beside-1920.png') });
 
   // B survives a reload.
   await page.reload();
@@ -122,6 +122,12 @@ test('Open in second column shows a second thread in its own column at each widt
   await second(page).getByRole('button', { name: 'Close thread' }).click();
   await expect(second(page)).toHaveCount(0);
   await expect(composerIn(column(page))).toBeFocused();
+  // B gone, the stored layout (full) holds again, also on a wide page.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect(column(page)).toHaveAttribute('data-filled', 'true');
+  expect(
+    await page.evaluate(() => window.localStorage.getItem('mindroom.threadColumn.layout'))
+  ).not.toBe('"beside"');
 
   // A phone does not offer it.
   await page.setViewportSize({ width: 390, height: 844 });

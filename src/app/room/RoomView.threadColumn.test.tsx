@@ -670,6 +670,28 @@ it('fills the page with the column while the page is too narrow for it beside th
   expect(storedLayout()).toBe('"beside"');
   expect(state.viewMounts).toBe(1);
 });
+it('shows the messages beside the thread while a second thread shows, without storing that', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+  // The stored layout is full; with the second thread showing on a roomy page the column goes
+  // beside the messages, with no way to fill the page or to go beside them.
+  const { rerender } = renderView({ besideWhileSecond: true });
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
+  // The second thread closed, the stored layout holds again.
+  rerenderView(rerender);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(storedLayout()).toBeNull();
+  expect(state.viewMounts).toBe(1);
+});
+it('fills the page with the column while a second thread shows on a page too narrow for both', () => {
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
+  renderView({ besideWhileSecond: true });
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
+});
 it("keeps the thread's view as its unsent root gets its own ID", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   vi.spyOn(room, 'getEventForTxnId').mockImplementation((txnId) =>

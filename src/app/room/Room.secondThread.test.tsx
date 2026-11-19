@@ -294,6 +294,15 @@ describe('the second thread beside the open one', () => {
     expect(JSON.parse(localStorage.getItem(storageKey) ?? '{}')).toEqual({});
   });
 
+  it('lays the open thread out beside the messages while B shows, and as stored once B goes', async () => {
+    await renderRoom('$a');
+    expect(state.view?.besideWhileSecond).toBe(false);
+    await openBeside('$b');
+    expect(state.view?.besideWhileSecond).toBe(true);
+    await act(async () => screen.getByRole('button', { name: 'Close thread' }).click());
+    expect(state.view?.besideWhileSecond).toBe(false);
+  });
+
   it("a letter typed in B's column goes to B's composer", async () => {
     await renderRoom('$a');
     await openBeside('$b');
