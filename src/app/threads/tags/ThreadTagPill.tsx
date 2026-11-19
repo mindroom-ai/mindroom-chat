@@ -2,19 +2,18 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
-import { tagColor } from './threadTagColor';
 
 export interface ThreadTagPillProps {
   name: string;
   onRemove?: () => void; // undefined = read-only (no x button)
 }
 
-// Neutral on every surface and theme: the text around it, a little quieter, on a faint tint of it.
-// The tag's own colour stays only in a small dot, as in the tag filter's list.
+// Neutral on every surface and theme: the text around it, a little quieter (4.9:1 or more on every
+// palette's cards and tints), on a faint tint of it.
 const pillStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
-  gap: '0.25rem',
+  gap: '0.2rem',
   fontSize: '0.65rem',
   fontWeight: 500,
   padding: '0.1rem 0.4rem',
@@ -25,13 +24,6 @@ const pillStyle: React.CSSProperties = {
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',
-};
-
-const dotStyle: React.CSSProperties = {
-  flexShrink: 0,
-  width: '0.375rem',
-  height: '0.375rem',
-  borderRadius: '50%',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -56,7 +48,6 @@ export function ThreadTagPill({ name, onRemove }: ThreadTagPillProps) {
   const { t } = useTranslation();
   return (
     <span style={pillStyle} title={name} className="thread-tag-pill">
-      <span style={{ ...dotStyle, backgroundColor: tagColor(name) }} aria-hidden="true" />
       <span style={labelStyle} dir="auto">
         {name}
       </span>

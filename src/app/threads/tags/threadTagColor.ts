@@ -2,7 +2,7 @@
  * Deterministic HSL color from tag name.
  * Ported from ISSUE-035a CompactThreadCard pattern (commit 2056e7db).
  *
- * A pastel colour, for a tag's dot and its swatch in the tag filter.
+ * A pastel colour, for a tag's swatch in the tag filter.
  */
 
 const hashString = (str: string): number => {

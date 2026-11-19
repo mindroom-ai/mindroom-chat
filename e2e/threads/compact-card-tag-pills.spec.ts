@@ -39,7 +39,7 @@ type PillState = { text: string; whole: boolean; direction: string };
 const pillStates = (page: Page, rootId: string): Promise<PillState[]> =>
   page.locator(`[data-thread-root-id="${rootId}"] .thread-tag-pill`).evaluateAll((pills) =>
     pills.map((pill) => {
-      const label = pill.querySelector<HTMLElement>('[dir="auto"]') ?? (pill as HTMLElement);
+      const label = (pill.firstElementChild as HTMLElement | null) ?? (pill as HTMLElement);
       return {
         text: label.textContent ?? '',
         whole: label.scrollWidth <= label.clientWidth + 1,

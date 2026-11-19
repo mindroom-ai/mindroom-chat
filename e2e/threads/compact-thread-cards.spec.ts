@@ -114,7 +114,7 @@ test("a phone card's last row shows each mark whole or not at all, clear of the 
           (rect.top + rect.bottom) / 2
         );
         // A tag clips its label, not its pill; the plugin's chips clip their group.
-        const clipper = mark.matches('.thread-tag-pill') ? mark.querySelector('[dir="auto"]')! : mark;
+        const clipper = mark.matches('.thread-tag-pill') ? mark.firstElementChild! : mark;
         return {
           plugin: mark.matches('[data-fixture-plugin-chips]'),
           inRow: rect.top >= row.top - 1 && rect.bottom <= row.bottom + 1,
