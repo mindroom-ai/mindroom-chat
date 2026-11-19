@@ -552,7 +552,7 @@ const switchDebug = async (run: Run, turns: number): Promise<Measured> => {
       for (let attempt = 1; attempt <= 3; attempt += 1) {
         const before = await page.evaluate(() => Math.round(performance.now()));
         const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
-        const ms = await timeToVisible(page, () => card(page, root).click(), ROW, 5_000).catch(
+        const ms = await timeToVisible(page, () => card(page, root).click({ delay: Number(process.env.PERF_PRESS_MS ?? 0) }), ROW, 5_000).catch(
           () => undefined
         );
         if (ms !== undefined) {
@@ -582,7 +582,7 @@ const switchDebug = async (run: Run, turns: number): Promise<Measured> => {
     }
   } finally {
     hogs.forEach((hog) => hog.kill('SIGKILL'));
-    spawnSync('pkill', ['-x', 'yes']);
+    if (hogs.length > 0) spawnSync('pkill', ['-x', 'yes']);
   }
   await page.waitForTimeout(500);
   const moverPresses = await page.evaluate(

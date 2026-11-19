@@ -11,7 +11,7 @@ order=${WK_ORDER:?}
 order=${order//,/ }
 run=${WK_RUN:?}
 case "$run" in wk-*) ;; *) echo "webkit-ab: bad WK_RUN" >&2; exit 2 ;; esac
-run_dir=/tmp/$run
+run_dir=${WK_TMP:-/tmp}/$run
 export E2E_SNAPSHOT_ROOT=$run_dir/snap E2E_AGENT_STACK_ROOT=$run_dir/agents
 export PERF_REAL_WORK=1
 export PLAYWRIGHT_WEBKIT_EXECUTABLE=${PLAYWRIGHT_WEBKIT_EXECUTABLE:-$(ls -d "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"/webkit-*/pw_run.sh | tail -n 1)}
@@ -19,10 +19,11 @@ job=$PWD
 export WK_OUT=$job/test-results/perf
 finish() {
   # A second copy of the results outside the job's worktree: the runner lost a job's test-results once.
-  mkdir -p "$HOME/mrc-runner/logs" && tar -czf "$HOME/mrc-runner/logs/$run-perf.tgz" -C "$job/test-results" perf 2>/dev/null || true
+  keep=${WK_KEEP:-$HOME/mrc-runner/logs}
+  mkdir -p "$keep" && tar -czf "$keep/$run-perf.tgz" -C "$job/test-results" perf 2>/dev/null || true
   cd "$job" && python3 scripts/agent-stack/stack.py "$slot" down || true
   case "$run_dir" in
-    /tmp/wk-*) cd / && rm -rf "$run_dir" ;;
+    */wk-*) cd / && rm -rf "$run_dir" ;;
   esac
 }
 trap finish EXIT
@@ -34,8 +35,12 @@ scripts/e2e-slot.sh "$slot" --snapshot --preview bash -c '
   for engine in '"$order"'; do
     i=$((i + 1))
     # engine:hogs sets the CPU hogs of that run.
-    case "$engine" in *:*) export PERF_HOGS=${engine#*:}; engine=${engine%%:*} ;; esac
-    echo "webkit-ab: run $i $engine hogs ${PERF_HOGS:-0} starts $(date +%H:%M:%S)"
+    # engine:hogs:press ms:CPU throttle set those of that run.
+    IFS=: read -r engine hogs press throttle <<<"$engine"
+    [ -z "$hogs" ] || export PERF_HOGS=$hogs
+    [ -z "$press" ] || export PERF_PRESS_MS=$press
+    [ -z "$throttle" ] || export PERF_CPU_THROTTLE=$throttle
+    echo "webkit-ab: run $i $engine hogs ${PERF_HOGS:-0} press ${PERF_PRESS_MS:-0} ms throttle ${PERF_CPU_THROTTLE:-} starts $(date +%H:%M:%S)"
     npx playwright test e2e/perf/real-work.live.spec.ts --project="$engine"
     rc=$?
     mkdir -p "$WK_OUT/run$i-$engine"
