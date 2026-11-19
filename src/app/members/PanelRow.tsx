@@ -40,6 +40,9 @@ const MEMBERS_BESIDE_MIN_WIDTH = 266 + CONVERSATION_MIN_WIDTH;
  * leaves it 692 px, a 1440 px one 852 px.
  */
 const MEMBERS_BESIDE_READING_WIDTH = 266 + 768;
+/** A laid-out row too narrow to read the conversation beside the members. */
+export const tooNarrowToRead = (width: number): boolean =>
+  width > 0 && width < MEMBERS_BESIDE_READING_WIDTH;
 
 // Positioned, so what lies over the row (the second column's drop zone) takes its edges.
 const ROW_STYLE: CSSProperties = { minWidth: 0, minHeight: 0, position: 'relative' };
@@ -63,7 +66,7 @@ export function PanelRow({ children }: { children: ReactNode }) {
       const width = row?.clientWidth ?? 0;
       setOverlay(width > 0 && width < MEMBERS_BESIDE_MIN_WIDTH);
       // Narrow from its first layout on, until it is wide once.
-      if (width > 0) setStartClosed((was) => (was ?? true) && width < MEMBERS_BESIDE_READING_WIDTH);
+      if (width > 0) setStartClosed((was) => (was ?? true) && tooNarrowToRead(width));
     };
     measure();
     if (!row || typeof ResizeObserver === 'undefined') return undefined;

@@ -29,6 +29,8 @@ afterEach(() => {
   host?.remove();
   root = undefined;
   resized = undefined;
+  // The settings live in localStorage, which outlasts each test's store.
+  localStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -122,6 +124,30 @@ describe('PanelRow', () => {
     expect(wide.open()).toBe('true');
     wide.resize(958);
     expect(wide.open()).toBe('true');
+  });
+
+  it('forgets an opening beside a narrow row once they are closed beside a wide one', () => {
+    const row = renderRow(958);
+    row.click();
+    row.resize(1118);
+    row.click();
+    expect(row.store.get(settingsAtom).membersBesideNarrowRoom).toBe(false);
+    row.click();
+    expect(row.open()).toBe('true');
+    row.resize(958);
+    row.remount();
+    expect(row.open()).toBe('false');
+  });
+
+  it('remembers them shown again beside a row that narrowed while they were open', () => {
+    const row = renderRow(1118);
+    row.resize(958);
+    row.click();
+    expect(row.open()).toBe('false');
+    row.click();
+    expect(row.open()).toBe('true');
+    row.remount();
+    expect(row.open()).toBe('true');
   });
 
   it('opens them over a narrower row only when asked, leaving the saved choice alone', () => {

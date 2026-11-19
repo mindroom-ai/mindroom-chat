@@ -5,7 +5,12 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getScreenSize, ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
-import { useMembersOverlay, useMembersStartClosed } from './PanelRow';
+import {
+  tooNarrowToRead,
+  useMembersOverlay,
+  useMembersStartClosed,
+  usePanelRowWidth,
+} from './PanelRow';
 
 // On phones the members drawer covers the room, so it opens only when asked and is not saved;
 // this is that per-account, in-memory state.
@@ -25,6 +30,7 @@ export const useMembersDrawer = (): [boolean, (open: boolean) => void] => {
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const overlay = useMembersOverlay();
   const startClosed = useMembersStartClosed();
+  const rowWidth = usePanelRowWidth();
   const [isPeopleDrawer, setPeopleDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
   const [keptNarrow, setKeptNarrow] = useSetting(settingsAtom, 'membersBesideNarrowRoom');
   const [phoneOpen, setPhoneOpen] = useAtom(phoneDrawerOpenAtom);
@@ -36,10 +42,11 @@ export const useMembersDrawer = (): [boolean, (open: boolean) => void] => {
         setPhoneOpen((current) => ({ ...current, [userId]: open }));
         return;
       }
-      if (startClosed) setKeptNarrow(open);
+      // Any close forgets an opening beside a narrow room; an opening there now remembers it.
+      if (!open || tooNarrowToRead(rowWidth())) setKeptNarrow(open);
       setPeopleDrawer(open);
     },
-    [overlay, startClosed, setKeptNarrow, setPeopleDrawer, setPhoneOpen, userId]
+    [overlay, rowWidth, setKeptNarrow, setPeopleDrawer, setPhoneOpen, userId]
   );
 
   if (mobile || overlay) return [phoneOpen[userId] ?? false, setOpen];
