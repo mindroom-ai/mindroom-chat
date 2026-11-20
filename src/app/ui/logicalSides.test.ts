@@ -119,7 +119,8 @@ describe('logical sides in styles', () => {
     expect(await physicalSides(source, COMPONENT)).toEqual([]);
   });
 
-  // ESLint's first type-aware run builds the program, which takes longer than Vitest's 5 s default.
+  // ESLint's first type-aware run builds the program: up to 10.8 s in a full run on gce (6.2 s
+  // alone), so three times that instead of Vitest's 5 s default.
   it('holds the glass styles to the rule too', async () => {
     expect(
       await physicalSides(
@@ -127,7 +128,7 @@ describe('logical sides in styles', () => {
         'src/app/ui/glass/Surface.css.ts'
       )
     ).toEqual([expect.objectContaining({ ruleId: 'no-restricted-syntax', severity: 2 })]);
-  }, 60_000);
+  }, 33_000);
 
   it.each(['src/app/ui/Example.test.ts', 'src/app/ui/__tests__/Example.css.ts'])(
     'leaves tests alone: %s',
