@@ -645,7 +645,8 @@ const SCENARIO: Record<
       // The rest of the thread arrives and settles inside the window, which lasts 5 s as before,
       // or until the rows settled when that takes longer.
       const [settledTiming] = await Promise.all([opened?.settled(), page.waitForTimeout(5_000)]);
-      const timings = opened && settledTiming ? [{ name: 'open', ms: opened.ms }, settledTiming] : [];
+      const timings =
+        opened && settledTiming ? [{ name: 'open', ms: opened.ms }, settledTiming] : [];
       return { timings, openedStreaming: streaming };
     },
   },
@@ -856,7 +857,9 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
       .slice(untimedBefore)
       .map(
         (step) =>
-          `${step} and ${step}-settled left out: its press showed no thread within ${LOST_PRESS_MS / 1000} s (lostPresses), and the thread it opened then is not timed`
+          `${step} and ${step}-settled left out: its press showed no thread within ${
+            LOST_PRESS_MS / 1000
+          } s (lostPresses), and the thread it opened then is not timed`
       )
   );
   const achieved = driver ? await achievedBetween(driver, from, to) : undefined;
