@@ -42,11 +42,7 @@ export type VoiceDraftStore = {
   /** The slot the composers show. */
   read: () => PendingVoiceSendDraft | undefined;
   write: (draft: PendingVoiceSendDraft | undefined) => void;
-  /**
-   * Ends the attempt `token` of a recording wherever its draft is by now, in the slot or waiting
-   * for it: gone when sent, kept as `failed` otherwise. The draft of a first attempt (no token)
-   * is in neither yet. False when the draft is no longer there: discarded, or replaced.
-   */
+  /** `settleVoiceDraft` (voiceDrafts.ts). */
   settle: (
     recordingId: string,
     token: string | undefined,
@@ -72,7 +68,6 @@ export type VoiceSendDraftController = {
       context: () => PendingVoiceSendContext;
     }
   ) => Promise<boolean>;
-  discardPending: () => void;
 };
 
 const getVoiceSendErrorMessage = (error: unknown): string => {
@@ -207,9 +202,5 @@ export const createVoiceSendDraftController = (
     }
   };
 
-  return {
-    sendInitial,
-    retry,
-    discardPending: () => drafts.write(undefined),
-  };
+  return { sendInitial, retry };
 };

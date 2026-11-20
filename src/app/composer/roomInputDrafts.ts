@@ -54,10 +54,9 @@ export type PendingVoiceSendContext = {
 export type PendingVoiceSendInFlight = { token: string };
 
 /**
- * All that is known of a recording without a destination: its account. A recording has none
- * when it was recovered after a crash or a reload, when its recorder stopped by itself, when its
- * discard was undone, or when its room is gone. Every composer shows it, and Send in one sends it
- * there.
+ * All that is known of a recording without a destination, its account: one that was never sent
+ * (its recorder stopped by itself, or a crash or a reload ended it), or whose room is gone.
+ * Every composer shows it.
  */
 export type UnplacedVoiceContext = { ownerSessionId: string; roomId?: undefined };
 
@@ -401,12 +400,11 @@ export const queuedVoiceDraftsAtom = atom<PendingVoiceSendDraft[]>([]);
 
 /** Recordings that were discarded, each while its Undo is offered, and until when. */
 export const discardedVoiceDraftsAtom = atom<
+  // `timer` deletes it at `until`; `failed` once its Undo could not be written to disk.
   {
     draft: PendingVoiceSendDraft;
     until: number;
-    /** What deletes it at `until`. */
     timer: ReturnType<typeof setTimeout>;
-    /** Its Undo was pressed, and the disk could not be told. */
     failed?: boolean;
   }[]
 >([]);

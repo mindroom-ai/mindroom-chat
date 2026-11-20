@@ -124,8 +124,6 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
 type Generation = {
   acceptsEvents: boolean;
   recordingId: string;
-  /** The place of the next chunk in the journal. */
-  seq: number;
   mimeType?: string;
   recorder?: VoiceRecorder;
   stream?: MediaStream;
@@ -308,8 +306,7 @@ export const createVoiceCaptureSession = ({
   };
   const sample = (generation: Generation) => {
     if (current !== generation || !generation.acceptsEvents || !generation.readLevel) return;
-    const level = generation.readLevel();
-    generation.samples.push(level);
+    generation.samples.push(generation.readLevel());
     if (generation.samples.length > 1200)
       generation.samples.splice(0, generation.samples.length - 1200);
     publish({ waveform: generation.samples, sampleCount: snapshot.sampleCount + 1 });
@@ -395,7 +392,6 @@ export const createVoiceCaptureSession = ({
     const generation: Generation = {
       acceptsEvents: true,
       recordingId: randomUuid(),
-      seq: 0,
       chunks: [],
       samples: [],
       elapsedMs: 0,
@@ -471,15 +467,11 @@ export const createVoiceCaptureSession = ({
         if (!generation.acceptsEvents || data.size === 0) return;
         generation.chunks.push(data);
         if (!journal) return;
-        // The chunk's place is fixed here, as it arrives: reading its bytes takes a while.
-        const { seq } = generation;
-        generation.seq += 1;
+        // The chunk's place in the journal is its place here, fixed as it arrives.
+        const elapsedMs = Math.round(elapsed(generation));
         protect(
           generation,
-          journal.append(generation.recordingId, seq, {
-            data,
-            elapsedMs: Math.round(elapsed(generation)),
-          })
+          journal.append(generation.recordingId, generation.chunks.length - 1, { data, elapsedMs })
         );
       };
       const onStop = () => finishStop(generation, recorder);

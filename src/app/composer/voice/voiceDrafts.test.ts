@@ -401,13 +401,14 @@ describe('unsent and discarded voice recordings', () => {
     expect(queued()).toEqual([]);
     expect(store.get(discardedVoiceDraftsAtom)).toMatchObject([{ failed: true }]);
 
-    // The disk still says discarded, and its time is up: the Undo called the deletion off.
+    // The disk works again, still says discarded, and its time is up: the Undo called the
+    // deletion off.
+    disk.outcome = 'committed';
     await vi.advanceTimersByTimeAsync(20_000);
     expect(disk.deleted).toEqual([]);
     expect(discarded()).toEqual(['rec-1']);
 
     // The next press reaches the disk.
-    disk.outcome = 'committed';
     await drafts.undoVoiceDiscard(store, 'rec-1');
     expect([discarded(), queued()]).toEqual([[], ['rec-1']]);
     expect(disk.records.get('rec-1')?.discardUntil).toBeUndefined();

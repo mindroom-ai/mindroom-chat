@@ -333,10 +333,8 @@ describe('voice recording journal', () => {
     });
     const capture = tab.journal.voiceCaptureJournal(() => ALICE);
     expect(await capture.append('rec-1', 1, { data: blob(' more'), elapsedMs: 2_000 })).toBe(false);
-    vi.restoreAllMocks();
-    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
-      throw new DOMException('The disk is full.', 'QuotaExceededError');
-    });
+    // Nor is the change to its record, when the audio that goes with it is refused.
+    puts = 0;
     expect(await tab.journal.transitionVoiceRecording('rec-1', txn('txn-4'))).toBe('failed');
     expect((await journalKeys())[1]).toEqual([['rec-1', 0]]);
 
@@ -534,7 +532,13 @@ describe('voice recording journal', () => {
         ...entry,
         txnId: 'txn-kept',
       }));
-      vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementationOnce(() => {
+      const remove = IDBObjectStore.prototype.delete;
+      let refuse = true;
+      vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementation(function old(
+        this: IDBObjectStore,
+        ...args
+      ) {
+        if (this.name !== 'drafts' || !refuse) return remove.apply(this, args);
         throw new DOMException('The delete failed.', 'UnknownError');
       });
       // Its copy must not go first: the old entry would be copied again, without the ID.
@@ -542,6 +546,7 @@ describe('voice recording journal', () => {
       const db = await openDB('mindroom-voice-journal');
       expect(await db.getAll('recordings')).toMatchObject([{ recordingId, txnId: 'txn-kept' }]);
       db.close();
+      refuse = false;
       expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('committed');
       expect(await legacyKeys()).toEqual([]);
     });

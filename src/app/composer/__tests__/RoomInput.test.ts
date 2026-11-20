@@ -3645,6 +3645,7 @@ describe('RoomInput', () => {
       file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
       duration: 1100,
       errorMessage: 'upload failed',
+      txnId: 'txn-left',
       context: {
         ownerSessionId: '@me:example.org',
         roomId: LEFT_ROOM_ID,
@@ -3684,6 +3685,12 @@ describe('RoomInput', () => {
 
     expect(store.get(pendingVoiceSendDraftAtom)?.context).toEqual({
       ownerSessionId: '@me:example.org',
+    });
+    // Its send may have arrived there: it keeps that transaction ID, which says so, and the
+    // room's name, and goes anywhere else only as a copy.
+    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
+      txnId: 'txn-left',
+      attemptedRoomName: LEFT_ROOM_ID,
     });
     // This composer, of another room, mounted the recorder that offers it.
     expect(voiceRecorderState.props).toBeDefined();

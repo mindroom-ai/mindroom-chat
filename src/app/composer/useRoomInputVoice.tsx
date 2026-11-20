@@ -212,22 +212,10 @@ export const useRoomInputVoice = ({
     if (openRecorder !== undefined && openRecorder !== recorderToken) setVoiceRecorderOpen(false);
   }, [openRecorder, recorderToken]);
 
-  // A draft no composer of this account can offer. Three cases:
-  //   1. Account-switch leak: the atom is module-level and survives
-  //      logout/login since the router store is shared across sessions.
-  //      A draft from account A must not block voice recording in B.
-  //   2. Same-session room loss (rev-A R4 Issue 2): if the user was
-  //      kicked from / left / forgot the parked-draft room, the
-  //      otherComposerOwnsPendingVoiceDraft gate would lock the mic in
-  //      every other room with no in-app surface to discard.
-  //   3. Same-session non-joinable room (rev-B / rev-G R5): a Room
-  //      object can survive in mx.getRoom() after the user is no longer
-  //      Joined (Leave/Ban/etc), in which case the source room composer
-  //      cannot render and the user has no way to retry/discard. Treat
-  //      "not joined" the same as "not present".
-  // Another account's draft leaves the slot and waits for its account. A draft whose room is
-  // gone loses its destination instead of being dropped: it shows in every composer, to discard
-  // or to send a copy of, since its send may have arrived there.
+  // A draft no composer of this account can offer. Another account's (the slot outlives a
+  // switch of accounts) leaves the slot and waits for its account. One whose room is gone, or
+  // no longer joined, loses its destination: every composer shows it, to discard or to send a
+  // copy of, since its send may have arrived there.
   useEffect(() => {
     if (!pendingVoiceSendDraft) return;
     if (!draftBelongsToCurrentSession) {

@@ -134,16 +134,12 @@ export function useVoiceRecorder({
   const notifySendStopFailure = useCallback(() => {
     latestOnSendStopFailureRef.current?.();
   }, []);
-  const resetLocalRecorderState = useCallback(() => {
+  // The recorder only: a parked recording leaves the slot by being sent or discarded.
+  const reset = useCallback(() => {
     capture.reset();
     sendBindingAtStartRef.current = undefined;
     safeSetPhase('idle');
   }, [capture, safeSetPhase]);
-  // Full reset is only for callers that already own the durable draft.
-  const reset = useCallback(() => {
-    resetLocalRecorderState();
-    draftController.discardPending();
-  }, [draftController, resetLocalRecorderState]);
 
   const start = useCallback(async () => {
     if (phase !== 'idle' || capture.getSnapshot().phase !== 'idle' || hasPendingSend) return false;
@@ -223,17 +219,10 @@ export function useVoiceRecorder({
       context: () => latestGetSendContextRef.current(),
     });
     if (delivered && sendBindingAtStartRef.current === activeBinding) {
-      resetLocalRecorderState();
+      reset();
     }
     return delivered;
-  }, [
-    capture,
-    claimSendStop,
-    draftController,
-    notifySendStopFailure,
-    resetLocalRecorderState,
-    sending,
-  ]);
+  }, [capture, claimSendStop, draftController, notifySendStopFailure, reset, sending]);
 
   const discardPending = useCallback(() => {
     sendBindingAtStartRef.current = undefined;

@@ -221,10 +221,7 @@ export const recoverVoiceDrafts = async (mx: MatrixClient, store: Store): Promis
 export const keepRecoveringVoiceDrafts = (mx: MatrixClient, store: Store): (() => void) => {
   const recover = () => void recoverVoiceDrafts(mx, store);
   recover();
-  globalThis.addEventListener?.('focus', recover);
-  globalThis.addEventListener?.('visibilitychange', recover);
-  return () => {
-    globalThis.removeEventListener?.('focus', recover);
-    globalThis.removeEventListener?.('visibilitychange', recover);
-  };
+  const events = ['focus', 'visibilitychange'];
+  events.forEach((event) => globalThis.addEventListener?.(event, recover));
+  return () => events.forEach((event) => globalThis.removeEventListener?.(event, recover));
 };
