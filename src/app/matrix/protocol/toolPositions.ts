@@ -61,10 +61,8 @@ const placed = (events: unknown[], key: 'body_line' | 'at', end: number): Call[]
     .sort((a, b) => a.at - b.at);
 };
 
-/** `content` as its version-2 reply, with its version-3 trace's markers back in its text. */
-export const withToolMarkersRestored = (
-  content: Record<string, unknown>
-): Record<string, unknown> => {
+/** One layer as its version-2 reply, with its version-3 trace's markers back in its text. */
+const layerWithMarkers = (content: Record<string, unknown>): Record<string, unknown> => {
   const trace = content[MINDROOM_TOOL_TRACE_KEY];
   if (!isRecord(trace) || trace.version !== 3 || !Array.isArray(trace.events)) return content;
   const { events } = trace;
@@ -104,4 +102,27 @@ export const withToolMarkersRestored = (
     restored.formatted_body = `${text}${html.slice(cursor)}`;
   }
   return restored;
+};
+
+/**
+ * `content` as its version-2 reply: its markers back in its text, or in an edit's replacement.
+ * An edit's fallback repeats its replacement after "* ", where an opening marker is no line of
+ * its own, so it is built from the restored replacement; any other fallback stays as sent.
+ */
+export const withToolMarkersRestored = (
+  content: Record<string, unknown>
+): Record<string, unknown> => {
+  const replacement = content['m.new_content'];
+  if (!isRecord(replacement)) return layerWithMarkers(content);
+  const restored = layerWithMarkers(replacement);
+  if (restored === replacement) return layerWithMarkers(content);
+  const edit = { ...content, 'm.new_content': restored };
+  const repeats =
+    content.body === `* ${String(replacement.body)}` &&
+    content.formatted_body === replacement.formatted_body;
+  if (!repeats) return edit;
+  if (MINDROOM_TOOL_TRACE_KEY in content) {
+    edit[MINDROOM_TOOL_TRACE_KEY] = restored[MINDROOM_TOOL_TRACE_KEY];
+  }
+  return { ...edit, body: `* ${String(restored.body)}`, formatted_body: restored.formatted_body };
 };

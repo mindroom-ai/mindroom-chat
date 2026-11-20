@@ -121,7 +121,9 @@ const sanitizeLayers = (content: unknown, read: Layer): IContent => {
  * changes.
  */
 export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent =>
-  sanitizeLayers(content, fromAgent ? withToolMarkersRestored : withoutAgentKeys);
+  fromAgent
+    ? withToolMarkersRestored(sanitizeLayers(content, (layer) => layer))
+    : sanitizeLayers(content, withoutAgentKeys);
 
 /** Whether the content needs no change, checked without copying: the common case. */
 const isClean = (content: unknown, sender: string | undefined): boolean => {

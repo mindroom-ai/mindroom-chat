@@ -173,6 +173,56 @@ describe('tool positions on read', () => {
     expect((edit['m.new_content'] as Record<string, unknown>).body).toBe(heading.sent.body);
   });
 
+  /** The edit the backend sends for `layer`: the fallback repeats it after "* ". */
+  const editOf = (layer: Record<string, unknown>, fallbackTrace = true) => {
+    const { [TRACE]: trace, ...rest } = layer;
+    return {
+      ...rest,
+      ...(fallbackTrace ? { [TRACE]: trace } : {}),
+      body: `* ${String(layer.body)}`,
+      'm.new_content': layer,
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+    };
+  };
+  /** The text of an edit's fallback and of its replacement, and the version of each trace. */
+  const textOf = (edit: Record<string, unknown>) => {
+    const replacement = edit['m.new_content'] as Record<string, unknown>;
+    return [edit, replacement].map((layer) => [
+      layer.body,
+      layer.formatted_body,
+      (layer[TRACE] as Trace | undefined)?.version,
+    ]);
+  };
+
+  it.each(sentCases.map((testCase) => [testCase.name, testCase] as const))(
+    "reads an agent's edit with the fallback of its restored replacement: %s",
+    (_name, { sent, wire }) => {
+      for (const fallbackTrace of [true, false]) {
+        const edit = editOf(wireContent({ sent, wire: wire as Wire }), fallbackTrace);
+        expect(textOf(event(AGENT, edit).getContent())).toEqual([
+          [`* ${sent.body}`, sent.formatted_body, fallbackTrace ? 2 : undefined],
+          [sent.body, sent.formatted_body, 2],
+        ]);
+      }
+    }
+  );
+
+  it('builds the fallback of an edit that opens with a call after "* "', () => {
+    const opening = caseNamed('calls that open and end the reply');
+    const read = event(AGENT, editOf(wireContent(opening))).getContent();
+    expect(read.body).toBe('* 🔧 `read_file` [1]\n\nReading done.\n\n🔧 `shell` [2]');
+  });
+
+  it('leaves the text of a fallback that does not repeat its replacement as it was sent', () => {
+    const wire = wireContent(between);
+    const { [TRACE]: _trace, ...plain } = wire;
+    const edit = { ...editOf(wire, false), body: '* Something else.' };
+    const read = event(AGENT, edit).getContent();
+    expect(read.body).toBe('* Something else.');
+    expect(read.formatted_body).toBe(plain.formatted_body);
+    expect((read['m.new_content'] as Record<string, unknown>).body).toBe(between.sent.body);
+  });
+
   it('puts back no markers for a sender that is no agent', () => {
     const content = sanitizeContent(wireContent(between), false);
     expect(content.body).toBe(between.wire.body);
