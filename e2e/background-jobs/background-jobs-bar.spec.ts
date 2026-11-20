@@ -151,12 +151,13 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   // Pressing the title keeps them listed.
   await title.click();
   await page.mouse.move(0, 0);
-  await expect(bar).toContainText('run_tests');
-  await expect(bar.getByRole('listitem').filter({ hasText: 'shell' })).toContainText(
+  // Without the usage details, a tool job's row says what it does in words.
+  await expect(bar).toContainText('Using run tests');
+  await expect(bar.getByRole('listitem').filter({ hasText: 'Running a command' })).toContainText(
     'Waiting for approval'
   );
   await expect(bar).toContainText('research (subagent)');
-  await expect(bar).not.toContainText('web_search');
+  await expect(bar).not.toContainText('Searching the web');
   await page.screenshot({ path: testInfo.outputPath('desktop-light.png') });
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dark.png') });
@@ -200,14 +201,14 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   ]);
   await publish(coder, [coderJobs[1]!]);
   await expect(page.getByRole('region', { name: '2 background jobs' })).not.toContainText(
-    'run_tests'
+    'Using run tests'
   );
 
   // The main timeline shows every job of the room.
   await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
   const room = page.getByRole('region', { name: '3 background jobs' });
   await room.getByRole('button', { name: '3 background jobs' }).click();
-  await expect(room).toContainText('web_search');
+  await expect(room).toContainText('Searching the web');
   // An agent with more live jobs than fit its state lists its newest and states how many it runs.
   const researcherJobs = [
     job('job_3', fixture.rootId, 'research', { kind: 'subagent' }),

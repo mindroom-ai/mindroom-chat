@@ -196,26 +196,18 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 }
 
 /**
- * What a job does now in plain words, for a reader who leaves the usage details off: a sub-agent's
- * run at work as `runStepText` says it, a tool job's call as its step, or its tool's while its call
- * is not loaded (no call ID, or its reply not in yet); nothing once it finished. While its pill
- * says it waits for approval (`waiting`), the step is the call alone, without "Waiting for your OK".
- * `call` is the call as sent (`toolCallTitle`), for the headline's tooltip: the row's title reaches
- * over the line, so a tooltip of its own would never show.
+ * What a sub-agent job does now in plain words, for a reader who leaves the usage details off: its
+ * run at work as `runStepText` says it; nothing once it finished. While its pill says it waits for
+ * approval (`waiting`), the step is the call alone, without "Waiting for your OK".
  */
 const plainStep = (
   item: BackgroundJobsBarItem,
   waiting: boolean,
   t: TFunction
-): { text: string; call?: string } | undefined => {
-  const { activity } = item;
+): string | undefined => {
   if (item.finished) return undefined;
-  let text: string | undefined;
-  if (waiting && activity) text = toolStep(activity, t);
-  else if (item.subagent) text = item.run && runStepText(item.run, t);
-  else text = toolStep(activity ?? { tool: item.name }, t);
-  if (!text) return undefined;
-  return activity ? { text, call: toolCallTitle(activity) } : { text };
+  if (waiting && item.activity) return toolStep(item.activity, t);
+  return item.run && runStepText(item.run, t);
 };
 
 /**
@@ -224,8 +216,12 @@ const plainStep = (
  * a tool job's headline is its tool already). Then its calls, tokens and cost, its time, and its
  * buttons: the thread it runs in when that is not the view's, and Stop. A sub-agent job's title
  * opens its run, from anywhere on the row.
- * Without the usage details (`showUsageDetails`), the line under the headline says only what it
- * does now, in plain words (`plainStep`), and the numbers are left out.
+ * Without the usage details (`showUsageDetails`), the numbers are left out. A sub-agent's line
+ * under the headline says only what it does now, in plain words (`plainStep`); a tool job's
+ * headline is its call in plain words (`toolStep`), or its tool's while its call is not loaded (no
+ * call ID, or its reply not in yet), with no line under it. The call as sent (`toolCallTitle`)
+ * follows the headline's tooltip: the row's title reaches over the line, so a tooltip of its own
+ * would never show.
  * Folded, the bar's one job is this row on its title line: the headline and the rest on one line,
  * the title listing it, and Open beside Stop.
  * A job without its run's frames shows its name alone, as before.
@@ -249,16 +245,21 @@ export function BackgroundJobRow({
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  const headline = described || name;
+  // Without the usage details, a tool job's headline is what it does in plain words.
+  const plainTool = !details && !item.subagent;
+  const headline = plainTool
+    ? toolStep(item.activity ?? { tool: item.name }, t)
+    : described || name;
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;
   const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
-  const step = details ? undefined : plainStep(item, waiting, t);
+  const step = details || !item.subagent ? undefined : plainStep(item, waiting, t);
   const detail = (described && meta) || tool || doing;
   // Without the usage details, the call as sent follows on its own line.
-  const headlineTitle = [meta?.task || item.name, step?.call].filter(Boolean).join('\n');
+  const call = !details && !item.finished && item.activity && toolCallTitle(item.activity);
+  const headlineTitle = [meta?.task || item.name, call].filter(Boolean).join('\n');
   let title: ReactNode = (
     <span className={css.Task} title={headlineTitle} dir="auto">
       {headline}
@@ -330,7 +331,7 @@ export function BackgroundJobRow({
         {step && (
           <span className={css.Detail}>
             <span className={css.Activity} dir="auto" data-job-activity>
-              <span className={css.Step}>{step.text}</span>
+              <span className={css.Step}>{step}</span>
             </span>
           </span>
         )}

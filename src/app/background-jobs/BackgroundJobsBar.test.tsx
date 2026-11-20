@@ -199,12 +199,14 @@ it('shows one job folded as its row on the title line, which lists it as several
   expect(container.querySelector('.Jobs')).toBeNull();
   const folded = container.querySelector('[data-job-folded]');
   expect(folded?.querySelector('.Logo')).not.toBeNull();
-  expect(folded?.querySelector('.Task')?.textContent).toBe('tool_a');
+  // Without the usage details, its headline says what the tool does, in words.
+  const usingA = tr('mindroomUi.subagents.step.using', { tool: 'tool a' });
+  expect(folded?.querySelector('.Task')?.textContent).toBe(usingA);
   // Its Stop names the task it stops, with its icon only, as a listed row's.
   expect(button(cancelA)?.getAttribute('title')).toBe(cancelA);
   expect(button(cancelA)?.textContent).toBe('');
   // Its title lists it: the same row in the table, the count on the title line, Stop task.
-  expect(toggle()?.textContent).toBe('tool_a');
+  expect(toggle()?.textContent).toBe(usingA);
   expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
   toggle()?.focus();
   expand();
@@ -484,7 +486,9 @@ it('lists jobs without cancel controls for a viewer who may not cancel', () => {
   state.jobs = [job('a'), job('b')];
   render('$thread', false);
   expand();
-  expect(container.textContent).toContain('tool_a');
+  expect(container.textContent).toContain(
+    tr('mindroomUi.subagents.step.using', { tool: 'tool a' })
+  );
   // Only the title, which lists the jobs, is a button.
   expect([...container.querySelectorAll('button')]).toEqual([toggle()]);
 });
@@ -942,7 +946,7 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
   expect(container.querySelectorAll('.StatColumn')).toHaveLength(3);
 });
 
-it('says what a tool job does from its tool until its call is loaded, then from its call', () => {
+it('heads a tool job with what it does, from its tool until its call is loaded, then from its call', () => {
   const item = (extra: Partial<BackgroundJobsBarItem> = {}): BackgroundJobsBarItem => ({
     jobId: 'a',
     name: 'read_file',
@@ -965,18 +969,30 @@ it('says what a tool job does from its tool until its call is loaded, then from 
       );
     });
   const activity = () => container.querySelector('[data-job-activity]')?.textContent ?? null;
+  const headline = () => container.querySelector('.Task')?.textContent;
   const tooltip = () => container.querySelector('.Task')?.getAttribute('title');
-  // No call ID, or its reply not loaded yet: the tool it runs.
+  // No call ID, or its reply not loaded yet: the tool it runs, its raw name in the tooltip, and
+  // no line under it to say the same again.
   row(item());
-  expect(activity()).toBe('mindroomUi.subagents.step.readingAny');
+  expect(headline()).toBe('mindroomUi.subagents.step.readingAny');
+  expect(activity()).toBeNull();
   expect(tooltip()).toBe('read_file');
   // Its call comes in: what it reads, the call as sent after its name in the tooltip.
   row(item({ activity: { tool: 'read_file', preview: 'path=notes/2026-11-16.md' } }));
-  expect(activity()).toBe(tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }));
-  expect(tooltip()).toBe('read_file\nread_file path=notes/2026-11-16.md');
-  // Held after it finished, it does nothing now.
-  row(item({ finished: true, state: 'finished', activity: { tool: 'read_file' } }));
+  expect(headline()).toBe(tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }));
   expect(activity()).toBeNull();
+  expect(tooltip()).toBe('read_file\nread_file path=notes/2026-11-16.md');
+  row(item({ activity: { tool: 'run_shell_command', preview: 'args=just test' } }));
+  expect(headline()).toBe('mindroomUi.subagents.step.runningCommand');
+  // Held after it finished, its headline is the same words.
+  row(item({ finished: true, state: 'finished', activity: { tool: 'read_file' } }));
+  expect(headline()).toBe('mindroomUi.subagents.step.readingAny');
+  expect(activity()).toBeNull();
+  // With the usage details, its headline is its tool, its call on the line under it.
+  act(() => showUsageDetails());
+  row(item({ activity: { tool: 'read_file', preview: 'path=notes/2026-11-16.md' } }));
+  expect(headline()).toBe('read_file');
+  expect(activity()).toBe('path=notes/2026-11-16.md');
 });
 
 it('says the call a sub-agent job waits to make beside its pill, and between calls what it last wrote', () => {
