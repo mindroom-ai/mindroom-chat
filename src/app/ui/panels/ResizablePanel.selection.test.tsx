@@ -67,6 +67,8 @@ describe('a splitter drag', () => {
     end(() => fireEvent.pointerUp(handle(), { clientX: 400 }));
     end(() => fireEvent.pointerCancel(handle()));
     end(() => fireEvent.lostPointerCapture(handle()));
+    // The page is left with the pointer held, and its end never comes; the panel stays mounted.
+    end(() => fireEvent(window, new Event('pagehide')));
     // The panel stops being resizable mid-drag (it fills the room), and goes away mid-drag.
     end(() => view.rerender(panel({ fullWidth: true })));
     view.rerender(panel());

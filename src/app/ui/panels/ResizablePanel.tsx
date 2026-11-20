@@ -264,7 +264,19 @@ export function ResizablePanel({
     observer.observe(parent);
     return () => observer.disconnect();
   }, [resizable, maxPanelWidth, minContentWidth]);
-  useLayoutEffect(() => () => dropDrag(dragRef), []);
+  // A page left with the pointer held (Back mid-drag) may come back without the drag's end.
+  useLayoutEffect(() => {
+    const leave = () => {
+      if (!dragRef.current) return;
+      dropDrag(dragRef);
+      setPreviewWidth(undefined);
+    };
+    window.addEventListener('pagehide', leave);
+    return () => {
+      window.removeEventListener('pagehide', leave);
+      dropDrag(dragRef);
+    };
+  }, []);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
