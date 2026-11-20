@@ -306,3 +306,107 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(phoneLead.locator('[data-job-open]')).toBeVisible();
   await phoneBar.screenshot({ path: testInfo.outputPath('jobs-bar-c-phone.png') });
 });
+
+test("a phone's folded quiet bar keeps its step and title out of the time, with Open, Thread and Stop", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The app's default: no usage details, so the folded row says its step in plain words.
+  const room = await openPanelRoom(context, page);
+  const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
+  const powerLevels = await matrixFetch<Record<string, unknown>>(
+    DISPOSABLE_HOMESERVER,
+    powerLevelsPath,
+    { accessToken: room.viewer.accessToken }
+  );
+  await sendStateEvent(
+    DISPOSABLE_HOMESERVER,
+    room.viewer.accessToken,
+    room.roomId,
+    'm.room.power_levels',
+    '',
+    {
+      ...powerLevels,
+      events: {
+        ...(powerLevels.events as Record<string, number>),
+        'io.mindroom.background_jobs': 0,
+      },
+    }
+  );
+  const run = () =>
+    sendRun(
+      room,
+      'run-notes',
+      {
+        subagent: 'sub-notes',
+        task: "Summarize this week's meeting notes and draft the follow-up email",
+      },
+      [
+        {
+          type: 'tool_call_started',
+          tool_name: 'read_file',
+          args_preview: 'path=notes/2026-11-16-weekly-planning-meeting.md',
+        },
+      ]
+    );
+  await sendStateEvent(
+    DISPOSABLE_HOMESERVER,
+    room.agent.accessToken,
+    room.roomId,
+    'io.mindroom.background_jobs',
+    room.agent.userId,
+    {
+      jobs: [
+        {
+          job_id: 'job_notes',
+          thread_id: room.rootId,
+          status: 'running',
+          requester_id: room.viewer.userId,
+          kind: 'subagent',
+          tool: 'panels',
+          subagent: 'sub-notes',
+          run: 'run-notes',
+          started_at: new Date(Date.now() - 754_000).toISOString(),
+        },
+      ],
+    }
+  );
+  // In the room's own timeline the job, of a thread, has the thread's button besides Open and Stop.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
+  const folded = page.locator('[data-job-folded]');
+  await expect(folded).toBeVisible({ timeout: 30_000 });
+  await run();
+  await expect(folded.locator('[data-job-activity]')).toHaveText(
+    'Reading 2026-11-16-weekly-planning-meeting.md…'
+  );
+  await expect(folded.locator('[data-job-open]')).toBeVisible();
+  await expect(folded.locator('[data-job-thread]')).toBeVisible();
+  await expect(folded.locator('[data-cancel-job]')).toBeVisible();
+  await expect(folded.locator('[data-job-elapsed]')).toBeVisible();
+  // Each part of the text column (the headline, the step's line, the chevron) ends before the time
+  // begins, and the title and the step are cut short within it.
+  const layout = await folded.evaluate((row) => {
+    const activity = row.querySelector('[data-job-activity]')!;
+    const text = activity.parentElement!.parentElement!;
+    const time = row.querySelector('[data-job-elapsed]')!.getBoundingClientRect();
+    const task = row.querySelector('button[aria-expanded]')!;
+    return {
+      timeStart: time.left,
+      ends: [...text.children].map((part) => part.getBoundingClientRect().right),
+      textEnd: text.getBoundingClientRect().right,
+      stepCut: activity.scrollWidth > activity.clientWidth,
+      stepWidth: activity.getBoundingClientRect().width,
+      titleCut: task.scrollWidth > task.clientWidth,
+    };
+  });
+  testInfo.annotations.push({ type: 'layout', description: JSON.stringify(layout) });
+  for (const end of [...layout.ends, layout.textEnd])
+    expect(end).toBeLessThanOrEqual(layout.timeStart + 0.5);
+  expect(layout.stepWidth).toBeGreaterThan(0);
+  expect(layout.stepCut).toBe(true);
+  expect(layout.titleCut).toBe(true);
+  await folded.screenshot({ path: testInfo.outputPath('jobs-bar-quiet-phone-folded.png') });
+});

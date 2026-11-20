@@ -591,12 +591,18 @@ globalStyle(`${FoldedText} > ${Headline}`, { flex: '0 1 auto', minWidth: '4rem' 
 globalStyle(`${FoldedText} > ${Headline} > ${Task}`, { flex: '0 1 auto' });
 globalStyle(`${FoldedText} > ${Detail}`, { flex: '1 1 0' });
 // Beside the Sub-agents panel and on a phone, the details' line (who, on what model, the call as
-// sent) goes; the plain step of a quiet bar stays, with a share of the line of its own: both it and
-// the headline truncate, and the time and the buttons keep their places.
+// sent) goes; the plain step of a quiet bar stays. There the headline takes at most half the text
+// column and the step the rest, and both may shrink to nothing, cut short: with Open, Thread and
+// Stop a phone's text column is about 100 px, and neither may reach into the time beside it.
 globalStyle(`${Bar}:not(${Quiet}) ${FoldedText} > ${Detail}`, {
   '@container': { [panel]: { display: 'none' } },
 });
-globalStyle(`${Quiet} ${FoldedText} > ${Detail}`, { minWidth: '5rem' });
+globalStyle(`${Quiet} ${FoldedText} > ${Headline}`, {
+  minWidth: 0,
+  maxWidth: '50%',
+  overflow: 'hidden',
+});
+globalStyle(`${Quiet} ${FoldedText} > ${Detail}`, { minWidth: 0, overflow: 'hidden' });
 
 // Its title lists the job, from anywhere on its text; to the keyboard the text is ringed.
 export const FoldedToggle = style({
