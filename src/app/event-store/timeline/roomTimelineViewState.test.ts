@@ -2,9 +2,28 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultThreadFilterState } from '../threads/roomThreadOverviewModel';
 import {
   DIRECT_ROOM_TIMELINE_FILTER_STATE,
+  listedThreadFilterState,
   resolveRoomTimelineViewState,
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
 } from './roomTimelineViewState';
+
+describe('listedThreadFilterState', () => {
+  const hidingSnoozed = { ...createDefaultThreadFilterState(), snoozed: 'exclude' as const };
+
+  it('lists snoozed threads in sections, which have a Later section for them', () => {
+    expect(listedThreadFilterState(hidingSnoozed, true)).toEqual({
+      ...hidingSnoozed,
+      snoozed: 'any',
+    });
+    expect(hidingSnoozed.snoozed).toBe('exclude');
+  });
+
+  it('keeps the flat cards hiding snoozed threads, and the same state when nothing changes', () => {
+    expect(listedThreadFilterState(hidingSnoozed, false)).toBe(hidingSnoozed);
+    const onlySnoozed = { ...createDefaultThreadFilterState(), snoozed: 'include' as const };
+    expect(listedThreadFilterState(onlySnoozed, true)).toBe(onlySnoozed);
+  });
+});
 
 describe('resolveRoomTimelineViewState', () => {
   it('keeps the overview controls in compact mode', () => {

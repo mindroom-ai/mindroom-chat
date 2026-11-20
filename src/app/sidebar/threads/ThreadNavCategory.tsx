@@ -23,7 +23,7 @@ import {
 import { getThreadSignalsReader } from '../../threads/cross-room/threadSignalsReader';
 import { ThreadNavItem } from './ThreadNavItem';
 import * as css from './threadNav.css';
-import * as threadsNavCss from '../../threads/page/ThreadsNav.css';
+import * as segmented from '../../ui/styles/Segmented.css';
 import { NavCategory } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
@@ -156,18 +156,14 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
       <NavCategoryHeader>
         {toggle}
         {!closed && (
-          <div
-            className={threadsNavCss.Scopes}
-            role="radiogroup"
-            aria-label={t('threadNav.layout')}
-          >
+          <div className={segmented.Segments} role="radiogroup" aria-label={t('threadNav.layout')}>
             {LAYOUTS.map((id) => (
               <button
                 key={id}
                 type="button"
                 role="radio"
                 aria-checked={layout === id}
-                className={threadsNavCss.Scope}
+                className={segmented.Segment}
                 onClick={() => updatePreferences({ type: 'SET_LAYOUT', layout: id })}
               >
                 {t(LAYOUT_LABEL_KEYS[id])}

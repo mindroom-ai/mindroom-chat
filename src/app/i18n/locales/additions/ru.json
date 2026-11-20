@@ -286,6 +286,54 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Некоторые изображения не загружаются в этом окне: браузер не запускает здесь сервис-воркер MindRoom."
+    },
+    "agentCard": {
+      "agent": "Агент",
+      "close": "Закрыть",
+      "configuredTools": "Настроенные инструменты",
+      "toolCount_one": "{{count}} инструмент",
+      "toolCount_few": "{{count}} инструмента",
+      "toolCount_many": "{{count}} инструментов",
+      "toolCount_other": "{{count}} инструмента",
+      "groupCount_one": "{{count}} группа",
+      "groupCount_few": "{{count}} группы",
+      "groupCount_many": "{{count}} групп",
+      "groupCount_other": "{{count}} группы",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ещё: {{groups}}",
+      "viewAll_one": "Все инструменты ({{count}})",
+      "viewAll_few": "Все инструменты ({{count}})",
+      "viewAll_many": "Все инструменты ({{count}})",
+      "viewAll_other": "Все инструменты ({{count}})",
+      "toolsTitle": "Инструменты: {{name}}",
+      "filter": "Фильтр инструментов",
+      "noMatch": "Нет подходящих инструментов.",
+      "back": "Назад",
+      "more": "Ещё",
+      "worksIn": "Работает в",
+      "loading": "Загрузка настроенных инструментов",
+      "availability": "Доступность может зависеть от запроса и прав доступа.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_few": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Код и файлы",
+        "research": "Веб",
+        "productivity": "Расписание и память",
+        "email": "Почта",
+        "mcp": "Подключённые приложения",
+        "integrations": "Интеграции",
+        "communication": "Чаты и сообщения",
+        "entertainment": "Медиа",
+        "information": "Справки",
+        "smart_home": "Умный дом",
+        "social": "Соцсети",
+        "other": "Другое"
+      }
+    },
+    "space": {
+      "overview": "Обзор пространства"
     }
   },
   "featureUi": {
@@ -561,7 +609,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} не выполнена: {{reason}}",
         "usage": "Не удалось выполнить {{command}}. {{usage}}",
-        "unknown": "{{command}} не является командой. Чтобы отправить это как текст, начните сообщение с /plain."
+        "unknown": "{{command}} не является командой. Чтобы отправить это как текст, начните сообщение с /plain.",
+        "thisApp": "Это приложение",
+        "mindroomAgents": "Агенты MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Этот сервер не умеет искать сообщения по времени.",
@@ -790,6 +840,19 @@
         "unavailableHint": "Чтобы вводить ключи здесь, сохраните свой сервер MindRoom в Настройки → {{page}}.",
         "replaces": "Заменит сохранённый сейчас ключ.",
         "replaceKey": "Заменить ключ",
+        "newService": {
+          "title": "Новый сервис: {{name}}",
+          "hint": "При сохранении этот сервис добавится к вашим вместе с ключом.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Команды получают {{names}}",
+          "auth": {
+            "bearer": "токен bearer",
+            "basic": "базовая аутентификация как {{username}}",
+            "header": "заголовок {{name}}",
+            "query": "параметр запроса {{name}}"
+          },
+          "unreadable": "Эта карточка добавляет сервис, который эта версия MindRoom Chat не может показать, поэтому его нельзя сохранить здесь. Обновите MindRoom Chat, чтобы ответить."
+        },
         "temporary": {
           "label": "Запрос секрета",
           "title": "Секрет для {{agent}}",
@@ -825,7 +888,8 @@
           "nothingSent": "Ничего не отправлено и не сохранено.",
           "noAnswer": "Ответа вовремя не было, поэтому ничего не отправлено.",
           "askedAs": "Запрошено для команд агента {{agent}} в этом разговоре как {{variable}}.",
-          "replaced": "Заменил ранее сохранённый ключ."
+          "replaced": "Заменил ранее сохранённый ключ.",
+          "addedService": "Добавил сервис {{name}}."
         }
       },
       "skillReviewMarker": {
@@ -844,6 +908,14 @@
         "removed": "удалён",
         "diffTruncated": "Diff обрезан",
         "diffLabel": "Diff файла {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Модель задана",
+        "reset": "Модель сброшена",
+        "inherited": "Возврат к унаследованным моделям",
+        "changedBy": "Кем изменено: {{name}}",
+        "scopeOwn": "Действует для будущих ответов в этой ветке от агентов и команд, к которым вы можете обращаться.",
+        "scopeOther": "Действует для будущих ответов в этой ветке от агентов и команд, к которым может обращаться {{name}}."
       },
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
@@ -867,7 +939,10 @@
         "nameChose": "Выбор: {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Субагенты"
+        "subagents": "Субагенты",
+        "writtenToCache": "Записано в кеш",
+        "notCached": "Без кеша",
+        "conversation": "Разговор"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}",
@@ -959,7 +1034,8 @@
         "resultCountFor_one": "{{count}} результат для «{{term}}»",
         "resultCountFor_few": "{{count}} результата для «{{term}}»",
         "resultCountFor_many": "{{count}} результатов для «{{term}}»",
-        "resultCountFor_other": "{{count}} результата для «{{term}}»"
+        "resultCountFor_other": "{{count}} результата для «{{term}}»",
+        "retry": "Повторить"
       }
     },
     "notifications": {
@@ -1127,6 +1203,18 @@
       "pageUpdated": "{{agent}} обновил эту страницу.",
       "shownInPanel": "Показана в панели",
       "inlineDisclosure": "Создано {{agent}}. У страницы нет доступа к вашему аккаунту, но то, что вы вводите здесь, может покинуть эту страницу."
+    },
+    "uiActions": {
+      "canvasOff": "Панель отправлена · панели отключены в этом приложении",
+      "askForText": "Попросить текстовую версию",
+      "copyRequest": "Копировать запрос",
+      "textVersionRequest": "Пожалуйста, пришли «{{title}}» сюда текстом. Интерактивные панели отключены в моём приложении.",
+      "askForTextStatus": {
+        "hint": "Помещает запрос в поле ввода. Ничего не отправится, пока вы не нажмёте «Отправить».",
+        "added": "Запрос добавлен в поле ввода. Ничего не отправится, пока вы не нажмёте «Отправить».",
+        "kept": "Ваш черновик остался как был. Скопируйте запрос, чтобы добавить его самостоятельно.",
+        "copied": "Запрос скопирован. Вставьте его в черновик."
+      }
     }
   },
   "composer": {
@@ -1151,7 +1239,10 @@
       "autoHint": "Пусть решит агент",
       "settingTitle": "Отправка, пока агент отвечает",
       "settingDescription": "Удерживайте «Отправить», чтобы выбрать для одного сообщения."
-    }
+    },
+    "replyInThread": "Ответить в ветке…",
+    "newThreadIn": "Новая ветка в {{room}}…",
+    "newThreadWith": "Новая ветка с {{name}}…"
   },
   "commandPalette": {
     "state": {

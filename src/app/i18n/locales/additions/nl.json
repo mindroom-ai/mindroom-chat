@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Sommige afbeeldingen kunnen in dit venster niet laden: de browser draait hier geen service worker voor MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Sluiten",
+      "configuredTools": "Ingestelde tools",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} groep",
+      "groupCount_other": "{{count}} groepen",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ook {{groups}}",
+      "viewAll_one": "Alle {{count}} tools bekijken",
+      "viewAll_other": "Alle {{count}} tools bekijken",
+      "toolsTitle": "Tools van {{name}}",
+      "filter": "Tools filteren",
+      "noMatch": "Geen tool past.",
+      "back": "Terug",
+      "more": "Meer",
+      "worksIn": "Werkt in",
+      "loading": "Ingestelde tools laden",
+      "availability": "Beschikbaarheid kan per verzoek en rechten verschillen.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & bestanden",
+        "research": "Web",
+        "productivity": "Planning & geheugen",
+        "email": "E-mail",
+        "mcp": "Gekoppelde apps",
+        "integrations": "Integraties",
+        "communication": "Chat & berichten",
+        "entertainment": "Media",
+        "information": "Informatie",
+        "smart_home": "Slim huis",
+        "social": "Sociaal",
+        "other": "Overig"
+      }
+    },
+    "space": {
+      "overview": "Space-overzicht"
     }
   },
   "featureUi": {
@@ -543,7 +583,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} mislukt: {{reason}}",
         "usage": "Kon {{command}} niet uitvoeren. {{usage}}",
-        "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen."
+        "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen.",
+        "thisApp": "Deze app",
+        "mindroomAgents": "MindRoom-agenten"
       },
       "jumpToTime": {
         "unsupported": "Deze server kan berichten niet op tijd opzoeken.",
@@ -772,6 +814,19 @@
         "unavailableHint": "Sla je MindRoom-server op via Instellingen → {{page}} om hier sleutels in te voeren.",
         "replaces": "Vervangt de sleutel die nu is opgeslagen.",
         "replaceKey": "Sleutel vervangen",
+        "newService": {
+          "title": "Nieuwe dienst: {{name}}",
+          "hint": "Opslaan voegt deze dienst met de sleutel toe aan je eigen diensten.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Opdrachten krijgen {{names}}",
+          "auth": {
+            "bearer": "bearer-token",
+            "basic": "basic-authenticatie als {{username}}",
+            "header": "header {{name}}",
+            "query": "queryparameter {{name}}"
+          },
+          "unreadable": "Deze kaart voegt een dienst toe die deze versie van MindRoom Chat niet kan tonen, dus hij kan hier niet worden opgeslagen. Werk MindRoom Chat bij om hem te beantwoorden."
+        },
         "temporary": {
           "label": "Geheimverzoek",
           "title": "Geheim voor {{agent}}",
@@ -807,7 +862,8 @@
           "nothingSent": "Er is niets verstuurd of bewaard.",
           "noAnswer": "Geen antwoord op tijd, dus er is niets verstuurd.",
           "askedAs": "Gevraagd voor de opdrachten van {{agent}} in dit gesprek als {{variable}}.",
-          "replaced": "Heeft de eerder opgeslagen sleutel vervangen."
+          "replaced": "Heeft de eerder opgeslagen sleutel vervangen.",
+          "addedService": "Heeft de dienst {{name}} toegevoegd."
         }
       },
       "skillReviewMarker": {
@@ -822,6 +878,14 @@
         "removed": "verwijderd",
         "diffTruncated": "Diff ingekort",
         "diffLabel": "Diff van {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Model ingesteld",
+        "reset": "Model teruggezet",
+        "inherited": "Terug naar overgenomen modellen",
+        "changedBy": "Gewijzigd door {{name}}",
+        "scopeOwn": "Geldt voor toekomstige antwoorden in deze thread van de agents en teams die je mag aanspreken.",
+        "scopeOther": "Geldt voor toekomstige antwoorden in deze thread van de agents en teams die {{name}} mag aanspreken."
       },
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
@@ -841,7 +905,10 @@
         "nameChose": "Gekozen door {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagenten"
+        "subagents": "Subagenten",
+        "writtenToCache": "Naar cache geschreven",
+        "notCached": "Niet in cache",
+        "conversation": "Gesprek"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Loopt al {{duration}}",
@@ -927,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Zoeken mislukt. Probeer het opnieuw.",
         "resultCountFor_one": "{{count}} resultaat voor ‘{{term}}’",
-        "resultCountFor_other": "{{count}} resultaten voor ‘{{term}}’"
+        "resultCountFor_other": "{{count}} resultaten voor ‘{{term}}’",
+        "retry": "Opnieuw proberen"
       }
     },
     "notifications": {
@@ -1077,6 +1145,18 @@
       "pageUpdated": "{{agent}} heeft deze pagina bijgewerkt.",
       "shownInPanel": "Getoond in het paneel",
       "inlineDisclosure": "Gemaakt door {{agent}}. De pagina heeft geen toegang tot je account, maar wat je hier invoert kan deze pagina verlaten."
+    },
+    "uiActions": {
+      "canvasOff": "Paneel gedeeld · panelen staan uit in deze app",
+      "askForText": "Vraag om een tekstversie",
+      "copyRequest": "Verzoek kopiëren",
+      "textVersionRequest": "Stuur “{{title}}” hier liever als tekst. Interactieve panelen staan uit in mijn app.",
+      "askForTextStatus": {
+        "hint": "Zet een verzoek in het invoerveld. Er wordt niets verstuurd tot je op Versturen drukt.",
+        "added": "Verzoek in het invoerveld gezet. Er wordt niets verstuurd tot je op Versturen drukt.",
+        "kept": "Je concept is gebleven zoals het was. Kopieer het verzoek om het zelf toe te voegen.",
+        "copied": "Verzoek gekopieerd. Plak het in je concept."
+      }
     }
   },
   "composer": {
@@ -1101,7 +1181,10 @@
       "autoHint": "De agent laten beslissen",
       "settingTitle": "Verzenden terwijl een agent antwoordt",
       "settingDescription": "Houd Verzenden ingedrukt om per bericht te kiezen."
-    }
+    },
+    "replyInThread": "Antwoorden in thread…",
+    "newThreadIn": "Nieuwe thread in {{room}}…",
+    "newThreadWith": "Nieuwe thread met {{name}}…"
   },
   "commandPalette": {
     "state": {

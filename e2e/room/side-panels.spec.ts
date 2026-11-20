@@ -7,7 +7,9 @@ import {
   openPanel,
   openPanelRoom,
   panelLocator,
+  widthOf,
 } from '../helpers/sidePanels';
+import { roomHeader } from '../helpers/roomMenu';
 
 // One side panel at a time beside a room, against the disposable homeserver: for every pair of
 // the computer, a canvas, the call, the sub-agents and the members, opening the second takes the
@@ -59,3 +61,58 @@ test('a core side panel fills the room and folds to a tab at its edge, per room'
   await openPanel(page, room, 'call');
   await checkPanelFrame(page, testInfo, room, { panel: panelLocator(page, 'call'), label: 'Call' });
 });
+
+test(
+  'a core side panel dragged far over the conversation fills the room, and Shrink brings back its width',
+  {
+    tag: '@webkit',
+  },
+  async ({ context, page }) => {
+    test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+    test.setTimeout(5 * 60_000);
+    const room = await openPanelRoom(context, page);
+    await openPanel(page, room, 'subagents');
+    const panel = panelLocator(page, 'subagents');
+    const fill = panel.getByRole('button', { name: 'Fill the room with Sub-agents', exact: true });
+    const splitter = panel.getByRole('separator');
+    // The panel has moved in to its width.
+    await panel.evaluate((element) =>
+      Promise.all(element.getAnimations().map((animation) => animation.finished))
+    );
+    const besideWidth = await widthOf(panel);
+    const conversationWidth = await widthOf(roomHeader(page));
+
+    const handle = (await splitter.boundingBox())!;
+    const start = handle.x + handle.width / 2;
+    const y = handle.y + handle.height / 2;
+    const widest = Number(await splitter.getAttribute('aria-valuemax'));
+    const overConversation = async () => {
+      await page.mouse.move(start - conversationWidth + 40, y, { steps: 10 });
+      // Held far over the conversation, the panel stays at its widest and says a release fills.
+      await expect(panel).toHaveAttribute('data-expand-preview', 'true');
+      await expect(splitter).toHaveAttribute('aria-valuetext', 'Fill the room with Sub-agents');
+      expect(Math.abs((await widthOf(panel)) - widest)).toBeLessThanOrEqual(1);
+      // The conversation keeps the width it has beside the panel at its widest.
+      const besideWidest = conversationWidth + besideWidth - widest;
+      expect(await widthOf(roomHeader(page))).toBeGreaterThanOrEqual(besideWidest - 1);
+    };
+    await page.mouse.move(start, y);
+    await page.mouse.down();
+    await overConversation();
+    // Back where it started, nothing changed.
+    await page.mouse.move(start, y, { steps: 10 });
+    await expect(panel).not.toHaveAttribute('data-expand-preview', 'true');
+    await expect
+      .poll(async () => Math.abs((await widthOf(roomHeader(page))) - conversationWidth))
+      .toBeLessThanOrEqual(1);
+    await overConversation();
+    await page.mouse.up();
+
+    await expect(fill).toHaveAttribute('aria-pressed', 'true');
+    await expect(panel).toHaveAttribute('data-filled', 'true');
+    await expect(roomHeader(page)).toHaveCount(0);
+    await fill.click();
+    await expect(fill).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(() => widthOf(panel)).toBe(besideWidth);
+  }
+);

@@ -41,11 +41,14 @@ globalStyle(`${FloatingShell} ${PageDivider}`, { display: 'none' });
 // panel inside a page (the room page's thread column) is part of the page's card and stays flat,
 // its splitter's line between it and the conversation. The room and the lobby lay out in a panel
 // row (`PanelRow`); the rule asks only that row, as any element a `:has()` may match is checked
-// again on every change below it, which in a long room is the whole page.
+// again on every change below it, which in a long room is the whole page. The row, not the panel,
+// is the one outside a page: an ancestor test inside the `:has()` makes WebKit check every element
+// added anywhere in the document against it (~0.2 ms a message row).
 const SIDE_PANEL = `${Panel}[data-side='end']:not(${PageSurface} *)`;
-globalStyle(`${FloatingShell} [data-panel-row]:has(> ${SIDE_PANEL})`, {
-  paddingInlineEnd: CARD_GAP,
-});
+globalStyle(
+  `${FloatingShell} [data-panel-row]:not(${PageSurface}, ${PageSurface} *):has(> ${Panel}[data-side='end'])`,
+  { paddingInlineEnd: CARD_GAP }
+);
 globalStyle(`${FloatingShell} ${SIDE_PANEL}`, { paddingBlock: CARD_GAP });
 // Expanded, a panel takes the conversation's place, so it keeps the gap on both sides.
 globalStyle(`${FloatingShell} ${SIDE_PANEL}[data-filled]`, {

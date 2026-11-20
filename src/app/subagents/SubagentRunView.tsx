@@ -11,7 +11,7 @@ import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { formatCallDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import { isActiveSubagentStatus, isRestartInterrupted } from '../matrix/protocol/subagentFrame';
-import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';

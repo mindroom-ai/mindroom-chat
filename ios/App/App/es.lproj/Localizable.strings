@@ -11,3 +11,5 @@
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ te ha invitado a %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ te ha invitado a un chat";
 "QUICK_CAPTURE" = "Captura rápida";
+"CHECK_FOR_UPDATES" = "Buscar actualizaciones…";
+"RESTART_TO_UPDATE" = "Reiniciar para actualizar";

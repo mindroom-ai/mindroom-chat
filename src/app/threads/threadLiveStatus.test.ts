@@ -33,6 +33,7 @@ const cost = (usd: number[], complete: boolean): ThreadConversationCost => {
         return [eventId, { usd: sum, replyCount: index + 1 }];
       })
     ),
+    tokensByEventId: new Map(),
   };
 };
 

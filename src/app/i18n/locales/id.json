@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabel yang dapat digulir",
-    "scrollHint": "Gulir secara horizontal"
+    "scrollHint": "Gulir secara horizontal",
+    "readByRow": "Baca per baris",
+    "showTable": "Tampilkan tabel"
   },
   "messageCodeBlock": {
     "actions": "Tindakan blok kode",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Space ini telah diganti dan tidak lagi aktif.",
       "openNewSpace": "Buka space baru",
       "joinNewSpace": "Bergabung ke space baru",
-      "lobby": "Lobi",
       "messageSearch": "Pencarian pesan",
       "failedToJoinReplacementSpace": "Gagal bergabung ke space pengganti!",
       "rooms": "Ruang",
@@ -2917,7 +2918,9 @@
       "computerUnavailable": "Komputer agen ini tidak tersedia.",
       "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
       "openConversation": "Buka permintaan ini dari percakapan ruangan.",
-      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
+      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini.",
+      "canvasCard": "Panel interaktif",
+      "reminderCard": "Pengingat · {{when}}"
     },
     "canvas": {
       "panelLabel": "Panel interaktif",

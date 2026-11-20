@@ -282,6 +282,50 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Alcune immagini non possono essere caricate in questa finestra: il browser qui non esegue alcun service worker per MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agente",
+      "close": "Chiudi",
+      "configuredTools": "Strumenti configurati",
+      "toolCount_one": "{{count}} strumento",
+      "toolCount_many": "{{count}} di strumenti",
+      "toolCount_other": "{{count}} strumenti",
+      "groupCount_one": "{{count}} gruppo",
+      "groupCount_many": "{{count}} di gruppi",
+      "groupCount_other": "{{count}} gruppi",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Inoltre {{groups}}",
+      "viewAll_one": "Vedi tutti i {{count}} strumenti",
+      "viewAll_many": "Vedi tutti i {{count}} di strumenti",
+      "viewAll_other": "Vedi tutti i {{count}} strumenti",
+      "toolsTitle": "Strumenti di {{name}}",
+      "filter": "Filtra strumenti",
+      "noMatch": "Nessuno strumento corrisponde.",
+      "back": "Indietro",
+      "more": "Altro",
+      "worksIn": "Lavora in",
+      "loading": "Caricamento degli strumenti configurati",
+      "availability": "La disponibilità può variare in base alla richiesta e ai permessi.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Codice e file",
+        "research": "Web",
+        "productivity": "Pianificazione e memoria",
+        "email": "Email",
+        "mcp": "App collegate",
+        "integrations": "Integrazioni",
+        "communication": "Chat e messaggi",
+        "entertainment": "Contenuti multimediali",
+        "information": "Informazioni",
+        "smart_home": "Casa intelligente",
+        "social": "Social",
+        "other": "Altro"
+      }
+    },
+    "space": {
+      "overview": "Panoramica dello spazio"
     }
   },
   "featureUi": {
@@ -552,7 +596,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} non riuscito: {{reason}}",
         "usage": "Impossibile eseguire {{command}}. {{usage}}",
-        "unknown": "{{command}} non è un comando. Per inviarlo come testo, inizia il messaggio con /plain."
+        "unknown": "{{command}} non è un comando. Per inviarlo come testo, inizia il messaggio con /plain.",
+        "thisApp": "Questa app",
+        "mindroomAgents": "Agenti MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Questo server non può cercare i messaggi per ora.",
@@ -781,6 +827,19 @@
         "unavailableHint": "Per inserire chiavi qui, salva il tuo server MindRoom in Impostazioni → {{page}}.",
         "replaces": "Sostituisce la chiave salvata ora.",
         "replaceKey": "Sostituisci chiave",
+        "newService": {
+          "title": "Nuovo servizio: {{name}}",
+          "hint": "Salvando, questo servizio si aggiunge ai tuoi insieme alla chiave.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "I comandi ricevono {{names}}",
+          "auth": {
+            "bearer": "token bearer",
+            "basic": "autenticazione basic come {{username}}",
+            "header": "header {{name}}",
+            "query": "parametro di query {{name}}"
+          },
+          "unreadable": "Questa scheda aggiunge un servizio che questa versione di MindRoom Chat non può mostrare, quindi non può essere salvata qui. Aggiorna MindRoom Chat per rispondere."
+        },
         "temporary": {
           "label": "Richiesta di segreto",
           "title": "Segreto per {{agent}}",
@@ -816,7 +875,8 @@
           "nothingSent": "Non è stato inviato né conservato nulla.",
           "noAnswer": "Nessuna risposta in tempo, quindi non è stato inviato nulla.",
           "askedAs": "Richiesto per i comandi di {{agent}} in questa conversazione come {{variable}}.",
-          "replaced": "Ha sostituito la chiave salvata prima."
+          "replaced": "Ha sostituito la chiave salvata prima.",
+          "addedService": "Ha aggiunto il servizio {{name}}."
         }
       },
       "skillReviewMarker": {
@@ -833,6 +893,14 @@
         "removed": "rimosso",
         "diffTruncated": "Diff troncato",
         "diffLabel": "Diff di {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Modello impostato",
+        "reset": "Modello reimpostato",
+        "inherited": "Ritorno ai modelli ereditati",
+        "changedBy": "Modificato da {{name}}",
+        "scopeOwn": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui puoi rivolgerti.",
+        "scopeOther": "Vale per le prossime risposte in questo thread degli agenti e dei team a cui {{name}} può rivolgersi."
       },
       "finishedWork": {
         "workedFor": "Ha lavorato per {{duration}}",
@@ -854,7 +922,10 @@
         "nameChose": "Scelta di {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sottoagenti"
+        "subagents": "Sottoagenti",
+        "writtenToCache": "Scritti nella cache",
+        "notCached": "Non in cache",
+        "conversation": "Conversazione"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "In esecuzione da {{duration}}",
@@ -943,7 +1014,8 @@
         "searchFailed": "Ricerca non riuscita. Riprova.",
         "resultCountFor_one": "{{count}} risultato per “{{term}}”",
         "resultCountFor_many": "{{count}} di risultati per “{{term}}”",
-        "resultCountFor_other": "{{count}} risultati per “{{term}}”"
+        "resultCountFor_other": "{{count}} risultati per “{{term}}”",
+        "retry": "Riprova"
       }
     },
     "notifications": {
@@ -1102,6 +1174,18 @@
       "pageUpdated": "{{agent}} ha aggiornato questa pagina.",
       "shownInPanel": "Mostrata nel pannello",
       "inlineDisclosure": "Creata da {{agent}}. Non può accedere al tuo account; ciò che inserisci qui può uscire da questa pagina."
+    },
+    "uiActions": {
+      "canvasOff": "Pannello condiviso · i pannelli sono disattivati in questa app",
+      "askForText": "Chiedi una versione testuale",
+      "copyRequest": "Copia richiesta",
+      "textVersionRequest": "Per favore invia «{{title}}» qui come testo. I pannelli interattivi sono disattivati nella mia app.",
+      "askForTextStatus": {
+        "hint": "Inserisce una richiesta nel compositore. Non viene inviato nulla finché non premi Invia.",
+        "added": "Richiesta aggiunta al compositore. Non viene inviato nulla finché non premi Invia.",
+        "kept": "La tua bozza è rimasta com’era. Copia la richiesta per aggiungerla tu.",
+        "copied": "Richiesta copiata. Incollala nella tua bozza."
+      }
     }
   },
   "composer": {
@@ -1126,7 +1210,10 @@
       "autoHint": "Lascia decidere all'agente",
       "settingTitle": "Invia mentre un agente risponde",
       "settingDescription": "Tieni premuto Invia per scegliere per un solo messaggio."
-    }
+    },
+    "replyInThread": "Rispondi nel thread…",
+    "newThreadIn": "Nuovo thread in {{room}}…",
+    "newThreadWith": "Nuovo thread con {{name}}…"
   },
   "commandPalette": {
     "state": {

@@ -37,7 +37,7 @@ export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
         data-directional={closed || undefined}
       />
       <Box as="span" grow="Yes">
-        <Text as="span" size="O400" priority="300" truncate>
+        <Text as="span" size="L400" priority="300" truncate>
           {children}
         </Text>
       </Box>

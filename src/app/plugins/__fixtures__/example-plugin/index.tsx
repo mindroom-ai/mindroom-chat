@@ -125,6 +125,7 @@ import {
   useRoomSidePanel,
   type ClientPlugin,
   type MessageLinkCardProps,
+  type MessageLinkHoverCardProps,
   type PluginEvent,
   type PluginPageProps,
   type ThreadCardBadgeProps,
@@ -1128,6 +1129,11 @@ function RoomDialog({ room, close }: { room: Room; close: () => void }) {
   );
 }
 
+/** The hover card of a link to an item of example.org, while a mouse rests on it. */
+function ItemHoverCard({ href }: MessageLinkHoverCardProps) {
+  return <div>Example item preview {new URL(href).pathname.split('/').pop()}</div>;
+}
+
 /** The card a click on a link to an item of example.org shows. */
 function ItemCard({ href, close }: MessageLinkCardProps) {
   const panel = useRoomSidePanel('example', 'panel');
@@ -1312,6 +1318,7 @@ const plugin: ClientPlugin = {
     {
       match: (url) => url.hostname === 'example.org' && /^\/items\/[^/]+$/.test(url.pathname),
       Component: ItemCard,
+      hoverCard: ItemHoverCard,
     },
     {
       // A plain click opens the panel on the item off a phone; there, the card shows.

@@ -243,15 +243,13 @@ export function ThreadActionsMenu({
   );
   const detailsId = useId();
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const [placed, setPlaced] = useState({ anchor, copy: anchor });
-  const menuAnchor = placed.anchor === anchor ? placed.copy : anchor;
   const [described, setDescribed] = useState(false);
 
   useEffect(() => {
     const surface = surfaceRef.current;
-    // Without details or tags, the menu neither resizes late nor has a description. A tag added
-    // or removed in the menu can change its size.
-    if (!surface || (details.length === 0 && !tagsInMenu)) return undefined;
+    // Without details, the menu has no description. (The pop-out places itself again when lazy
+    // details resize it.)
+    if (!surface || details.length === 0) return undefined;
     // Details that render nothing (empty, loading or failed) describe nothing.
     const measure = () =>
       setDescribed(surface.querySelector('[data-thread-detail]:not(:empty)') !== null);
@@ -262,21 +260,8 @@ export function ThreadActionsMenu({
     if (detailsSurface) {
       mutations.observe(detailsSurface, { childList: true, subtree: true, characterData: true });
     }
-    const observer =
-      typeof ResizeObserver === 'undefined'
-        ? undefined
-        : new ResizeObserver(() => {
-            // Folds repositions when its anchor changes; lazy details can resize without a window resize.
-            // The trigger's DOMRect keeps its fields on its prototype, where a spread finds none.
-            const { x, y, width, height } = anchor;
-            setPlaced({ anchor, copy: { x, y, width, height } });
-          });
-    observer?.observe(surface);
-    return () => {
-      mutations.disconnect();
-      observer?.disconnect();
-    };
-  }, [anchor, dialog, details, tagsInMenu]);
+    return () => mutations.disconnect();
+  }, [dialog, details]);
 
   const tagSectionRef = useRef<HTMLDivElement>(null);
   // The tag whose focused ✕ was pressed, its place among the tags, and where the focus went once
@@ -726,7 +711,7 @@ export function ThreadActionsMenu({
   // The menu opens under its trigger, its end edge on the trigger's end edge.
   return (
     <PopOut
-      anchor={menuAnchor}
+      anchor={anchor}
       offset={4}
       align="End"
       position="Bottom"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import type { KeyboardEvent, PointerEvent, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
+import { blockSelection } from '../../ui/dragSelection';
 import { clampToViewport, defaultRect, isBar, keyStep } from './callWindowGeometry';
 import { moveRect, resizeRect, snapToCorner } from './callWindowGeometry';
 import type { ResizeEdge, ViewportSize, WindowRect } from './callWindowGeometry';
@@ -33,6 +34,7 @@ type Drag = {
   startY: number;
   start: WindowRect;
   rect: WindowRect;
+  unblock: () => void;
 };
 
 /** What a press on `target` drags: a grip resizes from its edge, the title bar moves. */
@@ -71,6 +73,7 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   useLayoutEffect(() => {
     dragRef.current = undefined;
     setPreview(undefined);
+    return () => dragRef.current?.unblock();
   }, [settings.rect]);
 
   useEffect(() => {
@@ -153,8 +156,12 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
     if (!from) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    const { pointerId, clientX, clientY } = event;
-    dragRef.current = { ...from, pointerId, startX: clientX, startY: clientY, start: rect, rect };
+    const { pointerId, clientX: startX, clientY: startY } = event;
+    const unblock = blockSelection(() => {
+      dragRef.current = undefined;
+      setPreview(undefined);
+    });
+    dragRef.current = { ...from, pointerId, startX, startY, start: rect, rect, unblock };
     setPreview(rect);
   };
   const followDrag = (event: PointerEvent<HTMLElement>) => {
@@ -171,6 +178,7 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = undefined;
+    drag.unblock();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }

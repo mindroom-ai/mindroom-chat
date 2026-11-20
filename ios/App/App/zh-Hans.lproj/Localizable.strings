@@ -11,3 +11,5 @@
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ 邀请你加入 %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ 邀请你聊天";
 "QUICK_CAPTURE" = "快速捕捉";
+"CHECK_FOR_UPDATES" = "检查更新…";
+"RESTART_TO_UPDATE" = "重新启动以更新";

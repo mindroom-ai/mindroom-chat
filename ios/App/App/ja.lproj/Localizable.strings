@@ -11,3 +11,5 @@
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ があなたを %2$@ に招待しました";
 "USER_INVITE_TO_CHAT" = "%1$@ があなたをチャットに招待しました";
 "QUICK_CAPTURE" = "クイックキャプチャ";
+"CHECK_FOR_UPDATES" = "アップデートを確認…";
+"RESTART_TO_UPDATE" = "再起動してアップデート";

@@ -29,7 +29,12 @@ import {
   getRoomThreadExitTargetFromHistoryState,
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
-import { historyPageOf, previousHistoryOrigin, showsRoom } from '../routes/historyStack';
+import {
+  historyPageOf,
+  previousHistoryOrigin,
+  RETURN_TO_ROOM_STATE,
+  showsRoom,
+} from '../routes/historyStack';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
@@ -230,7 +235,7 @@ export const useRoomViewThreadState = ({
       }
       const historyBack =
         (exitTarget?.useHistoryBack ?? !isNativeIOS()) && !isIOSStandaloneWebApp();
-      if (!historyBack) navigatePath(originPath, { replace: true });
+      if (!historyBack) navigatePath(originPath, { replace: true, state: RETURN_TO_ROOM_STATE });
       else if (!origin || origin.steps === 1) window.history.back();
       else window.history.go(-origin.steps);
     },

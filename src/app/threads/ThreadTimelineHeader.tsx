@@ -6,10 +6,13 @@ import * as css from './ThreadTimelineHeader.css';
 /** Keep the banner in the scrollable content so messages can pass behind its glass. */
 export function ThreadTimelineHeader({
   children,
+  gapAbove = false,
   onResize,
   scrollRef,
 }: {
   children: ReactNode;
+  /** No room header above it: the banner keeps the gap it has at its start (`css.GapAbove`). */
+  gapAbove?: boolean;
   /** Gets each height change, and the offset before it, ahead of the layout that moves the rows. */
   onResize: (deltaPx: number, scrollTop: number) => void;
   scrollRef: RefObject<HTMLDivElement>;
@@ -69,7 +72,11 @@ export function ThreadTimelineHeader({
         pointerEvents: 'none',
       }}
     >
-      <div ref={contentRef} style={{ display: 'flow-root', paddingBottom: config.space.S600 }}>
+      <div
+        ref={contentRef}
+        className={gapAbove ? css.GapAbove : undefined}
+        style={{ display: 'flow-root', paddingBottom: config.space.S600 }}
+      >
         {children}
       </div>
     </div>

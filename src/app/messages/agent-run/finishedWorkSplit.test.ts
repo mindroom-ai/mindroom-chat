@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { foldFinishedWork, splitFinishedWork } from './finishedWorkSplit';
+import { splitFinishedWork } from './finishedWorkSplit';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../html/react-custom-html-parser';
 
@@ -150,122 +150,21 @@ describe('splitFinishedWork', () => {
   it('does not split the backend HTML of a reply that ends in a tool call', () => {
     expect(split(backendBodies['leading and trailing tool calls'].formatted_body)).toBeUndefined();
   });
-});
 
-describe('foldFinishedWork', () => {
-  const note = (n: number) => `Note ${n} on what the calls found.`;
-  /** A reply of runs of calls with a note after each, then an answer of `answer` short lines. */
-  const reply = (runs: number[], answer: number, toolCallsShown = true, seamRows = 0) => {
-    let call = 0;
-    const html: string[] = ['<p>Intro.</p>'];
-    const body: string[] = ['Intro.'];
-    runs.forEach((size, run) => {
-      Array.from({ length: size }).forEach(() => {
-        call += 1;
-        html.push(marker('shell', call));
-        body.push(`🔧 \`shell\` [${call}]`);
-      });
-      if (run < runs.length - 1) {
-        html.push(`<p>${note(run)}</p>`);
-        body.push(note(run));
-      }
-    });
-    const lines = Array.from({ length: answer }, (_, n) => `Answer line ${n}.`);
-    html.push(...lines.map((line) => `<p>${line}</p>`));
-    body.push(...lines);
-    return foldFinishedWork(
-      body.join('\n\n'),
-      html.join('\n'),
-      baseOpts,
-      {},
-      toolCallsShown,
-      seamRows
-    );
-  };
-
-  // Work rows: the intro, a row per run of calls shown, a note between runs, and the cog's own row
-  // while the calls are hidden (`seamRows`, as the caller counts it).
-  it.each([
-    [
-      '19 calls in 6 runs with notes and a short answer (12 rows)',
-      [4, 3, 3, 3, 3, 3],
-      3,
-      true,
-      true,
-    ],
-    ['the same with its calls hidden (7 rows)', [4, 3, 3, 3, 3, 3], 3, false, false],
-    ['one run of 100 calls and a long answer', [100], 40, true, false],
-    ['one run of 100 calls and a long answer, its calls hidden', [100], 40, false, false],
-    ['2 calls and one line of answer', [2], 1, true, false],
-    ['8 rows of work under an answer over 3 times as long', [1, 1, 1, 1], 25, true, false],
-    ['8 rows of work and an answer 3 times as long', [1, 1, 1, 1], 24, true, true],
-    ['14 rows of work and a huge answer', [1, 1, 1, 1, 1, 1, 1], 500, true, true],
-    [
-      '13 rows of work with its calls hidden and a huge answer',
-      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-      500,
-      false,
-      true,
-    ],
-  ])('%s', (_name, runs, answer, toolCallsShown, folds) => {
-    expect(reply(runs, answer, toolCallsShown, toolCallsShown ? 0 : 1) !== undefined).toBe(folds);
-  });
-
-  it('counts the reasoning line and the compaction seams as work', () => {
-    expect(reply([1, 1, 1], 2)).toBeUndefined();
-    expect(reply([1, 1, 1], 2, true, 2)?.tail).toContain('Answer line 0.');
-  });
-
-  it('counts a long line as a row per 100 characters', () => {
-    const long = 'a'.repeat(450);
-    const html = `<p>${long}</p>${marker('shell', 1)}<p>Done.</p>`;
-    const fold = (seamRows: number) =>
-      foldFinishedWork(`${long}\n\n🔧 \`shell\` [1]\n\nDone.`, html, baseOpts, {}, true, seamRows);
-    // 5 rows of text and 1 of the call.
-    expect(fold(1)).toBeUndefined();
-    expect(fold(2)).toEqual({ head: `<p>${long}</p>${marker('shell', 1)}`, tail: '<p>Done.</p>' });
-  });
-
-  it('starts the answer at the prose after the last call in its paragraph', () => {
-    const work = Array.from({ length: 9 }, (_, n) => `<p>${note(n)}</p>${marker('read', n + 1)}`);
-    const html = `${work.join('')}<p>🔧 <code>grep</code> [10]<br>The answer starts here.</p>`;
-    const body = `${'line\n'.repeat(20)}`;
-    expect(foldFinishedWork(body, html, baseOpts, {}, true, 0)).toEqual({
-      head: `${work.join('')}<p>🔧 <code>grep</code> [10]</p>`,
-      tail: '<p>The answer starts here.</p>',
+  it('splits a reply of one tool call and a one-line answer', () => {
+    expect(split(`${marker('shell', 1)}<p>Done.</p>`)).toEqual({
+      head: marker('shell', 1),
+      tail: '<p>Done.</p>',
     });
   });
 
-  // A table as the backend's Markdown renderer writes it, a newline between each pair of tags.
-  const table = (rows: number, columns: number) => {
-    const row = (cell: string, n: number) =>
-      `<tr>\n${Array.from(
-        { length: columns },
-        (_, c) => `<${cell}>${cell} ${n}.${c}</${cell}>`
-      ).join('\n')}\n</tr>`;
-    const body = Array.from({ length: rows - 1 }, (_, n) => row('td', n)).join('\n');
-    return `<table>\n<thead>\n${row('th', 0)}\n</thead>\n<tbody>\n${body}\n</tbody>\n</table>`;
-  };
-  const lines = (count: number) => Array.from({ length: count }, (_, n) => `<p>Line ${n}.</p>`);
-  const longBody = 'line\n'.repeat(40);
-
-  it('counts a table in the work as a row per table row', () => {
-    // 3 rows of table and 1 of the call: too little work to fold.
-    const html = `${table(3, 3)}\n${marker('shell', 1)}\n${lines(30).join('\n')}`;
-    expect(foldFinishedWork(longBody, html, baseOpts, {}, true, 0)).toBeUndefined();
-  });
-
-  it('counts a table in the answer as a row per table row', () => {
-    // 8 lines and the call: 9 rows of work, under an answer of 12.
-    const html = `${lines(8).join('\n')}\n${marker('shell', 1)}\n${table(12, 4)}`;
-    expect(foldFinishedWork(longBody, html, baseOpts, {}, true, 0)?.tail).toContain('<table>');
-  });
-
-  it('skips the split while the whole body has fewer than 8 rows', () => {
-    const html = Array.from({ length: 9 }, (_, n) => `<p>${note(n)}</p>${marker('a', n + 1)}`);
-    const fold = (body: string) =>
-      foldFinishedWork(body, `${html.join('')}<p>Done.</p>`, baseOpts, {}, true, 0);
-    expect(fold('short')).toBeUndefined();
-    expect(fold('line\n'.repeat(8))?.tail).toBe('<p>Done.</p>');
+  it('keeps a table in the answer whole', () => {
+    // As the backend's Markdown renderer writes it, a newline between each pair of tags.
+    const table =
+      '<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1</td>\n</tr>\n</tbody>\n</table>';
+    expect(split(`<p>Line.</p>\n${marker('shell', 1)}\n${table}`)).toEqual({
+      head: `<p>Line.</p>\n${marker('shell', 1)}`,
+      tail: `\n${table}`,
+    });
   });
 });

@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "可捲動表格",
-    "scrollHint": "水平捲動"
+    "scrollHint": "水平捲動",
+    "readByRow": "逐列閱讀",
+    "showTable": "顯示表格"
   },
   "messageCodeBlock": {
     "actions": "程式碼區塊操作",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "該空間已被替換並且不再活躍。",
       "openNewSpace": "開啟新空間",
       "joinNewSpace": "加入新空間",
-      "lobby": "大堂",
       "messageSearch": "訊息搜尋",
       "failedToJoinReplacementSpace": "加入替換空間失敗！",
       "rooms": "房間",
@@ -2917,7 +2918,9 @@
       "computerUnavailable": "此代理的電腦無法使用。",
       "releaseControl": "開啟其他檢視前，請先釋放電腦控制權。",
       "openConversation": "請從聊天室對話中開啟此請求。",
-      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。"
+      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。",
+      "canvasCard": "互動式面板",
+      "reminderCard": "提醒 · {{when}}"
     },
     "canvas": {
       "panelLabel": "互動式面板",

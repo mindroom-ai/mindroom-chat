@@ -63,6 +63,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Headline: 'Headline',
   Detail: 'Detail',
   Task: 'Task',
+  RowOpen: 'RowOpen',
   Name: 'Name',
   Model: 'Model',
   Activity: 'Activity',
@@ -70,8 +71,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Pill: { waiting: 'Pill', stopping: 'Pill', done: 'Pill' },
   PillText: 'PillText',
   PillIcon: 'PillIcon',
-  ThreadChip: 'ThreadChip',
-  ThreadTitle: 'ThreadTitle',
+  WithThreads: 'WithThreads',
   Num: 'Num',
   Stat: 'Stat',
   Actions: 'Actions',
@@ -615,7 +615,7 @@ const ingestRun = (
 const subagentJob = (jobId: string, overrides: Partial<BackgroundJob> = {}) =>
   job(jobId, { kind: 'subagent', tool: 'run_subagent', ...overrides });
 
-it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and from no other", async () => {
+it("opens the Sub-agents panel on a sub-agent job's run from its row's title, and from no other", async () => {
   ingestRun('s1');
   // The room's bar lists every thread's jobs: the panel opens for the job's own thread.
   state.jobs = [
@@ -633,8 +633,16 @@ it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and
   expect(opens[0]?.getAttribute('aria-label')).toBe(
     tr('mindroomUi.backgroundJobs.openFor', { name: 'mindroom_dev' })
   );
-  // The name is no button.
-  expect(button('mindroom_dev')).toBeUndefined();
+  // The title is the button, its words its text; the row has no other Open.
+  expect(opens[0]?.classList.contains('Task')).toBe(true);
+  expect(opens[0]?.textContent).toBe('mindroom_dev');
+  // Its other buttons: its thread's, then its Stop.
+  const rowButtons = [...(opens[0]?.closest('li')?.querySelectorAll('button') ?? [])];
+  expect(rowButtons.slice(1).map((item) => item.matches('[data-job-thread]'))).toEqual([
+    true,
+    false,
+  ]);
+  expect(rowButtons[2]?.matches('[data-cancel-job]')).toBe(true);
   await act(async () => (opens[0] as HTMLButtonElement).click());
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
@@ -679,7 +687,19 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
   expect(container.querySelector('[data-job-logo]')?.getAttribute('data-job-logo')).toBe('tool');
 });
 
-it("shows a sub-agent's agent, model, task, what it does now and what it used", () => {
+it("shows a sub-agent's title, with its task as the title's tooltip", () => {
+  ingestRun('s1', { title: 'Refactor login form', task: 'Refactor the login form\nwith tests' }, [
+    { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
+  ]);
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
+  render();
+  expand();
+  const task = container.querySelector('li[data-job-kind="subagent"] .Task');
+  expect(task?.textContent).toBe('Refactor login form');
+  expect(task?.getAttribute('title')).toBe('Refactor the login form\nwith tests');
+});
+
+it("shows an untitled sub-agent's agent, model, task and what it used, never its current call", () => {
   ingestRun(
     's1',
     {
@@ -701,7 +721,8 @@ it("shows a sub-agent's agent, model, task, what it does now and what it used", 
   );
   expect(row.querySelector('[data-job-model]')?.textContent).toBe('Opus');
   expect(row.querySelector('.Task')?.textContent).toBe('Port the fix');
-  expect(row.querySelector('[data-job-activity]')?.textContent).toBe('run_shell_command just test');
+  expect(row.querySelector('[data-job-activity]')).toBeNull();
+  expect(row.textContent).not.toContain('run_shell_command');
   // Each number in its column, bare, with its words as its title.
   const cells = [...row.querySelectorAll('[data-job-stat]')];
   expect(cells.map((cell) => cell.textContent)).toEqual(['31', '1.9M', '$1.30']);
@@ -742,7 +763,12 @@ it("names the thread of a job that runs outside the view's, and shows it when pr
   render(null);
   expand();
   const chips = [...container.querySelectorAll<HTMLButtonElement>('[data-job-thread]')];
-  expect(chips.map((chip) => chip.textContent)).toEqual(['Title of $other', 'Title of $thread']);
+  expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
+    tr('thread.aria.openThread', { title: 'Title of $other' }),
+    tr('thread.aria.openThread', { title: 'Title of $thread' }),
+  ]);
+  // Each one sits with its row's buttons, before its Stop.
+  expect(chips[0]?.nextElementSibling?.matches('[data-cancel-job]')).toBe(true);
   await act(async () => chips[0]?.click());
   expect(navigation.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$other');
 

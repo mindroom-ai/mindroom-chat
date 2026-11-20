@@ -24,6 +24,14 @@ const shot = async (page: Page, name: string) => {
     await page.screenshot({ path: `${process.env.AGENT_UI_SHOTS}/${name}.png` });
 };
 
+/**
+ * The router's confirmation of a typed thread model change: the thread's model change line
+ * (`operation`: `set` or `reset`), or the reply of a backend that sends no result for a typed
+ * command, which says `reply`.
+ */
+const typedConfirmation = (page: Page, operation: 'set' | 'reset', reply: string) =>
+  page.locator(`[data-model-change="${operation}"]`).or(page.getByText(reply)).last();
+
 // A model's own row starts with its name; "Agent default" names the models the agents fall back to.
 const named = (name: string): RegExp =>
   new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
@@ -63,10 +71,11 @@ test('a thread switches to another model from the picker, and the choice survive
   await expect(models.getByRole('option', { name: named(first.displayName) })).toBeVisible();
   await models.getByRole('option', { name: named(second.displayName) }).click();
   await expect(chip).toHaveText(second.displayName, { timeout: 60_000 });
-  // The router confirms the switch in the thread.
-  await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
-    timeout: 60_000,
-  });
+  // The router confirms the switch in the thread, which shows it as one line.
+  await expect(page.locator('[data-model-change="set"]')).toHaveText(
+    `Model set${second.displayName}`,
+    { timeout: 60_000 }
+  );
 
   await sendFromComposer(page, 'second question');
   const secondReply = await waitForAgentReply(
@@ -118,9 +127,10 @@ test('a thread runs a model at the reasoning level picked in the effort column',
   await expect(levels.getByRole('radio')).toHaveText(['Low', 'MediumDefault', 'High']);
   await levels.getByRole('radio', { name: 'High', exact: true }).click();
   await expect(chip).toHaveText(`${think.displayName} · High`, { timeout: 60_000 });
-  await expect(page.getByText(`This thread now uses ${think.key}@high`)).toBeVisible({
-    timeout: 60_000,
-  });
+  await expect(page.locator('[data-model-change="set"]').last()).toHaveText(
+    `Model set${think.displayName} · High`,
+    { timeout: 60_000 }
+  );
   await shot(page, `effort-chip-${test.info().project.name}`);
 
   await sendFromComposer(page, `${word} second question`);
@@ -156,7 +166,7 @@ test(
     await expect(chip).toHaveText(UNCHOSEN, { timeout: 60_000 });
 
     await sendFromComposer(page, `!model ${second.key}`);
-    await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
+    await expect(typedConfirmation(page, 'set', `This thread now uses ${second.key}`)).toBeVisible({
       timeout: 60_000,
     });
     // The chip follows the router's answer well inside the picker's 12 s discovery window.
@@ -164,7 +174,7 @@ test(
     await shot(page, `typed-model-chip-${test.info().project.name}`);
 
     await sendFromComposer(page, '!model reset');
-    await expect(page.getByText('Thread model override removed').last()).toBeVisible({
+    await expect(typedConfirmation(page, 'reset', 'Thread model override removed')).toBeVisible({
       timeout: 60_000,
     });
     await expect(chip).toHaveText(UNCHOSEN, { timeout: 10_000 });
@@ -190,7 +200,7 @@ test(
     const chip = page.getByRole('button', { name: 'Choose model' });
     const chipWhenTyped = (await chip.isVisible()) ? await chip.innerText() : 'none';
     await sendFromComposer(page, `!model ${second.key}`);
-    await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
+    await expect(typedConfirmation(page, 'set', `This thread now uses ${second.key}`)).toBeVisible({
       timeout: 60_000,
     });
     await expect(chip, `the chip read "${chipWhenTyped}" when the command was typed`).toHaveText(

@@ -274,6 +274,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Beberapa gambar tidak dapat dimuat di jendela ini: browser tidak menjalankan service worker untuk MindRoom di sini."
+    },
+    "agentCard": {
+      "agent": "Agen",
+      "close": "Tutup",
+      "configuredTools": "Alat yang dikonfigurasi",
+      "toolCount_other": "{{count}} alat",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Juga {{groups}}",
+      "viewAll_other": "Lihat semua {{count}} alat",
+      "toolsTitle": "Alat {{name}}",
+      "filter": "Saring alat",
+      "noMatch": "Tidak ada alat yang cocok.",
+      "back": "Kembali",
+      "more": "Lainnya",
+      "worksIn": "Bekerja di",
+      "loading": "Memuat alat yang dikonfigurasi",
+      "availability": "Ketersediaan dapat berbeda menurut permintaan dan izin.",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kode & file",
+        "research": "Web",
+        "productivity": "Penjadwalan & memori",
+        "email": "Email",
+        "mcp": "Aplikasi terhubung",
+        "integrations": "Integrasi",
+        "communication": "Obrolan & pesan",
+        "entertainment": "Media",
+        "information": "Informasi",
+        "smart_home": "Rumah pintar",
+        "social": "Sosial",
+        "other": "Lainnya"
+      }
+    },
+    "space": {
+      "overview": "Ikhtisar space"
     }
   },
   "featureUi": {
@@ -534,7 +570,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
+        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain.",
+        "thisApp": "Aplikasi ini",
+        "mindroomAgents": "Agen MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Server ini tidak dapat mencari pesan berdasarkan waktu.",
@@ -763,6 +801,19 @@
         "unavailableHint": "Untuk memasukkan kunci di sini, simpan server MindRoom Anda di Pengaturan → {{page}}.",
         "replaces": "Menggantikan kunci yang tersimpan sekarang.",
         "replaceKey": "Ganti kunci",
+        "newService": {
+          "title": "Layanan baru: {{name}}",
+          "hint": "Menyimpan menambahkan layanan ini ke layanan Anda sendiri, beserta kuncinya.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Perintah mendapat {{names}}",
+          "auth": {
+            "bearer": "token bearer",
+            "basic": "autentikasi dasar sebagai {{username}}",
+            "header": "header {{name}}",
+            "query": "parameter kueri {{name}}"
+          },
+          "unreadable": "Kartu ini menambahkan layanan yang tidak dapat ditampilkan oleh versi MindRoom Chat ini, jadi tidak dapat disimpan di sini. Perbarui MindRoom Chat untuk menjawabnya."
+        },
         "temporary": {
           "label": "Permintaan rahasia",
           "title": "Rahasia untuk {{agent}}",
@@ -798,7 +849,8 @@
           "nothingSent": "Tidak ada yang dikirim atau disimpan.",
           "noAnswer": "Tidak ada jawaban tepat waktu, jadi tidak ada yang dikirim.",
           "askedAs": "Diminta untuk perintah {{agent}} dalam percakapan ini sebagai {{variable}}.",
-          "replaced": "Menggantikan kunci yang tersimpan sebelumnya."
+          "replaced": "Menggantikan kunci yang tersimpan sebelumnya.",
+          "addedService": "Menambahkan layanan {{name}}."
         }
       },
       "skillReviewMarker": {
@@ -811,6 +863,14 @@
         "removed": "dihapus",
         "diffTruncated": "Diff dipotong",
         "diffLabel": "Diff {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Model diatur",
+        "reset": "Model diatur ulang",
+        "inherited": "Kembali ke model warisan",
+        "changedBy": "Diubah oleh {{name}}",
+        "scopeOwn": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat Anda sapa.",
+        "scopeOther": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat disapa {{name}}."
       },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
@@ -828,7 +888,10 @@
         "nameChose": "Dipilih oleh {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagen"
+        "subagents": "Subagen",
+        "writtenToCache": "Ditulis ke cache",
+        "notCached": "Tidak di-cache",
+        "conversation": "Percakapan"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",
@@ -911,7 +974,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "Pencarian gagal. Coba lagi.",
-        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”"
+        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”",
+        "retry": "Coba lagi"
       }
     },
     "notifications": {
@@ -1052,6 +1116,18 @@
       "pageUpdated": "{{agent}} memperbarui halaman ini.",
       "shownInPanel": "Ditampilkan di panel",
       "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
+    },
+    "uiActions": {
+      "canvasOff": "Panel dibagikan · panel dinonaktifkan di aplikasi ini",
+      "askForText": "Minta versi teks",
+      "copyRequest": "Salin permintaan",
+      "textVersionRequest": "Tolong kirim “{{title}}” di sini sebagai teks saja. Panel interaktif dinonaktifkan di aplikasi saya.",
+      "askForTextStatus": {
+        "hint": "Menaruh permintaan di kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "added": "Permintaan ditambahkan ke kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "kept": "Draf Anda tetap seperti semula. Salin permintaan untuk menambahkannya sendiri.",
+        "copied": "Permintaan disalin. Tempelkan ke draf Anda."
+      }
     }
   },
   "composer": {
@@ -1076,7 +1152,10 @@
       "autoHint": "Biarkan agen memutuskan",
       "settingTitle": "Kirim saat agen sedang membalas",
       "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
-    }
+    },
+    "replyInThread": "Balas di utas…",
+    "newThreadIn": "Utas baru di {{room}}…",
+    "newThreadWith": "Utas baru dengan {{name}}…"
   },
   "commandPalette": {
     "state": {

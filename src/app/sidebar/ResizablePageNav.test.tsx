@@ -100,7 +100,17 @@ beforeEach(() => {
     getItem: (key: string) => storage.get(key) ?? null,
     setItem: (key: string, value: string) => storage.set(key, value),
   });
-  vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal('window', {
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    getSelection: () => null,
+  });
+  // A drag keeps the page from selecting text (ResizablePanel.selection.test.tsx).
+  vi.stubGlobal('document', {
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    documentElement: { toggleAttribute: vi.fn() },
+  });
   vi.stubGlobal(
     'ResizeObserver',
     class {

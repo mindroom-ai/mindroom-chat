@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Einige Bilder können in diesem Fenster nicht geladen werden: Der Browser führt hier keinen Service Worker für MindRoom aus."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Schließen",
+      "configuredTools": "Eingerichtete Werkzeuge",
+      "toolCount_one": "{{count}} Werkzeug",
+      "toolCount_other": "{{count}} Werkzeuge",
+      "groupCount_one": "{{count}} Gruppe",
+      "groupCount_other": "{{count}} Gruppen",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Außerdem {{groups}}",
+      "viewAll_one": "Alle {{count}} Werkzeuge ansehen",
+      "viewAll_other": "Alle {{count}} Werkzeuge ansehen",
+      "toolsTitle": "Werkzeuge von {{name}}",
+      "filter": "Werkzeuge filtern",
+      "noMatch": "Kein Werkzeug passt.",
+      "back": "Zurück",
+      "more": "Mehr",
+      "worksIn": "Arbeitet in",
+      "loading": "Eingerichtete Werkzeuge werden geladen",
+      "availability": "Die Verfügbarkeit kann je nach Anfrage und Berechtigungen variieren.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & Dateien",
+        "research": "Web",
+        "productivity": "Planung & Gedächtnis",
+        "email": "E-Mail",
+        "mcp": "Verbundene Apps",
+        "integrations": "Integrationen",
+        "communication": "Chat & Nachrichten",
+        "entertainment": "Medien",
+        "information": "Informationen",
+        "smart_home": "Smart Home",
+        "social": "Soziales",
+        "other": "Sonstiges"
+      }
+    },
+    "space": {
+      "overview": "Space-Übersicht"
     }
   },
   "featureUi": {
@@ -543,7 +583,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} fehlgeschlagen: {{reason}}",
         "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
-        "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain."
+        "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain.",
+        "thisApp": "Diese App",
+        "mindroomAgents": "MindRoom-Agenten"
       },
       "jumpToTime": {
         "unsupported": "Dieser Server kann Nachrichten nicht nach Zeit suchen.",
@@ -772,6 +814,19 @@
         "unavailableHint": "Um hier Schlüssel einzugeben, speichere deinen MindRoom-Server unter Einstellungen → {{page}}.",
         "replaces": "Ersetzt den jetzt gespeicherten Schlüssel.",
         "replaceKey": "Schlüssel ersetzen",
+        "newService": {
+          "title": "Neuer Dienst: {{name}}",
+          "hint": "Beim Speichern kommt dieser Dienst mit dem Schlüssel zu deinen eigenen hinzu.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Befehle erhalten {{names}}",
+          "auth": {
+            "bearer": "Bearer-Token",
+            "basic": "Basic-Auth als {{username}}",
+            "header": "Header {{name}}",
+            "query": "Query-Parameter {{name}}"
+          },
+          "unreadable": "Diese Karte fügt einen Dienst hinzu, den diese Version von MindRoom Chat nicht anzeigen kann, daher lässt sie sich hier nicht speichern. Aktualisiere MindRoom Chat, um sie zu beantworten."
+        },
         "temporary": {
           "label": "Geheimnis-Anfrage",
           "title": "Geheimnis für {{agent}}",
@@ -807,7 +862,8 @@
           "nothingSent": "Nichts wurde gesendet oder aufbewahrt.",
           "noAnswer": "Keine Antwort rechtzeitig, daher wurde nichts gesendet.",
           "askedAs": "Angefragt für die Befehle von {{agent}} in dieser Unterhaltung als {{variable}}.",
-          "replaced": "Hat den zuvor gespeicherten Schlüssel ersetzt."
+          "replaced": "Hat den zuvor gespeicherten Schlüssel ersetzt.",
+          "addedService": "Hat den Dienst {{name}} hinzugefügt."
         }
       },
       "skillReviewMarker": {
@@ -822,6 +878,14 @@
         "removed": "entfernt",
         "diffTruncated": "Diff gekürzt",
         "diffLabel": "Diff von {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Modell festgelegt",
+        "reset": "Modell zurückgesetzt",
+        "inherited": "Zurück zu den geerbten Modellen",
+        "changedBy": "Geändert von {{name}}",
+        "scopeOwn": "Gilt für künftige Antworten in diesem Thread von den Agenten und Teams, die du ansprechen darfst.",
+        "scopeOther": "Gilt für künftige Antworten in diesem Thread von den Agenten und Teams, die {{name}} ansprechen darf."
       },
       "finishedWork": {
         "workedFor": "{{duration}} gearbeitet",
@@ -841,7 +905,10 @@
         "nameChose": "Gewählt von {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sub-Agenten"
+        "subagents": "Sub-Agenten",
+        "writtenToCache": "In den Cache geschrieben",
+        "notCached": "Nicht im Cache",
+        "conversation": "Unterhaltung"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Läuft seit {{duration}}",
@@ -927,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Die Suche ist fehlgeschlagen. Versuche es erneut.",
         "resultCountFor_one": "{{count}} Ergebnis für „{{term}}“",
-        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“"
+        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“",
+        "retry": "Erneut versuchen"
       }
     },
     "notifications": {
@@ -1077,6 +1145,18 @@
       "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
       "shownInPanel": "Im Panel angezeigt",
       "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
+    },
+    "uiActions": {
+      "canvasOff": "Panel geteilt · Panels sind in dieser App deaktiviert",
+      "askForText": "Textversion anfordern",
+      "copyRequest": "Anfrage kopieren",
+      "textVersionRequest": "Bitte schick „{{title}}“ hier stattdessen als Text. Interaktive Panels sind in meiner App deaktiviert.",
+      "askForTextStatus": {
+        "hint": "Setzt eine Anfrage ins Eingabefeld. Gesendet wird erst, wenn du auf Senden drückst.",
+        "added": "Anfrage ins Eingabefeld gesetzt. Gesendet wird erst, wenn du auf Senden drückst.",
+        "kept": "Dein Entwurf bleibt unverändert. Kopiere die Anfrage, um sie selbst einzufügen.",
+        "copied": "Anfrage kopiert. Füge sie in deinen Entwurf ein."
+      }
     }
   },
   "composer": {
@@ -1101,7 +1181,10 @@
       "autoHint": "Den Agenten entscheiden lassen",
       "settingTitle": "Senden, während ein Agent antwortet",
       "settingDescription": "Halte Senden gedrückt, um für eine Nachricht anders zu wählen."
-    }
+    },
+    "replyInThread": "Im Thread antworten…",
+    "newThreadIn": "Neuer Thread in {{room}}…",
+    "newThreadWith": "Neuer Thread mit {{name}}…"
   },
   "commandPalette": {
     "state": {

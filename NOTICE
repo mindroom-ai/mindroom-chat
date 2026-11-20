@@ -210,16 +210,15 @@ Modified dependencies
     lib/store/indexeddb-local-backend.js,
     lib/store/indexeddb-local-backend.d.ts.
 
-  folds 2.7.1 (Apache-2.0), patches/folds+2.7.1.patch modifies:
-    dist/style.css.
+  folds 2.7.3 (Apache-2.0), patches/folds+2.7.3.patch modifies:
+    dist/index.js, dist/style.css.
 
-  @capacitor/android 8.5.1 (MIT), patches/@capacitor+android+8.1.0.patch
-  (written against 8.1.0; it applies unchanged to 8.5.1) modifies, under
-  capacitor/src/main/java/com/getcapacitor/:
+  @capacitor/android 8.6.2 (MIT), patches/@capacitor+android+8.6.2.patch
+  modifies, under capacitor/src/main/java/com/getcapacitor/:
     MessageHandler.java, plugin/CapacitorCookies.java,
-    plugin/CapacitorHttp.java, plugin/SystemBars.java.
+    plugin/CapacitorHttp.java.
 
-  @capacitor/ios 8.5.2 (MIT), patches/@capacitor+ios+8.5.2.patch modifies,
+  @capacitor/ios 8.6.2 (MIT), patches/@capacitor+ios+8.6.2.patch modifies,
   under Capacitor/Capacitor/:
     WebViewAssetHandler.swift, CAPNotifications.swift,
     WebViewDelegationHandler.swift.

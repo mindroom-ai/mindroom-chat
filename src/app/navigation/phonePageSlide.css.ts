@@ -1,59 +1,75 @@
 import { globalKeyframes, globalStyle } from '@vanilla-extract/css';
 import { motion } from '../ui/styles/Motion.css';
 
-// A phone's page slide (phonePageSlide.ts): the browser plays it between a picture of the phone
-// layout as it was and the layout as it is, both the size of the layout, so nothing is laid out.
-// `html[data-page-slide]` is there from before the first picture until the slide ends, and says
-// `forward` or `back` once the page has changed.
+// A phone's page slide (phonePageSlide.ts): a still copy of the phone layout as it was, laid over
+// the layout, and the layout as it is move past each other with `translate`, which lays nothing
+// out and leaves an element's own `transform` (the navigation drawer's) alone.
+// `html[data-page-slide]` is there from the call until the slide ends, and says `forward` or
+// `back` once the page has changed and the copy is in.
 
-const STAGE = 'phone-stage';
-const TOP_BAR = 'phone-top-bar';
-const sliding = 'html[data-page-slide]';
+const STAGE = '[data-phone-stage]';
+const COPY = '[data-page-slide-copy]';
+// What slides: all of the layout but the top bar, which stays above every page.
+const SLIDES = ':not([data-phone-top-bar], [data-page-slide-copy])';
 const forward = "html[data-page-slide='forward']";
 const back = "html[data-page-slide='back']";
+const playing = (selector: string) => `${forward} ${selector}, ${back} ${selector}`;
 
-// Only the phone layout is in the pictures: the rest of the document shows as it is.
-globalStyle(sliding, { viewTransitionName: 'none' });
-globalStyle(`${sliding} [data-phone-stage]`, { viewTransitionName: STAGE });
-// The top bar stays above every page: it is no part of the layout's picture, and shows as it is.
-globalStyle(`${sliding} [data-phone-top-bar]`, { viewTransitionName: TOP_BAR });
-// (WebKit plays the browser's own fade on a picture that is not displayed.)
-globalStyle(`${sliding}::view-transition-old(${TOP_BAR})`, { display: 'none', animation: 'none' });
-globalStyle(`${sliding}::view-transition-new(${TOP_BAR})`, { animation: 'none' });
-// Neither box moves or changes its size: the pictures inside the layout's are all that plays.
-globalStyle(
-  `${sliding}::view-transition-group(${STAGE}), ${sliding}::view-transition-group(${TOP_BAR})`,
-  { animation: 'none' }
-);
+// The layout takes no taps while it slides: they would land on what moves. Over the layout only,
+// and gone with it: a page that takes its place (signed out, turned sideways) takes taps at once.
+globalStyle(playing(`${STAGE}::after`), {
+  content: '""',
+  position: 'absolute',
+  inset: 0,
+  zIndex: 2147483647,
+});
+
+// Nothing that slides shows outside the layout or makes it scroll, and the copy's place under or
+// over the layout's own layers (the drawer) is counted inside it.
+globalStyle(playing(STAGE), { overflow: 'clip', isolation: 'isolate' });
+// The copy fills the layout as the layout fills its own place (`position` is set on it, over
+// the layout's own).
+globalStyle(COPY, { inset: 0, pointerEvents: 'none' });
+globalStyle(`${forward} ${COPY}`, { zIndex: -1 });
+globalStyle(`${back} ${COPY}`, { zIndex: 2 });
+// Still: what played in the page when it was copied shows as it ended, and plays no more.
+globalStyle(`${COPY} > * *`, {
+  animationDelay: '-100s !important',
+  animationPlayState: 'paused !important',
+});
 
 // The end edge is the right one, or the left where lines run right to left.
 globalStyle('html', { vars: { '--phone-slide-end': '1' } });
 globalStyle("html[dir='rtl']", { vars: { '--phone-slide-end': '-1' } });
-const offEnd = 'translateX(calc(100% * var(--phone-slide-end)))';
+// As far as the phone is wide, whatever the width of what slides (the drawer is narrower).
+const offEnd = 'calc(100vw * var(--phone-slide-end)) 0';
 // The page under moves a third as far, as it does in a phone's own apps.
-const aside = 'translateX(calc(-30% * var(--phone-slide-end)))';
+const aside = 'calc(-30vw * var(--phone-slide-end)) 0';
 
 const overIn = 'phone-page-over-in';
 const overOut = 'phone-page-over-out';
 const underIn = 'phone-page-under-in';
 const underOut = 'phone-page-under-out';
-globalKeyframes(overIn, { from: { transform: offEnd } });
-globalKeyframes(overOut, { to: { transform: offEnd } });
-globalKeyframes(underIn, { from: { transform: aside } });
-globalKeyframes(underOut, { to: { transform: aside } });
+globalKeyframes(overIn, { from: { translate: offEnd } });
+globalKeyframes(overOut, { to: { translate: offEnd } });
+globalKeyframes(underIn, { from: { translate: aside } });
+globalKeyframes(underOut, { to: { translate: aside } });
 
 // As long as the navigation drawer's slide, which this one shows in place of.
 const play = (name: string) =>
   `${name} ${motion.duration.Slower} ${motion.easing.Standard} both` as const;
-// The pictures show whole, not blended as in the browser's own cross-fade.
-const over = {
-  mixBlendMode: 'normal',
-  zIndex: 1,
-  boxShadow: '0 0 24px rgb(0 0 0 / 0.24)',
-} as const;
-const under = { mixBlendMode: 'normal' } as const;
 
-globalStyle(`${forward}::view-transition-old(${STAGE})`, { ...under, animation: play(underOut) });
-globalStyle(`${forward}::view-transition-new(${STAGE})`, { ...over, animation: play(overIn) });
-globalStyle(`${back}::view-transition-old(${STAGE})`, { ...over, animation: play(overOut) });
-globalStyle(`${back}::view-transition-new(${STAGE})`, { ...under, animation: play(underIn) });
+globalStyle(`${forward} ${STAGE} > ${SLIDES}`, { animation: play(overIn) });
+globalStyle(`${forward} ${COPY} > ${SLIDES}`, { animation: play(underOut) });
+globalStyle(`${back} ${STAGE} > ${SLIDES}`, { animation: play(underIn) });
+globalStyle(`${back} ${COPY} > ${SLIDES}`, { animation: play(overOut) });
+// Held at its start, the copy in the place of the page as it was, until the page that slides in
+// has been drawn (`html[data-page-slide-held]`, phonePageSlide.ts).
+globalStyle(`html[data-page-slide-held] :is(${STAGE}, ${COPY}) > ${SLIDES}`, {
+  animationPlayState: 'paused',
+});
+// The page that is over casts a shadow on the one under, to its sides only: not on the top bar.
+globalStyle(`${forward} ${STAGE} > [data-phone-page], ${back} ${COPY} > [data-phone-page]`, {
+  boxShadow: '0 0 24px rgb(0 0 0 / 0.24)',
+  clipPath: 'inset(0 -48px)',
+});

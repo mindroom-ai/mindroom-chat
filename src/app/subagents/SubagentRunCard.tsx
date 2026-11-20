@@ -21,7 +21,7 @@ import {
   type SubagentMeta,
 } from '../matrix/protocol/subagentFrame';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
-import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import * as css from './subagentsPanel.css';
 
@@ -127,7 +127,8 @@ type CardProps = {
 };
 
 /**
- * One sub-agent as the room's compact view shows a thread: its first task as the title, how long
+ * One sub-agent as the room's compact view shows a thread: the title its first turn's call named,
+ * else that turn's task, as the title, how long
  * its newest turn has been at it or how long ago it ended, a line of what that turn wrote, then the
  * agent, the model that turn ran on, how it stands, how many turns it took and how many
  * sub-agents it started. Pressing it opens the sub-agent.
@@ -151,7 +152,8 @@ export const SubagentRunCard = memo(function SubagentRunCard({
     'compact'
   );
   const time = active ? formatCallDuration(now / 1000 - meta.startedAt, language) : ago;
-  const title = node.turns[0].run.meta.task?.split('\n', 1)[0] || agent.name;
+  const first = node.turns[0].run.meta;
+  const title = first.title || first.task?.split('\n', 1)[0] || agent.name;
   const preview = runPreview(meta, run.docs, t);
   const failed = isFailedRun(meta);
 

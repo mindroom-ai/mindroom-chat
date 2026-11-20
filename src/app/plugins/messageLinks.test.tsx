@@ -59,6 +59,14 @@ describe('useMessageLinkMatcher', () => {
     expect(isMessageLink({ ...link(), sidePanel: 'p' })).toBe(false);
   });
 
+  it('keeps a hover card, and the hover card comes with the match', () => {
+    expect(isMessageLink(link({ hoverCard: OtherComponent }))).toBe(true);
+    expect(isMessageLink({ ...link(), hoverCard: null })).toBe(false);
+    const match = matcher([plugin('a', [link({ hoverCard: OtherComponent })])]);
+    expect(match(PULL)?.hoverCard).toBe(OtherComponent);
+    expect(matcher([plugin('a', [link()])])(PULL)?.hoverCard).toBeUndefined();
+  });
+
   it("gives an opted-in link its plugin's panel, under the plugin's id", () => {
     const request = (url: URL) => url.pathname;
     const panels = [{ id: 'p', label: 'P', Component }];

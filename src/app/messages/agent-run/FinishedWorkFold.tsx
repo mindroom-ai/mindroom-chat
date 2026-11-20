@@ -1,4 +1,11 @@
-import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type AnimationEvent,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import {
@@ -8,8 +15,17 @@ import {
 } from '../manualExpansionState';
 import { formatWorkDuration } from '../../lib/time';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
+import { motionAllowed } from '../../ui/listMotion';
+import { Outline } from './OutlineComet.css';
 import * as reasoningCss from './Reasoning.css';
 import * as css from './FinishedWorkFold.css';
+
+// The paths of folds' Icons.RecentClock (node_modules/folds), split into face with arrow and hands.
+const CLOCK_FACE = [
+  'M20.5 12C20.5 16.6944 16.6944 20.5 12 20.5C7.30558 20.5 3.5 16.6944 3.5 12H2C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C8.29859 2 5.06687 4.01099 3.33782 7H5.1254C6.67093 4.87867 9.17446 3.5 12 3.5C16.6944 3.5 20.5 7.30558 20.5 12Z',
+  'M4.5 3H3V8H8V6.5H4.5V3Z',
+];
+const CLOCK_HANDS = 'M11 7L13 6.99997L13 11.5858L16.9498 15.5355L15.5355 16.9497L11 12.4142L11 7Z';
 
 type FinishedWorkFoldProps = {
   /** Where the timeline remembers the reader's choice, distinct from the long-message fold's key. */
@@ -31,7 +47,7 @@ type FinishedWorkFoldProps = {
 };
 
 /**
- * A long finished agent reply, its work folded into one `Worked for 2m 13s` row above its answer,
+ * A finished agent reply, its work folded into one `Worked for 2m 13s` row above its answer,
  * as T3 Code folds a finished turn. Until it may fold, the reply renders whole, as it would
  * without this component, which stays in its tree so its state lasts while it streams.
  * Clicking the row shows the work in place. The choice survives virtualization remounts through
@@ -46,6 +62,10 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
     () => manualExpansionState?.get(foldKey) ?? expandAllInit ?? false
   );
   const previousExpandAllInitRef = useRef(expandAllInit);
+  // While the work slides open or folds back; folding, it stays mounted until it has folded.
+  const [moving, setMoving] = useState<'opening' | 'closing'>();
+  // Each click sheds a ring off the clock: the count keys it, so a new one starts at once.
+  const [rings, setRings] = useState(0);
 
   // As CollapsibleMessage: expand all opens the work and collapse all folds it, unless the reader
   // chose for this reply since.
@@ -54,14 +74,24 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
     previousExpandAllInitRef.current = expandAllInit;
     if (expandAllInit === undefined || manualExpansionState?.has(foldKey)) return;
     setOpen(expandAllInit);
+    setMoving(undefined);
   }, [expandAllInit, foldKey, manualExpansionState]);
 
-  if (!folded) return whole;
+  if (!folded) {
+    // A split that comes back later starts at rest, not in the middle of a slide it lost.
+    if (moving !== undefined) setMoving(undefined);
+    return whole;
+  }
 
   const toggle = () => {
     const next = !open;
     if (manualExpansionState) rememberManualExpansionState(manualExpansionState, foldKey, next);
     setOpen(next);
+    setMoving(motionAllowed() ? (next ? 'opening' : 'closing') : undefined);
+    setRings((count) => count + 1);
+  };
+  const settle = (event: AnimationEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) setMoving(undefined);
   };
   const label =
     durationMs === undefined
@@ -74,16 +104,41 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
       <div className={reasoningCss.Reasoning}>
         <button
           type="button"
-          className={reasoningCss.Toggle}
+          className={`${reasoningCss.Toggle} ${css.Row}`}
           data-work-fold=""
           aria-expanded={open}
           onClick={toggle}
         >
-          <Icon size="50" src={Icons.RecentClock} aria-hidden />
-          <span className={reasoningCss.Label}>{label}</span>
-          <Icon size="50" src={Icons.ChevronRight} className={reasoningCss.Chevron} aria-hidden />
+          <span className={css.ClockBox} aria-hidden>
+            <svg className={css.Clock} viewBox="0 0 24 24" fill="currentColor" focusable="false">
+              <g>
+                {CLOCK_FACE.map((d) => (
+                  <path key={d} d={d} />
+                ))}
+              </g>
+              <g className={css.Hands}>
+                <path d={CLOCK_HANDS} />
+              </g>
+            </svg>
+            {rings > 0 && (
+              <svg className={Outline} viewBox="0 0 24 24" fill="none">
+                <circle key={rings} className={css.Ring} cx="12" cy="12" r="9.25" />
+              </svg>
+            )}
+          </span>
+          <span className={`${reasoningCss.Label} ${css.Label}`}>{label}</span>
+          <Icon
+            size="50"
+            src={Icons.ChevronRight}
+            className={`${reasoningCss.Chevron} ${css.Chevron}`}
+            aria-hidden
+          />
         </button>
-        {open && <div className={css.Work}>{folded.work}</div>}
+        {(open || moving === 'closing') && (
+          <div className={css.Work} data-motion={moving} onAnimationEnd={settle}>
+            <div className={css.WorkInner}>{folded.work}</div>
+          </div>
+        )}
       </div>
       {folded.answer}
     </>

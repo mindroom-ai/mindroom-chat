@@ -153,6 +153,14 @@ describe('Mac Catalyst shell', () => {
     expect(follow).toMatch(/pid != getpid\(\) \{ lastFrontProcess = pid \}/);
   });
 
+  it('names dropped file promises on the Mac only', () => {
+    // Mac Catalyst's WebKit gives the page no file for a promise without a name.
+    expect(bridgeSource).toMatch(
+      /#if targetEnvironment\(macCatalyst\)[^#]*FilePromiseDropNamer\.install\(in: webView\)[^#]*#endif/
+    );
+    expect(outsideMacOnly(bridgeSource)).not.toContain('FilePromiseDropNamer.install(in: webView)');
+  });
+
   it('serves the routes whose IDs have dots, and the widget, from the app', () => {
     const roots = bridgeSource.match(/let routeRoots: Set<Substring> = \[([\s\S]*?)\]/)?.[1];
     ['home', 'direct', 'threads', 'activity', 'quick-capture'].forEach((root) =>
