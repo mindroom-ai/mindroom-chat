@@ -868,6 +868,15 @@ const expectTagTargets = async (section: Locator) => {
             `hits ${there?.tagName ?? 'nothing'}.${String(there?.className ?? '')}`,
             `layer ${layer.content} ${layer.position} ${layer.top} ${layer.bottom}`,
             `control ${getComputedStyle(control).position} ${control.className}`,
+            `bottom ${box.bottom.toFixed(2)}`,
+            `reach ${[1, 2, 3, 4, 5]
+              .map((d) => (owner(x, box.bottom + d) === control ? d : `-${d}`))
+              .join(',')}`,
+            `stack ${document
+              .elementsFromPoint(px, py)
+              .slice(0, 4)
+              .map((e) => `${e.tagName}.${String(e.className).slice(0, 12)}`)
+              .join(' > ')}`,
           ];
           missed.push(
             `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(
