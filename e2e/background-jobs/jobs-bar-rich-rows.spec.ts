@@ -214,9 +214,10 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(lead.locator('[data-job-model]')).toHaveText('Fable 5.2');
   await expect(lead).toContainText('Rework the export queue retry policy');
   await expect(lead).not.toContainText('with capped backoff');
-  // A sub-agent's row shows none of its calls.
-  await expect(lead.locator('[data-job-activity]')).toHaveCount(0);
-  await expect(lead).not.toContainText(LEAD_TOOL.args_preview);
+  // A sub-agent's row names the call its run makes now, then its arguments.
+  await expect(lead.locator('[data-job-activity]')).toHaveText(
+    `${LEAD_TOOL.tool_name} ${LEAD_TOOL.args_preview}`
+  );
   // The group heading names the number columns, so the cells hold bare numbers.
   await expect(bar.getByText('Calls', { exact: true })).toBeVisible();
   await expect(lead.locator('[data-job-stat]')).toHaveText(['31', '1.9M', '$1.30']);
@@ -295,7 +296,6 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await sendRuns(room);
   await phoneBar.getByRole('button', { name: /^3 background jobs/ }).click();
   const phoneLead = row(phoneBar, 'subagent');
-  await expect(phoneLead.locator('[data-job-activity]')).toHaveCount(0);
   await expect(phoneLead.locator('[data-job-logo]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-model]')).toBeHidden();
   await expect(phoneLead.locator('[data-job-stat]')).toHaveCount(3);

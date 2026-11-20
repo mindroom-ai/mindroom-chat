@@ -126,8 +126,8 @@ export const Counts = style({
 export const Status = style({ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' });
 globalStyle(`${Meta} > ${Status}`, { opacity: config.opacity.P300 });
 
-/** A run that waits for approval says so in the warning's color, at full contrast. */
-export const StatusLoud = style([Status, { color: color.Warning.Main }]);
+/** A run that waits for approval says so in the warning's color, at full contrast (`LineLabel`). */
+export const StatusLoud = style([Status, { color: color.Warning.MainLine }]);
 
 /** The card's third line: its label, then the call, the text or the reason, cut short. */
 export const Line = style({
@@ -147,12 +147,16 @@ const label = {
   fontWeight: config.fontWeight.W600,
 } as const;
 
-/** The label says what the line shows, in its word and its color: never by color alone. */
+/**
+ * The label says what the line shows, in its word and its color: never by color alone. Each
+ * color's line step, darker than its main on light palettes and lighter on dark ones, keeps small
+ * bold text at 4.5:1 on the panel's surfaces in every palette.
+ */
 export const LineLabel = styleVariants({
-  now: [label, { color: color.Success.Main }],
-  approval: [label, { color: color.Warning.Main }],
+  now: [label, { color: color.Success.MainLine }],
+  approval: [label, { color: color.Warning.MainLine }],
   result: [label, { opacity: config.opacity.P300 }],
-  ended: [label, { color: color.Critical.Main }],
+  ended: [label, { color: color.Critical.MainLine }],
 });
 
 export const LineMark = style({
@@ -333,8 +337,6 @@ export const VisuallyHidden = style({
 export const Strip = style({
   flex: 'none',
   display: 'grid',
-  gridAutoFlow: 'column',
-  gridAutoColumns: 'minmax(0, 1fr)',
   margin: 0,
   borderBlockEnd: headerLine,
   fontVariantNumeric: 'tabular-nums',
@@ -344,14 +346,15 @@ export const StripCell = style({
   display: 'grid',
   gap: toRem(1),
   minWidth: 0,
-  padding: space.S200,
+  paddingBlock: space.S200,
+  paddingInline: space.S200,
   selectors: {
     '&:first-child': { paddingInlineStart: space.S400 },
     '& + &': { borderInlineStart: headerLine },
   },
 });
 
-export const StripName = style({ margin: 0 });
+export const StripName = style({ margin: 0, fontSize: toRem(11), lineHeight: toRem(16) });
 
 export const StripValue = style({
   margin: 0,
@@ -361,7 +364,7 @@ export const StripValue = style({
   textOverflow: 'ellipsis',
 });
 
-export const StripNote = style({ margin: 0 });
+export const StripNote = style({ margin: 0, fontSize: toRem(11), lineHeight: toRem(16) });
 
 /** While the run works, the call it makes now and how long it has run; while it waits, that call. */
 export const NowLine = style({
@@ -384,5 +387,5 @@ export const StopFailure = style({
   flex: 'none',
   paddingBlock: space.S100,
   paddingInline: space.S400,
-  color: color.Critical.Main,
+  color: color.Critical.MainLine,
 });

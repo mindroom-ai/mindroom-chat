@@ -190,6 +190,9 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   );
 }
 
+/** How much of the strip's width each cell takes: status, calls, tokens, cost. */
+const STRIP_WEIGHTS = [1.05, 0.7, 1.2, 1];
+
 /** What every run below `node` cost, its own excluded; none while no run below says. */
 const nestedCost = (node: SubagentNode): number | undefined => {
   let total: number | undefined;
@@ -254,7 +257,16 @@ function RunStrip({ node, run, time }: { node: SubagentNode; run: SubagentRun; t
         ]),
   ];
   return (
-    <dl className={css.Strip} data-subagent-strip="">
+    <dl
+      className={css.Strip}
+      // Status and tokens take the most room, calls the least.
+      style={{
+        gridTemplateColumns: STRIP_WEIGHTS.slice(0, cells.length)
+          .map((weight) => `minmax(0, ${weight}fr)`)
+          .join(' '),
+      }}
+      data-subagent-strip=""
+    >
       {cells.map((cell) => (
         <div key={cell.key} className={css.StripCell} data-subagent-cell={cell.key}>
           <Text as="dt" size="T200" priority="300" className={css.StripName}>

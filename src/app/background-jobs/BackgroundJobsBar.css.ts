@@ -567,8 +567,8 @@ export const Folded = style({
   },
 });
 
-// Its headline, then who and what it does on the same line, which gives way first and goes beside
-// the Sub-agents panel; the chevron at the end.
+// Its headline, then who and what it does on the same line, in the room the headline leaves, so it
+// gives way first; beside the Sub-agents panel it goes. The chevron at the end.
 export const FoldedText = style({
   position: 'relative',
   display: 'flex',
@@ -580,7 +580,7 @@ export const FoldedText = style({
 globalStyle(`${FoldedText} > ${Headline}`, { flex: '0 1 auto', minWidth: '4rem' });
 globalStyle(`${FoldedText} > ${Headline} > ${Task}`, { flex: '0 1 auto' });
 globalStyle(`${FoldedText} > ${Detail}`, {
-  flex: '0 1000 auto',
+  flex: '1 1 0',
   '@container': { [panel]: { display: 'none' } },
 });
 
