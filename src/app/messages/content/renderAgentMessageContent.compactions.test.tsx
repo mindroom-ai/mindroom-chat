@@ -554,7 +554,7 @@ describe('compaction seams in a reply', () => {
 });
 
 describe('compaction seams in finished and live replies', () => {
-  it('keeps every seam in the folded work of a long finished reply, none in the answer', () => {
+  it('keeps every seam in the folded work of a finished reply, none in the answer', () => {
     const answer = ANSWER;
     render(
       reply(

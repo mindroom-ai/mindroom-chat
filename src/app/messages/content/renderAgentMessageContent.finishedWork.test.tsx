@@ -7,6 +7,8 @@ import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
+import { getDefaultStore } from 'jotai';
+import { getSettings, settingsAtom } from '../../preferences/settings';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import {
@@ -374,6 +376,17 @@ describe('finished agent work', () => {
     });
     expect(text()).toContain('Let me look.');
     expect(toolCalls()).toEqual(['web_search']);
+  });
+
+  it('folds the work while the cog hides the tool calls', () => {
+    getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: false });
+    render({
+      ...reply('completed', `<p>Let me look.</p>${marker('web_search', 1)}<p>Done.</p>`),
+      'io.mindroom.tool_trace': toolTrace('web_search'),
+    });
+    expect(text()).toContain('Worked for 2m 13s');
+    expect(text()).not.toContain('Let me look.');
+    expect(text()).toContain('Done.');
   });
 
   it('does not fold a reply that search highlights', () => {

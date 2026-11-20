@@ -53,7 +53,8 @@ When it folds:
 - The timeline's expand all opens the folded work and collapse all folds it, as it does for
   `CollapsibleMessage` (`ExpandAllInitContext`: true opens, false folds, undefined keeps the
   reply's own state).
-- Every finished reply in the history folds, not just the latest one.
+- Every finished reply with work before its answer folds, in the whole history, not just the
+  latest one.
 
 Nothing else changes: user messages, agent replies without tool calls and replies that end in a
 tool call render as today, with no row and no element of their own.
