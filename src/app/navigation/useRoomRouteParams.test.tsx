@@ -24,7 +24,9 @@ import {
   getSpaceLobbyPath,
   getSpaceRoomPath,
 } from '../routes/pathUtils';
+import { canonicalizeSessionPathname } from './clientRouteRestore';
 import { useRoomNavigate } from './useRoomNavigate';
+import { getViewedPlace } from './viewedPlace';
 import { ROUTE_PARAM_SEGMENT, useRoomRouteParams, useRouteParam } from './useRoomRouteParams';
 import { useSelectedRoom } from './useSelectedRoom';
 import { useSelectedSpace } from './useSelectedSpace';
@@ -213,5 +215,19 @@ describe('the room, space and event a route names', () => {
       eventId: PERCENT_EVENT,
       selectedRoom: PERCENT_ROOM,
     });
+  });
+
+  // The room page, the session's saved route and the notifications' view of the window read an
+  // address alike, a hand-typed malformed one too.
+  it.each([
+    '/home/!bad%zz%2F:example.org/',
+    getHomeRoomPath(PERCENT_ROOM, PERCENT_EVENT),
+    getHomeRoomPath('!sales%2Feu:example.org', SLASH_EVENT),
+    getSpaceRoomPath(SLASH_SPACE, '!sales/eu:x'),
+    getHomeRoomPath('!room:example.org'),
+  ])('reads %s as the room page does when it restores or notifies', (path) => {
+    const page = open(path);
+    expect(getViewedPlace(client, { pathname: path, search: '' }).roomId).toBe(page.roomIdOrAlias);
+    expect(open(canonicalizeSessionPathname(client, path))).toEqual(page);
   });
 });
