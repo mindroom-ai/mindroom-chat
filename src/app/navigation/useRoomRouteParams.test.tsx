@@ -75,15 +75,15 @@ const open = (path: string) => {
 
 // A `%` that is part of an ID stays: `%41` is no `A`, and a literal `%2F` is no `/`. An escaped
 // `/` is one, and ordinary IDs read as they always did.
-const ROOMS = [
-  '!room:example.org',
-  '#lobby:example.org',
-  '!sales%41:example.org',
-  '#sales%2Feu:example.org',
-  '!sales/eu:example.org',
-];
-const SPACES = ['!space:example.org', '#team%41:example.org', '!team%2F:example.org', '!a/b:x'];
-const EVENTS = ['$event:example.org', '$ev%41', '$ev%2Fx', '$ev/x+y'];
+const PERCENT_ROOM = '!sales%41:example.org';
+const SLASH_ALIAS = '#sales%2Feu:example.org';
+const ROOMS = ['!room:example.org', '#lobby:example.org', PERCENT_ROOM, SLASH_ALIAS, '!sales/eu:x'];
+const PERCENT_SPACE = '#team%41:example.org';
+const SLASH_SPACE = '!team%2F:example.org';
+const SPACES = ['!space:example.org', PERCENT_SPACE, SLASH_SPACE, '!a/b:x'];
+const PERCENT_EVENT = '$ev%41';
+const SLASH_EVENT = '$ev%2Fx';
+const EVENTS = ['$event:example.org', PERCENT_EVENT, SLASH_EVENT, '$ev/x+y'];
 
 describe('the room, space and event a route names', () => {
   it.each(ROOMS)('reads the room %s of a Home route as written', (room) => {
@@ -94,17 +94,17 @@ describe('the room, space and event a route names', () => {
   });
 
   it.each(EVENTS)('reads the event %s as written', (event) => {
-    expect(open(getHomeRoomPath(ROOMS[2], event))).toMatchObject({
-      roomIdOrAlias: ROOMS[2],
+    expect(open(getHomeRoomPath(PERCENT_ROOM, event))).toMatchObject({
+      roomIdOrAlias: PERCENT_ROOM,
       eventId: event,
     });
   });
 
   it.each(SPACES)('reads the space %s and its room as written', (space) => {
-    expect(open(getSpaceRoomPath(space, ROOMS[3], EVENTS[2]))).toMatchObject({
+    expect(open(getSpaceRoomPath(space, SLASH_ALIAS, SLASH_EVENT))).toMatchObject({
       spaceIdOrAlias: space,
-      roomIdOrAlias: ROOMS[3],
-      eventId: EVENTS[2],
+      roomIdOrAlias: SLASH_ALIAS,
+      eventId: SLASH_EVENT,
       selectedSpace: space.startsWith('!') ? space : null,
     });
   });
@@ -115,10 +115,10 @@ describe('the room, space and event a route names', () => {
       selectedSpace: null,
       roomPath: null,
     });
-    expect(open(getSpaceLobbyPath(SPACES[2]))).toEqual({
-      spaceIdOrAlias: SPACES[2],
+    expect(open(getSpaceLobbyPath(SLASH_SPACE))).toEqual({
+      spaceIdOrAlias: SLASH_SPACE,
       selectedRoom: null,
-      selectedSpace: SPACES[2],
+      selectedSpace: SLASH_SPACE,
       roomPath: null,
     });
   });
@@ -135,17 +135,21 @@ describe('the room, space and event a route names', () => {
   );
 
   it('reads the address after `#` with the hash router', () => {
-    window.history.replaceState(null, '', `/#${getSpaceRoomPath(SPACES[1], ROOMS[2], EVENTS[1])}`);
+    window.history.replaceState(
+      null,
+      '',
+      `/#${getSpaceRoomPath(PERCENT_SPACE, PERCENT_ROOM, PERCENT_EVENT)}`
+    );
     render(
       <MatrixClientProvider value={client}>
         <HashRouter>{ROUTES}</HashRouter>
       </MatrixClientProvider>
     );
     expect(shown()).toMatchObject({
-      spaceIdOrAlias: SPACES[1],
-      roomIdOrAlias: ROOMS[2],
-      eventId: EVENTS[1],
-      selectedRoom: ROOMS[2],
+      spaceIdOrAlias: PERCENT_SPACE,
+      roomIdOrAlias: PERCENT_ROOM,
+      eventId: PERCENT_EVENT,
+      selectedRoom: PERCENT_ROOM,
     });
   });
 });
