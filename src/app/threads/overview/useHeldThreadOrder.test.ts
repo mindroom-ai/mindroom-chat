@@ -5,115 +5,111 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MOUSE_REST_HOLD_MS,
   rowsMovedUp,
+  rowToPin,
   useHeldThreadOrder,
   usePointerOverCards,
   useRowKeys,
 } from './useHeldThreadOrder';
 
+describe('rowToPin', () => {
+  const before = ['$a', '$b', '$c', '$d', '$e', '$f'];
+
+  it('pins the row that leads the view when rows moved up past it', () => {
+    expect(rowToPin(before, ['$f', '$a', '$b', '$c', '$d', '$e'], ['$b', '$c', '$d'])).toBe('$b');
+    // A row in view moved up: the row above it still leads.
+    expect(rowToPin(before, ['$d', '$a', '$b', '$c', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$b');
+    // The leading row itself moved up.
+    expect(rowToPin(before, ['$b', '$a', '$c', '$d', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$b');
+  });
+
+  it('pins the upper of two rows that swap', () => {
+    expect(rowToPin(before, ['$b', '$a', '$c', '$d', '$e', '$f'], ['$a', '$b', '$c'])).toBe('$a');
+  });
+
+  it('pins the leading row when rows from under the next one came up past both', () => {
+    // $c, $d and $e rotate above $a and $b, all five in view.
+    const after = ['$c', '$d', '$e', '$a', '$b', '$f'];
+    expect(rowToPin(before, after, ['$a', '$b', '$c', '$d', '$e'])).toBe('$a');
+  });
+
+  it('pins the next row in view when the leading one moved down past the two after it', () => {
+    // An agent's run ended, and its card went from Working to Needs you.
+    const after = ['$b', '$c', '$d', '$a', '$e', '$f'];
+    expect(rowToPin(before, after, ['$a', '$b', '$c', '$d'])).toBe('$b');
+    // To the end of the list, past every row in view.
+    expect(rowToPin(before, ['$b', '$c', '$d', '$e', '$f', '$a'], ['$a', '$b'])).toBe('$b');
+  });
+
+  it('passes over a row that left the list, and one the list does not hold', () => {
+    expect(rowToPin(before, ['$f', '$b', '$c', '$d', '$e'], ['$a', '$b', '$c'])).toBe('$b');
+    expect(rowToPin(before, ['$f', '$a', '$b', '$c', '$d', '$e'], ['$pinned', '$a'])).toBe('$a');
+    expect(rowToPin(before, ['$f', '$a', '$b', '$c', '$d', '$e'], [])).toBeUndefined();
+  });
+});
+
 describe('rowsMovedUp', () => {
-  it('names the row that moved up past others', () => {
-    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$d', '$a', '$b', '$c'])).toEqual(['$d']);
-    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$a', '$d', '$b', '$c'])).toEqual(['$d']);
-  });
+  const before = ['$a', '$b', '$c', '$d', '$e', '$f'];
 
-  it('names none for a row that moved down, which React moves alone', () => {
-    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$b', '$c', '$d', '$a'])).toEqual([]);
-    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$a', '$c', '$d', '$b'])).toEqual([]);
-  });
-
-  it('names the one that went up of two rows that swap', () => {
-    expect(rowsMovedUp(['$a', '$b'], ['$b', '$a'])).toEqual(['$b']);
-    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$a', '$c', '$b', '$d'])).toEqual(['$c']);
-  });
-
-  it('names each of two rows that moved up, in their new order', () => {
-    expect(
-      rowsMovedUp(['$a', '$b', '$c', '$d', '$e', '$f'], ['$f', '$d', '$a', '$b', '$c', '$e'])
-    ).toEqual(['$f', '$d']);
-  });
-
-  it('leaves a row that moved down to React when another moved up in the same change', () => {
-    // $d up and $b down: $a, $c, $e and $f stay, and React moves $b alone.
-    expect(
-      rowsMovedUp(['$a', '$b', '$c', '$d', '$e', '$f'], ['$d', '$a', '$c', '$e', '$f', '$b'])
-    ).toEqual(['$d']);
-    // The first and the last trade places: the three between them stay.
-    expect(rowsMovedUp(['$a', '$b', '$c', '$d', '$e'], ['$e', '$b', '$c', '$d', '$a'])).toEqual([
+  it('names the rows that stood after the pinned row and stand before it now', () => {
+    expect(rowsMovedUp(before, ['$f', '$a', '$b', '$c', '$d', '$e'], '$b')).toEqual(['$f']);
+    expect(rowsMovedUp(before, ['$b', '$a', '$c', '$d', '$e', '$f'], '$a')).toEqual(['$b']);
+    expect(rowsMovedUp(before, ['$e', '$d', '$c', '$a', '$b', '$f'], '$a')).toEqual([
       '$e',
+      '$d',
+      '$c',
     ]);
   });
 
-  it('keeps the cards in view among the rows that stay, whichever rows are fewer', () => {
-    const before = ['$a', '$b', '$c', '$d', '$e'];
-    const after = ['$c', '$d', '$e', '$a', '$b'];
-    // Three cards from below the view moved up past the two in view: those two stay.
-    expect(rowsMovedUp(before, after, new Set(['$a', '$b']))).toEqual(['$c', '$d', '$e']);
-    // The two went down past the three in view, or nothing of it shows: React moves the two.
-    expect(rowsMovedUp(before, after, new Set(['$c', '$d', '$e']))).toEqual([]);
-    expect(rowsMovedUp(before, after)).toEqual([]);
+  it('leaves to React the rows that end up after the pinned row, and those that stood before it', () => {
+    // $d moved up to right under the pinned $b, and $a went down past it.
+    expect(rowsMovedUp(before, ['$b', '$d', '$a', '$c', '$e', '$f'], '$b')).toEqual([]);
+    // $a moved up above $b from above it, and a card joined.
+    expect(rowsMovedUp(['$x', '$a', '$b'], ['$new', '$a', '$x', '$b'], '$b')).toEqual([]);
+    // The pinned row is gone, or was never there.
+    expect(rowsMovedUp(before, ['$f', '$a', '$c'], '$b')).toEqual([]);
+    expect(rowsMovedUp(before, ['$f', '$a', '$b'], '$new')).toEqual([]);
+    expect(rowsMovedUp(before, ['$f', '$a', '$b'], undefined)).toEqual([]);
   });
 
-  it('lets the one card in view that moved down go, for the others in view to stay', () => {
-    const before = ['$x', '$a', '$b', '$c', '$d'];
-    const after = ['$a', '$b', '$c', '$d', '$x'];
-    expect(rowsMovedUp(before, after, new Set(['$x', '$a', '$b']))).toEqual([]);
-    // Of two cards in view that swap, the upper one stays.
-    expect(rowsMovedUp(['$a', '$b'], ['$b', '$a'], new Set(['$a', '$b']))).toEqual(['$b']);
-  });
-
-  it('leaves in the page, for every order of six rows, a best run of rows in their old order', () => {
-    const before = ['$a', '$b', '$c', '$d', '$e', '$f'];
+  it('keeps the pinned row in the page for every order of six rows and every pin', () => {
     const orders = (rows: string[]): string[][] =>
       rows.length < 2
         ? [rows]
         : rows.flatMap((row) =>
-            orders(rows.filter((other) => other !== row)).map((o) => [row, ...o])
+            orders(rows.filter((other) => other !== row)).map((rest) => [row, ...rest])
           );
-    /** What a run scores: its cards in view first, then its rows. */
-    const score = (run: string[], inView: Set<string>) =>
-      run.filter((row) => inView.has(row)).length * 10 + run.length;
-    [[], ['$a', '$b'], ['$c', '$d'], ['$e', '$f'], ['$b', '$e']].forEach((cards) => {
-      const inView = new Set(cards);
-      orders(before).forEach((after) => {
-        const named = new Set(rowsMovedUp(before, after, inView));
-        // React, as it places keyed children: it keeps a row unless one it kept stood after it.
+    orders(before).forEach((after) =>
+      before.forEach((pin) => {
+        const named = new Set(rowsMovedUp(before, after, pin));
+        expect(named.has(pin)).toBe(false);
+        // React, as it places keyed children: it keeps a row in the page unless one that it kept,
+        // under the same key, stood after it.
         let last = -1;
         const kept = after.filter((row) => {
           if (named.has(row) || before.indexOf(row) < last) return false;
           last = before.indexOf(row);
           return true;
         });
-        // Every run of rows in their old order: each subset of the old order whose rows follow
-        // each other in the new one too.
-        const runs = Array.from({ length: 2 ** before.length }, (_, bits) =>
-          // eslint-disable-next-line no-bitwise
-          before.filter((_row, index) => bits & (2 ** index))
-        ).filter((run) =>
-          run.every((row, i) => i === 0 || after.indexOf(row) > after.indexOf(run[i - 1] ?? ''))
-        );
-        const best = Math.max(...runs.map((run) => score(run, inView)));
-        expect(score(kept, inView), `${after.join(' ')} with ${cards.join(' ')} in view`).toBe(
-          best
-        );
-      });
-    });
-  });
-
-  it('counts neither new rows nor rows that left', () => {
-    expect(rowsMovedUp(['$a', '$b', '$c'], ['$new', '$a', '$b', '$c'])).toEqual([]);
-    expect(rowsMovedUp(['$a', '$b', '$c'], ['$a', '$c'])).toEqual([]);
-    expect(
-      rowsMovedUp(['$a', '$gone', '$b', '$c', '$d'], ['$d', '$new', '$a', '$b', '$c'])
-    ).toEqual(['$d']);
-    expect(rowsMovedUp(['$a', '$b', '$c'], ['$a', '$b', '$c'])).toEqual([]);
+        expect(kept, `${after.join(' ')} with ${pin} pinned`).toContain(pin);
+      })
+    );
   });
 });
 
 describe('useRowKeys', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
+  /** A list scrolled by `scrollTop` whose view the card of $a leads, cut at its top edge. */
   const keysOf = (scrollTop: number) => {
-    const view = { current: Object.assign(document.createElement('div'), { scrollTop }) };
+    const element = Object.assign(document.createElement('div'), { scrollTop });
+    const lead = element.appendChild(document.createElement('div'));
+    lead.setAttribute('data-scroll-anchor', '$a');
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 600 } as DOMRect);
+    vi.spyOn(lead, 'getBoundingClientRect').mockReturnValue({ top: -30, bottom: 56 } as DOMRect);
+    const view = { current: element };
     const { result, rerender } = renderHook(({ rows }) => useRowKeys(rows, view), {
       initialProps: { rows: ['$a', '$b', '$c', '$d'] },
     });
@@ -124,7 +120,7 @@ describe('useRowKeys', () => {
     return { keys, view };
   };
 
-  it('gives a row that moved up a new key while the list is scrolled, and its first key the next time', () => {
+  it('gives a row that moved up past the leading row a new key, and its first key the next time', () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const { keys } = keysOf(700);
     expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d#', '$a', '$b', '$c']);
@@ -132,6 +128,10 @@ describe('useRowKeys', () => {
     expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d#', '$a', '$b', '$c']);
     expect(keys(['$e', '$d', '$a', '$b', '$c'])).toEqual(['$e', '$d#', '$a', '$b', '$c']);
     expect(keys(['$c', '$e', '$d', '$a', '$b'])).toEqual(['$c#', '$e', '$d#', '$a', '$b']);
+    // Rows above the leading one that change places among themselves, and one that goes down
+    // past it, keep their keys: React moves those.
+    expect(keys(['$d', '$c', '$e', '$a', '$b'])).toEqual(['$d#', '$c#', '$e', '$a', '$b']);
+    expect(keys(['$c', '$e', '$a', '$b', '$d'])).toEqual(['$c#', '$e', '$a', '$b', '$d#']);
     expect(keys(['$d', '$c', '$e', '$a', '$b'])).toEqual(['$d', '$c#', '$e', '$a', '$b']);
   });
 
