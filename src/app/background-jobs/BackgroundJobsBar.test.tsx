@@ -755,8 +755,8 @@ it("names the thread of a job that runs outside the view's, and shows it when pr
   expand();
   const chips = [...container.querySelectorAll<HTMLButtonElement>('[data-job-thread]')];
   expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
-    'Title of $other',
-    'Title of $thread',
+    tr('thread.aria.openThread', { title: 'Title of $other' }),
+    tr('thread.aria.openThread', { title: 'Title of $thread' }),
   ]);
   // Each one sits with its row's buttons, before its Stop.
   expect(chips[0]?.nextElementSibling?.matches('[data-cancel-job]')).toBe(true);

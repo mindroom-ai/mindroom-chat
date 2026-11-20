@@ -136,17 +136,19 @@ export function JobElapsed({ startedAt, endedAt }: { startedAt: number; endedAt?
 
 /**
  * An icon button, beside Open and Stop, that shows the thread of a job of another conversation
- * than the view's; the thread's title is its name.
+ * than the view's, named for that thread.
  */
 function ThreadButton({ room, threadId }: { room: Room; threadId: string }) {
+  const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const title = useThreadTitle(room, threadId, undefined, undefined);
+  const label = t('thread.aria.openThread', { title });
   return (
     <button
       type="button"
       className={css.IconButton}
-      title={title}
-      aria-label={title}
+      title={label}
+      aria-label={label}
       onClick={() => navigateRoomThread(room.roomId, threadId)}
       data-job-thread={threadId}
     >

@@ -40,7 +40,10 @@ const lineHeight = '1.5rem';
 // A row's buttons, each in its own slot: Thread, Open, Stop. Thread's slot is there only while a
 // job of another thread lists (WithThreads).
 const actionSlots = createVar();
-const actions = `calc(${actionSlots} * ${button} + (${actionSlots} - 1) * ${config.space.S100})`;
+// Between them, to a finger, twice the 8 px each button's hit area reaches out, so no two share a
+// point.
+const actionGap = createVar();
+const actions = `calc(${actionSlots} * ${button} + (${actionSlots} - 1) * ${actionGap})`;
 
 // The typing bar's size and material; the rows inside take no surface of their own. Listed jobs
 // sit above the title line, though they follow the title in reading and focus order.
@@ -68,7 +71,9 @@ export const Bar = style([
       [cost]: '3.5rem',
       [time]: '3.5rem',
       [actionSlots]: '2',
+      [actionGap]: config.space.S100,
     },
+    '@media': { '(pointer: coarse)': { vars: { [actionGap]: '16px' } } },
     '@container': {
       [panel]: {
         vars: { [gap]: config.space.S200, [calls]: '2rem', [tokens]: '3rem', [cost]: '3.25rem' },
@@ -431,7 +436,7 @@ export const Actions = style({
   gridTemplateColumns: `repeat(${actionSlots}, ${button})`,
   justifyContent: 'end',
   alignItems: 'center',
-  gap: config.space.S100,
+  gap: actionGap,
 });
 
 // Each button keeps its slot, so a row without Open or Thread lines its others up with the rows
