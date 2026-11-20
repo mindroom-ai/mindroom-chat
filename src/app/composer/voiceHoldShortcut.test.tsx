@@ -322,6 +322,17 @@ describe('useVoiceHoldShortcut', () => {
     expect(press('keyup', space).defaultPrevented).toBe(false);
   });
 
+  it('arms only on the Space key itself, whose keyup then ends the press', () => {
+    const { log } = setup((l) => <Composer log={l} />);
+    for (const code of ['', 'NumpadSpace']) {
+      const other = { key: ' ', code, ctrlKey: true, shiftKey: true };
+      expect(press('keydown', other).defaultPrevented).toBe(false);
+      press('keyup', { ...other, ctrlKey: false, shiftKey: false });
+      wait(300);
+    }
+    expect(log).toEqual([]);
+  });
+
   it('leaves the keys to an input method composing, and to an open dialog', () => {
     const { log } = setup((l) => <Composer log={l} />);
     act(() => {

@@ -169,7 +169,8 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
             event.currentTarget.blur();
           }}
           onKeyDown={(event) => {
-            // A key another listener took (the voice key, Ctrl+Shift+Space) is not the rail's.
+            // A key another listener took (the voice key, Ctrl+Shift+Space) is not the rail's;
+            // that listener cancels its release too.
             if (event.defaultPrevented) return;
             const plain = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
             if (event.key === 'ArrowDown') {
@@ -184,9 +185,10 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
             } else if (event.key === 'End') {
               event.preventDefault();
               setActiveIndex(items.length - 1);
-            } else if (plain && (event.key === 'Enter' || event.key === ' ')) {
+            } else if (event.key === 'Enter' || event.key === ' ') {
+              // Always cancelled, so the button's own click (at the top, on release) never jumps.
               event.preventDefault();
-              if (activeItem) {
+              if (plain && activeItem) {
                 onSelect(activeItem);
               }
             }

@@ -116,7 +116,9 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
 
     const onKeyDown = (event: KeyboardEvent) => {
       const space = event.code === 'Space';
+      // The Space key by place for arming too, so the press always owns the key that armed it.
       const voiceKey =
+        space &&
         enabledRef.current &&
         pointers.size === 0 &&
         matchesShortcut(event, 'voiceRecord') &&
