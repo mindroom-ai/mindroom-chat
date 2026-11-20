@@ -112,15 +112,16 @@ export const isRoomEventThreadRedirectActive = ({
 }): boolean => !focusEventInRoom && !threadId && roomOverviewOrderActive;
 
 // The thread an event is in and the event to show there (the one an edit replaces), from the
-// cleartext relations of the server's copies.
+// relations of the events: of the room's copy of one it holds, else of the server's (cleartext).
 export const fetchRoomEventThreadTarget = async (
   mx: Pick<MatrixClient, 'fetchRoomEvent'>,
-  roomId: string,
+  room: Pick<Room, 'roomId' | 'findEventById'>,
   eventId: string
 ): Promise<{ threadId: string; eventId: string } | undefined> => {
   const relationOf = async (id: string) => {
-    const [, event] = await to(mx.fetchRoomEvent(roomId, id));
-    const relation = event?.content?.['m.relates_to'];
+    const loaded = room.findEventById(id);
+    const fetched = loaded ? undefined : (await to(mx.fetchRoomEvent(room.roomId, id)))[1];
+    const relation = loaded ? loaded.getRelation() : fetched?.content?.['m.relates_to'];
     const relatedId: unknown = relation?.event_id;
     return typeof relatedId === 'string' && relatedId !== id
       ? { type: relation?.rel_type, relatedId }

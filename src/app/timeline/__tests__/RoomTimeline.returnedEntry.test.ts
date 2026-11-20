@@ -167,13 +167,28 @@ describe('RoomTimeline at the address of an edit of a thread reply', () => {
     matrixClientMock.fetchRoomEvent.mockImplementation(async (_roomId: string, eventId: string) =>
       eventId === EDIT ? replaces : inThread
     );
-    const { show } = await mountRoom([
+    const { room, show } = await mountRoom([
       makeEvent(EDIT, { relation: { rel_type: 'm.replace', event_id: REPLY } }),
     ]);
 
     await show(EDIT);
 
+    // The room's copy of the edit names the reply: only the reply is asked for.
+    expect(matrixClientMock.fetchRoomEvent.mock.calls).toEqual([[room.roomId, REPLY]]);
     expect(navigateRoomThreadMock).toHaveBeenCalledWith(...toThread(REPLY));
+  });
+
+  it('shows the room without asking the server when it holds the edit and a room message it replaces', async () => {
+    const { show } = await mountRoom([
+      makeEvent(REPLY),
+      makeEvent(EDIT, { relation: { rel_type: 'm.replace', event_id: REPLY } }),
+    ]);
+
+    await show(EDIT);
+
+    expect(matrixClientMock.fetchRoomEvent).not.toHaveBeenCalled();
+    expect(navigateRoomThreadMock).not.toHaveBeenCalled();
+    expect(matrixClientMock.getEventTimeline).toHaveBeenCalledWith(expect.anything(), EDIT);
   });
 
   it('shows the room when the event the edit replaces is in no thread', async () => {

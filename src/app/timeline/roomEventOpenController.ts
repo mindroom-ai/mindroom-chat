@@ -60,15 +60,15 @@ export type OpenRoomEventHandler = (
 ) => Promise<void>;
 
 /**
- * Opens the event a room's address names. `returned` says the app's Back put that address in a
- * thread's place (`RETURN_TO_ROOM_STATE`): the room stays the room, as its address is the one the
- * thread was opened from, and the event it names would open its thread again, on every Back.
+ * Opens the event a room's address names. `returned`: the entry is a return to the room
+ * (`RETURN_TO_ROOM_STATE`), which stays the room: its event would open the thread that was left.
  */
 export type OpenRoomEventRoute = (
   eventId: string,
   isCurrentRoute: () => boolean,
   returned: boolean
 ) => Promise<void>;
+type OpenRoomEventArgs = [...Parameters<OpenRoomEventHandler>, returned?: boolean];
 
 export const useRoomEventOpenController = ({
   alive,
@@ -348,12 +348,7 @@ export const useRoomEventOpenController = ({
   );
 
   const handleOpenEvent = useCallback(
-    async (
-      ...[evtId, highlight = true, onScroll, returned]: [
-        ...Parameters<OpenRoomEventHandler>,
-        returned?: boolean
-      ]
-    ) => {
+    async (...[evtId, highlight = true, onScroll, returned]: OpenRoomEventArgs) => {
       if (threadId && evtId !== threadId) {
         // The render index map is authoritative thread membership: events
         // loaded through the MindRoom thread cache may be absent from the SDK
@@ -518,7 +513,7 @@ export const useRoomEventOpenController = ({
         isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive }) &&
         (!loaded || loaded.getRelation()?.rel_type === RelationType.Replace)
       ) {
-        const target = await fetchRoomEventThreadTarget(mx, room.roomId, targetEventId);
+        const target = await fetchRoomEventThreadTarget(mx, room, targetEventId);
         if (!alive() || !isCurrentRoute()) return;
         if (target) {
           navigateRoomThread(room.roomId, target.threadId, target.eventId, { replace: true });
