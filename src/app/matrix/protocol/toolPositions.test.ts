@@ -1,4 +1,4 @@
-import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { beforeAll, describe, expect, it } from 'vitest';
 import positions from './__fixtures__/tool-positions-v1.json';
 import { htmlBlockStarts, withToolMarkersRestored } from './toolPositions';
@@ -179,7 +179,7 @@ describe('tool positions on read', () => {
       sender,
       origin_server_ts: 1,
       content,
-    } as Partial<IEvent>);
+    });
 
   beforeAll(() => {
     installEventContentGuard();
