@@ -20,6 +20,8 @@ import { useMentionClickHandler } from '../messages/useMentionClickHandler';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
+import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
+import { runTotals, usageTexts } from './runUsage';
 import { SubagentRunCard, latestTurn, type SubagentNode } from './SubagentRunCard';
 import { SubagentRunView } from './SubagentRunView';
 import * as css from './subagentsPanel.css';
@@ -101,10 +103,13 @@ export function SubagentsPanel({
   room,
   threadId,
   onClose,
+  readOnly = false,
 }: {
   room: Room;
   threadId?: string | null;
   onClose: () => void;
+  /** A fork draft is on screen, whose thread's jobs no Stop may cancel. */
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -168,6 +173,18 @@ export function SubagentsPanel({
     [mx, openMention, room.roomId, useAuthentication]
   );
   const title = t('mindroomUi.subagents.title');
+  // Under the title: how many are at it, then what every run of the conversation used.
+  const language = useAppLanguageCode();
+  const totals = useMemo(() => runTotals(runs.map(({ meta }) => meta.usage)), [runs]);
+  const { calls, tokens, cost } = usageTexts(totals, t, language);
+  const subtitle = [
+    active > 0 && t('mindroomUi.subagents.count', { count: active }),
+    calls?.labelled,
+    tokens?.labelled,
+    cost?.labelled,
+  ]
+    .filter((part): part is string => !!part)
+    .join(' · ');
 
   return (
     <section
@@ -187,6 +204,8 @@ export function SubagentsPanel({
           onBack={back}
           onOpen={setOpenId}
           onClose={onClose}
+          viewThreadId={threadId}
+          readOnly={readOnly}
         />
       ) : (
         <>
@@ -195,9 +214,9 @@ export function SubagentsPanel({
               <Text as="h2" size="H4" truncate>
                 {title}
               </Text>
-              {active > 0 && (
-                <Text size="T200" priority="300" truncate>
-                  {t('mindroomUi.subagents.count', { count: active })}
+              {subtitle && (
+                <Text size="T200" priority="300" truncate data-subagents-totals="">
+                  {subtitle}
                 </Text>
               )}
             </div>

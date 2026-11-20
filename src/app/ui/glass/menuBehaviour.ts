@@ -201,7 +201,11 @@ export const useMenuBehaviour = <T extends HTMLElement>(
     ref,
     onKeyDown: (event: ReactKeyboardEvent<T>) => {
       onKeyDown?.(event);
-      if (isMenu) moveMenuFocus(event, event.currentTarget);
+      // A list a row opened in a portal (the tag picker in a thread's menu) keeps its keys, which
+      // React hands on to this menu too.
+      if (isMenu && event.currentTarget.contains(event.target as Node)) {
+        moveMenuFocus(event, event.currentTarget);
+      }
     },
   };
 };

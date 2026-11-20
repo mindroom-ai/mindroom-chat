@@ -82,12 +82,22 @@ export type ThreadActionsMenuProps = {
   onShowFull?: () => void;
   /** The menu of a view the keys do not act on (a second thread's banner): it advertises none. */
   shortcutless?: boolean;
+  /**
+   * The banner shows no tags (a phone's): the menu starts with them, removable and with the tag
+   * picker for an editor, in place of Edit tags.
+   */
+  tagsAtTop?: boolean;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
 
-// As the original's thread menu measures: at least 220px wide, with the banner's 12px corners.
-const menuStyle: React.CSSProperties = { minWidth: toRem(220), borderRadius: config.radii.R500 };
+// As the original's thread menu measures: at least 220px wide, with the banner's 12px corners. A
+// screen narrower than that at a large Page Zoom (320px at 150%) keeps a 0.5rem margin on each side.
+const menuStyle: React.CSSProperties = {
+  minWidth: `min(${toRem(220)}, calc(100vw - 1rem))`,
+  maxWidth: 'calc(100vw - 1rem)',
+  borderRadius: config.radii.R500,
+};
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -115,6 +125,7 @@ export function ThreadActionsMenu({
   onShowBeside,
   onShowFull,
   shortcutless = false,
+  tagsAtTop = false,
   plugins = registeredPlugins,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
@@ -162,11 +173,14 @@ export function ThreadActionsMenu({
     : tags.displayTags.length > 0;
   const tagsEditable = tags.canEdit && rootLoaded;
   const tagsUpdating = !!mutations.updating;
+  const tagsInMenu = tagsAtTop && showTags;
+  // A tag added or removed at the menu's top is saved whether the menu stays or not.
+  const [tagWrite, setTagWrite] = useState(false);
   // Resolve, Unsnooze and pin keep the menu open on their new label; it closes once their save is
   // done.
   const saving = tagsUpdating || !!pinning.updating;
   const savingRef = useRef(saving);
-  savingRef.current = saving;
+  savingRef.current = (tagsUpdating && !tagWrite) || !!pinning.updating;
 
   const openDialog = (next: OpenDialog) => {
     setRequestError(undefined);
@@ -248,6 +262,65 @@ export function ThreadActionsMenu({
     return () => mutations.disconnect();
   }, [dialog, details]);
 
+  const tagSectionRef = useRef<HTMLDivElement>(null);
+  const writeTag = (write: () => Promise<void>) => {
+    setTagWrite(true);
+    void write().finally(() => setTagWrite(false));
+  };
+  // A ✕ pressed with the focus goes as its tag does (at once, before the save is done): the focus
+  // waits on the tags section, from where Tab reaches the first ✕.
+  const removeTag = (tagName: string) => {
+    const section = tagSectionRef.current;
+    if (section?.contains(section.ownerDocument.activeElement)) section.focus();
+    writeTag(() => mutations.removeTag(rootId, tagName));
+  };
+
+  // The thread's tags, removable and with the tag picker for an editor; a save shows its failure
+  // here. At the menu's top, the tags wrap onto rows set apart for their ✕es' touch areas, and a
+  // ✕ waiting for a save stays where it is.
+  const tagEditor = (inMenu: boolean) => (
+    <>
+      <Box
+        wrap="Wrap"
+        gap="200"
+        alignItems="Center"
+        style={inMenu ? { columnGap: '0.5rem', rowGap: '0.75rem' } : undefined}
+      >
+        {tags.displayTags.map((tagName) => {
+          let onRemove: (() => void) | undefined;
+          if (inMenu && tagsEditable) onRemove = () => removeTag(tagName);
+          else if (tagsEditable && !tagsUpdating) {
+            onRemove = () => void mutations.removeTag(rootId, tagName);
+          }
+          return (
+            <ThreadTagPill
+              key={tagName}
+              name={tagName}
+              onRemove={onRemove}
+              removeBusy={inMenu && tagsUpdating}
+            />
+          );
+        })}
+        {tagsEditable && (
+          <ThreadTagPicker
+            availableTags={tags.availableTags}
+            onAddTag={(tagName) =>
+              inMenu
+                ? writeTag(() => mutations.addTag(rootId, tagName))
+                : void mutations.addTag(rootId, tagName)
+            }
+            disabled={tagsUpdating}
+          />
+        )}
+      </Box>
+      {mutations.error && (
+        <Text role="alert" size="T200">
+          {t('threadActions.failed')}
+        </Text>
+      )}
+    </>
+  );
+
   if (dialog === 'snooze') {
     return (
       <SnoozePicker
@@ -271,31 +344,7 @@ export function ThreadActionsMenu({
     const label = tagsEditable ? t('threadActions.tags') : t('thread.stats.tags');
     return (
       <ActionDialog label={label} onClose={closeDialog} busy={false}>
-        <Box wrap="Wrap" gap="200" alignItems="Center">
-          {tags.displayTags.map((tagName) => (
-            <ThreadTagPill
-              key={tagName}
-              name={tagName}
-              onRemove={
-                tagsEditable && !tagsUpdating
-                  ? () => void mutations.removeTag(rootId, tagName)
-                  : undefined
-              }
-            />
-          ))}
-          {tagsEditable && (
-            <ThreadTagPicker
-              availableTags={tags.availableTags}
-              onAddTag={(tagName) => void mutations.addTag(rootId, tagName)}
-              disabled={tagsUpdating}
-            />
-          )}
-        </Box>
-        {mutations.error && (
-          <Text role="alert" size="T200">
-            {t('threadActions.failed')}
-          </Text>
-        )}
+        {tagEditor(false)}
         <Box justifyContent="End">
           <Button
             type="button"
@@ -480,7 +529,7 @@ export function ThreadActionsMenu({
       },
     });
   }
-  if (showTags) {
+  if (showTags && !tagsAtTop) {
     items.push({
       action: 'tags',
       label: tagsEditable ? t('threadActions.tags') : t('thread.stats.tags'),
@@ -634,6 +683,26 @@ export function ThreadActionsMenu({
             style={menuStyle}
           >
             <div className={css.ThreadMenuRows}>
+              {/* Its buttons are reached with Tab, as the details' links; the arrows keep to the rows. */}
+              {tagsInMenu && (
+                <div
+                  ref={tagSectionRef}
+                  role="group"
+                  tabIndex={-1}
+                  className={css.ThreadMenuTags}
+                  aria-label={t('thread.stats.tags')}
+                  data-thread-menu-tags=""
+                >
+                  <Box
+                    direction="Column"
+                    gap="200"
+                    style={{ maxWidth: toRem(320), padding: config.space.S300 }}
+                  >
+                    {tagEditor(true)}
+                  </Box>
+                  <Line variant="Surface" size="300" />
+                </div>
+              )}
               {details.length > 0 && (
                 <div className={css.ThreadMenuDetails}>
                   <div

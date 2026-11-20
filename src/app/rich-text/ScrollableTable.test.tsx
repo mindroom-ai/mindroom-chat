@@ -94,12 +94,15 @@ describe('ScrollableTable read by row', () => {
     expect(byRow.getAttribute('aria-pressed')).toBe('true');
     const items = screen.getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      'M1Revenue$610.0kSourceLedger',
-      'M2Revenue$628.3k',
+      'MonthM1Revenue$610.0kSourceLedger',
+      'MonthM2Revenue$628.3k',
     ]);
+    // The first column keeps its label too.
     expect(screen.getAllByRole('term').map((term) => term.textContent)).toEqual([
+      'Month',
       'Revenue',
       'Source',
+      'Month',
       'Revenue',
     ]);
     expect(screen.getByRole('link', { name: 'Ledger' }).getAttribute('href')).toBe(

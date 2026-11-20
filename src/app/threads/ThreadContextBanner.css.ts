@@ -1,7 +1,8 @@
-import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { shortViewport } from '../ui/styles/shortViewport';
+import { roomArea } from '../ui/styles/roomArea.css';
 import { toolbarButtonRestFill } from '../messages/styles.css';
 
 // Collapsed, the banner shrinks to a pill with back and Show details at the
@@ -37,7 +38,7 @@ export const Banner = style([
   glassDenseOverBackdrop,
 ]);
 
-// Back, title and actions; narrow screens add the tags as a second row.
+// Back, title and actions.
 export const TitleRow = style({
   display: 'grid',
   gridTemplateColumns: 'auto minmax(0, 1fr) auto',
@@ -45,6 +46,46 @@ export const TitleRow = style({
   columnGap: config.space.S300,
   minHeight: '1.5rem',
 });
+
+export const PhoneTitleRow = style({ rowGap: config.space.S100 });
+
+// A phone's row too narrow to hold the whole title beside its buttons (a small phone, Page Zoom;
+// the banner measures it) gives the title the banner's full width under them. The title follows
+// the buttons in the DOM there, so the tab order reads as the screen does.
+export const NarrowPhoneTitleRow = style({});
+
+// Beside a title that, next to them side by side, is at least as tall as them one above the other
+// (the banner measures it), a phone's buttons stack at the row's end, in their order, and the
+// title takes the width they leave.
+export const StackedPhoneTitleRow = style({});
+
+// The buttons keep the row's end, also while the title takes the row under them.
+export const RowActions = style({
+  gridColumn: 3,
+  selectors: {
+    // A phone's buttons stay on the first line whatever their order in the DOM.
+    [`${PhoneTitleRow} > &`]: { gridRow: 1 },
+    // Packed, 4 px apart, in the middle of the row.
+    [`${StackedPhoneTitleRow} > &`]: { flexDirection: 'column' },
+  },
+});
+
+// Stacked, a button's hit area (44 px, touchTarget) stops halfway across the gap to the next one,
+// so neighbours meet and never share a point; the first and the last still reach out to 44 px
+// above and below the column. Each stays 44 px wide.
+const stackedButtons = `[data-thread-context-banner] ${StackedPhoneTitleRow} > ${RowActions}`;
+const halfGap = `calc(-0.5 * ${config.space.S100})`;
+const outward = 'min(0px, calc((100% - 44px) / 2))';
+const coarse = (rule: CSSProperties) => ({ '@media': { '(pointer: coarse)': rule } });
+globalStyle(`${stackedButtons} button::after`, coarse({ insetBlock: halfGap }));
+globalStyle(
+  `${stackedButtons} > button:first-child::after, ${stackedButtons} > :first-child button::after`,
+  coarse({ insetBlockStart: outward })
+);
+globalStyle(
+  `${stackedButtons} > button:last-child::after, ${stackedButtons} > :last-child button::after`,
+  coarse({ insetBlockEnd: outward })
+);
 
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({
@@ -57,7 +98,7 @@ export const EyebrowRow = style({
       minWidth: 0,
       selectors: { [`&:not(:has(> :not(${CompactHidden})))`]: { display: 'none' } },
     },
-    // Phones show the tags in a row of their own, so here only status chips take another line.
+    // Phones show no tags here, so only status chips take another line.
     '(max-width: 480px)': { flexWrap: 'wrap' },
   },
 });
@@ -84,6 +125,11 @@ export const TitleColumn = style({
   minWidth: 0,
   gap: 0,
   ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
+  selectors: {
+    // Placed, so the banner can lay the row out as it would be and measure it.
+    [`${PhoneTitleRow} > &`]: { gridColumn: 2, gridRow: 1 },
+    [`${NarrowPhoneTitleRow} > &`]: { gridColumn: '1 / -1', gridRow: 2 },
+  },
 });
 
 // The tags take the room the status chips leave, and wrap onto another line where they do not
@@ -95,18 +141,6 @@ export const TagsRow = style({
   gap: '0.3rem',
   flexWrap: 'wrap',
   overflow: 'hidden',
-});
-
-/**
- * Desktop: tags inline on title row (hidden below).
- * Mobile (<480px): tags hidden on title row, shown in a dedicated row below.
- */
-export const DesktopOnlyTags = style({
-  '@media': {
-    '(max-width: 480px)': {
-      display: 'none',
-    },
-  },
 });
 
 // On short screens the title and a scheduled task share one line and truncate together; they take the room the
@@ -123,10 +157,9 @@ export const SubtitleRow = style({
   },
   '@media': {
     [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0', minWidth: '4rem' },
-    // Narrow screens move the tags to their own row, which can leave the
-    // eyebrow row with nothing showing: neither the view label nor a status chip. (Asked as
-    // "no child but the tags", a :has() before a sibling combinator made WebKit restyle the
-    // whole page on every DOM change anywhere, on every screen size.)
+    // Narrow screens can leave the eyebrow row with nothing showing: neither the view label nor
+    // a status chip. (Asked as "no child but the tags", a :has() before a sibling combinator made
+    // WebKit restyle the whole page on every DOM change anywhere, on every screen size.)
     '(max-width: 480px)': {
       selectors: {
         [`${EyebrowRow}:not(:has(> ${ViewLabel}, > [data-thread-status-chip])) + &`]: {
@@ -190,15 +223,29 @@ export const OverflowChip = style({
   verticalAlign: 'middle',
 });
 
-export const MobileOnlyTags = style({
-  display: 'none',
-  gridColumn: '2 / -1',
-  '@media': {
-    '(max-width: 480px)': {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '0.3rem',
-      marginTop: config.space.S100,
+// A phone's title in full, on a line of its own: it wraps onto as many lines as it needs. Taller
+// than three lines or 38% of the room area, it scrolls in itself, so the conversation keeps its
+// room; a keyboard's short area keeps one line of it (in rem for Page Zoom, as the row).
+export const PhoneTitle = style({
+  display: 'block',
+  minWidth: 0,
+  flex: '1 1 100%',
+  fontWeight: config.fontWeight.W500,
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  maxBlockSize: `max(calc(3 * ${config.lineHeight.T300}), 38cqh)`,
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
+  selectors: {
+    // Under the buttons, the row's 2rem and its gap count toward the 38%.
+    [`${NarrowPhoneTitleRow} &`]: {
+      maxBlockSize: `max(calc(3 * ${config.lineHeight.T300}), calc(38cqh - 2rem - ${config.space.S100}))`,
+    },
+  },
+  '@container': {
+    [`${roomArea} (max-height: 15rem)`]: {
+      maxBlockSize: config.lineHeight.T300,
+      selectors: { [`${NarrowPhoneTitleRow} &`]: { maxBlockSize: config.lineHeight.T300 } },
     },
   },
 });
