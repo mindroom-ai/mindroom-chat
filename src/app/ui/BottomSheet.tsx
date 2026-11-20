@@ -1,4 +1,11 @@
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import {
   Box,
   config,
@@ -11,6 +18,7 @@ import {
   Text,
 } from 'folds';
 import { FocusScope, mergeProps, useDialog, useModalOverlay } from 'react-aria';
+import { holdModalSheet } from '../lib/portalOverlay';
 import { PageScroll } from './page/PageScroll';
 import { Header, Modal } from './glass/GlassPrimitives';
 import * as css from './BottomSheet.css';
@@ -63,6 +71,8 @@ export function BottomSheet({
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) =>
     menus?.hasChildNodes() || modalProps.onKeyDown?.(event);
   const { dialogProps } = useDialog({ 'aria-label': title }, dialogRef);
+  // Global shortcuts wait while it is open: a layer they opened over it would be inert.
+  useEffect(() => holdModalSheet(), []);
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>

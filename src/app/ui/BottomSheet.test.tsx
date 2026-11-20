@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
+import { openOverlay } from '../shortcuts/shortcutDom';
 import { PopOut } from './directional';
 import { BottomSheet } from './BottomSheet';
 
@@ -70,5 +72,13 @@ describe('BottomSheet', () => {
     open();
     expect(screen.getByText('Room').closest('[inert], [aria-hidden="true"]')).not.toBeNull();
     expect(screen.getByRole('dialog', { name: 'Helper' }).closest('[inert]')).toBeNull();
+  });
+
+  it('holds global shortcuts (the command palette among them) while open, and only then', () => {
+    expect([hasBlockingPortalOverlay(), openOverlay()]).toEqual([false, 'none']);
+    open();
+    expect([hasBlockingPortalOverlay(), openOverlay()]).toEqual([true, 'other']);
+    cleanup();
+    expect([hasBlockingPortalOverlay(), openOverlay()]).toEqual([false, 'none']);
   });
 });
