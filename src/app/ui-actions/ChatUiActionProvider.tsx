@@ -28,12 +28,11 @@ export type ChatUiActionOptions = {
   unavailable: (action: ChatUiAction) => string | undefined;
   /** The canvas the room's panel shows, by its request's event ID. */
   openCanvasId?: string;
-  /** Set while canvases are off: a request for a text version, drafted where the viewer can post. */
+  /** Set while canvases are off: a request for a text version, drafted in the canvas's thread. */
   textRequest?: TextRequest;
 };
 
 export type TextRequest = {
-  canPost: boolean;
   offer: (threadId: string | undefined, text: string) => Atom<'empty' | 'offered' | 'busy'>;
   fill: (action: ChatUiAction, text: string) => void;
 };

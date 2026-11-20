@@ -36,6 +36,19 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options: { defaultValue?: string }) => options?.defaultValue ?? key,
   }),
 }));
+// Whether the viewer may post in the room, and whether it was upgraded.
+const posting = vi.hoisted(() => ({ allowed: true, tombstone: false }));
+vi.mock('../matrix/hooks/useRoom', () => ({
+  useRoom: () => ({ client: { getSafeUserId: () => '@alice:example.org' } }),
+}));
+vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
+vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
+vi.mock('../matrix/hooks/useRoomPermissions', () => ({
+  useRoomPermissions: () => ({ event: () => posting.allowed }),
+}));
+vi.mock('../matrix/hooks/useStateEvent', () => ({
+  useStateEvent: () => (posting.tombstone ? {} : undefined),
+}));
 const copyToClipboard = vi.hoisted(() => vi.fn(async (_text: string) => true));
 vi.mock('../lib/dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/dom')>()),
@@ -270,11 +283,14 @@ describe('Chat UI request buttons', () => {
 
     // The composer's state as Room derives it; a test sets it as the user would change the draft.
     const composer = atom<'empty' | 'offered' | 'busy'>('empty');
-    const offOptions = (canPost = true) => {
+    const offOptions = () => {
       const fill = vi.fn(() => getDefaultStore().set(composer, 'offered'));
-      return { fill, textRequest: { canPost, offer: () => composer, fill } };
+      return { fill, textRequest: { offer: () => composer, fill } };
     };
-    afterEach(() => act(() => getDefaultStore().set(composer, 'empty')));
+    afterEach(() => {
+      act(() => getDefaultStore().set(composer, 'empty'));
+      Object.assign(posting, { allowed: true, tombstone: false });
+    });
 
     it('says so beside the title and asks for a text version in the draft, sending nothing', async () => {
       const { fill, textRequest } = offOptions();
@@ -313,11 +329,13 @@ describe('Chat UI request buttons', () => {
       expect(status()).toBe('mindroomUi.uiActions.askForTextStatus.hint');
     });
 
-    it('offers no request where the viewer cannot post, and still says why', () => {
+    it.each([
+      { allowed: false, tombstone: false },
+      { allowed: true, tombstone: true },
+    ])('offers no request where no composer shows (%j), and still says why', (state) => {
+      Object.assign(posting, state);
       const { render } = setup(canvasEvent());
-      render({
-        textRequest: offOptions(false).textRequest,
-      });
+      render({ textRequest: offOptions().textRequest });
       expect(container.querySelector('button')).toBeNull();
       expect(container.textContent).toBe('mindroomUi.uiActions.canvasOff');
     });

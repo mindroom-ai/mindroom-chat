@@ -6,6 +6,12 @@ import { Box, Button, Icon, Icons, Text } from 'folds';
 import type { ChatUiAction } from '../matrix/protocol/chatUiProtocol';
 import { ChatUiActionContext, type TextRequest } from './ChatUiActionProvider';
 import { copyToClipboard } from '../lib/dom';
+import { useRoom } from '../matrix/hooks/useRoom';
+import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
+import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
+import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
 
 type CanvasAction = Extract<ChatUiAction, { action: 'show_canvas' }>;
 
@@ -31,6 +37,12 @@ function AskForText({ action, request }: { action: CanvasAction; request: TextRe
   const composer = useAtomValue(offerAtom);
   const [copied, setCopied] = useState(false);
   useEffect(() => setCopied(false), [composer]);
+  // No request where no composer shows: an upgraded room, or one this member cannot post in.
+  const room = useRoom();
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
+  const canPost =
+    !useStateEvent(room, StateEvent.RoomTombstone) &&
+    permissions.event('m.room.message', room.client.getSafeUserId());
   const onClick = () => {
     if (composer === 'empty') request.fill(action, text);
     else void copyToClipboard(text).then(setCopied);
@@ -41,7 +53,7 @@ function AskForText({ action, request }: { action: CanvasAction; request: TextRe
       <Text size="T200" priority="400">
         {t('mindroomUi.uiActions.canvasOff')}
       </Text>
-      {request.canPost && (
+      {canPost && (
         <Box alignItems="Center" gap="300" wrap="Wrap">
           <Button size="300" variant="Secondary" fill="Soft" radii="300" onClick={onClick}>
             <Text size="B300">
