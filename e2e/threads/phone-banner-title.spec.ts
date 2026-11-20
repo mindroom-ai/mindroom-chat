@@ -7,6 +7,7 @@ import {
   type BrowserContextOptions,
   type Locator,
   type Page,
+  type Route,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -834,6 +835,88 @@ test("in WebKit: a phone's buttons stack beside a tall title and stay in a row b
 // Invented, and new to the room.
 const ADDED_TAG = 'needs-review';
 
+/**
+ * The tag controls at the menu's top on a touch screen: a finger a few px off a ✕ or "+ tag" still
+ * gets it, and every point of the section a control takes is at least as near to that control as
+ * to any other, so no area reaches into a neighbour's.
+ */
+const expectTagTargets = async (section: Locator) => {
+  const found = await section.evaluate((element) => {
+    const controls = Array.from(
+      element.querySelectorAll<HTMLElement>('.thread-tag-pill-remove, button[aria-haspopup="menu"]')
+    );
+    const boxes = controls.map((control) => control.getBoundingClientRect());
+    const owner = (x: number, y: number) =>
+      document.elementFromPoint(x, y)?.closest<HTMLElement>('button') ?? null;
+    const distance = (box: DOMRect, x: number, y: number) =>
+      Math.hypot(
+        Math.max(box.left - x, 0, x - box.right),
+        Math.max(box.top - y, 0, y - box.bottom)
+      );
+    const missed: string[] = [];
+    controls.forEach((control, index) => {
+      const box = boxes[index]!;
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      for (const [px, py] of [
+        [x, box.top - 4],
+        [x, box.bottom + 4],
+        [box.left - 4, y],
+        [box.right + 4, y],
+      ] as const) {
+        if (owner(px, py) !== control) {
+          missed.push(
+            `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(py)}`
+          );
+        }
+      }
+    });
+    const stolen: string[] = [];
+    const area = element.getBoundingClientRect();
+    for (let py = area.top; py < area.bottom; py += 2) {
+      for (let px = area.left; px < area.right; px += 2) {
+        const hit = owner(px, py);
+        const index = hit ? controls.indexOf(hit) : -1;
+        if (index < 0) continue;
+        const own = distance(boxes[index]!, px, py);
+        const nearer = boxes.findIndex(
+          (box, other) => other !== index && distance(box, px, py) < own - 1.5
+        );
+        if (nearer >= 0) {
+          stolen.push(
+            `${controls[index]!.getAttribute('aria-label')} over ${controls[nearer]!.getAttribute(
+              'aria-label'
+            )} at ${Math.round(px)},${Math.round(py)}`
+          );
+        }
+      }
+    }
+    return { count: controls.length, missed, stolen: stolen.slice(0, 5) };
+  });
+  expect(found.count).toBeGreaterThan(1);
+  expect(found.missed).toEqual([]);
+  expect(found.stolen).toEqual([]);
+};
+
+/** Holds the page's state writes (a tag's save) until the returned function lets them go. */
+const holdStateWrites = async (page: Page) => {
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const matcher = (url: URL) => url.pathname.includes('/state/');
+  const handler = async (route: Route) => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    await held;
+    return route.continue();
+  };
+  await page.route(matcher, handler);
+  return async () => {
+    release();
+    await page.unroute(matcher, handler);
+  };
+};
+
 test("a phone's thread menu starts with the tags, and a tag added there shows in it", async ({
   browser,
   baseURL,
@@ -859,6 +942,37 @@ test("a phone's thread menu starts with the tags, and a tag added there shows in
     const section = menu.locator('[data-thread-menu-tags]');
     const addTag = section.getByRole('button', { name: 'Add tag' });
     const field = page.getByRole('textbox', { name: 'Filter or create tag' });
+    const remove = (tag: string) => section.getByRole('button', { name: `Remove ${tag} tag` });
+    await expectTagTargets(section);
+
+    // From the keyboard: the tag goes at once while its save is held, and the next tag's ✕ takes
+    // the focus and keeps it once the save is done.
+    let release = await holdStateWrites(page);
+    await remove('flaky').focus();
+    await page.keyboard.press('Enter');
+    await expect(section.getByText('flaky', { exact: true })).toHaveCount(0);
+    await expect(remove('networking')).toBeFocused();
+    await expect(remove('networking')).toHaveAttribute('aria-disabled', 'true');
+    await release();
+    await expect(remove('networking')).not.toHaveAttribute('aria-disabled', 'true', {
+      timeout: 30_000,
+    });
+    await expect(remove('networking')).toBeFocused();
+
+    // A tap a few px above the ✕ removes the tag; while its save is held, Escape closes the menu,
+    // and the save still lands.
+    release = await holdStateWrites(page);
+    const glyph = (await remove('release-blocker').boundingBox())!;
+    await page.touchscreen.tap(glyph.x + glyph.width / 2, glyph.y - 4);
+    await expect(section.getByText('release-blocker', { exact: true })).toHaveCount(0);
+    await expect(remove('networking')).toHaveAttribute('aria-disabled', 'true');
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await release();
+    await openMenuWithTags(page, ['networking', 'uploads']);
+    await expect(section.getByText('release-blocker', { exact: true })).toHaveCount(0, {
+      timeout: 30_000,
+    });
 
     // Escape in the tag picker closes the picker only.
     await addTag.tap();

@@ -286,6 +286,8 @@ describe('ThreadActionsMenu with the tags at its top', () => {
     state.tags.displayTags = ['triage'];
     state.mutations.updating = false;
     state.mutations.error = null;
+    state.mutations.addTag.mockResolvedValue(undefined);
+    state.mutations.removeTag.mockResolvedValue(undefined);
     state.rootLoaded = true;
   });
 
@@ -336,14 +338,14 @@ describe('ThreadActionsMenu with the tags at its top', () => {
     renderer.unmount();
   });
 
-  it('stays open while tags are added and removed, and shows a failure in place', () => {
+  it('stays open while tags are added and removed, and shows a failure in place', async () => {
     const onClose = vi.fn();
     const renderer = render({ tagsAtTop: true, onClose });
-    act(() => {
+    await act(async () => {
       picker(renderer).props.onAddTag('urgent');
     });
     expect(state.mutations.addTag).toHaveBeenCalledWith('$root', 'urgent');
-    act(() => {
+    await act(async () => {
       pill(renderer).props.onRemove();
     });
     expect(state.mutations.removeTag).toHaveBeenCalledWith('$root', 'triage');
@@ -354,7 +356,7 @@ describe('ThreadActionsMenu with the tags at its top', () => {
     state.mutations.updating = true;
     (state.mutations as { error: unknown }).error = new Error('denied');
     act(() => renderer.update(renderMenu({ tagsAtTop: true, onClose })));
-    expect(pill(renderer).props.onRemove).toBeUndefined();
+    expect(pill(renderer).props.removeBusy).toBe(true);
     expect(picker(renderer).props.disabled).toBe(true);
     expect(
       onlySection(renderer).findAll((node) => node.props.role === 'alert').length

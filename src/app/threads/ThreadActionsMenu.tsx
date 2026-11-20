@@ -2,6 +2,7 @@ import React, {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -174,11 +175,13 @@ export function ThreadActionsMenu({
   const tagsEditable = tags.canEdit && rootLoaded;
   const tagsUpdating = !!mutations.updating;
   const tagsInMenu = tagsAtTop && showTags;
+  // A tag added or removed at the menu's top is saved whether the menu stays or not.
+  const [tagWrite, setTagWrite] = useState(false);
   // Resolve, Unsnooze and pin keep the menu open on their new label; it closes once their save is
   // done.
   const saving = tagsUpdating || !!pinning.updating;
   const savingRef = useRef(saving);
-  savingRef.current = saving;
+  savingRef.current = (tagsUpdating && !tagWrite) || !!pinning.updating;
 
   const openDialog = (next: OpenDialog) => {
     setRequestError(undefined);
@@ -275,26 +278,88 @@ export function ThreadActionsMenu({
     };
   }, [anchor, dialog, details, tagsInMenu]);
 
+  const tagSectionRef = useRef<HTMLDivElement>(null);
+  // The tag whose focused ✕ was pressed, and its place among the tags.
+  const removedFocusRef = useRef<{ tag: string; index: number }>();
+  const writeTag = (write: () => Promise<void>) => {
+    setTagWrite(true);
+    void write().finally(() => setTagWrite(false));
+  };
+  const removeTag = (tagName: string, index: number) => {
+    const section = tagSectionRef.current;
+    const focused = section?.ownerDocument.activeElement;
+    if (
+      focused &&
+      section?.contains(focused) &&
+      focused.closest('.thread-tag-pill')?.getAttribute('title') === tagName
+    ) {
+      removedFocusRef.current = { tag: tagName, index };
+    }
+    writeTag(() => mutations.removeTag(rootId, tagName));
+  };
+
+  // Once a tag removed with its focused ✕ is gone, the focus goes to the next tag's ✕, else the
+  // previous one's, else the tag picker (once it takes it again), else the menu's first row. A
+  // removal that fails leaves the tag, whose ✕ keeps the focus.
+  useLayoutEffect(() => {
+    const removed = removedFocusRef.current;
+    const section = tagSectionRef.current;
+    if (!removed || !section) return;
+    if (tags.displayTags.includes(removed.tag)) {
+      if (!tagsUpdating) removedFocusRef.current = undefined;
+      return;
+    }
+    const focused = section.ownerDocument.activeElement;
+    if (focused && focused !== section.ownerDocument.body && !section.contains(focused)) {
+      // The focus has moved on in the meantime.
+      removedFocusRef.current = undefined;
+      return;
+    }
+    const removes = Array.from(section.querySelectorAll<HTMLElement>('.thread-tag-pill-remove'));
+    const picker = section.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
+    const target =
+      removes[removed.index] ?? removes[removed.index - 1] ?? (picker?.disabled ? null : picker);
+    if (!target && picker?.disabled) return;
+    removedFocusRef.current = undefined;
+    (
+      target ?? surfaceRef.current?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')
+    )?.focus();
+  }, [tags.displayTags, tagsUpdating]);
+
   // The thread's tags, removable and with the tag picker for an editor; a save shows its failure
-  // here.
-  const tagEditor = (
+  // here. At the menu's top, the tags wrap onto rows set apart for their ✕es' touch areas, and a
+  // ✕ waiting for a save stays where it is.
+  const tagEditor = (inMenu: boolean) => (
     <>
-      <Box wrap="Wrap" gap="200" alignItems="Center">
-        {tags.displayTags.map((tagName) => (
-          <ThreadTagPill
-            key={tagName}
-            name={tagName}
-            onRemove={
-              tagsEditable && !tagsUpdating
-                ? () => void mutations.removeTag(rootId, tagName)
-                : undefined
-            }
-          />
-        ))}
+      <Box
+        wrap="Wrap"
+        gap="200"
+        alignItems="Center"
+        style={inMenu ? { columnGap: '0.5rem', rowGap: '0.75rem' } : undefined}
+      >
+        {tags.displayTags.map((tagName, index) => {
+          let onRemove: (() => void) | undefined;
+          if (inMenu && tagsEditable) onRemove = () => removeTag(tagName, index);
+          else if (tagsEditable && !tagsUpdating) {
+            onRemove = () => void mutations.removeTag(rootId, tagName);
+          }
+          return (
+            <ThreadTagPill
+              key={tagName}
+              name={tagName}
+              onRemove={onRemove}
+              removeBusy={inMenu && tagsUpdating}
+            />
+          );
+        })}
         {tagsEditable && (
           <ThreadTagPicker
             availableTags={tags.availableTags}
-            onAddTag={(tagName) => void mutations.addTag(rootId, tagName)}
+            onAddTag={(tagName) =>
+              inMenu
+                ? writeTag(() => mutations.addTag(rootId, tagName))
+                : void mutations.addTag(rootId, tagName)
+            }
             disabled={tagsUpdating}
           />
         )}
@@ -330,7 +395,7 @@ export function ThreadActionsMenu({
     const label = tagsEditable ? t('threadActions.tags') : t('thread.stats.tags');
     return (
       <ActionDialog label={label} onClose={closeDialog} busy={false}>
-        {tagEditor}
+        {tagEditor(false)}
         <Box justifyContent="End">
           <Button
             type="button"
@@ -671,13 +736,18 @@ export function ThreadActionsMenu({
             <div className={css.ThreadMenuRows}>
               {/* Its buttons are reached with Tab, as the details' links; the arrows keep to the rows. */}
               {tagsInMenu && (
-                <div role="group" aria-label={t('thread.stats.tags')} data-thread-menu-tags="">
+                <div
+                  ref={tagSectionRef}
+                  role="group"
+                  aria-label={t('thread.stats.tags')}
+                  data-thread-menu-tags=""
+                >
                   <Box
                     direction="Column"
                     gap="200"
                     style={{ maxWidth: toRem(320), padding: config.space.S300 }}
                   >
-                    {tagEditor}
+                    {tagEditor(true)}
                   </Box>
                   <Line variant="Surface" size="300" />
                 </div>
