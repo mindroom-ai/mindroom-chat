@@ -1,12 +1,14 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import { normalizeMatrixWaveform } from '../../lib/audioWaveform';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 import { getVoiceFileName } from './voiceRecorderMime';
 
 /**
  * Every voice recording on disk, from its first second until the server gave its voice event an
  * ID or the person let a Discard stand. The recorder appends each chunk as it arrives, so a crash,
- * a reload or an app update loses at most the last second; what sends it writes where it goes and
- * its Matrix transaction ID before anything is sent, so a retry after a crash posts it once.
+ * a reload or an app update loses at most the last second.
+ *
+ * The record here is the truth about a recording, and every change to it is one call of
+ * `transitionVoiceRecording`: what shows, what expires and what is sent act on its outcome only,
+ * after the write. A write that failed leaves the state before it, which is the safer one.
  *
  * The tab that owns a recording holds the Web Lock named after it, from before its first write
  * until it deletes the record. A record nobody holds is an orphan, which the next page adopts.
@@ -46,17 +48,18 @@ type VoiceJournalChunk = {
   type: string;
   /** How long the recording was when this chunk arrived. */
   elapsedMs: number;
-  /** The waveform samples since the chunk before. */
-  samples: number[];
 };
 
 /** A recording read back from disk. */
-export type JournaledVoiceRecording = {
-  record: VoiceJournalRecord;
-  file: File;
-  duration: number;
-  waveform: number[] | undefined;
-};
+export type JournaledVoiceRecording = { record: VoiceJournalRecord; file: File; duration: number };
+
+/**
+ * What a change to a recording came to. `committed`: the disk holds it, and all of the audio.
+ * `absent`: the disk has no such recording, because it never took one (no Web Locks, or storage
+ * that refused from the start) or it is deleted; it lives in memory at most. `failed`: nothing
+ * was written, and the state before stands.
+ */
+export type VoiceTransitionOutcome = 'committed' | 'absent' | 'failed';
 
 interface VoiceJournalDb extends DBSchema {
   recordings: { key: string; value: VoiceJournalRecord; indexes: { userId: string } };
@@ -84,13 +87,42 @@ const database = (): Promise<IDBPDatabase<VoiceJournalDb>> => {
 const chunksOf = (recordingId: string) =>
   IDBKeyRange.bound([recordingId, 0], [recordingId, Infinity]);
 
+type Stores = IDBPTransaction<VoiceJournalDb, ('recordings' | 'chunks')[], 'readwrite'>;
+/** One transaction: all of the writes `work` asks for, or none of them. */
+const atomically = async (work: (tx: Stores) => Promise<unknown>[]): Promise<void> => {
+  const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
+  tx.done.catch(() => undefined);
+  try {
+    await Promise.all([...work(tx), tx.done]);
+  } catch (error) {
+    try {
+      tx.abort();
+    } catch {
+      /* It aborted by itself. */
+    }
+    throw error;
+  }
+};
+const deleteRows = (recordingId: string) => (tx: Stores) =>
+  [
+    tx.objectStore('recordings').delete(recordingId),
+    tx.objectStore('chunks').delete(chunksOf(recordingId)),
+  ];
+
 // Ownership.
 
-/** The recordings this tab owns, each with what gives its lock back. */
-const held = new Map<string, () => void>();
+/** A recording this tab owns: what gives its lock back, and what the disk does not hold of it. */
+type Held = {
+  release: () => void;
+  /** Its record, while the disk never took one. */
+  unstored?: VoiceJournalRecord;
+  /** The chunks still to write. The Blobs, which are read again for every try. */
+  chunks: { seq: number; data: Blob; elapsedMs: number }[];
+};
+const held = new Map<string, Held>();
 
 /** Takes a recording for this tab, until `release`; false when it cannot be this tab's alone. */
-const take = (recordingId: string): Promise<boolean> => {
+const take = (recordingId: string, unstored?: VoiceJournalRecord): Promise<boolean> => {
   const locks: LockManager | undefined = globalThis.navigator?.locks;
   if (!locks || held.has(recordingId)) return Promise.resolve(false);
   return new Promise((resolve) => {
@@ -100,9 +132,9 @@ const take = (recordingId: string): Promise<boolean> => {
           resolve(false);
           return undefined;
         }
-        resolve(true);
         return new Promise<void>((release) => {
-          held.set(recordingId, release);
+          held.set(recordingId, { release, unstored, chunks: [] });
+          resolve(true);
         });
       })
       .catch(() => resolve(false));
@@ -110,7 +142,7 @@ const take = (recordingId: string): Promise<boolean> => {
 };
 
 const release = (recordingId: string) => {
-  held.get(recordingId)?.();
+  held.get(recordingId)?.release();
   held.delete(recordingId);
 };
 
@@ -126,117 +158,13 @@ const inOrder = <T>(recordingId: string, write: () => Promise<T>): Promise<T> =>
   return next;
 };
 
-type Row = VoiceJournalRecord | VoiceJournalChunk;
-/** What each recording still owes the disk, in order: a write that failed is made again first. */
-const owed = new Map<string, Promise<Row>[]>();
-
-/** Writes a recording's next row after all it still owes; true once the disk holds all of it. */
-const writeAudio = (recordingId: string, row?: Promise<Row>): Promise<boolean> => {
-  row?.catch(() => undefined);
-  if (row) owed.set(recordingId, [...(owed.get(recordingId) ?? []), row]);
-  return inOrder(recordingId, async () => {
-    try {
-      if (!held.has(recordingId) && !(await take(recordingId))) return false;
-      const rows = owed.get(recordingId) ?? [];
-      const values = await Promise.all(rows);
-      const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
-      await Promise.all([
-        ...values.map((value) =>
-          'seq' in value
-            ? tx.objectStore('chunks').put(value)
-            : tx.objectStore('recordings').put(value)
-        ),
-        tx.done,
-      ]);
-      owed.set(recordingId, (owed.get(recordingId) ?? []).slice(rows.length));
-      return true;
-    } catch {
-      return false;
-    }
-  });
-};
-
-/**
- * Writes later changes to a recording this tab owns: where it goes and its transaction ID, or a
- * discard. False when they did not reach the disk, also because the disk has no such recording.
- */
-export const updateVoiceRecording = (
-  recordingId: string,
-  changes: Partial<Pick<VoiceJournalRecord, 'destination' | 'txnId' | 'discardUntil'>>
-): Promise<boolean> =>
-  inOrder(recordingId, async () => {
-    if (!held.has(recordingId)) return false;
-    const tx = (await database()).transaction('recordings', 'readwrite');
-    const record = await tx.store.get(recordingId);
-    await Promise.all([record && tx.store.put({ ...record, ...changes }), tx.done]);
-    return !!record;
-  }).catch(() => false);
-
-/**
- * Deletes a recording and gives up its lock: it was sent, it has no audio, or its discard stood.
- * With `expiredBy`, only if the disk says its discard stood until then.
- */
-export const deleteVoiceRecording = (recordingId: string, expiredBy?: number): Promise<void> =>
-  inOrder(recordingId, async () => {
-    const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
-    if (expiredBy !== undefined) {
-      const until = (await tx.objectStore('recordings').get(recordingId))?.discardUntil;
-      if (until === undefined || until > expiredBy) return;
-    }
-    await Promise.all([
-      tx.objectStore('recordings').delete(recordingId),
-      tx.objectStore('chunks').delete(chunksOf(recordingId)),
-      tx.done,
-    ]);
-    release(recordingId);
-    owed.delete(recordingId);
-    lastWrite.delete(recordingId);
-  }).catch(() => undefined);
-
-let persistenceAsked = false;
-
-/**
- * What the capture session writes a recording through, for `userId`'s account. `begin` and
- * `append` resolve true while the disk holds all of the recording so far.
- */
-export const voiceCaptureJournal = (userId: () => string) => ({
-  begin: (meta: { recordingId: string; startedAt: number; mimeType: string }): Promise<boolean> => {
-    if (!persistenceAsked) {
-      persistenceAsked = true;
-      // Best effort: persistent storage is not evicted when the disk runs short.
-      globalThis.navigator?.storage?.persist?.().catch(() => undefined);
-    }
-    return writeAudio(meta.recordingId, Promise.resolve({ userId: userId(), ...meta }));
-  },
-  /** `seq` is the chunk's place, which the caller assigns as the chunk arrives. */
-  append: (
-    recordingId: string,
-    seq: number,
-    { data, elapsedMs, samples }: { data: Blob; elapsedMs: number; samples: number[] }
-  ): Promise<boolean> =>
-    // Read now, written in turn: the reads of two chunks may finish in either order.
-    writeAudio(
-      recordingId,
-      data
-        .arrayBuffer()
-        .then((bytes) => ({ recordingId, seq, bytes, type: data.type, elapsedMs, samples }))
-    ),
-  /** Once more, what a stopped recording still owes the disk. */
-  flush: (recordingId: string): Promise<boolean> => writeAudio(recordingId),
-  /** The recorder stopped without audio: nothing to keep. */
-  abandon: (recordingId: string): void => {
-    void deleteVoiceRecording(recordingId);
-  },
-});
-
-// The copy of a failed send an older version kept, one per account.
+// The copy of a failed send an older version kept, one per account, in its own database.
 
 type LegacyVoiceDraft = {
   userId: string;
   audio: ArrayBuffer;
   fileType: string;
   duration: number;
-  waveform?: number[];
   roomId: string;
   threadId?: string;
   replyDraft?: { eventId: string; relation?: { rel_type?: string; event_id?: string } };
@@ -244,19 +172,9 @@ type LegacyVoiceDraft = {
   threadView?: boolean;
 };
 
-const sameBytes = (a: ArrayBuffer, b: ArrayBuffer): boolean => {
-  const [left, right] = [new Uint8Array(a), new Uint8Array(b)];
-  return left.length === right.length && left.every((byte, at) => byte === right[at]);
-};
-
 const LEGACY_DATABASE = 'mindroom-voice-drafts';
-/**
- * Copies the old database's recordings into the journal, where each is an orphan like any other.
- * A copy is named after its account and its audio, so copying again changes nothing. The old
- * database stays, since a tab of the older version may still write to it; of its entries only one
- * that still is what was copied is deleted.
- */
-const importLegacyDrafts = async (): Promise<void> => {
+/** Runs `work` on the older version's database, if the browser has one. */
+const withLegacyDrafts = async <T>(work: (legacy: IDBPDatabase) => Promise<T>): Promise<void> => {
   const known = await indexedDB.databases?.();
   if (known && !known.some((entry) => entry.name === LEGACY_DATABASE)) return;
   // Opened the way the older version does, so a browser that cannot list databases creates it right.
@@ -264,53 +182,144 @@ const importLegacyDrafts = async (): Promise<void> => {
     upgrade: (db) => void db.createObjectStore('drafts', { keyPath: 'userId' }),
   });
   try {
-    const drafts: LegacyVoiceDraft[] = await legacy.getAll('drafts');
-    /* eslint-disable no-await-in-loop */
-    for (const { userId, audio, fileType, duration, waveform, replyDraft, ...to } of drafts) {
-      const recordingId = `imported:${userId}:${audio.byteLength}:${duration}`;
-      const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
-      const copied = await tx.objectStore('recordings').get(recordingId);
-      await Promise.all([
-        !copied &&
-          tx.objectStore('recordings').put({
-            userId,
-            recordingId,
-            startedAt: Date.now(),
-            mimeType: fileType,
-            destination: {
-              roomId: to.roomId,
-              threadId: to.threadId,
-              replyEventId: replyDraft?.eventId,
-              replyThreadId:
-                replyDraft?.relation?.rel_type === 'm.thread'
-                  ? replyDraft.relation.event_id
-                  : undefined,
-              threadingEnabled: to.threadingEnabled,
-              threadView: to.threadView,
-            },
-          }),
-        !copied &&
-          tx.objectStore('chunks').put({
-            recordingId,
-            seq: 0,
-            bytes: audio,
-            type: fileType,
-            elapsedMs: duration,
-            samples: waveform ?? [],
-          }),
-        tx.done,
-      ]);
-      const old = legacy.transaction('drafts', 'readwrite');
-      const current: LegacyVoiceDraft | undefined = await old.store.get(userId);
-      await Promise.all([
-        current && sameBytes(current.audio, audio) && old.store.delete(userId),
-        old.done,
-      ]);
-    }
-    /* eslint-enable no-await-in-loop */
+    await work(legacy);
   } finally {
     legacy.close();
   }
+};
+/** Its copy in the journal is named after its audio, so copying it again changes nothing. */
+const legacyId = async (audio: ArrayBuffer): Promise<string> =>
+  `legacy-${Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', audio)), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('')}`;
+/** One at a time per account: a copy is made, or a copy and what it was made of are deleted. */
+const legacyTurn = <T>(userId: string, work: () => Promise<T>): Promise<T> =>
+  navigator.locks.request(`mindroom-voice-legacy-import:${userId}`, work);
+
+/**
+ * Copies the account's old recording into the journal, where it is an orphan like any other. The
+ * old one stays until its copy is deleted (`deleteStored`): a tab of the older version may still
+ * write there, and a copy that is gone must not be made again.
+ */
+const importLegacyDraft = (userId: string): Promise<void> =>
+  legacyTurn(userId, () =>
+    withLegacyDrafts(async (legacy) => {
+      const draft: LegacyVoiceDraft | undefined = await legacy.get('drafts', userId);
+      if (!draft) return;
+      const { audio, fileType, duration, replyDraft, ...to } = draft;
+      const recordingId = await legacyId(audio);
+      if (await (await database()).get('recordings', recordingId)) return;
+      await atomically((tx) => [
+        tx.objectStore('recordings').put({
+          userId,
+          recordingId,
+          startedAt: Date.now(),
+          mimeType: fileType,
+          destination: {
+            roomId: to.roomId,
+            threadId: to.threadId,
+            replyEventId: replyDraft?.eventId,
+            replyThreadId:
+              replyDraft?.relation?.rel_type === 'm.thread'
+                ? replyDraft.relation.event_id
+                : undefined,
+            threadingEnabled: to.threadingEnabled,
+            threadView: to.threadView,
+          },
+        }),
+        tx
+          .objectStore('chunks')
+          .put({ recordingId, seq: 0, bytes: audio, type: fileType, elapsedMs: duration }),
+      ]);
+    })
+  );
+
+/** Deletes a recording the disk holds. What an older version kept of the same audio goes first. */
+const deleteStored = ({ recordingId, userId }: VoiceJournalRecord): Promise<void> => {
+  if (!recordingId.startsWith('legacy-')) return atomically(deleteRows(recordingId));
+  return legacyTurn(userId, async () => {
+    await withLegacyDrafts(async (legacy) => {
+      const old: LegacyVoiceDraft | undefined = await legacy.get('drafts', userId);
+      if (old && (await legacyId(old.audio)) === recordingId) await legacy.delete('drafts', userId);
+    });
+    await atomically(deleteRows(recordingId));
+  });
+};
+
+/**
+ * The one way a recording this tab owns changes on disk. `change` gets its record and returns
+ * what the record becomes, or nothing to delete the recording; left out, only the audio the disk
+ * does not hold yet is written, which every call does along with its change. See
+ * `VoiceTransitionOutcome` for what the caller may do next.
+ */
+export const transitionVoiceRecording = (
+  recordingId: string,
+  change: (record: VoiceJournalRecord) => VoiceJournalRecord | undefined = (record) => record
+): Promise<VoiceTransitionOutcome> =>
+  inOrder(recordingId, async () => {
+    const mine = held.get(recordingId);
+    if (!mine) return 'absent';
+    const stored = !mine.unstored;
+    try {
+      const before = mine.unstored ?? (await (await database()).get('recordings', recordingId));
+      const after = before && change(before);
+      // A recording the disk never took changes in memory.
+      if (!stored) mine.unstored = after;
+      if (after) {
+        const chunks = await Promise.all(
+          mine.chunks.map(async ({ data, ...at }) => ({
+            ...at,
+            recordingId,
+            type: data.type,
+            bytes: await data.arrayBuffer(),
+          }))
+        );
+        await atomically((tx) => [
+          tx.objectStore('recordings').put(after),
+          ...chunks.map((chunk) => tx.objectStore('chunks').put(chunk)),
+        ]);
+        mine.unstored = undefined;
+        mine.chunks.splice(0, chunks.length);
+        return 'committed';
+      }
+      if (stored && before) await deleteStored(before);
+      release(recordingId);
+      lastWrite.delete(recordingId);
+      return stored && before ? 'committed' : 'absent';
+    } catch {
+      return stored ? 'failed' : 'absent';
+    }
+  });
+
+let persistenceAsked = false;
+
+/**
+ * What the capture session writes a recording through, for `userId`'s account. `begin` and
+ * `append` resolve true while the disk holds all of the recording so far.
+ */
+export const voiceCaptureJournal = (userId: () => string) => {
+  const write = (recordingId: string, first: () => Promise<unknown>): Promise<boolean> =>
+    inOrder(recordingId, first)
+      .then(() => transitionVoiceRecording(recordingId))
+      .then((outcome) => outcome === 'committed');
+  return {
+    begin: (meta: { recordingId: string; startedAt: number; mimeType: string }) => {
+      if (!persistenceAsked) {
+        persistenceAsked = true;
+        // Best effort: persistent storage is not evicted when the disk runs short.
+        globalThis.navigator?.storage?.persist?.().catch(() => undefined);
+      }
+      return write(meta.recordingId, () => take(meta.recordingId, { userId: userId(), ...meta }));
+    },
+    /** `seq` is the chunk's place, which the caller assigns as the chunk arrives. */
+    append: (recordingId: string, seq: number, chunk: { data: Blob; elapsedMs: number }) =>
+      // A recording this tab could not take keeps no second copy of its audio.
+      write(recordingId, async () => held.get(recordingId)?.chunks.push({ seq, ...chunk })),
+    /** The recorder stopped without audio: nothing to keep. */
+    abandon: (recordingId: string): void => {
+      void transitionVoiceRecording(recordingId, () => undefined);
+    },
+  };
 };
 
 // Recovery.
@@ -329,7 +338,7 @@ export const adoptVoiceOrphans = async (
   if (!globalThis.navigator?.locks) return adopted;
   try {
     // Storage that fails here is asked again by the next call.
-    await importLegacyDrafts().catch(() => undefined);
+    await importLegacyDraft(userId).catch(() => undefined);
     const db = await database();
     const records = await db.getAllFromIndex('recordings', 'userId', userId);
     records.sort((a, b) => a.startedAt - b.startedAt);
@@ -342,11 +351,10 @@ export const adoptVoiceOrphans = async (
         const chunks = await db.getAll('chunks', chunksOf(recordingId));
         const lastChunk = chunks.at(-1);
         if (!record || !lastChunk || (record.discardUntil ?? Infinity) <= now) {
-          await deleteVoiceRecording(recordingId);
+          await transitionVoiceRecording(recordingId, () => undefined);
           continue;
         }
         const type = chunks.find((chunk) => chunk.type)?.type || record.mimeType;
-        const samples = chunks.flatMap((chunk) => chunk.samples);
         adopted.push({
           record,
           file: new File(
@@ -355,7 +363,6 @@ export const adoptVoiceOrphans = async (
             { type }
           ),
           duration: Math.max(1, Math.round(lastChunk.elapsedMs)),
-          waveform: samples.length > 0 ? normalizeMatrixWaveform(samples) : undefined,
         });
       } catch {
         release(recordingId);
@@ -368,12 +375,17 @@ export const adoptVoiceOrphans = async (
   return adopted;
 };
 
-/** Forgets the account's recordings, as signing out does. */
+/** Forgets the account's recordings, whoever holds them, as signing out does. */
 export const clearVoiceRecordings = async (userId: string): Promise<void> => {
   try {
-    await importLegacyDrafts().catch(() => undefined);
+    await withLegacyDrafts((legacy) => legacy.delete('drafts', userId));
     const ids = await (await database()).getAllKeysFromIndex('recordings', 'userId', userId);
-    await Promise.all(ids.map((recordingId) => deleteVoiceRecording(recordingId)));
+    await Promise.all(
+      ids.map(async (recordingId) => {
+        await atomically(deleteRows(recordingId));
+        release(recordingId);
+      })
+    );
   } catch {
     // Nothing was kept.
   }

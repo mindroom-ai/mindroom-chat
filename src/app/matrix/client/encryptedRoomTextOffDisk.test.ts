@@ -20,8 +20,7 @@ import {
 } from '../../composer/roomInputDrafts';
 import {
   clearVoiceRecordings,
-  deleteVoiceRecording,
-  updateVoiceRecording,
+  transitionVoiceRecording,
   voiceCaptureJournal,
 } from '../../composer/voice/voiceRecordingJournal';
 import { createVoiceSendDraftController } from '../../composer/voice/voiceSendDraftController';
@@ -160,14 +159,14 @@ describe('text read out of encrypted rooms stays off disk', () => {
       const recordingId = `rec-${roomId}`;
       const capture = voiceCaptureJournal(() => USER);
       await capture.begin({ recordingId, startedAt: 1, mimeType: file.type });
-      await capture.append(recordingId, 0, { data: file, elapsedMs: 1_000, samples: [] });
+      await capture.append(recordingId, 0, { data: file, elapsedMs: 1_000 });
       const controller = createVoiceSendDraftController(
         {
           read: () => store.get(pendingVoiceSendDraftAtom),
           write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
           settle: (...attempt) => settleVoiceDraft(store, ...attempt),
         },
-        { update: updateVoiceRecording, remove: deleteVoiceRecording }
+        transitionVoiceRecording
       );
       await controller.sendInitial(
         { recordingId, file, duration: 1_000, waveform: undefined },

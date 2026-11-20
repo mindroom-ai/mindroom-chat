@@ -3,23 +3,32 @@ import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { openDB } from 'idb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { VoiceJournalRecord } from './voiceRecordingJournal';
+
 type Journal = typeof import('./voiceRecordingJournal');
 
 const ALICE = '@alice:example.org';
 const BOB = '@bob:example.org';
 
-/** The Web Locks of one browser: a tab's locks go when it is closed. */
+type LockCallback = (lock: Lock | null) => unknown;
+
+/** The Web Locks of one browser: a tab's locks go when it is closed, and a request waits its turn. */
 const createBrowserLocks = () => {
   const owners = new Map<string, symbol>();
   const releases = new Map<symbol, (() => void)[]>();
+  const waiting = new Map<string, (() => void)[]>();
   return {
     forTab: (tab: symbol) => ({
-      request: async (
-        name: string,
-        _options: LockOptions,
-        callback: (lock: Lock | null) => unknown
-      ) => {
-        if (owners.has(name)) return callback(null);
+      request: async (name: string, ...rest: [LockOptions, LockCallback] | [LockCallback]) => {
+        const callback = rest.at(-1) as LockCallback;
+        const ifAvailable = rest.length === 2 && rest[0].ifAvailable;
+        while (owners.has(name)) {
+          if (ifAvailable) return callback(null);
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise<void>((resolve) => {
+            waiting.set(name, [...(waiting.get(name) ?? []), resolve]);
+          });
+        }
         owners.set(name, tab);
         const closed = new Promise<void>((resolve) => {
           releases.set(tab, [...(releases.get(tab) ?? []), resolve]);
@@ -28,6 +37,10 @@ const createBrowserLocks = () => {
           return await Promise.race([callback({ name, mode: 'exclusive' }), closed]);
         } finally {
           owners.delete(name);
+          waiting
+            .get(name)
+            ?.splice(0)
+            .forEach((next) => next());
         }
       },
     }),
@@ -55,11 +68,7 @@ const record = async (journal: Journal, recordingId: string, texts: string[], us
   const writes = [
     capture.begin({ recordingId, startedAt: 1_000, mimeType: 'audio/webm' }),
     ...texts.map((text, seq) =>
-      capture.append(recordingId, seq, {
-        data: blob(text),
-        elapsedMs: (seq + 1) * 1_000,
-        samples: [seq + 1],
-      })
+      capture.append(recordingId, seq, { data: blob(text), elapsedMs: (seq + 1) * 1_000 })
     ),
   ];
   return Promise.all(writes);
@@ -77,6 +86,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const gone = () => undefined;
+
 const journalKeys = async () => {
   const db = await openDB('mindroom-voice-journal');
   const keys = [await db.getAllKeys('recordings'), await db.getAllKeys('chunks')];
@@ -85,7 +96,7 @@ const journalKeys = async () => {
 };
 
 describe('voice recording journal', () => {
-  it('appends chunks in seq order when arrayBuffer() resolves out of order', async () => {
+  it('appends chunks in seq order, whatever time reading one takes', async () => {
     const tab = await openTab();
     const capture = tab.journal.voiceCaptureJournal(() => ALICE);
     const slow = blob('first ');
@@ -96,15 +107,9 @@ describe('voice recording journal', () => {
         finishSlow = () => resolve(read());
       });
     const begun = capture.begin({ recordingId: 'rec-1', startedAt: 1_000, mimeType: 'audio/webm' });
-    const first = capture.append('rec-1', 0, { data: slow, elapsedMs: 1_000, samples: [10] });
-    const second = capture.append('rec-1', 1, {
-      data: blob('second'),
-      elapsedMs: 2_000,
-      samples: [20, 30],
-    });
-    await new Promise((resolve) => {
-      setTimeout(resolve, 5);
-    });
+    const first = capture.append('rec-1', 0, { data: slow, elapsedMs: 1_000 });
+    const second = capture.append('rec-1', 1, { data: blob('second'), elapsedMs: 2_000 });
+    await vi.waitFor(() => expect(finishSlow).toBeDefined());
     finishSlow();
     expect(await Promise.all([begun, first, second])).toEqual([true, true, true]);
 
@@ -115,7 +120,6 @@ describe('voice recording journal', () => {
     expect(await text(orphan!.file)).toBe('first second');
     expect(orphan!.file.type).toBe('audio/webm');
     expect(orphan!.duration).toBe(2_000);
-    expect(orphan!.waveform).toHaveLength(48);
     expect(orphan!.record).toMatchObject({ userId: ALICE, recordingId: 'rec-1', startedAt: 1_000 });
   });
 
@@ -124,7 +128,7 @@ describe('voice recording journal', () => {
     const capture = tab.journal.voiceCaptureJournal(() => ALICE);
     await capture.begin({ recordingId: 'rec-1', startedAt: 1_000, mimeType: 'audio/webm' });
     const chunk = (data: Blob, seq: number) =>
-      capture.append('rec-1', seq, { data, elapsedMs: (seq + 1) * 1_000, samples: [] });
+      capture.append('rec-1', seq, { data, elapsedMs: (seq + 1) * 1_000 });
     expect(await chunk(blob('one '), 0)).toBe(true);
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
       throw new DOMException('The disk is full.', 'QuotaExceededError');
@@ -141,34 +145,53 @@ describe('voice recording journal', () => {
     expect(orphan!.duration).toBe(3_000);
   });
 
-  it('writes what it still owes when asked, without a chunk to come', async () => {
+  it('writes the audio it still owes with any later change, without a chunk to come', async () => {
     const tab = await openTab();
     const capture = tab.journal.voiceCaptureJournal(() => ALICE);
     await capture.begin({ recordingId: 'rec-1', startedAt: 1_000, mimeType: 'audio/webm' });
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
       throw new DOMException('The disk is full.', 'QuotaExceededError');
     });
-    expect(
-      await capture.append('rec-1', 0, { data: blob('last'), elapsedMs: 1_000, samples: [] })
-    ).toBe(false);
-    expect(await capture.flush('rec-1')).toBe(true);
+    expect(await capture.append('rec-1', 0, { data: blob('last'), elapsedMs: 1_000 })).toBe(false);
+    expect(await tab.journal.transitionVoiceRecording('rec-1')).toBe('committed');
 
     tab.close();
     const [orphan] = await (await openTab()).journal.adoptVoiceOrphans(ALICE);
     expect(await text(orphan!.file)).toBe('last');
   });
 
-  it('keeps what came before a chunk that cannot be written at all, and says so from then on', async () => {
+  it('reads a chunk again that could not be read, and writes it in its place', async () => {
+    const tab = await openTab();
+    const capture = tab.journal.voiceCaptureJournal(() => ALICE);
+    await capture.begin({ recordingId: 'rec-1', startedAt: 1_000, mimeType: 'audio/webm' });
+    const flaky = blob('two ');
+    const read = vi.spyOn(flaky, 'arrayBuffer').mockRejectedValueOnce(new Error('unreadable'));
+    const chunk = (data: Blob, seq: number) =>
+      capture.append('rec-1', seq, { data, elapsedMs: (seq + 1) * 1_000 });
+    expect(await chunk(blob('one '), 0)).toBe(true);
+    expect(await chunk(flaky, 1)).toBe(false);
+    // The read that failed is made again: the disk holds everything once it works.
+    expect(await chunk(blob('three'), 2)).toBe(true);
+    expect(read).toHaveBeenCalledTimes(2);
+
+    tab.close();
+    const [orphan] = await (await openTab()).journal.adoptVoiceOrphans(ALICE);
+    expect(await text(orphan!.file)).toBe('one two three');
+  });
+
+  it('keeps what came before a chunk that cannot be read at all, and says so from then on', async () => {
     const tab = await openTab();
     const capture = tab.journal.voiceCaptureJournal(() => ALICE);
     await capture.begin({ recordingId: 'rec-1', startedAt: 1_000, mimeType: 'audio/webm' });
     const broken = blob('lost');
     broken.arrayBuffer = () => Promise.reject(new Error('unreadable'));
     const chunk = (data: Blob, seq: number) =>
-      capture.append('rec-1', seq, { data, elapsedMs: (seq + 1) * 1_000, samples: [] });
+      capture.append('rec-1', seq, { data, elapsedMs: (seq + 1) * 1_000 });
     expect(await chunk(blob('kept'), 0)).toBe(true);
     expect(await chunk(broken, 1)).toBe(false);
     expect(await chunk(blob('late'), 2)).toBe(false);
+    // A change to a recording the disk holds does not count as made.
+    expect(await tab.journal.transitionVoiceRecording('rec-1')).toBe('failed');
 
     tab.close();
     const [orphan] = await (await openTab()).journal.adoptVoiceOrphans(ALICE);
@@ -176,10 +199,16 @@ describe('voice recording journal', () => {
     expect(orphan!.duration).toBe(1_000);
   });
 
-  it('reports false when storage is unavailable', async () => {
+  it('says a recording is absent that storage never took, and lets go of it once it ends', async () => {
     vi.stubGlobal('indexedDB', undefined);
     const tab = await openTab();
     expect(await record(tab.journal, 'rec-1', ['a'])).toEqual([false, false]);
+    // Nothing on disk to protect or to send twice: it goes on from memory.
+    const txn = (entry: VoiceJournalRecord) => ({ ...entry, txnId: 'txn-1' });
+    expect(await tab.journal.transitionVoiceRecording('rec-1', txn)).toBe('absent');
+    expect(browser.held()).toEqual(['mindroom-voice-recording:rec-1']);
+    expect(await tab.journal.transitionVoiceRecording('rec-1', gone)).toBe('absent');
+    expect(browser.held()).toEqual([]);
     expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
   });
 
@@ -201,11 +230,12 @@ describe('voice recording journal', () => {
     // The tab that adopted it holds it: nobody adopts it again, also not that tab.
     expect(await second.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
     expect(await third.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
-    // Deleted, its lock is free again.
-    await Promise.all([
-      second.journal.deleteVoiceRecording('rec-orphan'),
-      third.journal.deleteVoiceRecording('rec-orphan'),
+    // Deleted by the tab that holds it, its lock is free again.
+    const outcomes = await Promise.all([
+      second.journal.transitionVoiceRecording('rec-orphan', gone),
+      third.journal.transitionVoiceRecording('rec-orphan', gone),
     ]);
+    expect(outcomes.sort()).toEqual(['absent', 'committed']);
     expect(browser.held()).toEqual(['mindroom-voice-recording:rec-live']);
   });
 
@@ -237,7 +267,7 @@ describe('voice recording journal', () => {
       const capture = crashed.journal.voiceCaptureJournal(() => ALICE);
       return Promise.all([
         capture.begin({ recordingId, startedAt, mimeType: 'audio/webm' }),
-        capture.append(recordingId, 0, { data: blob(recordingId), elapsedMs: 900, samples: [] }),
+        capture.append(recordingId, 0, { data: blob(recordingId), elapsedMs: 900 }),
       ]);
     };
     await start('rec-newer', 2_000);
@@ -247,21 +277,28 @@ describe('voice recording journal', () => {
     expect(orphans.map((orphan) => orphan.record.recordingId)).toEqual(['rec-older', 'rec-newer']);
   });
 
-  it('without Web Locks keeps nothing on disk and takes nothing over', async () => {
+  it('without Web Locks keeps nothing, on disk or as a second copy in memory, and takes nothing over', async () => {
     const crashed = await openTab();
     await record(crashed.journal, 'rec-orphan', ['orphan']);
     crashed.close();
 
     const lockless = await openTab(false);
     // Nothing says whose a recording is: it lives in memory, and says it is not protected.
-    expect(await record(lockless.journal, 'rec-1', ['audio'])).toEqual([false, false]);
-    expect(await lockless.journal.updateVoiceRecording('rec-1', { txnId: 'txn' })).toBe(false);
+    const audio = blob('audio');
+    const read = vi.spyOn(audio, 'arrayBuffer');
+    const capture = lockless.journal.voiceCaptureJournal(() => ALICE);
+    expect(
+      await capture.begin({ recordingId: 'rec-1', startedAt: 1_000, mimeType: 'audio/webm' })
+    ).toBe(false);
+    expect(await capture.append('rec-1', 0, { data: audio, elapsedMs: 1_000 })).toBe(false);
+    expect(read).not.toHaveBeenCalled();
+    expect(await lockless.journal.transitionVoiceRecording('rec-1')).toBe('absent');
     // What another browser version left stays where it is, for a page that can own it.
     expect(await lockless.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
     expect(await journalKeys()).toEqual([['rec-orphan'], [['rec-orphan', 0]]]);
   });
 
-  it('says whether a later change reached the disk, and returns it with the orphan', async () => {
+  it('says what a change came to, and leaves the state before a change that failed', async () => {
     const tab = await openTab();
     await record(tab.journal, 'rec-1', ['audio']);
     const destination = {
@@ -270,19 +307,38 @@ describe('voice recording journal', () => {
       replyEventId: '$reply',
       threadingEnabled: true,
     };
-    expect(await tab.journal.updateVoiceRecording('rec-1', { destination, txnId: 'txn-1' })).toBe(
-      true
-    );
-    // No such recording on disk: nothing was kept.
-    expect(await tab.journal.updateVoiceRecording('rec-gone', { txnId: 'txn-2' })).toBe(false);
+    const txn = (txnId: string) => (entry: VoiceJournalRecord) => ({ ...entry, txnId });
+    expect(
+      await tab.journal.transitionVoiceRecording('rec-1', (entry) => ({
+        ...entry,
+        destination,
+        txnId: 'txn-1',
+      }))
+    ).toBe('committed');
+    // No such recording on disk.
+    expect(await tab.journal.transitionVoiceRecording('rec-gone', txn('txn-2'))).toBe('absent');
     // Another tab's recording is not this one's to change.
     const other = await openTab();
-    expect(await other.journal.updateVoiceRecording('rec-1', { txnId: 'txn-3' })).toBe(false);
-    // A write the disk refused.
+    expect(await other.journal.transitionVoiceRecording('rec-1', txn('txn-3'))).toBe('absent');
+    // A write the disk refused: none of it is made, the chunk that came with it neither.
+    const put = IDBObjectStore.prototype.put;
+    let puts = 0;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function refuse(
+      this: IDBObjectStore,
+      ...args
+    ) {
+      puts += 1;
+      if (puts === 2) throw new DOMException('The disk is full.', 'QuotaExceededError');
+      return put.apply(this, args);
+    });
+    const capture = tab.journal.voiceCaptureJournal(() => ALICE);
+    expect(await capture.append('rec-1', 1, { data: blob(' more'), elapsedMs: 2_000 })).toBe(false);
+    vi.restoreAllMocks();
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
       throw new DOMException('The disk is full.', 'QuotaExceededError');
     });
-    expect(await tab.journal.updateVoiceRecording('rec-1', { txnId: 'txn-4' })).toBe(false);
+    expect(await tab.journal.transitionVoiceRecording('rec-1', txn('txn-4'))).toBe('failed');
+    expect((await journalKeys())[1]).toEqual([['rec-1', 0]]);
 
     tab.close();
     const [orphan] = await (await openTab()).journal.adoptVoiceOrphans(ALICE);
@@ -294,10 +350,14 @@ describe('voice recording journal', () => {
     await record(tab.journal, 'rec-expired', ['a']);
     await record(tab.journal, 'rec-pending', ['b']);
     await record(tab.journal, 'rec-undone', ['c']);
-    await tab.journal.updateVoiceRecording('rec-expired', { discardUntil: 5_000 });
-    await tab.journal.updateVoiceRecording('rec-pending', { discardUntil: 9_000 });
-    await tab.journal.updateVoiceRecording('rec-undone', { discardUntil: 5_000 });
-    await tab.journal.updateVoiceRecording('rec-undone', { discardUntil: undefined });
+    const until = (discardUntil?: number) => (entry: VoiceJournalRecord) => ({
+      ...entry,
+      discardUntil,
+    });
+    await tab.journal.transitionVoiceRecording('rec-expired', until(5_000));
+    await tab.journal.transitionVoiceRecording('rec-pending', until(9_000));
+    await tab.journal.transitionVoiceRecording('rec-undone', until(5_000));
+    await tab.journal.transitionVoiceRecording('rec-undone', until());
     tab.close();
 
     const next = await openTab();
@@ -309,13 +369,6 @@ describe('voice recording journal', () => {
       ['rec-undone', undefined],
     ]);
     expect((await journalKeys())[0]).toEqual(['rec-pending', 'rec-undone']);
-
-    // Its time is not up yet, and the other is not discarded at all.
-    await next.journal.deleteVoiceRecording('rec-pending', 8_999);
-    await next.journal.deleteVoiceRecording('rec-undone', 10_000);
-    expect((await journalKeys())[0]).toEqual(['rec-pending', 'rec-undone']);
-    await next.journal.deleteVoiceRecording('rec-pending', 9_000);
-    expect(await journalKeys()).toEqual([['rec-undone'], [['rec-undone', 0]]]);
   });
 
   it('deletes a recording that stopped without audio', async () => {
@@ -323,8 +376,8 @@ describe('voice recording journal', () => {
     await record(tab.journal, 'rec-empty', []);
     await record(tab.journal, 'rec-full', ['audio']);
     tab.journal.voiceCaptureJournal(() => ALICE).abandon('rec-empty');
-    await tab.journal.updateVoiceRecording('rec-full', {});
-    expect((await journalKeys())[0]).toEqual(['rec-full']);
+    await tab.journal.transitionVoiceRecording('rec-full');
+    await vi.waitFor(async () => expect((await journalKeys())[0]).toEqual(['rec-full']));
     expect(browser.held()).toEqual(['mindroom-voice-recording:rec-full']);
   });
 
@@ -336,7 +389,6 @@ describe('voice recording journal', () => {
     await capture.append('rec-1', 0, {
       data: new Blob(['mp4 bytes'], { type: 'audio/mp4' }),
       elapsedMs: 1_000,
-      samples: [],
     });
     tab.close();
     const [orphan] = await (await openTab()).journal.adoptVoiceOrphans(ALICE);
@@ -385,11 +437,13 @@ describe('voice recording journal', () => {
       return keys;
     };
 
-    it('is copied once, with the IDs of what it relates to and none of the text', async () => {
+    it('is copied once under the name of its audio, IDs only, and goes when its copy does', async () => {
       await putLegacy('old voice bytes');
       const tab = await openTab();
       const [orphan, ...rest] = await tab.journal.adoptVoiceOrphans(ALICE);
       expect(rest).toEqual([]);
+      const { recordingId } = orphan!.record;
+      expect(recordingId).toMatch(/^legacy-[0-9a-f]{64}$/);
       expect(await text(orphan!.file)).toBe('old voice bytes');
       expect(orphan!.file.type).toBe('audio/ogg');
       expect(orphan!.duration).toBe(4_200);
@@ -405,59 +459,97 @@ describe('voice recording journal', () => {
       const db = await openDB('mindroom-voice-journal');
       expect(JSON.stringify(await db.getAll('recordings'))).not.toContain('secret');
       db.close();
-      // The old database stays for a tab of the older version; its entry is gone.
-      expect(await legacyKeys()).toEqual([]);
+      // Copying is not what deletes it: it is there, and is not copied a second time.
+      expect(await legacyKeys()).toEqual([ALICE]);
+      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
+      expect((await journalKeys())[0]).toEqual([recordingId]);
 
-      // The next page finds it in the journal only, once.
-      tab.close();
-      const again = await (await openTab()).journal.adoptVoiceOrphans(ALICE);
-      expect(again.map((entry) => entry.record.recordingId)).toEqual([orphan!.record.recordingId]);
+      // Sent, or discarded for good: both go, and nothing brings it back.
+      expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('committed');
+      expect(await legacyKeys()).toEqual([]);
+      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
+      expect(await journalKeys()).toEqual([[], []]);
     });
 
-    it('is not copied twice, and a newer one an old tab wrote since is copied too', async () => {
-      await putLegacy('old voice bytes');
+    it('keeps two recordings of the same length and duration apart', async () => {
+      await putLegacy('AAA');
       const tab = await openTab();
       const [first] = await tab.journal.adoptVoiceOrphans(ALICE);
-      await tab.journal.updateVoiceRecording(first!.record.recordingId, { txnId: 'txn-kept' });
-      // As if its delete had failed: the same entry is there again.
-      await putLegacy('old voice bytes');
-      expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
-      expect(await legacyKeys()).toEqual([]);
-      const db = await openDB('mindroom-voice-journal');
-      expect(await db.getAll('recordings')).toMatchObject([{ txnId: 'txn-kept' }]);
-      db.close();
-
-      await putLegacy('newer voice bytes');
+      // A tab of the older version saves another failed send over the first.
+      await putLegacy('BBB');
       const [second, ...rest] = await tab.journal.adoptVoiceOrphans(ALICE);
       expect(rest).toEqual([]);
-      expect(await text(second!.file)).toBe('newer voice bytes');
+      expect(await text(first!.file)).toBe('AAA');
+      expect(await text(second!.file)).toBe('BBB');
+      expect((await journalKeys())[0]).toHaveLength(2);
+
+      // The first one sent, the entry that is the second one's by now stays for it.
+      await tab.journal.transitionVoiceRecording(first!.record.recordingId, gone);
+      expect(await legacyKeys()).toEqual([ALICE]);
+      await tab.journal.transitionVoiceRecording(second!.record.recordingId, gone);
+      expect(await legacyKeys()).toEqual([]);
     });
 
-    it('keeps an entry that changed while it was copied', async () => {
+    it('is not made again by a page that read it before its copy was sent', async () => {
+      await putLegacy('old voice bytes');
+      const slow = await openTab();
+      // This page has read the old entry, and waits before it copies it.
+      let go!: () => void;
+      const digest = crypto.subtle.digest.bind(crypto.subtle);
+      vi.spyOn(crypto.subtle, 'digest').mockImplementationOnce(async (...args) => {
+        await new Promise<void>((resolve) => {
+          go = resolve;
+        });
+        return digest(...args);
+      });
+      const slowAdopts = slow.journal.adoptVoiceOrphans(ALICE);
+      await vi.waitFor(() => expect(go).toBeDefined());
+
+      // Another page cannot copy, send and delete it meanwhile: it waits for the first.
+      const quick = await openTab();
+      const quickDone = vi.fn();
+      const quickAdopts = quick.journal.adoptVoiceOrphans(ALICE).then((orphans) => {
+        quickDone();
+        return orphans;
+      });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+      expect(quickDone).not.toHaveBeenCalled();
+      go();
+      const [[orphan], others] = await Promise.all([slowAdopts, quickAdopts]);
+      expect(others).toEqual([]);
+
+      await slow.journal.transitionVoiceRecording(orphan!.record.recordingId, gone);
+      expect(await quick.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
+      expect(await journalKeys()).toEqual([[], []]);
+    });
+
+    it('keeps its copy, with its transaction ID, while the old entry cannot be deleted', async () => {
       await putLegacy('old voice bytes');
       const tab = await openTab();
-      // An old tab saves another failed send right after this page read the old database.
-      const getAll = IDBObjectStore.prototype.getAll;
-      vi.spyOn(IDBObjectStore.prototype, 'getAll').mockImplementationOnce(function read(
-        this: IDBObjectStore,
-        ...args
-      ) {
-        const request = getAll.apply(this, args);
-        request.addEventListener('success', () => void putLegacy('written meanwhile'));
-        return request;
-      });
       const [orphan] = await tab.journal.adoptVoiceOrphans(ALICE);
-      expect(await text(orphan!.file)).toBe('old voice bytes');
-      expect(await legacyKeys()).toEqual([ALICE]);
-      const [later] = await tab.journal.adoptVoiceOrphans(ALICE);
-      expect(await text(later!.file)).toBe('written meanwhile');
+      const { recordingId } = orphan!.record;
+      await tab.journal.transitionVoiceRecording(recordingId, (entry) => ({
+        ...entry,
+        txnId: 'txn-kept',
+      }));
+      vi.spyOn(IDBObjectStore.prototype, 'delete').mockImplementationOnce(() => {
+        throw new DOMException('The delete failed.', 'UnknownError');
+      });
+      // Its copy must not go first: the old entry would be copied again, without the ID.
+      expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('failed');
+      const db = await openDB('mindroom-voice-journal');
+      expect(await db.getAll('recordings')).toMatchObject([{ recordingId, txnId: 'txn-kept' }]);
+      db.close();
+      expect(await tab.journal.transitionVoiceRecording(recordingId, gone)).toBe('committed');
       expect(await legacyKeys()).toEqual([]);
     });
 
     it('is tried again by the next call when it could not be read', async () => {
       await putLegacy('old voice bytes');
       const tab = await openTab();
-      vi.spyOn(IDBObjectStore.prototype, 'getAll').mockImplementationOnce(() => {
+      vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementationOnce(() => {
         throw new DOMException('The read failed.', 'UnknownError');
       });
       expect(await tab.journal.adoptVoiceOrphans(ALICE)).toEqual([]);
@@ -466,12 +558,18 @@ describe('voice recording journal', () => {
     });
   });
 
-  it("forgets an account's recordings on sign-out", async () => {
+  it("forgets an account's recordings on sign-out, the one an older version kept too", async () => {
+    const legacy = await openDB('mindroom-voice-drafts', 1, {
+      upgrade: (db) => void db.createObjectStore('drafts', { keyPath: 'userId' }),
+    });
+    await legacy.put('drafts', { userId: ALICE, audio: new ArrayBuffer(3) });
     const tab = await openTab();
     await record(tab.journal, 'rec-alice', ['a']);
     await record(tab.journal, 'rec-bob', ['b'], BOB);
     await tab.journal.clearVoiceRecordings(ALICE);
     expect(await journalKeys()).toEqual([['rec-bob'], [['rec-bob', 0]]]);
     expect(browser.held()).toEqual(['mindroom-voice-recording:rec-bob']);
+    expect(await legacy.getAllKeys('drafts')).toEqual([]);
+    legacy.close();
   });
 });

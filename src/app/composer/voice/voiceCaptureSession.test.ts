@@ -130,7 +130,6 @@ const capture = (options?: Parameters<typeof createVoiceCaptureSession>[0]) => {
 const newJournal = () => ({
   begin: vi.fn(async () => true),
   append: vi.fn(async () => true),
-  flush: vi.fn(async () => false),
   abandon: vi.fn(),
 });
 class NativeRecorder extends EventTarget {
@@ -708,21 +707,15 @@ describe('voice capture session with a journal', () => {
     latest().emitData(second);
     // Both were numbered as they arrived, before either was read or written.
     expect(journal.append.mock.calls).toEqual([
-      [recordingId, 0, { data: first, elapsedMs: 1_000, samples: expect.any(Array) }],
-      [recordingId, 1, { data: second, elapsedMs: 2_000, samples: expect.any(Array) }],
+      [recordingId, 0, { data: first, elapsedMs: 1_000 }],
+      [recordingId, 1, { data: second, elapsedMs: 2_000 }],
     ]);
-    const samples = (
-      journal.append.mock.calls as unknown as [string, number, { samples: number[] }][]
-    ).flatMap(([, , chunk]) => chunk.samples);
-    // Each sample is journaled once, with the chunk that followed it.
-    expect(samples).toHaveLength(session.getSnapshot().sampleCount);
     const result = await finish(session, 'three');
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.recordingId).toBe(recordingId);
     expect(await result.recording.file.text()).toBe('onetwothree');
     expect(journal.append).toHaveBeenCalledTimes(3);
-    // On disk in full: it does not say otherwise, and its record stays for the send.
-    expect(result.recording.unprotected).toBeUndefined();
+    // Its record stays for the send.
     expect(journal.abandon).not.toHaveBeenCalled();
     expect(session.getSnapshot().unprotected).toBe(false);
   });
@@ -744,41 +737,37 @@ describe('voice capture session with a journal', () => {
     latest().emitData(new Blob(['two']));
     await vi.advanceTimersByTimeAsync(0);
     expect(warnings.mock.calls).toEqual([[true], [false]]);
-    const result = await finish(session, 'three');
-    if (result.status !== 'captured') throw new Error('missing recording');
-    expect(result.recording.unprotected).toBeUndefined();
   });
 
-  it('hands over a recording whose last write failed as not protected', async () => {
+  it('hands a recording over at once: what is done with it next writes what the disk still owes', async () => {
     const journal = newJournal();
     const session = capture({ journal });
     await session.start();
     latest().emitData(new Blob(['one']));
-    // The write of the recorder's last audio decides, and is waited for.
-    const lastWrite = deferred<boolean>();
-    journal.append.mockReturnValueOnce(lastWrite.promise);
-    const finished = finish(session, 'two');
-    const settled = vi.fn();
-    void finished.then(settled);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(settled).not.toHaveBeenCalled();
-    lastWrite.resolve(false);
-    const result = await finished;
+    journal.append.mockReturnValueOnce(deferred<boolean>().promise);
+    const result = await finish(session, 'two');
     if (result.status !== 'captured') throw new Error('missing recording');
-    expect(journal.flush).toHaveBeenCalledExactlyOnceWith(result.recording.recordingId);
-    expect(result.recording.unprotected).toBe(true);
     expect(await result.recording.file.text()).toBe('onetwo');
   });
 
-  it('hands over a recording as saved that one more write put on disk', async () => {
+  it('gives a discard all it recorded for its Undo when its composer goes before the recorder stopped', async () => {
     const journal = newJournal();
-    const session = capture({ journal });
+    const keep = vi.fn();
+    const session = capture({ journal, keep });
     await session.start();
-    journal.append.mockResolvedValueOnce(false);
-    journal.flush.mockResolvedValueOnce(true);
-    const result = await finish(session, 'one');
-    if (result.status !== 'captured') throw new Error('missing recording');
-    expect(result.recording.unprotected).toBeUndefined();
+    vi.advanceTimersByTime(400);
+    const recorder = latest();
+    // Discarded before the recorder's first second was up: all of it comes with the stop.
+    void session.discard();
+    session.releaseOwner();
+    recorder.emitData(new Blob(['the whole clip']));
+    recorder.emitStop();
+    expect(journal.append).toHaveBeenCalledOnce();
+    expect(journal.abandon).not.toHaveBeenCalled();
+    const [[recording, discarded]] = keep.mock.calls as [[{ file: File }, boolean]];
+    expect(discarded).toBe(true);
+    expect(await recording.file.text()).toBe('the whole clip');
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('keeps recording and warns once when a journal write fails', async () => {

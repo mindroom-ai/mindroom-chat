@@ -30,6 +30,8 @@ export const localizeVoiceErrorMessage = (
       return t('mindroomUi.voice.errors.sendBusy');
     case 'Failed to send voice message.':
       return t('mindroomUi.voice.errors.sendFailed');
+    case 'Could not save this change to your recording. Try again.':
+      return t('composer.voiceNotSaved');
     case 'Sending this voice message was interrupted.':
       return t('composer.voiceSendInterrupted');
     default:

@@ -11,21 +11,29 @@ import {
 import { discardVoiceDraft, offerQueuedVoiceDraft } from './voiceDrafts';
 import { VoiceDiscardToast } from './VoiceDiscardToast';
 
-const journal = vi.hoisted(() => ({
-  updateVoiceRecording: vi.fn(async () => true),
-  deleteVoiceRecording: vi.fn(async () => undefined),
-}));
+const journal = vi.hoisted(() => {
+  /** What every write to the disk comes to, until a test says otherwise. */
+  const state = { outcome: 'committed' };
+  return Object.assign(state, {
+    adoptVoiceOrphans: vi.fn(async () => []),
+    transitionVoiceRecording: vi.fn(async () => state.outcome),
+  });
+});
 vi.mock('./voiceRecordingJournal', () => journal);
-const account = vi.hoisted(() => ({ userId: '@alice:example.org' }));
-vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getUserId: () => account.userId }),
-}));
+const account = vi.hoisted(() => {
+  const state = { userId: '@alice:example.org', client: { getUserId: () => state.userId } };
+  return state;
+});
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => account.client }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
-      ({ 'composer.voiceDiscarded': 'Recording discarded', 'composer.voiceUndoDiscard': 'Undo' }[
-        key
-      ] ?? key),
+      ({
+        'composer.voiceDiscarded': 'Recording discarded',
+        'composer.voiceUndoDiscard': 'Undo',
+        'composer.voiceUndoFailed': "Couldn't undo",
+        'mindroomUi.voice.voiceRecorderDialog.retry': 'Retry',
+      }[key] ?? key),
   }),
 }));
 vi.mock('folds', () => ({
@@ -57,10 +65,22 @@ const mount = (store: ReturnType<typeof createStore>) =>
   });
 const shown = () => JSON.stringify(renderer.toJSON());
 
+const press = () =>
+  act(async () => {
+    (renderer.root.findByType('button').props as { onClick: () => void }).onClick();
+  });
+const discard = (store: ReturnType<typeof createStore>, recording = draft) =>
+  act(() => discardVoiceDraft(store, recording));
+const pass = (ms: number) =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+
 beforeEach(() => {
   vi.useFakeTimers();
-  journal.updateVoiceRecording.mockClear();
-  journal.deleteVoiceRecording.mockClear();
+  journal.outcome = 'committed';
+  journal.adoptVoiceOrphans.mockClear();
+  journal.transitionVoiceRecording.mockClear();
 });
 afterEach(() => {
   act(() => renderer.unmount());
@@ -73,33 +93,44 @@ describe('VoiceDiscardToast', () => {
     mount(store);
     expect(renderer.toJSON()).toBeNull();
 
-    act(() => discardVoiceDraft(store, draft));
+    await discard(store);
     expect(shown()).toContain('Recording discarded');
     act(() => {
       vi.advanceTimersByTime(9_000);
     });
-    await act(async () => {
-      (renderer.root.findByType('button').props as { onClick: () => void }).onClick();
-    });
+    await press();
 
     expect(renderer.toJSON()).toBeNull();
     expect(store.get(discardedVoiceDraftsAtom)).toEqual([]);
-    expect(store.get(queuedVoiceDraftsAtom)).toEqual([draft]);
+    expect(store.get(queuedVoiceDraftsAtom)).toEqual([{ ...draft, unprotected: false }]);
     offerQueuedVoiceDraft(store, USER);
-    expect(store.get(pendingVoiceSendDraftAtom)).toBe(draft);
+    expect(store.get(pendingVoiceSendDraftAtom)?.recordingId).toBe('rec-1');
+  });
+
+  it('says so when the disk could not be told of an Undo, and offers it again', async () => {
+    const store = createStore();
+    mount(store);
+    await discard(store);
+    journal.outcome = 'failed';
+    await press();
+    // Not back, and not gone: the person can press again.
+    expect(shown()).toContain("Couldn't undo");
+    expect(shown()).toContain('Retry');
+    expect(store.get(queuedVoiceDraftsAtom)).toEqual([]);
+    await pass(20_000);
+    expect(shown()).toContain("Couldn't undo");
+
+    journal.outcome = 'committed';
+    await press();
+    expect(renderer.toJSON()).toBeNull();
+    expect(store.get(queuedVoiceDraftsAtom).map((d) => d.recordingId)).toEqual(['rec-1']);
   });
 
   it('offers the last discard first, then the one before, and none of another account', async () => {
     const store = createStore();
     mount(store);
-    const press = () =>
-      act(async () => {
-        (renderer.root.findByType('button').props as { onClick: () => void }).onClick();
-      });
-    act(() => {
-      discardVoiceDraft(store, draft);
-      discardVoiceDraft(store, { ...draft, recordingId: 'rec-2' });
-    });
+    await discard(store);
+    await discard(store, { ...draft, recordingId: 'rec-2' });
     await press();
     expect(store.get(queuedVoiceDraftsAtom).map((d) => d.recordingId)).toEqual(['rec-2']);
     // The first one's Undo is still there.
@@ -116,21 +147,30 @@ describe('VoiceDiscardToast', () => {
     expect(renderer.toJSON()).toBeNull();
   });
 
-  it('deletes the recording once its ten seconds ran out', () => {
+  it('deletes the recording once its ten seconds ran out, if the disk still says it is discarded', async () => {
     const store = createStore();
     mount(store);
-    act(() => discardVoiceDraft(store, draft));
-    act(() => {
-      vi.advanceTimersByTime(9_999);
-    });
+    await discard(store);
+    journal.transitionVoiceRecording.mockClear();
+    await pass(9_999);
     expect(shown()).toContain('Undo');
-    expect(journal.deleteVoiceRecording).not.toHaveBeenCalled();
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
+    expect(journal.transitionVoiceRecording).not.toHaveBeenCalled();
+    await pass(1);
     expect(renderer.toJSON()).toBeNull();
-    // The journal deletes it if the disk, too, says its discard stood until now.
-    expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith('rec-1', Date.now());
+    const [[recordingId, expire]] = journal.transitionVoiceRecording.mock.calls as unknown as [
+      [string, (record: { discardUntil?: number }) => unknown]
+    ];
+    expect(recordingId).toBe('rec-1');
+    expect(expire({ discardUntil: Date.now() })).toBeUndefined();
+    expect(expire({ discardUntil: Date.now() + 1 })).toBeDefined();
+    expect(expire({})).toBeDefined();
     expect(store.get(queuedVoiceDraftsAtom)).toEqual([]);
+  });
+
+  it('brings back what a crash left on disk, once for the signed-in app', async () => {
+    const store = createStore();
+    mount(store);
+    await act(async () => undefined);
+    expect(journal.adoptVoiceOrphans).toHaveBeenCalledExactlyOnceWith(USER);
   });
 });

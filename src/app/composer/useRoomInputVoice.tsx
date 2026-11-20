@@ -54,11 +54,7 @@ import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
 import { eventIdOfTransaction } from '../matrix/protocol/pendingLocalEcho';
 import type { VoiceSendAttemptKeys } from './voice/voiceSendDraftController';
-import {
-  keepRecoveringVoiceDrafts,
-  offerQueuedVoiceDraft,
-  parkVoiceDraft,
-} from './voice/voiceDrafts';
+import { offerQueuedVoiceDraft, parkVoiceDraft } from './voice/voiceDrafts';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
@@ -230,8 +226,8 @@ export const useRoomInputVoice = ({
   //      cannot render and the user has no way to retry/discard. Treat
   //      "not joined" the same as "not present".
   // Another account's draft leaves the slot and waits for its account. A draft whose room is
-  // gone loses its destination instead of being dropped: it shows in every composer, to send
-  // elsewhere or discard.
+  // gone loses its destination instead of being dropped: it shows in every composer, to discard
+  // or to send a copy of, since its send may have arrived there.
   useEffect(() => {
     if (!pendingVoiceSendDraft) return;
     if (!draftBelongsToCurrentSession) {
@@ -246,6 +242,7 @@ export const useRoomInputVoice = ({
         ...pendingVoiceSendDraft,
         context: { ownerSessionId: draftContext.ownerSessionId },
         errorMessage: undefined,
+        attemptedRoomName: sourceRoom?.name,
       });
     }
   }, [
@@ -257,10 +254,8 @@ export const useRoomInputVoice = ({
     store,
   ]);
 
-  // Recordings that a crash, a reload or an app update left on disk come back, and take the slot
-  // one at a time with the others that wait for it (voice/voiceDrafts.ts).
+  // The recordings that wait take the slot one at a time (voice/voiceDrafts.ts).
   const queuedVoiceDrafts = useAtomValue(queuedVoiceDraftsAtom);
-  useEffect(() => keepRecoveringVoiceDrafts(mx, store), [mx, store]);
   useEffect(() => {
     offerQueuedVoiceDraft(store, currentSessionId);
   }, [currentSessionId, openRecorder, pendingVoiceSendDraft, queuedVoiceDrafts, store]);

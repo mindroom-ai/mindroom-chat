@@ -2378,10 +2378,7 @@ describe('RoomInput', () => {
         duration: 575,
         errorMessage: undefined,
         context: capturedContext,
-        inFlight: {
-          token: 'retry-attempt',
-          startedAt: 1,
-        },
+        inFlight: { token: 'retry-attempt' },
       });
     });
 
@@ -2642,10 +2639,7 @@ describe('RoomInput', () => {
         file: voice,
         duration: 350,
         context: capturedContext,
-        inFlight: {
-          token: 'retry-attempt',
-          startedAt: 1,
-        },
+        inFlight: { token: 'retry-attempt' },
       });
       await Promise.resolve();
     });

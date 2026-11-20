@@ -9,18 +9,20 @@ import {
 } from '../roomInputDrafts';
 import {
   adoptVoiceOrphans,
-  deleteVoiceRecording,
-  updateVoiceRecording,
+  transitionVoiceRecording,
   type JournaledVoiceRecording,
 } from './voiceRecordingJournal';
-import { VOICE_SEND_INTERRUPTED_MESSAGE } from './voiceSendDraftController';
+import {
+  VOICE_NOT_SAVED_MESSAGE,
+  VOICE_SEND_INTERRUPTED_MESSAGE,
+} from './voiceSendDraftController';
 
 /**
  * Voice recordings that are neither recording nor sending, around the single slot the composers
  * show (`pendingVoiceSendDraftAtom`): those that wait for it (`queuedVoiceDraftsAtom`), and those
  * whose Discard can still be undone (`discardedVoiceDraftsAtom`). The journal
- * (voiceRecordingJournal.ts) keeps each on disk until it is sent or its discard stands, so none
- * is erased for want of a place to show it.
+ * (voiceRecordingJournal.ts) keeps each on disk until it is sent or its discard stands, and what
+ * shows here follows what the journal took: a change it could not write is not shown as made.
  */
 
 type Store = ReturnType<typeof createStore>;
@@ -28,12 +30,18 @@ type Store = ReturnType<typeof createStore>;
 /** How long a Discard can be undone. */
 export const VOICE_DISCARD_UNDO_MS = 10_000;
 
-/**
- * Parks audio that was not sent, first in line for the slot: of a recorder that stopped by
- * itself or lost its composer, and of a discard that was undone.
- */
+/** Puts a recording first in line for the slot. */
 export const parkVoiceDraft = (store: Store, draft: PendingVoiceSendDraft): void =>
   store.set(queuedVoiceDraftsAtom, (queued) => [draft, ...queued]);
+
+/**
+ * Parks audio that was not sent, of a recorder that stopped by itself or lost its composer. It
+ * says it is saved only once the disk holds all of it.
+ */
+export const keepVoiceDraft = async (store: Store, draft: PendingVoiceSendDraft): Promise<void> => {
+  const outcome = await transitionVoiceRecording(draft.recordingId);
+  parkVoiceDraft(store, { ...draft, unprotected: outcome !== 'committed' });
+};
 
 /**
  * Shows the account's next waiting recording, once the slot is free and nothing records: the
@@ -80,54 +88,82 @@ export const settleVoiceDraft = (
   return true;
 };
 
-/** Ends a recording's offer of Undo, and returns what was discarded. */
-const takeDiscarded = (store: Store, recordingId: string, expired = false) => {
-  const discarded = store
-    .get(discardedVoiceDraftsAtom)
-    .find((entry) => entry.draft.recordingId === recordingId);
-  // Undone and discarded again since: that discard has its own time.
-  if (!discarded || (expired && discarded.until > Date.now())) return undefined;
-  store.set(discardedVoiceDraftsAtom, (all) => all.filter((entry) => entry !== discarded));
-  return discarded;
-};
-
-/** Offers Undo for a discarded recording until `until`; then it is deleted if the disk agrees. */
+/**
+ * Offers Undo for a recording the disk says is discarded until `until`. Then the recording is
+ * deleted, if the disk still says so by then: an Undo calls this off first.
+ */
 const offerVoiceUndo = (store: Store, draft: PendingVoiceSendDraft, until: number): void => {
-  store.set(discardedVoiceDraftsAtom, (all) => [...all, { draft, until }]);
-  setTimeout(() => {
-    takeDiscarded(store, draft.recordingId, true);
-    // Only what the disk says is discarded, and for that long: an Undo may have cleared it.
-    void deleteVoiceRecording(draft.recordingId, Date.now());
+  const timer = setTimeout(() => {
+    void transitionVoiceRecording(draft.recordingId, (record) =>
+      (record.discardUntil ?? Infinity) <= Date.now() ? undefined : record
+    ).then(() =>
+      store.set(discardedVoiceDraftsAtom, (all) => all.filter((entry) => entry.timer !== timer))
+    );
   }, until - Date.now());
-};
-
-/** Discards a recording: it is deleted once its Undo ran out, also when the page goes first. */
-export const discardVoiceDraft = (store: Store, draft: PendingVoiceSendDraft): void => {
-  const until = Date.now() + VOICE_DISCARD_UNDO_MS;
-  void updateVoiceRecording(draft.recordingId, { discardUntil: until });
-  offerVoiceUndo(store, draft, until);
+  store.set(discardedVoiceDraftsAtom, (all) => [...all, { draft, until, timer }]);
 };
 
 /**
- * Takes a discard back. The recording waits for the slot again only once the disk no longer
- * says it is discarded; if the disk could not be told, it is back from memory, and says so.
+ * Discards a recording, the slot's or one not shown yet. Once the disk says it is discarded it
+ * leaves the slot and offers Undo, and it is deleted when that ran out, also when the page goes
+ * first. If the disk could not be told, it stays, and says so.
+ */
+export const discardVoiceDraft = async (
+  store: Store,
+  draft: PendingVoiceSendDraft
+): Promise<void> => {
+  const until = Date.now() + VOICE_DISCARD_UNDO_MS;
+  const outcome = await transitionVoiceRecording(draft.recordingId, (record) => ({
+    ...record,
+    discardUntil: until,
+  }));
+  const shown = store.get(pendingVoiceSendDraftAtom)?.recordingId === draft.recordingId;
+  const kept = { ...draft, errorMessage: VOICE_NOT_SAVED_MESSAGE };
+  if (outcome !== 'failed') {
+    if (shown) store.set(pendingVoiceSendDraftAtom, undefined);
+    offerVoiceUndo(store, draft, until);
+  } else if (shown) store.set(pendingVoiceSendDraftAtom, kept);
+  else parkVoiceDraft(store, kept);
+};
+
+/**
+ * Takes a discard back. Its expiry is called off first, and the recording waits for the slot
+ * again once the disk no longer says it is discarded. Until then its offer stays, and says that
+ * the Undo failed.
  */
 export const undoVoiceDiscard = async (store: Store, recordingId: string): Promise<void> => {
-  const discarded = takeDiscarded(store, recordingId);
-  if (!discarded) return;
-  const kept = await updateVoiceRecording(recordingId, { discardUntil: undefined });
-  parkVoiceDraft(store, kept ? discarded.draft : { ...discarded.draft, unprotected: true });
+  const offer = store
+    .get(discardedVoiceDraftsAtom)
+    .find((entry) => entry.draft.recordingId === recordingId);
+  if (!offer) return;
+  clearTimeout(offer.timer);
+  const outcome = await transitionVoiceRecording(recordingId, (record) => ({
+    ...record,
+    discardUntil: undefined,
+  }));
+  // Pressed twice: the first one brought it back.
+  if (!store.get(discardedVoiceDraftsAtom).includes(offer)) return;
+  store.set(discardedVoiceDraftsAtom, (all) =>
+    all.flatMap((entry) => {
+      if (entry !== offer) return entry;
+      return outcome === 'failed' ? { ...offer, failed: true } : [];
+    })
+  );
+  if (outcome !== 'failed') {
+    parkVoiceDraft(store, { ...offer.draft, unprotected: outcome === 'absent' });
+  }
 };
 
 const toDraft = (
   mx: MatrixClient,
   ownerSessionId: string,
-  { record, file, duration, waveform }: JournaledVoiceRecording
+  { record, file, duration }: JournaledVoiceRecording
 ): PendingVoiceSendDraft => {
   const { recordingId, destination, txnId } = record;
-  const recording = { recordingId, file, duration, waveform, txnId };
+  const recording = { recordingId, file, duration, txnId };
   const room = destination && mx.getRoom(destination.roomId);
-  // Never sent, or its room is gone: every composer offers it, to send where Send is pressed.
+  // Never sent: every composer offers it, to send where Send is pressed. Sent to a room that is
+  // not there: every composer offers a copy of it, as its transaction ID says.
   if (!destination || !room) return { ...recording, context: { ownerSessionId } };
   const { replyEventId, replyThreadId } = destination;
   // Its send failed, or was cut short by what ended the page: it waits there, with Retry.

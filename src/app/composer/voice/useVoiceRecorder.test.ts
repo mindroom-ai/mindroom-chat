@@ -38,11 +38,9 @@ vi.mock('./voiceRecordingJournal', () => ({
   voiceCaptureJournal: () => ({
     begin: async () => true,
     append: async () => true,
-    flush: async () => true,
     abandon: () => undefined,
   }),
-  updateVoiceRecording: async () => true,
-  deleteVoiceRecording: async () => undefined,
+  transitionVoiceRecording: async () => 'committed',
 }));
 
 vi.mock('@capacitor/core', () => ({
@@ -1681,7 +1679,7 @@ describe('useVoiceRecorder', () => {
     const parked = store.get(pendingVoiceSendDraftAtom);
     expect(parked?.errorMessage).toBe('upload failed');
 
-    act(() => recorderState.current?.discardPending());
+    await act(async () => recorderState.current?.discardPending());
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
     expect(store.get(discardedVoiceDraftsAtom)[0]?.draft).toBe(parked);
 

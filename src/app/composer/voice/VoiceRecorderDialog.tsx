@@ -55,7 +55,6 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
 ) => {
   const { t } = useTranslation();
   const autoStartTriggeredRef = useRef(false);
-  const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
   // capsule + parked draft remain visible; the user can re-open the overlay
   // by retrying through primary composer Send. A fresh failure surfaces a fresh
@@ -78,6 +77,8 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     unprotected,
     hasPendingSend,
     pendingUnplaced,
+    pendingAttempted,
+    pendingAttemptedRoom,
     pendingDuration,
     pendingWaveform,
     start,
@@ -105,14 +106,11 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessageRef.current = errorMessage;
   }, [errorMessage]);
 
+  // A discard asks nothing: it can be undone, of a parked recording as of one being recorded.
   const discardAndClose = () => {
-    if (hasPendingSend) {
-      setDiscardConfirmationOpen(true);
-      return;
-    }
-
     void (async () => {
-      await discard();
+      if (hasPendingSend) discardPending();
+      else await discard();
       onClose();
     })();
   };
@@ -125,27 +123,26 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     return retry();
   }, [retry]);
 
-  const submitRecording = useCallback(async (): Promise<boolean> => {
-    if (sendDisabled) return false;
+  const submit = useCallback(
+    async (copy: boolean): Promise<boolean> => {
+      // The composer's Send never sends what may already be sent: its copy has its own button.
+      if (sendDisabled || copy !== pendingAttempted) return false;
 
-    const sent = hasPendingSend ? await beginRetry() : await send();
-    if (sent) {
-      onClose();
-    }
-    return sent;
-  }, [beginRetry, hasPendingSend, onClose, send, sendDisabled]);
+      const sent = hasPendingSend ? await beginRetry() : await send();
+      if (sent) {
+        onClose();
+      }
+      return sent;
+    },
+    [beginRetry, hasPendingSend, onClose, pendingAttempted, send, sendDisabled]
+  );
+  const submitRecording = useCallback(() => submit(false), [submit]);
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
   useImperativeHandle(ref, () => ({ send: submitRecording, phase: () => phaseRef.current }), [
     submitRecording,
   ]);
-
-  const confirmDiscardAndClose = () => {
-    discardPending();
-    setDiscardConfirmationOpen(false);
-    onClose();
-  };
 
   const dismissError = () => {
     clearError();
@@ -177,10 +174,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   }
 
   const showPendingSendError =
-    !!errorMessage &&
-    hasPendingSend &&
-    !discardConfirmationOpen &&
-    errorMessage !== deferredErrorMessage;
+    !!errorMessage && hasPendingSend && errorMessage !== deferredErrorMessage;
   const showNoBlobError = !!errorMessage && !hasPendingSend;
 
   // captureDeferDismiss reads errorMessage via errorMessageRef declared
@@ -194,11 +188,16 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   };
 
   // What the capsule says beside the time: a recording the disk does not hold would be lost by
-  // a crash, and one that has no destination was recovered (after a crash or a reload, or from a
-  // recorder that stopped by itself).
+  // a crash, one whose send was attempted in a room that is not there may have arrived, and one
+  // that has no destination was recovered (after a crash or a reload, or from a recorder that
+  // stopped by itself).
   let capsuleLabel: string | undefined;
   if (unprotected) capsuleLabel = t('composer.voiceUnprotected');
-  else if (pendingUnplaced) capsuleLabel = t('composer.voiceRecovered');
+  else if (pendingAttempted) {
+    capsuleLabel = t('composer.voiceMayBeSent', {
+      room: pendingAttemptedRoom ?? t('composer.voiceAnotherRoom'),
+    });
+  } else if (pendingUnplaced) capsuleLabel = t('composer.voiceRecovered');
 
   return (
     <>
@@ -247,7 +246,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                   <Box justifyContent="End" gap="200">
                     <Button
                       variant="Secondary"
-                      onClick={() => setDiscardConfirmationOpen(true)}
+                      onClick={discardAndClose}
                       fill="Soft"
                       outlined
                       radii="300"
@@ -268,43 +267,6 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               </Dialog>
             </div>
           </FocusTrap>
-        </OverlayCenter>
-      </Overlay>
-
-      <Overlay open={discardConfirmationOpen} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <Dialog variant="Surface">
-            <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-              <Text size="H5">
-                {t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording')}
-              </Text>
-              <Text size="T300">
-                {t(
-                  'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
-                )}
-              </Text>
-              <Box justifyContent="End" gap="200">
-                <Button
-                  variant="Secondary"
-                  onClick={() => setDiscardConfirmationOpen(false)}
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                >
-                  {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
-                </Button>
-                <Button
-                  variant="Critical"
-                  onClick={confirmDiscardAndClose}
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                >
-                  {t('mindroomUi.voice.voiceRecorderDialog.discard')}
-                </Button>
-              </Box>
-            </Box>
-          </Dialog>
         </OverlayCenter>
       </Overlay>
 
@@ -335,6 +297,8 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               sampleCount={hasPendingSend ? undefined : sampleCount}
               canPause={canPause}
               label={capsuleLabel}
+              sendCopyLabel={pendingAttempted ? t('composer.voiceSendCopy') : undefined}
+              onSendCopy={() => void submit(true)}
               hasPendingSend={hasPendingSend}
               onDiscard={discardAndClose}
               onPause={pause}

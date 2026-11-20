@@ -1,4 +1,4 @@
-import { Box, Icon, Icons, Spinner, Text } from 'folds';
+import { Box, Button, Icon, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { millisecondsToMinutesAndSeconds } from '../../lib/common';
@@ -17,6 +17,9 @@ type VoiceRecordingCapsuleProps = {
   canPause: boolean;
   /** Shown before the time: "Recovered recording", or "Not protected against a crash". */
   label?: string;
+  /** Names the button that sends a copy of a recording that may already be sent elsewhere. */
+  sendCopyLabel?: string;
+  onSendCopy?: () => void;
   hasPendingSend?: boolean;
   onDiscard: () => void;
   onPause: () => void;
@@ -41,6 +44,8 @@ export function VoiceRecordingCapsule({
   sampleCount,
   canPause,
   label,
+  sendCopyLabel,
+  onSendCopy,
   hasPendingSend,
   onDiscard,
   onPause,
@@ -92,6 +97,20 @@ export function VoiceRecordingCapsule({
       <Text className={css.Timer} size="B300" aria-live="polite">
         {millisecondsToMinutesAndSeconds(elapsedMs)}
       </Text>
+      {sendCopyLabel && (
+        <Button
+          size="300"
+          variant="Primary"
+          fill="Soft"
+          radii="Pill"
+          onClick={onSendCopy}
+          disabled={busy}
+        >
+          <Text as="span" size="B300">
+            {sendCopyLabel}
+          </Text>
+        </Button>
+      )}
       <IconTooltip
         label={
           paused ? t('mindroomUi.voice.resumeRecording') : t('mindroomUi.voice.pauseRecording')

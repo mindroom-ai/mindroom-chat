@@ -12,16 +12,39 @@ import type { CapturedVoiceRecording } from './voiceCaptureSession';
 import {
   createVoiceSendDraftController as createController,
   type SendRecordingCallback,
-  type VoiceDraftJournal,
   type VoiceDraftStore,
 } from './voiceSendDraftController';
+import type {
+  transitionVoiceRecording,
+  VoiceJournalRecord,
+  VoiceTransitionOutcome,
+} from './voiceRecordingJournal';
 
-const createJournal = () => ({
-  update: vi.fn<VoiceDraftJournal['update']>(async () => true),
-  remove: vi.fn<VoiceDraftJournal['remove']>(async () => undefined),
-});
+type Transition = typeof transitionVoiceRecording;
+/** The journal's one record, as the disk would hold it: changed only by a write that commits. */
+const createJournal = () => {
+  const fresh: VoiceJournalRecord = {
+    userId: '@voice:example.org',
+    recordingId: 'rec-voice',
+    startedAt: 0,
+    mimeType: 'audio/ogg',
+  };
+  let record: VoiceJournalRecord | undefined = fresh;
+  const state = {
+    fresh,
+    /** What every write comes to, until a test says otherwise. */
+    outcome: 'committed' as VoiceTransitionOutcome,
+    record: () => record,
+    apply: (change: Parameters<Transition>[1] = (kept) => kept): VoiceTransitionOutcome => {
+      if (state.outcome === 'committed') record = record && change(record);
+      return state.outcome;
+    },
+  };
+  const transition = vi.fn<Transition>(async (_id, change) => state.apply(change));
+  return Object.assign(state, { transition });
+};
 const createVoiceSendDraftController = (store: VoiceDraftStore, journal = createJournal()) =>
-  createController(store, journal);
+  createController(store, journal.transition);
 /** Lets a journal write, or a send that waits for one, finish. */
 const journalWritten = () => Promise.resolve();
 /** A send the server acknowledged. */
@@ -170,7 +193,6 @@ describe('voiceSendDraftController', () => {
     const claimedDraft = store.read()!;
     expect(claimedDraft.inFlight).toBeDefined();
     expect(typeof claimedDraft.inFlight?.token).toBe('string');
-    expect(typeof claimedDraft.inFlight?.startedAt).toBe('number');
     expect(claimedDraft.errorMessage).toBeUndefined();
     await journalWritten();
     expect(sendRecording).toHaveBeenCalledWith(
@@ -380,7 +402,7 @@ describe('voiceSendDraftController', () => {
       context: createContext,
     });
 
-    controller.discardPending();
+    store.write(undefined);
     gate.reject(new Error('failed'));
 
     expect(await retry).toBe(false);
@@ -401,8 +423,11 @@ describe('voiceSendDraftController and the journal', () => {
 
   it('writes where it really goes, in IDs, and its txnId before anything is sent', async () => {
     const journal = createJournal();
-    const written = deferred<boolean>();
-    journal.update.mockReturnValueOnce(written.promise);
+    const written = deferred();
+    journal.transition.mockImplementationOnce(async (_id, change) => {
+      await written.promise;
+      return journal.apply(change);
+    });
     const controller = createVoiceSendDraftController(createDraftStore(), journal);
     // The composer resolves the thread's root to the ID the server gave it, and the reply.
     const { sendRecording, dispatched } = committedSend((context) => ({
@@ -422,72 +447,82 @@ describe('voiceSendDraftController and the journal', () => {
       sendRecording,
       onFailure: vi.fn(),
     });
+    // What the disk holds when the event leaves.
+    let atDispatch: ReturnType<typeof journal.record>;
+    dispatched.mockImplementationOnce(async () => {
+      atDispatch = journal.record();
+      return '$voice';
+    });
     await journalWritten();
-    expect(journal.update).toHaveBeenCalledExactlyOnceWith('rec-voice', {
+    expect(journal.transition).toHaveBeenCalledOnce();
+    expect(dispatched).not.toHaveBeenCalled();
+    written.resolve();
+    expect(await delivery).toBe(true);
+    expect(atDispatch).toMatchObject({
       destination: {
         ...destination,
         threadId: '$root-on-server',
         replyEventId: '$reply',
         replyThreadId: '$reply-thread',
       },
-      txnId: expect.stringMatching(/^mindroom-voice-/),
+      txnId: sendRecording.mock.calls[0]![4].txnId,
     });
-    expect(JSON.stringify(journal.update.mock.calls)).not.toContain('secret');
-    expect(dispatched).not.toHaveBeenCalled();
-    written.resolve(true);
-    expect(await delivery).toBe(true);
-    expect(dispatched).toHaveBeenCalledOnce();
-    expect(sendRecording.mock.calls[0]![4].txnId).toBe(journal.update.mock.calls[0]![1].txnId);
+    expect(atDispatch?.txnId).toMatch(/^mindroom-voice-/);
+    expect(JSON.stringify(atDispatch)).not.toContain('secret');
+    // Acknowledged, it leaves the disk.
+    expect(journal.record()).toBeUndefined();
   });
 
-  it('sends nothing and keeps the recording when the journal could not take where it goes', async () => {
+  it('sends nothing of a recording the disk holds while it cannot write where it goes, on any attempt', async () => {
     const journal = createJournal();
-    journal.update.mockResolvedValue(false);
+    journal.outcome = 'failed';
     const store = createDraftStore();
     const controller = createVoiceSendDraftController(store, journal);
     const { sendRecording, dispatched } = committedSend();
     const onFailure = vi.fn();
     const recording = createRecording();
+    const retry = () =>
+      controller.retry({ sendRecording, onFailure, claim: () => true, context: createContext });
 
     expect(
       await controller.sendInitial(recording, createContext(), { sendRecording, onFailure })
     ).toBe(false);
-    expect(dispatched).not.toHaveBeenCalled();
-    expect(journal.remove).not.toHaveBeenCalled();
-    expect(onFailure).toHaveBeenCalledOnce();
-    // It is kept in memory, with its error, and no longer claims to be on disk.
+    // It is kept as it was, with the error.
     expect(store.read()).toMatchObject({
       file: recording.file,
-      errorMessage: 'Failed to send voice message.',
-      unprotected: true,
+      errorMessage: 'Could not save this change to your recording. Try again.',
     });
+    // A second and a third try change nothing: an event without its ID on disk could be sent twice.
+    expect(await retry()).toBe(false);
+    expect(await retry()).toBe(false);
+    expect(dispatched).not.toHaveBeenCalled();
+    expect(journal.record()).toEqual(journal.fresh);
+    expect(onFailure).toHaveBeenCalledTimes(3);
 
-    // The disk still refuses: it goes from memory, under the ID it had.
+    // Once the disk takes it, it goes, under the ID it had from the start.
+    journal.outcome = 'committed';
     const { txnId } = store.read()!;
-    expect(
-      await controller.retry({
-        sendRecording,
-        onFailure,
-        claim: () => true,
-        context: createContext,
-      })
-    ).toBe(true);
+    expect(await retry()).toBe(true);
     expect(dispatched).toHaveBeenCalledOnce();
-    expect(sendRecording.mock.calls.map((call) => call[4].txnId)).toEqual([txnId, txnId]);
+    expect(new Set(sendRecording.mock.calls.map((call) => call[4].txnId))).toEqual(
+      new Set([txnId])
+    );
   });
 
-  it('sends a recording the disk never held from memory', async () => {
+  it('sends a recording the disk never held from memory, and says it is not protected', async () => {
     const journal = createJournal();
-    journal.update.mockResolvedValue(false);
-    const controller = createVoiceSendDraftController(createDraftStore(), journal);
+    journal.outcome = 'absent';
+    const store = createDraftStore();
+    const controller = createVoiceSendDraftController(store, journal);
     const { sendRecording, dispatched } = committedSend();
-    expect(
-      await controller.sendInitial({ ...createRecording(), unprotected: true }, createContext(), {
-        sendRecording,
-        onFailure: vi.fn(),
-      })
-    ).toBe(true);
-    expect(dispatched).toHaveBeenCalledOnce();
+    dispatched.mockRejectedValueOnce(new Error('offline'));
+    const attempt = { sendRecording, onFailure: vi.fn() };
+    expect(await controller.sendInitial(createRecording(), createContext(), attempt)).toBe(false);
+    expect(store.read()).toMatchObject({ errorMessage: 'offline', unprotected: true });
+    expect(await controller.retry({ ...attempt, claim: () => true, context: createContext })).toBe(
+      true
+    );
+    expect(dispatched).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -509,7 +544,7 @@ describe('voiceSendDraftController and the journal', () => {
         onFailure: vi.fn(),
       })
     ).toBe(false);
-    expect(journal.remove).not.toHaveBeenCalled();
+    expect(journal.record()).toBeDefined();
     expect(store.read()?.errorMessage).toEqual(expect.any(String));
 
     // Sending but not acknowledged yet, it is still there.
@@ -522,10 +557,30 @@ describe('voiceSendDraftController and the journal', () => {
     });
     await journalWritten();
     await journalWritten();
-    expect(journal.remove).not.toHaveBeenCalled();
+    expect(journal.record()).toBeDefined();
     acknowledged.resolve('$voice');
     expect(await retry).toBe(true);
-    expect(journal.remove).toHaveBeenCalledExactlyOnceWith('rec-voice');
+    expect(journal.record()).toBeUndefined();
+  });
+
+  it('keeps a recording that was sent, with its transaction ID, until it left the disk', async () => {
+    const journal = createJournal();
+    const store = createDraftStore();
+    const controller = createVoiceSendDraftController(store, journal);
+    const { sendRecording, dispatched } = committedSend();
+    // The server took it; deleting it from the disk fails.
+    dispatched.mockImplementationOnce(async () => {
+      journal.outcome = 'failed';
+      return '$voice';
+    });
+    const attempt = { sendRecording, onFailure: vi.fn() };
+    expect(await controller.sendInitial(createRecording(), createContext(), attempt)).toBe(false);
+    const { txnId } = store.read()!;
+    expect(store.read()?.errorMessage).toBe(
+      'Could not save this change to your recording. Try again.'
+    );
+    // A page that loads now finds it with the ID the server knows, not as one never sent.
+    expect(journal.record()).toMatchObject({ destination, txnId });
   });
 
   it('retries a failed send under the same txnId', async () => {
@@ -539,17 +594,14 @@ describe('voiceSendDraftController and the journal', () => {
     expect(await controller.sendInitial(createRecording(), createContext(), attempt)).toBe(false);
     const { txnId } = store.read()!;
     expect(txnId).toEqual(expect.any(String));
+    expect(journal.record()).toMatchObject({ destination, txnId });
     expect(await controller.retry({ ...attempt, claim: () => true, context: createContext })).toBe(
       true
     );
     expect(sendRecording.mock.calls.map((call) => call[4].txnId)).toEqual([txnId, txnId]);
-    expect(journal.update.mock.calls.map((call) => call[1])).toEqual([
-      { destination, txnId },
-      { destination, txnId },
-    ]);
   });
 
-  it('retries a crash mid-send with the same txnId', async () => {
+  it('retries a crash mid-send where it was going, with the same txnId', async () => {
     const journal = createJournal();
     // As recovery parks it: where it was going, and the transaction ID written before the crash.
     const store = createDraftStore({ ...createDraft(), txnId: 'txn-before-crash' });
@@ -571,7 +623,7 @@ describe('voiceSendDraftController and the journal', () => {
       expect.objectContaining({ roomId: '!voice:example.org' }),
       { txnId: 'txn-before-crash', commit: expect.any(Function) }
     );
-    expect(journal.remove).toHaveBeenCalledExactlyOnceWith('rec-voice');
+    expect(journal.record()).toBeUndefined();
   });
 
   it('sends a recovered recording where Send is pressed, and parks it there when that fails', async () => {
@@ -594,12 +646,46 @@ describe('voiceSendDraftController and the journal', () => {
       })
     ).toBe(false);
     expect(sendRecording.mock.calls[0]![3]).toBe(pressed);
-    expect(journal.update).toHaveBeenCalledWith('rec-voice', {
+    expect(journal.record()).toMatchObject({
       destination: { ...destination, roomId: '!pressed:example.org' },
       txnId: expect.any(String),
     });
     expect(store.read()).toMatchObject({ context: pressed, errorMessage: 'offline' });
-    expect(journal.remove).not.toHaveBeenCalled();
+  });
+
+  it('sends what may already be sent in a room that is gone as a copy, under a new txnId', async () => {
+    const journal = createJournal();
+    const store = createDraftStore({
+      ...createRecording(),
+      context: { ownerSessionId: '@voice:example.org' },
+      txnId: 'txn-attempted',
+      attemptedRoomName: 'Harbour office',
+    });
+    const controller = createVoiceSendDraftController(store, journal);
+    const pressed = createContext('!pressed:example.org');
+    const { sendRecording, dispatched } = committedSend();
+    dispatched.mockRejectedValueOnce(new Error('offline'));
+    const attempt = {
+      claim: () => true,
+      sendRecording,
+      onFailure: vi.fn(),
+      context: () => pressed,
+    };
+
+    expect(await controller.retry(attempt)).toBe(false);
+    // The ID the first room knows is not the second room's: the copy is its own event.
+    const copyTxnId = sendRecording.mock.calls[0]![4].txnId;
+    expect(copyTxnId).toMatch(/^mindroom-voice-/);
+    expect(copyTxnId).not.toBe('txn-attempted');
+    expect(journal.record()).toMatchObject({
+      destination: { ...destination, roomId: '!pressed:example.org' },
+      txnId: copyTxnId,
+    });
+    // From here on it is that room's, to retry there under the copy's ID.
+    expect(store.read()).toMatchObject({ context: pressed, txnId: copyTxnId });
+    expect(store.read()?.attemptedRoomName).toBeUndefined();
+    expect(await controller.retry(attempt)).toBe(true);
+    expect(sendRecording.mock.calls[1]![4].txnId).toBe(copyTxnId);
   });
 });
 
