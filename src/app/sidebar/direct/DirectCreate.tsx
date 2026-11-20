@@ -38,7 +38,7 @@ export function DirectCreate() {
 
   const existingRoomId = requestedUserId ? findDirectRoom(client, requestedUserId) : undefined;
   useEffect(() => {
-    if (existingRoomId) navigate(getDirectRoomPath(existingRoomId), { replace: true });
+    if (existingRoomId) void navigate(getDirectRoomPath(existingRoomId), { replace: true });
   }, [existingRoomId, navigate]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -50,13 +50,13 @@ export function DirectCreate() {
     if (!valid) return;
     const existing = findDirectRoom(client, userId);
     if (existing) {
-      navigate(getDirectRoomPath(existing));
+      void navigate(getDirectRoomPath(existing));
       return;
     }
     setCreating(true);
     try {
       const roomId = await createDirectRoom(client, userId, { encryption, version: roomVersion });
-      navigate(getDirectRoomPath(roomId));
+      void navigate(getDirectRoomPath(roomId));
     } catch {
       setFailed(true);
     } finally {

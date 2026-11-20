@@ -445,7 +445,7 @@ describe('CompactThreadCard', () => {
       attentionStatusText: 'Resolved',
       isResolved: true,
       resolvedByDisplayName: 'Alice',
-    } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
+    });
     const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
     const button = renderer.root.findByType('button');
 
@@ -461,7 +461,7 @@ describe('CompactThreadCard', () => {
       attentionStatusText: 'Resolved',
       isResolved: true,
       resolvedByDisplayName: 'Alice',
-    } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
+    });
     const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
     const metadata = renderer.root.findByProps({ className: 'MetadataRow' });
     const resolverByline = metadata.findByProps({

@@ -98,8 +98,8 @@ describe('RoomTimeline at the address the app’s Back returned to', () => {
     const { room, show } = await mountRoom();
     const findLoaded = room.findEventById;
     let replyLoaded = false;
-    room.findEventById = ((eventId: string) =>
-      eventId === REPLY && replyLoaded ? reply : findLoaded(eventId)) as never;
+    room.findEventById = (eventId: string) =>
+      eventId === REPLY && replyLoaded ? reply : findLoaded(eventId);
 
     // The link's own visit: the server does not say which thread the reply is in.
     await show(REPLY);

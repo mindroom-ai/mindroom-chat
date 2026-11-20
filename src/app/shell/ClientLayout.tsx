@@ -81,7 +81,9 @@ export function ClientLayout({
   useEffect(() => {
     if (!sessionId || isRuntimeHandOffPath(pathname)) return;
     if (routeOpener && routeOpener.key === key && routeOpener.sessionId !== sessionId) {
-      navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), { replace: true });
+      void navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), {
+        replace: true,
+      });
       return;
     }
     routeOpener = { key, sessionId };
@@ -101,7 +103,7 @@ export function ClientLayout({
         if (router && router.state.location.key !== key) return;
         // The same visit under the room's own address: what the entry says of it stays.
         if (resolved !== pathname) {
-          navigate(`${resolved}${search}${hash}`, { replace: true, state });
+          void navigate(`${resolved}${search}${hash}`, { replace: true, state });
         }
       })
       .catch(() => {

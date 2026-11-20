@@ -21,6 +21,7 @@ import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadCont
 import { settingsAtom } from '../preferences/settings';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { runShortcut } from '../shortcuts/useShortcut';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
 const menuProps = vi.hoisted(() => vi.fn());
 const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
@@ -58,6 +59,11 @@ const pinningMocks = vi.hoisted(() => ({
 }));
 vi.mock('../event-store/threads/useThreadPinning', () => ({
   useThreadPinning: () => pinningMocks,
+}));
+
+vi.mock('../ui/page/PhoneBackButton', () => ({
+  PhoneBackButton: ({ label, onBack }: { label: string; onBack: () => void }) =>
+    React.createElement('button', { 'aria-label': label, onClick: onBack }),
 }));
 
 const ISO_1 = '2026-04-07T00:00:01.000Z';
@@ -172,15 +178,18 @@ vi.mock('./ThreadContextBanner.css', () => ({
   BannerSnoozed: 'BannerSnoozed',
   Collapsed: 'Collapsed',
   CompactHidden: 'CompactHidden',
-  DesktopOnlyTags: 'DesktopOnlyTags',
   EyebrowRow: 'EyebrowRow',
   MetadataDot: 'MetadataDot',
-  MobileOnlyTags: 'MobileOnlyTags',
+  NarrowPhoneTitleRow: 'NarrowPhoneTitleRow',
+  StackedPhoneTitleRow: 'StackedPhoneTitleRow',
   OverflowChip: 'OverflowChip',
+  PhoneTitle: 'PhoneTitle',
+  PhoneTitleRow: 'PhoneTitleRow',
   ResolutionByline: 'ResolutionByline',
   ResolutionBylineDot: 'ResolutionBylineDot',
   ResolverName: 'ResolverName',
   ResolvedButton: 'ResolvedButton',
+  RowActions: 'RowActions',
   ScheduledDot: 'ScheduledDot',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',
@@ -382,7 +391,9 @@ describe('ThreadContextBanner rendering', () => {
   afterEach(() => {
     platform.mockRestore();
   });
+  let screenSize: ScreenSize = ScreenSize.Desktop;
   beforeEach(() => {
+    screenSize = ScreenSize.Desktop;
     store = createStore();
     menuProps.mockClear();
     pinningMocks.pinnedEventIds = [];
@@ -413,26 +424,31 @@ describe('ThreadContextBanner rendering', () => {
     columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull' | 'onClose'>
   ) =>
     React.createElement(
-      Provider,
-      { store },
-      React.createElement(ThreadContextBanner, {
-        room: {
-          roomId: '!room:example.org',
-          getThread: () => undefined,
-          findEventById: () => undefined,
-          getMember: (userId: string) =>
-            userId === '@alice:example.org'
-              ? { rawDisplayName: 'Alice', name: 'Alice' }
-              : undefined,
-          hasEncryptionStateEvent: () => false,
-          on: vi.fn(),
-          removeListener: vi.fn(),
-        } as unknown as Room,
-        threadId,
-        summaryInfo: summaryText ? { summaryText } : undefined,
-        onExitThread: vi.fn(),
-        ...columnProps,
-      })
+      ScreenSizeProvider,
+      { value: screenSize },
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(ThreadContextBanner, {
+          room: {
+            roomId: '!room:example.org',
+            getThread: () => undefined,
+            findEventById: () => undefined,
+            getUnfilteredTimelineSet: () => undefined,
+            getMember: (userId: string) =>
+              userId === '@alice:example.org'
+                ? { rawDisplayName: 'Alice', name: 'Alice' }
+                : undefined,
+            hasEncryptionStateEvent: () => false,
+            on: vi.fn(),
+            removeListener: vi.fn(),
+          } as unknown as Room,
+          threadId,
+          summaryInfo: summaryText ? { summaryText } : undefined,
+          onExitThread: vi.fn(),
+          ...columnProps,
+        })
+      )
     );
   const renderBanner = (
     summaryText?: string,
@@ -627,7 +643,7 @@ describe('ThreadContextBanner rendering', () => {
         });
 
     const summarized = renderBanner('A concise thread summary');
-    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve', 'MobileOnlyTags']);
+    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve']);
     const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
     expect(more.props.className).toBe('MessageOptionsButton');
     summarized.unmount();
@@ -656,6 +672,359 @@ describe('ThreadContextBanner rendering', () => {
     expect(hidden(pinned)).toEqual([]);
     expect(pinned.root.findByProps({ 'aria-label': 'Unpin thread' })).toBeDefined();
     pinned.unmount();
+  });
+
+  describe('on a phone', () => {
+    const tagged = {
+      tags: { bug: { set_by: '@a:b', set_at: ISO_1 } },
+      displayTags: ['bug'],
+      isResolved: false,
+      canEdit: true,
+      availableTags: ['urgent'],
+    };
+    const buttons = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAllByType('button')
+        .map((button) => button.props['aria-label'] ?? text(button));
+
+    it('leaves the tags and the pin to More, and keeps Resolve unless the thread is pinned', () => {
+      pinningMocks.canPin = true;
+      bannerMocks.useThreadTags.mockReturnValue(tagged);
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner('A concise thread summary');
+      expect(buttons(phone)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(phone.root.findAll((node) => node.children.includes('bug'))).toHaveLength(0);
+      expect(phone.root.findAllByProps({ className: 'TagsRow CompactHidden' })).toHaveLength(0);
+      phone.unmount();
+
+      // Pinned, the solid pin takes Resolve's place as a status, not a button; More unpins.
+      pinningMocks.pinnedEventIds = ['$root'];
+      const pinned = renderBanner('A concise thread summary');
+      expect(buttons(pinned)).toEqual(['Back', 'Thread options']);
+      expect(pinned.root.findByProps({ role: 'img', 'aria-label': 'Pinned' })).toBeDefined();
+      pinned.unmount();
+
+      // A tablet keeps both, as before.
+      pinningMocks.pinnedEventIds = [];
+      screenSize = ScreenSize.Tablet;
+      const tablet = renderBanner('A concise thread summary');
+      expect(buttons(tablet)).toEqual(['Back', '+ tag', 'Thread options', 'Pin thread', 'Resolve']);
+      expect(tablet.root.findAll((node) => node.children.includes('bug'))).toHaveLength(1);
+      tablet.unmount();
+    });
+
+    it('shows the whole title, wrapping and bounded, where a tablet cuts it to one line', () => {
+      const title = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.findByProps({ 'data-thread-context-summary': 'true' });
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner('A concise thread summary');
+      expect(title(phone).props).toMatchObject({
+        className: 'PhoneTitle',
+        tabIndex: 0,
+        truncate: false,
+      });
+      expect(title(phone).props['data-own-direction']).toBe('block');
+      expect(phone.root.findByProps({ className: 'TitleRow PhoneTitleRow' })).toBeDefined();
+      phone.unmount();
+
+      screenSize = ScreenSize.Tablet;
+      const tablet = renderBanner('A concise thread summary');
+      expect(title(tablet).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect(title(tablet).props.tabIndex).toBeUndefined();
+      expect(tablet.root.findByProps({ className: 'TitleRow' })).toBeDefined();
+      tablet.unmount();
+    });
+
+    // The tab stops in DOM order: buttons by name, the title by its role here.
+    const tabStops = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAll(
+          (node) =>
+            typeof node.type === 'string' && (node.type === 'button' || node.props.tabIndex === 0)
+        )
+        .map((node) =>
+          node.props['data-thread-context-summary'] ? 'title' : node.props['aria-label']
+        );
+    /**
+     * The title row's node: `width` wide; its title column and buttons as tall as `heights` says
+     * for the row's classes at the moment they are measured.
+     */
+    let lastRow: { className: string } | undefined;
+    const rowOf =
+      (
+        width: number,
+        heights: (
+          classes: Set<string>,
+          part: 'title' | 'actions'
+        ) => { title: number; actions: number } = () => ({
+          title: 20,
+          actions: 80,
+        })
+      ) =>
+      (element: React.ReactElement) => {
+        if (!(element.props as { className?: string }).className?.startsWith('TitleRow')) {
+          return null;
+        }
+        const classes = new Set<string>();
+        const part = (name: 'title' | 'actions') => ({
+          getBoundingClientRect: () => ({ height: heights(classes, name)[name] }),
+        });
+        const title = part('title');
+        const actions = part('actions');
+        const node = {
+          getBoundingClientRect: () => ({ width }),
+          classList: {
+            add: (name: string) => classes.add(name),
+            remove: (...names: string[]) => names.forEach((name) => classes.delete(name)),
+          },
+          get className() {
+            return [...classes].join(' ');
+          },
+          set className(value: string) {
+            classes.clear();
+            value
+              .split(' ')
+              .filter(Boolean)
+              .forEach((name) => classes.add(name));
+          },
+          querySelector: (selector: string) =>
+            ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions }[selector] ?? null),
+        };
+        lastRow = node;
+        return node;
+      };
+
+    it('puts a title under the buttons after them in the tab order, as on the screen', () => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      try {
+        screenSize = ScreenSize.Mobile;
+        // 19rem is 304 px: a 280 px row stacks the title under the buttons.
+        const narrow = renderBanner('A concise thread summary', rowOf(280));
+        expect(tabStops(narrow)).toEqual(['Back', 'Thread options', 'Resolve', 'title']);
+        expect(
+          narrow.root.findByProps({ className: 'TitleRow PhoneTitleRow NarrowPhoneTitleRow' })
+        ).toBeDefined();
+        narrow.unmount();
+
+        const wide = renderBanner('A concise thread summary', rowOf(360));
+        expect(tabStops(wide)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        expect(wide.root.findByProps({ className: 'TitleRow PhoneTitleRow' })).toBeDefined();
+        wide.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('keeps the buttons in a row on a short screen held sideways, which hides Resolve', () => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      const sideways = vi.fn((query: string) => ({ matches: query.includes('landscape') }));
+      vi.stubGlobal('matchMedia', sideways);
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      try {
+        screenSize = ScreenSize.Mobile;
+        // A title tall enough to stack them upright.
+        const renderer = renderBanner(
+          'A concise thread summary',
+          rowOf(360, () => ({ title: 120, actions: 96 }))
+        );
+        expect(sideways).toHaveBeenCalled();
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow');
+        renderer.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('decides again when the title changes in place, though no box it shows resizes', () => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      // The title's height beside the buttons in a row follows its text: a line, or six.
+      let lines = 1;
+      try {
+        screenSize = ScreenSize.Mobile;
+        const renderer = renderBanner(
+          'A short summary',
+          rowOf(360, () => ({ title: lines * 20, actions: 96 }))
+        );
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow');
+        // The summary arrives: six lines beside the row; stacked, the buttons hold beside it.
+        lines = 6;
+        act(() => renderer.update(bannerElement('A summary that takes six lines beside the row')));
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow StackedPhoneTitleRow');
+        // Renamed to a line again: back in a row.
+        lines = 1;
+        act(() => renderer.update(bannerElement('Short again')));
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow');
+        renderer.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('stacks the buttons beside a title as tall as them, keeps them in a row beside a short one', () => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      try {
+        screenSize = ScreenSize.Mobile;
+        // Stacked, three buttons take 96 px: a title of 120 px beside them in a row holds them.
+        const tall = renderBanner(
+          'A concise thread summary',
+          rowOf(360, () => ({ title: 120, actions: 96 }))
+        );
+        expect(rowClass(tall)).toBe('TitleRow PhoneTitleRow StackedPhoneTitleRow');
+        // Their order, and the tab order, stay as in the row: top to bottom as left to right.
+        expect(tabStops(tall)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        tall.unmount();
+
+        // A title of a line or two (40 px) keeps them side by side: stacked, they would make the
+        // card taller than its title.
+        const short = renderBanner(
+          'A concise thread summary',
+          rowOf(360, () => ({ title: 40, actions: 96 }))
+        );
+        expect(rowClass(short)).toBe('TitleRow PhoneTitleRow');
+        short.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('decides by the title beside the row and the buttons stacked, so its pick cannot flip it back', () => {
+      // Page Zoom (the root's style) makes the banner measure again, as a resize would.
+      const measuredAgain: (() => void)[] = [];
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      vi.stubGlobal(
+        'MutationObserver',
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            measuredAgain.push(this.callback);
+          }
+
+          disconnect() {}
+        }
+      );
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      try {
+        screenSize = ScreenSize.Mobile;
+        // Beside the buttons side by side the title takes 100 px, as tall as the 96 px they take
+        // one above the other; stacked, the title is wider and takes only 80 px. Deciding by the
+        // layout the row shows would stack them, then put them back in a row, and so on.
+        const seen: string[] = [];
+        const banner = renderBanner(
+          'A concise thread summary',
+          rowOf(360, (classes, part) => {
+            const stacked = classes.has('StackedPhoneTitleRow');
+            seen.push(`${part} ${stacked ? 'stacked' : 'row'}`);
+            return stacked ? { title: 80, actions: 96 } : { title: 100, actions: 32 };
+          })
+        );
+        const stackedClass = 'TitleRow PhoneTitleRow StackedPhoneTitleRow';
+        expect(rowClass(banner)).toBe(stackedClass);
+        for (let again = 0; again < 3; again += 1) {
+          // The row as the screen now shows it, which the measurement leaves as it found it.
+          lastRow!.className = stackedClass;
+          act(() => measuredAgain.forEach((measure) => measure()));
+          expect(rowClass(banner)).toBe(stackedClass);
+          expect(lastRow!.className).toBe(stackedClass);
+        }
+        // The title is measured beside the buttons in a row, the buttons stacked, every time.
+        expect(new Set(seen)).toEqual(new Set(['title row', 'actions stacked']));
+        banner.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('moves the title under the buttons, and back, when Page Zoom changes at the same width', () => {
+      const row = rowOf(360);
+      // Page Zoom sets the root's style: its font size, and so 19rem in px.
+      let fontSize = '16px';
+      const rootStyleChanged: (() => void)[] = [];
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize }));
+      vi.stubGlobal(
+        'MutationObserver',
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            rootStyleChanged.push(this.callback);
+          }
+
+          disconnect() {
+            rootStyleChanged.splice(rootStyleChanged.indexOf(this.callback), 1);
+          }
+        }
+      );
+      const zoomTo = (size: string) => {
+        fontSize = size;
+        act(() => rootStyleChanged.forEach((changed) => changed()));
+      };
+      try {
+        screenSize = ScreenSize.Mobile;
+        // 19rem is 304 px at 100%: a 360 px row holds the title beside the buttons.
+        const banner = renderBanner('A concise thread summary', row);
+        expect(tabStops(banner)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        // At 150% it is 456 px, and the same row stacks the title under them.
+        zoomTo('24px');
+        expect(tabStops(banner)).toEqual(['Back', 'Thread options', 'Resolve', 'title']);
+        zoomTo('16px');
+        expect(tabStops(banner)).toEqual(['Back', 'title', 'Thread options', 'Resolve']);
+        banner.unmount();
+        expect(rootStyleChanged).toHaveLength(0);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("shows a first message's whole start as the title of a thread without a summary", () => {
+      const body = 'Notes from the upload review, '.repeat(8).trim();
+      bannerMocks.useCachedThreadRoot.mockReturnValue(
+        new MatrixEvent({
+          event_id: '$root',
+          type: 'm.room.message',
+          room_id: '!room:example.org',
+          sender: '@bob:example.org',
+          origin_server_ts: 1,
+          content: { msgtype: 'm.text', body },
+        })
+      );
+      const rootTitle = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.findByProps({ 'data-thread-context-root-title': 'true' });
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner();
+      expect(rootTitle(phone).props).toMatchObject({
+        className: 'PhoneTitle',
+        tabIndex: 0,
+        truncate: false,
+      });
+      expect(text(rootTitle(phone))).toBe(body);
+      phone.unmount();
+
+      screenSize = ScreenSize.Desktop;
+      const desktop = renderBanner();
+      expect(rootTitle(desktop).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      desktop.unmount();
+    });
   });
 
   it('leaves Show beside and Show in full to its More menu, with no button of their own', async () => {
@@ -807,10 +1176,10 @@ describe('ThreadContextBanner rendering', () => {
       displayTags: ['bug'],
     });
     const tagged = renderBanner('A concise thread summary');
-    // One picker beside the desktop tags, one beside the mobile tags row.
+    // One picker, beside the tags.
     expect(
       tagged.root.findAll((node) => node.type === 'button' && node.children.includes('+ tag'))
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     tagged.unmount();
   });
 

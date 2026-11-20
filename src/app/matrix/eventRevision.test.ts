@@ -294,8 +294,8 @@ describe('event aggregation revisions', () => {
       describeRawEventRevision(mergeRawEventRevisions(withEdit(edit2), withEdit(edit1)))
     ).toMatchObject({ replacement: { eventId: '$edit-2', ts: 10 } });
 
-    const target = new MatrixEvent(withEdit(edit1) as IEvent);
-    target.makeReplaced(new MatrixEvent(edit2 as IEvent));
+    const target = new MatrixEvent(withEdit(edit1));
+    target.makeReplaced(new MatrixEvent(edit2));
     expect(describeMatrixEventRevision(target)).toMatchObject({
       replacement: { eventId: '$edit-2', ts: 10 },
     });

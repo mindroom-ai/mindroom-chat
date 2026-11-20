@@ -10,6 +10,7 @@ const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
   options: {},
   setOptions: vi.fn(),
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
   getVirtualItems: () => [],
 }));
@@ -195,6 +196,14 @@ describe('the offset ledger after a settle', () => {
     ledger.scrollTo(0);
     expect(ledger.rows.style.marginTop).toBe('');
     expect(ledger.writes).toEqual([959]);
+    ledger.unmount();
+  });
+
+  it('forgets the position its settle wrote once the rows it settled for are replaced', () => {
+    const ledger = mountRoomLedger();
+    // No scroll event read the settle's write before the room showed other rows.
+    ledger.replaceRows();
+    expect(ledger.takeSettledScrollTop()).toBeUndefined();
     ledger.unmount();
   });
 

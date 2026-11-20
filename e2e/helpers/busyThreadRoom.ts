@@ -568,7 +568,7 @@ export const instrumentScrolling = () => {
       if (typeof top === 'number')
         record(name, this, name === 'scrollBy' ? this.scrollTop + top : top);
       original.apply(this, args);
-    } as typeof Element.prototype.scrollTo;
+    };
   });
 
   const text = (element: Element) => (element.textContent ?? '').replace(/\s+/g, ' ').slice(0, 160);
@@ -798,10 +798,11 @@ export type ScrollInput = 'wheel' | 'touch' | 'drag';
 /**
  * Scrolls the list the way a reader does: `flicks` fast flicks through it, then `readingSteps`
  * steps at a reading pace with pauses, then `backFlicks` flicks back. `wheel` turns the mouse
- * wheel; `touch` sends Chromium touch flings; `drag` moves the list by a finger's speed each frame
- * from inside the page, between the touch events of one finger, which hand the scroll position to
- * the reader as a real drag does. A phone uses `drag` wherever the flings are not to be had: in
- * WebKit, which has neither a wheel nor the flings, and in a Chromium page without a CDP session.
+ * wheel; `touch` sends Chromium touch scroll gestures through `cdp`, flinging on the fast steps
+ * only, and without a CDP session turns the wheel as `wheel` does; `drag` moves the list by a
+ * finger's speed each frame from inside the page, between the touch events of one finger, which
+ * hand the scroll position to the reader as a real drag does. A phone uses `drag` where the
+ * flings are not to be had, as in WebKit, which has neither a wheel nor the flings.
  */
 export const scrollRoom = async (
   page: Page,

@@ -6,7 +6,7 @@ import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
 const state = vi.hoisted(() => ({
   save: vi.fn(),
   actionError: undefined as string | undefined,
-  client: {} as object | undefined,
+  client: {},
 }));
 vi.mock('./summary/threadSummaryActions', async (original) => ({
   ...(await original<typeof import('./summary/threadSummaryActions')>()),

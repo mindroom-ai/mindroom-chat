@@ -209,6 +209,12 @@ test('the thread header says whose tool calls run without approval cards, and un
     const [a, b] = [await box(locator), await box(control)];
     return a.x + a.width <= b.x;
   };
+  // Before the control on its line, or on a line under it (a narrow phone's title takes the
+  // banner's width under its buttons).
+  const clearOf = async (locator: typeof chip, control: typeof chip) => {
+    const [a, b] = [await box(locator), await box(control)];
+    return a.x + a.width <= b.x || a.y >= b.y + b.height;
+  };
   const tagPill = firstTag.locator('..');
   for (const status of [chip, permissions]) {
     expect(Math.abs((await middle(status)) - (await middle(firstTag)))).toBeLessThan(3);
@@ -244,7 +250,7 @@ test('the thread header says whose tool calls run without approval cards, and un
   for (const status of [chip, permissions]) expect(await leftOf(status, show)).toBe(true);
   await show.click();
   await expect(options).toBeInViewport();
-  for (const status of [chip, permissions]) expect(await leftOf(status, options)).toBe(true);
+  for (const status of [chip, permissions]) expect(await clearOf(status, options)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
   await page.setViewportSize({ width: 1280, height: 800 });
 

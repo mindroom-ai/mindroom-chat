@@ -468,6 +468,8 @@ function RoomContent() {
               room={room}
               threadId={subagentConversation(threadId, viewMode === 'classic')}
               onClose={subagents.close}
+              // A fork draft's thread is read-only, so its jobs bar stops nothing, nor does the panel.
+              readOnly={!!routedThreadId && isConfirmedMatrixEventId(forkAt)}
             />
           </Suspense>
         </ResizablePanel>

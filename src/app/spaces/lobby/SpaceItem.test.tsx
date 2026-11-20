@@ -331,7 +331,7 @@ describe('SpaceItemCard room access', () => {
         <MatrixClientProvider value={mx}>
           <SpaceItemCard
             item={item}
-            summary={{ ...summary, join_rule: 'custom_access' as JoinRule }}
+            summary={{ ...summary, join_rule: 'custom_access' }}
             joined={false}
             closed={false}
             canEditChild={false}

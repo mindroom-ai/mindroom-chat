@@ -7,6 +7,7 @@ import { useDirectRooms } from './useDirectRooms';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const { client } = vi.hoisted(() => ({ client: { current: undefined as unknown } }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client.current }));
 

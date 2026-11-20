@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
-import { RoomMemberEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
+import { RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -58,7 +58,7 @@ describe('useRoomViewMode', () => {
     const member = { roomId, userId: memberId, membership };
     roomMembers.set(roomId, [...members.filter((m) => m.userId !== memberId), member]);
     act(() => {
-      mx.emit(RoomMemberEvent.Membership, {} as MatrixEvent, member, undefined);
+      mx.emit(RoomMemberEvent.Membership, {}, member, undefined);
     });
   };
   const storedMode = (roomId: string) => storage.get(getRoomViewModeStorageKey(sessionId, roomId));
@@ -108,7 +108,7 @@ describe('useRoomViewMode', () => {
       key: (index: number) => Array.from(storage.keys())[index] ?? null,
       removeItem: (key: string) => storage.delete(key),
       setItem: (key: string, value: string) => storage.set(key, value),
-    } as unknown as Storage);
+    });
     vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
   });
 

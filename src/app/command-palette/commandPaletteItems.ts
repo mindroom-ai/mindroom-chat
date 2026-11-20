@@ -276,7 +276,7 @@ export const useCommandPaletteSource = ({
       },
       t
     );
-    const goTo = (path: string) => () => navigate(path);
+    const goTo = (path: string) => () => void navigate(path);
     // Room actions exist only while a room is open; thread ones also need the right to tag.
     const inCurrentRoom = (action: (room: Room) => void) =>
       currentRoom ? () => action(currentRoom) : undefined;

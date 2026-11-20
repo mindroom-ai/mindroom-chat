@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
+import { readTopInset } from '../ui/styles/threadHeaderInset';
 
 export type TimelineBulkExpansionAnchor =
   | {
@@ -20,8 +21,7 @@ const findVisibleMessageAnchor = (
 ): { messageId: string; top: number } | undefined => {
   const viewport = scrollElement.getBoundingClientRect();
   // The reader's view starts below the sticky headers (scroll-padding-top), as for explicit jumps.
-  const readerTop =
-    viewport.top + (Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0) + 8;
+  const readerTop = viewport.top + readTopInset(scrollElement) + 8;
   const center = viewport.top + viewport.height / 2;
   let best: { messageId: string; top: number; distance: number } | undefined;
   let partialBest: { messageId: string; top: number; distance: number } | undefined;

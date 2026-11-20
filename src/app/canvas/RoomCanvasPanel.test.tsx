@@ -32,7 +32,7 @@ vi.mock('../messages/canvas/useCanvasPage', () => ({
     canvas.html === undefined ? { status: 'loading' } : { status: 'ready', html: canvas.html },
 }));
 // Saved state is read from IndexedDB; these tests decide when it is ready.
-const saved = vi.hoisted(() => ({ ready: true, value: {} as CanvasSaved }));
+const saved = vi.hoisted(() => ({ ready: true, value: {} }));
 vi.mock('../messages/canvas/useCanvasSavedState', () => ({
   useCanvasSavedState: () => ({
     ready: saved.ready,

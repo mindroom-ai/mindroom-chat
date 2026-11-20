@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { MatrixEvent, type IContent, type IEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, type IContent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
@@ -98,7 +98,7 @@ const message = (eventId: string, sender: string, content: IContent) =>
     sender,
     origin_server_ts: 1,
     content,
-  } as Partial<IEvent>);
+  });
 
 const LIVE: IContent = {
   msgtype: 'm.notice',

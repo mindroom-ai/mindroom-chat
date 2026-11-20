@@ -134,7 +134,7 @@ export function PublicRooms() {
                         topic={room.topic}
                         memberCount={room.num_joined_members}
                         roomType={room.room_type}
-                        joinRule={(room.join_rule as JoinRule | undefined) ?? JoinRule.Public}
+                        joinRule={room.join_rule ?? JoinRule.Public}
                         viaServers={server ? [server] : undefined}
                         onView={space ? navigateSpace : navigateRoom}
                         renderTopicViewer={renderTopicText}

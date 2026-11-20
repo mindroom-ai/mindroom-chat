@@ -199,7 +199,7 @@ export function ThreadsNav() {
   const open = useCallback(
     (item: ThreadListItem) => {
       const roomSegment = getCanonicalAliasOrRoomId(mx, item.entry.roomId);
-      navigate(
+      void navigate(
         withSearchParam(getThreadsRoomPath(roomSegment), { threadId: item.entry.threadRootId })
       );
     },

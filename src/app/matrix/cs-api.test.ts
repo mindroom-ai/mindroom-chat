@@ -35,10 +35,7 @@ describe('autoDiscovery', () => {
   it('fails before fetch for insecure non-local http server', async () => {
     const request = vi.fn();
 
-    const [error, discovery] = await autoDiscovery(
-      request as unknown as typeof fetch,
-      'http://matrix.org'
-    );
+    const [error, discovery] = await autoDiscovery(request, 'http://matrix.org');
 
     expect(error).toEqual({
       host: 'http://matrix.org',
@@ -51,10 +48,7 @@ describe('autoDiscovery', () => {
   it('allows local-network http server fallback on 404', async () => {
     const request = vi.fn().mockResolvedValue(createResponse(404));
 
-    const [error, discovery] = await autoDiscovery(
-      request as unknown as typeof fetch,
-      'http://192.168.1.20'
-    );
+    const [error, discovery] = await autoDiscovery(request, 'http://192.168.1.20');
 
     expect(error).toBeUndefined();
     expect(discovery?.['m.homeserver'].base_url).toBe('http://192.168.1.20');
@@ -70,10 +64,7 @@ describe('autoDiscovery', () => {
         createResponse(200, { 'm.homeserver': { base_url: 'http://matrix.org' } })
       );
 
-    const [error, discovery] = await autoDiscovery(
-      request as unknown as typeof fetch,
-      'matrix.org'
-    );
+    const [error, discovery] = await autoDiscovery(request, 'matrix.org');
 
     expect(error).toEqual({
       host: 'https://matrix.org',
@@ -89,10 +80,7 @@ describe('autoDiscovery', () => {
         createResponse(200, { 'm.homeserver': { base_url: 'https://matrix.example.com/' } })
       );
 
-    const [error, discovery] = await autoDiscovery(
-      request as unknown as typeof fetch,
-      'matrix.org'
-    );
+    const [error, discovery] = await autoDiscovery(request, 'matrix.org');
 
     expect(error).toBeUndefined();
     expect(discovery?.['m.homeserver'].base_url).toBe('https://matrix.example.com');

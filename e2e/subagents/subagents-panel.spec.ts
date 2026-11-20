@@ -153,11 +153,14 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
     'Looking it up. Checking the tags.'.length,
     '\n\n🔧 `run_shell_command` [1] ⏳\n\n'
   );
-  // The card previews the tool call as a thread card does; the run, opened, shows its row.
-  await expect(researcher).toContainText('1 tool');
+  // The card names the call it makes now; the run, opened, is headed by its task and shows its row.
+  await expect(researcher.locator('[data-subagent-line="now"]')).toHaveText(
+    'Nowrun_shell_command command=git tag'
+  );
   await researcher.click();
-  await expect(panel.getByRole('heading', { name: 'Research Desk' })).toBeVisible();
-  await expect(panel.getByText('Find when version 2 shipped.')).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Find when version 2 shipped.' })).toBeVisible();
+  await expect(panel.locator('[data-subagent-task]')).toHaveText('Find when version 2 shipped.');
+  await expect(panel.locator('[data-subagent-now]')).toContainText('run_shell_command');
   await expect(panel.getByRole('button', { name: /Running 1 tool call/ })).toBeVisible();
   await panel.screenshot({ path: testInfo.outputPath('subagents-panel-open-run.png') });
   await panel.getByRole('button', { name: 'Back', exact: true }).click();

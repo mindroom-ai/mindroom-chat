@@ -7,6 +7,8 @@ import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
 export interface ThreadTagPillProps {
   name: string;
   onRemove?: () => void; // undefined = read-only (no x button)
+  /** The ✕ waits for another tag save: it stays, keeps a focus it has, and does nothing. */
+  removeBusy?: boolean;
 }
 
 const pillStyle: React.CSSProperties = {
@@ -42,7 +44,7 @@ const removeButtonStyle: React.CSSProperties = {
   alignItems: 'center',
 };
 
-export function ThreadTagPill({ name, onRemove }: ThreadTagPillProps) {
+export function ThreadTagPill({ name, onRemove, removeBusy = false }: ThreadTagPillProps) {
   const { t } = useTranslation();
   return (
     <span
@@ -58,9 +60,10 @@ export function ThreadTagPill({ name, onRemove }: ThreadTagPillProps) {
           type="button"
           style={removeButtonStyle}
           className="thread-tag-pill-remove"
+          aria-disabled={removeBusy || undefined}
           onClick={(e) => {
             e.stopPropagation();
-            onRemove();
+            if (!removeBusy) onRemove();
           }}
           aria-label={t('mindroomUi.threads.threadTagPill.removeTag', { tag: name })}
         >

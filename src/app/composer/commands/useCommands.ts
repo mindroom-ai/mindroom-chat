@@ -210,7 +210,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
       mx: client,
       room,
       openRoom: (roomId) => navigateRoom(roomId),
-      openPath: (path) => goTo(path),
+      openPath: (path) => void goTo(path),
       leaveRoom,
     };
     const entries = (Object.keys(Command) as Array<keyof typeof Command>).map(

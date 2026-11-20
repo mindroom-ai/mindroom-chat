@@ -1,6 +1,10 @@
 import { ReactNode, RefObject, useEffect, useRef } from 'react';
 import { config } from 'folds';
 import { headerInset } from '../ui/styles/RoomOverlay.css';
+import {
+  THREAD_HEADER_ATTRIBUTE,
+  THREAD_HEADER_SCROLLER_ATTRIBUTE,
+} from '../ui/styles/threadHeaderInset';
 import * as css from './ThreadTimelineHeader.css';
 
 /** Keep the banner in the scrollable content so messages can pass behind its glass. */
@@ -41,6 +45,7 @@ export function ThreadTimelineHeader({
       scroll.parentElement?.style.setProperty('--room-thread-header-height', `${next}px`);
     };
     updatePadding();
+    scroll.setAttribute(THREAD_HEADER_SCROLLER_ATTRIBUTE, '');
     let frame = 0;
     const observer = new ResizeObserver(() => {
       // The inset resizes the shallower scrollbar track. Write next frame so
@@ -56,6 +61,7 @@ export function ThreadTimelineHeader({
       observer.disconnect();
       cancelAnimationFrame(frame);
       scroll.style.scrollPaddingTop = previousPadding;
+      scroll.removeAttribute(THREAD_HEADER_SCROLLER_ATTRIBUTE);
       scroll.parentElement?.style.removeProperty('--room-thread-header-height');
     };
   }, [onResize, scrollRef]);
@@ -64,6 +70,7 @@ export function ThreadTimelineHeader({
     <div
       ref={headerRef}
       className={css.Header}
+      {...{ [THREAD_HEADER_ATTRIBUTE]: '' }}
       style={{
         position: 'sticky',
         top: headerInset,

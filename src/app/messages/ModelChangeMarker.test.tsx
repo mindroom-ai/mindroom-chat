@@ -10,6 +10,7 @@ import { ModelChangeMarker } from './ModelChangeMarker';
 const VIEWER = '@sam:example.org';
 const catalog = vi.hoisted(() => ({ models: [] as ModelCatalogEntry[], watched: [] as unknown[] }));
 /** Another language's template for a key, in place of the English one. */
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const translated = vi.hoisted(() => ({ templates: {} as Record<string, string> }));
 
 vi.mock('react-i18next', async () => {

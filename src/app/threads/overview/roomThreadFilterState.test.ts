@@ -32,7 +32,7 @@ describe('roomThreadFilterState', () => {
       setItem: vi.fn((key: string, value: string) => {
         storageState.set(key, value);
       }),
-    } as unknown as Storage;
+    };
 
     vi.stubGlobal('localStorage', localStorageMock);
     vi.stubGlobal('window', {

@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} Werkzeuge",
       "needApproval_one": "{{count}} braucht Freigabe",
       "needApproval_other": "{{count}} brauchen Freigabe",
-      "toolCalls_one": "{{count}} Werkzeugaufruf",
-      "toolCalls_other": "{{count}} Werkzeugaufrufe",
       "tokens_one": "{{tokens}} Token",
       "tokens_other": "{{tokens}} Tokens",
       "started": "Gestartet {{time}}",
@@ -1085,7 +1083,11 @@
         "time": "Zeit"
       },
       "stopTask": "Aufgabe stoppen",
-      "stopTaskFor": "Aufgabe stoppen: {{tool}}"
+      "stopTaskFor": "Aufgabe stoppen: {{tool}}",
+      "jobTotal_one": "{{count}} Hintergrundaufgabe",
+      "jobTotal_other": "{{count}} Hintergrundaufgaben",
+      "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
+      "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
     },
     "subagents": {
       "title": "Sub-Agenten",
@@ -1112,7 +1114,18 @@
       "showFor": "Sub-Agenten anzeigen: {{name}}",
       "withCount_one": "{{label}}, {{count}} aktiv",
       "withCount_other": "{{label}}, {{count}} aktiv",
-      "resize": "Größe des Sub-Agenten-Bereichs ändern"
+      "resize": "Größe des Sub-Agenten-Bereichs ändern",
+      "calls_one": "{{count}} Aufruf",
+      "calls_other": "{{count}} Aufrufe",
+      "now": "Jetzt",
+      "needsApproval": "Braucht Genehmigung",
+      "result": "Ergebnis",
+      "turnNumber": "Runde {{number}}",
+      "status": "Status",
+      "toolCallsNote": "Werkzeugaufrufe",
+      "tokensSplit": "{{input}} ein · {{output}} aus",
+      "costNested": "+{{cost}} verschachtelt",
+      "costOwn": "dieser Lauf"
     },
     "models": {
       "modelPicker": {
@@ -1145,6 +1158,19 @@
       "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
       "shownInPanel": "Im Panel angezeigt",
       "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
+    },
+    "invites": {
+      "invalid": "Dieser Einladungslink ist unvollständig. Öffne den Link aus der E-Mail erneut.",
+      "reopen": "Du bist angemeldet. Öffne den Einladungslink aus deiner E-Mail erneut.",
+      "framed": "Öffne diese Seite in einem eigenen Tab, um die Einladung zu nutzen.",
+      "ready": "Einem Raum über {{router}} als {{user}} beitreten",
+      "claiming": "Einladung wird eingelöst…",
+      "offline": "Dieses MindRoom antwortet nicht. Deine Anfrage ist gespeichert; die Einladung erscheint in deiner Raumliste, sobald es wieder erreichbar ist.",
+      "rejected": "Diese Einladung ist nicht mehr gültig. Bitte um eine neue.",
+      "retry": "Das hat nicht geklappt. Versuche es gleich noch einmal.",
+      "joining": "Raum wird betreten…",
+      "join": "Beitreten",
+      "tryAgain": "Erneut versuchen"
     },
     "uiActions": {
       "canvasOff": "Panel geteilt · Panels sind in dieser App deaktiviert",

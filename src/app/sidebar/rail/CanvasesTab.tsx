@@ -73,7 +73,7 @@ export function CanvasesTab() {
       as="button"
       aria-label={label}
       outlined
-      onClick={() => navigate(getCanvasesPath())}
+      onClick={() => void navigate(getCanvasesPath())}
     >
       <Icon filled={active} src={Icons.Category} />
     </SidebarAvatar>

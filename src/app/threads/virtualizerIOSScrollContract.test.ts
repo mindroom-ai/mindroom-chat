@@ -17,7 +17,7 @@
 // born from (task #128 round 3: half-page lurch at end of momentum from
 // virtual-core's banked defer-and-replay).
 import { Virtualizer, _resetIOSDetectionForTests } from '@tanstack/react-virtual';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { buildMeasurementScrollCorrectionHook } from '../event-store/threads/threadRenderUtils';
 
 const ROW_ESTIMATE = 50;
@@ -55,7 +55,7 @@ type ScrollCallback = (offset: number, isScrolling: boolean) => void;
 const bankedAdjustment = (virtualizer: Virtualizer<Element, Element>): number =>
   (virtualizer as unknown as { _iosDeferredAdjustment: number })._iosDeferredAdjustment;
 
-function makeVirtualizer(scrollToFn: ReturnType<typeof vi.fn>) {
+function makeVirtualizer(scrollToFn: Mock) {
   let scrollCallback: ScrollCallback | null = null;
   const makeScrollElement = () => ({
     scrollTop: START_OFFSET,
@@ -97,7 +97,7 @@ function makeVirtualizer(scrollToFn: ReturnType<typeof vi.fn>) {
   return { virtualizer, scroll, swapToFreshElement, holder };
 }
 
-const adjustmentWrites = (scrollToFn: ReturnType<typeof vi.fn>) =>
+const adjustmentWrites = (scrollToFn: Mock) =>
   scrollToFn.mock.calls.filter(
     ([, options]) => (options as { adjustments?: number } | undefined)?.adjustments !== undefined
   );

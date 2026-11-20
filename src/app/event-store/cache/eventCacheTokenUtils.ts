@@ -117,9 +117,7 @@ export const getCachedPaginationToken = (
   if (!eventId) return undefined;
   // ISSUE-207 P2 review (defensive): tolerate a legacy flat
   // `string | null` map value — see `normalizeTokenEntry`.
-  const entry = normalizeTokenEntry(
-    currentTokens?.[eventId] as CachedPaginationTokenEntry | string | null | undefined
-  );
+  const entry = normalizeTokenEntry(currentTokens?.[eventId]);
   return entry ? entry.token : undefined;
 };
 

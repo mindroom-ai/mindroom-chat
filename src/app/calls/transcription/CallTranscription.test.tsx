@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { CallTranscription } from './CallTranscription';
@@ -41,12 +41,12 @@ const made = vi.hoisted(
   () =>
     [] as Array<{
       options: CallTranscriberOptions;
-      start: ReturnType<typeof vi.fn>;
-      end: ReturnType<typeof vi.fn>;
-      setMicrophone: ReturnType<typeof vi.fn>;
-      setRequestPending: ReturnType<typeof vi.fn>;
-      pause: ReturnType<typeof vi.fn>;
-      leaveNow: ReturnType<typeof vi.fn>;
+      start: Mock;
+      end: Mock;
+      setMicrophone: Mock;
+      setRequestPending: Mock;
+      pause: Mock;
+      leaveNow: Mock;
     }>
 );
 

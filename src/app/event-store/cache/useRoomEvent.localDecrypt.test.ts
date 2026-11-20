@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRoomEvent } from './useRoomEvent';
 
 type Crypto = Parameters<MatrixEvent['attemptDecryption']>[0];
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const clientCrypto = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getCrypto: () => clientCrypto.current }),

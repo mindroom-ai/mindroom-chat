@@ -152,7 +152,7 @@ describe('useCommandPaletteMessages', () => {
           content: { body: `* ${body}`, 'm.new_content': { msgtype: 'm.text', body } },
         },
       },
-    } as unknown as typeof hit.result.unsigned;
+    };
     await act(async () => pending[0]?.resolve(response));
     await waitFor(() => expect(result.current.status).toBe('done'));
 

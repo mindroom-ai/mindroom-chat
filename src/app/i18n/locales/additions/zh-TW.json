@@ -1048,7 +1048,6 @@
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 個工具",
       "needApproval_other": "{{count}} 個待核准",
-      "toolCalls_other": "{{count}} 次工具呼叫",
       "tokens_other": "{{tokens}} 個權杖",
       "started": "開始於{{time}}",
       "open": "開啟",
@@ -1060,7 +1059,9 @@
         "time": "時間"
       },
       "stopTask": "停止任務",
-      "stopTaskFor": "停止任務：{{tool}}"
+      "stopTaskFor": "停止任務：{{tool}}",
+      "jobTotal_other": "{{count}} 個背景工作",
+      "jobTotalFinished_other": "{{count}} 個背景工作已完成"
     },
     "subagents": {
       "title": "子代理",
@@ -1083,7 +1084,17 @@
       "hide": "隱藏子代理",
       "showFor": "顯示子代理：{{name}}",
       "withCount_other": "{{label}}，{{count}} 個活躍",
-      "resize": "調整子代理面板大小"
+      "resize": "調整子代理面板大小",
+      "calls_other": "{{count}} 次呼叫",
+      "now": "進行中",
+      "needsApproval": "需要批准",
+      "result": "結果",
+      "turnNumber": "第 {{number}} 輪",
+      "status": "狀態",
+      "toolCallsNote": "工具呼叫",
+      "tokensSplit": "輸入 {{input}} · 輸出 {{output}}",
+      "costNested": "+{{cost}} 巢狀",
+      "costOwn": "本次執行"
     },
     "models": {
       "modelPicker": {
@@ -1116,6 +1127,19 @@
       "pageUpdated": "{{agent}} 更新了此頁面。",
       "shownInPanel": "已在面板中顯示",
       "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
+    },
+    "invites": {
+      "invalid": "此邀請連結不完整。請重新開啟郵件中的連結。",
+      "reopen": "你已登入。請重新開啟郵件中的邀請連結。",
+      "framed": "請在獨立的分頁中開啟此頁面以使用邀請。",
+      "ready": "透過 {{router}} 以 {{user}} 身分加入聊天室",
+      "claiming": "正在領取邀請…",
+      "offline": "此 MindRoom 沒有回應。你的請求已儲存；恢復後，邀請會出現在你的聊天室清單中。",
+      "rejected": "此邀請已失效。請索取新的邀請。",
+      "retry": "沒有成功。請稍後再試。",
+      "joining": "正在加入聊天室…",
+      "join": "加入",
+      "tryAgain": "重試"
     },
     "uiActions": {
       "canvasOff": "已分享面板 · 此應用程式已關閉面板",

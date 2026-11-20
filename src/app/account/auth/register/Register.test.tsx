@@ -7,6 +7,7 @@ import { useClientConfig, type ClientConfig } from '../../../config/useClientCon
 import { LOGIN_PATH, REGISTER_PATH } from '../../../routes/paths';
 import { Register } from './Register';
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const flows = vi.hoisted(() => ({ current: undefined as unknown }));
 
 vi.mock('folds', async (importOriginal) => ({

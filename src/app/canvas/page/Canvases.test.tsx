@@ -20,6 +20,7 @@ const SESSION = createSessionId(HOMESERVER, VIEWER);
 const AGENT = '@mindroom_planner:example.org';
 
 const mocks = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   pins: undefined as unknown,
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),

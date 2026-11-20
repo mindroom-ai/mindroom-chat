@@ -10,6 +10,7 @@ import {
 import { VoiceAudioContent } from './VoiceAudioContent';
 
 const mocks = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   srcState: { status: 'idle' as const } as { status: string; data?: string },
   loadSrc: vi.fn(() => Promise.resolve('blob:voice')),
   playing: false,
@@ -214,7 +215,7 @@ const renderVoiceAudioContent = (props?: Partial<React.ComponentProps<typeof Voi
       size: 12000,
       ...props?.info,
     },
-    filename: (props as { filename?: string } | undefined)?.filename ?? 'voice.ogg',
+    filename: props?.filename ?? 'voice.ogg',
     waveform: props?.waveform ?? [0, 512, 1024],
     encInfo: props?.encInfo,
     label: props?.label,

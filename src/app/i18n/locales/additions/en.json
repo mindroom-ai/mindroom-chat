@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} tools",
       "needApproval_one": "{{count}} needs approval",
       "needApproval_other": "{{count}} need approval",
-      "toolCalls_one": "{{count}} tool call",
-      "toolCalls_other": "{{count}} tool calls",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} tokens",
       "started": "Started {{time}}",
@@ -1085,7 +1083,11 @@
         "time": "Time"
       },
       "stopTask": "Stop task",
-      "stopTaskFor": "Stop task: {{tool}}"
+      "stopTaskFor": "Stop task: {{tool}}",
+      "jobTotal_one": "{{count}} background job",
+      "jobTotal_other": "{{count}} background jobs",
+      "jobTotalFinished_one": "{{count}} background job finished",
+      "jobTotalFinished_other": "{{count}} background jobs finished"
     },
     "subagents": {
       "title": "Sub-agents",
@@ -1112,7 +1114,18 @@
       "showFor": "Show sub-agents: {{name}}",
       "withCount_one": "{{label}}, {{count}} active",
       "withCount_other": "{{label}}, {{count}} active",
-      "resize": "Resize the sub-agents panel"
+      "resize": "Resize the sub-agents panel",
+      "calls_one": "{{count}} call",
+      "calls_other": "{{count}} calls",
+      "now": "Now",
+      "needsApproval": "Needs approval",
+      "result": "Result",
+      "turnNumber": "turn {{number}}",
+      "status": "Status",
+      "toolCallsNote": "tool calls",
+      "tokensSplit": "{{input}} in · {{output}} out",
+      "costNested": "+{{cost}} nested",
+      "costOwn": "this run"
     },
     "models": {
       "modelPicker": {
@@ -1145,6 +1158,19 @@
       "pageUpdated": "{{agent}} updated this page.",
       "shownInPanel": "Shown in the panel",
       "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page."
+    },
+    "invites": {
+      "invalid": "This invite link is incomplete. Open the link from the mail again.",
+      "reopen": "You're signed in. Open the invite link from your mail again.",
+      "framed": "Open this page in its own tab to use the invitation.",
+      "ready": "Join a room through {{router}} as {{user}}",
+      "claiming": "Claiming the invitation…",
+      "offline": "This MindRoom is not answering. Your request is saved; the invitation will appear in your room list when it is back.",
+      "rejected": "This invitation is no longer valid. Ask for a new one.",
+      "retry": "That did not work. Try again in a moment.",
+      "joining": "Joining the room…",
+      "join": "Join",
+      "tryAgain": "Try again"
     },
     "uiActions": {
       "canvasOff": "Canvas shared · panels are off in this app",

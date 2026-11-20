@@ -1,9 +1,4 @@
-import i18n, {
-  type BackendModule,
-  type LanguageDetectorModule,
-  type ReadCallback,
-  type ResourceKey,
-} from 'i18next';
+import i18n, { type BackendModule, type LanguageDetectorModule, type ReadCallback } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import en, { mergeLocaleTrees, type LocaleTree } from './englishResources';
 import { loadLocaleAdditions } from './localeAdditions';
@@ -110,7 +105,7 @@ const httpBackend: BackendModule = {
         }
         const catalog = (await response.json()) as LocaleTree;
         const overlay = await additions;
-        callback(null, (overlay ? mergeLocaleTrees(catalog, overlay) : catalog) as ResourceKey);
+        callback(null, overlay ? mergeLocaleTrees(catalog, overlay) : catalog);
       })
       .catch(fail);
   },

@@ -34,6 +34,7 @@ const state = vi.hoisted(() => ({
   tombstone: false,
   members: [] as RoomMember[],
   timeline: undefined as RoomTimelineProps | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   timelineLevels: undefined as unknown,
   dropTarget: undefined as HTMLElement | null | undefined,
   composerViews: [] as (string | undefined)[],

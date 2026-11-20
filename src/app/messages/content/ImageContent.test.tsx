@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   srcState: {
     status: 'success',
     data: 'blob:image',
-  } as { status: string; data?: string },
+  },
 }));
 
 vi.mock('folds', async (importOriginal) => {

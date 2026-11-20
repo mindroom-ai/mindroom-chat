@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} araç",
       "needApproval_one": "{{count}} onay bekliyor",
       "needApproval_other": "{{count}} onay bekliyor",
-      "toolCalls_one": "{{count}} araç çağrısı",
-      "toolCalls_other": "{{count}} araç çağrısı",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} token",
       "started": "Başladı: {{time}}",
@@ -1085,7 +1083,11 @@
         "time": "Süre"
       },
       "stopTask": "Görevi durdur",
-      "stopTaskFor": "Görevi durdur: {{tool}}"
+      "stopTaskFor": "Görevi durdur: {{tool}}",
+      "jobTotal_one": "{{count}} arka plan işi",
+      "jobTotal_other": "{{count}} arka plan işi",
+      "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
+      "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
     },
     "subagents": {
       "title": "Alt ajanlar",
@@ -1112,7 +1114,18 @@
       "showFor": "Alt ajanları göster: {{name}}",
       "withCount_one": "{{label}}, {{count}} etkin",
       "withCount_other": "{{label}}, {{count}} etkin",
-      "resize": "Alt ajan panelini yeniden boyutlandır"
+      "resize": "Alt ajan panelini yeniden boyutlandır",
+      "calls_one": "{{count}} çağrı",
+      "calls_other": "{{count}} çağrı",
+      "now": "Şimdi",
+      "needsApproval": "Onay gerekiyor",
+      "result": "Sonuç",
+      "turnNumber": "tur {{number}}",
+      "status": "Durum",
+      "toolCallsNote": "araç çağrısı",
+      "tokensSplit": "{{input}} giriş · {{output}} çıkış",
+      "costNested": "+{{cost}} iç içe",
+      "costOwn": "bu çalıştırma"
     },
     "models": {
       "modelPicker": {
@@ -1145,6 +1158,19 @@
       "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
       "shownInPanel": "Panelde gösteriliyor",
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
+    },
+    "invites": {
+      "invalid": "Bu davet bağlantısı eksik. Bağlantıyı e-postadan yeniden açın.",
+      "reopen": "Oturum açtınız. Davet bağlantısını e-postanızdan yeniden açın.",
+      "framed": "Daveti kullanmak için bu sayfayı kendi sekmesinde açın.",
+      "ready": "{{router}} üzerinden {{user}} olarak bir odaya katıl",
+      "claiming": "Davet alınıyor…",
+      "offline": "Bu MindRoom yanıt vermiyor. İsteğiniz kaydedildi; davet, MindRoom geri geldiğinde oda listenizde görünecek.",
+      "rejected": "Bu davet artık geçerli değil. Yeni bir tane isteyin.",
+      "retry": "Bu işe yaramadı. Birazdan tekrar deneyin.",
+      "joining": "Odaya katılınıyor…",
+      "join": "Katıl",
+      "tryAgain": "Tekrar dene"
     },
     "uiActions": {
       "canvasOff": "Panel paylaşıldı · bu uygulamada paneller kapalı",

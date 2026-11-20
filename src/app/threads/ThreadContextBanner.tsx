@@ -10,6 +10,7 @@ import React, {
   useState,
 } from 'react';
 import classNames from 'classnames';
+import { shortViewport } from '../ui/styles/shortViewport';
 import { useAtomValue } from 'jotai';
 import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
@@ -45,7 +46,7 @@ import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
 import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
 import { ThreadHeaderSlot } from './ThreadHeaderSlot';
@@ -76,7 +77,71 @@ export interface ThreadContextBannerProps {
 }
 
 const DESKTOP_MAX_PILLS = 3;
-const MOBILE_MAX_PILLS = 2;
+
+// A phone's row narrower than this (a small phone, Page Zoom) gives the title the row under its
+// buttons, after them in the tab order too. In rem, since Page Zoom scales the root font size and
+// so the buttons, while the banner keeps its px width.
+const NARROW_PHONE_ROW_REM = 19;
+
+type RowLayout = 'row' | 'stacked' | 'narrow';
+
+/**
+ * A phone's title row:
+ * - `narrow`: too narrow to hold the title beside its buttons, which take the line above it.
+ * - `stacked`: when the title, beside the buttons side by side, is at least as tall as the buttons
+ *   one above the other, they stack and the title gets their width; the card gets no taller.
+ *   Each is measured in its own layout, whichever the row shows, so the answer does not depend on
+ *   the layout it picks and cannot flip back and forth.
+ * - `row`: the buttons side by side, beside a short title, and always on a short screen held
+ *   sideways, whose one-line row hides an unresolved Resolve (CompactHidden): stacked, the last
+ *   button shown would not be the column's last.
+ * Measured again when the row, the title or the buttons resize, when the root's style changes
+ * (Page Zoom sets the root font size, which moves 19rem while the row can keep its width), and
+ * when the title's `text` changes: a new title can need more lines beside the row while every box
+ * shown keeps its size.
+ */
+const usePhoneRowLayout = (row: HTMLElement | null, text: string | undefined): RowLayout => {
+  const [layout, setLayout] = useState<RowLayout>('row');
+  useLayoutEffect(() => {
+    if (!row) return undefined;
+    const title = row.querySelector<HTMLElement>(`:scope > .${css.TitleColumn}`);
+    const actions = row.querySelector<HTMLElement>(`:scope > .${css.RowActions}`);
+    const measure = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      if (row.getBoundingClientRect().width <= NARROW_PHONE_ROW_REM * rem) {
+        setLayout('narrow');
+        return;
+      }
+      const compact = typeof matchMedia === 'function' && matchMedia(shortViewport).matches;
+      if (!title || !actions || compact) {
+        setLayout('row');
+        return;
+      }
+      // Lay the row out each way for a moment (no paint in between), measure, and restore.
+      const shown = row.className;
+      row.classList.remove(css.NarrowPhoneTitleRow, css.StackedPhoneTitleRow);
+      const titleHeight = title.getBoundingClientRect().height;
+      row.classList.add(css.StackedPhoneTitleRow);
+      const fits = actions.getBoundingClientRect().height <= titleHeight;
+      row.className = shown;
+      setLayout(fits ? 'stacked' : 'row');
+    };
+    measure();
+    const zoom =
+      typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(measure);
+    zoom?.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    resize?.observe(row);
+    if (title) resize?.observe(title);
+    // A plugin's marker joins the buttons after the banner shows.
+    if (actions) resize?.observe(actions);
+    return () => {
+      zoom?.disconnect();
+      resize?.disconnect();
+    };
+  }, [row, text]);
+  return row ? layout : 'row';
+};
 
 function TagPills({
   tags,
@@ -121,6 +186,7 @@ export function ThreadContextBanner({
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const bannerRef = useRef<HTMLDivElement>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
+  const [titleRow, setTitleRow] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
@@ -287,11 +353,16 @@ export function ThreadContextBanner({
     return true;
   });
 
-  const hasTags = headerModel.displayTags.length > 0;
+  // A phone's banner leaves the tags and the pin to More, so the whole title has the room.
+  const hasTags = !phone && headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
   const title = headerModel.summaryText || rootTitle;
+  const rowLayout = usePhoneRowLayout(phone ? titleRow : null, title);
+  const narrowRow = rowLayout === 'narrow';
+  const inRowOrder = (items: [title: React.ReactNode, actions: React.ReactNode]) =>
+    narrowRow ? [items[1], items[0]] : items;
   const snoozedText = useSnoozedUntilText(headerModel.snoozedUntilTs);
   const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled || !!snoozedText;
   // A pinned thread shows the pin instead of the resolve chip and its byline.
@@ -403,296 +474,303 @@ export function ThreadContextBanner({
             </IconTooltip>
           </Box>
         ) : (
-          <div className={css.TitleRow}>
+          <div
+            ref={setTitleRow}
+            className={classNames(
+              css.TitleRow,
+              phone && css.PhoneTitleRow,
+              narrowRow && css.NarrowPhoneTitleRow,
+              rowLayout === 'stacked' && css.StackedPhoneTitleRow
+            )}
+          >
             {backButton}
-            <div className={css.TitleColumn}>
-              <Box className={css.EyebrowRow} direction="Row" alignItems="Center" gap="200">
-                {!hasSubtitle && (
-                  <Text className={css.ViewLabel} size="L400" priority="300">
-                    {t('thread.view')}
-                  </Text>
-                )}
-                <AutoApproveChip room={room} threadId={threadId} />
-                <ThreadApprovalPermissions />
-                {/* Desktop: tags inline on title row */}
-                {/* More adds the first tag; + tag joins the ones already set. */}
-                {hasTags && (
-                  <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
-                    <TagPills
-                      tags={headerModel.displayTags}
-                      maxPills={DESKTOP_MAX_PILLS}
-                      allTags={headerModel.displayTags}
-                      canEdit={headerModel.canEdit}
-                      onRemove={handleRemoveTag}
-                    />
-                    {headerModel.canEdit && (
-                      <ThreadTagPicker
-                        availableTags={headerModel.availableTags}
-                        onAddTag={handleAddTag}
-                        disabled={headerModel.pickerDisabled}
-                      />
-                    )}
-                  </div>
-                )}
-              </Box>
-              {(hasSubtitle || showResolver) && (
-                <div className={css.SubtitleRow}>
-                  {title && (
-                    <InlineThreadTitleEditor room={room} rootId={threadRootId} text={title}>
-                      {({ onDoubleClick, hint }) =>
-                        headerModel.summaryText ? (
-                          <Text
-                            // Remounting replays the tint for each new summary.
-                            key={headerModel.summaryText}
-                            as="span"
-                            data-thread-context-summary="true"
-                            className={classNames(
-                              css.SummaryText,
-                              summaryChanged && css.SummaryTextChanged
-                            )}
-                            onAnimationEnd={() =>
-                              setShownSummary((shown) => ({ ...shown, changed: false }))
-                            }
-                            onDoubleClick={onDoubleClick}
-                            size="T300"
-                            truncate
-                            title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
-                            {...ownDirectionLine}
-                          >
-                            {revealDirectionControls(headerModel.summaryText)}
-                          </Text>
-                        ) : (
-                          <ThreadRootTitle text={title} hint={hint} onDoubleClick={onDoubleClick} />
-                        )
-                      }
-                    </InlineThreadTitleEditor>
+            {/* Keyed, so a title under the buttons follows them in the DOM and keeps its state. */}
+            {inRowOrder([
+              <div key="title" className={css.TitleColumn}>
+                <Box className={css.EyebrowRow} direction="Row" alignItems="Center" gap="200">
+                  {!hasSubtitle && (
+                    <Text className={css.ViewLabel} size="L400" priority="300">
+                      {t('thread.view')}
+                    </Text>
                   )}
-                  {hasScheduled && (
-                    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                      {(headerModel.summaryText || rootTitle) && (
-                        <Text
-                          as="span"
-                          className={classNames(css.MetadataDot, css.ScheduledDot)}
-                          size="T200"
-                          priority="300"
-                          aria-hidden="true"
-                        >
-                          ·
-                        </Text>
+                  <AutoApproveChip room={room} threadId={threadId} />
+                  <ThreadApprovalPermissions />
+                  {/* More adds the first tag; + tag joins the ones already set. */}
+                  {hasTags && (
+                    <div className={classNames(css.TagsRow, css.CompactHidden)}>
+                      <TagPills
+                        tags={headerModel.displayTags}
+                        maxPills={DESKTOP_MAX_PILLS}
+                        allTags={headerModel.displayTags}
+                        canEdit={headerModel.canEdit}
+                        onRemove={handleRemoveTag}
+                      />
+                      {headerModel.canEdit && (
+                        <ThreadTagPicker
+                          availableTags={headerModel.availableTags}
+                          onAddTag={handleAddTag}
+                          disabled={headerModel.pickerDisabled}
+                        />
                       )}
+                    </div>
+                  )}
+                </Box>
+                {(hasSubtitle || showResolver) && (
+                  <div className={css.SubtitleRow}>
+                    {title && (
+                      <InlineThreadTitleEditor room={room} rootId={threadRootId} text={title}>
+                        {({ onDoubleClick, hint }) =>
+                          headerModel.summaryText ? (
+                            <Text
+                              // Remounting replays the tint for each new summary.
+                              key={headerModel.summaryText}
+                              as="span"
+                              data-thread-context-summary="true"
+                              className={classNames(
+                                phone ? css.PhoneTitle : css.SummaryText,
+                                summaryChanged && css.SummaryTextChanged
+                              )}
+                              // A title taller than its bound scrolls, also from the keyboard.
+                              tabIndex={phone ? 0 : undefined}
+                              onAnimationEnd={() =>
+                                setShownSummary((shown) => ({ ...shown, changed: false }))
+                              }
+                              onDoubleClick={onDoubleClick}
+                              size="T300"
+                              truncate={!phone}
+                              title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
+                              {...(phone ? ownDirectionBlock : ownDirectionLine)}
+                            >
+                              {revealDirectionControls(headerModel.summaryText)}
+                            </Text>
+                          ) : (
+                            <ThreadRootTitle
+                              text={title}
+                              hint={hint}
+                              onDoubleClick={onDoubleClick}
+                              whole={phone}
+                            />
+                          )
+                        }
+                      </InlineThreadTitleEditor>
+                    )}
+                    {hasScheduled && (
+                      <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+                        {(headerModel.summaryText || rootTitle) && (
+                          <Text
+                            as="span"
+                            className={classNames(css.MetadataDot, css.ScheduledDot)}
+                            size="T200"
+                            priority="300"
+                            aria-hidden="true"
+                          >
+                            ·
+                          </Text>
+                        )}
+                        <Box
+                          as="span"
+                          className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                          alignItems="Center"
+                          gap="100"
+                          role="img"
+                          aria-label={headerModel.scheduledLabel}
+                          title={headerModel.scheduledLabel}
+                        >
+                          <IconCalendarEvent
+                            size={12}
+                            stroke={1.8}
+                            className={threadIndicatorCss.ThreadScheduledIcon}
+                            aria-hidden="true"
+                          />
+                          <Text as="span" size="T200" priority="300" truncate>
+                            {headerModel.bannerScheduledText}
+                          </Text>
+                        </Box>
+                      </Box>
+                    )}
+                    {snoozedText && (
+                      <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+                        {(headerModel.summaryText || rootTitle || hasScheduled) && (
+                          <Text
+                            as="span"
+                            className={classNames(css.MetadataDot, css.ScheduledDot)}
+                            size="T200"
+                            priority="300"
+                            aria-hidden="true"
+                          >
+                            ·
+                          </Text>
+                        )}
+                        <Box
+                          as="span"
+                          className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                          alignItems="Center"
+                          gap="100"
+                          data-thread-snoozed="true"
+                        >
+                          <IconClock
+                            size={12}
+                            stroke={1.8}
+                            className={threadIndicatorCss.ThreadScheduledIcon}
+                            aria-hidden="true"
+                          />
+                          <Text as="span" size="T200" priority="300" truncate>
+                            {snoozedText}
+                          </Text>
+                        </Box>
+                        {headerModel.canEdit && (
+                          <button
+                            type="button"
+                            className={css.SnoozeAction}
+                            data-thread-unsnooze="true"
+                            disabled={headerModel.pickerDisabled}
+                            onClick={handleUnsnooze}
+                          >
+                            {t('thread.unsnooze')}
+                          </button>
+                        )}
+                      </Box>
+                    )}
+                    {showResolver && (
                       <Box
                         as="span"
-                        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                        className={classNames(css.ResolutionByline, css.CompactHidden)}
+                        id={resolverBylineId}
+                        data-thread-resolution-byline="true"
                         alignItems="Center"
                         gap="100"
                         role="img"
-                        aria-label={headerModel.scheduledLabel}
-                        title={headerModel.scheduledLabel}
+                        aria-label={resolvedByLabel}
+                        title={resolvedByLabel}
                       >
-                        <IconCalendarEvent
-                          size={12}
-                          stroke={1.8}
-                          className={threadIndicatorCss.ThreadScheduledIcon}
-                          aria-hidden="true"
-                        />
-                        <Text as="span" size="T200" priority="300" truncate>
-                          {headerModel.bannerScheduledText}
-                        </Text>
-                      </Box>
-                    </Box>
-                  )}
-                  {snoozedText && (
-                    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                      {(headerModel.summaryText || rootTitle || hasScheduled) && (
+                        {hasSubtitle && (
+                          <Text
+                            as="span"
+                            className={classNames(css.MetadataDot, css.ResolutionBylineDot)}
+                            size="T200"
+                            priority="300"
+                            aria-hidden="true"
+                          >
+                            ·
+                          </Text>
+                        )}
+                        <Icon src={Icons.Check} size="50" aria-hidden="true" />
                         <Text
                           as="span"
-                          className={classNames(css.MetadataDot, css.ScheduledDot)}
+                          className={css.ResolverName}
                           size="T200"
                           priority="300"
-                          aria-hidden="true"
+                          truncate
                         >
-                          ·
-                        </Text>
-                      )}
-                      <Box
-                        as="span"
-                        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
-                        alignItems="Center"
-                        gap="100"
-                        data-thread-snoozed="true"
-                      >
-                        <IconClock
-                          size={12}
-                          stroke={1.8}
-                          className={threadIndicatorCss.ThreadScheduledIcon}
-                          aria-hidden="true"
-                        />
-                        <Text as="span" size="T200" priority="300" truncate>
-                          {snoozedText}
+                          {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
                         </Text>
                       </Box>
-                      {headerModel.canEdit && (
-                        <button
-                          type="button"
-                          className={css.SnoozeAction}
-                          data-thread-unsnooze="true"
-                          disabled={headerModel.pickerDisabled}
-                          onClick={handleUnsnooze}
-                        >
-                          {t('thread.unsnooze')}
-                        </button>
-                      )}
-                    </Box>
+                    )}
+                  </div>
+                )}
+              </div>,
+              <Box
+                key="actions"
+                className={css.RowActions}
+                alignItems="Center"
+                gap="100"
+                shrink="No"
+              >
+                {pluginControls}
+                <IconTooltip label={t('threadActions.more')}>
+                  {(triggerRef) => (
+                    <IconButton
+                      ref={(node: HTMLButtonElement | null) => {
+                        triggerRef(node);
+                        moreButtonRef.current = node;
+                      }}
+                      className={toolbarCss.MessageOptionsButton}
+                      variant="SurfaceVariant"
+                      fill="None"
+                      aria-label={t('threadActions.more')}
+                      aria-haspopup="menu"
+                      aria-expanded={!!activeMenu}
+                      disabled={!canOpenMenu}
+                      onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                        openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+                      }
+                    >
+                      <Icon src={Icons.VerticalDots} size="100" />
+                    </IconButton>
                   )}
-                  {showResolver && (
+                </IconTooltip>
+                {/* A phone pins from More; its row still says a thread is pinned. */}
+                {!phone && pinning.canPin && mutableThreadRootId ? (
+                  <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
+                    {(triggerRef) => (
+                      <IconButton
+                        ref={triggerRef}
+                        aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                        className={classNames(
+                          toolbarCss.MessageOptionsButton,
+                          !isPinned && css.CompactHidden
+                        )}
+                        variant="SurfaceVariant"
+                        fill="None"
+                        aria-pressed={isPinned}
+                        disabled={pinning.updating || updating}
+                        onClick={() => void pinning.setPinned(mutableThreadRootId, !isPinned)}
+                      >
+                        <Icon src={Icons.Pin} size="100" filled={isPinned} />
+                      </IconButton>
+                    )}
+                  </IconTooltip>
+                ) : (
+                  isPinned && (
                     <Box
                       as="span"
-                      className={classNames(css.ResolutionByline, css.CompactHidden)}
-                      id={resolverBylineId}
-                      data-thread-resolution-byline="true"
-                      alignItems="Center"
-                      gap="100"
                       role="img"
-                      aria-label={resolvedByLabel}
-                      title={resolvedByLabel}
+                      aria-label={t('threadNav.pinned')}
+                      title={t('threadNav.pinned')}
                     >
-                      {hasSubtitle && (
-                        <Text
-                          as="span"
-                          className={classNames(css.MetadataDot, css.ResolutionBylineDot)}
-                          size="T200"
-                          priority="300"
-                          aria-hidden="true"
-                        >
-                          ·
-                        </Text>
-                      )}
-                      <Icon src={Icons.Check} size="50" aria-hidden="true" />
-                      <Text
-                        as="span"
-                        className={css.ResolverName}
-                        size="T200"
-                        priority="300"
-                        truncate
-                      >
-                        {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
-                      </Text>
+                      <Icon src={Icons.Pin} size="100" filled />
                     </Box>
-                  )}
-                </div>
-              )}
-            </div>
-            <Box alignItems="Center" gap="100" shrink="No">
-              {pluginControls}
-              <IconTooltip label={t('threadActions.more')}>
-                {(triggerRef) => (
-                  <IconButton
-                    ref={(node: HTMLButtonElement | null) => {
-                      triggerRef(node);
-                      moreButtonRef.current = node;
-                    }}
-                    className={toolbarCss.MessageOptionsButton}
-                    variant="SurfaceVariant"
-                    fill="None"
-                    aria-label={t('threadActions.more')}
-                    aria-haspopup="menu"
-                    aria-expanded={!!activeMenu}
-                    disabled={!canOpenMenu}
-                    onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
-                      openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+                  )
+                )}
+                {!isPinned && (
+                  // Resolve is in More, but a resolved status stays visible for readers.
+                  <IconTooltip
+                    label={
+                      headerModel.isResolved
+                        ? resolvedByLabel ?? t('thread.resolved')
+                        : t('thread.resolve')
                     }
+                    hint={
+                      headerModel.isResolved && headerModel.canEdit
+                        ? t('threadActions.reopen')
+                        : undefined
+                    }
+                    shortcut={resolveShortcut}
                   >
-                    <Icon src={Icons.VerticalDots} size="100" />
-                  </IconButton>
+                    {(triggerRef) => (
+                      <IconButton
+                        ref={triggerRef}
+                        aria-label={t(
+                          headerModel.isResolved ? 'thread.resolved' : 'thread.resolve'
+                        )}
+                        className={classNames(
+                          toolbarCss.MessageOptionsButton,
+                          headerModel.isResolved ? css.ResolvedButton : css.CompactHidden
+                        )}
+                        variant="SurfaceVariant"
+                        fill="None"
+                        aria-describedby={showResolver ? resolverBylineId : undefined}
+                        onClick={handleToggleResolve}
+                        disabled={resolveDisabled}
+                        {...shortcutAttributes(resolveShortcut)}
+                      >
+                        <Icon src={Icons.Check} size="100" />
+                      </IconButton>
+                    )}
+                  </IconTooltip>
                 )}
-              </IconTooltip>
-              {pinning.canPin && mutableThreadRootId ? (
-                <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
-                  {(triggerRef) => (
-                    <IconButton
-                      ref={triggerRef}
-                      aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                      className={classNames(
-                        toolbarCss.MessageOptionsButton,
-                        !isPinned && css.CompactHidden
-                      )}
-                      variant="SurfaceVariant"
-                      fill="None"
-                      aria-pressed={isPinned}
-                      disabled={pinning.updating || updating}
-                      onClick={() => void pinning.setPinned(mutableThreadRootId, !isPinned)}
-                    >
-                      <Icon src={Icons.Pin} size="100" filled={isPinned} />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-              ) : (
-                isPinned && (
-                  <Box
-                    as="span"
-                    role="img"
-                    aria-label={t('threadNav.pinned')}
-                    title={t('threadNav.pinned')}
-                  >
-                    <Icon src={Icons.Pin} size="100" filled />
-                  </Box>
-                )
-              )}
-              {!isPinned && (
-                // Resolve is in More, but a resolved status stays visible for readers.
-                <IconTooltip
-                  label={
-                    headerModel.isResolved
-                      ? resolvedByLabel ?? t('thread.resolved')
-                      : t('thread.resolve')
-                  }
-                  hint={
-                    headerModel.isResolved && headerModel.canEdit
-                      ? t('threadActions.reopen')
-                      : undefined
-                  }
-                  shortcut={resolveShortcut}
-                >
-                  {(triggerRef) => (
-                    <IconButton
-                      ref={triggerRef}
-                      aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
-                      className={classNames(
-                        toolbarCss.MessageOptionsButton,
-                        headerModel.isResolved ? css.ResolvedButton : css.CompactHidden
-                      )}
-                      variant="SurfaceVariant"
-                      fill="None"
-                      aria-describedby={showResolver ? resolverBylineId : undefined}
-                      onClick={handleToggleResolve}
-                      disabled={resolveDisabled}
-                      {...shortcutAttributes(resolveShortcut)}
-                    >
-                      <Icon src={Icons.Check} size="100" />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-              )}
-            </Box>
-            {/* Mobile: tags in a row of their own, under the title and the actions */}
-            {hasTags && (
-              <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
-                <TagPills
-                  tags={headerModel.displayTags}
-                  maxPills={MOBILE_MAX_PILLS}
-                  allTags={headerModel.displayTags}
-                  canEdit={headerModel.canEdit}
-                  onRemove={handleRemoveTag}
-                />
-                {headerModel.canEdit && (
-                  <ThreadTagPicker
-                    availableTags={headerModel.availableTags}
-                    onAddTag={handleAddTag}
-                    disabled={headerModel.pickerDisabled}
-                  />
-                )}
-              </div>
-            )}
+              </Box>,
+            ])}
           </div>
         )}
         {!!pinning.error && (
@@ -712,6 +790,7 @@ export function ThreadContextBanner({
             onShowBeside={onShowBeside}
             onShowFull={onShowFull}
             shortcutless={!!onClose}
+            tagsAtTop={phone}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />

@@ -19,6 +19,7 @@ import {
   CANVAS_WRAPPER_SANDBOX,
   canvasFrameWindow,
   canvasPolicy,
+  type CanvasDisplay,
 } from './canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 
@@ -862,6 +863,16 @@ describe('inline canvas sizing', () => {
     expect(buildCanvasDocument('', 'light', undefined, '', false, {}, { inline: true })).toContain(
       'padding:8px;background:transparent;position:relative'
     );
+  });
+
+  it('stops only fitted inline frames from scrolling, so the wheel reaches the thread', () => {
+    const noScroll = "frame.setAttribute('scrolling', 'no');";
+    const doc = (display: CanvasDisplay) =>
+      buildCanvasDocument('', 'light', undefined, '', false, {}, display);
+    expect(doc({ inline: true })).toContain(noScroll);
+    // Previews scroll inside their window, and the panel scrolls its page.
+    for (const display of [{ inline: true, width: 1280 }, { inline: true, raw: true }, {}])
+      expect(doc(display)).not.toContain(noScroll);
   });
 
   it('shows raw pages exactly as written: no theme, base style, or color scheme from Chat', () => {

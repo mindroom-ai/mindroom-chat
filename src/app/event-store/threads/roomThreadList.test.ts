@@ -8,7 +8,7 @@ import {
 } from './roomThreadList';
 
 const setServerSideListSupport = (enabled: boolean) => {
-  Thread.hasServerSideListSupport = (enabled ? 2 : 0) as typeof Thread.hasServerSideListSupport;
+  Thread.hasServerSideListSupport = enabled ? 2 : 0;
 };
 
 const makeRoom = (tokens: Array<string | null>) => {
@@ -46,7 +46,7 @@ const makeRoom = (tokens: Array<string | null>) => {
 };
 
 afterEach(() => {
-  Thread.hasServerSideListSupport = 0 as typeof Thread.hasServerSideListSupport;
+  Thread.hasServerSideListSupport = 0;
   vi.restoreAllMocks();
 });
 

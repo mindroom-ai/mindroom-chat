@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { agentProfilePath, useAgentProfile } from './useAgentProfile';
 
-const server = vi.hoisted(() => ({
-  apiUrl: 'https://mindroom.example' as string | undefined,
+const server = vi.hoisted((): { apiUrl: string | undefined; pending: boolean } => ({
+  apiUrl: 'https://mindroom.example',
   pending: false,
 }));
 const send = vi.hoisted(() => vi.fn<(path: string, init: RequestInit) => Promise<Response>>());

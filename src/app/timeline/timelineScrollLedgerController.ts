@@ -20,6 +20,7 @@ import { threadScrollRange } from './threadScrollRange';
 import { useClampedCorrectionFinish } from './clampedScrollCorrection';
 import { listShrinkAfterResize } from './useListEndClamp';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
+import { readTopInset } from '../ui/styles/threadHeaderInset';
 import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
@@ -460,7 +461,7 @@ export const useTimelineScrollLedgerController = ({
         (scrollElement.getBoundingClientRect().top -
           inner.getBoundingClientRect().top -
           ledgerPxAtRender),
-      inset: Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0,
+      inset: readTopInset(scrollElement),
     };
     anchorRoomLedgerAt(scrollElement.scrollTop);
   });
@@ -480,8 +481,7 @@ export const useTimelineScrollLedgerController = ({
       !!scrollElement &&
       !!leading &&
       leading.getBoundingClientRect().bottom <=
-        scrollElement.getBoundingClientRect().top +
-          (Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0);
+        scrollElement.getBoundingClientRect().top + readTopInset(scrollElement);
   }, [getScrollElement]);
   useLayoutEffect(() => {
     const leadingPx = leadingRef.current?.offsetHeight ?? 0;
@@ -513,7 +513,7 @@ export const useTimelineScrollLedgerController = ({
         (scrollElement.getBoundingClientRect().top -
           inner.getBoundingClientRect().top -
           ledgerPxAtRender),
-      inset: Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0,
+      inset: readTopInset(scrollElement),
     };
     anchorThreadLedgerAt(scrollElement.scrollTop);
   });
@@ -966,6 +966,7 @@ export const useTimelineScrollLedgerController = ({
       threadLedgerAnchorRef.current = undefined;
       roomLedgerAnchorRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = undefined;
+      settledScrollTopRef.current = undefined;
       settleDiscardWatchRef.current = undefined;
     }
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = measurementScrollCorrectionHook;

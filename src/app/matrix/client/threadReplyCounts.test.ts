@@ -25,16 +25,15 @@ const roomId = '!room:example.org';
 const userId = '@alice:example.org';
 const rootId = '$root';
 
-const message = (eventId: string, ts: number, content: Record<string, unknown> = {}): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender: userId,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', body: eventId, ...content },
-  } as IEvent);
+const message = (eventId: string, ts: number, content: Record<string, unknown> = {}): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender: userId,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', body: eventId, ...content },
+});
 const reply = (index: number): IEvent =>
   message(`$reply-${index}`, 100 + index, {
     'm.relates_to': { rel_type: 'm.thread', event_id: rootId },

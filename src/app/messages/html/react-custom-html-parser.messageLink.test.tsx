@@ -69,7 +69,7 @@ const textOf = (root: ReactTestRenderer) => {
     if (typeof value === 'string') return value;
     if (Array.isArray(value)) return value.map(collect).join('');
     if (value && typeof value === 'object' && 'children' in value) {
-      return collect((value as { children: unknown }).children);
+      return collect(value.children);
     }
     return '';
   };

@@ -176,7 +176,7 @@ export function CreateRoomForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    return submitRoom(event.currentTarget as CreateRoomFormElements);
+    return submitRoom(event.currentTarget);
   };
 
   const optionToggles: OptionToggleSpec[] = [

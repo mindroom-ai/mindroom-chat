@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import parse, { DOMNode, Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
+import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
 import { parseInlineMDWithRules } from '../../rich-text/markdown/inline/parser';
 import {
   BoldRule,
@@ -49,7 +49,7 @@ const NOTICE_INLINE_RULES = [
 const noticeHtmlOptions: HTMLReactParserOptions = {
   replace: (node) => {
     if (!(node instanceof Element)) return undefined;
-    const children = domToReact(node.children as DOMNode[], noticeHtmlOptions);
+    const children = domToReact(node.children, noticeHtmlOptions);
     switch (node.name) {
       case 'strong':
         return <strong>{children}</strong>;

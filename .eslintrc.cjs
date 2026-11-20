@@ -100,7 +100,7 @@ const LAYERS = [
   ['canvas', 'composer', 'notifications', 'schedules', 'search', 'subagents'],
   ['rooms', 'threads'],
   ['account', 'activity', 'background-jobs', 'quick-capture', 'spaces', 'timeline'],
-  ['local-mindroom', 'room'],
+  ['invites', 'local-mindroom', 'room'],
   ['settings', 'tour'],
   ['command-palette'],
   ['sidebar'],
@@ -135,7 +135,7 @@ module.exports = {
       // CommonJS files, this config among them, load modules with `require`.
       files: ['**/*.cjs'],
       rules: {
-        '@typescript-eslint/no-var-requires': 'off',
+        '@typescript-eslint/no-require-imports': 'off',
       },
     },
     {

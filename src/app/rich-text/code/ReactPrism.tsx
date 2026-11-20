@@ -44,7 +44,7 @@ const getPrismGrammar = (language: string | undefined): Prism.Grammar | undefine
   if (!language) return undefined;
   const name = language.toLowerCase();
   return Object.prototype.hasOwnProperty.call(Prism.languages, name)
-    ? (Prism.languages[name] as Prism.Grammar)
+    ? Prism.languages[name]
     : undefined;
 };
 

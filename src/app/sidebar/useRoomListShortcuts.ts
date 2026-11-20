@@ -19,7 +19,7 @@ export const useRoomListShortcuts = (
   const readUnread = useAtomCallback(useCallback((get) => get(roomToUnreadAtom), []));
   const open = (roomId: string | undefined): boolean => {
     if (roomId === undefined) return false;
-    navigate(pathOf(roomId));
+    void navigate(pathOf(roomId));
     return true;
   };
   const isUnread = (roomId: string) => readUnread().has(roomId);

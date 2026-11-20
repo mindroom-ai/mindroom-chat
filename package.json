@@ -86,15 +86,15 @@
     "react-error-boundary": "4.0.13",
     "react-i18next": "15.0.0",
     "react-range": "1.10.0",
-    "react-router-dom": "6.30.6",
+    "react-router-dom": "7.18.6",
     "sanitize-html": "2.18.2",
     "slate": "0.123.0",
     "slate-dom": "0.123.0",
     "slate-history": "0.113.1",
     "slate-react": "0.123.0",
-    "workbox-precaching": "7.3.0",
-    "workbox-routing": "7.3.0",
-    "yaml": "1.10.3"
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.6.2",
@@ -113,11 +113,11 @@
     "@types/react-dom": "18.2.17",
     "@types/react-test-renderer": "^18.3.1",
     "@types/sanitize-html": "^2.16.2",
-    "@typescript-eslint/eslint-plugin": "7.18.0",
-    "@typescript-eslint/parser": "7.18.0",
-    "@vanilla-extract/vite-plugin": "3.7.1",
+    "@typescript-eslint/eslint-plugin": "8.73.0",
+    "@typescript-eslint/parser": "8.73.0",
+    "@vanilla-extract/vite-plugin": "5.2.6",
     "@vitejs/plugin-react": "4.7.0",
-    "esbuild": "0.19.12",
+    "esbuild": "0.28.2",
     "eslint": "8.57.1",
     "eslint-config-prettier": "9.1.0",
     "eslint-plugin-import": "^2.31.0",
@@ -131,12 +131,12 @@
     "prettier": "2.8.8",
     "react-test-renderer": "18.2.0",
     "typescript": "5.4.2",
-    "vite": "5.4.21",
-    "vite-plugin-pwa": "0.21.2",
-    "vite-plugin-static-copy": "2.3.2",
-    "vitest": "2.1.8",
-    "workbox-build": "7.3.0",
-    "workbox-window": "7.3.0"
+    "vite": "7.3.8",
+    "vite-plugin-pwa": "2.0.0",
+    "vite-plugin-static-copy": "4.1.1",
+    "vitest": "4.1.12",
+    "workbox-build": "7.4.1",
+    "workbox-window": "7.4.1"
   },
   "overrides": {
     "scheduler": "0.23.2",
@@ -149,7 +149,8 @@
       "@vanilla-extract/recipes": "$@vanilla-extract/recipes"
     },
     "@vanilla-extract/vite-plugin": {
-      "vite": "$vite"
+      "vite": "$vite",
+      "vite-node": "5.3.0"
     }
   },
   "prettier": {

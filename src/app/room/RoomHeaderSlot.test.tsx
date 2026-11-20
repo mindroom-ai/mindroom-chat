@@ -48,10 +48,10 @@ vi.mock('../plugins/pluginEntries', async () => {
           roomHeaderSlot: [
             ({ room }: { room: Room }) => {
               if (room.roomId.startsWith('!broken')) throw new Error('boom');
-              // eslint-disable-next-line @typescript-eslint/no-throw-literal
+              // eslint-disable-next-line @typescript-eslint/only-throw-error
               if (room.roomId.startsWith('!string')) throw 'not an error';
               // Something not even String() can turn into text.
-              // eslint-disable-next-line @typescript-eslint/no-throw-literal
+              // eslint-disable-next-line @typescript-eslint/only-throw-error
               if (room.roomId.startsWith('!bare')) throw Object.create(null);
               return `broken:${room.roomId}`;
             },

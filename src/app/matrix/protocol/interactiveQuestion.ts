@@ -124,7 +124,7 @@ export const questionOptionReactionKeys = (
     return NO_KEYS;
   }
   const question = readInteractiveQuestion(
-    getReadableContent(targetEvent) as Record<string, unknown>,
+    getReadableContent(targetEvent),
     targetEvent.getOriginalContent()
   );
   return question ? new Set(question.options.map((option) => option.key)) : NO_KEYS;

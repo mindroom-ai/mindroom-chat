@@ -113,15 +113,14 @@ describe('attachComputerTouchpad', () => {
     wrapper.append(canvas);
     document.body.append(wrapper);
     rect = { left: 10, top: 20, width: 400, height: 250 };
-    canvas.getBoundingClientRect = () =>
-      ({
-        ...rect,
-        x: rect.left,
-        y: rect.top,
-        right: rect.left + rect.width,
-        bottom: rect.top + rect.height,
-        toJSON: () => undefined,
-      } as DOMRect);
+    canvas.getBoundingClientRect = () => ({
+      ...rect,
+      x: rect.left,
+      y: rect.top,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+      toJSON: () => undefined,
+    });
     for (const type of ['mousedown', 'mousemove', 'mouseup', 'wheel']) {
       canvas.addEventListener(type, record);
     }

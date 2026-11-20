@@ -80,7 +80,7 @@ describe('RoomStateSentence', () => {
     if (Array.isArray(node)) return node.map(textOf).join('');
     return textOf(node.children);
   };
-  const text = (renderer: ReturnType<typeof create>): string => textOf(renderer.toJSON() as Node);
+  const text = (renderer: ReturnType<typeof create>): string => textOf(renderer.toJSON());
 
   it('quotes the new name in an isolated span and keeps markup in it as text', async () => {
     const renderer = await render(

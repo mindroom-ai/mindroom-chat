@@ -542,7 +542,7 @@ function AboutSection({ title, children }: { title: string; children: ReactNode 
 function AppIdentity() {
   const { t } = useTranslation();
   const { welcome } = useClientConfig();
-  const { subtitle } = getWelcomePageContent(welcome as never, t);
+  const { subtitle } = getWelcomePageContent(welcome, t);
   const { appName, logoAlt, logoSrc, sourceUrl } = MINDROOM_CLIENT_BRANDING;
   const logoSize = toRem(60);
 

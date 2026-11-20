@@ -12,6 +12,7 @@ const { encryptionState, navigateSpy, permissionState, screenSizeState, membersS
     navigateSpy: vi.fn(),
     membersState: { open: false, setOpen: vi.fn() },
     encryptionState: {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       value: undefined as unknown,
     },
     permissionState: {

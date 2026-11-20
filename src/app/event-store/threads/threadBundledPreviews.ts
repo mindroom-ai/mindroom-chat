@@ -1,4 +1,4 @@
-import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 import { isKnownRedactedEventId } from '../../matrix/eventRevision';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
@@ -46,7 +46,7 @@ export const getBundledThreadPreviews = (
     if (marked !== title) return undefined;
     const known = room.getThread(rootId)?.findEventById(raw.event_id);
     if (known?.isRedacted()) return undefined;
-    const event = new MatrixEvent({ ...raw, room_id: room.roomId } as IEvent);
+    const event = new MatrixEvent({ ...raw, room_id: room.roomId });
     if (event.isRedacted()) return undefined;
     const replacement: unknown = event.getUnsigned()['m.relations']?.['m.replace'];
     // A root's summary keeps the edits of its events as the server sent them: the room may hold
@@ -66,7 +66,7 @@ export const getBundledThreadPreviews = (
         target.rel_type === 'm.replace' &&
         target.event_id === raw.event_id
       ) {
-        event.makeReplaced(new MatrixEvent({ ...replacement, room_id: room.roomId } as IEvent));
+        event.makeReplaced(new MatrixEvent({ ...replacement, room_id: room.roomId }));
       }
     }
     // The client's own title rule reads the edited content, as it does for loaded events.

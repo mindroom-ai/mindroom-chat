@@ -32,6 +32,7 @@ import {
   withSsoNonce,
 } from './ssoReturn';
 import { useSsoStartCheck } from './unlistedServer';
+import { leavePage } from '../../../boot/inviteFragment';
 
 /** Which flow the buttons start, and how they are laid out. */
 type SSOButtonOptions = {
@@ -149,7 +150,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     const leave = () => {
       rememberSsoAttempt(nonce, homeserverUrl);
       if (inNativeShell) void startNative();
-      else window.location.assign(url);
+      else leavePage(url);
     };
     if (checkStart) {
       event.preventDefault();

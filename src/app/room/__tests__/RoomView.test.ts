@@ -1461,7 +1461,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       for (const path of rest) {
         // eslint-disable-next-line no-await-in-loop
         await act(async () => {
-          navigate?.(path);
+          void navigate?.(path);
         });
       }
       return recorder;

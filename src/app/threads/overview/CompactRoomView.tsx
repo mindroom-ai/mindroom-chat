@@ -682,7 +682,7 @@ export function CompactRoomView({
           setFocusInside(isKeyboardFocus(event.target))
         }
         onBlur={(event: React.FocusEvent<HTMLDivElement>) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
             setFocusInside(false);
           }
         }}

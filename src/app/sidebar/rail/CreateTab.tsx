@@ -6,7 +6,7 @@ import { useOpenCreateSpaceModal } from '../../navigation/useCreateSpaceModal';
 /** Creates a space from the icon rail. */
 export function CreateTab() {
   const { t } = useTranslation();
-  const openCreateSpace = useOpenCreateSpaceModal() as () => void;
+  const openCreateSpace = useOpenCreateSpaceModal();
   return (
     <SidebarItem>
       <SidebarItemTooltip tooltip={t('nav.createSpace')}>

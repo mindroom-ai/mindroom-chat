@@ -730,9 +730,9 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
         // `Promise<T>`, but a synchronous throw is still allowed here
         // because the caller uses `await execute(...)`; the throw is
         // caught by the async IIFE's own try/catch.
-        execute: (() => {
+        execute: () => {
           throw new Error('sync boom');
-        }) as unknown as () => Promise<void>,
+        },
       });
       await expect(failing).rejects.toThrow('sync boom');
       await flushMicrotasks();
