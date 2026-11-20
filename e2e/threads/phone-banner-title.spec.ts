@@ -248,14 +248,43 @@ const prepare = async (page: Page, world: World) => {
   );
 };
 
+/** Whether the page is a touch screen: a finger for a pointer, and touch points. */
+const reportsTouch = (page: Page) =>
+  page.evaluate(() => matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0);
+
+/**
+ * A new context with `options`. Chromium on a busy Mac now and then opens a context asked for
+ * touch without it (a fine pointer, no touch points, already on its blank page), where the
+ * phone's touch areas are rightly absent; such a context is closed and another one opened.
+ */
+const newContext = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  options: BrowserContextOptions
+) => {
+  for (let attempt = 1; ; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
+    // eslint-disable-next-line no-await-in-loop
+    const page = await context.newPage();
+    // eslint-disable-next-line no-await-in-loop
+    if (!options.hasTouch || (await reportsTouch(page))) return { context, page };
+    const description = `attempt ${attempt}: Chromium opened it without touch`;
+    console.log(`retried context, ${description}`);
+    test.info().annotations.push({ type: 'retried context', description });
+    // eslint-disable-next-line no-await-in-loop
+    await context.close();
+    if (attempt === 3) throw new Error('Chromium opened three contexts without touch');
+  }
+};
+
 const signIn = async (
   browser: Browser,
   baseURL: string | undefined,
   world: World,
   options: BrowserContextOptions
 ) => {
-  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
-  const page = await context.newPage();
+  const { context, page } = await newContext(browser, baseURL, options);
   await prepare(page, world);
   return { context, page };
 };
