@@ -416,6 +416,47 @@ const expectEndButtons = async (page: Page, titleSelector: string, stacked: bool
   });
   if (stacked) expect(layout.titleWidth).toBeGreaterThan(layout.rowTitleWidth + 20);
   else expect(layout.titleWidth).toBeCloseTo(layout.rowTitleWidth, 0);
+  await expectHitAreasApart(page);
+};
+
+/**
+ * A finger at the edge of a button's 44 px hit area, above, below and to each side of it, gets
+ * that button (More and Resolve, which have such an area) or none, never the next one.
+ */
+const expectHitAreasApart = async (page: Page) => {
+  const hits = await banner(page).evaluate((card) => {
+    const buttons = [...card.querySelectorAll<HTMLElement>('button')].filter(
+      (button) => button.getBoundingClientRect().width > 0
+    );
+    return buttons.map((button) => {
+      const box = button.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const reachY = Math.max(22, box.height / 2) - 1;
+      const reachX = Math.max(18, box.width / 2) - 1;
+      const points = [
+        [x, y - reachY],
+        [x, y + reachY],
+        [x - reachX, y],
+        [x + reachX, y],
+      ];
+      const name = button.getAttribute('aria-label') ?? button.textContent ?? '';
+      return points.map(([px, py]) => {
+        const hit = document.elementFromPoint(px!, py!)?.closest('button') ?? null;
+        return {
+          name,
+          at: [Math.round(px!), Math.round(py!)],
+          own: hit === button,
+          other: hit && hit !== button ? hit.getAttribute('aria-label') ?? '' : null,
+          areaButton: name === 'Thread options' || name === 'Resolve',
+        };
+      });
+    });
+  });
+  for (const hit of hits.flat()) {
+    expect(hit.other, `${hit.name} at ${hit.at.join(',')} hits ${hit.other}`).toBeNull();
+    if (hit.areaButton) expect(hit.own, `${hit.name} at ${hit.at.join(',')}`).toBe(true);
+  }
 };
 
 /**

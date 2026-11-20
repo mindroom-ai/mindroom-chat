@@ -64,7 +64,12 @@ export const RowActions = style({
   selectors: {
     // A phone's buttons stay on the first line whatever their order in the DOM.
     [`${PhoneTitleRow} > &`]: { gridRow: 1 },
-    [`${StackedPhoneTitleRow} > &`]: { flexDirection: 'column' },
+    // A 44 px pitch at least, so the buttons' 44 px hit areas (2rem buttons; touchTarget) stay
+    // apart one above the other as they do side by side.
+    [`${StackedPhoneTitleRow} > &`]: {
+      flexDirection: 'column',
+      rowGap: `max(${config.space.S100}, calc(44px - 2rem))`,
+    },
   },
 });
 
