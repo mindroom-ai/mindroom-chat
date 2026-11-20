@@ -458,7 +458,9 @@ const clickUnlessOpen = async (page: Page, root: string): Promise<boolean> => {
       await card(page, root).click({ timeout: 1_000 });
       return true;
     } catch (error) {
-      if (!(error instanceof errors.TimeoutError) || Date.now() > end) throw error;
+      if (!(error instanceof errors.TimeoutError)) throw error;
+      if (await banner(page).isVisible()) return false;
+      if (Date.now() > end) throw error;
     }
   }
 };
