@@ -1349,7 +1349,16 @@
     "close": "Fermer le fil",
     "resizeSecond": "Redimensionner le second fil",
     "second": "Second fil",
-    "dropSecond": "Déposer pour ouvrir dans la seconde colonne"
+    "dropSecond": "Déposer pour ouvrir dans la seconde colonne",
+    "newCount_one": "{{count}} nouveau",
+    "newCount_many": "{{count}} nouveaux",
+    "newCount_other": "{{count}} nouveaux",
+    "newCountAtLeast_one": "{{count}}+ nouveau",
+    "newCountAtLeast_many": "{{count}}+ nouveaux",
+    "newCountAtLeast_other": "{{count}}+ nouveaux",
+    "newUnknown": "Nouveau",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Vous mentionne"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",

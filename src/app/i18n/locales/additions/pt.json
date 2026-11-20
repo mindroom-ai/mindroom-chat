@@ -1349,7 +1349,16 @@
     "close": "Fechar o tópico",
     "resizeSecond": "Redimensionar o segundo tópico",
     "second": "Segundo tópico",
-    "dropSecond": "Solte para abrir na segunda coluna"
+    "dropSecond": "Solte para abrir na segunda coluna",
+    "newCount_one": "{{count}} novo",
+    "newCount_many": "{{count}} novos",
+    "newCount_other": "{{count}} novos",
+    "newCountAtLeast_one": "{{count}}+ novo",
+    "newCountAtLeast_many": "{{count}}+ novos",
+    "newCountAtLeast_other": "{{count}}+ novos",
+    "newUnknown": "Novo",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Menção a si"
   },
   "threadSnooze": {
     "title": "Adiar até",

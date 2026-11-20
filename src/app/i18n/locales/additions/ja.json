@@ -1287,7 +1287,12 @@
     "close": "スレッドを閉じる",
     "resizeSecond": "2つ目のスレッドのサイズを変更",
     "second": "2つ目のスレッド",
-    "dropSecond": "ドロップして2列目で開く"
+    "dropSecond": "ドロップして2列目で開く",
+    "newCount_other": "新着 {{count}} 件",
+    "newCountAtLeast_other": "新着 {{count}}+ 件",
+    "newUnknown": "新着",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "あなたへのメンション"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",

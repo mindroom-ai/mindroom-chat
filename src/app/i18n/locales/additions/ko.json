@@ -1287,7 +1287,12 @@
     "close": "스레드 닫기",
     "resizeSecond": "두 번째 스레드 크기 조정",
     "second": "두 번째 스레드",
-    "dropSecond": "놓아서 두 번째 열에서 열기"
+    "dropSecond": "놓아서 두 번째 열에서 열기",
+    "newCount_other": "새 항목 {{count}}개",
+    "newCountAtLeast_other": "새 항목 {{count}}+개",
+    "newUnknown": "새 항목",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "나를 멘션함"
   },
   "threadSnooze": {
     "title": "일시 중지 종료 시각",

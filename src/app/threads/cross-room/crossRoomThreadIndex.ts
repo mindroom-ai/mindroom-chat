@@ -3,7 +3,8 @@ import {
   type ThreadScheduledStatus,
 } from '../../event-store/threads/threadScheduledStatus';
 import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
-import { atom } from 'jotai';
+import { atom, type Atom } from 'jotai';
+import { selectAtom } from 'jotai/utils';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
@@ -68,6 +69,42 @@ export const emptyCrossRoomThreadIndexSnapshot = (): CrossRoomThreadIndexSnapsho
 export const crossRoomThreadIndexAtom = atom<CrossRoomThreadIndexSnapshot>(
   emptyCrossRoomThreadIndexSnapshot()
 );
+
+export type RoomThreadIndexEntries = ReadonlyMap<string, CrossRoomThreadIndexEntry>;
+
+const sameEntries = (left: RoomThreadIndexEntries, right: RoomThreadIndexEntries): boolean =>
+  left.size === right.size && [...left].every(([rootId, entry]) => right.get(rootId) === entry);
+
+const roomEntriesAtoms = new Map<string, Atom<RoomThreadIndexEntries>>();
+const NO_ENTRIES: RoomThreadIndexEntries = new Map();
+// Read-only, so it holds nothing an account could leave behind.
+const noEntriesAtom = atom(() => NO_ENTRIES);
+
+/**
+ * The index entries of one room's threads by root ID, new only when one of them changed. Without
+ * a room, none, and a view that reads them follows nothing.
+ */
+export const roomThreadIndexEntriesAtom = (
+  roomId: string | undefined
+): Atom<RoomThreadIndexEntries> => {
+  if (roomId === undefined) return noEntriesAtom;
+  let entriesAtom = roomEntriesAtoms.get(roomId);
+  if (!entriesAtom) {
+    entriesAtom = selectAtom(
+      crossRoomThreadIndexAtom,
+      (snapshot): RoomThreadIndexEntries => {
+        const entries = new Map<string, CrossRoomThreadIndexEntry>();
+        snapshot.entries.forEach((entry) => {
+          if (entry.roomId === roomId) entries.set(entry.threadRootId, entry);
+        });
+        return entries;
+      },
+      sameEntries
+    );
+    roomEntriesAtoms.set(roomId, entriesAtom);
+  }
+  return entriesAtom;
+};
 
 /** Whether the index has scanned the rooms once; before, an empty list says nothing. */
 export const crossRoomThreadIndexBootstrappedAtom = atom(

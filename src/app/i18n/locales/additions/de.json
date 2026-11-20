@@ -1318,7 +1318,14 @@
     "close": "Thread schließen",
     "resizeSecond": "Breite des zweiten Threads ändern",
     "second": "Zweiter Thread",
-    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen"
+    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen",
+    "newCount_one": "{{count}} neu",
+    "newCount_other": "{{count}} neu",
+    "newCountAtLeast_one": "{{count}}+ neu",
+    "newCountAtLeast_other": "{{count}}+ neu",
+    "newUnknown": "Neu",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Erwähnt dich"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",

@@ -1318,7 +1318,14 @@
     "close": "Thread sluiten",
     "resizeSecond": "Breedte van de tweede thread wijzigen",
     "second": "Tweede thread",
-    "dropSecond": "Loslaten om in tweede kolom te openen"
+    "dropSecond": "Loslaten om in tweede kolom te openen",
+    "newCount_one": "{{count}} nieuw",
+    "newCount_other": "{{count}} nieuw",
+    "newCountAtLeast_one": "{{count}}+ nieuw",
+    "newCountAtLeast_other": "{{count}}+ nieuw",
+    "newUnknown": "Nieuw",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Vermeldt jou"
   },
   "threadSnooze": {
     "title": "Snoozen tot",

@@ -1380,7 +1380,18 @@
     "close": "Закрыть ветку",
     "resizeSecond": "Изменить ширину второй ветки",
     "second": "Вторая ветка",
-    "dropSecond": "Отпустите, чтобы открыть во второй колонке"
+    "dropSecond": "Отпустите, чтобы открыть во второй колонке",
+    "newCount_one": "{{count}} новое",
+    "newCount_few": "{{count}} новых",
+    "newCount_many": "{{count}} новых",
+    "newCount_other": "{{count}} новых",
+    "newCountAtLeast_one": "{{count}}+ новое",
+    "newCountAtLeast_few": "{{count}}+ новых",
+    "newCountAtLeast_many": "{{count}}+ новых",
+    "newCountAtLeast_other": "{{count}}+ новых",
+    "newUnknown": "Новое",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Упоминает вас"
   },
   "threadSnooze": {
     "title": "Отложить до",
