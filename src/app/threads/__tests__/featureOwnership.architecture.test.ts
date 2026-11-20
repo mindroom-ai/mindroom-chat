@@ -44,6 +44,8 @@ const memberOwnership = (files: string[], names: ReadonlySet<string>) =>
   });
 
 describe('feature ownership architecture', () => {
+  // It walks every production source file too: 5.08 s in a full CI run, over Vitest's 5 s default,
+  // so the same 16 s budget as the ownership test below.
   it('keeps the complete MindRoom runtime dependency graph acyclic', () => {
     const cycles = findDependencyCycles(walkProductionSources(APP_ROOT));
     // The one cycle, each file listed once: emoji/emojiData.ts loads emoji/emoji.ts on first use
@@ -51,7 +53,7 @@ describe('feature ownership architecture', () => {
     expect(cycles.map((cycle) => [...new Set(cycle.map(appRelativePath))].sort())).toEqual([
       ['emoji/emoji.ts', 'emoji/emojiData.ts'],
     ]);
-  });
+  }, 16_000);
 
   it('requires every reviewed owner and makes parent composition explicit', () => {
     const owners = [

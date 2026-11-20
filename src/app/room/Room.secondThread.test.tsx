@@ -65,6 +65,11 @@ const { mx, room, state } = vi.hoisted(() => {
   };
 });
 
+// The route names no event.
+vi.mock('../navigation/useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({}),
+}));
+
 vi.mock('react-router-dom', () => ({
   NavigationType: { Push: 'PUSH' },
   useNavigationType: () => 'POP',
