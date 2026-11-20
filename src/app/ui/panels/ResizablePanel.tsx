@@ -150,7 +150,7 @@ export function ResizablePanel({
       ? settledWidth
       : Math.min(previewWidth, expand ? Infinity : maxWidth);
   // Past its widest, the panel keeps its widest in the row and reaches over the content beside it,
-  // which keeps its width.
+  // which keeps its width: above the conversation's floating header and composer (z-index 6).
   const overhang = Math.max(0, width - maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
   // content instead of squeezing it.
@@ -337,7 +337,7 @@ export function ResizablePanel({
   else if (full) panelStyle = { width: '100%' };
   else if (!folded) {
     const edge = side === 'end' ? 'marginInlineStart' : 'marginInlineEnd';
-    panelStyle = { width, ...(overhang > 0 && { [edge]: -overhang, zIndex: 1 }) };
+    panelStyle = { width, ...(overhang > 0 && { [edge]: -overhang, zIndex: 10 }) };
   }
 
   return (
