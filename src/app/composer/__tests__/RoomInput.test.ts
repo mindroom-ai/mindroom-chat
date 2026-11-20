@@ -660,6 +660,8 @@ vi.mock('../../messages/ThreadIndicator', () => ({
 
 vi.mock('../../lib/user-agent', () => ({
   mobileOrTablet: () => false,
+  isMacOS: () => false,
+  isIOS: () => false,
 }));
 
 vi.stubGlobal('document', {
