@@ -592,16 +592,17 @@ globalStyle(`${FoldedText} > ${Headline} > ${Task}`, { flex: '0 1 auto' });
 globalStyle(`${FoldedText} > ${Detail}`, { flex: '1 1 0' });
 // Beside the Sub-agents panel and on a phone, the details' line (who, on what model, the call as
 // sent) goes; the plain step of a quiet bar stays. In a quiet bar the headline and the step may
-// shrink to nothing, cut short: with Open, Thread and Stop a phone's text column is about 100 px,
-// and neither may reach into the time beside it. Beside the panel and on a phone the headline also
-// takes at most half the column when a step follows it, and the step the rest; on a wider bar the
-// headline takes what it needs, as without a step (a finished job).
+// shrink, cut short: with Open, Thread and Stop a phone's text column is about 100 px, and neither
+// may reach into the time beside it. When a step follows it, the headline takes at most the column
+// less 12rem, and never less than half of it: on a wide bar the step keeps about 9rem beside the
+// chevron and the gaps, beside the panel and on a phone half the column. Without a step (a finished
+// job) the headline has the whole column.
 globalStyle(`${Bar}:not(${Quiet}) ${FoldedText} > ${Detail}`, {
   '@container': { [panel]: { display: 'none' } },
 });
 globalStyle(`${Quiet} ${FoldedText} > ${Headline}`, { minWidth: 0, overflow: 'hidden' });
 globalStyle(`${Quiet} ${FoldedText} > ${Headline}:has(+ ${Detail})`, {
-  '@container': { [panel]: { maxWidth: '50%' } },
+  maxWidth: 'max(50%, 100% - 12rem)',
 });
 globalStyle(`${Quiet} ${FoldedText} > ${Detail}`, { minWidth: 0, overflow: 'hidden' });
 
