@@ -123,7 +123,12 @@ describe('ThreadsNav', () => {
   it('fades the rows a search leaves out and glides the rest up', () => {
     const motion = standInForListMotion();
     try {
-      state.items = [item('a', 'Staging deploy'), item('b', 'Board deck')];
+      // Fixed times, the first row the newer one: two readings of the clock can differ, and the
+      // later one would stand first.
+      state.items = [
+        item('a', 'Staging deploy', { lastActivityTs: 2_000 }),
+        item('b', 'Board deck', { lastActivityTs: 1_000 }),
+      ];
       renderNav();
       fireEvent.change(screen.getByRole('searchbox', { name: 'Search threads' }), {
         target: { value: 'deck' },
