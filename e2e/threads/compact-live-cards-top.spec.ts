@@ -8,8 +8,10 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
+  createDefaultThreadFilterState,
   joinRoom,
   registerAgentAccount,
+  seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
@@ -31,6 +33,10 @@ import {
 // on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set COMPACT_LIVE_SHOTS=<dir>
 // to save each step.
+// A card that moves up past the cards in view (its thread got a reply, or its agent started and it
+// went to Working) leaves them where they are too, on the desktop in Chromium: from below the
+// view, with and without motion, in sections under the Needs you header, from the view itself,
+// and when it only swaps with the card that leads the view.
 const PASSWORD = 'compact-live-cards-top-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.COMPACT_LIVE_SHOTS;
@@ -267,6 +273,255 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   await shot(page, `${label}-4-held-scrolled`);
 };
 
+/** The agent starts on a thread, as MindRoom does: its card moves to Working. */
+const agentStartsOn = (seeded: Seeded, rootId: string) =>
+  sendRoomMessage(HOMESERVER, seeded.agent.accessToken, seeded.roomId, {
+    msgtype: 'm.text',
+    body: 'Thinking...',
+    'io.mindroom.stream_status': 'pending',
+    'm.relates_to': threadRelation(rootId),
+  });
+
+const sectionHeader = (page: Page, id: string) => page.locator(`[data-compact-section="${id}"]`);
+
+/** The threads the agent works on before the reader scrolls, so Working shows above Needs you. */
+const WORKING = 3;
+
+/** What a frame shows of the rows that lead the view, from the list's top edge. */
+type LeadPlaces = {
+  /** The row that leads the view: a card, or a section's header. */
+  row: number;
+  /** The first card in view that is not the one that moves. */
+  card: number;
+  scrollTop: number;
+  /** Whether the card that moves shows before the row that leads the view. */
+  crossed: boolean;
+};
+
+type LeadWatch = {
+  before: LeadPlaces;
+  /** The first frame that shows the card that moves before the leading row. */
+  first?: LeadPlaces;
+  /** The furthest the leading row or card showed from its place in any frame since. */
+  furthest: number;
+  read: () => LeadPlaces;
+};
+
+/**
+ * Watches the row and the card that lead the view, frame by frame, while the card of `moverId`
+ * moves; returns where they show now, and where that card shows and how high it is.
+ */
+const watchLead = (page: Page, moverId: string) =>
+  page.evaluate((mover) => {
+    const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+    if (!view) throw new Error('no Compact list');
+    const edge = view.getBoundingClientRect().top + view.clientTop;
+    const cardOf = (rootId: string) =>
+      [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].find(
+        (shell) => shell.getAttribute('data-scroll-anchor') === rootId
+      );
+    const inView = [
+      ...view.querySelectorAll<HTMLElement>('[data-scroll-anchor], [data-compact-section]'),
+    ].filter((row) => row.getBoundingClientRect().bottom > edge + 1);
+    const leadRow = inView[0];
+    const leadCard = inView.find(
+      (row) =>
+        row.hasAttribute('data-scroll-anchor') && row.getAttribute('data-scroll-anchor') !== mover
+    );
+    const moving = cardOf(mover);
+    if (!leadRow || !leadCard || !moving) throw new Error('no row leads the view');
+    // A header glides to its place (`translate`), a card's shell never does: a row's place in the
+    // list is where it shows without the glide, which a frame mid-glide still tells apart.
+    const placeOf = (row: HTMLElement) => {
+      const glide = parseFloat(getComputedStyle(row).translate.split(' ')[1] ?? '');
+      return row.getBoundingClientRect().top - edge - (glide || 0);
+    };
+    const read = (): LeadPlaces => {
+      const now = cardOf(mover);
+      return {
+        row: placeOf(leadRow),
+        card: placeOf(leadCard),
+        scrollTop: view.scrollTop,
+        // eslint-disable-next-line no-bitwise
+        crossed:
+          !!now && !!(leadRow.compareDocumentPosition(now) & Node.DOCUMENT_POSITION_PRECEDING),
+      };
+    };
+    const watch: LeadWatch = { before: read(), furthest: 0, read };
+    (window as unknown as { leadWatch: LeadWatch }).leadWatch = watch;
+    const frame = () => {
+      const now = read();
+      if (now.crossed) {
+        watch.first ??= now;
+        watch.furthest = Math.max(
+          watch.furthest,
+          Math.abs(now.row - watch.before.row),
+          Math.abs(now.card - watch.before.card)
+        );
+      }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+    const rect = moving.getBoundingClientRect();
+    return {
+      before: watch.before,
+      leadCardId: leadCard.getAttribute('data-scroll-anchor') ?? '',
+      moverTop: rect.top - edge,
+      moverHeight: rect.height,
+      viewHeight: view.clientHeight,
+    };
+  }, moverId);
+
+const leadWatch = (page: Page) =>
+  page.evaluate(() => {
+    const { first, furthest, read } = (window as unknown as { leadWatch: LeadWatch }).leadWatch;
+    return { first, furthest, now: read() };
+  });
+
+type Move = 'below' | 'below-reduced' | 'sections' | 'in-view' | 'swap';
+
+/**
+ * A reader scrolled down the list, the pointer away from it: a card moves up past the cards in
+ * view, and the row and the card that lead the view show where they did, in the first frame that
+ * shows the move and once the cards have glided.
+ */
+const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
+  const { reader, roomId, rootIds } = seeded;
+  const sections = move === 'sections';
+  if (move === 'below-reduced') await page.emulateMedia({ reducedMotion: 'reduce' });
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: reader.username,
+    password: PASSWORD,
+  });
+  await seedRoomOverviewState({
+    page,
+    roomId,
+    userId: reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.evaluate(
+    ({ userId, on }) =>
+      localStorage.setItem(`compactRoomSections:${userId}`, JSON.stringify({ on, folded: [] })),
+    { userId: reader.userId, on: sections }
+  );
+  await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+  await expectRoomCompact(page, true, 60_000);
+  await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
+  await page.mouse.move(5, 795);
+
+  const reply = (rootId: string, body: string) =>
+    sendRoomMessage(HOMESERVER, seeded.agent.accessToken, roomId, {
+      msgtype: 'm.text',
+      body,
+      'm.relates_to': threadRelation(rootId),
+    });
+  if (sections) {
+    // The agent starts on the newest threads while the reader is at the top: Working comes and
+    // grows, and the Needs you header glides down each time.
+    for (const [index, rootId] of rootIds.slice(-WORKING).entries()) {
+      // eslint-disable-next-line no-await-in-loop
+      await agentStartsOn(seeded, rootId);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(sectionHeader(page, 'working')).toHaveText(new RegExp(`· ${index + 1}$`), {
+        timeout: 30_000,
+      });
+      // The glide ends.
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(400);
+    }
+    // The Needs you header leads the view, over its cards: no card shows above it.
+    await page.evaluate(() => {
+      const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+      const header = view?.querySelector<HTMLElement>('[data-compact-section="needsYou"]');
+      if (!view || !header) return;
+      const edge = view.getBoundingClientRect().top + view.clientTop;
+      view.scrollTop += header.getBoundingClientRect().top - edge;
+    });
+  } else {
+    // Cards glide first: two replies move their cards to the top while the reader is there.
+    for (const rootId of [rootIds[3] ?? '', rootIds[4] ?? '']) {
+      // eslint-disable-next-line no-await-in-loop
+      await reply(rootId, 'An earlier note on this ticket.');
+      // eslint-disable-next-line no-await-in-loop
+      await expect.poll(async () => (await cardOrder(page))[0], { timeout: 30_000 }).toBe(rootId);
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(400);
+    }
+    // A swap: the first card still leads the view, cut by 30 px.
+    await scrollList(page, move === 'swap' ? 30 : 700);
+  }
+  await page.waitForTimeout(300);
+
+  // The card that moves: the oldest thread's, far below the view, or one in view, the card after
+  // the one that leads it (a swap) or three cards below that one.
+  const inView = move === 'in-view' || move === 'swap';
+  const mover = inView
+    ? await page.evaluate(
+        (place) => {
+          const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+          const edge = view?.getBoundingClientRect().top ?? 0;
+          const shown = [...(view?.querySelectorAll<HTMLElement>('[data-scroll-anchor]') ?? [])]
+            .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
+            .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
+          return shown[place] ?? '';
+        },
+        move === 'swap' ? 1 : 3
+      )
+    : rootIds[0] ?? '';
+  const start = await watchLead(page, mover);
+  const { before } = start;
+  expect(before.scrollTop, `${move}: the list is scrolled`).toBeGreaterThan(0);
+  expect(before.crossed, `${move}: the card that moves shows after the leading row`).toBe(false);
+  expect(start.leadCardId, `${move}: another card leads the view`).not.toBe(mover);
+  if (inView) {
+    expect(start.moverTop, `${move}: the card that moves shows in view`).toBeGreaterThan(
+      before.card + 1
+    );
+    expect(start.moverTop + start.moverHeight).toBeLessThan(start.viewHeight);
+  } else {
+    expect(start.moverTop, `${move}: the card that moves is below the view`).toBeGreaterThan(
+      start.viewHeight
+    );
+  }
+  if (sections) expect(Math.abs(before.row), `${move}: the header leads the view`).toBeLessThan(1);
+  await shot(page, `move-${move}-1-before`);
+
+  if (sections) {
+    await agentStartsOn(seeded, mover);
+    await expect(sectionHeader(page, 'working')).toHaveText(new RegExp(`· ${WORKING + 1}$`), {
+      timeout: 30_000,
+    });
+  } else {
+    await reply(mover, 'Found it: the exporter quotes a comma twice.');
+  }
+  // The card really moved past what leads the view.
+  await expect
+    .poll(async () => (await leadWatch(page)).now.crossed, {
+      message: `${move}: the card moved up past the row that leads the view`,
+      timeout: 30_000,
+    })
+    .toBe(true);
+  if (!sections) expect((await cardOrder(page))[0], `${move}: the card leads the list`).toBe(mover);
+  // The glides end.
+  await page.waitForTimeout(600);
+  const { first, furthest, now } = await leadWatch(page);
+  const moved = (places: LeadPlaces | undefined) =>
+    places ? Math.max(Math.abs(places.row - before.row), Math.abs(places.card - before.card)) : NaN;
+  test.info().annotations.push({
+    type: 'leading card',
+    description: `${move}: moved ${moved(first)} px in the first frame, ${moved(
+      now
+    )} px at rest, ${furthest} px at most; scrollTop ${before.scrollTop} to ${
+      now.scrollTop
+    }; the card that moved is ${start.moverHeight} px high`,
+  });
+  await shot(page, `move-${move}-2-after`);
+  expect(moved(first), `${move}: what leads the view moved, in the first frame`).toBeLessThan(1);
+  expect(moved(now), `${move}: what leads the view moved, at rest`).toBeLessThan(1);
+};
+
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -304,3 +559,29 @@ for (const [form, options] of [
     });
   });
 }
+
+test.describe('a card moves up past the cards in view (Chromium, desktop)', () => {
+  test.use(DESKTOP);
+
+  for (const [index, [move, title]] of (
+    [
+      [
+        'below',
+        'a reply in a thread whose card is below the view leaves the cards in view in place',
+      ],
+      ['below-reduced', 'with reduced motion, a card that moves up from below the view does too'],
+      ['sections', 'in sections, a card that moves to Working leaves Needs you in view in place'],
+      ['in-view', 'a reply in a thread whose card is in view leaves the cards above it in place'],
+      [
+        'swap',
+        'a reply in the thread of the second card leaves the first, which leads the view, in place',
+      ],
+    ] as const
+  ).entries()) {
+    test(title, async ({ page }) => {
+      test.setTimeout(300_000);
+      const seeded = await seed(`m${index}`);
+      await checkMove(page, seeded, move);
+    });
+  }
+});
