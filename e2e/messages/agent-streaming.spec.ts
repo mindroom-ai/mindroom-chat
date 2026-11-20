@@ -99,7 +99,8 @@ test('tool calls show a running row, then one row for the run that expands to ea
   await tools.click();
   await expect(tools).toHaveAttribute('aria-expanded', 'true');
   for (const step of ['echo step one', 'sleep 10; echo step two', 'echo step three']) {
-    await expect(reply.getByText(step, { exact: true })).toBeVisible();
+    // Among the call's arguments; its row's line shows the command too.
+    await expect(reply.locator('dd').getByText(step, { exact: true })).toBeVisible();
   }
   await expect(reply.getByText(/workspace\]\s+step two/)).toBeVisible();
   await tools.click();

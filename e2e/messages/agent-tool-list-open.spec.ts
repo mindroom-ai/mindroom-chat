@@ -138,7 +138,9 @@ for (const { name, viewport, hasTouch } of VIEWPORTS) {
         // Past the live frames' freshness the reply shows its final edit.
         await page.waitForTimeout(13_000);
         expect(await listChanges(page)).toEqual([]);
-        await expect(reply.getByText('echo step three', { exact: true })).toBeVisible();
+        await expect(
+          reply.locator('dd').getByText('echo step three', { exact: true })
+        ).toBeVisible();
         await expect(line).toHaveAttribute('aria-expanded', 'true');
         await shot(page, testInfo, `${name}-ran`);
       }
