@@ -71,9 +71,9 @@ test(
     test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
     test.setTimeout(5 * 60_000);
     const room = await openPanelRoom(context, page);
-    await openPanel(page, room, 'computer');
-    const panel = panelLocator(page, 'computer');
-    const fill = panel.getByRole('button', { name: 'Fill the room with Computer', exact: true });
+    await openPanel(page, room, 'subagents');
+    const panel = panelLocator(page, 'subagents');
+    const fill = panel.getByRole('button', { name: 'Fill the room with Sub-agents', exact: true });
     const splitter = panel.getByRole('separator');
     // The panel has moved in to its width.
     await panel.evaluate((element) =>
@@ -90,7 +90,7 @@ test(
     });
     // Held over the conversation, the panel follows the pointer past its widest.
     await expect(panel).toHaveAttribute('data-expand-preview', 'true');
-    await expect(splitter).toHaveAttribute('aria-valuetext', 'Fill the room with Computer');
+    await expect(splitter).toHaveAttribute('aria-valuetext', 'Fill the room with Sub-agents');
     const widest = Number(await splitter.getAttribute('aria-valuemax'));
     expect(await widthOf(panel)).toBeGreaterThan(widest + 40);
     await page.mouse.up();
