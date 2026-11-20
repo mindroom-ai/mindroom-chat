@@ -145,7 +145,17 @@ vi.mock('../agent-run/Reasoning.css', () => ({
   Label: 'Label',
   Chevron: 'Chevron',
 }));
-vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
+vi.mock('../agent-run/FinishedWorkFold.css', () => ({
+  Row: 'Row',
+  ClockBox: 'ClockBox',
+  Clock: 'Clock',
+  Hands: 'Hands',
+  Label: 'WorkLabel',
+  Chevron: 'WorkChevron',
+  Ring: 'Ring',
+  Work: 'Work',
+  WorkInner: 'WorkInner',
+}));
 vi.mock('../question/QuestionCard.css', () => ({}));
 vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../agent-run/CompactionSeam.css', () => ({}));
