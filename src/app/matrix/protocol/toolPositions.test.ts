@@ -74,7 +74,7 @@ describe('tool positions', () => {
   const ONE = '🔧 `shell` [1]';
   const TWO = '🔧 `shell` [2] ⏳';
   it.each([
-    ['without a position', [], `Let me check.\n\nFound it.\n\n${ONE}\n\n${TWO}`],
+    ['at a position that is null', [null, 1], `Let me check.\n\n${TWO}\n\nFound it.\n\n${ONE}`],
     [
       'at a position that is no integer',
       [1.5, 1],
@@ -92,6 +92,12 @@ describe('tool positions', () => {
     expect(markers).toEqual(body.indexOf(ONE) < body.indexOf(TWO) ? ['1', '2'] : ['2', '1']);
     expect(html.endsWith('</p>\n')).toBe(true);
     expect(html.indexOf('Found it.') < html.lastIndexOf('🔧')).toBe(true);
+  });
+
+  it('draws no line for a call without a position, whose marker the text never showed', () => {
+    const restored = withToolMarkersRestored(wireContent(between.wire, between.sent.events, [1]));
+    expect(restored.body).toBe(`Let me check.\n\n${ONE}\n\nFound it.`);
+    expect(restored.formatted_body).not.toContain('[2]');
   });
 
   it('leaves content without a version-3 trace as it is', () => {

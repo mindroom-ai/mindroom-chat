@@ -86,7 +86,9 @@ export const withToolMarkersRestored = (
   let previous = 0;
   const calls = (Array.isArray(trace.events) ? trace.events : [])
     .flatMap((event: unknown, index): Call[] => {
+      // A call without a position had no line in the text, as a version-2 call without a marker.
       if (!isRecord(event) || typeof event.tool_name !== 'string' || !event.tool_name) return [];
+      if (!('at' in event)) return [];
       const { at } = event;
       const valid = typeof at === 'number' && Number.isInteger(at) && at >= previous;
       if (valid && at <= htmlStarts.length) previous = at;
