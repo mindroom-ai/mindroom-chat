@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
+  measureElement as measureRowElement,
   observeElementRect,
   useVirtualizer,
   type Range,
@@ -101,6 +102,11 @@ export type TimelineScrollLedgerController = {
   readMeasurementCorrectionPx: () => number;
   /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
   unrenderedRowMove: () => boolean;
+  /**
+   * Whether rows that are not rendered at their new sizes yet changed size as the scroll area's
+   * width changed: the render that shows them may give the list its new height before the paint.
+   */
+  unrenderedRewrap: () => boolean;
   /** The part of the ledger that rows folded above the reader brought with their own height, in px. */
   readRowFoldPx: () => number;
   /**
@@ -340,17 +346,68 @@ export const useTimelineScrollLedgerController = ({
   useInsertionEffect(() => {
     observeThreadHeightRef.current = !!threadId;
   }, [threadId]);
+  // A new width of the scroll area (a splitter's drag, a window's resize) wraps every row anew in
+  // the same layout. The browser's ResizeObserver loop then reports the scroll area in the pass
+  // that reports the rows, so the scroll content inside it may still change size in that pass:
+  // its own observers (the scrollbar, the minimap, the follow-growth observer) are reported in the
+  // next one. The render before the paint then gives the list its new height, and the pins of
+  // that commit reach the newest row before the browser paints it away from the composer. A
+  // pass that reports rows alone leaves the content's size alone, or the loop would end with
+  // those observers unreported ("ResizeObserver loop completed with undelivered notifications").
+  // `rowsWidthRef` is the scroll area and its width when the observer last reported rows.
+  const rowsWidthRef = useRef<{ scrollElement: HTMLElement; width: number }>();
+  // Whether the rows the observer reports now wrapped anew; undefined between its reports.
+  const rowsRewrappedRef = useRef<boolean>();
+  // Whether the renders that report queues before the paint show rows that wrapped anew.
+  const unrenderedRewrapRef = useRef(false);
+  const measureRow = useCallback(
+    (
+      element: Element,
+      entry: ResizeObserverEntry | undefined,
+      instance: Parameters<typeof measureRowElement>[2]
+    ): number => {
+      const scrollElement = getScrollElement();
+      if (entry && scrollElement && rowsRewrappedRef.current === undefined) {
+        const width = scrollElement.offsetWidth;
+        const reported = rowsWidthRef.current;
+        rowsRewrappedRef.current =
+          reported?.scrollElement === scrollElement && reported.width !== width;
+        rowsWidthRef.current = { scrollElement, width };
+        queueMicrotask(() => {
+          rowsRewrappedRef.current = undefined;
+          // After the renders these rows queued before the paint: a later report's rows have
+          // not wrapped anew.
+          queueMicrotask(() => {
+            unrenderedRewrapRef.current = false;
+          });
+        });
+      }
+      return measureRowElement(element, entry, instance);
+    },
+    [getScrollElement]
+  );
   const observeTimelineRect = useCallback<typeof observeElementRect>((instance, onRect) => {
     let previousHeight: number | undefined;
+    let previousWidth: number | undefined;
     return observeElementRect(instance, (rect) => {
       const heightChanged = previousHeight !== rect.height;
       previousHeight = rect.height;
+      const scrollElement = getScrollElement();
+      if (previousWidth !== undefined && previousWidth !== rect.width && scrollElement) {
+        // A new width whose frame reports no row (none is mounted, or measured) ends with that
+        // frame: rows that change size on their own later did not wrap anew.
+        const reported = { scrollElement, width: scrollElement.offsetWidth };
+        requestAnimationFrame(() => {
+          rowsWidthRef.current = reported;
+        });
+      }
+      previousWidth = rect.width;
       onRect(rect);
       if (heightChanged && observeThreadHeightRef.current) {
         setViewportResizeTick((tick) => tick + 1);
       }
     });
-  }, []);
+  }, [getScrollElement]);
 
   // Extraction runs after useVirtualizer returns, against this render's
   // instance/options. A fresh callback invalidates the range cache on resize.
@@ -362,6 +419,7 @@ export const useTimelineScrollLedgerController = ({
     overscan: 10,
     ...(threadId ? { rangeExtractor } : {}),
     observeElementRect: observeTimelineRect,
+    measureElement: measureRow,
     scrollMargin: -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
     // updated estimates reach unmeasured virtual-core rows.
@@ -713,6 +771,7 @@ export const useTimelineScrollLedgerController = ({
     });
   }, []);
   const unrenderedRowMove = useCallback(() => unrenderedRowMoveRef.current, []);
+  const unrenderedRewrap = useCallback(() => unrenderedRewrapRef.current, []);
   useInsertionEffect(() => {
     unrenderedCorrectionPxRef.current = 0;
     unrenderedEndCorrectionPxRef.current = 0;
@@ -907,9 +966,12 @@ export const useTimelineScrollLedgerController = ({
       dropped = false;
       const apply = decide(...args);
       // An applied correction renders before the paint already, and the offset ledger moves
-      // the rows of a dropped one in its own commit; the newest row moves no row after it.
+      // the rows of a dropped one in its own commit; the newest row moves no row after it, but
+      // one that wrapped anew moves the list's end, which the pins of that render follow.
       const [item] = args;
-      if (!apply && !dropped && (item.index ?? itemCount) < itemCount - 1) {
+      const rewrapped = !!rowsRewrappedRef.current;
+      if (rewrapped) unrenderedRewrapRef.current = true;
+      if (!apply && !dropped && (rewrapped || (item.index ?? itemCount) < itemCount - 1)) {
         renderRowMoveBeforePaint();
       }
       return apply;
@@ -990,6 +1052,7 @@ export const useTimelineScrollLedgerController = ({
     leadingRef,
     unrenderedCorrectionPx,
     unrenderedRowMove,
+    unrenderedRewrap,
     virtualInnerRef,
     virtualizer,
     readMeasurementCorrectionPx,
