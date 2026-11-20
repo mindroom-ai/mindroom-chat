@@ -5,12 +5,9 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent } from 'matrix-js-sdk';
-import { getDefaultStore } from 'jotai';
-import { getSettings, settingsAtom } from '../../preferences/settings';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
-import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import {
   InlineSecretRequestsContext,
@@ -49,12 +46,6 @@ vi.mock('./BrokenContent', async () => {
   return {
     BrokenContent: () => null,
   };
-});
-
-// The real split, counted.
-vi.mock('../agent-run/finishedWorkSplit', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../agent-run/finishedWorkSplit')>();
-  return { ...actual, splitFinishedWork: vi.fn(actual.splitFinishedWork) };
 });
 
 vi.mock('./FallbackContent', () => ({ MessageEmptyContent: () => null }));
@@ -142,36 +133,21 @@ const toolTrace = (...toolNames: string[]) => ({
   })),
 });
 
-/**
- * The work of a reply that searched and read a file, `rows` rows of it (`foldFinishedWork`): its
- * notes, a row per call, and the line between the calls.
- */
-const workHtml = (rows: number) =>
-  [
-    ...Array.from({ length: rows - 3 }, (_, n) => (n === 0 ? 'Let me look.' : `Step ${n}.`)).map(
-      (note) => `<p>${note}</p>`
-    ),
-    marker('web_search', 1),
-    '<p>Now the file.</p>',
-    marker('read_file', 2),
-  ].join('');
-// Enough work to fold by default, with a short answer.
-const WORK = workHtml(8);
-// A plain body of as many rows, which bounds the work's.
-const BODY = 'Placeholder line.\n'.repeat(9);
-// Too few rows to fold, in its plain body and its HTML.
-const SHORT_BODY =
+/** The work of a reply that searched and read a file: its notes and calls. */
+const WORK = `<p>Let me look.</p>${marker('web_search', 1)}<p>Now the file.</p>${marker(
+  'read_file',
+  2
+)}`;
+const BODY =
   'Let me look.\n\n🔧 `web_search` [1]\n\nNow the file.\n\n🔧 `read_file` [2]\n\nThe answer.';
-const SHORT_HTML = `${workHtml(4)}<p>The answer.</p>`;
 
-/** A reply that searched, read a file, then answered, with enough work to fold by default. */
+/** A reply that searched, read a file, then answered. */
 const reply = (
   status: string | undefined,
-  html = `${WORK}<p>The answer.</p>`,
-  body = BODY
+  html = `${WORK}<p>The answer.</p>`
 ): Record<string, unknown> => ({
   msgtype: 'm.text',
-  body,
+  body: BODY,
   format: 'org.matrix.custom.html',
   formatted_body: html,
   'io.mindroom.tool_trace': toolTrace('web_search', 'read_file'),
@@ -384,32 +360,20 @@ describe('finished agent work', () => {
     expect(text()).not.toContain('Let me look.');
   });
 
-  it('folds a finished reply from 8 rows of work on', () => {
-    render(reply('completed', `${workHtml(8)}<p>The answer.</p>`));
+  it('folds a finished reply of one tool call and a short answer', () => {
+    render({
+      ...reply('completed', `<p>Let me look.</p>${marker('web_search', 1)}<p>Done.</p>`),
+      'io.mindroom.tool_trace': toolTrace('web_search'),
+    });
     expect(text()).toContain('Worked for 2m 13s');
     expect(text()).not.toContain('Let me look.');
+    expect(text()).toContain('Done.');
 
-    render(reply('completed', `${workHtml(7)}<p>The answer.</p>`));
-    expect(text()).not.toContain('Worked');
+    act(() => {
+      workedRow().props.onClick();
+    });
     expect(text()).toContain('Let me look.');
-  });
-
-  it('counts the cog of hidden tool calls as one row, and their runs as none', () => {
-    getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: false });
-    render(reply('completed', `${workHtml(8)}<p>The answer.</p>`));
-    expect(text()).not.toContain('Worked');
-
-    render(reply('completed', `${workHtml(9)}<p>The answer.</p>`));
-    expect(text()).toContain('Worked for 2m 13s');
-  });
-
-  it('does not fold a shorter finished reply with tool calls', () => {
-    render(reply('completed', SHORT_HTML, SHORT_BODY));
-
-    expect(text()).not.toContain('Worked');
-    expect(text()).toContain('Let me look.');
-    expect(text()).toContain('The answer.');
-    expect(toolCalls()).toEqual(['web_search', 'read_file']);
+    expect(toolCalls()).toEqual(['web_search']);
   });
 
   it('does not fold a reply that search highlights', () => {
@@ -419,11 +383,12 @@ describe('finished agent work', () => {
     expect(text()).toContain('Let me look.');
   });
 
-  it('keeps a short reply in place when it finishes on screen', () => {
-    render(reply('streaming', SHORT_HTML, SHORT_BODY));
+  it('keeps a reply that ends in a tool call in place when it finishes on screen', () => {
+    const html = `<p>Let me look.</p>${marker('web_search', 1)}`;
+    render(reply('streaming', html));
     const before = firstParagraph();
 
-    render(reply('completed', SHORT_HTML, SHORT_BODY));
+    render(reply('completed', html));
     expect(text()).not.toContain('Worked');
     expect(firstParagraph()).toBe(before);
   });
@@ -507,14 +472,5 @@ describe('finished agent work', () => {
     );
     expect(order).not.toContain(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-  });
-
-  it('does not split a short reply', () => {
-    vi.mocked(splitFinishedWork).mockClear();
-
-    render(reply('completed', SHORT_HTML, SHORT_BODY));
-    expect(text()).not.toContain('Worked');
-    expect(text()).toContain('Let me look.');
-    expect(splitFinishedWork).not.toHaveBeenCalled();
   });
 });

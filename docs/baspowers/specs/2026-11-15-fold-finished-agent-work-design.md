@@ -23,14 +23,10 @@ A MindRoom agent reply folds when all of these hold:
 3. Its rendered HTML has at least one tool marker, and visible content follows the last one:
    once sanitized as the renderer sanitizes it, text other than whitespace and the pending mark
    `⏳`, or an image, video or audio element.
-4. Its work is worth folding (owner decision, 2026-11-18, replacing a 6000-character length of the
-   whole body, which 459 production replies showed wrong both ways): counted in rendered rows of
-   the work `W` (the head) and of the answer `A` (the tail), it folds when `W >= 8` and either
-   `W >= 13` or `3 * W >= A`. A nonblank line of text is `ceil(chars / 100)` rows (at least 1), a
-   run of consecutive tool markers 1 (0 while the calls are hidden), the reasoning line (or the
-   cog's own row while the calls are hidden) 1, and each compaction seam 1. The answer is never
-   hidden, so its length alone never folds a reply. Rows from text, not a measured height, so
-   every device agrees and nothing waits for layout.
+4. (owner decision, 2026-11-19, T3 Code parity) No length condition: as in T3 Code's
+   `deriveTurnFolds`, any finished reply with work before its answer folds, even one tool call.
+   This replaces the row rule of #596 (W >= 8 and W >= 13 or 3W >= A), which left the replies the
+   owner cared about unfolded.
 5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
 6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
@@ -57,10 +53,10 @@ When it folds:
 - The timeline's expand all opens the folded work and collapse all folds it, as it does for
   `CollapsibleMessage` (`ExpandAllInitContext`: true opens, false folds, undefined keeps the
   reply's own state).
-- Every long finished reply in the history folds, not just the latest one.
+- Every finished reply in the history folds, not just the latest one.
 
-Nothing else changes: user messages, agent replies without tool calls, replies that end in a
-tool call and shorter replies render as today, with no row and no element of their own.
+Nothing else changes: user messages, agent replies without tool calls and replies that end in a
+tool call render as today, with no row and no element of their own.
 
 ## Design
 
@@ -71,11 +67,9 @@ tool call and shorter replies render as today, with no row and no element of the
   `undefined` when no marker exists or nothing visible follows it. The backend writes every
   marker as its own paragraph (`_format_tool_marker` wraps it in blank lines), so a top-level
   split is exact. The rendering component memoizes it on the HTML string (`useMemo`), because
-  every streamed edit re-renders the row.
-- **Rows (pure, unit-tested):** `foldFinishedWork` beside `splitFinishedWork` counts the rows of
-  condition 4; the plain body's rows bound the work's, so a reply with fewer than 8 is not split.
-  When the answer starts in the paragraph of the last call, the split cuts that paragraph after
-  the call; a reply whose answer starts in a node that does not cut cleanly does not fold.
+  every streamed edit re-renders the row. When the answer starts in the paragraph of the last
+  call, the split cuts that paragraph after the call; a reply whose answer starts in a node that
+  does not cut cleanly does not fold.
 - **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Given a split, it
   renders the row, the work when open, and the answer; without one it returns the whole reply
   with no element of its own, so the tree is the same as without the fold (an emote's
@@ -97,11 +91,10 @@ tool call and shorter replies render as today, with no row and no element of the
   several markers; whitespace-only tail; marker text inside a code block does not count; a
   tail of only `⏳` or of content the sanitizer drops does not fold, an image-only tail does;
   comments are not text; under the browser parser a `<pre>` keeps its leading newline.
-- Unit tests for `foldFinishedWork`: many runs with notes fold, one long run does not; the answer
-  over 3 times the work, hidden calls and seams change the verdict; prose after the last call in
-  its paragraph starts the answer.
-- Component tests: a completed reply of 8 rows of work folds and opens on click, one of 7 does
-  not; a reply that does not fold renders with no element of the fold's own; an agent
+- Unit tests for `splitFinishedWork` also cover one tool call and a one-line answer, a table in
+  the answer, and prose after the last call in its paragraph starting the answer.
+- Component tests: a completed reply of one tool call and a short answer folds and opens on
+  click; a reply that does not fold renders with no element of the fold's own; an agent
   emote and an inline body, through the real `MsgTypeRenderers`, keep the body on the line of
   the `* Agent` prefix and of the streaming or edited suffix; a streaming reply, an `error` reply, a reply without tools, a non-agent message
   and a highlighted row do not fold; the label shows the duration from the replacement
