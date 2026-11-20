@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import type { Room } from 'matrix-js-sdk';
-import { cleanup, render } from '@testing-library/react';
+import { EventEmitter } from 'node:events';
+import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { act, cleanup, render } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThreadBadge } from './ThreadBadge';
 import {
   crossRoomThreadIndexAtom,
@@ -10,100 +11,212 @@ import {
   getCrossRoomThreadIndexKey,
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
+import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import type { ThreadIndicatorUnread } from '../messages/ThreadIndicator';
 import type { ThreadBadgeViewModel } from '../event-store/threads/types';
 
 const mocks = vi.hoisted(() => ({
-  read: vi.fn(),
+  readThreadSignals: vi.fn(),
   ThreadIndicator: vi.fn((_props: Record<string, unknown>) => null),
 }));
 
 vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: mocks.ThreadIndicator }));
-vi.mock('../threads/cross-room/threadSignalsReader', () => ({
-  getThreadSignalsReader: () => ({ read: mocks.read }),
+// The real signals cache, over signals the test sets per thread.
+vi.mock('../threads/cross-room/threadSignals', () => ({
+  SIGNAL_EVENT_LIMIT: 40,
+  readThreadSignals: mocks.readThreadSignals,
 }));
 
 const ROOM_ID = '!room:example.org';
-const room = { roomId: ROOM_ID, client: {}, myUserId: '@me:example.org' } as unknown as Room;
+const ME = '@me:example.org';
 
-const model = (isUnread: boolean): ThreadBadgeViewModel => ({
-  id: { roomId: ROOM_ID, threadRootId: '$root' },
-  replyCount: 11,
-  isResolved: false,
-  isUnread,
+const signalsOf = (newCount: number, mentionedMe = false): ThreadSignals => ({
+  newCount,
+  mentionedMe,
+  newSenderIds: [],
+  automation: false,
 });
 
-const signals = (newCount: number, mentionedMe = false) =>
-  ({ newCount, mentionedMe, newSenderIds: [], automation: false } satisfies ThreadSignals);
+const entryOf = (threadRootId: string, generation = 1) =>
+  ({
+    key: getCrossRoomThreadIndexKey(ROOM_ID, threadRootId),
+    roomId: ROOM_ID,
+    threadRootId,
+    generation,
+    isResolved: false,
+    isInvolved: true,
+  } as CrossRoomThreadIndexEntry);
 
-/** The index as it holds the thread, or without it. */
-const storeWithEntry = (indexed: boolean) => {
+const receiptOf = (threadId: string) =>
+  ({
+    getContent: () => ({ $read: { 'm.read': { [ME]: { ts: 1, thread_id: threadId } } } }),
+  } as unknown as MatrixEvent);
+
+/**
+ * A client with one room whose thread index holds `indexed`, and its chips as the timeline renders
+ * them, each by root ID with its record's unread state.
+ */
+const setup = (signals: Record<string, ThreadSignals>, indexed: string[]) => {
+  mocks.readThreadSignals.mockImplementation(
+    (_room: Room, threadRootId: string) => signals[threadRootId] ?? signalsOf(0)
+  );
+  const room = {
+    roomId: ROOM_ID,
+    myUserId: ME,
+    getThread: () => null,
+    getThreadUnreadNotificationCount: () => 0,
+    getOldestThreadedReceiptTs: () => Infinity,
+  } as unknown as Room;
+  const mx = Object.assign(new EventEmitter(), {
+    getRoom: () => room,
+    getRooms: () => [room],
+    getSafeUserId: () => ME,
+    stopClient: () => undefined,
+    store: {},
+  }) as unknown as MatrixClient;
+  Object.assign(room, { client: mx });
+  const read = vi.spyOn(getThreadSignalsReader(mx), 'read');
+
   const store = createStore();
-  const snapshot = emptyCrossRoomThreadIndexSnapshot();
-  if (indexed) {
-    const key = getCrossRoomThreadIndexKey(ROOM_ID, '$root');
-    snapshot.entries.set(key, {
-      key,
-      roomId: ROOM_ID,
-      threadRootId: '$root',
-    } as CrossRoomThreadIndexEntry);
-  }
-  store.set(crossRoomThreadIndexAtom, snapshot);
-  return store;
-};
+  const setIndex = (entries: CrossRoomThreadIndexEntry[]) =>
+    act(() =>
+      store.set(crossRoomThreadIndexAtom, {
+        ...emptyCrossRoomThreadIndexSnapshot(),
+        entries: new Map(entries.map((entry) => [entry.key, entry])),
+      })
+    );
+  const entries = indexed.map((rootId) => entryOf(rootId));
+  setIndex(entries);
 
-const renderedUnread = (isUnread: boolean, indexed = true) => {
-  mocks.read.mockClear();
-  render(
-    <Provider store={storeWithEntry(indexed)}>
-      <ThreadBadge model={model(isUnread)} room={room} onClick={vi.fn()} />
+  const model = (threadRootId: string, isUnread: boolean): ThreadBadgeViewModel => ({
+    id: { roomId: ROOM_ID, threadRootId },
+    replyCount: 11,
+    isResolved: false,
+    isUnread,
+  });
+  const onClick = vi.fn();
+  const chips = (unread: Record<string, boolean>) => (
+    <Provider store={store}>
+      {Object.entries(unread).map(([rootId, isUnread]) => (
+        <ThreadBadge key={rootId} model={model(rootId, isUnread)} room={room} onClick={onClick} />
+      ))}
     </Provider>
   );
-  return mocks.ThreadIndicator.mock.lastCall?.[0]?.unread as ThreadIndicatorUnread | undefined;
+  const clear = () => {
+    mocks.ThreadIndicator.mockClear();
+    read.mockClear();
+    mocks.readThreadSignals.mockClear();
+  };
+  let rerender: (unread: Record<string, boolean>) => void = () => undefined;
+  const mount = (unread: Record<string, boolean>) => {
+    const view = render(chips(unread));
+    rerender = (next) => view.rerender(chips(next));
+  };
+  /** The timeline renders its rows again, the chips with them. */
+  const show = (unread: Record<string, boolean>) => {
+    clear();
+    rerender(unread);
+  };
+
+  /** The chip of `rootId` as it was last drawn since the last clear, and how often. */
+  const chip = (rootId: string) => {
+    const calls = mocks.ThreadIndicator.mock.calls.filter(
+      ([props]) => props.threadRootId === rootId
+    );
+    return {
+      renders: calls.length,
+      unread: calls.at(-1)?.[0].unread as ThreadIndicatorUnread | undefined,
+    };
+  };
+  const readsOf = (rootId: string) =>
+    read.mock.calls.filter(([, entry]) => entry.threadRootId === rootId).length;
+
+  return { mx, room, signals, entries, setIndex, mount, show, chip, readsOf, clear };
 };
 
 describe('ThreadBadge unread state', () => {
-  beforeEach(() => mocks.read.mockReturnValue(signals(4)));
   afterEach(() => {
     cleanup();
-    mocks.read.mockReset();
     mocks.ThreadIndicator.mockClear();
+    mocks.readThreadSignals.mockReset();
   });
 
   it('reads no signals for a read thread, even when they count new replies', () => {
-    expect(renderedUnread(false)).toBeUndefined();
-    expect(mocks.read).not.toHaveBeenCalled();
+    const { mount, chip, readsOf, setIndex } = setup({ $a: signalsOf(4) }, ['$a']);
+
+    mount({ $a: false });
+
+    expect(chip('$a')).toEqual({ renders: 1, unread: undefined });
+    expect(readsOf('$a')).toBe(0);
+    // A read chip follows no index entry.
+    setIndex([entryOf('$a', 2)]);
+    expect(chip('$a').renders).toBe(1);
   });
 
-  it('counts the new replies of an unread thread from its signals', () => {
-    expect(renderedUnread(true)).toEqual({
-      newCount: 4,
-      newCountAtLeast: false,
-      mentionsMe: false,
-    });
-    expect(mocks.read).toHaveBeenCalledWith(
-      room,
-      expect.objectContaining({ threadRootId: '$root' }),
-      '@me:example.org',
-      expect.any(Number)
+  it('counts the new replies of an unread thread, and tells a mention and a count cut short', () => {
+    const { mount, chip } = setup({ $a: signalsOf(4), $b: signalsOf(40, true) }, ['$a', '$b']);
+
+    mount({ $a: true, $b: true });
+
+    expect(chip('$a').unread).toEqual({ newCount: 4, newCountAtLeast: false, mentionsMe: false });
+    expect(chip('$b').unread).toEqual({ newCount: 40, newCountAtLeast: true, mentionsMe: true });
+  });
+
+  it('is unread with no count until the index holds the thread, then counts', () => {
+    const { mount, chip, readsOf, setIndex } = setup({ $a: signalsOf(4) }, []);
+
+    mount({ $a: true });
+    expect(chip('$a').unread).toEqual({ newCount: 0, mentionsMe: false });
+    expect(readsOf('$a')).toBe(0);
+
+    setIndex([entryOf('$a')]);
+    expect(chip('$a').unread?.newCount).toBe(4);
+  });
+
+  it("draws one chip again for its own thread's index entry, not for another thread's", () => {
+    const { mount, chip, readsOf, setIndex, entries, signals, clear } = setup(
+      { $a: signalsOf(4), $b: signalsOf(1) },
+      ['$a', '$b']
     );
+    mount({ $a: true, $b: true });
+    clear();
+
+    signals.$b = signalsOf(3);
+    setIndex([entries[0]!, entryOf('$b', 2)]);
+
+    expect(chip('$a').renders).toBe(0);
+    expect(readsOf('$a')).toBe(0);
+    expect(chip('$b').renders).toBe(1);
+    expect(chip('$b').unread?.newCount).toBe(3);
   });
 
-  it('tells a mention and a count the signals may cut short', () => {
-    mocks.read.mockReturnValue(signals(40, true));
+  it("lowers the count once the user's receipt reads part of the thread", () => {
+    const { mx, room, mount, show, chip, signals } = setup({ $a: signalsOf(4) }, ['$a']);
+    mount({ $a: true });
+    signals.$a = signalsOf(2);
 
-    expect(renderedUnread(true)).toEqual({ newCount: 40, newCountAtLeast: true, mentionsMe: true });
+    // A render with nothing heard keeps the cached count.
+    show({ $a: true });
+    expect(chip('$a').unread?.newCount).toBe(4);
+
+    // The receipt counts for the thread in the cache, and the timeline renders the chip again
+    // for it (`useThreadOverviewRefresh`'s receipt listener).
+    mx.emit(RoomEvent.Receipt, receiptOf('$a'), room);
+    show({ $a: true });
+    expect(chip('$a').unread?.newCount).toBe(2);
   });
 
-  it('is unread with no count until the thread index holds the thread', () => {
-    expect(renderedUnread(true, false)).toEqual({ newCount: 0, mentionsMe: false });
-    expect(mocks.read).not.toHaveBeenCalled();
-  });
+  it('follows the record: unread once a reply comes, plain once the thread is read', () => {
+    const { mount, show, chip } = setup({ $a: signalsOf(4) }, ['$a']);
+    mount({ $a: false });
+    expect(chip('$a').unread).toBeUndefined();
 
-  it('is unread with no count when the signals count none', () => {
-    mocks.read.mockReturnValue(signals(0));
+    show({ $a: true });
+    expect(chip('$a').unread?.newCount).toBe(4);
 
-    expect(renderedUnread(true)?.newCount).toBe(0);
+    // The signals still count the replies; the record says the thread is read.
+    show({ $a: false });
+    expect(chip('$a').unread).toBeUndefined();
   });
 });
