@@ -23,7 +23,7 @@ vi.mock('../ui/styles/Motion.css', () => ({
 const state = vi.hoisted(() => ({
   displayTags: ['flaky', 'uploads', 'networking'],
   updating: false,
-  finish: () => undefined as void,
+  finish: (): void => undefined,
   removeTag: vi.fn(),
 }));
 vi.mock('./tags/useThreadTags', () => ({
