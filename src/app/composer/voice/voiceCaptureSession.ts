@@ -349,7 +349,9 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       if (native) {
         const nativeRecorder = await startNativeVoiceRecorder();
         if (!owns(generation)) {
-          void nativeRecorder.forget().catch(() => undefined);
+          // Its file stays, unless this start was discarded.
+          if (generation.action === 'discard') void nativeRecorder.forget().catch(() => undefined);
+          else nativeRecorder.stop();
           return false;
         }
         recorder = nativeRecorder;
@@ -419,8 +421,14 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     (current.recorder?.state === 'recording' || current.recorder?.state === 'paused');
   const stop = (action: 'send' | 'discard'): Promise<VoiceCaptureResult> => {
     if (current?.action) return Promise.resolve({ status: 'ignored' });
-    if (!canStop()) {
-      if (action === 'discard') reset();
+    // Discard deletes a native recording the session still holds, also one that ended by itself.
+    const forgets = action === 'discard' && !!current?.recorder?.forget;
+    if (!canStop() && !forgets) {
+      if (action === 'discard') {
+        // A start still on its way learns that it was discarded.
+        if (current) current.action = action;
+        reset();
+      }
       return Promise.resolve({ status: 'ignored' });
     }
     const generation = current!;
@@ -429,10 +437,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     generation.action = action;
     clearTimers(generation);
     return new Promise((resolve) => {
-      // A processing subscriber can release ownership synchronously.
       generation.resolve = resolve;
-      publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
-      if (!generation.acceptsEvents) return;
       const fail = (err: unknown) => {
         generation.resolve = undefined;
         retire(generation);
@@ -442,17 +447,25 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         }
         resolve({ status: 'failed' });
       };
+      const recorder = generation.recorder!;
+      if (forgets) {
+        // Deleted unread, before a subscriber can release ownership. Only the deletion ends this
+        // discard: a stop of the recorder does not.
+        generation.detach?.();
+        generation.detach = undefined;
+        void (async () => recorder.forget?.())().then(() => generation.finishStop?.(), fail);
+      }
+      // A processing subscriber can release ownership synchronously.
+      publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
+      if (!generation.acceptsEvents) return;
       try {
-        const recorder = generation.recorder!;
-        // A discarded native recording is deleted unread.
-        if (action === 'discard' && recorder.forget)
-          void recorder.forget().then(() => generation.finishStop?.(), fail);
-        else recorder.stop();
+        if (!forgets) recorder.stop();
         generation.stopTimer = setTimeout(() => {
           recordDeepTraceEvent('voice.capture.stop_timeout', {
             chunk_count: generation.chunks.length,
           });
-          generation.finishStop?.();
+          if (forgets) fail(new Error('Could not confirm that the recording was deleted.'));
+          else generation.finishStop?.();
         }, VOICE_RECORDER_STOP_TIMEOUT_MS);
       } catch (err) {
         fail(err);
