@@ -210,6 +210,15 @@ const DEFINITIONS = {
     field: 'never',
     local: true,
   },
+  // Right Option (right Alt) on its own, which no app or system shortcut takes; the composers'
+  // own window listener (useVoiceHoldShortcut) handles it.
+  voiceRecord: {
+    keys: 'altright',
+    labelKey: 'shortcuts.actions.voiceRecord',
+    group: 'composer',
+    field: 'always',
+    local: true,
+  },
   bold: {
     keys: 'mod+b',
     labelKey: 'sharedUi.toolbar.bold',
@@ -468,6 +477,7 @@ const MAC_SYMBOLS: Record<string, string> = {
   right: KeySymbol.ArrowRight,
   enter: KeySymbol.Enter,
   escape: 'Esc',
+  altright: `Right ${KeySymbol.Option}`,
   '=': '+',
 };
 
@@ -481,6 +491,7 @@ const OTHER_NAMES: Record<string, string> = {
   right: KeySymbol.ArrowRight,
   enter: 'Enter',
   escape: 'Esc',
+  altright: 'Right Alt',
   '=': '+',
 };
 
@@ -513,6 +524,8 @@ const ARIA_NAMES: Record<string, string> = {
   right: 'ArrowRight',
   enter: 'Enter',
   escape: 'Escape',
+  // ARIA names keys by their `key` value, which has no right Alt of its own.
+  altright: 'Alt',
 };
 
 /** The `aria-keyshortcuts` value: `Meta+Shift+M` on Apple platforms, `Control+Shift+M` elsewhere. */

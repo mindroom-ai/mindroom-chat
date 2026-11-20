@@ -1253,7 +1253,8 @@
       "newLine": "改行",
       "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
       "inlineCode": "インライン コード",
-      "callView": "通話へ移動"
+      "callView": "通話へ移動",
+      "voiceRecord": "長押しで音声メッセージを録音、タップで開始または送信"
     }
   },
   "thread": {

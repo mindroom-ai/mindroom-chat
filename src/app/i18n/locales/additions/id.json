@@ -1253,7 +1253,8 @@
       "newLine": "Baris baru",
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
       "inlineCode": "Kode sebaris",
-      "callView": "Buka panggilan"
+      "callView": "Buka panggilan",
+      "voiceRecord": "Tahan untuk merekam pesan suara, ketuk untuk memulai atau mengirim"
     }
   },
   "thread": {

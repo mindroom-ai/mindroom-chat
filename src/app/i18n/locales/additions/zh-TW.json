@@ -1253,7 +1253,8 @@
       "newLine": "換行",
       "editLast": "編輯你的最後一則訊息（輸入框為空時）",
       "inlineCode": "行內程式碼",
-      "callView": "前往通話"
+      "callView": "前往通話",
+      "voiceRecord": "按住錄製語音訊息，輕點開始或傳送"
     }
   },
   "thread": {

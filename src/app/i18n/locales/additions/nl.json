@@ -1284,7 +1284,8 @@
       "newLine": "Nieuwe regel",
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code",
-      "callView": "Naar de oproep gaan"
+      "callView": "Naar de oproep gaan",
+      "voiceRecord": "Ingedrukt houden om een spraakbericht op te nemen, tikken om te starten of te versturen"
     }
   },
   "thread": {

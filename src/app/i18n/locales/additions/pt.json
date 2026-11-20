@@ -1315,7 +1315,8 @@
       "newLine": "Nova linha",
       "editLast": "Editar a sua última mensagem (com a caixa vazia)",
       "inlineCode": "Código em linha",
-      "callView": "Ir para a chamada"
+      "callView": "Ir para a chamada",
+      "voiceRecord": "Mantenha pressionado para gravar uma mensagem de voz; toque para iniciar ou enviar"
     }
   },
   "thread": {

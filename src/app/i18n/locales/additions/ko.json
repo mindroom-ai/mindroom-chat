@@ -1253,7 +1253,8 @@
       "newLine": "줄 바꿈",
       "editLast": "마지막 메시지 편집 (입력창이 비어 있을 때)",
       "inlineCode": "인라인 코드",
-      "callView": "통화로 이동"
+      "callView": "통화로 이동",
+      "voiceRecord": "길게 눌러 음성 메시지 녹음, 탭하여 시작하거나 보내기"
     }
   },
   "thread": {

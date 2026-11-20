@@ -1284,7 +1284,8 @@
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",
-      "callView": "Aramaya git"
+      "callView": "Aramaya git",
+      "voiceRecord": "Sesli mesaj kaydetmek için basılı tutun, başlatmak veya göndermek için dokunun"
     }
   },
   "thread": {

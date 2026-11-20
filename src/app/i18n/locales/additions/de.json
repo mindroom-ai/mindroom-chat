@@ -1284,7 +1284,8 @@
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",
-      "callView": "Zum Anruf wechseln"
+      "callView": "Zum Anruf wechseln",
+      "voiceRecord": "Halten, um eine Sprachnachricht aufzunehmen, tippen zum Starten oder Senden"
     }
   },
   "thread": {

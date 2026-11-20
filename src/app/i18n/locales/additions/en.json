@@ -1284,7 +1284,8 @@
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",
-      "callView": "Go to the call"
+      "callView": "Go to the call",
+      "voiceRecord": "Hold to record a voice message, tap to start or send"
     }
   },
   "thread": {
