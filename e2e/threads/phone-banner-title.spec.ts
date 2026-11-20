@@ -854,16 +854,18 @@ const expectTagTargets = async (section: Locator) => {
         Math.max(box.top - y, 0, y - box.bottom)
       );
     const missed: string[] = [];
+    // An area grows until it is 44 px each way: 4 px out, or less where that is all it grows.
+    const off = (size: number) => Math.min(4, (44 - size) / 2 - 1);
     controls.forEach((control, index) => {
       const box = boxes[index]!;
       const x = box.left + box.width / 2;
       const y = box.top + box.height / 2;
-      for (const [px, py] of [
-        [x, box.top - 4],
-        [x, box.bottom + 4],
-        [box.left - 4, y],
-        [box.right + 4, y],
-      ] as const) {
+      const across = off(box.width);
+      const along = off(box.height);
+      const points: (readonly [number, number])[] = [];
+      if (along > 0) points.push([x, box.top - along], [x, box.bottom + along]);
+      if (across > 0) points.push([box.left - across, y], [box.right + across, y]);
+      for (const [px, py] of points) {
         if (owner(px, py) !== control) {
           missed.push(
             `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(py)}`
