@@ -1601,7 +1601,9 @@
       "directChat": "Doğrudan sohbet",
       "startsDirectChat": "{{name}} ile bir sohbet başlatır",
       "startingDirectChat": "{{name}} ile sohbet başlatılıyor…",
-      "directChatFailed": "{{name}} ile sohbet başlatılamadı. Yeniden deneyin."
+      "directChatFailed": "{{name}} ile sohbet başlatılamadı. Yeniden deneyin.",
+      "waitingForAgent": "{{name}} sohbete katılması bekleniyor…",
+      "chooseAgain": "Bu seçim artık geçerli değil. Metniniz korunuyor: kimin yanıtlayacağını ya da nerede olacağını seçin."
     },
     "recent": {
       "title": "Son iş parçacıkları",

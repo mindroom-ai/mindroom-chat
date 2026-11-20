@@ -1639,7 +1639,9 @@
       "directChat": "Chat directo",
       "startsDirectChat": "Inicia un chat con {{name}}",
       "startingDirectChat": "Iniciando un chat con {{name}}…",
-      "directChatFailed": "No se pudo iniciar un chat con {{name}}. Inténtalo de nuevo."
+      "directChatFailed": "No se pudo iniciar un chat con {{name}}. Inténtalo de nuevo.",
+      "waitingForAgent": "Esperando a que {{name}} se una al chat…",
+      "chooseAgain": "Esa elección ya no funciona. Tu texto se conserva: elige quién responde o dónde."
     },
     "recent": {
       "title": "Hilos recientes",

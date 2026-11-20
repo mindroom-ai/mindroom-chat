@@ -19,11 +19,11 @@ export const NoticeIcon = style({
 
 export const NoticeText = style({ margin: 0, minWidth: 0 });
 
+/** A link-styled button, which Home's thread list heading uses too. */
 export const NoticeAction = style({
   all: 'unset',
   cursor: 'pointer',
   color: color.Primary.Main,
-  marginInlineEnd: config.space.S200,
   borderRadius: config.radii.R300,
   selectors: {
     '&:hover': { textDecoration: 'underline' },

@@ -1753,7 +1753,9 @@
       "directChat": "محادثة مباشرة",
       "startsDirectChat": "تبدأ محادثة مع ⁨{{name}}⁩",
       "startingDirectChat": "جارٍ بدء محادثة مع ⁨{{name}}⁩…",
-      "directChatFailed": "تعذّر بدء محادثة مع ⁨{{name}}⁩. حاول مرة أخرى."
+      "directChatFailed": "تعذّر بدء محادثة مع ⁨{{name}}⁩. حاول مرة أخرى.",
+      "waitingForAgent": "بانتظار انضمام ⁨{{name}}⁩ إلى المحادثة…",
+      "chooseAgain": "لم يعد هذا الاختيار متاحًا. نصك محفوظ: اختر من يجيب أو أين."
     },
     "recent": {
       "title": "سلاسل الرسائل الأخيرة",

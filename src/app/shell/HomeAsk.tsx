@@ -1,63 +1,51 @@
-import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar, Icons, Text } from 'folds';
-import { useAtomValue, useStore } from 'jotai';
+import { useAtomValue } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import { type Room, RoomEvent, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { ReactEditor } from 'slate-react';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { ComposerMenuButton } from '../composer/ComposerMenuButton';
-import { RoomInput } from '../composer/RoomInput';
+import { RoomInput, type RoomInputProps } from '../composer/RoomInput';
 import * as composerCss from '../composer/RoomInput.css';
-import {
-  composerUploadItemsAtom,
-  getRoomInputDraftKey,
-  roomIdToMsgDraftAtomFamily,
-} from '../composer/roomInputDrafts';
+import { getHomeAskDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
 import { useEditor } from '../editor/Editor';
+import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { nameInitials } from '../lib/common';
-import { createDirectRoom, findDirectRoom } from '../matrix/createRoom';
 import { useCapabilities } from '../matrix/hooks/useCapabilities';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
-import { mxcUrlToHttp } from '../matrix/matrix';
+import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
+import { getRoomThreadMode } from '../matrix/protocol/roomThreadMode';
+import { ConversationViewContext, HOME_ASK_VIEW } from '../navigation/conversationView';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { useRoomViewMode } from '../navigation/useRoomViewMode';
-import { revealDirectionControls } from '../ui/directional';
+import { IsolatedText, isolateInSentence, revealDirectionControls } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
-import type { HomeAgent } from './homeAgents';
+import { canAskIn, type HomeAgent, startDirectChat } from './homeAgents';
 import * as css from './Home.css';
 
 const AVATAR_PX = 40;
 
-/** A picker's small picture: round for an agent, square for a room, initials while it has none. */
-function Badge({
-  id,
-  name,
-  mxc,
-  square,
-}: {
-  id: string;
-  name: string;
-  mxc?: string;
-  square?: boolean;
-}) {
+/** A small picture: round for a person or agent, square for a room, initials while it has none. */
+export function Badge({ id, name, mxc, src, square }: BadgeProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  const src = mxc
-    ? mxcUrlToHttp(mx, mxc, useAuthentication, AVATAR_PX, AVATAR_PX, 'crop') ?? undefined
-    : undefined;
+  const url =
+    src ??
+    (mxc ? mxcUrlToHttp(mx, mxc, useAuthentication, AVATAR_PX, AVATAR_PX, 'crop') : undefined);
   return (
     <Avatar size="200" radii={square ? '300' : 'Pill'} className={css.PickerAvatar}>
       <UserAvatar
         userId={id}
-        src={src}
+        src={url ?? undefined}
         alt=""
         renderFallback={() => <Text size="L400">{nameInitials(name)}</Text>}
       />
     </Avatar>
   );
 }
+type BadgeProps = { id: string; name: string; mxc?: string; src?: string; square?: boolean };
 
 const agentBadge = (agent: HomeAgent) => (
   <Badge id={agent.userId} name={agent.name} mxc={agent.avatarMxc} />
@@ -66,221 +54,277 @@ const agentBadge = (agent: HomeAgent) => (
 type ComposerProps = {
   room: Room;
   editor: Editor;
-  ask: { agentUserId: string; placeholder: string; pickers: ReactNode };
-  dropRef: RefObject<HTMLElement>;
+  ask: NonNullable<RoomInputProps['ask']>;
   /** The field opened by the reader's own action, a chat just started: it takes the focus. */
   focusOnMount: boolean;
 };
 
-/** The room's own composer, whose message opens as a new thread once the server has it. */
-function HomeAskComposer({ room, editor, ask, dropRef, focusOnMount }: ComposerProps) {
-  const { viewMode } = useRoomViewMode(room.roomId);
+/**
+ * The room's composer, text only, whose message opens once the server has it, under the ID the
+ * server gave: in a room whose agents answer in its main timeline the room opens at it, elsewhere
+ * its new thread.
+ */
+function HomeAskComposer({ room, editor, ask, focusOnMount }: ComposerProps) {
+  const mx = useMatrixClient();
   const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
+  // No drop zone: a file dropped on Home is not attached.
+  const noDrop = useRef<HTMLElement>(null);
+  const sentRef = useRef<string>();
   useEffect(() => {
     if (focusOnMount) ReactEditor.focus(editor as ReactEditor);
   }, [editor, focusOnMount]);
-  // Opened as the sidebar's thread rows open one: Classic shows its replies in the room.
-  const openThread = (eventId: string) => {
-    if (viewMode === 'classic') navigateRoom(room.roomId, eventId);
-    else navigateRoomThreadDirect(room.roomId, eventId);
-    return true;
+  const open = useCallback(
+    (roomId: string, eventId: string) => {
+      if (getRoomThreadMode(mx.getRoom(roomId)) === 'room') navigateRoom(roomId, eventId);
+      else navigateRoomThreadDirect(roomId, eventId);
+    },
+    [mx, navigateRoom, navigateRoomThreadDirect]
+  );
+  useEffect(() => {
+    const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, echoRoom, oldId) => {
+      const confirmed = event.getId();
+      if (oldId && oldId === sentRef.current && confirmed && !isLocalEchoEventId(confirmed)) {
+        open(echoRoom.roomId, confirmed);
+      }
+    };
+    mx.on(RoomEvent.LocalEchoUpdated, onEcho);
+    return () => {
+      mx.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
+    };
+  }, [mx, open]);
+  const onSent = (eventId: string) => {
+    if (isLocalEchoEventId(eventId)) sentRef.current = eventId;
+    else open(room.roomId, eventId);
+    return false;
   };
   return (
-    <RoomInput
-      editor={editor}
-      room={room}
-      roomId={room.roomId}
-      fileDropContainerRef={dropRef}
-      onRoomMessageSent={openThread}
-      ask={ask}
-    />
+    <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
+      <RoomInput
+        editor={editor}
+        room={room}
+        roomId={room.roomId}
+        fileDropContainerRef={noDrop}
+        onRoomMessageSent={onSent}
+        ask={ask}
+      />
+    </ConversationViewContext.Provider>
   );
 }
 
-type HomeAskProps = { agents: HomeAgent[]; dropRef: RefObject<HTMLElement> };
+/** An agent no longer among the account's, as a choice made before it went names it. */
+const goneAgent = (userId: string): HomeAgent => ({
+  userId,
+  name: getMxIdLocalPart(userId) ?? userId,
+  roomIds: [],
+  lastUsedTs: 0,
+});
 
 /**
- * Home's ask field: a question to one of the rooms' agents, sent from the room's own composer as a
- * new thread there, which then opens. It goes to the room last used with the agent, else its
- * direct chat, which a press on the field starts when there is none yet; the pickers choose
- * another agent or room, and the text typed so far follows the choice.
+ * Home's ask field: a question to one of the rooms' agents, sent as a new thread, which then
+ * opens. It goes to the room the agent last answered in, else its direct chat, which a press on
+ * the field starts when there is none yet; the pickers choose another agent or room. The text is
+ * Home's own draft, whichever room it is to go to.
  */
-export function HomeAsk({ agents, dropRef }: HomeAskProps) {
+export function HomeAsk({ agents }: { agents: HomeAgent[] }) {
   const first = agents[0];
-  return first ? <HomeAskField agents={agents} first={first} dropRef={dropRef} /> : null;
+  return first ? <HomeAskField agents={agents} first={first} /> : null;
 }
 
-function HomeAskField({ agents, first, dropRef }: HomeAskProps & { first: HomeAgent }) {
+function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const store = useStore();
   const editor = useEditor();
   const version = useCapabilities()['m.room_versions']?.default;
-  const [chosenAgent, setChosenAgent] = useState<string>();
-  // The room chosen for an agent; null is its direct chat, yet to be started.
-  const [chosenRoom, setChosenRoom] = useState<{ agentId: string; roomId: string | null }>();
-  const [starting, setStarting] = useState<'busy' | 'failed'>();
+  // Who answers and where, once picked or once the field holds text: sync moves neither then. A
+  // null room is the agent's direct chat, yet to be started.
+  const [choice, setChoice] = useState<{
+    agentId: string;
+    roomId: string | null;
+    started?: boolean;
+  }>();
+  const [starts, setStarts] = useState<Record<string, 'busy' | 'failed'>>({});
   const [focusOnMount, setFocusOnMount] = useState(false);
-  const agent = agents.find((candidate) => candidate.userId === chosenAgent) ?? first;
-  const { name } = agent;
-  const roomId =
-    chosenRoom?.agentId === agent.userId ? chosenRoom.roomId : agent.defaultRoomId ?? null;
+  const draftAtom = roomIdToMsgDraftAtomFamily(getHomeAskDraftKey(mx.getSafeUserId()));
+  const typed = useAtomValue(draftAtom).length > 0;
+  const agent = choice
+    ? agents.find((candidate) => candidate.userId === choice.agentId) ?? goneAgent(choice.agentId)
+    : first;
+  const roomId = choice ? choice.roomId : agent.defaultRoomId ?? null;
+  if (typed && !choice) setChoice({ agentId: agent.userId, roomId });
+  const selection = useRef({ agentId: agent.userId, roomId });
+  selection.current = { agentId: agent.userId, roomId };
+
+  // Names read in their own direction in a sentence; an accessible name needs no isolate.
+  const name = isolateInSentence(agent.name);
+  const { direct } = agent;
+  // Its rooms, then its direct chat, or none yet to start (null).
+  const roomIds: (string | null)[] = [...agent.roomIds];
+  if (!direct) roomIds.push(null);
+  else if (!roomIds.includes(direct.roomId)) roomIds.push(direct.roomId);
   const room = roomId ? mx.getRoom(roomId) : null;
+  // A chat just started is among the choices once the client has it.
+  const valid =
+    agents.includes(agent) && (roomIds.includes(roomId) || (!!choice?.started && !room));
+  const waiting = !!direct?.waiting && roomId === direct.roomId;
+  const usable = valid && !!room && canAskIn(room, agent.userId);
+  const starting = starts[agent.userId];
   // A chat being started, or started but not yet in the client.
   const busy = starting === 'busy' || (roomId !== null && !room);
-  // Files staged in the room's composer cannot follow the field to another room.
-  const locked = useAtomValue(composerUploadItemsAtom(roomId ?? '', undefined)).length > 0;
-  // The room whose draft the field showed last, which the text follows to the next.
-  const shownRoomRef = useRef<string>();
-  if (room) shownRoomRef.current = room.roomId;
 
-  const carryDraft = (to: string | null) => {
-    const from = shownRoomRef.current;
-    if (!from || !to || from === to) return;
-    const userId = mx.getSafeUserId();
-    const fromAtom = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, from));
-    const toAtom = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, to));
-    const draft = store.get(fromAtom);
-    if (draft.length === 0) return;
-    store.set(toAtom, [...store.get(toAtom), ...draft]);
-    store.set(fromAtom, []);
-  };
-  const pickRoom = (agentId: string, next: string | null) => {
-    carryDraft(next);
-    setStarting(undefined);
-    setChosenRoom({ agentId, roomId: next });
-  };
-  const startDirect = async () => {
-    if (busy) return;
-    setStarting('busy');
-    try {
-      const started =
-        findDirectRoom(mx, agent.userId) ?? (await createDirectRoom(mx, agent.userId, { version }));
-      carryDraft(started);
-      setFocusOnMount(true);
-      setChosenRoom({ agentId: agent.userId, roomId: started });
-    } catch {
-      setStarting('failed');
-    }
+  const startDirect = (agentId: string) => {
+    setStarts((all) => ({ ...all, [agentId]: 'busy' }));
+    startDirectChat(mx, agentId, version).then(
+      (started) => {
+        setStarts(({ [agentId]: done, ...others }) => others);
+        // A choice made meanwhile stands.
+        if (selection.current.agentId !== agentId || selection.current.roomId !== null) return;
+        setFocusOnMount(true);
+        setChoice({ agentId, roomId: started, started: true });
+      },
+      () => setStarts((all) => ({ ...all, [agentId]: 'failed' }))
+    );
   };
 
-  // Its rooms, then its direct chat, which may be yet to start (null).
-  const direct = agent.directRoomId ?? null;
-  const choices = (
-    direct && agent.roomIds.includes(direct) ? agent.roomIds : [...agent.roomIds, direct]
-  ).map((id) => {
-    const choice = id ? mx.getRoom(id) : null;
-    if (!choice || id === direct) {
-      return { id, label: t('home.ask.directChat'), badge: agentBadge(agent) };
+  const shown = (id: string | null) => {
+    const choiceRoom = id ? mx.getRoom(id) : null;
+    if (!choiceRoom || id === direct?.roomId) {
+      return { label: t('home.ask.directChat'), badge: agentBadge(agent) };
     }
-    const label = revealDirectionControls(choice.name);
-    const mxc = choice.getMxcAvatarUrl() ?? undefined;
-    return { id, label, badge: <Badge id={choice.roomId} name={choice.name} mxc={mxc} square /> };
-  });
-  const current = choices.find((choice) => choice.id === roomId) ?? choices[choices.length - 1];
+    const label = revealDirectionControls(choiceRoom.name);
+    const mxc = choiceRoom.getMxcAvatarUrl() ?? undefined;
+    return { label, badge: <Badge id={choiceRoom.roomId} name={label} mxc={mxc} square /> };
+  };
+  const current = shown(roomId);
+  const radio = (
+    key: string,
+    icon: typeof Icons.User,
+    checked: boolean,
+    { label, badge }: { label: string; badge: ReactNode },
+    onSelect: () => void,
+    description?: string
+  ) => (
+    <MenuEntry
+      key={key}
+      role="menuitemradio"
+      aria-checked={checked}
+      className={composerCss.ComposerMenuItem}
+      label={label}
+      description={description}
+      icon={icon}
+      after={badge}
+      onSelect={onSelect}
+    />
+  );
   const pickers = (
     <>
       <ComposerMenuButton
         label={t('home.ask.chooseAgent')}
         icon={Icons.ChevronBottom}
-        disabled={locked}
         face={{
           content: (
             <>
               {agentBadge(agent)}
-              <span className={css.PickerText}>{name}</span>
+              <span className={css.PickerText}>{agent.name}</span>
             </>
           ),
-          label: t('home.ask.agentChoice', { name }),
+          label: t('home.ask.agentChoice', { name: agent.name }),
         }}
       >
         {({ choose }) =>
-          agents.map((option) => (
-            <MenuEntry
-              key={option.userId}
-              role="menuitemradio"
-              aria-checked={option.userId === agent.userId}
-              className={composerCss.ComposerMenuItem}
-              label={option.name}
-              icon={Icons.User}
-              after={agentBadge(option)}
-              onSelect={choose(() => {
-                setChosenAgent(option.userId);
-                pickRoom(option.userId, option.defaultRoomId ?? null);
-              })}
-            />
-          ))
+          agents.map((option) =>
+            radio(
+              option.userId,
+              Icons.User,
+              option === agent,
+              { label: option.name, badge: agentBadge(option) },
+              choose(() =>
+                setChoice({ agentId: option.userId, roomId: option.defaultRoomId ?? null })
+              )
+            )
+          )
         }
       </ComposerMenuButton>
       <ComposerMenuButton
         label={t('home.ask.chooseRoom')}
         icon={Icons.ChevronBottom}
-        disabled={locked}
         face={{
           content: (
             <span className={css.PickerText}>
               <Trans
                 i18nKey="home.ask.inRoom"
-                values={{ room: current?.label }}
+                values={{ room: isolateInSentence(current.label) }}
                 tOptions={{ interpolation: { escapeValue: true } }}
                 shouldUnescape
-                components={{ avatar: <>{current?.badge}</> }}
+                components={{ avatar: <>{current.badge}</> }}
               />
             </span>
           ),
-          label: t('home.ask.roomChoice', { room: current?.label }),
+          label: t('home.ask.roomChoice', { room: current.label }),
         }}
       >
         {({ choose }) =>
-          choices.map((choice) => (
-            <MenuEntry
-              key={choice.id ?? 'new-direct'}
-              role="menuitemradio"
-              aria-checked={choice.id === roomId}
-              className={composerCss.ComposerMenuItem}
-              label={choice.label}
-              description={
-                choice.id === null ? t('home.ask.startsDirectChat', { name }) : undefined
-              }
-              icon={Icons.Hash}
-              after={choice.badge}
-              onSelect={choose(() => pickRoom(agent.userId, choice.id))}
-            />
-          ))
+          roomIds.map((id) =>
+            radio(
+              id ?? 'new-direct',
+              Icons.Hash,
+              id === roomId,
+              shown(id),
+              choose(() => setChoice({ agentId: agent.userId, roomId: id })),
+              id === null ? t('home.ask.startsDirectChat', { name }) : undefined
+            )
+          )
         }
       </ComposerMenuButton>
     </>
   );
   const placeholder = t('home.ask.placeholder', { name });
+  // A choice that no longer works keeps the text and asks for another.
+  const chooseAgain = (
+    <Text role="alert" size="T200" className={css.StandInError}>
+      {t('home.ask.chooseAgain')}
+    </Text>
+  );
 
-  if (room) {
+  if (room && !waiting) {
     return (
-      <HomeAskComposer
-        key={room.roomId}
-        room={room}
-        editor={editor}
-        ask={{ agentUserId: agent.userId, placeholder, pickers }}
-        dropRef={dropRef}
-        focusOnMount={focusOnMount}
-      />
+      <div className={css.Ask}>
+        <HomeAskComposer
+          room={room}
+          editor={editor}
+          ask={{
+            agentUserId: agent.userId,
+            placeholder,
+            pickers,
+            // Read again at the press: the room or the agent may have changed since.
+            canSend: () => valid && canAskIn(room, agent.userId),
+          }}
+          focusOnMount={focusOnMount}
+        />
+        {!usable && chooseAgain}
+      </div>
     );
   }
   // No chat with the agent yet: a press starts one, whose composer then takes the field.
+  let label = placeholder;
+  if (waiting) label = t('home.ask.waitingForAgent', { name });
+  else if (busy) label = t('home.ask.startingDirectChat', { name });
   return (
     <div className={css.StandIn}>
       <button
         type="button"
         className={css.StandInField}
         aria-busy={busy}
-        onClick={() => void startDirect()}
+        disabled={waiting || !valid}
+        onClick={() => !busy && startDirect(agent.userId)}
       >
-        {busy ? t('home.ask.startingDirectChat', { name }) : placeholder}
+        <IsolatedText text={label} />
       </button>
       {starting === 'failed' && (
         <Text role="alert" size="T200" className={css.StandInError}>
-          {t('home.ask.directChatFailed', { name })}
+          <IsolatedText text={t('home.ask.directChatFailed', { name })} />
         </Text>
       )}
+      {!valid && chooseAgain}
       <div className={css.StandInRow}>{pickers}</div>
     </div>
   );

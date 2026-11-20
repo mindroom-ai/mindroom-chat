@@ -1639,7 +1639,9 @@
       "directChat": "Discussion directe",
       "startsDirectChat": "Démarre une discussion avec {{name}}",
       "startingDirectChat": "Démarrage d’une discussion avec {{name}}…",
-      "directChatFailed": "Impossible de démarrer une discussion avec {{name}}. Réessayez."
+      "directChatFailed": "Impossible de démarrer une discussion avec {{name}}. Réessayez.",
+      "waitingForAgent": "En attente de l’arrivée de {{name}} dans le chat…",
+      "chooseAgain": "Ce choix ne fonctionne plus. Votre texte est conservé : choisissez qui répond, ou où."
     },
     "recent": {
       "title": "Fils récents",

@@ -25,7 +25,7 @@ export function WelcomeNotice({ icon, action, onAction, text, label }: WelcomeNo
           <Text as="span" size="T300">
             {action}
           </Text>
-        </button>
+        </button>{' '}
         <Text as="span" size="T300" priority="300">
           {text}
         </Text>

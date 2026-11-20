@@ -1601,7 +1601,9 @@
       "directChat": "Direct gesprek",
       "startsDirectChat": "Start een gesprek met {{name}}",
       "startingDirectChat": "Gesprek met {{name}} starten…",
-      "directChatFailed": "Kan geen gesprek met {{name}} starten. Probeer het opnieuw."
+      "directChatFailed": "Kan geen gesprek met {{name}} starten. Probeer het opnieuw.",
+      "waitingForAgent": "Wachten tot {{name}} de chat binnenkomt…",
+      "chooseAgain": "Die keuze werkt niet meer. Je tekst blijft bewaard: kies wie antwoordt, of waar."
     },
     "recent": {
       "title": "Recente threads",

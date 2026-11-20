@@ -1639,7 +1639,9 @@
       "directChat": "Conversa direta",
       "startsDirectChat": "Inicia uma conversa com {{name}}",
       "startingDirectChat": "Iniciando uma conversa com {{name}}…",
-      "directChatFailed": "Não foi possível iniciar uma conversa com {{name}}. Tente novamente."
+      "directChatFailed": "Não foi possível iniciar uma conversa com {{name}}. Tente novamente.",
+      "waitingForAgent": "Aguardando {{name}} entrar no chat…",
+      "chooseAgain": "Essa escolha não funciona mais. Seu texto foi mantido: escolha quem responde, ou onde."
     },
     "recent": {
       "title": "Conversas recentes",

@@ -48,6 +48,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 import { useSetting } from '../preferences/useSetting';
 import {
+  getHomeAskDraftKey,
   getRoomInputDraftKey,
   type IReplyDraft,
   keepReplyDraft,
@@ -124,10 +125,16 @@ export type RoomInputProps = {
    */
   forkFrom?: ThreadForkRef;
   /**
-   * Home's ask field: each message starts a thread addressed to `agentUserId`, and `pickers`
-   * (who answers, and where) take the model button's place, with no formatting or emoji button.
+   * Home's ask field: text only, kept under the account's Home draft whichever room it goes to.
+   * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
+   * take the row's controls' place. Nothing sends while `canSend` says no.
    */
-  ask?: { agentUserId: string; placeholder: string; pickers: ReactNode };
+  ask?: {
+    agentUserId: string;
+    placeholder: string;
+    pickers: ReactNode;
+    canSend: () => boolean;
+  };
 };
 
 const isEnter = isKeyHotkey('enter');
@@ -242,6 +249,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const draftKey = draftThreadId
       ? getRoomInputDraftKey(userId, roomId, draftThreadId)
       : undefined;
+    const textKey = ask
+      ? getHomeAskDraftKey(userId)
+      : getRoomInputDraftKey(userId, roomId, draftThreadId);
     // Another view of the room (a plugin's thread view) has a reply of its own. A fork draft takes
     // none: the reply chosen in its thread stays for the thread.
     const view = useContext(ConversationViewContext);
@@ -276,7 +286,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // "More actions" menu, so the text gets their width.
     const phone = useScreenSizeContext() === ScreenSize.Mobile;
     // A thread's model button starts the row, on phones too: its provider's logo, and a menu.
-    const modelPicker = ask?.pickers ?? (
+    const modelPicker = (
       <ThreadModelPicker room={room} threadId={threadId} conversationHidden={conversationHidden} />
     );
     // While an agent replies in the thread, holding Send offers how the message meets the reply.
@@ -297,7 +307,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       userId,
       onConfirmedRef: rootConfirmedRef,
     });
-    const saveDraft = useRoomInputDraft(editor, userId, roomId, draftThreadId);
+    const saveDraft = useRoomInputDraft(editor, userId, roomId, draftThreadId, textKey);
     const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
     const commands = useCommands(room, threadingEnabled ? threadId : undefined);
@@ -354,10 +364,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // After any text typed there since: a failed caption is never dropped.
         restoreTextToDraft(
           store,
-          getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
+          ask ? textKey : getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
           fragment
         ),
-      [store, userId]
+      [ask, store, textKey, userId]
     );
 
     const sessions = useRoomInputSendSessionController({
@@ -529,8 +539,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it. Without a mode picked from the Send button's menu, the
     // message takes the one the Chats settings name.
+    const askBlocked = !!ask && !ask.canSend();
     const handleSend = useCallback(
       (mode?: MidTurnMode) => {
+        if (ask && !ask.canSend()) return Promise.resolve();
         const sending = submit(mode ?? midTurnSend);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
@@ -538,7 +550,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         });
         return sending;
       },
-      [midTurnSend, submit]
+      [ask, midTurnSend, submit]
     );
 
     // Only `@` mentions, `:` emoji, and `!` and `/` commands with a match show a menu; anything
@@ -599,9 +611,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       // Only an edit changes the saved draft. A draft put back into the editor (opening its
       // room, switching accounts, reloading) or a moved cursor leaves it as it was, and is
       // not typing.
-      const draftAtom = roomIdToMsgDraftAtomFamily(
-        getRoomInputDraftKey(userId, roomId, draftThreadId)
-      );
+      const draftAtom = roomIdToMsgDraftAtomFamily(textKey);
       const draftBefore = store.get(draftAtom);
       saveDraft();
       attachments.onEditorChange();
@@ -612,7 +622,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       // tap, a cleared draft) comes without one, which would leave it naming text that is gone.
       if (empty) setAutocompleteQuery(undefined);
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!empty);
-    }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
+    }, [attachments, editor, saveDraft, sendTypingStatus, store, textKey]);
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
     const insertEmoji = useCallback(
@@ -799,7 +809,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}
-          onPaste={attachments.onPaste}
+          // Home's ask field takes text only: a pasted file is not attached.
+          onPaste={ask ? undefined : attachments.onPaste}
           top={
             <>
               {replyDraft ? (
@@ -818,7 +829,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           before={
-            phone ? (
+            ask?.pickers ??
+            (phone ? (
               <>
                 {modelPicker}
                 <ComposerActionsMenu
@@ -840,16 +852,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 />
                 {/* A fork draft records no voice: one would start a thread, not the fork. */}
                 {!forkFrom && voice.microphone}
-                {!ask && (
-                  <ComposerIconButton
-                    label={t('composer.formatting')}
-                    icon={Icons.Text}
-                    pressed={formattingOpen}
-                    onPress={toggleFormatting}
-                  />
-                )}
+                <ComposerIconButton
+                  label={t('composer.formatting')}
+                  icon={Icons.Text}
+                  pressed={formattingOpen}
+                  onPress={toggleFormatting}
+                />
               </>
-            )
+            ))
           }
           bottom={formattingOpen && <ComposerFormattingToolbar />}
           after={
@@ -898,6 +908,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 hasText={() => buildTextContent(midTurnSend) !== undefined}
                 empty={noText}
                 defaultMode={midTurnSend}
+                disabled={askBlocked}
                 onSend={handleSend}
               />
             </>

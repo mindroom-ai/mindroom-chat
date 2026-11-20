@@ -14,10 +14,11 @@ export const useRoomInputDraft = (
   editor: Editor,
   userId: string,
   roomId: string,
-  threadId?: string
+  threadId?: string,
+  /** Another key than the room and thread's, as Home's ask field keeps (`getHomeAskDraftKey`). */
+  draftKey = getRoomInputDraftKey(userId, roomId, threadId)
 ) => {
   const store = useStore();
-  const draftKey = getRoomInputDraftKey(userId, roomId, threadId);
   const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
   const activeRef = useRef<{ editor: Editor; atom: typeof draftAtom }>();
   const savingRef = useRef(false);

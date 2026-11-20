@@ -1,4 +1,4 @@
-import { Fragment, ReactNode, useEffect, useRef, useState } from 'react';
+import { Fragment, ReactNode, useEffect, useState } from 'react';
 import { Box, Button, Text, color, toRem } from 'folds';
 import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { useUserProfile } from '../members/useUserProfile';
 import { getWelcomePageContent } from '../ui/branding/clientBranding';
+import { IsolatedText, isolateInSentence } from '../ui/directional';
 import { getLocalMindroomConnections } from '../local-mindroom/api';
 import { getWelcomeSetupFirstSeenStorageKey } from '../preferences/accountStorageKeys';
 import {
@@ -206,7 +207,9 @@ function Greeting() {
   const name = displayName || getMxIdLocalPart(userId) || userId;
   return (
     <Text as="h1" size="H2" align="Center">
-      {t(greetingKey(new Date().getHours()), { name })}
+      <IsolatedText
+        text={t(greetingKey(new Date().getHours()), { name: isolateInSentence(name) })}
+      />
     </Text>
   );
 }
@@ -224,16 +227,15 @@ export function WelcomePage() {
   const showSetup = useWelcomeSetupPrompt();
   const setTour = useSetAtom(tourAtom);
   const agents = useHomeAgents();
-  const pageRef = useRef<HTMLDivElement>(null);
 
   return (
-    <Page ref={pageRef}>
+    <Page>
       <div className={css.Scroll}>
         <div className={css.Column}>
           {agents.length > 0 ? (
             <>
               <Greeting />
-              <HomeAsk agents={agents} dropRef={pageRef} />
+              <HomeAsk agents={agents} />
             </>
           ) : (
             <Box direction="Column" alignItems="Center" gap="200">

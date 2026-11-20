@@ -2,63 +2,34 @@ import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Text } from 'folds';
-import { UserAvatar } from '../avatars/UserAvatar';
-import { useRelativeTime } from '../i18n/useRelativeTime';
-import { nameInitials } from '../lib/common';
+import { Text } from 'folds';
 import { useMinuteClock } from '../lib/hooks/useMinuteClock';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { archivedRoomsAtom, isRoomVisible } from '../matrix/state/archivedRooms';
-import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import { getThreadsPath } from '../routes/pathUtils';
 import { buildSidebarThreadEntries } from '../sidebar/threads/threadNavCategoryUtils';
+import { useThreadEntryRow } from '../sidebar/threads/ThreadNavItem';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
-import { buildCompactThreadCardViewModelFromRecord } from '../threads/overview/compactThreadCardViewModel';
-import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { Badge } from './HomeAsk';
+import * as noticeCss from '../account/onboarding/WelcomeNotice.css';
 import * as css from './Home.css';
 
 /** How many threads Home lists. */
 export const HOME_RECENT_THREADS = 4;
 
 function RecentThreadRow({ entry }: { entry: CrossRoomThreadIndexEntry }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const mx = useMatrixClient();
-  const useAuthentication = useMediaAuthentication();
-  const room = mx.getRoom(entry.roomId);
-  const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
-  const { viewMode } = useRoomViewMode(entry.roomId);
-  const relativeTime = useRelativeTime(entry.lastActivityTs);
-  const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
-  const viewModel = useMemo(
-    () =>
-      room
-        ? buildCompactThreadCardViewModelFromRecord({
-            record: entry.threadRecord,
-            room,
-            currentUserId: mx.getUserId() ?? undefined,
-            mx,
-            useAuthentication,
-            t,
-            locale: i18n.language,
-          })
-        : undefined,
-    [entry.threadRecord, i18n.language, mx, room, t, useAuthentication]
-  );
+  const { room, viewModel, relativeTime, shownRef, open } = useThreadEntryRow(entry);
   if (!room) return null;
   const title = viewModel?.displayTitleText ?? entry.summaryText;
   // The thread's face: the first agent or person who answered in it, else whoever started it.
   const face = viewModel?.participants.find((person) => person.userId !== mx.getUserId());
   const roomName = revealDirectionControls(entry.roomName);
-  const open = () => {
-    if (viewMode === 'classic') navigateRoom(entry.roomId, entry.threadRootId);
-    else navigateRoomThreadDirect(entry.roomId, entry.threadRootId);
-  };
   return (
     <li>
       <button
@@ -74,16 +45,11 @@ function RecentThreadRow({ entry }: { entry: CrossRoomThreadIndexEntry }) {
           .filter(Boolean)
           .join('. ')}
       >
-        <Avatar size="200" radii="Pill" className={css.PickerAvatar} aria-hidden="true">
-          {face && (
-            <UserAvatar
-              userId={face.userId}
-              src={face.avatarUrl}
-              alt=""
-              renderFallback={() => <Text size="L400">{nameInitials(face.displayName)}</Text>}
-            />
-          )}
-        </Avatar>
+        {face ? (
+          <Badge id={face.userId} name={face.displayName} src={face.avatarUrl} />
+        ) : (
+          <span className={css.PickerAvatar} />
+        )}
         <span className={css.ThreadDotSlot} aria-hidden="true">
           {entry.isUnread && <span className={css.ThreadDot} />}
         </span>
@@ -138,7 +104,11 @@ export function HomeRecentThreads() {
         <Text as="h2" size="L400" priority="300" id="home-recent-threads">
           {t('home.recent.title')}
         </Text>
-        <button type="button" className={css.LinkButton} onClick={() => navigate(getThreadsPath())}>
+        <button
+          type="button"
+          className={noticeCss.NoticeAction}
+          onClick={() => navigate(getThreadsPath())}
+        >
           <Text as="span" size="T200">
             {t('home.recent.allThreads')}
           </Text>

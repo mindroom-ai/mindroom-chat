@@ -1,5 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { EditorPlaceholder } from '../editor/Editor.css';
 
 // A phone's width (`useScreenSize`), where thread titles wrap and their room goes under them.
 const PHONE = 'screen and (max-width: 750px)';
@@ -30,16 +31,23 @@ export const Column = style({
 export const PickerAvatar = style({ width: toRem(20), height: toRem(20), flexShrink: 0 });
 globalStyle(`${PickerAvatar} *`, { fontSize: toRem(10) });
 
-/** A picker's choice, cut short when the row has no room for it. */
+/** A picker's choice, cut short with an ellipsis when the row has no room for it. */
 export const PickerText = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: toRem(4),
   minWidth: 0,
   overflow: 'hidden',
   whiteSpace: 'nowrap',
   textOverflow: 'ellipsis',
 });
+globalStyle(`${PickerText} ${PickerAvatar}`, {
+  display: 'inline-flex',
+  verticalAlign: 'middle',
+  marginInline: toRem(4),
+});
+
+// Home's prompt reads as quiet text, which keeps 4.5:1, not as the faint hint of a room's composer.
+const prompt = { color: color.SurfaceVariant.OnContainer, opacity: config.opacity.P400 };
+export const Ask = style({ display: 'flex', flexDirection: 'column', gap: config.space.S200 });
+globalStyle(`${Ask} ${EditorPlaceholder}`, prompt);
 
 // Without a chat to send to yet, the field is a button shaped as the composer is.
 export const StandIn = style({
@@ -57,9 +65,9 @@ export const StandInField = style({
   cursor: 'text',
   minHeight: toRem(44),
   paddingInline: config.space.S200,
-  color: color.SurfaceVariant.OnContainer,
-  opacity: config.opacity.Placeholder,
+  ...prompt,
   selectors: {
+    '&:disabled': { cursor: 'default' },
     '&:focus-visible': { outline: `${config.borderWidth.B600} solid ${color.Primary.Main}` },
   },
 });
@@ -77,17 +85,6 @@ export const RecentHeader = style({
   paddingInline: config.space.S100,
   paddingBlockEnd: config.space.S200,
   borderBlockEnd: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-});
-
-export const LinkButton = style({
-  all: 'unset',
-  cursor: 'pointer',
-  color: color.Primary.Main,
-  borderRadius: config.radii.R300,
-  selectors: {
-    '&:hover': { textDecoration: 'underline' },
-    '&:focus-visible': { outline: `${config.borderWidth.B600} solid ${color.Primary.Main}` },
-  },
 });
 
 export const ThreadList = style({ listStyle: 'none', margin: 0, padding: 0 });
@@ -150,7 +147,13 @@ export const ThreadTitle = style({
   },
 });
 
-export const ThreadRoom = style({ flexShrink: 0, whiteSpace: 'nowrap' });
+export const ThreadRoom = style({
+  maxWidth: '40%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  '@media': { [PHONE]: { maxWidth: '100%' } },
+});
 
 export const ThreadTime = style({
   minWidth: toRem(56),

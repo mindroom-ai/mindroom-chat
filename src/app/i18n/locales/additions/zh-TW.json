@@ -1563,7 +1563,9 @@
       "directChat": "私訊",
       "startsDirectChat": "開始與 {{name}} 的對話",
       "startingDirectChat": "正在開始與 {{name}} 的對話…",
-      "directChatFailed": "無法開始與 {{name}} 的對話。請再試一次。"
+      "directChatFailed": "無法開始與 {{name}} 的對話。請再試一次。",
+      "waitingForAgent": "正在等待 {{name}} 加入聊天…",
+      "chooseAgain": "此選擇已無法使用。你的文字已保留：請重新選擇由誰回答或在哪裡提問。"
     },
     "recent": {
       "title": "最近的討論串",

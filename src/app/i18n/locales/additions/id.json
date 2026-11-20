@@ -1563,7 +1563,9 @@
       "directChat": "Obrolan langsung",
       "startsDirectChat": "Memulai obrolan dengan {{name}}",
       "startingDirectChat": "Memulai obrolan dengan {{name}}…",
-      "directChatFailed": "Tidak dapat memulai obrolan dengan {{name}}. Coba lagi."
+      "directChatFailed": "Tidak dapat memulai obrolan dengan {{name}}. Coba lagi.",
+      "waitingForAgent": "Menunggu {{name}} bergabung ke obrolan…",
+      "chooseAgain": "Pilihan itu tidak berlaku lagi. Teks Anda tetap tersimpan: pilih siapa yang menjawab, atau di mana."
     },
     "recent": {
       "title": "Utas terbaru",

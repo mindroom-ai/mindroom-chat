@@ -76,6 +76,9 @@ const DRAFT_STORAGE_PREFIX = 'roomInputDraft:';
 export const getRoomInputDraftKey = (userId: string, roomId: string, threadId?: string): string =>
   JSON.stringify(threadId === undefined ? [userId, roomId] : [userId, roomId, threadId]);
 
+/** The key of Home's ask field draft: one per account, whichever room it is to go to. */
+export const getHomeAskDraftKey = (userId: string): string => JSON.stringify([userId]);
+
 /** The account, room and thread a draft key names. */
 const parseDraftKey = (draftKey: string): unknown[] => {
   try {

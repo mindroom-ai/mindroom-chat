@@ -1601,7 +1601,9 @@
       "directChat": "Direktchat",
       "startsDirectChat": "Startet einen Chat mit {{name}}",
       "startingDirectChat": "Chat mit {{name}} wird gestartet …",
-      "directChatFailed": "Der Chat mit {{name}} konnte nicht gestartet werden. Versuche es erneut."
+      "directChatFailed": "Der Chat mit {{name}} konnte nicht gestartet werden. Versuche es erneut.",
+      "waitingForAgent": "Warten, bis {{name}} dem Chat beitritt …",
+      "chooseAgain": "Diese Auswahl geht nicht mehr. Dein Text bleibt erhalten: Wähle, wer antwortet oder wo."
     },
     "recent": {
       "title": "Neueste Threads",

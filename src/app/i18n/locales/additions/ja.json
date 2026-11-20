@@ -1563,7 +1563,9 @@
       "directChat": "ダイレクトチャット",
       "startsDirectChat": "{{name}} とのチャットを始めます",
       "startingDirectChat": "{{name}} とのチャットを開始しています…",
-      "directChatFailed": "{{name}} とのチャットを開始できませんでした。もう一度お試しください。"
+      "directChatFailed": "{{name}} とのチャットを開始できませんでした。もう一度お試しください。",
+      "waitingForAgent": "{{name}} がチャットに参加するのを待っています…",
+      "chooseAgain": "その選択は使えなくなりました。入力した文章は残っています。回答者か場所を選び直してください。"
     },
     "recent": {
       "title": "最近のスレッド",

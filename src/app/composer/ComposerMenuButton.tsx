@@ -64,6 +64,8 @@ export function ComposerMenuButton({
   };
   const controls: ComposerMenuControls = {
     choose: (action) => () => {
+      // A picker's choice brings focus back to its button, as Escape does.
+      refocusRef.current = !!face;
       setAnchor(undefined);
       action();
     },
