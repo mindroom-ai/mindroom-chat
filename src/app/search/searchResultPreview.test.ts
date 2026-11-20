@@ -212,6 +212,10 @@ describe('getSearchResultBodySnippet', () => {
   it('keeps a window that lies inside one word', () => {
     expect(getSearchResultBodySnippet('x'.repeat(50), [], 12)).toBe(`${'x'.repeat(10)}…`);
   });
+
+  it('keeps the cut word when trimming it would leave no letter or digit', () => {
+    expect(getSearchResultBodySnippet(`(${'x'.repeat(300)}`, [], 100)).toBe(`(${'x'.repeat(97)}…`);
+  });
 });
 
 describe('shouldUseLightweightSearchResultBody', () => {

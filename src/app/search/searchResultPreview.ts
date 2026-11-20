@@ -25,6 +25,7 @@ const withBody = (label: string, body?: string): string => {
 const WORD_CHAR = new RegExp(`^${WORD_CHAR_PATTERN}$`, 'u');
 const ENDS_IN_WORD_CHAR = new RegExp(`${WORD_CHAR_PATTERN}$`, 'u');
 const STARTS_WITH_WORD_CHAR = new RegExp(`^${WORD_CHAR_PATTERN}`, 'u');
+const HAS_WORD_CHAR = new RegExp(WORD_CHAR_PATTERN, 'u');
 
 /** Whether `at` falls between two letters or digits of `text`, inside one word. */
 const cutsWord = (text: string, at: number): boolean =>
@@ -43,15 +44,25 @@ const wordRunLength = (chars: readonly string[]): number => {
   return length;
 };
 
+/** Whether `at` falls between the two halves of a surrogate pair of `text`. */
+const splitsPair = (text: string, at: number): boolean =>
+  at > 0 &&
+  at < text.length &&
+  /[\uDC00-\uDFFF]/.test(text.charAt(at)) &&
+  /[\uD800-\uDBFF]/.test(text.charAt(at - 1));
+
 /**
  * The window `start`..`end` of `text` without the parts of words cut at its edges, so a word's
- * tail is never read as a whole word. A window inside one word stays as it is.
+ * tail is never read as a whole word. An edge never splits a character. A window that trimming
+ * would leave with no letter or digit keeps its cut words.
  */
 const clipToWords = (text: string, start: number, end: number): [number, number] => {
-  const chars = Array.from(text.slice(start, end));
-  const from = cutsWord(text, start) ? start + wordRunLength(chars) : start;
-  const to = cutsWord(text, end) ? end - wordRunLength(chars.reverse()) : end;
-  return from < to ? [from, to] : [start, end];
+  const first = splitsPair(text, start) ? start + 1 : start;
+  const last = splitsPair(text, end) ? end - 1 : end;
+  const chars = Array.from(text.slice(first, last));
+  const from = cutsWord(text, first) ? first + wordRunLength(chars) : first;
+  const to = cutsWord(text, last) ? last - wordRunLength(chars.reverse()) : last;
+  return from < to && HAS_WORD_CHAR.test(text.slice(from, to)) ? [from, to] : [first, last];
 };
 
 export const getSearchResultBodySnippet = (
