@@ -39,7 +39,9 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('./tags/useThreadTags', () => ({ useThreadTags: () => state.tags }));
 vi.mock('./tags/useMutateThreadTags', () => ({ useMutateThreadTags: () => state.mutations }));
-vi.mock('../event-store/threads/useThreadPinning', () => ({ useThreadPinning: () => state.pinning }));
+vi.mock('../event-store/threads/useThreadPinning', () => ({
+  useThreadPinning: () => state.pinning,
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:test' }),
 }));
@@ -85,27 +87,26 @@ const rootEvent = new MatrixEvent({
   origin_server_ts: 1,
   content: { msgtype: 'm.text', body: 'Thread root' },
 });
-const render = (overrides: Partial<ThreadActionsMenuProps> = {}) =>
-  create(
-    <ThreadActionsMenu
-      room={
-        {
-          roomId: '!room:test',
-          getMyMembership: () => 'join',
-          getThread: () => undefined,
-          findEventById: (id: string) =>
-            state.rootLoaded && id === '$root' ? rootEvent : undefined,
-          currentState: { maySendEvent: () => state.canSend },
-        } as never
-      }
-      rootId="$root"
-      summaryText="Old summary"
-      anchor={{ x: 10, y: 20, width: 0, height: 0 }}
-      onClose={vi.fn()}
-      onOpenThread={vi.fn()}
-      {...overrides}
-    />
-  );
+const renderMenu = (overrides: Partial<ThreadActionsMenuProps> = {}) => (
+  <ThreadActionsMenu
+    room={
+      {
+        roomId: '!room:test',
+        getMyMembership: () => 'join',
+        getThread: () => undefined,
+        findEventById: (id: string) => (state.rootLoaded && id === '$root' ? rootEvent : undefined),
+        currentState: { maySendEvent: () => state.canSend },
+      } as never
+    }
+    rootId="$root"
+    summaryText="Old summary"
+    anchor={{ x: 10, y: 20, width: 0, height: 0 }}
+    onClose={vi.fn()}
+    onOpenThread={vi.fn()}
+    {...overrides}
+  />
+);
+const render = (overrides: Partial<ThreadActionsMenuProps> = {}) => create(renderMenu(overrides));
 const click = (renderer: ReturnType<typeof create>, label: string) =>
   act(() => {
     renderer.root
@@ -251,6 +252,113 @@ describe('ThreadActionsMenu', () => {
       '$root',
       '@mindroom_helper:test'
     );
+    renderer.unmount();
+  });
+});
+
+// A phone's banner draws no tags row: its menu holds them at the top, one tap away.
+describe('ThreadActionsMenu with the tags at its top', () => {
+  const section = (renderer: ReturnType<typeof create>) =>
+    renderer.root.findAll((node) => node.props['data-thread-menu-tags'] !== undefined);
+  const pills = (renderer: ReturnType<typeof create>) =>
+    renderer.root.findAll(
+      (node) => typeof node.type === 'function' && node.type.name === 'ThreadTagPill'
+    );
+  const pickers = (renderer: ReturnType<typeof create>) =>
+    renderer.root.findAll(
+      (node) => typeof node.type === 'function' && node.type.name === 'ThreadTagPicker'
+    );
+  // The thread has one tag.
+  const pill = (renderer: ReturnType<typeof create>) =>
+    renderer.root.find(
+      (node) => typeof node.type === 'function' && node.type.name === 'ThreadTagPill'
+    );
+  const picker = (renderer: ReturnType<typeof create>) =>
+    renderer.root.find(
+      (node) => typeof node.type === 'function' && node.type.name === 'ThreadTagPicker'
+    );
+  const onlySection = (renderer: ReturnType<typeof create>) =>
+    renderer.root.find((node) => node.props['data-thread-menu-tags'] !== undefined);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    state.tags.canEdit = true;
+    state.tags.displayTags = ['triage'];
+    state.mutations.updating = false;
+    state.mutations.error = null;
+    state.rootLoaded = true;
+  });
+
+  it('starts with the pills and the tag picker for an editor, and drops Edit tags', () => {
+    const renderer = render({ tagsAtTop: true });
+    expect(section(renderer)).toHaveLength(1);
+    // The section comes before every row of the menu.
+    const [first] = renderer.root.findAll(
+      (node) =>
+        node.props['data-thread-menu-tags'] !== undefined ||
+        node.props['data-thread-action'] !== undefined
+    );
+    expect(first?.props['data-thread-menu-tags']).toBeDefined();
+    expect(pills(renderer).map((node) => node.props.name)).toEqual(['triage']);
+    expect(pill(renderer).props.onRemove).toBeTypeOf('function');
+    expect(pickers(renderer)).toHaveLength(1);
+    expect(picker(renderer).props.availableTags).toEqual(['urgent']);
+    expect(renderer.root.findAllByProps({ 'data-thread-action': 'tags' })).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('shows a reader the pills without their remove buttons and without the picker', () => {
+    state.tags.canEdit = false;
+    const renderer = render({ tagsAtTop: true });
+    expect(section(renderer)).toHaveLength(1);
+    expect(pills(renderer).map((node) => node.props.name)).toEqual(['triage']);
+    expect(pill(renderer).props.onRemove).toBeUndefined();
+    expect(pickers(renderer)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-thread-action': 'tags' })).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('shows no section to a reader of a thread without tags', () => {
+    state.tags.canEdit = false;
+    state.tags.displayTags = [];
+    const renderer = render({ tagsAtTop: true });
+    expect(section(renderer)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-thread-action': 'tags' })).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it('keeps Edit tags and no section where the banner shows the tags', () => {
+    const renderer = render();
+    expect(section(renderer)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-thread-action': 'tags' }).length).toBeGreaterThan(
+      0
+    );
+    renderer.unmount();
+  });
+
+  it('stays open while tags are added and removed, and shows a failure in place', () => {
+    const onClose = vi.fn();
+    const renderer = render({ tagsAtTop: true, onClose });
+    act(() => {
+      picker(renderer).props.onAddTag('urgent');
+    });
+    expect(state.mutations.addTag).toHaveBeenCalledWith('$root', 'urgent');
+    act(() => {
+      pill(renderer).props.onRemove();
+    });
+    expect(state.mutations.removeTag).toHaveBeenCalledWith('$root', 'triage');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(section(renderer)).toHaveLength(1);
+
+    // While a save runs, the pills and the picker wait; a failure shows in the section.
+    state.mutations.updating = true;
+    (state.mutations as { error: unknown }).error = new Error('denied');
+    act(() => renderer.update(renderMenu({ tagsAtTop: true, onClose })));
+    expect(pill(renderer).props.onRemove).toBeUndefined();
+    expect(picker(renderer).props.disabled).toBe(true);
+    expect(
+      onlySection(renderer).findAll((node) => node.props.role === 'alert').length
+    ).toBeGreaterThan(0);
     renderer.unmount();
   });
 });

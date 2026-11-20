@@ -790,6 +790,7 @@ export function ThreadContextBanner({
             onShowBeside={onShowBeside}
             onShowFull={onShowFull}
             shortcutless={!!onClose}
+            tagsAtTop={phone}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />

@@ -621,6 +621,48 @@ const expectTabInScreenOrder = async (page: Page, dir: 'ltr' | 'rtl') => {
   }
 };
 
+/** The thread's menu whole on the screen, its tags' section whole in it. */
+const expectMenuOnScreen = async (page: Page, menu: Locator) => {
+  const box = await boxOf(menu);
+  const { width, height } = page.viewportSize()!;
+  expect(box.left).toBeGreaterThanOrEqual(0);
+  expect(box.right).toBeLessThanOrEqual(width);
+  expect(box.top).toBeGreaterThanOrEqual(0);
+  expect(box.bottom).toBeLessThanOrEqual(height);
+  const section = menu.locator('[data-thread-menu-tags]');
+  const inside = await boxOf(section);
+  expect(inside.left).toBeGreaterThanOrEqual(box.left - 1);
+  expect(inside.right).toBeLessThanOrEqual(box.right + 1);
+  const overflow = await section.evaluate((element) => element.scrollWidth - element.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+};
+
+/**
+ * One tap on More, in any language: the menu starts with the thread's tags, before every row, and
+ * shows whole on the screen.
+ */
+const openMenuWithTags = async (page: Page, tags: readonly string[]) => {
+  await banner(page).locator('button[aria-haspopup="menu"]').last().tap();
+  const menu = page
+    .locator('[role="menu"]')
+    .filter({ has: page.locator('[data-thread-menu-tags]') });
+  await expect(menu).toBeVisible();
+  const section = menu.locator('[data-thread-menu-tags]');
+  for (const tag of tags) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect(section.getByText(tag, { exact: true })).toBeVisible();
+  }
+  const firstIsTags = await menu.evaluate(
+    (element) =>
+      element
+        .querySelector('[data-thread-menu-tags], [role^="menuitem"], [data-thread-details]')
+        ?.hasAttribute('data-thread-menu-tags') ?? false
+  );
+  expect(firstIsTags).toBe(true);
+  await expectMenuOnScreen(page, menu);
+  return menu;
+};
+
 const setPageZoom = (page: Page, pageZoom: number) =>
   page.evaluate((zoom) => {
     const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
@@ -649,6 +691,11 @@ const checkZoomed = async (page: Page, world: World, viewport: Size, dir: 'ltr' 
   // Under the buttons, the title follows them from the keyboard too.
   await expectTabInScreenOrder(page, dir);
   await expectWholeTitle(page, LONG_TITLE, viewport.width, viewport.height < 600);
+  // The menu holds the tags at its top, on the screen in either direction.
+  const menu = await openMenuWithTags(page, THREADS.long.tags);
+  await shot(page, `menu-${name}`);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
   await checkWall(page, world, viewport, name);
 };
 
@@ -693,15 +740,13 @@ test("a phone's banner card keeps back, the whole title, the marker, Resolve and
     // Six lines beside the marker, More and Resolve side by side: they stack, the title widens.
     await expectEndButtons(page, '[data-thread-context-summary]', true);
 
-    const menu = page.getByRole('menu', { name: 'Thread options' });
-    await more.tap();
+    // More holds the pin and, at its top, the tags; Edit tags has nothing left to open.
+    const menu = await openMenuWithTags(page, THREADS.long.tags);
+    await expect(menu).toHaveAccessibleName('Thread options');
     await expect(menu.getByRole('menuitem', { name: 'Pin thread' })).toBeVisible();
-    await menu.getByRole('menuitem', { name: 'Edit tags' }).tap();
-    // The tag editor of the menu holds the thread's tags.
-    await expect(
-      page.getByRole('dialog', { name: 'Edit tags' }).getByText('networking')
-    ).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Edit tags' })).toHaveCount(0);
     await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
 
     await shoot(page, world);
   } finally {
@@ -784,6 +829,58 @@ test("in WebKit: a phone's buttons stack beside a tall title and stay in a row b
     await prepare(page, world);
     await checkEndButtons(page, world);
   });
+});
+
+// Invented, and new to the room.
+const ADDED_TAG = 'needs-review';
+
+test("a phone's thread menu starts with the tags, and a tag added there shows in it", async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(300_000);
+  const world = await seedOnce();
+  const { context, page } = await signIn(browser, baseURL, world, PHONE);
+  try {
+    await openThread(page, world, 'busy');
+    const menu = await openMenuWithTags(page, THREADS.busy.tags);
+    if (SHOTS) {
+      mkdirSync(SHOTS, { recursive: true });
+      for (const colorScheme of ['light', 'dark'] as const) {
+        // eslint-disable-next-line no-await-in-loop
+        await page.emulateMedia({ colorScheme });
+        // eslint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(400);
+        // eslint-disable-next-line no-await-in-loop
+        await page.screenshot({ path: path.join(SHOTS, `phone-menu-tags-${colorScheme}.png`) });
+      }
+      await page.emulateMedia({ colorScheme: null });
+    }
+    const section = menu.locator('[data-thread-menu-tags]');
+    const addTag = section.getByRole('button', { name: 'Add tag' });
+    const field = page.getByRole('textbox', { name: 'Filter or create tag' });
+
+    // Escape in the tag picker closes the picker only.
+    await addTag.tap();
+    await expect(field).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(field).toHaveCount(0);
+    await expect(menu).toBeVisible();
+
+    await addTag.tap();
+    await expect(field).toBeFocused();
+    await field.fill(ADDED_TAG);
+    await field.press('Enter');
+    // The new tag shows among the others, and the menu stays open on the screen.
+    await expect(section.getByText(ADDED_TAG, { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(menu.getByRole('menuitem', { name: 'Copy thread link' })).toBeVisible();
+    await expect(section.getByRole('button', { name: `Remove ${ADDED_TAG} tag` })).toBeEnabled();
+    await expectMenuOnScreen(page, menu);
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 });
 
 test('a desktop keeps the tags and the pin in the banner card', async ({ browser, baseURL }) => {

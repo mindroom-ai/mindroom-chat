@@ -82,6 +82,11 @@ export type ThreadActionsMenuProps = {
   onShowFull?: () => void;
   /** The menu of a view the keys do not act on (a second thread's banner): it advertises none. */
   shortcutless?: boolean;
+  /**
+   * The banner shows no tags (a phone's): the menu starts with them, removable and with the tag
+   * picker for an editor, in place of Edit tags.
+   */
+  tagsAtTop?: boolean;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
@@ -115,6 +120,7 @@ export function ThreadActionsMenu({
   onShowBeside,
   onShowFull,
   shortcutless = false,
+  tagsAtTop = false,
   plugins = registeredPlugins,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
@@ -162,6 +168,7 @@ export function ThreadActionsMenu({
     : tags.displayTags.length > 0;
   const tagsEditable = tags.canEdit && rootLoaded;
   const tagsUpdating = !!mutations.updating;
+  const tagsInMenu = tagsAtTop && showTags;
   // Resolve, Unsnooze and pin keep the menu open on their new label; it closes once their save is
   // done.
   const saving = tagsUpdating || !!pinning.updating;
@@ -234,8 +241,9 @@ export function ThreadActionsMenu({
 
   useEffect(() => {
     const surface = surfaceRef.current;
-    // Without details, the menu neither resizes late nor has a description.
-    if (!surface || details.length === 0) return undefined;
+    // Without details or tags, the menu neither resizes late nor has a description. A tag added
+    // or removed in the menu can change its size.
+    if (!surface || (details.length === 0 && !tagsInMenu)) return undefined;
     // Details that render nothing (empty, loading or failed) describe nothing.
     const measure = () =>
       setDescribed(surface.querySelector('[data-thread-detail]:not(:empty)') !== null);
@@ -260,7 +268,39 @@ export function ThreadActionsMenu({
       mutations.disconnect();
       observer?.disconnect();
     };
-  }, [anchor, dialog, details]);
+  }, [anchor, dialog, details, tagsInMenu]);
+
+  // The thread's tags, removable and with the tag picker for an editor; a save shows its failure
+  // here.
+  const tagEditor = (
+    <>
+      <Box wrap="Wrap" gap="200" alignItems="Center">
+        {tags.displayTags.map((tagName) => (
+          <ThreadTagPill
+            key={tagName}
+            name={tagName}
+            onRemove={
+              tagsEditable && !tagsUpdating
+                ? () => void mutations.removeTag(rootId, tagName)
+                : undefined
+            }
+          />
+        ))}
+        {tagsEditable && (
+          <ThreadTagPicker
+            availableTags={tags.availableTags}
+            onAddTag={(tagName) => void mutations.addTag(rootId, tagName)}
+            disabled={tagsUpdating}
+          />
+        )}
+      </Box>
+      {mutations.error && (
+        <Text role="alert" size="T200">
+          {t('threadActions.failed')}
+        </Text>
+      )}
+    </>
+  );
 
   if (dialog === 'snooze') {
     return (
@@ -285,31 +325,7 @@ export function ThreadActionsMenu({
     const label = tagsEditable ? t('threadActions.tags') : t('thread.stats.tags');
     return (
       <ActionDialog label={label} onClose={closeDialog} busy={false}>
-        <Box wrap="Wrap" gap="200" alignItems="Center">
-          {tags.displayTags.map((tagName) => (
-            <ThreadTagPill
-              key={tagName}
-              name={tagName}
-              onRemove={
-                tagsEditable && !tagsUpdating
-                  ? () => void mutations.removeTag(rootId, tagName)
-                  : undefined
-              }
-            />
-          ))}
-          {tagsEditable && (
-            <ThreadTagPicker
-              availableTags={tags.availableTags}
-              onAddTag={(tagName) => void mutations.addTag(rootId, tagName)}
-              disabled={tagsUpdating}
-            />
-          )}
-        </Box>
-        {mutations.error && (
-          <Text role="alert" size="T200">
-            {t('threadActions.failed')}
-          </Text>
-        )}
+        {tagEditor}
         <Box justifyContent="End">
           <Button
             type="button"
@@ -494,7 +510,7 @@ export function ThreadActionsMenu({
       },
     });
   }
-  if (showTags) {
+  if (showTags && !tagsAtTop) {
     items.push({
       action: 'tags',
       label: tagsEditable ? t('threadActions.tags') : t('thread.stats.tags'),
@@ -648,6 +664,19 @@ export function ThreadActionsMenu({
             style={menuStyle}
           >
             <div className={css.ThreadMenuRows}>
+              {/* Its buttons are reached with Tab, as the details' links; the arrows keep to the rows. */}
+              {tagsInMenu && (
+                <div role="group" aria-label={t('thread.stats.tags')} data-thread-menu-tags="">
+                  <Box
+                    direction="Column"
+                    gap="200"
+                    style={{ maxWidth: toRem(320), padding: config.space.S300 }}
+                  >
+                    {tagEditor}
+                  </Box>
+                  <Line variant="Surface" size="300" />
+                </div>
+              )}
               {details.length > 0 && (
                 <div className={css.ThreadMenuDetails}>
                   <div
