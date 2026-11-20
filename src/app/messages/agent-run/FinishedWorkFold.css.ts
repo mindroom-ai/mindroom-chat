@@ -120,11 +120,15 @@ export const Chevron = style({
   },
 });
 
-/** A click sheds the clock's rim, which grows and fades, as the cog sheds its gear's outline. */
+/**
+ * A click sheds the clock's rim, which grows and fades, as the cog sheds its gear's outline. It
+ * shows only while it plays, so no ring stays behind under reduced motion.
+ */
 export const Ring = style({
   stroke: color.Primary.Main,
   strokeWidth: '1.3',
   transformOrigin: '12px 12px',
+  opacity: 0,
   '@media': {
     '(prefers-reduced-motion: no-preference)': {
       animation: `${spread} 650ms cubic-bezier(0.2, 0.7, 0.3, 1) both`,
