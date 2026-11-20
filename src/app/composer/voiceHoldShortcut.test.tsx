@@ -4,11 +4,7 @@ import { act, cleanup, render, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import React, { useState } from 'react';
 import { voiceAutoSendPendingAtom } from './roomInputDrafts';
-import {
-  resolveVoiceComposer,
-  useVoiceComposer,
-  useVoiceHoldShortcut,
-} from './voiceHoldShortcut';
+import { resolveVoiceComposer, useVoiceComposer, useVoiceHoldShortcut } from './voiceHoldShortcut';
 
 type Log = string[];
 

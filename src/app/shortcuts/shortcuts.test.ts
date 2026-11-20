@@ -62,6 +62,15 @@ describe('matchesKeys', () => {
     ).toBe(false);
   });
 
+  it('reads ctrl as Control on every platform', () => {
+    const space = { key: ' ', ctrlKey: true, shiftKey: true };
+    expect(matchesKeys(press(space), 'ctrl+shift+space', true)).toBe(true);
+    expect(matchesKeys(press(space), 'ctrl+shift+space', false)).toBe(true);
+    const command = { key: ' ', metaKey: true, shiftKey: true };
+    expect(matchesKeys(press(command), 'ctrl+shift+space', true)).toBe(false);
+    expect(matchesKeys(press({ ...space, metaKey: true }), 'ctrl+shift+space', true)).toBe(false);
+  });
+
   it('needs exactly the modifiers of the chord', () => {
     expect(matchesKeys(press({ key: 'ArrowDown', altKey: true }), 'alt+down', false)).toBe(true);
     expect(
