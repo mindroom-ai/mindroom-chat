@@ -6,7 +6,8 @@ const turnBack = keyframes({ to: { transform: 'rotate(-360deg)' } });
 const breathe = keyframes({
   '50%': { color: color.Warning.MainLine, filter: glow(color.Warning.Main) },
 });
-const spread = keyframes({
+/** A shed outline grows and fades: the cog's ripple, and the ring off the Worked for clock. */
+export const spread = keyframes({
   from: { opacity: 0.9, transform: 'scale(1)' },
   to: { opacity: 0, transform: 'scale(2.4)' },
 });
