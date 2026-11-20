@@ -120,14 +120,14 @@ export const splitFinishedWork = (
   const sanitized = sanitizeCustomHtml(html, sanitizeOptions);
   const { indexes, lastNode } = readRenderedToolCalls(sanitized, baseOpts);
   if (lastNode < 0) return undefined;
-  // The work without the calls the reply draws: a marker it shows as text (in a quote, a list or a
-  // heading, or one naming a call drawn before it) is text. The renderer draws the first marker of
-  // a call and shows any later one of the same call as text. (`replace` starts from the first
-  // character, whatever the shared pattern's `lastIndex`.)
+  // The work without the calls the reply draws: a marker of a call it never draws (in a quote, a
+  // list or a heading) shows as text. A repeated marker of a drawn call is drawn with it or hidden,
+  // so it goes too. (`replace` starts from the first character, whatever the shared pattern's
+  // `lastIndex`.)
   const drawn = new Set(indexes);
   const withoutDrawnCalls = (work: string) =>
     work.replace(MINDROOM_TOOL_REF_HTML_REG_G, (marker: string, _name: string, index: string) =>
-      drawn.delete(Number(index)) ? '' : marker
+      drawn.has(Number(index)) ? '' : marker
     );
   // Cut from a parse of its own: finding the calls draws them, which changes the nodes it read.
   const nodes = parseRenderedHtml(sanitized, baseOpts);

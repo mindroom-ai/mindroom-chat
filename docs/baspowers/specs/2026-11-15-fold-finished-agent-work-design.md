@@ -25,13 +25,13 @@ A MindRoom agent reply folds when all of these hold:
    `⏳`, or an image, video or audio element.
 4. (owner decision, 2026-11-19) Visible content also comes before the last tool marker: the
    work, without the calls the reply draws, shows text or media by the same test as 3. A marker
-   the reply shows as text (in a quote, a list or a heading, or a second marker of a call drawn
-   before it) counts as text. The reasoning does not count (it renders from
-   `io.mindroom.reasoning`, not from the HTML). A reply whose work is only reasoning and tool
-   calls has nothing worth folding: its thoughts already show collapsed and each call is one
-   row. No other condition: no count of calls and no length, which replaces the row rule of #596
-   (W >= 8 and W >= 13 or 3W >= A). Here MindRoom differs from T3 Code, whose `deriveTurnFolds`
-   folds any finished turn with work.
+   of a call the reply never draws (in a quote, a list or a heading) shows as text and counts; a
+   repeated marker of a drawn call is drawn with it or hidden, and does not. The reasoning does
+   not count (it renders from `io.mindroom.reasoning`, not from the HTML). A reply whose work is
+   only reasoning and tool calls has nothing worth folding: its thoughts already show collapsed
+   and each call is one row. No other condition: no count of calls and no length, which replaces
+   the row rule of #596 (W >= 8 and W >= 13 or 3W >= A). Here MindRoom differs from T3 Code,
+   whose `deriveTurnFolds` folds any finished turn with work.
 5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
 6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
@@ -72,12 +72,12 @@ and no element of their own.
   `toolRefDom.ts`), find the last top-level node whose text matches
   `MINDROOM_TOOL_REF_HTML_REG_G`'s marker form, and return `{ head, tail }` HTML strings, or
   `undefined` when no marker exists, nothing visible follows it, or nothing but drawn calls
-  comes before it (each drawn call's first marker is removed, then the same visible test runs
-  on the rest). The backend writes every marker as its own paragraph (`_format_tool_marker`
-  wraps it in blank lines), so a top-level split is exact. The rendering component memoizes it on the HTML string (`useMemo`), because
-  every streamed edit re-renders the row. When the answer starts in the paragraph of the last
-  call, the split cuts that paragraph after the call; a reply whose answer starts in a node that
-  does not cut cleanly does not fold.
+  comes before it (every marker of a drawn call is removed, then the same visible test runs on
+  the rest). The backend writes every marker as its own paragraph (`_format_tool_marker` wraps
+  it in blank lines), so a top-level split is exact. The rendering component memoizes it on the
+  HTML string (`useMemo`), because every streamed edit re-renders the row. When the answer
+  starts in the paragraph of the last call, the split cuts that paragraph after the call; a
+  reply whose answer starts in a node that does not cut cleanly does not fold.
 - **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Given a split, it
   renders the row, the work when open, and the answer; without one it returns the whole reply
   with no element of its own, so the tree is the same as without the fold (an emote's

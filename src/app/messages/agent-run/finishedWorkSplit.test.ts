@@ -203,6 +203,16 @@ describe('splitFinishedWork', () => {
     ).toBeUndefined();
   });
 
+  it('does not split when the work repeats a drawn call', () => {
+    for (const work of [
+      `${marker('a', 1)}${marker('b', 1)}`,
+      `${marker('a', 1)}${marker('b', 2)}${marker('c', 2)}`,
+      `${marker('a', 1)}<p></p>${marker('c', 1)}`,
+    ]) {
+      expect(split(`${work}<p>Done.</p>`)).toBeUndefined();
+    }
+  });
+
   it('counts a marker the reply shows as text before its calls as work', () => {
     const { formatted_body: html } = backendBodies['tool call inside a block quote'];
     expect(split(html)).toEqual({
