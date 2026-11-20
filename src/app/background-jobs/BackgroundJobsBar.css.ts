@@ -589,10 +589,14 @@ export const FoldedText = style({
 });
 globalStyle(`${FoldedText} > ${Headline}`, { flex: '0 1 auto', minWidth: '4rem' });
 globalStyle(`${FoldedText} > ${Headline} > ${Task}`, { flex: '0 1 auto' });
-globalStyle(`${FoldedText} > ${Detail}`, {
-  flex: '1 1 0',
+globalStyle(`${FoldedText} > ${Detail}`, { flex: '1 1 0' });
+// Beside the Sub-agents panel and on a phone, the details' line (who, on what model, the call as
+// sent) goes; the plain step of a quiet bar stays, with a share of the line of its own: both it and
+// the headline truncate, and the time and the buttons keep their places.
+globalStyle(`${Bar}:not(${Quiet}) ${FoldedText} > ${Detail}`, {
   '@container': { [panel]: { display: 'none' } },
 });
+globalStyle(`${Quiet} ${FoldedText} > ${Detail}`, { minWidth: '5rem' });
 
 // Its title lists the job, from anywhere on its text; to the keyboard the text is ringed.
 export const FoldedToggle = style({

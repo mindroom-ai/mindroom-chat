@@ -61,21 +61,25 @@ export const indexJobToolCalls = (
 /**
  * What a row shows of a run, so frames that change nothing shown render nothing: its meta, title
  * and whole task (the headline's tooltip) included, the call it makes now, and between calls the
- * last line it wrote (`runWrittenLine`), but not its result, its other tool calls or the rest of
- * its text.
+ * last line it wrote (`runWrittenLine`) while a row on show says it (`written`), but not its
+ * result, its other tool calls or the rest of its text.
  */
-const shownOfRun = (subagentRun: SubagentRun) => {
+const shownOfRun = (subagentRun: SubagentRun, written: boolean) => {
   const { result: _result, ...shown } = subagentRun.meta;
   return [
     subagentRun.run,
     shown,
     runToolCall(subagentRun) ?? null,
-    runWrittenLine(subagentRun) ?? null,
+    (written && runWrittenLine(subagentRun)) || null,
   ];
 };
 
 /** The runs of the listed sub-agent jobs, rendered again only when what their rows show changes. */
-const useJobRuns = (roomId: string, jobs: readonly BackgroundJob[]): readonly SubagentRun[] => {
+const useJobRuns = (
+  roomId: string,
+  jobs: readonly BackgroundJob[],
+  written: boolean
+): readonly SubagentRun[] => {
   const store = getSubagentRunStore(useMatrixClient());
   const subscribe = useCallback(
     (onChange: () => void) => store.subscribe(roomId, onChange),
@@ -85,7 +89,9 @@ const useJobRuns = (roomId: string, jobs: readonly BackgroundJob[]): readonly Su
     const runs = store.runs(roomId);
     return [...new Set(jobs.flatMap((job) => runOfJob(runs, job) ?? []))];
   }, [jobs, roomId, store]);
-  const shown = useSyncExternalStore(subscribe, () => JSON.stringify(pick().map(shownOfRun)));
+  const shown = useSyncExternalStore(subscribe, () =>
+    JSON.stringify(pick().map((run) => shownOfRun(run, written)))
+  );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(pick, [pick, shown]);
 };
@@ -116,13 +122,18 @@ const useJobToolCalls = (room: Room, jobs: readonly BackgroundJob[], listed: boo
   }, [changed, jobs, listed, room, store]);
 };
 
-/** What the jobs bar joins its jobs to (`presentBackgroundJobs`). */
+/**
+ * What the jobs bar joins its jobs to (`presentBackgroundJobs`). `written`: rows on show say what a
+ * run between calls last wrote (the plain rows, without the usage details), so a change of that
+ * line renders; otherwise it renders nothing.
+ */
 export const useJobLookups = (
   room: Room,
   jobs: readonly BackgroundJob[],
-  listed: boolean
+  listed: boolean,
+  written = false
 ): BackgroundJobLookups => {
-  const runs = useJobRuns(room.roomId, jobs);
+  const runs = useJobRuns(room.roomId, jobs, written);
   const toolCallFor = useJobToolCalls(room, jobs, listed);
   return useMemo(() => ({ runs, toolCallFor }), [runs, toolCallFor]);
 };

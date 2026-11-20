@@ -10,6 +10,8 @@ import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
+import { BackgroundJobRow } from './BackgroundJobRow';
+import type { BackgroundJobsBarItem } from './backgroundJobsPresentation';
 import { keepCancelsOf } from '../matrix/state/sentCancels';
 import { showUsageDetails } from '../../test/utils/showUsageDetails';
 
@@ -938,6 +940,43 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
     '$1.30',
   ]);
   expect(container.querySelectorAll('.StatColumn')).toHaveLength(3);
+});
+
+it('says what a tool job does from its tool until its call is loaded, then from its call', () => {
+  const item = (extra: Partial<BackgroundJobsBarItem> = {}): BackgroundJobsBarItem => ({
+    jobId: 'a',
+    name: 'read_file',
+    waiting: false,
+    stopping: false,
+    finished: false,
+    subagent: false,
+    threadId: '$thread',
+    state: 'running',
+    startedAt: Date.parse('2026-10-11T00:00:00+00:00'),
+    depth: 0,
+    ...extra,
+  });
+  const row = (shown: BackgroundJobsBarItem) =>
+    act(() => {
+      root.render(
+        <ul>
+          <BackgroundJobRow room={room} item={shown} viewThreadId="$thread" stop={null} />
+        </ul>
+      );
+    });
+  const activity = () => container.querySelector('[data-job-activity]')?.textContent ?? null;
+  const tooltip = () => container.querySelector('.Task')?.getAttribute('title');
+  // No call ID, or its reply not loaded yet: the tool it runs.
+  row(item());
+  expect(activity()).toBe('mindroomUi.subagents.step.readingAny');
+  expect(tooltip()).toBe('read_file');
+  // Its call comes in: what it reads, the call as sent after its name in the tooltip.
+  row(item({ activity: { tool: 'read_file', preview: 'path=notes/2026-11-16.md' } }));
+  expect(activity()).toBe(tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }));
+  expect(tooltip()).toBe('read_file\nread_file path=notes/2026-11-16.md');
+  // Held after it finished, it does nothing now.
+  row(item({ finished: true, state: 'finished', activity: { tool: 'read_file' } }));
+  expect(activity()).toBeNull();
 });
 
 it('says a sub-agent job waits for your OK for its call, and between calls what it last wrote', () => {

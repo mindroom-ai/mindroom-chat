@@ -84,8 +84,10 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
 
   const [open, setOpen] = useState<OpenMode>();
   const expanded = !!open;
-  // Only rows on show read the tool jobs' calls: the listed ones, or the folded bar's one job.
-  const lookups = useJobLookups(room, jobs, expanded || !several);
+  // Only rows on show read the tool jobs' calls: the listed ones, or the folded bar's one job; and
+  // only plain ones what a run between calls last wrote.
+  const rowsShown = expanded || !several;
+  const lookups = useJobLookups(room, jobs, rowsShown, rowsShown && !details);
   // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
   const ended = useRef(new Map<string, number>()).current;
   const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
