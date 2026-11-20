@@ -1,5 +1,6 @@
 import React, { CSSProperties, ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import {
   atomWithLocalStorage,
   getLocalStorageItem,
@@ -112,6 +113,12 @@ export function ResizablePanel({
   // A room's side panel in its frame (PanelFrame) fills the room or folds to its tab as the frame
   // says.
   const frame = usePanelFrame();
+  const { t } = useTranslation();
+  // In a frame, a drag released past the panel's widest fills the room with it, as Fill does.
+  const expand = onExpand ?? (frame ? () => frame.setLayout('filled') : undefined);
+  const expandText = onExpand
+    ? expandLabel
+    : frame && t('mindroomUi.sidePanel.fill', { label: frame.label });
   const full = fullWidth || frame?.layout === 'filled';
   const folded = frame?.layout === 'folded';
   /** Beside the content, at a width of its own: the splitter resizes it. */
@@ -138,14 +145,14 @@ export function ResizablePanel({
   const width =
     previewWidth === undefined || full
       ? settledWidth
-      : Math.min(previewWidth, onExpand ? availableWidth : maxWidth);
+      : Math.min(previewWidth, expand ? availableWidth : maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
   // content instead of squeezing it.
   const contentWidth = Math.max(width, minWidth);
   const collapseOnRelease =
     !full && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
   const expandOnRelease =
-    !full && !!onExpand && previewWidth !== undefined && width > maxWidth + EXPAND_PAST;
+    !full && !!expand && previewWidth !== undefined && width > maxWidth + EXPAND_PAST;
   const resizeDirection = () => {
     const inlineDirection =
       panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
@@ -258,9 +265,10 @@ export function ResizablePanel({
     const requestedWidth = drag.startWidth + (event.clientX - drag.startX) * drag.direction;
     // A panel that can close follows the pointer all the way to nothing, one that can expand past
     // its widest; others stop at their smallest and widest.
-    if (onCollapse) drag.width = Math.max(0, Math.min(requestedWidth, maxWidth));
-    else if (onExpand) drag.width = Math.max(requestedWidth, minWidth);
-    else drag.width = clamp(requestedWidth, maxWidth);
+    if (onCollapse || expand) {
+      const widest = expand ? Infinity : maxWidth;
+      drag.width = Math.max(onCollapse ? 0 : minWidth, Math.min(requestedWidth, widest));
+    } else drag.width = clamp(requestedWidth, maxWidth);
     setPreviewWidth(drag.width);
   };
   const finishResize = (event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
@@ -277,8 +285,9 @@ export function ResizablePanel({
       return;
     }
     setPreviewWidth(undefined);
-    if (commit && onExpand && drag.width > maxWidth + EXPAND_PAST) {
-      onExpand();
+    if (commit && expand && drag.width > maxWidth + EXPAND_PAST) {
+      // The stored width stays, for the panel to come back to it beside the content.
+      expand();
       return;
     }
     releasedAt.current = drag.width;
@@ -354,7 +363,7 @@ export function ResizablePanel({
           aria-valuemax={maxWidth}
           aria-valuenow={Math.round(Math.min(width, maxWidth))}
           aria-valuetext={
-            (collapseOnRelease && collapseLabel) || (expandOnRelease && expandLabel) || undefined
+            (collapseOnRelease && collapseLabel) || (expandOnRelease && expandText) || undefined
           }
           tabIndex={0}
           onPointerDown={startResize}

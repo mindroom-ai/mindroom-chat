@@ -7,7 +7,9 @@ import {
   openPanel,
   openPanelRoom,
   panelLocator,
+  widthOf,
 } from '../helpers/sidePanels';
+import { roomHeader } from '../helpers/roomMenu';
 
 // One side panel at a time beside a room, against the disposable homeserver: for every pair of
 // the computer, a canvas, the call, the sub-agents and the members, opening the second takes the
@@ -59,3 +61,45 @@ test('a core side panel fills the room and folds to a tab at its edge, per room'
   await openPanel(page, room, 'call');
   await checkPanelFrame(page, testInfo, room, { panel: panelLocator(page, 'call'), label: 'Call' });
 });
+
+test(
+  'a core side panel dragged far over the conversation fills the room, and Shrink brings back its width',
+  {
+    tag: '@webkit',
+  },
+  async ({ context, page }) => {
+    test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+    test.setTimeout(5 * 60_000);
+    const room = await openPanelRoom(context, page);
+    await openPanel(page, room, 'call');
+    const panel = panelLocator(page, 'call');
+    const fill = panel.getByRole('button', { name: 'Fill the room with Call', exact: true });
+    const splitter = panel.getByRole('separator');
+    // The panel has moved in to its width.
+    await panel.evaluate((element) =>
+      Promise.all(element.getAnimations().map((animation) => animation.finished))
+    );
+    const besideWidth = await widthOf(panel);
+    const conversationWidth = await widthOf(roomHeader(page));
+
+    const handle = (await splitter.boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x - conversationWidth + 40, handle.y + handle.height / 2, {
+      steps: 10,
+    });
+    // Held over the conversation, the panel follows the pointer past its widest.
+    await expect(panel).toHaveAttribute('data-expand-preview', 'true');
+    await expect(splitter).toHaveAttribute('aria-valuetext', 'Fill the room with Call');
+    const widest = Number(await splitter.getAttribute('aria-valuemax'));
+    expect(await widthOf(panel)).toBeGreaterThan(widest + 40);
+    await page.mouse.up();
+
+    await expect(fill).toHaveAttribute('aria-pressed', 'true');
+    await expect(panel).toHaveAttribute('data-filled', 'true');
+    await expect(roomHeader(page)).toHaveCount(0);
+    await fill.click();
+    await expect(fill).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(() => widthOf(panel)).toBe(besideWidth);
+  }
+);
