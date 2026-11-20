@@ -120,6 +120,7 @@ export function ResizablePanel({
   const expandText = onExpand
     ? expandLabel
     : frame && t('mindroomUi.sidePanel.fill', { label: frame.label });
+  const canExpand = !!expand;
   const full = fullWidth || frame?.layout === 'filled';
   const folded = frame?.layout === 'folded';
   /** Beside the content, at a width of its own: the splitter resizes it. */
@@ -233,13 +234,14 @@ export function ResizablePanel({
       // Room beyond the widest panel and the content beside it changes nothing, so a row that
       // grows or shrinks around a wide-enough panel (another panel moving) does not render it.
       const usable = Math.max(0, parent.clientWidth - padding);
-      setAvailableWidth(Math.min(usable, maxPanelWidth + minContentWidth));
+      // One that can expand follows a drag over all of it.
+      setAvailableWidth(canExpand ? usable : Math.min(usable, maxPanelWidth + minContentWidth));
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [resizable, maxPanelWidth, minContentWidth]);
+  }, [resizable, maxPanelWidth, minContentWidth, canExpand]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;

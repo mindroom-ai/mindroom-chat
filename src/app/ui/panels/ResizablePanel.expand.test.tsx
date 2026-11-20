@@ -22,13 +22,13 @@ class TestPointerEvent extends MouseEvent {
 
 /**
  * At the end of a 1000 px row that keeps 360 px for the conversation: the panel is at most 600 px
- * wide, and a drag over the conversation reaches 960 px. It starts 400 px wide.
+ * wide, and a drag over the conversation reaches the row's end. It starts 400 px wide.
  */
-const renderPanel = ({ framed = true }: { framed?: boolean } = {}) => {
+const renderPanel = ({ framed = true, row: rowWidth = 1000 } = {}) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
   const onCollapse = vi.fn();
   const row = document.body.appendChild(document.createElement('div'));
-  Object.defineProperty(row, 'clientWidth', { value: 1000 });
+  Object.defineProperty(row, 'clientWidth', { value: rowWidth });
   render(
     <PanelFrameProvider
       value={framed ? { label: 'Notes', layout: 'beside', setLayout } : undefined}
@@ -100,6 +100,12 @@ describe('dragging a side panel past its widest', () => {
     // Shrink brings it back at the width it had before the drag.
     expect(stored()).toBe(400);
     expect(screen.getByTestId('panel').style.width).toBe('400px');
+  });
+
+  it('follows a drag over the whole conversation of a wide row', () => {
+    renderPanel({ row: 2000 });
+    dragTo(1900);
+    expect(screen.getByTestId('panel').style.width).toBe('1900px');
   });
 
   it('keeps its widest when let go short of the threshold', () => {
