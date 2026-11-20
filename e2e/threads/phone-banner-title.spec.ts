@@ -861,8 +861,13 @@ const expectTagTargets = async (section: Locator) => {
       if (across > 0) points.push([box.left - across, y], [box.right + across, y]);
       for (const [px, py] of points) {
         if (owner(px, py) !== control) {
+          const there = document.elementFromPoint(px, py);
           missed.push(
-            `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(py)}`
+            `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(
+              py
+            )} (box ${Math.round(box.top)}-${Math.round(box.bottom)}; hits ${
+              there?.tagName ?? 'nothing'
+            }.${String(there?.className ?? '')})`
           );
         }
       }
