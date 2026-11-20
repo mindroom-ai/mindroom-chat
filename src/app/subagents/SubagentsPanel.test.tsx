@@ -1505,7 +1505,22 @@ describe('SubagentsPanel', () => {
         expect(now()?.textContent).toBe('Nowread_file path=notes/2026-11-16.md12s');
         act(() => showUsageDetails(false));
 
-        // A run that sends neither what it used nor its model (older MindRoom) has no Usage.
+        // A run that sends its model but not what it used has no Usage; its model stays in the
+        // header.
+        ingest(
+          'lead',
+          meta('running', {
+            subagent: 'lead',
+            task: "Summarize this week's meeting notes",
+            startedAt: NOW - 60,
+            model: fable,
+          }),
+          docs('Reading the notes.')
+        );
+        expect(container.querySelector('[data-subagent-usage]')).toBeNull();
+        expect(container.querySelector('header [data-subagent-model]')?.textContent).toBe('Fable');
+
+        // Nor does a run that sends neither (older MindRoom).
         ingest(
           'lead',
           meta('running', {
