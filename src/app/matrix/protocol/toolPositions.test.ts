@@ -26,7 +26,13 @@ const wireContent = (
   },
 });
 
-const [between, , , , nested] = positions.cases;
+const caseNamed = (start: string) => {
+  const found = positions.cases.find(({ name }) => name.startsWith(start));
+  if (!found) throw new Error(`No fixture case ${start}`);
+  return found;
+};
+const between = caseNamed('calls between two paragraphs');
+const nested = caseNamed('a call nested in a list item');
 
 describe('tool positions', () => {
   it.each(positions.cases.map((testCase) => [testCase.name, testCase] as const))(
