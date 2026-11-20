@@ -252,9 +252,9 @@ test('the Sub-agents panel shows no live activity, as it starts', async ({
   await expect(panel.locator('[data-subagents-totals]')).toHaveText('1 active');
   await run.toolRow('Reading the notes.'.length, '\n\n🔧 `run_shell_command` [1] ⏳\n\n');
   await card.click();
-  await expect(panel.locator('[data-subagent-transcript] [data-tool-index="1"]')).toContainText(
-    'run_shell_command'
-  );
+  await expect(
+    panel.locator('[data-subagent-transcript]').getByRole('button', { name: /Running 1 tool call/ })
+  ).toContainText('run_shell_command');
   await expect(panel.locator('[data-subagent-now]')).toHaveCount(0);
   await panel.getByRole('button', { name: 'Back', exact: true }).click();
   // Its status says it runs and its model shows; no line says what it does now, and no numbers or
