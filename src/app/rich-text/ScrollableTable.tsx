@@ -13,7 +13,7 @@ type ScrollableTableProps = ComponentPropsWithoutRef<'table'> & {
 /** A table this many times wider than its box offers phones to read it by row. */
 const WIDE_TABLE_RATIO = 1.25;
 
-/** Each row once, its first cell as the title, then its other cells as label: value pairs. */
+/** Each row once as label: value pairs, its first pair in bold as the row's title. */
 function TableByRow({ caption, headers, rows }: TableRows<ReactNode>) {
   // Rows have no identity of their own; a streaming table only grows at its end.
   /* eslint-disable react/no-array-index-key */
@@ -23,11 +23,10 @@ function TableByRow({ caption, headers, rows }: TableRows<ReactNode>) {
       <ol className={css.Rows}>
         {rows.map((cells, row) => (
           <li key={row} className={css.Row}>
-            <div className={css.RowTitle}>{cells[0]}</div>
             <dl className={css.Pairs}>
-              {cells.slice(1).map((cell, index) => (
-                <div key={index} className={css.Pair}>
-                  <dt className={css.Label}>{headers[index + 1]}</dt>
+              {cells.map((cell, index) => (
+                <div key={index} className={index === 0 ? css.RowTitle : css.Pair}>
+                  <dt className={css.Label}>{headers[index]}</dt>
                   <dd className={css.Value}>{cell}</dd>
                 </div>
               ))}
