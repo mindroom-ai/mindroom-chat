@@ -108,7 +108,7 @@ This handles bodies without markers, markers inside code, and anchors past the l
 
 ### With the "Worked for" fold (#419)
 
-A long finished reply folds its reasoning header, its cog, and every block up to and including its last tool marker behind one `Worked for <duration>` row (`FinishedWorkFold.tsx`, `finishedWorkSplit.ts`). Inline thinking lives inside that fold:
+A finished reply with work before its answer folds its reasoning header, its cog, and every block up to and including its last tool marker behind one `Worked for <duration>` row (`FinishedWorkFold.tsx`, `finishedWorkSplit.ts`). Inline thinking lives inside that fold:
 
 - The header line (bulb and cog) stays the first thing inside the fold, as it is now.
 - Segments at the top, and segments after any tool run (also the last run), render inside the fold. They render as part of the run's block, or right under the header, so `finishedWorkSplit` moves them with the block that holds them.

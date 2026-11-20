@@ -34,6 +34,17 @@ describe('sanitizeMessageExtraHtml', () => {
     );
   });
 
+  it('keeps escaped SVG labels and never runs markup from CDATA sections', () => {
+    expect(sanitizeMessageExtraHtml('<svg><text>A &amp; B</text></svg>')).toBe(
+      '<svg><text>A &amp; B</text></svg>'
+    );
+    const fromCdata = sanitizeMessageExtraHtml(
+      '<svg><text><![CDATA[<script>alert(1)</script>]]></text></svg>'
+    );
+    expect(fromCdata).not.toContain('<script');
+    expect(fromCdata).toContain('<svg><text>');
+  });
+
   it('keeps safe inline SVG primitives for charts, badges, and diagrams', () => {
     const sanitized = sanitizeMessageExtraHtml(`
       <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">

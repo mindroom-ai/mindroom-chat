@@ -33,19 +33,14 @@ describe('installed native bridge security contract', () => {
     );
     expect(source).toContain('if (isMainFrame)');
     expect(source).not.toContain('addJavascriptInterface');
-    const activity = readFileSync(
-      new URL(
-        '../../../android/app/src/main/java/com/mindroom_ai/app/MainActivity.java',
-        import.meta.url
-      ),
-      'utf8'
-    );
     ['CapacitorCookies', 'CapacitorHttp', 'SystemBars'].forEach((plugin) => {
       expect(
         nativeSource(`android/capacitor/src/main/java/com/getcapacitor/plugin/${plugin}.java`)
       ).not.toContain('addJavascriptInterface');
     });
-    expect(activity).toContain('onPageCommitVisible');
-    expect(activity).toContain('((SystemBars) plugin.getInstance()).onDOMReady()');
+    // SystemBars applies viewport insets from a native main-document event, not a JS interface.
+    expect(
+      nativeSource('android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java')
+    ).toContain('public void onPageCommitVisible(WebView view, String url)');
   });
 });

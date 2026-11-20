@@ -3,7 +3,7 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PopOut } from './directional';
 
-// Folds' real placement (patches/folds+2.7.1.patch) of a phone's thread menu: a 440x956 viewport
+// Folds' real placement (patches/folds+2.7.3.patch) of a phone's thread menu: a 440x956 viewport
 // and the banner's kebab at x315 y190, 28px square.
 const anchor = { x: 315, y: 190, width: 28, height: 28 };
 let menuHeight = 357;
