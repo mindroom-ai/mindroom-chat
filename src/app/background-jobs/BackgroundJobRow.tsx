@@ -8,11 +8,8 @@ import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { subscribeRelativeTimeClock, useRelativeTime } from '../i18n/useRelativeTime';
 import { formatWorkDuration } from '../lib/time';
 import type { SubagentUsage } from '../matrix/protocol/subagentFrame';
-import {
-  formatCostUsd,
-  getAiRunCompactModelLabel,
-  getAiRunModelLabel,
-} from '../messages/agent-run/aiRunDisplay';
+import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { ProviderModelIcon } from '../models/ProviderModelIcon';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { AgentAvatar, useAgentProfile } from '../subagents/SubagentRunCard';

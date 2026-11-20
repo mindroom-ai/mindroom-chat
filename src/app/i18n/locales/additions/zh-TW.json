@@ -275,6 +275,39 @@
     "syncStatus": {
       "mediaUnavailable": "此視窗無法載入部分圖片：瀏覽器在此處沒有為 MindRoom 執行 Service Worker。"
     },
+    "agentCard": {
+      "agent": "智慧代理",
+      "close": "關閉",
+      "configuredTools": "已設定的工具",
+      "toolCount_other": "{{count}} 個工具",
+      "groupCount_other": "{{count}} 個群組",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "另有{{groups}}",
+      "viewAll_other": "檢視全部 {{count}} 個工具",
+      "toolsTitle": "{{name}} 的工具",
+      "filter": "篩選工具",
+      "noMatch": "沒有符合的工具。",
+      "back": "返回",
+      "more": "更多",
+      "worksIn": "所在聊天室",
+      "loading": "正在載入已設定的工具",
+      "availability": "可用性可能因請求和權限而異。",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "程式碼與檔案",
+        "research": "網頁",
+        "productivity": "排程與記憶",
+        "email": "電子郵件",
+        "mcp": "已連線的應用程式",
+        "integrations": "整合",
+        "communication": "聊天與訊息",
+        "entertainment": "媒體",
+        "information": "資訊",
+        "smart_home": "智慧家庭",
+        "social": "社群",
+        "other": "其他"
+      }
+    },
     "space": {
       "overview": "空間概覽"
     }

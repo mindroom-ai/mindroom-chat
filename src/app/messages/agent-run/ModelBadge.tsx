@@ -1,7 +1,10 @@
 import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AiRunInfo } from '../../matrix/protocol/aiRun';
-import { getAiRunCompactModelLabel, getAiRunModelLabel } from './aiRunDisplay';
+import {
+  getAiRunCompactModelLabel,
+  getAiRunModelLabel,
+} from '../../matrix/protocol/aiRunModelLabel';
 import { ProviderModelIcon } from '../../models/ProviderModelIcon';
 import { TipButton } from '../../ui/TipButton';
 import * as css from './ModelBadge.css';

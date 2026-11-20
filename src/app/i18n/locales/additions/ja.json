@@ -275,6 +275,39 @@
     "syncStatus": {
       "mediaUnavailable": "このウィンドウでは一部の画像を読み込めません: ブラウザーがここで MindRoom のサービスワーカーを実行していません。"
     },
+    "agentCard": {
+      "agent": "エージェント",
+      "close": "閉じる",
+      "configuredTools": "設定済みのツール",
+      "toolCount_other": "{{count}} 個のツール",
+      "groupCount_other": "{{count}} グループ",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "ほかに {{groups}}",
+      "viewAll_other": "{{count}} 個のツールをすべて表示",
+      "toolsTitle": "{{name}} のツール",
+      "filter": "ツールを絞り込む",
+      "noMatch": "一致するツールはありません。",
+      "back": "戻る",
+      "more": "その他",
+      "worksIn": "参加ルーム",
+      "loading": "設定済みのツールを読み込み中",
+      "availability": "利用できるかどうかはリクエストと権限によって異なります。",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "コードとファイル",
+        "research": "Web",
+        "productivity": "スケジュールとメモリ",
+        "email": "メール",
+        "mcp": "接続したアプリ",
+        "integrations": "連携",
+        "communication": "チャットとメッセージ",
+        "entertainment": "メディア",
+        "information": "情報",
+        "smart_home": "スマートホーム",
+        "social": "ソーシャル",
+        "other": "その他"
+      }
+    },
     "space": {
       "overview": "スペースの概要"
     }

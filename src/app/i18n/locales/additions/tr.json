@@ -279,6 +279,43 @@
     "syncStatus": {
       "mediaUnavailable": "Bu pencerede bazı görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
     },
+    "agentCard": {
+      "agent": "Ajan",
+      "close": "Kapat",
+      "configuredTools": "Yapılandırılmış araçlar",
+      "toolCount_one": "{{count}} araç",
+      "toolCount_other": "{{count}} araç",
+      "groupCount_one": "{{count}} grup",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ayrıca {{groups}}",
+      "viewAll_one": "{{count}} aracın tümünü gör",
+      "viewAll_other": "{{count}} aracın tümünü gör",
+      "toolsTitle": "{{name}} araçları",
+      "filter": "Araçları filtrele",
+      "noMatch": "Eşleşen araç yok.",
+      "back": "Geri",
+      "more": "Daha fazla",
+      "worksIn": "Çalıştığı yerler",
+      "loading": "Yapılandırılmış araçlar yükleniyor",
+      "availability": "Kullanılabilirlik isteğe ve izinlere göre değişebilir.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kod ve dosyalar",
+        "research": "Web",
+        "productivity": "Zamanlama ve bellek",
+        "email": "E-posta",
+        "mcp": "Bağlı uygulamalar",
+        "integrations": "Entegrasyonlar",
+        "communication": "Sohbet ve mesajlar",
+        "entertainment": "Medya",
+        "information": "Bilgi",
+        "smart_home": "Akıllı ev",
+        "social": "Sosyal",
+        "other": "Diğer"
+      }
+    },
     "space": {
       "overview": "Alana genel bakış"
     }

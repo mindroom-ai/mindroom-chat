@@ -283,6 +283,47 @@
     "syncStatus": {
       "mediaUnavailable": "Alcune immagini non possono essere caricate in questa finestra: il browser qui non esegue alcun service worker per MindRoom."
     },
+    "agentCard": {
+      "agent": "Agente",
+      "close": "Chiudi",
+      "configuredTools": "Strumenti configurati",
+      "toolCount_one": "{{count}} strumento",
+      "toolCount_many": "{{count}} di strumenti",
+      "toolCount_other": "{{count}} strumenti",
+      "groupCount_one": "{{count}} gruppo",
+      "groupCount_many": "{{count}} di gruppi",
+      "groupCount_other": "{{count}} gruppi",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Inoltre {{groups}}",
+      "viewAll_one": "Vedi tutti i {{count}} strumenti",
+      "viewAll_many": "Vedi tutti i {{count}} di strumenti",
+      "viewAll_other": "Vedi tutti i {{count}} strumenti",
+      "toolsTitle": "Strumenti di {{name}}",
+      "filter": "Filtra strumenti",
+      "noMatch": "Nessuno strumento corrisponde.",
+      "back": "Indietro",
+      "more": "Altro",
+      "worksIn": "Lavora in",
+      "loading": "Caricamento degli strumenti configurati",
+      "availability": "La disponibilità può variare in base alla richiesta e ai permessi.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Codice e file",
+        "research": "Web",
+        "productivity": "Pianificazione e memoria",
+        "email": "Email",
+        "mcp": "App collegate",
+        "integrations": "Integrazioni",
+        "communication": "Chat e messaggi",
+        "entertainment": "Contenuti multimediali",
+        "information": "Informazioni",
+        "smart_home": "Casa intelligente",
+        "social": "Social",
+        "other": "Altro"
+      }
+    },
     "space": {
       "overview": "Panoramica dello spazio"
     }
