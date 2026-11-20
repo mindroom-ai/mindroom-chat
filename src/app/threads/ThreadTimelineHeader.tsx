@@ -41,6 +41,7 @@ export function ThreadTimelineHeader({
       scroll.parentElement?.style.setProperty('--room-thread-header-height', `${next}px`);
     };
     updatePadding();
+    scroll.classList.add(css.Scroller);
     let frame = 0;
     const observer = new ResizeObserver(() => {
       // The inset resizes the shallower scrollbar track. Write next frame so
@@ -56,6 +57,7 @@ export function ThreadTimelineHeader({
       observer.disconnect();
       cancelAnimationFrame(frame);
       scroll.style.scrollPaddingTop = previousPadding;
+      scroll.classList.remove(css.Scroller);
       scroll.parentElement?.style.removeProperty('--room-thread-header-height');
     };
   }, [onResize, scrollRef]);

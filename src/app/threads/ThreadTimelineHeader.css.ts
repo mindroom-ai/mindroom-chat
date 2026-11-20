@@ -1,5 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { headerInset } from '../ui/styles/RoomOverlay.css';
 
 const headerHeight = 'var(--room-thread-header-height, 0px)';
 
@@ -27,4 +28,18 @@ export const GapAbove = style({
 globalStyle(`${Header} *`, {
   scrollMarginTop: `calc(-1 * ${headerHeight})`,
   scrollMarginBottom: headerHeight,
+});
+
+/** The scroller the header sits in, which it marks while it is mounted. */
+export const Scroller = style({});
+
+/**
+ * Typing in a field of the header (the banner's title) reveals the caret after each key, and a
+ * caret, unlike a focused element, ignores the scroll margin above. It sat in the scroll padding,
+ * so every key scrolled the thread up by the distance to the padding's edge (about 70 px), and the
+ * stuck header kept the caret there for the next key. While such a field has the focus, the
+ * padding leaves the header out; it overrides the padding the header writes inline.
+ */
+globalStyle(`${Scroller}:has(${Header} :is(input, textarea, [contenteditable]):focus)`, {
+  scrollPaddingTop: `${headerInset} !important`,
 });
