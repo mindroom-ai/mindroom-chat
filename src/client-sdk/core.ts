@@ -16,7 +16,11 @@ import { usage } from '../app/composer/commands/commandRefusal';
 import { appUrl } from '../app/lib/basePath';
 
 export type { ClientPlugin, ThreadHeaderSlotComponent } from '../app/plugins/registry';
-export type { MessageLink, MessageLinkCardProps } from '../app/plugins/messageLinks';
+export type {
+  MessageLink,
+  MessageLinkCardProps,
+  MessageLinkHoverCardProps,
+} from '../app/plugins/messageLinks';
 export type { MessageRenderer, PluginEvent } from '../app/plugins/messageRenderers';
 export { usePluginConfig } from '../app/plugins/pluginConfig';
 export {

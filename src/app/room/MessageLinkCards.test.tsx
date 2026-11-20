@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import type { MessageLinkCardProps } from '../plugins/messageLinks';
+import type { MessageLinkCardProps, MessageLinkHoverCardProps } from '../plugins/messageLinks';
 import type { RegisteredPlugin } from '../plugins/registry';
 import { PluginPanelControlsContext, type PluginPanelControls } from '../plugins/sidePanels';
 import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
-import { MessageLinkCards } from './MessageLinkCards';
+import { HOVER_CARD_DELAY_MS, MessageLinkCards } from './MessageLinkCards';
 
 // jsdom lays nothing out, so a focus trap finds nothing it could focus and throws.
 // Its options are kept, so a test can run the trap's deactivation: the trap would then move focus
@@ -35,14 +35,25 @@ vi.mock('react-i18next', async (importOriginal) => {
 const mocks = vi.hoisted(() => ({
   reportBoundaryError: vi.fn(),
   position: undefined as string | undefined,
+  hoverPosition: undefined as string | undefined,
   deactivate: undefined as (() => void) | undefined,
   returnTarget: undefined as HTMLElement | undefined,
 }));
 // Records where the card is asked to open.
 vi.mock('../ui/directional', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  PopOut: ({ content, position }: { content?: ReactNode; position: string }) => {
-    mocks.position = content ? position : undefined;
+  PopOut: ({
+    content,
+    position,
+    style,
+  }: {
+    content?: ReactNode;
+    position: string;
+    style?: { pointerEvents?: string };
+  }) => {
+    // The hover card is the pop-out that takes no pointer.
+    if (style?.pointerEvents === 'none') mocks.hoverPosition = content ? position : undefined;
+    else mocks.position = content ? position : undefined;
     return content ?? null;
   },
 }));
@@ -304,5 +315,193 @@ describe('MessageLinkCards', () => {
     expect(fireEvent.click(link, { detail: 0 })).toBe(false);
     expect(controls.open).toHaveBeenCalledWith('pr/p', { item: '7' });
     expect(screen.queryByText(/^card /)).toBeNull();
+  });
+});
+
+function HoverCard({ href, roomId }: MessageLinkHoverCardProps) {
+  if (href.endsWith('/broken')) throw new Error('hover boom');
+  return <span>{`hover ${href} in ${roomId}`}</span>;
+}
+
+const hoverPlugin = {
+  id: 'hover',
+  tag: 'hover@1.0.0',
+  sidePanels: [],
+  messageLinks: [
+    { match: (url: URL) => url.host === 'hover.example', Component: Card, hoverCard: HoverCard },
+  ],
+} as unknown as RegisteredPlugin;
+
+describe('MessageLinkCards hover cards', () => {
+  let fine = true;
+  const renderHover = (roomId = '!a:x', plugins = [plugin, hoverPlugin]) => {
+    const ui = (id: string) => (
+      <MessageLinkCards roomId={id} plugins={plugins}>
+        <CheckedMessageLink href="https://hover.example/1">Hovered</CheckedMessageLink>
+        <CheckedMessageLink href="https://hover.example/broken">Broken</CheckedMessageLink>
+        <CheckedMessageLink href="https://hover.example/2">https://bank.example</CheckedMessageLink>
+        <CheckedMessageLink href="https://github.com/o/r/pull/1">Plain</CheckedMessageLink>
+      </MessageLinkCards>
+    );
+    const view = render(ui(roomId));
+    return { ...view, again: (id: string) => view.rerender(ui(id)) };
+  };
+  const link = (name: string) => screen.getByRole('link', { name });
+  const wait = (ms = HOVER_CARD_DELAY_MS) => act(() => vi.advanceTimersByTime(ms));
+  const card = () => screen.queryByRole('tooltip');
+  // jsdom has no PointerEvent; React takes a pointer's entering from `pointerover`.
+  const pointer = (element: HTMLElement, type: string, pointerType: string) => {
+    const event = new MouseEvent(type, { bubbles: true });
+    Object.assign(event, { pointerType });
+    fireEvent(element, event);
+  };
+  const rest = (name = 'Hovered') => {
+    const element = link(name);
+    pointer(element, 'pointerover', 'mouse');
+    fireEvent.mouseEnter(element);
+    return element;
+  };
+
+  beforeEach(() => {
+    fine = true;
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(() => ({ matches: fine }))
+    );
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the card 150 ms after a mouse rests on the link, and hides it as the mouse leaves', () => {
+    renderHover();
+    const element = rest();
+    wait(HOVER_CARD_DELAY_MS - 1);
+    expect(card()).toBeNull();
+    wait(1);
+    expect(card()?.textContent).toBe('hover https://hover.example/1 in !a:x');
+    expect(mocks.hoverPosition).toBe('Bottom');
+    // The link names the card only while it shows.
+    expect(element.getAttribute('aria-describedby')).toBe(card()?.id);
+    fireEvent.mouseLeave(element);
+    expect(card()).toBeNull();
+    expect(element.hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it('stands in for the title on a screen with a fine pointer only', () => {
+    renderHover();
+    expect(link('Hovered').hasAttribute('title')).toBe(false);
+    expect(link('Plain').getAttribute('title')).toBe('https://github.com/o/r/pull/1');
+    cleanup();
+    fine = false;
+    renderHover();
+    expect(link('Hovered').getAttribute('title')).toBe('https://hover.example/1');
+  });
+
+  it('opens for a mouse only on a screen that hovers with a fine pointer, also when the wait ends', () => {
+    fine = false;
+    renderHover();
+    rest();
+    wait();
+    expect(card()).toBeNull();
+    fine = true;
+    rest();
+    fine = false;
+    wait();
+    expect(card()).toBeNull();
+  });
+
+  it('a tap opens none, and a touch cancels the wait and hides the card', () => {
+    renderHover();
+    const element = link('Hovered');
+    pointer(element, 'pointerover', 'touch');
+    fireEvent.mouseEnter(element);
+    wait();
+    expect(card()).toBeNull();
+    rest();
+    pointer(element, 'pointerdown', 'touch');
+    wait();
+    expect(card()).toBeNull();
+    rest();
+    wait();
+    expect(card()).not.toBeNull();
+    pointer(element, 'pointerdown', 'touch');
+    expect(card()).toBeNull();
+  });
+
+  it('Escape hides the card, also while it waits to open', () => {
+    renderHover();
+    rest();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    wait();
+    expect(card()).toBeNull();
+    rest();
+    wait();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(card()).toBeNull();
+  });
+
+  it('a scroll, a click, the click card and a switch to another room hide it', () => {
+    const { again } = renderHover();
+    const shown = () => {
+      rest();
+      wait();
+      expect(card()).not.toBeNull();
+    };
+    shown();
+    fireEvent.scroll(window);
+    expect(card()).toBeNull();
+    shown();
+    fireEvent.click(link('Hovered'));
+    expect(card()).toBeNull();
+    expect(screen.getByText('card https://hover.example/1 in !a:x')).toBeTruthy();
+    shown();
+    fireEvent.click(link('Plain'));
+    expect(card()).toBeNull();
+    shown();
+    again('!b:x');
+    expect(card()).toBeNull();
+  });
+
+  it('opens on keyboard focus and hides on blur', () => {
+    renderHover();
+    const element = link('Hovered');
+    vi.spyOn(element, 'matches').mockReturnValue(true);
+    act(() => element.focus());
+    wait();
+    expect(card()).not.toBeNull();
+    act(() => element.blur());
+    expect(card()).toBeNull();
+  });
+
+  it('a link whose text reads as another address has no card and keeps its title', () => {
+    renderHover();
+    const element = rest('https://bank.example');
+    wait();
+    expect(card()).toBeNull();
+    expect(element.getAttribute('title')).toBe('https://hover.example/2');
+  });
+
+  it('a throwing card hides and is reported with its tag', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderHover();
+    rest('Broken');
+    wait();
+    expect(card()).toBeNull();
+    expect(error).toHaveBeenCalledWith(
+      '[plugin hover@1.0.0] failed to render its message link hover card',
+      expect.any(Error)
+    );
+    expect(mocks.reportBoundaryError).toHaveBeenCalled();
+  });
+
+  it('without a plugin that has a hover card, links keep their title and wait for nothing', () => {
+    const timeout = vi.spyOn(globalThis, 'setTimeout');
+    renderHover('!a:x', [plugin]);
+    const element = rest('Plain');
+    expect(element.getAttribute('title')).toBe('https://github.com/o/r/pull/1');
+    expect(timeout).not.toHaveBeenCalled();
   });
 });

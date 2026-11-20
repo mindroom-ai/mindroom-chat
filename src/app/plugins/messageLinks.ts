@@ -14,6 +14,9 @@ export type MessageLinkCardProps = {
   close: () => void;
 };
 
+/** What a plugin's link hover card is given: the link and the room its message is in. */
+export type MessageLinkHoverCardProps = Omit<MessageLinkCardProps, 'close'>;
+
 /**
  * Links in a room's message that a plugin takes: a plain click on one shows the plugin's card in a
  * pop-out beside the link, in place of opening it.
@@ -30,6 +33,11 @@ export type MessageLink = {
    * `sidePanels`; `request`, pure and synchronous, gives what JSON can hold.
    */
   sidePanel?: { id: string; request: (url: URL) => unknown };
+  /**
+   * Since version 66: what a mouse resting on the link, or the keyboard's focus on it, shows in a
+   * small card beside it. It only reads: nothing in it takes the focus or the pointer.
+   */
+  hoverCard?: ComponentType<MessageLinkHoverCardProps>;
 };
 
 /** Whether a plugin's contribution is a message link; the build does not type-check plugins. */
@@ -37,18 +45,20 @@ export const isMessageLink = (value: unknown): value is MessageLink =>
   isRecord(value) &&
   typeof value.match === 'function' &&
   !!value.Component &&
+  (value.hoverCard === undefined || !!value.hoverCard) &&
   (value.sidePanel === undefined ||
     (isRecord(value.sidePanel) &&
       typeof value.sidePanel.id === 'string' &&
       typeof value.sidePanel.request === 'function'));
 
 /**
- * The card of the plugin that takes a link, with its plugin's tag for logs and error reports, and
- * the side panel a click opens instead, its `id` as `<plugin id>/<panel id>`.
+ * The card of the plugin that takes a link, with its plugin's tag for logs and error reports, the
+ * side panel a click opens instead, its `id` as `<plugin id>/<panel id>`, and its hover card.
  */
 export type MessageLinkCard = {
   tag: string;
   Component: ComponentType<MessageLinkCardProps>;
+  hoverCard?: ComponentType<MessageLinkHoverCardProps>;
   sidePanel?: { id: string; request: (url: URL) => unknown };
 };
 
@@ -77,10 +87,10 @@ export const useMessageLinkMatcher = (
       if (!url) return undefined;
       for (const plugin of plugins) {
         if (plugin.messageLinks.length === 0 || !isPluginEnabled(config, plugin.id)) continue;
-        for (const { match, Component, sidePanel } of plugin.messageLinks) {
+        for (const { match, Component, sidePanel, hoverCard } of plugin.messageLinks) {
           try {
             if (!match(url)) continue;
-            const card: MessageLinkCard = { tag: plugin.tag, Component };
+            const card: MessageLinkCard = { tag: plugin.tag, Component, hoverCard };
             if (sidePanel && plugin.sidePanels.some(({ id }) => id === sidePanel.id)) {
               card.sidePanel = { id: `${plugin.id}/${sidePanel.id}`, request: sidePanel.request };
             }
