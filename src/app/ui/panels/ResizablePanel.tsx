@@ -28,6 +28,11 @@ const COLLAPSE_WIDTH = MIN_WIDTH - 40;
 const EXPAND_PAST = 40;
 /** The conversation column keeps at least this much room beside a resizable side panel. */
 export const CONVERSATION_MIN_WIDTH = 360;
+/**
+ * The widest a room's side panel may be: no cap of its own; the conversation beside it keeps
+ * CONVERSATION_MIN_WIDTH. Dragged further, its release fills the room (EXPAND_PAST).
+ */
+export const SIDE_PANEL_MAX_WIDTH = 4096;
 const clamp = (width: number, max: number, min = MIN_WIDTH) =>
   Math.min(Math.max(Math.min(min, max), width), max);
 const readWidth = (key: string, max: number): number | undefined => {
