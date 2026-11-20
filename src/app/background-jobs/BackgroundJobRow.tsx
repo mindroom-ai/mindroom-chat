@@ -196,6 +196,14 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 }
 
 /**
+ * A job's name as the bar says it: without the usage details (`details` false), a tool job's is
+ * what it does in plain words (`toolStep`), from its tool while its call is not loaded; else its
+ * name. Its row's headline and its Stop's label say the same.
+ */
+export const jobName = (item: BackgroundJobsBarItem, details: boolean, t: TFunction): string =>
+  !details && !item.subagent ? toolStep(item.activity ?? { tool: item.name }, t) : item.name;
+
+/**
  * What a sub-agent job does now in plain words, for a reader who leaves the usage details off: its
  * run at work as `runStepText` says it; nothing once it finished. While its pill says it waits for
  * approval (`waiting`), the step is the call alone, without "Waiting for your OK".
@@ -246,10 +254,7 @@ export function BackgroundJobRow({
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
   // Without the usage details, a tool job's headline is what it does in plain words.
-  const plainTool = !details && !item.subagent;
-  const headline = plainTool
-    ? toolStep(item.activity ?? { tool: item.name }, t)
-    : described || name;
+  const headline = !details && !item.subagent ? jobName(item, details, t) : described || name;
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;
@@ -258,7 +263,7 @@ export function BackgroundJobRow({
   const step = details || !item.subagent ? undefined : plainStep(item, waiting, t);
   const detail = (described && meta) || tool || doing;
   // Without the usage details, the call as sent follows on its own line.
-  const call = !details && !item.finished && item.activity && toolCallTitle(item.activity);
+  const call = !details && item.activity && toolCallTitle(item.activity);
   const headlineTitle = [meta?.task || item.name, call].filter(Boolean).join('\n');
   let title: ReactNode = (
     <span className={css.Task} title={headlineTitle} dir="auto">

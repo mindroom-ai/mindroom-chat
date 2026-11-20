@@ -21,7 +21,7 @@ import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
-import { BackgroundJobRow, BackgroundJobsSummary } from './BackgroundJobRow';
+import { BackgroundJobRow, BackgroundJobsSummary, jobName } from './BackgroundJobRow';
 import {
   type BackgroundJobCancelRequest,
   stopBackgroundJobs,
@@ -193,7 +193,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     void cancel(
       { jobId: item.jobId },
       [item.jobId],
-      t('mindroomUi.backgroundJobs.stopFailed', { tool: item.name })
+      t('mindroomUi.backgroundJobs.stopFailed', { tool: jobName(item, details, t) })
     );
   };
   const stopAll = () => {
@@ -218,8 +218,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       );
     }
     if (!canCancel) return null;
-    // A task runs on apart from the reply, whose own Stop stops only the reply.
-    const label = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: item.name });
+    // A task runs on apart from the reply, whose own Stop stops only the reply. It names the job as
+    // its row does.
+    const label = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: jobName(item, details, t) });
     return (
       <button
         key={item.jobId}

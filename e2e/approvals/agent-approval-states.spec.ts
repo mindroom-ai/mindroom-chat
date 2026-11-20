@@ -170,7 +170,7 @@ test('Stop on a reply that waits for approval never says the call ran, and stopp
   if (card.content.status === 'pending') {
     // Stopping the job denies its card, and nothing says the agent still waits.
     const jobs = page.getByRole('region', { name: 'Waiting for approval: run_shell_command' });
-    await jobs.getByRole('button', { name: 'Stop task: run_shell_command' }).click();
+    await jobs.getByRole('button', { name: 'Stop task: Running a command' }).click();
     await waitForApproval(stack, rootId, 'denied');
     await expect(page.getByRole('region', { name: 'Thread approvals' })).toBeHidden({
       timeout: 30_000,

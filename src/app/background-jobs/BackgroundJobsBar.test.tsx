@@ -135,8 +135,10 @@ const render = (threadId: string | null = '$thread', canCancel = true) =>
     root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
   });
 const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
-const cancelA = 'mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}';
-const cancelB = 'mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_b"}';
+// Without the usage details, a tool job's Stop names it as its row does: what it does, in words.
+const using = (tool: string) => tr('mindroomUi.subagents.step.using', { tool });
+const cancelA = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool a') });
+const cancelB = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool b') });
 const stoppingA = 'mindroomUi.backgroundJobs.stoppingJob{"tool":"tool_a"}';
 const title = () => container.querySelector('[role="region"]')?.getAttribute('aria-label');
 const click = (label: string) =>
@@ -531,7 +533,9 @@ it('keeps the error of a job still listed when a cancel of a job that ended fail
   state.jobs = [job('b')];
   render();
   await act(async () => fails[0]!(new Error('offline')));
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('"tool":"tool_b"');
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    tr('mindroomUi.backgroundJobs.stopFailed', { tool: using('tool b') })
+  );
 });
 
 it('leaves a failed cancel behind when the view moves to another thread', async () => {
@@ -984,10 +988,14 @@ it('heads a tool job with what it does, from its tool until its call is loaded, 
   expect(tooltip()).toBe('read_file\nread_file path=notes/2026-11-16.md');
   row(item({ activity: { tool: 'run_shell_command', preview: 'args=just test' } }));
   expect(headline()).toBe('mindroomUi.subagents.step.runningCommand');
-  // Held after it finished, its headline is the same words.
+  // Held after it finished, its headline is the same words, the call as sent in its tooltip.
   row(item({ finished: true, state: 'finished', activity: { tool: 'read_file' } }));
   expect(headline()).toBe('mindroomUi.subagents.step.readingAny');
   expect(activity()).toBeNull();
+  const read = { tool: 'read_file', preview: 'path=notes/2026-11-16.md' };
+  row(item({ finished: true, state: 'finished', activity: read }));
+  expect(headline()).toBe(tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }));
+  expect(tooltip()).toBe('read_file\nread_file path=notes/2026-11-16.md');
   // With the usage details, its headline is its tool, its call on the line under it.
   act(() => showUsageDetails());
   row(item({ activity: { tool: 'read_file', preview: 'path=notes/2026-11-16.md' } }));
@@ -1164,10 +1172,10 @@ it('restores the button and shows an error when the send fails', async () => {
   state.send = vi.fn().mockRejectedValue(new Error('offline'));
   render();
   await act(async () => {
-    button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')?.click();
+    button(cancelA)?.click();
   });
   expect(container.textContent).not.toContain('mindroomUi.backgroundJobs.stopping');
-  expect(button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')).toBeDefined();
+  expect(button(cancelA)).toBeDefined();
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('stopFailed');
 });
 
