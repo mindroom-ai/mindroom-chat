@@ -1159,6 +1159,19 @@
       "shownInPanel": "Getoond in het paneel",
       "inlineDisclosure": "Gemaakt door {{agent}}. De pagina heeft geen toegang tot je account, maar wat je hier invoert kan deze pagina verlaten."
     },
+    "invites": {
+      "invalid": "Deze uitnodigingslink is onvolledig. Open de link uit de e-mail opnieuw.",
+      "reopen": "Je bent ingelogd. Open de uitnodigingslink uit je e-mail opnieuw.",
+      "framed": "Open deze pagina in een eigen tabblad om de uitnodiging te gebruiken.",
+      "ready": "Neem deel aan een ruimte via {{router}} als {{user}}",
+      "claiming": "Uitnodiging wordt geclaimd…",
+      "offline": "Deze MindRoom reageert niet. Je verzoek is bewaard; de uitnodiging verschijnt in je ruimtelijst zodra hij weer bereikbaar is.",
+      "rejected": "Deze uitnodiging is niet meer geldig. Vraag om een nieuwe.",
+      "retry": "Dat lukte niet. Probeer het zo opnieuw.",
+      "joining": "Deelnemen aan de ruimte…",
+      "join": "Deelnemen",
+      "tryAgain": "Opnieuw proberen"
+    },
     "uiActions": {
       "canvasOff": "Paneel gedeeld · panelen staan uit in deze app",
       "askForText": "Vraag om een tekstversie",

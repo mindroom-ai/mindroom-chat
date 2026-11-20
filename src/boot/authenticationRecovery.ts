@@ -1,4 +1,5 @@
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './serviceWorkerNavigation';
+import { dropInviteFragment } from './inviteFragment';
 
 export type AuthenticationRecoveryResult =
   | 'disabled'
@@ -105,6 +106,7 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
   }
 
   function leave(): AuthenticationRecoveryResult {
+    dropInviteFragment(window);
     const target = new URL(
       config && config.navigation ? config.navigation.href : window.location.href
     );

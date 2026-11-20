@@ -1190,6 +1190,19 @@
       "shownInPanel": "Affichée dans le panneau",
       "inlineDisclosure": "Créée par {{agent}}. Elle n’a pas accès à votre compte ; ce que vous saisissez ici peut quitter cette page."
     },
+    "invites": {
+      "invalid": "Ce lien d'invitation est incomplet. Rouvrez le lien depuis l'e-mail.",
+      "reopen": "Vous êtes connecté. Rouvrez le lien d'invitation depuis votre e-mail.",
+      "framed": "Ouvrez cette page dans son propre onglet pour utiliser l'invitation.",
+      "ready": "Rejoindre un salon via {{router}} en tant que {{user}}",
+      "claiming": "Récupération de l'invitation…",
+      "offline": "Ce MindRoom ne répond pas. Votre demande est enregistrée ; l'invitation apparaîtra dans votre liste de salons dès son retour.",
+      "rejected": "Cette invitation n'est plus valide. Demandez-en une nouvelle.",
+      "retry": "Cela n'a pas fonctionné. Réessayez dans un instant.",
+      "joining": "Connexion au salon…",
+      "join": "Rejoindre",
+      "tryAgain": "Réessayer"
+    },
     "uiActions": {
       "canvasOff": "Panneau partagé · les panneaux sont désactivés dans cette app",
       "askForText": "Demander une version texte",

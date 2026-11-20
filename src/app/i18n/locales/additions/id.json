@@ -1128,6 +1128,19 @@
       "shownInPanel": "Ditampilkan di panel",
       "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
     },
+    "invites": {
+      "invalid": "Tautan undangan ini tidak lengkap. Buka lagi tautan dari email.",
+      "reopen": "Anda sudah masuk. Buka lagi tautan undangan dari email Anda.",
+      "framed": "Buka halaman ini di tab tersendiri untuk menggunakan undangan.",
+      "ready": "Bergabung ke ruang melalui {{router}} sebagai {{user}}",
+      "claiming": "Mengklaim undangan…",
+      "offline": "MindRoom ini tidak menjawab. Permintaan Anda tersimpan; undangan akan muncul di daftar ruang Anda saat MindRoom kembali.",
+      "rejected": "Undangan ini sudah tidak berlaku. Minta undangan baru.",
+      "retry": "Itu tidak berhasil. Coba lagi sebentar lagi.",
+      "joining": "Bergabung ke ruang…",
+      "join": "Gabung",
+      "tryAgain": "Coba lagi"
+    },
     "uiActions": {
       "canvasOff": "Panel dibagikan · panel dinonaktifkan di aplikasi ini",
       "askForText": "Minta versi teks",
