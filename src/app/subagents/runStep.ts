@@ -188,11 +188,13 @@ export const lastWrittenLine = (md: string): string | undefined => {
 /**
  * What a run at work does now, in plain words: the call that waits for the reader's OK, the call
  * it makes, else the last line it wrote, else that it thinks. Nothing for a run that is not at it
- * (paused or ended), whose line stays as it was.
+ * (paused or ended), whose line stays as it was. Without `written` it never says what it wrote,
+ * for a view that is not drawn again as the text grows (the jobs bar).
  */
 export const runStepText = (
   run: { meta: SubagentMeta; docs: LiveDocs },
-  t: TFunction
+  t: TFunction,
+  written = true
 ): string | undefined => {
   const line = runLine(run, undefined, undefined);
   if (line.kind === 'approval')
@@ -201,6 +203,7 @@ export const runStepText = (
     return t('mindroomUi.subagents.step.doing', { step: toolStep(line.activity, t) });
   if (run.meta.status !== 'running') return undefined;
   return (
-    lastWrittenLine(run.docs.md) ?? t('mindroomUi.messages.mindroomThinkingPlaceholder.thinking')
+    (written ? lastWrittenLine(run.docs.md) : undefined) ??
+    t('mindroomUi.messages.mindroomThinkingPlaceholder.thinking')
   );
 };

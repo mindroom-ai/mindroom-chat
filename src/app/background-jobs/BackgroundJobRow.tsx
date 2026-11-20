@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { Icon, Icons } from 'folds';
@@ -16,7 +17,10 @@ import { subscribeRelativeTimeClock, useRelativeTime } from '../i18n/useRelative
 import { formatWorkDuration } from '../lib/time';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { RunLogo } from '../subagents/RunLogo';
+import { runStepText, toolStep } from '../subagents/runStep';
 import { useUsageCells } from '../subagents/runUsage';
 import { useAgentProfile } from '../subagents/AgentAvatar';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
@@ -192,11 +196,32 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 }
 
 /**
+ * What a job does now in plain words, for a reader who leaves the usage details off: a sub-agent's
+ * run at work as `runStepText` says it, a tool job's call as its step. Its call as sent is the
+ * tooltip. The bar is drawn again only when a run's call or state changes, so a run between calls
+ * says it thinks, not the last line it wrote.
+ */
+const plainStep = (
+  item: BackgroundJobsBarItem,
+  t: TFunction
+): { text: string; title?: string } | undefined => {
+  const { activity } = item;
+  const title = activity && [activity.tool, activity.preview].filter(Boolean).join(' ');
+  let text: string | undefined;
+  if (item.subagent)
+    text = item.run && !item.finished ? runStepText(item.run, t, false) : undefined;
+  else text = activity && toolStep(activity, t);
+  return text ? { text, ...(title ? { title } : {}) } : undefined;
+};
+
+/**
  * One listed job on the bar's grid: its title, else its task, as the headline, with at most one
  * pill; under it who, on what model, and what it does now (the tool it calls, then its arguments;
  * a tool job's headline is its tool already). Then its calls, tokens and cost, its time, and its
  * buttons: the thread it runs in when that is not the view's, and Stop. A sub-agent job's title
  * opens its run, from anywhere on the row.
+ * Without the usage details (`showUsageDetails`), the line under the headline says only what it
+ * does now, in plain words (`plainStep`), and the numbers are left out.
  * Folded, the bar's one job is this row on its title line: the headline and the rest on one line,
  * the title listing it, and Open beside Stop.
  * A job without its run's frames shows its name alone, as before.
@@ -211,6 +236,7 @@ export function BackgroundJobRow({
   folded,
 }: RowProps) {
   const { t } = useTranslation();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const agent = useAgentProfile(room, item.agent ?? '');
   const meta = item.run?.meta;
   const modelLabel = meta?.model && getAiRunCompactModelLabel(meta.model);
@@ -225,6 +251,7 @@ export function BackgroundJobRow({
   const tool = item.subagent ? item.activity?.tool : undefined;
   const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
+  const step = details ? undefined : plainStep(item, t);
   const detail = (described && meta) || tool || doing;
   const headlineTitle = meta?.task || item.name;
   let title: ReactNode = (
@@ -295,7 +322,14 @@ export function BackgroundJobRow({
             </span>
           )}
         </span>
-        {detail && (
+        {step && (
+          <span className={css.Detail}>
+            <span className={css.Activity} title={step.title} dir="auto" data-job-activity>
+              <span className={css.Step}>{step.text}</span>
+            </span>
+          </span>
+        )}
+        {details && detail && (
           <span className={css.Detail}>
             {described && meta && (
               <span className={css.Name} title={agent.name}>
@@ -326,18 +360,19 @@ export function BackgroundJobRow({
           </span>
         )}
       </span>
-      {[calls, tokens, cost].map((cell, index) => (
-        <span
-          // The columns are fixed: calls, tokens, cost.
-          // eslint-disable-next-line react/no-array-index-key
-          key={index}
-          className={css.Stat}
-          title={cell?.title}
-          data-job-stat={['calls', 'tokens', 'cost'][index]}
-        >
-          {cell?.text}
-        </span>
-      ))}
+      {details &&
+        [calls, tokens, cost].map((cell, index) => (
+          <span
+            // The columns are fixed: calls, tokens, cost.
+            // eslint-disable-next-line react/no-array-index-key
+            key={index}
+            className={css.Stat}
+            title={cell?.title}
+            data-job-stat={['calls', 'tokens', 'cost'][index]}
+          >
+            {cell?.text}
+          </span>
+        ))}
       <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
       <span className={folded ? css.FoldedActions : css.Actions}>
         {folded && onOpen && <OpenButton name={headline} onOpen={onOpen} />}

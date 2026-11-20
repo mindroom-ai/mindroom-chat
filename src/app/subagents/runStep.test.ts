@@ -200,6 +200,7 @@ describe('runStepText', () => {
       docs: docs('I read the notes.\n\nNow the **summary**.'),
     };
     expect(runStepText(wrote, t)).toBe('Now the summary.');
+    expect(runStepText(wrote, t, false)).toBe('Thinking…');
     // A completed call is no call it makes now.
     const thinking = {
       meta: meta('running'),

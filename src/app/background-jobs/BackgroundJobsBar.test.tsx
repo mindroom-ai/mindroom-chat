@@ -11,6 +11,7 @@ import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 import { keepCancelsOf } from '../matrix/state/sentCancels';
+import { showUsageDetails } from '../../test/utils/showUsageDetails';
 
 const state = vi.hoisted(() => ({
   jobs: [] as BackgroundJob[],
@@ -87,6 +88,8 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   FoldedText: 'FoldedText',
   FoldedToggle: 'FoldedToggle',
   FoldedActions: 'FoldedActions',
+  Step: 'Step',
+  Quiet: 'Quiet',
 }));
 vi.mock('../subagents/RunLogo.css', () => ({
   Logo: 'Logo',
@@ -177,6 +180,7 @@ afterEach(() => {
   getDefaultStore().set(subagentsPanelAtom, undefined);
   getSubagentRunStore(mx as never).clear();
   vi.unstubAllGlobals();
+  showUsageDetails(false);
 });
 
 it('renders nothing without jobs', () => {
@@ -745,6 +749,7 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
 });
 
 it('folds one sub-agent job into its row: title, agent, model, its call and numbers, Open', () => {
+  showUsageDetails();
   ingestRun(
     's1',
     {
@@ -795,6 +800,7 @@ it("shows a sub-agent's title, with its task as the title's tooltip", () => {
 });
 
 it("shows an untitled sub-agent's agent, model, task, the call it makes now and what it used", () => {
+  showUsageDetails();
   ingestRun(
     's1',
     {
@@ -833,6 +839,7 @@ it("shows an untitled sub-agent's agent, model, task, the call it makes now and 
 });
 
 it('shows no cost before any token, and counts one token as one', () => {
+  showUsageDetails();
   const stats = (usage: SubagentMeta['usage']) => {
     act(() => getSubagentRunStore(mx as never).clear());
     ingestRun('s1', { usage });
@@ -852,6 +859,93 @@ it('shows no cost before any token, and counts one token as one', () => {
     '',
     tr('mindroomUi.backgroundJobs.tokens', { count: 1, tokens: '1' }),
     '',
+  ]);
+});
+
+it('says what a sub-agent job does in plain words, without its numbers, agent or model, until the usage details are shown', () => {
+  ingestRun(
+    's1',
+    {
+      title: "Summarize this week's meeting notes",
+      model: { modelConfig: 'fable', modelProvider: 'anthropic', modelId: 'claude-fable-5.2' },
+      usage: { inputTokens: 1_300_000, outputTokens: 100_000, toolCalls: 34, costUsd: 1.3 },
+    },
+    [
+      {
+        type: 'tool_call_started',
+        tool_name: 'read_file',
+        args_preview: 'path=notes/2026-11-16.md',
+      },
+    ]
+  );
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
+  render('$thread');
+  const reading = tr('mindroomUi.subagents.step.doing', {
+    step: tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }),
+  });
+  const folded = container.querySelector('[data-job-folded]')!;
+  expect(folded.querySelector('.Task')?.textContent).toBe("Summarize this week's meeting notes");
+  // Its call in words, the call as sent its tooltip.
+  const activity = folded.querySelector('[data-job-activity]');
+  expect(activity?.textContent).toBe(reading);
+  expect(activity?.getAttribute('title')).toBe('read_file path=notes/2026-11-16.md');
+  expect(folded.querySelector('.ToolName')).toBeNull();
+  expect(folded.querySelector('[data-job-model]')).toBeNull();
+  expect(folded.querySelector('.Name')).toBeNull();
+  expect(folded.querySelector('[data-job-stat]')).toBeNull();
+  // The time and the buttons stay; the grid has no number columns.
+  expect(folded.querySelector('[data-job-elapsed]')).not.toBeNull();
+  expect(folded.querySelector('[data-job-open]')).not.toBeNull();
+  expect(container.querySelector('.Bar')?.classList.contains('Quiet')).toBe(true);
+  // Listed, its row and its group's heading have no numbers either.
+  expand();
+  const listed = container.querySelector('li[data-job-kind="subagent"]')!;
+  expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(reading);
+  expect(listed.querySelector('[data-job-stat]')).toBeNull();
+  expect(container.querySelector('.StatColumn')).toBeNull();
+  expect(container.querySelector('.ColumnName')?.textContent).toBe(
+    'mindroomUi.backgroundJobs.column.time'
+  );
+
+  // Shown, the row is the one with every number.
+  act(() => showUsageDetails());
+  render('$thread');
+  expect(container.querySelector('.Bar')?.classList.contains('Quiet')).toBe(false);
+  expect(listed.querySelector('[data-job-model]')?.textContent).toBe('Fable');
+  expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(
+    'read_file path=notes/2026-11-16.md'
+  );
+  expect([...listed.querySelectorAll('[data-job-stat]')].map((cell) => cell.textContent)).toEqual([
+    '34',
+    '1.4M',
+    '$1.30',
+  ]);
+  expect(container.querySelectorAll('.StatColumn')).toHaveLength(3);
+});
+
+it('says a sub-agent job waits for your OK for its call, and thinks between calls', () => {
+  ingestRun('s1', { status: 'awaiting_approval' }, [
+    { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'args=rm old.md' },
+  ]);
+  ingestRun('s2', { startedAt: 2 }, [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
+  ingestRun('s3', { status: 'completed', endedAt: 9 });
+  state.jobs = [
+    subagentJob('a', { subagent: 's1', run: 'run-s1', status: 'awaiting_approval' }),
+    subagentJob('b', { subagent: 's2', run: 'run-s2' }),
+    subagentJob('c', { subagent: 's3', run: 'run-s3' }),
+  ];
+  render('$thread');
+  expand();
+  const lines = [...container.querySelectorAll('li')].map(
+    (row) => row.querySelector('[data-job-activity]')?.textContent ?? null
+  );
+  expect(lines).toEqual([
+    tr('mindroomUi.subagents.step.waitingForOk', {
+      step: 'mindroomUi.subagents.step.runningCommand',
+    }),
+    'mindroomUi.messages.mindroomThinkingPlaceholder.thinking',
+    // A run that ended says nothing it does.
+    null,
   ]);
 });
 

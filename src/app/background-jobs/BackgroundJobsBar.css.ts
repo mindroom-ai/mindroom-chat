@@ -549,6 +549,9 @@ export const ToolName = style({
   fontWeight: config.fontWeight.W600,
 });
 
+// A step in plain words, which stands for a sub-agent's call when the usage details are off.
+export const Step = style({ opacity: config.opacity.P300 });
+
 // The folded bar's one job: the rows' grid on the title line, a line tall, its buttons as many as
 // it has. Its logo is the title line's small tile.
 export const Folded = style({
@@ -562,6 +565,16 @@ export const Folded = style({
   '@container': {
     [phone]: { gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} auto` },
   },
+});
+
+// Without the usage details (`showUsageDetails`) the rows have no calls, tokens or cost, so their
+// grid has no columns for them, as on a phone: the time and the buttons keep their places.
+export const Quiet = style({});
+globalStyle(`${Quiet} ${GroupHeading}, ${Quiet} ${Job}`, {
+  gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} ${actions}`,
+});
+globalStyle(`${Quiet} ${Folded}`, {
+  gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} auto`,
 });
 
 // Its headline, then who and what it does on the same line, in the room the headline leaves, so it

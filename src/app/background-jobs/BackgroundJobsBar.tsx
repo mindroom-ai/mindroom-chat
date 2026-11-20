@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { openSubagentsPanel } from '../navigation/subagentsPanel';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
@@ -49,6 +51,7 @@ type OpenMode = 'hover' | 'pinned';
  */
 export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const mx = useMatrixClient();
   const store = useStore();
   const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
@@ -294,7 +297,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           expanded && glassDenseOverBackdrop,
           // A row's Thread button needs its slot in every row, so the buttons line up.
           model.items.some((item) => item.threadId !== null && item.threadId !== threadId) &&
-            css.WithThreads
+            css.WithThreads,
+          // Without the usage details, the rows have no number columns.
+          !details && css.Quiet
         )}
         role="region"
         aria-label={model.title}
@@ -368,11 +373,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                   ) : (
                     <span className={css.GroupName} />
                   )}
-                  {(['calls', 'tokens', 'cost'] as const).map((column) => (
-                    <span key={column} className={css.StatColumn} aria-hidden>
-                      {group.kind === 'subagent' && t(`mindroomUi.backgroundJobs.column.${column}`)}
-                    </span>
-                  ))}
+                  {details &&
+                    (['calls', 'tokens', 'cost'] as const).map((column) => (
+                      <span key={column} className={css.StatColumn} aria-hidden>
+                        {group.kind === 'subagent' &&
+                          t(`mindroomUi.backgroundJobs.column.${column}`)}
+                      </span>
+                    ))}
                   <span className={css.ColumnName} aria-hidden>
                     {t('mindroomUi.backgroundJobs.column.time')}
                   </span>
