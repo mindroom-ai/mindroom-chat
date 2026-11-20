@@ -201,7 +201,11 @@ test.describe('pinned announcement threads', () => {
     await expect(pin).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('pinned-mobile.png') });
     await pin.click();
-    await expect(page.getByRole('button', { name: 'Unpin thread', exact: true })).toBeVisible();
+    // A phone's banner says the thread is pinned where Resolve would be, and unpins from More.
+    const banner = page.locator('[data-thread-context-banner]');
+    await expect(banner.getByRole('img', { name: 'Pinned', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Resolve', exact: true })).toHaveCount(0);
+    await banner.getByRole('button', { name: 'Thread options', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Unpin thread', exact: true })).toBeVisible();
   });
 });
