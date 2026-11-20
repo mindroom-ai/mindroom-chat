@@ -32,6 +32,73 @@ describe('rowsMovedUp', () => {
     ).toEqual(['$f', '$d']);
   });
 
+  it('leaves a row that moved down to React when another moved up in the same change', () => {
+    // $d up and $b down: $a, $c, $e and $f stay, and React moves $b alone.
+    expect(
+      rowsMovedUp(['$a', '$b', '$c', '$d', '$e', '$f'], ['$d', '$a', '$c', '$e', '$f', '$b'])
+    ).toEqual(['$d']);
+    // The first and the last trade places: the three between them stay.
+    expect(rowsMovedUp(['$a', '$b', '$c', '$d', '$e'], ['$e', '$b', '$c', '$d', '$a'])).toEqual([
+      '$e',
+    ]);
+  });
+
+  it('keeps the cards in view among the rows that stay, whichever rows are fewer', () => {
+    const before = ['$a', '$b', '$c', '$d', '$e'];
+    const after = ['$c', '$d', '$e', '$a', '$b'];
+    // Three cards from below the view moved up past the two in view: those two stay.
+    expect(rowsMovedUp(before, after, new Set(['$a', '$b']))).toEqual(['$c', '$d', '$e']);
+    // The two went down past the three in view, or nothing of it shows: React moves the two.
+    expect(rowsMovedUp(before, after, new Set(['$c', '$d', '$e']))).toEqual([]);
+    expect(rowsMovedUp(before, after)).toEqual([]);
+  });
+
+  it('lets the one card in view that moved down go, for the others in view to stay', () => {
+    const before = ['$x', '$a', '$b', '$c', '$d'];
+    const after = ['$a', '$b', '$c', '$d', '$x'];
+    expect(rowsMovedUp(before, after, new Set(['$x', '$a', '$b']))).toEqual([]);
+    // Of two cards in view that swap, the upper one stays.
+    expect(rowsMovedUp(['$a', '$b'], ['$b', '$a'], new Set(['$a', '$b']))).toEqual(['$b']);
+  });
+
+  it('leaves in the page, for every order of six rows, a best run of rows in their old order', () => {
+    const before = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const orders = (rows: string[]): string[][] =>
+      rows.length < 2
+        ? [rows]
+        : rows.flatMap((row) =>
+            orders(rows.filter((other) => other !== row)).map((o) => [row, ...o])
+          );
+    /** What a run scores: its cards in view first, then its rows. */
+    const score = (run: string[], inView: Set<string>) =>
+      run.filter((row) => inView.has(row)).length * 10 + run.length;
+    [[], ['$a', '$b'], ['$c', '$d'], ['$e', '$f'], ['$b', '$e']].forEach((cards) => {
+      const inView = new Set(cards);
+      orders(before).forEach((after) => {
+        const named = new Set(rowsMovedUp(before, after, inView));
+        // React, as it places keyed children: it keeps a row unless one it kept stood after it.
+        let last = -1;
+        const kept = after.filter((row) => {
+          if (named.has(row) || before.indexOf(row) < last) return false;
+          last = before.indexOf(row);
+          return true;
+        });
+        // Every run of rows in their old order: each subset of the old order whose rows follow
+        // each other in the new one too.
+        const runs = Array.from({ length: 2 ** before.length }, (_, bits) =>
+          // eslint-disable-next-line no-bitwise
+          before.filter((_row, index) => bits & (2 ** index))
+        ).filter((run) =>
+          run.every((row, i) => i === 0 || after.indexOf(row) > after.indexOf(run[i - 1] ?? ''))
+        );
+        const best = Math.max(...runs.map((run) => score(run, inView)));
+        expect(score(kept, inView), `${after.join(' ')} with ${cards.join(' ')} in view`).toBe(
+          best
+        );
+      });
+    });
+  });
+
   it('counts neither new rows nor rows that left', () => {
     expect(rowsMovedUp(['$a', '$b', '$c'], ['$new', '$a', '$b', '$c'])).toEqual([]);
     expect(rowsMovedUp(['$a', '$b', '$c'], ['$a', '$c'])).toEqual([]);
@@ -46,7 +113,7 @@ describe('useRowKeys', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   const keysOf = (scrollTop: number) => {
-    const view = { current: { scrollTop } as HTMLElement };
+    const view = { current: Object.assign(document.createElement('div'), { scrollTop }) };
     const { result, rerender } = renderHook(({ rows }) => useRowKeys(rows, view), {
       initialProps: { rows: ['$a', '$b', '$c', '$d'] },
     });

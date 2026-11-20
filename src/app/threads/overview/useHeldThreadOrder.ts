@@ -33,37 +33,87 @@ export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[
   return [...leading, ...kept, ...trailing];
 };
 
+/** A run of rows still in their old order, by its last row: the best one that ends there. */
+type Run = {
+  /** How many of the cards in view it holds, how many rows, and the sum of their old places. */
+  seen: number;
+  length: number;
+  places: number;
+  /** Its last row, by its place among the rows both orders hold, and the run before that row. */
+  row: number;
+  rest?: Run;
+};
+
+/** The better of two runs: more cards in view, then more rows, then rows that stood earlier. */
+const betterRun = (a: Run | undefined, b: Run | undefined): Run | undefined => {
+  if (!a || !b) return a ?? b;
+  return (a.seen - b.seen || a.length - b.length || b.places - a.places) >= 0 ? a : b;
+};
+
 /**
- * The rows that moved up past others from `before` to `after`, in their order in `after`. Rows
- * that only one of the lists holds neither move nor are passed. Without the rows it names, the
- * others keep their order.
+ * The rows that moved up past rows that stay, from `before` to `after`, in their order in
+ * `after`. Rows that only one of the lists holds neither move nor stay.
  *
- * It names none when they are more than the rows React moves by itself: React keeps a row that
- * moved up in the page and takes out and puts back, after it, each row that row passed, so for a
- * row that moved down it already moves that one row. Of two rows that swap, it names the one
- * that went up.
+ * The rows that stay are a run of rows still in their old order: the one that holds the most of
+ * the cards `inView`, of those the longest, and of those the one whose rows stood first (of two
+ * rows that swap, the upper one). So as few cards in view move as can, also when several rows
+ * move at once, up and down: several replies in one sync, or a held order let go.
+ *
+ * A row that moved down past rows that stay is not named. React moves that row by itself: it
+ * keeps a row in the page unless one that stood after it now stands before it, and takes out and
+ * puts back each row that a row it kept moved up past. So with a new key for each row named
+ * here (`useRowKeys`), the rows that stay never leave the page.
  */
-export const rowsMovedUp = (before: readonly string[], after: readonly string[]): string[] => {
+export const rowsMovedUp = (
+  before: readonly string[],
+  after: readonly string[],
+  inView: ReadonlySet<string> = new Set()
+): string[] => {
   const placeBefore = new Map(before.map((id, index) => [id, index]));
-  // From the end: a row that stood after one that now follows it moved up past that one.
-  const up: string[] = [];
-  let lowest = Infinity;
-  for (let index = after.length - 1; index >= 0; index -= 1) {
-    const id = after[index] ?? '';
+  // The rows both orders hold, in their new order, each with its old place.
+  const rows = after.flatMap((id) => {
     const was = placeBefore.get(id);
-    if (was !== undefined && was > lowest) up.push(id);
-    else if (was !== undefined) lowest = was;
-  }
-  // React's own count, from the start: every row that follows one that stood after it.
-  let highest = -1;
-  let passed = 0;
-  after.forEach((id) => {
-    const was = placeBefore.get(id);
-    if (was === undefined) return;
-    if (was < highest) passed += 1;
-    else highest = was;
+    return was === undefined ? [] : [{ id, was }];
   });
-  return up.length <= passed ? up.reverse() : [];
+  // A card that joined or left, and nothing else: every row stays.
+  if (rows.every(({ was }, row) => was > (rows[row - 1]?.was ?? -1))) return [];
+
+  // The best run to end with each row follows the best one that ends before the row's old
+  // place. A tree over the old places finds that one in a few steps (a Fenwick tree: the node
+  // at `place` holds the best run that ends in the `place & -place` places up to it).
+  const bestTo: (Run | undefined)[] = [];
+  let best: Run | undefined;
+  rows.forEach(({ id, was }, row) => {
+    let rest: Run | undefined;
+    // eslint-disable-next-line no-bitwise
+    for (let place = was; place > 0; place -= place & -place) {
+      rest = betterRun(rest, bestTo[place]);
+    }
+    const run: Run = {
+      seen: (rest?.seen ?? 0) + Number(inView.has(id)),
+      length: (rest?.length ?? 0) + 1,
+      places: (rest?.places ?? 0) + was,
+      row,
+      rest,
+    };
+    // eslint-disable-next-line no-bitwise
+    for (let place = was + 1; place <= before.length; place += place & -place) {
+      bestTo[place] = betterRun(bestTo[place], run);
+    }
+    best = betterRun(best, run);
+  });
+  const stays = new Set<number>();
+  for (let run = best; run; run = run.rest) stays.add(run.row);
+
+  // Of the other rows, one that stood after the last row that stays before it moved up past
+  // that row; one that stood before it moved down.
+  const up: string[] = [];
+  let lastStay = -1;
+  rows.forEach(({ id, was }, row) => {
+    if (stays.has(row)) lastStay = was;
+    else if (was > lastStay) up.push(id);
+  });
+  return up;
 };
 
 /** The topmost cards in view, their tops on screen, the scroll offset and the order then. */
@@ -215,8 +265,11 @@ export const useRowKeys = (
     const next = new Set([...shown.renewed].filter((row) => listed.has(row)));
     const view = viewRef.current;
     if (view && view.scrollTop > 0 && browserAnchorsScroll()) {
+      // The cards that lead the view, as the page shows them before this render: the browser's
+      // anchor is one of them.
+      const inView = new Set(cardsInView(view, shown.rows)?.cards.map(({ rootId }) => rootId));
       // Back to its first key the next time: a row only ever has one of two.
-      rowsMovedUp(shown.rows, rows).forEach((row) => {
+      rowsMovedUp(shown.rows, rows, inView).forEach((row) => {
         if (!next.delete(row)) next.add(row);
       });
     }

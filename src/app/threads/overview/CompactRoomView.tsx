@@ -284,6 +284,7 @@ const CompactThreadCardRow = React.memo(
                     aria-label={moreLabel}
                     aria-haspopup="menu"
                     aria-expanded={menuOpen}
+                    data-compact-thread-more="true"
                     onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
                       onOpenMenu({
                         roomId,

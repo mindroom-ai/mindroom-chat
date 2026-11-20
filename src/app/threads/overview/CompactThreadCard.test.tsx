@@ -191,6 +191,25 @@ describe('a card whose thread changes while it shows', () => {
     cleanup();
   });
 
+  it("hands on the focus a click left on one of its row's quick actions", () => {
+    // As the Compact list draws a row: the card and its quick actions in the part that moves.
+    const row = (key: string) => (
+      <div key={key} data-motion-row="$root">
+        <CompactThreadCard viewModel={makeViewModel({})} onClick={vi.fn()} />
+        <button type="button" data-compact-thread-pin="true" />
+        <button type="button" data-compact-thread-more="true" />
+      </div>
+    );
+    const { rerender, container } = render(row('first'));
+    const more = container.querySelector<HTMLElement>('[data-compact-thread-more]');
+    more?.focus();
+    rerender(row('second'));
+    const now = container.querySelector('[data-compact-thread-more]');
+    expect(now).not.toBe(more);
+    expect(document.activeElement).toBe(now);
+    cleanup();
+  });
+
   it('stays as it is when what loads is older activity, not something that just happened', () => {
     const motion = change(
       { lastActivityTs: Date.now() - 60 * MINUTE, previewText: 'Tom: first' },

@@ -97,25 +97,37 @@ const useShowChange = (cardRef: RefObject<HTMLElement>, thread: string, now: Sho
   }, [cardRef, thread, lastActivityTs, isStreaming, messageCount]);
 };
 
-/** The thread whose card held the focus as it left the page, until that commit has ended. */
-let focusLeftWith: string | undefined;
+/** What a click can leave the focus on in a card's row: the card, and its row's quick actions. */
+const ROW_CONTROLS = [
+  'button[data-thread-root-id]',
+  '[data-compact-thread-resolve]',
+  '[data-compact-thread-pin]',
+  '[data-compact-thread-more]',
+];
+
+/** The thread whose row held the focus as it left the page, and on what, until that commit ends. */
+let focusLeft: { thread: string; control: string } | undefined;
 
 /**
- * Hands the focus on: a card that leaves the page with the focus on it (a mouse click left it
- * there) gives it to the card that takes its thread's place in the same commit (`useRowKeys`).
+ * Hands the focus on: a row that leaves the page with the focus on its card or on one of its
+ * quick actions (a mouse click left it there) gives it to the same control of the row that takes
+ * its thread's place in the same commit (`useRowKeys`).
  */
 const useFocusHandedOn = (cardRef: RefObject<HTMLElement>, thread: string): void => {
   useLayoutEffect(() => {
     const card = cardRef.current;
-    // The card is the button that opens the thread, or the box around it.
-    const button = card?.matches('button') ? card : card?.querySelector<HTMLElement>('button');
-    if (focusLeftWith === thread) button?.focus({ preventScroll: true });
+    // The card's row in the Compact list, which holds its quick actions; elsewhere the card.
+    const row = card?.closest<HTMLElement>('[data-motion-row]') ?? card;
+    const find = (control: string) =>
+      card?.matches(control) ? card : row?.querySelector<HTMLElement>(control);
+    if (focusLeft?.thread === thread) find(focusLeft.control)?.focus({ preventScroll: true });
     return () => {
-      // React runs this with the card still in the page, so still focused.
-      if (!button || document.activeElement !== button) return;
-      focusLeftWith = thread;
+      // React runs this with the row still in the page, so still focused.
+      const control = ROW_CONTROLS.find((selector) => find(selector) === document.activeElement);
+      if (!control) return;
+      focusLeft = { thread, control };
       queueMicrotask(() => {
-        if (focusLeftWith === thread) focusLeftWith = undefined;
+        if (focusLeft?.thread === thread) focusLeft = undefined;
       });
     };
   }, [cardRef, thread]);

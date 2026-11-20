@@ -158,6 +158,32 @@ describe('the compact thread list in motion', () => {
     expect(motion.left()).toEqual([]);
   });
 
+  it('keeps the cards in view in the page when one card moves up and another down at once', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const ids = Array.from({ length: 10 }, (_, index) => `$${index}`);
+    const { rerender, container } = render(list(ids));
+    const view = container.querySelector<HTMLElement>('[data-compact-room-view]');
+    const cards = [...container.querySelectorAll('[data-scroll-anchor]')];
+    if (view) view.scrollTop = 700;
+    const observer = new MutationObserver(() => undefined);
+    observer.observe(container, { childList: true, subtree: true });
+
+    // $5 moves to the top and $1 to the end, as when a held order is let go.
+    const order = ['$5', '$0', '$2', '$3', '$4', '$6', '$7', '$8', '$9', '$1'];
+    rerender(list(order));
+    const taken = new Set(observer.takeRecords().flatMap((record) => [...record.removedNodes]));
+    observer.disconnect();
+    vi.unstubAllGlobals();
+
+    // Only the two that moved left the page: the one that went up for a new card, the one that
+    // went down to be put back where it stands now.
+    expect(taken).toEqual(new Set([cards[5], cards[1]]));
+    const now = [...container.querySelectorAll('[data-scroll-anchor]')];
+    expect(now.map((card) => card.getAttribute('data-scroll-anchor'))).toEqual(order);
+    expect(now[0]).not.toBe(cards[5]);
+    expect(now[9]).toBe(cards[1]);
+  });
+
   it('glides a card into the Pinned section', () => {
     const { rerender } = render(list(['$a', '$b', '$c']));
     state.pinned = ['$c'];
