@@ -1080,6 +1080,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Compactar o contexto dos agentes antes da próxima resposta nesta conversa.",
         "reply_mode": "Mostrar ou mudar se os agentes precisam de uma menção para iniciar uma conversa aqui (definir/repor requer um administrador da sala)."
       }
     },

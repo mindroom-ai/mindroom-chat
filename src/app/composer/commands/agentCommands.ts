@@ -63,6 +63,11 @@ export const MINDROOM_COMMANDS: AgentCommandItem[] = [
     description: 'Switch one agent between standard tools and a Bash-only interface.',
   },
   {
+    name: 'compact',
+    syntax: '!compact [agent_or_team]',
+    description: "Compact the agents' context before their next reply in this conversation.",
+  },
+  {
     name: 'model',
     syntax: '!model [name|list|reset]',
     description: 'Show or switch the model used in the current thread.',
