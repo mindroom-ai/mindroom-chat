@@ -255,7 +255,9 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
 
   // Open shows that sub-agent's run in the Sub-agents panel.
   await sendRuns(room);
-  await child.locator('[data-job-open]').click();
+  // The row's title is its way there, from anywhere on the row: here a press on its time.
+  await expect(child.locator('[data-job-open]')).toHaveText('List every caller of schedule_retry');
+  await child.locator('[data-job-elapsed]').click({ force: true });
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
   // Beside the panel the bar is narrower: the columns stay.

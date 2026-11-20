@@ -37,8 +37,8 @@ const rowBackground = createVar();
 const button = config.size.X500;
 // The title line keeps the typing strip's height beside it: its controls are a line tall.
 const lineHeight = '1.5rem';
-// A row's buttons, each in its own slot: Thread, Open, Stop. Thread's slot is there only while a
-// job of another thread lists (WithThreads).
+// A row's buttons, each in its own slot: Thread, Stop. Thread's slot is there only while a job of
+// another thread lists (WithThreads).
 const actionSlots = createVar();
 // Between them, to a finger, twice the 8 px each button's hit area reaches out, so no two share a
 // point.
@@ -70,7 +70,7 @@ export const Bar = style([
       [tokens]: '3.25rem',
       [cost]: '3.5rem',
       [time]: '3.5rem',
-      [actionSlots]: '2',
+      [actionSlots]: '1',
       [actionGap]: config.space.S100,
     },
     '@media': { '(pointer: coarse)': { vars: { [actionGap]: '16px' } } },
@@ -82,7 +82,7 @@ export const Bar = style([
   },
 ]);
 
-export const WithThreads = style({ vars: { [actionSlots]: '3' } });
+export const WithThreads = style({ vars: { [actionSlots]: '2' } });
 
 // Listed, the bar spans the dock's whole line (DockBars, in RoomOverlay.css, holds it), over the
 // typing strip beside it, which keeps its place, so the dock keeps its rows whatever changes while
@@ -370,6 +370,19 @@ const truncate = {
 // The task (or the tool's name) is the row's one bold text; it gives way after nothing else.
 export const Task = style({ ...truncate, flex: '1 1 0', fontWeight: config.fontWeight.W600 });
 
+// A sub-agent job's title opens its run, and reaches over its whole row: a press anywhere on the
+// row but its buttons is one on the title. Under the pointer its title is underlined; to the
+// keyboard the row is ringed.
+export const RowOpen = style({
+  ...textButton,
+  selectors: {
+    '&::before': { content: '""', position: 'absolute', inset: 0, borderRadius: 'inherit' },
+    [`${Job}:hover &`]: { textDecoration: 'underline' },
+    '&:focus-visible': { outline: 'none' },
+    '&:focus-visible::before': { ...keyboardRing, outlineOffset: -2 },
+  },
+});
+
 // The agent's name gives way only once what it does is gone.
 export const Name = style({
   ...truncate,
@@ -437,13 +450,14 @@ export const Actions = style({
   justifyContent: 'end',
   alignItems: 'center',
   gap: actionGap,
+  // Over the reach of the row's title, so its buttons keep their own presses.
+  position: 'relative',
 });
 
-// Each button keeps its slot, so a row without Open or Thread lines its others up with the rows
-// that have them: Stop (or its Stopping) last, Open before it, Thread first.
+// Each button keeps its slot, so a row without Thread lines its Stop up with the rows that have
+// one: Stop (or its Stopping) last, Thread before it.
 globalStyle(`${Actions} > *`, { gridColumn: '-2 / -1', gridRow: 1 });
-globalStyle(`${Actions} > [data-job-open]`, { gridColumn: '-3 / -2' });
-globalStyle(`${Actions} > [data-job-thread]`, { gridColumn: '-4 / -3' });
+globalStyle(`${Actions} > [data-job-thread]`, { gridColumn: '-3 / -2' });
 
 // Open, Stop and Stop all: one family of 28 px icon buttons on the bar's own material, Stop
 // turning red under the pointer. To a finger each reaches 44 px.

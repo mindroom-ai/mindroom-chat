@@ -197,7 +197,8 @@ type RowProps = {
   viewThreadId: string | null;
   // When an ended job ended, which its time stops at.
   endedAt?: number;
-  // Shows the job's run in the Sub-agents panel; only for a job whose run the panel has.
+  // Shows the job's run in the Sub-agents panel, from a press anywhere on the row; only for a job
+  // whose run the panel has.
   onOpen?: () => void;
   // The job's Stop, or its Stopping.
   stop: ReactNode;
@@ -224,7 +225,8 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 /**
  * One listed job on the bar's grid: its title, else its task, as the headline, with at most one
  * pill; under it who, on what model, and a tool job's arguments. Then its calls, tokens and cost,
- * its time, and its buttons: the thread it runs in when that is not the view's, Open and Stop.
+ * its time, and its buttons: the thread it runs in when that is not the view's, and Stop. A
+ * sub-agent job's title opens its run, from anywhere on the row.
  * A job without its run's frames shows its name alone, as before.
  */
 export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, stop }: RowProps) {
@@ -253,9 +255,24 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
       <JobLogo room={room} item={item} small={nested} />
       <span className={css.JobText}>
         <span className={css.Headline}>
-          <span className={css.Task} title={meta?.task || item.name} dir="auto">
-            {headline}
-          </span>
+          {onOpen ? (
+            // The row's way to its run: its title, whose reach is the whole row.
+            <button
+              type="button"
+              className={classNames(css.Task, css.RowOpen)}
+              title={meta?.task || item.name}
+              aria-label={t('mindroomUi.backgroundJobs.openFor', { name: headline })}
+              onClick={onOpen}
+              data-job-open
+              dir="auto"
+            >
+              {headline}
+            </button>
+          ) : (
+            <span className={css.Task} title={meta?.task || item.name} dir="auto">
+              {headline}
+            </span>
+          )}
           {waiting && (
             <span className={css.Pill.waiting} title={t('mindroomUi.backgroundJobs.waiting')}>
               <span className={css.PillIcon}>
@@ -315,7 +332,6 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
       <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
       <span className={css.Actions}>
         {elsewhere && <ThreadButton room={room} threadId={item.threadId!} />}
-        {onOpen && <OpenButton name={name} onOpen={onOpen} />}
         {stop}
       </span>
     </li>

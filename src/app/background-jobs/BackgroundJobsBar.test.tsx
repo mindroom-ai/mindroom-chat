@@ -63,6 +63,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Headline: 'Headline',
   Detail: 'Detail',
   Task: 'Task',
+  RowOpen: 'RowOpen',
   Name: 'Name',
   Model: 'Model',
   Activity: 'Activity',
@@ -614,7 +615,7 @@ const ingestRun = (
 const subagentJob = (jobId: string, overrides: Partial<BackgroundJob> = {}) =>
   job(jobId, { kind: 'subagent', tool: 'run_subagent', ...overrides });
 
-it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and from no other", async () => {
+it("opens the Sub-agents panel on a sub-agent job's run from its row's title, and from no other", async () => {
   ingestRun('s1');
   // The room's bar lists every thread's jobs: the panel opens for the job's own thread.
   state.jobs = [
@@ -632,8 +633,16 @@ it("opens the Sub-agents panel on a sub-agent job's run from its row's Open, and
   expect(opens[0]?.getAttribute('aria-label')).toBe(
     tr('mindroomUi.backgroundJobs.openFor', { name: 'mindroom_dev' })
   );
-  // The name is no button.
-  expect(button('mindroom_dev')).toBeUndefined();
+  // The title is the button, its words its text; the row has no other Open.
+  expect(opens[0]?.classList.contains('Task')).toBe(true);
+  expect(opens[0]?.textContent).toBe('mindroom_dev');
+  // Its other buttons: its thread's, then its Stop.
+  const rowButtons = [...(opens[0]?.closest('li')?.querySelectorAll('button') ?? [])];
+  expect(rowButtons.slice(1).map((item) => item.matches('[data-job-thread]'))).toEqual([
+    true,
+    false,
+  ]);
+  expect(rowButtons[2]?.matches('[data-cancel-job]')).toBe(true);
   await act(async () => (opens[0] as HTMLButtonElement).click());
   expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
     roomId: room.roomId,
