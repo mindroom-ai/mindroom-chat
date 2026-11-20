@@ -30,56 +30,63 @@ delivery calls the journal only from `voiceSendDraftController.ts`.
   `threadingEnabled`, `threadView?`. IDs only.
 - `VoiceJournalRecord`: `userId`, `recordingId`, `startedAt`, `mimeType`, and later
   `destination?`, `txnId?`, `discardUntil?`.
-- `voiceCaptureJournal(userId: () => string)`: what capture gets, `{ begin, append, flush, abandon }`.
-  `begin` and `append` add a row to what the recording still owes the disk and write all of it in
-  order, taking the Web Lock first; they resolve `true` while the disk holds everything so far.
-  `flush` writes once more what a stopped recording still owes the disk. `abandon` deletes a
-  recording that ended without audio.
-- `updateVoiceRecording(recordingId, changes)` resolves `true` only if this tab owns the record,
-  the record exists and the write committed. `deleteVoiceRecording(recordingId, expiredBy?)`
-  deletes record, chunks and lock; with `expiredBy`, only if the disk says the discard stood until
-  then. `clearVoiceRecordings(userId)` is what sign-out calls.
+- `transitionVoiceRecording(recordingId, change?)`: the one way a recording this tab owns
+  changes on disk (spec, rule A). `change` gets the record and returns what it becomes, or
+  nothing to delete the recording; every call also writes the audio the disk does not hold yet,
+  in the same transaction. It resolves `'committed' | 'absent' | 'failed'`.
+- `voiceCaptureJournal(userId: () => string)`: what capture gets, `{ begin, append, abandon }`.
+  `begin` takes the Web Lock and writes the record; `append` keeps the chunk's Blob until it is
+  written. Both resolve `true` while the disk holds everything so far. Without the lock nothing
+  is kept. `abandon` deletes a recording that ended without audio.
+- `clearVoiceRecordings(userId)` is what sign-out calls.
 - `adoptVoiceOrphans(userId, now?)`: returns nothing without Web Locks. Otherwise it copies the
-  old `mindroom-voice-drafts` entries, then, oldest first, takes each of the account's records
-  with `navigator.locks.request(name, { ifAvailable: true })`. A record whose `discardUntil`
-  passed, or that has no chunks, is deleted; one it cannot read gives its lock back; the rest
-  resolve as `{ record, file, duration, waveform }`, a discard with time left included.
+  account's old `mindroom-voice-drafts` entry (as `legacy-<SHA-256>`, under the import lock),
+  then, oldest first, takes each of the account's records with
+  `navigator.locks.request(name, { ifAvailable: true })`. A record whose `discardUntil` passed,
+  or that has no chunks, is deleted; one it cannot read gives its lock back; the rest resolve as
+  `{ record, file, duration }`, a discard with time left included.
 
 `voice/voiceCaptureSession.ts`:
 
-- `createVoiceCaptureSession({ journal?, keep? })`. `CapturedVoiceRecording` has `recordingId` and
-  `unprotected?`; the snapshot has `unprotected`, which follows the journal's last write.
+- `createVoiceCaptureSession({ journal?, keep? })`. `CapturedVoiceRecording` has `recordingId`;
+  the snapshot has `unprotected`, which follows the journal's last write. A recording is handed
+  over at once: what is done with it next (send, park, discard) writes what the disk still owes.
 - `dataavailable` assigns `seq` synchronously and hands the chunk to `journal.append`.
 - `pagehide` and `visibilitychange` to hidden call `recorder.requestData()`.
 - Audio that was not sent goes to `keep(recording, discarded)` instead of being dropped: a discard
   (for its Undo), a recorder that stops by itself, `retire` and `releaseOwner`. A recorder that is
-  let go of while it records is stopped and waited for, so `keep` gets its last audio too.
+  let go of while it records, or after a Send or Discard it has not finished, is waited for, so
+  its last audio is kept too.
 
-`composer/roomInputDrafts.ts`: `PendingVoiceSendDraft` has `recordingId`, `txnId?` and
-`unprotected?`; its `context` is a destination or, for a recording that has none, only its account
-(`UnplacedVoiceContext`, told apart by `hasVoiceDestination`). `queuedVoiceDraftsAtom` and
-`discardedVoiceDraftsAtom` sit beside the slot.
+`composer/roomInputDrafts.ts`: `PendingVoiceSendDraft` has `recordingId`, `txnId?`,
+`attemptedRoomName?` and `unprotected?` (a label only); its `context` is a destination or, for a
+recording that has none, only its account (`UnplacedVoiceContext`, told apart by
+`hasVoiceDestination`). One without a destination that has a `txnId` may already be sent (rule
+B). `queuedVoiceDraftsAtom` and `discardedVoiceDraftsAtom` sit beside the slot.
 
-`voice/voiceSendDraftController.ts`: `createVoiceSendDraftController(drafts, journal)`.
+`voice/voiceSendDraftController.ts`: `createVoiceSendDraftController(drafts, transition)`.
 `SendRecordingCallback` gets `{ txnId, commit }` and resolves with the voice event's ID. The
 composer calls `commit(resolved destination)` before it uploads anything; `commit` rejects when
-the journal could not take it, unless the draft is `unprotected`. The record is deleted only when
-the callback resolved with an ID. `drafts.settle(recordingId, token, failed)` ends an attempt
-wherever its draft is. `retry` takes the pressing composer's context for a draft without one.
+that write `failed`, on every attempt, and lets a recording that is `absent` from the disk go
+from memory. The record is deleted only when the callback resolved with an ID, and the attempt
+counts as sent only once that delete is written. `drafts.settle(recordingId, token, failed)` ends
+an attempt wherever its draft is. `retry` sends a draft that has a destination there under its
+ID, and one without where Send was pressed under a new ID.
 
 `matrix/protocol/pendingLocalEcho.ts`: `eventIdOfTransaction(room, txnId)`, the event the server
 holds for a transaction ID. `patches/matrix-js-sdk`: a cancelled local echo gives its transaction
 ID back. `matrix/client/unsentMessages.ts` does not keep voice messages.
 
-`voice/voiceDrafts.ts` (jotai, no React): `parkVoiceDraft`, `settleVoiceDraft`,
+`voice/voiceDrafts.ts` (jotai, no React): `parkVoiceDraft`, `keepVoiceDraft`, `settleVoiceDraft`,
 `discardVoiceDraft`, `undoVoiceDiscard(store, recordingId)`, `recoverVoiceDrafts(mx, store)`,
 `keepRecoveringVoiceDrafts(mx, store)` (now, and on `focus` and `visibilitychange`) and
 `offerQueuedVoiceDraft(store, userId)`, which moves the account's next queued draft into the
-single slot while it is empty and no recorder is open. `useRoomInputVoice` calls the last two: a
-composer is where the account's rooms are loaded and where a draft can show.
+single slot while it is empty and no recorder is open. `useRoomInputVoice` calls the last one.
 
 `voice/VoiceDiscardToast.tsx` (mounted in `shell/ClientShell.tsx`): "Recording discarded" with
-Undo in the page's notice place, for the account's own last discard.
+Undo in the page's notice place, for the account's own last discard; "Couldn't undo" with Retry
+after an Undo that could not be written. It also starts `keepRecoveringVoiceDrafts`, once for
+the signed-in app.
 
 ## Tasks
 
@@ -143,15 +150,23 @@ Each task: failing test first, then the code, then `nix develop -c npx vitest ru
 - **No Web Locks, no journal.** The spec's fallback (adopt after 10 quiet minutes) let two tabs own
   one recording. Without Web Locks nothing is written or adopted, and recordings say they are not
   protected.
-- **A send whose intent cannot be journaled sends nothing** and marks the draft `unprotected`. The
-  next Retry then goes from memory, so a broken disk never blocks sending for good.
-- **Undo is kept in memory too.** A discard that the disk could not be told to undo comes back from
-  memory, marked `unprotected`; the disk copy is then deleted at its deadline.
-- **A draft whose room is gone or not joined** loses its destination and shows in every composer,
-  instead of being dropped.
-- **The confirmation dialog of a parked draft's Discard stays;** the Undo toast follows it.
+- **A send whose intent cannot be journaled sends nothing, on every attempt** (round 2: the
+  first version let the second Retry go from memory, which could post twice after a crash). Only
+  a recording the disk never held goes from memory. A disk that takes no write at all for a
+  recording it holds blocks its send until it does; Discard has the same limit.
+- **Undo acts after its write** (round 2: it used to bring the draft back from memory while the
+  expiry still deleted the disk copy). A failed Undo keeps its toast and deletes nothing in this
+  page. A page that loads after the deadline still deletes a discard the disk says stood.
+- **A draft whose room is gone or not joined** loses its destination and shows in every composer
+  as "May already be sent to …", to discard or to send a copy of under a new transaction ID.
+  The composer's own Send does not send that copy.
+- **The confirmation dialog of a parked draft's Discard is gone** (round 2): Undo replaces it.
+- **A recording that was sent but could not be deleted** stays as a failed draft with its
+  transaction ID; Retry finds the event the server holds and deletes it.
 - **The persisted error text is gone.** After a reload a draft with a destination says "Sending
   this voice message was interrupted."
-- **Legacy copy.** Its ID is `imported:<userId>:<bytes>:<duration>`. If the journal copy was sent
-  and the old entry's delete had failed, the entry is copied again; this was accepted.
+- **Legacy copy.** Its ID is `legacy-<SHA-256 of the bytes>`, made under a Web Lock per account.
+  The old entry is deleted with its copy, before it, and only if it still is that audio; that
+  last check is a read and a delete, not one transaction, which a tab of the older version
+  writing in between could slip through.
 - **Sign-out** still deletes the account's records. A decision on that is pending.

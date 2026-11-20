@@ -25,6 +25,21 @@ window expired.**
 Promise: recovery through the last chunk written to disk. Not "nothing is ever lost": the last
 second or so before a crash can be gone.
 
+Two rules follow from it (review round 2):
+
+- **A. The journal record is the truth, and every change to it is write-then-act.** One function,
+  `transitionVoiceRecording(recordingId, change)`, makes every change: send intent, discard, Undo,
+  discard expiry, park, and the delete after an acknowledged send. It resolves `committed` (the
+  disk holds the change and all audio so far), `absent` (the disk has no such recording: it never
+  took one, or it is deleted) or `failed` (nothing was written; the state before stands). What
+  shows, what expires and what is sent act on that outcome, after the write. A failed write keeps
+  the state before it, which is the safer one, and shows the error.
+- **B. A recording whose send intent was written belongs to that destination.** It is retried and
+  recovered only there, under its transaction ID. If that room is not there for the account, every
+  composer shows it as "May already be sent to <room name, or another room>", and sending it
+  elsewhere is a copy under a new transaction ID, behind its own button "Send a copy here". A
+  recording that was never attempted has no destination.
+
 ## Web journal (`src/app/composer/voice/voiceRecordingJournal.ts`)
 
 - IndexedDB database `mindroom-voice-journal`. It has two stores:
@@ -32,21 +47,23 @@ second or so before a crash can be gone.
     `startedAt`, `mimeType`. Later changes that are not chunks are written to the same record:
     `destination`, `txnId`, `discardUntil`. The destination holds IDs only (room, thread root,
     the event replied to and its thread), never the text of what is replied to, in any room.
-  - `chunks`, keyed by `[recordingId, seq]`, holding `{bytes: ArrayBuffer, type, elapsedMs,
-samples}`. Chunks are only appended, never rewritten. `seq` is assigned synchronously in
-    `dataavailable`, before the async `arrayBuffer()`. Writes are serialized per recording. The
-    first chunk that has a `type` gives a recovered recording its MIME type.
-  - Every write says whether it reached the disk; a record that is missing counts as a failure.
+  - `chunks`, keyed by `[recordingId, seq]`, holding `{bytes: ArrayBuffer, type, elapsedMs}`.
+    Chunks are only appended, never rewritten. `seq` is assigned synchronously in
+    `dataavailable`. Writes are serialized per recording, each in one transaction that is
+    aborted as a whole when any part of it fails. The first chunk that has a `type` gives a
+    recovered recording its MIME type. Waveform samples are not kept: a recovered recording shows
+    the fallback waveform.
+  - A chunk that is not on disk yet is kept as its Blob and read again for every try, so a read
+    that failed once does not stop the journal.
   - Bytes are stored as an ArrayBuffer, never a Blob: WebKit refuses Blobs in IndexedDB in a private
     window.
 - No React, jotai or matrix-js-sdk imports. The capture session gets the journal injected; capture
   does not import it.
 - The in-memory chunks stay the primary copy. If a journal write fails (quota, private mode,
   eviction), recording goes on and the capsule says "Not protected against a crash". The failed
-  chunk is written again, in its place, with the next one, and the warning goes once the disk
-  holds everything. A recording that ends while the disk does not hold all of it is written once
-  more; if that fails too it is parked marked as not protected, and its failure dialog does not
-  say it is saved.
+  chunk is written again, in its place, with the next one and with every later change to the
+  recording, and the warning goes once the disk holds everything. A recording is parked, or said
+  to be saved in its failure dialog, only by the outcome of such a write.
   `navigator.storage.persist()` is asked once, best effort.
 - On `pagehide` and `visibilitychange` to hidden, call `recorder.requestData()` (best effort).
 
@@ -59,12 +76,14 @@ samples}`. Chunks are only appended, never rewritten. `seq` is assigned synchron
   never with `query()` and then acting. If it gets the lock, the record is an orphan and now
   belongs to this tab. A second tab can never adopt it.
 - If `navigator.locks` is missing, nothing says whose a recording is, so nothing is written to the
-  journal and nothing is adopted: recordings live in memory and say "Not protected against a
-  crash". (The first version had a fallback that adopted a record that had been quiet for 10
-  minutes. Review showed that two tabs could then own one recording, so it was removed.)
+  journal, no second copy of the audio is kept for it, and nothing is adopted: recordings live
+  in memory and say "Not protected against a crash". (The first version had a fallback that
+  adopted a record that had been quiet for 10 minutes. Review showed that two tabs could then
+  own one recording, so it was removed.)
 - Recovery handles each record on its own: one it cannot read gives its lock back and is offered
-  again later. It runs when a composer mounts and again whenever the page comes to the front, so
-  a recording whose tab closed later is offered too.
+  again later. It runs once for the signed-in app (from the Undo toast's component, when the
+  rooms are there) and again whenever the page comes to the front, so a recording whose tab
+  closed later is offered too.
 
 ## Recovery
 
@@ -72,38 +91,45 @@ samples}`. Chunks are only appended, never rewritten. `seq` is assigned synchron
   slot, so it shows them one at a time. A record is never erased because the slot is empty.
 - An orphan becomes a parked draft with no destination: "Recovered recording · 4:32" with Send and
   Discard. It is the chunks concatenated in `seq` order, with the stored MIME type; its duration is
-  the last chunk's `elapsedMs` and its waveform the stored samples. It shows in any composer, and
-  Send in that composer sends it there. This matches the destination-free live recording from
+  the last chunk's `elapsedMs`. It shows in any composer, and Send in that composer sends it
+  there. This matches the destination-free live recording from
   `2026-11-20-voice-recording-follows-navigation-design.md`.
 - An orphan that has a `destination` and `txnId` (the crash happened mid-send) is parked at that
-  destination, with Retry, using the same `txnId`.
+  destination, with Retry, using the same `txnId`. If its room is not there, rule B applies.
 - An orphan whose discard still has time left comes back as its Undo toast, with that time.
 
 ## Send, discard, stop
 
 - Send: the destination actually used (the thread root's server ID, resolved by the composer) and
-  a stable Matrix transaction ID are written to the record before anything is uploaded. If that
-  write fails, nothing is sent and the draft stays with its error. Every attempt, also a retry in
+  a stable Matrix transaction ID are written to the record before anything is uploaded, on every
+  attempt. If that write fails, nothing is sent and the draft stays with its error. Only a
+  recording the disk never held (`absent`) is sent from memory. Every attempt, also a retry in
   the same page, sends under that one ID: a small matrix-js-sdk patch gives a cancelled local
   echo's ID back, and a recording the server already holds under the ID is not sent again. The
-  record is deleted only after the server gave this voice event an ID. A voice message is not
-  kept among the unsent messages as well: the journal is its one way back.
+  record is deleted only after the server gave this voice event an ID, and the draft leaves the
+  composer only once that delete is written. A voice message is not kept among the unsent
+  messages as well: the journal is its one way back.
 - A send settles its own draft, found by recording ID and attempt in the slot or the queue. It
   never clears or replaces another recording that took the slot meanwhile.
-- Discard: the record gets `discardUntil = now + 10 s` and an Undo toast shows, for the account
-  that discarded it. Each discard has its own ten seconds. At expiry the record is deleted only
-  if the disk still says it is discarded for that long. If `discardUntil` has passed when a page
-  loads, the record is deleted then. Undo turns the recording into a parked draft once the disk
-  no longer says it is discarded; if the disk cannot be told, the draft is back from memory and
-  says it is not protected.
+- Discard: the record gets `discardUntil = now + 10 s`. Once that is written the recording leaves
+  the composer and an Undo toast shows, for the account that discarded it; if it cannot be
+  written the recording stays, with the error. A discard asks no confirmation, of a parked
+  recording either: Undo replaces it. Each discard has its own ten seconds. At expiry the record
+  is deleted only if the disk still says it is discarded. If `discardUntil` has passed when a
+  page loads, the record is deleted then. Undo first calls the expiry off, then clears
+  `discardUntil`; the recording is a parked draft again only once that is written, and until
+  then the toast stays and says "Couldn't undo", with Retry.
 - A recorder that stops without Send or Discard (`finishStop`, `retire`, `releaseOwner`) parks the
   chunks it has as a draft instead of dropping them. One that was still recording is stopped and
-  waited for (up to the stop timeout), so its last audio is kept too. If it has no chunks,
-  today's error stays.
+  waited for (up to the stop timeout), so its last audio is kept too; so is one whose Send or
+  Discard was accepted before its composer went. If it has no chunks, today's error stays.
 - `savedVoiceDraft.ts` goes away. Its parked failed send lives in the journal (one store, one
-  restore path). The old `mindroom-voice-drafts` database is copied entry by entry under an ID
-  made of the account and the audio, so copying twice changes nothing. The database stays, since
-  an old tab may still write to it; only an entry that still is what was copied is deleted.
+  restore path). The account's entry in the old `mindroom-voice-drafts` database is copied under
+  the ID `legacy-<SHA-256 of its bytes>`, so copying twice changes nothing and two recordings
+  are never taken for one. The copy is made under the Web Lock
+  `mindroom-voice-legacy-import:<userId>`, held from before the read until after the copy. The
+  old entry is not deleted then: it goes, under the same lock and before the copy does, when the
+  copy is deleted (acknowledged, or its discard stood), if it still is that audio.
 - Sign-out deletes the account's records (as today).
 
 ## Mac Catalyst (`ios/App/App/MindRoomVoiceRecorderPlugin.swift`, `src/app/native/nativeVoiceRecorder.ts`)
@@ -126,8 +152,12 @@ samples}`. Chunks are only appended, never rewritten. `seq` is assigned synchron
 
 ## Tests (the gate is a forced kill, not a clean stop)
 
-- Unit: the journal appends in `seq` order even when `arrayBuffer()` resolves out of order. A write
-  failure keeps recording and warns once.
+- Unit: the journal appends in `seq` order whatever time a read takes. A write failure keeps
+  recording and warns once; a failed read is made again; a failed write changes nothing.
+- Unit, one per failure path of a durable change: Undo, send intent on every attempt, discard,
+  park, the delete after a send, discard then unmount, a room that is gone (copy under a new ID),
+  and the legacy copy (same length and duration, a page that read it earlier, a source that
+  cannot be deleted).
 - Unit: recovery through `ifAvailable` adopts only unlocked records, and two tabs adopt one record
   once.
 - Unit: a recorder stopping by itself parks the audio. Discard plus Undo restores it; an expired
