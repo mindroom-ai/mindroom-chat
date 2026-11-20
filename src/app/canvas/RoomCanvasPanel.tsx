@@ -5,7 +5,11 @@ import { ThemeKind, useTheme } from '../theme/useTheme';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { getMemberDisplayName, isEventOrderedAfter } from '../matrix/room';
-import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
+import {
+  CONVERSATION_MIN_WIDTH,
+  ResizablePanel,
+  SIDE_PANEL_MAX_WIDTH,
+} from '../ui/panels/ResizablePanel';
 import { readChatUiAction, type ChatUiCanvas } from '../matrix/protocol/chatUiProtocol';
 import { CanvasPanel } from './CanvasPanel';
 import { readCanvasTheme } from '../messages/canvas/canvasTheme';
@@ -37,9 +41,8 @@ type ShowCanvas = {
   shareState?: true;
 };
 
-// Dashboards need room: the panel may grow wide while the conversation keeps a usable column.
+// Dashboards need room: the panel opens wider than most.
 const CANVAS_DEFAULT_WIDTH = 560;
-const CANVAS_MAX_WIDTH = 1600;
 
 function LoadedCanvasPanel({
   mx,
@@ -134,7 +137,7 @@ function LoadedCanvasPanel({
       storageKey={canvasWidthStorageKey(mx.getSafeUserId())}
       defaultWidth={CANVAS_DEFAULT_WIDTH}
       minContentWidth={CONVERSATION_MIN_WIDTH}
-      maxPanelWidth={CANVAS_MAX_WIDTH}
+      maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
       fullWidth={expanded}
       passthrough={mobile}
       resizeLabel={t('mindroomUi.canvas.resize')}

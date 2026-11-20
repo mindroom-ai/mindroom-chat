@@ -118,7 +118,9 @@ if (command === 'dmgbuild') fs.writeFileSync(args[args.length - 1], 'fixture dmg
   };
 };
 
-describe('Mac release build script', () => {
+// Each test runs the real build script against Node stubs, starting dozens of processes: up to
+// ~3 s alone, past the 5 s default when the whole suite runs in parallel on a busy Mac.
+describe('Mac release build script', { timeout: 30_000 }, () => {
   it('fetches the watch SDK and Sparkle the Xcode project references before Capacitor syncs', () => {
     const { run } = fixture();
     const result = run([]);

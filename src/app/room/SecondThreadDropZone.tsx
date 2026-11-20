@@ -2,6 +2,7 @@ import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'r
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
+import { CONVERSATION_MIN_WIDTH, MIN_WIDTH } from '../ui/panels/ResizablePanel';
 import { readThreadDragData, THREAD_DRAG_TYPE } from '../navigation/secondThread';
 import { useThreadDrag } from './useThreadDrag';
 import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
@@ -13,6 +14,11 @@ const storedWidth = (key: string): number => {
     ? value
     : SECOND_THREAD_DEFAULT_WIDTH;
 };
+/**
+ * As the column itself (ResizablePanel), the zone leaves the conversation its minimum in the row
+ * it lies over (PanelRow), however wide the column was stored on a wider row.
+ */
+const ZONE_MAX_WIDTH = `max(min(${MIN_WIDTH}px, 100%), 100% - ${CONVERSATION_MIN_WIDTH}px)`;
 
 /**
  * While a thread card is dragged on the room page, the place along the room's end edge where the
@@ -76,7 +82,7 @@ export function SecondThreadDropZone({
     <div
       ref={zoneRef}
       className={css.DropZone}
-      style={{ width: storedWidth(widthKey) }}
+      style={{ width: storedWidth(widthKey), maxWidth: ZONE_MAX_WIDTH }}
       data-over={over || undefined}
       data-testid="second-thread-drop-zone"
       aria-hidden="true"
