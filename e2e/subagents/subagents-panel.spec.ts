@@ -47,11 +47,17 @@ const joinNamespacedAgent = async (room: PanelRoom, name: string, displayname: s
 
 /**
  * One sub-agent run of the room's agent, sending its frames in order: a sub-agent's first turn, or
- * a later turn of the sub-agent `subagent` names.
+ * a later turn of the sub-agent `subagent` names. `sent` goes into each frame's meta (its model,
+ * what it used).
  */
 const startRun = (
   room: PanelRoom,
-  { name, task, subagent }: { name: string; task: string; subagent?: string }
+  {
+    name,
+    task,
+    subagent,
+    sent = {},
+  }: { name: string; task: string; subagent?: string; sent?: Record<string, unknown> }
 ) => {
   const startedAt = Date.now() / 1000;
   const sid = `${Date.now()}-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
@@ -68,6 +74,7 @@ const startRun = (
     status: 'running',
     started_at: startedAt,
     ended_at: null,
+    ...sent,
     ...extra,
   });
   const send = async (frame: Record<string, unknown>) => {
@@ -218,7 +225,20 @@ test('the Sub-agents panel says what a run does in plain words, as it starts', a
   test.setTimeout(3 * 60_000);
   // The reader keeps the app's default: no usage details.
   const room = await openPanelRoom(context, page);
-  const run = startRun(room, { name: 'researcher', task: "Summarize this week's meeting notes" });
+  // The run sends its model and what it used, which the panel keeps behind a closed Usage.
+  const run = startRun(room, {
+    name: 'researcher',
+    task: "Summarize this week's meeting notes",
+    sent: {
+      model: {
+        config: 'fable',
+        display_name: 'Fable 5.2',
+        provider: 'anthropic',
+        id: 'claude-fable-5.2',
+      },
+      usage: { input_tokens: 300_000, output_tokens: 20_000, tool_calls: 12, cost_usd: 0.4 },
+    },
+  });
   await run.snapshot('Reading the notes.');
   const show = roomHeader(page).getByRole('button', {
     name: 'Show sub-agents, 1 active',
@@ -242,8 +262,24 @@ test('the Sub-agents panel says what a run does in plain words, as it starts', a
   await expect(
     card.locator('[data-subagent-model], [data-subagent-stat], [data-subagent-tool]')
   ).toHaveCount(0);
+  await expect(card).not.toContainText('Fable');
+  await expect(card).not.toContainText('12 calls');
+  await expect(card.locator('[data-subagent-time]')).toBeVisible();
   await card.click();
   await expect(panel.locator('[data-subagent-now]')).toContainText('Running a command…');
-  await expect(panel.locator('[data-subagent-strip], [data-subagent-model]')).toHaveCount(0);
+  // The open run's header has no model, and what it used waits in the closed Usage.
+  await expect(panel.locator('header [data-subagent-model]')).toHaveCount(0);
+  const usage = panel.locator('details[data-subagent-usage]');
+  await expect(usage).not.toHaveAttribute('open');
+  await expect(usage.locator('[data-subagent-cell="calls"]')).toBeHidden();
   await panel.screenshot({ path: testInfo.outputPath('subagents-panel-plain-steps.png') });
+  await usage.locator('summary').click();
+  await expect(usage).toHaveAttribute('open');
+  const cell = (name: string) => usage.locator(`[data-subagent-cell="${name}"]`);
+  await expect(cell('calls')).toHaveText('Calls12tool calls');
+  await expect(cell('tokens')).toHaveText('Tokens320K300K in · 20K out');
+  await expect(cell('cost')).toHaveText('Cost$0.40this run');
+  await expect(cell('model')).toHaveText('ModelFable 5.2fable (anthropic / claude-fable-5.2)');
+  await expect(usage.locator('[data-subagent-cell="status"]')).toHaveCount(0);
+  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-usage-open.png') });
 });
