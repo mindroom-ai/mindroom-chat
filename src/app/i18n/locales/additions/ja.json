@@ -428,7 +428,7 @@
         "profile": "プロフィール画像, 写真, 名前, ニックネーム",
         "deactivate": "アカウント削除, アカウントの解約",
         "localMindroom": "ペアリング, ペアリングコード, ローカル, デスクトップ",
-        "voiceKey": "音声メッセージ, マイク, 録音, プッシュトゥトーク, Option, Alt, キーボードショートカット",
+        "voiceKey": "音声メッセージ, マイク, 録音, プッシュトゥトーク, Control, Ctrl, Shift, スペース, キーボードショートカット",
         "emoji": "絵文字, ステッカー, パック, カスタム絵文字",
         "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
         "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断"
@@ -1298,7 +1298,10 @@
     "close": "スレッドを閉じる",
     "resizeSecond": "2つ目のスレッドのサイズを変更",
     "second": "2つ目のスレッド",
-    "dropSecond": "ドロップして2列目で開く"
+    "dropSecond": "ドロップして2列目で開く",
+    "newUnknown": "新着",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "あなたへのメンション"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",

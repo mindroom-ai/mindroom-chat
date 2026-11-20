@@ -428,7 +428,7 @@
         "profile": "大頭貼, 照片, 名稱, 暱稱",
         "deactivate": "刪除帳號, 關閉帳號",
         "localMindroom": "配對, 配對碼, 本機, 桌面",
-        "voiceKey": "語音訊息, 麥克風, 錄音, 按住說話, Option, Alt, 鍵盤快捷鍵",
+        "voiceKey": "語音訊息, 麥克風, 錄音, 按住說話, Control, Ctrl, Shift, 空白鍵, 鍵盤快捷鍵",
         "emoji": "表情符號, 貼圖, 表情包, 自訂表情符號",
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷"
@@ -1298,7 +1298,10 @@
     "close": "關閉討論串",
     "resizeSecond": "調整第二個討論串大小",
     "second": "第二個討論串",
-    "dropSecond": "放開以在第二欄開啟"
+    "dropSecond": "放開以在第二欄開啟",
+    "newUnknown": "新訊息",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "提及你"
   },
   "threadSnooze": {
     "title": "延後至",

@@ -95,7 +95,7 @@ type VoiceFeature = {
   submitIfActive: (textContent?: IContent) => Promise<boolean>;
   microphone: React.ReactNode;
   renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
-  /** What the voice key (right ⌥) reads and does here. */
+  /** What the voice key (⌃⇧Space, Ctrl+Shift+Space) reads and does here. */
   voiceKey: Pick<VoiceHoldTarget, 'active' | 'phase' | 'start'>;
 };
 

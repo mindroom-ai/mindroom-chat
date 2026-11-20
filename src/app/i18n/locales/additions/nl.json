@@ -437,7 +437,7 @@
         "profile": "profielfoto, foto, naam, bijnaam",
         "deactivate": "account verwijderen, account opheffen",
         "localMindroom": "koppelen, koppelcode, lokaal, desktop",
-        "voiceKey": "spraakbericht, microfoon, opnemen, push-to-talk, Option, Alt, sneltoets",
+        "voiceKey": "spraakbericht, microfoon, opnemen, push-to-talk, Control, Ctrl, Shift, spatiebalk, sneltoets",
         "emoji": "emoji, stickers, pakketten, eigen emoji",
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken"
@@ -1329,7 +1329,10 @@
     "close": "Thread sluiten",
     "resizeSecond": "Breedte van de tweede thread wijzigen",
     "second": "Tweede thread",
-    "dropSecond": "Loslaten om in tweede kolom te openen"
+    "dropSecond": "Loslaten om in tweede kolom te openen",
+    "newUnknown": "Nieuw",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Vermeldt jou"
   },
   "threadSnooze": {
     "title": "Snoozen tot",

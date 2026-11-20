@@ -72,7 +72,7 @@ const BOOLEAN_SETTING_KEYS = [
   'showToolCalls', // Agent replies list the tools they ran, not only a cog; a room or thread can differ.
   // Keyboard
   'shortcutHints', // Holding Command or Ctrl for a second shows the shortcut keys on the buttons.
-  'voiceHoldShortcut', // Right Option (right Alt) alone records a voice message in the composer.
+  'voiceHoldShortcut', // Control, Shift and Space record a voice message in the composer.
   // Notifications
   'showNotifications', // Desktop notifications for new messages.
   'isNotificationSounds', // Play a sound with each notification.

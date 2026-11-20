@@ -428,7 +428,7 @@
         "profile": "头像, 照片, 名称, 昵称",
         "deactivate": "删除账号, 注销账号",
         "localMindroom": "配对, 配对码, 本地, 桌面",
-        "voiceKey": "语音消息, 麦克风, 录音, 按住说话, Option, Alt, 键盘快捷键",
+        "voiceKey": "语音消息, 麦克风, 录音, 按住说话, Control, Ctrl, Shift, 空格键, 键盘快捷键",
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断"
@@ -1298,7 +1298,10 @@
     "close": "关闭讨论串",
     "resizeSecond": "调整第二个讨论串大小",
     "second": "第二个讨论串",
-    "dropSecond": "松开以在第二栏打开"
+    "dropSecond": "松开以在第二栏打开",
+    "newUnknown": "新消息",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "提及你"
   },
   "threadSnooze": {
     "title": "延后至",

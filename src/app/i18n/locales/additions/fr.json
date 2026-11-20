@@ -446,7 +446,7 @@
         "profile": "photo de profil, photo, nom, pseudo",
         "deactivate": "supprimer le compte, fermer le compte",
         "localMindroom": "associer, code d’association, local, ordinateur",
-        "voiceKey": "message vocal, micro, enregistrer, appuyer pour parler, Option, Alt, raccourci clavier",
+        "voiceKey": "message vocal, micro, enregistrer, appuyer pour parler, Contrôle, Ctrl, Maj, Shift, Espace, raccourci clavier",
         "emoji": "emoji, autocollants, packs, emoji personnalisés",
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre"
@@ -1360,7 +1360,10 @@
     "close": "Fermer le fil",
     "resizeSecond": "Redimensionner le second fil",
     "second": "Second fil",
-    "dropSecond": "Déposer pour ouvrir dans la seconde colonne"
+    "dropSecond": "Déposer pour ouvrir dans la seconde colonne",
+    "newUnknown": "Nouveau",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Vous mentionne"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
