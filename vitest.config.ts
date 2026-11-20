@@ -98,5 +98,8 @@ export default defineConfig({
     // keeps the zone it started in, so src/app/lib/time.formatterCache.test.ts and
     // src/app/threads/tags/snoozePresets.test.ts need forks (Vitest 4 has no pool per file).
     pool: 'forks',
+    // Tests lint text that is not on disk. With CI set, typescript-eslint 8 builds each program once
+    // from disk (single-run mode), so a file's type-aware lint would see its saved contents instead.
+    env: { TSESTREE_SINGLE_RUN: 'false' },
   },
 });
