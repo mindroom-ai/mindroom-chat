@@ -704,7 +704,7 @@ describe('tool call status from approval cards', () => {
     expect(renderShellCall(handle)).toContain('1 tool call waiting for approval');
   });
 
-  it('says in words which calls failed, on the run line, on the call and on the cog', () => {
+  it("says in words which calls didn't complete, on the run line, on the call and on the cog", () => {
     const completed = { type: 'tool_call_completed' };
     const failed = { ...completed, is_error: true };
     // The calls' line and rows, or the folded cog's name, for the two calls' trace entries.
@@ -761,26 +761,29 @@ describe('tool call status from approval cards', () => {
       { ...completed, result_preview: 'notes' },
       { ...failed, ...preview }
     );
-    expect(failedText).toContain('Read 1 file and ran 1 command · 1 failed');
-    expect(failedText).toContain('Ran commandFailed');
-    expect(failedText).not.toContain('Read fileFailed');
+    // The line puts the call that ran in words and names the one that did not, then counts it.
+    expect(failedText).toContain("Read 1 filerun_shell_command· 1 didn't complete");
+    expect(failedText).toContain("Run commandDidn't complete");
+    expect(failedText).not.toContain("Read fileDidn't complete");
     const workedText = renderCalls(completed, { ...completed, ...preview });
     expect(workedText).toContain('Read 1 file and ran 1 command');
-    expect(workedText).not.toContain('failed');
-    expect(workedText).not.toContain('Failed');
+    expect(workedText).not.toContain("didn't complete");
+    expect(workedText).not.toContain("Didn't complete");
     // Without a preview, or with a cut one, a call that did not succeed says so just the same.
     const allFailedText = renderCalls(failed, { ...failed, ...preview, truncated: true });
-    expect(allFailedText).toContain('Read 1 file and ran 1 command · 2 failed');
-    expect(allFailedText).toContain('Read fileFailed');
-    expect(allFailedText).toContain('Ran commandFailed');
+    expect(allFailedText).toContain("Ran 2 tool calls · 2 didn't complete");
+    expect(allFailedText).toContain("Read fileDidn't complete");
+    expect(allFailedText).toContain("Run commandDidn't complete");
     // A call that still runs or waits leads, and the failure so far shows beside it.
     const running = { type: 'tool_call_started' };
-    expect(renderCalls(failed, running)).toContain('Running 2 tool calls · 1 failed');
-    expect(renderCalls(failed, running, true)).toBe('Running 2 tool calls · 1 failed');
+    expect(renderCalls(failed, running)).toContain("Running 2 tool calls · 1 didn't complete");
+    expect(renderCalls(failed, running, true)).toBe("Running 2 tool calls · 1 didn't complete");
     approvals.current = { records: [jobCard('pending', { replyToEventId: '$reply' })], now: 0 };
-    expect(renderCalls(failed, completed)).toContain('1 tool call waiting for approval · 1 failed');
+    expect(renderCalls(failed, completed)).toContain(
+      "1 tool call waiting for approval · 1 didn't complete"
+    );
     expect(renderCalls(failed, completed, true)).toBe(
-      '2 tool calls: 1 tool call waiting for approval · 1 failed'
+      "2 tool calls: 1 tool call waiting for approval · 1 didn't complete"
     );
   });
 
@@ -1296,9 +1299,10 @@ describe('useToolTraceMarkerParserOptions', () => {
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
         .join(' ');
-    // A call in words leads with what it acts on; its other arguments follow as fields.
-    expect(textOf(rows[0]!)).toContain('Searched the web MindRoom release notes');
+    // A call in words leads with what it acts on, and its arguments still show in full.
+    expect(textOf(rows[0]!)).toContain('Search the web MindRoom release notes');
     expect(rows[0]!.findAllByType('dt').map((node) => node.children.join(''))).toEqual([
+      'query',
       'max_results',
     ]);
     expect(textOf(rows[0]!)).toContain('5 results');
@@ -1306,30 +1310,26 @@ describe('useToolTraceMarkerParserOptions', () => {
     expect(rows[1]!.findByType('pre').children.join('')).toBe('reading the changelog');
   });
 
-  it('folds the finished bookkeeping calls of a run under its others', () => {
-    const names = ['read_file', 'list_files', 'run_shell_command'];
-    const html = names
-      .map((name, index) => `<p>🔧 <code>${name}</code> [${index + 1}]</p>`)
-      .join('');
+  it('names a running call in words without saying it ran, in the order the calls ran', () => {
+    const html = '<p>🔧 <code>list_files</code> [1]</p><p>🔧 <code>write_file</code> [2] ⏳</p>';
     const renderer = renderTreeWithToolTrace(html, {
       'io.mindroom.tool_trace': {
         version: 2,
-        events: names.map((name) => ({ type: 'tool_call_completed', tool_name: name })),
+        events: [
+          { type: 'tool_call_completed', tool_name: 'list_files' },
+          { type: 'tool_call_started', tool_name: 'write_file', args_preview: 'path=plan.md' },
+        ],
       },
     });
-    expect(collectTextContent(renderer.toJSON())).toBe('Read 1 file and ran 1 command');
+    expect(collectTextContent(renderer.toJSON())).toBe(
+      'Running 2 tool callslist_files, write_file'
+    );
     act(() => {
       renderer.root.findByType('button').props.onClick();
     });
-    const rowsIn = (node: ReactTestInstance) =>
-      node
-        .findAll((child) => typeof child.type === 'string' && child.props['data-tool-index'])
-        .map((child) => child.props['data-tool-index']);
-    const steps = renderer.root.findByType('details');
-    expect(rowsIn(renderer.root)).toEqual([1, 3, 2]);
-    expect(rowsIn(steps)).toEqual([2]);
-    expect(nodeText(steps.findByType('summary'))).toBe('1 more step: Listed files');
-    expect(toolRowText(renderer, 2)).toContain('Listed files');
+    expect(toolRowText(renderer, 1)).toContain('List files');
+    expect(toolRowText(renderer, 2)).toContain('Write fileplan.md');
+    expect(renderer.root.findAllByType('details')).toHaveLength(0);
   });
 
   it('shows the last lines of a running call output under the collapsed tool calls', () => {

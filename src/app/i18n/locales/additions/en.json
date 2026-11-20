@@ -859,10 +859,10 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}",
-        "toolCallFailed": "Failed",
-        "toolCallsAlsoFailed": "· {{failed}} failed",
-        "toolCallsRanFailed_one": "Ran {{count}} tool call · {{failed}} failed",
-        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} failed",
+        "toolCallFailed": "Didn't complete",
+        "toolCallsAlsoFailed": "· {{failed}} didn't complete",
+        "toolCallsRanFailed_one": "Ran {{count}} tool call · {{failed}} didn't complete",
+        "toolCallsRanFailed_other": "Ran {{count}} tool calls · {{failed}} didn't complete",
         "toolWords": {
           "read": {
             "row": "Read file",
@@ -870,26 +870,26 @@
             "title_other": "read {{count}} files"
           },
           "write": {
-            "row": "Wrote file",
+            "row": "Write file",
             "title_one": "wrote {{count}} file",
             "title_other": "wrote {{count}} files"
           },
           "edit": {
-            "row": "Edited file",
+            "row": "Edit file",
             "title_one": "made {{count}} edit",
             "title_other": "made {{count}} edits"
           },
           "command": {
-            "row": "Ran command",
+            "row": "Run command",
             "title_one": "ran {{count}} command",
             "title_other": "ran {{count}} commands"
           },
           "searchFiles": {
-            "row": "Searched files",
+            "row": "Search files",
             "title": "searched files"
           },
           "searchWeb": {
-            "row": "Searched the web",
+            "row": "Search the web",
             "title": "searched the web"
           },
           "readPage": {
@@ -898,26 +898,24 @@
             "title_other": "read {{count}} web pages"
           },
           "schedule": {
-            "row": "Scheduled",
+            "row": "Schedule",
             "title_one": "scheduled {{count}} task",
             "title_other": "scheduled {{count}} tasks"
           },
           "listFiles": {
-            "row": "Listed files",
+            "row": "List files",
             "title": "listed files"
           },
           "attachments": {
-            "row": "Checked attachments",
+            "row": "Check attachments",
             "title": "checked attachments"
-          },
-          "room": {
-            "row": "Looked up the room",
-            "title": "looked up the room"
           },
           "moreTools_one": "used {{count}} more tool",
           "moreTools_other": "used {{count}} more tools",
-          "moreSteps_one": "{{count}} more step: {{steps}}",
-          "moreSteps_other": "{{count}} more steps: {{steps}}"
+          "denied_one": "· {{count}} denied",
+          "denied_other": "· {{count}} denied",
+          "expired_one": "· {{count}} expired",
+          "expired_other": "· {{count}} expired"
         }
       },
       "mindroomThreadSummaryMarker": {

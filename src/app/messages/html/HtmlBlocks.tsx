@@ -74,7 +74,7 @@ import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
 import { useToolCallsShown } from '../toolCallVisibility';
-import { describeToolRun, isToolStep, toolRowWords } from '../agent-run/toolWords';
+import { describeToolRun, toolRowWords } from '../agent-run/toolWords';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -345,7 +345,6 @@ function ToolRefGroupItem({
   const { t } = useTranslation();
   const { src, tone } = TOOL_STATE_ICON[state];
   const words = toolRowWords(t, parsedTool.toolName, parsedTool.argsPreview);
-  const rest = words?.rest;
   return (
     <div className={activityCss.Row} data-tool-index={parsedTool.index}>
       <ActivityIcon src={src} tone={tone} pending={state === 'running'} />
@@ -375,12 +374,9 @@ function ToolRefGroupItem({
             </span>
           )}
         </span>
-        {(rest ? rest.length > 0 : parsedTool.argsPreview) && (
+        {parsedTool.argsPreview && (
           <div className={activityCss.RowText}>
-            <ApprovalArgumentFields
-              value={parsedTool.argsPreview}
-              parse={rest ? () => ({ fields: rest }) : toToolArgumentFields}
-            />
+            <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
           </div>
         )}
         {parsedTool.result && <ActivityResult text={parsedTool.result} />}
@@ -523,22 +519,15 @@ function ToolRefGroupBlock({
   const icon = metadataStatus
     ? { src: Icons.Terminal, tone: 'neutral' as const }
     : TOOL_STATE_ICON[summary.state];
-  // A finished run says what it did in words, where its tools have them.
-  const finished = calls.filter((tool) => ['done', 'failed'].includes(stateOf(tool)));
+  // A finished run says in words what its calls did, where its tools have them.
   const words =
     !metadataStatus && (summary.state === 'done' || summary.state === 'failed')
-      ? describeToolRun(t, language, finished, summary.failed)
+      ? describeToolRun(
+          t,
+          language,
+          calls.map((tool) => ({ ...tool, state: stateOf(tool) }))
+        )
       : undefined;
-  // Finished bookkeeping calls fold under the run's other calls.
-  const steps = loadedTools.filter((tool) => stateOf(tool) === 'done' && isToolStep(tool.toolName));
-  const folded = steps.length < loadedTools.length ? steps : [];
-  const row = (tool: ToolBlockRenderData) => (
-    <ToolRefGroupItem
-      key={`tool-group-item-${tool.index}-${tool.command}`}
-      parsedTool={tool}
-      state={stateOf(tool)}
-    />
-  );
 
   return (
     <ThreadActivity
@@ -560,7 +549,14 @@ function ToolRefGroupBlock({
             )
       }
       detail={words ? words.detail : summary.names}
-      aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}
+      aside={
+        // Never cut short, so the line keeps saying which calls did not run.
+        words?.status ? (
+          <span className={activityCss.Status}>{words.status}</span>
+        ) : (
+          starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />
+        )
+      }
       preview={
         outputTool?.progress && (
           <>
@@ -574,18 +570,13 @@ function ToolRefGroupBlock({
         )
       }
     >
-      {loadedTools.filter((tool) => !folded.includes(tool)).map(row)}
-      {folded.length > 0 && (
-        <details className={activityCss.Steps}>
-          <summary className={activityCss.StepsSummary}>
-            {t('mindroomUi.messages.mindroomHtmlBlocks.toolWords.moreSteps', {
-              count: folded.length,
-              steps: describeToolRun(t, language, folded)?.title,
-            })}
-          </summary>
-          {folded.map(row)}
-        </details>
-      )}
+      {loadedTools.map((parsedTool, index) => (
+        <ToolRefGroupItem
+          key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
+          parsedTool={parsedTool}
+          state={states[index]!}
+        />
+      ))}
       {metadataStatus && (
         <div className={activityCss.Row}>
           <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />

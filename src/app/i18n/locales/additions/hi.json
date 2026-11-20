@@ -859,65 +859,63 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",
-        "toolCallFailed": "विफल",
-        "toolCallsAlsoFailed": "· विफल टूल कॉल की संख्या: {{failed}}",
-        "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · विफल टूल कॉल की संख्या: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · विफल टूल कॉल की संख्या: {{failed}}",
+        "toolCallFailed": "पूरा नहीं हुआ",
+        "toolCallsAlsoFailed": "· अधूरी टूल कॉल की संख्या: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · अधूरी टूल कॉल की संख्या: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · अधूरी टूल कॉल की संख्या: {{failed}}",
         "toolWords": {
           "read": {
-            "row": "फ़ाइल पढ़ी",
+            "row": "फ़ाइल पढ़ें",
             "title_one": "{{count}} फ़ाइल पढ़ी",
             "title_other": "{{count}} फ़ाइलें पढ़ीं"
           },
           "write": {
-            "row": "फ़ाइल लिखी",
+            "row": "फ़ाइल लिखें",
             "title_one": "{{count}} फ़ाइल लिखी",
             "title_other": "{{count}} फ़ाइलें लिखीं"
           },
           "edit": {
-            "row": "फ़ाइल संपादित की",
+            "row": "फ़ाइल संपादित करें",
             "title_one": "{{count}} बदलाव किया",
             "title_other": "{{count}} बदलाव किए"
           },
           "command": {
-            "row": "कमांड चलाई",
+            "row": "कमांड चलाएँ",
             "title_one": "{{count}} कमांड चलाई",
             "title_other": "{{count}} कमांड चलाईं"
           },
           "searchFiles": {
-            "row": "फ़ाइलों में खोजा",
+            "row": "फ़ाइलों में खोजें",
             "title": "फ़ाइलों में खोजा"
           },
           "searchWeb": {
-            "row": "वेब पर खोजा",
+            "row": "वेब पर खोजें",
             "title": "वेब पर खोजा"
           },
           "readPage": {
-            "row": "वेब पेज पढ़ा",
+            "row": "वेब पेज पढ़ें",
             "title_one": "{{count}} वेब पेज पढ़ा",
             "title_other": "{{count}} वेब पेज पढ़े"
           },
           "schedule": {
-            "row": "शेड्यूल किया",
+            "row": "शेड्यूल करें",
             "title_one": "{{count}} कार्य शेड्यूल किया",
             "title_other": "{{count}} कार्य शेड्यूल किए"
           },
           "listFiles": {
-            "row": "फ़ाइलों की सूची देखी",
+            "row": "फ़ाइलों की सूची",
             "title": "फ़ाइलों की सूची देखी"
           },
           "attachments": {
-            "row": "अटैचमेंट जाँचे",
+            "row": "अटैचमेंट जाँचें",
             "title": "अटैचमेंट जाँचे"
-          },
-          "room": {
-            "row": "रूम की जानकारी देखी",
-            "title": "रूम की जानकारी देखी"
           },
           "moreTools_one": "{{count}} और टूल इस्तेमाल किया",
           "moreTools_other": "{{count}} और टूल इस्तेमाल किए",
-          "moreSteps_one": "{{count}} और चरण: {{steps}}",
-          "moreSteps_other": "{{count}} और चरण: {{steps}}"
+          "denied_one": "· अस्वीकृत: {{count}}",
+          "denied_other": "· अस्वीकृत: {{count}}",
+          "expired_one": "· समाप्त: {{count}}",
+          "expired_other": "· समाप्त: {{count}}"
         }
       },
       "mindroomThreadSummaryMarker": {

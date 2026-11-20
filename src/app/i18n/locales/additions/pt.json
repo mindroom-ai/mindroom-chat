@@ -872,74 +872,73 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Em execução há {{duration}}",
-        "toolCallFailed": "Falhou",
-        "toolCallsAlsoFailed": "· com falha: {{failed}}",
-        "toolCallsRanFailed_one": "{{count}} chamada de ferramenta executada · com falha: {{failed}}",
-        "toolCallsRanFailed_many": "{{count}} chamadas de ferramentas executadas · com falha: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} chamadas de ferramentas executadas · com falha: {{failed}}",
+        "toolCallFailed": "Não concluída",
+        "toolCallsAlsoFailed": "· sem conclusão: {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} chamada de ferramenta executada · sem conclusão: {{failed}}",
+        "toolCallsRanFailed_many": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}",
         "toolWords": {
           "read": {
-            "row": "Arquivo lido",
+            "row": "Ler arquivo",
             "title_one": "{{count}} arquivo lido",
             "title_many": "{{count}} arquivos lidos",
             "title_other": "{{count}} arquivos lidos"
           },
           "write": {
-            "row": "Arquivo gravado",
+            "row": "Gravar arquivo",
             "title_one": "{{count}} arquivo gravado",
             "title_many": "{{count}} arquivos gravados",
             "title_other": "{{count}} arquivos gravados"
           },
           "edit": {
-            "row": "Arquivo editado",
+            "row": "Editar arquivo",
             "title_one": "{{count}} edição feita",
             "title_many": "{{count}} edições feitas",
             "title_other": "{{count}} edições feitas"
           },
           "command": {
-            "row": "Comando executado",
+            "row": "Executar comando",
             "title_one": "{{count}} comando executado",
             "title_many": "{{count}} comandos executados",
             "title_other": "{{count}} comandos executados"
           },
           "searchFiles": {
-            "row": "Busca nos arquivos",
+            "row": "Buscar nos arquivos",
             "title": "busca nos arquivos"
           },
           "searchWeb": {
-            "row": "Busca na web",
+            "row": "Buscar na web",
             "title": "busca na web"
           },
           "readPage": {
-            "row": "Página web lida",
+            "row": "Ler página web",
             "title_one": "{{count}} página web lida",
             "title_many": "{{count}} páginas web lidas",
             "title_other": "{{count}} páginas web lidas"
           },
           "schedule": {
-            "row": "Agendado",
+            "row": "Agendar",
             "title_one": "{{count}} tarefa agendada",
             "title_many": "{{count}} tarefas agendadas",
             "title_other": "{{count}} tarefas agendadas"
           },
           "listFiles": {
-            "row": "Arquivos listados",
+            "row": "Listar arquivos",
             "title": "arquivos listados"
           },
           "attachments": {
-            "row": "Anexos verificados",
+            "row": "Verificar anexos",
             "title": "anexos verificados"
-          },
-          "room": {
-            "row": "Sala consultada",
-            "title": "sala consultada"
           },
           "moreTools_one": "{{count}} outra ferramenta usada",
           "moreTools_many": "{{count}} outras ferramentas usadas",
           "moreTools_other": "{{count}} outras ferramentas usadas",
-          "moreSteps_one": "Mais {{count}} etapa: {{steps}}",
-          "moreSteps_many": "Mais {{count}} etapas: {{steps}}",
-          "moreSteps_other": "Mais {{count}} etapas: {{steps}}"
+          "denied_one": "· {{count}} negada",
+          "denied_many": "· {{count}} negadas",
+          "denied_other": "· {{count}} negadas",
+          "expired_one": "· {{count}} expirada",
+          "expired_many": "· {{count}} expiradas",
+          "expired_other": "· {{count}} expiradas"
         }
       },
       "mindroomThreadSummaryMarker": {

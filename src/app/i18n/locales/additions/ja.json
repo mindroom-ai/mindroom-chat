@@ -846,36 +846,36 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中",
-        "toolCallFailed": "失敗",
-        "toolCallsAlsoFailed": "· {{failed}} 件失敗",
-        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件失敗",
+        "toolCallFailed": "完了しませんでした",
+        "toolCallsAlsoFailed": "· {{failed}} 件未完了",
+        "toolCallsRanFailed_other": "{{count}} 件のツール呼び出しを実行済み · {{failed}} 件未完了",
         "toolWords": {
           "read": {
-            "row": "ファイルを読み取り",
+            "row": "ファイルの読み取り",
             "title_other": "{{count}} 件のファイルを読み取り"
           },
           "write": {
-            "row": "ファイルを書き込み",
+            "row": "ファイルの書き込み",
             "title_other": "{{count}} 件のファイルを書き込み"
           },
           "edit": {
-            "row": "ファイルを編集",
+            "row": "ファイルの編集",
             "title_other": "{{count}} 件の編集"
           },
           "command": {
-            "row": "コマンドを実行",
+            "row": "コマンドの実行",
             "title_other": "{{count}} 件のコマンドを実行"
           },
           "searchFiles": {
-            "row": "ファイルを検索",
+            "row": "ファイルの検索",
             "title": "ファイルを検索"
           },
           "searchWeb": {
-            "row": "Web を検索",
+            "row": "Web 検索",
             "title": "Web を検索"
           },
           "readPage": {
-            "row": "Web ページを読み取り",
+            "row": "Web ページの読み取り",
             "title_other": "{{count}} 件の Web ページを読み取り"
           },
           "schedule": {
@@ -883,19 +883,16 @@
             "title_other": "{{count}} 件のタスクをスケジュール"
           },
           "listFiles": {
-            "row": "ファイル一覧を取得",
+            "row": "ファイル一覧",
             "title": "ファイル一覧を取得"
           },
           "attachments": {
-            "row": "添付ファイルを確認",
+            "row": "添付ファイルの確認",
             "title": "添付ファイルを確認"
           },
-          "room": {
-            "row": "ルーム情報を確認",
-            "title": "ルーム情報を確認"
-          },
           "moreTools_other": "ほか {{count}} 件のツールを使用",
-          "moreSteps_other": "残り {{count}} 件のステップ: {{steps}}"
+          "denied_other": "· {{count}} 件拒否",
+          "expired_other": "· {{count}} 件期限切れ"
         }
       },
       "mindroomThreadSummaryMarker": {

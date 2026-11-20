@@ -872,74 +872,73 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En cours depuis {{duration}}",
-        "toolCallFailed": "Échec",
-        "toolCallsAlsoFailed": "· en échec : {{failed}}",
-        "toolCallsRanFailed_one": "{{count}} appel d'outil exécuté · en échec : {{failed}}",
-        "toolCallsRanFailed_many": "{{count}} appels d'outils exécutés · en échec : {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} appels d'outils exécutés · en échec : {{failed}}",
+        "toolCallFailed": "N'a pas abouti",
+        "toolCallsAlsoFailed": "· sans aboutir : {{failed}}",
+        "toolCallsRanFailed_one": "{{count}} appel d'outil exécuté · sans aboutir : {{failed}}",
+        "toolCallsRanFailed_many": "{{count}} appels d'outils exécutés · sans aboutir : {{failed}}",
+        "toolCallsRanFailed_other": "{{count}} appels d'outils exécutés · sans aboutir : {{failed}}",
         "toolWords": {
           "read": {
-            "row": "Fichier lu",
+            "row": "Lire le fichier",
             "title_one": "{{count}} fichier lu",
             "title_many": "{{count}} fichiers lus",
             "title_other": "{{count}} fichiers lus"
           },
           "write": {
-            "row": "Fichier écrit",
+            "row": "Écrire le fichier",
             "title_one": "{{count}} fichier écrit",
             "title_many": "{{count}} fichiers écrits",
             "title_other": "{{count}} fichiers écrits"
           },
           "edit": {
-            "row": "Fichier modifié",
+            "row": "Modifier le fichier",
             "title_one": "{{count}} modification effectuée",
             "title_many": "{{count}} modifications effectuées",
             "title_other": "{{count}} modifications effectuées"
           },
           "command": {
-            "row": "Commande exécutée",
+            "row": "Exécuter une commande",
             "title_one": "{{count}} commande exécutée",
             "title_many": "{{count}} commandes exécutées",
             "title_other": "{{count}} commandes exécutées"
           },
           "searchFiles": {
-            "row": "Recherche dans les fichiers",
+            "row": "Rechercher dans les fichiers",
             "title": "recherche dans les fichiers"
           },
           "searchWeb": {
-            "row": "Recherche sur le web",
+            "row": "Rechercher sur le web",
             "title": "recherche sur le web"
           },
           "readPage": {
-            "row": "Page web lue",
+            "row": "Lire la page web",
             "title_one": "{{count}} page web lue",
             "title_many": "{{count}} pages web lues",
             "title_other": "{{count}} pages web lues"
           },
           "schedule": {
-            "row": "Planifié",
+            "row": "Planifier",
             "title_one": "{{count}} tâche planifiée",
             "title_many": "{{count}} tâches planifiées",
             "title_other": "{{count}} tâches planifiées"
           },
           "listFiles": {
-            "row": "Fichiers listés",
+            "row": "Lister les fichiers",
             "title": "fichiers listés"
           },
           "attachments": {
-            "row": "Pièces jointes vérifiées",
+            "row": "Vérifier les pièces jointes",
             "title": "pièces jointes vérifiées"
-          },
-          "room": {
-            "row": "Salon consulté",
-            "title": "salon consulté"
           },
           "moreTools_one": "{{count}} autre outil utilisé",
           "moreTools_many": "{{count}} autres outils utilisés",
           "moreTools_other": "{{count}} autres outils utilisés",
-          "moreSteps_one": "{{count}} étape de plus : {{steps}}",
-          "moreSteps_many": "{{count}} étapes de plus : {{steps}}",
-          "moreSteps_other": "{{count}} étapes de plus : {{steps}}"
+          "denied_one": "· {{count}} refusé",
+          "denied_many": "· {{count}} refusés",
+          "denied_other": "· {{count}} refusés",
+          "expired_one": "· {{count}} expiré",
+          "expired_many": "· {{count}} expirés",
+          "expired_other": "· {{count}} expirés"
         }
       },
       "mindroomThreadSummaryMarker": {

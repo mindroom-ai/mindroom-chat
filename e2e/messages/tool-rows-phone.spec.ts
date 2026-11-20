@@ -27,6 +27,9 @@ import {
 //   tool names cut short keeps its start. English reads the same as before.
 // - An approval's receipt inside an opened approval line has the tool line's arrow: after the
 //   text, pointing along the text while closed and down while open.
+// - A tool with words (toolWords.ts) keeps its line's count of the calls that didn't complete in
+//   view, and its row shows a long mixed-direction query on one line in its own direction, and
+//   in full among its arguments.
 // Set TOOL_ROWS_SHOTS=<directory> to save each check's rows.
 const PASSWORD = 'tool-rows-phone-spec-password';
 const RUN = Date.now().toString(36);
@@ -40,6 +43,9 @@ const PHONE: BrowserContextOptions = {
 const RESULT = '8 results';
 const QUERY = '2026 SaaS churn benchmarks';
 const COMMAND = 'python export_chart.py --slide 6';
+// Arabic first, so it reads right to left in either interface.
+const MIXED_QUERY =
+  'معدل إلغاء الاشتراك في الربع الثالث SaaS churn benchmarks 2026 for the board deck';
 
 test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
@@ -106,6 +112,22 @@ const seed = async (engine: string) => {
       'wrote slide6_cohorts.svg',
     ]),
     ...inThread(compared),
+  });
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: '🔧 `web_search` [1]\n\n🔧 `run_shell_command` [2]\n\nThe benchmarks put Q3 in the top half.',
+    format: 'org.matrix.custom.html',
+    formatted_body:
+      '<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>run_shell_command</code> [2]</p><p>The benchmarks put Q3 in the top half.</p>',
+    'io.mindroom.stream_status': 'completed',
+    'io.mindroom.tool_trace': {
+      version: 2,
+      events: traceOf(
+        ['web_search', `query=${MIXED_QUERY}`, RESULT],
+        ['run_shell_command', `command=${COMMAND}`, 'chart: no such file']
+      ).events.map((event, index) => (index === 1 ? { ...event, is_error: true } : event)),
+    },
+    ...inThread(exported),
   });
   const now = Date.now();
   await matrixFetch(
@@ -360,6 +382,49 @@ const checkReceiptArrow = async (
   }
 };
 
+/**
+ * The line of a run in words keeps its count of the calls that didn't complete whole, and the
+ * searched-for text shows on its row's one line in its own direction and in full below.
+ */
+const checkMappedRow = async (page: Page, world: World, engine: string, language: 'en' | 'ar') => {
+  const where = `${engine}, ${language}`;
+  await openIn(page, language, threadRoute(world));
+  const searched = language === 'ar' ? 'البحث في الويب' : 'Searched the web';
+  const line = disclosures(page).filter({ hasText: searched });
+  await expect(line).toHaveCount(1, { timeout: 60_000 });
+  const status = line.locator(':scope > span').filter({ hasText: /^·/ });
+  await expect(status).toBeVisible();
+  const statusFits = await status.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const row = element.parentElement!.getBoundingClientRect();
+    return (
+      element.scrollWidth <= element.clientWidth + 1 &&
+      box.left >= row.left &&
+      box.right <= row.right
+    );
+  });
+  await tap(page, line);
+  const row = line.locator('xpath=..').locator('[data-tool-index="1"]');
+  const target = row.locator('[title]').filter({ hasText: MIXED_QUERY });
+  const look = await target.evaluate((element) => ({
+    rtl: element.matches(':dir(rtl)'),
+    // As tall as the words before it, so one line.
+    oneLine:
+      element.getBoundingClientRect().height <=
+      element.previousElementSibling!.getBoundingClientRect().height + 2,
+    insideRow:
+      element.getBoundingClientRect().right <=
+      element.closest('[data-tool-index]')!.getBoundingClientRect().right + 1,
+  }));
+  console.log(`${where} mapped row: ${JSON.stringify({ statusFits, look })}`);
+  await shot(page, line.locator('xpath=..'), `tool-row-words-${language}-${engine}-phone`);
+  expect.soft(statusFits, `the line's status shows whole (${where})`).toBe(true);
+  expect
+    .soft(look, `the row's query (${where})`)
+    .toEqual({ rtl: true, oneLine: true, insideRow: true });
+  await expect.soft(row.locator('dd').getByText(MIXED_QUERY, { exact: true })).toBeVisible();
+};
+
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
   const world = await seed(engine);
   const context = await browser.newContext({ ...PHONE, baseURL });
@@ -372,6 +437,8 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     });
     await checkOutputDirection(page, world, engine, 'en');
     await checkOutputDirection(page, world, engine, 'ar');
+    await checkMappedRow(page, world, engine, 'en');
+    await checkMappedRow(page, world, engine, 'ar');
     await checkReceiptArrow(page, world, engine, 'en');
     await checkReceiptArrow(page, world, engine, 'ar');
   } finally {

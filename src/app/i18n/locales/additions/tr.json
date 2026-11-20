@@ -859,65 +859,63 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",
-        "toolCallFailed": "Başarısız",
-        "toolCallsAlsoFailed": "· {{failed}} başarısız",
-        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız",
-        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} başarısız",
+        "toolCallFailed": "Tamamlanmadı",
+        "toolCallsAlsoFailed": "· {{failed}} tamamlanmadı",
+        "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
+        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
         "toolWords": {
           "read": {
-            "row": "Dosya okundu",
+            "row": "Dosya okuma",
             "title_one": "{{count}} dosya okundu",
             "title_other": "{{count}} dosya okundu"
           },
           "write": {
-            "row": "Dosya yazıldı",
+            "row": "Dosya yazma",
             "title_one": "{{count}} dosya yazıldı",
             "title_other": "{{count}} dosya yazıldı"
           },
           "edit": {
-            "row": "Dosya düzenlendi",
+            "row": "Dosya düzenleme",
             "title_one": "{{count}} düzenleme yapıldı",
             "title_other": "{{count}} düzenleme yapıldı"
           },
           "command": {
-            "row": "Komut çalıştırıldı",
+            "row": "Komut çalıştırma",
             "title_one": "{{count}} komut çalıştırıldı",
             "title_other": "{{count}} komut çalıştırıldı"
           },
           "searchFiles": {
-            "row": "Dosyalarda arandı",
+            "row": "Dosyalarda arama",
             "title": "dosyalarda arandı"
           },
           "searchWeb": {
-            "row": "Web'de arandı",
+            "row": "Web'de arama",
             "title": "web'de arandı"
           },
           "readPage": {
-            "row": "Web sayfası okundu",
+            "row": "Web sayfası okuma",
             "title_one": "{{count}} web sayfası okundu",
             "title_other": "{{count}} web sayfası okundu"
           },
           "schedule": {
-            "row": "Zamanlandı",
+            "row": "Zamanlama",
             "title_one": "{{count}} görev zamanlandı",
             "title_other": "{{count}} görev zamanlandı"
           },
           "listFiles": {
-            "row": "Dosyalar listelendi",
+            "row": "Dosyaları listeleme",
             "title": "dosyalar listelendi"
           },
           "attachments": {
-            "row": "Ekler kontrol edildi",
+            "row": "Ekleri kontrol etme",
             "title": "ekler kontrol edildi"
-          },
-          "room": {
-            "row": "Oda bilgisi alındı",
-            "title": "oda bilgisi alındı"
           },
           "moreTools_one": "{{count}} araç daha kullanıldı",
           "moreTools_other": "{{count}} araç daha kullanıldı",
-          "moreSteps_one": "{{count}} adım daha: {{steps}}",
-          "moreSteps_other": "{{count}} adım daha: {{steps}}"
+          "denied_one": "· {{count}} reddedildi",
+          "denied_other": "· {{count}} reddedildi",
+          "expired_one": "· {{count}} süresi doldu",
+          "expired_other": "· {{count}} süresi doldu"
         }
       },
       "mindroomThreadSummaryMarker": {

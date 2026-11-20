@@ -859,65 +859,63 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Loopt al {{duration}}",
-        "toolCallFailed": "Mislukt",
-        "toolCallsAlsoFailed": "· {{failed}} mislukt",
-        "toolCallsRanFailed_one": "{{count}} toolaanroep uitgevoerd · {{failed}} mislukt",
-        "toolCallsRanFailed_other": "{{count}} toolaanroepen uitgevoerd · {{failed}} mislukt",
+        "toolCallFailed": "Niet voltooid",
+        "toolCallsAlsoFailed": "· {{failed}} niet voltooid",
+        "toolCallsRanFailed_one": "{{count}} toolaanroep uitgevoerd · {{failed}} niet voltooid",
+        "toolCallsRanFailed_other": "{{count}} toolaanroepen uitgevoerd · {{failed}} niet voltooid",
         "toolWords": {
           "read": {
-            "row": "Bestand gelezen",
+            "row": "Bestand lezen",
             "title_one": "{{count}} bestand gelezen",
             "title_other": "{{count}} bestanden gelezen"
           },
           "write": {
-            "row": "Bestand geschreven",
+            "row": "Bestand schrijven",
             "title_one": "{{count}} bestand geschreven",
             "title_other": "{{count}} bestanden geschreven"
           },
           "edit": {
-            "row": "Bestand bewerkt",
+            "row": "Bestand bewerken",
             "title_one": "{{count}} wijziging gemaakt",
             "title_other": "{{count}} wijzigingen gemaakt"
           },
           "command": {
-            "row": "Opdracht uitgevoerd",
+            "row": "Opdracht uitvoeren",
             "title_one": "{{count}} opdracht uitgevoerd",
             "title_other": "{{count}} opdrachten uitgevoerd"
           },
           "searchFiles": {
-            "row": "Bestanden doorzocht",
+            "row": "Bestanden doorzoeken",
             "title": "bestanden doorzocht"
           },
           "searchWeb": {
-            "row": "Op het web gezocht",
+            "row": "Op het web zoeken",
             "title": "op het web gezocht"
           },
           "readPage": {
-            "row": "Webpagina gelezen",
+            "row": "Webpagina lezen",
             "title_one": "{{count}} webpagina gelezen",
             "title_other": "{{count}} webpagina's gelezen"
           },
           "schedule": {
-            "row": "Ingepland",
+            "row": "Inplannen",
             "title_one": "{{count}} taak ingepland",
             "title_other": "{{count}} taken ingepland"
           },
           "listFiles": {
-            "row": "Bestandenlijst opgevraagd",
+            "row": "Bestanden weergeven",
             "title": "bestandenlijst opgevraagd"
           },
           "attachments": {
-            "row": "Bijlagen bekeken",
+            "row": "Bijlagen bekijken",
             "title": "bijlagen bekeken"
-          },
-          "room": {
-            "row": "Ruimte-info opgevraagd",
-            "title": "ruimte-info opgevraagd"
           },
           "moreTools_one": "{{count}} andere tool gebruikt",
           "moreTools_other": "{{count}} andere tools gebruikt",
-          "moreSteps_one": "Nog {{count}} stap: {{steps}}",
-          "moreSteps_other": "Nog {{count}} stappen: {{steps}}"
+          "denied_one": "· {{count}} geweigerd",
+          "denied_other": "· {{count}} geweigerd",
+          "expired_one": "· {{count}} verlopen",
+          "expired_other": "· {{count}} verlopen"
         }
       },
       "mindroomThreadSummaryMarker": {

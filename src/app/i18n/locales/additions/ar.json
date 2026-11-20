@@ -911,14 +911,14 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
-        "toolCallFailed": "فشل",
-        "toolCallsAlsoFailed": "· عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
-        "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات الفاشلة: ⁨{{failed}}⁩",
+        "toolCallFailed": "لم يكتمل",
+        "toolCallsAlsoFailed": "· عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩) · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
+        "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
         "toolWords": {
           "read": {
             "row": "قراءة ملف",
@@ -983,16 +983,12 @@
             "title_other": "جدولة ⁨{{count}}⁩ مهمة"
           },
           "listFiles": {
-            "row": "عرض قائمة الملفات",
+            "row": "عرض الملفات",
             "title": "عرض قائمة الملفات"
           },
           "attachments": {
             "row": "التحقق من المرفقات",
             "title": "التحقق من المرفقات"
-          },
-          "room": {
-            "row": "الاطلاع على معلومات الغرفة",
-            "title": "الاطلاع على معلومات الغرفة"
           },
           "moreTools_zero": "استخدام ⁨{{count}}⁩ أداة أخرى",
           "moreTools_one": "استخدام ⁨{{count}}⁩ أداة أخرى",
@@ -1000,12 +996,18 @@
           "moreTools_few": "استخدام ⁨{{count}}⁩ أدوات أخرى",
           "moreTools_many": "استخدام ⁨{{count}}⁩ أداة أخرى",
           "moreTools_other": "استخدام ⁨{{count}}⁩ أداة أخرى",
-          "moreSteps_zero": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
-          "moreSteps_one": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
-          "moreSteps_two": "خطوتان أخريان (⁨{{count}}⁩): ⁨{{steps}}⁩",
-          "moreSteps_few": "⁨{{count}}⁩ خطوات أخرى: ⁨{{steps}}⁩",
-          "moreSteps_many": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩",
-          "moreSteps_other": "⁨{{count}}⁩ خطوة أخرى: ⁨{{steps}}⁩"
+          "denied_zero": "· عدد المرفوضة: ⁨{{count}}⁩",
+          "denied_one": "· عدد المرفوضة: ⁨{{count}}⁩",
+          "denied_two": "· عدد المرفوضة: ⁨{{count}}⁩",
+          "denied_few": "· عدد المرفوضة: ⁨{{count}}⁩",
+          "denied_many": "· عدد المرفوضة: ⁨{{count}}⁩",
+          "denied_other": "· عدد المرفوضة: ⁨{{count}}⁩",
+          "expired_zero": "· عدد المنتهية: ⁨{{count}}⁩",
+          "expired_one": "· عدد المنتهية: ⁨{{count}}⁩",
+          "expired_two": "· عدد المنتهية: ⁨{{count}}⁩",
+          "expired_few": "· عدد المنتهية: ⁨{{count}}⁩",
+          "expired_many": "· عدد المنتهية: ⁨{{count}}⁩",
+          "expired_other": "· عدد المنتهية: ⁨{{count}}⁩"
         }
       },
       "mindroomThreadSummaryMarker": {

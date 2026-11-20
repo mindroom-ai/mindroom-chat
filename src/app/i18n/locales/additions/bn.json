@@ -859,65 +859,63 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} ধরে চলছে",
-        "toolCallFailed": "ব্যর্থ",
-        "toolCallsAlsoFailed": "· ব্যর্থ: {{failed}}টি",
-        "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · ব্যর্থ: {{failed}}টি",
-        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · ব্যর্থ: {{failed}}টি",
+        "toolCallFailed": "সম্পূর্ণ হয়নি",
+        "toolCallsAlsoFailed": "· সম্পূর্ণ হয়নি: {{failed}}টি",
+        "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
+        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
         "toolWords": {
           "read": {
-            "row": "ফাইল পড়া হয়েছে",
+            "row": "ফাইল পড়া",
             "title_one": "{{count}}টি ফাইল পড়া হয়েছে",
             "title_other": "{{count}}টি ফাইল পড়া হয়েছে"
           },
           "write": {
-            "row": "ফাইল লেখা হয়েছে",
+            "row": "ফাইল লেখা",
             "title_one": "{{count}}টি ফাইল লেখা হয়েছে",
             "title_other": "{{count}}টি ফাইল লেখা হয়েছে"
           },
           "edit": {
-            "row": "ফাইল সম্পাদনা করা হয়েছে",
+            "row": "ফাইল সম্পাদনা",
             "title_one": "{{count}}টি সম্পাদনা করা হয়েছে",
             "title_other": "{{count}}টি সম্পাদনা করা হয়েছে"
           },
           "command": {
-            "row": "কমান্ড চালানো হয়েছে",
+            "row": "কমান্ড চালানো",
             "title_one": "{{count}}টি কমান্ড চালানো হয়েছে",
             "title_other": "{{count}}টি কমান্ড চালানো হয়েছে"
           },
           "searchFiles": {
-            "row": "ফাইলে খোঁজা হয়েছে",
+            "row": "ফাইলে খোঁজা",
             "title": "ফাইলে খোঁজা হয়েছে"
           },
           "searchWeb": {
-            "row": "ওয়েবে খোঁজা হয়েছে",
+            "row": "ওয়েবে খোঁজা",
             "title": "ওয়েবে খোঁজা হয়েছে"
           },
           "readPage": {
-            "row": "ওয়েব পেজ পড়া হয়েছে",
+            "row": "ওয়েব পেজ পড়া",
             "title_one": "{{count}}টি ওয়েব পেজ পড়া হয়েছে",
             "title_other": "{{count}}টি ওয়েব পেজ পড়া হয়েছে"
           },
           "schedule": {
-            "row": "নির্ধারণ করা হয়েছে",
+            "row": "নির্ধারণ",
             "title_one": "{{count}}টি কাজ নির্ধারণ করা হয়েছে",
             "title_other": "{{count}}টি কাজ নির্ধারণ করা হয়েছে"
           },
           "listFiles": {
-            "row": "ফাইলের তালিকা দেখা হয়েছে",
+            "row": "ফাইলের তালিকা",
             "title": "ফাইলের তালিকা দেখা হয়েছে"
           },
           "attachments": {
-            "row": "সংযুক্তি দেখা হয়েছে",
+            "row": "সংযুক্তি দেখা",
             "title": "সংযুক্তি দেখা হয়েছে"
-          },
-          "room": {
-            "row": "রুমের তথ্য দেখা হয়েছে",
-            "title": "রুমের তথ্য দেখা হয়েছে"
           },
           "moreTools_one": "আরও {{count}}টি টুল ব্যবহার করা হয়েছে",
           "moreTools_other": "আরও {{count}}টি টুল ব্যবহার করা হয়েছে",
-          "moreSteps_one": "আরও {{count}}টি ধাপ: {{steps}}",
-          "moreSteps_other": "আরও {{count}}টি ধাপ: {{steps}}"
+          "denied_one": "· প্রত্যাখ্যাত: {{count}}টি",
+          "denied_other": "· প্রত্যাখ্যাত: {{count}}টি",
+          "expired_one": "· মেয়াদোত্তীর্ণ: {{count}}টি",
+          "expired_other": "· মেয়াদোত্তীর্ণ: {{count}}টি"
         }
       },
       "mindroomThreadSummaryMarker": {

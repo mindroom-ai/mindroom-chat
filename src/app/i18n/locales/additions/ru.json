@@ -885,36 +885,36 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}",
-        "toolCallFailed": "Ошибка",
-        "toolCallsAlsoFailed": "· с ошибкой: {{failed}}",
-        "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · с ошибкой: {{failed}}",
-        "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · с ошибкой: {{failed}}",
-        "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · с ошибкой: {{failed}}",
-        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · с ошибкой: {{failed}}",
+        "toolCallFailed": "Не завершён",
+        "toolCallsAlsoFailed": "· не завершено: {{failed}}",
+        "toolCallsRanFailed_one": "Выполнен {{count}} вызов инструмента · не завершено: {{failed}}",
+        "toolCallsRanFailed_few": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
+        "toolCallsRanFailed_many": "Выполнено {{count}} вызовов инструментов · не завершено: {{failed}}",
+        "toolCallsRanFailed_other": "Выполнено {{count}} вызова инструментов · не завершено: {{failed}}",
         "toolWords": {
           "read": {
-            "row": "Прочитан файл",
+            "row": "Чтение файла",
             "title_one": "прочитан {{count}} файл",
             "title_few": "прочитано {{count}} файла",
             "title_many": "прочитано {{count}} файлов",
             "title_other": "прочитано {{count}} файла"
           },
           "write": {
-            "row": "Записан файл",
+            "row": "Запись файла",
             "title_one": "записан {{count}} файл",
             "title_few": "записано {{count}} файла",
             "title_many": "записано {{count}} файлов",
             "title_other": "записано {{count}} файла"
           },
           "edit": {
-            "row": "Изменён файл",
+            "row": "Изменение файла",
             "title_one": "внесено {{count}} изменение",
             "title_few": "внесено {{count}} изменения",
             "title_many": "внесено {{count}} изменений",
             "title_other": "внесено {{count}} изменения"
           },
           "command": {
-            "row": "Выполнена команда",
+            "row": "Выполнение команды",
             "title_one": "выполнена {{count}} команда",
             "title_few": "выполнено {{count}} команды",
             "title_many": "выполнено {{count}} команд",
@@ -929,39 +929,39 @@
             "title": "поиск в интернете"
           },
           "readPage": {
-            "row": "Прочитана веб-страница",
+            "row": "Чтение веб-страницы",
             "title_one": "прочитана {{count}} веб-страница",
             "title_few": "прочитано {{count}} веб-страницы",
             "title_many": "прочитано {{count}} веб-страниц",
             "title_other": "прочитано {{count}} веб-страницы"
           },
           "schedule": {
-            "row": "Запланировано",
+            "row": "Планирование",
             "title_one": "запланирована {{count}} задача",
             "title_few": "запланировано {{count}} задачи",
             "title_many": "запланировано {{count}} задач",
             "title_other": "запланировано {{count}} задачи"
           },
           "listFiles": {
-            "row": "Получен список файлов",
+            "row": "Список файлов",
             "title": "получен список файлов"
           },
           "attachments": {
-            "row": "Проверены вложения",
+            "row": "Проверка вложений",
             "title": "проверены вложения"
-          },
-          "room": {
-            "row": "Получены сведения о комнате",
-            "title": "получены сведения о комнате"
           },
           "moreTools_one": "использован ещё {{count}} инструмент",
           "moreTools_few": "использовано ещё {{count}} инструмента",
           "moreTools_many": "использовано ещё {{count}} инструментов",
           "moreTools_other": "использовано ещё {{count}} инструмента",
-          "moreSteps_one": "Ещё {{count}} шаг: {{steps}}",
-          "moreSteps_few": "Ещё {{count}} шага: {{steps}}",
-          "moreSteps_many": "Ещё {{count}} шагов: {{steps}}",
-          "moreSteps_other": "Ещё {{count}} шага: {{steps}}"
+          "denied_one": "· отклонено: {{count}}",
+          "denied_few": "· отклонено: {{count}}",
+          "denied_many": "· отклонено: {{count}}",
+          "denied_other": "· отклонено: {{count}}",
+          "expired_one": "· истекло: {{count}}",
+          "expired_few": "· истекло: {{count}}",
+          "expired_many": "· истекло: {{count}}",
+          "expired_other": "· истекло: {{count}}"
         }
       },
       "mindroomThreadSummaryMarker": {

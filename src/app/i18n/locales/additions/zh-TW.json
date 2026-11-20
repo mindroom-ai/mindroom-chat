@@ -846,9 +846,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",
-        "toolCallFailed": "失敗",
-        "toolCallsAlsoFailed": "· {{failed}} 個失敗",
-        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個失敗",
+        "toolCallFailed": "未完成",
+        "toolCallsAlsoFailed": "· {{failed}} 個未完成",
+        "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成",
         "toolWords": {
           "read": {
             "row": "讀取檔案",
@@ -879,7 +879,7 @@
             "title_other": "讀取了 {{count}} 個網頁"
           },
           "schedule": {
-            "row": "已排程",
+            "row": "排程",
             "title_other": "排程了 {{count}} 項工作"
           },
           "listFiles": {
@@ -890,12 +890,9 @@
             "row": "查看附件",
             "title": "查看了附件"
           },
-          "room": {
-            "row": "查詢聊天室資訊",
-            "title": "查詢了聊天室資訊"
-          },
           "moreTools_other": "使用了另外 {{count}} 個工具",
-          "moreSteps_other": "另外 {{count}} 個步驟：{{steps}}"
+          "denied_other": "· {{count}} 個被拒絕",
+          "expired_other": "· {{count}} 個已過期"
         }
       },
       "mindroomThreadSummaryMarker": {

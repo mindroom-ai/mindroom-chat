@@ -185,17 +185,8 @@ export const RowName = style({
 // A known tool's call in words ("Read file"), which its target follows as the line's detail.
 export const RowWords = style({ flexShrink: 0, fontWeight: config.fontWeight.W600 });
 
-// A run's folded bookkeeping calls, under its others.
-export const Steps = style({
-  borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-});
-
-export const StepsSummary = style({
-  padding: `${toRem(8)} ${toRem(14)}`,
-  fontSize: toRem(12),
-  opacity: config.opacity.P400,
-  cursor: 'pointer',
-});
+// What a run's line says after its words for the calls that did not run; never cut short.
+export const Status = style({ flexShrink: 0, fontWeight: 600, whiteSpace: 'nowrap' });
 
 // A row's name and, while the call runs long, how long it has run.
 export const RowHead = style({
