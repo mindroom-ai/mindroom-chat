@@ -59,16 +59,22 @@ export const indexJobToolCalls = (
 
 /**
  * What a row shows of a run, so frames that change nothing shown render nothing: its meta, title
- * and whole task (the headline's tooltip) included, and the call it makes now, but not its result
- * or its other tool calls.
+ * and whole task (the headline's tooltip) included, and the call it makes now while the rows on
+ * show say it (`listed`), but not its result or its other tool calls.
  */
-const shownOfRun = (subagentRun: SubagentRun) => {
+const shownOfRun = (subagentRun: SubagentRun, listed: boolean) => {
   const { result: _result, ...shown } = subagentRun.meta;
-  return [subagentRun.run, shown, runToolCall(subagentRun) ?? null];
+  return listed
+    ? [subagentRun.run, shown, runToolCall(subagentRun) ?? null]
+    : [subagentRun.run, shown];
 };
 
 /** The runs of the listed sub-agent jobs, rendered again only when what their rows show changes. */
-const useJobRuns = (roomId: string, jobs: readonly BackgroundJob[]): readonly SubagentRun[] => {
+const useJobRuns = (
+  roomId: string,
+  jobs: readonly BackgroundJob[],
+  listed: boolean
+): readonly SubagentRun[] => {
   const store = getSubagentRunStore(useMatrixClient());
   const subscribe = useCallback(
     (onChange: () => void) => store.subscribe(roomId, onChange),
@@ -78,9 +84,12 @@ const useJobRuns = (roomId: string, jobs: readonly BackgroundJob[]): readonly Su
     const runs = store.runs(roomId);
     return [...new Set(jobs.flatMap((job) => runOfJob(runs, job) ?? []))];
   }, [jobs, roomId, store]);
-  const shown = useSyncExternalStore(subscribe, () => JSON.stringify(pick().map(shownOfRun)));
+  const shown = useSyncExternalStore(subscribe, () =>
+    JSON.stringify(pick().map((run) => shownOfRun(run, listed)))
+  );
+  // Rows that start to say the calls take the runs anew, whose held ones may make an older call.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(pick, [pick, shown]);
+  return useMemo(pick, [pick, shown, listed]);
 };
 
 /**
@@ -115,7 +124,7 @@ export const useJobLookups = (
   jobs: readonly BackgroundJob[],
   listed: boolean
 ): BackgroundJobLookups => {
-  const runs = useJobRuns(room.roomId, jobs);
+  const runs = useJobRuns(room.roomId, jobs, listed);
   const toolCallFor = useJobToolCalls(room, jobs, listed);
   return useMemo(() => ({ runs, toolCallFor }), [runs, toolCallFor]);
 };

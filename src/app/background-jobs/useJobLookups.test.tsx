@@ -246,9 +246,9 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
     },
   ];
   let renders = 0;
-  function Probe() {
+  function Probe({ listed = true }: { listed?: boolean }) {
     renders += 1;
-    const { runs } = useJobLookups(roomOf({}), jobs, false);
+    const { runs } = useJobLookups(roomOf({}), jobs, listed);
     return <span>{runs.map((run) => run.meta.task).join()}</span>;
   }
   act(() => root.render(<Probe />));
@@ -272,6 +272,21 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
   const before = renders;
   ingest('mine', 'Hi there', 'New task\nwith tests');
   expect(renders).toBeGreaterThan(before);
+
+  // Rows that say no calls (the usage details off, or the list folded) render for no new call.
+  act(() => root.render(<Probe listed={false} />));
+  const quiet = renders;
+  ingest('mine', 'Hi there', 'New task\nwith tests', [
+    { type: 'tool_call_started', tool_name: 'grep' },
+  ]);
+  ingest('mine', 'Hi there', 'New task\nwith tests', [
+    { type: 'tool_call_completed', tool_name: 'grep' },
+    { type: 'tool_call_started', tool_name: 'write_file' },
+  ]);
+  expect(renders).toBe(quiet);
+  // What they do show still renders.
+  ingest('mine', 'Hi there', 'Newer task');
+  expect(container.textContent).toBe('Newer task');
 });
 
 it("follows a reply's frames while the list shows, beside another subscriber of that reply", () => {
