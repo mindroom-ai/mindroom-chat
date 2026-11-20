@@ -6,6 +6,7 @@ import {
   type IToDeviceEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
+import type { SyncCryptoChanges } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const BASE_URL = 'https://matrix.example';
@@ -119,7 +120,10 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     });
     clients.push(client);
     let calls = 0;
-    const preprocessToDeviceMessages = vi.fn(async (events: IToDeviceEvent[]) => {
+    // The SDK hands a response's to-device messages, device list changes and key counts to the
+    // crypto layer in one call (matrix-js-sdk #5503), also for a response without messages.
+    const processSyncChanges = vi.fn(async ({ toDeviceEvents: events }: SyncCryptoChanges) => {
+      if (events.length === 0) return [];
       calls += 1;
       const fail = typeof failures === 'number' ? calls <= failures : failures(calls);
       if (fail) {
@@ -130,9 +134,7 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     });
     // Only the sync callbacks of the crypto backend matter here.
     (client as unknown as { cryptoBackend: unknown }).cryptoBackend = {
-      preprocessToDeviceMessages,
-      processKeyCounts: vi.fn(async () => undefined),
-      processDeviceLists: vi.fn(async () => undefined),
+      processSyncChanges,
       onCryptoEvent: vi.fn(async () => undefined),
       onSyncCompleted: vi.fn(),
       stop: vi.fn(),
@@ -148,7 +150,7 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
         ?.getLiveTimeline()
         .getEvents()
         .map((event) => event.getId()) ?? [];
-    return { ...server, client, preprocessToDeviceMessages, toDeviceEvents, accountData, eventIds };
+    return { ...server, client, processSyncChanges, toDeviceEvents, accountData, eventIds };
   };
 
   // `vi.waitFor` advances fake timers itself, so poll with real `setImmediate`
@@ -163,8 +165,10 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     }
     throw new Error('Condition not reached');
   };
+  // The calls that brought to-device messages.
   const attempts = (sync: Awaited<ReturnType<typeof startClient>>) =>
-    sync.preprocessToDeviceMessages.mock.calls.length;
+    sync.processSyncChanges.mock.calls.filter(([changes]) => changes.toDeviceEvents.length > 0)
+      .length;
   const retryAfter = async (
     sync: Awaited<ReturnType<typeof startClient>>,
     delayMs: number,
