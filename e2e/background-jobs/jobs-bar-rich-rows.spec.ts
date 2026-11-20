@@ -221,7 +221,7 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   // The group heading names the number columns, so the cells hold bare numbers.
   await expect(bar.getByText('Calls', { exact: true })).toBeVisible();
   await expect(lead.locator('[data-job-stat]')).toHaveText(['31', '1.9M', '$1.30']);
-  await expect(lead.locator('[data-job-stat="calls"]')).toHaveAttribute('title', '31 tool calls');
+  await expect(lead.locator('[data-job-stat="calls"]')).toHaveAttribute('title', '31 calls');
   const child = row(bar, 'subagent', 1);
   await expect(child.locator('[data-job-logo]')).toHaveAttribute('data-model-provider', 'openai');
   await expect(child.locator('[data-job-model]')).toHaveText('Sol · GPT-6.2');
