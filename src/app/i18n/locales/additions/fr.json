@@ -1080,6 +1080,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Compacter le contexte des agents avant leur prochaine réponse dans cette conversation.",
         "reply_mode": "Afficher ou changer si les agents ont besoin d’une mention pour lancer une conversation ici (définir/réinitialiser réservé aux administrateurs du salon)."
       }
     },
