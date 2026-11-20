@@ -160,27 +160,32 @@ const openRoom = async (
 };
 
 /**
- * From now on the server takes what this page sends into a room, but the page hears nothing of
- * it: the answer to each send is lost, and sync stands still. The returned function ends that.
+ * Lets the server take what the context's pages send into a room while they hear nothing of
+ * it: the answer to each send is lost, and no sync answers, not one asked before the send
+ * either. `lose` starts that, `hear` ends it.
  */
-const loseSendAnswers = async (page: Page): Promise<() => Promise<void>> => {
-  let lost = true;
+const sendAnswersOf = async (context: BrowserContext) => {
+  let lost = false;
   const waiting: Route[] = [];
-  await page.route(
+  await context.route(
     (url) => /\/rooms\/[^/]+\/send\/m\.room\.message\/|\/sync$/.test(url.pathname),
     async (route) => {
-      if (!lost) await route.continue();
-      else if (route.request().method() !== 'PUT') waiting.push(route);
-      else {
-        await route.fetch();
-        await route.abort('failed');
-      }
+      // A page that closed meanwhile has nothing left to answer.
+      const answer = await route.fetch({ timeout: 0 }).catch(() => undefined);
+      if (lost && route.request().method() === 'PUT') await route.abort('failed');
+      else if (lost) waiting.push(route);
+      else if (answer) await route.fulfill({ response: answer }).catch(() => undefined);
+      else await route.abort().catch(() => undefined);
     }
   );
-  return async () => {
-    lost = false;
-    // A sync the page gave up on meanwhile has nothing to continue.
-    await Promise.all(waiting.splice(0).map((route) => route.continue().catch(() => undefined)));
+  return {
+    lose: () => {
+      lost = true;
+    },
+    hear: async () => {
+      lost = false;
+      await Promise.all(waiting.splice(0).map((route) => route.abort().catch(() => undefined)));
+    },
   };
 };
 
@@ -202,6 +207,7 @@ const failedRecordingSurvivesReload = async (browser: Browser, layout: Layout, l
   const world = await seed(label);
   const context = await browser.newContext({ ...layout.options, serviceWorkers: 'block' });
   await context.addInitScript(toneMicrophone);
+  const answers = await sendAnswersOf(context);
   try {
     const page = await openRoom(browser, context, world);
 
@@ -245,13 +251,13 @@ const failedRecordingSurvivesReload = async (browser: Browser, layout: Layout, l
 
     // The server takes this Retry, but the page hears nothing of it. It sends the event again
     // by itself for half a minute, which the server takes for the same event, and then gives up.
-    const hearAgain = await loseSendAnswers(page);
+    answers.lose();
     await press(page, layout, 'Retry');
     await expect.poll(() => voiceMessages(world), { timeout: 45_000 }).toBe(1);
     await expect(failed).toBeVisible({ timeout: 90_000 });
     expect(await voiceMessages(world)).toBe(1);
     // The next Retry does not post it a second time.
-    await hearAgain();
+    await answers.hear();
     await press(page, layout, 'Retry');
     await expect(failed).toHaveCount(0);
     await micIsFree(page);
@@ -265,6 +271,7 @@ const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, lab
   const world = await seed(label);
   const context = await browser.newContext({ ...layout.options, serviceWorkers: 'block' });
   await context.addInitScript(toneMicrophone);
+  const answers = await sendAnswersOf(context);
   try {
     const page = await openRoom(browser, context, world);
     await startRecording(page, layout);
@@ -288,10 +295,11 @@ const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, lab
     expect(await voiceMessages(world)).toBe(0);
 
     // The server takes it, but the page hears nothing of it, and goes while it still waits.
-    await loseSendAnswers(next);
+    answers.lose();
     await press(next, layout, 'Send message');
     await expect.poll(() => voiceMessages(world), { timeout: 45_000 }).toBe(1);
     await next.close();
+    await answers.hear();
 
     // The page after it has the recording where it was going, with Retry, and no second copy.
     const last = await context.newPage();
