@@ -1,10 +1,12 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
-import { getTimelineMessageKind } from '../event-store/timeline/timelineRowTypes';
+import {
+  getTimelineMessageKind,
+  isRowlessTimelineEvent,
+} from '../event-store/timeline/timelineRowTypes';
 import {
   isMindroomAgentMessageEvent,
   isMindroomAgentUserId,
 } from '../matrix/protocol/agentIdentity';
-import { isRowlessTimelineEvent } from './timelineRowFold';
 
 /**
  * Who wrote a thread row, for its turns: a person's message or sticker starts a turn, an agent's

@@ -34,7 +34,8 @@ import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
 import { replyNeedingNoQuote } from './pluginHiddenRows';
-import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
+import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
+import { foldTimelineRowContexts } from './timelineRowFold';
 import type { ThreadTurnFold, ThreadTurnFoldView } from './threadTurnFolds';
 import { TurnBreak } from './TurnBreak';
 
@@ -285,34 +286,21 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
 }
 
 /**
- * Whether a row takes no place in the timeline: the thread's plans hide it (approvals, title
- * markers, secret requests), it is a voice echo shown under its voice message or a model command
- * its router's reply shows as one line, its sender is ignored, it is redacted and hidden events
- * are not shown, or a plugin hides it.
+ * Whether the approval, voice echo, reply card or model change plan or a plugin hides the row,
+ * its sender is ignored, or it is redacted and hidden events are not shown. Callers handle
+ * hiding by the title, secret request and turn fold plans.
  */
 export const isTimelineRowHidden = (
   event: MatrixEvent,
   {
-    messageData: {
-      approvalTimeline,
-      threadSummaryTimeline,
-      secretRequestTimeline,
-      voiceTranscripts,
-      replyCards,
-      modelChanges,
-    },
+    messageData: { approvalTimeline, voiceTranscripts, replyCards, modelChanges },
     ignoredUsersSet,
     showHiddenEvents,
     isHiddenByPlugin,
   }: {
     messageData: Pick<
       TimelineMessageData,
-      | 'approvalTimeline'
-      | 'threadSummaryTimeline'
-      | 'secretRequestTimeline'
-      | 'voiceTranscripts'
-      | 'modelChanges'
-      | 'replyCards'
+      'approvalTimeline' | 'voiceTranscripts' | 'modelChanges' | 'replyCards'
     >;
     ignoredUsersSet: ReadonlySet<string>;
     showHiddenEvents: boolean;
@@ -322,8 +310,6 @@ export const isTimelineRowHidden = (
   const id = event.getId() ?? '';
   if (
     approvalTimeline.hiddenEventIds.has(id) ||
-    threadSummaryTimeline.hiddenEventIds.has(id) ||
-    secretRequestTimeline.hiddenEventIds.has(id) ||
     voiceTranscripts.hiddenEventIds.has(id) ||
     modelChanges.hiddenEventIds.has(id) ||
     !!replyCards?.hiddenEventIds.has(id)
@@ -412,15 +398,21 @@ export const renderTimelineTiles = ({
   const getRowEvent = (index: number): MatrixEvent | undefined =>
     threadId ? threadEvents[index] : roomWindowRows[index];
   // A folded turn's rows show nothing, the one that draws its break included.
-  const isRowHidden = (event: MatrixEvent): boolean =>
-    !!turnFolds?.view.hiddenIds.has(event.getId() ?? '') ||
-    turnFolds?.view.breaks.get(event.getId() ?? '')?.open === false ||
-    isTimelineRowHidden(event, {
-      messageData,
-      ignoredUsersSet,
-      showHiddenEvents,
-      isHiddenByPlugin,
-    });
+  const isRowHidden = (event: MatrixEvent): boolean => {
+    const id = event.getId() ?? '';
+    return (
+      !!turnFolds?.view.hiddenIds.has(id) ||
+      turnFolds?.view.breaks.get(id)?.open === false ||
+      messageData.threadSummaryTimeline.hiddenEventIds.has(id) ||
+      messageData.secretRequestTimeline.hiddenEventIds.has(id) ||
+      isTimelineRowHidden(event, {
+        messageData,
+        ignoredUsersSet,
+        showHiddenEvents,
+        isHiddenByPlugin,
+      })
+    );
+  };
   const rowContexts = foldTimelineRowContexts({
     indexes: virtualItems.map((item) => item.index),
     getEvent: getRowEvent,
