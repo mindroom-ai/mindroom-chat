@@ -5,6 +5,7 @@ import {
   type BrowserContext,
   type BrowserContextOptions,
   type Page,
+  type Route,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
@@ -21,12 +22,13 @@ import {
 // transaction ID however often it is sent, so the server posts it once:
 // - A voice message whose upload fails says "Your recording is still saved", with Retry and
 //   Discard. It stays saved across a reload: the reloaded room shows the same failure with Retry.
-//   A Retry the server takes, but whose answer is lost, fails to the page; the next Retry in that
-//   page leaves one voice message.
+//   The server takes that Retry, but the page hears nothing of it, not through sync either, so
+//   after its own retries the page calls it failed; the next Retry leaves one voice message.
 // - A page that is closed while it records, with no stop, Send or Discard (as a crash or an app
 //   update ends it), leaves what it recorded: the next page shows "Recovered recording". Its Send
-//   reaches the server, the answer is lost, and the page is reloaded: the recording is back
-//   where it was going, and Retry leaves one voice message of that length, whose file decodes.
+//   reaches the server, the page hears nothing of it and is closed too: the page after it has
+//   the recording where it was going, and Retry leaves one voice message of that length, whose
+//   file decodes.
 // Desktop (1280 by 800, light) and phone (390 by 844 with touch, dark), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
 // homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. The microphone is a tone made in
@@ -158,23 +160,28 @@ const openRoom = async (
 };
 
 /**
- * While `answers.lost`, the server takes a message this page sends, but the page never hears of
- * it: to the page the send failed.
+ * From now on the server takes what this page sends into a room, but the page hears nothing of
+ * it: the answer to each send is lost, and sync stands still. The returned function ends that.
  */
-const loseSendAnswers = async (page: Page) => {
-  const answers = { lost: false };
+const loseSendAnswers = async (page: Page): Promise<() => Promise<void>> => {
+  let lost = true;
+  const waiting: Route[] = [];
   await page.route(
-    (url) => /\/rooms\/[^/]+\/send\/m\.room\.message\//.test(url.pathname),
+    (url) => /\/rooms\/[^/]+\/send\/m\.room\.message\/|\/sync$/.test(url.pathname),
     async (route) => {
-      if (!answers.lost || route.request().method() !== 'PUT') {
-        await route.continue();
-        return;
+      if (!lost) await route.continue();
+      else if (route.request().method() !== 'PUT') waiting.push(route);
+      else {
+        await route.fetch();
+        await route.abort('failed');
       }
-      await route.fetch();
-      await route.abort('failed');
     }
   );
-  return answers;
+  return async () => {
+    lost = false;
+    // A sync the page gave up on meanwhile has nothing to continue.
+    await Promise.all(waiting.splice(0).map((route) => route.continue().catch(() => undefined)));
+  };
 };
 
 const micIsFree = (page: Page) =>
@@ -236,14 +243,15 @@ const failedRecordingSurvivesReload = async (browser: Browser, layout: Layout, l
     // Still saved: the room shows the same failure, with Retry.
     await expect(failed).toBeVisible({ timeout: 30_000 });
 
-    // The server takes this Retry, but its answer is lost: to the page it failed again.
-    const answers = await loseSendAnswers(page);
-    answers.lost = true;
+    // The server takes this Retry, but the page hears nothing of it. It sends the event again
+    // by itself for half a minute, which the server takes for the same event, and then gives up.
+    const hearAgain = await loseSendAnswers(page);
     await press(page, layout, 'Retry');
     await expect.poll(() => voiceMessages(world), { timeout: 45_000 }).toBe(1);
-    await expect(failed).toBeVisible({ timeout: 30_000 });
-    // The next Retry is the same event to the server, which still has one.
-    answers.lost = false;
+    await expect(failed).toBeVisible({ timeout: 90_000 });
+    expect(await voiceMessages(world)).toBe(1);
+    // The next Retry does not post it a second time.
+    await hearAgain();
     await press(page, layout, 'Retry');
     await expect(failed).toHaveCount(0);
     await micIsFree(page);
@@ -279,24 +287,24 @@ const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, lab
     await expect(next.getByRole('button', { name: 'Discard voice recording' })).toBeVisible();
     expect(await voiceMessages(world)).toBe(0);
 
-    // The server takes it, but its answer is lost: to the page the send failed.
-    const answers = await loseSendAnswers(next);
-    answers.lost = true;
+    // The server takes it, but the page hears nothing of it, and goes while it still waits.
+    await loseSendAnswers(next);
     await press(next, layout, 'Send message');
     await expect.poll(() => voiceMessages(world), { timeout: 45_000 }).toBe(1);
-    const failed = next.getByText('Voice send failed', { exact: true });
-    await expect(failed).toBeVisible({ timeout: 30_000 });
-    // After a reload it is back where it was going, with Retry: the same event to the server.
-    answers.lost = false;
-    await next.reload();
-    await expect(next.locator('[data-editable-name="RoomInput"]')).toBeVisible({
+    await next.close();
+
+    // The page after it has the recording where it was going, with Retry, and no second copy.
+    const last = await context.newPage();
+    await last.goto(`/home/${encodeURIComponent(world.roomId)}`);
+    await expect(last.locator('[data-editable-name="RoomInput"]')).toBeVisible({
       timeout: 60_000,
     });
+    const failed = last.getByText('Voice send failed', { exact: true });
     await expect(failed).toBeVisible({ timeout: 30_000 });
-    await expect(recovered).toHaveCount(0);
-    await press(next, layout, 'Retry');
+    await expect(last.getByText('Recovered recording ·', { exact: true })).toHaveCount(0);
+    await press(last, layout, 'Retry');
     await expect(failed).toHaveCount(0);
-    await micIsFree(next);
+    await micIsFree(last);
     expect(await voiceMessages(world)).toBe(1);
     const [voice] = await voiceEvents(world);
     // About the five seconds that were recorded: at most the last second is lost.
@@ -312,7 +320,7 @@ const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, lab
     );
     expect(download.ok).toBe(true);
     const file = Buffer.from(await download.arrayBuffer()).toString('base64');
-    const decodedSeconds = await next.evaluate(async (base64) => {
+    const decodedSeconds = await last.evaluate(async (base64) => {
       const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
       const audio = await new AudioContext().decodeAudioData(bytes.buffer);
       return audio.duration;
@@ -321,12 +329,12 @@ const recordingSurvivesClosedPage = async (browser: Browser, layout: Layout, lab
     expect(decodedSeconds).toBeLessThan(7.5);
 
     // Sent, it left the disk: another page load brings nothing back, and nothing is sent twice.
-    await next.reload();
-    await expect(next.locator('[data-editable-name="RoomInput"]')).toBeVisible({
+    await last.reload();
+    await expect(last.locator('[data-editable-name="RoomInput"]')).toBeVisible({
       timeout: 60_000,
     });
-    await micIsFree(next);
-    await expect(recovered).toHaveCount(0);
+    await micIsFree(last);
+    await expect(last.getByText('Recovered recording ·', { exact: true })).toHaveCount(0);
     await expect(failed).toHaveCount(0);
     expect(await voiceMessages(world)).toBe(1);
   } finally {
