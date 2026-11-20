@@ -197,6 +197,8 @@ export function MessageLinkCards({
     };
     // The pointer left the link, for something outside it or another window (an iframe too).
     const onOut = (event: PointerEvent) => {
+      // A hovering pen passing by keeps a card the keyboard opened.
+      if (event.pointerType !== 'mouse') return;
       const left = link ?? dismissed;
       const to = event.relatedTarget;
       if (to instanceof Node && !(left?.contains(event.target as Node) && !left.contains(to))) {

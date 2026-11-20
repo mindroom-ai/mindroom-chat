@@ -474,6 +474,19 @@ describe('MessageLinkCards hover cards', () => {
     frame.remove();
   });
 
+  it('a pen leaving the link keeps a card the keyboard opened', () => {
+    renderHover();
+    const element = link('Hovered');
+    vi.spyOn(element, 'matches').mockReturnValue(true);
+    act(() => element.focus());
+    wait();
+    expect(card()).not.toBeNull();
+    pointer(element, 'pointerout', 'pen', { relatedTarget: document.body });
+    expect(card()).not.toBeNull();
+    pointer(element, 'pointerout', 'mouse', { relatedTarget: document.body });
+    expect(card()).toBeNull();
+  });
+
   it('a click anywhere hides it, also Enter on a link whose panel already shows', () => {
     renderHover(panelControls(true));
     const element = link('Paneled');
