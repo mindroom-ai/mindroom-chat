@@ -371,8 +371,9 @@ export const Name = style({
 
 export const Model = style([{ flex: 'none', opacity: config.opacity.P300 }, hiddenOnPhone]);
 
-// What it does now: the tool's name, then its arguments, muted, in the app's code font.
-export const Activity = style({ ...truncate, flex: '1 1 0' });
+// What it does now: the tool's name, then its arguments, muted, in the app's code font. As wide
+// as its words, so a thread named after it follows them.
+export const Activity = style({ ...truncate, flex: '0 1 auto' });
 
 export const Preview = style({ fontFamily: 'var(--font-mono)', opacity: config.opacity.P300 });
 
@@ -428,7 +429,8 @@ export const ThreadChip = style({
   ...textButton,
   color: color.Primary.Main,
   selectors: { '&:focus-visible': keyboardRing },
-  '@container': { [panel]: { minWidth: 0 } },
+  // Its icon alone never gives way.
+  '@container': { [panel]: { flex: 'none', minWidth: 0 } },
 });
 
 export const ThreadTitle = style({
