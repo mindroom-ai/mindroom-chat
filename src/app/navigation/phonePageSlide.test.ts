@@ -186,7 +186,7 @@ describe('slidePhonePage', () => {
     vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(loaded);
     // Their own sizes: the avatar 400 by 400, the one from the network 1000 by 200.
     const sizes: Record<string, [number, number]> = { Held: [400, 400], Loaded: [1000, 200] };
-    const size = (picture: HTMLImageElement) =>
+    const size = (picture: HTMLImageElement): [number, number] =>
       loaded.call(picture) ? sizes[picture.alt] ?? [40, 40] : [0, 0];
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(function width(
       this: HTMLImageElement
