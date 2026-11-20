@@ -470,7 +470,7 @@ const clickUnlessOpen = async (page: Page, root: string): Promise<boolean> => {
  * card is pressed again, else as lost and presses again, up to `PRESS_ATTEMPTS` presses in all.
  */
 const reopen = async (run: Run, root: string): Promise<void> => {
-  const counts = run.presses ?? { lostPresses: 0, latePresses: 0, untimed: [] };
+  const counts = (run.presses ??= { lostPresses: 0, latePresses: 0, untimed: [] });
   for (let presses = 1; ; presses += 1) {
     const last = presses === PRESS_ATTEMPTS;
     const clicked = !last && (await clickUnlessOpen(run.page, root));
