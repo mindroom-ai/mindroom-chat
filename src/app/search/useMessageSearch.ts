@@ -10,6 +10,7 @@ import {
 } from 'matrix-js-sdk';
 import { getSameSenderBundledEdit } from '../matrix/editEvent';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { findFirstHighlight } from './highlightRegex';
 import { getSearchResultOpenTarget } from './searchResultOpenTarget';
 
 /** One server search hit with the messages around it. */
@@ -92,26 +93,24 @@ export const deduplicateResults = (results: ISearchResult[]): ISearchResult[] =>
 
 const bodyOf = (content: unknown): string => {
   const body = (content as { body?: unknown } | undefined)?.body;
-  return typeof body === 'string' ? body.toLocaleLowerCase() : '';
+  return typeof body === 'string' ? body : '';
 };
 
-/** The words of a search term, as the server splits them, in lower case. */
+/** The words of a search term, as the server splits them: at anything but a letter or digit. */
 const searchTermWords = (term: string): string[] =>
-  term
-    .toLocaleLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean);
+  term.split(/[^\p{Alphabetic}\p{N}]+/u).filter(Boolean);
 
 /**
  * Drops hits the server found in a message's first text that its latest edit no longer has.
  * Servers index each event as it was sent, so an agent's reply that began as "Thinking..." stays a
- * hit for "Thinking" after it was edited to its answer. A hit whose own text does not show the
- * term (the server may stem words) is kept, since there is nothing to compare.
+ * hit for "Thinking" after it was edited to its answer. Both texts are read as the server reads
+ * them, by whole words. A hit whose own text does not have any of the term's words (the server
+ * may stem words) is kept, since there is nothing to compare.
  */
 export const dropEditedAwayResults = (results: ISearchResult[], term: string): ISearchResult[] => {
   const words = searchTermWords(term);
   if (words.length === 0) return results;
-  const has = (text: string) => words.some((word) => text.includes(word));
+  const has = (text: string) => findFirstHighlight(text, words) >= 0;
   return results.filter((result) => {
     const edit = getSameSenderBundledEdit(result.result);
     if (!edit || editTarget(result) !== undefined) return true;

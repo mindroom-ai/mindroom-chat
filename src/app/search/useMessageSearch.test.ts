@@ -219,6 +219,18 @@ describe('dropEditedAwayResults', () => {
     expect(getEventIds(dropEditedAwayResults(results, 'Thinking'))).toEqual(['$still', '$plain']);
   });
 
+  it('drops a hit whose latest edit has the searched word only inside a longer word', () => {
+    const results = [
+      withLatestEdit(
+        makeSearchResult({ eventId: '$hit', ts: 100, content: { body: 'Gamma will be ready.' } }),
+        '$hit-edit',
+        'The beta build is out.'
+      ),
+    ];
+
+    expect(getEventIds(dropEditedAwayResults(results, 'be'))).toEqual([]);
+  });
+
   it('keeps a hit whose bundled edit another sender made', () => {
     const results = [
       withLatestEdit(
