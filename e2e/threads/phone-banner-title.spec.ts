@@ -1023,15 +1023,24 @@ test("a phone's thread menu starts with the tags, and a tag added there shows in
     await page.keyboard.press('Tab');
     await expect(remove('networking')).toBeFocused();
 
-    // A tap a few px above the ✕ removes the tag; while its save is held, Escape closes the menu,
-    // and the save still lands.
+    // A tap a few px above the ✕ removes the tag; the focus stays in the menu (on the section, or
+    // where it was where a tap focuses no button). While its save is held, Escape closes the menu,
+    // gives the focus back to More, and the save still lands.
+    const focusInMenu = () =>
+      menu.evaluate(
+        (element) =>
+          document.activeElement !== document.body && element.contains(document.activeElement)
+      );
+    expect(await focusInMenu()).toBe(true);
     release = await holdStateWrites(page);
     const glyph = (await remove('release-blocker').boundingBox())!;
     await page.touchscreen.tap(glyph.x + glyph.width / 2, glyph.y - 4);
     await expect(section.getByText('release-blocker', { exact: true })).toHaveCount(0);
     await expect(remove('networking')).toHaveAttribute('aria-disabled', 'true');
+    expect(await focusInMenu()).toBe(true);
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
+    await expect(banner(page).locator('button[aria-haspopup="menu"]').last()).toBeFocused();
     await release();
     await openMenuWithTags(page, ['networking', 'uploads']);
     await expect(section.getByText('release-blocker', { exact: true })).toHaveCount(0, {

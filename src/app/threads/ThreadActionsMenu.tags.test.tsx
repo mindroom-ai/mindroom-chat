@@ -148,6 +148,8 @@ describe('ThreadActionsMenu tags at its top', () => {
   it('closes on Escape while a tag removal is still being saved', async () => {
     removeFocused('uploads');
     expect(state.updating).toBe(true);
+    // Escape comes from the tags section, which holds the focus while the save runs.
+    expect(document.activeElement).toBe(tagSection());
     act(() => {
       document.activeElement!.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
