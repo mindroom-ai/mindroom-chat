@@ -33,10 +33,7 @@ export type MessageLink = {
    * `sidePanels`; `request`, pure and synchronous, gives what JSON can hold.
    */
   sidePanel?: { id: string; request: (url: URL) => unknown };
-  /**
-   * Since version 66: what a mouse resting on the link, or the keyboard's focus on it, shows in a
-   * small card beside it. It only reads: nothing in it takes the focus or the pointer.
-   */
+  /** Since version 66: the read-only card a mouse resting on the link, or the focus, shows. */
   hoverCard?: ComponentType<MessageLinkHoverCardProps>;
 };
 

@@ -318,9 +318,12 @@ describe('MessageLinkCards', () => {
   });
 });
 
-function HoverCard({ href, roomId }: MessageLinkHoverCardProps) {
-  if (href.endsWith('/broken')) throw new Error('hover boom');
-  return <span>{`hover ${href} in ${roomId}`}</span>;
+const received: MessageLinkHoverCardProps[] = [];
+function HoverCard(props: MessageLinkHoverCardProps) {
+  received.push(props);
+  if (props.href.endsWith('/broken')) throw new Error('hover boom');
+  if (props.href.endsWith('/slow')) throw new Promise(() => undefined);
+  return <span>{`hover ${props.href} in ${props.roomId}`}</span>;
 }
 
 const hoverPlugin = {
@@ -331,43 +334,83 @@ const hoverPlugin = {
     { match: (url: URL) => url.host === 'hover.example', Component: Card, hoverCard: HoverCard },
   ],
 } as unknown as RegisteredPlugin;
+const HOVER_PLUGINS = [plugin, hoverPlugin];
+
+const links = (
+  // Keyed as its edits are, so an edit keeps the link's node.
+  first: ReactNode = (
+    <CheckedMessageLink key="1" href="https://hover.example/1">
+      Hovered
+    </CheckedMessageLink>
+  )
+) => (
+  <>
+    {first}
+    <CheckedMessageLink href="https://hover.example/2">Second</CheckedMessageLink>
+    <CheckedMessageLink href="https://hover.example/broken">Broken</CheckedMessageLink>
+    <CheckedMessageLink href="https://hover.example/slow">Slow</CheckedMessageLink>
+    <CheckedMessageLink href="https://hover.example/3">https://bank.example</CheckedMessageLink>
+    <CheckedMessageLink href="https://github.com/o/r/pull/1">Plain</CheckedMessageLink>
+    <span>Text</span>
+  </>
+);
+const LINKS = links();
 
 describe('MessageLinkCards hover cards', () => {
   let fine = true;
-  const renderHover = (roomId = '!a:x', plugins = [plugin, hoverPlugin]) => {
-    const ui = (id: string) => (
-      <MessageLinkCards roomId={id} plugins={plugins}>
-        <CheckedMessageLink href="https://hover.example/1">Hovered</CheckedMessageLink>
-        <CheckedMessageLink href="https://hover.example/broken">Broken</CheckedMessageLink>
-        <CheckedMessageLink href="https://hover.example/2">https://bank.example</CheckedMessageLink>
-        <CheckedMessageLink href="https://github.com/o/r/pull/1">Plain</CheckedMessageLink>
-      </MessageLinkCards>
+  const renderHover = (controls?: PluginPanelControls) => {
+    const ui = (id: string, links: ReactNode, shownControls = controls) => (
+      <PluginPanelControlsContext.Provider value={shownControls}>
+        <MessageLinkCards roomId={id} plugins={HOVER_PLUGINS}>
+          {links}
+        </MessageLinkCards>
+      </PluginPanelControlsContext.Provider>
     );
-    const view = render(ui(roomId));
-    return { ...view, again: (id: string) => view.rerender(ui(id)) };
+    const view = render(ui('!a:x', LINKS));
+    return {
+      ...view,
+      again: (id: string, links: ReactNode = LINKS, shownControls = controls) =>
+        view.rerender(ui(id, links, shownControls)),
+    };
   };
   const link = (name: string) => screen.getByRole('link', { name });
-  const wait = (ms = HOVER_CARD_DELAY_MS) => act(() => vi.advanceTimersByTime(ms));
+  const wait = (ms = HOVER_CARD_DELAY_MS) => {
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+  };
+  // An edit or a removal reaches the host through a MutationObserver, after a microtask.
+  const settle = () => act(async () => undefined);
   const card = () => screen.queryByRole('tooltip');
-  // jsdom has no PointerEvent; React takes a pointer's entering from `pointerover`.
-  const pointer = (element: HTMLElement, type: string, pointerType: string) => {
+  // jsdom has no PointerEvent.
+  const pointer = (element: Element, type: string, pointerType = 'mouse') => {
     const event = new MouseEvent(type, { bubbles: true });
     Object.assign(event, { pointerType });
     fireEvent(element, event);
   };
   const rest = (name = 'Hovered') => {
     const element = link(name);
-    pointer(element, 'pointerover', 'mouse');
-    fireEvent.mouseEnter(element);
+    pointer(element, 'pointermove');
+    return element;
+  };
+  const shown = (name = 'Hovered') => {
+    const element = rest(name);
+    wait();
+    expect(card()).not.toBeNull();
     return element;
   };
 
   beforeEach(() => {
     fine = true;
+    received.length = 0;
     vi.useFakeTimers();
     vi.stubGlobal(
       'matchMedia',
-      vi.fn(() => ({ matches: fine }))
+      vi.fn(() => ({
+        get matches() {
+          return fine;
+        },
+      }))
     );
   });
   afterEach(() => {
@@ -375,37 +418,51 @@ describe('MessageLinkCards hover cards', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows the card 150 ms after a mouse rests on the link, and hides it as the mouse leaves', () => {
+  it('shows the card once a mouse rests 150 ms on the link, in place of its title', () => {
     renderHover();
     const element = rest();
+    expect(element.hasAttribute('title')).toBe(false);
+    wait(HOVER_CARD_DELAY_MS - 1);
+    // A move restarts the wait.
+    pointer(element, 'pointermove');
     wait(HOVER_CARD_DELAY_MS - 1);
     expect(card()).toBeNull();
     wait(1);
     expect(card()?.textContent).toBe('hover https://hover.example/1 in !a:x');
     expect(mocks.hoverPosition).toBe('Bottom');
-    // The link names the card only while it shows.
-    expect(element.getAttribute('aria-describedby')).toBe(card()?.id);
-    fireEvent.mouseLeave(element);
+    pointer(screen.getByText('Text'), 'pointermove');
     expect(card()).toBeNull();
-    expect(element.hasAttribute('aria-describedby')).toBe(false);
+    expect(element.getAttribute('title')).toBe('https://hover.example/1');
   });
 
-  it('stands in for the title on a screen with a fine pointer only', () => {
+  it('names the card from the link while it shows, keeping what else describes the link', () => {
     renderHover();
-    expect(link('Hovered').hasAttribute('title')).toBe(false);
-    expect(link('Plain').getAttribute('title')).toBe('https://github.com/o/r/pull/1');
-    cleanup();
-    fine = false;
-    renderHover();
-    expect(link('Hovered').getAttribute('title')).toBe('https://hover.example/1');
+    const element = link('Hovered');
+    element.setAttribute('aria-describedby', 'note');
+    shown();
+    expect(element.getAttribute('aria-describedby')).toBe(`note ${card()?.id}`);
+    // The pointer leaves the window.
+    pointer(element, 'pointerout');
+    expect(card()).toBeNull();
+    expect(element.getAttribute('aria-describedby')).toBe('note');
+  });
+
+  it('keeps the title off while the card shows, also when the link renders again', () => {
+    const { again } = renderHover();
+    const element = shown();
+    // New elements of the same links: React renders them again, with the title they had.
+    again('!a:x', links());
+    expect(card()).not.toBeNull();
+    expect(element.hasAttribute('title')).toBe(false);
   });
 
   it('opens for a mouse only on a screen that hovers with a fine pointer, also when the wait ends', () => {
     fine = false;
     renderHover();
-    rest();
+    const element = rest();
     wait();
     expect(card()).toBeNull();
+    expect(element.getAttribute('title')).toBe('https://hover.example/1');
     fine = true;
     rest();
     fine = false;
@@ -413,55 +470,65 @@ describe('MessageLinkCards hover cards', () => {
     expect(card()).toBeNull();
   });
 
-  it('a tap opens none, and a touch cancels the wait and hides the card', () => {
+  it('a pen or a touch never opens it, and a touch anywhere hides it', () => {
     renderHover();
     const element = link('Hovered');
-    pointer(element, 'pointerover', 'touch');
-    fireEvent.mouseEnter(element);
+    pointer(element, 'pointermove', 'pen');
+    pointer(element, 'pointermove', 'touch');
     wait();
     expect(card()).toBeNull();
     rest();
-    pointer(element, 'pointerdown', 'touch');
+    pointer(document.body, 'pointerdown', 'touch');
     wait();
     expect(card()).toBeNull();
-    rest();
-    wait();
-    expect(card()).not.toBeNull();
-    pointer(element, 'pointerdown', 'touch');
+    pointer(screen.getByText('Text'), 'pointermove');
+    shown();
+    pointer(document.body, 'pointerdown', 'touch');
     expect(card()).toBeNull();
   });
 
-  it('Escape hides the card, also while it waits to open', () => {
+  it('Escape hides it, also while it waits, until the mouse leaves the link', () => {
     renderHover();
     rest();
     fireEvent.keyDown(document, { key: 'Escape' });
     wait();
     expect(card()).toBeNull();
+    pointer(screen.getByText('Text'), 'pointermove');
+    shown();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(card()).toBeNull();
     rest();
     wait();
-    fireEvent.keyDown(document, { key: 'Escape' });
     expect(card()).toBeNull();
   });
 
-  it('a scroll, a click, the click card and a switch to another room hide it', () => {
-    const { again } = renderHover();
-    const shown = () => {
-      rest();
-      wait();
-      expect(card()).not.toBeNull();
-    };
+  it('a scroll, a click, a panel opening and a switch to another room hide it', () => {
+    const controls = panelControls();
+    const { again } = renderHover(controls);
     shown();
     fireEvent.scroll(window);
     expect(card()).toBeNull();
+    pointer(screen.getByText('Text'), 'pointermove');
     shown();
-    fireEvent.click(link('Hovered'));
+    again('!a:x', LINKS, { ...controls, shown: 'pr/p' });
+    expect(card()).toBeNull();
+    pointer(screen.getByText('Text'), 'pointermove');
+    shown('Second');
+    again('!b:x', LINKS, { ...controls, shown: 'pr/p' });
+    expect(card()).toBeNull();
+    // The plugin never got the new room's ID with the old room's link.
+    expect(received.every(({ roomId }) => roomId === '!a:x')).toBe(true);
+  });
+
+  it('the click card wins: a click hides the hover card, and none opens while the click card shows', () => {
+    renderHover();
+    const element = shown();
+    pointer(element, 'pointerdown');
+    fireEvent.click(element);
     expect(card()).toBeNull();
     expect(screen.getByText('card https://hover.example/1 in !a:x')).toBeTruthy();
-    shown();
-    fireEvent.click(link('Plain'));
-    expect(card()).toBeNull();
-    shown();
-    again('!b:x');
+    rest('Second');
+    wait();
     expect(card()).toBeNull();
   });
 
@@ -481,7 +548,45 @@ describe('MessageLinkCards hover cards', () => {
     const element = rest('https://bank.example');
     wait();
     expect(card()).toBeNull();
-    expect(element.getAttribute('title')).toBe('https://hover.example/2');
+    expect(element.getAttribute('title')).toBe('https://hover.example/3');
+  });
+
+  it.each([
+    ['removed', null],
+    [
+      'given another address',
+      <CheckedMessageLink key="1" href="https://hover.example/9">
+        Hovered
+      </CheckedMessageLink>,
+    ],
+    [
+      'given misleading text',
+      <CheckedMessageLink key="1" href="https://hover.example/1">
+        https://bank.example
+      </CheckedMessageLink>,
+    ],
+  ])('a link %s loses its card, waiting or shown', async (_change, edited) => {
+    const { again } = renderHover();
+    rest();
+    // The same node, edited in place, or gone.
+    again('!a:x', links(edited));
+    await settle();
+    wait();
+    expect(card()).toBeNull();
+    again('!a:x', links());
+    pointer(screen.getByText('Text'), 'pointermove');
+    shown();
+    again('!a:x', links(edited));
+    await settle();
+    expect(card()).toBeNull();
+  });
+
+  it('a card that loads shows no empty surface and names nothing', () => {
+    renderHover();
+    const element = rest('Slow');
+    wait();
+    expect(card()).toBeNull();
+    expect(element.hasAttribute('aria-describedby')).toBe(false);
   });
 
   it('a throwing card hides and is reported with its tag', () => {
@@ -491,17 +596,9 @@ describe('MessageLinkCards hover cards', () => {
     wait();
     expect(card()).toBeNull();
     expect(error).toHaveBeenCalledWith(
-      '[plugin hover@1.0.0] failed to render its message link hover card',
+      '[plugin hover@1.0.0] failed to render its message link card',
       expect.any(Error)
     );
     expect(mocks.reportBoundaryError).toHaveBeenCalled();
-  });
-
-  it('without a plugin that has a hover card, links keep their title and wait for nothing', () => {
-    const timeout = vi.spyOn(globalThis, 'setTimeout');
-    renderHover('!a:x', [plugin]);
-    const element = rest('Plain');
-    expect(element.getAttribute('title')).toBe('https://github.com/o/r/pull/1');
-    expect(timeout).not.toHaveBeenCalled();
   });
 });

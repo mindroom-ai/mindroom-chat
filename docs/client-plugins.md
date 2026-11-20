@@ -486,13 +486,13 @@ A link whose text reads as another address keeps the app's check first and, once
 Escape, a click outside the card and `close()` close the card, and the focus goes back to the link.
 One card shows at a time: another link's card takes its place, and a switch to another room closes it.
 A `Component` that throws closes the card, logged and reported with `[plugin <id>@<version>]`.
-A link with a `hoverCard` (since version 66), a component that gets `{ href, roomId }` (`MessageLinkHoverCardProps`), shows it 150 ms after a mouse came to rest on the link, or the keyboard's focus came to it (`:focus-visible`), in a pop-out at the link placed as the card is, on the same glass surface, at most 20rem wide.
-A mouse opens it only on a screen that hovers with a fine pointer (`(hover: hover) and (pointer: fine)`, asked as the mouse comes and again as the wait ends), and a tap never does: a touch's `pointerdown` stops the wait and hides the card, so phones and touch screens keep the click as it was.
-It hides when the mouse leaves the link or the focus does, on a click or a press on the link, on Escape (also while it waits), on any scroll, when a link's card or panel opens, and on a switch to another room; one shows at a time.
-It only reads: it takes no pointer and nothing in it should take the focus; it is the link's `role="tooltip"`, which the link names with `aria-describedby` while it shows, and on a screen with a fine pointer the link drops its `title`, the address the hover card stands in for.
+A link with a `hoverCard` (since version 66), a component that gets `{ href, roomId }` (`MessageLinkHoverCardProps`), shows it once a mouse has rested on the link for 150 ms (each move on it starts the wait again), or 150 ms after the keyboard's focus came to it (`:focus-visible`), in a pop-out at the link placed as the card is, on the same glass surface, at most 20rem wide.
+Only a mouse opens it, on a screen that hovers with a fine pointer (`(hover: hover) and (pointer: fine)`, asked at each move and again as the wait ends): a pen and a tap never do, and a press anywhere, a touch too, stops the wait and hides the card, so phones and touch screens keep the click as it was.
+It hides when the mouse leaves the link or the focus does, on Escape (also while it waits; the link then shows none until the mouse leaves it), on any scroll, when the link changes its address or its text, or leaves the page, when a room panel opens or changes, and on a switch to another room; one shows at a time, and none while a link's card shows.
+It only reads: it takes no pointer and nothing in it should take the focus; it is the link's `role="tooltip"`, which the link names with `aria-describedby` while it shows, and from when the mouse comes to the link until the card hides, the link has no `title`, the address the hover card stands in for.
 A link whose text reads as another address shows no hover card, and keeps its title and the check.
 A `hoverCard` that throws hides, logged and reported with `[plugin <id>@<version>]`; while it loads, nothing shows.
-Without an enabled plugin's `hoverCard` for a link, it has no listener, timer or observer of the hover card's.
+Without an enabled plugin's `hoverCard`, the room's page has no listener, timer or observer of the hover cards, and its links have nothing of theirs.
 `plugins.<id>.enabled: false` and `?plugins=off` turn the kind off as they turn off the others.
 
 ## Thread card badges

@@ -1,13 +1,9 @@
 import {
-  type ComponentPropsWithoutRef,
+  type ComponentProps,
   type DragEvent,
-  type FocusEvent,
   type MouseEvent,
-  type PointerEvent,
   type SyntheticEvent,
   useContext,
-  useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -16,10 +12,7 @@ import { Box, Button, Text } from 'folds';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MessageLink } from './MessageLink';
 import { linkTextMisleads } from './linkDestination';
-import { MessageLinkCardContext, MessageLinkHoverCardContext } from './messageLinkCards';
-
-const FINE_POINTER = '(hover: hover) and (pointer: fine)';
-const finePointer = () => window.matchMedia?.(FINE_POINTER).matches === true;
+import { MessageLinkCardContext, MessageLinkHostContext } from './messageLinkCards';
 
 /** The address as the browser will open it, so an encoded or punycode host shows as such. */
 const displayAddress = (href: string): string => {
@@ -40,60 +33,19 @@ const stop = (evt: SyntheticEvent) => evt.stopPropagation();
  * goes and opens only on a second confirmation. Every way a page sees of opening it asks: a click
  * (also with a new-tab modifier) or Enter, a middle click, the context menu (the browser's offers
  * to open the link; a long press on Android opens it too), and dragging it to the tab bar.
- * A link whose plugin has a hover card shows it, from a moment after a mouse came to rest on it
- * (on a screen that hovers with a fine pointer; a tap never does) or the keyboard's focus came to
- * it, until the pointer or the focus leaves, a click or Escape. The card stands in for its title.
- * A misleading link has none: it keeps its title.
  */
-export function CheckedMessageLink({
-  onClick,
-  ...props
-}: ComponentPropsWithoutRef<typeof MessageLink>) {
+export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof MessageLink>) {
   const { t } = useTranslation();
-  const { href, children } = props;
+  const { href } = props;
   const [asking, setAsking] = useState(false);
   const anchor = useRef<HTMLAnchorElement | null>(null);
   const confirmed = useRef(false);
   const showCard = useContext(MessageLinkCardContext);
-  const hoverCards = useContext(MessageLinkHoverCardContext);
-  const link = useRef<HTMLAnchorElement>(null);
-  const touched = useRef(false);
-  const hasHoverCard = useMemo(() => !!href && !!hoverCards?.has(href), [hoverCards, href]);
-  // Until its text is read, before the first paint, a link counts as misleading.
-  const [plain, setPlain] = useState(false);
+  // While a plugin's link has a hover card, its host finds the links by it.
+  const host = useContext(MessageLinkHostContext);
 
-  const misleads = (element: HTMLAnchorElement) =>
-    !!href && linkTextMisleads(element.textContent ?? '', href);
-
-  useLayoutEffect(() => {
-    const element = link.current;
-    if (hasHoverCard && href && element) {
-      setPlain(!linkTextMisleads(element.textContent ?? '', href));
-    }
-  }, [hasHoverCard, href, children]);
-  const hover = hasHoverCard && plain && href ? hoverCards : undefined;
-  // A tap sends its pointer events before the mouseenter it also sends.
-  const byMouse = () => !touched.current && finePointer();
-  const hoverHandlers = hover && {
-    onPointerEnter: (evt: PointerEvent<HTMLAnchorElement>) => {
-      touched.current = evt.pointerType === 'touch';
-    },
-    onPointerDown: (evt: PointerEvent<HTMLAnchorElement>) => {
-      touched.current = evt.pointerType === 'touch';
-      hover.hide(evt.currentTarget);
-    },
-    onMouseEnter: (evt: MouseEvent<HTMLAnchorElement>) => {
-      if (byMouse()) hover.open(evt.currentTarget, href!, byMouse);
-    },
-    onMouseLeave: (evt: MouseEvent<HTMLAnchorElement>) => hover.hide(evt.currentTarget),
-    onFocus: (evt: FocusEvent<HTMLAnchorElement>) => {
-      const element = evt.currentTarget;
-      if (element.matches(':focus-visible')) {
-        hover.open(element, href!, () => document.activeElement === element);
-      }
-    },
-    onBlur: (evt: FocusEvent<HTMLAnchorElement>) => hover.hide(evt.currentTarget),
-  };
+  const misleads = (link: HTMLAnchorElement) =>
+    !!href && linkTextMisleads(link.textContent ?? '', href);
 
   const ask = (evt: MouseEvent<HTMLAnchorElement>) => {
     if (!misleads(evt.currentTarget)) return;
@@ -103,7 +55,6 @@ export function CheckedMessageLink({
   };
 
   const handleClick = (evt: MouseEvent<HTMLAnchorElement>) => {
-    hover?.hide(evt.currentTarget);
     onClick?.(evt);
     if (evt.defaultPrevented || !href) return;
     if (confirmed.current) {
@@ -147,9 +98,8 @@ export function CheckedMessageLink({
     <>
       <MessageLink
         {...props}
-        {...hoverHandlers}
-        ref={link}
-        title={hover && finePointer() ? undefined : href}
+        data-message-link={host}
+        title={href}
         onClick={handleClick}
         onAuxClick={handleAuxClick}
         onContextMenu={handleContextMenu}

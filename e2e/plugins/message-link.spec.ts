@@ -139,13 +139,13 @@ test("a mouse resting on an example item link shows the plugin's hover card", as
     await page.goto(`/home/${encodeURIComponent(room)}/`);
     const link = page.getByRole('link', { name: ITEM });
     await expect(link).toBeVisible({ timeout: 60_000 });
-    // The hover card stands in for the title.
-    await expect(link).not.toHaveAttribute('title');
     const preview = page.getByRole('tooltip').filter({ hasText: 'Example item preview 7' });
 
     await link.hover();
     await expect(preview).toBeVisible();
     await expect(link).toHaveAttribute('aria-describedby', (await preview.getAttribute('id'))!);
+    // The hover card stands in for the title while it shows.
+    await expect(link).not.toHaveAttribute('title');
     if (process.env.MESSAGE_LINK_SHOTS === '1') {
       mkdirSync('test-results/message-link', { recursive: true });
       await page.screenshot({ path: 'test-results/message-link/hover-card.png' });
@@ -155,6 +155,7 @@ test("a mouse resting on an example item link shows the plugin's hover card", as
     await page.mouse.move(box.x + box.width / 2, box.y - 60);
     await expect(preview).toHaveCount(0);
     await expect(link).not.toHaveAttribute('aria-describedby');
+    await expect(link).toHaveAttribute('title', ITEM);
   } finally {
     await context.close();
     await server.close();
