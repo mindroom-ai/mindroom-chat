@@ -11,10 +11,11 @@ import {
   VOICE_WAVEFORM_SAMPLE_INTERVAL_MS,
 } from '../../lib/audioWaveform';
 import { pauseAllMediaElements } from '../../lib/dom';
+import { randomUuid } from '../../lib/randomUuid';
 import {
   DEFAULT_VOICE_RECORDER_MIME_TYPE,
-  getAudioFileExtension,
   getSupportedRecorderMimeType,
+  getVoiceFileName,
 } from './voiceRecorderMime';
 import { getMicrophoneAccessErrorMessage } from './microphoneAccess';
 import { publishVoiceCaptureState, releaseVoiceCaptureState } from './voiceCaptureDiagnostics';
@@ -56,6 +57,8 @@ export const getVoiceRecorderErrorMessage = (err: unknown): string => {
 
 export type VoiceCapturePhase = 'idle' | 'requesting' | 'recording' | 'paused' | 'processing';
 export type CapturedVoiceRecording = {
+  /** Names the recording in the journal. */
+  recordingId: string;
   file: File;
   duration: number;
   waveform: number[] | undefined;
@@ -71,7 +74,33 @@ export type VoiceCaptureSnapshot = {
   /** Grows by one with each waveform sample, also once `waveform` stops growing; only its changes matter. */
   sampleCount: number;
   canPause: boolean;
+  /** A write to the journal failed: a crash would lose this recording. */
+  unprotected: boolean;
   errorMessage: string | undefined;
+};
+/**
+ * Where the session writes a recording as it arrives, so a crash loses at most the last second
+ * (voiceRecordingJournal.ts). `begin` and `append` resolve false when a write failed; recording
+ * goes on from memory either way.
+ */
+export type VoiceCaptureJournal = {
+  begin: (meta: { recordingId: string; startedAt: number; mimeType: string }) => Promise<boolean>;
+  append: (
+    recordingId: string,
+    seq: number,
+    chunk: { data: Blob; elapsedMs: number; samples: number[] }
+  ) => Promise<boolean>;
+  /** The recorder stopped, with audio to send or discard, or with none. */
+  stop: (recordingId: string, hasAudio: boolean) => void;
+};
+export type VoiceCaptureOptions = {
+  journal?: VoiceCaptureJournal;
+  /**
+   * Takes audio that was not sent, instead of dropping it: of a recording the person discarded
+   * (`discarded`, for its Undo), of a recorder that stopped by itself, and of a session that was
+   * reset or released while it held audio.
+   */
+  keep?: (recording: CapturedVoiceRecording, discarded: boolean) => void;
 };
 export type VoiceCaptureSession = {
   getSnapshot: () => VoiceCaptureSnapshot;
@@ -93,6 +122,14 @@ type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resum
 
 type Generation = {
   acceptsEvents: boolean;
+  recordingId: string;
+  /** The place of the next chunk in the journal. */
+  seq: number;
+  /** Whether the journal holds a record of it that has not been told of its stop. */
+  journaled: boolean;
+  /** The samples since the last chunk, which the next chunk takes to the journal. */
+  unjournaledSamples: number[];
+  mimeType?: string;
   recorder?: VoiceRecorder;
   stream?: MediaStream;
   audioContext?: AudioContext;
@@ -121,10 +158,14 @@ const idleSnapshot = (): VoiceCaptureSnapshot =>
     waveform: createFallbackWaveform(),
     sampleCount: 0,
     canPause: true,
+    unprotected: false,
     errorMessage: undefined,
   });
 
-export const createVoiceCaptureSession = (): VoiceCaptureSession => {
+export const createVoiceCaptureSession = ({
+  journal,
+  keep,
+}: VoiceCaptureOptions = {}): VoiceCaptureSession => {
   const source = Symbol('voice-recorder');
   const listeners = new Set<() => void>();
   let snapshot = idleSnapshot();
@@ -183,7 +224,44 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         /* Release other tracks too. */
       }
     });
+    generation.elapsedMs = elapsed(generation);
     generation.startedAt = undefined;
+  };
+  /** What the generation recorded, which it gives up: undefined without audio. */
+  const take = (
+    generation: Generation,
+    recorder: VoiceRecorder | undefined
+  ): CapturedVoiceRecording | undefined => {
+    const { chunks, samples, recordingId } = generation;
+    generation.chunks = [];
+    generation.samples = [];
+    if (generation.journaled) {
+      generation.journaled = false;
+      journal?.stop(recordingId, chunks.length > 0);
+    }
+    if (chunks.length === 0) return undefined;
+    const type =
+      recorder?.mimeType ||
+      generation.mimeType ||
+      chunks.find((chunk) => chunk.type)?.type ||
+      DEFAULT_VOICE_RECORDER_MIME_TYPE;
+    return {
+      recordingId,
+      file: new File(chunks, getVoiceFileName(type, new Date()), { type }),
+      duration: Math.max(1, Math.round(generation.elapsedMs)),
+      waveform: samples.length > 0 ? normalizeMatrixWaveform(samples) : undefined,
+    };
+  };
+  /** Says once that a recording whose journal write failed is not protected against a crash. */
+  const protect = (generation: Generation, write: Promise<boolean>) => {
+    write
+      .catch(() => false)
+      .then((written) => {
+        if (!written && current === generation && !snapshot.unprotected) {
+          publish({ unprotected: true });
+        }
+      })
+      .catch(() => undefined);
   };
   // An accepted stop keeps its deadline through releaseOwner; only the end of the generation clears it.
   const clearStopTimer = (generation: Generation) => {
@@ -203,9 +281,9 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       }
     }
     releaseResources(generation);
+    const recording = take(generation, generation.recorder);
     generation.recorder = undefined;
-    generation.chunks = [];
-    generation.samples = [];
+    if (recording) keep?.(recording, generation.action === 'discard');
     generation.resolve?.({ status: 'ignored' });
     generation.resolve = undefined;
   };
@@ -217,7 +295,9 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   };
   const sample = (generation: Generation) => {
     if (current !== generation || !generation.acceptsEvents || !generation.readLevel) return;
-    generation.samples.push(generation.readLevel());
+    const level = generation.readLevel();
+    generation.samples.push(level);
+    if (journal) generation.unjournaledSamples.push(level);
     if (generation.samples.length > 1200)
       generation.samples.splice(0, generation.samples.length - 1200);
     publish({ waveform: generation.samples, sampleCount: snapshot.sampleCount + 1 });
@@ -256,11 +336,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       closeAudio(generation);
     }
   };
-  const finishStop = (
-    generation: Generation,
-    recorder: VoiceRecorder,
-    mimeType: string | undefined
-  ) => {
+  const finishStop = (generation: Generation, recorder: VoiceRecorder) => {
     if (!generation.acceptsEvents) return;
     generation.acceptsEvents = false;
     clearStopTimer(generation);
@@ -268,6 +344,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     generation.detach = undefined;
     releaseResources(generation);
     generation.recorder = undefined;
+    const recording = take(generation, recorder);
     const resolve = generation.resolve;
     generation.resolve = undefined;
     const isCurrent = current === generation;
@@ -275,49 +352,43 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       if (isCurrent) publish(changes);
     };
     if (generation.action !== 'send') {
+      // Not sent: discarded, or the recorder stopped by itself (microphone gone, page suspended).
+      const kept = recording !== undefined && keep !== undefined;
+      if (kept) keep(recording, generation.action === 'discard');
       update({
         phase: 'idle',
         elapsedMs: 0,
         waveform: createFallbackWaveform(),
-        ...(generation.action === 'discard'
+        ...(generation.action === 'discard' || kept
           ? {}
           : { errorMessage: 'Voice recording stopped unexpectedly. Please record again.' }),
       });
-      generation.chunks = [];
-      generation.samples = [];
       resolve?.({ status: 'ignored' });
       return;
     }
-    if (generation.chunks.length === 0) {
+    if (!recording) {
       update({ phase: 'idle', errorMessage: 'No audio data was captured.' });
-      generation.samples = [];
       resolve?.({ status: 'failed' });
       return;
     }
-    const chunkMimeType = generation.chunks.find((chunk) => chunk.type)?.type;
-    const outputMimeType =
-      recorder.mimeType || mimeType || chunkMimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE;
-    const blob = new Blob(generation.chunks, { type: outputMimeType });
-    const duration = Math.max(1, Math.round(generation.elapsedMs));
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const file = new File(
-      [blob],
-      'voice-message-' + timestamp + '.' + getAudioFileExtension(outputMimeType),
-      { type: outputMimeType }
-    );
-    const waveform =
-      generation.samples.length > 0 ? normalizeMatrixWaveform(generation.samples) : undefined;
-    generation.chunks = [];
-    generation.samples = [];
     // The facade retains processing until delivery begins; capture diagnostics end here.
     if (isCurrent && !released) releaseVoiceCaptureState(source);
-    resolve?.({ status: 'captured', recording: { file, duration, waveform } });
+    resolve?.({ status: 'captured', recording });
   };
   const start = async () => {
     if (!released && (snapshot.phase !== 'idle' || current?.acceptsEvents)) return false;
     released = false;
     if (current) retire(current);
-    const generation: Generation = { acceptsEvents: true, chunks: [], samples: [], elapsedMs: 0 };
+    const generation: Generation = {
+      acceptsEvents: true,
+      recordingId: randomUuid(),
+      seq: 0,
+      journaled: false,
+      unjournaledSamples: [],
+      chunks: [],
+      samples: [],
+      elapsedMs: 0,
+    };
     current = generation;
     publish({ errorMessage: undefined });
     if (!owns(generation)) return false;
@@ -383,20 +454,63 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         if (!owns(generation)) return false;
         setupAnalyser(generation, stream);
       }
+      generation.mimeType = mimeType;
       const onData = (event: Event) => {
         const { data } = event as BlobEvent;
-        if (generation.acceptsEvents && data.size > 0) generation.chunks.push(data);
+        if (!generation.acceptsEvents || data.size === 0) return;
+        generation.chunks.push(data);
+        if (!journal) return;
+        // The chunk's place is fixed here, as it arrives: reading its bytes takes a while.
+        const { seq } = generation;
+        generation.seq += 1;
+        protect(
+          generation,
+          journal.append(generation.recordingId, seq, {
+            data,
+            elapsedMs: Math.round(elapsed(generation)),
+            samples: generation.unjournaledSamples.splice(0),
+          })
+        );
       };
-      const onStop = () => finishStop(generation, recorder, mimeType);
+      const onStop = () => finishStop(generation, recorder);
+      // A page that is hidden or left may never run again: get what was recorded so far to disk.
+      const flush = () => {
+        try {
+          if (webRecorder && webRecorder.state !== 'inactive') webRecorder.requestData();
+        } catch {
+          /* Best effort. */
+        }
+      };
+      const flushWhenHidden = () => {
+        if (document.visibilityState === 'hidden') flush();
+      };
       generation.finishStop = onStop;
       recorder.addEventListener('dataavailable', onData);
       recorder.addEventListener('stop', onStop);
+      if (journal && webRecorder && typeof document !== 'undefined') {
+        window.addEventListener('pagehide', flush);
+        document.addEventListener('visibilitychange', flushWhenHidden);
+      }
       generation.detach = () => {
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
+        if (typeof document === 'undefined') return;
+        window.removeEventListener('pagehide', flush);
+        document.removeEventListener('visibilitychange', flushWhenHidden);
       };
       webRecorder?.start(VOICE_RECORDER_TIMESLICE_MS);
       generation.startedAt = now();
+      if (journal) {
+        generation.journaled = true;
+        protect(
+          generation,
+          journal.begin({
+            recordingId: generation.recordingId,
+            startedAt: generation.startedAt,
+            mimeType: recorder.mimeType || mimeType || DEFAULT_VOICE_RECORDER_MIME_TYPE,
+          })
+        );
+      }
       startTimers(generation);
       if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });

@@ -63,6 +63,8 @@ class Recorder {
     this.state = 'inactive';
   });
 
+  requestData = vi.fn();
+
   emitData(data: Blob) {
     this.listeners.get('dataavailable')?.forEach((listener) => listener({ data }));
   }
@@ -120,11 +122,16 @@ const deferred = <T>() => {
 let stream: ReturnType<typeof newStream>;
 let getUserMedia: ReturnType<typeof vi.fn>;
 let sessions: VoiceCaptureSession[];
-const capture = () => {
-  const session = createVoiceCaptureSession();
+const capture = (options?: Parameters<typeof createVoiceCaptureSession>[0]) => {
+  const session = createVoiceCaptureSession(options);
   sessions.push(session);
   return session;
 };
+const newJournal = () => ({
+  begin: vi.fn(async () => true),
+  append: vi.fn(async () => true),
+  stop: vi.fn(),
+});
 class NativeRecorder extends EventTarget {
   state: RecordingState = 'recording';
   mimeType = 'audio/mp4';
@@ -671,6 +678,191 @@ describe('voice capture session', () => {
     const result = await finish(session);
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.waveform).toHaveLength(48);
+  });
+});
+
+describe('voice capture session with a journal', () => {
+  it('journals each chunk with a seq assigned in dataavailable', async () => {
+    const journal = newJournal();
+    const session = capture({ journal });
+    vi.setSystemTime(50_000);
+    await session.start();
+    const [{ recordingId }] = journal.begin.mock.calls[0] as unknown as [{ recordingId: string }];
+    expect(journal.begin).toHaveBeenCalledExactlyOnceWith({
+      recordingId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      startedAt: 50_000,
+      mimeType: latest().mimeType,
+    });
+    vi.advanceTimersByTime(1_000);
+    const first = new Blob(['one']);
+    latest().emitData(first);
+    latest().emitData(new Blob([]));
+    vi.advanceTimersByTime(1_000);
+    const second = new Blob(['two']);
+    latest().emitData(second);
+    // Both were numbered as they arrived, before either was read or written.
+    expect(journal.append.mock.calls).toEqual([
+      [recordingId, 0, { data: first, elapsedMs: 1_000, samples: expect.any(Array) }],
+      [recordingId, 1, { data: second, elapsedMs: 2_000, samples: expect.any(Array) }],
+    ]);
+    const samples = (
+      journal.append.mock.calls as unknown as [string, number, { samples: number[] }][]
+    ).flatMap(([, , chunk]) => chunk.samples);
+    // Each sample is journaled once, with the chunk that followed it.
+    expect(samples).toHaveLength(session.getSnapshot().sampleCount);
+    expect(journal.stop).not.toHaveBeenCalled();
+    const result = await finish(session, 'three');
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(result.recording.recordingId).toBe(recordingId);
+    expect(await result.recording.file.text()).toBe('onetwothree');
+    expect(journal.append).toHaveBeenCalledTimes(3);
+    expect(journal.stop).toHaveBeenCalledExactlyOnceWith(recordingId, true);
+    expect(session.getSnapshot().unprotected).toBe(false);
+  });
+
+  it('keeps recording and warns once when a journal write fails', async () => {
+    const journal = newJournal();
+    journal.append.mockResolvedValue(false);
+    const session = capture({ journal });
+    await session.start();
+    const warnings = vi.fn();
+    let warned = false;
+    session.subscribe(() => {
+      if (session.getSnapshot().unprotected === warned) return;
+      warned = session.getSnapshot().unprotected;
+      warnings(warned);
+    });
+    latest().emitData(new Blob(['one']));
+    latest().emitData(new Blob(['two']));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(warnings.mock.calls).toEqual([[true]]);
+    expect(session.getSnapshot()).toMatchObject({ phase: 'recording', unprotected: true });
+    const result = await finish(session, 'three');
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(await result.recording.file.text()).toBe('onetwothree');
+    // The next recording starts protected again.
+    session.reset();
+    journal.append.mockResolvedValue(true);
+    await session.start();
+    expect(session.getSnapshot().unprotected).toBe(false);
+  });
+
+  it('warns when the journal cannot begin', async () => {
+    const journal = newJournal();
+    journal.begin.mockResolvedValue(false);
+    const session = capture({ journal });
+    await session.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toMatchObject({ phase: 'recording', unprotected: true });
+  });
+
+  it('deletes the journal record of a recording without audio', async () => {
+    const journal = newJournal();
+    const session = capture({ journal });
+    await session.start();
+    const [{ recordingId }] = journal.begin.mock.calls[0] as unknown as [{ recordingId: string }];
+    const result = session.finish();
+    latest().emitStop();
+    expect(await result).toEqual({ status: 'failed' });
+    expect(journal.stop).toHaveBeenCalledExactlyOnceWith(recordingId, false);
+  });
+
+  it('asks the recorder for its data when the page is hidden', async () => {
+    const page = new EventTarget();
+    const doc = Object.assign(new EventTarget(), {
+      visibilityState: 'visible',
+      querySelectorAll: () => [],
+    });
+    vi.stubGlobal('window', Object.assign(page, { isSecureContext: true, AudioContext: Audio }));
+    vi.stubGlobal('document', doc);
+    const session = capture({ journal: newJournal() });
+    await session.start();
+    const recorder = latest();
+    doc.dispatchEvent(new Event('visibilitychange'));
+    expect(recorder.requestData).not.toHaveBeenCalled();
+    doc.visibilityState = 'hidden';
+    doc.dispatchEvent(new Event('visibilitychange'));
+    expect(recorder.requestData).toHaveBeenCalledOnce();
+    page.dispatchEvent(new Event('pagehide'));
+    expect(recorder.requestData).toHaveBeenCalledTimes(2);
+    await finish(session);
+    page.dispatchEvent(new Event('pagehide'));
+    expect(recorder.requestData).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('voice capture session that keeps unsent audio', () => {
+  it('keeps the audio of a recorder that stopped by itself', async () => {
+    const keep = vi.fn();
+    const session = capture({ keep });
+    await session.start();
+    vi.advanceTimersByTime(300);
+    latest().emitData(new Blob(['unclaimed'], { type: 'audio/webm' }));
+    latest().emitStop();
+    expect(keep).toHaveBeenCalledExactlyOnceWith(
+      {
+        recordingId: expect.any(String),
+        file: expect.any(File),
+        duration: 300,
+        waveform: expect.any(Array),
+      },
+      false
+    );
+    const [[recording]] = keep.mock.calls as [[{ file: File }]];
+    expect(await recording.file.text()).toBe('unclaimed');
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+  });
+
+  it('still reports a recorder that stopped by itself without audio', async () => {
+    const keep = vi.fn();
+    const session = capture({ keep });
+    await session.start();
+    latest().emitStop();
+    expect(keep).not.toHaveBeenCalled();
+    expect(session.getSnapshot().errorMessage).toBe(
+      'Voice recording stopped unexpectedly. Please record again.'
+    );
+  });
+
+  it('keeps the audio it has when retired or released', async () => {
+    const keep = vi.fn();
+    const session = capture({ keep });
+    await session.start();
+    vi.advanceTimersByTime(200);
+    latest().emitData(new Blob(['reset']));
+    session.reset();
+    await session.start();
+    vi.advanceTimersByTime(400);
+    latest().emitData(new Blob(['released']));
+    session.releaseOwner();
+    const kept = keep.mock.calls as [{ file: File; duration: number }, boolean][];
+    expect(kept.map(([recording, discarded]) => [recording.duration, discarded])).toEqual([
+      [200, false],
+      [400, false],
+    ]);
+    expect(await Promise.all(kept.map(([recording]) => recording.file.text()))).toEqual([
+      'reset',
+      'released',
+    ]);
+    // A recording that was sent is not kept as well.
+    await session.start();
+    await finish(session);
+    session.reset();
+    expect(keep).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a discarded recording for its Undo', async () => {
+    const keep = vi.fn();
+    const session = capture({ keep });
+    await session.start();
+    vi.advanceTimersByTime(500);
+    const discarded = session.discard();
+    latest().emitData(new Blob(['discarded']));
+    latest().emitStop();
+    expect(await discarded).toBe(false);
+    expect(keep).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ duration: 500 }), true);
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
   });
 });
 
