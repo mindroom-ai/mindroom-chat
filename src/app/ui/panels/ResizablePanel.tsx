@@ -21,7 +21,8 @@ import { usePanelFrame } from './panelFrameContext';
 import { STRIP_WIDTH } from './PanelFrame.css';
 import * as css from './ResizablePanel.css';
 
-const MIN_WIDTH = 200;
+/** The narrowest a resizable panel settles at, unless its row is narrower still. */
+export const MIN_WIDTH = 200;
 const MAX_WIDTH = 600;
 const COLLAPSE_WIDTH = MIN_WIDTH - 40;
 /** How far past its widest a drag goes before its release fills the content's place. */
