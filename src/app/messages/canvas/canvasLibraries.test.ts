@@ -94,6 +94,23 @@ describe('canvasLibraries', () => {
     ).toBe(true);
   });
 
+  it('converts each key once and checks the callback before reading the items, as the built-in does', () => {
+    // Each case runs with the built-in Object.groupBy and with the stand-in alone.
+    const both = (code: string) =>
+      [code, `delete Object.groupBy;${GROUP_BY_FALLBACK}${code}`].map((run) =>
+        runInNewContext(run)
+      );
+    const changingKey = `let n = 0; const key = { toString: () => 'k' + ++n };
+      JSON.stringify(Object.groupBy(['A', 'B'], () => key)) + ' ' + n`;
+    expect(both(changingKey)).toEqual(['{"k1":["A"],"k2":["B"]} 2', '{"k1":["A"],"k2":["B"]} 2']);
+    const uncallable = `let started = false;
+      function* items() { started = true; yield 1; }
+      try { Object.groupBy(items(), null); 'no error' } catch (error) {
+        (error instanceof TypeError) + ' ' + started
+      }`;
+    expect(both(uncallable)).toEqual(['true false', 'true false']);
+  });
+
   it('keeps only the woff2 face of each font, and fails on a font without one', () => {
     const fonts = fileURLToPath(new URL('../../../../node_modules/katex/dist/', import.meta.url));
     const font = readFileSync(`${fonts}fonts/KaTeX_Main-Regular.woff2`).toString('base64');
