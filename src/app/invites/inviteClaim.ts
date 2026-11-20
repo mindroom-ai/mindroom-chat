@@ -10,8 +10,7 @@ import type { ReceivedToDeviceMessage } from 'matrix-js-sdk/lib/sync-accumulator
 import { matchesEnum } from '../lib/matchesEnum';
 import type { InviteLink } from './inviteLink';
 
-// Protocol version 1 of email invitations, defined by the MindRoom backend: Chat sends the code
-// from the link to the router as a plain to-device claim, and the router answers with a result.
+// Protocol version 1 of email invitations (the MindRoom backend): a to-device claim and result.
 export const CLAIM_EVENT = 'io.mindroom.email_invite.claim';
 export const RESULT_EVENT = 'io.mindroom.email_invite.result';
 export const CLAIM_TIMEOUT_MS = 20_000;
@@ -56,7 +55,6 @@ export const startClaim = (
   );
 
   let stopped = false;
-  // Read encrypted or not: the router may answer either way.
   function onMessage({ message }: ReceivedToDeviceMessage): void {
     if (message.type !== RESULT_EVENT || message.sender !== link.routerId) return;
     const result = message.content as Record<string, unknown>;

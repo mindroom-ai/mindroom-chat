@@ -40,6 +40,7 @@ const setup = (
   runInNewContext(source(), {
     window,
     URL,
+    URLSearchParams,
     AbortController,
     setTimeout,
     clearTimeout,
@@ -190,18 +191,21 @@ describe('native authentication recovery', () => {
     }
   );
 
-  it('never takes an invite link\'s code along to the sign-in', async () => {
-    const invite = 'https://chat.example/invite/#r=%40router%3Aexample.org&c=secret-code';
-    const { api, fetch, assign, window } = setup(undefined, undefined, invite);
-    await api.check();
-    fetch.mockResolvedValue({ status: 401 });
-    expect(await api.check()).toBe('navigating');
-    expect(assign).toHaveBeenCalledWith(
-      'https://chat.example/login?authentication-recovery-navigation=1'
-    );
-    // A redirect keeps the fragment of the page it leaves, so the address must not hold it either.
-    expect(window.location.href).toBe('https://chat.example/invite/');
-  });
+  it.each(['c', '%63'])(
+    "never takes an invite link's code (%s=) along to the sign-in",
+    async (key) => {
+      const invite = `https://chat.example/invite/#r=%40router%3Aexample.org&${key}=secret-code`;
+      const { api, fetch, assign, window } = setup(undefined, undefined, invite);
+      await api.check();
+      fetch.mockResolvedValue({ status: 401 });
+      expect(await api.check()).toBe('navigating');
+      expect(assign).toHaveBeenCalledWith(
+        'https://chat.example/login?authentication-recovery-navigation=1'
+      );
+      // A redirect keeps the fragment of the page it leaves, so the address must not hold it either.
+      expect(window.location.href).toBe('https://chat.example/invite/');
+    }
+  );
 
   it('treats forbidden as denial for automatic checks but signs in on a click', async () => {
     const { api, fetch, assign } = setup();

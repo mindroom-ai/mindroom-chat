@@ -31,6 +31,10 @@ vi.mock('folds', async () => {
   };
 });
 
+vi.mock('../ui/page/Page', () => ({
+  PageMain: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 vi.mock('../account/auth/styles.css', () => ({
   AuthCard: 'auth-card',
   AuthCardContent: 'auth-card-content',
@@ -402,6 +406,12 @@ describe('InvitePage', () => {
     await click('Try again');
     expect(mx.joinRoom).toHaveBeenCalledTimes(1);
     expect(textOf()).toContain('Joining the room');
+  });
+
+  it('clears a link whose code key is escaped (%63=)', async () => {
+    await renderPage('#r=%40router%3Aexample.org&%63=secret-code&x=1');
+    expect(window.location.href).toBe(`${window.location.origin}/invite/`);
+    expect(buttons()).toEqual(['Join']);
   });
 
   it('tells a visitor back from sign-in to open the link from the mail again', async () => {

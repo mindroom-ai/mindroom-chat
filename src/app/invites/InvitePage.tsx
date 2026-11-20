@@ -48,7 +48,6 @@ export function InvitePage(): JSX.Element {
   const navigate = useNavigate();
   const [link, setLink] = useState(takeLink);
   const [state, setState] = useState<PageState>({ status: 'ready' });
-  // Stops what runs now: the claim, the wait for the invitation, or the join.
   const stopRef = useRef<() => void>();
   const halt = useCallback(() => {
     stopRef.current?.();
@@ -88,15 +87,13 @@ export function InvitePage(): JSX.Element {
     );
   };
 
-  // Joins the router's invitation or opens the room; false while there is none. It takes the room
-  // the SDK hands over, which announces a first invitation before it stores the room.
+  // Joins the router's invitation, else opens the room; false without one. The room is the SDK's.
   const settle = (roomId: string, room = mx.getRoom(roomId)): boolean => {
     const membership = room?.getMyMembership();
     const joined = matchesEnum(membership, KnownMembership.Join);
     if (!room || (!joined && !matchesEnum(membership, KnownMembership.Invite))) return false;
     halt();
     if (!joined && inviterOf(mx, room) === link.routerId) join(roomId);
-    // Someone else's invitation opens the room's own invitation view, which names who sent it.
     else navigate(getHomeRoomPath(roomId));
     return true;
   };

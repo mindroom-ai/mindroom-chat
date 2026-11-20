@@ -451,46 +451,49 @@ describe('client configuration loading', () => {
     act(() => renderer.unmount());
   });
 
-  it("signs in without an invite link's code in the address", async () => {
-    const win = {
-      location: {
-        href: 'https://chat.example/invite/#r=%40router%3Aexample.org&c=secret-code',
-        assign: (url: string) => {
-          win.location.href = url;
-        },
-      },
-      history: {
-        state: null,
-        replaceState: (_state: unknown, _title: string, url: string) => {
-          win.location.href = url;
-        },
-      },
-      __AUTHENTICATION_RECOVERY__: { navigate: vi.fn().mockResolvedValue('unavailable') },
-    };
-    vi.stubGlobal('window', win);
-    globalThis.fetch = vi.fn().mockResolvedValue(response({ status: 401, ok: false }));
-    let authenticate!: () => void;
-    let renderer!: ReturnType<typeof create>;
-    await act(async () => {
-      renderer = create(
-        createLoaderElement(
-          ClientConfigLoader,
-          {
-            error: (_error, _retry, _ignore, signIn) => {
-              authenticate = signIn;
-              return null;
-            },
+  it.each(['c', '%63'])(
+    "signs in without an invite link's code (%s=) in the address",
+    async (key) => {
+      const win = {
+        location: {
+          href: `https://chat.example/invite/#r=%40router%3Aexample.org&${key}=secret-code`,
+          assign: (url: string) => {
+            win.location.href = url;
           },
-          () => null
-        )
+        },
+        history: {
+          state: null,
+          replaceState: (_state: unknown, _title: string, url: string) => {
+            win.location.href = url;
+          },
+        },
+        __AUTHENTICATION_RECOVERY__: { navigate: vi.fn().mockResolvedValue('unavailable') },
+      };
+      vi.stubGlobal('window', win);
+      globalThis.fetch = vi.fn().mockResolvedValue(response({ status: 401, ok: false }));
+      let authenticate!: () => void;
+      let renderer!: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(
+          createLoaderElement(
+            ClientConfigLoader,
+            {
+              error: (_error, _retry, _ignore, signIn) => {
+                authenticate = signIn;
+                return null;
+              },
+            },
+            () => null
+          )
+        );
+      });
+      await act(async () => authenticate());
+      expect(win.location.href).toBe(
+        `https://chat.example/invite/?${AUTHENTICATION_RECOVERY_NAVIGATION_PARAM}=1`
       );
-    });
-    await act(async () => authenticate());
-    expect(win.location.href).toBe(
-      `https://chat.example/invite/?${AUTHENTICATION_RECOVERY_NAVIGATION_PARAM}=1`
-    );
-    act(() => renderer.unmount());
-  });
+      act(() => renderer.unmount());
+    }
+  );
 
   it('loads fresh configuration after sign-in finds an already healthy session', async () => {
     globalThis.fetch = vi
