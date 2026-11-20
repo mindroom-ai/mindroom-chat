@@ -17,6 +17,7 @@ describe('MINDROOM_COMMANDS', () => {
       'config',
       'desktop',
       'mode',
+      'compact',
       'model',
       'room_model',
       'thread_mode',

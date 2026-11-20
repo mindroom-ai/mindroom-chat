@@ -1059,6 +1059,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Bu konuda ajanların bağlamını bir sonraki yanıtlarından önce sıkıştırın.",
         "reply_mode": "Ajanların burada bir konuşma başlatmak için bahsedilmeye ihtiyaç duyup duymadığını gösterin veya değiştirin (ayarlama/sıfırlama yalnızca oda yöneticileri)."
       }
     },

@@ -1059,6 +1059,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Compact the agents' context before their next reply in this thread.",
         "reply_mode": "Show or switch whether agents need a mention to start a conversation here (set/reset require a room admin)."
       }
     },
