@@ -47,9 +47,9 @@ const ownCrypto = () => ({
 
 describe('initClient checks the identity key of the store it opens', () => {
   beforeEach(() => {
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
   });
 
   afterEach(() => {
@@ -78,13 +78,15 @@ describe('initClient checks the identity key of the store it opens', () => {
       databases: vi.fn().mockResolvedValue([{ name: cryptoStoreName }]),
     });
     const destroy = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () =>
-        ({ startup: vi.fn().mockResolvedValue(undefined), destroy } as unknown as IndexedDBStore)
-    );
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return {
+        startup: vi.fn().mockResolvedValue(undefined),
+        destroy,
+      } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     const authedRequest = vi.fn();
     const stopClient = vi.fn();
     const setMaxListeners = vi.fn();
@@ -130,16 +132,15 @@ describe('initClient checks the identity key of the store it opens', () => {
       vi.stubGlobal('indexedDB', {
         databases: vi.fn().mockResolvedValue([{ name: cryptoStoreName }]),
       });
-      vi.mocked(IndexedDBStore).mockImplementation(
-        () =>
-          ({
-            startup: vi.fn().mockResolvedValue(undefined),
-            destroy: vi.fn().mockResolvedValue(undefined),
-          } as unknown as IndexedDBStore)
-      );
-      vi.mocked(IndexedDBCryptoStore).mockImplementation(
-        () => ({} as unknown as IndexedDBCryptoStore)
-      );
+      vi.mocked(IndexedDBStore).mockImplementation(function () {
+        return {
+          startup: vi.fn().mockResolvedValue(undefined),
+          destroy: vi.fn().mockResolvedValue(undefined),
+        } as unknown as IndexedDBStore;
+      });
+      vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+        return {} as unknown as IndexedDBCryptoStore;
+      });
       const authedRequest =
         serverKey === null
           ? vi.fn().mockRejectedValue(new Error('offline'))
@@ -198,9 +199,9 @@ describe('initClient checks the identity key of the store it opens', () => {
     vi.stubGlobal('indexedDB', {
       databases: vi.fn().mockResolvedValue([{ name: cryptoStoreName }]),
     });
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+    });
     const authedRequest = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
       getCrypto: ownCrypto,

@@ -45,9 +45,12 @@ describe('English overlay (locales/additions/en.json)', () => {
   });
 
   it('merges into the English catalog', () => {
-    expect(leaves(englishCatalog)).toHaveLength(base.size + additions.length);
+    const merged = leaves(englishCatalog);
+    expect(merged).toHaveLength(base.size + additions.length);
+    // One lookup per added leaf: a search of the whole list for each takes seconds.
+    const text = new Map(merged);
     additions.forEach(([path, value]) => {
-      expect(leaves(englishCatalog)).toContainEqual([path, value]);
+      expect(text.get(path)).toBe(value);
     });
   });
 

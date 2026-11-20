@@ -118,6 +118,8 @@ describe('SpecVersions', () => {
   });
 
   afterEach(() => {
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     specVersionsLoaderMode = 'success';

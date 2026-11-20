@@ -224,6 +224,8 @@ describe('initClient', () => {
   });
 
   afterEach(() => {
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -236,18 +238,17 @@ describe('initClient', () => {
         maxTimelineEntries: 50,
       },
     };
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () =>
-        ({
-          backend: {
-            syncAccumulator,
-          },
-          startup,
-        } as unknown as IndexedDBStore)
-    );
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return {
+        backend: {
+          syncAccumulator,
+        },
+        startup,
+      } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
 
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     const setMaxListeners = vi.fn();
@@ -351,12 +352,12 @@ describe('initClient', () => {
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('indexedDB', { databases });
     vi.stubGlobal('navigator', { onLine: false });
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
-    );
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     const setMaxListeners = vi.fn();
     const authedRequest = vi.fn().mockRejectedValue(new Error('network unavailable'));
     vi.mocked(createMatrixClient).mockReturnValue({
@@ -387,12 +388,12 @@ describe('initClient', () => {
     await createDatabase(factory, cryptoStoreName);
     Object.defineProperty(factory, 'databases', { configurable: true, value: undefined });
     vi.stubGlobal('indexedDB', factory);
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
-    );
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     const authedRequest = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
       getCrypto: ownCrypto,
@@ -446,10 +447,12 @@ describe('initClient', () => {
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return { startup } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     const authedRequest = vi.fn().mockResolvedValue({ device_keys: {} });
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     const setMaxListeners = vi.fn();
@@ -484,10 +487,12 @@ describe('initClient', () => {
       databases: vi.fn().mockResolvedValue([]),
     });
     const startup = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return { startup } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     const authedRequest = vi.fn().mockResolvedValue({
       device_keys: {
         '@user:example.com': {
@@ -527,10 +532,12 @@ describe('initClient', () => {
       databases: vi.fn().mockResolvedValue([]),
     });
     const startup = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return { startup } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     vi.mocked(createMatrixClient).mockReturnValue({
       getCrypto: ownCrypto,
@@ -559,10 +566,12 @@ describe('initClient', () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     vi.stubGlobal('indexedDB', { databases: vi.fn().mockResolvedValue([]) });
     const startup = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(IndexedDBStore).mockImplementation(() => ({ startup } as unknown as IndexedDBStore));
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return { startup } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     const authedRequest = vi.fn().mockRejectedValue(new Error('offline'));
 
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
@@ -619,15 +628,14 @@ describe('initClient', () => {
           resolveStartup = resolve;
         })
     );
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () =>
-        ({
-          startup,
-        } as unknown as IndexedDBStore)
-    );
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return {
+        startup,
+      } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
 
     const initRustCrypto = vi.fn(
       () =>
@@ -696,16 +704,15 @@ describe('initClient', () => {
       failedInitializer === 'rust'
         ? vi.fn().mockRejectedValue(initializationFailure)
         : pendingInitializer;
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () =>
-        ({
-          startup,
-          destroy,
-        } as unknown as IndexedDBStore)
-    );
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return {
+        startup,
+        destroy,
+      } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
 
     const stopClient = vi.fn();
     const setMaxListeners = vi.fn();
@@ -751,18 +758,17 @@ describe('initClient', () => {
         maxTimelineEntries: 9000,
       },
     };
-    vi.mocked(IndexedDBStore).mockImplementation(
-      () =>
-        ({
-          backend: {
-            syncAccumulator,
-          },
-          startup,
-        } as unknown as IndexedDBStore)
-    );
-    vi.mocked(IndexedDBCryptoStore).mockImplementation(
-      () => ({} as unknown as IndexedDBCryptoStore)
-    );
+    vi.mocked(IndexedDBStore).mockImplementation(function () {
+      return {
+        backend: {
+          syncAccumulator,
+        },
+        startup,
+      } as unknown as IndexedDBStore;
+    });
+    vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+      return {} as unknown as IndexedDBCryptoStore;
+    });
     vi.mocked(createMatrixClient).mockReturnValue({
       getCrypto: ownCrypto,
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
@@ -801,12 +807,12 @@ describe('initClient', () => {
     });
 
     try {
-      vi.mocked(IndexedDBStore).mockImplementation(
-        () => ({ startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore)
-      );
-      vi.mocked(IndexedDBCryptoStore).mockImplementation(
-        () => ({} as unknown as IndexedDBCryptoStore)
-      );
+      vi.mocked(IndexedDBStore).mockImplementation(function () {
+        return { startup: vi.fn().mockResolvedValue(undefined) } as unknown as IndexedDBStore;
+      });
+      vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+        return {} as unknown as IndexedDBCryptoStore;
+      });
 
       const refreshToken = vi.fn().mockResolvedValue({
         access_token: 'access-b',
@@ -904,6 +910,8 @@ describe('initClient', () => {
 
 describe('startClient', () => {
   afterEach(() => {
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -1108,6 +1116,8 @@ describe('clearAllCacheAndReload', () => {
   );
 
   afterEach(() => {
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__ = originalBasePath;
 
@@ -1625,6 +1635,8 @@ describe('logoutClient', () => {
   const originalWindow = globalThis.window;
 
   afterEach(() => {
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
 
     if (originalLocalStorage === undefined) {
@@ -2094,6 +2106,8 @@ describe('removeStoredSession', () => {
   const originalWindow = globalThis.window;
 
   afterEach(() => {
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
 
     if (originalLocalStorage === undefined) {

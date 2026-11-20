@@ -64,13 +64,14 @@ describe('shared surface import boundary', () => {
     expect(result.messages).toEqual([]);
   });
 
+  // ESLint's first type-aware run builds the program, which takes longer than Vitest's 5 s default.
   it('allows raw primitives only in the adapter implementation', async () => {
     const result = await lint(
       "import { Menu, MenuItem, Modal, Dialog, Header } from 'folds';\n\nexport { Menu, MenuItem, Modal, Dialog, Header };",
       adapterPath
     );
     expect(result.messages).toEqual([]);
-  });
+  }, 60_000);
 
   // Pop-outs and tooltips come from the directional wrappers, which place them in reading order:
   // in any file, and under a made-up path.

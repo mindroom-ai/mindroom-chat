@@ -125,6 +125,7 @@ describe('feature ownership architecture', () => {
     expect(engineDependencies).not.toContain(THREAD_PAGINATION);
   });
 
+  // It parses every production source file, which takes longer than Vitest's 5 s default.
   it('detects dot and bracket ownership violations and confines brittle SDK operations', () => {
     const directory = createFixtureDirectory();
     const violator = join(directory, 'violator.ts');
@@ -192,5 +193,5 @@ describe('feature ownership architecture', () => {
       'event-store/sdk/roomTimelineSdk.ts',
       'event-store/sdk/threadBootstrapSdk.ts',
     ]);
-  });
+  }, 60_000);
 });

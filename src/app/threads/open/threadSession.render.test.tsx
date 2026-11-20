@@ -17,7 +17,11 @@ vi.mock('../../event-store/cache/attachmentRepository', async (original) => ({
   ...(await original<typeof import('../../event-store/cache/attachmentRepository')>()),
   hydrateCachedLongText: vi.fn(async () => ({})),
 }));
-afterEach(() => vi.restoreAllMocks());
+// Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+afterEach(() => {
+  vi.resetAllMocks();
+  vi.restoreAllMocks();
+});
 
 const mountThreadSession = async ({
   mx,
