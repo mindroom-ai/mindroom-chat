@@ -36,9 +36,10 @@ import {
 // A card that moves up past the cards in view (its thread got a reply, or its agent started and it
 // went to Working) leaves them where they are too, on the desktop in Chromium: from below the
 // view, with and without motion, in sections under the Needs you header, from the view itself,
-// when it only swaps with the card that leads the view, and when several move at once as a
-// resting pointer lets their order go: three from below the view, or the three under the first
-// two cards, which then stand above those two.
+// when it only swaps with the card that leads the view, when it leads the view itself, and when
+// several move at once as a resting pointer lets their order go: three from below the view, the
+// three under the first two cards, which then stand above those two, the two under the card that
+// leads the view, or that card and the next.
 const PASSWORD = 'compact-live-cards-top-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.COMPACT_LIVE_SHOTS;
@@ -291,12 +292,15 @@ const WORKING = 3;
 
 /** What a frame shows of the rows that lead the view, from the list's top edge. */
 type LeadPlaces = {
-  /** The row that leads the view: a card, or a section's header. */
+  /** The first row in view that does not move: a card, or a section's header. */
   row: number;
-  /** The first card in view that is not the one that moves. */
+  /** The first card in view that does not move. */
   card: number;
   scrollTop: number;
-  /** Whether the card that moves shows before the row that leads the view. */
+  /**
+   * Whether the card that moves shows before that row, or, when it led the view itself, before
+   * the row that stood right before it.
+   */
   crossed: boolean;
 };
 
@@ -310,11 +314,13 @@ type LeadWatch = {
 };
 
 /**
- * Watches the row and the card that lead the view, frame by frame, while the card of `moverId`
- * moves; returns where they show now, and where that card shows and how high it is.
+ * Watches the row and the card that lead the view, of those that stay, frame by frame, while the
+ * cards of `moverIds` move; returns where they show now, and where the first of those cards shows
+ * and how high it is.
  */
-const watchLead = (page: Page, moverId: string) =>
-  page.evaluate((mover) => {
+const watchLead = (page: Page, moverIds: string[]) =>
+  page.evaluate((movers) => {
+    const mover = movers[0] ?? '';
     const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
     if (!view) throw new Error('no Compact list');
     const edge = view.getBoundingClientRect().top + view.clientTop;
@@ -322,16 +328,18 @@ const watchLead = (page: Page, moverId: string) =>
       [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].find(
         (shell) => shell.getAttribute('data-scroll-anchor') === rootId
       );
-    const inView = [
+    const rows = [
       ...view.querySelectorAll<HTMLElement>('[data-scroll-anchor], [data-compact-section]'),
-    ].filter((row) => row.getBoundingClientRect().bottom > edge + 1);
-    const leadRow = inView[0];
-    const leadCard = inView.find(
-      (row) =>
-        row.hasAttribute('data-scroll-anchor') && row.getAttribute('data-scroll-anchor') !== mover
-    );
+    ];
+    const inView = rows.filter((row) => row.getBoundingClientRect().bottom > edge + 1);
+    const stays = (row: HTMLElement) =>
+      !movers.includes(row.getAttribute('data-scroll-anchor') ?? '');
+    const leadRow = inView.find(stays);
+    const leadCard = inView.find((row) => row.hasAttribute('data-scroll-anchor') && stays(row));
     const moving = cardOf(mover);
     if (!leadRow || !leadCard || !moving) throw new Error('no row leads the view');
+    // A card that leads the view itself moves up past the row before it.
+    const passed = inView[0] === moving ? rows[rows.indexOf(moving) - 1] ?? leadRow : leadRow;
     // A header glides to its place (`translate`), a card's shell never does: a row's place in the
     // list is where it shows without the glide, which a frame mid-glide still tells apart.
     const placeOf = (row: HTMLElement) => {
@@ -346,7 +354,7 @@ const watchLead = (page: Page, moverId: string) =>
         scrollTop: view.scrollTop,
         // eslint-disable-next-line no-bitwise
         crossed:
-          !!now && !!(leadRow.compareDocumentPosition(now) & Node.DOCUMENT_POSITION_PRECEDING),
+          !!now && !!(passed.compareDocumentPosition(now) & Node.DOCUMENT_POSITION_PRECEDING),
       };
     };
     const watch: LeadWatch = { before: read(), furthest: 0, read };
@@ -372,7 +380,7 @@ const watchLead = (page: Page, moverId: string) =>
       moverHeight: rect.height,
       viewHeight: view.clientHeight,
     };
-  }, moverId);
+  }, moverIds);
 
 const leadWatch = (page: Page) =>
   page.evaluate(() => {
@@ -380,12 +388,22 @@ const leadWatch = (page: Page) =>
     return { first, furthest, now: read() };
   });
 
-type Move = 'below' | 'below-reduced' | 'sections' | 'in-view' | 'swap' | 'release' | 'rotate';
+type Move =
+  | 'below'
+  | 'below-reduced'
+  | 'sections'
+  | 'in-view'
+  | 'swap'
+  | 'release'
+  | 'rotate'
+  | 'lead'
+  | 'under'
+  | 'lead-two';
 
 /**
  * A reader scrolled down the list, the pointer away from it: a card moves up past the cards in
- * view, and the row and the card that lead the view show where they did, in the first frame that
- * shows the move, in every frame while the cards glide, and once they have.
+ * view, and the row and the card that lead the view, of those that stay, show where they did, in
+ * the first frame that shows the move, in every frame while the cards glide, and once they have.
  */
 const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   const { reader, roomId, rootIds } = seeded;
@@ -454,10 +472,21 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     // A swap, and three cards that rotate above two: the first card leads the view, cut by 30 px.
     await scrollList(page, move === 'swap' || move === 'rotate' ? 30 : 700);
   }
+  const leads = move === 'lead' || move === 'lead-two';
+  if (leads || move === 'under') {
+    // The card that leads the view is cut by 30 px, far down the list.
+    await page.evaluate(() => {
+      const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+      if (!view) return;
+      const edge = view.getBoundingClientRect().top + view.clientTop;
+      const lead = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].find(
+        (shell) => shell.getBoundingClientRect().bottom > edge + 1
+      );
+      view.scrollTop += (lead?.getBoundingClientRect().top ?? edge) - edge + 30;
+    });
+  }
   await page.waitForTimeout(300);
 
-  // The card that moves: the oldest thread's, far below the view, or one in view, the card after
-  // the one that leads it (a swap) or three cards below that one.
   const shown = await page.evaluate(() => {
     const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
     const edge = view?.getBoundingClientRect().top ?? 0;
@@ -465,23 +494,36 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
       .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
   });
-  const inView = move === 'in-view' || move === 'swap' || move === 'rotate';
-  // Let go of a held order, three cards move at once: the three oldest threads', or the third to
-  // fifth card in view, the fifth first, so they keep their order above the first two.
-  const held = move === 'release' || move === 'rotate';
-  const movers =
-    move === 'release'
-      ? rootIds.slice(0, 3)
-      : move === 'rotate'
-      ? [shown[4] ?? '', shown[3] ?? '', shown[2] ?? '']
-      : [(inView ? shown[move === 'swap' ? 1 : 3] : rootIds[0]) ?? ''];
+  const inView = move === 'in-view' || move === 'swap' || move === 'rotate' || move === 'under';
+  // The cards that move, the first reply first. One: the oldest thread's, far below the view, or
+  // one in view, the card after the one that leads it (a swap), three cards below that one, or
+  // the one that leads it. Several, as a held order is let go: the three oldest threads', the
+  // third to fifth card in view, the fifth first, so they keep their order above the first two,
+  // the two cards under the one that leads the view, or that one and the next.
+  const moversOf: Record<Move, (string | undefined)[]> = {
+    below: [rootIds[0]],
+    'below-reduced': [rootIds[0]],
+    sections: [rootIds[0]],
+    'in-view': [shown[3]],
+    swap: [shown[1]],
+    release: rootIds.slice(0, 3),
+    rotate: [shown[4], shown[3], shown[2]],
+    lead: [shown[0]],
+    under: [shown[1], shown[2]],
+    'lead-two': [shown[0], shown[1]],
+  };
+  const movers = moversOf[move].map((rootId) => rootId ?? '');
+  const held = movers.length > 1;
   const mover = movers[0] ?? '';
-  const start = await watchLead(page, mover);
+  const start = await watchLead(page, movers);
   const { before } = start;
   expect(before.scrollTop, `${move}: the list is scrolled`).toBeGreaterThan(0);
-  expect(before.crossed, `${move}: the card that moves shows after the leading row`).toBe(false);
-  expect(start.leadCardId, `${move}: another card leads the view`).not.toBe(mover);
-  if (inView) {
+  expect(before.crossed, `${move}: the card that moves shows after the row it passes`).toBe(false);
+  expect(movers, `${move}: a card that stays leads the view`).not.toContain(start.leadCardId);
+  if (leads) {
+    expect(start.moverTop, `${move}: the card that moves leads the view, cut`).toBeCloseTo(-30, 0);
+    expect(before.card, `${move}: the cards that stay show under it`).toBeGreaterThan(30);
+  } else if (inView) {
     expect(start.moverTop, `${move}: the card that moves shows in view`).toBeGreaterThan(
       before.card + 1
     );
@@ -500,10 +542,11 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       timeout: 30_000,
     });
   } else if (held) {
-    // The pointer rests on a card in view, which holds the order, while each of the three
-    // threads gets a reply. A mouse at rest lets go after three seconds, so it keeps moving a
+    // The pointer rests on a card in view, which holds the order, while each of the threads
+    // gets a reply. A mouse at rest lets go after three seconds, so it keeps moving a
     // little until every reply shows.
-    const box = (await cardOf(page, shown[move === 'rotate' ? 1 : 2] ?? '').boundingBox())!;
+    const rest = move === 'rotate' ? 1 : move === 'release' ? 2 : 3;
+    const box = (await cardOf(page, shown[rest] ?? '').boundingBox())!;
     const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     await page.mouse.move(pointer.x, pointer.y);
     await expect(page.locator('[data-order-held]')).toHaveCount(1);
@@ -528,7 +571,7 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     expect((await leadWatch(page)).now.crossed, `${move}: the held cards kept their order`).toBe(
       false
     );
-    // The pointer leaves the list: the three cards move up in one render.
+    // The pointer leaves the list: the cards move up in one render.
     await page.mouse.move(5, 795);
   } else {
     await reply(mover, 'Found it: the exporter quotes a comma twice.');
@@ -627,6 +670,18 @@ test.describe('a card moves up past the cards in view (Chromium, desktop)', () =
       [
         'rotate',
         'the three cards under the first two move above them at once, and the first, cut at the top, stays in place',
+      ],
+      [
+        'lead',
+        'a reply in the thread of the card that leads the view, cut at the top, leaves the cards under it in place',
+      ],
+      [
+        'under',
+        'replies at once in the threads of the two cards under the one that leads the view leave it in place',
+      ],
+      [
+        'lead-two',
+        'replies at once in the threads of the card that leads the view and the next leave the cards under them in place',
       ],
     ] as const
   ).entries()) {
