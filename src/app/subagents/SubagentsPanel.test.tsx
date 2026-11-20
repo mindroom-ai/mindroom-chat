@@ -1436,6 +1436,9 @@ describe('SubagentsPanel', () => {
           card('between').querySelector('[data-subagent-nested] [data-subagent-line]')
         ).toBeNull();
         expect(line('between')).toBeNull();
+        // A nested run has no status chip of its own, so it says beside its time that it runs.
+        const nestedTime = () => card('between').querySelector('[data-subagent-nested-time]');
+        expect(nestedTime()?.textContent).toBe('Running 10s');
         // How a run ended stays: its result, or why it failed.
         expect(line('done')?.textContent).toContain('Version 2 shipped in March.');
         expect(line('broke')?.textContent).toContain('Tool crashed.');
@@ -1448,6 +1451,7 @@ describe('SubagentsPanel', () => {
         expect(card('notes').querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
         expect(line('notes')?.textContent).toBe('Nowread_file path=notes/2026-11-16.md');
         expect(line('between')?.getAttribute('data-subagent-line')).toBe('plain');
+        expect(nestedTime()?.textContent).toBe('10s');
       });
 
       it("folds an open run's numbers and model into a closed Usage, with no line of what it does", () => {

@@ -33,8 +33,10 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 }));
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
+// The room's signals, which a bar follows only while it shows a tool job's call.
+const signals = vi.hoisted(() => ({ subscribe: vi.fn(() => () => undefined) }));
 vi.mock('../threads/cross-room/threadSignalsReader', () => ({
-  subscribeRoomSignals: () => () => undefined,
+  subscribeRoomSignals: signals.subscribe,
 }));
 vi.mock('../threads/fork/ThreadForkDivider', () => ({
   useThreadTitle: (_room: unknown, threadId: string) => `Title of ${threadId}`,
@@ -977,6 +979,16 @@ it('heads a tool job with its tool in plain words, without its call, until the u
   row(item({ activity: read }));
   expect(headline()).toBe('read_file');
   expect(activity()).toBe('path=notes/2026-11-16.md');
+});
+
+it("follows a tool job's call in the room only while the usage details show it", () => {
+  signals.subscribe.mockClear();
+  state.jobs = [job('a', { toolCallId: 'call-1' })];
+  // Folded, its one row is on show, but says no call without the usage details.
+  render();
+  expect(signals.subscribe).not.toHaveBeenCalled();
+  act(() => showUsageDetails());
+  expect(signals.subscribe).toHaveBeenCalled();
 });
 
 it("names the thread of a job that runs outside the view's, and shows it when pressed", async () => {

@@ -88,8 +88,7 @@ const runPreview = (meta: SubagentMeta, docs: LiveDocs, t: TFunction): string | 
 };
 
 /** The line a card shows for its run (`runLine`), with the texts it needs. */
-const useRunLine = (run: SubagentRun): { line: RunLine; failed: boolean } => {
-  const { t } = useTranslation();
+const runLineOf = (run: SubagentRun, t: TFunction): { line: RunLine; failed: boolean } => {
   const { meta, docs } = run;
   const reason = meta.result?.trim() ? previewText(meta.result, t) : undefined;
   return { line: runLine(run, runPreview(meta, docs, t), reason), failed: isFailedRun(meta) };
@@ -146,12 +145,10 @@ function LineRest({ line }: { line: Exclude<RunLine, { kind: 'plain' }> }) {
 function RunLineText({ run }: { run: SubagentRun }) {
   const { t } = useTranslation();
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
-  const { line, failed } = useRunLine(run);
-  const atWork =
-    line.kind === 'now' ||
-    line.kind === 'approval' ||
-    (line.kind === 'plain' && isActiveSubagentStatus(run.meta.status));
-  if (!details && atWork) return null;
+  // A run at work (running, waiting or paused) shows its call or what it wrote; without the usage
+  // details it has no line, so neither is read.
+  if (!details && isActiveSubagentStatus(run.meta.status)) return null;
+  const { line, failed } = runLineOf(run, t);
   if (line.kind === 'plain') {
     return (
       <Text
@@ -224,7 +221,8 @@ export const nodeTitle = (node: SubagentNode, agentName: string): string =>
 
 /**
  * A sub-agent another one started, inside its card: on an elbow from it, its logo, title, and its
- * time or that it waits for approval, then its labelled line.
+ * time, or that it waits for approval; how it stands beside its time when it is paused, or running
+ * without the usage details, which leave out its line. Then its labelled line.
  */
 function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: number }) {
   const run = latestTurn(node);
@@ -232,6 +230,10 @@ function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: n
   const agent = useAgentProfile(room, meta.agent);
   const time = useRunTime(meta, now);
   const first = node.turns[0].run.meta;
+  // A paused run's time stands still, so it says why beside it; without the usage details, which
+  // leave out its line, a running one says it runs.
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
+  const statusBeside = meta.status === 'paused' || (meta.status === 'running' && !details);
   return (
     <span className={css.NestedRun} data-subagent-nested={node.id}>
       <RunLogo
@@ -260,13 +262,12 @@ function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: n
         data-subagent-nested-time=""
       >
         {meta.status === 'awaiting_approval' && <RunStatus meta={meta} loud />}
-        {/* A paused run's time stands still, so it says why beside it. */}
-        {meta.status === 'paused' && (
+        {statusBeside && (
           <>
             <RunStatus meta={meta} /> {time}
           </>
         )}
-        {meta.status !== 'awaiting_approval' && meta.status !== 'paused' && time}
+        {meta.status !== 'awaiting_approval' && !statusBeside && time}
       </Text>
       <span className={css.NestedLine}>
         <RunLineText run={run} />
