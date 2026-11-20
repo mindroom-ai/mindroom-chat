@@ -19,7 +19,7 @@ import {
 import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/state/upload';
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { clearKeptPastes } from './keptPastes';
-import { composerStateKey, shownConversationViewsAtom } from '../navigation/conversationView';
+import { composerStateKey } from '../navigation/conversationView';
 
 // TUploadItem is declared with the upload state; this module keeps exporting it.
 export type { TUploadItem } from '../matrix/state/upload';
@@ -374,24 +374,6 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
 
-/** A thread's composers against an offered draft: empty, holding the offer, or busy with any work. */
-export const composerOfferAtom = (key: [string, string, string?], offer: Descendant[]) =>
-  atom((get): 'empty' | 'offered' | 'busy' => {
-    const [, roomId, threadId] = key;
-    // The room page's reply and files, and those of each view showing the thread (its column).
-    const views = get(shownConversationViewsAtom).filter((place) => place.threadId === threadId);
-    const busy =
-      [{ view: undefined, roomId }, ...views].some(
-        (place) =>
-          place.roomId === roomId &&
-          (get(composerUploadItemsAtom(roomId, place.view)).length > 0 ||
-            !!get(composerReplyDraftAtom(roomId, place.view)))
-      ) || get(pendingVoiceSendDraftAtom)?.context.roomId === roomId;
-    const draft = get(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(...key)));
-    if (busy || draft.length === 0) return busy ? 'busy' : 'empty';
-    return JSON.stringify(draft) === JSON.stringify(offer) ? 'offered' : 'busy';
-  });
-
 /** The composer a recorded voice message belongs to: its room's page or a view of its thread. */
 export const voiceComposerKey = ({
   roomId,
@@ -404,7 +386,30 @@ export const voiceComposerKey = ({
 export const openVoiceRecorderAtom = atom<symbol | undefined>(undefined);
 
 /** The composers of thread views that are mounted, by `voiceComposerKey`, each one entry. */
-export const threadViewVoiceComposersAtom = atom<readonly { key: string }[]>([]);
+export const threadViewVoiceComposersAtom = atom<readonly { key: string; view: string }[]>([]);
+
+/**
+ * A destination's composers against an offered draft: empty, holding the offer, or busy with its
+ * work, in each composer mounted for it (folded too): a thread's views, or the room's page.
+ */
+export const composerOfferAtom = (key: [string, string, string?], offer: Descendant[]) =>
+  atom((get): 'empty' | 'offered' | 'busy' => {
+    const [, roomId, threadId] = key;
+    const owner = voiceComposerKey({ roomId, threadId, threadView: threadId !== undefined });
+    const views = threadId
+      ? get(threadViewVoiceComposersAtom).flatMap((c) => (c.key === owner ? [c.view] : []))
+      : [undefined];
+    const voice = get(pendingVoiceSendDraftAtom);
+    const busy =
+      (!!voice && voiceComposerKey(voice.context) === owner) ||
+      views.some(
+        (v) =>
+          get(composerUploadItemsAtom(roomId, v)).length || get(composerReplyDraftAtom(roomId, v))
+      );
+    const draft = get(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(...key)));
+    if (busy || draft.length === 0) return busy ? 'busy' : 'empty';
+    return JSON.stringify(draft) === JSON.stringify(offer) ? 'offered' : 'busy';
+  });
 
 // What a reload would lose.
 

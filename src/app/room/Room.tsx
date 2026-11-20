@@ -110,7 +110,7 @@ import {
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
-import { isDraftShown } from '../composer/useRoomInputDraft';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
 import { createParagraphElement } from '../editor/utils';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
@@ -801,10 +801,14 @@ function RoomContent() {
       if (store.get(offer(action.threadId, text)) !== 'empty') return;
       const draftKey = getRoomInputDraftKey(ownUserId, roomId, action.threadId);
       store.set(roomIdToMsgDraftAtomFamily(draftKey), [createParagraphElement(text)]);
-      if (!isDraftShown(draftKey)) showConversation(action.threadId);
+      // Opened unless it shows: the thread in a view on screen, the room alone or beside a thread.
+      const shown = store
+        .get(shownConversationViewsAtom)
+        .some((v) => v.roomId === roomId && v.threadId === action.threadId);
+      if (!shown && (action.threadId || threadId)) showConversation(action.threadId);
     };
     return { offer, fill };
-  }, [ownUserId, roomId, showConversation, store]);
+  }, [ownUserId, roomId, showConversation, store, threadId]);
 
   const uiActions = useChatUiActions({
     mx: client,
