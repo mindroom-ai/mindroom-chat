@@ -48,7 +48,7 @@ describe('image-pack upload object URL ownership', () => {
 
   it('revokes the upload URL after successful image-pack metadata extraction', async () => {
     const file = new File(['image'], 'party-parrot.png', { type: 'image/png' });
-    mocks.loadImageElement.mockResolvedValue({ height: 1, width: 1 } as HTMLImageElement);
+    mocks.loadImageElement.mockResolvedValue({ height: 1, width: 1 });
 
     const image = await readImagePackUpload({
       file,

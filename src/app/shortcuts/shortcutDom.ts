@@ -1,4 +1,4 @@
-import { portalContainer } from '../lib/portalOverlay';
+import { modalSheetOpen, portalContainer } from '../lib/portalOverlay';
 import type { ShortcutContext } from './shortcuts';
 
 /** Marks the help dialog, the one overlay that leaves its own toggle working. */
@@ -9,6 +9,7 @@ export const openOverlay = (): ShortcutContext['overlay'] => {
   const layers = Array.from(portalContainer?.children ?? []).filter(
     (child) => child.getAttribute('role') !== 'tooltip'
   );
+  if (modalSheetOpen()) return 'other';
   if (layers.length === 0) return 'none';
   return layers.every((layer) => layer.querySelector(`[${HELP_DIALOG_ATTRIBUTE}]`))
     ? 'help'

@@ -11,6 +11,7 @@ type AiRunUsage = {
   input_tokens?: unknown;
   output_tokens?: unknown;
   cache_read_tokens?: unknown;
+  cache_write_tokens?: unknown;
   uncached_input_tokens?: unknown;
   time_to_first_token?: unknown;
 };
@@ -57,6 +58,8 @@ export type AiRunInfo = {
   cacheReadTokens?: number;
   /** Input that was not read from cache, split by the backend with each provider's cache accounting. */
   uncachedInputTokens?: number;
+  /** The part of the uncached input written to cache; the backend leaves out a zero count. */
+  cacheWriteTokens?: number;
   timeToFirstToken?: number;
   contextInputTokens?: number;
   contextWindowTokens?: number;
@@ -115,7 +118,7 @@ const getAiRunMetadataFromCandidate = (
   const metadata = content[AI_RUN_METADATA_KEY];
   if (!isRecord(metadata)) return undefined;
   if (metadata.version !== 1) return undefined;
-  return metadata as AiRunMetadata;
+  return metadata;
 };
 
 const getAiRunMetadata = (content: Record<string, unknown>): AiRunMetadata | undefined => {
@@ -147,6 +150,7 @@ export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | unde
     outputTokens: asFiniteNumber(usage?.output_tokens),
     cacheReadTokens: asFiniteNumber(usage?.cache_read_tokens),
     uncachedInputTokens: asFiniteNumber(usage?.uncached_input_tokens),
+    cacheWriteTokens: asFiniteNumber(usage?.cache_write_tokens),
     timeToFirstToken: asNonNegativeDecimal(usage?.time_to_first_token),
     contextInputTokens: asFiniteNumber(context?.input_tokens),
     contextWindowTokens: asFiniteNumber(context?.window_tokens),
@@ -159,6 +163,44 @@ export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | unde
 
   const hasAnyInfo = Object.values(info).some((value) => value !== undefined);
   return hasAnyInfo ? info : undefined;
+};
+
+/** The kinds of tokens a reply's model requests used, in the order they are shown. */
+export const AI_RUN_TOKEN_KINDS = [
+  'cacheRead',
+  'cacheWrite',
+  'notCached',
+  'newInput',
+  'input',
+  'output',
+] as const;
+export type AiRunTokenKind = (typeof AI_RUN_TOKEN_KINDS)[number];
+export type AiRunTokenCounts = Partial<Record<AiRunTokenKind, number>>;
+
+/**
+ * The tokens a reply's own model requests used, by kind. Input splits by cache only where the
+ * backend reported the split, and its uncached part into cache writes and the rest only where it
+ * counted the writes: it leaves out a zero count, and some providers cache without counting
+ * writes, so without the count the uncached input stays one part.
+ */
+export const getAiRunTokenCounts = (info: AiRunInfo): AiRunTokenCounts => {
+  const counts: AiRunTokenCounts = {};
+  const add = (kind: AiRunTokenKind, tokens: number | undefined) => {
+    if (tokens !== undefined && tokens > 0) counts[kind] = tokens;
+  };
+  const uncached = info.uncachedInputTokens;
+  if (uncached === undefined) add('input', info.inputTokens);
+  else {
+    add('cacheRead', info.cacheReadTokens);
+    if (info.cacheWriteTokens === undefined) add('newInput', uncached);
+    else {
+      const writes = Math.min(Math.max(0, info.cacheWriteTokens), uncached);
+      add('cacheWrite', writes);
+      add('notCached', uncached - writes);
+    }
+  }
+  add('output', info.outputTokens);
+  return counts;
 };
 
 /** The run details without their costs, for a sender whose cost does not count. */

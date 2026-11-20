@@ -44,7 +44,7 @@ describe('RoomTimeline', () => {
             eventId: secondThread.getId(),
             renderableEvents: [firstThread, messageEvent, secondThread] as never,
             room: room as never,
-            threadResolutionMap: threadResolutionMapMock as never,
+            threadResolutionMap: threadResolutionMapMock,
             threadId: undefined,
             threadFilterState: {
               ...DEFAULT_THREAD_FILTER_STATE,
@@ -80,7 +80,7 @@ describe('RoomTimeline', () => {
             eventId: matchingThread.getId(),
             renderableEvents: [matchingThread, otherThread] as never,
             room: makeRoom() as never,
-            threadResolutionMap: threadResolutionMapMock as never,
+            threadResolutionMap: threadResolutionMapMock,
             threadId: undefined,
             threadFilterState: {
               ...DEFAULT_THREAD_FILTER_STATE,
@@ -122,7 +122,7 @@ describe('RoomTimeline', () => {
             eventId: firstThread.getId(),
             renderableEvents: [firstThread, secondThread, thirdThread] as never,
             room: room as never,
-            threadResolutionMap: threadResolutionMapMock as never,
+            threadResolutionMap: threadResolutionMapMock,
             threadId: undefined,
             threadFilterState,
             scheduledStatusMap: new Map(),
@@ -157,7 +157,7 @@ describe('RoomTimeline', () => {
         ];
         const room = makeRoom({
           liveEvents: [firstThread, secondThread],
-          threads: roomThreads as never,
+          threads: roomThreads,
         });
         const threadFilterState = {
           ...TEST_DEFAULT_THREAD_FILTER_STATE,
@@ -179,7 +179,7 @@ describe('RoomTimeline', () => {
             eventId: compactOnlyThread.getId(),
             renderableEvents: [firstThread, secondThread] as never,
             room: room as never,
-            threadResolutionMap: threadResolutionMapMock as never,
+            threadResolutionMap: threadResolutionMapMock,
             threadId: undefined,
             threadFilterState,
             scheduledStatusMap: new Map(),
@@ -564,7 +564,7 @@ describe('RoomTimeline', () => {
             }
           }
 
-          vi.stubGlobal('ResizeObserver', ResizeObserverMock as never);
+          vi.stubGlobal('ResizeObserver', ResizeObserverMock);
           vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
             rafCallbacks.push(callback);
             return rafCallbacks.length;

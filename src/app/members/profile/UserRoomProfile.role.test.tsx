@@ -5,8 +5,9 @@ import { MINDROOM_SERVER_EVENT } from '../../computer/agentServer';
 import { UserRoomProfile } from './UserRoomProfile';
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+const viewer = vi.hoisted(() => ({ id: '@me:x' }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:x', getUser: () => null }),
+  useMatrixClient: () => ({ getSafeUserId: () => viewer.id, getUser: () => null }),
 }));
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
@@ -26,7 +27,12 @@ vi.mock('../useUserProfile', () => ({ useUserProfile: () => ({}) }));
 vi.mock('../../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../../calls/agent/AgentCallButton', () => ({ AgentCallButton: () => null }));
 vi.mock('../../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
-vi.mock('./MutualRoomsChip', () => ({ MutualRoomsChip: () => null }));
+vi.mock('./MutualRoomsChip', () => ({
+  MutualRoomsChip: () => null,
+  useMutualRooms: () => ({ spaces: [], rooms: [], directs: [] }),
+}));
+vi.mock('./useAgentProfile', () => ({ useAgentProfile: () => ({ status: 'none' }) }));
+vi.mock('../../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => ({}) }));
 vi.mock('./PowerChip', () => ({ PowerChip: () => null }));
 vi.mock('./UserChips', () => ({ ServerChip: () => null, ShareChip: () => null }));
 vi.mock('./UserModeration', () => ({ UserModeration: () => null }));
@@ -95,7 +101,8 @@ describe('UserRoomProfile role', () => {
   it('shows the role an agent publishes under its name', async () => {
     const room = await roomWith({ [HELPER]: { api_origin: 'http://localhost:8765', role: ROLE } });
     const text = cardText(room, HELPER);
-    expect(text.slice(0, 3)).toEqual(['Helper', HELPER, ROLE]);
+    // The agent's card keeps its user ID under "More".
+    expect(text.slice(0, 3)).toEqual(['Helper', 'Agent', ROLE]);
     // It may wrap, so its lines start under each other in its own direction.
     const roleText = renderer!.root.find(
       (node) => typeof node.type === 'string' && node.children.join('') === ROLE
@@ -103,11 +110,38 @@ describe('UserRoomProfile role', () => {
     expect(roleText.props['data-own-direction']).toBe('block');
   });
 
+  it('points More at the section it opens', async () => {
+    cardText(await roomWith({ [HELPER]: { role: ROLE } }), HELPER);
+    const more = renderer!.root.find(
+      (node) => typeof node.type === 'string' && node.props['aria-label'] === 'More'
+    );
+    expect(more.props['aria-expanded']).toBe(false);
+    // A collapsed More points at nothing: its section is not rendered yet.
+    expect(more.props['aria-controls']).toBeUndefined();
+    act(() => {
+      more.props.onClick();
+    });
+    const section = renderer!.root.find(
+      (node) => typeof node.type === 'string' && node.props.id === more.props['aria-controls']
+    );
+    expect(section.findAll((node) => node.children.includes(HELPER)).length).toBeGreaterThan(0);
+  });
+
   it('shows no role line for an agent of an older runtime, which publishes none', async () => {
     const room = await roomWith({ [HELPER]: { api_origin: 'http://localhost:8765' } });
     const withRole = cardText(await roomWith({ [HELPER]: { role: ROLE } }), HELPER);
     act(() => renderer?.unmount());
     expect(cardText(room, HELPER)).toEqual(withRole.filter((line) => line !== ROLE));
+  });
+
+  it('gives an account named like an agent its own card, with Edit Profile', async () => {
+    viewer.id = HELPER;
+    const text = cardText(await roomWith({ [HELPER]: { role: ROLE } }), HELPER);
+    viewer.id = '@me:x';
+    expect(text).toContain('Edit Profile');
+    expect(text).toContain(HELPER);
+    expect(text).not.toContain('Message');
+    expect(text).not.toContain('Agent');
   });
 
   it("leaves a person's card as it was, whatever state the person writes", async () => {

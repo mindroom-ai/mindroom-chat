@@ -1,6 +1,7 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
-import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../matrix/protocol/backgroundJobsContract';
+import { discardFailedLocalEcho } from '../protocol/pendingLocalEcho';
+import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../protocol/backgroundJobsContract';
+import { forgetCancel, markCancelSent } from '../state/sentCancels';
 
 export type BackgroundJobCancelRequest = { jobId: string } | { all: true };
 
@@ -29,5 +30,26 @@ export const cancelBackgroundJob = async (
   } catch (error) {
     discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
     throw error;
+  }
+};
+
+/**
+ * Stop jobs, as the jobs bar's and the Sub-agents panel's Stop do: `jobIds` show as stopping
+ * while the cancel is on its way, and again once it failed to send. Whether it went out.
+ */
+export const stopBackgroundJobs = async (
+  mx: MatrixClient,
+  room: Room,
+  threadId: string | null,
+  request: BackgroundJobCancelRequest,
+  jobIds: readonly string[]
+): Promise<boolean> => {
+  const marked = markCancelSent(room.roomId, jobIds);
+  try {
+    await cancelBackgroundJob(mx, room, threadId, request);
+    return true;
+  } catch {
+    forgetCancel(room.roomId, marked);
+    return false;
   }
 };

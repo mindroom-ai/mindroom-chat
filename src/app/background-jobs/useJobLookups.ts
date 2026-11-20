@@ -8,13 +8,10 @@ import { getThreadTailEvents } from '../matrix/thread';
 import { getLiveReplyStore, type LiveReplyStore } from '../messages/live/liveReplyStore';
 import { getShownToolCalls } from '../messages/live/useLiveReplyContent';
 import { getSubagentRunStore, type SubagentRun } from '../messages/live/subagentRunStore';
+import { runToolCall, toolActivity } from '../subagents/runActivity';
+import { runOfJob } from '../subagents/runJob';
 import { subscribeRoomSignals } from '../threads/cross-room/threadSignalsReader';
-import {
-  type BackgroundJobLookups,
-  type JobActivity,
-  runOfJob,
-  toolActivity,
-} from './backgroundJobsPresentation';
+import type { BackgroundJobLookups, JobActivity } from './backgroundJobsPresentation';
 
 /** Every loaded message of a conversation: a thread's, root included, or the main timeline's. */
 const loadedMessages = (room: Room, threadId: string | null): MatrixEvent[] =>
@@ -60,11 +57,14 @@ export const indexJobToolCalls = (
   return index;
 };
 
-/** What a row shows of a run, so frames that change nothing shown render nothing. */
-const shownOfRun = ({ run, meta, docs }: SubagentRun) => {
-  const { tool_name: tool, args_preview: preview } = docs.tools.at(-1) ?? {};
-  const { task, result: _result, ...rest } = meta;
-  return [run, rest, task?.split('\n', 1)[0], tool, preview];
+/**
+ * What a row shows of a run, so frames that change nothing shown render nothing: its meta, title
+ * and whole task (the headline's tooltip) included, and the call it makes now, but not its result
+ * or its other tool calls.
+ */
+const shownOfRun = (subagentRun: SubagentRun) => {
+  const { result: _result, ...shown } = subagentRun.meta;
+  return [subagentRun.run, shown, runToolCall(subagentRun) ?? null];
 };
 
 /** The runs of the listed sub-agent jobs, rendered again only when what their rows show changes. */

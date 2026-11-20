@@ -52,7 +52,7 @@ export function TokenLogin({ baseUrl, token, onFailure }: TokenLoginProps) {
       type: 'm.login.token',
       token,
       initial_device_display_name: getDeviceDisplayName(),
-    } as never)
+    })
       .then((response) => {
         if (!cancelled) setResult(response);
       })

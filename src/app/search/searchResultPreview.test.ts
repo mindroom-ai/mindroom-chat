@@ -200,7 +200,7 @@ describe('shouldUseLightweightSearchResultBody', () => {
         'io.mindroom.long_text': {
           version: 2,
         },
-      } as never)
+      })
     ).toBe(true);
   });
 
@@ -209,7 +209,7 @@ describe('shouldUseLightweightSearchResultBody', () => {
       shouldUseLightweightSearchResultBody({
         body: 'x'.repeat(1000),
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBe(true);
   });
 
@@ -218,7 +218,7 @@ describe('shouldUseLightweightSearchResultBody', () => {
       shouldUseLightweightSearchResultBody({
         body: 'normal search body',
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBe(false);
   });
 });
@@ -230,7 +230,7 @@ describe('getSearchResultLightweightFormattedBody', () => {
         body: 'x'.repeat(1000),
         formatted_body: '<p>Hello <strong>world</strong></p>',
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBe('<p>Hello <strong>world</strong></p>');
   });
 
@@ -240,7 +240,7 @@ describe('getSearchResultLightweightFormattedBody', () => {
         body: 'x'.repeat(1000),
         formatted_body: `<p>${'x'.repeat(6000)}</p>`,
         msgtype: MsgType.Text,
-      } as never)
+      })
     ).toBeUndefined();
   });
 });
@@ -253,7 +253,7 @@ describe('getSearchResultLightweightCustomBody', () => {
           body: 'ignored',
           formatted_body: '<p>Hello <strong>world</strong></p>',
           msgtype: MsgType.Text,
-        } as never,
+        },
         'Hello world'
       )
     ).toBe('<p>Hello <strong>world</strong></p>');
@@ -265,7 +265,7 @@ describe('getSearchResultLightweightCustomBody', () => {
         {
           body: '## Heading\n\n**bold** `code`',
           msgtype: MsgType.Text,
-        } as never,
+        },
         '## Heading\n\n**bold** `code`'
       )
     ).toContain('<h2');
@@ -277,7 +277,7 @@ describe('getSearchResultLightweightCustomBody', () => {
         {
           body: 'plain body',
           msgtype: MsgType.Text,
-        } as never,
+        },
         'plain body'
       )
     ).toBeUndefined();

@@ -277,9 +277,7 @@ const isEditFoldedIntoCache = (
   cachedRevisions: ReadonlyMap<string, EventRevisionDescriptor>,
   cachedSenders: ReadonlyMap<string, string>
 ): boolean => {
-  const relation = (rawEvent.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-    | { rel_type?: string; event_id?: string }
-    | undefined;
+  const relation = rawEvent.content?.['m.relates_to'];
   if (relation?.rel_type !== RelationType.Replace || typeof relation.event_id !== 'string') {
     return false;
   }

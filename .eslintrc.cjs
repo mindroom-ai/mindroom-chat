@@ -135,7 +135,7 @@ module.exports = {
       // CommonJS files, this config among them, load modules with `require`.
       files: ['**/*.cjs'],
       rules: {
-        '@typescript-eslint/no-var-requires': 'off',
+        '@typescript-eslint/no-require-imports': 'off',
       },
     },
     {

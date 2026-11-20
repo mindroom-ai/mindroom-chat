@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
-import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { CallRow } from './CallRow';
 import { TranscriptionControls } from './TranscriptionControls';
 import { useLiveTranscript, type LiveTranscriptView } from './useLiveTranscript';
@@ -30,7 +30,9 @@ const BOB = '@bob:example.org';
 
 const state = vi.hoisted(() => ({
   /** The room's MindRoom server, as the device knows it; none it can find. */
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   apiUrl: 'https://mindroom.example.org' as string | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   selectedRoom: '!room:example.org' as string | undefined,
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),
@@ -105,7 +107,7 @@ const ROW = new MatrixEvent({
   sender: ROUTER,
   origin_server_ts: 1,
   content: { msgtype: 'm.notice', body: 'Call started', 'io.mindroom.call': { call_id: 'call-1' } },
-} as Partial<IEvent>);
+});
 
 const LIVE: CallRowContent = { callId: 'call-1' };
 const ENDED: CallRowContent = { callId: 'call-1', ended: { durationSeconds: 720 } };

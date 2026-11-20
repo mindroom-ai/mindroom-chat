@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   navigateRoom: vi.fn(),
   navigate: vi.fn(),
   activeSessionId: 'session-b',
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   accounts: {
     'tag-a': { sessionId: 'session-a', lastKnownPath: '/home/!last-a:example' },
     'tag-b': { sessionId: 'session-b' },

@@ -116,7 +116,7 @@ describe('pollLiveCall', () => {
     const reads: LiveCall[] = [];
     const stop = new AbortController();
     const polling = pollLiveCall(
-      { live } as unknown as TranscriptionClient,
+      { live },
       ROOM_ID,
       2_000,
       stop.signal,

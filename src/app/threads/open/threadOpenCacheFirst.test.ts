@@ -17,7 +17,7 @@ const makeDefaultOptions = () => {
       getLiveTimeline: () => threadTimeline,
     }),
   };
-  const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+  const room = makeRoom({ liveEvents: [root], threads: [thread] });
   const threadOpenSeedSession = {
     applyInitialUntargetedThreadSeed: vi.fn(),
   };

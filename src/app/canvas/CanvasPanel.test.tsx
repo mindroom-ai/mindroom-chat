@@ -241,7 +241,7 @@ beforeEach(() => {
     () =>
       new Promise((resolve, reject) => {
         requests.push({ resolve, reject });
-      }) as never
+      })
   );
   sendMessage = vi.spyOn(mx, 'sendMessage');
 });

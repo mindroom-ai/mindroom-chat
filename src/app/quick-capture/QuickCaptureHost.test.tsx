@@ -26,6 +26,7 @@ import { QuickCaptureHost } from './QuickCaptureHost';
 import { CaptureError, sendCapture, sendCaptureReply, setCaptureResolved } from './sendCapture';
 
 const mocks = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   mx: undefined as unknown,
   navigation: { navigateRoom: vi.fn(), navigateRoomThreadDirect: vi.fn() },
   openCaptureChannel: vi.fn(),

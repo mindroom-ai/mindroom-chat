@@ -255,7 +255,7 @@ test.describe('ISSUE-217 invite menu portal', () => {
     });
 
     await test.step('lobby header menu', async () => {
-      await page.getByRole('link', { name: 'Lobby', exact: true }).click();
+      await page.getByRole('link', { name: 'Space overview', exact: true }).click();
       const lobbyMembers = page.getByRole('button', { name: /Members/ });
       await expect(lobbyMembers).toBeVisible();
       const lobbyHeader = lobbyMembers.locator('xpath=ancestor::header[1]');

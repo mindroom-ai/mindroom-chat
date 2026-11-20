@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { AutoDiscoveryInfo } from '../../matrix/cs-api';
 import { getServerEmojiRoomAddress } from './serverEmojiConfig';
 
-const info = (extra: Record<string, unknown>): AutoDiscoveryInfo =>
-  ({ 'm.homeserver': { base_url: 'https://hs.example' }, ...extra } as AutoDiscoveryInfo);
+const info = (extra: Record<string, unknown>): AutoDiscoveryInfo => ({
+  'm.homeserver': { base_url: 'https://hs.example' },
+  ...extra,
+});
 
 describe('getServerEmojiRoomAddress', () => {
   it('returns a room alias', () => {

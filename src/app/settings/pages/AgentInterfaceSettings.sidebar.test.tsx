@@ -6,7 +6,7 @@ import { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } from '../../preferences/accountSett
 import { AgentInterfaceSettings } from './AgentInterfaceSettings';
 
 const state = vi.hoisted(() => ({
-  config: {} as ClientConfig,
+  config: {},
   localMindroom: true,
   write: vi.fn(() => Promise.resolve()),
 }));

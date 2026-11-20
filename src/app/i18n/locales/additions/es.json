@@ -282,6 +282,50 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Algunas imágenes no se pueden cargar en esta ventana: el navegador no ejecuta aquí ningún service worker para MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agente",
+      "close": "Cerrar",
+      "configuredTools": "Herramientas configuradas",
+      "toolCount_one": "{{count}} herramienta",
+      "toolCount_many": "{{count}} de herramientas",
+      "toolCount_other": "{{count}} herramientas",
+      "groupCount_one": "{{count}} grupo",
+      "groupCount_many": "{{count}} de grupos",
+      "groupCount_other": "{{count}} grupos",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "También {{groups}}",
+      "viewAll_one": "Ver las {{count}} herramientas",
+      "viewAll_many": "Ver los {{count}} de herramientas",
+      "viewAll_other": "Ver las {{count}} herramientas",
+      "toolsTitle": "Herramientas de {{name}}",
+      "filter": "Filtrar herramientas",
+      "noMatch": "Ninguna herramienta coincide.",
+      "back": "Atrás",
+      "more": "Más",
+      "worksIn": "Trabaja en",
+      "loading": "Cargando herramientas configuradas",
+      "availability": "La disponibilidad puede variar según la solicitud y los permisos.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Código y archivos",
+        "research": "Web",
+        "productivity": "Planificación y memoria",
+        "email": "Correo",
+        "mcp": "Apps conectadas",
+        "integrations": "Integraciones",
+        "communication": "Chat y mensajes",
+        "entertainment": "Multimedia",
+        "information": "Información",
+        "smart_home": "Casa inteligente",
+        "social": "Social",
+        "other": "Otras"
+      }
+    },
+    "space": {
+      "overview": "Resumen del espacio"
     }
   },
   "featureUi": {
@@ -552,7 +596,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} falló: {{reason}}",
         "usage": "No se pudo ejecutar {{command}}. {{usage}}",
-        "unknown": "{{command}} no es un comando. Para enviarlo como texto, empieza el mensaje con /plain."
+        "unknown": "{{command}} no es un comando. Para enviarlo como texto, empieza el mensaje con /plain.",
+        "thisApp": "Esta app",
+        "mindroomAgents": "Agentes de MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Este servidor no puede buscar mensajes por hora.",
@@ -848,6 +894,14 @@
         "diffTruncated": "Diff truncado",
         "diffLabel": "Diff de {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Modelo establecido",
+        "reset": "Modelo restablecido",
+        "inherited": "De vuelta a los modelos heredados",
+        "changedBy": "Cambiado por {{name}}",
+        "scopeOwn": "Se aplica a las próximas respuestas en este hilo de los agentes y equipos a los que puedes dirigirte.",
+        "scopeOther": "Se aplica a las próximas respuestas en este hilo de los agentes y equipos a los que {{name}} puede dirigirse."
+      },
       "finishedWork": {
         "workedFor": "Trabajó durante {{duration}}",
         "worked": "Trabajó"
@@ -868,7 +922,10 @@
         "nameChose": "{{name}} eligió"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagentes"
+        "subagents": "Subagentes",
+        "writtenToCache": "Escritos en caché",
+        "notCached": "Sin caché",
+        "conversation": "Conversación"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En ejecución desde hace {{duration}}",
@@ -957,7 +1014,8 @@
         "searchFailed": "La búsqueda falló. Inténtalo de nuevo.",
         "resultCountFor_one": "{{count}} resultado para «{{term}}»",
         "resultCountFor_many": "{{count}} de resultados para «{{term}}»",
-        "resultCountFor_other": "{{count}} resultados para «{{term}}»"
+        "resultCountFor_other": "{{count}} resultados para «{{term}}»",
+        "retry": "Reintentar"
       }
     },
     "notifications": {
@@ -1036,9 +1094,6 @@
       "needApproval_one": "{{count}} necesita aprobación",
       "needApproval_many": "{{count}} necesitan aprobación",
       "needApproval_other": "{{count}} necesitan aprobación",
-      "toolCalls_one": "{{count}} llamada a herramienta",
-      "toolCalls_many": "{{count}} llamadas a herramientas",
-      "toolCalls_other": "{{count}} llamadas a herramientas",
       "tokens_one": "{{tokens}} token",
       "tokens_many": "{{tokens}} tokens",
       "tokens_other": "{{tokens}} tokens",
@@ -1052,7 +1107,13 @@
         "time": "Tiempo"
       },
       "stopTask": "Detener tarea",
-      "stopTaskFor": "Detener tarea: {{tool}}"
+      "stopTaskFor": "Detener tarea: {{tool}}",
+      "jobTotal_one": "{{count}} tarea en segundo plano",
+      "jobTotal_many": "{{count}} tareas en segundo plano",
+      "jobTotal_other": "{{count}} tareas en segundo plano",
+      "jobTotalFinished_one": "{{count}} tarea en segundo plano terminada",
+      "jobTotalFinished_many": "{{count}} tareas en segundo plano terminadas",
+      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas"
     },
     "subagents": {
       "title": "Subagentes",
@@ -1083,7 +1144,19 @@
       "withCount_one": "{{label}}, {{count}} activo",
       "withCount_many": "{{label}}, {{count}} activos",
       "withCount_other": "{{label}}, {{count}} activos",
-      "resize": "Cambiar el tamaño del panel de subagentes"
+      "resize": "Cambiar el tamaño del panel de subagentes",
+      "calls_one": "{{count}} llamada",
+      "calls_many": "{{count}} llamadas",
+      "calls_other": "{{count}} llamadas",
+      "now": "Ahora",
+      "needsApproval": "Necesita aprobación",
+      "result": "Resultado",
+      "turnNumber": "turno {{number}}",
+      "status": "Estado",
+      "toolCallsNote": "llamadas a herramientas",
+      "tokensSplit": "{{input}} entrada · {{output}} salida",
+      "costNested": "+{{cost}} anidados",
+      "costOwn": "esta ejecución"
     },
     "models": {
       "modelPicker": {
@@ -1129,6 +1202,18 @@
       "joining": "Uniéndose a la sala…",
       "join": "Unirse",
       "tryAgain": "Reintentar"
+    },
+    "uiActions": {
+      "canvasOff": "Panel compartido · los paneles están desactivados en esta app",
+      "askForText": "Pedir una versión en texto",
+      "copyRequest": "Copiar solicitud",
+      "textVersionRequest": "Envía «{{title}}» aquí como texto, por favor. Los paneles interactivos están desactivados en mi app.",
+      "askForTextStatus": {
+        "hint": "Pone una solicitud en el redactor. No se envía nada hasta que pulses Enviar.",
+        "added": "Solicitud añadida al redactor. No se envía nada hasta que pulses Enviar.",
+        "kept": "Tu borrador se mantiene tal cual. Copia la solicitud para añadirla tú.",
+        "copied": "Solicitud copiada. Pégala en tu borrador."
+      }
     }
   },
   "composer": {
@@ -1153,7 +1238,10 @@
       "autoHint": "Dejar que el agente decida",
       "settingTitle": "Enviar mientras un agente responde",
       "settingDescription": "Mantén pulsado Enviar para elegir en un solo mensaje."
-    }
+    },
+    "replyInThread": "Responder en el hilo…",
+    "newThreadIn": "Nuevo hilo en {{room}}…",
+    "newThreadWith": "Nuevo hilo con {{name}}…"
   },
   "commandPalette": {
     "state": {

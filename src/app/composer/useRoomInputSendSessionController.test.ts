@@ -1,7 +1,7 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
 import {
@@ -91,7 +91,7 @@ const successUpload = (file: File, mxc = `mxc://mindroom/${file.name}`): Upload 
 });
 
 /** The bodies of the messages sent so far, in order. */
-const sentBodies = (mx: { sendMessage: ReturnType<typeof vi.fn> }): string[] =>
+const sentBodies = (mx: { sendMessage: Mock }): string[] =>
   mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body);
 
 const loadingUpload = (file: File): Upload => ({
@@ -135,17 +135,17 @@ const TestHarness = ({
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
   mx: {
-    cancelPendingEvent: ReturnType<typeof vi.fn>;
-    getEventForTxnId: ReturnType<typeof vi.fn>;
-    makeTxnId: ReturnType<typeof vi.fn>;
-    sendMessage: ReturnType<typeof vi.fn>;
-    uploadContent: ReturnType<typeof vi.fn>;
+    cancelPendingEvent: Mock;
+    getEventForTxnId: Mock;
+    makeTxnId: Mock;
+    sendMessage: Mock;
+    uploadContent: Mock;
   };
   editor: { children: unknown[] };
-  sendTypingStatus: ReturnType<typeof vi.fn>;
+  sendTypingStatus: Mock;
   replyDraft?: IReplyDraft;
-  clearReplyDraft: ReturnType<typeof vi.fn>;
-  restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
+  clearReplyDraft: Mock;
+  restoreComposerFallbackForRoom: Mock;
   threadId?: string;
   forkFrom?: ThreadForkRef;
   roomId?: string;
@@ -451,7 +451,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     // itself before the room's goes, as in one commit), the room's goes, and the thread's holds
     // what is still to go.
     const { api: thread, current } = mountThreadView('$event-0');
-    const listed = [{ key: JSON.stringify(['!room:example.org', '$event-0']) }];
+    const listed = [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }];
     getDefaultStore().set(threadViewVoiceComposersAtom, listed);
     unmount();
     getDefaultStore().set(threadViewVoiceComposersAtom, []);
@@ -481,7 +481,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const root = createFile('root.txt');
     const child = createFile('child.txt');
     await sendRootWhileChildRetries(api, root, child);
-    const viewKey = { key: JSON.stringify(['!room:example.org', '$event-0']) };
+    const viewKey = { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' };
     const thread = mountThreadView('$event-0');
     store.set(threadViewVoiceComposersAtom, [viewKey]);
     unmount();
@@ -504,7 +504,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const child = createFile('child.txt');
     await sendRootWhileChildRetries(api, root, child);
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
     unmount();
     expect(thread.current().joinedSendPending).toBe(true);
     // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
@@ -523,7 +523,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await sendRootWhileChildRetries(api, root, child);
     // The thread beside the messages has a send of its own going out.
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
     const own = createFile('own.txt');
     thread.api.selectedFilesRef.current = [createUploadItem(own)];
     thread.api.uploadsRef.current = [loadingUpload(own)];

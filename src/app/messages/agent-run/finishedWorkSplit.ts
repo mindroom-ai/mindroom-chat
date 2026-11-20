@@ -69,8 +69,7 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
   });
 
 /** Whether the sanitized HTML shows anything. */
-const rendersVisibleContent = (html: string): boolean =>
-  hasVisibleContent(htmlToDOM(html) as ChildNode[]);
+const rendersVisibleContent = (html: string): boolean => hasVisibleContent(htmlToDOM(html));
 
 // A marker the renderer draws from the start of a paragraph, after line breaks or the markers
 // before it (`takeLeadingToolRefs`), and the breaks that follow the last one.
@@ -107,7 +106,9 @@ const cutAfterCalls = (node: ChildNode): [string, string] | undefined => {
  * (`useBodySanitizeOptions`), after the last call the renderer draws with these base parser
  * options (see `readRenderedToolCalls`): after its top-level node, or inside the paragraph whose
  * text after the call starts the answer. Returns undefined when it draws no call, nothing visible
- * follows the last one, or the answer starts inside a node that does not cut cleanly.
+ * follows the last one, the answer starts inside a node that does not cut cleanly, or the work
+ * shows nothing but its calls: its reasoning, which is not in the HTML, already shows folded and
+ * each call is one row, so only text or media before the last call is worth folding.
  */
 export const splitFinishedWork = (
   html: string,
@@ -116,8 +117,17 @@ export const splitFinishedWork = (
 ): FinishedWorkSplit | undefined => {
   if (!html.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
   const sanitized = sanitizeCustomHtml(html, sanitizeOptions);
-  const { lastNode } = readRenderedToolCalls(sanitized, baseOpts);
+  const { indexes, lastNode } = readRenderedToolCalls(sanitized, baseOpts);
   if (lastNode < 0) return undefined;
+  // The work without the calls the reply draws: a marker of a call it never draws (in a quote, a
+  // list or a heading) shows as text. A repeated marker of a drawn call is drawn with it or hidden,
+  // so it goes too. (`replace` starts from the first character, whatever the shared pattern's
+  // `lastIndex`.)
+  const drawn = new Set(indexes);
+  const withoutDrawnCalls = (work: string) =>
+    work.replace(MINDROOM_TOOL_REF_HTML_REG_G, (marker: string, _name: string, index: string) =>
+      drawn.has(Number(index)) ? '' : marker
+    );
   // Cut from a parse of its own: finding the calls draws them, which changes the nodes it read.
   const nodes = parseRenderedHtml(sanitized, baseOpts);
   const serialize = (from: number, to?: number) =>
@@ -127,99 +137,19 @@ export const splitFinishedWork = (
   let end = lastNode + 1;
   for (;;) {
     const tail = serialize(end);
-    const drawn = tail.includes(MINDROOM_TOOL_REF_ICON)
+    const drawnInTail = tail.includes(MINDROOM_TOOL_REF_ICON)
       ? readRenderedToolCalls(tail, baseOpts).lastNode
       : -1;
-    if (drawn < 0) {
+    if (drawnInTail < 0) {
       const last = nodes[end - 1];
       const cut = last && cutAfterCalls(last);
       if (!cut) return undefined;
+      const head = `${serialize(0, end - 1)}${cut[0]}`;
       const answer = `${cut[1]}${tail}`;
-      return rendersVisibleContent(answer)
-        ? { head: `${serialize(0, end - 1)}${cut[0]}`, tail: answer }
+      return rendersVisibleContent(withoutDrawnCalls(head)) && rendersVisibleContent(answer)
+        ? { head, tail: answer }
         : undefined;
     }
-    end += drawn + 1;
+    end += drawnInTail + 1;
   }
-};
-
-// A line of text wraps into another row about every 100 characters.
-const ROW_CHARS = 100;
-// Work of fewer rows shows inline: folding it would hide little.
-const MIN_FOLDED_WORK_ROWS = 8;
-// Work of this many rows folds however long the answer is.
-const ALWAYS_FOLDED_WORK_ROWS = 13;
-// Shorter work folds while it is at least a quarter of the reply: its answer at most 3 times it.
-const MAX_ANSWER_ROWS_PER_WORK_ROW = 3;
-
-// A tool marker's line, in the plain body (`🔧 \`shell\` [1]`) or in the HTML's text.
-const TOOL_MARKER_LINE = /^🔧 .+ \[\d+\](?: ⏳)?$/u;
-// Elements whose content starts and ends a line; a table's cells share their row's.
-const LINE_ELEMENTS = new Set(
-  'p div li pre blockquote h1 h2 h3 h4 h5 h6 ul ol table tr br hr details summary'.split(' ')
-);
-
-/**
- * The lines of text the nodes show, blank ones included. Outside `<pre>`, text of only whitespace
- * (the newlines between block tags) is no line.
- */
-const readLines = (nodes: ChildNode[], lines: string[] = [''], inPre = false): string[] => {
-  nodes.forEach((node) => {
-    if (isText(node)) {
-      if (!inPre && node.data.trim() === '') return;
-      const [first = '', ...more] = node.data.split('\n');
-      lines.push(`${lines.pop() ?? ''}${first}`, ...more);
-    } else if (isDomElementNode(node)) {
-      const line = LINE_ELEMENTS.has(node.name);
-      if (line) lines.push('');
-      readLines(node.children, lines, inPre || node.name === 'pre');
-      if (line) lines.push('');
-    }
-  });
-  return lines;
-};
-
-/**
- * The rows the lines render as: each line of text as many as it wraps into, and each run of tool
- * markers one, the row of its summary, or none while the calls are hidden behind the cog.
- */
-const countRows = (lines: string[], toolCallsShown: boolean): number => {
-  let rows = 0;
-  let inRun = false;
-  lines.forEach((untrimmed) => {
-    const line = untrimmed.trim();
-    if (line === '') return;
-    const marker = TOOL_MARKER_LINE.test(line);
-    if (!marker) rows += Math.max(1, Math.ceil(line.length / ROW_CHARS));
-    else if (!inRun && toolCallsShown) rows += 1;
-    inRun = marker;
-  });
-  return rows;
-};
-
-const foldsWork = (workRows: number, answerRows: number): boolean =>
-  workRows >= MIN_FOLDED_WORK_ROWS &&
-  (workRows >= ALWAYS_FOLDED_WORK_ROWS || answerRows <= MAX_ANSWER_ROWS_PER_WORK_ROW * workRows);
-
-/**
- * The split of a finished agent reply (see `splitFinishedWork`) when its work is worth folding,
- * counted in the rows it renders as: at least 8, and either 13 or more or at least a quarter of
- * the reply. The answer stays in view, so only the work's rows say whether folding hides much.
- * `toolCallsShown`: the reply lists its calls, or folds them all into the cog. `seamRows`: the
- * work's rows outside its body, the reasoning line (or the cog's own row) and each seam.
- */
-export const foldFinishedWork = (
-  body: string,
-  html: string,
-  baseOpts: HTMLReactParserOptions,
-  sanitizeOptions: SanitizeCustomHtmlOptions,
-  toolCallsShown: boolean,
-  seamRows: number
-): FinishedWorkSplit | undefined => {
-  // The whole plain body bounds the work's rows, so most replies skip the split.
-  if (!foldsWork(countRows(body.split('\n'), toolCallsShown) + seamRows, 0)) return undefined;
-  const split = splitFinishedWork(html, baseOpts, sanitizeOptions);
-  const rows = (part: string) =>
-    countRows(readLines(htmlToDOM(part) as ChildNode[]), toolCallsShown);
-  return split && foldsWork(rows(split.head) + seamRows, rows(split.tail)) ? split : undefined;
 };

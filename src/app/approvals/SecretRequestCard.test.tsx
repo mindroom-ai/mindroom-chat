@@ -38,6 +38,7 @@ const published = (agentUserId: string, apiUrl: string, ts: number): AgentServer
 const env = vi.hoisted(() => ({
   viewer: '@alice:example.org',
   // What the homeserver answered on binding tokens; undefined while it has not.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   binding: true as boolean | undefined,
   // The servers the room's agents published, newest first.
   published: [] as AgentServer[],

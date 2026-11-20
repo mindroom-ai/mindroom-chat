@@ -41,6 +41,8 @@ import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+import { ReplyCards } from '../../messages/content/ReplyCards';
+import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
 import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
 import { useDecryptionRepaint } from './useDecryptionRepaint';
@@ -329,28 +331,39 @@ const shrinkingQuietRunItemStyle = {
 } as const;
 /**
  * Quiet markers that never show beside others. A snooze ending's note, cut short, has no card to
- * read; a compaction notice is a seam, a full-width rule across the thread.
+ * read; a compaction notice is a seam, a full-width rule across the thread; a model change opens
+ * its details under its line.
  */
-const OWN_ROW_MARKERS: ReadonlySet<unknown> = new Set([SnoozeEndedMarker, CompactionNoticeSeam]);
+const OWN_ROW_MARKERS: ReadonlySet<unknown> = new Set([
+  SnoozeEndedMarker,
+  CompactionNoticeSeam,
+  ModelChangeMarker,
+]);
 const quietRunItemStyle = (node: ReactNode) =>
   isValidElement(node) && node.type === ThreadSummaryMarker
     ? fixedQuietRunItemStyle
     : shrinkingQuietRunItemStyle;
 
 /**
- * Inside a thread, the thread's title and the backend's snooze-ended, skill review and compaction
- * notices render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title
- * shows only where the thread's summary plan marks it; the others only from a MindRoom agent. A
- * compaction notice started when its event was sent.
+ * Inside a thread, the thread's title, its applied model changes and the backend's snooze-ended,
+ * skill review and compaction notices render as one quiet line, not as an agent's reply: no
+ * avatar, name or toolbar. A title shows only where the thread's summary plan marks it and a
+ * model change only where its plan pairs the router's reply with its command (`planModelChanges`);
+ * the others only from a MindRoom agent. A compaction notice started when its event was sent.
  */
 const readQuietMarker = (
   eventId: string,
   event: MatrixEvent,
   content: Record<string, unknown>,
   data: QuietMarkerData,
+  room: Room,
   viewerId: string | undefined,
   onOpenTitleSettings?: () => void
 ): ReactNode | null => {
+  const modelChange = data.modelChanges.byAckId.get(eventId);
+  if (modelChange) {
+    return <ModelChangeMarker change={modelChange} room={room} ts={event.getTs()} />;
+  }
   const summaryInfo = getThreadSummaryInfo(content);
   const plan = summaryInfo && data.threadSummaryTimeline.markersByEventId.get(eventId);
   if (summaryInfo && plan) {
@@ -551,6 +564,7 @@ export const useTimelineMessageFeature = ({
         event,
         content,
         data,
+        room,
         userId ?? undefined,
         onOpenTitleSettings
       );
@@ -585,9 +599,26 @@ export const useTimelineMessageFeature = ({
       ) as Record<string, unknown>;
       const quietMarker =
         threadId && kind === 'message'
-          ? readQuietMarker(eventId, event, content, data, userId ?? undefined, openTitleSettings)
+          ? readQuietMarker(
+              eventId,
+              event,
+              content,
+              data,
+              room,
+              userId ?? undefined,
+              openTitleSettings
+            )
           : null;
       if (quietMarker) {
+        // A model change's line stands for its hidden command too, so it repaints when the
+        // command, or an edit of it into another message, decrypts.
+        const command = data.modelChanges.byAckId.get(eventId)?.command;
+        if (command) {
+          renderedEventsRef.current?.push(
+            command,
+            ...getPendingEdits(command.getId() ?? '', command, timelineSet)
+          );
+        }
         // The run's later markers fold into this row, beside it, each keeping its own ID. A lone
         // marker keeps the same elements, so one that a new marker joins stays mounted.
         const later = (row.quietRun ?? []).flatMap((marker) => {
@@ -641,7 +672,7 @@ export const useTimelineMessageFeature = ({
       if (kind === 'approval' && historyRecords && historyRecords.length > 0) {
         return (
           <MessageAside key={eventId} data-message-id={eventId} data-message-item={row.index}>
-            <ApprovalHistory records={historyRecords as never} />
+            <ApprovalHistory records={historyRecords} />
           </MessageAside>
         );
       }
@@ -707,12 +738,10 @@ export const useTimelineMessageFeature = ({
       }
       const voiceTranscript = voiceEcho && (
         <VoiceTranscript
-          content={
-            getLatestMessageContent(
-              voiceEcho,
-              getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
-            ) as Record<string, unknown>
-          }
+          content={getLatestMessageContent(
+            voiceEcho,
+            getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
+          )}
           senderName={
             room.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
           }
@@ -725,6 +754,10 @@ export const useTimelineMessageFeature = ({
             />
           )}
         />
+      );
+      const cards = data.replyCards?.byReply.get(eventId);
+      cards?.forEach(
+        (card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas.event)
       );
       const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
@@ -858,6 +891,7 @@ export const useTimelineMessageFeature = ({
                 }
               </CollapsibleMessage>
               {voiceTranscript}
+              {cards && <ReplyCards cards={cards} />}
               {editNotDecrypted && (
                 <div>
                   <MessageEditNotDecryptedContent />
@@ -867,7 +901,7 @@ export const useTimelineMessageFeature = ({
           </Message>
           {historyRecords && historyRecords.length > 0 && (
             <MessageAside>
-              <ApprovalHistory records={historyRecords as never} />
+              <ApprovalHistory records={historyRecords} />
             </MessageAside>
           )}
           {showFailedActions && (
@@ -985,6 +1019,7 @@ export const useTimelineMessageFeature = ({
     renderEvent,
     isQuietMarkerRow,
     joinsQuietMarkerRun,
+    forksByPoint,
     wrapExpansion,
     markLiveExpansionCandidate,
     editingEventId,

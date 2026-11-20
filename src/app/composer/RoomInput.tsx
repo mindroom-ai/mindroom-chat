@@ -44,6 +44,9 @@ import { useCommands } from './commands/useCommands';
 import { useComposingCheck } from '../lib/hooks/useComposingCheck';
 import { useImagePackRooms } from '../emoji/useImagePackRooms';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useRoomName } from '../matrix/hooks/useRoomMeta';
+import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
+import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 import { useSetting } from '../preferences/useSetting';
 import {
@@ -62,7 +65,7 @@ import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
-import { hasMatchingReplyDraft } from './roomInputSendSession';
+import { hasExplicitThreadContext, hasMatchingReplyDraft } from './roomInputSendSession';
 import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
@@ -200,7 +203,7 @@ const buildUploadMessageContent = async (
   else if (type.startsWith('audio/') || item.metadata.voiceMessage) {
     content = getAudioMsgContent(item, mxc, getVoiceMessageContentOptions(signalBridgedRoom));
   } else content = getFileMsgContent(item, mxc);
-  return withPasteAttachmentMetadata(content, item.metadata.mindroomPasteAttachment) as IContent;
+  return withPasteAttachmentMetadata(content, item.metadata.mindroomPasteAttachment);
 };
 
 /**
@@ -240,6 +243,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const view = useContext(ConversationViewContext);
     const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
     const replyDraft = forkFrom ? undefined : viewReplyDraft;
+    // The placeholder says where sent text goes: into the thread it joins, or, from the timeline, a
+    // new thread only where every agent of the room answers in threads (mode `thread`); mixed or
+    // unknown modes promise nothing. Files sent with text, or several files, start a thread of their
+    // own (`getRoomInputSendMode`); the placeholder speaks for text alone.
+    const roomThreadMode = useRoomThreadMode(roomId, true);
+    const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
+    const direct = useAtomValue(mDirectAtom).has(roomId);
+    let placeholder = t('composer.placeholder');
+    if (forkFrom) placeholder = t('threadFork.continueInNewThread');
+    else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
+      placeholder = t('composer.replyInThread');
+    else if (threadingEnabled && !replyDraft && roomThreadMode === 'thread')
+      placeholder = direct
+        ? t('composer.newThreadWith', { name: roomName })
+        : t('composer.newThreadIn', { room: roomName });
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
@@ -778,7 +796,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           className={glassDenseOverBackdrop}
           // A phone keeps the formatting toolbar in a row of its own however wide its composer.
           inlineBottom={!phone}
-          placeholder={forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')}
+          placeholder={placeholder}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}

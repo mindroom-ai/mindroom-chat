@@ -8,6 +8,7 @@ import { RecoveryDialogRenderer } from './RecoveryDialogRenderer';
 import type { DefaultSecretStorageKey, RecoveryState } from './recoveryState';
 
 const client = vi.hoisted(() => ({ getSafeUserId: () => '@alice:example.org' }));
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const recovery = vi.hoisted(() => ({ state: { kind: 'none' } as RecoveryState }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('./recoveryState', () => ({ useRecoveryState: () => recovery.state }));

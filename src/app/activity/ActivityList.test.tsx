@@ -347,7 +347,7 @@ describe('ActivityList', () => {
       fireEvent.click(within(rowByTitle('Thread a')).getByRole('button', { name: 'Approve' }))
     );
     expect(within(rowByTitle('Thread a')).getByText('Approved')).toBeTruthy();
-    const next = { ...approvalRecord, eventId: '$ask-earlier' } as ThreadApprovalRecord;
+    const next = { ...approvalRecord, eventId: '$ask-earlier' };
     const [first, ...rest] = ROWS;
     const moved = first as Extract<ActivityRow, { type: 'thread' }>;
     act(() =>

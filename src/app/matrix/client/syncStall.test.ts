@@ -33,7 +33,7 @@ const controlledFetch = () => {
 
 const watch = () => {
   const network = controlledFetch();
-  const stall = createSyncStallWatch(network.baseFetch as unknown as typeof fetch);
+  const stall = createSyncStallWatch(network.baseFetch);
   const listener = vi.fn();
   stall.subscribe(listener);
   const request = (url: URL | string, init?: RequestInit) =>

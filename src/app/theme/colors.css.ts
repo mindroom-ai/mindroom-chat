@@ -14,7 +14,8 @@ import { DARK_THEMES, LIGHT_THEMES, type ThemeName } from '../preferences/themeN
 // Nord, Rosé Pine, Solarized and Tokyo Night take the surface, text and accent colours those
 // schemes publish (NOTICE, "Colour schemes"); the steps between are mixed here.
 
-type Palette = Parameters<typeof createTheme<typeof color>>[1];
+// A colour for every token of the folds colour contract, which `createTheme(color, palette)` takes.
+type Palette = { [Group in keyof typeof color]: { [Token in keyof (typeof color)[Group]]: string } };
 
 const lightAccents = {
   Primary: {

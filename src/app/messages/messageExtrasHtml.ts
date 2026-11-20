@@ -206,6 +206,7 @@ const transformAnchorTag: Transformer = (tagName, attribs) => {
   if (typeof href !== 'string' || !isSafeHref(href)) {
     return {
       tagName,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       attribs: {} as Attributes,
     };
   }
@@ -254,6 +255,8 @@ const hasUnsafeSvgUrlReference = (value: string): boolean => {
   return false;
 };
 
+// sanitize-html 2.18 drops CDATA sections, so an SVG label written as `<![CDATA[...]]>` renders
+// blank. Nothing MindRoom sends writes CDATA; write labels as escaped text instead.
 export const sanitizeMessageExtraHtml = (html: string): string =>
   sanitizeHtml(html, {
     allowedTags: [...allowedTags, ...svgTags],

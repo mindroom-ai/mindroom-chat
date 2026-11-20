@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { MatrixEvent, type EventTimelineSet } from 'matrix-js-sdk';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import { describe, expect, it, vi } from 'vitest';
 import { renderTimelineTiles, timelineRowSizing } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { viewThreadTurnFolds, type ThreadTurnFold } from './threadTurnFolds';
 import { estimateMessageRowHeight } from './timelineRowEstimate';
 import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 
 vi.mock('./TurnBreak.css', () => ({
   TurnBreak: 'TurnBreak',
@@ -40,6 +40,7 @@ const messageData = {
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and what it shows in order: its break (`break`) and its row. */
@@ -49,10 +50,14 @@ let renderer: ReturnType<typeof create> | undefined;
 const mounted = (open: boolean, sizes: number[], threadEvents = events) => {
   const turnFolds = { view: viewThreadTurnFolds([fold], () => open), toggle };
   const tiles = renderTimelineTiles({
-    virtualItems: sizes.map(
-      (size, index) =>
-        ({ index, key: index, start: index * 40, size, end: 0, lane: 0 } as VirtualItem)
-    ),
+    virtualItems: sizes.map((size, index) => ({
+      index,
+      key: index,
+      start: index * 40,
+      size,
+      end: 0,
+      lane: 0,
+    })),
     threadId: ROOT,
     threadEvents,
     roomWindowRows: [],

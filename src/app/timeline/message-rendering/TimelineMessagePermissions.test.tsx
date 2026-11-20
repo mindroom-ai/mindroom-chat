@@ -4,17 +4,17 @@ import { createEditor } from 'slate';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { create, makeEvent, makeRoom } from '../test-utils/RoomTimeline.test.shared';
-import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
-import type { IPowerLevels } from '../../matrix/hooks/usePowerLevels';
+import { MessageLayout } from '../../preferences/settings';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
 
 const ME = '@alice:example.org';
 const OTHER = '@bob:example.org';
 
 const permissionState = vi.hoisted(() => ({
-  powerLevels: {} as IPowerLevels,
+  powerLevels: {},
   creators: new Set<string>(),
 }));
 
@@ -52,6 +52,7 @@ const emptyData = () => ({
   },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 });
 
 /** Renders the rows and returns the `canDelete` and `canPinEvent` props each message received. */
@@ -69,7 +70,7 @@ const renderPermissions = async (events: MatrixEvent[]) => {
       scrollRef,
       showThreadRepliesInRoom: false,
       messageLayout: MessageLayout.Compact,
-      messageSpacing: '400' as MessageSpacing,
+      messageSpacing: '400',
       hideActivity: false,
     });
     return feature.wrapExpansion(<>{rows.map((row) => feature.renderEvent(row, data))}</>);

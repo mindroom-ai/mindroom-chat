@@ -5,6 +5,7 @@ import { Provider, createStore } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { blockSelection } from '../../ui/dragSelection';
 import type { WindowRect } from './callWindowGeometry';
 import { callWindowStorageKey, clearCallWindowStore, useExpandCallWindow } from './callWindowState';
 import {
@@ -208,6 +209,23 @@ describe('FloatingCallWindow', () => {
     expect(placed()).toEqual({ x: 832, y: 392, width: 600, height: 500 });
   });
 
+  it('ends a drag when the page is left mid-drag, and takes the next one', () => {
+    const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+    renderWindow();
+    press(screen.getByText('Call in Lobby'));
+    moveTo(200, 300);
+    // Back with the mouse held: the page comes back from the cache without the drag's end.
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    expect(blocked()).toBe(false);
+    expect(section().hasAttribute('data-dragging')).toBe(false);
+    expect(placed()).toEqual({ x: 1024, y: 404, width: 400, height: 480 });
+    drag(screen.getByText('Call in Lobby'), -300, -200);
+    expect(blocked()).toBe(false);
+    expect(stored()).toMatchObject({ rect: { x: 724, y: 204, width: 400, height: 480 } });
+  });
+
   it('moves with a drag on the handle and stores the rectangle on release, not before', () => {
     renderWindow();
     press(screen.getByText('Call in Lobby'));
@@ -363,6 +381,20 @@ describe('FloatingCallWindow', () => {
     releaseAt(300, 200);
     expect(placed()).toEqual(expanded);
     expect(stored()).toMatchObject({ rect: expanded, placedIn: LAPTOP });
+  });
+
+  it('lets the page select again when a drag ends without a release, leaving other holds', () => {
+    const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+    const other = blockSelection();
+    const view = renderWindow();
+    // Minimize from the call view ends one drag; the window going away ends the next.
+    press(handle());
+    act(() => frame?.minimize());
+    press(handle());
+    view.unmount();
+    expect(blocked()).toBe(true);
+    other();
+    expect(blocked()).toBe(false);
   });
 
   it('drops a moved bar into the nearest corner on release', () => {

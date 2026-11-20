@@ -15,6 +15,7 @@ export const replyEvent = (
     callIds = ['call_1', 'call_2'],
     body = markers(2),
     status = undefined as string | undefined,
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     extra = {} as Record<string, unknown>,
   } = {}
 ) =>
@@ -44,6 +45,7 @@ export const cardEvent = (
   {
     sender = AGENT,
     status = 'saved',
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     anchor = { response_event_id: '$reply', tool_call_id: 'call_2' } as object,
   } = {}
 ) =>

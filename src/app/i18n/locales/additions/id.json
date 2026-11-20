@@ -274,6 +274,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Beberapa gambar tidak dapat dimuat di jendela ini: browser tidak menjalankan service worker untuk MindRoom di sini."
+    },
+    "agentCard": {
+      "agent": "Agen",
+      "close": "Tutup",
+      "configuredTools": "Alat yang dikonfigurasi",
+      "toolCount_other": "{{count}} alat",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Juga {{groups}}",
+      "viewAll_other": "Lihat semua {{count}} alat",
+      "toolsTitle": "Alat {{name}}",
+      "filter": "Saring alat",
+      "noMatch": "Tidak ada alat yang cocok.",
+      "back": "Kembali",
+      "more": "Lainnya",
+      "worksIn": "Bekerja di",
+      "loading": "Memuat alat yang dikonfigurasi",
+      "availability": "Ketersediaan dapat berbeda menurut permintaan dan izin.",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kode & file",
+        "research": "Web",
+        "productivity": "Penjadwalan & memori",
+        "email": "Email",
+        "mcp": "Aplikasi terhubung",
+        "integrations": "Integrasi",
+        "communication": "Obrolan & pesan",
+        "entertainment": "Media",
+        "information": "Informasi",
+        "smart_home": "Rumah pintar",
+        "social": "Sosial",
+        "other": "Lainnya"
+      }
+    },
+    "space": {
+      "overview": "Ikhtisar space"
     }
   },
   "featureUi": {
@@ -534,7 +570,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
+        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain.",
+        "thisApp": "Aplikasi ini",
+        "mindroomAgents": "Agen MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Server ini tidak dapat mencari pesan berdasarkan waktu.",
@@ -826,6 +864,14 @@
         "diffTruncated": "Diff dipotong",
         "diffLabel": "Diff {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Model diatur",
+        "reset": "Model diatur ulang",
+        "inherited": "Kembali ke model warisan",
+        "changedBy": "Diubah oleh {{name}}",
+        "scopeOwn": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat Anda sapa.",
+        "scopeOther": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat disapa {{name}}."
+      },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"
@@ -842,7 +888,10 @@
         "nameChose": "Dipilih oleh {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagen"
+        "subagents": "Subagen",
+        "writtenToCache": "Ditulis ke cache",
+        "notCached": "Tidak di-cache",
+        "conversation": "Percakapan"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",
@@ -925,7 +974,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "Pencarian gagal. Coba lagi.",
-        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”"
+        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”",
+        "retry": "Coba lagi"
       }
     },
     "notifications": {
@@ -998,7 +1048,6 @@
       "groupTools": "Alat · {{number}}",
       "tools_other": "{{count}} alat",
       "needApproval_other": "{{count}} perlu persetujuan",
-      "toolCalls_other": "{{count}} panggilan alat",
       "tokens_other": "{{tokens}} token",
       "started": "Dimulai {{time}}",
       "open": "Buka",
@@ -1010,7 +1059,9 @@
         "time": "Waktu"
       },
       "stopTask": "Hentikan tugas",
-      "stopTaskFor": "Hentikan tugas: {{tool}}"
+      "stopTaskFor": "Hentikan tugas: {{tool}}",
+      "jobTotal_other": "{{count}} tugas latar belakang",
+      "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
     },
     "subagents": {
       "title": "Subagen",
@@ -1033,7 +1084,17 @@
       "hide": "Sembunyikan subagen",
       "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
-      "resize": "Ubah ukuran panel subagen"
+      "resize": "Ubah ukuran panel subagen",
+      "calls_other": "{{count}} panggilan",
+      "now": "Sekarang",
+      "needsApproval": "Perlu persetujuan",
+      "result": "Hasil",
+      "turnNumber": "giliran {{number}}",
+      "status": "Status",
+      "toolCallsNote": "panggilan alat",
+      "tokensSplit": "{{input}} masuk · {{output}} keluar",
+      "costNested": "+{{cost}} bertingkat",
+      "costOwn": "proses ini"
     },
     "models": {
       "modelPicker": {
@@ -1079,6 +1140,18 @@
       "joining": "Bergabung ke ruang…",
       "join": "Gabung",
       "tryAgain": "Coba lagi"
+    },
+    "uiActions": {
+      "canvasOff": "Panel dibagikan · panel dinonaktifkan di aplikasi ini",
+      "askForText": "Minta versi teks",
+      "copyRequest": "Salin permintaan",
+      "textVersionRequest": "Tolong kirim “{{title}}” di sini sebagai teks saja. Panel interaktif dinonaktifkan di aplikasi saya.",
+      "askForTextStatus": {
+        "hint": "Menaruh permintaan di kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "added": "Permintaan ditambahkan ke kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "kept": "Draf Anda tetap seperti semula. Salin permintaan untuk menambahkannya sendiri.",
+        "copied": "Permintaan disalin. Tempelkan ke draf Anda."
+      }
     }
   },
   "composer": {
@@ -1103,7 +1176,10 @@
       "autoHint": "Biarkan agen memutuskan",
       "settingTitle": "Kirim saat agen sedang membalas",
       "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
-    }
+    },
+    "replyInThread": "Balas di utas…",
+    "newThreadIn": "Utas baru di {{room}}…",
+    "newThreadWith": "Utas baru dengan {{name}}…"
   },
   "commandPalette": {
     "state": {

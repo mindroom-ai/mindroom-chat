@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Bu pencerede bazı görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
+    },
+    "agentCard": {
+      "agent": "Ajan",
+      "close": "Kapat",
+      "configuredTools": "Yapılandırılmış araçlar",
+      "toolCount_one": "{{count}} araç",
+      "toolCount_other": "{{count}} araç",
+      "groupCount_one": "{{count}} grup",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ayrıca {{groups}}",
+      "viewAll_one": "{{count}} aracın tümünü gör",
+      "viewAll_other": "{{count}} aracın tümünü gör",
+      "toolsTitle": "{{name}} araçları",
+      "filter": "Araçları filtrele",
+      "noMatch": "Eşleşen araç yok.",
+      "back": "Geri",
+      "more": "Daha fazla",
+      "worksIn": "Çalıştığı yerler",
+      "loading": "Yapılandırılmış araçlar yükleniyor",
+      "availability": "Kullanılabilirlik isteğe ve izinlere göre değişebilir.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kod ve dosyalar",
+        "research": "Web",
+        "productivity": "Zamanlama ve bellek",
+        "email": "E-posta",
+        "mcp": "Bağlı uygulamalar",
+        "integrations": "Entegrasyonlar",
+        "communication": "Sohbet ve mesajlar",
+        "entertainment": "Medya",
+        "information": "Bilgi",
+        "smart_home": "Akıllı ev",
+        "social": "Sosyal",
+        "other": "Diğer"
+      }
+    },
+    "space": {
+      "overview": "Alana genel bakış"
     }
   },
   "featureUi": {
@@ -543,7 +583,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
+        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın.",
+        "thisApp": "Bu uygulama",
+        "mindroomAgents": "MindRoom ajanları"
       },
       "jumpToTime": {
         "unsupported": "Bu sunucu mesajları zamana göre arayamıyor.",
@@ -837,6 +879,14 @@
         "diffTruncated": "Diff kısaltıldı",
         "diffLabel": "{{path}} için diff"
       },
+      "modelChangeMarker": {
+        "set": "Model ayarlandı",
+        "reset": "Model sıfırlandı",
+        "inherited": "Devralınan modellere dönüldü",
+        "changedBy": "Değiştiren: {{name}}",
+        "scopeOwn": "Bu ileti dizisinde, hitap edebileceğiniz ajan ve ekiplerin gelecekteki yanıtları için geçerlidir.",
+        "scopeOther": "Bu ileti dizisinde, {{name}} adlı kişinin hitap edebileceği ajan ve ekiplerin gelecekteki yanıtları için geçerlidir."
+      },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"
@@ -855,7 +905,10 @@
         "nameChose": "{{name}} seçti"
       },
       "mindroomReplyDetails": {
-        "subagents": "Alt ajanlar"
+        "subagents": "Alt ajanlar",
+        "writtenToCache": "Önbelleğe yazılan",
+        "notCached": "Önbellekte değil",
+        "conversation": "Konuşma"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",
@@ -941,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
         "resultCountFor_one": "“{{term}}” için {{count}} sonuç",
-        "resultCountFor_other": "“{{term}}” için {{count}} sonuç"
+        "resultCountFor_other": "“{{term}}” için {{count}} sonuç",
+        "retry": "Tekrar dene"
       }
     },
     "notifications": {
@@ -1017,8 +1071,6 @@
       "tools_other": "{{count}} araç",
       "needApproval_one": "{{count}} onay bekliyor",
       "needApproval_other": "{{count}} onay bekliyor",
-      "toolCalls_one": "{{count}} araç çağrısı",
-      "toolCalls_other": "{{count}} araç çağrısı",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} token",
       "started": "Başladı: {{time}}",
@@ -1031,7 +1083,11 @@
         "time": "Süre"
       },
       "stopTask": "Görevi durdur",
-      "stopTaskFor": "Görevi durdur: {{tool}}"
+      "stopTaskFor": "Görevi durdur: {{tool}}",
+      "jobTotal_one": "{{count}} arka plan işi",
+      "jobTotal_other": "{{count}} arka plan işi",
+      "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
+      "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
     },
     "subagents": {
       "title": "Alt ajanlar",
@@ -1058,7 +1114,18 @@
       "showFor": "Alt ajanları göster: {{name}}",
       "withCount_one": "{{label}}, {{count}} etkin",
       "withCount_other": "{{label}}, {{count}} etkin",
-      "resize": "Alt ajan panelini yeniden boyutlandır"
+      "resize": "Alt ajan panelini yeniden boyutlandır",
+      "calls_one": "{{count}} çağrı",
+      "calls_other": "{{count}} çağrı",
+      "now": "Şimdi",
+      "needsApproval": "Onay gerekiyor",
+      "result": "Sonuç",
+      "turnNumber": "tur {{number}}",
+      "status": "Durum",
+      "toolCallsNote": "araç çağrısı",
+      "tokensSplit": "{{input}} giriş · {{output}} çıkış",
+      "costNested": "+{{cost}} iç içe",
+      "costOwn": "bu çalıştırma"
     },
     "models": {
       "modelPicker": {
@@ -1104,6 +1171,18 @@
       "joining": "Odaya katılınıyor…",
       "join": "Katıl",
       "tryAgain": "Tekrar dene"
+    },
+    "uiActions": {
+      "canvasOff": "Panel paylaşıldı · bu uygulamada paneller kapalı",
+      "askForText": "Metin sürümü iste",
+      "copyRequest": "İsteği kopyala",
+      "textVersionRequest": "Lütfen “{{title}}” içeriğini buraya metin olarak gönder. Uygulamamda etkileşimli paneller kapalı.",
+      "askForTextStatus": {
+        "hint": "Yazma alanına bir istek koyar. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "added": "İstek yazma alanına eklendi. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "kept": "Taslağın olduğu gibi bırakıldı. Kendin eklemek için isteği kopyala.",
+        "copied": "İstek kopyalandı. Taslağına yapıştır."
+      }
     }
   },
   "composer": {
@@ -1128,7 +1207,10 @@
       "autoHint": "Kararı ajana bırak",
       "settingTitle": "Bir ajan yanıt verirken gönder",
       "settingDescription": "Tek bir mesaj için seçmek üzere Gönder'e basılı tutun."
-    }
+    },
+    "replyInThread": "Konuda yanıtla…",
+    "newThreadIn": "{{room}} içinde yeni konu…",
+    "newThreadWith": "{{name}} ile yeni konu…"
   },
   "commandPalette": {
     "state": {

@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Some images can't load in this window: the browser runs no service worker for MindRoom here."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Close",
+      "configuredTools": "Configured tools",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} group",
+      "groupCount_other": "{{count}} groups",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Also {{groups}}",
+      "viewAll_one": "View all {{count}} tool",
+      "viewAll_other": "View all {{count}} tools",
+      "toolsTitle": "{{name}}’s tools",
+      "filter": "Filter tools",
+      "noMatch": "No tools match.",
+      "back": "Back",
+      "more": "More",
+      "worksIn": "Works in",
+      "loading": "Loading configured tools",
+      "availability": "Availability can vary by request and permissions.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & files",
+        "research": "Web",
+        "productivity": "Scheduling & memory",
+        "email": "Email",
+        "mcp": "Connected apps",
+        "integrations": "Integrations",
+        "communication": "Chat & messages",
+        "entertainment": "Media",
+        "information": "Information",
+        "smart_home": "Smart home",
+        "social": "Social",
+        "other": "Other"
+      }
+    },
+    "space": {
+      "overview": "Space overview"
     }
   },
   "featureUi": {
@@ -543,7 +583,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
+        "unknown": "{{command}} is not a command. To send it as text, start the message with /plain.",
+        "thisApp": "This app",
+        "mindroomAgents": "MindRoom agents"
       },
       "jumpToTime": {
         "unsupported": "This server cannot look up messages by time.",
@@ -837,6 +879,14 @@
         "diffTruncated": "Diff truncated",
         "diffLabel": "Diff of {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Model set",
+        "reset": "Model reset",
+        "inherited": "Back to inherited models",
+        "changedBy": "Changed by {{name}}",
+        "scopeOwn": "Applies to future replies in this thread from the agents and teams you may address.",
+        "scopeOther": "Applies to future replies in this thread from the agents and teams {{name}} may address."
+      },
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
@@ -855,7 +905,10 @@
         "nameChose": "{{name}} chose"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sub-agents"
+        "subagents": "Sub-agents",
+        "writtenToCache": "Written to cache",
+        "notCached": "Not cached",
+        "conversation": "Conversation"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}",
@@ -941,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Search failed. Try again.",
         "resultCountFor_one": "{{count}} result for “{{term}}”",
-        "resultCountFor_other": "{{count}} results for “{{term}}”"
+        "resultCountFor_other": "{{count}} results for “{{term}}”",
+        "retry": "Retry"
       }
     },
     "notifications": {
@@ -1017,8 +1071,6 @@
       "tools_other": "{{count}} tools",
       "needApproval_one": "{{count}} needs approval",
       "needApproval_other": "{{count}} need approval",
-      "toolCalls_one": "{{count}} tool call",
-      "toolCalls_other": "{{count}} tool calls",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} tokens",
       "started": "Started {{time}}",
@@ -1031,7 +1083,11 @@
         "time": "Time"
       },
       "stopTask": "Stop task",
-      "stopTaskFor": "Stop task: {{tool}}"
+      "stopTaskFor": "Stop task: {{tool}}",
+      "jobTotal_one": "{{count}} background job",
+      "jobTotal_other": "{{count}} background jobs",
+      "jobTotalFinished_one": "{{count}} background job finished",
+      "jobTotalFinished_other": "{{count}} background jobs finished"
     },
     "subagents": {
       "title": "Sub-agents",
@@ -1058,7 +1114,18 @@
       "showFor": "Show sub-agents: {{name}}",
       "withCount_one": "{{label}}, {{count}} active",
       "withCount_other": "{{label}}, {{count}} active",
-      "resize": "Resize the sub-agents panel"
+      "resize": "Resize the sub-agents panel",
+      "calls_one": "{{count}} call",
+      "calls_other": "{{count}} calls",
+      "now": "Now",
+      "needsApproval": "Needs approval",
+      "result": "Result",
+      "turnNumber": "turn {{number}}",
+      "status": "Status",
+      "toolCallsNote": "tool calls",
+      "tokensSplit": "{{input}} in · {{output}} out",
+      "costNested": "+{{cost}} nested",
+      "costOwn": "this run"
     },
     "models": {
       "modelPicker": {
@@ -1104,6 +1171,18 @@
       "joining": "Joining the room…",
       "join": "Join",
       "tryAgain": "Try again"
+    },
+    "uiActions": {
+      "canvasOff": "Canvas shared · panels are off in this app",
+      "askForText": "Ask for a text version",
+      "copyRequest": "Copy request",
+      "textVersionRequest": "Please send “{{title}}” here as text instead. Interactive panels are off in my app.",
+      "askForTextStatus": {
+        "hint": "Puts a request in the composer. Nothing is sent until you press Send.",
+        "added": "Request added to the composer. Nothing is sent until you press Send.",
+        "kept": "Your draft was kept as it is. Copy the request to add it yourself.",
+        "copied": "Request copied. Paste it into your draft."
+      }
     }
   },
   "composer": {
@@ -1128,7 +1207,10 @@
       "autoHint": "Let the agent decide",
       "settingTitle": "When an agent is replying, Send",
       "settingDescription": "Hold Send to choose for one message."
-    }
+    },
+    "replyInThread": "Reply in thread…",
+    "newThreadIn": "New thread in {{room}}…",
+    "newThreadWith": "New thread with {{name}}…"
   },
   "commandPalette": {
     "state": {

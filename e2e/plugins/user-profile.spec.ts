@@ -108,9 +108,8 @@ const shot = async (page: Page, name: string) => {
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 };
 
-/** The floating profile card of `userId`, as the app shows it. */
-const floatingCard = (page: Page, userId: string) =>
-  page.getByRole('dialog', { name: userId, exact: true });
+/** The profile card named `name`, as the app shows it: a person's by their ID, an agent's by its name. */
+const floatingCard = (page: Page, name: string) => page.getByRole('dialog', { name, exact: true });
 
 /** Whether two boxes share no point: the card opens beside what opened it, not over it. */
 const apart = async (one: Locator, other: Locator) => {
@@ -166,11 +165,12 @@ for (const [screen, tag, viewport] of [
       const name = panel.getByRole('button', { name: AGENT, exact: true });
       await name.scrollIntoViewIfNeeded();
       await name.click();
-      const card = floatingCard(page, agent.userId);
-      await expect(card.getByRole('heading', { name: AGENT })).toBeVisible();
+      // An agent's card keeps its ID under More; on a phone it is a sheet titled with its name.
+      const card = floatingCard(page, AGENT);
+      await expect(card.getByText(AGENT, { exact: true })).toBeVisible();
+      await card.getByRole('button', { name: 'More', exact: true }).click();
       await expect(card).toContainText(agent.userId);
-      expect(await apart(card, name)).toBe(true);
-      // Where the side it asks for has no room, as on a phone, the card goes where it fits.
+      if (tag === 'wide') expect(await apart(card, name)).toBe(true);
       await expect(card).toBeInViewport({ ratio: 1 });
       await shot(page, `${tag}-floating-card`);
 

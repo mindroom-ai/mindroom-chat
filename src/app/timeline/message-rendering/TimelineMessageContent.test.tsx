@@ -4,13 +4,14 @@ import { createEditor } from 'slate';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { create, makeEvent, makeRoom } from '../test-utils/RoomTimeline.test.shared';
-import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
+import { MessageLayout } from '../../preferences/settings';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { MessageEvent } from '../../matrix/types/room';
 import { defined } from '../../../test/utils/defined';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { NO_VOICE_TRANSCRIPTS, type VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
 
 // The transcript's own test draws it; here only what the row gives it counts.
@@ -38,6 +39,7 @@ const emptyData = (): {
   },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 });
 
 /** Renders one row; `content()` gives the props its message content received last. */
@@ -66,7 +68,7 @@ const renderRow = async (
       scrollRef,
       showThreadRepliesInRoom: false,
       messageLayout: MessageLayout.Compact,
-      messageSpacing: '400' as MessageSpacing,
+      messageSpacing: '400',
       hideActivity: false,
     });
     return feature.wrapExpansion(<>{feature.renderEvent(row, data as never)}</>);

@@ -80,7 +80,7 @@ const join = (userId: string) => {
   const member = { roomId: ROOM, userId, membership: 'join' };
   members = [...members, member];
   act(() => {
-    client.emit(RoomMemberEvent.Membership, {} as MatrixEvent, member, undefined);
+    client.emit(RoomMemberEvent.Membership, {}, member, undefined);
   });
 };
 
@@ -97,7 +97,7 @@ beforeEach(() => {
     key: (index: number) => Array.from(storage.keys())[index] ?? null,
     removeItem: (key: string) => storage.delete(key),
     setItem: (key: string, value: string) => storage.set(key, value),
-  } as unknown as Storage);
+  });
   vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 });
 

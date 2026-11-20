@@ -23,7 +23,7 @@ const THREAD = '$thread:example.org';
 
 const { screen, view, mx } = vi.hoisted(() => ({
   screen: { size: 'Desktop' },
-  view: { mode: 'compact' as 'compact' | 'classic' },
+  view: { mode: 'compact' },
   // One client, so the header reads the same run store the test feeds.
   mx: {
     getSafeUserId: () => '@me:example.org',

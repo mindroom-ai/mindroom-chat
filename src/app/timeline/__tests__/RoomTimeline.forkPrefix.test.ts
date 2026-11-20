@@ -80,8 +80,8 @@ describe('a forked thread', () => {
         events: [reply],
         getUnfilteredTimelineSet: () => timelineSet,
       } as never);
-    threadRenderStateMock.threadEvents = rows as never;
-    threadRenderStateMock.ownThreadEvents = own as never;
+    threadRenderStateMock.threadEvents = rows;
+    threadRenderStateMock.ownThreadEvents = own;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
       rows.map((event, index) => [event.getId(), index])
     );
@@ -151,7 +151,7 @@ describe('a fork draft', () => {
         getUnfilteredTimelineSet: () => timelineSet,
       } as never);
     // The render state cut the thread at $b; its own events stay whole.
-    threadRenderStateMock.threadEvents = rows as never;
+    threadRenderStateMock.threadEvents = rows;
     threadRenderStateMock.ownThreadEvents = [...rows, later] as never;
     threadRenderStateMock.forkPointIndex = 2;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
@@ -227,8 +227,8 @@ describe('a fork draft', () => {
           getTimelineForEvent: () => undefined,
         }),
       } as never);
-    threadRenderStateMock.threadEvents = rows as never;
-    threadRenderStateMock.ownThreadEvents = rows as never;
+    threadRenderStateMock.threadEvents = rows;
+    threadRenderStateMock.ownThreadEvents = rows;
     threadRenderStateMock.forkPointIndex = undefined;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
       rows.map((event, index) => [event.getId(), index])

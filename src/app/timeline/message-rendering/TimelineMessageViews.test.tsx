@@ -7,12 +7,13 @@ import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { create, makeRoom } from '../test-utils/RoomTimeline.test.shared';
 import { useKeyDown } from '../../lib/hooks/useKeyDown';
-import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
+import { MessageLayout } from '../../preferences/settings';
 import { BlockType } from '../../editor/types';
 import { ConversationViewContext } from '../../navigation/conversationView';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
 
 // Two views of one room: the room's page and another conversation view (a plugin's thread view),
 // each with its timeline and the composer that shares its editor. The reply target is real jotai
@@ -58,6 +59,7 @@ const emptyData = {
   threadSummaryTimeline: { hiddenEventIds: new Set<string>(), markersByEventId: new Map() },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 } as never;
 
 const emptyEditor = () => {
@@ -99,7 +101,7 @@ const mountTwoViews = async () => {
       scrollRef: createRef<HTMLDivElement>(),
       showThreadRepliesInRoom: false,
       messageLayout: MessageLayout.Compact,
-      messageSpacing: '400' as MessageSpacing,
+      messageSpacing: '400',
       hideActivity: false,
     });
     features[name] = feature;

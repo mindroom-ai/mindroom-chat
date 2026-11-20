@@ -64,7 +64,7 @@ describe('findEarliestLoadedThreadReplyByCacheOrder', () => {
   });
 
   it('returns undefined for an empty events array', () => {
-    const result = findEarliestLoadedThreadReplyByCacheOrder([] as any, threadId);
+    const result = findEarliestLoadedThreadReplyByCacheOrder([], threadId);
     expect(result).toBeUndefined();
   });
 

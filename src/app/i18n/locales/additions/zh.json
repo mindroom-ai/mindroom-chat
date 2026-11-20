@@ -274,6 +274,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此窗口无法加载部分图片：浏览器在此处没有为 MindRoom 运行 Service Worker。"
+    },
+    "agentCard": {
+      "agent": "智能体",
+      "close": "关闭",
+      "configuredTools": "已配置的工具",
+      "toolCount_other": "{{count}} 个工具",
+      "groupCount_other": "{{count}} 个分组",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "另有{{groups}}",
+      "viewAll_other": "查看全部 {{count}} 个工具",
+      "toolsTitle": "{{name}} 的工具",
+      "filter": "筛选工具",
+      "noMatch": "没有匹配的工具。",
+      "back": "返回",
+      "more": "更多",
+      "worksIn": "所在房间",
+      "loading": "正在加载已配置的工具",
+      "availability": "可用性可能因请求和权限而异。",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "代码与文件",
+        "research": "网页",
+        "productivity": "日程与记忆",
+        "email": "电子邮件",
+        "mcp": "已连接的应用",
+        "integrations": "集成",
+        "communication": "聊天与消息",
+        "entertainment": "媒体",
+        "information": "信息",
+        "smart_home": "智能家居",
+        "social": "社交",
+        "other": "其他"
+      }
+    },
+    "space": {
+      "overview": "空间概览"
     }
   },
   "featureUi": {
@@ -534,7 +570,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失败：{{reason}}",
         "usage": "无法运行 {{command}}。{{usage}}",
-        "unknown": "{{command}} 不是命令。要作为文本发送，请在消息开头加上 /plain。"
+        "unknown": "{{command}} 不是命令。要作为文本发送，请在消息开头加上 /plain。",
+        "thisApp": "此应用",
+        "mindroomAgents": "MindRoom 智能体"
       },
       "jumpToTime": {
         "unsupported": "此服务器无法按时间查找消息。",
@@ -826,6 +864,14 @@
         "diffTruncated": "差异已截断",
         "diffLabel": "{{path}} 的差异"
       },
+      "modelChangeMarker": {
+        "set": "已设置模型",
+        "reset": "已重置模型",
+        "inherited": "已恢复为继承的模型",
+        "changedBy": "更改者：{{name}}",
+        "scopeOwn": "适用于此话题中你可以对话的智能体和团队今后的回复。",
+        "scopeOther": "适用于此话题中 {{name}} 可以对话的智能体和团队今后的回复。"
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
@@ -842,7 +888,10 @@
         "nameChose": "{{name}} 已选择"
       },
       "mindroomReplyDetails": {
-        "subagents": "子智能体"
+        "subagents": "子智能体",
+        "writtenToCache": "写入缓存",
+        "notCached": "未缓存",
+        "conversation": "对话"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已运行 {{duration}}",
@@ -925,7 +974,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "搜索失败，请重试。",
-        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果"
+        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果",
+        "retry": "重试"
       }
     },
     "notifications": {
@@ -998,7 +1048,6 @@
       "groupTools": "工具 · {{number}}",
       "tools_other": "{{count}} 个工具",
       "needApproval_other": "{{count}} 个待批准",
-      "toolCalls_other": "{{count}} 次工具调用",
       "tokens_other": "{{tokens}} 个令牌",
       "started": "开始于{{time}}",
       "open": "打开",
@@ -1010,7 +1059,9 @@
         "time": "时间"
       },
       "stopTask": "停止任务",
-      "stopTaskFor": "停止任务：{{tool}}"
+      "stopTaskFor": "停止任务：{{tool}}",
+      "jobTotal_other": "{{count}} 个后台任务",
+      "jobTotalFinished_other": "{{count}} 个后台任务已完成"
     },
     "subagents": {
       "title": "子智能体",
@@ -1033,7 +1084,17 @@
       "hide": "隐藏子智能体",
       "showFor": "显示子智能体：{{name}}",
       "withCount_other": "{{label}}，{{count}} 个活跃",
-      "resize": "调整子智能体面板大小"
+      "resize": "调整子智能体面板大小",
+      "calls_other": "{{count}} 次调用",
+      "now": "进行中",
+      "needsApproval": "需要批准",
+      "result": "结果",
+      "turnNumber": "第 {{number}} 轮",
+      "status": "状态",
+      "toolCallsNote": "工具调用",
+      "tokensSplit": "输入 {{input}} · 输出 {{output}}",
+      "costNested": "+{{cost}} 嵌套",
+      "costOwn": "本次运行"
     },
     "models": {
       "modelPicker": {
@@ -1079,6 +1140,18 @@
       "joining": "正在加入房间…",
       "join": "加入",
       "tryAgain": "重试"
+    },
+    "uiActions": {
+      "canvasOff": "已分享面板 · 此应用已关闭面板",
+      "askForText": "请求文本版本",
+      "copyRequest": "复制请求",
+      "textVersionRequest": "请改为在这里以文本形式发送“{{title}}”。我的应用已关闭交互式面板。",
+      "askForTextStatus": {
+        "hint": "在输入框中放入一条请求。按下发送之前不会发送任何内容。",
+        "added": "请求已放入输入框。按下发送之前不会发送任何内容。",
+        "kept": "您的草稿保持原样。复制请求后自行添加。",
+        "copied": "请求已复制。请粘贴到您的草稿中。"
+      }
     }
   },
   "composer": {
@@ -1103,7 +1176,10 @@
       "autoHint": "让智能体决定",
       "settingTitle": "智能体正在回复时发送",
       "settingDescription": "长按发送可为单条消息另选方式。"
-    }
+    },
+    "replyInThread": "在讨论串中回复…",
+    "newThreadIn": "在 {{room}} 中新建讨论串…",
+    "newThreadWith": "与 {{name}} 新建讨论串…"
   },
   "commandPalette": {
     "state": {

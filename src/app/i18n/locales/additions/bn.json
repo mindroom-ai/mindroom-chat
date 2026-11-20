@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "এই উইন্ডোতে কিছু ছবি লোড হতে পারে না: ব্রাউজার এখানে MindRoom-এর জন্য কোনো সার্ভিস ওয়ার্কার চালায় না।"
+    },
+    "agentCard": {
+      "agent": "এজেন্ট",
+      "close": "বন্ধ করুন",
+      "configuredTools": "কনফিগার করা টুল",
+      "toolCount_one": "{{count}}টি টুল",
+      "toolCount_other": "{{count}}টি টুল",
+      "groupCount_one": "{{count}}টি গ্রুপ",
+      "groupCount_other": "{{count}}টি গ্রুপ",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "এ ছাড়াও {{groups}}",
+      "viewAll_one": "সব {{count}}টি টুল দেখুন",
+      "viewAll_other": "সব {{count}}টি টুল দেখুন",
+      "toolsTitle": "{{name}}-এর টুল",
+      "filter": "টুল ফিল্টার করুন",
+      "noMatch": "কোনো টুল মেলেনি।",
+      "back": "ফিরে যান",
+      "more": "আরও",
+      "worksIn": "যেখানে কাজ করে",
+      "loading": "কনফিগার করা টুল লোড হচ্ছে",
+      "availability": "অনুরোধ ও অনুমতির ওপর নির্ভর করে প্রাপ্যতা বদলাতে পারে।",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "কোড ও ফাইল",
+        "research": "ওয়েব",
+        "productivity": "সময়সূচি ও মেমরি",
+        "email": "ইমেল",
+        "mcp": "সংযুক্ত অ্যাপ",
+        "integrations": "ইন্টিগ্রেশন",
+        "communication": "চ্যাট ও বার্তা",
+        "entertainment": "মিডিয়া",
+        "information": "তথ্য",
+        "smart_home": "স্মার্ট হোম",
+        "social": "সামাজিক",
+        "other": "অন্যান্য"
+      }
+    },
+    "space": {
+      "overview": "স্পেসের সংক্ষিপ্ত বিবরণ"
     }
   },
   "featureUi": {
@@ -543,7 +583,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} ব্যর্থ হয়েছে: {{reason}}",
         "usage": "{{command}} চালানো যায়নি। {{usage}}",
-        "unknown": "{{command}} কোনো কমান্ড নয়। এটি টেক্সট হিসেবে পাঠাতে বার্তাটি /plain দিয়ে শুরু করুন।"
+        "unknown": "{{command}} কোনো কমান্ড নয়। এটি টেক্সট হিসেবে পাঠাতে বার্তাটি /plain দিয়ে শুরু করুন।",
+        "thisApp": "এই অ্যাপ",
+        "mindroomAgents": "MindRoom এজেন্ট"
       },
       "jumpToTime": {
         "unsupported": "এই সার্ভার সময় অনুযায়ী বার্তা খুঁজতে পারে না।",
@@ -837,6 +879,14 @@
         "diffTruncated": "ডিফ ছোট করা হয়েছে",
         "diffLabel": "{{path}}-এর ডিফ"
       },
+      "modelChangeMarker": {
+        "set": "মডেল সেট করা হয়েছে",
+        "reset": "মডেল রিসেট করা হয়েছে",
+        "inherited": "উত্তরাধিকারসূত্রে পাওয়া মডেলে ফেরা হয়েছে",
+        "changedBy": "{{name}} পরিবর্তন করেছেন",
+        "scopeOwn": "এই থ্রেডে আপনি যেসব এজেন্ট ও দলকে সম্বোধন করতে পারেন, তাদের পরবর্তী উত্তরে প্রযোজ্য।",
+        "scopeOther": "এই থ্রেডে {{name}} যেসব এজেন্ট ও দলকে সম্বোধন করতে পারেন, তাদের পরবর্তী উত্তরে প্রযোজ্য।"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} কাজ করেছে",
         "worked": "কাজ করেছে"
@@ -855,7 +905,10 @@
         "nameChose": "{{name}} বেছে নিয়েছেন"
       },
       "mindroomReplyDetails": {
-        "subagents": "সাব-এজেন্ট"
+        "subagents": "সাব-এজেন্ট",
+        "writtenToCache": "ক্যাশে লেখা",
+        "notCached": "ক্যাশে নেই",
+        "conversation": "কথোপকথন"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} ধরে চলছে",
@@ -941,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "অনুসন্ধান ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
         "resultCountFor_one": "\"{{term}}\" এর জন্য {{count}}টি ফলাফল",
-        "resultCountFor_other": "\"{{term}}\" এর জন্য {{count}}টি ফলাফল"
+        "resultCountFor_other": "\"{{term}}\" এর জন্য {{count}}টি ফলাফল",
+        "retry": "আবার চেষ্টা করুন"
       }
     },
     "notifications": {
@@ -1017,8 +1071,6 @@
       "tools_other": "{{count}}টি টুল",
       "needApproval_one": "{{count}}টির অনুমোদন দরকার",
       "needApproval_other": "{{count}}টির অনুমোদন দরকার",
-      "toolCalls_one": "{{count}}টি টুল কল",
-      "toolCalls_other": "{{count}}টি টুল কল",
       "tokens_one": "{{tokens}} টোকেন",
       "tokens_other": "{{tokens}} টোকেন",
       "started": "শুরু হয়েছে {{time}}",
@@ -1031,7 +1083,11 @@
         "time": "সময়"
       },
       "stopTask": "কাজ থামান",
-      "stopTaskFor": "কাজ থামান: {{tool}}"
+      "stopTaskFor": "কাজ থামান: {{tool}}",
+      "jobTotal_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
+      "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
+      "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
@@ -1058,7 +1114,18 @@
       "showFor": "সাব-এজেন্ট দেখান: {{name}}",
       "withCount_one": "{{label}}, {{count}}টি সক্রিয়",
       "withCount_other": "{{label}}, {{count}}টি সক্রিয়",
-      "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান"
+      "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান",
+      "calls_one": "{{count}}টি কল",
+      "calls_other": "{{count}}টি কল",
+      "now": "এখন",
+      "needsApproval": "অনুমোদন দরকার",
+      "result": "ফলাফল",
+      "turnNumber": "পালা {{number}}",
+      "status": "অবস্থা",
+      "toolCallsNote": "টুল কল",
+      "tokensSplit": "{{input}} ইন · {{output}} আউট",
+      "costNested": "+{{cost}} নেস্টেড",
+      "costOwn": "এই রান"
     },
     "models": {
       "modelPicker": {
@@ -1104,6 +1171,18 @@
       "joining": "রুমে যোগ দেওয়া হচ্ছে…",
       "join": "যোগ দিন",
       "tryAgain": "আবার চেষ্টা করুন"
+    },
+    "uiActions": {
+      "canvasOff": "প্যানেল শেয়ার করা হয়েছে · এই অ্যাপে প্যানেল বন্ধ",
+      "askForText": "টেক্সট সংস্করণ চান",
+      "copyRequest": "অনুরোধ কপি করুন",
+      "textVersionRequest": "অনুগ্রহ করে “{{title}}” এখানে টেক্সট হিসেবে পাঠান। আমার অ্যাপে ইন্টারঅ্যাকটিভ প্যানেল বন্ধ আছে।",
+      "askForTextStatus": {
+        "hint": "কম্পোজারে একটি অনুরোধ বসায়। আপনি পাঠান না চাপা পর্যন্ত কিছুই পাঠানো হয় না।",
+        "added": "অনুরোধটি কম্পোজারে যোগ হয়েছে। আপনি পাঠান না চাপা পর্যন্ত কিছুই পাঠানো হয় না।",
+        "kept": "আপনার খসড়া যেমন ছিল তেমনই আছে। নিজে যোগ করতে অনুরোধটি কপি করুন।",
+        "copied": "অনুরোধ কপি হয়েছে। এটি আপনার খসড়ায় পেস্ট করুন।"
+      }
     }
   },
   "composer": {
@@ -1128,7 +1207,10 @@
       "autoHint": "এজেন্টকে সিদ্ধান্ত নিতে দিন",
       "settingTitle": "এজেন্ট উত্তর দেওয়ার সময় পাঠান",
       "settingDescription": "একটি বার্তার জন্য বেছে নিতে পাঠান চেপে ধরে রাখুন।"
-    }
+    },
+    "replyInThread": "থ্রেডে উত্তর দিন…",
+    "newThreadIn": "{{room}}-এ নতুন থ্রেড…",
+    "newThreadWith": "{{name}}-এর সাথে নতুন থ্রেড…"
   },
   "commandPalette": {
     "state": {

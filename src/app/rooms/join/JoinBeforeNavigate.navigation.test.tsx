@@ -7,6 +7,7 @@ import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import { JoinBeforeNavigate } from './JoinBeforeNavigate';
 
 const mocks = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   summary: undefined as unknown,
   navigateRoom: vi.fn(),
   navigateRoomThreadDirect: vi.fn(),

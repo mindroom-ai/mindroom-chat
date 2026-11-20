@@ -96,7 +96,7 @@ describe('computer session client', () => {
         apiUrl,
         agentUserId: '@mindroom_helper:example.org',
         openIdToken,
-        request: request as unknown as typeof fetch,
+        request: request,
         roomId: '!room:example.org',
       });
       const stream = await client.createStream();
@@ -153,7 +153,7 @@ describe('computer session client', () => {
       apiUrl: 'https://computer.example.org',
       agentUserId: '@mindroom_helper:example.org',
       openIdToken,
-      request: request as unknown as typeof fetch,
+      request: request,
       roomId: '!room:example.org',
     });
 

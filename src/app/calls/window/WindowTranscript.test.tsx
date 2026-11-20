@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStore, Provider } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { blockSelection } from '../../ui/dragSelection';
 import { activeCallAtom, type ActiveCall } from '../callStore';
 import type { TranscriptLine } from '../transcription/api';
 import {
@@ -65,7 +66,7 @@ const speech = (id: string, userId: string, text: string): TranscriptLine => ({
 });
 const LINES: TranscriptLine[] = [
   speech('l1', USER, 'Shall we start?'),
-  { ...speech('l2', BOB, ''), kind: 'gap', reason: 'paused' } as TranscriptLine,
+  { ...speech('l2', BOB, ''), kind: 'gap', reason: 'paused' },
   speech('l3', BOB, 'I will write the notes.'),
 ];
 
@@ -143,7 +144,7 @@ class TestResizeObserver {
 
   observe(target: Element) {
     const entry = { target } as ResizeObserverEntry;
-    observed.set(target, () => this.callback([entry], this as unknown as ResizeObserver));
+    observed.set(target, () => this.callback([entry], this));
   }
 
   unobserve(target: Element) {
@@ -488,6 +489,21 @@ describe('the live transcript in the floating window', () => {
     expect(key('ArrowDown', 'ctrlKey')).toBe(true);
     expect(divider()?.getAttribute('aria-valuenow')).toBe('60');
     expect(settings().transcriptSplit).toBeUndefined();
+  });
+
+  it('lets the page select again when the divider goes mid-drag, leaving other holds', () => {
+    inCall();
+    showTranscript();
+    const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+    const other = blockSelection();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    fireEvent.pointerDown(divider()!, { pointerId: 3, isPrimary: true, button: 0, clientY: 280 });
+    // The window turns too short for the divider, which goes without a release.
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(divider()).toBeNull();
+    expect(blocked()).toBe(true);
+    other();
+    expect(blocked()).toBe(false);
   });
 
   it('follows the pointer while dragged and keeps the split on release, not before', () => {

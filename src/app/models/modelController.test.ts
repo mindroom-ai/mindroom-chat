@@ -222,6 +222,75 @@ describe('shared model discovery', () => {
     await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot()).toMatchObject({ eligible: true, loading: false, canMutate: true });
   });
+  it('lets a watcher read a scope without asking for it', async () => {
+    const h = setup();
+    const heard = vi.fn();
+    const unwatch = h.controller.watch(h.room, '$root', heard);
+    await flush();
+    await vi.advanceTimersByTimeAsync(120000);
+    // Watching alone discovers nothing, now or on a retry, and wakes nothing up.
+    h.mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Reconnecting);
+    await flush();
+    expect(h.queue).not.toHaveBeenCalled();
+    expect(h.snapshot().models).toEqual([]);
+
+    // A composer's discovery reaches the watcher too.
+    const unsubscribe = await h.discover();
+    expect(heard).toHaveBeenCalled();
+    expect(h.snapshot().models.map((model) => model.display_name)).toEqual([
+      'Quick',
+      'Reset model',
+    ]);
+    const requests = h.queued.length;
+    unsubscribe();
+    heard.mockClear();
+    // With only the watcher left, a change of the room asks for nothing again.
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    await vi.advanceTimersByTimeAsync(120000);
+    expect(h.queued.length).toBe(requests);
+    expect(heard).toHaveBeenCalled();
+
+    unwatch();
+    heard.mockClear();
+    await h.discover();
+    expect(heard).not.toHaveBeenCalled();
+  });
+  it("gives a runtime's models only while its catalog is the one the scope shows", async () => {
+    const h = setup();
+    h.devices.get(router)!.set('SECOND', h.device(router, 'SECOND', 'curve2'));
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request());
+    h.response(h.request(), {}, { senderCurve25519KeyBase64: 'curve2' });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    const names = (deviceId: string, userId = router, threadId = '$root') =>
+      h.controller
+        .runtimeModels(h.room, threadId, userId, deviceId)
+        .map((model) => model.display_name);
+    // Two runtimes and no choice yet: the scope shows neither's catalog.
+    expect([names('DEVICE'), names('SECOND')]).toEqual([[], []]);
+    h.controller.chooseRuntime(h.room, '$root', h.snapshot().runtimes[1]!.id);
+    // Both list `fast`, perhaps under other names: only the shown runtime's answer names its own.
+    expect(names('SECOND')).toEqual(['Quick', 'Reset model']);
+    expect([names('DEVICE'), names('GONE'), names('SECOND', helper)]).toEqual([[], [], []]);
+    // The same list while nothing changes, as a store's snapshot must be.
+    expect(h.controller.runtimeModels(h.room, '$root', router, 'DEVICE')).toBe(
+      h.controller.runtimeModels(h.room, '$root', router, 'GONE')
+    );
+  });
+  it("gives the one cached runtime's models to a thread not discovered yet", async () => {
+    const h = setup();
+    await h.discover();
+    const names = (deviceId: string) =>
+      h.controller
+        .runtimeModels(h.room, '$second', router, deviceId)
+        .map((model) => model.display_name);
+    expect(h.snapshot('$second').runtime).toBeUndefined();
+    expect(names('DEVICE')).toEqual(['Quick', 'Reset model']);
+    expect(names('SECOND')).toEqual([]);
+  });
   it('coalesces subscribers and authenticates actual curve key before exposing capability', async () => {
     const h = setup();
     const a = h.controller.subscribe(h.room, '$root', () => {});

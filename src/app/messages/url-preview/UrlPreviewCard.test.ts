@@ -5,6 +5,7 @@ import { UrlPreviewCard } from './UrlPreviewCard';
 
 const loadPreview = vi.fn<() => Promise<unknown>>();
 const previewState = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   current: { status: 'loading' } as { status: string; data?: unknown },
 }));
 

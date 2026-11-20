@@ -12,6 +12,7 @@ const ROOM = '!room:example.org';
 const NONE = new Set<string>();
 const getContent = (event: MatrixEvent) => event.getContent();
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const env = vi.hoisted(() => ({ client: undefined as unknown }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => env.client }));
 

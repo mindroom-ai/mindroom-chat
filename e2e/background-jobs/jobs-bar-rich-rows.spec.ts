@@ -214,13 +214,14 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await expect(lead.locator('[data-job-model]')).toHaveText('Fable 5.2');
   await expect(lead).toContainText('Rework the export queue retry policy');
   await expect(lead).not.toContainText('with capped backoff');
+  // A sub-agent's row names the call its run makes now, then its arguments.
   await expect(lead.locator('[data-job-activity]')).toHaveText(
-    `run_shell_command ${LEAD_TOOL.args_preview}`
+    `${LEAD_TOOL.tool_name} ${LEAD_TOOL.args_preview}`
   );
   // The group heading names the number columns, so the cells hold bare numbers.
   await expect(bar.getByText('Calls', { exact: true })).toBeVisible();
   await expect(lead.locator('[data-job-stat]')).toHaveText(['31', '1.9M', '$1.30']);
-  await expect(lead.locator('[data-job-stat="calls"]')).toHaveAttribute('title', '31 tool calls');
+  await expect(lead.locator('[data-job-stat="calls"]')).toHaveAttribute('title', '31 calls');
   const child = row(bar, 'subagent', 1);
   await expect(child.locator('[data-job-logo]')).toHaveAttribute('data-model-provider', 'openai');
   await expect(child.locator('[data-job-model]')).toHaveText('Sol · GPT-6.2');
@@ -255,13 +256,33 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
 
   // Open shows that sub-agent's run in the Sub-agents panel.
   await sendRuns(room);
-  await child.locator('[data-job-open]').click();
+  // The row's title is its way there, from anywhere on the row but its buttons: here a press on
+  // its pill.
+  await expect(child.locator('[data-job-open]')).toHaveText('List every caller of schedule_retry');
+  await child.getByText('Waiting for approval', { exact: true }).click({ force: true });
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
-  // Beside the panel the bar is narrower: the columns stay, and a thread chip is its icon.
+  // Beside the panel the bar is narrower: the columns stay.
   await bar.getByRole('button', { name: /^3 background jobs/ }).click();
   await expect(lead.locator('[data-job-stat="calls"]')).toBeVisible();
   await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-panel.png') });
+
+  // In the room's own timeline each row also has its thread's button; a press between it and the
+  // row's Stop goes through to the row, and shows that row's run.
+  await page.keyboard.press('Escape');
+  await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
+  const roomBar = page.getByRole('region', { name: '3 background jobs' });
+  await expect(roomBar).toBeVisible();
+  await sendRuns(room);
+  await roomBar.getByRole('button', { name: /^3 background jobs/ }).click();
+  const roomLead = row(roomBar, 'subagent');
+  const thread = await roomLead.locator('[data-job-thread]').boundingBox();
+  const stopBox = await roomLead.locator('[data-cancel-job]').boundingBox();
+  if (!thread || !stopBox) throw new Error('The row has no thread button or Stop.');
+  await page.mouse.click((thread.x + thread.width + stopBox.x) / 2, thread.y + thread.height / 2);
+  await expect(
+    panelLocator(page, 'subagents').locator('[data-subagent-view="sub-lead"]')
+  ).toBeVisible();
 
   // On a phone the rows drop the model and the usage; the logos stay.
   await page.keyboard.press('Escape');
@@ -275,7 +296,6 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await sendRuns(room);
   await phoneBar.getByRole('button', { name: /^3 background jobs/ }).click();
   const phoneLead = row(phoneBar, 'subagent');
-  await expect(phoneLead.locator('[data-job-activity]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-logo]')).toBeVisible();
   await expect(phoneLead.locator('[data-job-model]')).toBeHidden();
   await expect(phoneLead.locator('[data-job-stat]')).toHaveCount(3);

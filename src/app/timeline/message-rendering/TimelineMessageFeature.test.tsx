@@ -19,15 +19,15 @@ import {
   navigateRoomThreadMock,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
-import { MessageLayout, MessageSpacing } from '../../preferences/settings';
+import { MessageLayout } from '../../preferences/settings';
 import { MessageEvent } from '../../matrix/types/room';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
-import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
 
 const startFork = vi.hoisted(() => vi.fn());
 vi.mock('../../threads/fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
@@ -68,6 +68,8 @@ const forkChips = async (renderer: ReturnType<typeof create>) => {
 };
 
 const openRoomSettings = vi.hoisted(() => vi.fn());
+// Its own test draws it; here only which row shows it counts.
+vi.mock('../../messages/ModelChangeMarker', () => ({ ModelChangeMarker: () => null }));
 vi.mock('../../navigation/useRoomSettingsState', () => ({
   useOpenRoomSettings: () => openRoomSettings,
 }));
@@ -181,6 +183,7 @@ const mountFeature = async (
     },
     secretRequestTimeline: { hiddenEventIds: new Set<string>() },
     voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+    modelChanges: NO_MODEL_CHANGES,
     forkPrefixEventIds,
   };
   const Harness = () => {
@@ -191,7 +194,7 @@ const mountFeature = async (
       scrollRef,
       showThreadRepliesInRoom: false,
       messageLayout: MessageLayout.Compact,
-      messageSpacing: '400' as MessageSpacing,
+      messageSpacing: '400',
       hideActivity: false,
     });
     return feature.wrapExpansion(<>{rows.map((row) => feature.renderEvent(row, data))}</>);
@@ -231,7 +234,7 @@ describe('timeline message feature', () => {
         threadRootId: event.getId(),
         status: { isKnownThreadRoot: true, replyCount: 1, isResolved: false },
         presentation: { replyParticipantIds: [] },
-      } as unknown as ThreadRecord)
+      })
     );
     update();
     const messages = events.map((event) =>
@@ -693,6 +696,60 @@ describe('timeline message feature', () => {
     expect(thread.markers).toBe(4);
     // A room draws these as full messages, so none counts there.
     expect(await drawn()).toEqual({ markers: 0, quiet: [] });
+  });
+
+  it("draws a thread's applied model change as a marker row of its own, in the open thread only", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { ModelChangeMarker } = await import('../../messages/ModelChangeMarker');
+    const ack = makeEvent('$ack', {
+      sender: '@mindroom_router:example.org',
+      threadRootId: '$thread',
+      ts: 5_000,
+      content: { msgtype: 'm.notice', body: 'This thread now uses invented-swift.' },
+    }) as unknown as MatrixEvent;
+    // The hidden command, with an edit of it that has not decrypted yet.
+    const commandEdit = encryptedEvent('$command-edit');
+    const command = Object.assign(encryptedEvent('$command'), { __pendingEdits: [commandEdit] });
+    const change = {
+      command,
+      operation: 'set',
+      model: 'invented-swift',
+      senderId: '@bob:example.org',
+      threadId: '$thread',
+      runtimeUserId: '@mindroom_router:example.org',
+      runtimeDeviceId: 'DEVICE',
+    } as const;
+    const planned = { hiddenEventIds: new Set(['$command']), byAckId: new Map([['$ack', change]]) };
+    const watched = () =>
+      [command, commandEdit].map((event) => event.listenerCount(MatrixEventEvent.Decrypted));
+    const noSet = {} as EventTimelineSet;
+
+    const thread = await mountFeature([rowFor(ack)], '$thread');
+    // The router's reply is a message until the thread's plan pairs it with its command.
+    expect(thread.renderer.root.findAllByType(ModelChangeMarker)).toHaveLength(0);
+    expect(renderedContent(thread.renderer)).toHaveLength(1);
+    thread.data.modelChanges = planned;
+    thread.update();
+    expect(thread.renderer.root.findByType(ModelChangeMarker).props).toMatchObject({
+      change,
+      ts: 5_000,
+    });
+    expect(thread.renderer.root.findAllByType(Message)).toHaveLength(0);
+    expect(renderedContent(thread.renderer)).toHaveLength(0);
+    expect(thread.feature().isQuietMarkerRow(ack, thread.data as never, noSet)).toBe(true);
+    // Its details open under it, so it never shares a row with other markers.
+    expect(thread.feature().joinsQuietMarkerRun(ack, thread.data as never, noSet)).toBe(false);
+    // The line stands for the command too: an edit of it that decrypts into another message
+    // repaints, so the plan gives the command its row back.
+    expect(watched()).toEqual([1, 1]);
+    act(() => thread.renderer.unmount());
+    expect(watched()).toEqual([0, 0]);
+
+    const roomView = await mountFeature([rowFor(ack)]);
+    roomView.data.modelChanges = planned;
+    roomView.update();
+    expect(roomView.renderer.root.findAllByType(ModelChangeMarker)).toHaveLength(0);
+    expect(renderedContent(roomView.renderer)).toHaveLength(1);
   });
 
   it('keeps the summary card for a summary outside an open thread', async () => {

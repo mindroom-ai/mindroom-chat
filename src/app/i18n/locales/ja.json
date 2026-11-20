@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "スクロール可能なテーブル",
-    "scrollHint": "横スクロール"
+    "scrollHint": "横スクロール",
+    "readByRow": "行ごとに読む",
+    "showTable": "表を表示"
   },
   "messageCodeBlock": {
     "actions": "コードブロックの操作",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "このスペースは置き換えられ、現在は使用されていません。",
       "openNewSpace": "新しいスペースを開く",
       "joinNewSpace": "新しいスペースに参加する",
-      "lobby": "ロビー",
       "messageSearch": "メッセージ検索",
       "failedToJoinReplacementSpace": "代替スペースに参加できませんでした!",
       "rooms": "ルーム",
@@ -2917,7 +2918,9 @@
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
-      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。",
+      "canvasCard": "インタラクティブパネル",
+      "reminderCard": "リマインダー · {{when}}"
     },
     "canvas": {
       "panelLabel": "インタラクティブパネル",

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { MatrixEvent, type EventTimelineSet } from 'matrix-js-sdk';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import { describe, expect, it } from 'vitest';
 import { renderTimelineTiles } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 
 // A row whose render gives nothing (an event of a type the timeline draws no row for, kept in the
 // list by the developer setting `showHiddenEvents`, or one that decrypted to such a type) takes no
@@ -36,6 +36,7 @@ const messageData = {
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and the dividers above its row: `unread`, or the date. */
@@ -48,17 +49,14 @@ const tileRows = (
   data: TimelineMessageData = messageData
 ) => {
   const tiles = renderTimelineTiles({
-    virtualItems: indexes.map(
-      (index) =>
-        ({
-          index,
-          key: index,
-          start: index * 40,
-          size: 40,
-          end: index * 40 + 40,
-          lane: 0,
-        } as VirtualItem)
-    ),
+    virtualItems: indexes.map((index) => ({
+      index,
+      key: index,
+      start: index * 40,
+      size: 40,
+      end: index * 40 + 40,
+      lane: 0,
+    })),
     threadId: undefined,
     threadEvents: [],
     roomWindowRows: events,

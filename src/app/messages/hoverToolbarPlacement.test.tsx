@@ -47,6 +47,9 @@ const rectOf = ({ top, bottom, left, right }: Rect) =>
 
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
+// jsdom's own, taken before any spy: a second spy on a spied method is the same spy in Vitest 4,
+// so reading it inside renderRow could call itself.
+const computed = window.getComputedStyle.bind(window);
 
 const unmountRow = () => {
   act(() => root?.unmount());
@@ -109,11 +112,10 @@ const renderRow = (
   ) {
     return rectOf(rects[this.dataset.testid ?? ''] ?? { top: 0, bottom: 0, left: 0, right: 0 });
   });
-  const computed = window.getComputedStyle.bind(window);
   vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
     const style = computed(element);
     if ((element as HTMLElement).dataset?.testid !== 'scroller') return style;
-    return { ...style, overflowY: 'auto', scrollPaddingTop: '100px' } as CSSStyleDeclaration;
+    return { ...style, overflowY: 'auto', scrollPaddingTop: '100px' };
   });
   host = document.createElement('div');
   document.body.append(host);

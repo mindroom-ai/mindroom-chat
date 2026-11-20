@@ -80,6 +80,8 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   entryKey?: string;
   /** Whether the router pushed that entry (a link followed), not replaced or returned to it. */
   entryPushed?: boolean;
+  /** Whether the app's Back put that entry in a thread's place (`RETURN_TO_ROOM_STATE`). */
+  entryReturned?: boolean;
   onThreadLoadError?: (threadId: string) => void;
   /**
    * A second thread shows beside the page (Open in second column): the open thread then goes
@@ -134,6 +136,7 @@ export function RoomView({
   focusEventInRoom,
   entryKey,
   entryPushed,
+  entryReturned,
   hasMindroomAgents,
   onThreadLoadError,
   besideWhileSecond = false,
@@ -198,7 +201,7 @@ export function RoomView({
   // Under the column that fills the page, typing goes to the column's composer instead.
   const focusColumn = useRef<() => void>();
   const focusComposer = useCallback(() => {
-    if (!columnFills) ReactEditor.focus(editor as ReactEditor);
+    if (!columnFills) ReactEditor.focus(editor);
     else focusColumn.current?.();
   }, [columnFills, editor]);
   useTypeToCompose(focusComposer, composerShown && (columnFills ? !behindPanel : !hidden));
@@ -303,6 +306,7 @@ export function RoomView({
     focusEventInRoom,
     entryKey,
     entryPushed,
+    entryReturned,
     hasMindroomAgents,
     summaryMap: threadState.summaryMap,
     onStoreThreadSummary: threadState.storeThreadSummary,

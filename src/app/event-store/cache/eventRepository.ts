@@ -203,9 +203,7 @@ export const collectLegacyStandaloneReplaceIds = (
     targetEvent: Partial<IEvent>,
     standaloneEvent: Partial<IEvent>
   ): boolean => {
-    const relations = (targetEvent.unsigned as Record<string, unknown> | undefined)?.[
-      'm.relations'
-    ] as Record<string, unknown> | undefined;
+    const relations = targetEvent.unsigned?.['m.relations'] as Record<string, unknown> | undefined;
     const bundled = relations?.[RelationType.Replace] as Partial<IEvent> | undefined;
     if (!bundled) return false;
 
@@ -232,9 +230,7 @@ export const collectLegacyStandaloneReplaceIds = (
   events.forEach((rawEvent) => {
     const eventId = rawEvent.event_id;
     if (typeof eventId !== 'string' || eventId.length === 0) return;
-    const relatesTo = rawEvent.content?.['m.relates_to'] as
-      | { rel_type?: string; event_id?: string }
-      | undefined;
+    const relatesTo = rawEvent.content?.['m.relates_to'];
     if (relatesTo?.rel_type !== RelationType.Replace) return;
     const targetEventId = relatesTo.event_id;
     if (!targetEventId) return;

@@ -10,6 +10,7 @@ const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
   options: {},
   setOptions: vi.fn(),
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
   getVirtualItems: () => [],
 }));

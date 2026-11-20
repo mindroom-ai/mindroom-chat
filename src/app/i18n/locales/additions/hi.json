@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "इस विंडो में कुछ चित्र लोड नहीं हो सकते: ब्राउज़र यहाँ MindRoom के लिए कोई सर्विस वर्कर नहीं चलाता।"
+    },
+    "agentCard": {
+      "agent": "एजेंट",
+      "close": "बंद करें",
+      "configuredTools": "कॉन्फ़िगर किए गए टूल",
+      "toolCount_one": "{{count}} टूल",
+      "toolCount_other": "{{count}} टूल",
+      "groupCount_one": "{{count}} समूह",
+      "groupCount_other": "{{count}} समूह",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "इसके अलावा {{groups}}",
+      "viewAll_one": "सभी {{count}} टूल देखें",
+      "viewAll_other": "सभी {{count}} टूल देखें",
+      "toolsTitle": "{{name}} के टूल",
+      "filter": "टूल फ़िल्टर करें",
+      "noMatch": "कोई टूल मेल नहीं खाता।",
+      "back": "वापस",
+      "more": "और",
+      "worksIn": "यहाँ काम करता है",
+      "loading": "कॉन्फ़िगर किए गए टूल लोड हो रहे हैं",
+      "availability": "उपलब्धता अनुरोध और अनुमतियों के अनुसार बदल सकती है।",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "कोड और फ़ाइलें",
+        "research": "वेब",
+        "productivity": "शेड्यूलिंग और मेमोरी",
+        "email": "ईमेल",
+        "mcp": "जुड़े ऐप्स",
+        "integrations": "इंटीग्रेशन",
+        "communication": "चैट और संदेश",
+        "entertainment": "मीडिया",
+        "information": "जानकारी",
+        "smart_home": "स्मार्ट होम",
+        "social": "सोशल",
+        "other": "अन्य"
+      }
+    },
+    "space": {
+      "overview": "स्पेस का अवलोकन"
     }
   },
   "featureUi": {
@@ -543,7 +583,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} विफल रहा: {{reason}}",
         "usage": "{{command}} नहीं चल सका। {{usage}}",
-        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।"
+        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।",
+        "thisApp": "यह ऐप",
+        "mindroomAgents": "MindRoom एजेंट"
       },
       "jumpToTime": {
         "unsupported": "यह सर्वर समय के अनुसार संदेश नहीं खोज सकता।",
@@ -837,6 +879,14 @@
         "diffTruncated": "डिफ़ छोटा किया गया",
         "diffLabel": "{{path}} का डिफ़"
       },
+      "modelChangeMarker": {
+        "set": "मॉडल सेट किया गया",
+        "reset": "मॉडल रीसेट किया गया",
+        "inherited": "इनहेरिट किए गए मॉडल पर वापस",
+        "changedBy": "{{name}} ने बदला",
+        "scopeOwn": "इस थ्रेड में उन एजेंट और टीमों के आगे के जवाबों पर लागू होता है जिन्हें आप संबोधित कर सकते हैं।",
+        "scopeOther": "इस थ्रेड में उन एजेंट और टीमों के आगे के जवाबों पर लागू होता है जिन्हें {{name}} संबोधित कर सकते हैं।"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} तक काम किया",
         "worked": "काम किया"
@@ -855,7 +905,10 @@
         "nameChose": "{{name}} ने चुना"
       },
       "mindroomReplyDetails": {
-        "subagents": "सब-एजेंट"
+        "subagents": "सब-एजेंट",
+        "writtenToCache": "कैश में लिखे गए",
+        "notCached": "कैश में नहीं",
+        "conversation": "बातचीत"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",
@@ -941,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "खोज विफल रही। फिर से कोशिश करें।",
         "resultCountFor_one": "\"{{term}}\" के लिए {{count}} परिणाम",
-        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम"
+        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम",
+        "retry": "पुन: प्रयास करें"
       }
     },
     "notifications": {
@@ -1017,8 +1071,6 @@
       "tools_other": "{{count}} टूल",
       "needApproval_one": "{{count}} को मंज़ूरी चाहिए",
       "needApproval_other": "{{count}} को मंज़ूरी चाहिए",
-      "toolCalls_one": "{{count}} टूल कॉल",
-      "toolCalls_other": "{{count}} टूल कॉल",
       "tokens_one": "{{tokens}} टोकन",
       "tokens_other": "{{tokens}} टोकन",
       "started": "{{time}} शुरू हुआ",
@@ -1031,7 +1083,11 @@
         "time": "समय"
       },
       "stopTask": "कार्य रोकें",
-      "stopTaskFor": "कार्य रोकें: {{tool}}"
+      "stopTaskFor": "कार्य रोकें: {{tool}}",
+      "jobTotal_one": "{{count}} बैकग्राउंड कार्य",
+      "jobTotal_other": "{{count}} बैकग्राउंड कार्य",
+      "jobTotalFinished_one": "{{count}} बैकग्राउंड कार्य पूरे हुए",
+      "jobTotalFinished_other": "{{count}} बैकग्राउंड कार्य पूरे हुए"
     },
     "subagents": {
       "title": "सब-एजेंट",
@@ -1058,7 +1114,18 @@
       "showFor": "सब-एजेंट दिखाएँ: {{name}}",
       "withCount_one": "{{label}}, {{count}} सक्रिय",
       "withCount_other": "{{label}}, {{count}} सक्रिय",
-      "resize": "सब-एजेंट पैनल का आकार बदलें"
+      "resize": "सब-एजेंट पैनल का आकार बदलें",
+      "calls_one": "{{count}} कॉल",
+      "calls_other": "{{count}} कॉल",
+      "now": "अभी",
+      "needsApproval": "अनुमोदन चाहिए",
+      "result": "परिणाम",
+      "turnNumber": "बारी {{number}}",
+      "status": "स्थिति",
+      "toolCallsNote": "टूल कॉल",
+      "tokensSplit": "{{input}} इन · {{output}} आउट",
+      "costNested": "+{{cost}} नेस्टेड",
+      "costOwn": "यह रन"
     },
     "models": {
       "modelPicker": {
@@ -1104,6 +1171,18 @@
       "joining": "रूम में शामिल हो रहे हैं…",
       "join": "शामिल हों",
       "tryAgain": "फिर से कोशिश करें"
+    },
+    "uiActions": {
+      "canvasOff": "पैनल साझा किया गया · इस ऐप में पैनल बंद हैं",
+      "askForText": "टेक्स्ट संस्करण माँगें",
+      "copyRequest": "अनुरोध कॉपी करें",
+      "textVersionRequest": "कृपया “{{title}}” यहाँ टेक्स्ट के रूप में भेजें। मेरे ऐप में इंटरैक्टिव पैनल बंद हैं।",
+      "askForTextStatus": {
+        "hint": "कंपोज़र में एक अनुरोध रखता है। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "added": "अनुरोध कंपोज़र में जोड़ दिया गया। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "kept": "आपका ड्राफ़्ट जैसा था वैसा ही है। खुद जोड़ने के लिए अनुरोध कॉपी करें।",
+        "copied": "अनुरोध कॉपी हो गया। इसे अपने ड्राफ़्ट में पेस्ट करें।"
+      }
     }
   },
   "composer": {
@@ -1128,7 +1207,10 @@
       "autoHint": "एजेंट को तय करने दें",
       "settingTitle": "एजेंट के जवाब देते समय भेजें",
       "settingDescription": "किसी एक संदेश के लिए चुनने को भेजें दबाकर रखें।"
-    }
+    },
+    "replyInThread": "थ्रेड में जवाब दें…",
+    "newThreadIn": "{{room}} में नया थ्रेड…",
+    "newThreadWith": "{{name}} के साथ नया थ्रेड…"
   },
   "commandPalette": {
     "state": {

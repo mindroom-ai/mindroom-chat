@@ -184,7 +184,7 @@ const createThread = (threadRootId = '$root') => {
       rootEvent,
       events: [olderSummary, replyTimelineEvent, latestSummary],
       timeline: [olderSummary, replyTimelineEvent, latestSummary],
-    } as MockThread,
+    },
   };
 };
 

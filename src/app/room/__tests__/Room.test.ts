@@ -97,7 +97,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       routedEvent: undefined as
         | undefined
         | { getId: () => string; threadRootId?: string; isSending: () => boolean },
-      clientConfig: { mindroom: {} } as ClientConfig,
+      clientConfig: { mindroom: {} },
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       canvasPanelProps: undefined as
         | undefined
@@ -136,6 +136,10 @@ vi.mock('folds', () => ({
   OverlayBackdrop: () => React.createElement('div'),
 }));
 
+// The composer's helpers draw with folds, which is mocked thin here.
+vi.mock('../../composer/RoomInputExtensions', () => ({
+  confirmedVoiceThreadId: (_room: unknown, threadId?: string) => threadId,
+}));
 vi.mock('../SecondThreadPanel', () => ({ SecondThreadPanel: () => null }));
 vi.mock('../SecondThreadDropZone', () => ({ SecondThreadDropZone: () => null }));
 vi.mock('../MessageLinkCards', () => ({

@@ -109,6 +109,7 @@ const makeRelations = (): MockRelations => {
   const emitter = new EventEmitter();
   let groupedAnnotations: [string, Set<MatrixEvent>][] | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   return Object.assign(emitter, {
     setGroupedAnnotations: (annotations: [string, Set<MatrixEvent>][]) => {
       groupedAnnotations = annotations;

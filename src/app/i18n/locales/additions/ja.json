@@ -274,6 +274,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "このウィンドウでは一部の画像を読み込めません: ブラウザーがここで MindRoom のサービスワーカーを実行していません。"
+    },
+    "agentCard": {
+      "agent": "エージェント",
+      "close": "閉じる",
+      "configuredTools": "設定済みのツール",
+      "toolCount_other": "{{count}} 個のツール",
+      "groupCount_other": "{{count}} グループ",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "ほかに {{groups}}",
+      "viewAll_other": "{{count}} 個のツールをすべて表示",
+      "toolsTitle": "{{name}} のツール",
+      "filter": "ツールを絞り込む",
+      "noMatch": "一致するツールはありません。",
+      "back": "戻る",
+      "more": "その他",
+      "worksIn": "参加ルーム",
+      "loading": "設定済みのツールを読み込み中",
+      "availability": "利用できるかどうかはリクエストと権限によって異なります。",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "コードとファイル",
+        "research": "Web",
+        "productivity": "スケジュールとメモリ",
+        "email": "メール",
+        "mcp": "接続したアプリ",
+        "integrations": "連携",
+        "communication": "チャットとメッセージ",
+        "entertainment": "メディア",
+        "information": "情報",
+        "smart_home": "スマートホーム",
+        "social": "ソーシャル",
+        "other": "その他"
+      }
+    },
+    "space": {
+      "overview": "スペースの概要"
     }
   },
   "featureUi": {
@@ -534,7 +570,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} に失敗しました: {{reason}}",
         "usage": "{{command}} を実行できませんでした。{{usage}}",
-        "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。"
+        "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。",
+        "thisApp": "このアプリ",
+        "mindroomAgents": "MindRoom エージェント"
       },
       "jumpToTime": {
         "unsupported": "このサーバーは時刻でメッセージを検索できません。",
@@ -826,6 +864,14 @@
         "diffTruncated": "差分は省略されています",
         "diffLabel": "{{path}} の差分"
       },
+      "modelChangeMarker": {
+        "set": "モデルを設定しました",
+        "reset": "モデルをリセットしました",
+        "inherited": "継承されたモデルに戻りました",
+        "changedBy": "変更者：{{name}}",
+        "scopeOwn": "このスレッドで、あなたが呼びかけられるエージェントとチームの今後の返信に適用されます。",
+        "scopeOther": "このスレッドで、{{name}} が呼びかけられるエージェントとチームの今後の返信に適用されます。"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"
@@ -842,7 +888,10 @@
         "nameChose": "{{name}} が選択"
       },
       "mindroomReplyDetails": {
-        "subagents": "サブエージェント"
+        "subagents": "サブエージェント",
+        "writtenToCache": "キャッシュに書き込み",
+        "notCached": "キャッシュなし",
+        "conversation": "会話"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中",
@@ -925,7 +974,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "検索に失敗しました。もう一度試してください。",
-        "resultCountFor_other": "「{{term}}」の結果 {{count}} 件"
+        "resultCountFor_other": "「{{term}}」の結果 {{count}} 件",
+        "retry": "再試行"
       }
     },
     "notifications": {
@@ -998,7 +1048,6 @@
       "groupTools": "ツール · {{number}}",
       "tools_other": "ツール {{count}} 件",
       "needApproval_other": "承認待ち {{count}} 件",
-      "toolCalls_other": "ツール呼び出し {{count}} 回",
       "tokens_other": "{{tokens}} トークン",
       "started": "{{time}}に開始",
       "open": "開く",
@@ -1010,7 +1059,9 @@
         "time": "時間"
       },
       "stopTask": "タスクを停止",
-      "stopTaskFor": "タスクを停止：{{tool}}"
+      "stopTaskFor": "タスクを停止：{{tool}}",
+      "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
+      "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
     },
     "subagents": {
       "title": "サブエージェント",
@@ -1033,7 +1084,17 @@
       "hide": "サブエージェントを隠す",
       "showFor": "サブエージェントを表示: {{name}}",
       "withCount_other": "{{label}}、{{count}} 件がアクティブ",
-      "resize": "サブエージェントパネルのサイズを変更"
+      "resize": "サブエージェントパネルのサイズを変更",
+      "calls_other": "{{count}} 回の呼び出し",
+      "now": "実行中",
+      "needsApproval": "承認が必要",
+      "result": "結果",
+      "turnNumber": "ターン {{number}}",
+      "status": "状態",
+      "toolCallsNote": "ツール呼び出し",
+      "tokensSplit": "入力 {{input}} · 出力 {{output}}",
+      "costNested": "+{{cost}} (ネスト)",
+      "costOwn": "この実行"
     },
     "models": {
       "modelPicker": {
@@ -1079,6 +1140,18 @@
       "joining": "ルームに参加しています…",
       "join": "参加",
       "tryAgain": "再試行"
+    },
+    "uiActions": {
+      "canvasOff": "パネルが共有されました · このアプリではパネルがオフです",
+      "askForText": "テキスト版を頼む",
+      "copyRequest": "依頼をコピー",
+      "textVersionRequest": "「{{title}}」を代わりにテキストでここに送ってください。私のアプリではインタラクティブパネルがオフになっています。",
+      "askForTextStatus": {
+        "hint": "入力欄に依頼文を入れます。送信を押すまで何も送られません。",
+        "added": "入力欄に依頼文を入れました。送信を押すまで何も送られません。",
+        "kept": "下書きはそのまま残しました。依頼文をコピーして自分で追加してください。",
+        "copied": "依頼文をコピーしました。下書きに貼り付けてください。"
+      }
     }
   },
   "composer": {
@@ -1103,7 +1176,10 @@
       "autoHint": "エージェントに任せる",
       "settingTitle": "エージェントの返信中に送信",
       "settingDescription": "送信を長押しすると、1 件ごとに選べます。"
-    }
+    },
+    "replyInThread": "スレッドに返信…",
+    "newThreadIn": "{{room}} に新しいスレッド…",
+    "newThreadWith": "{{name}} との新しいスレッド…"
   },
   "commandPalette": {
     "state": {

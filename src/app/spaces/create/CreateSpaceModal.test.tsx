@@ -5,7 +5,7 @@ import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import { createSpaceModalAtom } from '../../navigation/createSpaceModal';
-import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
+import { ClientConfigProvider } from '../../config/useClientConfig';
 import { CreateRoomAccess } from '../../matrix/createRoomTypes';
 import { RoomType } from '../../matrix/types/room';
 import { CreateSpaceModalRenderer } from './CreateSpaceModal';
@@ -61,7 +61,7 @@ describe('Create Space dialog', () => {
     store.set(createSpaceModalAtom, { spaceId });
     act(() =>
       root.render(
-        <ClientConfigProvider value={{} as ClientConfig}>
+        <ClientConfigProvider value={{}}>
           <Provider store={store}>
             <CreateSpaceModalRenderer />
           </Provider>

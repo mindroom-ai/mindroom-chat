@@ -22,23 +22,22 @@ const reply: IEvent = {
   type: EventType.RoomMessage,
   content: { msgtype: 'm.text', body: 'Thinking...' },
   unsigned: {},
-} as IEvent;
+};
 
-const editOf = (body: string, ts: number): IEvent =>
-  ({
-    event_id: `$edit-${ts}`,
-    room_id: ROOM_ID,
-    sender: AGENT_ID,
-    origin_server_ts: ts,
-    type: EventType.RoomMessage,
-    content: {
-      msgtype: 'm.text',
-      body: `* ${body}`,
-      'm.new_content': { msgtype: 'm.text', body },
-      'm.relates_to': { rel_type: RelationType.Replace, event_id: '$reply' },
-    },
-    unsigned: {},
-  } as IEvent);
+const editOf = (body: string, ts: number): IEvent => ({
+  event_id: `$edit-${ts}`,
+  room_id: ROOM_ID,
+  sender: AGENT_ID,
+  origin_server_ts: ts,
+  type: EventType.RoomMessage,
+  content: {
+    msgtype: 'm.text',
+    body: `* ${body}`,
+    'm.new_content': { msgtype: 'm.text', body },
+    'm.relates_to': { rel_type: RelationType.Replace, event_id: '$reply' },
+  },
+  unsigned: {},
+});
 
 /** A copy of the reply as a thread's root bundles it: with the edit the copy was made with. */
 const copyWith = (edit: IEvent): Partial<IEvent> => ({

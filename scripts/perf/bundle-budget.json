@@ -1,6 +1,6 @@
 {
-  "comment": "Gzip bytes a first visit downloads before the app runs (scripts/perf/bundle-report.mjs). Measured 2026-11-13 with `npx vite build` at c157793e3: initial JS 719,611 (one entry chunk), initial CSS 18,996; the limits are about 3% above. CI (after its build) and the push gate fail a build over these; they catch sudden growth, they are not a target. Raise them only on purpose, in the commit that needs it. Raised 2026-11-18 for the memory diagnostics (#612): CI read 724.0 KiB at 22c136833, about 2 KiB above a local build. Raised 2026-11-18 for the native zoom shortcuts (#618): CI read 726.5 KiB on its merge with main. Raised 2026-11-19 for the phone page slide without view transitions (#643): CI read 727.7 KiB on its merge with main.",
-  "initialJsGzipBytes": 747000,
-  "entryJsGzipBytes": 747000,
+  "comment": "Gzip bytes a first visit downloads before the app runs (scripts/perf/bundle-report.mjs). Measured 2026-11-13 with `npx vite build` at c157793e3: initial JS 719,611 (one entry chunk), initial CSS 18,996; the limits are about 3% above. CI (after its build) and the push gate fail a build over these; they catch sudden growth, they are not a target. Raise them only on purpose, in the commit that needs it. Raised 2026-11-18 for the memory diagnostics (#612): CI read 724.0 KiB at 22c136833, about 2 KiB above a local build. Raised 2026-11-18 for the native zoom shortcuts (#618): CI read 726.5 KiB on its merge with main. Raised 2026-11-19 for the phone page slide without view transitions (#643): CI read 727.7 KiB on its merge with main. Raised 2026-11-19 for the build tools update (Vite 7, esbuild 0.28): the same sources build an entry 4.0 KiB larger (725.4 to 729.4 KiB in local and gce builds), mostly in the CommonJS packages' wrappers.",
+  "initialJsGzipBytes": 751000,
+  "entryJsGzipBytes": 751000,
   "initialCssGzipBytes": 19600
 }

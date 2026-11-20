@@ -16,6 +16,17 @@ export const REASONING_LEVELS = [
 ] as const;
 export type ReasoningLevel = (typeof REASONING_LEVELS)[number];
 
+/**
+ * A model reference, `key` or `key@level`, split at its first `@` as the backend splits it
+ * (`split_model_reference`): the catalog key, and what names the level when the reference has one.
+ */
+export const splitModelReference = (reference: string): { key: string; level?: string } => {
+  const at = reference.indexOf('@');
+  return at < 0
+    ? { key: reference }
+    : { key: reference.slice(0, at), level: reference.slice(at + 1) };
+};
+
 export type ModelCatalogEntry = {
   key: string;
   display_name: string;
@@ -158,7 +169,7 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
       id: m.id,
       ...(m.icon_url === undefined ? {} : { icon_url: m.icon_url }),
       ...reasoningOf(m),
-    } as ModelCatalogEntry);
+    });
   }
   const { override } = selection;
   if (override !== null && !keys.has(override)) return undefined;

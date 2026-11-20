@@ -67,6 +67,31 @@ describe('ResizablePanel width bounds', () => {
     expect(panel().style.width).toBe('1200px');
   });
 
+  it('lays out at its stored width from the first commit, before it measures the row', () => {
+    localStorage.setItem('test.width', JSON.stringify(400));
+    const firstWidths: string[] = [];
+    function Probe() {
+      React.useLayoutEffect(() => {
+        firstWidths.push(panel().style.width);
+      }, []);
+      return null;
+    }
+    act(() => {
+      root.render(
+        <ResizablePanel
+          storageKey="test.width"
+          resizeLabel="Resize"
+          collapseLabel="Close"
+          testId="panel"
+        >
+          <Probe />
+        </ResizablePanel>
+      );
+    });
+    expect(firstWidths).toEqual(['400px']);
+    expect(panel().style.width).toBe('400px');
+  });
+
   it('renders no box and no handle in passthrough mode', () => {
     render({ passthrough: true });
     expect(panel().style.display).toBe('contents');

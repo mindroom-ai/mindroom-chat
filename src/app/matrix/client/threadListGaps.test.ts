@@ -1,12 +1,6 @@
 import { EventEmitter } from 'events';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  RoomEvent,
-  type IEvent,
-  type MatrixClient,
-  type MatrixEvent,
-  type Room,
-} from 'matrix-js-sdk';
+import { RoomEvent, type IEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import { relistThreadsAfterGaps } from './threadListGaps';
 
 const ROOM = '!room:example.org';
@@ -24,7 +18,7 @@ const listedRoot = (id: string, latestTs: number): Partial<IEvent> => ({
         count: 1,
       },
     },
-  } as never,
+  },
 });
 
 const mapped = (raw: Partial<IEvent>) => {
@@ -59,7 +53,7 @@ const setup = (pages: { chunk: Partial<IEvent>[]; end?: string }[], knownTs: num
   });
   const stop = relistThreadsAfterGaps(mx as unknown as MatrixClient);
   const gap = (timelineSet: unknown = unfiltered) =>
-    room.emit(RoomEvent.TimelineReset, room as unknown as Room, timelineSet, false);
+    room.emit(RoomEvent.TimelineReset, room, timelineSet, false);
   const listedIds = () =>
     room.processListedThreadRoots.mock.calls.flatMap(([events]) => events.map((e) => e.getId()));
   return { room, requests, gap, listedIds, stop };

@@ -282,6 +282,50 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Certaines images ne peuvent pas se charger dans cette fenêtre : le navigateur n'exécute ici aucun service worker pour MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Fermer",
+      "configuredTools": "Outils configurés",
+      "toolCount_one": "{{count}} outil",
+      "toolCount_many": "{{count}} d’outils",
+      "toolCount_other": "{{count}} outils",
+      "groupCount_one": "{{count}} groupe",
+      "groupCount_many": "{{count}} de groupes",
+      "groupCount_other": "{{count}} groupes",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Aussi : {{groups}}",
+      "viewAll_one": "Voir les {{count}} outils",
+      "viewAll_many": "Voir les {{count}} d’outils",
+      "viewAll_other": "Voir les {{count}} outils",
+      "toolsTitle": "Outils de {{name}}",
+      "filter": "Filtrer les outils",
+      "noMatch": "Aucun outil ne correspond.",
+      "back": "Retour",
+      "more": "Plus",
+      "worksIn": "Travaille dans",
+      "loading": "Chargement des outils configurés",
+      "availability": "La disponibilité peut varier selon la demande et les autorisations.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code et fichiers",
+        "research": "Web",
+        "productivity": "Planification et mémoire",
+        "email": "E-mail",
+        "mcp": "Applis connectées",
+        "integrations": "Intégrations",
+        "communication": "Discussions et messages",
+        "entertainment": "Médias",
+        "information": "Informations",
+        "smart_home": "Maison connectée",
+        "social": "Réseaux sociaux",
+        "other": "Autres"
+      }
+    },
+    "space": {
+      "overview": "Vue d'ensemble de l'espace"
     }
   },
   "featureUi": {
@@ -552,7 +596,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} a échoué : {{reason}}",
         "usage": "Impossible d’exécuter {{command}}. {{usage}}",
-        "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain."
+        "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain.",
+        "thisApp": "Cette app",
+        "mindroomAgents": "Agents MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Ce serveur ne peut pas rechercher les messages par date.",
@@ -848,6 +894,14 @@
         "diffTruncated": "Diff tronqué",
         "diffLabel": "Diff de {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Modèle défini",
+        "reset": "Modèle réinitialisé",
+        "inherited": "Retour aux modèles hérités",
+        "changedBy": "Modifié par {{name}}",
+        "scopeOwn": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels vous pouvez vous adresser.",
+        "scopeOther": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels {{name}} peut s’adresser."
+      },
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
         "worked": "A travaillé"
@@ -868,7 +922,10 @@
         "nameChose": "Choix de {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sous-agents"
+        "subagents": "Sous-agents",
+        "writtenToCache": "Écrits dans le cache",
+        "notCached": "Hors cache",
+        "conversation": "Conversation"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En cours depuis {{duration}}",
@@ -957,7 +1014,8 @@
         "searchFailed": "La recherche a échoué. Réessayez.",
         "resultCountFor_one": "{{count}} résultat pour « {{term}} »",
         "resultCountFor_many": "{{count}} de résultats pour « {{term}} »",
-        "resultCountFor_other": "{{count}} résultats pour « {{term}} »"
+        "resultCountFor_other": "{{count}} résultats pour « {{term}} »",
+        "retry": "Réessayer"
       }
     },
     "notifications": {
@@ -1036,9 +1094,6 @@
       "needApproval_one": "{{count}} attend une approbation",
       "needApproval_many": "{{count}} attendent une approbation",
       "needApproval_other": "{{count}} attendent une approbation",
-      "toolCalls_one": "{{count}} appel d'outil",
-      "toolCalls_many": "{{count}} appels d'outils",
-      "toolCalls_other": "{{count}} appels d'outils",
       "tokens_one": "{{tokens}} jeton",
       "tokens_many": "{{tokens}} jetons",
       "tokens_other": "{{tokens}} jetons",
@@ -1052,7 +1107,13 @@
         "time": "Durée"
       },
       "stopTask": "Arrêter la tâche",
-      "stopTaskFor": "Arrêter la tâche : {{tool}}"
+      "stopTaskFor": "Arrêter la tâche : {{tool}}",
+      "jobTotal_one": "{{count}} tâche en arrière-plan",
+      "jobTotal_many": "{{count}} tâches en arrière-plan",
+      "jobTotal_other": "{{count}} tâches en arrière-plan",
+      "jobTotalFinished_one": "{{count}} tâche en arrière-plan terminée",
+      "jobTotalFinished_many": "{{count}} tâches en arrière-plan terminées",
+      "jobTotalFinished_other": "{{count}} tâches en arrière-plan terminées"
     },
     "subagents": {
       "title": "Sous-agents",
@@ -1083,7 +1144,19 @@
       "withCount_one": "{{label}}, {{count}} actif",
       "withCount_many": "{{label}}, {{count}} actifs",
       "withCount_other": "{{label}}, {{count}} actifs",
-      "resize": "Redimensionner le panneau des sous-agents"
+      "resize": "Redimensionner le panneau des sous-agents",
+      "calls_one": "{{count}} appel",
+      "calls_many": "{{count}} appels",
+      "calls_other": "{{count}} appels",
+      "now": "En cours",
+      "needsApproval": "Approbation requise",
+      "result": "Résultat",
+      "turnNumber": "tour {{number}}",
+      "status": "Statut",
+      "toolCallsNote": "appels d'outils",
+      "tokensSplit": "{{input}} entrée · {{output}} sortie",
+      "costNested": "+{{cost}} imbriqués",
+      "costOwn": "cette exécution"
     },
     "models": {
       "modelPicker": {
@@ -1129,6 +1202,18 @@
       "joining": "Connexion au salon…",
       "join": "Rejoindre",
       "tryAgain": "Réessayer"
+    },
+    "uiActions": {
+      "canvasOff": "Panneau partagé · les panneaux sont désactivés dans cette app",
+      "askForText": "Demander une version texte",
+      "copyRequest": "Copier la demande",
+      "textVersionRequest": "Merci d’envoyer « {{title}} » ici sous forme de texte. Les panneaux interactifs sont désactivés dans mon app.",
+      "askForTextStatus": {
+        "hint": "Place une demande dans la zone de saisie. Rien n’est envoyé tant que vous n’appuyez pas sur Envoyer.",
+        "added": "Demande ajoutée à la zone de saisie. Rien n’est envoyé tant que vous n’appuyez pas sur Envoyer.",
+        "kept": "Votre brouillon reste tel quel. Copiez la demande pour l’ajouter vous-même.",
+        "copied": "Demande copiée. Collez-la dans votre brouillon."
+      }
     }
   },
   "composer": {
@@ -1153,7 +1238,10 @@
       "autoHint": "Laisser l'agent décider",
       "settingTitle": "Envoyer pendant la réponse d'un agent",
       "settingDescription": "Maintenez Envoyer pour choisir pour un seul message."
-    }
+    },
+    "replyInThread": "Répondre dans le fil…",
+    "newThreadIn": "Nouveau fil dans {{room}}…",
+    "newThreadWith": "Nouveau fil avec {{name}}…"
   },
   "commandPalette": {
     "state": {

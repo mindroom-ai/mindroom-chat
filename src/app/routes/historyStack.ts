@@ -23,6 +23,15 @@ export const emptyHistoryStack: HistoryStack = { entries: [], index: -1 };
  */
 export const OPENED_FROM_OUTSIDE_STATE = { openedFromOutside: true } as const;
 
+/**
+ * The navigation state of a room page the app's Back put in its thread's place (where it does not
+ * step back in history: the iOS app): a return to the room as it was left, not a new visit.
+ */
+export const RETURN_TO_ROOM_STATE = { returnedToRoom: true } as const;
+
+export const isReturnToRoom = (state: unknown): boolean =>
+  isRecord(state) && state.returnedToRoom === true;
+
 const isOpenedFromOutside = (state: unknown): boolean =>
   isRecord(state) && state.openedFromOutside === true;
 

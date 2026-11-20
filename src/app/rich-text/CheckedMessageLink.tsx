@@ -12,7 +12,7 @@ import { Box, Button, Text } from 'folds';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MessageLink } from './MessageLink';
 import { linkTextMisleads } from './linkDestination';
-import { MessageLinkCardContext } from './messageLinkCards';
+import { MessageLinkCardContext, MessageLinkHostContext } from './messageLinkCards';
 
 /** The address as the browser will open it, so an encoded or punycode host shows as such. */
 const displayAddress = (href: string): string => {
@@ -41,6 +41,8 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
   const anchor = useRef<HTMLAnchorElement | null>(null);
   const confirmed = useRef(false);
   const showCard = useContext(MessageLinkCardContext);
+  // While a plugin's link has a hover card, its host finds the links by it.
+  const host = useContext(MessageLinkHostContext);
 
   const misleads = (link: HTMLAnchorElement) =>
     !!href && linkTextMisleads(link.textContent ?? '', href);
@@ -96,6 +98,7 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
     <>
       <MessageLink
         {...props}
+        data-message-link={host}
         title={href}
         onClick={handleClick}
         onAuxClick={handleAuxClick}

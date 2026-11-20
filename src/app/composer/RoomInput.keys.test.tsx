@@ -29,7 +29,7 @@ const state = vi.hoisted(() => ({
   editorProps: undefined as EditorProps | undefined,
   mentionHasSuggestions: true,
   startSendSession: vi.fn(async () => undefined),
-  commands: {} as Record<string, SlashCommand>,
+  commands: {},
   /** The thread the composer last asked for its commands in. */
   commandThread: undefined as string | undefined,
   resetEditor: vi.fn(),
@@ -120,6 +120,12 @@ vi.mock('./commands/useCommands', () => ({
 }));
 vi.mock('../lib/hooks/useComposingCheck', () => ({ useComposingCheck: () => () => false }));
 vi.mock('../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
+// The room fakes have no event emitter; the composer reads their name as it is.
+vi.mock('../matrix/hooks/useRoomMeta', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../matrix/hooks/useRoomMeta')>()),
+  useRoomName: (room: Room) => room.name,
+}));
+vi.mock('../matrix/hooks/useRoomThreadMode', () => ({ useRoomThreadMode: () => undefined }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
 }));
@@ -348,8 +354,8 @@ describe('composer', () => {
     const withInvite = (run: SlashCommand['run']) => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        invite: { name: 'invite', description: 'Invite user to room.', run },
-      } as Record<string, SlashCommand>;
+        invite: { name: 'invite', source: 'app', description: 'Invite user to room.', run },
+      };
     };
     const alerts = () =>
       renderer?.root.findAll((node) => node.props.role === 'alert').map((node) => node.props);
@@ -380,9 +386,17 @@ describe('composer', () => {
     it("sends a MindRoom command, which the room's agents answer, as a message", async () => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
-        list_schedules: { name: 'list_schedules', description: 'List all scheduled tasks.' },
-      } as Record<string, SlashCommand>;
+        schedule: {
+          name: 'schedule',
+          source: 'mindroom',
+          description: 'Schedule a task for later execution.',
+        },
+        list_schedules: {
+          name: 'list_schedules',
+          source: 'mindroom',
+          description: 'List all scheduled tasks.',
+        },
+      };
       const schedule = [{ type: 'paragraph', children: [{ text: '/schedule in 5 min do x' }] }];
       expect(await pressEnterAfterMention(schedule)).toBe(true);
       expect(alerts()).toEqual([]);
@@ -394,8 +408,12 @@ describe('composer', () => {
     it('sends a MindRoom command a phone keyboard capitalized, as typed', async () => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
-      } as Record<string, SlashCommand>;
+        schedule: {
+          name: 'schedule',
+          source: 'mindroom',
+          description: 'Schedule a task for later execution.',
+        },
+      };
       const typedSchedule = [{ type: 'paragraph', children: [{ text: '/Schedule in 5 min x' }] }];
       expect(await pressEnterAfterMention(typedSchedule)).toBe(true);
       expect(alerts()).toEqual([]);
@@ -404,8 +422,12 @@ describe('composer', () => {
     it('sends another spelling MindRoom reads of a command, as typed', async () => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        auto_approve: { name: 'auto_approve', description: 'Auto-approve tool calls.' },
-      } as Record<string, SlashCommand>;
+        auto_approve: {
+          name: 'auto_approve',
+          source: 'mindroom',
+          description: 'Auto-approve tool calls.',
+        },
+      };
       const autoApprove = [{ type: 'paragraph', children: [{ text: '/auto-approve off' }] }];
       expect(await pressEnterAfterMention(autoApprove)).toBe(true);
       expect(alerts()).toEqual([]);
@@ -436,8 +458,19 @@ describe('composer', () => {
           ranIn.push(state.commandThread);
         };
         state.commands = {
-          greet: { name: 'greet', description: 'Greets.', run: greet, inThread: true },
-          invite: { name: 'invite', description: 'Invite user to room.', run: invite },
+          greet: {
+            name: 'greet',
+            source: 'app',
+            description: 'Greets.',
+            run: greet,
+            inThread: true,
+          },
+          invite: {
+            name: 'invite',
+            source: 'app',
+            description: 'Invite user to room.',
+            run: invite,
+          },
         };
       });
       /** A room whose message `LOCAL_ROOT` waits for the server, which gives it `$root`. */

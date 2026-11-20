@@ -78,12 +78,13 @@ test.describe(() => {
     await page.goto(threadUrl(stack, rootId), { timeout: 180_000 });
     await refreshed;
 
-    const open = page.getByRole('button', { name: 'Open canvas', exact: true }).first();
-    await expect(open).toBeVisible({ timeout: 90_000 });
-    await expect(open).toBeDisabled();
+    // The notice says canvases are off and offers a text version instead of a dead Open canvas.
+    const ask = page.getByRole('button', { name: 'Ask for a text version', exact: true }).first();
+    await expect(ask).toBeVisible({ timeout: 90_000 });
     await expect(
-      page.getByRole('note').filter({ hasText: 'Interactive panels are turned off in this app.' })
+      page.getByText('Canvas shared · panels are off in this app').first()
     ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open canvas', exact: true })).toHaveCount(0);
     await expect(page.getByRole('complementary', { name: 'Canvas panel' })).toHaveCount(0);
     await page.screenshot({ path: test.info().outputPath('canvases-off-applied.png') });
   });

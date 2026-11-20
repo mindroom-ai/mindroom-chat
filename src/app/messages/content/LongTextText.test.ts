@@ -145,7 +145,17 @@ vi.mock('../agent-run/Reasoning.css', () => ({
   Label: 'Label',
   Chevron: 'Chevron',
 }));
-vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
+vi.mock('../agent-run/FinishedWorkFold.css', () => ({
+  Row: 'Row',
+  ClockBox: 'ClockBox',
+  Clock: 'Clock',
+  Hands: 'Hands',
+  Label: 'WorkLabel',
+  Chevron: 'WorkChevron',
+  Ring: 'Ring',
+  Work: 'Work',
+  WorkInner: 'WorkInner',
+}));
 vi.mock('../question/QuestionCard.css', () => ({}));
 vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../agent-run/CompactionSeam.css', () => ({}));
@@ -1398,7 +1408,7 @@ describe('LongTextText hydration identity', () => {
       ...content,
       info: { ...(content.info as Record<string, unknown>) },
       'io.mindroom.long_text': {
-        ...((content['io.mindroom.long_text'] as Record<string, unknown>) ?? {}),
+        ...(content['io.mindroom.long_text'] ?? {}),
       },
     });
 
@@ -1639,7 +1649,6 @@ describe('a finished agent reply in a sidecar', () => {
     ['unavailable', false],
   ])('folds its work only once the sidecar is read (%s)', async (outcome, folds) => {
     const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
-    const WORK = 'Let me look.'.padEnd(800, ' More.');
     const deferred = createDeferred<Record<string, unknown>>();
     longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
     const eventId = `$sidecar-${outcome}`;
@@ -1675,12 +1684,10 @@ describe('a finished agent reply in a sidecar', () => {
             ? previewContent
             : {
                 msgtype: 'm.text',
-                // Enough work to fold: 8 rows of text and its call.
-                body: [WORK, '', '🔧 `read_file` [1]', '', 'The answer starts and ends.'].join(
-                  '\n'
-                ),
+                body: 'Let me look.\n\n🔧 `read_file` [1]\n\nThe answer starts and ends.',
                 format: 'org.matrix.custom.html',
-                formatted_body: `<p>${WORK}</p><p>🔧 <code>read_file</code> [1]</p><p>The answer starts and ends.</p>`,
+                formatted_body:
+                  '<p>Let me look.</p><p>🔧 <code>read_file</code> [1]</p><p>The answer starts and ends.</p>',
                 'io.mindroom.ai_run': { version: 1, status: 'completed' },
               }
         );

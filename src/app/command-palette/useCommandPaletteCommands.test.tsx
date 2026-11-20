@@ -19,7 +19,7 @@ import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 const mocks = vi.hoisted(() => ({
   candidates: [] as { userId: string; displayName: string }[],
   /** What the deployment's call service discovery answered. */
-  support: 'supported' as 'checking' | 'supported' | 'unsupported',
+  support: 'supported',
   /** The room whose call panel shows the active call, if any. */
   callShownIn: undefined as string | undefined,
   call: vi.fn(),
@@ -99,11 +99,7 @@ const makeRoom = ({ callRoom = false } = {}) =>
     isCallRoom: () => callRoom,
   } as unknown as Room);
 
-const render = ({
-  room = makeRoom(),
-  inRoom = true,
-  threadId = '$thread' as string | undefined,
-} = {}) => {
+const render = ({ room = makeRoom(), inRoom = true, threadId = '$thread' } = {}) => {
   const store = createStore();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Provider store={store}>{children}</Provider>

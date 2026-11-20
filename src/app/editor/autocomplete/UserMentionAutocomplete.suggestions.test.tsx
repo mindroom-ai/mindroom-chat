@@ -33,7 +33,7 @@ const mentions = vi.hoisted(() => ({
     highlight,
   })),
 }));
-const levels = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+const levels = vi.hoisted(() => ({ current: {} }));
 const replaceWithElement = vi.hoisted(() => vi.fn());
 vi.mock('../utils', () => ({
   createMentionElement: mentions.createMentionElement,

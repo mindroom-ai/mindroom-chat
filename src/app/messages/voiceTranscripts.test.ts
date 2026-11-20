@@ -57,11 +57,7 @@ const replaceWith = (
 
 const plan = (
   events: MatrixEvent[],
-  {
-    ignored = new Set<string>(),
-    revealed = new Set<string>(),
-    routerUserId = ROUTER as string | undefined,
-  } = {}
+  { ignored = new Set<string>(), revealed = new Set<string>(), routerUserId = ROUTER } = {}
 ) =>
   planVoiceTranscripts({
     events,

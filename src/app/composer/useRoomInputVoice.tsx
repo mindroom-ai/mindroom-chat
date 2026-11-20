@@ -141,7 +141,7 @@ export const useRoomInputVoice = ({
   // Before the page paints: it would show the recording for a frame.
   useLayoutEffect(() => {
     if (view === undefined) return undefined;
-    const entry = { key: composerKey };
+    const entry = { key: composerKey, view };
     setThreadViewComposers((entries) => [...entries, entry]);
     return () => setThreadViewComposers((entries) => entries.filter((other) => other !== entry));
   }, [composerKey, setThreadViewComposers, view]);

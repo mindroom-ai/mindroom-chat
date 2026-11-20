@@ -274,6 +274,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "이 창에서는 일부 이미지를 불러올 수 없습니다: 브라우저가 여기서 MindRoom의 서비스 워커를 실행하지 않습니다."
+    },
+    "agentCard": {
+      "agent": "에이전트",
+      "close": "닫기",
+      "configuredTools": "설정된 도구",
+      "toolCount_other": "도구 {{count}}개",
+      "groupCount_other": "그룹 {{count}}개",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "그 밖에 {{groups}}",
+      "viewAll_other": "도구 {{count}}개 모두 보기",
+      "toolsTitle": "{{name}}의 도구",
+      "filter": "도구 필터",
+      "noMatch": "일치하는 도구가 없습니다.",
+      "back": "뒤로",
+      "more": "더 보기",
+      "worksIn": "활동하는 방",
+      "loading": "설정된 도구를 불러오는 중",
+      "availability": "요청과 권한에 따라 사용 가능 여부가 달라질 수 있습니다.",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "코드 및 파일",
+        "research": "웹",
+        "productivity": "일정 및 메모리",
+        "email": "이메일",
+        "mcp": "연결된 앱",
+        "integrations": "통합",
+        "communication": "채팅 및 메시지",
+        "entertainment": "미디어",
+        "information": "정보",
+        "smart_home": "스마트 홈",
+        "social": "소셜",
+        "other": "기타"
+      }
+    },
+    "space": {
+      "overview": "스페이스 개요"
     }
   },
   "featureUi": {
@@ -534,7 +570,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 실패: {{reason}}",
         "usage": "{{command}}을(를) 실행할 수 없습니다. {{usage}}",
-        "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요."
+        "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요.",
+        "thisApp": "이 앱",
+        "mindroomAgents": "MindRoom 에이전트"
       },
       "jumpToTime": {
         "unsupported": "이 서버는 시간으로 메시지를 찾을 수 없습니다.",
@@ -826,6 +864,14 @@
         "diffTruncated": "차이가 잘렸습니다",
         "diffLabel": "{{path}} 차이"
       },
+      "modelChangeMarker": {
+        "set": "모델 설정됨",
+        "reset": "모델 초기화됨",
+        "inherited": "상속된 모델로 돌아감",
+        "changedBy": "변경한 사람: {{name}}",
+        "scopeOwn": "이 스레드에서 내가 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다.",
+        "scopeOther": "이 스레드에서 {{name}} 님이 호출할 수 있는 에이전트와 팀의 이후 답변에 적용됩니다."
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"
@@ -842,7 +888,10 @@
         "nameChose": "{{name}} 님이 선택함"
       },
       "mindroomReplyDetails": {
-        "subagents": "하위 에이전트"
+        "subagents": "하위 에이전트",
+        "writtenToCache": "캐시에 기록",
+        "notCached": "캐시 안 됨",
+        "conversation": "대화"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중",
@@ -925,7 +974,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "검색하지 못했습니다. 다시 시도하세요.",
-        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개"
+        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개",
+        "retry": "다시 시도"
       }
     },
     "notifications": {
@@ -998,7 +1048,6 @@
       "groupTools": "도구 · {{number}}",
       "tools_other": "도구 {{count}}개",
       "needApproval_other": "승인 대기 {{count}}개",
-      "toolCalls_other": "도구 호출 {{count}}회",
       "tokens_other": "토큰 {{tokens}}개",
       "started": "{{time}} 시작",
       "open": "열기",
@@ -1010,7 +1059,9 @@
         "time": "시간"
       },
       "stopTask": "작업 중지",
-      "stopTaskFor": "작업 중지: {{tool}}"
+      "stopTaskFor": "작업 중지: {{tool}}",
+      "jobTotal_other": "백그라운드 작업 {{count}}개",
+      "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
     },
     "subagents": {
       "title": "하위 에이전트",
@@ -1033,7 +1084,17 @@
       "hide": "하위 에이전트 숨기기",
       "showFor": "하위 에이전트 표시: {{name}}",
       "withCount_other": "{{label}}, {{count}}개 활성",
-      "resize": "하위 에이전트 패널 크기 조정"
+      "resize": "하위 에이전트 패널 크기 조정",
+      "calls_other": "호출 {{count}}회",
+      "now": "지금",
+      "needsApproval": "승인 필요",
+      "result": "결과",
+      "turnNumber": "{{number}}턴",
+      "status": "상태",
+      "toolCallsNote": "도구 호출",
+      "tokensSplit": "입력 {{input}} · 출력 {{output}}",
+      "costNested": "+{{cost}} 중첩",
+      "costOwn": "이 실행"
     },
     "models": {
       "modelPicker": {
@@ -1079,6 +1140,18 @@
       "joining": "방에 참여하는 중…",
       "join": "참여",
       "tryAgain": "다시 시도"
+    },
+    "uiActions": {
+      "canvasOff": "패널 공유됨 · 이 앱에서는 패널이 꺼져 있습니다",
+      "askForText": "텍스트 버전 요청",
+      "copyRequest": "요청 복사",
+      "textVersionRequest": "“{{title}}”을(를) 대신 텍스트로 여기에 보내 주세요. 제 앱에서는 대화형 패널이 꺼져 있습니다.",
+      "askForTextStatus": {
+        "hint": "입력창에 요청을 넣습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "added": "입력창에 요청을 넣었습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "kept": "작성 중인 초안은 그대로 두었습니다. 요청을 복사해 직접 추가하세요.",
+        "copied": "요청을 복사했습니다. 초안에 붙여 넣으세요."
+      }
     }
   },
   "composer": {
@@ -1103,7 +1176,10 @@
       "autoHint": "에이전트가 결정하도록 하기",
       "settingTitle": "에이전트가 답변 중일 때 보내기",
       "settingDescription": "보내기를 길게 눌러 메시지마다 선택하세요."
-    }
+    },
+    "replyInThread": "스레드에 답장…",
+    "newThreadIn": "{{room}}에 새 스레드…",
+    "newThreadWith": "{{name}}에게 새 스레드…"
   },
   "commandPalette": {
     "state": {

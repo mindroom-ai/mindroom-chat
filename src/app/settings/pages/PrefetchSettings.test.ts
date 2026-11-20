@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // setter through the MenuItem children.
 
 const state = vi.hoisted(() => ({
-  prefetchScope: 'current-room-only' as 'all-rooms' | 'current-room-only',
+  prefetchScope: 'current-room-only',
   setPrefetchScope: vi.fn(),
 }));
 

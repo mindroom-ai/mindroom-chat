@@ -120,6 +120,7 @@ const {
   >(),
   stateEventsByTypeMock: new Map<string, unknown[]>(),
   // The room's power levels the timeline reads from its context.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   powerLevelsContextMock: { levels: {} as Record<string, unknown> },
   roomThreadListThreadsMock: [] as Array<{ id?: string; rootEvent?: unknown }>,
   ignoredUsersMock: [] as string[],
@@ -185,6 +186,7 @@ const {
     totalSize: undefined as number | undefined,
     // The row at the reader's top. Like virtual-core's offset lookup, it
     // follows that row's index across renders; without it there is none.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     firstVisibleKey: undefined as unknown,
     // The mock instance of the current test tree (mutant audit 2026-07-07:
     // the drop-path pins call the component-installed
@@ -703,6 +705,7 @@ vi.mock('../RoomIntro', () => ({
 // test sets one; the real module would load the plugins' translations, and the app's i18n setup.
 vi.mock('../../plugins/messageRenderers', () => ({
   useMessageRowHidden: () => pluginRowHiddenMock.test,
+  pickRenderer: () => undefined,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
@@ -1243,6 +1246,7 @@ const makeEvent = (
     getAssociatedId: () => opts.associatedId,
     getContent: () => opts.content ?? { body: eventId },
     getOriginalContent: () => opts.content ?? { body: eventId },
+    getWireContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,
     getRelation: () => opts.relation,
     replyEventId: opts.replyTo,
@@ -1574,6 +1578,7 @@ const getClickableByText = (renderer: ReturnType<typeof create>, text: string) =
   const clickable = renderer.root.find((node) => {
     if (typeof node.props.onClick !== 'function') return false;
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     return hasTextDescendant(node as unknown as { children: unknown[] });
   });
 
