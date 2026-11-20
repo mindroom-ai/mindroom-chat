@@ -91,8 +91,13 @@ export type ThreadActionsMenuProps = {
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
 
-// As the original's thread menu measures: at least 220px wide, with the banner's 12px corners.
-const menuStyle: React.CSSProperties = { minWidth: toRem(220), borderRadius: config.radii.R500 };
+// As the original's thread menu measures: at least 220px wide, with the banner's 12px corners. A
+// screen narrower than that at a large Page Zoom (320px at 150%) keeps a 0.5rem margin on each side.
+const menuStyle: React.CSSProperties = {
+  minWidth: `min(${toRem(220)}, calc(100vw - 1rem))`,
+  maxWidth: 'calc(100vw - 1rem)',
+  borderRadius: config.radii.R500,
+};
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
