@@ -33,3 +33,7 @@ export const getAudioFileExtension = (mimeType: string): string => {
 
   return 'ogg';
 };
+
+/** The file name of a voice message recorded at `at`. */
+export const getVoiceFileName = (mimeType: string, at: Date): string =>
+  `voice-message-${at.toISOString().replace(/[:.]/g, '-')}.${getAudioFileExtension(mimeType)}`;
