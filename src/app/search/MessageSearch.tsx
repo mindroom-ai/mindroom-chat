@@ -176,6 +176,10 @@ export function MessageSearch({
   const searchKey = JSON.stringify([term, rooms, order]);
   const [failedPageOf, setFailedPageOf] = useState<string>();
   const pageFailed = failedPageOf === searchKey && isError;
+  // Any success ends that failure; a later error is classified afresh.
+  useEffect(() => {
+    if (!isError) setFailedPageOf(undefined);
+  }, [isError]);
   const loadNext = useCallback(async () => {
     const result = await fetchNextPage({ cancelRefetch: false });
     setFailedPageOf(result.isError ? searchKey : undefined);

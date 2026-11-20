@@ -273,3 +273,48 @@ test('a failed refresh of the results shown keeps the error at the top, without 
   await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
   await expect(page.locator('article')).toHaveCount(1);
 });
+
+test('after a failed next page and a refresh that works, a failed refresh shows at the top', async ({
+  page,
+}) => {
+  const said = (eventId: string, body: string) => ({
+    rank: 1,
+    result: {
+      event_id: eventId,
+      room_id: roomId,
+      sender: alice.userId,
+      origin_server_ts: Date.now(),
+      type: 'm.room.message',
+      content: { msgtype: 'm.text', body },
+    },
+  });
+  let server: 'next-page-down' | 'up' | 'down' = 'next-page-down';
+  await page.route(isSearch, async (route) => {
+    const batch = new URL(route.request().url()).searchParams.get('next_batch');
+    if (server === 'down' || (batch && server === 'next-page-down')) {
+      await route.fulfill({ status: 500, json: { errcode: 'M_UNKNOWN', error: 'down' } });
+      return;
+    }
+    // Back up, the server has no second page any more: nothing loads after the refresh.
+    const nextBatch = server === 'next-page-down' ? 'second' : undefined;
+    await route.fulfill(searchAnswer([said('$said', 'The roadmap is ready')], nextBatch));
+  });
+  const refresh = () => page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  const retry = page.getByRole('button', { name: 'Retry', exact: true });
+  const alert = page.getByRole('alert');
+  await login(page);
+  await page.goto(searchPath);
+  await expect(retry).toBeVisible({ timeout: 30_000 });
+
+  server = 'up';
+  await refresh();
+  await expect(alert).toHaveCount(0, { timeout: 30_000 });
+  await expect(retry).toHaveCount(0);
+
+  // A refresh that fails now is the search's error, shown at the top, not that page's.
+  server = 'down';
+  await refresh();
+  await expect(alert).toHaveText('Search failed. Try again.', { timeout: 30_000 });
+  await expect(retry).toHaveCount(0);
+  await expect(page.locator('article')).toHaveCount(1);
+});
