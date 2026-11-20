@@ -105,9 +105,12 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
   const startClient = async ({
     failures,
     responses = replyAfterInitial,
+    withoutMessagesFails = false,
   }: {
     failures: number | ((call: number) => boolean);
     responses?: Record<string, SyncBody>;
+    /** The crypto layer also fails for changes that bring no to-device messages. */
+    withoutMessagesFails?: boolean;
   }) => {
     const server = createServer(responses);
     const client = createClient({
@@ -123,7 +126,10 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     // The SDK hands a response's to-device messages, device list changes and key counts to the
     // crypto layer in one call (matrix-js-sdk #5503), also for a response without messages.
     const processSyncChanges = vi.fn(async ({ toDeviceEvents: events }: SyncCryptoChanges) => {
-      if (events.length === 0) return [];
+      if (events.length === 0) {
+        if (withoutMessagesFails) throw new DOMException('Connection lost.', 'UnknownError');
+        return [];
+      }
       calls += 1;
       const fail = typeof failures === 'number' ? calls <= failures : failures(calls);
       if (fail) {
@@ -263,6 +269,56 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
       'after-reply',
     ]);
     expect(sync.toDeviceEvents).toEqual([]);
+  });
+
+  it('still tells the crypto layer whose devices changed when it gives the messages up', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const sync = await startClient({
+      failures: Number.POSITIVE_INFINITY,
+      responses: {
+        ...replyAfterInitial,
+        initial: {
+          ...replyAfterInitial.initial,
+          device_lists: { changed: ['@bob:example.org'], left: [] },
+          device_one_time_keys_count: { signed_curve25519: 12 },
+          device_unused_fallback_key_types: ['signed_curve25519'],
+        },
+      },
+    });
+
+    await retryUntilLastWait(sync);
+    await vi.advanceTimersByTimeAsync(32_000);
+    await settle(() => sync.eventIds().includes('$reply'));
+
+    // The server reports a device list change once: acknowledging the response without it would
+    // leave Bob's devices stale. It and the key counts go in again, without the messages.
+    expect(sync.processSyncChanges.mock.calls.map(([changes]) => changes).slice(-2)).toEqual([
+      expect.objectContaining({ toDeviceEvents: [expect.anything()] }),
+      {
+        toDeviceEvents: [],
+        deviceLists: { changed: ['@bob:example.org'], left: [] },
+        oneTimeKeysCounts: { signed_curve25519: 12 },
+        unusedFallbackKeys: ['signed_curve25519'],
+      },
+    ]);
+  });
+
+  it('keeps room events flowing when the crypto layer does not take the changes without the messages either', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const sync = await startClient({
+      failures: Number.POSITIVE_INFINITY,
+      withoutMessagesFails: true,
+    });
+
+    await retryUntilLastWait(sync);
+    await vi.advanceTimersByTimeAsync(32_000);
+    await settle(() => sync.eventIds().includes('$reply'));
+
+    expect(sync.sinceTokens.slice(0, 9)).toEqual([
+      null,
+      ...Array(7).fill('initial'),
+      'after-reply',
+    ]);
   });
 
   it('skips the retries while the crypto store stays broken, until it works again', async () => {

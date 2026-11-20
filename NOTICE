@@ -219,8 +219,8 @@ Modified dependencies
     and the compiled files built from them:
     lib/@types/requests.d.ts, lib/client.d.ts, lib/client.js,
     lib/event-mapper.js, lib/http-api/fetch.js,
-    lib/http-api/interface.d.ts, lib/http-api/interface.js,
-    lib/http-api/refresh.d.ts, lib/http-api/refresh.js,
+    lib/http-api/interface.d.ts, lib/http-api/interface.js(.map),
+    lib/http-api/refresh.d.ts, lib/http-api/refresh.js(.map),
     lib/models/event-timeline-set.d.ts,
     lib/models/event-timeline-set.js(.map),
     lib/models/event-timeline.d.ts, lib/models/event-timeline.js,
