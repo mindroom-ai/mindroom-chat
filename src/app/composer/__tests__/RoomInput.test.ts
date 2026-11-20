@@ -3532,7 +3532,7 @@ describe('RoomInput', () => {
 
   it('rejects retry when the source room is no longer reachable (re-resolves at retry time)', async () => {
     // R5 FIX 3 (rev-H Issue 2): handleVoiceSend used to read
-    // context.room directly — a snapshot from Send that could be stale
+    // context.room directly, a snapshot from Send that could be stale
     // by retry time. The new code re-resolves via mx.getRoom and refuses to
     // proceed if the room is gone or non-joined. This also closes a
     // plaintext-leak window for encryption upgrades (covered by the
