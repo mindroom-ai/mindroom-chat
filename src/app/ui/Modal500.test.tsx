@@ -12,6 +12,10 @@ vi.mock('./Modal500.css', () => ({
   PhoneModal: 'modal-phone-fill',
 }));
 vi.mock('./styles/Glass.css', () => ({ glassDenseOverBackdrop: 'glass-dense-over-backdrop' }));
+// The dialog's notice place is tested with the other places (noticeSlots.test.tsx).
+vi.mock('./noticeSlots', () => ({
+  DialogNoticeSlot: () => <div data-testid="dialog-notice-slot" />,
+}));
 // jsdom lays nothing out, so focus-trap finds no tabbable node; the trap is not under test here.
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
@@ -31,6 +35,14 @@ const open = (screenSize: ScreenSize, fillPhoneScreen?: boolean) => {
 };
 
 afterEach(cleanup);
+
+describe('Modal500', () => {
+  it('offers a notice place inside the dialog, after its content', () => {
+    const { dialog } = open(ScreenSize.Desktop);
+    // Inside, the focus the dialog holds reaches a notice; last, its first control stays first.
+    expect(dialog.lastElementChild).toBe(screen.getByTestId('dialog-notice-slot'));
+  });
+});
 
 describe('Modal500 on phones', () => {
   it('keeps a margin around the dialog unless asked to fill the screen', () => {

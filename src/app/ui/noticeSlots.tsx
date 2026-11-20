@@ -6,7 +6,9 @@ import * as css from './noticeSlots.css';
 // Places a floating notice can be shown in, offered by the layout while it shows them. The new
 // version notice (shell/NewVersionNotice.tsx) and the tour's offer (tour/TourOffer.tsx) take the
 // room list's while there is one, else the page's (useNoticePresence); how the connection is
-// (shell/SyncStatus.tsx) always shows in the page's.
+// (shell/SyncStatus.tsx) always shows in the page's. A voice recording no composer shows
+// (composer/voice/LiveVoiceRecordingIndicator.tsx) shows in the page's too, or in what covers the
+// page: a large dialog's place, or the one of a phone's drawer.
 
 /** At the foot of the room list beside the page (ResizablePageNav); phones have none. */
 export const listNoticeSlotAtom = atom<HTMLElement | null>(null);
@@ -14,7 +16,26 @@ export const listNoticeSlotAtom = atom<HTMLElement | null>(null);
 /** At the top of the signed-in page, under a phone's top bar (ClientLayout). */
 export const pageNoticeSlotAtom = atom<HTMLElement | null>(null);
 
-const slotAtoms = { list: listNoticeSlotAtom, page: pageNoticeSlotAtom };
+/** In a phone's navigation drawer while it is out, above the section's list (PhoneNavDrawer). */
+export const drawerNoticeSlotAtom = atom<HTMLElement | null>(null);
+
+const slotAtoms = {
+  list: listNoticeSlotAtom,
+  page: pageNoticeSlotAtom,
+  drawer: drawerNoticeSlotAtom,
+};
+
+/** The places of the large dialogs open over the page (ui/Modal500.tsx), the topmost one last. */
+export const dialogNoticeSlotsAtom = atom<readonly HTMLElement[]>([]);
+
+/** At the foot of the topmost large dialog, inside it, so that the focus it holds reaches it. */
+export const dialogNoticeSlotAtom = atom((get) => {
+  const slots = get(dialogNoticeSlotsAtom);
+  return slots[slots.length - 1] ?? null;
+});
+
+/** Whether a large dialog covers the page: what the page shows is out of sight under it. */
+export const pageBehindDialogAtom = atom((get) => get(dialogNoticeSlotsAtom).length > 0);
 
 /** How long a notice takes to leave: the Normal motion token (ui/noticeMotion.css.ts) and a frame. */
 export const NOTICE_LEAVE_MS = 180;
@@ -23,7 +44,7 @@ export const NOTICE_LEAVE_MS = 180;
 export type NoticePlacement = 'list' | 'page';
 
 type NoticeSlotProps = {
-  place: NoticePlacement;
+  place: NoticePlacement | 'drawer';
   /** Whether the page has the phone layout, which a notice shown here follows. */
   phone?: boolean;
   /** Whether something covers the place, as a phone's drawer does: its notice is inert then. */
@@ -45,14 +66,26 @@ export function NoticeSlot({ place, phone = false, covered = false }: NoticeSlot
     setSlot(element);
     return () => setSlot((current) => (current === element ? null : current));
   }, [setSlot]);
-  return (
-    <div
-      ref={ref}
-      className={place === 'list' ? css.ListSlot : css.PageSlot({ phone })}
-      data-phone={phone || undefined}
-      aria-live="polite"
-    />
-  );
+  let className = css.PageSlot({ phone });
+  if (place === 'list') className = css.ListSlot;
+  if (place === 'drawer') className = css.CoverSlot;
+  return <div ref={ref} className={className} data-phone={phone || undefined} aria-live="polite" />;
+}
+
+/**
+ * The notice place of a large dialog, for as long as the dialog is open: of several open over
+ * each other, the topmost one's is offered. A live region, as the other places are.
+ */
+export function DialogNoticeSlot() {
+  const setSlots = useSetAtom(dialogNoticeSlotsAtom);
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+    setSlots((slots) => [...slots, element]);
+    return () => setSlots((slots) => slots.filter((slot) => slot !== element));
+  }, [setSlots]);
+  return <div ref={ref} className={css.CoverSlot} aria-live="polite" />;
 }
 
 /**

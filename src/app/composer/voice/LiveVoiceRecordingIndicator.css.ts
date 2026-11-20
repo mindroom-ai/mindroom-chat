@@ -3,20 +3,16 @@ import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
 import { glassFloating, glassOutline, glassSurface } from '../../ui/styles/Glass.css';
 
-// A small pill floating over the foot of whatever page shows, centred, clear of the home
-// indicator: above the pages, below folds' dialogs, menus and tooltips in their own layer.
+// A small pill in a notice place (ui/noticeSlots.tsx), centred there. The places take no clicks
+// themselves, so the pill asks for its own.
 export const Pill = style([
   glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   glassFloating,
   glassOutline,
   {
-    position: 'fixed',
-    zIndex: 1000,
-    insetInline: 0,
-    insetBlockEnd: `calc(env(safe-area-inset-bottom, 0px) + ${config.space.S400})`,
-    marginInline: 'auto',
-    inlineSize: 'fit-content',
-    maxInlineSize: `calc(100vw - 2 * ${config.space.S400})`,
+    flexShrink: 0,
+    alignSelf: 'center',
+    maxInlineSize: '100%',
     display: 'flex',
     alignItems: 'center',
     gap: config.space.S200,
@@ -25,8 +21,23 @@ export const Pill = style([
     paddingInlineStart: config.space.S300,
     paddingInlineEnd: config.space.S100,
     color: color.SurfaceVariant.OnContainer,
+    pointerEvents: 'auto',
   },
 ]);
+
+// Read out by the place, a live region, when the pill comes and when the recording pauses or
+// goes on; not shown, and out of the place's flow.
+export const Announcement = style({
+  position: 'absolute',
+  inlineSize: 1,
+  blockSize: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+  border: 0,
+});
 
 // Red while the microphone records, dimmed while it is paused.
 export const Dot = recipe({

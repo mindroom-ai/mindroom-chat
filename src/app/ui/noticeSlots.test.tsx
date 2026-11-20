@@ -4,9 +4,13 @@ import { createPortal } from 'react-dom';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  dialogNoticeSlotAtom,
+  DialogNoticeSlot,
+  drawerNoticeSlotAtom,
   listNoticeSlotAtom,
   NOTICE_LEAVE_MS,
   NoticeSlot,
+  pageBehindDialogAtom,
   pageNoticeSlotAtom,
   useNoticePresence,
 } from './noticeSlots';
@@ -58,6 +62,47 @@ describe('NoticeSlot', () => {
 
     unmount();
     expect(store.get(listNoticeSlotAtom)).toBeNull();
+  });
+
+  it("offers a phone drawer's place while the drawer shows it", () => {
+    const { unmount } = render(<NoticeSlot place="drawer" />);
+    const drawer = store.get(drawerNoticeSlotAtom);
+    expect(drawer?.getAttribute('aria-live')).toBe('polite');
+    expect(store.get(pageNoticeSlotAtom)).toBeNull();
+    unmount();
+    expect(store.get(drawerNoticeSlotAtom)).toBeNull();
+  });
+
+  it('offers the place of the topmost large dialog, and says the page is behind one while any is open', () => {
+    const dialogs = (count: number) => (
+      <>
+        {Array.from({ length: count }, (_, index) => (
+          <section key={index} data-dialog={index}>
+            <DialogNoticeSlot />
+          </section>
+        ))}
+      </>
+    );
+    const dialogOf = () => store.get(dialogNoticeSlotAtom)?.parentElement?.dataset.dialog;
+    const { rerender } = render(dialogs(0));
+    expect(store.get(dialogNoticeSlotAtom)).toBeNull();
+    expect(store.get(pageBehindDialogAtom)).toBe(false);
+
+    rerender(dialogs(1));
+    expect(dialogOf()).toBe('0');
+    expect(store.get(dialogNoticeSlotAtom)?.getAttribute('aria-live')).toBe('polite');
+    expect(store.get(pageBehindDialogAtom)).toBe(true);
+
+    // A second one opens over the first, then closes: the first one's place is offered again.
+    rerender(dialogs(2));
+    expect(dialogOf()).toBe('1');
+    rerender(dialogs(1));
+    expect(dialogOf()).toBe('0');
+    expect(store.get(pageBehindDialogAtom)).toBe(true);
+
+    rerender(dialogs(0));
+    expect(store.get(dialogNoticeSlotAtom)).toBeNull();
+    expect(store.get(pageBehindDialogAtom)).toBe(false);
   });
 
   it('leaves the place to a newer slot that took it over', () => {

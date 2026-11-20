@@ -153,9 +153,9 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   await page.goto(`/${encodeURIComponent(world.a.spaceId)}/${encodeURIComponent(world.a.roomId)}`);
   await expect(composer(page).first()).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Record voice message', exact: true }).first().click();
-  const recordingError = page.getByText('Voice Recording Error', { exact: true });
-  await expect(capsule(page).first().or(recordingError).first()).toBeVisible({ timeout: 15_000 });
-  test.skip(await recordingError.isVisible(), 'This browser offers no microphone to record from');
+  // The browser is launched with a fake microphone, so a capture error here is a failure.
+  await expect(capsule(page).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Voice Recording Error', { exact: true })).toHaveCount(0);
   await expect(indicator(page)).toHaveCount(0);
 
   // Into a thread of room A: the recording goes on, shown by the thread's composer.
@@ -174,6 +174,12 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   // Its Discard is the only one on the page: no composer shows a capsule here.
   await expect(capsule(page)).toHaveCount(1);
   await expect(indicator(page).locator(capsule(page))).toBeVisible();
+  // It shows in the page's notice place, over the top of the page, not over its foot.
+  await expect(page.locator('[aria-live="polite"]').filter({ has: indicator(page) })).toHaveCount(
+    1
+  );
+  const pillBox = await indicator(page).boundingBox();
+  expect(pillBox?.y ?? Infinity).toBeLessThan(120);
 
   // On to room B, in space B, and into its thread.
   await spaces.locator(`[data-id="${world.b.spaceId}"]`).click();
@@ -186,6 +192,21 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   await expect(thread.locator(capsule(page))).toBeVisible({ timeout: 30_000 });
   // The same recording all along: its time has run on since room A.
   await expect(thread.getByText(/^0:0[3-9]$|^0:[1-5]\d$/)).toBeVisible({ timeout: 30_000 });
+
+  // Settings cover the composers: the pill shows inside the dialog, where the focus the dialog
+  // holds reaches its Discard, and goes again when the dialog closes.
+  await page.keyboard.press('ControlOrMeta+,');
+  const settings = page.getByRole('dialog', { name: 'Settings' });
+  await expect(settings).toBeVisible({ timeout: 30_000 });
+  await expect(settings.locator(indicator(page))).toBeVisible();
+  await expect(indicator(page)).toHaveCount(1);
+  const dialogDiscard = settings.locator(indicator(page)).locator(capsule(page));
+  await dialogDiscard.focus();
+  await expect(dialogDiscard).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(settings).toHaveCount(0);
+  await expect(indicator(page)).toHaveCount(0);
+  await expect(thread.locator(capsule(page))).toBeVisible();
 
   // Send is pressed here, so here is where it goes.
   await thread.getByRole('button', { name: 'Send message', exact: true }).click();

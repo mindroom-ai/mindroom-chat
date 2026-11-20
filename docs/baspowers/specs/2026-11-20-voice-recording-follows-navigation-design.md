@@ -24,12 +24,19 @@ and spaces, and send it wherever they press Send.
 - Send in a composer claims the recording synchronously, clears the atom, finishes capture and
   sends with that composer's context, read once at Send: room, thread, reply, typed text and
   staged files. A second Send in another composer finds nothing to claim.
+- Whether a Send carries the recording is decided as it is pressed. A Send that waits (for a
+  paste to be restored, for its thread's unconfirmed root) sends the recording that was live at
+  the press, if it is still there, and never one made while it waited.
 - A failed send parks the audio for retry at the attempted destination, as today
   (`pendingVoiceSendDraftAtom`, `voiceComposerKey`). Parked drafts do not follow navigation.
-- With no composer on screen (Threads page, settings, the phone's room list), a small floating
-  indicator shows "Recording 0:32" (or paused) with Discard. It has no Send, because it has no
-  destination. It also shows the capture error dialog, once, for every composer.
-- Account exit discards the live recording and releases the microphone.
+- With no composer in sight (Threads page, settings, the phone's room list), a small indicator
+  shows "Recording 0:32" (or paused) with Discard. It has no Send, because it has no
+  destination. It shows in the app's notice places (`src/app/ui/noticeSlots.tsx`): the page's,
+  or the one inside what covers the page, a large dialog or a phone's drawer, so the keyboard
+  reaches it there. It also shows the capture error dialog, once, for every composer.
+- Account exit ends the live recording and any recording a Send claimed that is still stopping,
+  and releases the microphone at once. A send begun under the account writes nothing after it:
+  no capture error, parked recording, send lock or message (`voiceAccountGuard`).
 - A live recording counts as unsaved work for the reload guard.
 
 ## What goes away
@@ -45,8 +52,11 @@ The start-time destination machinery is deleted, not wrapped:
   action.
 - `RoomView`: the hold that kept the thread beside the room while recording, which existed only
   because the recording died with its composer.
-- `voiceCaptureSession.releaseOwner` and `clearError`: account exit uses `discard()`, and a
-  capture error leaves the session for `liveVoiceRecordingErrorAtom`, which the indicator shows.
+- `voiceCaptureSession.releaseOwner` and `clearError`: account exit uses `reset()`, which
+  releases the microphone at once, and a capture error leaves the session for
+  `liveVoiceRecordingErrorAtom`, which the indicator shows.
+- The capsule's `processing` state: a recording stops only once a Send claimed it, and that
+  shows as sending.
 
 ## Boundaries kept
 
@@ -68,7 +78,9 @@ asked-for behaviour; the capsule in that composer is the visible cue.
 - Unit: the recording survives a composer unmount and remount elsewhere.
 - Unit: Send uses the pressing composer's room, thread, reply and bundle.
 - Unit: two composers share one session; Send in one clears both; a second Send claims nothing.
-- Unit: account exit stops the microphone and clears the atom.
+- Unit: account exit stops the microphone and clears the atom, also during a capture stop and
+  during an upload, where it leaves the next account's parked recording and send lock alone.
+- Unit: a Send held for its thread root takes no recording started while it waited.
 - Unit: a parked retry keeps the attempted destination.
 - e2e: record in room A's main view, open a thread in A, go to room B in another space, open a
   thread there, press Send. Exactly one `m.audio` exists, in B's thread; none in A.

@@ -39,7 +39,12 @@ import {
   conversationCoveredAtom,
   conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
-import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
+import {
+  dialogNoticeSlotsAtom,
+  drawerNoticeSlotAtom,
+  listNoticeSlotAtom,
+  pageNoticeSlotAtom,
+} from '../ui/noticeSlots';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import {
@@ -131,6 +136,8 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(conversationUnderThreadAtom),
   toInitial(listNoticeSlotAtom),
   toInitial(pageNoticeSlotAtom),
+  toInitial(drawerNoticeSlotAtom),
+  toInitial(dialogNoticeSlotsAtom),
 ];
 
 /** Forgets everything {@link ACCOUNT_STATE} lists. */

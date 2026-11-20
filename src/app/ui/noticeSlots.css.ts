@@ -63,6 +63,18 @@ export const PageSlot = recipe({
   },
 });
 
+// Inside what covers the page, a large dialog (at its foot) or a phone's drawer (above its list):
+// a row of its own in their column, so a notice there covers none of their controls.
+export const CoverSlot = style({
+  flexShrink: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: config.space.S200,
+  padding: config.space.S200,
+  selectors: { '&:empty': { display: 'none' } },
+});
+
 // What the cards of the places share (the new version notice and the tour's offer), for their
 // own styles to build on.
 

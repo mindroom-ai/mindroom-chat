@@ -6,6 +6,7 @@ import { Modal } from './glass/GlassPrimitives';
 import { glassDenseOverBackdrop } from './styles/Glass.css';
 import { stopPropagation } from '../lib/keyboard';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { DialogNoticeSlot } from './noticeSlots';
 import * as css from './Modal500.css';
 
 interface Modal500Props {
@@ -68,7 +69,8 @@ const centerClass = (phone: boolean, fillPhoneScreen: boolean): string => {
 /**
  * The large centered dialog that settings and the account switcher open in. On phones it keeps a
  * margin around it, or fills the screen with `fillPhoneScreen`. Keyboard focus is held inside
- * while it is open and goes back to where it was once it closes.
+ * while it is open and goes back to where it was once it closes. What must stay in reach while
+ * it covers the page (a voice recording in progress) shows in its notice place, at its foot.
  */
 export function Modal500({
   requestClose,
@@ -102,6 +104,8 @@ export function Modal500({
             )}
           >
             {children}
+            {/* After its content, so the dialog's first control stays the one that opens focused. */}
+            <DialogNoticeSlot />
           </Modal>
         </FocusTrap>
       </OverlayCenter>

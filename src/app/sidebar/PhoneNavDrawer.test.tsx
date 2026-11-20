@@ -12,6 +12,7 @@ import {
 } from '../navigation/phoneNavDrawer';
 import { PHONE_STAGE, slidePhonePage } from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { NoticeSlot } from '../ui/noticeSlots';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
@@ -24,6 +25,7 @@ vi.mock('./PhoneNavDrawer.css', () => ({
   SheetSlot: 'sheet-slot',
   Scrim: 'scrim',
   Panel: 'panel',
+  ListColumn: 'list-column',
   Slot: 'slot',
 }));
 
@@ -64,6 +66,27 @@ describe('PhoneNavDrawer', () => {
     act(() => store.set(phoneNavDrawerOpenAtom, true));
     act(() => renderer?.unmount());
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+  });
+
+  it('offers a notice place of its own while it is out, where it covers the one of the page', () => {
+    const store = createStore();
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={['/home/!room:example.org/']}>
+            <PhoneNavDrawer nav={null} />
+          </MemoryRouter>
+        </Provider>
+      );
+    });
+    const places = () => renderer?.root.findAllByType(NoticeSlot).map((slot) => slot.props.place);
+    expect(places()).toEqual([]);
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    expect(places()).toEqual(['drawer']);
+    act(() => store.set(phoneNavDrawerOpenAtom, false));
+    expect(places()).toEqual([]);
+    act(() => renderer?.unmount());
   });
 
   it('comes out over the page with no page slide, not even a moment of one', () => {

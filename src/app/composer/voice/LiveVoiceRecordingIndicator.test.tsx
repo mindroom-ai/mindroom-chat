@@ -4,6 +4,7 @@ import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import { phoneNavDrawerOpenAtom } from '../../navigation/phoneNavDrawer';
+import { DialogNoticeSlot, NoticeSlot } from '../../ui/noticeSlots';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
 import { LiveVoiceRecordingIndicator } from './LiveVoiceRecordingIndicator';
 import { liveVoiceRecordingAtom, liveVoiceRecordingErrorAtom } from './liveVoiceRecording';
@@ -59,6 +60,7 @@ describe('LiveVoiceRecordingIndicator', () => {
   it('shows nothing while no recording runs', () => {
     render(
       <Provider store={createStore()}>
+        <NoticeSlot place="page" />
         <LiveVoiceRecordingIndicator />
       </Provider>
     );
@@ -72,12 +74,12 @@ describe('LiveVoiceRecordingIndicator', () => {
     store.set(liveVoiceRecordingAtom, session);
     render(
       <Provider store={store}>
+        <NoticeSlot place="page" />
         <LiveVoiceRecordingIndicator />
       </Provider>
     );
 
     expect(pill()?.textContent).toBe('Recording 0:32');
-    expect(pill()?.getAttribute('aria-label')).toBe('Voice recording active');
     expect(screen.queryByRole('button', { name: /send/i })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Discard voice recording' }));
@@ -92,11 +94,81 @@ describe('LiveVoiceRecordingIndicator', () => {
     store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'paused' }).session);
     render(
       <Provider store={store}>
+        <NoticeSlot place="page" />
         <LiveVoiceRecordingIndicator />
       </Provider>
     );
     expect(pill()?.textContent).toBe('Paused 0:32');
-    expect(pill()?.getAttribute('aria-label')).toBe('Voice recording paused');
+    expect(screen.getByText('Voice recording paused')).toBeTruthy();
+  });
+
+  it('is read out when it comes and when the recording pauses, not as its time counts', () => {
+    const store = createStore();
+    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    render(
+      <Provider store={store}>
+        <NoticeSlot place="page" />
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+    const place = pill()?.parentElement;
+
+    // The place is the live region. The pill, whose time changes every second, is left out of
+    // it and names itself by what it shows; the state is said beside it.
+    expect(place?.getAttribute('aria-live')).toBe('polite');
+    expect(pill()?.getAttribute('aria-live')).toBe('off');
+    expect(pill()?.hasAttribute('aria-label')).toBe(false);
+    const said = screen.getByText('Voice recording active');
+    expect(said.parentElement).toBe(place);
+    expect(pill()?.contains(said)).toBe(false);
+  });
+
+  it('shows inside what covers the page, where the focus held there reaches it', () => {
+    const store = createStore();
+    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    const page = (dialogs: number, drawer: boolean) => (
+      <Provider store={store}>
+        <div data-testid="page">
+          <NoticeSlot place="page" />
+          {composer()}
+        </div>
+        {drawer && (
+          <div data-testid="drawer">
+            <NoticeSlot place="drawer" />
+          </div>
+        )}
+        {Array.from({ length: dialogs }, (_, index) => (
+          <div key={index} data-testid={`dialog-${index}`}>
+            <DialogNoticeSlot />
+          </div>
+        ))}
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+    const { rerender } = render(page(0, false));
+    expect(pill()).toBeNull();
+
+    // A large dialog, such as Settings, covers the composer: the pill shows in the dialog.
+    rerender(page(1, false));
+    expect(screen.getByTestId('dialog-0').contains(pill())).toBe(true);
+
+    // Of two dialogs, the one on top holds the focus.
+    rerender(page(2, false));
+    expect(screen.getByTestId('dialog-1').contains(pill())).toBe(true);
+    rerender(page(1, false));
+    expect(screen.getByTestId('dialog-0').contains(pill())).toBe(true);
+
+    // Closed, the composer shows the recording again.
+    rerender(page(0, false));
+    expect(pill()).toBeNull();
+
+    // A phone's drawer, out over the page, offers its own place.
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    rerender(page(0, true));
+    expect(screen.getByTestId('drawer').contains(pill())).toBe(true);
+    act(() => store.set(phoneNavDrawerOpenAtom, false));
+    rerender(page(0, false));
+    expect(pill()).toBeNull();
   });
 
   it('stands down while a composer shows the capsule, and back up when it goes or is covered', () => {
@@ -105,6 +177,7 @@ describe('LiveVoiceRecordingIndicator', () => {
     const page = (withComposer: boolean) => (
       <Provider store={store}>
         {withComposer && composer()}
+        <NoticeSlot place="page" />
         <LiveVoiceRecordingIndicator />
       </Provider>
     );
@@ -132,6 +205,7 @@ describe('LiveVoiceRecordingIndicator', () => {
       <Provider store={store}>
         {composer()}
         {composer()}
+        <NoticeSlot place="page" />
         <LiveVoiceRecordingIndicator />
       </Provider>
     );
