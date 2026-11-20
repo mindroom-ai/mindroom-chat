@@ -501,22 +501,30 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     });
   } else if (held) {
     // The pointer rests on a card in view, which holds the order, while each of the three
-    // threads gets a reply. A mouse at rest lets go after three seconds, so it moves a little
-    // before each reply.
-    const box = (await cardOf(page, shown[move === 'rotate' ? 6 : 2] ?? '').boundingBox())!;
+    // threads gets a reply. A mouse at rest lets go after three seconds, so it keeps moving a
+    // little until every reply shows.
+    const box = (await cardOf(page, shown[move === 'rotate' ? 1 : 2] ?? '').boundingBox())!;
     const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    for (const [index, rootId] of movers.entries()) {
-      // eslint-disable-next-line no-await-in-loop
-      await page.mouse.move(pointer.x + index, pointer.y);
-      // eslint-disable-next-line no-await-in-loop
-      await expect(page.locator('[data-order-held]')).toHaveCount(1);
-      // eslint-disable-next-line no-await-in-loop
-      await reply(rootId, `Found it: cause ${index + 1} is in the exporter.`);
-      // eslint-disable-next-line no-await-in-loop
-      await expect(cardOf(page, rootId)).toContainText(`cause ${index + 1} is in the exporter`, {
-        timeout: 30_000,
-      });
+    await page.mouse.move(pointer.x, pointer.y);
+    await expect(page.locator('[data-order-held]')).toHaveCount(1);
+    let moves = 0;
+    const moving = setInterval(() => {
+      moves += 1;
+      page.mouse.move(pointer.x + (moves % 2), pointer.y).catch(() => undefined);
+    }, 1_000);
+    try {
+      for (const [index, rootId] of movers.entries()) {
+        // eslint-disable-next-line no-await-in-loop
+        await reply(rootId, `Found it: cause ${index + 1} is in the exporter.`);
+        // eslint-disable-next-line no-await-in-loop
+        await expect(cardOf(page, rootId)).toContainText(`cause ${index + 1} is in the exporter`, {
+          timeout: 30_000,
+        });
+      }
+    } finally {
+      clearInterval(moving);
     }
+    await expect(page.locator('[data-order-held]')).toHaveCount(1);
     expect((await leadWatch(page)).now.crossed, `${move}: the held cards kept their order`).toBe(
       false
     );
