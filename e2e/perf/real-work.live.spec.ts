@@ -70,7 +70,9 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  * frame in which a message row came into view for the first time, once 1 s passed without
  * another, with `rows`, how many were in view then. A thread shows its first row before its
  * history is there, so the first row alone can come early on an open that keeps changing;
- * `lostPresses` counts the presses on a card that opened no thread, each pressed again),
+ * `lostPresses`, in WebKit only, counts the presses on a card that showed no thread within 10 s:
+ * such a step's card is pressed again, untimed, and its timing and `<name>-settled` are left out,
+ * with a `notes` entry, since the thread may have come from the first press, late),
  * `typing` (key latency), `target` (the streams asked for) and `achieved` (what the driver saw in
  * its 5 s reports that overlap the window: replies streaming on average, live frames, edits and
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
@@ -369,8 +371,10 @@ type Run = {
   heavy?: string[];
   /** The thread `showThread` opened last, which the first step of `switch` leaves. */
   shown?: string;
-  /** How many presses on a card opened no thread so far (`pressCard`). */
+  /** How many presses on a card showed no thread in time so far (`pressCard`, WebKit only). */
   lostPresses?: number;
+  /** The timings left out so far because their press showed no thread in time (`timedOpen`). */
+  untimed?: string[];
 };
 
 const cards = (page: Page) => page.locator(CARD);
@@ -421,7 +425,8 @@ class LostPress extends Error {}
  * between the press's down and its up gets no click (the browser sends it to what the two
  * targets share, the list), so no thread opens and no row ever comes. Such a press is counted in
  * `run.lostPresses` and throws `LostPress` after `LOST_PRESS_MS`, rather than a wait of a minute
- * for a row.
+ * for a row. Seen in WebKit, which alone takes this path: Chromium keeps one press and the
+ * wait of a minute, so its results stay comparable with the earlier ones.
  */
 const pressCard = async (run: Run, root: string): Promise<void> => {
   const { page } = run;
@@ -437,7 +442,10 @@ const pressCard = async (run: Run, root: string): Promise<void> => {
 /** How often a card is pressed again after a press that opened nothing. */
 const PRESS_ATTEMPTS = 3;
 
-/** Presses a card until its thread opens: a lost press is counted and the card pressed again. */
+/**
+ * Presses a card until its thread opens: a lost press is counted and the card pressed again,
+ * unless the thread came late after all.
+ */
 const openCard = async (run: Run, root: string): Promise<void> => {
   for (let attempt = 1; ; attempt += 1) {
     try {
@@ -445,8 +453,19 @@ const openCard = async (run: Run, root: string): Promise<void> => {
       return;
     } catch (error) {
       if (!(error instanceof LostPress) || attempt === PRESS_ATTEMPTS) throw error;
+      if (await banner(run.page).isVisible()) return;
     }
   }
+};
+
+/** Opens a card's thread: in WebKit with `openCard`, elsewhere with one press, as before. */
+const openThread = async (run: Run, root: string): Promise<void> => {
+  if (run.engine === 'webkit') {
+    await openCard(run, root);
+    return;
+  }
+  await card(run.page, root).click();
+  await expect(banner(run.page)).toBeVisible({ timeout: 60_000 });
 };
 
 /** Shows the Compact view, leaving an open thread through its Back button. */
@@ -466,7 +485,7 @@ const showThread = async (run: Run): Promise<boolean> => {
   await showCompact(page);
   const { root, streaming } = await pickThread(run);
   run.shown = root;
-  await openCard(run, root);
+  await openThread(run, root);
   await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
   return streaming;
 };
@@ -562,23 +581,33 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
 type Measured = { timings?: Timing[]; typing?: Stats; openedStreaming?: boolean };
 
 /**
- * Presses a card and times its thread to the first row; `settled` gives the settled rows' timing
- * of the same press. A lost press (`pressCard`) is counted and the card pressed again, so the
- * times are those of the press that opened the thread.
+ * Presses a card and times its thread to the first row, as `name`; `settled` gives the settled
+ * rows' timing of the same press, as `<name>-settled`. In WebKit a press that shows no thread in
+ * time (`pressCard`) gives no timing (undefined, the name in `run.untimed`): the thread may still
+ * come from that press, so a press again, which opens it, would time the first one's rows from
+ * the second press.
  */
 const timedOpen = async (
   run: Run,
   root: string,
-  settledName: string
-): Promise<{ ms: number; settled: () => Promise<Timing> }> => {
-  for (let attempt = 1; ; attempt += 1) {
-    const settled = await watchRowsSettled(run.page, settledName);
-    try {
-      return { ms: await timeToVisible(run.page, () => pressCard(run, root), ROW), settled };
-    } catch (error) {
-      if (!(error instanceof LostPress) || attempt === PRESS_ATTEMPTS) throw error;
-    }
+  name: string
+): Promise<{ ms: number; settled: () => Promise<Timing> } | undefined> => {
+  const { page } = run;
+  const settled = await watchRowsSettled(page, `${name}-settled`);
+  if (run.engine !== 'webkit') {
+    const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
+    await expect(banner(page)).toBeVisible();
+    return { ms, settled };
   }
+  try {
+    return { ms: await timeToVisible(page, () => pressCard(run, root), ROW), settled };
+  } catch (error) {
+    if (!(error instanceof LostPress)) throw error;
+  }
+  run.untimed = [...(run.untimed ?? []), name];
+  if (!(await banner(page).isVisible())) await openCard(run, root);
+  await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
+  return undefined;
 };
 
 const idle = async (run: Run): Promise<void> => {
@@ -612,11 +641,12 @@ const SCENARIO: Record<
     measure: async (run) => {
       const { page } = run;
       const { root, streaming } = await pickThread(run);
-      const { ms, settled } = await timedOpen(run, root, 'open-settled');
+      const opened = await timedOpen(run, root, 'open');
       // The rest of the thread arrives and settles inside the window, which lasts 5 s as before,
       // or until the rows settled when that takes longer.
-      const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(5_000)]);
-      return { timings: [{ name: 'open', ms }, settledTiming], openedStreaming: streaming };
+      const [settledTiming] = await Promise.all([opened?.settled(), page.waitForTimeout(5_000)]);
+      const timings = opened && settledTiming ? [{ name: 'open', ms: opened.ms }, settledTiming] : [];
+      return { timings, openedStreaming: streaming };
     },
   },
   'thread-idle': { prepare: showThread, measure: idle },
@@ -641,11 +671,12 @@ const SCENARIO: Record<
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;
-        const { ms, settled } = await timedOpen(run, root, `switch-${turn}-settled`);
-        timings.push({ name: `switch-${turn}`, ms });
+        const opened = await timedOpen(run, root, `switch-${turn}`);
         // As long as before when the rows settle at once: 1 s after the first row.
-        const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(1_000)]);
-        timings.push(settledTiming);
+        const [settledTiming] = await Promise.all([opened?.settled(), page.waitForTimeout(1_000)]);
+        if (opened && settledTiming) {
+          timings.push({ name: `switch-${turn}`, ms: opened.ms }, settledTiming);
+        }
       }
       return { timings, openedStreaming };
     },
@@ -715,6 +746,15 @@ const addAchieved = (label: string, driver: Driver, achieved: Achieved | undefin
       2
     )}\n`
   );
+};
+
+/** Adds `notes` to the notes of a result written already, and to `result`'s. */
+const addNotes = (label: string, result: ProbeResult, notes: string[]): void => {
+  if (notes.length === 0) return;
+  result.notes.push(...notes);
+  const file = join(OUT_DIR, `${label}.json`);
+  const written = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+  writeFileSync(file, `${JSON.stringify({ ...written, notes: result.notes }, null, 2)}\n`);
 };
 
 /** Throws when the driver has ended: nothing measured from here on would be under its load. */
@@ -788,12 +828,14 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     typing: undefined as Stats | undefined,
     // Whether every thread the scenario opened showed the streaming marker when pressed.
     openedStreaming: typeof prepared === 'boolean' ? prepared : undefined,
-    // Presses on a card, in the scenario's setup or its window, that opened no thread.
-    lostPresses: 0,
+    // In WebKit, presses on a card, in the scenario's setup or its window, that showed no thread
+    // within 10 s; Chromium's results have no such field, as before.
+    lostPresses: run.engine === 'webkit' ? 0 : undefined,
   };
+  const untimedBefore = run.untimed?.length ?? 0;
   try {
     const measured = await SCENARIO[name].measure(run).finally(() => {
-      extra.lostPresses = (run.lostPresses ?? 0) - lostBefore;
+      if (run.engine === 'webkit') extra.lostPresses = (run.lostPresses ?? 0) - lostBefore;
     });
     if (measured?.timings) extra.timings = measured.timings;
     extra.typing = measured?.typing;
@@ -807,6 +849,16 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   // The window ends here: the stop writes profiles and traces after it closed the window.
   const to = Date.now();
   const result = await probe.stop(extra);
+  addNotes(
+    label,
+    result,
+    (run.untimed ?? [])
+      .slice(untimedBefore)
+      .map(
+        (step) =>
+          `${step} and ${step}-settled left out: its press showed no thread within ${LOST_PRESS_MS / 1000} s (lostPresses), and the thread it opened then is not timed`
+      )
+  );
   const achieved = driver ? await achievedBetween(driver, from, to) : undefined;
   if (driver) {
     addAchieved(label, driver, achieved);
