@@ -1,4 +1,5 @@
 import React from 'react';
+import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import {
@@ -294,13 +295,21 @@ describe('thread summary markers', () => {
           .map((node) => node.props['data-message-id'] as string)
       );
 
-  it('draws only the latest title if a plugin hides the reply between titles', async () => {
+  it('folds titles when a replacement decrypts and a plugin hides the reply between them', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
-    pluginRowHiddenMock.test = (event) => event.eventId === '$relay';
+    pluginRowHiddenMock.test = (event) => event.content['org.example.relay'] === true;
+    const edit = new MatrixEvent({
+      event_id: '$relay-edit',
+      type: 'm.room.encrypted',
+      content: {},
+    });
+    const relay = Object.assign(makeEvent('$relay', { threadRootId: threadId, ts: 3_000 }), {
+      __pendingEdits: [edit],
+    });
     const { room, show } = mountThread([
       makeEvent(threadId, { isThreadRoot: true, ts: 1_000 }),
       summary('$s1', 'Sketch a garden', 2_000),
-      makeEvent('$relay', { threadRootId: threadId, ts: 3_000 }),
+      relay,
       summary('$s2', 'Plan a greenhouse', 4_000),
     ]);
     const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -310,6 +319,16 @@ describe('thread summary markers', () => {
       await act(async () => {
         renderer = create(React.createElement(Harness, { room, threadId }));
         await flushAsyncWork();
+      });
+      expect(getRenderedEventIds(renderer!)).toEqual(['$s1', '$relay', '$s2']);
+
+      // The edit becomes readable without adding a timeline row or replacing the events array.
+      Object.assign(relay, {
+        __pendingEdits: [],
+        __editedEvent: makeEvent('$relay-edit', { content: { 'org.example.relay': true } }),
+      });
+      act(() => {
+        edit.emit(MatrixEventEvent.Decrypted, edit);
       });
       expect(getRenderedEventIds(renderer!)).toEqual(['$s2']);
     } finally {

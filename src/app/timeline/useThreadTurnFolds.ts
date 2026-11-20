@@ -148,7 +148,7 @@ type UseThreadTurnFoldsOptions = {
   /** What a row shows, its latest edit included. */
   getContent: (event: MatrixEvent) => Record<string, unknown>;
   timelineSet: EventTimelineSet;
-  /** A row the timeline draws nothing for already (roomTimelineRows `isTimelineRowHidden`). */
+  /** A row hidden by timeline visibility rules or the title plan, before folding turns. */
   isSkipped: (event: MatrixEvent) => boolean;
   /** As the renderer reads a quiet marker row (`isQuietMarkerRow`). */
   isQuietMarker: (event: MatrixEvent) => boolean;

@@ -10,13 +10,22 @@ type ThreadSummaryTimelineOptions = {
   /** The content an event's row shows, after its latest edit; keep it stable. */
   getContent?: (event: MatrixEvent) => Record<string, unknown>;
   isHidden?: (event: MatrixEvent) => boolean;
+  /** The renderer repainted in-place row changes, including decryptions of pending edits. */
+  rowRepaintRevision?: number;
   routeId?: string;
   focusId?: string;
 };
 
 export const useThreadSummaryTimeline = (
   events: readonly MatrixEvent[],
-  { history, getContent, isHidden, routeId, focusId }: ThreadSummaryTimelineOptions
+  {
+    history,
+    getContent,
+    isHidden,
+    rowRepaintRevision,
+    routeId,
+    focusId,
+  }: ThreadSummaryTimelineOptions
 ) => {
   // A jumped-to summary stays visible after its temporary highlight ends.
   const revealed = useRef(new Set<string>());
@@ -36,6 +45,7 @@ export const useThreadSummaryTimeline = (
   const { sdkLoaded, canPaginateBack, hasMoreCachedBack } = history;
   return useMemo(() => {
     void decryptions;
+    void rowRepaintRevision;
     if (routeId) revealed.current.add(routeId);
     if (focusId) revealed.current.add(focusId);
     return planThreadSummaryTimeline(events, {
@@ -51,6 +61,7 @@ export const useThreadSummaryTimeline = (
     hasMoreCachedBack,
     getContent,
     isHidden,
+    rowRepaintRevision,
     routeId,
     focusId,
     decryptions,

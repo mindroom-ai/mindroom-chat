@@ -918,8 +918,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     isHidden: (event) => isHiddenByPlugin(event) || modelChanges.byAckId.has(event.getId() ?? ''),
     revealed: pluginRevealedRef.current,
   });
-  // Plan title and turn folds before mounting any inline secret request lines. Whether a line
-  // mounts depends on which rows the folds leave visible.
   const isHiddenBeforeFolding = useCallback(
     (event: MatrixEvent) =>
       isTimelineRowHidden(event, {
@@ -938,6 +936,16 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       isHiddenByPlugin,
     ]
   );
+  // Cards eligible to move into a reply do not split titles. Read the plan, not the mounted
+  // lines: which replies mount depends on the folds.
+  const isTitleRowHidden = useMemo(() => {
+    const inlineCardIds = new Set<string>();
+    secretRequestPlan.byReply.forEach((calls) =>
+      calls.forEach(({ eventId }) => inlineCardIds.add(eventId))
+    );
+    return (event: MatrixEvent) =>
+      isHiddenBeforeFolding(event) || inlineCardIds.has(event.getId() ?? '');
+  }, [isHiddenBeforeFolding, secretRequestPlan.byReply]);
   const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
     history: {
       sdkLoaded: session.snapshot.open.sdkReady,
@@ -945,7 +953,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       hasMoreCachedBack: threadHasMoreCachedBack,
     },
     getContent: getRowContent,
-    isHidden: isHiddenBeforeFolding,
+    isHidden: isTitleRowHidden,
+    rowRepaintRevision: feature.rowRepaintRevision,
     routeId: threadId ? eventId : undefined,
     focusId: threadId ? focusItem?.eventId : undefined,
   });
@@ -962,6 +971,8 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ),
     [forkPrefixEventIds, isQuietMarkerRow, modelChanges, rowTimelineSet, threadSummaryTimeline]
   );
+  // Secret request cards still count as rows of their turns: folding a reply can unmount its
+  // inline line and give the card its own row again.
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
       threadSummaryTimeline.hiddenEventIds.has(event.getId() ?? '') || isHiddenBeforeFolding(event),

@@ -285,7 +285,11 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
   );
 }
 
-/** Whether a row is hidden before folding titles and turns or mounting inline secret requests. */
+/**
+ * Whether the approval, voice echo, reply card or model change plan or a plugin hides the row,
+ * its sender is ignored, or it is redacted and hidden events are not shown. Callers handle
+ * hiding by the title, secret request and turn fold plans.
+ */
 export const isTimelineRowHidden = (
   event: MatrixEvent,
   {

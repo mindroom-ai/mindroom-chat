@@ -1017,6 +1017,7 @@ export const useTimelineMessageFeature = ({
 
   return {
     renderEvent,
+    rowRepaintRevision: decryptions,
     isQuietMarkerRow,
     joinsQuietMarkerRun,
     forksByPoint,

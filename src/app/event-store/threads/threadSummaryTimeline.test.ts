@@ -23,6 +23,23 @@ const reply = (id: string) =>
     content: { msgtype: 'm.text', body: id },
   });
 
+const redactedMessage = new MatrixEvent({
+  type: 'm.room.message',
+  event_id: '$removed',
+  content: {},
+  unsigned: {
+    redacted_because: {
+      type: 'm.room.redaction',
+      event_id: '$message-redaction',
+      redacts: '$removed',
+      content: {},
+      sender: '@code:example.org',
+      origin_server_ts: 1,
+      unsigned: {},
+    },
+  },
+});
+
 const startLoaded = { sdkLoaded: true, canPaginateBack: false, hasMoreCachedBack: false };
 const isIgnored = (event: MatrixEvent) => event.getSender() === '@spam:example.org';
 
@@ -208,25 +225,7 @@ describe('thread summary timeline plan', () => {
         content: {},
       }),
     ],
-    [
-      'a redacted message',
-      new MatrixEvent({
-        type: 'm.room.message',
-        event_id: '$removed',
-        content: {},
-        unsigned: {
-          redacted_because: {
-            type: 'm.room.redaction',
-            event_id: '$message-redaction',
-            redacts: '$removed',
-            content: {},
-            sender: '@code:example.org',
-            origin_server_ts: 1,
-            unsigned: {},
-          },
-        },
-      }),
-    ],
+    ['a redacted message', redactedMessage],
     [
       'a state event with no notice row',
       new MatrixEvent({
@@ -250,6 +249,20 @@ describe('thread summary timeline plan', () => {
     expect([...plan.hiddenEventIds]).toEqual(['$s1']);
     expect(plan.markersByEventId.has('$s1')).toBe(false);
     expect(plan.markersByEventId.get('$s2')).toEqual({ first: true });
+  });
+
+  it('keeps titles apart when the timeline shows the redacted message between them', () => {
+    const plan = planThreadSummaryTimeline(
+      [summary('$s1', 'Sketch a garden'), redactedMessage, summary('$s2', 'Plan a greenhouse')],
+      { history: startLoaded, isHidden: () => false }
+    );
+
+    expect(plan.hiddenEventIds.size).toBe(0);
+    expect(plan.markersByEventId.get('$s1')).toEqual({ first: true });
+    expect(plan.markersByEventId.get('$s2')).toEqual({
+      first: false,
+      previousSummaryText: 'Sketch a garden',
+    });
   });
 
   it('folds a run of summaries into its last, which replaces the title before the run', () => {
