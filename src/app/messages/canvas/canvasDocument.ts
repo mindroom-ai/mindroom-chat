@@ -302,10 +302,19 @@ const sizeScript = (fitted: boolean): string => `
     });
     reportSize();
   });
-  // A narrower frame can make a fixed-width page wider than it without resizing the body.
-  ${fitted ? "addEventListener('resize', queueSize);" : ''}
-  // A transition, an animation or an image can change positioned content after the change that started it.
-  ['transitionend', 'animationend', 'load'].forEach((type) => document.addEventListener(type, queueSize, true));
+  // A narrower frame, or a class or style on the root, can make a page wider without resizing the body.
+  ${
+    fitted
+      ? `addEventListener('resize', queueSize);
+  new MutationObserver(queueSize).observe(document.documentElement, {
+    attributes: true, attributeFilter: ['class', 'style'],
+  });`
+      : ''
+  }
+  // A transition, an animation or an image can change positioned content after the change that started it,
+  // and a control's state can restyle the page through CSS alone.
+  ['transitionend', 'animationend', 'load', 'change', 'input', 'toggle'].forEach((type) =>
+    document.addEventListener(type, queueSize, true));
   addEventListener('load', reportSize);
 `;
 
@@ -435,11 +444,12 @@ export type CanvasDisplay = {
 /** A frame with both schemes uses the browser's preferred one, whatever Chat's theme is. */
 export const RAW_COLOR_SCHEME = 'light dark';
 
-// The wheel never scrolls a fitted page's root up or down: the Mac app's WebKit gives the whole wheel
-// to a frame whose root can scroll even a pixel, so a size report a few pixels short would stop the
+// The wheel never scrolls a fitted page up or down: the Mac app's WebKit gives the whole wheel to a
+// frame whose page can scroll even a pixel, so a size report a few pixels short would stop the
 // thread from scrolling under the pointer. The size script marks a page wider than its frame, which
-// then scrolls sideways. Both rules weigh nothing, so a page's own overflow rules win.
-const FITTED_STYLE = ':where(html){overflow:hidden}:where(html[data-mr-wide]){overflow-x:auto}';
+// then scrolls sideways. The body's overflow passes to the viewport, so the body itself clips
+// nothing, and the layer lets any rule of the page's own win.
+const FITTED_STYLE = '@layer{body{overflow:hidden}html[data-mr-wide] body{overflow-x:auto}}';
 
 const pageStyle = (theme: CanvasTheme, inline: boolean, fitted: boolean): string =>
   `<style>${canvasThemeCss(theme)}${

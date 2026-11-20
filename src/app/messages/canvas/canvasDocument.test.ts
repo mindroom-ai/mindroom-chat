@@ -845,11 +845,13 @@ describe('inline canvas sizing', () => {
     }
   );
 
-  it('reports the size of inline pages only, on resize, DOM changes, transitions and loads', () => {
+  it('reports the size of inline pages only, on resize, DOM changes, transitions, loads and control changes', () => {
     const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, { inline: true });
     expect(page).toContain('new ResizeObserver(queueSize).observe(document.body)');
     expect(page).toContain('new MutationObserver(queueSize).observe(document.body');
-    expect(page).toContain("['transitionend', 'animationend', 'load']");
+    expect(page).toContain(
+      "['transitionend', 'animationend', 'load', 'change', 'input', 'toggle']"
+    );
     expect(page).toContain("addEventListener('load', reportSize)");
     expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
     expect(buildCanvasPage('<p>hi</p>', 'light')).not.toContain(CANVAS_SIZE_MESSAGE);
@@ -869,7 +871,7 @@ describe('inline canvas sizing', () => {
     const page = (display?: CanvasDisplay) =>
       buildCanvasPage('', 'light', undefined, false, {}, display);
     const fitted = [
-      ':where(html){overflow:hidden}',
+      '@layer{body{overflow:hidden}',
       "root.toggleAttribute('data-mr-wide'",
       "addEventListener('resize', queueSize)",
     ];
