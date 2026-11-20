@@ -108,7 +108,7 @@ const tagsStayBesideTheButtons = async (page: Page, label: string) => {
   await page.getByRole('button', { name: 'Show Members', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Hide Members', exact: true })).toBeVisible();
   await expect(banner.getByRole('button', { name: 'Add tag', exact: true })).toHaveCount(0);
-  await expect(banner.getByText(TAGS[0], { exact: true })).toHaveCount(0);
+  await expect(banner.getByText('billing', { exact: true })).toHaveCount(0);
   await expect(options).toBeVisible();
   if (SHOTS) await banner.screenshot({ path: `${SHOTS}/banner-tags-${label}-members.png` });
 };

@@ -108,14 +108,14 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
   // More lists the tags.
   await more.click();
   const menu = page.getByRole('menu');
-  await expect(menu.getByText(TAGS[0], { exact: true })).toBeVisible();
+  await expect(menu.getByText('alpha', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
 
   // Filling the page, the banner is wide and keeps the tags beside the buttons in one row.
   await page.evaluate((key) => window.localStorage.setItem(key, '"full"'), LAYOUT_KEY);
   await page.goto(threadUrl);
   const wide = banner(page).first();
-  await expect(wide.getByText(TAGS[0], { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(wide.getByText('alpha', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(wide.getByRole('button', { name: 'Add tag', exact: true })).toBeVisible();
   await expect(wide.getByRole('button', { name: 'Pin thread', exact: true })).toBeVisible();
   const [moreBox, resolveBox] = await Promise.all([
