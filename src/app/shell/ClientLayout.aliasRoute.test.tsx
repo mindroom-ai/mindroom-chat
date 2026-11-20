@@ -14,6 +14,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from './ClientLayout';
 import { putSession } from '../matrix/session/sessions';
+import { isReturnToRoom, RETURN_TO_ROOM_STATE } from '../routes/historyStack';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
 // The notice places are tested in ui/noticeSlots.test.tsx.
@@ -212,6 +213,22 @@ describe('ClientLayout with a data router whose page shows a new location late',
 
     expect(router.state.location.pathname).toBe('/home/!other%3Aexample.org');
     expect(router.state.location.search).toBe('?threadId=%24root');
+    router.dispose();
+  });
+
+  it('keeps what the entry says of its visit: the room the app’s Back returned to', async () => {
+    signIn();
+    getRoomIdForAlias.mockResolvedValue({ room_id: '!other:example.org' });
+    window.history.replaceState(
+      { usr: RETURN_TO_ROOM_STATE, key: 'returned', idx: 0 },
+      '',
+      '/home/%23other%3Aexample.org/%24event'
+    );
+    const router = await mount(<div />);
+    await act(settle);
+
+    expect(router.state.location.pathname).toBe('/home/!other%3Aexample.org/%24event');
+    expect(isReturnToRoom(router.state.location.state)).toBe(true);
     router.dispose();
   });
 });

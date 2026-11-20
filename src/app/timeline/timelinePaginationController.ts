@@ -56,16 +56,22 @@ const fetchEventContext = async (
 export const useEventTimelineLoader = (
   mx: MatrixClient,
   room: Room,
-  onLoad: (eventId: string, linkedTimelines: EventTimeline[], absoluteIndex: number) => void,
+  onLoad: (
+    eventId: string,
+    linkedTimelines: EventTimeline[],
+    absoluteIndex: number,
+    returned?: boolean
+  ) => void,
   onError: () => void,
   filterOptsRef: RefObject<RecalibrateFilterOpts | undefined>
-): ((eventId: string) => Promise<void>) => {
+): ((eventId: string, returned?: boolean) => Promise<void>) => {
   const handlersRef = useLatestRef({ onLoad, onError });
   // The handlers answer for the room on screen: a load for a room the view has left is dropped.
   const roomRef = useLatestRef(room);
 
   return useCallback(
-    async (eventId: string): Promise<void> => {
+    // `returned` reaches `onLoad` as given: what its caller says of this one load.
+    async (eventId: string, returned?: boolean): Promise<void> => {
       const holder = await fetchEventContext(mx, room, eventId);
       // The caller counts rows in what it gets, so the returned timeline is decrypted first.
       if (holder && room.hasEncryptionStateEvent()) await decryptQuietly(mx, holder);
@@ -83,7 +89,7 @@ export const useEventTimelineLoader = (
         handlersRef.current.onError();
         return;
       }
-      handlersRef.current.onLoad(eventId, chain, absoluteIndex);
+      handlersRef.current.onLoad(eventId, chain, absoluteIndex, returned);
     },
     [filterOptsRef, handlersRef, mx, room, roomRef]
   );

@@ -35,12 +35,14 @@ const mocks = vi.hoisted(() => ({
     getRoom: (roomId: string) => ({ isSpaceRoom: () => mocks.spaces.has(roomId) }),
   },
   historyState: { idx: 1, key: 'room-entry' },
+  replaceState: vi.fn(),
   location: { pathname: '/home/!room:example.org', search: '', hash: '' },
 }));
 
 vi.stubGlobal('window', {
   history: {
     state: mocks.historyState,
+    replaceState: mocks.replaceState,
   },
 });
 
@@ -53,7 +55,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
   };
 });
 
-vi.mock('../routes/historyStack', () => ({
+vi.mock('../routes/historyStack', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../routes/historyStack')>()),
   currentHistoryLocation: () => mocks.location,
 }));
 
@@ -163,6 +166,7 @@ describe('useRoomNavigate', () => {
     mocks.isNativeIOS.mockReset();
     mocks.isNativeIOS.mockReturnValue(false);
     mocks.navigate.mockReset();
+    mocks.replaceState.mockReset();
     mocks.roomToParents.clear();
     mocks.mDirects.clear();
     mocks.spaces.clear();
@@ -206,6 +210,8 @@ describe('useRoomNavigate', () => {
         },
       }
     );
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    expect(mocks.replaceState).not.toHaveBeenCalled();
 
     renderer.unmount();
   });
