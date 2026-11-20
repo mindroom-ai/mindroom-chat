@@ -7,6 +7,7 @@ import { Text } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getSenderName } from '../../matrix/room';
 import { textDirection } from '../../ui/directional';
+import { blockSelection } from '../../ui/dragSelection';
 import type { TranscriptLine } from '../transcription/api';
 import { GAP_KEYS, LiveTranscriptBody } from '../transcription/LiveTranscriptBody';
 import { callTranscriptionAtom } from '../transcription/transcriptionState';
@@ -78,10 +79,11 @@ type DividerProps = {
  */
 function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   const { t } = useTranslation();
-  const drag = useRef<{ pointerId: number; share?: number }>();
+  const drag = useRef<{ pointerId: number; share?: number; unblock: () => void }>();
   // A drag the divider goes away during (the window turned short, the transcript hidden) ends
   // with it, unsaved; its pointer capture went with the element.
   useEffect(() => () => onDrag(undefined), [onDrag]);
+  useEffect(() => () => drag.current?.unblock(), []);
   // The focus it had then goes to the window's handle, as Minimize's and Expand's does.
   const ref = useRef<HTMLDivElement>(null);
   useFocusHandleOnLeave(ref);
@@ -99,6 +101,7 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
     const ended = drag.current;
     if (ended?.pointerId !== event.pointerId) return;
     drag.current = undefined;
+    ended.unblock();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -128,7 +131,11 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
         // The press is the divider's: it selects no text and moves no window.
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
-        drag.current = { pointerId: event.pointerId };
+        const unblock = blockSelection(() => {
+          drag.current = undefined;
+          onDrag(undefined);
+        });
+        drag.current = { pointerId: event.pointerId, unblock };
       }}
       onPointerMove={follow}
       onPointerUp={end}
