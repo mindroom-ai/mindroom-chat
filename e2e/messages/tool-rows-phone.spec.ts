@@ -113,6 +113,11 @@ const seed = async (engine: string) => {
     ]),
     ...inThread(compared),
   });
+  // In a thread of its own, so the first thread's replies all stay in view.
+  const searchId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Find churn benchmarks for the board deck.',
+  });
   await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: '🔧 `web_search` [1]\n\n🔧 `run_shell_command` [2]\n\nThe benchmarks put Q3 in the top half.',
@@ -127,7 +132,7 @@ const seed = async (engine: string) => {
         ['run_shell_command', `command=${COMMAND}`, 'chart: no such file']
       ).events.map((event, index) => (index === 1 ? { ...event, is_error: true } : event)),
     },
-    ...inThread(exported),
+    'm.relates_to': { rel_type: 'm.thread', event_id: searchId },
   });
   const now = Date.now();
   await matrixFetch(
@@ -163,7 +168,7 @@ const seed = async (engine: string) => {
       }),
     }
   );
-  return { reader, roomId, rootId };
+  return { reader, roomId, rootId, searchId };
 };
 
 type World = Awaited<ReturnType<typeof seed>>;
@@ -177,8 +182,8 @@ const openIn = async (page: Page, language: string, route: string) => {
   await page.goto(route);
 };
 
-const threadRoute = (world: World) =>
-  `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`;
+const threadRoute = (world: World, rootId = world.rootId) =>
+  `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(rootId)}`;
 
 const tap = async (page: Page, target: Locator) => {
   await target.scrollIntoViewIfNeeded();
@@ -388,7 +393,7 @@ const checkReceiptArrow = async (
  */
 const checkMappedRow = async (page: Page, world: World, engine: string, language: 'en' | 'ar') => {
   const where = `${engine}, ${language}`;
-  await openIn(page, language, threadRoute(world));
+  await openIn(page, language, threadRoute(world, world.searchId));
   const searched = language === 'ar' ? 'البحث في الويب' : 'Searched the web';
   const line = disclosures(page).filter({ hasText: searched });
   await expect(line).toHaveCount(1, { timeout: 60_000 });
