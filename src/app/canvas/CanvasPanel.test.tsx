@@ -445,8 +445,10 @@ describe('CanvasPanel', () => {
     render();
     await answer();
     await refuse();
+    // Held before it is cancelled: the room forgets a cancelled echo's transaction ID.
+    const echo = lastEcho();
     await act(async () => buttonNamed('Delete')?.click());
-    expect(lastEcho().status).toBe(EventStatus.CANCELLED);
+    expect(echo.status).toBe(EventStatus.CANCELLED);
     expect(status()).toContain('what you enter here may leave this panel');
   });
 
