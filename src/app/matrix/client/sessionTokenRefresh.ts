@@ -88,7 +88,7 @@ export const createSessionTokenRefresh = ({
     return { accessToken: stored.accessToken, refreshToken: stored.refreshToken };
   };
 
-  return (refreshToken) =>
+  const refreshTokens: TokenRefreshFunction = (refreshToken) =>
     withSessionRefreshLock(sessionId, async () => {
       const storedRotation = findStoredRotation(refreshToken);
       if (storedRotation) return storedRotation;
@@ -121,6 +121,12 @@ export const createSessionTokenRefresh = ({
         expiry: expiresInMs === undefined ? undefined : new Date(Date.now() + expiresInMs),
       };
     });
+  // What the SDK asks before it logs out because the tokens it got here were rejected
+  // (patches/matrix-js-sdk+45.1.0.patch): another tab may have rotated them since. Nothing is
+  // spent, and the lock lets a rotation that tab is making be stored first.
+  refreshTokens.adoptStoredTokens = (refreshToken) =>
+    withSessionRefreshLock(sessionId, async () => findStoredRotation(refreshToken));
+  return refreshTokens;
 };
 
 export const createStoredSessionTokenRefresh = ({

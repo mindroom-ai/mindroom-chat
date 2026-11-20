@@ -370,7 +370,24 @@ describe('cross-tab refresh-token rotation', () => {
       accepted.add(`access-${refreshes + 1}`);
       await mx.getDevices();
     };
-    return { mx, held, refresh, onLogout, answer, refreshThroughAnotherRequest };
+    /** Another tab rotates the session's tokens and stores them; the server takes the new ones only. */
+    const rotateInAnotherTab = (name: string) => {
+      updateSessionCredentials(session.sessionId, {
+        accessToken: `access-${name}`,
+        refreshToken: `refresh-${name}`,
+      });
+      accepted.clear();
+      accepted.add(`access-${name}`);
+    };
+    return {
+      mx,
+      held,
+      refresh,
+      onLogout,
+      answer,
+      refreshThroughAnotherRequest,
+      rotateInAnotherTab,
+    };
   };
 
   it('retries, and keeps the account, when a retry is rejected for a token another request has replaced since', async () => {
@@ -413,6 +430,50 @@ describe('cross-tab refresh-token rotation', () => {
     expect(held.map((request) => request.token)).toEqual(['access-1', 'access-2', 'access-3']);
     expect(refresh).toHaveBeenCalledTimes(3);
     expect(mx.getAccessToken()).toBe('access-4');
+    expect(onLogout).not.toHaveBeenCalled();
+  });
+
+  it('adopts the rotation another tab stored while the retry with an adopted rotation was on its way', async () => {
+    const { mx, held, refresh, onLogout, answer, rotateInAnotherTab } = clientWithHeldRequests();
+
+    // Another tab rotates before this tab's token is rejected, so this tab adopts that rotation.
+    rotateInAnotherTab('b');
+    const whoami = mx.whoami();
+    await answer(0, false);
+    await vi.waitFor(() => expect(held).toHaveLength(2));
+    // It rotates again before the retry is answered.
+    rotateInAnotherTab('c');
+    await answer(1, false);
+    await answer(2, true);
+
+    await expect(whoami).resolves.toEqual({ user_id: '@alice:example.com' });
+    expect(held.map((request) => request.token)).toEqual(['access-1', 'access-b', 'access-c']);
+    expect(mx.getRefreshToken()).toBe('refresh-c');
+    // Both rotations were adopted; no refresh token was spent, and the account stays.
+    expect(refresh).not.toHaveBeenCalled();
+    expect(onLogout).not.toHaveBeenCalled();
+  });
+
+  it('fails a request, and keeps the account, when another tab rotates during each of its tries', async () => {
+    const { mx, held, refresh, onLogout, answer, rotateInAnotherTab } = clientWithHeldRequests();
+
+    const failure = mx.whoami().then(
+      () => undefined,
+      (error: unknown) => error
+    );
+    for (const [attempt, rotation] of ['b', 'c', 'd'].entries()) {
+      // eslint-disable-next-line no-await-in-loop -- each try follows the answer to the one before.
+      await vi.waitFor(() => expect(held).toHaveLength(attempt + 1));
+      rotateInAnotherTab(rotation);
+      // eslint-disable-next-line no-await-in-loop
+      await answer(attempt, false);
+    }
+
+    await expect(failure).resolves.toBeInstanceOf(TokenRefreshError);
+    expect(held.map((request) => request.token)).toEqual(['access-1', 'access-b', 'access-c']);
+    // The newest rotation is adopted for the next request.
+    expect(mx.getAccessToken()).toBe('access-d');
+    expect(refresh).not.toHaveBeenCalled();
     expect(onLogout).not.toHaveBeenCalled();
   });
 
