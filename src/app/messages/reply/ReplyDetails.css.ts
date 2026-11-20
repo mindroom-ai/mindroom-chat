@@ -240,19 +240,22 @@ export const Meter = style({
 });
 
 // Cache writes keep the colour of the new input they are part of; the rest takes the neutral
-// buttons' colour, which every theme sets apart from its surfaces.
-const partColors = {
-  cacheRead: color.Success.Main,
-  cacheWrite: color.Primary.Main,
-  notCached: color.Secondary.Main,
-  newInput: color.Primary.Main,
-  input: color.Primary.Main,
-  output: color.Warning.Main,
+// buttons' colour, which every theme sets apart from its surfaces. A part whose split is unknown
+// stripes the colours it may hold, so the conversation's mix of replies stays apart in the bar.
+const stripes = (a: string, b: string) =>
+  `repeating-linear-gradient(135deg, ${a} 0 ${toRem(2)}, ${b} ${toRem(2)} ${toRem(4)})`;
+const partFills = {
+  cacheRead: { backgroundColor: color.Success.Main },
+  cacheWrite: { backgroundColor: color.Primary.Main },
+  notCached: { backgroundColor: color.Secondary.Main },
+  newInput: { backgroundImage: stripes(color.Primary.Main, color.Secondary.Main) },
+  input: { backgroundImage: stripes(color.Success.Main, color.Primary.Main) },
+  output: { backgroundColor: color.Warning.Main },
 };
 
-export const Segment = styleVariants(partColors, (backgroundColor) => ({
+export const Segment = styleVariants(partFills, (fill) => ({
   height: '100%',
-  backgroundColor,
+  ...fill,
 }));
 
 export const Legend = style({
@@ -272,13 +275,13 @@ export const LegendItem = style({
   fontVariantNumeric: 'tabular-nums',
 });
 
-export const Swatch = styleVariants(partColors, (backgroundColor) => ({
+export const Swatch = styleVariants(partFills, (fill) => ({
   ...keepDataColors,
   width: toRem(8),
   height: toRem(8),
   borderRadius: toRem(2),
   flexShrink: 0,
-  backgroundColor,
+  ...fill,
 }));
 
 // This reply's or the conversation's total above its bar, label at the start, number at the end.
