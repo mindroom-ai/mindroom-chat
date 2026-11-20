@@ -422,6 +422,9 @@ const pill = {
   fontSize: config.fontSize.T200,
   lineHeight: config.lineHeight.T200,
   fontWeight: config.fontWeight.W400,
+  // Over the reach of a row's title, so its tooltip still says what an icon-only pill means.
+  position: 'relative',
+  zIndex: 2,
 } as const;
 
 export const Pill = styleVariants({
@@ -444,7 +447,19 @@ export const Pill = styleVariants({
   done: [pill, { background: color.Secondary.Container, color: color.Secondary.OnContainer }],
 });
 
-export const PillText = style(hiddenOnPhone);
+// On a phone the pill is its icon; its words stay for screen readers.
+export const PillText = style({
+  '@container': {
+    [phone]: {
+      position: 'absolute',
+      width: 1,
+      height: 1,
+      overflow: 'hidden',
+      clipPath: 'inset(50%)',
+      whiteSpace: 'nowrap',
+    },
+  },
+});
 
 export const PillIcon = style({ display: 'none', '@container': { [phone]: { display: 'grid' } } });
 
@@ -459,14 +474,16 @@ export const Actions = style({
   justifyContent: 'end',
   alignItems: 'center',
   gap: actionGap,
-  // Over the reach of the row's title, so its buttons keep their own presses.
+  // Over the reach of the row's title, so its buttons keep their own presses; between and beside
+  // them a press goes through to the row.
   position: 'relative',
   zIndex: 2,
+  pointerEvents: 'none',
 });
 
 // Each button keeps its slot, so a row without Thread lines its Stop up with the rows that have
 // one: Stop (or its Stopping) last, Thread before it.
-globalStyle(`${Actions} > *`, { gridColumn: '-2 / -1', gridRow: 1 });
+globalStyle(`${Actions} > *`, { gridColumn: '-2 / -1', gridRow: 1, pointerEvents: 'auto' });
 globalStyle(`${Actions} > [data-job-thread]`, { gridColumn: '-3 / -2' });
 
 // Open, Stop and Stop all: one family of 28 px icon buttons on the bar's own material, Stop
