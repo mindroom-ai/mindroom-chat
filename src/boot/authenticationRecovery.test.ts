@@ -30,6 +30,12 @@ const setup = (
     addEventListener: vi.fn(),
     document: { visibilityState: 'visible', addEventListener: vi.fn() },
     fetch,
+    history: {
+      state: null,
+      replaceState: vi.fn((_state: unknown, _title: string, url: string) => {
+        window.location.href = url;
+      }),
+    },
   };
   runInNewContext(source(), {
     window,
@@ -183,6 +189,19 @@ describe('native authentication recovery', () => {
       expect(assign).toHaveBeenCalledTimes(1);
     }
   );
+
+  it('never takes an invite link\'s code along to the sign-in', async () => {
+    const invite = 'https://chat.example/invite/#r=%40router%3Aexample.org&c=secret-code';
+    const { api, fetch, assign, window } = setup(undefined, undefined, invite);
+    await api.check();
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.check()).toBe('navigating');
+    expect(assign).toHaveBeenCalledWith(
+      'https://chat.example/login?authentication-recovery-navigation=1'
+    );
+    // A redirect keeps the fragment of the page it leaves, so the address must not hold it either.
+    expect(window.location.href).toBe('https://chat.example/invite/');
+  });
 
   it('treats forbidden as denial for automatic checks but signs in on a click', async () => {
     const { api, fetch, assign } = setup();

@@ -37,10 +37,8 @@ const parseResult = (content: Record<string, unknown>): ClaimOutcome | undefined
   return status === 'rejected' || status === 'retry' ? { status } : undefined;
 };
 
-/**
- * Sends the claim and reports outcomes: `offline` after CLAIM_TIMEOUT_MS without an answer, and
- * any final outcome whenever it arrives, also after `offline`. Returns a function that stops it.
- */
+/** Sends the claim once. Reports `offline` after CLAIM_TIMEOUT_MS without an answer and any
+ * final outcome whenever it arrives, also after `offline`. Returns a function that stops it. */
 export const startClaim = (
   mx: MatrixClient,
   link: InviteLink,
@@ -48,11 +46,12 @@ export const startClaim = (
 ): (() => void) => {
   const requestId = crypto.randomUUID();
   const content = { version: 1, request_id: requestId, code: link.code };
+  const fromRouter = (room: Room): boolean => inviterOf(mx, room) === link.routerId;
   // An invitation from the router that was already pending says nothing about this claim.
   const pendingBefore = new Set(
     mx
       .getRooms()
-      .filter((room) => inviterOf(mx, room) === link.routerId)
+      .filter(fromRouter)
       .map((room) => room.roomId)
   );
 
@@ -69,7 +68,7 @@ export const startClaim = (
   // The router's invitation stands for its result, should the result not arrive.
   function onMembership(room: Room, membership: Membership): void {
     if (!matchesEnum(membership, KnownMembership.Invite) || pendingBefore.has(room.roomId)) return;
-    if (inviterOf(mx, room) === link.routerId) finish({ status: 'invited', roomId: room.roomId });
+    if (fromRouter(room)) finish({ status: 'invited', roomId: room.roomId });
   }
 
   mx.on(ClientEvent.ReceivedToDeviceMessage, onMessage);

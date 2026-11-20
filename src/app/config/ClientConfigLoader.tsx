@@ -6,6 +6,7 @@ import {
   authenticationConfigurationLoaded,
   recoverAuthentication,
 } from '../../boot/authenticationRecovery';
+import { leavePage } from '../../boot/inviteFragment';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../boot/serviceWorkerNavigation';
 
 /** The server answered `config.json` with a sign-in redirect or 401/403: the web session expired. */
@@ -137,7 +138,7 @@ const navigateForSignIn = () => {
   const url = readLocationUrl();
   if (!url) return;
   url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
-  window.location.href = url.href;
+  leavePage(url.href);
 };
 
 type LoaderState =

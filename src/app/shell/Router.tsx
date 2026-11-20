@@ -242,14 +242,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
           }
         />
         {/* A mailed invitation link. Its own route, or it would open as a space named "invite". */}
-        <Route
-          path={INVITE_PATH}
-          element={
-            <PageMain>
-              <InvitePage />
-            </PageMain>
-          }
-        />
+        <Route path={INVITE_PATH} element={<InvitePage />} />
         <Route path={HOME_PATH} element={<SectionPage navId="home" nav={<Home />} />}>
           <Route index element={<SectionIndex page={<WelcomePage />} />} />
           <Route path={HOME_CREATE_PATH} element={<CreateRoomPage />} />

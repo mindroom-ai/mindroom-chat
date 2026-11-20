@@ -10,18 +10,17 @@ import { describeError } from '../lib/describeError';
 import { matchesEnum } from '../lib/matchesEnum';
 import { getHomeRoomPath } from '../routes/pathUtils';
 import { ErrorDetail } from '../ui/ErrorDetail';
+import { PageMain } from '../ui/page/Page';
 import { CLAIM_TIMEOUT_MS, inviterOf, startClaim } from './inviteClaim';
 import { parseInviteFragment, type InviteLink } from './inviteLink';
 import { IsolatedText, isolateInSentence } from '../ui/directional';
+import { dropInviteFragment } from '../../boot/inviteFragment';
 
 /** The link in the address, read once and then cleared: null when malformed, undefined when absent. */
 const takeLink = (): InviteLink | null | undefined => {
-  const url = new URL(window.location.href);
-  if (!url.hash) return undefined;
-  const link = parseInviteFragment(url.hash) ?? null;
-  url.hash = '';
-  window.history.replaceState(window.history.state, '', url.href);
-  return link;
+  const { hash } = window.location;
+  dropInviteFragment();
+  return hash ? parseInviteFragment(hash) ?? null : undefined;
 };
 
 type PageState =
@@ -30,13 +29,15 @@ type PageState =
 
 function InviteCard({ children }: { children: ReactNode }) {
   return (
-    <Box grow="Yes" direction="Column" alignItems="Center" justifyContent="Center">
-      <Box className={css.AuthCard} direction="Column">
-        <Box className={css.AuthCardContent} direction="Column" gap="500">
-          {children}
+    <PageMain>
+      <Box grow="Yes" direction="Column" alignItems="Center" justifyContent="Center">
+        <Box className={css.AuthCard} direction="Column">
+          <Box className={css.AuthCardContent} direction="Column" gap="500">
+            {children}
+          </Box>
         </Box>
       </Box>
-    </Box>
+    </PageMain>
   );
 }
 
@@ -45,7 +46,6 @@ export function InvitePage(): JSX.Element {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const navigate = useNavigate();
-  // In memory only: the code leaves the address on mount and on each link opened here.
   const [link, setLink] = useState(takeLink);
   const [state, setState] = useState<PageState>({ status: 'ready' });
   // Stops what runs now: the claim, the wait for the invitation, or the join.
@@ -65,17 +65,12 @@ export function InvitePage(): JSX.Element {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, [halt]);
 
-  if (window.top !== window.self) {
+  const framed = window.top !== window.self;
+  if (framed || !link) {
+    const notice = framed ? 'framed' : (link === null && 'invalid') || 'reopen';
     return (
       <InviteCard>
-        <Text size="T300">{t('mindroomUi.invites.framed')}</Text>
-      </InviteCard>
-    );
-  }
-  if (!link) {
-    return (
-      <InviteCard>
-        <Text size="T300">{t(`mindroomUi.invites.${link === null ? 'invalid' : 'reopen'}`)}</Text>
+        <Text size="T300">{t(`mindroomUi.invites.${notice}`)}</Text>
       </InviteCard>
     );
   }
@@ -93,8 +88,8 @@ export function InvitePage(): JSX.Element {
     );
   };
 
-  /** Joins the router's invitation or opens the room; false while there is no invitation yet. */
-  // The SDK announces a first invitation before it stores the room, so this takes the room it has.
+  // Joins the router's invitation or opens the room; false while there is none. It takes the room
+  // the SDK hands over, which announces a first invitation before it stores the room.
   const settle = (roomId: string, room = mx.getRoom(roomId)): boolean => {
     const membership = room?.getMyMembership();
     const joined = matchesEnum(membership, KnownMembership.Join);
@@ -128,7 +123,6 @@ export function InvitePage(): JSX.Element {
   const claim = (): void => {
     setState({ status: 'claiming' });
     stopRef.current = startClaim(mx, link, (outcome) => {
-      // Every outcome but `offline` ends the claim.
       if (outcome.status !== 'offline') stopRef.current = undefined;
       if (outcome.status === 'invited') enterRoom(outcome.roomId);
       else setState(outcome);
@@ -136,8 +130,8 @@ export function InvitePage(): JSX.Element {
   };
 
   let action: { onClick: () => void; label: 'join' | 'tryAgain' } | undefined;
-  if (state.status === 'ready') action = { onClick: claim, label: 'join' };
-  if (state.status === 'retry') action = { onClick: claim, label: 'tryAgain' };
+  if (state.status === 'ready' || state.status === 'retry')
+    action = { onClick: claim, label: state.status === 'ready' ? 'join' : 'tryAgain' };
   if (state.status === 'joinFailed') {
     const { roomId } = state;
     action = { onClick: () => enterRoom(roomId), label: 'tryAgain' };
