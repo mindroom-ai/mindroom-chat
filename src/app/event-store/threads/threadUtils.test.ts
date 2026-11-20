@@ -309,7 +309,7 @@ describe('getVisibleThreadMessageCount', () => {
       };
       const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
       vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
-      vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(root as never);
+      vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(root);
       const fetchRelations = vi.spyOn(mx, 'fetchRelations');
       pages.forEach((page) => fetchRelations.mockResolvedValueOnce(page as never));
       const room = new Room(roomId, mx, '@alice:example.org', { timelineSupport: true });

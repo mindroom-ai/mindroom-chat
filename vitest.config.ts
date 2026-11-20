@@ -29,6 +29,7 @@ const listedDirs = plugins.map(({ dir }) => normalizePath(realpathSync(dir)));
 const pluginDirs = listedDirs.filter((dir) => path.relative(SRC, dir).startsWith('..'));
 // The settings below that serve such plugins stay unset without them.
 const withPlugins = pluginDirs.length > 0;
+const PLUGIN_CONDITIONS = ['module', 'node', 'development|production'];
 const testsOnly = process.env.MINDROOM_CLIENT_PLUGIN_TESTS_ONLY === '1';
 
 // A directory such as `plugins (old)` holds characters globs read as syntax.
@@ -64,7 +65,12 @@ export default defineConfig({
       ),
     },
     dedupe: withPlugins ? SHARED_PACKAGES : undefined,
+    // The ES module builds of the packages a plugin installed, as Vitest 2 took them: Vitest 4 drops
+    // the `module` condition, and a CommonJS build's `require('react')` resolves in the plugin's
+    // directory, which has no React.
+    conditions: withPlugins ? PLUGIN_CONDITIONS : undefined,
   },
+  ssr: withPlugins ? { resolve: { conditions: PLUGIN_CONDITIONS } } : undefined,
   esbuild: withPlugins ? { jsx: 'automatic' } : undefined,
   server: withPlugins
     ? { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...pluginDirs] } }
@@ -89,10 +95,11 @@ export default defineConfig({
       './src/test/vitest.katex.setup.ts',
     ],
     // Setting process.env.TZ moves the time zone only in a process of its own: a worker thread
-    // keeps the zone it started in, so these files stay in a fork under `--pool=threads` too.
-    poolMatchGlobs: [
-      ['**/src/app/lib/time.formatterCache.test.ts', 'forks'],
-      ['**/src/app/threads/tags/snoozePresets.test.ts', 'forks'],
-    ],
+    // keeps the zone it started in, so src/app/lib/time.formatterCache.test.ts and
+    // src/app/threads/tags/snoozePresets.test.ts need forks (Vitest 4 has no pool per file).
+    pool: 'forks',
+    // Tests lint text that is not on disk. With CI set, typescript-eslint 8 builds each program once
+    // from disk (single-run mode), so a file's type-aware lint would see its saved contents instead.
+    env: { TSESTREE_SINGLE_RUN: 'false' },
   },
 });

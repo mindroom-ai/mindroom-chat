@@ -176,7 +176,7 @@ const getThreadSummaryMetadataFromCandidate = (
 ): ThreadSummaryMetadata | undefined => {
   const metadata = content[THREAD_SUMMARY_METADATA_KEY];
   if (!isRecord(metadata) || metadata.version !== 1) return undefined;
-  return metadata as ThreadSummaryMetadata;
+  return metadata;
 };
 
 const getThreadSummaryMetadata = (

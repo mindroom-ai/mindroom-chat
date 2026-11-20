@@ -17,7 +17,7 @@ export class PackMetaReader {
   readonly meta: PackMeta;
 
   constructor(meta: unknown) {
-    this.meta = isRecord(meta) ? (meta as PackMeta) : {};
+    this.meta = isRecord(meta) ? meta : {};
   }
 
   get name(): string | undefined {

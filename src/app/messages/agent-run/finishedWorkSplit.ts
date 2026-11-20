@@ -69,8 +69,7 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
   });
 
 /** Whether the sanitized HTML shows anything. */
-const rendersVisibleContent = (html: string): boolean =>
-  hasVisibleContent(htmlToDOM(html) as ChildNode[]);
+const rendersVisibleContent = (html: string): boolean => hasVisibleContent(htmlToDOM(html));
 
 // A marker the renderer draws from the start of a paragraph, after line breaks or the markers
 // before it (`takeLeadingToolRefs`), and the breaks that follow the last one.

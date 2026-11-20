@@ -53,23 +53,22 @@ const encrypted = (
   sender: string,
   ts: number,
   relation?: Record<string, unknown>
-): IEvent =>
-  ({
-    type: 'm.room.encrypted',
-    event_id: eventId,
-    room_id: ROOM,
-    sender,
-    origin_server_ts: ts,
-    unsigned: {},
-    content: {
-      algorithm: 'm.megolm.v1.aes-sha2',
-      ciphertext: 'opaque',
-      sender_key: 'key',
-      session_id: 'session',
-      device_id: 'DEVICE',
-      ...(relation ? { 'm.relates_to': relation } : {}),
-    },
-  } as IEvent);
+): IEvent => ({
+  type: 'm.room.encrypted',
+  event_id: eventId,
+  room_id: ROOM,
+  sender,
+  origin_server_ts: ts,
+  unsigned: {},
+  content: {
+    algorithm: 'm.megolm.v1.aes-sha2',
+    ciphertext: 'opaque',
+    sender_key: 'key',
+    session_id: 'session',
+    device_id: 'DEVICE',
+    ...(relation ? { 'm.relates_to': relation } : {}),
+  },
+});
 
 const inThread = { rel_type: 'm.thread', event_id: ROOT };
 const editsReply = { rel_type: 'm.replace', event_id: REPLY };
@@ -812,7 +811,7 @@ describe('unread counts of an encrypted room', () => {
   it('count a finished reply whose terminal edit the session never decrypts', async () => {
     const f = await fixture(true);
     const window = [
-      { ...member(ME), origin_server_ts: 1 } as IEvent,
+      { ...member(ME), origin_server_ts: 1 },
       encrypted(ROOT, ME, 10),
       streamedReply(REPLY, 11),
       ...replyWindow(),
@@ -841,7 +840,7 @@ describe('unread counts of an encrypted room', () => {
     const bundled = finishingEdit('$done', REPLY, 40);
     const reply = { ...streamedReply(REPLY, 11), unsigned: { 'm.relations': { 'm.replace': bundled } } };
     const window = [
-      { ...member(ME), origin_server_ts: 1 } as IEvent,
+      { ...member(ME), origin_server_ts: 1 },
       encrypted(ROOT, ME, 10),
       reply,
       finishingEdit('$done', REPLY, 40),

@@ -9,7 +9,7 @@ import {
 import { SidebarNav } from './SidebarNav';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
-const state = vi.hoisted(() => ({ settings: {} as Partial<AccountSettings> }));
+const state = vi.hoisted(() => ({ settings: {} }));
 
 // A rail button stand-in that names itself; a declaration, so the hoisted mocks can use it.
 function tab(name: string) {

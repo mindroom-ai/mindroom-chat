@@ -41,21 +41,20 @@ vi.mock('../../event-store/cache/threadCacheSnapshot', () => ({
 const roomId = '!room:example.org';
 const bob = '@bob:example.org';
 
-const raw = (eventId: string, ts: number, threadRoot?: string, content = {}): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender: bob,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: {
-      msgtype: 'm.text',
-      body: eventId,
-      ...(threadRoot ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot } } : {}),
-      ...content,
-    },
-  } as IEvent);
+const raw = (eventId: string, ts: number, threadRoot?: string, content = {}): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender: bob,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: {
+    msgtype: 'm.text',
+    body: eventId,
+    ...(threadRoot ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot } } : {}),
+    ...content,
+  },
+});
 
 const message = (...args: Parameters<typeof raw>) => new MatrixEvent(raw(...args));
 

@@ -280,7 +280,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   let wantedIndex = selection === 'auto' ? 0 : selection;
   if (selection === 'auto' && requestCount > 0) wantedIndex = requestsIndex;
   const selectedIndex = wantedIndex >= 0 && wantedIndex < filters.length ? wantedIndex : 0;
-  const selectedFilter = filters[selectedIndex] as MembershipFilterItem | undefined;
+  const selectedFilter = filters[selectedIndex];
   const showingRequests = selectedIndex === requestsIndex;
 
   const sorts = useMemberSortMenu();

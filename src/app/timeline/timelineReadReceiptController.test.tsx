@@ -342,6 +342,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       const firstArea = document.createElement('div');
       const options = optionsWith({ getScrollElement: () => firstArea });
       mount(options);
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       const first = observers.at(-1) as RecordingObserver | undefined;
       expect(first?.options?.root).toBe(firstArea);
       expect(marginSides(first?.options?.rootMargin)).toEqual({
@@ -354,6 +355,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
 
       const secondArea = document.createElement('div');
       rerender({ ...options, getScrollElement: () => secondArea });
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       const second = observers.at(-1) as RecordingObserver | undefined;
       expect(second).not.toBe(first);
       expect(first?.disconnect).toHaveBeenCalled();
@@ -363,6 +365,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
 
     it('uses the viewport as root while there is no scroll area', () => {
       mount(optionsWith());
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       expect((observers.at(-1) as RecordingObserver | undefined)?.options?.root).toBeNull();
     });
   });

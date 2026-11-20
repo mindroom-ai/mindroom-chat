@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { AutoDiscoveryInfo } from '../matrix/cs-api';
 import { getBugReportAdmins } from './bugReportConfig';
 
-const info = (extra: Record<string, unknown>): AutoDiscoveryInfo =>
-  ({ 'm.homeserver': { base_url: 'https://hs.example' }, ...extra } as AutoDiscoveryInfo);
+const info = (extra: Record<string, unknown>): AutoDiscoveryInfo => ({
+  'm.homeserver': { base_url: 'https://hs.example' },
+  ...extra,
+});
 
 describe('getBugReportAdmins', () => {
   it('returns valid, unique admin user IDs', () => {

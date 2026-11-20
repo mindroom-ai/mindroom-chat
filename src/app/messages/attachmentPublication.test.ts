@@ -268,9 +268,9 @@ it('retries failed capability lookup on a later explicit download', async () => 
     getLastActiveTimestamp: () => 0,
   };
   vi.spyOn(mx, 'getRoom').mockReturnValue(room as never);
-  vi.spyOn(mx, 'getEventMapper').mockReturnValue(((raw: object) => new MatrixEvent(raw)) as never);
+  vi.spyOn(mx, 'getEventMapper').mockReturnValue((raw: object) => new MatrixEvent(raw));
   vi.spyOn(mx, 'decryptEventIfNeeded').mockResolvedValue(undefined);
-  vi.spyOn(mx, 'createMessagesRequest').mockResolvedValue({ chunk: [] } as never);
+  vi.spyOn(mx, 'createMessagesRequest').mockResolvedValue({ chunk: [] });
   const versions = vi
     .spyOn(mx, 'getVersions')
     .mockRejectedValueOnce(new TypeError('transient'))

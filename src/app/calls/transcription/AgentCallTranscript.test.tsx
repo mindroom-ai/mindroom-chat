@@ -26,7 +26,7 @@ const CALL: TranscriptCall = {
 
 /** Each read of the live call, to answer; and every other route, which agent calls never send. */
 const server = vi.hoisted(() => ({
-  apiUrl: 'https://mindroom.example.org' as string | undefined,
+  apiUrl: 'https://mindroom.example.org',
   reads: [] as Array<{
     roomId: string;
     after?: string;

@@ -31,7 +31,7 @@ describe('voiceMessageSettings', () => {
       setItem: vi.fn((key: string, value: string) => {
         storageState.set(key, value);
       }),
-    } as unknown as Storage);
+    });
 
     vi.stubGlobal('window', {
       addEventListener: vi.fn((type: string, listener: StorageListener) => {

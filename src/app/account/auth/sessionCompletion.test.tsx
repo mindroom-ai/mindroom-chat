@@ -71,13 +71,11 @@ describe('authentication session completion', () => {
       renderer = create(
         <MemoryRouter>
           <LoginCompletion
-            response={
-              {
-                access_token: 'access',
-                device_id: 'DEVICE',
-                user_id: '@alice:example.org',
-              } as LoginResponse
-            }
+            response={{
+              access_token: 'access',
+              device_id: 'DEVICE',
+              user_id: '@alice:example.org',
+            }}
           />
         </MemoryRouter>
       );
@@ -94,13 +92,11 @@ describe('authentication session completion', () => {
       renderer = create(
         <MemoryRouter>
           <RegisterCompletion
-            response={
-              {
-                access_token: 'access',
-                device_id: 'DEVICE',
-                user_id: '@alice:example.org',
-              } as RegisterResponse
-            }
+            response={{
+              access_token: 'access',
+              device_id: 'DEVICE',
+              user_id: '@alice:example.org',
+            }}
           />
         </MemoryRouter>
       );

@@ -95,7 +95,7 @@ export const applyParsedThreadFilterQuery = (
   state: ThreadFilterState,
   parsed: ParsedThreadFilterQuery
 ): ThreadFilterState => {
-  const next = { ...state, tags: new Map(parsed.tags) } as ThreadFilterState;
+  const next = { ...state, tags: new Map(parsed.tags) };
   STATUS_KEYS.forEach((key) => {
     next[key] = parsed.status[key] ?? 'any';
   });

@@ -114,10 +114,12 @@ describe('SpecVersions', () => {
       setItem: vi.fn((key: string, value: string) => {
         storageState.set(key, value);
       }),
-    } as unknown as Storage);
+    });
   });
 
   afterEach(() => {
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     specVersionsLoaderMode = 'success';
@@ -240,7 +242,7 @@ describe('SpecVersions', () => {
   );
 
   it('renders cached versions immediately and refreshes only the stored copy', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({} as Response);
+    const fetchMock = vi.fn().mockResolvedValue({});
     vi.stubGlobal('fetch', fetchMock);
     vi.mocked(useActiveSession).mockReturnValue({
       sessionId: 'session-a',

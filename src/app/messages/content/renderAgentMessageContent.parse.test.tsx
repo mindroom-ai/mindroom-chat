@@ -6,7 +6,6 @@ import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
-import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 
 // These tests show how tool calls render, so they show them.
@@ -14,7 +13,7 @@ beforeEach(showToolCalls);
 
 const sanitizeCustomHtmlSpy = vi.hoisted(() => vi.fn((html: string) => html));
 // The tool metadata status the long-text renderer reports, as while a sidecar loads.
-const longText = vi.hoisted(() => ({ status: 'loading' as ToolMetadataStatus }));
+const longText = vi.hoisted(() => ({ status: 'loading' }));
 
 vi.mock('../../rich-text/sanitize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../rich-text/sanitize')>()),

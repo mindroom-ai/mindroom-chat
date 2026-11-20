@@ -64,7 +64,7 @@ const makeRawEdit = (
   },
 });
 
-const mapRawEvent = (rawEvent: Partial<IEvent>): MatrixEvent => new MatrixEvent(rawEvent as IEvent);
+const mapRawEvent = (rawEvent: Partial<IEvent>): MatrixEvent => new MatrixEvent(rawEvent);
 
 const makeSdkStyleMapper = (live: MatrixEvent) =>
   vi.fn((rawEvent: Partial<IEvent>): MatrixEvent => {

@@ -4,7 +4,7 @@ import { MatrixError, Room } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { createStore, Provider } from 'jotai';
 import { readFileSync } from 'fs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   normalizeMatrixWaveform,
   timeDomainDataToWaveformPoint,
@@ -229,7 +229,7 @@ const expectedAnalyserSamples = (start: number, end: number): number[] =>
 
 describe('useVoiceRecorder', () => {
   let stream: MockMediaStream;
-  let getUserMedia: ReturnType<typeof vi.fn>;
+  let getUserMedia: Mock;
 
   beforeEach(() => {
     vi.useFakeTimers();

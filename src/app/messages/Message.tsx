@@ -816,7 +816,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const avatarFallback = () => <Icon filled size="200" src={Icons.User} />;
     const renderAvatar = (withModel: boolean) => {
       const avatar = (
-        <Avatar size="300" data-user-id={senderId} onClick={onUserClick as never}>
+        <Avatar size="300" data-user-id={senderId} onClick={onUserClick}>
           <UserAvatar
             alt={senderDisplayName}
             renderFallback={avatarFallback}

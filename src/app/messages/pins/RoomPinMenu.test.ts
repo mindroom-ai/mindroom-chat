@@ -47,6 +47,7 @@ const {
     getTimelineForEvent: vi.fn(() => undefined),
     getUnfilteredTimelineSet: vi.fn(() => undefined),
   },
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   settingValues: {} as Record<string, boolean>,
 }));
 

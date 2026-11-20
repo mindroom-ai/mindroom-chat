@@ -17,8 +17,7 @@ const makeFakeEvent = (raw: Partial<IEvent>): MatrixEvent =>
     isRedacted: () => !!raw.unsigned?.redacted_because,
     isSending: () => false,
     getAssociatedId: () => undefined,
-    getRelation: () =>
-      (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] ?? null,
+    getRelation: () => raw.content?.['m.relates_to'] ?? null,
     getUnsigned: () => raw.unsigned ?? {},
     setUnsigned: (unsigned: IEvent['unsigned']) => {
       raw.unsigned = unsigned;
@@ -37,7 +36,7 @@ const reply = (id: string, ts: number, unsigned?: IEvent['unsigned']): Partial<I
   type: 'm.room.message',
   sender: AGENT,
   origin_server_ts: ts,
-  content: { body: id, 'm.relates_to': { rel_type: 'm.thread', event_id: THREAD_ID } } as never,
+  content: { body: id, 'm.relates_to': { rel_type: 'm.thread', event_id: THREAD_ID } },
   ...(unsigned ? { unsigned } : {}),
 });
 
@@ -50,12 +49,12 @@ const edit = (id: string, targetId: string, ts: number, sender = AGENT): Partial
     body: `* ${id}`,
     'm.new_content': { body: id },
     'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
-  } as never,
+  },
 });
 
 /** How the cache stores a reply: its newest same-sender edit folded in, no edit records. */
 const foldedReply = (id: string, ts: number, newestEdit: Partial<IEvent>): Partial<IEvent> =>
-  reply(id, ts, { 'm.relations': { 'm.replace': newestEdit } } as never);
+  reply(id, ts, { 'm.relations': { 'm.replace': newestEdit } });
 
 const redacted = (raw: Partial<IEvent>): Partial<IEvent> =>
   ({

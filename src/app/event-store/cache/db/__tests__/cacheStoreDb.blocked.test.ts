@@ -28,9 +28,7 @@ describe('cacheStoreDb blocked operations', () => {
   });
 
   it('reports a blocked delete instead of pretending the database was removed', async () => {
-    vi.spyOn(indexedDB, 'deleteDatabase').mockImplementation(
-      () => makeBlockedRequest() as unknown as IDBOpenDBRequest
-    );
+    vi.spyOn(indexedDB, 'deleteDatabase').mockImplementation(() => makeBlockedRequest());
 
     await expect(deleteCacheStoreDb('blocked-delete-session')).rejects.toBeInstanceOf(
       CacheStoreBlockedError

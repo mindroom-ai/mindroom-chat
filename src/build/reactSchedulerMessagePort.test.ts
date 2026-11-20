@@ -25,11 +25,7 @@ const require = createRequire(import.meta.url);
  */
 const createSchedulerHost = (
   build: string,
-  {
-    timersFirst = false,
-    closeDropsQueued = true,
-    dispatch = 'record' as 'record' | 'missing' | 'throw',
-  } = {}
+  { timersFirst = false, closeDropsQueued = true, dispatch = 'record' } = {}
 ) => {
   let now = 0;
   let nextTimerId = 1;

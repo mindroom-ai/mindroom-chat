@@ -116,7 +116,7 @@ const textWithBreaks = (node: unknown): string => {
   if (typeof node === 'string') return node;
   if (Array.isArray(node)) return node.map(textWithBreaks).join('');
   if (node && typeof node === 'object' && 'children' in node) {
-    return textWithBreaks((node as { children: unknown }).children ?? []);
+    return textWithBreaks(node.children ?? []);
   }
   return '';
 };

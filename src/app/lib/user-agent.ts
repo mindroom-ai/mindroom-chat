@@ -5,7 +5,7 @@ type NavigatorLike = Pick<Navigator, 'userAgent' | 'platform' | 'maxTouchPoints'
 };
 
 const getNavigator = (): NavigatorLike | undefined =>
-  typeof navigator === 'undefined' ? undefined : (navigator as NavigatorLike);
+  typeof navigator === 'undefined' ? undefined : navigator;
 
 const platformName = (nav: NavigatorLike): string =>
   nav.userAgentData?.platform || nav.platform || '';

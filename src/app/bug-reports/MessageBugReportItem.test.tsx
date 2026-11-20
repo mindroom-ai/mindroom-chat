@@ -5,7 +5,7 @@ import { I18nextProvider } from 'react-i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  discovery: {} as Record<string, unknown>,
+  discovery: {},
   developerTools: true,
   navigateRoomThread: vi.fn(),
   buildBugReport: vi.fn(async () => ({ reportedAt: '2026-10-03T12:00:00.000Z', events: [] })),

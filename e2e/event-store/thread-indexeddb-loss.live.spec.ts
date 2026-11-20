@@ -38,7 +38,7 @@ const installIndexedDbLoss = () => {
     created.addEventListener('abort', settle);
     created.addEventListener('error', settle);
     return created;
-  } as typeof IDBDatabase.prototype.transaction;
+  };
   IDBFactory.prototype.open = function open(this: IDBFactory, ...args) {
     const request = nativeOpen.apply(this, args);
     request.addEventListener('success', () => {
@@ -47,7 +47,7 @@ const installIndexedDbLoss = () => {
       connection.addEventListener('close', () => connections.delete(connection));
     });
     return request;
-  } as typeof IDBFactory.prototype.open;
+  };
   window.__loseIndexedDbConnections = () => {
     const lost = Array.from(connections);
     connections.clear();
@@ -73,7 +73,7 @@ const blockIndexedDbLossSentinel = () => {
     if (name === 'mindroom-indexeddb-sentinel-v1')
       throw new DOMException('blocked', 'SecurityError');
     return nativeOpen.call(this, name, ...args);
-  } as typeof IDBFactory.prototype.open;
+  };
 };
 
 // The Matrix SDK's sync store and Rust crypto store must be among the lost connections.

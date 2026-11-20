@@ -177,8 +177,8 @@ describe('RenderMessageContent', () => {
           ts: 0,
           edited: true,
           getContent: (() => content) as <T>() => T,
-          htmlReactParserOptions: {} as never,
-          linkifyOpts: {} as never,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
         })
       );
 
@@ -204,8 +204,8 @@ describe('RenderMessageContent', () => {
           ts: 0,
           urlPreview,
           getContent: (() => ({ msgtype: 'm.text', body: 'https://example.org' })) as <T>() => T,
-          htmlReactParserOptions: {} as never,
-          linkifyOpts: {} as never,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
         })
       );
 
@@ -230,8 +230,8 @@ describe('RenderMessageContent', () => {
         msgType: 'm.text',
         ts: 0,
         getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
       })
     );
 
@@ -260,8 +260,8 @@ describe('RenderMessageContent', () => {
         msgType: 'm.text',
         ts: 0,
         getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
       })
     );
 
@@ -291,8 +291,8 @@ describe('RenderMessageContent', () => {
           msgtype: 'm.notice',
           body: 'Summary body',
         })) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
       })
     );
 
@@ -335,8 +335,8 @@ describe('RenderMessageContent', () => {
           body: 'Summary body',
           'io.mindroom.thread_summary': summary,
         })) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
       })
     );
 
@@ -379,8 +379,8 @@ describe('RenderMessageContent', () => {
         ts: 0,
         edited: true,
         getContent: (() => content) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
       })
     );
 
@@ -423,8 +423,8 @@ describe('RenderMessageContent', () => {
           resolved_by: null,
           resolution_reason: null,
         })) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
       })
     );
 
@@ -472,8 +472,8 @@ describe('RenderMessageContent', () => {
             url: 'mxc://example/image',
             ...metadata,
           })) as <T>() => T,
-          htmlReactParserOptions: {} as never,
-          linkifyOpts: {} as never,
+          htmlReactParserOptions: {},
+          linkifyOpts: {},
         })
       );
 
@@ -503,8 +503,8 @@ describe('RenderMessageContent', () => {
           url: 'mxc://example/diagram',
           info: { mimetype: 'image/svg+xml' },
         })) as <T>() => T,
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
       })
     );
 

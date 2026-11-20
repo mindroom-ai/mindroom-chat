@@ -147,7 +147,7 @@ export const installScrollWriteProbe = (page: Page): Promise<void> =>
             : (args[1] as number | undefined);
         if (typeof top === 'number') record(name, this, top);
         return (original as (...a: unknown[]) => unknown).apply(this, args);
-      } as typeof Element.prototype[typeof name];
+      };
     });
   });
 
@@ -322,7 +322,7 @@ const recordFlickRide = (
               key === 'ledgerQuiescenceSettles' ||
               key === 'ledgerBoundarySettles')
         )
-      ) as Record<string, number>;
+      );
     };
     type TileSnap = { i: string | null; id: string | null; top: number; h: number };
     const readTileSnaps = (): TileSnap[] =>

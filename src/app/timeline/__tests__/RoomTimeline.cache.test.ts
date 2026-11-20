@@ -126,7 +126,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const { shouldHydrateLatestRoomCache } = await import('../../event-store/cache/eventRepository');
       const { MatrixEvent } = await import('matrix-js-sdk');
       const loadedEvent = (eventId: string, ts: number) =>
-        new MatrixEvent(makeCachedRoomEvent(eventId, ts) as never);
+        new MatrixEvent(makeCachedRoomEvent(eventId, ts));
 
       expect(
         shouldHydrateLatestRoomCache(
@@ -394,8 +394,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [rootEvent] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
-      threadRenderStateMock.threadEvents = threadEvents as never;
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
+      threadRenderStateMock.threadEvents = threadEvents;
       threadRenderStateMock.threadEventIndexMapRef.current = new Map(
         threadEvents.map((event, index) => [event.getId(), index])
       );
@@ -459,8 +459,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [rootEvent] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
-      threadRenderStateMock.threadEvents = threadEvents as never;
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
+      threadRenderStateMock.threadEvents = threadEvents;
       threadRenderStateMock.threadEventIndexMapRef.current = new Map(
         threadEvents.map((event, index) => [event.getId(), index])
       );
@@ -526,8 +526,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [rootEvent] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
-      threadRenderStateMock.threadEvents = threadEvents as never;
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
+      threadRenderStateMock.threadEvents = threadEvents;
       threadRenderStateMock.threadEventIndexMapRef.current = new Map(
         threadEvents.map((event, index) => [event.getId(), index])
       );
@@ -606,9 +606,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
       const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEvents = events;
         threadRenderStateMock.threadEventIndexMapRef.current = new Map(
           events.map((event, index) => [event.getId(), index])
         );
@@ -861,9 +861,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
       const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEvents = events;
         threadRenderStateMock.threadEventIndexMapRef.current = new Map(
           events.map((event, index) => [event.getId(), index])
         );
@@ -1001,9 +1001,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
       const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEvents = events;
         threadRenderStateMock.threadEventIndexMapRef.current = new Map(
           events.map((event, index) => [event.getId(), index])
         );
@@ -1118,9 +1118,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
       const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEvents = events;
         threadRenderStateMock.threadEventIndexMapRef.current = new Map(
           events.map((event, index) => [event.getId(), index])
         );
@@ -1233,9 +1233,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getUnfilteredTimelineSet: () => threadTimelineSet,
       };
       const room = makeRoom({ liveEvents: [] });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
       const setThreadEvents = (events: ReturnType<typeof makeEvent>[]) => {
-        threadRenderStateMock.threadEvents = events as never;
+        threadRenderStateMock.threadEvents = events;
         threadRenderStateMock.threadEventIndexMapRef.current = new Map(
           events.map((event, index) => [event.getId(), index])
         );
@@ -3073,8 +3073,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
               )[eventId]
             : undefined,
       });
-      room.getMember = ((userId: string) => ({ name: userId })) as never;
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      room.getMember = (userId: string) => ({ name: userId });
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       saveThreadOpenSeedSnapshot(room as never, threadId, [
         rootEvent,
@@ -3172,7 +3172,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         liveTimeline: makeTimeline([rootEvent]),
         findEventById: (eventId: string) => (eventId === threadId ? rootEvent : undefined),
       });
-      room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
+      room.getThread = (eventId: string) => (eventId === threadId ? threadModel : null);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
       let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
@@ -3451,7 +3451,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         rootEvent: undefined,
         snapshotComplete: false,
         tailLoaded: false,
-      } as never);
+      });
       vi.mocked(loadCachedThreadEventsBefore).mockResolvedValueOnce({
         beforeToken: null,
         events: [
@@ -3476,7 +3476,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         rootEvent: undefined,
         snapshotComplete: false,
         tailLoaded: false,
-      } as never);
+      });
 
       let renderer: ReturnType<typeof create> | undefined;
       try {
@@ -3560,7 +3560,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         relationSnapshotComplete: true,
         snapshotComplete: true,
         tailLoaded: true,
-      } as never);
+      });
       matrixClientMock.fetchRelations.mockResolvedValueOnce({
         chunk: [],
         next_batch: null,
@@ -4894,7 +4894,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         relationSnapshotComplete: true,
         snapshotComplete: true,
         tailLoaded: true,
-      } as never);
+      });
 
       let renderer: ReturnType<typeof create> | undefined;
       try {
@@ -4961,7 +4961,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         },
         snapshotComplete: false,
         tailLoaded: false,
-      } as never);
+      });
       matrixClientMock.fetchRelations.mockResolvedValueOnce({
         chunk: [],
         next_batch: null,

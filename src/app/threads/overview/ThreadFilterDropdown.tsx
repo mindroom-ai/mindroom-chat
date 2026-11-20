@@ -204,7 +204,7 @@ export function ThreadFilterDropdown({
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const handleBlur = (event: FocusEvent) => {
-    if (!containerRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false);
+    if (!containerRef.current?.contains(event.relatedTarget)) setOpen(false);
   };
   const handleKeyDown = (event: KeyboardEvent) => {
     if (open && event.key === 'Escape') {

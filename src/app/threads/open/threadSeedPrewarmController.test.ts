@@ -112,8 +112,7 @@ describe('threadSeedPrewarmController cache-only seeds', () => {
       next_batch: undefined,
     }));
     const mx = {
-      getEventMapper: () => (raw: Partial<IEvent>) =>
-        new MatrixEvent(raw as ConstructorParameters<typeof MatrixEvent>[0]),
+      getEventMapper: () => (raw: Partial<IEvent>) => new MatrixEvent(raw),
       fetchRelations,
       getRoom: () => room,
     } as unknown as MatrixClient;

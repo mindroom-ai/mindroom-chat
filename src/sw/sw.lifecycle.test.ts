@@ -79,6 +79,7 @@ const loadServiceWorker = async ({
   Object.values(precacheSpies).forEach((spy) => spy.mockClear());
   routingSpies.registerRoute.mockClear();
   const listeners = new Map<string, CapturedListener>();
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   const predecessorWorker = Object.assign(new EventTarget(), {
     state: 'installing',
   }) as PredecessorWorker;

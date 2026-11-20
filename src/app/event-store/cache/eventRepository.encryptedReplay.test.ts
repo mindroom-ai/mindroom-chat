@@ -101,7 +101,7 @@ it.each(['available', 'missing', 'failed'])(
           decryptEvent: async () => {
             throw new Error('Missing replacement key');
           },
-        } as never);
+        });
     });
     const replay = await persistRoomChunkWithPreferLive({ ...client, chunk: [retained] });
     expect(await loadCachedAttachment(client.sessionId, bodyUri)).toBeDefined();

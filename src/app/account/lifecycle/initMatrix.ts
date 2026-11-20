@@ -1,4 +1,4 @@
-import { type ICreateClientOpts, type MatrixClient } from 'matrix-js-sdk';
+import { type MatrixClient } from 'matrix-js-sdk';
 import { Method } from 'matrix-js-sdk/lib/http-api';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
@@ -280,7 +280,7 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     timelineSupport: true,
     threadSupport: true,
     verificationMethods: ['m.sas.v1'],
-  } as ICreateClientOpts & { threadSupport: boolean });
+  });
 
   if (!continuity && (await serverHasDeviceIdentity(mx, session))) {
     throw new MissingCryptoStoreError(session.userId);

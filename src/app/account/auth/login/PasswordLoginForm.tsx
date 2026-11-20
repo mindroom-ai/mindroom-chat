@@ -80,7 +80,7 @@ export function PasswordLoginForm({ baseUrl, server, ssoProviderNames }: Passwor
               : { type: 'm.id.user', user },
           password,
           initial_device_display_name: getDeviceDisplayName(),
-        } as never)
+        })
       );
     } catch (loginError) {
       setError(loginError instanceof LoginFailure ? loginError.code : LoginError.Unknown);

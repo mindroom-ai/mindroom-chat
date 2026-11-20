@@ -58,8 +58,7 @@ const readMediaSource = (
   content: MessageContent
 ): { url: string; encInfo?: EncryptedAttachmentInfo } | undefined => {
   const encryptedFile = readEncryptedFile(content);
-  if (encryptedFile)
-    return { url: encryptedFile.url, encInfo: encryptedFile as EncryptedAttachmentInfo };
+  if (encryptedFile) return { url: encryptedFile.url, encInfo: encryptedFile };
   const url = readString(content.url);
   return url ? { url } : undefined;
 };

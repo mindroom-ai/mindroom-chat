@@ -101,12 +101,12 @@ export function MessageQuickReactions({
         }
         return (
           <QuickReaction
-            key={(emoji as { unicode: string }).unicode}
+            key={emoji.unicode}
             label={unicodeEmojiName(emoji)}
-            onSelect={() => onReaction((emoji as { unicode: string }).unicode)}
+            onSelect={() => onReaction(emoji.unicode)}
           >
             <Text as="span" size="T400">
-              {(emoji as { unicode: string }).unicode}
+              {emoji.unicode}
             </Text>
           </QuickReaction>
         );

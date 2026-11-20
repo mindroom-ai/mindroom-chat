@@ -40,16 +40,15 @@ const message = (
   ts: number,
   content: Record<string, unknown>,
   sender = agentId
-): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', ...content },
-  } as IEvent);
+): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', ...content },
+});
 
 const root = (ts: number): IEvent =>
   message(rootId, ts, { body: 'Which fixes go into the release notes?' }, readerId);

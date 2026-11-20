@@ -138,7 +138,7 @@ const getOwnReceiptTargets = (event: MatrixEvent, userId: string): OwnReceiptTar
   if (!content || typeof content !== 'object' || Array.isArray(content)) return targets;
 
   const threadRootIds = new Set<string>();
-  Object.values(content as Record<string, unknown>).forEach((receiptsByType) => {
+  Object.values(content).forEach((receiptsByType) => {
     if (!receiptsByType || typeof receiptsByType !== 'object' || Array.isArray(receiptsByType)) {
       return;
     }

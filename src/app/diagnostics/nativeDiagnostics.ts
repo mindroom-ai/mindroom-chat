@@ -142,7 +142,7 @@ const normalizeData = (value: unknown): NativeDiagnosticData | undefined => {
       safeData[key] = item;
     }
   });
-  return Object.keys(safeData).length > 0 ? (safeData as NativeDiagnosticData) : undefined;
+  return Object.keys(safeData).length > 0 ? safeData : undefined;
 };
 
 const normalizeEvent = (value: unknown): NativeDiagnosticEvent => {

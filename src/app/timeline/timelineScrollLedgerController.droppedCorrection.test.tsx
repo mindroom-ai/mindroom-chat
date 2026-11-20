@@ -11,6 +11,7 @@ type CorrectionHook = ReturnType<typeof buildMeasurementScrollCorrectionHook>;
 
 const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
   getVirtualItemForOffset: () => undefined,
 }));

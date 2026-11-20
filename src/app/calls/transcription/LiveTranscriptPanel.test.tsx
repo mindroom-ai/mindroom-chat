@@ -86,7 +86,7 @@ const line = (
   saidAt: string,
   said: { text: string } | { reason: 'paused' | 'not-transcribed' }
 ): TranscriptLine =>
-  ('text' in said
+  'text' in said
     ? { id, callId: 'call-1', userId, saidAt, seconds: 2, kind: 'speech', text: said.text }
     : {
         id,
@@ -96,7 +96,7 @@ const line = (
         seconds: 2,
         kind: 'gap',
         reason: said.reason,
-      }) as TranscriptLine;
+      };
 
 const LINES: TranscriptLine[] = [
   line('l1', ANN, '2026-11-07T09:30:00Z', { text: 'Shall we start?' }),

@@ -681,13 +681,11 @@ describe('InviteUserAutocomplete', () => {
       initialValue: 'arrow',
     });
 
-    expect(
-      getFocusTrap(renderer).props.focusTrapOptions.isKeyForward({ key: 'Tab' } as KeyboardEvent)
-    ).toBe(false);
+    expect(getFocusTrap(renderer).props.focusTrapOptions.isKeyForward({ key: 'Tab' })).toBe(false);
     expect(
       getFocusTrap(renderer).props.focusTrapOptions.isKeyBackward({
         key: 'ArrowUp',
-      } as KeyboardEvent)
+      })
     ).toBe(false);
   });
 

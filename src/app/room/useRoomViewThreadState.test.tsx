@@ -56,7 +56,7 @@ vi.mock('../event-store/threads/useRoomThreadSummaryState', () => ({
 }));
 vi.mock('../threads/useThreadRootEvent', () => ({ useThreadRootEvent: () => undefined }));
 // What this room's event cache holds of a thread: its root and its rows.
-const cachedPage = vi.hoisted(() => ({ rootEvent: undefined as unknown, events: [] as unknown[] }));
+const cachedPage = vi.hoisted(() => ({ rootEvent: undefined, events: [] as unknown[] }));
 vi.mock('../event-store/cache/eventRepository', () => ({
   loadLatestCachedThreadEvents: vi.fn(async () => ({ ...cachedPage })),
 }));

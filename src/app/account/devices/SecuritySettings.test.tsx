@@ -6,7 +6,9 @@ import { MatrixError } from 'matrix-js-sdk';
 import { SecuritySettings } from './SecuritySettings';
 import type { RecoveryState } from '../encryption/recoveryState';
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const client = vi.hoisted(() => ({ current: undefined as unknown }));
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const recovery = vi.hoisted(() => ({ current: { kind: 'none' } as RecoveryState }));
 vi.mock('../encryption/recoveryState', async (importActual) => ({
   ...(await importActual<typeof import('../encryption/recoveryState')>()),

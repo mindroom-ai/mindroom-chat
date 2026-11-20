@@ -62,9 +62,7 @@ export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
 export const genuineReplyEventId = (event: MatrixEvent): string | undefined => {
   const replyEventId = event.replyEventId;
   if (!replyEventId) return undefined;
-  const relation = event.getWireContent?.()?.['m.relates_to'] as
-    | { rel_type?: string; is_falling_back?: boolean }
-    | undefined;
+  const relation = event.getWireContent?.()?.['m.relates_to'];
   if (relation?.rel_type === RelationType.Thread && relation.is_falling_back) return undefined;
   return replyEventId;
 };

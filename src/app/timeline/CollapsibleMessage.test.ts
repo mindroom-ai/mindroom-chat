@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 vi.mock('./CollapsibleMessage.css', () => ({
   CollapsibleContainer: 'collapsible-container',
@@ -26,9 +26,9 @@ const createCollapsibleElement = React.createElement as unknown as (
   children: React.ComponentProps<typeof CollapsibleMessage>['children']
 ) => React.ReactElement;
 
-let resizeObserverConstructed: ReturnType<typeof vi.fn>;
+let resizeObserverConstructed: Mock;
 let lastResizeCallback: ResizeObserverCallback | null;
-let intersectionObserverConstructed: ReturnType<typeof vi.fn>;
+let intersectionObserverConstructed: Mock;
 let lastIntersectionCallback: IntersectionObserverCallback | null;
 
 class MockResizeObserver {

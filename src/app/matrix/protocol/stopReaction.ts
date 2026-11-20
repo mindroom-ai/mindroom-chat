@@ -32,7 +32,7 @@ export const isStaleStopReactionKey = (
   // A reply this device cannot read (yet) is stale unless the server says it streams.
   (isUnreadableYet(targetEvent)
     ? isStreamingByServer(targetEvent) !== true
-    : hasTerminalStreamMetadata((getReadableContent(targetEvent) as Record<string, unknown>) ?? {}));
+    : hasTerminalStreamMetadata(getReadableContent(targetEvent) ?? {}));
 
 export const getRenderableAnnotationsByKey = (
   relations: Relations | undefined,
@@ -54,5 +54,5 @@ export const isAgentStopButton = (
   !!targetEvent &&
   (isUnreadableYet(targetEvent)
     ? isStreamingByServer(targetEvent) === true
-    : isAiRunStreaming((getReadableContent(targetEvent) as Record<string, unknown>) ?? {})) &&
+    : isAiRunStreaming(getReadableContent(targetEvent) ?? {})) &&
   events.some((event) => event.getSender() === targetEvent.getSender());

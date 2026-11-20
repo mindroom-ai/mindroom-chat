@@ -7,6 +7,7 @@ import { AppleWatch } from './WatchSettings';
 
 const native = vi.hoisted(() => ({
   available: true,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   status: { paired: true, installed: true, reachable: true } as WatchStatus,
   signedIn: undefined as ((device: WatchDevice) => void) | undefined,
   signOut: vi.fn(async () => undefined),

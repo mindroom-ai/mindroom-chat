@@ -63,7 +63,7 @@ const getSerializedReplacementContent = (
 
   const replacementNewContent = replacement.content['m.new_content'];
   if (isRecord(replacementNewContent)) {
-    return replacementNewContent as IEventWithRoomId['content'];
+    return replacementNewContent;
   }
 
   return replacement.content;
@@ -75,7 +75,7 @@ export const getSearchResultEffectiveContent = (
   const relation = event.content?.['m.relates_to'];
   const inlineNewContent = event.content?.['m.new_content'];
   if (relation?.rel_type === RelationType.Replace && isRecord(inlineNewContent)) {
-    return inlineNewContent as IEventWithRoomId['content'];
+    return inlineNewContent;
   }
 
   const serializedReplacementContent = getSerializedReplacementContent(event);
@@ -84,7 +84,7 @@ export const getSearchResultEffectiveContent = (
   }
 
   if (isRecord(inlineNewContent)) {
-    return inlineNewContent as IEventWithRoomId['content'];
+    return inlineNewContent;
   }
 
   return event.content;
@@ -103,7 +103,7 @@ export const shouldUseLightweightSearchResultBody = (
     typeof content?.formatted_body === 'string' ? content.formatted_body : undefined;
 
   return (
-    shouldUseLongTextSearchResultBody(content as Record<string, unknown>) ||
+    shouldUseLongTextSearchResultBody(content) ||
     (typeof body === 'string' && body.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT) ||
     (typeof formattedBody === 'string' &&
       formattedBody.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT * 2)
