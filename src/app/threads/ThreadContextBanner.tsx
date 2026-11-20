@@ -244,7 +244,11 @@ export function ThreadContextBanner({
   // A phone always gets the phone layout, so it looks as before whatever its width or zoom. Other
   // screens get it when the banner is narrow: the tags and the pin move to More, and, unless the
   // screen is short and keeps one row, the title shows whole and the buttons can stack.
-  const narrow = useNarrowBanner(bannerRef, phone);
+  const measuredNarrow = useNarrowBanner(bannerRef, phone);
+  // The tags row's picker, open, keeps the banner wide until it closes, so the tag being typed
+  // stays (a phone shows no picker).
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const narrow = measuredNarrow && !tagPickerOpen;
   const short = useShortViewport();
   const compact = phone || narrow;
   const wholeTitle = phone || (narrow && !short);
@@ -598,6 +602,7 @@ export function ThreadContextBanner({
                           availableTags={headerModel.availableTags}
                           onAddTag={handleAddTag}
                           disabled={headerModel.pickerDisabled}
+                          onOpenChange={setTagPickerOpen}
                         />
                       )}
                     </div>

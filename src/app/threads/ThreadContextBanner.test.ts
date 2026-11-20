@@ -171,8 +171,15 @@ vi.mock('./tags/ThreadTagPill', () => ({
   ThreadTagPill: ({ name }: { name: string }) => React.createElement('span', null, name),
 }));
 
+const pickerProps = vi.hoisted(() => vi.fn());
+// Each time a picker mounts: one that mounts again loses the tag typed in it.
+const pickerMounts = vi.hoisted(() => vi.fn());
 vi.mock('./tags/ThreadTagPicker', () => ({
-  ThreadTagPicker: () => React.createElement('button', null, '+ tag'),
+  ThreadTagPicker: (props: unknown) => {
+    pickerProps(props);
+    React.useEffect(() => pickerMounts(), []);
+    return React.createElement('button', null, '+ tag');
+  },
 }));
 
 vi.mock('./ThreadContextBanner.css', () => ({
@@ -1328,6 +1335,30 @@ describe('ThreadContextBanner rendering', () => {
       banner.unmount();
     });
 
+    it('keeps the wide layout while its tag picker is open, and turns compact once it closes', () => {
+      let width = 646;
+      const resizeAll = observeResizes();
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width)
+      );
+      const picker = () =>
+        pickerProps.mock.calls.at(-1)![0] as { onOpenChange: (open: boolean) => void };
+      act(() => picker().onOpenChange(true));
+      pickerMounts.mockClear();
+      // Narrowed past 36rem while a tag is typed: the same picker, with its row.
+      width = 330;
+      resizeAll();
+      expect(buttons(banner)).toContain('+ tag');
+      expect(tagPills(banner)).toHaveLength(2);
+      expect(pickerMounts).not.toHaveBeenCalled();
+      // Closed, the banner takes the narrow layout.
+      act(() => picker().onOpenChange(false));
+      expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(title(banner).props.className).toBe('PhoneTitle');
+      banner.unmount();
+    });
+
     it('follows the short screen query at the same width', () => {
       let short = false;
       const screen = shortScreen(() => short);
@@ -1349,8 +1380,19 @@ describe('ThreadContextBanner rendering', () => {
       expect(screen.listeners.size).toBe(0);
     });
 
-    // A control of the banner's: connected until the banner drops it.
-    const control = () => ({ isConnected: true, focus: vi.fn(), disabled: false });
+    // A control of a banner's, in the page while `shown()` says the banner renders it.
+    const control = (shown: () => boolean = () => true) => ({
+      get isConnected() {
+        return shown();
+      },
+      focus: vi.fn(),
+      disabled: false,
+    });
+    // While the banner `renderer()` returns shows its Pin button.
+    const showsPin = (renderer: () => ReturnType<typeof renderBanner> | undefined) => () => {
+      const shown = renderer();
+      return !!shown && buttons(shown).includes('Pin thread');
+    };
     const nodesOf =
       (pin: ReturnType<typeof control>, more: ReturnType<typeof control>) =>
       (element: React.ReactElement) => {
@@ -1363,18 +1405,19 @@ describe('ThreadContextBanner rendering', () => {
     it('hands the focus to More when the control that had it leaves as the banner narrows', () => {
       let width = 646;
       const resizeAll = observeResizes();
-      const [pin, more] = [control(), control()];
+      const shown: ReturnType<typeof renderBanner>[] = [];
+      const [pin, more] = [control(showsPin(() => shown[0])), control()];
       const page = { documentElement: {}, activeElement: null as unknown };
       vi.stubGlobal('document', page);
       const banner = renderBanner(
         TITLE,
         bannerOf(() => width, nodesOf(pin, more))
       );
+      shown.push(banner);
       expect(buttons(banner)).toContain('Pin thread');
       // Pin has the focus and leaves the row.
       focusIn(banner, page, pin);
       width = 330;
-      pin.isConnected = false;
       resizeAll();
       expect(buttons(banner)).not.toContain('Pin thread');
       expect(more.focus).toHaveBeenCalledWith({ preventScroll: true });
@@ -1393,10 +1436,11 @@ describe('ThreadContextBanner rendering', () => {
     it('moves the focus only in the banner that had it when two narrow at once', () => {
       let width = 646;
       const resizeAll = observeResizes();
+      const shown: ReturnType<typeof renderBanner>[] = [];
       const [firstPin, firstMore, secondPin, secondMore] = [
+        control(showsPin(() => shown[0])),
         control(),
-        control(),
-        control(),
+        control(showsPin(() => shown[1])),
         control(),
       ];
       const page = { documentElement: {}, activeElement: null as unknown };
@@ -1409,11 +1453,10 @@ describe('ThreadContextBanner rendering', () => {
         TITLE,
         bannerOf(() => width, nodesOf(secondPin, secondMore))
       );
+      shown.push(first, second);
       focusIn(first, page, firstPin);
       // Page Zoom or a resize narrows both in one update; the first's Pin leaves with the focus.
       width = 330;
-      firstPin.isConnected = false;
-      secondPin.isConnected = false;
       resizeAll();
       expect(buttons(first)).not.toContain('Pin thread');
       expect(buttons(second)).not.toContain('Pin thread');
