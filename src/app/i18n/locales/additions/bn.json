@@ -865,7 +865,10 @@
         "nameChose": "{{name}} বেছে নিয়েছেন"
       },
       "mindroomReplyDetails": {
-        "subagents": "সাব-এজেন্ট"
+        "subagents": "সাব-এজেন্ট",
+        "writtenToCache": "ক্যাশে লেখা",
+        "notCached": "ক্যাশে নেই",
+        "conversation": "কথোপকথন"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} ধরে চলছে",

@@ -852,7 +852,10 @@
         "nameChose": "{{name}} 已选择"
       },
       "mindroomReplyDetails": {
-        "subagents": "子智能体"
+        "subagents": "子智能体",
+        "writtenToCache": "写入缓存",
+        "notCached": "未缓存",
+        "conversation": "对话"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已运行 {{duration}}",
