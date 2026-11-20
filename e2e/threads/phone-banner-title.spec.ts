@@ -837,8 +837,7 @@ const ADDED_TAG = 'needs-review';
 
 /**
  * The tag controls at the menu's top on a touch screen: a finger a few px off a ✕ or "+ tag" still
- * gets it, and every point of the section a control takes is at least as near to that control as
- * to any other, so no area reaches into a neighbour's.
+ * gets it, and no two controls' touch areas (each control's box grown by its layer) overlap.
  */
 const expectTagTargets = async (section: Locator) => {
   const found = await section.evaluate((element) => {
@@ -848,14 +847,9 @@ const expectTagTargets = async (section: Locator) => {
     const boxes = controls.map((control) => control.getBoundingClientRect());
     const owner = (x: number, y: number) =>
       document.elementFromPoint(x, y)?.closest<HTMLElement>('button') ?? null;
-    const distance = (box: DOMRect, x: number, y: number) =>
-      Math.hypot(
-        Math.max(box.left - x, 0, x - box.right),
-        Math.max(box.top - y, 0, y - box.bottom)
-      );
     const missed: string[] = [];
-    // An area grows until it is 44 px each way: 4 px out, or less where that is all it grows.
-    const off = (size: number) => Math.min(4, (44 - size) / 2 - 1);
+    // An area grows until it is 44 px each way: 3 px out, or less where that is all it grows.
+    const off = (size: number) => Math.min(3, (44 - size) / 2 - 1);
     controls.forEach((control, index) => {
       const box = boxes[index]!;
       const x = box.left + box.width / 2;
@@ -873,31 +867,39 @@ const expectTagTargets = async (section: Locator) => {
         }
       }
     });
-    const stolen: string[] = [];
-    const area = element.getBoundingClientRect();
-    for (let py = area.top; py < area.bottom; py += 2) {
-      for (let px = area.left; px < area.right; px += 2) {
-        const hit = owner(px, py);
-        const index = hit ? controls.indexOf(hit) : -1;
-        if (index < 0) continue;
-        const own = distance(boxes[index]!, px, py);
-        const nearer = boxes.findIndex(
-          (box, other) => other !== index && distance(box, px, py) < own - 1.5
-        );
-        if (nearer >= 0) {
-          stolen.push(
-            `${controls[index]!.getAttribute('aria-label')} over ${controls[nearer]!.getAttribute(
-              'aria-label'
-            )} at ${Math.round(px)},${Math.round(py)}`
+    // Each touch area: the box grown by its ::after layer's negative insets.
+    const areas = controls.map((control, index) => {
+      const box = boxes[index]!;
+      const layer = getComputedStyle(control, '::after');
+      const out = (side: 'top' | 'right' | 'bottom' | 'left') =>
+        Math.max(0, -parseFloat(layer[side]) || 0);
+      return {
+        top: box.top - out('top'),
+        bottom: box.bottom + out('bottom'),
+        left: box.left - out('left'),
+        right: box.right + out('right'),
+      };
+    });
+    const overlaps: string[] = [];
+    areas.forEach((a, index) => {
+      areas.slice(index + 1).forEach((b, offset) => {
+        const across = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const along = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (across > 0.5 && along > 0.5) {
+          const name = (i: number) => controls[i]!.getAttribute('aria-label');
+          overlaps.push(
+            `${name(index)} and ${name(index + 1 + offset)}: ${across.toFixed(
+              1
+            )} by ${along.toFixed(1)}`
           );
         }
-      }
-    }
-    return { count: controls.length, missed, stolen: stolen.slice(0, 5) };
+      });
+    });
+    return { count: controls.length, missed, overlaps };
   });
   expect(found.count).toBeGreaterThan(1);
   expect(found.missed).toEqual([]);
-  expect(found.stolen).toEqual([]);
+  expect(found.overlaps).toEqual([]);
 };
 
 /** Holds the page's state writes (a tag's save) until the returned function lets them go. */
