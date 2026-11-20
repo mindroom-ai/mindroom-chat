@@ -543,7 +543,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
+        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın.",
+        "thisApp": "Bu uygulama",
+        "mindroomAgents": "MindRoom ajanları"
       },
       "jumpToTime": {
         "unsupported": "Bu sunucu mesajları zamana göre arayamıyor.",

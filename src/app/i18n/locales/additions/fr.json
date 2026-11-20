@@ -552,7 +552,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} a échoué : {{reason}}",
         "usage": "Impossible d’exécuter {{command}}. {{usage}}",
-        "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain."
+        "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain.",
+        "thisApp": "Cette app",
+        "mindroomAgents": "Agents MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Ce serveur ne peut pas rechercher les messages par date.",

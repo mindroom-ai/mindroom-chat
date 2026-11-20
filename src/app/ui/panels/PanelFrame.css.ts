@@ -17,8 +17,13 @@ export const Strip = style({
   backgroundColor: color.Background.Container,
   color: color.Background.OnContainer,
 });
-// The panel's box gives its content its own width; the strip keeps its own.
-globalStyle(`${Panel} > :first-child > ${Strip}`, { flex: `0 0 ${STRIP_WIDTH}px` });
+// The panel's box gives its content its own width; the strip keeps its own, as its width too:
+// folded, the box takes the width of what it holds, and WebKit counts a flex item's width there,
+// not its flex basis.
+globalStyle(`${Panel} > :first-child > ${Strip}`, {
+  flex: `0 0 ${STRIP_WIDTH}px`,
+  width: STRIP_WIDTH,
+});
 // Folded, the box holds only the tab; the content stays mounted, out of sight.
 globalStyle(`${Panel}[data-folded] > :first-child > :not(${Strip})`, { display: 'none' });
 

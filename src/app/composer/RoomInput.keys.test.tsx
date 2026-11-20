@@ -348,7 +348,7 @@ describe('composer', () => {
     const withInvite = (run: SlashCommand['run']) => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        invite: { name: 'invite', description: 'Invite user to room.', run },
+        invite: { name: 'invite', source: 'app', description: 'Invite user to room.', run },
       } as Record<string, SlashCommand>;
     };
     const alerts = () =>
@@ -380,8 +380,16 @@ describe('composer', () => {
     it("sends a MindRoom command, which the room's agents answer, as a message", async () => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
-        list_schedules: { name: 'list_schedules', description: 'List all scheduled tasks.' },
+        schedule: {
+          name: 'schedule',
+          source: 'mindroom',
+          description: 'Schedule a task for later execution.',
+        },
+        list_schedules: {
+          name: 'list_schedules',
+          source: 'mindroom',
+          description: 'List all scheduled tasks.',
+        },
       } as Record<string, SlashCommand>;
       const schedule = [{ type: 'paragraph', children: [{ text: '/schedule in 5 min do x' }] }];
       expect(await pressEnterAfterMention(schedule)).toBe(true);
@@ -394,7 +402,11 @@ describe('composer', () => {
     it('sends a MindRoom command a phone keyboard capitalized, as typed', async () => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
+        schedule: {
+          name: 'schedule',
+          source: 'mindroom',
+          description: 'Schedule a task for later execution.',
+        },
       } as Record<string, SlashCommand>;
       const typedSchedule = [{ type: 'paragraph', children: [{ text: '/Schedule in 5 min x' }] }];
       expect(await pressEnterAfterMention(typedSchedule)).toBe(true);
@@ -404,7 +416,11 @@ describe('composer', () => {
     it('sends another spelling MindRoom reads of a command, as typed', async () => {
       state.mentionHasSuggestions = false;
       state.commands = {
-        auto_approve: { name: 'auto_approve', description: 'Auto-approve tool calls.' },
+        auto_approve: {
+          name: 'auto_approve',
+          source: 'mindroom',
+          description: 'Auto-approve tool calls.',
+        },
       } as Record<string, SlashCommand>;
       const autoApprove = [{ type: 'paragraph', children: [{ text: '/auto-approve off' }] }];
       expect(await pressEnterAfterMention(autoApprove)).toBe(true);
@@ -436,8 +452,19 @@ describe('composer', () => {
           ranIn.push(state.commandThread);
         };
         state.commands = {
-          greet: { name: 'greet', description: 'Greets.', run: greet, inThread: true },
-          invite: { name: 'invite', description: 'Invite user to room.', run: invite },
+          greet: {
+            name: 'greet',
+            source: 'app',
+            description: 'Greets.',
+            run: greet,
+            inThread: true,
+          },
+          invite: {
+            name: 'invite',
+            source: 'app',
+            description: 'Invite user to room.',
+            run: invite,
+          },
         };
       });
       /** A room whose message `LOCAL_ROOT` waits for the server, which gives it `$root`. */

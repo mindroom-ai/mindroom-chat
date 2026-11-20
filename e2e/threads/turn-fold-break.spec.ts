@@ -29,6 +29,8 @@ import {
 // on a click and folds them again from "Hide 5 messages". The person asks again, and the agent's
 // second turn still streams: it shows every message and no break. A run's reply answers its turn
 // though the run posted a caption and two images after it: they stay in view under the reply.
+// A card the reader opens never folds, and a wake-up from outside the thread (a comment on a
+// document, relayed for the person) starts its own turn: the turn before it keeps its reply.
 // Set TURN_FOLD_SHOTS=<directory> to save each state.
 const PASSWORD = 'turn-fold-break-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -182,6 +184,67 @@ const seedAttachments = async (name: string) => {
   return { reader, roomId, rootId, foldedIds, summaryId, captionId, imageIds };
 };
 
+const PLAN_REQUEST = 'Can you draft the quarterly plan from my notes?';
+const PLAN_REPLY =
+  'Here is the draft plan, with its budget and roster. Should the launch stay in April?';
+const CARDS = ['Quarterly plan', 'Budget sheet', 'Team roster'];
+const COMMENT = 'Sent for Sam Lee: Sam commented on Quarterly plan: “Move the launch to May.”';
+const COMMENT_REPLY = 'Moved the launch to May in the plan and the roster.';
+const BUDGET_REQUEST = 'Check the budget against last quarter too.';
+const BUDGET_NOTES = ['Reading the budget sheet.', 'Comparing it with last quarter.'];
+const BUDGET_REPLY = 'The budget is 4% under last quarter, mostly from travel.';
+
+/**
+ * A person asks; the agent's run replies and posts three canvas cards. A comment on the plan wakes
+ * it from outside the thread, relayed for the person, and it answers. The person asks again; the
+ * agent works around a fourth card and replies.
+ */
+const seedCards = async (name: string) => {
+  const { reader, agent, roomId, send } = await seedRoom(`${name}_cards`);
+  const rootId = await send(reader, { msgtype: 'm.text', body: PLAN_REQUEST });
+  let previousId = rootId;
+  const sends = async (session: MatrixSession, content: Record<string, unknown>) => {
+    previousId = await send(session, { ...content, ...inThread(rootId, previousId) });
+    return previousId;
+  };
+  const card = (title: string) =>
+    sends(agent, {
+      msgtype: 'm.notice',
+      body: 'Open it in MindRoom Chat',
+      'io.mindroom.ui_action': {
+        version: 1,
+        action: 'show_canvas',
+        requester_id: reader.userId,
+        agent_user_id: agent.userId,
+        room_id: roomId,
+        thread_id: rootId,
+        canvas: { title, html: `<h1>${title}</h1>` },
+      },
+    });
+  const replyId = await sends(agent, { msgtype: 'm.text', body: PLAN_REPLY, ...AI_RUN });
+  const cardIds: string[] = [];
+  for (const title of CARDS) cardIds.push(await card(title));
+  const relayId = await sends(agent, {
+    msgtype: 'm.text',
+    body: COMMENT,
+    'com.mindroom.source_kind': 'hook',
+    'com.mindroom.original_sender': reader.userId,
+  });
+  const commentReplyId = await sends(agent, { msgtype: 'm.text', body: COMMENT_REPLY, ...AI_RUN });
+  await sends(reader, { msgtype: 'm.text', body: BUDGET_REQUEST });
+  const foldedIds = [await sends(agent, { msgtype: 'm.text', body: BUDGET_NOTES[0] })];
+  const keptCardId = await card('Budget sheet');
+  foldedIds.push(await sends(agent, { msgtype: 'm.text', body: BUDGET_NOTES[1] }));
+  const budgetReplyId = await sends(agent, { msgtype: 'm.text', body: BUDGET_REPLY, ...AI_RUN });
+  return {
+    reader,
+    roomId,
+    rootId,
+    shownIds: [replyId, ...cardIds, relayId, commentReplyId, keptCardId, budgetReplyId],
+    foldedIds,
+  };
+};
+
 const shot = async (page: Page, name: string) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
 };
@@ -279,6 +342,40 @@ const checkAttachments = async (
   }
 };
 
+const checkCards = async (
+  browser: Browser,
+  options: BrowserContextOptions,
+  baseURL: string | undefined,
+  name: string
+) => {
+  const { reader, roomId, rootId, shownIds, foldedIds } = await seedCards(name);
+  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
+    await seedRoomOverviewState({ page, roomId, userId: reader.userId, viewMode: 'threaded' });
+    await page.goto(`/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`);
+
+    const row = (id: string) => page.locator(`[data-message-id="${id}"]`);
+    await expect(row(rootId)).toContainText(PLAN_REQUEST, { timeout: 60_000 });
+    await expect(row(shownIds.at(-1)!)).toContainText(BUDGET_REPLY, { timeout: 60_000 });
+    await shot(page, `${name}-cards`);
+
+    // Only the second turn folds, its two notes; its card shows below the break.
+    const breaks = page.locator('[data-turn-break]');
+    await expect(breaks).toHaveCount(1);
+    await expect(breaks.getByRole('button')).toHaveText('···2 earlier messages···');
+    for (const id of foldedIds) await expect(row(id)).toHaveCount(0);
+    for (const id of shownIds) await expect(row(id)).toBeVisible();
+  } finally {
+    await context.close();
+  }
+};
+
 const DESKTOP: BrowserContextOptions = {
   viewport: { width: 1280, height: 800 },
   colorScheme: 'dark',
@@ -302,6 +399,18 @@ test.beforeEach(async () => {
     `No homeserver at ${HOMESERVER}; run \`just hs-up\``
   );
   test.setTimeout(180_000);
+});
+
+test('cards stay in view, and a wake-up from outside the thread starts its own turn (Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
+  await checkCards(
+    browser,
+    { ...DESKTOP, viewport: { width: 1280, height: 1500 } },
+    baseURL,
+    'desktop'
+  );
 });
 
 for (const [form, options] of [
