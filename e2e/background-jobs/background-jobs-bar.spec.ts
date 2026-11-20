@@ -334,11 +334,9 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   expect(singleBox && singleBox.x + singleBox.width).toBeLessThanOrEqual(390);
   await expect(single.getByRole('button', { name: `Stop task: ${longName}` })).toBeInViewport();
 
-  // When the last job ends, the bar goes away, once it held the finished job for a moment: no job
-  // row is left, folded or listed, whatever the bar's title named.
+  // When the last job ends, the bar goes away, once it held the finished job for a moment: no bar
+  // is left, whatever its title named.
   await publish(coder, []);
   await publish(researcher, []);
-  await expect(page.locator('[data-job-folded], li[data-job-kind]')).toHaveCount(0, {
-    timeout: 15_000,
-  });
+  await expect(page.locator('[data-jobs-bar]')).toHaveCount(0, { timeout: 15_000 });
 });

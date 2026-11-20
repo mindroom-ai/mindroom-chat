@@ -313,6 +313,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
         )}
         role="region"
         aria-label={model.title}
+        data-jobs-bar=""
         onPointerLeave={(event: React.PointerEvent) => {
           if (event.pointerType !== 'mouse') return;
           window.clearTimeout(hoverTimer.current);
