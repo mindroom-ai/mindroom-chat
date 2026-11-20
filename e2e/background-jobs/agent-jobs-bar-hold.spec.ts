@@ -34,7 +34,7 @@ const VIEWPORTS = [
   { name: 'desktop', viewport: { width: 1280, height: 800 }, hasTouch: false },
   { name: 'phone', viewport: { width: 390, height: 844 }, hasTouch: true },
 ];
-const RUNNING = 'Running: Running a command';
+const RUNNING = 'Running a command';
 const FINISHED = 'Finished: Running a command';
 const PAUSE_FINISHED = /Finished \W*pause/;
 

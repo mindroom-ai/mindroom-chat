@@ -1061,6 +1061,7 @@
       },
       "stopTask": "停止任务",
       "stopTaskFor": "停止任务：{{tool}}",
+      "stopStepFailed": "无法停止“{{step}}”，请重试。",
       "jobTotal_other": "{{count}} 个后台任务",
       "jobTotalFinished_other": "{{count}} 个后台任务已完成"
     },

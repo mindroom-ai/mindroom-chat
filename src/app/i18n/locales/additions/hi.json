@@ -1085,6 +1085,7 @@
       },
       "stopTask": "कार्य रोकें",
       "stopTaskFor": "कार्य रोकें: {{tool}}",
+      "stopStepFailed": "“{{step}}” रोका नहीं जा सका। फिर से कोशिश करें।",
       "jobTotal_one": "{{count}} बैकग्राउंड कार्य",
       "jobTotal_other": "{{count}} बैकग्राउंड कार्य",
       "jobTotalFinished_one": "{{count}} बैकग्राउंड कार्य पूरे हुए",

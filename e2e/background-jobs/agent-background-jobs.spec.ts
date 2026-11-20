@@ -36,7 +36,7 @@ test('a running background job shows in the jobs bar until its Stop button cance
   const rootId = await startThread(stack, `${uniqueWord('job')} #job`);
   await showThread(page, stack, rootId);
 
-  const bar = page.getByRole('region', { name: 'Running: Running a command' });
+  const bar = page.getByRole('region', { name: 'Running a command', exact: true });
   await expect(bar).toBeVisible({ timeout: 120_000 });
   await expect
     .poll(async () => (await threadJobs(stack, rootId)).map((job) => job.status))

@@ -1109,6 +1109,7 @@
       },
       "stopTask": "Arrêter la tâche",
       "stopTaskFor": "Arrêter la tâche : {{tool}}",
+      "stopStepFailed": "Impossible d’arrêter « {{step}} ». Réessayez.",
       "jobTotal_one": "{{count}} tâche en arrière-plan",
       "jobTotal_many": "{{count}} tâches en arrière-plan",
       "jobTotal_other": "{{count}} tâches en arrière-plan",

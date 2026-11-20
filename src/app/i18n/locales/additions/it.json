@@ -1109,6 +1109,7 @@
       },
       "stopTask": "Ferma attività",
       "stopTaskFor": "Ferma attività: {{tool}}",
+      "stopStepFailed": "Impossibile interrompere «{{step}}». Riprova.",
       "jobTotal_one": "{{count}} attività in background",
       "jobTotal_many": "{{count}} attività in background",
       "jobTotal_other": "{{count}} attività in background",

@@ -328,7 +328,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   // A single job with a long name keeps its title and its Stop on screen too.
   await publish(coder, []);
   await publish(researcher, [job('job_5', fixture.rootId, longTool)]);
-  const single = page.getByRole('region', { name: `Running: ${longName}` });
+  const single = page.getByRole('region', { name: longName, exact: true });
   await expect(single).toBeVisible();
   const singleBox = await single.boundingBox();
   expect(singleBox && singleBox.x + singleBox.width).toBeLessThanOrEqual(390);

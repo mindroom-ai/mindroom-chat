@@ -1085,6 +1085,7 @@
       },
       "stopTask": "Stop task",
       "stopTaskFor": "Stop task: {{tool}}",
+      "stopStepFailed": "Couldn't stop “{{step}}”. Try again.",
       "jobTotal_one": "{{count}} background job",
       "jobTotal_other": "{{count}} background jobs",
       "jobTotalFinished_one": "{{count}} background job finished",

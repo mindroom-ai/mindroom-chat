@@ -1133,6 +1133,7 @@
       },
       "stopTask": "Остановить задачу",
       "stopTaskFor": "Остановить задачу: {{tool}}",
+      "stopStepFailed": "Не удалось остановить «{{step}}». Попробуйте ещё раз.",
       "jobTotal_one": "Фоновых задач: {{count}}",
       "jobTotal_few": "Фоновых задач: {{count}}",
       "jobTotal_many": "Фоновых задач: {{count}}",

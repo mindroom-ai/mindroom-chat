@@ -1109,6 +1109,7 @@
       },
       "stopTask": "Detener tarea",
       "stopTaskFor": "Detener tarea: {{tool}}",
+      "stopStepFailed": "No se pudo detener «{{step}}». Inténtalo de nuevo.",
       "jobTotal_one": "{{count}} tarea en segundo plano",
       "jobTotal_many": "{{count}} tareas en segundo plano",
       "jobTotal_other": "{{count}} tareas en segundo plano",

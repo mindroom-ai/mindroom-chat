@@ -1061,6 +1061,7 @@
       },
       "stopTask": "작업 중지",
       "stopTaskFor": "작업 중지: {{tool}}",
+      "stopStepFailed": "‘{{step}}’을(를) 중지하지 못했습니다. 다시 시도하세요.",
       "jobTotal_other": "백그라운드 작업 {{count}}개",
       "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
     },

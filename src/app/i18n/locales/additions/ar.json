@@ -1181,6 +1181,7 @@
       },
       "stopTask": "إيقاف المهمة",
       "stopTaskFor": "إيقاف المهمة: ⁨{{tool}}⁩",
+      "stopStepFailed": "تعذّر إيقاف «⁨{{step}}⁩». حاول مرة أخرى.",
       "jobTotal_zero": "مهام في الخلفية: ⁨{{count}}⁩",
       "jobTotal_one": "مهام في الخلفية: ⁨{{count}}⁩",
       "jobTotal_two": "مهام في الخلفية: ⁨{{count}}⁩",

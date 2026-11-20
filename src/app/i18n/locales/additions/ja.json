@@ -1061,6 +1061,7 @@
       },
       "stopTask": "タスクを停止",
       "stopTaskFor": "タスクを停止：{{tool}}",
+      "stopStepFailed": "「{{step}}」を停止できませんでした。もう一度お試しください。",
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
       "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
     },

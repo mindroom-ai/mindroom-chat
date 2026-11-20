@@ -1085,6 +1085,7 @@
       },
       "stopTask": "Taak stoppen",
       "stopTaskFor": "Taak stoppen: {{tool}}",
+      "stopStepFailed": "Kon “{{step}}” niet stoppen. Probeer het opnieuw.",
       "jobTotal_one": "{{count}} achtergrondtaak",
       "jobTotal_other": "{{count}} achtergrondtaken",
       "jobTotalFinished_one": "{{count}} achtergrondtaak voltooid",

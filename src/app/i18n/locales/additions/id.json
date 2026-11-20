@@ -1061,6 +1061,7 @@
       },
       "stopTask": "Hentikan tugas",
       "stopTaskFor": "Hentikan tugas: {{tool}}",
+      "stopStepFailed": "Tidak dapat menghentikan “{{step}}”. Coba lagi.",
       "jobTotal_other": "{{count}} tugas latar belakang",
       "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
     },

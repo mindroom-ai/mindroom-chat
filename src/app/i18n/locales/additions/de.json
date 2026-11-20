@@ -1085,6 +1085,7 @@
       },
       "stopTask": "Aufgabe stoppen",
       "stopTaskFor": "Aufgabe stoppen: {{tool}}",
+      "stopStepFailed": "„{{step}}“ konnte nicht gestoppt werden. Versuche es erneut.",
       "jobTotal_one": "{{count}} Hintergrundaufgabe",
       "jobTotal_other": "{{count}} Hintergrundaufgaben",
       "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",

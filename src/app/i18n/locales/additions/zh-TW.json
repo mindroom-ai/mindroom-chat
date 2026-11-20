@@ -1061,6 +1061,7 @@
       },
       "stopTask": "停止任務",
       "stopTaskFor": "停止任務：{{tool}}",
+      "stopStepFailed": "無法停止「{{step}}」，請再試一次。",
       "jobTotal_other": "{{count}} 個背景工作",
       "jobTotalFinished_other": "{{count}} 個背景工作已完成"
     },

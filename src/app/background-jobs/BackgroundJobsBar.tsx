@@ -194,11 +194,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   };
   const stopJob = (item: BackgroundJobsBarItem, pressed: HTMLElement) => {
     focusNextCancel(pressed);
-    void cancel(
-      { jobId: item.jobId },
-      [item.jobId],
-      t('mindroomUi.backgroundJobs.stopFailed', { tool: shownJobName(item, details, t) })
-    );
+    // A tool job named in words is quoted, as a phrase within the sentence.
+    const failure =
+      !details && !item.subagent
+        ? t('mindroomUi.backgroundJobs.stopStepFailed', { step: shownJobName(item, details, t) })
+        : t('mindroomUi.backgroundJobs.stopFailed', { tool: item.name });
+    void cancel({ jobId: item.jobId }, [item.jobId], failure);
   };
   const stopAll = () => {
     bar.current?.focus();

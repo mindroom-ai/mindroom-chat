@@ -1109,6 +1109,7 @@
       },
       "stopTask": "Parar tarefa",
       "stopTaskFor": "Parar tarefa: {{tool}}",
+      "stopStepFailed": "Não foi possível parar “{{step}}”. Tente novamente.",
       "jobTotal_one": "{{count}} tarefa em segundo plano",
       "jobTotal_many": "{{count}} tarefas em segundo plano",
       "jobTotal_other": "{{count}} tarefas em segundo plano",

@@ -195,8 +195,8 @@ it('renders nothing without jobs', () => {
 it('shows one job folded as its row on the title line, which lists it as several do', () => {
   state.jobs = [job('a')];
   render();
-  // Without the usage details, the bar's title names it as its row does, in words.
-  expect(title()).toBe(tr('mindroomUi.backgroundJobs.running', { tool: using('tool a') }));
+  // Without the usage details, the bar's title is what it does, in words, as its row's headline.
+  expect(title()).toBe(using('tool a'));
   // How it stands is said apart, since its row's title is the job itself.
   expect(container.querySelector('[role="status"]')?.textContent).toBe(title());
   // With them, by its tool.
@@ -539,7 +539,7 @@ it('keeps the error of a job still listed when a cancel of a job that ended fail
   render();
   await act(async () => fails[0]!(new Error('offline')));
   expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-    tr('mindroomUi.backgroundJobs.stopFailed', { tool: using('tool b') })
+    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: using('tool b') })
   );
 });
 
@@ -1181,7 +1181,17 @@ it('restores the button and shows an error when the send fails', async () => {
   });
   expect(container.textContent).not.toContain('mindroomUi.backgroundJobs.stopping');
   expect(button(cancelA)).toBeDefined();
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('stopFailed');
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.stopStepFailed', { step: using('tool a') })
+  );
+  // With the usage details, it names its tool.
+  act(() => showUsageDetails());
+  await act(async () => {
+    button('mindroomUi.backgroundJobs.stopTaskFor{"tool":"tool_a"}')?.click();
+  });
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    'mindroomUi.backgroundJobs.stopFailed{"tool":"tool_a"}'
+  );
 });
 
 it('says the jobs could not be stopped when Stop all fails', async () => {
