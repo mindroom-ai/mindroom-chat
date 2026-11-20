@@ -447,8 +447,13 @@ const expectHitAreasApart = async (page: Page) => {
       const x = box.left + box.width / 2;
       const y = box.top + box.height / 2;
       const full = Math.max(22, box.height / 2);
-      const above = boxes.find((other) => sameColumn(other, box) && other.bottom <= box.top);
-      const below = boxes.find((other) => sameColumn(other, box) && other.top >= box.bottom);
+      // The nearest button right above and right below, if any.
+      const above = boxes
+        .filter((other) => sameColumn(other, box) && other.bottom <= box.top)
+        .sort((a, b) => b.bottom - a.bottom)[0];
+      const below = boxes
+        .filter((other) => sameColumn(other, box) && other.top >= box.bottom)
+        .sort((a, b) => a.top - b.top)[0];
       const reachUp = above ? box.height / 2 + (box.top - above.bottom) / 2 : full;
       const reachDown = below ? box.height / 2 + (below.top - box.bottom) / 2 : full;
       const reachX = Math.max(18, box.width / 2) - 1;
