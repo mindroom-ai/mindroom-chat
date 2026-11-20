@@ -231,8 +231,10 @@ export const useTimelineScrollLedgerController = ({
   // holds all its rows too. So do the rows a room window's page mounts above the reader: rows it
   // drops below the reader leave a list its render already ends higher, and counting the fold as
   // shrink threw a reader at the newest row to the top when a page landed a screen above them.
-  // The corrections the ledger takes for a thread's rows that changed size above the reader's view
-  // count too: the list's next render takes their new size. They wait in `droppedRowFoldPxRef`
+  // The corrections the ledger takes for rows that changed size above the reader's view count
+  // too, a thread's and the room's: the list's next render takes their new size. Left out, a
+  // room's read as shrink, and the end clamp pulled a reader at the newest row up by them while
+  // a splitter's drag wrapped the rows above anew. They wait in `droppedRowFoldPxRef`
   // until the render that paints their margin, so the margin and this part change together.
   // The content above a thread's rows is left out: it is outside the list.
   const rowFoldPxRef = useRef(0);
@@ -944,7 +946,7 @@ export const useTimelineScrollLedgerController = ({
       isIOSWebKitDevice,
       onDroppedCorrection: (deltaPx) => {
         dropped = true;
-        if (threadId) droppedRowFoldPxRef.current += deltaPx;
+        droppedRowFoldPxRef.current += deltaPx;
         handleDroppedCorrection(deltaPx);
       },
       shouldDeferAutomaticFillCorrection: (item) =>
@@ -983,7 +985,6 @@ export const useTimelineScrollLedgerController = ({
     itemCount,
     readerTopOffset,
     renderRowMoveBeforePaint,
-    threadId,
     unrenderedCorrectionPx,
     unrenderedEndCorrectionPx,
     virtualizer,
