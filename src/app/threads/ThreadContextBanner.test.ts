@@ -771,7 +771,7 @@ describe('ThreadContextBanner rendering', () => {
         });
         const title = part('title');
         const actions = part('actions');
-        lastRow = {
+        const node = {
           getBoundingClientRect: () => ({ width }),
           classList: {
             add: (name: string) => classes.add(name),
@@ -790,7 +790,8 @@ describe('ThreadContextBanner rendering', () => {
           querySelector: (selector: string) =>
             ({ ':scope > .TitleColumn': title, ':scope > .RowActions': actions }[selector] ?? null),
         };
-        return lastRow;
+        lastRow = node;
+        return node;
       };
 
     it('puts a title under the buttons after them in the tab order, as on the screen', () => {
