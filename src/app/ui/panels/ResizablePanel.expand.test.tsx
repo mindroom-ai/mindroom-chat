@@ -21,18 +21,19 @@ class TestPointerEvent extends MouseEvent {
 }
 
 /**
- * At the end of a 1000 px row that keeps 360 px for the conversation: the panel is at most 600 px
- * wide (or `maxPanelWidth`), and stays so as a drag goes on over the conversation. It starts 400 px
- * wide.
+ * At the end of a 1000 px row (or `rowWidth`) that keeps 360 px for the conversation: the panel is
+ * at most 600 px wide (or `maxPanelWidth`), and stays so as a drag goes on over the conversation. It
+ * starts 400 px wide.
  */
 const renderPanel = ({
   framed = true,
   maxPanelWidth,
-}: { framed?: boolean; maxPanelWidth?: number } = {}) => {
+  rowWidth = 1000,
+}: { framed?: boolean; maxPanelWidth?: number; rowWidth?: number } = {}) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
   const onCollapse = vi.fn();
   const row = document.body.appendChild(document.createElement('div'));
-  Object.defineProperty(row, 'clientWidth', { value: 1000 });
+  Object.defineProperty(row, 'clientWidth', { value: rowWidth });
   render(
     <PanelFrameProvider
       value={framed ? { label: 'Notes', layout: 'beside', setLayout } : undefined}
@@ -153,13 +154,17 @@ describe('dragging a side panel past its widest', () => {
     expect(stored()).toBe(400);
   });
 
-  it('with no cap of its own, grows until the conversation keeps its minimum, then fills', () => {
-    const { setLayout } = renderPanel({ maxPanelWidth: SIDE_PANEL_MAX_WIDTH });
-    dragTo(670);
-    expect(screen.getByTestId('panel').style.width).toBe('640px');
+  it('on a wide row, grows past the old 1600 px caps until the conversation keeps 360 px, then fills', () => {
+    const { setLayout } = renderPanel({ maxPanelWidth: SIDE_PANEL_MAX_WIDTH, rowWidth: 2400 });
+    dragTo(1800);
+    expect(screen.getByTestId('panel').style.width).toBe('1800px');
     expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
-    fireEvent.pointerMove(separator(), { clientX: 500 - (700 - 400) });
-    expect(screen.getByTestId('panel').style.width).toBe('640px');
+    // 2400 - 360: it stops where the conversation keeps its minimum, and fills only 40 px past that.
+    fireEvent.pointerMove(separator(), { clientX: 500 - (2040 + 39 - 400) });
+    expect(screen.getByTestId('panel').style.width).toBe('2040px');
+    expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
+    fireEvent.pointerMove(separator(), { clientX: 500 - (2040 + 60 - 400) });
+    expect(screen.getByTestId('panel').style.width).toBe('2040px');
     expect(screen.getByTestId('panel').dataset.expandPreview).toBe('true');
     release();
     expect(setLayout.mock.calls).toEqual([['filled']]);
