@@ -966,6 +966,7 @@ export const useTimelineScrollLedgerController = ({
       threadLedgerAnchorRef.current = undefined;
       roomLedgerAnchorRef.current = undefined;
       ledgerBoundaryScrollTopRef.current = undefined;
+      settledScrollTopRef.current = undefined;
       settleDiscardWatchRef.current = undefined;
     }
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange = measurementScrollCorrectionHook;
