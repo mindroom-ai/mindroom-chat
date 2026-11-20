@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { atom, useAtomValue } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { config, Text, Tooltip, TooltipProvider } from 'folds';
+import { config, Text, Tooltip } from 'folds';
 import { ThreadIndicator, type ThreadIndicatorUnread } from '../messages/ThreadIndicator';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { buildThreadBadgeViewModelFromRecord } from '../threads/threadBadgeViewModel';
@@ -18,7 +18,7 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
-import { revealDirectionControls } from '../ui/directional';
+import { revealDirectionControls, TooltipProvider } from '../ui/directional';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 
 // Read-only, so it holds nothing an account could leave behind.

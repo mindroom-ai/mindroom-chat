@@ -63,11 +63,10 @@ export const ThreadIndicatorTitle = style({ fontWeight: 600 });
 
 export const ThreadIndicatorMetadata = style({
   ...inlineRow,
-  display: 'inline-flex',
+  gap: config.space.S100,
   verticalAlign: 'middle',
   marginInlineStart: config.space.S100,
   whiteSpace: 'nowrap',
-  fontWeight: 500,
   opacity: 0.8,
 });
 
@@ -119,6 +118,9 @@ export const ThreadIndicatorLabel = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
+  selectors: {
+    [`${ThreadIndicatorTitled} &`]: { fontWeight: 500 },
+  },
 });
 
 export const ThreadParticipants = style({
