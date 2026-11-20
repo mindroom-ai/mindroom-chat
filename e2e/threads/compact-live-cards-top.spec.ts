@@ -37,7 +37,8 @@ import {
 // went to Working) leaves them where they are too, on the desktop in Chromium: from below the
 // view, with and without motion, in sections under the Needs you header, from the view itself,
 // when it only swaps with the card that leads the view, and when several move at once as a
-// resting pointer lets their order go.
+// resting pointer lets their order go: three from below the view, or the three under the first
+// two cards, which then stand above those two.
 const PASSWORD = 'compact-live-cards-top-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.COMPACT_LIVE_SHOTS;
@@ -379,7 +380,7 @@ const leadWatch = (page: Page) =>
     return { first, furthest, now: read() };
   });
 
-type Move = 'below' | 'below-reduced' | 'sections' | 'in-view' | 'swap' | 'release';
+type Move = 'below' | 'below-reduced' | 'sections' | 'in-view' | 'swap' | 'release' | 'rotate';
 
 /**
  * A reader scrolled down the list, the pointer away from it: a card moves up past the cards in
@@ -450,8 +451,8 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       // eslint-disable-next-line no-await-in-loop
       await page.waitForTimeout(400);
     }
-    // A swap: the first card still leads the view, cut by 30 px.
-    await scrollList(page, move === 'swap' ? 30 : 700);
+    // A swap, and three cards that rotate above two: the first card leads the view, cut by 30 px.
+    await scrollList(page, move === 'swap' || move === 'rotate' ? 30 : 700);
   }
   await page.waitForTimeout(300);
 
@@ -464,10 +465,17 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
       .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
   });
-  const inView = move === 'in-view' || move === 'swap';
-  const mover = (inView ? shown[move === 'swap' ? 1 : 3] : rootIds[0]) ?? '';
-  // Let go of a held order, the three oldest threads' cards move at once.
-  const movers = move === 'release' ? rootIds.slice(0, 3) : [mover];
+  const inView = move === 'in-view' || move === 'swap' || move === 'rotate';
+  // Let go of a held order, three cards move at once: the three oldest threads', or the third to
+  // fifth card in view, the fifth first, so they keep their order above the first two.
+  const held = move === 'release' || move === 'rotate';
+  const movers =
+    move === 'release'
+      ? rootIds.slice(0, 3)
+      : move === 'rotate'
+      ? [shown[4] ?? '', shown[3] ?? '', shown[2] ?? '']
+      : [(inView ? shown[move === 'swap' ? 1 : 3] : rootIds[0]) ?? ''];
+  const mover = movers[0] ?? '';
   const start = await watchLead(page, mover);
   const { before } = start;
   expect(before.scrollTop, `${move}: the list is scrolled`).toBeGreaterThan(0);
@@ -491,11 +499,11 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     await expect(sectionHeader(page, 'working')).toHaveText(new RegExp(`· ${WORKING + 1}$`), {
       timeout: 30_000,
     });
-  } else if (move === 'release') {
+  } else if (held) {
     // The pointer rests on a card in view, which holds the order, while each of the three
     // threads gets a reply. A mouse at rest lets go after three seconds, so it moves a little
     // before each reply.
-    const box = (await cardOf(page, shown[2] ?? '').boundingBox())!;
+    const box = (await cardOf(page, shown[move === 'rotate' ? 6 : 2] ?? '').boundingBox())!;
     const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     for (const [index, rootId] of movers.entries()) {
       // eslint-disable-next-line no-await-in-loop
@@ -607,6 +615,10 @@ test.describe('a card moves up past the cards in view (Chromium, desktop)', () =
       [
         'release',
         'three cards that move up at once, a held order let go, leave the cards in view in place',
+      ],
+      [
+        'rotate',
+        'the three cards under the first two move above them at once, and the first, cut at the top, stays in place',
       ],
     ] as const
   ).entries()) {
