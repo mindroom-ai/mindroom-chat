@@ -81,7 +81,8 @@ describe('a splitter drag', () => {
       </>,
       { wrapper: React.StrictMode }
     );
-    const [first, second] = view.getAllByRole('separator');
+    const first = view.getByTestId('first').querySelector('[role="separator"]')!;
+    const second = view.getByTestId('second').querySelector('[role="separator"]')!;
     // A mouse and a pen are each primary for their own kind of pointer.
     fireEvent.pointerDown(first, { clientX: 500, button: 0, pointerId: 1 });
     fireEvent.pointerDown(second, { clientX: 500, button: 0, pointerId: 2 });
