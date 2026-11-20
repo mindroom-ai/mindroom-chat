@@ -290,7 +290,8 @@ export function ResizablePanel({
       return;
     }
     setPreviewWidth(undefined);
-    if (commit && expand && phase !== 'exit' && drag.width > maxWidth + EXPAND_PAST) {
+    // Only a release the panel showed it would fill does.
+    if (commit && expand && expandOnRelease) {
       // The stored width stays, for the panel to come back to it beside the content.
       expand();
       return;
