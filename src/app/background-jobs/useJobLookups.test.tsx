@@ -205,7 +205,8 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
     run: string,
     md: string,
     task = 'Task',
-    tools: { type: string; tool_name: string }[] = []
+    tools: { type: string; tool_name: string }[] = [],
+    toolCalls?: number
   ) => ({
     run,
     sid: SID,
@@ -222,6 +223,9 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
       startedAt: 1,
       endedAt: null,
       task,
+      ...(toolCalls === undefined
+        ? {}
+        : { usage: { inputTokens: 10, outputTokens: 5, toolCalls } }),
     },
     snapshot: { md, reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
   });
@@ -229,9 +233,17 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
     run: string,
     md: string,
     task?: string,
-    tools?: { type: string; tool_name: string }[]
+    tools?: { type: string; tool_name: string }[],
+    toolCalls?: number
   ) =>
-    act(() => getSubagentRunStore(mx as never).ingest(ROOM, AGENT, frame(run, md, task, tools), 0));
+    act(() =>
+      getSubagentRunStore(mx as never).ingest(
+        ROOM,
+        AGENT,
+        frame(run, md, task, tools, toolCalls),
+        0
+      )
+    );
   const jobs: BackgroundJob[] = [
     {
       jobId: 'job_1',
@@ -246,9 +258,9 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
     },
   ];
   let renders = 0;
-  function Probe({ listed = true }: { listed?: boolean }) {
+  function Probe({ listed = true, details = true }: { listed?: boolean; details?: boolean }) {
     renders += 1;
-    const { runs } = useJobLookups(roomOf({}), jobs, listed);
+    const { runs } = useJobLookups(roomOf({}), jobs, listed, details);
     return <span>{runs.map((run) => run.meta.task).join()}</span>;
   }
   act(() => root.render(<Probe />));
@@ -273,16 +285,36 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
   ingest('mine', 'Hi there', 'New task\nwith tests');
   expect(renders).toBeGreaterThan(before);
 
-  // Rows that say no calls (the usage details off, or the list folded) render for no new call.
+  // A folded list with the usage details on renders for a new call's count, not for the call.
   act(() => root.render(<Probe listed={false} />));
-  const quiet = renders;
+  const folded = renders;
   ingest('mine', 'Hi there', 'New task\nwith tests', [
     { type: 'tool_call_started', tool_name: 'grep' },
   ]);
-  ingest('mine', 'Hi there', 'New task\nwith tests', [
-    { type: 'tool_call_completed', tool_name: 'grep' },
-    { type: 'tool_call_started', tool_name: 'write_file' },
-  ]);
+  expect(renders).toBe(folded);
+  ingest('mine', 'Hi there', 'New task\nwith tests', [], 1);
+  expect(renders).toBeGreaterThan(folded);
+
+  // Without the usage details, a new call renders nothing: not the call, not its count.
+  act(() => root.render(<Probe listed={false} details={false} />));
+  const quiet = renders;
+  ingest(
+    'mine',
+    'Hi there',
+    'New task\nwith tests',
+    [{ type: 'tool_call_started', tool_name: 'grep' }],
+    2
+  );
+  ingest(
+    'mine',
+    'Hi there',
+    'New task\nwith tests',
+    [
+      { type: 'tool_call_completed', tool_name: 'grep' },
+      { type: 'tool_call_started', tool_name: 'write_file' },
+    ],
+    3
+  );
   expect(renders).toBe(quiet);
   // What they do show still renders.
   ingest('mine', 'Hi there', 'Newer task');

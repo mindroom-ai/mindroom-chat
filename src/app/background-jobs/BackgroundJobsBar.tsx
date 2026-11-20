@@ -91,7 +91,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   // Only rows on show follow the jobs' calls (a tool job's in its reply, a sub-agent's current one):
   // the listed ones, or the folded bar's one job, and only with the usage details, as only they show
   // a call.
-  const lookups = useJobLookups(room, jobs, details && (expanded || !several));
+  const lookups = useJobLookups(room, jobs, details && (expanded || !several), details);
   // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
   const ended = useRef(new Map<string, number>()).current;
   const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
