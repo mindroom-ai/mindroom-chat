@@ -140,6 +140,32 @@ describe('tool positions', () => {
     const { formatted_body: _html, ...plain } = wireContent(heading);
     expect(withToolMarkersRestored(plain).body).toBe(heading.sent.body);
   });
+
+  // Each "<a" that no ">" closes was read to the end of the text: a quarter of a megabyte took
+  // tens of seconds on the thread that draws the timeline.
+  it.each([
+    ['with a position', { type: 'tool_call_completed', tool_name: 'shell', body_line: 1, at: 1 }],
+    ['without one', { type: 'tool_call_completed', tool_name: 'shell' }],
+  ])(
+    'reads HTML that never closes a tag in time that grows with its size: a call %s',
+    (_name, call) => {
+      const tail = '<a '.repeat(80_000);
+      const content = {
+        body: 'Found it.',
+        formatted_body: `<p>Found it.</p>\n${tail}`,
+        [TRACE]: { version: 3, events: [call] },
+      };
+      const restored = withToolMarkersRestored(content);
+      expect(restored.formatted_body).toBe(
+        'at' in call
+          ? `<p>Found it.</p>\n<p>🔧 <code>shell</code> [1]</p>\n${tail}`
+          : content.formatted_body
+      );
+      expect(htmlBlockStarts(`<p>a</p>${tail}`)).toEqual([0, 8]);
+      expect(htmlBlockStarts(`${tail}<p>a</p> end`)).toEqual([0, tail.length + 9]);
+    },
+    2_000
+  );
 });
 
 describe('tool positions on read', () => {

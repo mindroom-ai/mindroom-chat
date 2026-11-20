@@ -21,8 +21,10 @@ export const htmlBlockStarts = (html: string): number[] => {
     const offset = depth === 0 ? html.slice(textStart, end).search(NON_BLANK_REG) : -1;
     if (offset >= 0) starts.push(textStart + offset);
   };
+  // No tag ends after the last ">", and before it every tag that opens ends, so no "<" is read twice.
+  const tags = html.slice(0, html.lastIndexOf('>') + 1);
   TAG_REG.lastIndex = 0;
-  for (let tag = TAG_REG.exec(html); tag; tag = TAG_REG.exec(html)) {
+  for (let tag = TAG_REG.exec(tags); tag; tag = TAG_REG.exec(tags)) {
     readText(tag.index);
     const [whole, closing, name = '', selfClosing] = tag;
     if (closing) depth = Math.max(0, depth - 1);
@@ -89,7 +91,8 @@ const layerWithMarkers = (content: Record<string, unknown>): Record<string, unkn
   }
   if (typeof content.formatted_body === 'string') {
     const html = content.formatted_body;
-    const starts = htmlBlockStarts(html);
+    const positioned = events.some((event) => isRecord(event) && 'at' in event);
+    const starts = positioned ? htmlBlockStarts(html) : [];
     let text = '';
     let cursor = 0;
     placed(events, 'at', starts.length).forEach((call) => {
