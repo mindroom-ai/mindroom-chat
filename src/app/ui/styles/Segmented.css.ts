@@ -1,7 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-/** A segmented control: a `radiogroup` whose options are `radio` buttons. */
+/** A segmented control: `radio` options in a `radiogroup`, or `aria-pressed` toggle buttons. */
 export const Segments = style({
   display: 'inline-flex',
   flexShrink: 0,
@@ -21,7 +21,7 @@ export const Segment = style({
   fontSize: toRem(13),
   cursor: 'pointer',
   selectors: {
-    '&[aria-checked=true]': {
+    '&[aria-checked=true], &[aria-pressed=true]': {
       backgroundColor: color.Surface.Container,
       color: color.Surface.OnContainer,
       fontWeight: 600,

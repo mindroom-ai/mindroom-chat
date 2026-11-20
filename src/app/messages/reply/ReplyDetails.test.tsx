@@ -282,7 +282,7 @@ describe('ReplyDetails', () => {
     const tokens = section('Tokens');
 
     expect(tokens?.textContent).toContain('This reply1,705');
-    expect(tokens?.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(tokens?.querySelector('[role="group"]')).toBeNull();
     expect([...(tokens?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
       'From cache 1,408',
       'New input 266',
@@ -314,10 +314,10 @@ describe('ReplyDetails', () => {
       [...(tokens()?.querySelectorAll('button') ?? [])].find((item) => item.textContent === name)!;
 
     // It opens on this reply.
-    expect(button('This reply').getAttribute('aria-checked')).toBe('true');
+    expect(button('This reply').getAttribute('aria-pressed')).toBe('true');
     expect(total()).toBe('This reply1,705');
     act(() => button('Conversation').click());
-    expect(button('Conversation').getAttribute('aria-checked')).toBe('true');
+    expect(button('Conversation').getAttribute('aria-pressed')).toBe('true');
     // The same parts, summed over the conversation through this reply, add up to its total.
     expect(total()).toBe('Conversation so far · 2 replies61.7M');
     expect(legend()).toEqual([
@@ -345,10 +345,10 @@ describe('ReplyDetails', () => {
 
   it("shows only this reply's tokens outside a thread or without a conversation count", () => {
     render(reply);
-    expect(section('Tokens')?.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(section('Tokens')?.querySelector('[role="group"]')).toBeNull();
 
     render(reply, '$r3', thread([0.01, 0.02, 0.03], true, [{ output: 5 }, { output: 5 }]));
-    expect(section('Tokens')?.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(section('Tokens')?.querySelector('[role="group"]')).toBeNull();
   });
 
   it('shows how full the context window was', () => {

@@ -219,10 +219,10 @@ test('reply details show what a reply and the conversation so far cost', async (
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('desktop-dialog-dark.png') });
   // The switch shows the conversation's tokens through this reply, from the keyboard too.
-  const conversation = tokens.getByRole('radio', { name: 'Conversation', exact: true });
+  const conversation = tokens.getByRole('button', { name: 'Conversation', exact: true });
   await conversation.focus();
   await page.keyboard.press('Space');
-  await expect(conversation).toHaveAttribute('aria-checked', 'true');
+  await expect(conversation).toHaveAttribute('aria-pressed', 'true');
   await expect(tokens).toContainText('Conversation so far · 2 replies3.4K');
   await expect(tokens).toContainText('From cache 2.8K');
   await expect(tokens).toContainText('Written to cache 500');
@@ -254,8 +254,8 @@ test('reply details show what a reply and the conversation so far cost', async (
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-dark.png') });
   // The switch opens on this reply every time.
   await expect(
-    section('Tokens').getByRole('radio', { name: 'This reply', exact: true })
-  ).toHaveAttribute('aria-checked', 'true');
+    section('Tokens').getByRole('button', { name: 'This reply', exact: true })
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.emulateMedia({ colorScheme: 'light' });
   await page.screenshot({ path: testInfo.outputPath('phone-dialog-light.png') });
 

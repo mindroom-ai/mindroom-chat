@@ -305,17 +305,17 @@ function Tokens({ info, eventId }: { info: AiRunInfo; eventId: string | undefine
       title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
       action={
         conversation && (
+          // Two toggle buttons rather than a radio group, which would owe roving focus and arrow keys.
           <div
             className={segmented.Segments}
-            role="radiogroup"
+            role="group"
             aria-label={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
           >
             {TOKEN_VIEWS.map((id) => (
               <button
                 key={id}
                 type="button"
-                role="radio"
-                aria-checked={view === id}
+                aria-pressed={view === id}
                 className={segmented.Segment}
                 onClick={() => setView(id)}
               >
