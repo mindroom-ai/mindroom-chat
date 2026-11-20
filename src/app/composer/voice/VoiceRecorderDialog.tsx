@@ -38,8 +38,6 @@ export type VoiceRecorderComposerHandle = {
   send: () => Promise<boolean>;
   /** The phase as last rendered, for the voice key, which sends only a recording that runs. */
   phase: () => VoiceRecorderPhase;
-  /** Stops capturing for a send that has to wait, so it carries no audio after it was asked. */
-  pause: () => void;
 };
 
 const VoiceRecorderComposerRender: ForwardRefRenderFunction<
@@ -139,11 +137,9 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
-  useImperativeHandle(
-    ref,
-    () => ({ send: submitRecording, phase: () => phaseRef.current, pause }),
-    [pause, submitRecording]
-  );
+  useImperativeHandle(ref, () => ({ send: submitRecording, phase: () => phaseRef.current }), [
+    submitRecording,
+  ]);
 
   const confirmDiscardAndClose = () => {
     discardPending();

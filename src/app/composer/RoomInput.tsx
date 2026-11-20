@@ -107,6 +107,7 @@ import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSend
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
+import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 
@@ -500,11 +501,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
         const settled = settlePastes();
         if (settled !== true && !(await settled)) return;
-        if (holdForRoot({ kind: 'message' })) {
-          // The send goes out once the root is confirmed: the recording ends where it was asked.
-          if (voiceActive) voice.pauseRecording();
-          return;
-        }
+        if (holdForRoot({ kind: 'message' })) return;
         const textContent = buildTextContent(mode);
         // Sending the text answers the notices of files and pastes a reload lost.
         if (textContent) {
@@ -682,17 +679,19 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [ref, setRoot]
     );
     // Right ⌥ (right Alt) records here (useVoiceHoldShortcut): a send takes the same path as Enter,
-    // and only from a composer with nothing else in it.
-    // A composer out of sight (under a cover, behind a side panel) records nothing.
+    // and only from a composer with nothing else in it. In a thread whose root is unconfirmed, the
+    // key sends nothing (the recording keeps going), as Enter's send would wait for the root.
     useVoiceComposer(
-      voiceActive && !conversationHidden
+      voiceActive
         ? {
             ...voice.voiceKey,
             root: () => rootRef.current,
             thread: threadId !== undefined,
             hasContent: () =>
               !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
-            send: () => void handleSend(),
+            send: () => {
+              if (!isLocalEchoEventId(threadId)) void handleSend();
+            },
             focus: () => ReactEditor.focus(editor),
           }
         : undefined

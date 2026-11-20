@@ -1,12 +1,11 @@
 import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
-import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
 import { resolveVoiceComposer } from '../voiceHoldShortcut';
-import { conversationCoveredAtom } from '../../navigation/conversationCover';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
@@ -145,7 +144,6 @@ const {
   },
   voiceRecorderState: {
     send: vi.fn<(view?: string) => Promise<boolean>>(async () => false),
-    pause: vi.fn(),
     props: undefined as
       | {
           active?: boolean;
@@ -647,7 +645,6 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
         React.useImperativeHandle(ref, () => ({
           send: () => voiceRecorderState.send(view),
           phase: () => 'recording',
-          pause: voiceRecorderState.pause,
         }));
         return React.createElement('div');
       }
@@ -849,6 +846,16 @@ const createRoomInputTree = (
     })
   );
 
+/** Every host node as a rendered element, so the voice key takes the composer. */
+const shownComposer: TestRendererOptions = {
+  createNodeMock: () => ({
+    isConnected: true,
+    closest: () => null,
+    contains: () => false,
+    getClientRects: () => [{}],
+  }),
+};
+
 const renderRoomInput = async (
   store = createStore(),
   props?: {
@@ -859,12 +866,13 @@ const renderRoomInput = async (
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
-  }
+  },
+  options?: TestRendererOptions
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
   let renderer!: ReactTestRenderer;
 
   await act(async () => {
-    renderer = create(createRoomInputTree(store, props));
+    renderer = create(createRoomInputTree(store, props), options);
   });
 
   return { renderer, store };
@@ -908,7 +916,6 @@ afterEach(() => {
   voiceRecorderState.props = undefined;
   voiceRecorderState.byView.clear();
   voiceRecorderState.send.mockReset();
-  voiceRecorderState.pause.mockReset();
   voiceRecorderState.send.mockResolvedValue(false);
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
@@ -2798,8 +2805,25 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it('sends nothing from the voice key while the thread root is unconfirmed', async () => {
+    const { renderer } = await renderRoomInput(
+      createStore(),
+      { threadId: '~!room:root' },
+      shownComposer
+    );
+    await openVoiceRecorder(renderer);
+    await act(async () => {
+      resolveVoiceComposer()?.send();
+    });
+    // Nothing is queued for the root: the recording keeps going for Enter or a later press.
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
+    expect(voiceRecorderState.send).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
   it('gives the voice key a target that reads the composer as it is now', async () => {
-    const { renderer } = await renderRoomInput(createStore());
+    const { renderer } = await renderRoomInput(createStore(), undefined, shownComposer);
     const target = resolveVoiceComposer();
     expect(target?.phase()).toBe('none');
     await act(async () => {
@@ -2818,32 +2842,9 @@ describe('RoomInput', () => {
     expect(resolveVoiceComposer()).toBeUndefined();
   });
 
-  it('offers the voice key no composer whose conversation is out of sight', async () => {
-    const store = createStore();
-    const { renderer } = await renderRoomInput(store);
-    expect(resolveVoiceComposer()).toBeDefined();
-    await act(async () => {
-      store.set(conversationCoveredAtom, true);
-    });
-    expect(resolveVoiceComposer()).toBeUndefined();
-    renderer.unmount();
-  });
-
-  it('pauses the recording while its send waits for an unconfirmed thread root', async () => {
-    const { renderer } = await renderRoomInput(createStore(), { threadId: '~!room:root' });
-    await openVoiceRecorder(renderer);
-    await act(async () => {
-      resolveVoiceComposer()?.send();
-    });
-    // No audio after the release goes out with the send that waits for the root.
-    expect(voiceRecorderState.pause).toHaveBeenCalledTimes(1);
-    expect(voiceRecorderState.send).not.toHaveBeenCalled();
-    renderer.unmount();
-  });
-
   it('refuses a voice key start once another recorder opened, a failed recording waits or a voice message sends', async () => {
     const store = createStore();
-    const { renderer } = await renderRoomInput(store);
+    const { renderer } = await renderRoomInput(store, undefined, shownComposer);
     const target = resolveVoiceComposer();
     // Changes after the press pinned the composer, before its delayed start runs.
     store.set(openVoiceRecorderAtom, Symbol('another composer'));
