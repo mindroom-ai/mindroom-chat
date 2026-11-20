@@ -74,10 +74,14 @@ describe('useThreadsSelected paths', () => {
     });
     expect(values.at(-1)).toBe(false);
 
-    act(() => navigate?.('/threads/'));
+    act(() => {
+      void navigate?.('/threads/');
+    });
     expect(values.at(-1)).toBe(true);
 
-    act(() => navigate?.(-1));
+    act(() => {
+      void navigate?.(-1);
+    });
     expect(values.at(-1)).toBe(false);
     expect(mounts).toBe(1);
 

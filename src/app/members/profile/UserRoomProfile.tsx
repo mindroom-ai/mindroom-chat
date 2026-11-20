@@ -207,7 +207,7 @@ export function ProfileCard({
 
   const openDirectRoom = () => {
     onDone();
-    navigate(withSearchParam(getDirectCreatePath(), { userId }));
+    void navigate(withSearchParam(getDirectCreatePath(), { userId }));
   };
 
   const managePowers = () => {

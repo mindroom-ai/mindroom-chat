@@ -52,9 +52,7 @@ const renderActions = () => {
   const store = createStore();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Provider store={store}>
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter>{children}</MemoryRouter>
     </Provider>
   );
   const { result } = renderHook(() => useCommandPaletteSource(), { wrapper });

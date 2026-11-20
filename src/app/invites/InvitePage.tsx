@@ -94,7 +94,7 @@ export function InvitePage(): JSX.Element {
     if (!room || (!joined && !matchesEnum(membership, KnownMembership.Invite))) return false;
     halt();
     if (!joined && inviterOf(mx, room) === link.routerId) join(roomId);
-    else navigate(getHomeRoomPath(roomId));
+    else void navigate(getHomeRoomPath(roomId));
     return true;
   };
 

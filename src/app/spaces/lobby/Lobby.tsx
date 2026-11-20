@@ -212,7 +212,7 @@ function LobbyContent() {
       return next;
     });
 
-  const openRoom = (roomId: string) => navigate(getSpaceRoomPath(space.roomId, roomId));
+  const openRoom = (roomId: string) => void navigate(getSpaceRoomPath(space.roomId, roomId));
 
   /** The joined copy of a lobby entry, if the user is in it. */
   const joinedCopy = (roomId: string): Room | undefined => {

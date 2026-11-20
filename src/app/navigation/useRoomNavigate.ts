@@ -130,7 +130,7 @@ export const useRoomNavigate = () => {
   /** Opens an app path as it is, such as a path recorded earlier. */
   const navigatePath = useCallback(
     (path: string, opts?: NavigateOptions) => {
-      navigate(path, opts);
+      void navigate(path, opts);
     },
     [navigate]
   );
@@ -138,7 +138,7 @@ export const useRoomNavigate = () => {
   /** Opens a room, at `eventId` when given, in the section `roomPath` picks for it. */
   const navigateRoom = useCallback(
     (roomId: string, eventId?: string, opts?: NavigateOptions): void => {
-      navigate(roomPath(roomId, eventId), opts);
+      void navigate(roomPath(roomId, eventId), opts);
     },
     [navigate, roomPath]
   );
@@ -146,7 +146,7 @@ export const useRoomNavigate = () => {
   /** Opens a space's own page, addressed by its canonical alias when it has one. */
   const navigateSpace = useCallback(
     (spaceId: string, opts?: NavigateOptions) => {
-      navigate(getSpacePath(getCanonicalAliasOrRoomId(client, spaceId)), opts);
+      void navigate(getSpacePath(getCanonicalAliasOrRoomId(client, spaceId)), opts);
     },
     [client, navigate]
   );
@@ -154,7 +154,7 @@ export const useRoomNavigate = () => {
   /** Opens the room focused on `eventId`, without opening its thread. */
   const navigateRoomFocusEvent = useCallback(
     (roomId: string, eventId: string, opts?: NavigateOptions) => {
-      navigate(withSearchParam(roomPath(roomId, eventId), { focusEvent: '1' }), opts);
+      void navigate(withSearchParam(roomPath(roomId, eventId), { focusEvent: '1' }), opts);
     },
     [navigate, roomPath]
   );
@@ -162,7 +162,7 @@ export const useRoomNavigate = () => {
   /** Opens a thread without recording where to return to. */
   const navigateRoomThreadDirect = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) => {
-      navigate(withSearchParam(roomPath(roomId, eventId), { threadId }), opts);
+      void navigate(withSearchParam(roomPath(roomId, eventId), { threadId }), opts);
     },
     [navigate, roomPath]
   );

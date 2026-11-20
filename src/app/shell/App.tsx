@@ -80,7 +80,9 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   }, [setDeploymentTheme, deploymentTheme]);
   return (
     <ScreenSizeProvider value={screenSize}>
-      <RouterProvider router={slidingRouter} />
+      {/* Each new location renders at once, as before React Router 7, which would otherwise make
+          every router update a transition; a page slide still commits it synchronously. */}
+      <RouterProvider router={slidingRouter} useTransitions={false} />
     </ScreenSizeProvider>
   );
 }

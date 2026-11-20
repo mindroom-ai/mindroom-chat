@@ -33,7 +33,7 @@ export const buildAuthRoutePath = ({
   server,
 }: AuthRoutePathOptions): string => {
   const pattern = resolveAuthPattern(pathname, registrationAllowed);
-  const path = generatePath(pattern, { server: encodeURIComponent(server) });
+  const path = generatePath(pattern, { server });
   return `${path}${search}${hash}`;
 };
 

@@ -22,9 +22,11 @@ export const usePluginPage = (): MatchedPluginPage | undefined => {
   const root = matchPath(PLUGIN_PAGE_PATH, pathname);
   const plugin = root && registeredPlugins.find(({ id }) => id === root.params.pluginId);
   if (!plugin || !isPluginEnabled(config, plugin.id)) return undefined;
-  // The rest still encoded: matchRoutes decodes it once, as for the app's own routes.
-  const [found] = matchRoutes([...plugin.pages], pathname.slice(root.pathnameBase.length)) ?? [];
-  return found && { page: found.route, params: found.params };
+  // The rest still encoded: matchRoutes decodes it once, as for the app's own routes. Each route
+  // carries its page: React Router's route type wants a Component without props.
+  const routes = plugin.pages.map((page) => ({ path: page.path, page }));
+  const [found] = matchRoutes(routes, pathname.slice(root.pathnameBase.length)) ?? [];
+  return found && { page: found.route.page, params: found.params };
 };
 
 /**

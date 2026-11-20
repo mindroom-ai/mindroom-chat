@@ -198,7 +198,7 @@ describe('CallWindowHost', () => {
     const shown = callWindow();
     await screen.findByTestId('call-panel');
 
-    act(() => navigate?.('/direct/'));
+    void act(() => navigate?.('/direct/'));
     expect(location).toBe('/direct/');
     expect(callWindow()).toBe(shown);
     expect(screen.getByTestId('call-panel').textContent).toBe(LOBBY);
