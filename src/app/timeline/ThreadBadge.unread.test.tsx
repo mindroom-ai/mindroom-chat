@@ -11,6 +11,7 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
+import type { ThreadIndicatorUnread } from '../messages/ThreadIndicator';
 import type { ThreadBadgeViewModel } from '../event-store/threads/types';
 
 const mocks = vi.hoisted(() => ({
@@ -59,7 +60,7 @@ const renderedUnread = (isUnread: boolean, indexed = true) => {
       <ThreadBadge model={model(isUnread)} room={room} onClick={vi.fn()} />
     </Provider>
   );
-  return mocks.ThreadIndicator.mock.lastCall?.[0]?.unread;
+  return mocks.ThreadIndicator.mock.lastCall?.[0]?.unread as ThreadIndicatorUnread | undefined;
 };
 
 describe('ThreadBadge unread state', () => {
