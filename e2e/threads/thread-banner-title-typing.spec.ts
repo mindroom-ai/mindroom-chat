@@ -192,13 +192,20 @@ const checkAnchoring = async (browser: Browser, engine: string, baseURL?: string
   // away from the end, which a reader there would follow; step 5 above it, under the banner.
   const behind = page.locator(`[data-message-id="${world.replyIds[4]}"]`).first();
   const reading = page.locator(`[data-message-id="${world.replyIds[5]}"]`).first();
-  await reading.evaluate((element) => element.scrollIntoView({ block: 'start' }));
-  await settle(banner);
   const top = (row: Locator) => row.evaluate((element) => element.getBoundingClientRect().top);
-  const { edge } = await timeline(banner);
+  // Rows measured after the jump can still move it, so it is repeated until it holds.
+  await expect
+    .poll(
+      async () => {
+        await reading.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+        await settle(banner);
+        const { edge } = await timeline(banner);
+        return (await top(reading)) >= edge - 1 && (await top(behind)) < edge;
+      },
+      { message: 'step 6 starts at the top of the view, step 5 above it', timeout: 60_000 }
+    )
+    .toBe(true);
   const before = await top(reading);
-  expect(before, 'step 6 starts at the top of the view').toBeGreaterThanOrEqual(edge - 1);
-  expect(await top(behind), 'step 5 is above the view').toBeLessThan(edge);
   expect((await timeline(banner)).below, 'the end is out of view').toBeGreaterThan(200);
 
   await editTitle();
