@@ -502,6 +502,58 @@ describe('useLatestRowPin and the virtual list', () => {
     expect(room.list.scrollState).toBeNull();
   });
 
+  it('leaves a reader the correction moved alone in a commit that holds the height of rows that shrank', () => {
+    // A row above the reader shrinks by 22 px: the correction moves the reader up with the end
+    // the list will have, and the commit before the paint keeps the list's old height. A pin to
+    // the end it has there would open a 22 px band under the newest row for that frame.
+    let shrinkNotRendered = 0;
+    let listHeightHeld = false;
+    const pins: number[] = [];
+    const { element } = fakeRoomScroller();
+    const list = { scrollToIndex: (index: number) => pins.push(index) };
+    function Pin() {
+      useLatestRowPin({
+        surface: 'room',
+        itemCount: 20,
+        virtualizer: list,
+        opensAtLatest: true,
+        roomId: '!room',
+        scrollElement: element as unknown as HTMLElement,
+        scrollToBottomRef: { current: { count: 0, smooth: false } },
+        committedView: '!room||classic',
+        focusItem: undefined,
+        onReaderGesture: () => undefined,
+        pendingListShrinkPx: () => shrinkNotRendered,
+        listHeightHeld,
+      });
+      return null;
+    }
+    let root: ReactTestRenderer | undefined;
+    act(() => {
+      root = create(createElement(Pin));
+    });
+    expect(pins).toEqual([19]);
+    // A reader the held end has not reached yet (the room opens, a jump) is brought there.
+    shrinkNotRendered = 22;
+    listHeightHeld = true;
+    act(() => root?.update(createElement(Pin)));
+    expect(pins).toEqual([19, 19]);
+    element.scrollTop -= 22;
+    act(() => root?.update(createElement(Pin)));
+    expect(pins).toEqual([19, 19]);
+    // The next commit renders the list at its new height and pins again.
+    shrinkNotRendered = 0;
+    listHeightHeld = false;
+    element.scrollHeight -= 22;
+    act(() => root?.update(createElement(Pin)));
+    expect(pins).toEqual([19, 19, 19]);
+    // Room the list reads as held in a commit that holds nothing does not stop the pin.
+    shrinkNotRendered = 22;
+    element.scrollTop -= 22;
+    act(() => root?.update(createElement(Pin)));
+    expect(pins).toEqual([19, 19, 19, 19]);
+  });
+
   it('never counts less than no room below when the list has rendered the shrink', () => {
     // macOS Chromium: React has rendered the list 120 px shorter, but its rows still measure a
     // 120 px shrink for a scroll event; the next correction then moves the position up by 120.
