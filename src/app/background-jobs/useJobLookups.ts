@@ -92,8 +92,10 @@ const useJobRuns = (
   const shown = useSyncExternalStore(subscribe, () =>
     JSON.stringify(pick().map((run) => shownOfRun(run, written)))
   );
+  // A row that starts to say the last line takes the runs anew: while it said none, a frame that
+  // changed only that line rendered nothing, and the runs held may say an older one.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(pick, [pick, shown]);
+  return useMemo(pick, [pick, shown, written]);
 };
 
 /**

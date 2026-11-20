@@ -289,6 +289,71 @@ it.each([true, false])(
   }
 );
 
+it('takes the runs anew when its rows start to say the last line, not an older one held', () => {
+  let seq = -1;
+  const ingest = (md: string) => {
+    seq += 1;
+    act(() =>
+      getSubagentRunStore(mx as never).ingest(
+        ROOM,
+        AGENT,
+        {
+          run: 'mine',
+          sid: SID,
+          seq,
+          meta: {
+            agent: 'dev',
+            subagent: 'mine',
+            caller: 'code',
+            root: 'code',
+            parent: null,
+            threadId: '$a',
+            source: 'delegate',
+            status: 'running',
+            startedAt: 1,
+            endedAt: null,
+            task: 'Summarize the notes',
+          },
+          snapshot: {
+            md,
+            reasoning: '',
+            tools: [],
+            status: 'streaming',
+            activity: '',
+            segments: [],
+          },
+        },
+        0
+      )
+    );
+  };
+  const jobs: BackgroundJob[] = [
+    {
+      jobId: 'job_1',
+      agentId: AGENT,
+      threadId: '$a',
+      kind: 'subagent',
+      tool: 'dev',
+      status: 'running',
+      startedAt: '2026-10-11T00:00:00+00:00',
+      subagent: 'mine',
+      run: 'mine',
+    },
+  ];
+  function Probe({ written }: { written: boolean }) {
+    const { runs } = useJobLookups(roomOf({}), jobs, false, written);
+    return <span>{runs.map((run) => run.docs.md || 'nothing').join()}</span>;
+  }
+  // With the usage details the rows say no last line, so a frame that clears it renders nothing.
+  act(() => root.render(<Probe written={false} />));
+  ingest('Reading the notes.');
+  expect(container.textContent).toBe('Reading the notes.');
+  ingest('');
+  // Without them, the rows read the run as it is now.
+  act(() => root.render(<Probe written />));
+  expect(container.textContent).toBe('nothing');
+});
+
 it("follows a reply's frames while the list shows, beside another subscriber of that reply", () => {
   const reply = message('$a', AGENT, {
     'io.mindroom.stream_status': 'streaming',
