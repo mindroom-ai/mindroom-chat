@@ -106,6 +106,14 @@ import { SecondThreadPanel } from './SecondThreadPanel';
 import { SecondThreadDropZone } from './SecondThreadDropZone';
 import { useSecondThread } from './useSecondThread';
 import { ROOM_COMPOSER, THREAD_COLUMN_COMPOSER } from './composerSelectors';
+import {
+  composerOfferAtom,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
+import { createParagraphElement } from '../editor/utils';
+import { confirmedVoiceThreadId as confirmed } from '../composer/RoomInputExtensions';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
 // The composers the focus goes back to from the second thread: the open thread's, else the room's.
@@ -796,6 +804,23 @@ function RoomContent() {
     [navigateRoom, navigateRoomThread, roomId, setViewMode, viewMode]
   );
 
+  // With canvases off, a canvas asks for a text version in its thread's draft, never over work.
+  const textRequest = useMemo(() => {
+    const offer = (threadId: string | undefined, text: string) =>
+      composerOfferAtom([ownUserId, roomId, threadId], [createParagraphElement(text)], confirmed);
+    const fill = (action: ChatUiAction, text: string) => {
+      if (store.get(offer(action.threadId, text)) !== 'empty') return;
+      const draftKey = getRoomInputDraftKey(ownUserId, roomId, action.threadId);
+      store.set(roomIdToMsgDraftAtomFamily(draftKey), [createParagraphElement(text)]);
+      // Opened unless it shows: the thread in a view on screen, the room alone or beside a thread.
+      const shown = store
+        .get(shownConversationViewsAtom)
+        .some((v) => v.roomId === roomId && v.threadId === action.threadId);
+      if (!shown && (action.threadId || threadId)) showConversation(action.threadId);
+    };
+    return { offer, fill };
+  }, [ownUserId, roomId, showConversation, store, threadId]);
+
   const uiActions = useChatUiActions({
     mx: client,
     room,
@@ -806,6 +831,7 @@ function RoomContent() {
     navigate: showConversation,
     unavailable,
     openCanvasId,
+    textRequest: canvasEnabled ? undefined : textRequest,
   });
 
   // A canvas chosen in the header may still load; any change of what the side panel shows

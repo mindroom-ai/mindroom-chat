@@ -1133,6 +1133,18 @@
       "pageUpdated": "{{agent}} atualizou esta página.",
       "shownInPanel": "Mostrada no painel",
       "inlineDisclosure": "Criada por {{agent}}. Não pode acessar sua conta; o que você digitar aqui pode sair desta página."
+    },
+    "uiActions": {
+      "canvasOff": "Painel compartilhado · os painéis estão desativados neste app",
+      "askForText": "Pedir uma versão em texto",
+      "copyRequest": "Copiar pedido",
+      "textVersionRequest": "Envie “{{title}}” aqui como texto, por favor. Os painéis interativos estão desativados no meu app.",
+      "askForTextStatus": {
+        "hint": "Coloca um pedido no editor. Nada é enviado até você pressionar Enviar.",
+        "added": "Pedido adicionado ao editor. Nada é enviado até você pressionar Enviar.",
+        "kept": "Seu rascunho ficou como estava. Copie o pedido para adicioná-lo você mesmo.",
+        "copied": "Pedido copiado. Cole-o no seu rascunho."
+      }
     }
   },
   "composer": {

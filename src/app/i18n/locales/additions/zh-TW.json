@@ -1083,6 +1083,18 @@
       "pageUpdated": "{{agent}} 更新了此頁面。",
       "shownInPanel": "已在面板中顯示",
       "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
+    },
+    "uiActions": {
+      "canvasOff": "已分享面板 · 此應用程式已關閉面板",
+      "askForText": "請求文字版本",
+      "copyRequest": "複製請求",
+      "textVersionRequest": "請改為在這裡以文字形式傳送「{{title}}」。我的應用程式已關閉互動式面板。",
+      "askForTextStatus": {
+        "hint": "在輸入框中放入一則請求。按下傳送之前不會傳送任何內容。",
+        "added": "請求已放入輸入框。按下傳送之前不會傳送任何內容。",
+        "kept": "您的草稿保持原樣。複製請求後自行加入。",
+        "copied": "請求已複製。請貼到您的草稿中。"
+      }
     }
   },
   "composer": {
