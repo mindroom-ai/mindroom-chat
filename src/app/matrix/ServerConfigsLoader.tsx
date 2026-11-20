@@ -1,5 +1,6 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { ClientPrefix, MatrixError, Method, type MatrixClient } from 'matrix-js-sdk';
+import { isValidAuthMetadata } from 'matrix-js-sdk/lib/oauth/discover';
 
 /** `GET /media/config`; the SDK does not export its type. */
 export type MediaConfig = Awaited<ReturnType<MatrixClient['getMediaConfig']>>;
@@ -35,12 +36,57 @@ const settledValue = <T,>(result: PromiseSettledResult<T>): T | undefined =>
 const loadMediaConfig = (client: MatrixClient): Promise<MediaConfig> =>
   client.getMediaConfig(true).catch(() => client.getMediaConfig(false));
 
+const MSC2965_PREFIX = `${ClientPrefix.Unstable}/org.matrix.msc2965`;
+
+const isUnrecognized = (error: unknown): boolean =>
+  error instanceof MatrixError && error.errcode === 'M_UNRECOGNIZED';
+
+type AuthMetadata = Awaited<ReturnType<MatrixClient['getAuthMetadata']>>;
+
+/**
+ * The auth metadata from the stable route (Matrix 1.15), which is the only one matrix-js-sdk asks
+ * since 42.0, or, for a homeserver that does not know it, from the two MSC2965 routes the SDK
+ * asked before: `auth_metadata`, then `auth_issuer` and that issuer's OpenID configuration.
+ * Without them the account and device settings of such a server lose their provider links.
+ */
+const loadAuthMetadata = async (client: MatrixClient): Promise<AuthMetadata> => {
+  try {
+    return await client.getAuthMetadata();
+  } catch (error) {
+    if (!isUnrecognized(error)) throw error;
+  }
+  let metadata: unknown;
+  try {
+    metadata = await client.http.request(Method.Get, '/auth_metadata', undefined, undefined, {
+      prefix: MSC2965_PREFIX,
+    });
+  } catch (error) {
+    if (!isUnrecognized(error)) throw error;
+    const { issuer } = await client.http.request<{ issuer: string }>(
+      Method.Get,
+      '/auth_issuer',
+      undefined,
+      undefined,
+      { prefix: MSC2965_PREFIX }
+    );
+    metadata = await client.http.requestOtherUrl(
+      Method.Get,
+      new URL('.well-known/openid-configuration', issuer),
+      undefined,
+      { localTimeoutMs: 5000 }
+    );
+  }
+  // The check the SDK makes of the stable route's answer.
+  if (!isValidAuthMetadata(metadata)) throw new Error('Invalid auth metadata');
+  return metadata;
+};
+
 const loadServerConfigs = async (client: MatrixClient): Promise<ServerConfigs> => {
   // Each request may fail on its own (older servers lack auth metadata); the rest still count.
   const [capabilities, mediaConfig, authMetadata] = await Promise.allSettled([
     client.getCapabilities(),
     loadMediaConfig(client),
-    client.getAuthMetadata(),
+    loadAuthMetadata(client),
   ]);
   return {
     capabilities: settledValue(capabilities),

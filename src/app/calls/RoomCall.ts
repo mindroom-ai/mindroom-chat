@@ -116,6 +116,11 @@ const LEAVE_TIMEOUT_MS = 5000;
 const LEFTOVER_TIMEOUT_MS = 10_000;
 /** When sending this device's media key to one device again fails, the waits before the next tries. */
 const KEY_RESEND_RETRY_MS = [1_000, 3_000];
+/**
+ * How long the others are rung or notified of the call (the `lifetime` of its notification event);
+ * the SDK's own default is ninety seconds.
+ */
+const RING_LIFETIME_MS = 30_000;
 
 const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
   a.length === b.length &&
@@ -550,6 +555,7 @@ export class RoomCall {
           manageMediaKeys: this.encrypted,
           callIntent: this.state.camera ? 'video' : 'audio',
           notificationType: this.options.notify,
+          notificationLifetimeMs: RING_LIFETIME_MS,
         }
       );
     } catch {

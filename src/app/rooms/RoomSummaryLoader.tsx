@@ -1,6 +1,6 @@
 import { ReactNode, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MatrixClient, Room, RoomSummary } from 'matrix-js-sdk';
+import { MatrixError, Method, type MatrixClient, type Room, type RoomSummary } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { type LocalRoomSummary, useLocalRoomSummary } from './useLocalRoomSummary';
@@ -25,6 +25,30 @@ type RoomSummaryLoaderProps = {
 const aliasQueryKey = (alias: string | undefined) => ['room-alias', alias] as const;
 
 const resolveAlias = (mx: MatrixClient, alias: string) => () => mx.getRoomIdForAlias(alias);
+
+/**
+ * The summary from the route the SDK asks (stable since Matrix 1.15, else the MSC3266 one), or
+ * from the route the first MSC3266 servers had when the homeserver knows neither. matrix-js-sdk
+ * asked that one itself until 45.0.
+ */
+const fetchRoomSummary = async (
+  mx: MatrixClient,
+  roomId: string,
+  via: string[] | undefined
+): Promise<RoomSummary> => {
+  try {
+    return await mx.getRoomSummary(roomId, via);
+  } catch (error) {
+    if (!(error instanceof MatrixError) || error.errcode !== 'M_UNRECOGNIZED') throw error;
+    return mx.http.authedRequest<RoomSummary>(
+      Method.Get,
+      `/rooms/${encodeURIComponent(roomId)}/summary`,
+      { via },
+      undefined,
+      { prefix: '/_matrix/client/unstable/im.nheko.summary' }
+    );
+  }
+};
 
 /**
  * Loads a room's summary (MSC3266) for a room the user may not have joined. An alias resolves to
@@ -60,7 +84,7 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
         roomId = resolved.room_id;
         if (!servers || servers.length === 0) servers = resolved.servers;
       }
-      return mx.getRoomSummary(roomId, servers);
+      return fetchRoomSummary(mx, roomId, servers);
     },
   });
 

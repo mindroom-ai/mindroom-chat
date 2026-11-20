@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { createClient, type MatrixClient } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
-import { RoomSummaryLoader } from './RoomSummaryLoader';
+import { RoomSummaryLoader, type RoomSummaryState } from './RoomSummaryLoader';
 
 const summary = {
   room_id: '!private:remote.example.org',
@@ -182,6 +182,62 @@ describe('RoomSummaryLoader', () => {
     });
 
     expect(observedStatus).toBe(AsyncStatus.Error);
+    act(() => renderer!.unmount());
+    queryClient.clear();
+  });
+
+  it('asks the older summary route of a homeserver that has neither route the SDK asks', async () => {
+    const requests: URL[] = [];
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    // Only `/unstable/im.nheko.summary/rooms/{roomId}/summary`, as the first MSC3266 servers had.
+    const mx = createClient({
+      baseUrl: 'https://example.org',
+      accessToken: 'token',
+      fetchFn: async (input) => {
+        const url = new URL(String(input));
+        requests.push(url);
+        const path = decodeURIComponent(url.pathname);
+        if (path.endsWith('/versions')) return json({ versions: ['v1.11'], unstable_features: {} });
+        if (path === `/_matrix/client/unstable/im.nheko.summary/rooms/${summary.room_id}/summary`)
+          return json(summary);
+        return json({ errcode: 'M_UNRECOGNIZED', error: 'Unrecognized request' }, 404);
+      },
+    });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let observed: RoomSummaryState | undefined;
+    let renderer: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(
+        <QueryClientProvider client={queryClient}>
+          <MatrixClientProvider value={mx}>
+            <RoomSummaryLoader
+              roomIdOrAlias={summary.room_id}
+              viaServers={['one.example.org', 'two.example.org']}
+            >
+              {(state) => {
+                observed = state;
+                return null;
+              }}
+            </RoomSummaryLoader>
+          </MatrixClientProvider>
+        </QueryClientProvider>
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => expect(observed?.status).not.toBe(AsyncStatus.Loading));
+    });
+
+    expect(observed).toEqual({ status: AsyncStatus.Success, data: summary });
+    // The servers to ask over federation go with the older route too.
+    expect(requests.at(-1)?.searchParams.getAll('via')).toEqual([
+      'one.example.org',
+      'two.example.org',
+    ]);
     act(() => renderer!.unmount());
     queryClient.clear();
   });

@@ -51,12 +51,15 @@ export const sendCallKey = async (
 ): Promise<void> => {
   const cryptoApi = mx.getCrypto();
   if (!cryptoApi) throw new Error('No crypto to encrypt a call key with');
+  // The content of the SDK's own send (`ToDeviceKeyTransport.sendKey`), so that a device takes this
+  // key as it takes that one: `keys` and `member.id` are what a peer reading the older format takes.
+  const mediaKey = { index: keyIndex, key: encodeBase64(key) };
   const payload = {
-    keys: { index: keyIndex, key: encodeBase64(key) },
     room_id: roomId,
+    member_id: memberId,
+    media_key: mediaKey,
+    keys: mediaKey,
     member: { claimed_device_id: mx.getDeviceId() ?? '', id: memberId },
-    session: { call_id: '', application: 'm.call', scope: 'm.room' },
-    sent_ts: Date.now(),
   };
   const encrypt = async () => {
     const { eventType, batch } = await cryptoApi.encryptToDeviceMessages(

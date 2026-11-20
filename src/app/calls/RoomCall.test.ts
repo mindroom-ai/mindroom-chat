@@ -197,7 +197,12 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const setup = ({
   encrypted = false,
   grant,
-}: { encrypted?: boolean; grant?: RoomCallOptions['grant'] } = {}) => {
+  notify,
+}: {
+  encrypted?: boolean;
+  grant?: RoomCallOptions['grant'];
+  notify?: RoomCallOptions['notify'];
+} = {}) => {
   const session = new FakeSession();
   const mx = {
     matrixRTC: { getRoomSession: () => session },
@@ -218,7 +223,7 @@ const setup = ({
   // The device lock `startCall` took before making the call.
   const releaseDeviceLock = vi.fn();
   fakes.releases.push(releaseDeviceLock);
-  const call = new RoomCall({ mx, room, releaseDeviceLock, grant });
+  const call = new RoomCall({ mx, room, releaseDeviceLock, grant, notify });
   return { call, session, mx, room };
 };
 
@@ -373,6 +378,19 @@ describe('RoomCall join', () => {
       expect.anything(),
       expect.anything(),
       expect.objectContaining({ manageMediaKeys: true })
+    );
+  });
+
+  it('rings the other people for thirty seconds', async () => {
+    const { call, session } = setup({ notify: 'ring' });
+
+    await call.join();
+
+    // The SDK would let an unanswered ring run for ninety seconds.
+    expect(session.join).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ notificationType: 'ring', notificationLifetimeMs: 30_000 })
     );
   });
 

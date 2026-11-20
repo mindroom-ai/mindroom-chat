@@ -42,11 +42,15 @@ describe('sendCallKey', () => {
     expect(encryptToDeviceMessages).toHaveBeenCalledWith(
       'io.element.call.encryption_keys',
       [agent],
-      expect.objectContaining({
-        keys: { index: 4, key: 'AQID' },
+      // What the SDK's first send carries (ToDeviceKeyTransport.sendKey): the fields a peer reads now,
+      // and `keys` and `member.id`, which one that reads the older format takes.
+      {
         room_id: '!call:test',
+        member_id: '@me:test:MYDEVICE',
+        media_key: { index: 4, key: 'AQID' },
+        keys: { index: 4, key: 'AQID' },
         member: { claimed_device_id: 'MYDEVICE', id: '@me:test:MYDEVICE' },
-      })
+      }
     );
     expect(getUserDeviceInfo).not.toHaveBeenCalled();
     expect(sendToDevice).toHaveBeenCalledWith('m.room.encrypted', sentContent);
