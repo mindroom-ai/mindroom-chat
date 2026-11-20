@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
 import { ResizablePanel } from './ResizablePanel';
@@ -111,6 +111,19 @@ describe('dragging a side panel past its widest', () => {
     expect(screen.getByTestId('panel').style.width).toBe('500px');
     expect(separator().getAttribute('aria-valuetext')).toBeNull();
     release();
+    expect(setLayout).not.toHaveBeenCalled();
+    expect(stored()).toBe(500);
+  });
+
+  it('does not fill when pulled back and let go before the panel re-renders', () => {
+    const { setLayout } = renderPanel();
+    dragTo(900);
+    act(() => {
+      separator().dispatchEvent(
+        new TestPointerEvent('pointermove', { bubbles: true, clientX: 500 - (500 - 400) })
+      );
+      separator().dispatchEvent(new TestPointerEvent('pointerup', { bubbles: true }));
+    });
     expect(setLayout).not.toHaveBeenCalled();
     expect(stored()).toBe(500);
   });
