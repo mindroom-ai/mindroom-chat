@@ -1424,7 +1424,8 @@ describe('SubagentsPanel', () => {
         render();
 
         expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe('4 active');
-        expect(card('notes').querySelector('[data-subagent-model]')).toBeNull();
+        // Its model stays at a glance; what it used does not show.
+        expect(card('notes').querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
         expect(card('notes').querySelector('[data-subagent-stat]')).toBeNull();
         expect(card('notes').querySelector('[data-subagent-time]')?.textContent).toBe('50s');
         // A run at work, nested or not, has no line under its status, which says how it stands.

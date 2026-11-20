@@ -289,7 +289,7 @@ type CardProps = {
  * title its first turn's call named (else that turn's task) in bold, then the agent, the model its
  * newest turn ran on, how it stands and how many turns it took, then a line labelled by what it
  * shows (`RunLineText`). The sub-agents it started follow inside it, then what it used and its
- * time. Without the usage details (`showUsageDetails`) it shows no model and nothing it used.
+ * time. Without the usage details (`showUsageDetails`) it shows nothing it used; its model stays.
  * Pressing it opens the sub-agent.
  */
 export const SubagentRunCard = memo(function SubagentRunCard({
@@ -303,8 +303,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
   const { meta } = run;
   const nested = node.turns.flatMap((turn) => turn.nested);
   const agent = useAgentProfile(room, meta.agent);
-  const details = useSettingValue(settingsAtom, 'showUsageDetails');
-  const modelLabel = details && meta.model && getAiRunCompactModelLabel(meta.model);
+  const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
   const first = node.turns[0].run.meta;
 
   return (

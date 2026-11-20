@@ -251,14 +251,13 @@ test('the Sub-agents panel shows no live activity, as it starts', async ({
   await expect(card).toHaveCount(1);
   await expect(panel.locator('[data-subagents-totals]')).toHaveText('1 active');
   await run.toolRow('Reading the notes.'.length, '\n\n🔧 `run_shell_command` [1] ⏳\n\n');
-  // Its status says it runs; no line says what it does now, and no model, numbers or call show.
+  // Its status says it runs and its model shows; no line says what it does now, and no numbers or
+  // call show.
   await expect(card).toContainText('Running');
+  await expect(card.locator('[data-subagent-model]')).toHaveText('Fable 5.2');
   await expect(card.locator('[data-subagent-line]')).toHaveCount(0);
-  await expect(
-    card.locator('[data-subagent-model], [data-subagent-stat], [data-subagent-tool]')
-  ).toHaveCount(0);
+  await expect(card.locator('[data-subagent-stat], [data-subagent-tool]')).toHaveCount(0);
   await expect(card).not.toContainText('run_shell_command');
-  await expect(card).not.toContainText('Fable');
   await expect(card).not.toContainText('12 calls');
   await expect(card.locator('[data-subagent-time]')).toBeVisible();
   await card.click();
