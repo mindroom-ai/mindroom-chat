@@ -41,6 +41,7 @@ vi.mock('./VoiceRecordingCapsule.css', () => ({
   HiddenStatus: 'HiddenStatus',
   Label: 'Label',
   Timer: 'Timer',
+  WaveformSlot: 'WaveformSlot',
 }));
 
 vi.mock('../../messages/content/voice/VoiceWaveform.css', () => ({

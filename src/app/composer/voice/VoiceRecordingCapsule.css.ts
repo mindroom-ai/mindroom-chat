@@ -25,8 +25,14 @@ export const Capsule = style([
   { color: color.SurfaceVariant.OnContainer },
 ]);
 
-// What the recording is ("Recovered recording"), before its time: it gives way to the waveform
-// only once that is down to a few bars, then ends in an ellipsis.
+// The waveform takes the room the controls and the texts leave, down to a few bars.
+export const WaveformSlot = style({
+  flex: '1 1 0',
+  minInlineSize: toRem(24),
+});
+
+// What the recording is ("Recovered recording"), before its time. It keeps its width while the
+// waveform has bars to give, and ends in an ellipsis after that.
 export const Label = style({
   flex: '0 1 auto',
   minInlineSize: 0,

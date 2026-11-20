@@ -74,14 +74,16 @@ export function VoiceRecordingCapsule({
           </IconButton>
         )}
       </IconTooltip>
-      <VoiceWaveform
-        waveform={waveform}
-        // Only a recording glides: paused or finishing, the bars stop, and the count starts
-        // afresh on resume rather than gliding in everything since.
-        liveSampleCount={recording ? sampleCount : undefined}
-        dimmed={paused || busy}
-        compact
-      />
+      <div className={css.WaveformSlot}>
+        <VoiceWaveform
+          waveform={waveform}
+          // Only a recording glides: paused or finishing, the bars stop, and the count starts
+          // afresh on resume rather than gliding in everything since.
+          liveSampleCount={recording ? sampleCount : undefined}
+          dimmed={paused || busy}
+          compact
+        />
+      </div>
       {label && (
         <Text className={css.Label} size="T200" truncate aria-live="polite">
           {`${label} ·`}
