@@ -446,7 +446,7 @@
         "profile": "foto de perfil, foto, nombre, apodo",
         "deactivate": "eliminar cuenta, cerrar cuenta",
         "localMindroom": "vincular, código de vinculación, local, escritorio",
-        "voiceKey": "mensaje de voz, micrófono, grabar, pulsar para hablar, Option, Alt, atajo de teclado",
+        "voiceKey": "mensaje de voz, micrófono, grabar, pulsar para hablar, Control, Ctrl, Mayús, Shift, Espacio, atajo de teclado",
         "emoji": "emoji, stickers, paquetes, emoji personalizados",
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir"
@@ -1355,7 +1355,10 @@
     "close": "Cerrar el hilo",
     "resizeSecond": "Cambiar el tamaño del segundo hilo",
     "second": "Segundo hilo",
-    "dropSecond": "Suelta para abrir en la segunda columna"
+    "dropSecond": "Suelta para abrir en la segunda columna",
+    "newUnknown": "Nuevo",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Te menciona"
   },
   "threadSnooze": {
     "title": "Posponer hasta",

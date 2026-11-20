@@ -158,6 +158,7 @@ export type ThreadBadgeViewModel = {
   replyCount: number;
   participantIds?: string[];
   isResolved: boolean;
+  isUnread: boolean;
 };
 
 export type ThreadHeaderViewModel = {

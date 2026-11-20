@@ -37,7 +37,7 @@ describe('getSettings', () => {
     storageValue = null;
   });
 
-  it('turns the right Option voice key on until the person switches it off', async () => {
+  it('turns the voice key on until the person switches it off', async () => {
     const { getSettings } = await import('./settings');
     storageValue = null;
 

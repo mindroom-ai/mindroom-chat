@@ -92,6 +92,7 @@ describe('ThreadBadge', () => {
       replyCount: 4,
       participantIds: ['@alice:example.org'],
       isResolved: true,
+      isUnread: true,
     };
 
     const rendered = ThreadBadge({
@@ -114,6 +115,7 @@ describe('ThreadBadge', () => {
     expect(threadIndicator?.props.threadReplyCount).toBe(4);
     expect(threadIndicator?.props.threadParticipantIds).toEqual(['@alice:example.org']);
     expect(threadIndicator?.props.isResolved).toBe(true);
+    expect(threadIndicator?.props.isUnread).toBe(true);
     expect(threadIndicator?.props['data-thread-summary']).toBe('Recent summary');
   });
 });
@@ -150,6 +152,7 @@ describe('renderThreadBadge', () => {
       replyCount: 2,
       participantIds: ['@alice:example.org'],
       isResolved: false,
+      isUnread: false,
     });
     expect((badge as React.ReactElement).props.includeRecentSummaryData).toBe(true);
   });
