@@ -185,8 +185,7 @@ vi.mock('./useRoomInputUploadTransport', () => ({
 vi.mock('./useRoomInputVoice', () => ({
   useRoomInputVoice: () => ({
     blocksSubmit: () => false,
-    bindSend: () => undefined,
-    submitBound: async () => false,
+    sendAtPress: () => undefined,
     renderRecorder: () => null,
     microphone: null,
   }),

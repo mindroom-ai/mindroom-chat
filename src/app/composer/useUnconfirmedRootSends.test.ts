@@ -6,7 +6,7 @@ import { withHistory } from 'slate-history';
 import { createClient, EventStatus, MatrixEvent, PendingEventOrdering, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRoomInputDraft } from './useRoomInputDraft';
-import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
+import { type HeldSend, useUnconfirmedRootSends, whenRootSettled } from './useUnconfirmedRootSends';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
 
 const ROOM = '!pending-root:example.org';
@@ -146,29 +146,6 @@ describe('useUnconfirmedRootSends', () => {
     expect(exposed!.hold({ kind: 'message' })).toBe(false);
   });
 
-  it('holds one message, as its newest Send was pressed, with the voice message that Send carried', async () => {
-    const { room, root } = makeRoom();
-    const editor = withHistory(createEditor());
-    editor.children = paragraph('');
-    await render(room, editor, LOCAL_ID);
-    const voice = { parked: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }) };
-
-    await act(async () => {
-      exposed!.hold({ kind: 'message' });
-      exposed!.hold({ kind: 'sticker', mxc: 'mxc://example.org/wave', label: 'Wave' });
-      exposed!.hold({ kind: 'message', voice });
-    });
-    await act(async () => room.updatePendingEvent(root, EventStatus.SENT, '$root'));
-    await render(room, editor, '$root');
-
-    expect(confirmed).toEqual([
-      [
-        { kind: 'message', voice },
-        { kind: 'sticker', mxc: 'mxc://example.org/wave', label: 'Wave' },
-      ],
-    ]);
-  });
-
   it('drops the wait when the root fails, and holds nothing for a failed root', async () => {
     const { room, root } = makeRoom();
     const editor = withHistory(createEditor());
@@ -216,5 +193,44 @@ describe('useUnconfirmedRootSends', () => {
     expect(Node.string(editor)).toBe('Room text.Reply text.');
     expect(draftOf(undefined)).toEqual([...paragraph('Room text.'), ...paragraph('Reply text.')]);
     expect(draftOf(LOCAL_ID)).toEqual([]);
+  });
+});
+
+describe('whenRootSettled', () => {
+  const settledAfter = async (change: (room: Room, root: MatrixEvent) => void) => {
+    const { room, root } = makeRoom();
+    let settled = false;
+    const waiting = whenRootSettled(room, LOCAL_ID).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    change(room, root);
+    await waiting;
+    return settled;
+  };
+
+  it('waits for the root to get its own ID', async () => {
+    expect(
+      await settledAfter((room, root) => room.updatePendingEvent(root, EventStatus.SENT, '$root'))
+    ).toBe(true);
+  });
+
+  it('waits no longer for a root that failed to send or was deleted unsent', async () => {
+    expect(
+      await settledAfter((room, root) => room.updatePendingEvent(root, EventStatus.NOT_SENT))
+    ).toBe(true);
+    expect(
+      await settledAfter((room, root) => {
+        room.updatePendingEvent(root, EventStatus.NOT_SENT);
+        room.updatePendingEvent(root, EventStatus.CANCELLED);
+      })
+    ).toBe(true);
+  });
+
+  it('does not wait for a root the room no longer holds under its local ID', async () => {
+    const { room, root } = makeRoom();
+    room.updatePendingEvent(root, EventStatus.SENT, '$root');
+    await whenRootSettled(room, LOCAL_ID);
   });
 });

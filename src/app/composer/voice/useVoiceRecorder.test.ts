@@ -650,6 +650,60 @@ describe('useVoiceRecorder', () => {
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
 
+  it('stops capture in the task Send is pressed in, with the destination the composer shows then', async () => {
+    MockMediaRecorder.autoStop = false;
+    const onSendRecording = vi.fn();
+    let destination = createTestSendContext(ROOM_ID, '$thread-a');
+    const { store } = await renderHarness({ onSendRecording, getSendContext: () => destination });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    const recorder = MockMediaRecorder.instances[0]!;
+    let sendPromise!: Promise<boolean>;
+
+    act(() => {
+      sendPromise = recorderState.current!.send();
+      // Before anything is awaited: the recording left the account, and the recorder was stopped.
+      expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+      expect(recorder.stop).toHaveBeenCalledOnce();
+    });
+
+    // The composer shows another thread by the time the recorder hands over the audio.
+    destination = createTestSendContext(ROOM_ID, '$thread-b');
+    await act(async () => {
+      recorder.flushStop();
+      await sendPromise;
+    });
+
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    expect(onSendRecording.mock.calls[0]?.[3]).toMatchObject({ threadId: '$thread-a' });
+  });
+
+  it('releases the microphone as a recording is discarded, so leaving the account after it has nothing left to stop', async () => {
+    MockMediaRecorder.autoStop = false;
+    const { store } = await renderHarness();
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    const recorder = MockMediaRecorder.instances[0]!;
+
+    act(() => recorderState.current!.discard());
+
+    // In the same call, without the recorder saying it stopped.
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+
+    act(() => forgetComposerStateOfSession(store));
+    await act(async () => {
+      recorder.flushStop();
+      await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    });
+
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+  });
+
   it('releases the microphone at once and says nothing more when the account leaves while a claimed recording stops', async () => {
     MockMediaRecorder.autoStop = false;
     const onSendRecording = vi.fn();

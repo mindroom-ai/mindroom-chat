@@ -26,10 +26,16 @@ type Entry = { current?: VoiceComposer; target: VoiceHoldTarget };
 // In mount order, like the shortcut handlers.
 const entries = new Set<Entry>();
 
+/** Rendered and not inert (under a side panel, behind the phone's navigation drawer). */
+const shown = (root: HTMLElement | null | undefined): boolean =>
+  !!root?.isConnected && !root.closest('[inert]') && root.getClientRects().length > 0;
+
 // A press pins an entry's target, so each call reads the composer as it is then, and one that went
-// away does nothing.
+// away or out of sight since (the test a press picks its composer by) does nothing: a recording
+// that runs stays the account's.
 const createEntry = (): Entry => {
-  const live = () => (entries.has(entry) ? entry.current : undefined);
+  const live = () =>
+    entries.has(entry) && shown(entry.current?.root()) ? entry.current : undefined;
   const entry: Entry = {
     target: {
       active: () => live()?.active() ?? false,
@@ -59,10 +65,6 @@ export const useVoiceComposer = (composer: VoiceComposer | undefined): void => {
     };
   }, [enabled, entry]);
 };
-
-/** Rendered and not inert (under a side panel, behind the phone's navigation drawer). */
-const shown = (root: HTMLElement | null | undefined): boolean =>
-  !!root?.isConnected && !root.closest('[inert]') && root.getClientRects().length > 0;
 
 /**
  * The composer a press of the voice key acts in, among those shown. One that offers a failed

@@ -237,6 +237,32 @@ describe('useVoiceHoldShortcut', () => {
     expect(log).toEqual([]);
   });
 
+  it('does nothing in a composer that went out of sight since the key went down', () => {
+    // Under a side panel that fills the room, or behind a phone's drawer: its box is inert.
+    const hide = () => act(() => document.body.setAttribute('inert', ''));
+    const { log } = setup((l) => <Composer log={l} />);
+    try {
+      // Before the delayed start of push-to-talk: nothing starts, and the release starts nothing.
+      hold();
+      hide();
+      wait(300);
+      press('keyup', space);
+      expect(log).toEqual([]);
+      act(() => document.body.removeAttribute('inert'));
+
+      // With a recording running: the release sends nothing, and the recording goes on.
+      hold();
+      press('keyup', space);
+      expect(log).toEqual(['start']);
+      hold();
+      hide();
+      press('keyup', space);
+      expect(log).toEqual(['start']);
+    } finally {
+      document.body.removeAttribute('inert');
+    }
+  });
+
   it('starts nothing for held modifiers, other chords with Space, or a pending send', () => {
     const { store, log } = setup((l) => <Composer log={l} />);
     // Right Option, or Control and Shift, held past 300 ms, then an arrow: the app's navigation.

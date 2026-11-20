@@ -107,11 +107,8 @@ import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSend
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
-import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
-
-type HeldMessage = Extract<HeldSend, { kind: 'message' }>;
 
 export type RoomInputProps = {
   editor: Editor;
@@ -481,13 +478,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
     const voiceActive = !forkFrom;
     const submit = useCallback(
-      async (mode: MidTurnMode, held?: HeldMessage) => {
+      async (mode: MidTurnMode, waited: boolean) => {
         if (voiceActive && voice.blocksSubmit()) return;
-        // Whether this Send carries a voice message is settled as it is pressed, before it waits
-        // for anything (a paste, its thread's root); one that waited brings what it was pressed
-        // with, and takes no recording made since.
-        const pressedWith = voiceActive ? voice.bindSend() : undefined;
-        const voiceMessage = held ? held.voice : pressedWith;
         // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
         // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
         const unknownCommand = readUnknownCommand(editor.children, commands);
@@ -499,25 +491,38 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         const acting = readActingCommand(editor.children, commands);
         if (acting) {
-          if (acting.command.inThread && holdForRoot({ kind: 'message', voice: voiceMessage })) {
-            return;
-          }
+          if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
           await runActingCommand(acting);
           return;
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
         const settled = settlePastes();
-        if (settled !== true && !(await settled)) return;
-        if (holdForRoot({ kind: 'message', voice: voiceMessage })) return;
-        const textContent = buildTextContent(mode);
         // Sending the text answers the notices of files and pastes a reload lost.
-        if (textContent) {
-          dismissLostFiles();
-          dismissLostPastes();
+        const takeText = () => {
+          const content = buildTextContent(mode);
+          if (content) {
+            dismissLostFiles();
+            dismissLostPastes();
+          }
+          return content;
+        };
+        // A Send takes the recording at the press (useRoomInputVoice's `sendAtPress`), before
+        // anything here waits: what follows is only for a Send without a voice message. One that
+        // `waited` for its root and goes out now is no press, and takes no recording made since.
+        const voiceSend =
+          voiceActive && !waited ? voice.sendAtPress(takeText, settled !== true) : undefined;
+        if (voiceSend) {
+          setSubmitPending(true);
+          await voiceSend.finally(() => {
+            if (mountedRef.current) setSubmitPending(false);
+          });
+          return;
         }
+        if (settled !== true && !(await settled)) return;
+        if (holdForRoot({ kind: 'message' })) return;
+        const textContent = takeText();
         setSubmitPending(true);
         try {
-          if (await voice.submitBound(voiceMessage, textContent)) return;
           const sending = sessions.startSendSession({ textContent });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
@@ -545,10 +550,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it. Without a mode picked from the Send button's menu, the
-    // message takes the one the Chats settings name. `held`: the Send that waited for its root.
+    // message takes the one the Chats settings name. `waited`: held for its thread's root till now.
     const handleSend = useCallback(
-      (mode?: MidTurnMode, held?: HeldMessage) => {
-        const sending = submit(mode ?? midTurnSend, held);
+      (mode?: MidTurnMode, waited = false) => {
+        const sending = submit(mode ?? midTurnSend, waited);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
           console.warn('[room-input] could not send the message', error);
@@ -663,7 +668,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     rootConfirmedRef.current = (sends) =>
       sends.forEach((send) => {
         if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
-        else void handleSend(undefined, send);
+        else void handleSend(undefined, true);
       });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);
@@ -686,8 +691,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [ref, setRoot]
     );
     // The voice key records here (useVoiceHoldShortcut): a send takes the same path as Enter,
-    // and only from a composer with nothing else in it. In a thread whose root is unconfirmed, the
-    // key sends nothing (the recording keeps going), as Enter's send would wait for the root.
+    // and only from a composer with nothing else in it.
     useVoiceComposer(
       voiceActive
         ? {
@@ -696,9 +700,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             thread: threadId !== undefined,
             hasContent: () =>
               !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
-            send: () => {
-              if (!isLocalEchoEventId(threadId)) void handleSend();
-            },
+            send: () => void handleSend(),
             focus: () => ReactEditor.focus(editor),
           }
         : undefined

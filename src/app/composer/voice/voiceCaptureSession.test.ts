@@ -525,15 +525,6 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
-  it('discards when native stop never arrives', async () => {
-    const session = capture();
-    await session.start();
-    const result = session.discard();
-    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
-    expect(await result).toBe(false);
-    expect(session.getSnapshot().phase).toBe('idle');
-  });
-
   it('cancels the stop deadline once native stop arrives', async () => {
     const session = capture();
     await session.start();
@@ -559,14 +550,14 @@ describe('voice capture session', () => {
     expect(await session.finish()).toEqual({ status: 'ignored' });
   });
 
-  it('discards with false, and a reset stops a running recorder at once', async () => {
+  it('stops a running recorder at once on reset, and takes nothing it says after', async () => {
     const session = capture();
     await session.start();
-    const result = session.discard();
+    session.reset();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
     latest().emitData(new Blob(['discarded']));
     latest().emitStop();
-    expect(await result).toBe(false);
-    expect(session.getSnapshot().phase).toBe('idle');
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
     await session.start();
     session.reset();
     expect(latest().stop).toHaveBeenCalledOnce();
@@ -651,13 +642,13 @@ describe('voice capture session on the native recorder', () => {
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it('discards a native recording', async () => {
+  it('ends a native recording at once on reset', async () => {
     const recorder = withoutWebCapture();
     const session = capture();
     await session.start();
-    const discarded = session.discard();
+    session.reset();
+    expect(recorder.stop).toHaveBeenCalledOnce();
     recorder.deliver();
-    expect(await discarded).toBe(false);
     expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
   });
 

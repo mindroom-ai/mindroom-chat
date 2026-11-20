@@ -86,9 +86,12 @@ export const claimLiveVoiceRecording = (store: JotaiStore): VoiceCaptureSession 
   return session;
 };
 
-/** Ends the recording unsent, for every composer at once, and frees the microphone. */
+/**
+ * Ends the recording unsent, for every composer at once. The microphone is released in the same
+ * call, so nothing is left for a later account exit to stop.
+ */
 export const discardLiveVoiceRecording = (store: JotaiStore): void => {
-  void takeLiveVoiceRecording(store)?.discard();
+  takeLiveVoiceRecording(store)?.reset();
 };
 
 /**

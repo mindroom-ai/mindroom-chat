@@ -45,7 +45,6 @@ import {
   startLiveVoiceRecording,
   voiceAccountGuard,
 } from './voice/liveVoiceRecording';
-import type { VoiceCaptureSession } from './voice/voiceCaptureSession';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -55,6 +54,7 @@ import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
+import { whenRootSettled } from './useUnconfirmedRootSends';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
@@ -86,22 +86,16 @@ type UseRoomInputVoiceOptions = {
   onRoomMessageSent?: (eventId: string) => boolean | void;
 };
 
-/**
- * The voice message a Send carries, decided as it is pressed: the recording that was live then,
- * or the parked one this composer offered then. A Send pressed with neither carries none, however
- * long it waits before it goes out.
- */
-export type VoiceSendBinding = { live: VoiceCaptureSession } | { parked: File };
-
 type VoiceFeature = {
   blocksSubmit: () => boolean;
-  /** What a Send pressed here now carries. Call it before the Send waits for anything. */
-  bindSend: () => VoiceSendBinding | undefined;
   /**
-   * Sends what the Send was bound to, with the text, if that is still there to send. False
-   * leaves the text to go out alone.
+   * Takes the voice message for a Send, as it is pressed (see the function). Undefined when
+   * there is none here, and the Send goes on without one.
    */
-  submitBound: (binding: VoiceSendBinding | undefined, textContent?: IContent) => Promise<boolean>;
+  sendAtPress: (
+    takeText: () => IContent | undefined,
+    pastesMissing: boolean
+  ) => Promise<void> | undefined;
   microphone: React.ReactNode;
   renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
   /** What the voice key (⌃⇧Space, Ctrl+Shift+Space) reads and does here. */
@@ -119,6 +113,8 @@ type PendingVoiceComposerBundle = {
   composerReset: boolean;
   handedOff: boolean;
   releasePasteProtection: () => void;
+  /** What the send waits for once its audio is ready. A rejection parks the audio. */
+  wait: () => Promise<void>;
 };
 
 export const useRoomInputVoice = ({
@@ -306,6 +302,7 @@ export const useRoomInputVoice = ({
         const pendingComposerBundle = pendingVoiceComposerBundleRef.current;
         const composerBundle =
           pendingComposerBundle?.roomId === context.roomId ? pendingComposerBundle : undefined;
+        await composerBundle?.wait();
         liveContext = refreshRoomInputVoiceSendContext(mx, context);
         if (!liveContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
@@ -481,59 +478,58 @@ export const useRoomInputVoice = ({
   );
 
   const blocksSubmit = useCallback(() => store.get(voiceAutoSendPendingAtom), [store]);
-  // Send here sends the account's recording here, with this composer's text and files.
-  const bindSend = useCallback((): VoiceSendBinding | undefined => {
-    const live = store.get(liveVoiceRecordingAtom);
-    if (live) return { live };
-    const parked = ownsPendingVoiceDraft ? store.get(pendingVoiceSendDraftAtom) : undefined;
-    return parked && { parked: parked.file };
-  }, [ownsPendingVoiceDraft, store]);
-  const submitBound = useCallback(
-    async (binding: VoiceSendBinding | undefined, content?: IContent): Promise<boolean> => {
-      if (!binding) return false;
-      // A Send that waited (for a paste, for its thread's root) sends only what it was pressed
-      // with. Sent from another composer or discarded since, that is gone, and what is recorded
-      // now is not this Send's. Nothing below waits before the recorder takes it.
-      const stillThere =
-        'live' in binding
-          ? store.get(liveVoiceRecordingAtom) === binding.live
-          : ownsPendingVoiceDraft && store.get(pendingVoiceSendDraftAtom)?.file === binding.parked;
-      if (!stillThere) return false;
-      if (hasFailedPasteMarkerInText(content, attachmentAccess.snapshot().staged)) return true;
-
+  // A Send takes the recording at the press. Pressing Send (the button, Enter or the voice key)
+  // claims the live recording in the same task: it leaves the account's hands, capture stops and
+  // no more audio is recorded. This composer's destination and bundle (room, thread, reply, text,
+  // staged files) are taken in that task too. What makes the send wait after that (a thread root
+  // the server has not confirmed) waits with that audio and that snapshot, and never reads the
+  // composer or the recorder again. A send that cannot go to where it was pressed (the root was
+  // deleted unsent, the room was left) parks its audio there, as any failed send does.
+  const sendAtPress = useCallback(
+    (takeText: () => IContent | undefined, pastesMissing: boolean): Promise<void> | undefined => {
+      if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return undefined;
       const recorder = voiceRecorderRef.current;
-      if (!recorder) return true;
+      // Text whose pasted files are not here goes nowhere: its restore reads the editor, which
+      // this Send would empty. The audio is taken and parks alone; the text and files stay.
+      const content = pastesMissing ? undefined : takeText();
+      const staged = pastesMissing ? [] : attachmentAccess.snapshot().staged;
+      if (!recorder || hasFailedPasteMarkerInText(content, staged)) return Promise.resolve();
 
       const context = getContext();
-      const companionItems = attachmentAccess.snapshot().staged;
       pendingVoiceComposerBundleRef.current = {
         roomId: context.roomId,
         composerThreadId: context.threadId,
         textContent: content,
         composerFallback: content ? snapshotText() : undefined,
-        companionItems,
+        companionItems: staged,
         stagedList: composerUploadItemsAtom(context.roomId, view),
-        releasePasteProtection: attachmentAccess.protectPasteItems(companionItems),
+        releasePasteProtection: attachmentAccess.protectPasteItems(staged),
         composerReset: false,
         handedOff: false,
+        wait: async () => {
+          if (pastesMissing) throw new Error(t('composer.voiceBundleBlocked'));
+          if (context.threadId && isLocalEchoEventId(context.threadId)) {
+            await whenRootSettled(context.room, context.threadId);
+          }
+        },
       };
       setSendingHere(true);
-      try {
-        await recorder.send();
-      } finally {
-        setSendingHere(false);
-        // A request rejected before onSendStopRequest never owns editor state.
-        // Drop only that untouched snapshot; claimed requests clear through
-        // releaseVoiceAutoSend after send, failure, or retry settlement.
-        if (!voiceAutoSendClaimedRef.current) {
-          pendingVoiceComposerBundleRef.current?.releasePasteProtection();
-          pendingVoiceComposerBundleRef.current = undefined;
-        }
-      }
-
-      return true;
+      // Up to its first wait, in this task: the claim, the destination and the stop of capture.
+      return recorder
+        .send()
+        .then(() => undefined)
+        .finally(() => {
+          setSendingHere(false);
+          // A request rejected before onSendStopRequest never owns editor state.
+          // Drop only that untouched snapshot; claimed requests clear through
+          // releaseVoiceAutoSend after send, failure, or retry settlement.
+          if (!voiceAutoSendClaimedRef.current) {
+            pendingVoiceComposerBundleRef.current?.releasePasteProtection();
+            pendingVoiceComposerBundleRef.current = undefined;
+          }
+        });
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, view]
+    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, t, view]
   );
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>
@@ -560,17 +556,15 @@ export const useRoomInputVoice = ({
           });
   }
   // One recording at a time, for the whole account: none starts while one runs, is being sent,
-  // or waits parked for a retry, in this composer or another. The voice key shares the guards,
-  // read from the store, as the key acts after a delay.
-  const microphoneDisabled = liveRecording || voiceAutoSendPending || draftBelongsToCurrentSession;
+  // or waits parked for a retry, in this composer or another. Read from the store, since the
+  // voice key asks after a delay; the render above follows all three.
+  const microphoneBlocked = (): boolean =>
+    store.get(liveVoiceRecordingAtom) !== undefined ||
+    store.get(voiceAutoSendPendingAtom) ||
+    store.get(pendingVoiceSendDraftAtom)?.context.ownerSessionId === currentSessionId;
+  const microphoneDisabled = microphoneBlocked();
   const startRecording = (): boolean => {
-    const draft = store.get(pendingVoiceSendDraftAtom);
-    if (
-      store.get(liveVoiceRecordingAtom) ||
-      store.get(voiceAutoSendPendingAtom) ||
-      draft?.context.ownerSessionId === currentSessionId
-    )
-      return false;
+    if (microphoneBlocked()) return false;
     pauseAllMediaElements();
     void startLiveVoiceRecording(store);
     return true;
@@ -618,5 +612,5 @@ export const useRoomInputVoice = ({
     </IconTooltip>
   );
 
-  return { blocksSubmit, bindSend, submitBound, microphone, renderRecorder, voiceKey };
+  return { blocksSubmit, sendAtPress, microphone, renderRecorder, voiceKey };
 };

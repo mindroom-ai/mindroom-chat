@@ -81,7 +81,6 @@ export type VoiceCaptureSession = {
   pause: () => boolean;
   resume: () => boolean;
   finish: () => Promise<VoiceCaptureResult>;
-  discard: () => Promise<boolean>;
   /** Ends capture now: the microphone is released at once and the audio is dropped. */
   reset: () => void;
 };
@@ -106,7 +105,8 @@ type Generation = {
   samples: number[];
   elapsedMs: number;
   startedAt?: number;
-  action?: 'send' | 'discard';
+  /** A Send asked for the audio: the recorder's stop is expected. */
+  sending?: true;
   resolve?: (result: VoiceCaptureResult) => void;
   detach?: () => void;
 };
@@ -132,7 +132,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   const owns = (generation: Generation) => current === generation && generation.acceptsEvents;
   // A subscriber can accept a stop without replacing the generation.
   const isRecording = (generation: Generation) =>
-    owns(generation) && !generation.action && generation.recorder?.state === 'recording';
+    owns(generation) && !generation.sending && generation.recorder?.state === 'recording';
 
   const publish = (changes: Partial<VoiceCaptureSnapshot>) => {
     snapshot = freezeSnapshot({ ...snapshot, ...changes });
@@ -270,14 +270,12 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     const update = (changes: Partial<VoiceCaptureSnapshot>) => {
       if (isCurrent) publish(changes);
     };
-    if (generation.action !== 'send') {
+    if (!generation.sending) {
       update({
         phase: 'idle',
         elapsedMs: 0,
         waveform: createFallbackWaveform(),
-        ...(generation.action === 'discard'
-          ? {}
-          : { errorMessage: 'Voice recording stopped unexpectedly. Please record again.' }),
+        errorMessage: 'Voice recording stopped unexpectedly. Please record again.',
       });
       generation.chunks = [];
       generation.samples = [];
@@ -407,18 +405,14 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   };
   const canStop = () =>
     !!current &&
-    !current.action &&
+    !current.sending &&
     (current.recorder?.state === 'recording' || current.recorder?.state === 'paused');
-  const stop = (action: 'send' | 'discard'): Promise<VoiceCaptureResult> => {
-    if (current?.action) return Promise.resolve({ status: 'ignored' });
-    if (!canStop()) {
-      if (action === 'discard') reset();
-      return Promise.resolve({ status: 'ignored' });
-    }
+  const finish = (): Promise<VoiceCaptureResult> => {
+    if (!canStop()) return Promise.resolve({ status: 'ignored' });
     const generation = current!;
     generation.elapsedMs = Math.max(0, Math.round(elapsed(generation)));
     generation.startedAt = undefined;
-    generation.action = action;
+    generation.sending = true;
     clearTimers(generation);
     return new Promise((resolve) => {
       // A processing subscriber can reset the session synchronously.
@@ -485,11 +479,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       publish({ phase: 'recording' });
       return isRecording(generation);
     },
-    finish: () => stop('send'),
-    discard: async () => {
-      await stop('discard');
-      return false;
-    },
+    finish,
     reset,
   };
 };

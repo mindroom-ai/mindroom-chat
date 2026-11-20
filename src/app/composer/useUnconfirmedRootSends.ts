@@ -1,24 +1,41 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useStore } from 'jotai';
-import { EventStatus, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { EventStatus, type MatrixEvent, MatrixEventEvent, type Room } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
 import { moveMessageDraft } from './roomInputDrafts';
-import type { VoiceSendBinding } from './useRoomInputVoice';
 
-/**
- * A send the composer holds while its thread's root waits for the server. A message keeps the
- * voice message its Send was pressed with, or none: it takes no recording made while it waits.
- */
-export type HeldSend =
-  | { kind: 'message'; voice?: VoiceSendBinding | undefined }
-  | { kind: 'sticker'; mxc: string; label: string };
+/** A send the composer holds while its thread's root waits for the server. */
+export type HeldSend = { kind: 'message' } | { kind: 'sticker'; mxc: string; label: string };
 
 type Held = { root: MatrixEvent; localId: string; sends: HeldSend[] };
 
 /** The root failed to send or was deleted unsent: nothing can wait for it. */
 const isDeadRoot = (root: MatrixEvent): boolean =>
   isFailedLocalEchoEvent(root) || root.status === EventStatus.CANCELLED;
+
+/**
+ * Resolves once nothing more is to come for a thread's unconfirmed root: it has its own ID, or it
+ * failed to send or was deleted unsent. For a send that waits without its composer: a voice
+ * message, whose audio and destination were taken as Send was pressed.
+ */
+export const whenRootSettled = (room: Room, localId: string): Promise<void> =>
+  new Promise((resolve) => {
+    const root = room.findEventById(localId);
+    const settled = (event: MatrixEvent) => event.getId() !== localId || isDeadRoot(event);
+    if (!root || settled(root)) {
+      resolve();
+      return;
+    }
+    const check = () => {
+      if (!settled(root)) return;
+      root.off(MatrixEventEvent.Status, check);
+      root.off(MatrixEventEvent.LocalEventIdReplaced, check);
+      resolve();
+    };
+    root.on(MatrixEventEvent.Status, check);
+    root.on(MatrixEventEvent.LocalEventIdReplaced, check);
+  });
 
 type Options = {
   room: Room;
@@ -77,15 +94,10 @@ export const useUnconfirmedRootSends = ({
       if (!root || isDeadRoot(root)) return true;
       setHeld((current) => {
         const sends = current?.localId === threadId ? current.sends : [];
-        // One message waits, as its newest Send was pressed.
-        const waits = send.kind === 'message' && sends.some((held) => held.kind === 'message');
-        return {
-          root,
-          localId: threadId,
-          sends: waits
-            ? sends.map((held) => (held.kind === 'message' ? send : held))
-            : [...sends, send],
-        };
+        if (send.kind === 'message' && sends.some((waiting) => waiting.kind === 'message')) {
+          return current;
+        }
+        return { root, localId: threadId, sends: [...sends, send] };
       });
       return true;
     },
