@@ -306,6 +306,9 @@
         "social": "社交",
         "other": "其他"
       }
+    },
+    "space": {
+      "overview": "空间概览"
     }
   },
   "featureUi": {
@@ -970,7 +973,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "搜索失败，请重试。",
-        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果"
+        "resultCountFor_other": "“{{term}}”的 {{count}} 个结果",
+        "retry": "重试"
       }
     },
     "notifications": {
@@ -1111,6 +1115,18 @@
       "pageUpdated": "{{agent}} 更新了此页面。",
       "shownInPanel": "已在面板中显示",
       "inlineDisclosure": "由 {{agent}} 创建。它无法访问您的帐户；您在此输入的内容可能会离开此页面。"
+    },
+    "uiActions": {
+      "canvasOff": "已分享面板 · 此应用已关闭面板",
+      "askForText": "请求文本版本",
+      "copyRequest": "复制请求",
+      "textVersionRequest": "请改为在这里以文本形式发送“{{title}}”。我的应用已关闭交互式面板。",
+      "askForTextStatus": {
+        "hint": "在输入框中放入一条请求。按下发送之前不会发送任何内容。",
+        "added": "请求已放入输入框。按下发送之前不会发送任何内容。",
+        "kept": "您的草稿保持原样。复制请求后自行添加。",
+        "copied": "请求已复制。请粘贴到您的草稿中。"
+      }
     }
   },
   "composer": {
@@ -1135,7 +1151,10 @@
       "autoHint": "让智能体决定",
       "settingTitle": "智能体正在回复时发送",
       "settingDescription": "长按发送可为单条消息另选方式。"
-    }
+    },
+    "replyInThread": "在讨论串中回复…",
+    "newThreadIn": "在 {{room}} 中新建讨论串…",
+    "newThreadWith": "与 {{name}} 新建讨论串…"
   },
   "commandPalette": {
     "state": {

@@ -306,6 +306,9 @@
         "social": "Sosial",
         "other": "Lainnya"
       }
+    },
+    "space": {
+      "overview": "Ikhtisar space"
     }
   },
   "featureUi": {
@@ -970,7 +973,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "Pencarian gagal. Coba lagi.",
-        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”"
+        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”",
+        "retry": "Coba lagi"
       }
     },
     "notifications": {
@@ -1111,6 +1115,18 @@
       "pageUpdated": "{{agent}} memperbarui halaman ini.",
       "shownInPanel": "Ditampilkan di panel",
       "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
+    },
+    "uiActions": {
+      "canvasOff": "Panel dibagikan · panel dinonaktifkan di aplikasi ini",
+      "askForText": "Minta versi teks",
+      "copyRequest": "Salin permintaan",
+      "textVersionRequest": "Tolong kirim “{{title}}” di sini sebagai teks saja. Panel interaktif dinonaktifkan di aplikasi saya.",
+      "askForTextStatus": {
+        "hint": "Menaruh permintaan di kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "added": "Permintaan ditambahkan ke kotak tulis. Tidak ada yang terkirim sampai Anda menekan Kirim.",
+        "kept": "Draf Anda tetap seperti semula. Salin permintaan untuk menambahkannya sendiri.",
+        "copied": "Permintaan disalin. Tempelkan ke draf Anda."
+      }
     }
   },
   "composer": {
@@ -1135,7 +1151,10 @@
       "autoHint": "Biarkan agen memutuskan",
       "settingTitle": "Kirim saat agen sedang membalas",
       "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
-    }
+    },
+    "replyInThread": "Balas di utas…",
+    "newThreadIn": "Utas baru di {{room}}…",
+    "newThreadWith": "Utas baru dengan {{name}}…"
   },
   "commandPalette": {
     "state": {

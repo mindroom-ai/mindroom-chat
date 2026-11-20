@@ -31,7 +31,7 @@ type FinishedWorkFoldProps = {
 };
 
 /**
- * A long finished agent reply, its work folded into one `Worked for 2m 13s` row above its answer,
+ * A finished agent reply, its work folded into one `Worked for 2m 13s` row above its answer,
  * as T3 Code folds a finished turn. Until it may fold, the reply renders whole, as it would
  * without this component, which stays in its tree so its state lasts while it streams.
  * Clicking the row shows the work in place. The choice survives virtualization remounts through

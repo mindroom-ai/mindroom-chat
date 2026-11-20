@@ -15,7 +15,7 @@ import {
 const PASSWORD = 'floating-side-panel-row-spec-password';
 const RUN = Date.now().toString(36);
 
-test.use({ viewport: { width: 1280, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
+test.use({ viewport: { width: 1440, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);

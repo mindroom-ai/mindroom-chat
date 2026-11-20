@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Kaydırılabilir tablo",
-    "scrollHint": "Yatay kaydır"
+    "scrollHint": "Yatay kaydır",
+    "readByRow": "Satır satır oku",
+    "showTable": "Tabloyu göster"
   },
   "messageCodeBlock": {
     "actions": "Kod bloğu işlemleri",
@@ -1151,7 +1153,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Bu alan değiştirildi ve artık etkin değil.",
       "openNewSpace": "Yeni alanı aç",
       "joinNewSpace": "Yeni alana katıl",
-      "lobby": "Lobi",
       "messageSearch": "Mesaj arama",
       "failedToJoinReplacementSpace": "Yeni alana katılınamadı!",
       "rooms": "Odalar",
@@ -2930,7 +2931,9 @@
       "computerUnavailable": "Bu ajanın bilgisayarı kullanılamıyor.",
       "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
       "openConversation": "Bu isteği oda sohbetinden açın.",
-      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
+      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın.",
+      "canvasCard": "Etkileşimli panel",
+      "reminderCard": "Hatırlatıcı · {{when}}"
     },
     "canvas": {
       "panelLabel": "Etkileşimli panel",

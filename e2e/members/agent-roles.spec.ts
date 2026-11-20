@@ -100,7 +100,7 @@ const memberRow = (page: Page, userId: string) =>
   page.locator(`button[data-user-id="${userId}"]`).first();
 
 const openMembers = async (page: Page) => {
-  const showMembers = page.getByRole('button', { name: 'Members', exact: true });
+  const showMembers = page.getByRole('button', { name: 'Show Members', exact: true });
   await expect(showMembers.or(page.getByRole('button', { name: 'Hide Members' }))).toBeVisible({
     timeout: 30_000,
   });

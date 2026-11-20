@@ -173,7 +173,7 @@ for (const [themeId, width] of [
       };
 
       await page.getByRole('button', { name: /^MindRoom(,|$)/ }).click({ timeout: 15000 });
-      await page.getByRole('link', { name: 'Lobby', exact: true }).click({ timeout: 15000 });
+      await page.getByRole('link', { name: 'Space overview', exact: true }).click({ timeout: 15000 });
       const lobbyHeader = page
         .locator('header')
         .filter({ has: page.getByRole('button', { name: 'Members', exact: true }) });

@@ -306,6 +306,9 @@
         "social": "소셜",
         "other": "기타"
       }
+    },
+    "space": {
+      "overview": "스페이스 개요"
     }
   },
   "featureUi": {
@@ -970,7 +973,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "검색하지 못했습니다. 다시 시도하세요.",
-        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개"
+        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개",
+        "retry": "다시 시도"
       }
     },
     "notifications": {
@@ -1111,6 +1115,18 @@
       "pageUpdated": "{{agent}}이(가) 이 페이지를 업데이트했습니다.",
       "shownInPanel": "패널에 표시됨",
       "inlineDisclosure": "{{agent}}이(가) 만들었습니다. 계정에는 접근할 수 없지만, 여기에 입력한 내용은 이 페이지 밖으로 전송될 수 있습니다."
+    },
+    "uiActions": {
+      "canvasOff": "패널 공유됨 · 이 앱에서는 패널이 꺼져 있습니다",
+      "askForText": "텍스트 버전 요청",
+      "copyRequest": "요청 복사",
+      "textVersionRequest": "“{{title}}”을(를) 대신 텍스트로 여기에 보내 주세요. 제 앱에서는 대화형 패널이 꺼져 있습니다.",
+      "askForTextStatus": {
+        "hint": "입력창에 요청을 넣습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "added": "입력창에 요청을 넣었습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "kept": "작성 중인 초안은 그대로 두었습니다. 요청을 복사해 직접 추가하세요.",
+        "copied": "요청을 복사했습니다. 초안에 붙여 넣으세요."
+      }
     }
   },
   "composer": {
@@ -1135,7 +1151,10 @@
       "autoHint": "에이전트가 결정하도록 하기",
       "settingTitle": "에이전트가 답변 중일 때 보내기",
       "settingDescription": "보내기를 길게 눌러 메시지마다 선택하세요."
-    }
+    },
+    "replyInThread": "스레드에 답장…",
+    "newThreadIn": "{{room}}에 새 스레드…",
+    "newThreadWith": "{{name}}에게 새 스레드…"
   },
   "commandPalette": {
     "state": {

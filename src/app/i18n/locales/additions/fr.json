@@ -322,6 +322,9 @@
         "social": "Réseaux sociaux",
         "other": "Autres"
       }
+    },
+    "space": {
+      "overview": "Vue d'ensemble de l'espace"
     }
   },
   "featureUi": {
@@ -1010,7 +1013,8 @@
         "searchFailed": "La recherche a échoué. Réessayez.",
         "resultCountFor_one": "{{count}} résultat pour « {{term}} »",
         "resultCountFor_many": "{{count}} de résultats pour « {{term}} »",
-        "resultCountFor_other": "{{count}} résultats pour « {{term}} »"
+        "resultCountFor_other": "{{count}} résultats pour « {{term}} »",
+        "retry": "Réessayer"
       }
     },
     "notifications": {
@@ -1169,6 +1173,18 @@
       "pageUpdated": "{{agent}} a mis à jour cette page.",
       "shownInPanel": "Affichée dans le panneau",
       "inlineDisclosure": "Créée par {{agent}}. Elle n’a pas accès à votre compte ; ce que vous saisissez ici peut quitter cette page."
+    },
+    "uiActions": {
+      "canvasOff": "Panneau partagé · les panneaux sont désactivés dans cette app",
+      "askForText": "Demander une version texte",
+      "copyRequest": "Copier la demande",
+      "textVersionRequest": "Merci d’envoyer « {{title}} » ici sous forme de texte. Les panneaux interactifs sont désactivés dans mon app.",
+      "askForTextStatus": {
+        "hint": "Place une demande dans la zone de saisie. Rien n’est envoyé tant que vous n’appuyez pas sur Envoyer.",
+        "added": "Demande ajoutée à la zone de saisie. Rien n’est envoyé tant que vous n’appuyez pas sur Envoyer.",
+        "kept": "Votre brouillon reste tel quel. Copiez la demande pour l’ajouter vous-même.",
+        "copied": "Demande copiée. Collez-la dans votre brouillon."
+      }
     }
   },
   "composer": {
@@ -1193,7 +1209,10 @@
       "autoHint": "Laisser l'agent décider",
       "settingTitle": "Envoyer pendant la réponse d'un agent",
       "settingDescription": "Maintenez Envoyer pour choisir pour un seul message."
-    }
+    },
+    "replyInThread": "Répondre dans le fil…",
+    "newThreadIn": "Nouveau fil dans {{room}}…",
+    "newThreadWith": "Nouveau fil avec {{name}}…"
   },
   "commandPalette": {
     "state": {

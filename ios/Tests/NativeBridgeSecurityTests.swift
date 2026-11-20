@@ -173,7 +173,10 @@ final class NativeBridgeSecurityTests: XCTestCase {
         XCTAssertEqual(after, 1, "Raw subframe messages must never run the plugin")
         XCTAssertEqual(HTTPCookieStorage.shared.cookies(for: cookieURL)?.first { $0.name == "bridge_probe" }?.value,
                        "top-level-only", "Subframes cannot mutate native cookies")
-        let enabled = try await webView.evaluateJavaScript("prompt(JSON.stringify({type:'CapacitorCookies.isEnabled'}))") as? String
-        XCTAssertEqual(enabled, "false", "Control: the main-frame synchronous bridge still works")
+        // Capacitor 8.6 no longer answers `isEnabled` prompts; it injects the flags as CapacitorNativeConfig.
+        let cookies = try await webView.evaluateJavaScript("prompt(JSON.stringify({type:'CapacitorCookies.get'}))")
+        XCTAssertTrue(cookies is String, "Control: the main-frame synchronous bridge still works")
+        let enabled = try await webView.evaluateJavaScript("window.CapacitorNativeConfig.cookiesEnabled") as? Bool
+        XCTAssertEqual(enabled, false, "Control: the main-frame bridge config is injected")
     }
 }

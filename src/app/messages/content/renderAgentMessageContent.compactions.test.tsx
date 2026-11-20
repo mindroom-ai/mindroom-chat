@@ -199,10 +199,10 @@ const reply = (
   ...extra,
 });
 
-/** A long answer, which work of 13 rows or more folds above (`foldFinishedWork`). */
-const LONG_ANSWER = 'The answer.'.padEnd(6000, ' More.');
-/** A line of 13 rows of text, which folds the work it starts. */
-const LONG_WORK = 'Let me look.'.padEnd(1300, ' More.');
+/** The answer after the work, which folds above it. */
+const ANSWER = 'The answer.';
+/** The note the work starts with. */
+const WORK = 'Let me look.';
 
 const paragraphs = (...parts: (string | string[])[]) => parts.flat().join('\n\n');
 
@@ -554,11 +554,11 @@ describe('compaction seams in a reply', () => {
 });
 
 describe('compaction seams in finished and live replies', () => {
-  it('keeps every seam in the folded work of a long finished reply, none in the answer', () => {
-    const answer = LONG_ANSWER;
+  it('keeps every seam in the folded work of a finished reply, none in the answer', () => {
+    const answer = ANSWER;
     render(
       reply(
-        paragraphs(LONG_WORK, markerLine('t1', 1), 'Now the file.', markerLine('t2', 2), answer),
+        paragraphs(WORK, markerLine('t1', 1), 'Now the file.', markerLine('t2', 2), answer),
         [entry('c1', 0), entry('c2', 1), entry('c3', 2)],
         {
           'io.mindroom.stream_status': 'completed',
@@ -575,7 +575,7 @@ describe('compaction seams in finished and live replies', () => {
     });
     expect(sequence()).toEqual([
       'seam',
-      LONG_WORK,
+      WORK,
       'tools:t1',
       'seam',
       'Now the file.',
@@ -595,15 +595,15 @@ describe('compaction seams in finished and live replies', () => {
   });
 
   it('keeps the seam after a last tool call inside a div in the folded work', () => {
-    const answer = LONG_ANSWER;
+    const answer = ANSWER;
     const html =
-      `<p>${LONG_WORK}</p>` +
+      `<p>${WORK}</p>` +
       '<p>🔧 <code>t1</code> [1]</p><p>Now the file.</p>' +
       `<div><p>🔧 <code>t2</code> [2]</p></div><p>${answer}</p>`;
     render(
       reply(
         paragraphs(
-          LONG_WORK,
+          WORK,
           markerLine('t1', 1),
           'Now the file.',
           '<div>',
@@ -626,7 +626,7 @@ describe('compaction seams in finished and live replies', () => {
       workedRow().props.onClick();
     });
     expect(sequence()).toEqual([
-      LONG_WORK,
+      WORK,
       'tools:t1',
       'seam',
       'Now the file.',
@@ -641,11 +641,11 @@ describe('compaction seams in finished and live replies', () => {
   });
 
   it('places each seam after its call when a div holds a direct call, then one in a paragraph', () => {
-    const answer = LONG_ANSWER;
-    const html = `<p>${LONG_WORK}</p><div>🔧 <code>t1</code> [1]<p>🔧 <code>t2</code> [2]</p></div><p>${answer}</p>`;
+    const answer = ANSWER;
+    const html = `<p>${WORK}</p><div>🔧 <code>t1</code> [1]<p>🔧 <code>t2</code> [2]</p></div><p>${answer}</p>`;
     render(
       reply(
-        paragraphs(LONG_WORK, '<div>', markerLine('t1', 1), markerLine('t2', 2), '</div>', answer),
+        paragraphs(WORK, '<div>', markerLine('t1', 1), markerLine('t2', 2), '</div>', answer),
         [entry('c1', 1), entry('c2', 2)],
         {
           'io.mindroom.stream_status': 'completed',
@@ -660,7 +660,7 @@ describe('compaction seams in finished and live replies', () => {
     act(() => {
       workedRow().props.onClick();
     });
-    expect(sequence()).toEqual([LONG_WORK, 'tools:t1', 'seam', 'tools:t2', 'seam', answer]);
+    expect(sequence()).toEqual([WORK, 'tools:t1', 'seam', 'tools:t2', 'seam', answer]);
     const work = workedRow().parent!;
     const inWork = (node: ReactTestInstance | null): boolean =>
       !!node && (node === work || inWork(node.parent));
@@ -668,14 +668,14 @@ describe('compaction seams in finished and live replies', () => {
   });
 
   it('folds a call the sanitizer takes out of a section with the work, its seam too', () => {
-    const answer = LONG_ANSWER;
+    const answer = ANSWER;
     const html =
-      `<p>${LONG_WORK}</p>` +
+      `<p>${WORK}</p>` +
       '<p>🔧 <code>t1</code> [1]</p>' +
       `<section><p>🔧 <code>t2</code> [2]</p></section><p>${answer}</p>`;
     render(
       reply(
-        paragraphs(LONG_WORK, markerLine('t1', 1), markerLine('t2', 2), answer),
+        paragraphs(WORK, markerLine('t1', 1), markerLine('t2', 2), answer),
         [entry('c1', 1), entry('c2', 2)],
         {
           'io.mindroom.stream_status': 'completed',
@@ -690,7 +690,7 @@ describe('compaction seams in finished and live replies', () => {
     act(() => {
       workedRow().props.onClick();
     });
-    expect(sequence()).toEqual([LONG_WORK, 'tools:t1', 'seam', 'tools:t2', 'seam', answer]);
+    expect(sequence()).toEqual([WORK, 'tools:t1', 'seam', 'tools:t2', 'seam', answer]);
   });
 
   it('shows the live compactions over the event’s while the reply streams', () => {
@@ -895,6 +895,9 @@ describe('compaction seams across the edits of a reply', () => {
       { 'io.mindroom.stream_status': 'completed' }
     );
     render(withEdits(finished, regenerated).read());
+    act(() => {
+      workedRow().props.onClick();
+    });
 
     expect(sequence()).toEqual(['Again.', 'tools:t1', 'Done again.']);
   });
@@ -908,9 +911,9 @@ describe('compaction seams across the edits of a reply', () => {
     expect(seamStates()).toEqual(['running']);
   });
 
-  it('keeps the work of a long regenerated reply open while its own stream still runs', () => {
+  it('keeps the work of a regenerated reply open while its own stream still runs', () => {
     // The regeneration inherits the previous answer's completed run; its own status streams.
-    const regenerating = reply(paragraphs('Again.', markerLine('t1', 1), LONG_ANSWER), [running], {
+    const regenerating = reply(paragraphs('Again.', markerLine('t1', 1), ANSWER), [running], {
       'io.mindroom.stream_status': 'streaming',
     });
     const content = withEdits(finished, regenerating).read();
@@ -924,9 +927,9 @@ describe('compaction seams across the edits of a reply', () => {
     ).toHaveLength(0);
   });
 
-  it('keeps the work of a long regenerated reply open when its own stream stopped or failed', () => {
+  it('keeps the work of a regenerated reply open when its own stream stopped or failed', () => {
     for (const streamStatus of ['cancelled', 'error']) {
-      const regenerated = reply(paragraphs('Again.', markerLine('t1', 1), LONG_ANSWER), [running], {
+      const regenerated = reply(paragraphs('Again.', markerLine('t1', 1), ANSWER), [running], {
         'io.mindroom.stream_status': streamStatus,
       });
       const content = withEdits(finished, regenerated).read();
@@ -946,7 +949,7 @@ describe('compaction seams across the edits of a reply', () => {
     const regeneration = (streamStatus: Record<string, unknown>) =>
       withEdits(
         finished,
-        reply(paragraphs('Again.', markerLine('t1', 1), LONG_ANSWER), [running], {
+        reply(paragraphs('Again.', markerLine('t1', 1), ANSWER), [running], {
           'io.mindroom.stream_status': streamStatus,
         })
       ).read();

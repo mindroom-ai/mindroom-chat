@@ -41,6 +41,7 @@ import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { VoiceTranscript } from '../../messages/content/VoiceTranscript';
+import { ReplyCards } from '../../messages/content/ReplyCards';
 import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
 import { RenderBody } from '../../messages/content/RenderBody';
 import { Reactions } from '../../messages/reactions/Reactions';
@@ -756,6 +757,10 @@ export const useTimelineMessageFeature = ({
           )}
         />
       );
+      const cards = data.replyCards?.byReply.get(eventId);
+      cards?.forEach(
+        (card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas.event)
+      );
       const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
         !readOnly &&
@@ -888,6 +893,7 @@ export const useTimelineMessageFeature = ({
                 }
               </CollapsibleMessage>
               {voiceTranscript}
+              {cards && <ReplyCards cards={cards} />}
               {editNotDecrypted && (
                 <div>
                   <MessageEditNotDecryptedContent />

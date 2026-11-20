@@ -322,6 +322,9 @@
         "social": "Social",
         "other": "Otras"
       }
+    },
+    "space": {
+      "overview": "Resumen del espacio"
     }
   },
   "featureUi": {
@@ -1010,7 +1013,8 @@
         "searchFailed": "La búsqueda falló. Inténtalo de nuevo.",
         "resultCountFor_one": "{{count}} resultado para «{{term}}»",
         "resultCountFor_many": "{{count}} de resultados para «{{term}}»",
-        "resultCountFor_other": "{{count}} resultados para «{{term}}»"
+        "resultCountFor_other": "{{count}} resultados para «{{term}}»",
+        "retry": "Reintentar"
       }
     },
     "notifications": {
@@ -1169,6 +1173,18 @@
       "pageUpdated": "{{agent}} ha actualizado esta página.",
       "shownInPanel": "Se muestra en el panel",
       "inlineDisclosure": "Creada por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de esta página."
+    },
+    "uiActions": {
+      "canvasOff": "Panel compartido · los paneles están desactivados en esta app",
+      "askForText": "Pedir una versión en texto",
+      "copyRequest": "Copiar solicitud",
+      "textVersionRequest": "Envía «{{title}}» aquí como texto, por favor. Los paneles interactivos están desactivados en mi app.",
+      "askForTextStatus": {
+        "hint": "Pone una solicitud en el redactor. No se envía nada hasta que pulses Enviar.",
+        "added": "Solicitud añadida al redactor. No se envía nada hasta que pulses Enviar.",
+        "kept": "Tu borrador se mantiene tal cual. Copia la solicitud para añadirla tú.",
+        "copied": "Solicitud copiada. Pégala en tu borrador."
+      }
     }
   },
   "composer": {
@@ -1193,7 +1209,10 @@
       "autoHint": "Dejar que el agente decida",
       "settingTitle": "Enviar mientras un agente responde",
       "settingDescription": "Mantén pulsado Enviar para elegir en un solo mensaje."
-    }
+    },
+    "replyInThread": "Responder en el hilo…",
+    "newThreadIn": "Nuevo hilo en {{room}}…",
+    "newThreadWith": "Nuevo hilo con {{name}}…"
   },
   "commandPalette": {
     "state": {

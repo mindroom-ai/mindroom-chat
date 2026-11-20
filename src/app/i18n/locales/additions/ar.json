@@ -346,6 +346,9 @@
         "social": "التواصل الاجتماعي",
         "other": "أخرى"
       }
+    },
+    "space": {
+      "overview": "نظرة عامة على المساحة"
     }
   },
   "featureUi": {
@@ -1070,7 +1073,8 @@
         "resultCountFor_two": "نتيجتان (⁨{{count}}⁩) «⁨{{term}}⁩»",
         "resultCountFor_few": "⁨{{count}}⁩ نتائج «⁨{{term}}⁩»",
         "resultCountFor_many": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
-        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»"
+        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
+        "retry": "إعادة المحاولة"
       }
     },
     "notifications": {
@@ -1256,6 +1260,18 @@
       "pageUpdated": "حدّث ⁨{{agent}}⁩ هذه الصفحة.",
       "shownInPanel": "معروضة في اللوحة",
       "inlineDisclosure": "أنشأها ⁨{{agent}}⁩. لا يمكنها الوصول إلى حسابك، وقد يخرج ما تُدخله هنا من هذه الصفحة."
+    },
+    "uiActions": {
+      "canvasOff": "تمت مشاركة لوحة · اللوحات معطّلة في هذا التطبيق",
+      "askForText": "اطلب نسخة نصية",
+      "copyRequest": "انسخ الطلب",
+      "textVersionRequest": "من فضلك أرسل «⁨{{title}}⁩» هنا كنص بدلًا من ذلك. اللوحات التفاعلية معطّلة في تطبيقي.",
+      "askForTextStatus": {
+        "hint": "يضع طلبًا في مربع الكتابة. لا يُرسل شيء حتى تضغط إرسال.",
+        "added": "أُضيف الطلب إلى مربع الكتابة. لا يُرسل شيء حتى تضغط إرسال.",
+        "kept": "بقيت مسودتك كما هي. انسخ الطلب لتضيفه بنفسك.",
+        "copied": "نُسخ الطلب. الصقه في مسودتك."
+      }
     }
   },
   "composer": {
@@ -1280,7 +1296,10 @@
       "autoHint": "ترك القرار للوكيل",
       "settingTitle": "الإرسال أثناء رد وكيل",
       "settingDescription": "اضغط مطولًا على إرسال للاختيار لرسالة واحدة."
-    }
+    },
+    "replyInThread": "الرد في سلسلة المحادثة…",
+    "newThreadIn": "سلسلة محادثة جديدة في ⁨{{room}}⁩…",
+    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…"
   },
   "commandPalette": {
     "state": {

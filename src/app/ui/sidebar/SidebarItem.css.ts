@@ -250,20 +250,20 @@ export const SidebarAvatar = recipe({
 });
 
 /**
- * Offsets that put the badge's top-start corner (top-left, or top-right in a right-to-left
- * language) `distance` px outside the entry's.
+ * Offsets that put the badge's top-end corner (top-right, or top-left in a right-to-left
+ * language) `distance` px outside the entry's: away from the selected entry's start-side bar.
  */
 const cornerOffset = (distance: number) => ({
   top: toRem(distance),
-  insetInlineStart: toRem(distance),
+  insetInlineEnd: toRem(distance),
 });
 
-/** The unread badge, pinned over the top-start corner of the rail entry. */
+/** The unread badge, pinned over the top-end corner of the rail entry. */
 export const SidebarItemBadge = recipe({
   // A flex box, so the badge sits at its top instead of on a text line's baseline below it.
   base: { position: 'absolute', zIndex: 1, pointerEvents: 'none', display: 'flex' },
   variants: {
-    // home.png: the unread count sits 6 px outside the avatar's top-left corner.
+    // The unread count sits 6 px outside the avatar's top-end corner.
     hasCount: {
       true: cornerOffset(-6),
       false: cornerOffset(-2),

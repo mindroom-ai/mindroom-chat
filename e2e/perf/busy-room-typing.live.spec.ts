@@ -14,6 +14,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { COMPOSER_NAME } from '../helpers/composerName';
 
 /**
  * Typing in a busy room while agents stream (live-test lane 6, finding L6-F002). Opt in with
@@ -364,7 +365,7 @@ test.describe('busy room typing', () => {
         await expect
           .poll(() => view.locator('[data-thread-root-id]').count(), { timeout: 180_000 })
           .toBeGreaterThanOrEqual(HISTORY_THREADS);
-        const composer = page.getByRole('textbox', { name: 'Send a message...' });
+        const composer = page.getByRole('textbox', { name: COMPOSER_NAME });
         await composer.click();
 
         const cdp = engine === 'chromium' ? await context.newCDPSession(page) : undefined;

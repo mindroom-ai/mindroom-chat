@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { type InfiniteData, useInfiniteQuery } from '@tanstack/react-query';
 import {
   EventType,
   type IEventWithRoomId,
@@ -10,6 +10,7 @@ import {
 } from 'matrix-js-sdk';
 import { getSameSenderBundledEdit } from '../matrix/editEvent';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { getSearchResultOpenTarget } from './searchResultOpenTarget';
 
 /** One server search hit with the messages around it. */
 export type ResultItem = {
@@ -36,7 +37,7 @@ export type MessageSearchPage = {
   groups: ResultGroup[];
   /** The server's total of hits for the search, when it gives one. */
   count?: number;
-  /** Hits of this page left out: older versions of a message, and texts edited away. */
+  /** Hits of this page left out: older versions of a message, texts edited away, retitles. */
   hidden: number;
   nextToken?: string;
 };
@@ -121,16 +122,41 @@ export const dropEditedAwayResults = (results: ISearchResult[], term: string): I
 };
 
 /** Starts a new group whenever the room changes, so the order of the results is kept. */
-const groupByRoom = (results: readonly ISearchResult[]): ResultGroup[] => {
+const groupByRoom = (items: readonly ResultItem[]): ResultGroup[] => {
   const groups: ResultGroup[] = [];
-  results.forEach((hit) => {
-    const roomId = hit.result.room_id;
-    const item = { rank: hit.rank, event: hit.result, context: hit.context };
+  items.forEach((item) => {
+    const roomId = item.event.room_id;
     const group = groups.at(-1);
     if (group?.roomId === roomId) group.items.push(item);
     else groups.push({ roomId, items: [item] });
   });
   return groups;
+};
+
+/**
+ * One title per thread over all pages: each retitle is a notice of its own, so a word in every
+ * title listed the thread once per title. The first stays where the server ranked it; the rest
+ * count as hidden. What people and agents wrote stays one hit per message.
+ */
+export const collapseThreadTitleHits = (
+  data: InfiniteData<MessageSearchPage, string | undefined>
+): InfiniteData<MessageSearchPage, string | undefined> => {
+  const listed = new Set<string>();
+  const isFirstOfThread = ({ event }: ResultItem) => {
+    const { threadTitle, threadRootId } = getSearchResultOpenTarget(event);
+    const key = `${event.room_id}\u0000${threadRootId}`;
+    if (!threadTitle) return true;
+    const first = !listed.has(key);
+    listed.add(key);
+    return first;
+  };
+  const pages = data.pages.map((page) => {
+    const items = page.groups.flatMap((group) => group.items);
+    const kept = items.filter(isFirstOfThread);
+    const dropped = items.length - kept.length;
+    return dropped ? { ...page, groups: groupByRoom(kept), hidden: page.hidden + dropped } : page;
+  });
+  return { ...data, pages };
 };
 
 /** Server-side message search (`POST /search`), one page at a time. */
@@ -148,6 +174,7 @@ export const useMessageSearch = ({
     enabled: searchTerm.length > 0,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: MessageSearchPage) => lastPage.nextToken,
+    select: collapseThreadTitleHits,
     // A newer term replaces this query, which then has no observer and aborts its request.
     queryFn: async ({ pageParam, signal }): Promise<MessageSearchPage> => {
       const body: ISearchRequestBody = {
@@ -169,7 +196,9 @@ export const useMessageSearch = ({
       const shown = dropEditedAwayResults(deduplicateResults(results), searchTerm);
       return {
         highlights: roomEvents.highlights ?? [],
-        groups: groupByRoom(shown),
+        groups: groupByRoom(
+          shown.map((hit) => ({ rank: hit.rank, event: hit.result, context: hit.context }))
+        ),
         count: roomEvents.count,
         hidden: results.length - shown.length,
         nextToken: roomEvents.next_batch,
