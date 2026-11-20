@@ -1,7 +1,13 @@
 import { Direction, type MatrixEvent } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '../../matrix/room';
-import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
+import {
+  AI_RUN_TOKEN_KINDS,
+  getAiRunInfo,
+  getAiRunTokenCounts,
+  type AiRunTokenCounts,
+  getStreamStatusFromContent,
+} from '../../matrix/protocol/aiRun';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
 import { getLinkedTimelines, getThreadTimelineEvents } from '../timeline/linkedTimelines';
@@ -10,6 +16,12 @@ import type { ThreadSummaryHistory } from './threadSummaryTimeline';
 type ConversationCostTotal = {
   usd: number;
   /** Replies that carried a cost. */
+  replyCount: number;
+};
+
+type ConversationTokenTotal = {
+  counts: AiRunTokenCounts;
+  /** Replies that reported tokens. */
   replyCount: number;
 };
 
@@ -23,6 +35,11 @@ export type ThreadConversationCost = {
   byEventId: ReadonlyMap<string, ConversationCostTotal>;
   /** Each priced reply's cost, its subagents' included, in thread order. */
   replies: readonly { eventId: string; usd: number }[];
+  /**
+   * The conversation's tokens by kind through each reply that reported any. Only a reply's own:
+   * the metadata gives its subagents' cost, not their tokens.
+   */
+  tokensByEventId: ReadonlyMap<string, ConversationTokenTotal>;
 };
 
 type SummarizeOptions = {
@@ -55,6 +72,9 @@ export const summarizeThreadConversationCost = (
   let micros = 0;
   let replyCount = 0;
   let unknownCost = false;
+  const tokensByEventId = new Map<string, ConversationTokenTotal>();
+  let tokens: AiRunTokenCounts = {};
+  let tokenReplyCount = 0;
   events.forEach((event) => {
     const eventId = event.getId();
     const sender = event.getSender() ?? '';
@@ -69,6 +89,17 @@ export const summarizeThreadConversationCost = (
       const endings = [run?.status, getStreamStatusFromContent(content)];
       if (endings.some((ending) => ending && UNKNOWN_COST_ENDINGS.has(ending))) unknownCost = true;
     }
+    const replyTokens: AiRunTokenCounts = run ? getAiRunTokenCounts(run) : {};
+    if (Object.keys(replyTokens).length > 0) {
+      // A copy, since each reply keeps the sum through it.
+      tokens = { ...tokens };
+      AI_RUN_TOKEN_KINDS.forEach((kind) => {
+        const count = replyTokens[kind];
+        if (count) tokens[kind] = (tokens[kind] ?? 0) + count;
+      });
+      tokenReplyCount += 1;
+      tokensByEventId.set(eventId, { counts: tokens, replyCount: tokenReplyCount });
+    }
     // A reply's spend is its own cost plus its subagents'; either alone prices it.
     const costs = [run?.costUsd, run?.subagentsCostUsd].filter(
       (usd): usd is number => usd !== undefined
@@ -80,12 +111,13 @@ export const summarizeThreadConversationCost = (
     replies.push({ eventId, usd: replyMicros / MICROS_PER_USD });
     byEventId.set(eventId, { usd: micros / MICROS_PER_USD, replyCount });
   });
-  if (replyCount === 0) return undefined;
+  if (replyCount === 0 && tokenReplyCount === 0) return undefined;
   return {
     complete:
       !unknownCost && history.sdkLoaded && !history.canPaginateBack && !history.hasMoreCachedBack,
     byEventId,
     replies,
+    tokensByEventId,
   };
 };
 

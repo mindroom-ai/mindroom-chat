@@ -1,8 +1,19 @@
 import type { TFunction } from 'i18next';
-import type { AiRunInfo, AiRunModelInfo } from '../../matrix/protocol/aiRun';
+import {
+  AI_RUN_TOKEN_KINDS,
+  getAiRunTokenCounts,
+  type AiRunInfo,
+  type AiRunModelInfo,
+  type AiRunTokenCounts,
+  type AiRunTokenKind,
+} from '../../matrix/protocol/aiRun';
 
 export const formatAiRunNumber = (value: number | undefined, locale?: string): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
+
+/** A large count in the reader's short style, such as 61.4M. */
+export const formatAiRunCompactNumber = (value: number, locale?: string): string =>
+  new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
 
 export const formatAiRunTimeToFirstToken = (value: number | undefined): string | undefined => {
   if (typeof value !== 'number' || value < 0) return undefined;
@@ -30,7 +41,7 @@ export const formatAiRunPercentage = (percentage: number, locale?: string): stri
   }).format(percentage / 100);
 
 type AiRunTokenPart = {
-  key: 'cacheRead' | 'newInput' | 'input' | 'output';
+  key: AiRunTokenKind;
   label: string;
   tokens: number;
   percentage: number;
@@ -42,6 +53,8 @@ type AiRunContextBarSegment = AiRunTokenPart & {
 
 const TOKEN_PART_LABELS = {
   cacheRead: ['mindroomUi.messages.mindroomReplyDetails.fromCache', 'From cache'],
+  cacheWrite: ['mindroomUi.messages.mindroomReplyDetails.writtenToCache', 'Written to cache'],
+  notCached: ['mindroomUi.messages.mindroomReplyDetails.notCached', 'Not cached'],
   newInput: ['mindroomUi.messages.mindroomReplyDetails.newInput', 'New input'],
   input: ['mindroomUi.messages.mindroomReplyDetails.input', 'Input'],
   output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
@@ -52,31 +65,20 @@ const tokenPartLabel = (key: AiRunTokenPart['key'], t?: TFunction): string => {
   return t ? t(labelKey) : fallback;
 };
 
-/** What a reply's tokens were spent on; input splits by cache only where the backend reported the split. */
-export const getAiRunTokenParts = (
-  info: AiRunInfo,
+/** Token counts as parts of their total, in the order they are shown. */
+export const getAiRunTokenCountParts = (
+  counts: AiRunTokenCounts,
   t?: TFunction
 ): { total: number; parts: AiRunTokenPart[] } | undefined => {
-  const counts: [AiRunTokenPart['key'], number | undefined][] =
-    info.uncachedInputTokens === undefined
-      ? [
-          ['input', info.inputTokens],
-          ['output', info.outputTokens],
-        ]
-      : [
-          ['cacheRead', info.cacheReadTokens],
-          ['newInput', info.uncachedInputTokens],
-          ['output', info.outputTokens],
-        ];
-  const used = counts.filter((entry): entry is [AiRunTokenPart['key'], number] => {
-    const tokens = entry[1];
-    return tokens !== undefined && tokens > 0;
+  const used = AI_RUN_TOKEN_KINDS.flatMap((key) => {
+    const tokens = counts[key];
+    return tokens ? [{ key, tokens }] : [];
   });
-  const total = used.reduce((sum, [, tokens]) => sum + tokens, 0);
+  const total = used.reduce((sum, { tokens }) => sum + tokens, 0);
   if (total <= 0) return undefined;
   return {
     total,
-    parts: used.map(([key, tokens]) => ({
+    parts: used.map(({ key, tokens }) => ({
       key,
       label: tokenPartLabel(key, t),
       tokens,
@@ -84,6 +86,10 @@ export const getAiRunTokenParts = (
     })),
   };
 };
+
+/** What a reply's tokens were spent on: its input, by where it came from, and its output. */
+export const getAiRunTokenParts = (info: AiRunInfo, t?: TFunction) =>
+  getAiRunTokenCountParts(getAiRunTokenCounts(info), t);
 
 export const getAiRunModelLabel = (info: AiRunModelInfo): string | undefined => {
   const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');

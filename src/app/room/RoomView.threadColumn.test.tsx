@@ -491,6 +491,8 @@ it("fills the page with the column when its edge is dragged past the messages' l
   expect(screen.getByTestId('thread-column').dataset.expandPreview).toBe('true');
   expect(handle.getAttribute('aria-valuenow')).toBe(handle.getAttribute('aria-valuemax'));
   expect(handle.getAttribute('aria-valuetext')).toBe('Show the thread in full');
+  // It stays at its widest, beside the messages, until the release fills the page.
+  expect(screen.getByTestId('thread-column').style.width).toBe('640px');
   fireEvent.pointerUp(handle, { clientX: 100 });
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(column()?.dataset.thread).toBe('$thread');

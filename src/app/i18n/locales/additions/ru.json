@@ -561,7 +561,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} не выполнена: {{reason}}",
         "usage": "Не удалось выполнить {{command}}. {{usage}}",
-        "unknown": "{{command}} не является командой. Чтобы отправить это как текст, начните сообщение с /plain."
+        "unknown": "{{command}} не является командой. Чтобы отправить это как текст, начните сообщение с /plain.",
+        "thisApp": "Это приложение",
+        "mindroomAgents": "Агенты MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Этот сервер не умеет искать сообщения по времени.",
@@ -859,6 +861,14 @@
         "diffTruncated": "Diff обрезан",
         "diffLabel": "Diff файла {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Модель задана",
+        "reset": "Модель сброшена",
+        "inherited": "Возврат к унаследованным моделям",
+        "changedBy": "Кем изменено: {{name}}",
+        "scopeOwn": "Действует для будущих ответов в этой ветке от агентов и команд, к которым вы можете обращаться.",
+        "scopeOther": "Действует для будущих ответов в этой ветке от агентов и команд, к которым может обращаться {{name}}."
+      },
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
@@ -881,7 +891,10 @@
         "nameChose": "Выбор: {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Субагенты"
+        "subagents": "Субагенты",
+        "writtenToCache": "Записано в кеш",
+        "notCached": "Без кеша",
+        "conversation": "Разговор"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}",

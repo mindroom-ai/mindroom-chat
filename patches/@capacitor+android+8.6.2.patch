@@ -43,17 +43,3 @@ index 46bc174..dfb0840 100644
          super.load();
      }
  
-diff --git a/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java b/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java
-index 3f04adf..ee86818 100644
---- a/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java
-+++ b/node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/plugin/SystemBars.java
-@@ -56,7 +56,8 @@ public class SystemBars extends Plugin {
- 
-     @Override
-     public void load() {
--        getBridge().getWebView().addJavascriptInterface(this, "CapacitorSystemBarsAndroidInterface");
-+
-+        // Synchronous JavaScript interfaces cannot identify the calling frame.
-         super.load();
- 
-         initSystemBars();

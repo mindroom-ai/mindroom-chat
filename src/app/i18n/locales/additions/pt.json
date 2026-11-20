@@ -552,7 +552,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} falhou: {{reason}}",
         "usage": "Não foi possível executar {{command}}. {{usage}}",
-        "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain."
+        "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain.",
+        "thisApp": "Este app",
+        "mindroomAgents": "Agentes do MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Este servidor não consegue procurar mensagens por hora.",
@@ -848,6 +850,14 @@
         "diffTruncated": "Diff truncado",
         "diffLabel": "Diff de {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Modelo definido",
+        "reset": "Modelo redefinido",
+        "inherited": "De volta aos modelos herdados",
+        "changedBy": "Alterado por {{name}}",
+        "scopeOwn": "Vale para as próximas respostas nesta conversa dos agentes e equipes aos quais você pode se dirigir.",
+        "scopeOther": "Vale para as próximas respostas nesta conversa dos agentes e equipes aos quais {{name}} pode se dirigir."
+      },
       "finishedWork": {
         "workedFor": "Trabalhou por {{duration}}",
         "worked": "Trabalhou"
@@ -868,7 +878,10 @@
         "nameChose": "{{name}} escolheu"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagentes"
+        "subagents": "Subagentes",
+        "writtenToCache": "Gravados na cache",
+        "notCached": "Fora da cache",
+        "conversation": "Conversa"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Em execução há {{duration}}",

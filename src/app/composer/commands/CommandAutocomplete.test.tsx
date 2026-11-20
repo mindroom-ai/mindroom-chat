@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createEditor, type Descendant, Editor, Transforms } from 'slate';
+import { Line } from 'folds';
 import { toPlainText } from '../../editor/output';
 import { getPrevWorldRange } from '../../editor/utils';
 import {
@@ -189,6 +190,51 @@ it("shows a MindRoom command's / syntax among the slash commands, and a pick wri
   });
 
   expect(toPlainText(editor.children, false)).toBe('/list_schedules ');
+});
+
+it("lists MindRoom's commands, a line, then this app's, in the order Tab picks from", () => {
+  const { editor, query, requestClose } = editorWith('/s');
+  act(() => {
+    renderer = create(
+      <CommandAutocomplete
+        editor={editor}
+        query={query}
+        title="Commands"
+        commands={[
+          { name: 'me', description: 'Sends an action.', source: 'app' },
+          { name: 'shout', description: 'Says it louder.', source: 'app' },
+          { name: 'schedule', description: 'Plans a task.', source: 'mindroom' },
+          { name: 'skip', description: 'Skips a turn.', source: 'mindroom' },
+        ]}
+        requestClose={requestClose}
+      />
+    );
+  });
+
+  const groups = renderer!.root.findAll(
+    (node) => node.type === 'div' && node.props.role === 'group'
+  );
+  const sections = groups.map((group) => ({
+    label: renderer!.root.find((node) => node.props.id === group.props['aria-labelledby']).props
+      .children,
+    rows: group.findAllByType('button').map((row) => row.props['data-slash-command']),
+  }));
+  expect(sections).toEqual([
+    { label: 'MindRoom agents', rows: ['schedule', 'skip'] },
+    { label: 'This app', rows: ['shout'] },
+  ]);
+  expect(renderer!.root.findAllByType(Line)).toHaveLength(1);
+
+  const tab = {
+    key: 'Tab',
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    preventDefault: vi.fn(),
+  };
+  act(() => defined(windowKeyDown.listener, 'the window key listener')(tab));
+  expect(toPlainText(editor.children, false)).toBe('/schedule ');
 });
 
 it("lists MindRoom's commands with their syntax, and a pick writes the ! command", () => {

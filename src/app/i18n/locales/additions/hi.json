@@ -543,7 +543,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} विफल रहा: {{reason}}",
         "usage": "{{command}} नहीं चल सका। {{usage}}",
-        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।"
+        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।",
+        "thisApp": "यह ऐप",
+        "mindroomAgents": "MindRoom एजेंट"
       },
       "jumpToTime": {
         "unsupported": "यह सर्वर समय के अनुसार संदेश नहीं खोज सकता।",
@@ -837,6 +839,14 @@
         "diffTruncated": "डिफ़ छोटा किया गया",
         "diffLabel": "{{path}} का डिफ़"
       },
+      "modelChangeMarker": {
+        "set": "मॉडल सेट किया गया",
+        "reset": "मॉडल रीसेट किया गया",
+        "inherited": "इनहेरिट किए गए मॉडल पर वापस",
+        "changedBy": "{{name}} ने बदला",
+        "scopeOwn": "इस थ्रेड में उन एजेंट और टीमों के आगे के जवाबों पर लागू होता है जिन्हें आप संबोधित कर सकते हैं।",
+        "scopeOther": "इस थ्रेड में उन एजेंट और टीमों के आगे के जवाबों पर लागू होता है जिन्हें {{name}} संबोधित कर सकते हैं।"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} तक काम किया",
         "worked": "काम किया"
@@ -855,7 +865,10 @@
         "nameChose": "{{name}} ने चुना"
       },
       "mindroomReplyDetails": {
-        "subagents": "सब-एजेंट"
+        "subagents": "सब-एजेंट",
+        "writtenToCache": "कैश में लिखे गए",
+        "notCached": "कैश में नहीं",
+        "conversation": "बातचीत"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",

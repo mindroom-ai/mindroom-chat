@@ -2,7 +2,7 @@ import { type DragEvent as ReactDragEvent, useEffect, useRef, useState } from 'r
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getLocalStorageItem } from '../lib/state/atomWithLocalStorage';
-import { isThreadDrag, readThreadDragData } from '../navigation/secondThread';
+import { readThreadDragData, THREAD_DRAG_TYPE } from '../navigation/secondThread';
 import { useThreadDrag } from './useThreadDrag';
 import { SECOND_THREAD_DEFAULT_WIDTH } from './threadLayout';
 import * as css from './SecondThreadDropZone.css';
@@ -58,9 +58,13 @@ export function SecondThreadDropZone({
   }, [drag]);
   if (!drag) return null;
 
-  // A thread's drag may drop here (its default prevented), and moves its thread.
+  // The thread's drag may drop here (its default prevented), and moves its thread. The zone shows
+  // for that drag, which shows its type or none at all: the Mac app's WebKit shows none before the
+  // drop. Other types alone are another drag's, come in while the page missed the thread's end.
+  const other = ({ dataTransfer: { types } }: ReactDragEvent<HTMLDivElement>) =>
+    types.length > 0 && !types.includes(THREAD_DRAG_TYPE);
   const accept = (evt: ReactDragEvent<HTMLDivElement>) => {
-    if (!isThreadDrag(evt.dataTransfer)) return;
+    if (other(evt)) return;
     armed.current ??= !onZone(drag.x, drag.y);
     if (!armed.current) return;
     evt.preventDefault();
@@ -84,8 +88,13 @@ export function SecondThreadDropZone({
         setOver(false);
       }}
       onDrop={(evt) => {
-        const thread = readThreadDragData(evt.dataTransfer);
-        if (!thread || !armed.current) return;
+        if (!armed.current || other(evt)) return;
+        // A drag that shows its type names its thread, one from another window too; only the Mac
+        // app's, which shows none, takes the thread the page read as it started.
+        const thread = evt.dataTransfer.types.includes(THREAD_DRAG_TYPE)
+          ? readThreadDragData(evt.dataTransfer)
+          : drag;
+        if (!thread) return;
         evt.preventDefault();
         onOpen(thread.roomId, thread.rootId);
       }}

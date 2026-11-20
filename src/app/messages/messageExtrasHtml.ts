@@ -255,6 +255,8 @@ const hasUnsafeSvgUrlReference = (value: string): boolean => {
   return false;
 };
 
+// sanitize-html 2.18 drops CDATA sections, so an SVG label written as `<![CDATA[...]]>` renders
+// blank. Nothing MindRoom sends writes CDATA; write labels as escaped text instead.
 export const sanitizeMessageExtraHtml = (html: string): string =>
   sanitizeHtml(html, {
     allowedTags: [...allowedTags, ...svgTags],

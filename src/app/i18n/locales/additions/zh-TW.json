@@ -534,7 +534,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失敗：{{reason}}",
         "usage": "無法執行 {{command}}。{{usage}}",
-        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。"
+        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。",
+        "thisApp": "此應用程式",
+        "mindroomAgents": "MindRoom AI 代理"
       },
       "jumpToTime": {
         "unsupported": "此伺服器無法依時間尋找訊息。",
@@ -826,6 +828,14 @@
         "diffTruncated": "差異已截斷",
         "diffLabel": "{{path}} 的差異"
       },
+      "modelChangeMarker": {
+        "set": "已設定模型",
+        "reset": "已重設模型",
+        "inherited": "已恢復為繼承的模型",
+        "changedBy": "變更者：{{name}}",
+        "scopeOwn": "適用於此討論串中你可以對話的代理程式和團隊日後的回覆。",
+        "scopeOther": "適用於此討論串中 {{name}} 可以對話的代理程式和團隊日後的回覆。"
+      },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
@@ -842,7 +852,10 @@
         "nameChose": "{{name}} 已選擇"
       },
       "mindroomReplyDetails": {
-        "subagents": "子代理"
+        "subagents": "子代理",
+        "writtenToCache": "寫入快取",
+        "notCached": "未快取",
+        "conversation": "對話"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",

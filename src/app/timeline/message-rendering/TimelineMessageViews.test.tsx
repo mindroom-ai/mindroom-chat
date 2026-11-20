@@ -13,6 +13,7 @@ import { ConversationViewContext } from '../../navigation/conversationView';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { NO_VOICE_TRANSCRIPTS } from '../../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../../messages/modelChanges';
 
 // Two views of one room: the room's page and another conversation view (a plugin's thread view),
 // each with its timeline and the composer that shares its editor. The reply target is real jotai
@@ -58,6 +59,7 @@ const emptyData = {
   threadSummaryTimeline: { hiddenEventIds: new Set<string>(), markersByEventId: new Map() },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 } as never;
 
 const emptyEditor = () => {

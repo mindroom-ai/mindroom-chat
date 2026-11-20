@@ -534,7 +534,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
+        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain.",
+        "thisApp": "Aplikasi ini",
+        "mindroomAgents": "Agen MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Server ini tidak dapat mencari pesan berdasarkan waktu.",
@@ -826,6 +828,14 @@
         "diffTruncated": "Diff dipotong",
         "diffLabel": "Diff {{path}}"
       },
+      "modelChangeMarker": {
+        "set": "Model diatur",
+        "reset": "Model diatur ulang",
+        "inherited": "Kembali ke model warisan",
+        "changedBy": "Diubah oleh {{name}}",
+        "scopeOwn": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat Anda sapa.",
+        "scopeOther": "Berlaku untuk balasan berikutnya di utas ini dari agen dan tim yang dapat disapa {{name}}."
+      },
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"
@@ -842,7 +852,10 @@
         "nameChose": "Dipilih oleh {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagen"
+        "subagents": "Subagen",
+        "writtenToCache": "Ditulis ke cache",
+        "notCached": "Tidak di-cache",
+        "conversation": "Percakapan"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}",

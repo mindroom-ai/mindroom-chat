@@ -84,7 +84,7 @@ const PREVIEW_LENGTH = 240;
  * The first renderer that takes `event`: plugins in build order, each plugin's renderers in its
  * order, skipping plugins config.json turns off and renderers that do not trust the sender.
  */
-const pickRenderer = (
+export const pickRenderer = (
   config: ClientConfig | undefined,
   event: PluginEvent | undefined,
   viewerId: string | undefined

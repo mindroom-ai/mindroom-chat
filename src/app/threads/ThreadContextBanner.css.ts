@@ -16,7 +16,8 @@ const whenCompact = (compact: CSSProperties) => ({
   '@media': { [shortViewport]: { selectors: { '&&': compact } } },
 });
 
-// Flush under the room header: a strip between them would show the scrolled messages, cut in half.
+// No top margin: under the room header, a strip between them would show the scrolled messages, cut
+// in half. Beside the messages, with no room header, its header draws the gap (`GapAbove`).
 const BannerLayout = style({
   margin: `0 ${config.space.S300} ${config.space.S200}`,
   padding: config.space.S300,
