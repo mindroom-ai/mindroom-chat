@@ -29,6 +29,7 @@ const listedDirs = plugins.map(({ dir }) => normalizePath(realpathSync(dir)));
 const pluginDirs = listedDirs.filter((dir) => path.relative(SRC, dir).startsWith('..'));
 // The settings below that serve such plugins stay unset without them.
 const withPlugins = pluginDirs.length > 0;
+const PLUGIN_CONDITIONS = ['module', 'node', 'development|production'];
 const testsOnly = process.env.MINDROOM_CLIENT_PLUGIN_TESTS_ONLY === '1';
 
 // A directory such as `plugins (old)` holds characters globs read as syntax.
@@ -64,7 +65,12 @@ export default defineConfig({
       ),
     },
     dedupe: withPlugins ? SHARED_PACKAGES : undefined,
+    // The ES module builds of the packages a plugin installed, as Vitest 2 took them: Vitest 4 drops
+    // the `module` condition, and a CommonJS build's `require('react')` resolves in the plugin's
+    // directory, which has no React.
+    conditions: withPlugins ? PLUGIN_CONDITIONS : undefined,
   },
+  ssr: withPlugins ? { resolve: { conditions: PLUGIN_CONDITIONS } } : undefined,
   esbuild: withPlugins ? { jsx: 'automatic' } : undefined,
   server: withPlugins
     ? { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...pluginDirs] } }
