@@ -57,9 +57,12 @@ export const CardMotion = style({
 });
 
 // A section's header among the cards (Sections): it folds the section, as the sidebar's do.
+// It glides itself (`useListMotion`), and once it had, Chromium no longer scrolled a list anchored
+// on it: the browser anchors on the cards' shells only.
 export const SectionHeader = style({
   display: 'flex',
   paddingBlockStart: config.space.S200,
+  overflowAnchor: 'none',
 });
 
 export const PinnedSection = style({

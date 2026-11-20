@@ -53,8 +53,12 @@ const moveTo = (rows: readonly string[], movers: readonly string[], place: numbe
   return [...rest.slice(0, place), ...movers, ...rest.slice(place)];
 };
 
-/** Every run of four rows: the views of a list whose view holds four. */
-const viewsOf = (rows: readonly string[]) => rows.slice(3).map((_, at) => rows.slice(at, at + 4));
+/**
+ * Every run of four rows, without the headers among them: the views of a list whose view holds
+ * four. The browser anchors on cards only.
+ */
+const viewsOf = (rows: readonly string[]) =>
+  rows.slice(3).map((_, at) => rows.slice(at, at + 4).filter((row) => !isHeader(row)));
 
 describe('rowToPin', () => {
   const before = ['$a', '$b', '$c', '$d', '$e', '$f'];
@@ -108,29 +112,25 @@ describe('rowToPin', () => {
     expect(pin(['$a', '$c', '$d', '$e', '$b', '$f'], ['$c', '$d', '$e'])).toBe('$c');
   });
 
-  it('takes a card that stands under another header as the one that moved, never the header', () => {
+  it('takes a card that stands under another header as the one that moved', () => {
     const rows = ['section:working', '$a', '$b', 'section:needsYou', '$c', '$d', '$e'];
     const pinOf = (after: string[], inView: string[]) => rowToPin(rows, after, inView, isHeader);
-    // An agent's run ended: its card, the last under Working, went to the top of Needs you.
+    // An agent's run ended: its card, the last under Working, went to the top of Needs you, past
+    // the header only.
     const ended = ['section:working', '$a', 'section:needsYou', '$b', '$c', '$d', '$e'];
-    expect(pinOf(ended, ['$b', 'section:needsYou', '$c'])).toBe('section:needsYou');
-    expect(pinOf(ended, ['section:needsYou', '$c', '$d'])).toBe('section:needsYou');
-    // Both runs ended at once, and the header that led the view still does.
-    const bothEnded = ['section:working', 'section:needsYou', '$a', '$b', '$c', '$d', '$e'];
-    expect(pinOf(bothEnded, ['section:needsYou', '$c', '$d'])).toBe('section:needsYou');
-    // The two cards under the header went up to Working.
+    expect(pinOf(ended, ['$b', '$c', '$d'])).toBe('$c');
+    expect(pinOf(ended, ['$a', '$b', '$c'])).toBe('$a');
+    // Both runs ended at once, and the cards they passed stayed.
+    const bothEnded = ['section:working', 'section:needsYou', '$b', '$a', '$c', '$d', '$e'];
+    expect(pinOf(bothEnded, ['$b', '$c', '$d'])).toBe('$c');
+    // Two cards went up to Working, and the one that leads Needs you now stayed.
     const asked = ['section:working', '$d', '$c', '$a', '$b', 'section:needsYou', '$e'];
-    expect(pinOf(asked, ['section:needsYou', '$c', '$d', '$e'])).toBe('section:needsYou');
     expect(pinOf(asked, ['$c', '$d', '$e'])).toBe('$e');
-    // They are the first to work, in their order, right above the header: it is not the header
-    // that went down past two rows.
-    const needsYou = ['section:needsYou', '$c', '$d', '$e'];
-    const working = ['section:working', '$c', '$d', 'section:needsYou', '$e'];
-    expect(rowToPin(needsYou, working, needsYou, isHeader)).toBe('section:needsYou');
+    expect(pinOf(asked, ['$a', '$b', '$c'])).toBe('$a');
     // The first run to end: its card went down under a header that came with it, past one card.
     const ran = ['section:working', '$a', '$b', 'section:done', '$c', '$d'];
     const first = ['section:working', '$b', 'section:needsYou', '$a', 'section:done', '$c', '$d'];
-    expect(rowToPin(ran, first, ['$a', '$b', 'section:done'], isHeader)).toBe('$b');
+    expect(rowToPin(ran, first, ['$a', '$b', '$c'], isHeader)).toBe('$b');
   });
 
   it('passes over a row that left the list, and one the list does not hold', () => {

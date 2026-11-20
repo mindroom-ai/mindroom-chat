@@ -216,33 +216,22 @@ export const useHeldThreadOrder = (
 };
 
 /**
- * The keys of the rows in view (cards, and in sections their headers), top to bottom, from the
- * one whose box crosses the view's top edge. The view is what the browser anchors in: the list's
- * box inside its scroll padding, so not the rows under the bars that float over its ends. A
- * header is read where it stands in the page, not where its glide shows it (`useListMotion`); a
- * card's shell never glides. It reads every row down to the view's end, once for a change of
- * order.
+ * The keys of the cards in view, top to bottom, from the one whose box crosses the view's top
+ * edge. The view is what the browser anchors in: the list's box inside its scroll padding, so not
+ * the cards under the bars that float over its ends. Cards only: the browser anchors on a card's
+ * shell, which never glides, and on no header (`SectionHeader`). It reads every card down to the
+ * view's end, once for a change of order.
  */
-const rowsInView = (view: HTMLElement): string[] => {
+const cardsInPaddedView = (view: HTMLElement): string[] => {
   const edges = view.getBoundingClientRect();
   const style = getComputedStyle(view);
   const top = edges.top + view.clientTop + (parseFloat(style.scrollPaddingTop) || 0);
   const bottom = edges.bottom - (parseFloat(style.scrollPaddingBottom) || 0);
   const keys: string[] = [];
-  const rows = view.querySelectorAll<HTMLElement>(
-    '[data-scroll-anchor], [data-compact-section]:not([inert])'
-  );
-  for (const row of rows) {
-    const box = row.getBoundingClientRect();
-    const glide = row.hasAttribute('data-compact-section')
-      ? parseFloat(getComputedStyle(row).getPropertyValue('translate').split(' ')[1] ?? '') || 0
-      : 0;
-    if (box.top - glide >= bottom) break;
-    if (box.bottom - glide > top) {
-      keys.push(
-        row.getAttribute('data-scroll-anchor') ?? row.getAttribute('data-motion-row') ?? ''
-      );
-    }
+  for (const card of view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')) {
+    const box = card.getBoundingClientRect();
+    if (box.top >= bottom) break;
+    if (box.bottom > top) keys.push(card.getAttribute('data-scroll-anchor') ?? '');
   }
   return keys;
 };
@@ -288,7 +277,7 @@ export const useRowKeys = (
       // page at this change as long as the render commits in the task it runs in, as every
       // render of the list does (none is a transition). In a render React may pause, the reader
       // could scroll before the commit, and the row kept would be the best guess.
-      const inView = rowsInView(view);
+      const inView = cardsInPaddedView(view);
       const pin = rowToPin(shown.rows, rows, inView, isHeader);
       // Back to its first key the next time: a row only ever has one of two.
       rowsMovedUp(shown.rows, rows, pin, inView).forEach((row) => {
