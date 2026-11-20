@@ -49,10 +49,9 @@ const preventSelection = (event: Event) => event.preventDefault();
 const setSelectionBlocked = (blocked: boolean) => {
   if (blocked) document.addEventListener('selectstart', preventSelection, true);
   else document.removeEventListener('selectstart', preventSelection, true);
-  document.documentElement.toggleAttribute(css.RESIZING, blocked);
-  // Chromium on macOS paints a selection kept through the block again once it is set anew.
-  const sel = window.getSelection();
-  if (!blocked && sel?.focusNode && !sel.isCollapsed) sel.extend(sel.focusNode, sel.focusOffset);
+  // Text already selected keeps its highlight: Chromium on macOS paints it no more once unblocked.
+  const kept = blocked && window.getSelection()?.isCollapsed === false;
+  document.documentElement.toggleAttribute(css.RESIZING, blocked && !kept);
 };
 
 /**

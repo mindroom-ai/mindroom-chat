@@ -134,6 +134,8 @@ test('a selected message stays selected across a drag on the splitter @webkit', 
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 100, y, { steps: 5 });
+  // The selection keeps its highlight: no new one starts, but no style hides the old one.
+  expect(await messageSelects(page)).toEqual({ userSelect: 'text', selectstart: false });
   const project = test.info().project.name;
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${project}-during.png` });
   await page.mouse.up();
