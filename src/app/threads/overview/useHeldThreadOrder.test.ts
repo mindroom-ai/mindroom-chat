@@ -108,7 +108,7 @@ describe('rowToPin', () => {
     expect(pin(['$a', '$c', '$d', '$e', '$b', '$f'], ['$c', '$d', '$e'])).toBe('$c');
   });
 
-  it('takes a card that crossed a header as the one that moved, never the header', () => {
+  it('takes a card that stands under another header as the one that moved, never the header', () => {
     const rows = ['section:working', '$a', '$b', 'section:needsYou', '$c', '$d', '$e'];
     const pinOf = (after: string[], inView: string[]) => rowToPin(rows, after, inView, isHeader);
     // An agent's run ended: its card, the last under Working, went to the top of Needs you.
@@ -127,6 +127,10 @@ describe('rowToPin', () => {
     const needsYou = ['section:needsYou', '$c', '$d', '$e'];
     const working = ['section:working', '$c', '$d', 'section:needsYou', '$e'];
     expect(rowToPin(needsYou, working, needsYou, isHeader)).toBe('section:needsYou');
+    // The first run to end: its card went down under a header that came with it, past one card.
+    const ran = ['section:working', '$a', '$b', 'section:done', '$c', '$d'];
+    const first = ['section:working', '$b', 'section:needsYou', '$a', 'section:done', '$c', '$d'];
+    expect(rowToPin(ran, first, ['$a', '$b', 'section:done'], isHeader)).toBe('$b');
   });
 
   it('passes over a row that left the list, and one the list does not hold', () => {
@@ -258,13 +262,25 @@ describe('the rows in view through a change of order', () => {
     );
   });
 
-  const sections: Record<string, string[]> = {
-    'section:working': ['$w0', '$w1', '$w2'],
-    'section:needsYou': ['$n0', '$n1', '$n2', '$n3'],
-    'section:done': ['$d0', '$d1', '$d2', '$d3'],
-  };
+  // Sections with a few cards each, and with one that has none yet and one that has a single card:
+  // a header comes with its first card and goes with its last.
+  const layouts: Record<string, string[]>[] = [
+    {
+      'section:working': ['$w0', '$w1', '$w2'],
+      'section:needsYou': ['$n0', '$n1', '$n2', '$n3'],
+      'section:done': ['$d0', '$d1', '$d2', '$d3'],
+    },
+    {
+      'section:working': ['$w0'],
+      'section:needsYou': ['$n0', '$n1', '$n2'],
+      'section:later': [],
+      'section:done': ['$d0', '$d1', '$d2', '$d3'],
+    },
+  ];
   const rowsOf = (cards: Record<string, string[]>) =>
-    Object.entries(cards).flatMap(([header, members]) => [header, ...members]);
+    Object.entries(cards).flatMap(([header, members]) =>
+      members.length > 0 ? [header, ...members] : []
+    );
   /** The cards with `card` at the top of the section under `header`, as a new run or reply puts it. */
   const toTopOf = (cards: Record<string, string[]>, card: string, header: string) =>
     Object.fromEntries(
@@ -275,41 +291,44 @@ describe('the rows in view through a change of order', () => {
     );
 
   it('stay in place in sections when a card goes to the top of any section, its own too', () => {
-    const before = rowsOf(sections);
-    before
-      .filter((row) => !isHeader(row))
-      .forEach((card) =>
+    layouts.forEach((sections) => {
+      const before = rowsOf(sections);
+      const cards = before.filter((row) => !isHeader(row));
+      cards.forEach((card) =>
         Object.keys(sections).forEach((header) => {
           const after = rowsOf(toTopOf(sections, card, header));
           if (after.join() === before.join()) return;
           viewsOf(before).forEach((inView) =>
             expect(
               shiftInView(before, after, inView, [card]),
-              `${card} to ${header}, seen from ${inView[0]}`
+              `${after.join(' ')} seen from ${inView[0]}`
             ).toBe(0)
           );
         })
       );
+    });
   });
 
-  it('stay in place in sections when two cards cross to the top of another section at once', () => {
-    const before = rowsOf(sections);
-    const cards = before.filter((row) => !isHeader(row));
-    cards.forEach((first) =>
-      cards.forEach((second) =>
-        Object.keys(sections).forEach((header) => {
-          if (first === second || [first, second].some((card) => sections[header]?.includes(card)))
-            return;
-          const after = rowsOf(toTopOf(toTopOf(sections, first, header), second, header));
-          viewsOf(before).forEach((inView) =>
-            expect(
-              shiftInView(before, after, inView, [first, second]),
-              `${first} and ${second} to ${header}, seen from ${inView[0]}`
-            ).toBe(0)
-          );
-        })
-      )
-    );
+  it('stay in place in sections when two cards go to the top of another section at once', () => {
+    layouts.forEach((sections) => {
+      const before = rowsOf(sections);
+      const cards = before.filter((row) => !isHeader(row));
+      cards.forEach((first) =>
+        cards.forEach((second) =>
+          Object.keys(sections).forEach((header) => {
+            const members = sections[header] ?? [];
+            if (first === second || members.includes(first) || members.includes(second)) return;
+            const after = rowsOf(toTopOf(toTopOf(sections, first, header), second, header));
+            viewsOf(before).forEach((inView) =>
+              expect(
+                shiftInView(before, after, inView, [first, second]),
+                `${after.join(' ')} seen from ${inView[0]}`
+              ).toBe(0)
+            );
+          })
+        )
+      );
+    });
   });
 });
 
@@ -319,15 +338,25 @@ describe('useRowKeys', () => {
     vi.restoreAllMocks();
   });
 
-  /** A list scrolled by `scrollTop` whose view the card of $a leads, cut at its top edge. */
-  const keysOf = (scrollTop: number) => {
+  /**
+   * A list scrolled by `scrollTop` whose box the card of $a leads, cut at its top edge, over the
+   * card of $b.
+   */
+  const keysOf = (scrollTop: number, movesUp = true) => {
     const element = Object.assign(document.createElement('div'), { scrollTop });
-    const lead = element.appendChild(document.createElement('div'));
-    lead.setAttribute('data-scroll-anchor', '$a');
     vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 600 } as DOMRect);
-    vi.spyOn(lead, 'getBoundingClientRect').mockReturnValue({ top: -30, bottom: 56 } as DOMRect);
+    [
+      ['$a', -30],
+      ['$b', 60],
+    ].forEach(([rootId, top]) => {
+      const card = element.appendChild(document.createElement('div'));
+      card.setAttribute('data-scroll-anchor', String(rootId));
+      const box = { top: Number(top), bottom: Number(top) + 86 } as DOMRect;
+      vi.spyOn(card, 'getBoundingClientRect').mockReturnValue(box);
+    });
     const view = { current: element };
-    const { result, rerender } = renderHook(({ rows }) => useRowKeys(rows, view, isHeader), {
+    const useKeys = ({ rows }: { rows: string[] }) => useRowKeys(rows, view, isHeader, movesUp);
+    const { result, rerender } = renderHook(useKeys, {
       initialProps: { rows: ['$a', '$b', '$c', '$d'] },
     });
     const keys = (rows: string[]) => {
@@ -360,6 +389,21 @@ describe('useRowKeys', () => {
     view.current.scrollTop = 300;
     expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d', '$a', '$b', '$c']);
     expect(keys(['$c', '$d', '$a', '$b'])).toEqual(['$c#', '$d', '$a', '$b']);
+  });
+
+  it('takes the view inside its scroll padding, as the browser does, not the row under a bar', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    // $a and $b swap. $a leads the list's box and stays, so $b moved up past it.
+    expect(keysOf(700).keys(['$b', '$a', '$c', '$d'])).toEqual(['$b#', '$a', '$c', '$d']);
+    // Under a bar 60 px high $a is out of view: $b leads it and moved, and no row in view stayed.
+    const padded = { scrollPaddingTop: '60px', getPropertyValue: () => '' };
+    vi.spyOn(window, 'getComputedStyle').mockReturnValue(padded as unknown as CSSStyleDeclaration);
+    expect(keysOf(700).keys(['$b', '$a', '$c', '$d'])).toEqual(['$b', '$a', '$c', '$d']);
+  });
+
+  it('keeps every key in a list where a reply moves its card down', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    expect(keysOf(700, false).keys(['$d', '$a', '$b', '$c'])).toEqual(['$d', '$a', '$b', '$c']);
   });
 
   it('keeps every key in a browser without scroll anchoring, where the list scrolls itself', () => {

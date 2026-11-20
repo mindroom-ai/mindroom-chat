@@ -469,11 +469,17 @@ export function CompactRoomView({
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
   // A row that moved up past others takes a new key where the browser anchors the scroll, so the
-  // rows it passed, the cards in view among them, stay in the page and in place.
+  // rows it passed, the cards in view among them, stay in the page and in place. Not in a list
+  // that shows the oldest reply first, as its ends tell: there a reply moves its card down.
+  const activityOf = (rootId?: string) =>
+    threadRecordMap.get(rootId ?? '')?.status.lastActivityTs ?? 0;
+  const oldestFirst =
+    !threadSections && activityOf(threadRootIds[0]) < activityOf(threadRootIds.at(-1));
   const keyOf = useRowKeys(
     threadSections ? sectionRows : ordinaryCards.map((model) => model.id.threadRootId),
     viewRef,
-    (row) => !!sectionOfRow(row)
+    (row) => !!sectionOfRow(row),
+    !oldestFirst
   );
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list

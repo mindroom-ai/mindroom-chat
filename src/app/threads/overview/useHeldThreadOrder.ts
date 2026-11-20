@@ -38,7 +38,7 @@ export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[
  * first that both orders hold and that kept its place. Kept in the page, a row that left its
  * place would take the view along: the browser follows it. A section's header (`isHeader`) never
  * leaves its place. A card left its place when
- * - it crossed a header;
+ * - it stands under another header than it did;
  * - it moved down: the two rows that stood right after it stand before it now, in their order,
  *   and after the row that stood before it, so they did not come up past that one as well;
  * - it moved up: a row that stood before it, and did not leave in the two ways above, stands
@@ -57,10 +57,20 @@ export const rowToPin = (
   const now = (row?: string) => placeNow.get(row ?? '') ?? -1;
   const kept = before.filter((row) => placeNow.has(row));
   const placeBefore = new Map(kept.map((row, index) => [row, index]));
-  const headers = kept.filter(isHeader);
+  const headerOf = (rows: readonly string[]) => {
+    let header = '';
+    return new Map(
+      rows.map((row) => {
+        if (isHeader(row)) header = row;
+        return [row, header] as const;
+      })
+    );
+  };
+  const headerBefore = headerOf(before);
+  const headerNow = headerOf(after);
   const left = (row: string, at: number) =>
     !isHeader(row) &&
-    (headers.some((header) => (placeBefore.get(header) ?? 0) < at !== now(header) < now(row)) ||
+    (headerBefore.get(row) !== headerNow.get(row) ||
       (at + 2 < kept.length &&
         now(kept[at - 1]) < now(kept[at + 1]) &&
         now(kept[at + 1]) < now(kept[at + 2]) &&
@@ -207,12 +217,17 @@ export const useHeldThreadOrder = (
 
 /**
  * The keys of the rows in view (cards, and in sections their headers), top to bottom, from the
- * one whose box crosses the view's top edge. A header is read where it stands in the page, not
- * where its glide shows it (`useListMotion`); a card's shell never glides. It reads every row
- * down to the view's end, once for a change of order.
+ * one whose box crosses the view's top edge. The view is what the browser anchors in: the list's
+ * box inside its scroll padding, so not the rows under the bars that float over its ends. A
+ * header is read where it stands in the page, not where its glide shows it (`useListMotion`); a
+ * card's shell never glides. It reads every row down to the view's end, once for a change of
+ * order.
  */
 const rowsInView = (view: HTMLElement): string[] => {
   const edges = view.getBoundingClientRect();
+  const style = getComputedStyle(view);
+  const top = edges.top + view.clientTop + (parseFloat(style.scrollPaddingTop) || 0);
+  const bottom = edges.bottom - (parseFloat(style.scrollPaddingBottom) || 0);
   const keys: string[] = [];
   const rows = view.querySelectorAll<HTMLElement>(
     '[data-scroll-anchor], [data-compact-section]:not([inert])'
@@ -222,8 +237,8 @@ const rowsInView = (view: HTMLElement): string[] => {
     const glide = row.hasAttribute('data-compact-section')
       ? parseFloat(getComputedStyle(row).getPropertyValue('translate').split(' ')[1] ?? '') || 0
       : 0;
-    if (box.top - glide >= edges.bottom) break;
-    if (box.bottom - glide > edges.top + view.clientTop) {
+    if (box.top - glide >= bottom) break;
+    if (box.bottom - glide > top) {
       keys.push(
         row.getAttribute('data-scroll-anchor') ?? row.getAttribute('data-motion-row') ?? ''
       );
@@ -246,14 +261,17 @@ const rowsInView = (view: HTMLElement): string[] => {
  * the list to its top, the browser following the one row that had stayed in the page.
  *
  * Only where the browser anchors the scroll and the list is scrolled down: elsewhere the list
- * scrolls itself (`useHeldThreadOrder`), and at its top nothing is kept in place. The row with a
+ * scrolls itself (`useHeldThreadOrder`), and at its top nothing is kept in place. And only while
+ * `movesUp`, in a list where a reply moves its card up: where it moves the card down (the oldest
+ * reply first), React takes out that card alone, and every row keeps its key. The row with a
  * new key mounts again: its card still shows the reply that moved it and keeps the focus a click
  * left on it (`CompactThreadCard`), and its `data-motion-row` stays, so it glides as before.
  */
 export const useRowKeys = (
   rows: readonly string[],
   viewRef: RefObject<HTMLElement>,
-  isHeader: (row: string) => boolean
+  isHeader: (row: string) => boolean,
+  movesUp: boolean
 ): ((row: string) => string) => {
   // The rows of the last commit, and those among them that show under their second key.
   const order = rows.join('\n');
@@ -265,7 +283,7 @@ export const useRowKeys = (
   if (order !== shown.order) {
     renewed = new Set([...renewed].filter((row) => rows.includes(row)));
     const view = viewRef.current;
-    if (view && view.scrollTop > 0 && browserAnchorsScroll()) {
+    if (view && movesUp && view.scrollTop > 0 && browserAnchorsScroll()) {
       // Which row leads the view is read from the page as the last commit left it. That is the
       // page at this change as long as the render commits in the task it runs in, as every
       // render of the list does (none is a transition). In a render React may pause, the reader

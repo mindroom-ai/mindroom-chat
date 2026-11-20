@@ -2,7 +2,7 @@
 import type { Room } from 'matrix-js-sdk';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
+import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { CompactRoomView } from './CompactRoomView';
 
@@ -62,12 +62,16 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID } as unknown as Room;
-const list = (threadRootIds: string[], filterBarShown = false) => (
+const list = (
+  threadRootIds: string[],
+  filterBarShown = false,
+  threadRecordMap: ReadonlyMap<string, ThreadRecord> = new Map()
+) => (
   <CompactRoomView
     room={room}
     filterBarShown={filterBarShown}
     threadRootIds={threadRootIds}
-    threadRecordMap={new Map()}
+    threadRecordMap={threadRecordMap}
     onThreadClick={vi.fn()}
     compactRoomScrollStateRef={{ current: new Map() }}
   />
@@ -156,6 +160,32 @@ describe('the compact thread list in motion', () => {
     expect(container.querySelector('[data-scroll-anchor="$9"]')).not.toBe(cards[9]);
     expect(glided()).toContain('$9');
     expect(motion.left()).toEqual([]);
+  });
+
+  it('gives no card a new key in a list that shows the oldest reply first', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const ids = Array.from({ length: 10 }, (_, index) => `$${index}`);
+    // Each thread's last reply came after the one before it, until the last reply of $9 goes.
+    const records = (gone: boolean) =>
+      new Map(
+        ids.map((id, index) => [
+          id,
+          { status: { lastActivityTs: gone && id === '$9' ? 0 : index + 1 } } as ThreadRecord,
+        ])
+      );
+    const { rerender, container } = render(list(ids, false, records(false)));
+    const view = container.querySelector<HTMLElement>('[data-compact-room-view]');
+    const cards = [...container.querySelectorAll('[data-scroll-anchor]')];
+    if (view) view.scrollTop = 700;
+
+    rerender(list(['$9', ...ids.slice(0, 9)], false, records(true)));
+    vi.unstubAllGlobals();
+
+    // In a list that shows the newest first, $9 would be a new card (the test above).
+    expect([...container.querySelectorAll('[data-scroll-anchor]')]).toEqual([
+      cards[9],
+      ...cards.slice(0, 9),
+    ]);
   });
 
   it('keeps the cards in view in the page when one card moves up and another down at once', () => {
