@@ -20,11 +20,14 @@ export type RunTotals = {
 /**
  * What the runs used together. A sub-agent counts all its turns, in its card and in its open
  * run's strip alike, as their "N turns" says; the panel's header counts every run it lists. The
- * cost is left out unless every run that used tokens sent its cost, so a sum never undercounts.
+ * cost is left out unless every run sent what it used and every run that used tokens sent its
+ * cost, so a sum never undercounts.
  */
 export const runTotals = (usages: readonly (SubagentUsage | undefined)[]): RunTotals => {
   const sent = usages.filter((usage): usage is SubagentUsage => !!usage);
   if (sent.length === 0) return {};
+  // A run that sent nothing of what it used may have cost anything.
+  const unknown = sent.length < usages.length;
   const sum = (count: (usage: SubagentUsage) => number) =>
     sent.reduce((total, usage) => total + count(usage), 0);
   const inputTokens = sum((usage) => usage.inputTokens);
@@ -37,7 +40,7 @@ export const runTotals = (usages: readonly (SubagentUsage | undefined)[]): RunTo
     tokens: inputTokens + outputTokens,
     inputTokens,
     outputTokens,
-    ...(priced ? { costUsd: sum((usage) => usage.costUsd ?? 0) } : {}),
+    ...(priced && !unknown ? { costUsd: sum((usage) => usage.costUsd ?? 0) } : {}),
   };
 };
 

@@ -237,8 +237,21 @@ function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: n
       >
         {nodeTitle(node, agent.name)}
       </Text>
-      <Text as="span" size="T200" priority="300" className={css.NestedTime}>
-        {meta.status === 'awaiting_approval' ? <RunStatus meta={meta} loud /> : time}
+      <Text
+        as="span"
+        size="T200"
+        priority="300"
+        className={css.NestedTime}
+        data-subagent-nested-time=""
+      >
+        {meta.status === 'awaiting_approval' && <RunStatus meta={meta} loud />}
+        {/* A paused run's time stands still, so it says why beside it. */}
+        {meta.status === 'paused' && (
+          <>
+            <RunStatus meta={meta} /> {time}
+          </>
+        )}
+        {meta.status !== 'awaiting_approval' && meta.status !== 'paused' && time}
       </Text>
       <span className={css.NestedLine}>
         <RunLineText run={run} />

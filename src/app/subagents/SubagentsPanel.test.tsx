@@ -406,6 +406,19 @@ describe('SubagentsPanel', () => {
     expect(card('orphan').querySelector('[data-subagent-nested]')).toBeNull();
   });
 
+  it('says a paused run inside a card is paused, beside its time', () => {
+    ingest('parent', meta('running'), docs('Splitting the work.'));
+    ingest(
+      'child',
+      meta('paused', { agent: 'writer', parent: 'parent', startedAt: NOW - 30 }),
+      docs('Later.', [], false)
+    );
+    render();
+
+    const time = card('parent').querySelector('[data-subagent-nested-time]');
+    expect(time?.textContent).toBe('Paused 30s');
+  });
+
   it("shows a sub-agent's turns as one card and opens them as one thread, in order", () => {
     const turn = (run: string, subagent: string, n: number, status: SubagentStatus) =>
       ingest(
@@ -1076,6 +1089,16 @@ describe('SubagentsPanel', () => {
       expect(cell('calls')).toBe('Calls342 turns');
       expect(cell('tokens')).toBe('Tokens1.4M1.3M in · 124K out');
       expect(cell('cost')).toBe('Cost$1.30+$0.04 nested');
+    });
+
+    it('leaves the total cost out while a run sent nothing of what it used', () => {
+      ingest('priced', meta('running', { usage: usage(3, 1_000, 200, 0.5) }), docs('Working.'));
+      ingest('old', meta('running'), docs('Working.'));
+      render();
+
+      expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe(
+        '2 active · 3 calls · 1.2K tokens'
+      );
     });
 
     it('keeps the header to the active count while no run says what it used', () => {

@@ -18,7 +18,6 @@ describe('runTotals', () => {
       runTotals([
         { inputTokens: 1_000, outputTokens: 200, toolCalls: 7, costUsd: 0.5 },
         { inputTokens: 0, outputTokens: 0, toolCalls: 2 },
-        undefined,
         { inputTokens: 250, outputTokens: 50, toolCalls: 1, costUsd: 0.25 },
       ])
     ).toEqual({ calls: 10, tokens: 1_500, inputTokens: 1_250, outputTokens: 250, costUsd: 0.75 });
@@ -31,6 +30,12 @@ describe('runTotals', () => {
         { inputTokens: 300, outputTokens: 0, toolCalls: 2 },
       ])
     ).toEqual({ calls: 9, tokens: 1_500, inputTokens: 1_300, outputTokens: 200 });
+  });
+
+  it('leaves the cost out while a run sent nothing of what it used', () => {
+    expect(
+      runTotals([{ inputTokens: 1_000, outputTokens: 200, toolCalls: 7, costUsd: 0.5 }, undefined])
+    ).toEqual({ calls: 7, tokens: 1_200, inputTokens: 1_000, outputTokens: 200 });
   });
 });
 

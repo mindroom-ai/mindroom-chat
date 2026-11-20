@@ -834,7 +834,7 @@ it("shows an untitled sub-agent's agent, model, task, the call it makes now and 
 
 it('shows no cost before any token, and counts one token as one', () => {
   const stats = (usage: SubagentMeta['usage']) => {
-    getSubagentRunStore(mx as never).clear();
+    act(() => getSubagentRunStore(mx as never).clear());
     ingestRun('s1', { usage });
     state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' }), job('b')];
     render();
