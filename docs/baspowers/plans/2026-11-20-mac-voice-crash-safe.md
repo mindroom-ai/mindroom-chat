@@ -20,28 +20,27 @@ File: `ios/App/App/MindRoomVoiceRecorderPlugin.swift`, its contract test
   the RMS of the newest buffer.
 - Folder: Application Support/`MindRoomVoiceRecorder`/ (the sibling of `MindRoomDiagnostics`; the
   Developer ID build is not sandboxed, so a bare `voice-recorder` would sit among other apps' folders).
-- No wipe at load. `cancel` deletes the file of its ID; a page load, a window close and a start over
-  a live recording finish the live file and keep it (it becomes an orphan).
+- No wipe at load. A page load, a window close and a start over a live recording finish the live
+  file and keep it.
 - `orphans()` resolves `{recordings: [{id, path, startedAt}]}`: the UUID `.m4a` files that are not
-  being written and that the loaded page has not been handed by `stop` (and not cancelled yet).
+  being written.
 - Fallback (linear PCM CAF, AAC at stop) only if the kill test in Task 3 shows the fragmented file
   unreadable.
 
-After review (round 1), which the code and its contract test follow:
-
-- Ownership is an exclusive `flock` on `<id>.lock`, held from the start until the page cancels or
-  keeps the recording (or goes); the kernel drops it when the process dies. `orphans()` lists the
-  canonical-UUID regular files whose lock it can take, so a second window or process never lists a
-  live recording. `cancel` deletes a held recording after its file is written (a pending stop
-  rejects `CANCELED`), an orphan only under its lock (else `BUSY`), and rejects a failed delete.
-- New `keep({id})`: lets go of a recording without deleting it.
-- Writes: a bounded queue (64 buffers) for what the writer is not ready for; a failed or overflowing
-  append, an engine configuration change or an interruption ends the recording by itself and keeps
-  what was written; `level` then rejects. `stop` resolves only a file finished `.completed`.
-- Times: the exact sum of each buffer's length at its own rate (`CMTimeAdd`).
-- JS: the file is canceled only after its bytes went to an attached `dataavailable` listener;
-  every other way out (failed stop or read, no listener left, a recording that ended by itself)
-  keeps it.
+After three review rounds, the rule the code and its contract test follow (the spec's Mac section):
+native code deletes a file only for `forget({id})` (and what a failed start wrote), and never
+infers from the page's lifecycle that a file may go; `cancel`, `keep` and the listener tracking are
+gone. The lock (`<id>.lock`, an exclusive `flock` owned by one object) means "the writer is not
+done": held from the start until `finishWriting` completed or the writer failed, so `orphans()`
+(lock first, then `lstat` under it) also lists a stopped recording until JS forgets it, and never
+one a window or process still writes. A device change or interruption only asks, from its
+notification, for the end on the main queue (tap, engine, then audio session, in one function);
+`level`, `pause`, `resume` and `stop` then reject `NOT_RECORDING`. Buffers the writer is not ready
+for wait in a queue of 64 that is handed on whenever the writer is ready again (key-value
+observation, also during a pause); an overflow or a failed append ends the recording and finishes
+what the writer took; times are the exact sum of each buffer's length at its own rate. In JS the
+capture session forgets on Discard (unread) and after it built the file for Send; every other way
+out keeps the file.
 
 ## Task 2: The web side lists and forgets them
 
@@ -49,8 +48,9 @@ File: `src/app/native/nativeVoiceRecorder.ts`, its test.
 
 - `listNativeVoiceOrphans()`: `[]` off the Mac app; else each orphan read as `deliver` reads a file
   (the same helper), as a `File` of type `audio/mp4`, skipping one it cannot read.
-- `forgetNativeVoiceRecording(id)`: the plugin's `cancel`.
-- `NativeVoiceRecorder.end()` still cancels after delivery.
+- `forgetNativeVoiceRecording(id)`: the plugin's `forget`.
+- `NativeVoiceRecorder.forget()`, which `voiceCaptureSession.ts` calls on Discard and after Send's
+  file is built.
 
 ## Task 3: Prove it on the MacBook M2
 

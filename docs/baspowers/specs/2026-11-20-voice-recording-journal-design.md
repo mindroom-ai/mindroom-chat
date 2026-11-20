@@ -83,21 +83,22 @@ second or so before a crash can be gone.
 
 ## Mac Catalyst (`ios/App/App/MindRoomVoiceRecorderPlugin.swift`, `src/app/native/nativeVoiceRecorder.ts`)
 
-- Recordings move from the temp folder to `Application Support/voice-recorder/`.
+- Recordings move from the temp folder to `Application Support/MindRoomVoiceRecorder/`.
 - The plugin records in a format a kill can't ruin. It writes AAC through `AVAssetWriter` with
   `movieFragmentInterval` = 1 s (fragmented `.m4a`). If that proves unreliable, it writes linear
   PCM CAF and converts to AAC at stop.
-- No folder wipe at startup. Every exit path deletes only its own file: `cancel`, and stop after
-  the JS side confirms the handoff.
-- New plugin method `orphans()` resolves `{recordings: [{id, path, startedAt}]}` for files that no
-  live recorder owns.
-- JS: `listNativeVoiceOrphans(): Promise<{id: string; file: File; startedAt: number}[]>` and
-  `forgetNativeVoiceRecording(id: string): Promise<void>` in `nativeVoiceRecorder.ts`.
-- Until the web journal lands, `NativeVoiceRecorder.end()` keeps calling `cancel` after delivery,
-  as today. Only a killed process leaves a file behind. Once both PRs are in, the second PR wires
-  the native files into the journal: at startup each orphan is imported as one chunk and then
-  `forgetNativeVoiceRecording`. A live recording is forgotten only after its bytes are written to
-  the journal.
+- No folder wipe at startup. **A native file is deleted only by an explicit `forget({id})` from
+  JS.** Nothing native infers it: not a stop (failed or not), a reload, a closed window, a changed
+  device or a timeout. Each recording holds an exclusive `flock` (`<id>.lock`) from its start until
+  its writer is done, finished or failed, and never lets go earlier; a stop whose writer does not
+  take the last buffers within 2 s drops them, still finishes what was taken, and rejects.
+  `orphans()` resolves `{recordings: [{id, path, startedAt}]}` for the files whose lock it can take
+  (the lock first, then the file is read under it), so a stopped recording that was not forgotten
+  is listed too. JS decides: `NativeVoiceRecorder.forget()`, which the capture session calls on
+  Discard (without reading the audio) and once it has built the file for Send, and
+  `listNativeVoiceOrphans()` with `forgetNativeVoiceRecording(id)` for the rest. Every other way out
+  leaves the file for `orphans()`. The journal imports each orphan once, by its native ID, and then
+  forgets it; it moves the forget of a sent recording to after its journal write.
 
 ## Tests (the gate is a forced kill, not a clean stop)
 
