@@ -848,8 +848,9 @@ const expectTagTargets = async (section: Locator) => {
     const owner = (x: number, y: number) =>
       document.elementFromPoint(x, y)?.closest<HTMLElement>('button') ?? null;
     const missed: string[] = [];
-    // An area grows until it is 44 px each way: 3 px out, or less where that is all it grows.
-    const off = (size: number) => Math.min(3, (44 - size) / 2 - 1);
+    // An area grows from the control's padding box (inside a border such as "+ tag"'s 1 px) until
+    // it is 44 px each way: 2 px out of the border box, or less where that is all it grows.
+    const off = (size: number) => Math.min(2, (44 - size) / 2 - 2);
     controls.forEach((control, index) => {
       const box = boxes[index]!;
       const x = box.left + box.width / 2;
@@ -862,41 +863,26 @@ const expectTagTargets = async (section: Locator) => {
       for (const [px, py] of points) {
         if (owner(px, py) !== control) {
           const there = document.elementFromPoint(px, py);
-          const layer = getComputedStyle(control, '::after');
-          const facts = [
-            `box ${Math.round(box.top)}-${Math.round(box.bottom)}`,
-            `hits ${there?.tagName ?? 'nothing'}.${String(there?.className ?? '')}`,
-            `layer ${layer.content} ${layer.position} ${layer.top} ${layer.bottom}`,
-            `control ${getComputedStyle(control).position} ${control.className}`,
-            `bottom ${box.bottom.toFixed(2)}`,
-            `reach ${[1, 2, 3, 4, 5]
-              .map((d) => (owner(x, box.bottom + d) === control ? d : `-${d}`))
-              .join(',')}`,
-            `stack ${document
-              .elementsFromPoint(px, py)
-              .slice(0, 4)
-              .map((e) => `${e.tagName}.${String(e.className).slice(0, 12)}`)
-              .join(' > ')}`,
-          ];
           missed.push(
-            `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(
-              py
-            )} (${facts.join('; ')})`
+            `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(py)} hits ${
+              there?.tagName ?? 'nothing'
+            }.${String(there?.className ?? '')}`
           );
         }
       }
     });
-    // Each touch area: the box grown by its ::after layer's negative insets.
+    // Each touch area: the padding box grown by its ::after layer's negative insets.
     const areas = controls.map((control, index) => {
       const box = boxes[index]!;
       const layer = getComputedStyle(control, '::after');
       const out = (side: 'top' | 'right' | 'bottom' | 'left') =>
         Math.max(0, -parseFloat(layer[side]) || 0);
+      const border = { block: control.clientTop, inline: control.clientLeft };
       return {
-        top: box.top - out('top'),
-        bottom: box.bottom + out('bottom'),
-        left: box.left - out('left'),
-        right: box.right + out('right'),
+        top: box.top + border.block - out('top'),
+        bottom: box.bottom - border.block + out('bottom'),
+        left: box.left + border.inline - out('left'),
+        right: box.right - border.inline + out('right'),
       };
     });
     const overlaps: string[] = [];
