@@ -292,7 +292,7 @@ const buildOptions = ({
       policy?.transformTags
     ),
     // Reply fallbacks (MSC2781) and executable or invisible content are dropped with their text.
-    nonTextTags: ['style', 'script', 'textarea', 'option', 'noscript', 'mx-reply'],
+    nonTextTags: ['style', 'script', 'textarea', 'option', 'noscript', 'iframe', 'mx-reply'],
     // An image left without a source (`mxc://`, or what `imageSource` returned) is dropped.
     exclusiveFilter: (frame) => frame.tag === 'img' && !frame.attribs.src,
     disallowedTagsMode: 'discard',
