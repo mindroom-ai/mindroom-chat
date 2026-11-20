@@ -1324,7 +1324,10 @@
     "close": "थ्रेड बंद करें",
     "resizeSecond": "दूसरे थ्रेड का आकार बदलें",
     "second": "दूसरा थ्रेड",
-    "dropSecond": "दूसरे कॉलम में खोलने के लिए छोड़ें"
+    "dropSecond": "दूसरे कॉलम में खोलने के लिए छोड़ें",
+    "newUnknown": "नया",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "आपका उल्लेख"
   },
   "threadSnooze": {
     "title": "कब तक स्थगित करें",

@@ -1324,7 +1324,10 @@
     "close": "Konuyu kapat",
     "resizeSecond": "İkinci konuyu yeniden boyutlandır",
     "second": "İkinci konu",
-    "dropSecond": "İkinci sütunda açmak için bırakın"
+    "dropSecond": "İkinci sütunda açmak için bırakın",
+    "newUnknown": "Yeni",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Sizden bahsediyor"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",

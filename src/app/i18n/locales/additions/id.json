@@ -1293,7 +1293,10 @@
     "close": "Tutup utas",
     "resizeSecond": "Ubah ukuran utas kedua",
     "second": "Utas kedua",
-    "dropSecond": "Lepas untuk membuka di kolom kedua"
+    "dropSecond": "Lepas untuk membuka di kolom kedua",
+    "newUnknown": "Baru",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Menyebut Anda"
   },
   "threadSnooze": {
     "title": "Tunda hingga",

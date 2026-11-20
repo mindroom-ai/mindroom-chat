@@ -1355,7 +1355,10 @@
     "close": "Fechar o tópico",
     "resizeSecond": "Redimensionar o segundo tópico",
     "second": "Segundo tópico",
-    "dropSecond": "Solte para abrir na segunda coluna"
+    "dropSecond": "Solte para abrir na segunda coluna",
+    "newUnknown": "Novo",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Menção a si"
   },
   "threadSnooze": {
     "title": "Adiar até",

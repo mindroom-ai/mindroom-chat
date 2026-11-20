@@ -1355,7 +1355,10 @@
     "close": "Cerrar el hilo",
     "resizeSecond": "Cambiar el tamaño del segundo hilo",
     "second": "Segundo hilo",
-    "dropSecond": "Suelta para abrir en la segunda columna"
+    "dropSecond": "Suelta para abrir en la segunda columna",
+    "newUnknown": "Nuevo",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Te menciona"
   },
   "threadSnooze": {
     "title": "Posponer hasta",

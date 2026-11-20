@@ -1355,7 +1355,10 @@
     "close": "Fermer le fil",
     "resizeSecond": "Redimensionner le second fil",
     "second": "Second fil",
-    "dropSecond": "Déposer pour ouvrir dans la seconde colonne"
+    "dropSecond": "Déposer pour ouvrir dans la seconde colonne",
+    "newUnknown": "Nouveau",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Vous mentionne"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",

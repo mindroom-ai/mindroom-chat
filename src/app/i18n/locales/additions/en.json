@@ -1324,7 +1324,10 @@
     "close": "Close thread",
     "resizeSecond": "Resize second thread",
     "second": "Second thread",
-    "dropSecond": "Drop to open in second column"
+    "dropSecond": "Drop to open in second column",
+    "newUnknown": "New",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Mentions you"
   },
   "threadSnooze": {
     "title": "Snooze until",
