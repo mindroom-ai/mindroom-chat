@@ -24,18 +24,17 @@ A MindRoom agent reply folds when all of these hold:
    once sanitized as the renderer sanitizes it, text other than whitespace and the pending mark
    `⏳`, or an image, video or audio element.
 4. (owner decision, 2026-11-19) Visible content also comes before the last tool marker: the
-   work, with every tool marker removed, shows text or media by the same test as 3. The
-   reasoning does not count (it renders from `io.mindroom.reasoning`, not from the HTML). A
-   reply whose work is only reasoning and tool calls has nothing worth folding: its thoughts
-   already show collapsed and each call is one row. Here MindRoom differs from T3 Code, which
-   folds any finished turn with work. No other condition: no count of calls, no length.
-5. (owner decision, 2026-11-19, T3 Code parity) No length condition: as in T3 Code's
-   `deriveTurnFolds`, any finished reply with text before its answer folds, even one tool call.
-   This replaces the row rule of #596 (W >= 8 and W >= 13 or 3W >= A), which left the replies the
-   owner cared about unfolded.
-6. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
+   work, without the calls the reply draws, shows text or media by the same test as 3. A marker
+   the reply shows as text (in a quote, a list or a heading, or a second marker of a call drawn
+   before it) counts as text. The reasoning does not count (it renders from
+   `io.mindroom.reasoning`, not from the HTML). A reply whose work is only reasoning and tool
+   calls has nothing worth folding: its thoughts already show collapsed and each call is one
+   row. No other condition: no count of calls and no length, which replaces the row rule of #596
+   (W >= 8 and W >= 13 or 3W >= A). Here MindRoom differs from T3 Code, whose `deriveTurnFolds`
+   folds any finished turn with work.
+5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
-7. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
+6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
    preview never folds, also when the sidecar cannot be read.
 
 When it folds:
@@ -59,8 +58,8 @@ When it folds:
 - The timeline's expand all opens the folded work and collapse all folds it, as it does for
   `CollapsibleMessage` (`ExpandAllInitContext`: true opens, false folds, undefined keeps the
   reply's own state).
-- Every finished reply with text before its answer folds, in the whole history, not just the
-  latest one.
+- Every finished reply with text or media before its last tool call folds, in the whole
+  history, not just the latest one.
 
 Nothing else changes: user messages, agent replies without tool calls, replies that end in a
 tool call and replies whose work is only reasoning and tool calls render as today, with no row
@@ -72,9 +71,10 @@ and no element of their own.
   `src/app/messages/agent-run/finishedWorkSplit.ts`. Parse with `htmlToDOM` (already used by
   `toolRefDom.ts`), find the last top-level node whose text matches
   `MINDROOM_TOOL_REF_HTML_REG_G`'s marker form, and return `{ head, tail }` HTML strings, or
-  `undefined` when no marker exists or nothing visible follows it. The backend writes every
-  marker as its own paragraph (`_format_tool_marker` wraps it in blank lines), so a top-level
-  split is exact. The rendering component memoizes it on the HTML string (`useMemo`), because
+  `undefined` when no marker exists, nothing visible follows it, or nothing but drawn calls
+  comes before it (each drawn call's first marker is removed, then the same visible test runs
+  on the rest). The backend writes every marker as its own paragraph (`_format_tool_marker`
+  wraps it in blank lines), so a top-level split is exact. The rendering component memoizes it on the HTML string (`useMemo`), because
   every streamed edit re-renders the row. When the answer starts in the paragraph of the last
   call, the split cuts that paragraph after the call; a reply whose answer starts in a node that
   does not cut cleanly does not fold.

@@ -197,6 +197,25 @@ describe('splitFinishedWork', () => {
     }
   });
 
+  it('does not split when a wrapper before the answer holds only calls', () => {
+    expect(
+      split(`<div>🔧 <code>shell</code> [1]${marker('grep', 2)}</div><p>Done.</p>`)
+    ).toBeUndefined();
+  });
+
+  it('counts a marker the reply shows as text before its calls as work', () => {
+    const { formatted_body: html } = backendBodies['tool call inside a block quote'];
+    expect(split(html)).toEqual({
+      head: '<blockquote>\n<p>🔧 <code>x</code> [1]</p>\n</blockquote>\n<p>🔧 <code>y</code> [2]</p>',
+      tail: '\n<p>Answer</p>\n',
+    });
+    const list = '<ul><li>🔧 <code>shell</code> [1]</li></ul>';
+    expect(split(`${list}${marker('grep', 2)}<p>Done.</p>`)).toEqual({
+      head: `${list}${marker('grep', 2)}`,
+      tail: '<p>Done.</p>',
+    });
+  });
+
   it('counts an image before the calls as work', () => {
     const image = '<p><img src="mxc://example.org/a" alt="Chart"></p>';
     expect(split(`${image}${marker('shell', 1)}<p>Done.</p>`)).toEqual({
