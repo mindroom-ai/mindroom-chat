@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import {
   Box,
   config,
@@ -58,9 +58,16 @@ export function BottomSheet({
       isDismissable: true,
       onClose: requestClose,
       shouldCloseOnInteractOutside: (element) => !menus?.contains(element),
+      isKeyboardDismissDisabled: true,
     },
     dialogRef
   );
+  // A menu the content opened takes Escape first and closes on its own (its focus trap).
+  const closeOnEscape = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || menus?.hasChildNodes()) return;
+    event.stopPropagation();
+    requestClose();
+  };
   const { dialogProps } = useDialog({ 'aria-label': title }, dialogRef);
   usePreventScroll();
 
@@ -77,7 +84,7 @@ export function BottomSheet({
             <div
               ref={dialogRef}
               style={{ display: 'flex', flex: '1 1 auto', flexDirection: 'column', minHeight: 0 }}
-              {...mergeProps(overlayProps, dialogProps)}
+              {...mergeProps(overlayProps, dialogProps, { onKeyDown: closeOnEscape })}
             >
               <PageScroll
                 header={

@@ -186,6 +186,9 @@ test.describe('on a phone', () => {
       ''
     );
     expect((levels?.users as Record<string, number> | undefined)?.[agent.userId]).toBe(50);
+    // With no menu open, Escape closes the sheet.
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
   });
 
   test('an ordinary member sees the power as a tag and no kick or ban', async ({
