@@ -446,6 +446,7 @@
         "profile": "photo de profil, photo, nom, pseudo",
         "deactivate": "supprimer le compte, fermer le compte",
         "localMindroom": "associer, code d’association, local, ordinateur",
+        "voiceKey": "message vocal, micro, enregistrer, appuyer pour parler, Option, Alt, raccourci clavier",
         "emoji": "emoji, autocollants, packs, emoji personnalisés",
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
         "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre"
@@ -1290,6 +1291,10 @@
     "hints": {
       "chip": "{{keys}} pour tous les raccourcis"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} enregistre des messages vocaux",
+      "description": "Appuyer pour commencer ou envoyer, maintenir pour parler et relâcher pour envoyer."
+    },
     "actions": {
       "palette": "Recherche et commandes",
       "settings": "Ouvrir les paramètres",
@@ -1315,7 +1320,8 @@
       "newLine": "Nouvelle ligne",
       "editLast": "Modifier votre dernier message (zone de saisie vide)",
       "inlineCode": "Code en ligne",
-      "callView": "Aller à l’appel"
+      "callView": "Aller à l’appel",
+      "voiceRecord": "Maintenir pour enregistrer un message vocal, appuyer pour commencer ou envoyer"
     }
   },
   "thread": {

@@ -81,6 +81,7 @@ const SEARCH_VALUES: SettingsSearchValues = {
   username: 'me',
   sendKey: 'Ctrl',
   shortcut: 'Ctrl+K',
+  voiceKey: 'Right Alt',
 };
 
 const LAYOUTS = ['modern', 'compact', 'bubble'] as const;
