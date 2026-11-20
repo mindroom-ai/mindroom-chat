@@ -1118,8 +1118,7 @@
       "costOwn": "本次執行",
       "showUsageDetails": "顯示用量詳情",
       "showUsageDetailsDescription": "在助手和背景工作上顯示工具呼叫、權杖、費用和模型。",
-      "usage": "用量",
-      "model": "模型"
+      "usage": "用量"
     },
     "models": {
       "modelPicker": {

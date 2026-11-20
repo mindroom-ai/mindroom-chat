@@ -1118,8 +1118,7 @@
       "costOwn": "proses ini",
       "showUsageDetails": "Tampilkan detail penggunaan",
       "showUsageDetailsDescription": "Menampilkan panggilan alat, token, biaya, dan model pada asisten dan tugas latar belakang.",
-      "usage": "Penggunaan",
-      "model": "Model"
+      "usage": "Penggunaan"
     },
     "models": {
       "modelPicker": {

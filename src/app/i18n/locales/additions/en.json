@@ -1149,8 +1149,7 @@
       "costOwn": "this run",
       "showUsageDetails": "Show usage details",
       "showUsageDetailsDescription": "Show tool calls, tokens, cost and the model on helpers and background jobs.",
-      "usage": "Usage",
-      "model": "Model"
+      "usage": "Usage"
     },
     "models": {
       "modelPicker": {

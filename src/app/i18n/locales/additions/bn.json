@@ -1149,8 +1149,7 @@
       "costOwn": "এই রান",
       "showUsageDetails": "ব্যবহারের বিস্তারিত দেখান",
       "showUsageDetailsDescription": "সহকারী ও ব্যাকগ্রাউন্ড কাজে টুল কল, টোকেন, খরচ এবং মডেল দেখায়।",
-      "usage": "ব্যবহার",
-      "model": "মডেল"
+      "usage": "ব্যবহার"
     },
     "models": {
       "modelPicker": {

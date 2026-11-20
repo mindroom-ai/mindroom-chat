@@ -1149,8 +1149,7 @@
       "costOwn": "deze run",
       "showUsageDetails": "Gebruiksdetails tonen",
       "showUsageDetailsDescription": "Toont toolaanroepen, tokens, kosten en het model bij helpers en achtergrondtaken.",
-      "usage": "Gebruik",
-      "model": "Model"
+      "usage": "Gebruik"
     },
     "models": {
       "modelPicker": {

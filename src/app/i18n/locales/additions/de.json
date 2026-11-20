@@ -1149,8 +1149,7 @@
       "costOwn": "dieser Lauf",
       "showUsageDetails": "Nutzungsdetails anzeigen",
       "showUsageDetailsDescription": "Zeigt Tool-Aufrufe, Tokens, Kosten und das Modell bei Helfern und Hintergrundaufgaben.",
-      "usage": "Nutzung",
-      "model": "Modell"
+      "usage": "Nutzung"
     },
     "models": {
       "modelPicker": {

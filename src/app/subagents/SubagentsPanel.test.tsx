@@ -1476,9 +1476,9 @@ describe('SubagentsPanel', () => {
         render(ScreenSize.Desktop, '$thread:example.org');
         open('lead');
 
-        // How it stands stays in the header, without the model.
+        // How it stands and its model stay in the header.
         const header = container.querySelector('header');
-        expect(header?.querySelector('[data-subagent-model]')).toBeNull();
+        expect(header?.querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
         expect(header?.textContent).toContain('Running');
         expect(header?.textContent).toContain('1m 0s');
         const usageDetails = container.querySelector<HTMLDetailsElement>('[data-subagent-usage]');
@@ -1489,7 +1489,7 @@ describe('SubagentsPanel', () => {
         expect(cell('calls')).toBe('Calls12tool calls');
         expect(cell('tokens')).toBe('Tokens320K300K in · 20K out');
         expect(cell('cost')).toBe('Cost$0.40this run');
-        expect(cell('model')).toBe('ModelFablefable (anthropic / claude-fable-5.2)');
+        expect(cell('model')).toBeUndefined();
         expect(container.querySelector('[data-subagent-cell="status"]')).toBeNull();
         const now = () => container.querySelector('[data-subagent-now]');
         expect(now()).toBeNull();

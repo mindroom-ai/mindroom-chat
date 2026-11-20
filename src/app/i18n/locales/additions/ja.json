@@ -1118,8 +1118,7 @@
       "costOwn": "この実行",
       "showUsageDetails": "使用量の詳細を表示",
       "showUsageDetailsDescription": "ヘルパーとバックグラウンドジョブに、ツール呼び出し、トークン、コスト、モデルを表示します。",
-      "usage": "使用量",
-      "model": "モデル"
+      "usage": "使用量"
     },
     "models": {
       "modelPicker": {

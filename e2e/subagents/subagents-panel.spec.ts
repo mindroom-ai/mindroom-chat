@@ -264,8 +264,8 @@ test('the Sub-agents panel shows no live activity, as it starts', async ({
   await card.click();
   await expect(panel.locator('details[data-subagent-usage]')).toBeVisible();
   await expect(panel.locator('[data-subagent-now]')).toHaveCount(0);
-  // The open run's header has no model, and what it used waits in the closed Usage.
-  await expect(panel.locator('header [data-subagent-model]')).toHaveCount(0);
+  // The open run's header keeps its model, and what it used waits in the closed Usage.
+  await expect(panel.locator('header [data-subagent-model]')).toHaveText('Fable 5.2');
   const usage = panel.locator('details[data-subagent-usage]');
   await expect(usage).not.toHaveAttribute('open');
   await expect(usage.locator('[data-subagent-cell="calls"]')).toBeHidden();
@@ -276,7 +276,7 @@ test('the Sub-agents panel shows no live activity, as it starts', async ({
   await expect(cell('calls')).toHaveText('Calls12tool calls');
   await expect(cell('tokens')).toHaveText('Tokens320K300K in · 20K out');
   await expect(cell('cost')).toHaveText('Cost$0.40this run');
-  await expect(cell('model')).toHaveText('ModelFable 5.2fable (anthropic / claude-fable-5.2)');
+  await expect(cell('model')).toHaveCount(0);
   await expect(usage.locator('[data-subagent-cell="status"]')).toHaveCount(0);
   await panel.screenshot({ path: testInfo.outputPath('subagents-panel-usage-open.png') });
 });

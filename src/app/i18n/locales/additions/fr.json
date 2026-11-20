@@ -1180,8 +1180,7 @@
       "costOwn": "cette exécution",
       "showUsageDetails": "Afficher les détails d’utilisation",
       "showUsageDetailsDescription": "Affiche les appels d’outils, les jetons, le coût et le modèle des assistants et des tâches en arrière-plan.",
-      "usage": "Utilisation",
-      "model": "Modèle"
+      "usage": "Utilisation"
     },
     "models": {
       "modelPicker": {

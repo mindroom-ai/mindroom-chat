@@ -214,19 +214,19 @@ type StripProps = {
   totals: RunTotals;
   time: string;
   /**
-   * The strip inside the Usage disclosure, without the usage details: what the run used, while it
-   * sent it, and its model, not how it stands, which its header says.
+   * The strip inside the Usage disclosure, without the usage details: what the run used, not how
+   * it stands, which its header says.
    */
-  usage?: { used: boolean; model?: string; modelTitle?: string };
+  folded?: boolean;
 };
 
 /**
  * Under the open run's header, four cells: how it stands and its time, its calls and turns, its
  * tokens in and out, and its cost with what the runs it started cost. The numbers are all its
- * turns' (`runTotals`); a count it does not send is left out. In the Usage disclosure (`usage`)
- * its cells are what it used and its model.
+ * turns' (`runTotals`); a count it does not send is left out. In the Usage disclosure (`folded`)
+ * its cells are what it used alone.
  */
-function RunStrip({ node, totals, time, usage }: StripProps) {
+function RunStrip({ node, totals, time, folded }: StripProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { meta } = latestTurn(node);
@@ -274,14 +274,7 @@ function RunStrip({ node, totals, time, usage }: StripProps) {
         ]
       : []),
   ];
-  const model = usage?.model && {
-    key: 'model',
-    name: t('mindroomUi.subagents.model'),
-    value: usage.model,
-    note: usage.modelTitle,
-  };
-  let cells = [status, ...used];
-  if (usage) cells = [...(usage.used ? used : []), ...(model ? [model] : [])];
+  const cells = folded ? used : [status, ...used];
   return (
     <dl className={css.Strip} data-subagent-strip="">
       {cells.map((cell) => (
@@ -327,7 +320,7 @@ type ViewProps = {
  * One sub-agent, as a thread shows a conversation: each turn the caller's task, cards for the
  * sub-agents that turn started, then its reply. A reader at the end follows new text until they
  * scroll up. Without the usage details (`showUsageDetails`) no line says what it does now, and what
- * it used and its model fold into a closed Usage.
+ * it used folds into a closed Usage; its model stays in the header.
  */
 export function SubagentRunView({
   room,
@@ -361,7 +354,7 @@ export function SubagentRunView({
   const stop = useRunStop(room, newest, turnName, readOnly);
   const activity = runToolCall(newest);
   // Without the usage details, its numbers folded away.
-  const usageFolded = !details && (used || !!modelLabel);
+  const usageFolded = !details && used;
   const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: turnName });
   // A pressed Stop turns into "Stopping…", so focus moves to the run's title.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -447,7 +440,7 @@ export function SubagentRunView({
             <span className={css.StandingModel} data-subagent-agent="">
               {agent.name}
             </span>
-            {details && modelLabel && (
+            {modelLabel && (
               <span className={css.StandingModel} title={modelTitle} data-subagent-model="">
                 {modelLabel}
               </span>
@@ -517,16 +510,7 @@ export function SubagentRunView({
             <Icon size="50" src={Icons.ChevronRight} className={css.UsageChevron} aria-hidden />
             {t('mindroomUi.subagents.usage')}
           </summary>
-          <RunStrip
-            node={node}
-            totals={totals}
-            time={time}
-            usage={{
-              used,
-              ...(modelLabel ? { model: modelLabel } : {}),
-              ...(modelTitle ? { modelTitle } : {}),
-            }}
-          />
+          <RunStrip node={node} totals={totals} time={time} folded />
         </details>
       )}
       {details && activity && (

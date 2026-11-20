@@ -1149,8 +1149,7 @@
       "costOwn": "bu çalıştırma",
       "showUsageDetails": "Kullanım ayrıntılarını göster",
       "showUsageDetailsDescription": "Yardımcılarda ve arka plan işlerinde araç çağrılarını, tokenleri, maliyeti ve modeli gösterir.",
-      "usage": "Kullanım",
-      "model": "Model"
+      "usage": "Kullanım"
     },
     "models": {
       "modelPicker": {

@@ -1180,8 +1180,7 @@
       "costOwn": "esta ejecución",
       "showUsageDetails": "Mostrar detalles de uso",
       "showUsageDetailsDescription": "Muestra las llamadas a herramientas, los tokens, el coste y el modelo en los ayudantes y las tareas en segundo plano.",
-      "usage": "Uso",
-      "model": "Modelo"
+      "usage": "Uso"
     },
     "models": {
       "modelPicker": {

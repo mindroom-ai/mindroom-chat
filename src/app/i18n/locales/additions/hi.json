@@ -1149,8 +1149,7 @@
       "costOwn": "यह रन",
       "showUsageDetails": "उपयोग का विवरण दिखाएँ",
       "showUsageDetailsDescription": "सहायकों और बैकग्राउंड जॉब पर टूल कॉल, टोकन, लागत और मॉडल दिखाता है।",
-      "usage": "उपयोग",
-      "model": "मॉडल"
+      "usage": "उपयोग"
     },
     "models": {
       "modelPicker": {
