@@ -116,6 +116,8 @@ describe('UserRoomProfile role', () => {
       (node) => typeof node.type === 'string' && node.props['aria-label'] === 'More'
     );
     expect(more.props['aria-expanded']).toBe(false);
+    // A collapsed More points at nothing: its section is not rendered yet.
+    expect(more.props['aria-controls']).toBeUndefined();
     act(() => {
       more.props.onClick();
     });

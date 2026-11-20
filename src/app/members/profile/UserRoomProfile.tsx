@@ -332,7 +332,7 @@ export function ProfileCard({
                 outlined
                 aria-label={t('sharedUi.agentCard.more')}
                 aria-expanded={moreOpen}
-                aria-controls={moreId}
+                aria-controls={moreOpen ? moreId : undefined}
                 onClick={() => setMoreOpen((open) => !open)}
               >
                 <Icon size="100" src={Icons.HorizontalDots} />
