@@ -172,6 +172,16 @@ describe('useCommandPaletteMessages', () => {
     expect(snippet.indexOf('WALRUS')).toBeLessThan(21);
   });
 
+  it('leads to the first whole-word match, not to the word inside a longer one', async () => {
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const body = 'The walruses and subwalrus helpers stay put, then the plain walrus here.';
+    await act(async () => pending[0]?.resolve(responseWith('$words', body)));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.snippet).toBe('…then the plain walrus here.');
+  });
+
   it('lists a retitled thread once, by its current title, beside what was said in it', async () => {
     const key = getCrossRoomThreadIndexKey('!ops:example.org', '$root');
     const entry = { key, summaryText: 'Walrus launch plan', rootPreviewText: '' };

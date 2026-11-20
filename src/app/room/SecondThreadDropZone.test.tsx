@@ -98,6 +98,15 @@ describe('the drop zone of the second column', () => {
     expect(zone()?.style.width).toBe('620px');
   });
 
+  it('stored wider than its row now allows, leaves the conversation its minimum, as the column does', () => {
+    // Saved on a 4800 px row, now shown over a 4400 px one: the zone is 4040 px wide, not 4440.
+    localStorage.setItem(WIDTH_KEY, '4440');
+    render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={vi.fn()} />);
+    startDrag(threadDrag());
+    expect(zone()?.style.width).toBe('4440px');
+    expect(zone()?.style.maxWidth).toBe('max(min(200px, 100%), 100% - 360px)');
+  });
+
   it('lights up under the drag and opens the dropped thread in the second column', () => {
     const onOpen = vi.fn();
     render(<SecondThreadDropZone widthKey={WIDTH_KEY} onOpen={onOpen} />);

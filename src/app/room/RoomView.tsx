@@ -32,7 +32,11 @@ import {
 } from '../navigation/conversationCover';
 import { useInert } from '../lib/hooks/useInert';
 import { ROOM_MESSAGES_VIEW, useShownConversationView } from '../navigation/conversationView';
-import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
+import {
+  CONVERSATION_MIN_WIDTH,
+  ResizablePanel,
+  SIDE_PANEL_MAX_WIDTH,
+} from '../ui/panels/ResizablePanel';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
@@ -48,7 +52,6 @@ import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
 /** The thread column opens this wide, and may take what the messages beside it can spare. */
 const THREAD_COLUMN_DEFAULT_WIDTH = 480;
-const THREAD_COLUMN_MAX_WIDTH = 4096;
 // The page's own style (Page), and with the thread column beside the room area.
 const PAGE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 const PAGE_ROW_STYLE: CSSProperties = { ...PAGE_STYLE, flexDirection: 'row' };
@@ -365,7 +368,7 @@ export function RoomView({
           storageKey={THREAD_COLUMN_WIDTH_KEY}
           defaultWidth={THREAD_COLUMN_DEFAULT_WIDTH}
           minContentWidth={CONVERSATION_MIN_WIDTH}
-          maxPanelWidth={THREAD_COLUMN_MAX_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
           fullWidth={columnFills}
           resizeLabel={t('thread.resize')}
           // While a second thread keeps it beside the messages, filling the page would not take.
