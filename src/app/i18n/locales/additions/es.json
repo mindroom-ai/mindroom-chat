@@ -1080,7 +1080,7 @@
     },
     "commands": {
       "descriptions": {
-        "compact": "Compactar el contexto de los agentes antes de su próxima respuesta en este hilo.",
+        "compact": "Compactar el contexto de los agentes antes de su próxima respuesta en esta conversación.",
         "reply_mode": "Mostrar o cambiar si los agentes necesitan una mención para iniciar una conversación aquí (establecer/restablecer requiere un administrador de la sala)."
       }
     },

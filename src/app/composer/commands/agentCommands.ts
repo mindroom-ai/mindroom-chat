@@ -64,8 +64,8 @@ export const MINDROOM_COMMANDS: AgentCommandItem[] = [
   },
   {
     name: 'compact',
-    syntax: '!compact [agent|team]',
-    description: "Compact the agents' context before their next reply in this thread.",
+    syntax: '!compact [agent_or_team]',
+    description: "Compact the agents' context before their next reply in this conversation.",
   },
   {
     name: 'model',
