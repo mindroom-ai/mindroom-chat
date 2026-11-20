@@ -264,7 +264,7 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * to the element that holds both, here the list (a Compact card pressed while the list sorted
  * itself anew opened nothing). A finger's click is aimed after its pointerup, so the release
  * alone does not let go; a change of `order` after it plays at once (a swipe resolves a card at
- * its release, and no click follows). Before it, and less than `LONGEST_PLAY_MS` into the press,
+ * its release, also one that comes as a touchend alone, and no click follows). Before it, and less than `LONGEST_PLAY_MS` into the press,
  * a change starts its plays held at their first frame. A held glide starts again from where its
  * row stood. A press that ends in neither click nor cancel (a drag, a long press) leaves the
  * plays held until `LONGEST_PLAY_MS` ends them. The copy of a row that left always fades on.
@@ -331,14 +331,18 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       });
       pressRef.current = undefined;
     };
-    // Only the pointer that pressed ends its press: by its cancel, or by the click after its
-    // release (a click names its pointer in some browsers only).
+    // Only the pointer that pressed ends its press: by its cancel, or by its click after its
+    // release (a click names its pointer in some browsers only, and one that does must name
+    // this one). The last finger's lift is a release too: a touch can end with no pointerup,
+    // and a swipe resolves its card then (CompactCardSwipe).
     const end = (event: Event) => {
       const press = pressRef.current;
-      const mine = press?.id === (event as PointerEvent).pointerId;
-      if (event.type === 'pointerup') {
-        if (press && mine) press.up = true;
-      } else if (event.type === 'click' ? press?.up : mine) letGo();
+      const id = (event as PointerEvent).pointerId;
+      const mine = press?.id === id;
+      const touch = event.type.startsWith('touch');
+      if (touch || event.type === 'pointerup') {
+        if (press && (touch ? !(event as TouchEvent).touches.length : mine)) press.up = true;
+      } else if (event.type === 'click' ? press?.up && (mine || !(id >= 0)) : mine) letGo();
     };
     const hold = (event: PointerEvent) => {
       const { target, pointerId: id } = event;
@@ -357,7 +361,7 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       pressRef.current = { id, at: performance.now(), held: [...(last?.held ?? []), ...running] };
     };
     // On the window, capturing: before the row's handlers act, and for a list that mounts later.
-    const ends = ['pointerup', 'pointercancel', 'click'];
+    const ends = ['pointerup', 'pointercancel', 'click', 'touchend', 'touchcancel'];
     window.addEventListener('pointerdown', hold, true);
     ends.forEach((type) => window.addEventListener(type, end, true));
     return () => {

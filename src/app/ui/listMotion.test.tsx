@@ -356,6 +356,51 @@ describe('useListMotion', () => {
       expect(statesByKind()).toEqual({ left: ['running'], rows: ['running'] });
     });
 
+    /** A finger lifts, and `touches` are still down: no pointer event tells of it. */
+    const lift = (type: string, touches: unknown[] = []) =>
+      document.body.dispatchEvent(Object.assign(new Event(type, { bubbles: true }), { touches }));
+
+    it.each(['touchend', 'touchcancel'])(
+      'plays a change after a %s with no pointerup: a swipe resolves at that lift',
+      (type) => {
+        const { rerender } = render(<List order={['a', 'b', 'c']} />);
+
+        pointer('pointerdown', row('b'));
+        lift(type);
+        rerender(<List order={['a', 'c']} />);
+
+        expect(statesByKind()).toEqual({ left: ['running'], rows: ['running'] });
+      }
+    );
+
+    it('holds through the lift of a touch until its click, and while another finger is down', () => {
+      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+
+      pointer('pointerdown', row('b'));
+      lift('touchend', [{}]);
+      rerender(<List order={['c', 'a', 'b']} />);
+      expect(states()).toEqual(['paused']);
+
+      // The lift alone lets nothing go: a tap's click is still to come.
+      lift('touchend');
+      expect(states()).toEqual(['paused']);
+      pointer('click', row('b'));
+      expect(states()).toEqual(['running']);
+    });
+
+    it('lets go at the click of the pointer that pressed, not at another one after its lift', () => {
+      reorder();
+
+      pointer('pointerdown', row('c'));
+      pointer('pointerup', row('c'));
+      pointer('click', row('a'), 0, 2);
+      expect(states()).toEqual(['paused']);
+
+      // A click that names no pointer, as in a browser whose clicks are mouse events.
+      row('c').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(states()).toEqual(['running']);
+    });
+
     it('keeps the hold through the cancel, the tap and the press of another pointer', () => {
       reorder();
 
