@@ -109,6 +109,9 @@ describe('canvasLibraries', () => {
         (error instanceof TypeError) + ' ' + started
       }`;
     expect(both(uncallable)).toEqual(['true false', 'true false']);
+    const boxedSymbol = `const s = Symbol('s');
+      Object.groupBy(['A'], () => Object(s))[s].join()`;
+    expect(both(boxedSymbol)).toEqual(['A', 'A']);
   });
 
   it('keeps only the woff2 face of each font, and fails on a font without one', () => {

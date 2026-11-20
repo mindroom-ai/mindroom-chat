@@ -33,7 +33,7 @@ export const GROUP_BY_FALLBACK =
   '"use strict";Object.groupBy||Object.defineProperty(Object,"groupBy",{writable:true,' +
   'configurable:true,value:function(items,key){if(typeof key!=="function")throw new TypeError(' +
   '"Object.groupBy: the callback is not a function");var groups=Object.create(null),index=0;' +
-  'for(var item of items){var name=key(item,index++);if(typeof name!=="symbol")name=String(name);' +
+  'for(var item of items){var name=Reflect.ownKeys({[key(item,index++)]:0})[0];' +
   '(groups[name]||(groups[name]=[])).push(item)}return groups}});\n';
 
 /** The files, by the name a canvas page's head refers to them. */
