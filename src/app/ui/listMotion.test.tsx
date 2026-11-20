@@ -254,8 +254,26 @@ describe('useListMotion', () => {
 
   describe('under a press', () => {
     // jsdom has no PointerEvent: a mouse event of the pointer's type.
-    const pointer = (type: string, target: Element, button = 0) =>
-      target.dispatchEvent(new MouseEvent(type, { bubbles: true, button }));
+    const pointer = (type: string, target: Element, button = 0, pointerId = 1) =>
+      target.dispatchEvent(
+        Object.assign(new MouseEvent(type, { bubbles: true, button }), { pointerId })
+      );
+    /** The pointer goes up and its click comes. */
+    const release = (target: Element, pointerId = 1) => {
+      pointer('pointerup', target, 0, pointerId);
+      pointer('click', target, 0, pointerId);
+    };
+    /** The states of the plays that fade the copy of a row that left, and of all the others. */
+    const statesByKind = () => {
+      const of = (left: boolean) => [
+        ...new Set(
+          motion.plays
+            .filter(({ element }) => element.hasAttribute('inert') === left)
+            .map(({ animation }) => animation.playState)
+        ),
+      ];
+      return { left: of(true), rows: of(false) };
+    };
     const row = (key: string) =>
       screen.getByTestId('list').querySelector(`[data-motion-row="${key}"]`) as HTMLElement;
     const states = () => [...new Set(motion.plays.map(({ animation }) => animation.playState))];
@@ -289,14 +307,18 @@ describe('useListMotion', () => {
         .mockReturnValue({ translate: '0px 40px' } as CSSStyleDeclaration);
 
       pointer('pointerdown', row('c'));
+      // Only the three glides are read: the play that raises a row has no place.
+      expect(style).toHaveBeenCalledTimes(3);
       style.mockRestore();
       const held = times();
+      // Each starts again at its new first frame, which shows the row where it stood.
+      expect(held).toEqual([0, 0, 0, 0]);
       // The browser's next frame, which a pause alone waits for.
       motion.frame();
       expect(times()).toEqual(held);
       expect(playedByRow().c).toEqual([[{ translate: '0px 40px' }, { translate: 'none' }]]);
 
-      pointer('click', row('c'));
+      release(row('c'));
       motion.frame();
       expect(times()).toEqual(held.map((time) => time + FRAME_MS));
     });
@@ -309,6 +331,47 @@ describe('useListMotion', () => {
 
       expect(motion.paused[0]).toBe(row('b'));
       expect(new Set(motion.paused)).toEqual(new Set([row('a'), row('b'), row('c')]));
+    });
+
+    it('lets the copy of a row that left fade on, under a press and at one', () => {
+      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+
+      pointer('pointerdown', row('a'));
+      rerender(<List order={['a', 'c']} />);
+      expect(statesByKind()).toEqual({ left: ['running'], rows: ['paused'] });
+      release(row('a'));
+
+      // The copy still fades at the next press.
+      pointer('pointerdown', row('a'));
+      expect(statesByKind()).toEqual({ left: ['running'], rows: ['paused'] });
+    });
+
+    it('plays a change that the release brings at once: a swipe resolves and no click comes', () => {
+      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+
+      pointer('pointerdown', row('b'));
+      pointer('pointerup', row('b'));
+      rerender(<List order={['a', 'c']} />);
+
+      expect(statesByKind()).toEqual({ left: ['running'], rows: ['running'] });
+    });
+
+    it('keeps the hold through the cancel, the tap and the press of another pointer', () => {
+      reorder();
+
+      pointer('pointerdown', row('c'));
+      pointer('pointercancel', row('c'), 0, 2);
+      expect(states()).toEqual(['paused']);
+
+      // A tap elsewhere, then one in the list.
+      [document.body, row('a')].forEach((target) => {
+        pointer('pointerdown', target, 0, 2);
+        release(target, 2);
+        expect(states()).toEqual(['paused']);
+      });
+
+      release(row('c'));
+      expect(states()).toEqual(['running']);
     });
 
     it('lets go when the press is cancelled, as when it became a scroll', () => {
@@ -336,7 +399,7 @@ describe('useListMotion', () => {
       pointer('pointerdown', row('c'));
       // The list ends the plays the browser has not ended.
       await vi.advanceTimersByTimeAsync(LONGEST_PLAY_MS);
-      pointer('click', row('c'));
+      release(row('c'));
 
       expect(states()).toEqual(['idle']);
     });
@@ -348,7 +411,7 @@ describe('useListMotion', () => {
       rerender(<List order={['c', 'a', 'b']} />);
       expect(states()).toEqual(['paused']);
 
-      pointer('click', row('b'));
+      release(row('b'));
       expect(states()).toEqual(['running']);
     });
 
@@ -361,7 +424,7 @@ describe('useListMotion', () => {
       // The glides the press held first were ended: every row moved again.
       expect(states()).toEqual(['idle', 'paused']);
 
-      pointer('click', row('c'));
+      release(row('c'));
       expect(states()).toEqual(['idle', 'running']);
     });
 

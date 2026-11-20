@@ -192,14 +192,18 @@ const holdNow = (animation: Animation): void => {
   let time = animation.currentTime;
   // A glide, or the play that raises its row over the others: not a row that comes or leaves.
   if (effect?.target && first && !('opacity' in first)) {
-    const shown = getComputedStyle(effect.target).translate;
-    if ('translate' in first) effect.setKeyframes([{ translate: shown }, { translate: 'none' }]);
+    const shown = 'translate' in first && getComputedStyle(effect.target).translate;
+    if (shown) effect.setKeyframes([{ translate: shown }, { translate: 'none' }]);
     time = 0;
   }
   animation.pause();
   // eslint-disable-next-line no-param-reassign -- the one way to end a pause that is pending
   animation.currentTime = time;
 };
+
+/** Whether a play that runs holds a row: the fade of the copy of a row that left holds none. */
+const holdsRow = ({ effect, playState }: Animation): boolean =>
+  playState === 'running' && !(effect as KeyframeEffect | null)?.target?.hasAttribute('inert');
 
 type BeforeChangeProps = {
   order: string;
@@ -254,21 +258,22 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * Animations. Call it after a hook that scrolls the list in a layout effect: the rows are read
  * where that leaves them.
  *
- * A press in the list holds its plays where they show until its click or cancel, so the pressed
- * row stays under the pointer and gets the click. A row that glided on took the release to the
- * row beside it, and a click whose press and release hit different elements goes to the element
- * that holds both, here the list (a Compact card pressed while the list sorted itself anew
- * opened nothing). A finger's click is aimed after its pointerup, so the release alone does not
- * let go. A held glide starts again from where its row stood. A press that ends in neither (a
- * drag, a long press) leaves the plays held until `LONGEST_PLAY_MS` ends them. A change of
- * `order` less than `LONGEST_PLAY_MS` after the pointer went down starts its plays held, at the
- * frame that shows each row where it was.
+ * A press in the list holds the plays of its rows where they show until its click or cancel, so
+ * the pressed row stays under the pointer and gets the click. A row that glided on took the
+ * release to the row beside it, and a click whose press and release hit different elements goes
+ * to the element that holds both, here the list (a Compact card pressed while the list sorted
+ * itself anew opened nothing). A finger's click is aimed after its pointerup, so the release
+ * alone does not let go; a change of `order` after it plays at once (a swipe resolves a card at
+ * its release, and no click follows). Before it, and less than `LONGEST_PLAY_MS` into the press,
+ * a change starts its plays held at their first frame. A held glide starts again from where its
+ * row stood. A press that ends in neither click nor cancel (a drag, a long press) leaves the
+ * plays held until `LONGEST_PLAY_MS` ends them. The copy of a row that left always fades on.
  */
 export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
   const beforeRef = useRef<Before>();
   const runningRef = useRef<Animation[]>([]);
-  // The press that holds plays: when its pointer went down, and the plays it holds.
-  const pressRef = useRef<{ at: number; held: Animation[] }>();
+  // The press that holds plays: its pointer, when it went down, whether it is up, its plays.
+  const pressRef = useRef<{ id: number; at: number; up?: boolean; held: Animation[] }>();
   const read = useCallback(
     () => (listRef.current ? readBefore(listRef.current) : undefined),
     [listRef]
@@ -304,10 +309,11 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     const started = play(list, before);
     runningRef.current = [...kept, ...started];
     const press = pressRef.current;
-    if (press && performance.now() - press.at < LONGEST_PLAY_MS) {
+    if (press && !press.up && performance.now() - press.at < LONGEST_PLAY_MS) {
       // At their first frame, which shows each row where it was: a pause holds them there.
-      started.forEach((animation) => animation.pause());
-      press.held.push(...started);
+      const held = started.filter(holdsRow);
+      held.forEach((animation) => animation.pause());
+      press.held.push(...held);
     }
     // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
     if (started.length > 0) {
@@ -325,29 +331,38 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       });
       pressRef.current = undefined;
     };
+    // Only the pointer that pressed ends its press: by its cancel, or by the click after its
+    // release (a click names its pointer in some browsers only).
+    const end = (event: Event) => {
+      const press = pressRef.current;
+      const mine = press?.id === (event as PointerEvent).pointerId;
+      if (event.type === 'pointerup') {
+        if (press && mine) press.up = true;
+      } else if (event.type === 'click' ? press?.up : mine) letGo();
+    };
     const hold = (event: PointerEvent) => {
-      const { target } = event;
+      const { target, pointerId: id } = event;
       if (event.button !== 0 || !(target instanceof Node)) return;
       if (!listRef.current?.contains(target)) return;
+      // Another pointer's press while one is under way holds nothing more: the first holds it all.
+      const last = pressRef.current;
+      const underWay = last && !last.up && performance.now() - last.at < LONGEST_PLAY_MS;
+      if (underWay && last.id !== id) return;
       const pressed = ({ effect }: Animation) =>
         Number(!!(effect as KeyframeEffect | null)?.target?.contains(target));
       // The pressed row first: WebKit takes a millisecond a play, and a row glides on until its turn.
-      const running = runningRef.current
-        .filter(({ playState }) => playState === 'running')
-        .sort((a, b) => pressed(b) - pressed(a));
+      const running = runningRef.current.filter(holdsRow).sort((a, b) => pressed(b) - pressed(a));
       running.forEach(holdNow);
       // With the plays of a press that ended in neither a click nor a cancel.
-      const held = [...(pressRef.current?.held ?? []), ...running];
-      pressRef.current = { at: performance.now(), held };
+      pressRef.current = { id, at: performance.now(), held: [...(last?.held ?? []), ...running] };
     };
     // On the window, capturing: before the row's handlers act, and for a list that mounts later.
+    const ends = ['pointerup', 'pointercancel', 'click'];
     window.addEventListener('pointerdown', hold, true);
-    window.addEventListener('click', letGo, true);
-    window.addEventListener('pointercancel', letGo, true);
+    ends.forEach((type) => window.addEventListener(type, end, true));
     return () => {
       window.removeEventListener('pointerdown', hold, true);
-      window.removeEventListener('click', letGo, true);
-      window.removeEventListener('pointercancel', letGo, true);
+      ends.forEach((type) => window.removeEventListener(type, end, true));
       letGo();
     };
   }, [listRef]);
