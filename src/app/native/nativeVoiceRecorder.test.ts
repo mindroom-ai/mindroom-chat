@@ -13,6 +13,7 @@ const plugin = vi.hoisted(() => ({
   resume: vi.fn(),
   stop: vi.fn(),
   cancel: vi.fn(),
+  keep: vi.fn(),
   level: vi.fn(),
   orphans: vi.fn(),
 }));
@@ -55,7 +56,13 @@ const watch = (recorder: EventTarget) => {
     chunks.push((event as BlobEvent).data);
   });
   recorder.addEventListener('stop', () =>
-    seen.push(plugin.cancel.mock.calls.length > 0 ? 'stop after cancel' : 'stop')
+    seen.push(
+      plugin.cancel.mock.calls.length > 0
+        ? 'stop after cancel'
+        : plugin.keep.mock.calls.length > 0
+        ? 'stop after keep'
+        : 'stop'
+    )
   );
   return { seen, chunks };
 };
@@ -63,7 +70,7 @@ const watch = (recorder: EventTarget) => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
-  [plugin.pause, plugin.resume, plugin.cancel].forEach((method) =>
+  [plugin.pause, plugin.resume, plugin.cancel, plugin.keep].forEach((method) =>
     method.mockResolvedValue(undefined)
   );
   plugin.start.mockResolvedValue({ id: 'a' });
@@ -129,17 +136,24 @@ describe('native voice recorder', () => {
     await vi.waitFor(() => expect(recorder.level()).toBe(0.25));
   });
 
-  it('asks for no level while paused, and keeps the newest when the native level fails', async () => {
+  it('asks for no level while paused', async () => {
     const recorder = await startNativeVoiceRecorder();
     recorder.pause();
     expect(recorder.level()).toBe(0);
     expect(plugin.level).not.toHaveBeenCalled();
-    recorder.resume();
+  });
+
+  it('ends a recording that ended by itself and keeps its file', async () => {
+    // The native level rejects once its device changed or its file could not be written.
     plugin.level.mockRejectedValue({ code: 'NOT_RECORDING' });
+    const recorder = await startNativeVoiceRecorder();
+    const { seen } = watch(recorder);
     expect(recorder.level()).toBe(0);
-    await Promise.resolve();
-    expect(recorder.level()).toBe(0);
-    expect(recorder.state).toBe('recording');
+    await vi.waitFor(() => expect(seen).toEqual(['stop after keep']));
+    expect(recorder.state).toBe('inactive');
+    expect(plugin.keep.mock.calls).toEqual([[{ id: 'a' }]]);
+    expect(plugin.cancel).not.toHaveBeenCalled();
+    expect(plugin.stop).not.toHaveBeenCalled();
   });
 
   it('pauses and resumes at once', async () => {
@@ -159,9 +173,10 @@ describe('native voice recorder', () => {
       const recorder = await startNativeVoiceRecorder();
       const { seen } = watch(recorder);
       recorder[method]();
-      await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
+      await vi.waitFor(() => expect(seen).toEqual(['stop after keep']));
       expect(recorder.state).toBe('inactive');
-      expect(plugin.cancel).toHaveBeenCalledWith({ id: 'a' });
+      expect(plugin.keep).toHaveBeenCalledWith({ id: 'a' });
+      expect(plugin.cancel).not.toHaveBeenCalled();
       expect(plugin.stop).not.toHaveBeenCalled();
     }
   );
@@ -215,9 +230,11 @@ describe('native voice recorder', () => {
     plugin.start.mockResolvedValue({ id: 'b' });
     const second = await startNativeVoiceRecorder();
     reading.resolve(audio() as Response);
-    await vi.waitFor(() => expect(plugin.cancel).toHaveBeenCalledOnce());
+    // No one listens to the first: its file stays.
+    await vi.waitFor(() => expect(plugin.keep).toHaveBeenCalledOnce());
     expect(plugin.stop.mock.calls).toEqual([[{ id: 'a' }]]);
-    expect(plugin.cancel.mock.calls).toEqual([[{ id: 'a' }]]);
+    expect(plugin.keep.mock.calls).toEqual([[{ id: 'a' }]]);
+    expect(plugin.cancel).not.toHaveBeenCalled();
     expect(second.state).toBe('recording');
     second.level();
     expect(plugin.level.mock.calls).toEqual([[{ id: 'b' }]]);
@@ -236,14 +253,33 @@ describe('native voice recorder', () => {
         ),
     ],
     ['the file is empty', () => stubFetch(audio(''))],
-  ])('reports a stop without audio when %s', async (_name, fail) => {
+  ])('reports a stop without audio and keeps the file when %s', async (_name, fail) => {
     stubFetch(audio());
     fail();
     const recorder = await startNativeVoiceRecorder();
     const { seen } = watch(recorder);
     recorder.stop();
-    await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
-    expect(plugin.cancel.mock.calls).toEqual([[{ id: 'a' }]]);
+    await vi.waitFor(() => expect(seen).toEqual(['stop after keep']));
+    expect(plugin.keep.mock.calls).toEqual([[{ id: 'a' }]]);
+    expect(plugin.cancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps the file of a slow stop whose listener left before it settled', async () => {
+    // The capture session stops waiting after a few seconds and detaches its listeners.
+    const stopping = deferred<{ path: string }>();
+    plugin.stop.mockReturnValue(stopping.promise);
+    stubFetch(audio());
+    const recorder = await startNativeVoiceRecorder();
+    const onData = vi.fn();
+    const onStop = vi.fn();
+    recorder.addEventListener('dataavailable', onData);
+    recorder.addEventListener('stop', onStop);
+    recorder.stop();
+    recorder.removeEventListener('dataavailable', onData);
+    stopping.resolve({ path: PATH });
+    await vi.waitFor(() => expect(plugin.keep.mock.calls).toEqual([[{ id: 'a' }]]));
+    expect(onData).not.toHaveBeenCalled();
+    expect(plugin.cancel).not.toHaveBeenCalled();
   });
 });
 
