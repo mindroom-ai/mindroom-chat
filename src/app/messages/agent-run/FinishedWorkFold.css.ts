@@ -156,6 +156,8 @@ export const Ring = style({
 /**
  * The work as the reply showed it before it finished. It slides open and folds back by its one
  * grid row, while FinishedWorkFold.tsx sets `data-motion`; it shows at once when it mounts open.
+ * Folding back, it rests folded and hidden, so a fold-back whose slide never ends (reduced motion
+ * turned on mid-slide) shows nothing and lets nothing in it take focus until the next click.
  */
 export const Work = style({
   display: 'grid',

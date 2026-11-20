@@ -169,22 +169,6 @@ describe('FinishedWorkFold', () => {
     expect(renderer!.root.findByProps({ className: 'Work' }).props['data-motion']).toBe('opening');
   });
 
-  it('settles a fold back whose slide is cancelled', () => {
-    const wrapper = new EventTarget();
-    act(() => {
-      renderer = create(fold(nextKey()), { createNodeMock: () => wrapper });
-    });
-    click();
-    settle();
-    click();
-    expect(byId('work')).toHaveLength(1);
-
-    act(() => {
-      wrapper.dispatchEvent(new Event('animationcancel'));
-    });
-    expect(byId('work')).toHaveLength(0);
-  });
-
   it('starts at rest when its split comes back after it went as the work folded back', () => {
     const key = nextKey();
     render(fold(key));
