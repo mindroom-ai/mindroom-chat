@@ -3,6 +3,7 @@ import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { runToolCall, type ToolActivity } from '../subagents/runActivity';
 import { runOfJob } from '../subagents/runJob';
+import { toolStep } from '../subagents/runStep';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
@@ -118,6 +119,14 @@ const nest = (items: BackgroundJobsBarItem[], runs: Map<string, string | undefin
   return placed;
 };
 
+/**
+ * A job's name as the bar says it: without the usage details (`details` false), a tool job's is
+ * what it does in plain words (`toolStep`), from its tool while its call is not loaded; else its
+ * name. Its row's headline, its Stop's label and the bar's title for it say the same.
+ */
+export const shownJobName = (item: BackgroundJobsBarItem, details: boolean, t: TFunction): string =>
+  !details && !item.subagent ? toolStep(item.activity ?? { tool: item.name }, t) : item.name;
+
 /** The jobs bar for a view's background jobs, or nothing when it has none. */
 export const presentBackgroundJobs = (
   jobs: BackgroundJob[],
@@ -126,7 +135,9 @@ export const presentBackgroundJobs = (
   t: TFunction,
   // The view's live jobs, listed or not; more than listed when the agents list only their newest.
   total = jobs.length,
-  lookups = NO_LOOKUPS
+  lookups = NO_LOOKUPS,
+  // Whether the reader shows the usage details (`showUsageDetails`), which name a tool job by its tool.
+  details = true
 ): BackgroundJobsBarModel | null => {
   const [first] = jobs;
   if (!first) return null;
@@ -177,7 +188,7 @@ export const presentBackgroundJobs = (
     else title = t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length });
     return { title, heading: title, items, groups, summary };
   }
-  const tool = items[0]!.name;
+  const tool = shownJobName(items[0]!, details, t);
   const heading = finished
     ? t('mindroomUi.backgroundJobs.jobTotalFinished', { count: 1 })
     : t('mindroomUi.backgroundJobs.jobTotal', { count: 1 });

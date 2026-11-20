@@ -319,7 +319,7 @@ const watchReplyFinish = async (
   await expect(page.getByRole('status').filter({ hasText: /is typing/ })).toHaveCount(0, {
     timeout: 30_000,
   });
-  await expect(page.getByRole('region', { name: /run_shell_command/ })).toHaveCount(0, {
+  await expect(page.getByRole('region', { name: /Running a command/ })).toHaveCount(0, {
     timeout: 30_000,
   });
   await page.waitForTimeout(1_500);

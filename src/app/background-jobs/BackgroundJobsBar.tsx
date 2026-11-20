@@ -20,8 +20,12 @@ import { useSettingValue } from '../preferences/useSettingValue';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
-import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
-import { BackgroundJobRow, BackgroundJobsSummary, jobName } from './BackgroundJobRow';
+import {
+  type BackgroundJobsBarItem,
+  shownJobName,
+  presentBackgroundJobs,
+} from './backgroundJobsPresentation';
+import { BackgroundJobRow, BackgroundJobsSummary } from './BackgroundJobRow';
 import {
   type BackgroundJobCancelRequest,
   stopBackgroundJobs,
@@ -166,7 +170,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
 
   // The agents count their live jobs per room, so only the main timeline knows of jobs they do not list.
   const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
-  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups);
+  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total, lookups, details);
   if (!model) return null;
   const stoppable = model.items.filter((item) => !item.stopping && !item.finished);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
@@ -193,7 +197,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     void cancel(
       { jobId: item.jobId },
       [item.jobId],
-      t('mindroomUi.backgroundJobs.stopFailed', { tool: jobName(item, details, t) })
+      t('mindroomUi.backgroundJobs.stopFailed', { tool: shownJobName(item, details, t) })
     );
   };
   const stopAll = () => {
@@ -220,7 +224,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     if (!canCancel) return null;
     // A task runs on apart from the reply, whose own Stop stops only the reply. It names the job as
     // its row does.
-    const label = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: jobName(item, details, t) });
+    const label = t('mindroomUi.backgroundJobs.stopTaskFor', {
+      tool: shownJobName(item, details, t),
+    });
     return (
       <button
         key={item.jobId}

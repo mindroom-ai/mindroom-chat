@@ -25,7 +25,11 @@ import { useUsageCells } from '../subagents/runUsage';
 import { useAgentProfile } from '../subagents/AgentAvatar';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
 import * as css from './BackgroundJobsBar.css';
-import type { BackgroundJobsBarItem, BackgroundJobsBarModel } from './backgroundJobsPresentation';
+import {
+  type BackgroundJobsBarItem,
+  type BackgroundJobsBarModel,
+  shownJobName,
+} from './backgroundJobsPresentation';
 
 /**
  * A job's logo: its run's model, else a sub-agent's agent or a tool's terminal, on a tile with a
@@ -196,14 +200,6 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 }
 
 /**
- * A job's name as the bar says it: without the usage details (`details` false), a tool job's is
- * what it does in plain words (`toolStep`), from its tool while its call is not loaded; else its
- * name. Its row's headline and its Stop's label say the same.
- */
-export const jobName = (item: BackgroundJobsBarItem, details: boolean, t: TFunction): string =>
-  !details && !item.subagent ? toolStep(item.activity ?? { tool: item.name }, t) : item.name;
-
-/**
  * What a sub-agent job does now in plain words, for a reader who leaves the usage details off: its
  * run at work as `runStepText` says it; nothing once it finished. While its pill says it waits for
  * approval (`waiting`), the step is the call alone, without "Waiting for your OK".
@@ -253,8 +249,8 @@ export function BackgroundJobRow({
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  // Without the usage details, a tool job's headline is what it does in plain words.
-  const headline = !details && !item.subagent ? jobName(item, details, t) : described || name;
+  // A tool job's headline is its name as the bar says it: without the usage details, in words.
+  const headline = item.subagent ? described || name : shownJobName(item, details, t);
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;

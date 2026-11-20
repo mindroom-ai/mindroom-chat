@@ -304,6 +304,8 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
 
   // A long tool name is cut short and many jobs scroll inside the bar, so every Stop stays reachable.
   const longTool = 'mcp_github_create_pull_request_review_with_inline_comments';
+  // Without the usage details, the bar names it in words.
+  const longName = `Using ${longTool.replaceAll('_', ' ')}`;
   await publish(
     researcher,
     Array.from({ length: 14 }, (_, index) =>
@@ -313,7 +315,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   const crowded = page.getByRole('region', { name: '15 background jobs' });
   await expect(crowded).toBeVisible();
   const longCancel = crowded.getByRole('button', {
-    name: `Stop task: Using ${longTool.replaceAll('_', ' ')}`,
+    name: `Stop task: ${longName}`,
   });
   await longCancel.scrollIntoViewIfNeeded();
   const cancelBox = await longCancel.boundingBox();
@@ -326,13 +328,11 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   // A single job with a long name keeps its title and its Stop on screen too.
   await publish(coder, []);
   await publish(researcher, [job('job_5', fixture.rootId, longTool)]);
-  const single = page.getByRole('region', { name: `Running: ${longTool}` });
+  const single = page.getByRole('region', { name: `Running: ${longName}` });
   await expect(single).toBeVisible();
   const singleBox = await single.boundingBox();
   expect(singleBox && singleBox.x + singleBox.width).toBeLessThanOrEqual(390);
-  await expect(
-    single.getByRole('button', { name: `Stop task: Using ${longTool.replaceAll('_', ' ')}` })
-  ).toBeInViewport();
+  await expect(single.getByRole('button', { name: `Stop task: ${longName}` })).toBeInViewport();
 
   // When the last job ends, the bar goes away.
   await publish(coder, []);

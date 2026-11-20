@@ -139,7 +139,7 @@ const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.strin
 const using = (tool: string) => tr('mindroomUi.subagents.step.using', { tool });
 const cancelA = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool a') });
 const cancelB = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool b') });
-const stoppingA = 'mindroomUi.backgroundJobs.stoppingJob{"tool":"tool_a"}';
+const stoppingA = tr('mindroomUi.backgroundJobs.stoppingJob', { tool: using('tool a') });
 const title = () => container.querySelector('[role="region"]')?.getAttribute('aria-label');
 const click = (label: string) =>
   act(async () => {
@@ -195,9 +195,14 @@ it('renders nothing without jobs', () => {
 it('shows one job folded as its row on the title line, which lists it as several do', () => {
   state.jobs = [job('a')];
   render();
-  expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
+  // Without the usage details, the bar's title names it as its row does, in words.
+  expect(title()).toBe(tr('mindroomUi.backgroundJobs.running', { tool: using('tool a') }));
   // How it stands is said apart, since its row's title is the job itself.
   expect(container.querySelector('[role="status"]')?.textContent).toBe(title());
+  // With them, by its tool.
+  act(() => showUsageDetails());
+  expect(title()).toBe('mindroomUi.backgroundJobs.running{"tool":"tool_a"}');
+  act(() => showUsageDetails(false));
   expect(container.querySelector('.Jobs')).toBeNull();
   const folded = container.querySelector('[data-job-folded]');
   expect(folded?.querySelector('.Logo')).not.toBeNull();
@@ -272,7 +277,7 @@ it('keeps the jobs it showed for a moment after they end, as finished and withou
     render();
     state.jobs = [];
     render();
-    expect(title()).toBe('mindroomUi.backgroundJobs.finished{"tool":"tool_a"}');
+    expect(title()).toBe(tr('mindroomUi.backgroundJobs.finished', { tool: using('tool a') }));
     expect(button(cancelA)).toBeUndefined();
     state.jobs = [job('a'), job('b')];
     render();

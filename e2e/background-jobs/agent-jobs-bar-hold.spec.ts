@@ -34,8 +34,8 @@ const VIEWPORTS = [
   { name: 'desktop', viewport: { width: 1280, height: 800 }, hasTouch: false },
   { name: 'phone', viewport: { width: 390, height: 844 }, hasTouch: true },
 ];
-const RUNNING = 'Running: run_shell_command';
-const FINISHED = 'Finished: run_shell_command';
+const RUNNING = 'Running: Running a command';
+const FINISHED = 'Finished: Running a command';
 const PAUSE_FINISHED = /Finished \W*pause/;
 
 /** When the homeserver received the edit that finished the reply, by the same clock as the page's. */
@@ -96,7 +96,7 @@ const finishedMainReply = async (stack: AgentStack, roomId: string): Promise<str
  * after the reply ended.
  */
 const expectHeldThroughPause = async (page: Page, testInfo: TestInfo, ended: number) => {
-  await expect(page.getByRole('region', { name: /run_shell_command/ })).toBeHidden({
+  await expect(page.getByRole('region', { name: /Running a command/ })).toBeHidden({
     timeout: 30_000,
   });
   const changes = await jobsBarChanges(page);
