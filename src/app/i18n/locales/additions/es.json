@@ -446,6 +446,7 @@
         "profile": "foto de perfil, foto, nombre, apodo",
         "deactivate": "eliminar cuenta, cerrar cuenta",
         "localMindroom": "vincular, código de vinculación, local, escritorio",
+        "voiceKey": "mensaje de voz, micrófono, grabar, pulsar para hablar, Option, Alt, atajo de teclado",
         "emoji": "emoji, stickers, paquetes, emoji personalizados",
         "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad",
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir"
@@ -1290,6 +1291,10 @@
     "hints": {
       "chip": "{{keys}} para ver todos los atajos"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} graba mensajes de voz",
+      "description": "Toca para empezar o enviar; mantén pulsado para hablar y suelta para enviar."
+    },
     "actions": {
       "palette": "Búsqueda y comandos",
       "settings": "Abrir ajustes",
@@ -1315,7 +1320,8 @@
       "newLine": "Nueva línea",
       "editLast": "Editar tu último mensaje (con el editor vacío)",
       "inlineCode": "Código en línea",
-      "callView": "Ir a la llamada"
+      "callView": "Ir a la llamada",
+      "voiceRecord": "Mantén pulsado para grabar un mensaje de voz; toca para empezar o enviar"
     }
   },
   "thread": {
