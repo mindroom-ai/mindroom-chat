@@ -81,12 +81,15 @@ export interface ThreadContextBannerProps {
 const DESKTOP_MAX_PILLS = 3;
 
 // A banner narrower than this takes a phone's layout: the tags and the pin in More, the whole
-// title, the buttons beside it stacked. A phone's banner is (up to 750 px wide, its banner is
-// 726 px inside its margins), and so is a thread column or a second thread beside the messages
-// (480 px until resized). A desktop's conversation is wider, as is a tablet's with the room list
-// open (one of 1024 px by 768 has 790 px); with the members panel open as well it is narrower.
-// In rem, as the row's, since Page Zoom scales what the banner holds.
-const COMPACT_BANNER_REM = 46;
+// title, the buttons beside it stacked. Narrower are a thread column or a second thread beside the
+// messages (440 px of banner until resized), a conversation beside the members panel on a tablet
+// (372 px at 1024 by 768, 528 px at 1180 by 820) and a portrait tablet's beside the room list
+// (442 px at 820 wide). Wider, and keeping the tags, are a tablet's held sideways beside the room
+// list (646 px at 1024 by 768) and a desktop's, also beside the members panel (628 px at 1280 by
+// 800). A phone takes the compact layout at any width: a 750 px one has 710 px of banner, more than
+// that tablet, so no width tells them apart. In rem, as the row's, since Page Zoom scales what the
+// banner holds.
+const COMPACT_BANNER_REM = 36;
 
 const rootFontSize = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
@@ -225,7 +228,7 @@ export function ThreadContextBanner({
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [titleRow, setTitleRow] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
-  // On a phone whatever its Page Zoom, so it never changes there, and before the first measurement.
+  // A phone's at any width and Page Zoom, so nothing changes there, also before the first measurement.
   const narrowBanner = useNarrowBanner(bannerRef, collapsed);
   const compact = phone || narrowBanner === true;
   const rootEventId = useThreadRootEvent(room, threadId);

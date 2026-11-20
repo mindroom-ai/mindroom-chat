@@ -1078,7 +1078,7 @@ describe('ThreadContextBanner rendering', () => {
       vi.unstubAllGlobals();
     });
 
-    it('lays a banner narrower than 46rem out as a phone does, tags and pin in More', async () => {
+    it('lays a banner narrower than 36rem out as a phone does, tags and pin in More', async () => {
       // A thread column beside the room's messages: 330 px of banner.
       const narrow = renderBanner(
         TITLE,
@@ -1098,9 +1098,10 @@ describe('ThreadContextBanner rendering', () => {
     });
 
     it('keeps the desktop layout in a banner as wide as a conversation', async () => {
+      // A tablet's conversation beside the room list: 646 px.
       const wide = renderBanner(
         TITLE,
-        bannerOf(() => 900)
+        bannerOf(() => 646)
       );
       expect(buttons(wide)).toEqual(['Back', '+ tag', 'Thread options', 'Pin thread', 'Resolve']);
       expect(tagPills(wide)).toHaveLength(2);
@@ -1111,8 +1112,8 @@ describe('ThreadContextBanner rendering', () => {
       wide.unmount();
     });
 
-    it('follows the banner as its pane resizes, and as Page Zoom moves 46rem', () => {
-      let width = 900;
+    it('follows the banner as its pane resizes, and as Page Zoom moves 36rem', () => {
+      let width = 646;
       let fontSize = '16px';
       vi.stubGlobal('getComputedStyle', () => ({ fontSize }));
       const resized: (() => void)[] = [];
@@ -1140,10 +1141,10 @@ describe('ThreadContextBanner rendering', () => {
       act(() => resized.forEach((measure) => measure()));
       expect(tagPills(banner)).toHaveLength(0);
       expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
-      width = 900;
+      width = 646;
       act(() => resized.forEach((measure) => measure()));
       expect(tagPills(banner)).toHaveLength(2);
-      // At 125% 46rem is 920 px, more than the banner has.
+      // At 125% 36rem is 720 px, more than the banner has.
       fontSize = '20px';
       act(() => rootStyleChanged.forEach((changed) => changed()));
       expect(tagPills(banner)).toHaveLength(0);
@@ -1152,13 +1153,12 @@ describe('ThreadContextBanner rendering', () => {
       expect(rootStyleChanged).toHaveLength(0);
     });
 
-    it('keeps a phone compact even where Page Zoom makes its banner wider than 46rem', () => {
-      // A 750 px phone at 50%: 46rem is 368 px, under its 726 px banner.
-      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '8px' }));
+    it('keeps a phone compact where its banner is wider than 36rem', () => {
+      // A 750 px phone has 710 px of banner, more than a tablet's 646 px that keeps the tags.
       screenSize = ScreenSize.Mobile;
       const phone = renderBanner(
         TITLE,
-        bannerOf(() => 726)
+        bannerOf(() => 710)
       );
       expect(buttons(phone)).toEqual(['Back', 'Thread options', 'Resolve']);
       expect(tagPills(phone)).toHaveLength(0);
