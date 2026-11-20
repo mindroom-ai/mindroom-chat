@@ -979,9 +979,13 @@ it('says what a tool job does from its tool until its call is loaded, then from 
   expect(activity()).toBeNull();
 });
 
-it('says a sub-agent job waits for your OK for its call, and between calls what it last wrote', () => {
+it('says the call a sub-agent job waits to make beside its pill, and between calls what it last wrote', () => {
   ingestRun('s1', { status: 'awaiting_approval' }, [
     { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'args=rm old.md' },
+  ]);
+  // Its Stop was pressed: no pill says it waits, so its step does.
+  ingestRun('s6', { status: 'awaiting_approval', startedAt: 5 }, [
+    { type: 'tool_call_started', tool_name: 'write_file', args_preview: 'path=notes/summary.md' },
   ]);
   ingestRun('s2', { startedAt: 2 }, [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
   ingestRun('s3', { status: 'completed', endedAt: 9 });
@@ -996,22 +1000,28 @@ it('says a sub-agent job waits for your OK for its call, and between calls what 
     subagentJob('c', { subagent: 's3', run: 'run-s3' }),
     subagentJob('d', { subagent: 's4', run: 'run-s4' }),
     subagentJob('e', { subagent: 's5', run: 'run-s5', status: 'finished' }),
+    subagentJob('f', { subagent: 's6', run: 'run-s6', status: 'cancel_requested' }),
   ];
   render('$thread');
   expand();
+  // The pill says it waits for approval, so the step is the call alone.
+  const rows = [...container.querySelectorAll('li')];
+  expect(rows[0]?.querySelector('[title="mindroomUi.backgroundJobs.waiting"]')).not.toBeNull();
+  expect(rows[5]?.querySelector('[title="mindroomUi.backgroundJobs.waiting"]')).toBeNull();
   const lines = () =>
     [...container.querySelectorAll('li')].map(
       (row) => row.querySelector('[data-job-activity]')?.textContent ?? null
     );
   expect(lines()).toEqual([
-    tr('mindroomUi.subagents.step.waitingForOk', {
-      step: 'mindroomUi.subagents.step.runningCommand',
-    }),
+    'mindroomUi.subagents.step.runningCommand',
     'mindroomUi.messages.mindroomThinkingPlaceholder.thinking',
     // A run that ended says nothing it does.
     null,
     'Reading the notes.',
     null,
+    tr('mindroomUi.subagents.step.waitingForOk', {
+      step: tr('mindroomUi.subagents.step.writing', { file: 'summary.md' }),
+    }),
   ]);
 
   // The row follows its last line as it grows, without a render from outside.

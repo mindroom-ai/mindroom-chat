@@ -1373,6 +1373,25 @@ describe('SubagentsPanel', () => {
     describe('without the usage details, as they start', () => {
       beforeEach(() => showUsageDetails(false));
 
+      it("says in an open run's line that the call waits for your OK, which no pill says there", () => {
+        ingest(
+          'wait',
+          meta('awaiting_approval', { task: 'Write the summary', startedAt: NOW - 40 }),
+          docs('', [
+            {
+              type: 'tool_call_started',
+              tool_name: 'write_file',
+              args_preview: 'path=notes/summary.md',
+            },
+          ])
+        );
+        render();
+        open('wait');
+        expect(container.querySelector('[data-subagent-now]')?.textContent).toBe(
+          '!Waiting for your OK: Writing summary.md'
+        );
+      });
+
       it('leaves out what the runs used and their models, and says each call in plain words', () => {
         ingest(
           'notes',

@@ -198,19 +198,22 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 /**
  * What a job does now in plain words, for a reader who leaves the usage details off: a sub-agent's
  * run at work as `runStepText` says it, a tool job's call as its step, or its tool's while its call
- * is not loaded (no call ID, or its reply not in yet); nothing once it finished.
+ * is not loaded (no call ID, or its reply not in yet); nothing once it finished. While its pill
+ * says it waits for approval (`waiting`), the step is the call alone, without "Waiting for your OK".
  * `call` is the call as sent (`toolCallTitle`), for the headline's tooltip: the row's title reaches
  * over the line, so a tooltip of its own would never show.
  */
 const plainStep = (
   item: BackgroundJobsBarItem,
+  waiting: boolean,
   t: TFunction
 ): { text: string; call?: string } | undefined => {
   const { activity } = item;
   if (item.finished) return undefined;
-  const text = item.subagent
-    ? item.run && runStepText(item.run, t)
-    : toolStep(activity ?? { tool: item.name }, t);
+  let text: string | undefined;
+  if (waiting && activity) text = toolStep(activity, t);
+  else if (item.subagent) text = item.run && runStepText(item.run, t);
+  else text = toolStep(activity ?? { tool: item.name }, t);
   if (!text) return undefined;
   return activity ? { text, call: toolCallTitle(activity) } : { text };
 };
@@ -252,7 +255,7 @@ export function BackgroundJobRow({
   const tool = item.subagent ? item.activity?.tool : undefined;
   const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
-  const step = details ? undefined : plainStep(item, t);
+  const step = details ? undefined : plainStep(item, waiting, t);
   const detail = (described && meta) || tool || doing;
   // Without the usage details, the call as sent follows on its own line.
   const headlineTitle = [meta?.task || item.name, step?.call].filter(Boolean).join('\n');
