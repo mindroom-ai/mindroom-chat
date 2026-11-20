@@ -597,7 +597,7 @@ describe('cache storage same-ID revision merge', () => {
     } as unknown as Room;
     const mapped = createPreferLiveEventMapper(
       room,
-      (rawEvent) => new MatrixEvent(rawEvent as IEvent)
+      (rawEvent) => new MatrixEvent(rawEvent)
     )(staleServerReply);
 
     const snapshot = persistThreadEventCacheSnapshot({

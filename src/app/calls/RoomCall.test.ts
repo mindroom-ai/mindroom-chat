@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'node:events';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import { RoomCall, type RoomCallOptions } from './RoomCall';
@@ -166,18 +166,18 @@ class FakeSession extends EventEmitter {
 type FakeMediaRoom = EventEmitter & {
   state: string;
   options: { encryption?: unknown };
-  connect: ReturnType<typeof vi.fn>;
-  disconnect: ReturnType<typeof vi.fn>;
-  setE2EEEnabled: ReturnType<typeof vi.fn>;
+  connect: Mock;
+  disconnect: Mock;
+  setE2EEEnabled: Mock;
   remoteParticipants: Map<string, unknown>;
   localParticipant: {
-    getTrackPublication: ReturnType<typeof vi.fn>;
+    getTrackPublication: Mock;
     trackPublications: Map<string, unknown>;
-    setMicrophoneEnabled: ReturnType<typeof vi.fn>;
-    setCameraEnabled: ReturnType<typeof vi.fn>;
-    setTrackSubscriptionPermissions: ReturnType<typeof vi.fn>;
+    setMicrophoneEnabled: Mock;
+    setCameraEnabled: Mock;
+    setTrackSubscriptionPermissions: Mock;
   };
-  switchActiveDevice: ReturnType<typeof vi.fn>;
+  switchActiveDevice: Mock;
 };
 
 const mediaRooms = () => fakes.rooms as FakeMediaRoom[];

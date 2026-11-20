@@ -26,7 +26,7 @@ export function fetchThreadBootstrapRelations(
   roomId: string,
   threadId: string
 ): ReturnType<MatrixClient['fetchRelations']> {
-  return mx.fetchRelations(roomId, threadId, 'm.thread' as any, null, {
+  return mx.fetchRelations(roomId, threadId, 'm.thread', null, {
     dir: Direction.Backward,
     limit: 50,
   });

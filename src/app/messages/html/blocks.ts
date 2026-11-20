@@ -153,7 +153,7 @@ const extractDomText = (nodes: DOMNode[]): string =>
   nodes
     .map((node) => {
       if (isText(node)) return node.data;
-      if (isDomElementNode(node)) return extractDomText(node.children as DOMNode[]);
+      if (isDomElementNode(node)) return extractDomText(node.children);
       return '';
     })
     .join('');
@@ -167,9 +167,9 @@ const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
     if (isText(node)) {
       flattenedInline += node.data;
     } else if (isDomElementNode(node) && node.name === 'code') {
-      flattenedInline += `<code>${extractDomText(node.children as DOMNode[])}</code>`;
+      flattenedInline += `<code>${extractDomText(node.children)}</code>`;
     } else if (isDomElementNode(node) && node.name === 'span') {
-      flattenedInline += extractDomText(node.children as DOMNode[]);
+      flattenedInline += extractDomText(node.children);
     } else {
       break;
     }

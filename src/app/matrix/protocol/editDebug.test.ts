@@ -20,7 +20,7 @@ describe('editDebug', () => {
   it('enables logging from the localStorage debug flag', () => {
     vi.stubGlobal('localStorage', {
       getItem: vi.fn((key: string) => (key === MINDROOM_EDIT_DEBUG_STORAGE_KEY ? '1' : null)),
-    } as unknown as Storage);
+    });
 
     expect(isEditDebugEnabled()).toBe(true);
   });

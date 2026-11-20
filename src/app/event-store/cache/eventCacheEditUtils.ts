@@ -38,7 +38,7 @@ const setSerializedReplacement = (
   unsigned['m.relations'] = aggregatedRelations;
   return {
     ...targetRawEvent,
-    unsigned: unsigned as IEvent['unsigned'],
+    unsigned: unsigned,
   };
 };
 

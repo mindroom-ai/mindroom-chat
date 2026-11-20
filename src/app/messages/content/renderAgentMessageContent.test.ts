@@ -208,8 +208,8 @@ const renderNode = async (
           msgtype: 'm.text',
           body: 'Hello',
         },
-        htmlReactParserOptions: {} as never,
-        linkifyOpts: {} as never,
+        htmlReactParserOptions: {},
+        linkifyOpts: {},
         ...options,
       })
     )
@@ -1412,8 +1412,8 @@ describe('renderAgentMessageContent', () => {
         msgtype: 'm.image',
         body: 'image.png',
       },
-      htmlReactParserOptions: {} as never,
-      linkifyOpts: {} as never,
+      htmlReactParserOptions: {},
+      linkifyOpts: {},
     });
 
     expect(rendered).toBeUndefined();

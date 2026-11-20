@@ -141,7 +141,7 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
   const bringTabBack = (event: FocusEvent) => {
     const layer = layerRef.current;
     const tabbing = tabbingRef.current;
-    if (!layer || !tabbing || !layer.contains(event.target as Node)) return;
+    if (!layer || !tabbing || !layer.contains(event.target)) return;
     if (event.relatedTarget instanceof Node && layer.contains(event.relatedTarget)) return;
     tabbingRef.current = undefined;
     // After the browser has finished moving the focus out, which a move now would lose to.

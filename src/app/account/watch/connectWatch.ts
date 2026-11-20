@@ -32,6 +32,7 @@ export const connectWatch = async (
   try {
     // The watch holds no Cloudflare Access session, so such a server rejects its every request.
     if (hasCloudflareAccess(mx.getHomeserverUrl())) return { kind: 'unsupported' };
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     const { flows } = (await mx.loginFlows()) as { flows: LoginFlow[] };
     if (!flows.some((flow) => flow.type === 'm.login.token' && flow.get_login_token === true)) {
       return { kind: 'unsupported' };

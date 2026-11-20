@@ -144,14 +144,12 @@ export const createGapFillExecutor = (options: GapFillExecutorOptions): GapFillE
           Math.min(GAP_FILL_BATCH_SIZE, reservation.limit),
           Direction.Backward
         );
-      } catch (error) {
+      } catch {
         // Keep intent for the next connection/focus change, without looping.
         return 'continuation-deferred';
       }
       if (signal.aborted) return 'policy-deferred';
-      const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
-        ? (response.chunk as Partial<IEvent>[])
-        : [];
+      const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk) ? response.chunk : [];
       const overlapsCachedTail = chunk.some(
         (event) => typeof event.event_id === 'string' && overlapEventIdSet.has(event.event_id)
       );

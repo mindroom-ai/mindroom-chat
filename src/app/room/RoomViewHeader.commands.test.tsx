@@ -10,8 +10,8 @@ import { getRoomCommands } from '../navigation/roomCommands';
 
 const { view, screen, navigate, pins } = vi.hoisted(() => ({
   view: {
-    mode: 'compact' as RoomViewMode,
-    setViewMode: (() => undefined) as (mode: string) => void,
+    mode: 'compact',
+    setViewMode: () => undefined,
   },
   screen: { size: 'Desktop' },
   navigate: vi.fn(),

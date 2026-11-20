@@ -21,7 +21,7 @@ describe('roomNavigateState', () => {
   beforeEach(() => {
     vi.stubGlobal('window', {
       sessionStorage: makeSessionStorage(),
-    } as unknown as Window & typeof globalThis);
+    });
   });
 
   afterEach(() => {

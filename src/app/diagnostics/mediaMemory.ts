@@ -59,10 +59,8 @@ const hookWebAssembly = (restores: Array<() => void>): void => {
     });
   }
   if (typeof instantiateStreaming === 'function') {
-    WebAssembly.instantiateStreaming = ((...args: Parameters<typeof instantiateStreaming>) =>
-      instantiateStreaming
-        .apply(WebAssembly, args)
-        .then(trackResult(since))) as typeof instantiateStreaming;
+    WebAssembly.instantiateStreaming = (...args: Parameters<typeof instantiateStreaming>) =>
+      instantiateStreaming.apply(WebAssembly, args).then(trackResult(since));
     restores.push(() => {
       WebAssembly.instantiateStreaming = instantiateStreaming;
     });

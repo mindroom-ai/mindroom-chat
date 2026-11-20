@@ -15,7 +15,7 @@ const makeEvent = ({
   sender = '@alice:example.org',
   ts = 1_700_000_000_000,
   type = 'm.room.message',
-  content = { msgtype: 'm.text', body: 'hello' } as Record<string, unknown>,
+  content = { msgtype: 'm.text', body: 'hello' },
   stateKey,
 }: {
   id?: string;

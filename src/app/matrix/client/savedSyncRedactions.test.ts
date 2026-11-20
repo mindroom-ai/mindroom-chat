@@ -7,7 +7,6 @@ import {
   Room,
   RoomEvent,
   SyncState,
-  type IEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -580,7 +579,7 @@ describe('dropRedactedContent', () => {
 describe('an edit redacted from a bundle, after a reload', () => {
   const MODERATOR = '@moderator:elsewhere.org';
   const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
-  const map = (event: object) => sdk.getEventMapper()({ ...event, room_id: ROOM } as IEvent);
+  const map = (event: object) => sdk.getEventMapper()({ ...event, room_id: ROOM });
   const stateEvent = (
     type: string,
     stateKey: string,
@@ -653,7 +652,7 @@ describe('a redacted message, after a reload', () => {
   const OTHER = '@other:elsewhere.org';
   const POWER_LEVELS = { users: { [MODERATOR]: 50 }, redact: 50 };
   const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
-  const map = (event: object) => sdk.getEventMapper()(event as IEvent);
+  const map = (event: object) => sdk.getEventMapper()(event);
   const withRoom = (event: object) => ({ ...event, room_id: ROOM });
   const stateEvent = (
     type: string,

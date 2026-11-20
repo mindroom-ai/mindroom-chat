@@ -21,7 +21,7 @@ export const shouldForceCollapsibleMessageOverflow = (content: IContent): boolea
   // A canvas answer shows as a one-line receipt however long its data is; a forged one that
   // renders as text still folds by its measured height.
   if (content[CANVAS_RESPONSE_KEY] !== undefined) return false;
-  if (getLongTextMxcUri(content as Record<string, unknown>)) return true;
+  if (getLongTextMxcUri(content)) return true;
 
   const body = content.body;
   return typeof body === 'string' && body.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH;
@@ -138,11 +138,7 @@ export const getCollapsibleMessageMode = (
   // affordance. Exempting it on hydration unfolded giant rows unprompted
   // (device report 2026-07-06) and flipped their measurement keys mid-life;
   // the agent exemption keys on the sender, which never changes.
-  if (
-    isAgentMessage ||
-    hasThreadSummary(resolvedContent as Record<string, unknown>) ||
-    hasMessageExtras(resolvedContent as Record<string, unknown>)
-  ) {
+  if (isAgentMessage || hasThreadSummary(resolvedContent) || hasMessageExtras(resolvedContent)) {
     return 'always-expanded';
   }
 

@@ -32,8 +32,7 @@ export const readCallAccess = (
   if (!state) return { canJoin: false, canLetMembersIn: false };
   const canJoin = state.maySendStateEvent(CALL_MEMBER, myUserId);
   // Changing a level needs power over the levels and at least the level being changed.
-  const canAllow =
-    canJoin && state.maySendStateEvent(StateEvent.RoomPowerLevels as string, myUserId);
+  const canAllow = canJoin && state.maySendStateEvent(StateEvent.RoomPowerLevels, myUserId);
   // Only for someone who can change it, and only until the first member kept out.
   const canLetMembersIn =
     canAllow &&

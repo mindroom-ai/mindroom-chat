@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { RoomStateEvent, type MatrixEvent, type Room, type RoomState } from 'matrix-js-sdk';
+import { RoomStateEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { StateEvent } from '../types/room';
 import { useRoomAvatar } from './useRoomMeta';
@@ -55,7 +55,7 @@ describe('useStateEventCallback', () => {
     const changed = avatarEvent('!room7:example.org', 'mxc://example.org/seven');
     avatars.set('!room7:example.org', changed);
     act(() => {
-      client.emit(RoomStateEvent.Events, changed, {} as RoomState, null);
+      client.emit(RoomStateEvent.Events, changed, {}, null);
     });
     const shown = renderer?.root.findAllByType('li').map((row) => row.children.join('')) ?? [];
     expect(shown.filter((text) => text !== 'none')).toEqual(['mxc://example.org/seven']);

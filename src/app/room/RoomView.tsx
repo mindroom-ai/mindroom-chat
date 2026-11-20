@@ -201,7 +201,7 @@ export function RoomView({
   // Under the column that fills the page, typing goes to the column's composer instead.
   const focusColumn = useRef<() => void>();
   const focusComposer = useCallback(() => {
-    if (!columnFills) ReactEditor.focus(editor as ReactEditor);
+    if (!columnFills) ReactEditor.focus(editor);
     else focusColumn.current?.();
   }, [columnFills, editor]);
   useTypeToCompose(focusComposer, composerShown && (columnFills ? !behindPanel : !hidden));

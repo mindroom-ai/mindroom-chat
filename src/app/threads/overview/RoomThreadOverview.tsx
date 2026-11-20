@@ -93,7 +93,7 @@ function ThreadInfoPopover({
     : t('thread.stats.threadCount', { count: totalThreadCount });
 
   const handleBlur = useCallback((e: React.FocusEvent) => {
-    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget)) {
       setOpen(false);
     }
   }, []);

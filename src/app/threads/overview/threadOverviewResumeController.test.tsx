@@ -1,7 +1,7 @@
 import { type MutableRefObject } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   createBackfillScheduler,
   SyncEngineProvider,
@@ -53,11 +53,11 @@ const mockedLoadRoomThreads = vi.mocked(loadRoomThreads);
 type HarnessProps = {
   compactViewRequested: boolean;
   mx: MatrixClient;
-  onApplyThreadRelations: ReturnType<typeof vi.fn>;
-  persistThreadEventCache: ReturnType<typeof vi.fn>;
-  refreshCompactThreadList: ReturnType<typeof vi.fn>;
+  onApplyThreadRelations: Mock;
+  persistThreadEventCache: Mock;
+  refreshCompactThreadList: Mock;
   room: Room;
-  setOverviewRefreshCounter: ReturnType<typeof vi.fn>;
+  setOverviewRefreshCounter: Mock;
   threadId: string | undefined;
   threadIdRef: MutableRefObject<string | undefined>;
 };
@@ -214,8 +214,7 @@ describe('useThreadOverviewResumeController', () => {
       const fetchRelations = vi.fn(() => relationResponse);
       const mx = {
         fetchRelations,
-        getEventMapper: () => (raw: Partial<IEvent>) =>
-          new MatrixEvent(raw as ConstructorParameters<typeof MatrixEvent>[0]),
+        getEventMapper: () => (raw: Partial<IEvent>) => new MatrixEvent(raw),
         getRoom: () => room,
       } as unknown as MatrixClient;
       const scheduler = createBackfillScheduler({ mx });

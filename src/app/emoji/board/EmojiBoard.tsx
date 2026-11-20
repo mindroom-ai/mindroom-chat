@@ -116,7 +116,7 @@ const getItemFromEvent = (evt: ReactMouseEvent): BoardItem | undefined => {
   const data = button.getAttribute('data-emoji-data');
   const shortcode = button.getAttribute('data-emoji-shortcode');
   if (!type || !data || !shortcode) return undefined;
-  return { type, data, shortcode, label: button.getAttribute('title') ?? shortcode } as BoardItem;
+  return { type, data, shortcode, label: button.getAttribute('title') ?? shortcode };
 };
 
 const imageSrc = (client: MatrixClient, mxc: string, authMedia: boolean, size: number) =>

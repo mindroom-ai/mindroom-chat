@@ -236,9 +236,7 @@ export const normalizeThreadSearchText = (value: string): string =>
 
 const getEventContent = (event: MatrixEvent | undefined): Record<string, unknown> | undefined => {
   const content = event?.getContent?.();
-  return content && typeof content === 'object' && !Array.isArray(content)
-    ? (content as Record<string, unknown>)
-    : undefined;
+  return content && typeof content === 'object' && !Array.isArray(content) ? content : undefined;
 };
 
 const getEffectiveEventContent = (

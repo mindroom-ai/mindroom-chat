@@ -154,7 +154,7 @@ describe('buildThreadHeaderViewModelFromRecord', () => {
     const snoozedUntilTs = Date.UTC(2026, 10, 14, 8);
     const build = (isResolved: boolean) =>
       buildThreadHeaderViewModelFromRecord({
-        record: makeRecord({ status: { isResolved, snoozedUntilTs } as ThreadRecord['status'] }),
+        record: makeRecord({ status: { isResolved, snoozedUntilTs } }),
         canEdit: true,
         availableTags: [],
         pickerDisabled: false,

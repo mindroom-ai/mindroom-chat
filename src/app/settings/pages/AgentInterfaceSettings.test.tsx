@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   settings: {
     showCanvasesInSidebar: true,
   },
-  clientConfig: {} as { mindroom?: { canvas?: { enabled?: boolean } } },
+  clientConfig: {},
   setAccountSettings: vi.fn(() => Promise.resolve()),
 }));
 

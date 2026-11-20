@@ -54,7 +54,7 @@ const {
   threadRenderStateControl: {
     currentThreadEvents: [] as unknown[],
     initialThreadEvents: [] as unknown[],
-    threadInitialRenderMode: 'live' as 'loading' | 'cached' | 'live',
+    threadInitialRenderMode: 'live',
   },
 }));
 

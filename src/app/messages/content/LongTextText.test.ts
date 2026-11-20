@@ -1408,7 +1408,7 @@ describe('LongTextText hydration identity', () => {
       ...content,
       info: { ...(content.info as Record<string, unknown>) },
       'io.mindroom.long_text': {
-        ...((content['io.mindroom.long_text'] as Record<string, unknown>) ?? {}),
+        ...(content['io.mindroom.long_text'] ?? {}),
       },
     });
 

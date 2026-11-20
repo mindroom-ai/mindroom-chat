@@ -73,7 +73,7 @@ const openThread = async (router?: string) => {
       events: events.slice(1),
       getUnfilteredTimelineSet: () => timelineSet,
     } as never);
-  threadRenderStateMock.threadEvents = events as never;
+  threadRenderStateMock.threadEvents = events;
   threadRenderStateMock.threadEventIndexMapRef.current = new Map(
     events.map((event, index) => [event.getId(), index])
   );

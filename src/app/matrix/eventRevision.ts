@@ -32,14 +32,12 @@ const stableSerialize = (value: unknown): string => {
 };
 
 const getRawReplacement = (rawEvent: Partial<IEvent>): Partial<IEvent> | undefined => {
-  const relations = (rawEvent.unsigned as Record<string, unknown> | undefined)?.['m.relations'] as
-    | Record<string, unknown>
-    | undefined;
+  const relations = rawEvent.unsigned?.['m.relations'] as Record<string, unknown> | undefined;
   const replacement = relations?.[RelationType.Replace];
   if (!replacement || typeof replacement !== 'object' || Array.isArray(replacement)) {
     return undefined;
   }
-  return replacement as Partial<IEvent>;
+  return replacement;
 };
 
 export const withoutRawReplacement = (rawEvent: Partial<IEvent>): Partial<IEvent> => {
@@ -155,7 +153,7 @@ export const collectExplicitRedactedEventIds = (
     if (!isRecord(relations)) return;
     const thread = relations[RelationType.Thread];
     if (isRecord(thread) && isRecord(thread.latest_event)) {
-      collect(thread.latest_event as Partial<IEvent>);
+      collect(thread.latest_event);
     }
   };
   rawEvents.forEach(collect);
@@ -662,14 +660,14 @@ export const mergeSameIdEventRevision = ({
 
   const rawRedactedBecause = rawEvent.unsigned?.redacted_because;
   if (rawRedactedBecause && !liveEvent.isRedacted()) {
-    liveEvent.makeRedacted(mapDetached(rawRedactedBecause as Partial<IEvent>), room);
+    liveEvent.makeRedacted(mapDetached(rawRedactedBecause), room);
   }
 
   if (liveEvent.isRedacted()) return liveEvent;
 
   // Snapshot all replacement candidates before mutating the live event, so a
   // stale bundled edit can never transiently downgrade a newer streamed edit.
-  const incomingEvent = new MatrixEvent(rawEvent as IEvent);
+  const incomingEvent = new MatrixEvent(rawEvent);
   const incomingReplacement = getSerializedReplacementEvent(incomingEvent);
   const currentReplacement = liveEvent.replacingEvent() ?? undefined;
   const serializedLiveReplacement = getSerializedReplacementEvent(liveEvent);

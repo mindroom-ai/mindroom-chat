@@ -20,16 +20,15 @@ const reply = (eventId: string, ts: number): Partial<IEvent> => ({
 });
 
 /** The thread's root with a summary that counts `count` replies up to `latest`. */
-const root = (count: number, latest: Partial<IEvent>): IEvent =>
-  ({
-    event_id: '$root',
-    room_id: roomId,
-    sender: userId,
-    type: 'm.room.message',
-    origin_server_ts: 1,
-    content: { msgtype: 'm.text', body: 'Launch checklist' },
-    unsigned: { 'm.relations': { 'm.thread': { count, latest_event: latest } } },
-  } as IEvent);
+const root = (count: number, latest: Partial<IEvent>): IEvent => ({
+  event_id: '$root',
+  room_id: roomId,
+  sender: userId,
+  type: 'm.room.message',
+  origin_server_ts: 1,
+  content: { msgtype: 'm.text', body: 'Launch checklist' },
+  unsigned: { 'm.relations': { 'm.thread': { count, latest_event: latest } } },
+});
 
 const threadSummary = (event: MatrixEvent) => event.getUnsigned()['m.relations']?.['m.thread'];
 

@@ -10,6 +10,7 @@ type WebConnection = EventTarget & { type?: string; saveData?: boolean; effectiv
 
 const webState = (): OfflineConnectionState => {
   const nav = typeof navigator === 'undefined' ? undefined : navigator;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   const connection = (nav as (Navigator & { connection?: WebConnection }) | undefined)?.connection;
   return {
     connected: nav?.onLine !== false,

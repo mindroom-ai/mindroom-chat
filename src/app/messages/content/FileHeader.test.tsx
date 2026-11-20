@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FileDownloadButton } from './FileHeader';
 
 const save = vi.hoisted(() => ({
-  status: 'idle' as 'idle' | 'loading' | 'error',
+  status: 'idle',
   download: vi.fn(() => Promise.resolve(undefined)),
 }));
 

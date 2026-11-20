@@ -5,7 +5,7 @@ import { AgentConnectLinkFeature, agentLinkBackend } from './AgentConnectLinks';
 
 const mocks = vi.hoisted(() => ({
   isNativePlatform: vi.fn(() => false),
-  openPortal: vi.fn(() => 'opened' as 'opened' | 'blocked'),
+  openPortal: vi.fn(() => 'opened'),
   urls: ['https://app.example.org'],
 }));
 

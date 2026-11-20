@@ -7,6 +7,7 @@ import { InviteAutocompleteMenu } from './InviteAutocompleteMenu';
 
 // The pop-out the menu last rendered, and how often; it portals its content like folds' does,
 // so the list sits outside the trap's element.
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const popOut = vi.hoisted(() => ({ renders: 0, props: {} as Record<string, unknown> }));
 
 vi.mock('folds', async (original) => {

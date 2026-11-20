@@ -243,6 +243,8 @@ describe('ClientRoot', () => {
     renderer?.unmount();
     renderer = undefined;
     currentSession = undefined;
+    // Vitest 4's restoreAllMocks restores spies only; resetAllMocks clears the mocks' calls too.
+    vi.resetAllMocks();
     vi.restoreAllMocks();
     vi.mocked(useClientConfig).mockReturnValue({});
   });

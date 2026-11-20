@@ -19,15 +19,14 @@ class ThreadEnabledClient extends MatrixClient {
   }
 }
 
-const raw = (id: string, ts: number, content: Record<string, unknown> = {}): IRoomEvent =>
-  ({
-    event_id: id,
-    room_id: ROOM_ID,
-    sender: '@agent:example.org',
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    content: { msgtype: 'm.text', body: id, ...content },
-  } as IRoomEvent);
+const raw = (id: string, ts: number, content: Record<string, unknown> = {}): IRoomEvent => ({
+  event_id: id,
+  room_id: ROOM_ID,
+  sender: '@agent:example.org',
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  content: { msgtype: 'm.text', body: id, ...content },
+});
 
 const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } };
 const reactionTo = (eventId: string): IRoomEvent => ({

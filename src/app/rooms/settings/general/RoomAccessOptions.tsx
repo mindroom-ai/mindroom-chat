@@ -70,7 +70,7 @@ function AccessTile({ room, space }: OptionProps) {
   const choices = availableAccessChoices(room.getVersion(), spaceIds.length > 0, current);
   const known = choices.some((choice) => matchesEnum(current, choice));
   const options: Choice<string>[] = choices.map((choice) => ({
-    value: choice as string,
+    value: choice,
     label: t(`sharedUi.joinRulesSwitcher.${ACCESS_LABEL[choice]}` as never),
   }));
   if (!known) options.push({ value: current, label: t('sharedUi.joinRulesSwitcher.unsupported') });
@@ -260,7 +260,7 @@ function HistoryTile({ room }: OptionProps) {
   const stored = visibility?.getContent().history_visibility;
   const current = typeof stored === 'string' ? stored : HistoryVisibility.Shared;
   const options: Choice<string>[] = Object.values(HistoryVisibility).map((value) => ({
-    value: value as string,
+    value: value,
     label: t(`${KEY}.${HISTORY_LABEL[value]}` as never),
   }));
   if (!options.some((option) => option.value === current)) {

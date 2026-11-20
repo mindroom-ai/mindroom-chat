@@ -81,7 +81,7 @@ export const traceCacheTransactions = (db: IDBDatabase): (() => void) => {
     'cache_open_transactions',
     () => openTransactions.size
   );
-  db.transaction = ((
+  db.transaction = (
     storeNames: string | string[],
     mode?: IDBTransactionMode,
     options?: IDBTransactionOptions
@@ -115,7 +115,7 @@ export const traceCacheTransactions = (db: IDBDatabase): (() => void) => {
     transaction.addEventListener('complete', settle(false), { once: true });
     transaction.addEventListener('abort', settle(true), { once: true });
     return transaction;
-  }) as IDBDatabase['transaction'];
+  };
   return unregisterGauge;
 };
 

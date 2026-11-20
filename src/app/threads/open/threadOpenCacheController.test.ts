@@ -64,8 +64,7 @@ describe('refreshLatestThreadSlice', () => {
       return true;
     });
     const mx = {
-      getEventMapper: () => (rawEvent: Record<string, unknown>) =>
-        new MatrixEvent(rawEvent as ConstructorParameters<typeof MatrixEvent>[0]),
+      getEventMapper: () => (rawEvent: Record<string, unknown>) => new MatrixEvent(rawEvent),
       paginateEventTimeline,
     } as unknown as MatrixClient;
     return { mx, room, thread, timeline, rootEvent, replyEvent, paginateEventTimeline };

@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   navigate: vi.fn(),
   openSettings: vi.fn(),
   sendStateEvent: vi.fn(() => Promise.resolve({})),
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   rooms: {} as Record<string, unknown>,
   plugins: [] as RegisteredPlugin[],
   reportBoundaryError: vi.fn(),

@@ -113,7 +113,7 @@ describe('CreateRoomForm room policy config', () => {
         showFederationOption: false,
         defaultFederation: false,
       },
-    } as ClientConfig);
+    });
 
     expect(textContent(renderer)).not.toContain('End-to-End Encryption');
     expect(textContent(renderer)).not.toContain('Allow Federation');
@@ -141,7 +141,7 @@ describe('CreateRoomForm room policy config', () => {
               showFederationOption: false,
               defaultFederation: false,
             },
-          } as ClientConfig,
+          },
         },
         React.createElement(
           CapabilitiesProvider,

@@ -81,7 +81,7 @@ describe('ThreadTagPicker', () => {
         currentTarget: {
           getBoundingClientRect: () => ({ left: 0, top: 0, width: 0, height: 0 }),
         },
-      } as React.MouseEvent<HTMLButtonElement>);
+      });
     });
 
     const input = renderer.root.findByProps({ 'aria-label': 'Filter or create tag' });

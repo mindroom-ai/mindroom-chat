@@ -83,7 +83,7 @@ describe('RoomInputMindroomExtensions', () => {
         relation: {
           event_id: '$thread',
           rel_type: 'm.thread',
-        } as never,
+        },
       })
     ).not.toBeNull();
   });

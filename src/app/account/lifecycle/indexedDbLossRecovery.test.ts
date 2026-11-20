@@ -31,7 +31,7 @@ describe('IndexedDB server loss recovery', () => {
       const request = open.apply(this, args);
       request.addEventListener('success', () => connections.push(request.result));
       return request;
-    } as typeof IDBFactory.prototype.open;
+    };
     restoreOpen = () => {
       IDBFactory.prototype.open = open;
     };

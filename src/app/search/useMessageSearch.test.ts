@@ -1,4 +1,4 @@
-import { IEventWithRoomId, IResultContext, ISearchResult } from 'matrix-js-sdk';
+import { IResultContext, ISearchResult } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   collapseThreadTitleHits,
@@ -24,34 +24,33 @@ const makeSearchResult = ({
   editTargetId,
   content,
   sender = '@alice:example.org',
-}: SearchResultOptions): ISearchResult =>
-  ({
-    rank: ts,
-    result: {
-      content: content ?? {
-        ...(editTargetId
-          ? {
-              'm.new_content': {
-                body: `${eventId} body`,
-                msgtype: 'm.text',
-              },
-              'm.relates_to': {
-                event_id: editTargetId,
-                rel_type: 'm.replace',
-              },
-            }
-          : {}),
-        body: `${eventId} body`,
-        msgtype: 'm.text',
-      },
-      event_id: eventId,
-      origin_server_ts: ts,
-      room_id: roomId,
-      sender,
-      type: 'm.room.message',
-    } as IEventWithRoomId,
-    context: {} as IResultContext,
-  } as ISearchResult);
+}: SearchResultOptions): ISearchResult => ({
+  rank: ts,
+  result: {
+    content: content ?? {
+      ...(editTargetId
+        ? {
+            'm.new_content': {
+              body: `${eventId} body`,
+              msgtype: 'm.text',
+            },
+            'm.relates_to': {
+              event_id: editTargetId,
+              rel_type: 'm.replace',
+            },
+          }
+        : {}),
+      body: `${eventId} body`,
+      msgtype: 'm.text',
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: roomId,
+    sender,
+    type: 'm.room.message',
+  },
+  context: {} as IResultContext,
+});
 
 const getEventIds = (results: ISearchResult[]): string[] =>
   results.map((result) => result.result.event_id);
@@ -156,27 +155,26 @@ const withLatestEdit = (
   editId: string,
   body: string,
   sender = result.result.sender
-): ISearchResult =>
-  ({
-    ...result,
-    result: {
-      ...result.result,
-      unsigned: {
-        'm.relations': {
-          'm.replace': {
-            event_id: editId,
-            sender,
-            content: {
-              body: `* ${body}`,
-              msgtype: 'm.text',
-              'm.new_content': { body, msgtype: 'm.text' },
-              'm.relates_to': { rel_type: 'm.replace', event_id: result.result.event_id },
-            },
+): ISearchResult => ({
+  ...result,
+  result: {
+    ...result.result,
+    unsigned: {
+      'm.relations': {
+        'm.replace': {
+          event_id: editId,
+          sender,
+          content: {
+            body: `* ${body}`,
+            msgtype: 'm.text',
+            'm.new_content': { body, msgtype: 'm.text' },
+            'm.relates_to': { rel_type: 'm.replace', event_id: result.result.event_id },
           },
         },
       },
     },
-  } as ISearchResult);
+  },
+});
 
 describe('deduplicateResults with a bundled latest edit', () => {
   it('keeps the original that carries the latest edit over an older edit that matched', () => {

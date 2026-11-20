@@ -103,11 +103,11 @@ const fixture = (request = vi.fn().mockResolvedValue({ chunk: [] })) => {
       connection,
       gapTracker: realGap
         ? undefined
-        : ({
+        : {
             stop: () => undefined,
             handleSyncPrepared: async () => undefined,
             handleTimelineReset: () => undefined,
-          } as never),
+          },
     });
     engines.push(engine);
     engine.start();

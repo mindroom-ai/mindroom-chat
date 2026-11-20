@@ -78,7 +78,7 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
             type: 'm.login.email.identity',
             threepid_creds: { sid: token.sid, client_secret: token.clientSecret },
             threepidCreds: { sid: token.sid, client_secret: token.clientSecret },
-          } as never,
+          },
           token.password,
           true
         );

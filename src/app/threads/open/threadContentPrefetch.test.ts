@@ -53,8 +53,7 @@ describe('fetchAndPersistThreadContent', () => {
     const fetchRelations = vi.fn(() => relationResponse);
     const mx = {
       fetchRelations,
-      getEventMapper: () => (raw: Partial<IEvent>) =>
-        new MatrixEvent(raw as ConstructorParameters<typeof MatrixEvent>[0]),
+      getEventMapper: () => (raw: Partial<IEvent>) => new MatrixEvent(raw),
       getRoom: () => room,
     } as unknown as MatrixClient;
     const persistThreadEventCache = vi.fn();
