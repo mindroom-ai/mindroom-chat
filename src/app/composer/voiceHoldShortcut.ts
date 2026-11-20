@@ -103,8 +103,9 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     });
     holdRef.current = hold;
     // Keys other than modifiers that are down now, as a press of A then right ⌥ is no press alone.
-    // Left ⌥ counts too: `altKey` cannot tell right ⌥ alone from both.
+    // Left ⌥ counts too: `altKey` cannot tell right ⌥ alone from both. So do mouse buttons down.
     const held = new Set<string>();
+    const pointers = new Set<number>();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!MODIFIER_KEYS.has(event.key) || event.code === 'AltLeft') held.add(event.code);
@@ -112,6 +113,7 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
         enabledRef.current &&
         event.code === 'AltRight' &&
         held.size === 0 &&
+        pointers.size === 0 &&
         !event.ctrlKey &&
         !event.metaKey &&
         !event.shiftKey &&
@@ -123,14 +125,23 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       else hold.interrupt();
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      // macOS drops the release of a key pressed with ⌘.
-      if (event.key === 'Meta') held.clear();
-      else held.delete(event.code);
+      // macOS drops the release of a key pressed with ⌘, but not of a modifier.
+      if (event.key !== 'Meta') held.delete(event.code);
+      else
+        held.forEach((code) => {
+          if (code !== 'AltLeft') held.delete(code);
+        });
       if (event.code === 'AltRight' && hold.keyUp()) event.preventDefault();
     };
     const interrupt = () => hold.interrupt();
+    const onPointerDown = (event: PointerEvent) => {
+      pointers.add(event.pointerId);
+      hold.interrupt();
+    };
+    const onPointerUp = (event: PointerEvent) => pointers.delete(event.pointerId);
     const onBlur = () => {
       held.clear();
+      pointers.clear();
       hold.interrupt();
     };
     const onVisibility = () => {
@@ -140,14 +151,18 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     // Capture: a widget that stops a key on its way up still cancels the press.
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
-    window.addEventListener('pointerdown', interrupt, true);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointercancel', onPointerUp, true);
     window.addEventListener('wheel', interrupt, { capture: true, passive: true });
     window.addEventListener('blur', onBlur);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
-      window.removeEventListener('pointerdown', interrupt, true);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerUp, true);
       window.removeEventListener('wheel', interrupt, { capture: true });
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibility);

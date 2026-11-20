@@ -215,6 +215,30 @@ describe('useVoiceHoldShortcut', () => {
     expect(log).toEqual(['start']);
   });
 
+  it('keeps left Alt held across a ⌘ release, and arms nothing while a mouse button is down', () => {
+    const { log } = setup((l) => <Composer log={l} />);
+    press('keydown', rightAlt);
+    press('keyup', rightAlt);
+    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
+    press('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true, altKey: true });
+    press('keyup', { key: 'Meta', code: 'MetaLeft', altKey: true });
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    press('keyup', { key: 'Alt', code: 'AltLeft' });
+
+    const pointer = (type: string) =>
+      act(() => {
+        window.dispatchEvent(Object.assign(new MouseEvent(type), { pointerId: 1 }));
+      });
+    pointer('pointerdown');
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    pointer('pointerup');
+    press('keydown', rightAlt);
+    press('keyup', rightAlt);
+    expect(log).toEqual(['start', 'send']);
+  });
+
   it('forgets keys held when the window lost the focus, and latches on a click', () => {
     const { log } = setup((l) => <Composer log={l} />);
     press('keydown', { key: 'a', code: 'KeyA' });
