@@ -437,7 +437,7 @@
         "profile": "profile picture, photo, name, nickname",
         "deactivate": "delete account, close account",
         "localMindroom": "pair, pairing code, local, desktop",
-        "voiceKey": "voice message, microphone, record, push to talk, Option, Alt, keyboard shortcut",
+        "voiceKey": "voice message, microphone, record, push to talk, Control, Ctrl, Shift, Space, keyboard shortcut",
         "emoji": "emoji, stickers, packs, custom emoji",
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt"

@@ -17,7 +17,7 @@ import { useVoiceHoldShortcut } from '../../composer/voiceHoldShortcut';
 /**
  * The one window listener for the app's keyboard shortcuts, after every focused widget has had
  * the key; the help dialog (⌘/ or Ctrl+/); the hints that holding ⌘ or Ctrl shows; and the voice
- * key, right ⌥ (right Alt) on its own.
+ * key, ⌃⇧Space (Ctrl+Shift+Space).
  */
 export function ShortcutRoot() {
   const composing = useComposingCheck();
