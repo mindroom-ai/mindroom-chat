@@ -36,7 +36,8 @@ import {
 // A card that moves up past the cards in view (its thread got a reply, or its agent started and it
 // went to Working) leaves them where they are too, on the desktop in Chromium: from below the
 // view, with and without motion, in sections under the Needs you header, from the view itself,
-// and when it only swaps with the card that leads the view.
+// when it only swaps with the card that leads the view, and when several move at once as a
+// resting pointer lets their order go.
 const PASSWORD = 'compact-live-cards-top-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.COMPACT_LIVE_SHOTS;
@@ -378,12 +379,12 @@ const leadWatch = (page: Page) =>
     return { first, furthest, now: read() };
   });
 
-type Move = 'below' | 'below-reduced' | 'sections' | 'in-view' | 'swap';
+type Move = 'below' | 'below-reduced' | 'sections' | 'in-view' | 'swap' | 'release';
 
 /**
  * A reader scrolled down the list, the pointer away from it: a card moves up past the cards in
  * view, and the row and the card that lead the view show where they did, in the first frame that
- * shows the move and once the cards have glided.
+ * shows the move, in every frame while the cards glide, and once they have.
  */
 const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   const { reader, roomId, rootIds } = seeded;
@@ -456,20 +457,17 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
 
   // The card that moves: the oldest thread's, far below the view, or one in view, the card after
   // the one that leads it (a swap) or three cards below that one.
+  const shown = await page.evaluate(() => {
+    const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+    const edge = view?.getBoundingClientRect().top ?? 0;
+    return [...(view?.querySelectorAll<HTMLElement>('[data-scroll-anchor]') ?? [])]
+      .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
+      .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
+  });
   const inView = move === 'in-view' || move === 'swap';
-  const mover = inView
-    ? await page.evaluate(
-        (place) => {
-          const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
-          const edge = view?.getBoundingClientRect().top ?? 0;
-          const shown = [...(view?.querySelectorAll<HTMLElement>('[data-scroll-anchor]') ?? [])]
-            .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
-            .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
-          return shown[place] ?? '';
-        },
-        move === 'swap' ? 1 : 3
-      )
-    : rootIds[0] ?? '';
+  const mover = (inView ? shown[move === 'swap' ? 1 : 3] : rootIds[0]) ?? '';
+  // Let go of a held order, the three oldest threads' cards move at once.
+  const movers = move === 'release' ? rootIds.slice(0, 3) : [mover];
   const start = await watchLead(page, mover);
   const { before } = start;
   expect(before.scrollTop, `${move}: the list is scrolled`).toBeGreaterThan(0);
@@ -493,6 +491,29 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     await expect(sectionHeader(page, 'working')).toHaveText(new RegExp(`· ${WORKING + 1}$`), {
       timeout: 30_000,
     });
+  } else if (move === 'release') {
+    // The pointer rests on a card in view, which holds the order, while each of the three
+    // threads gets a reply. A mouse at rest lets go after three seconds, so it moves a little
+    // before each reply.
+    const box = (await cardOf(page, shown[2] ?? '').boundingBox())!;
+    const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    for (const [index, rootId] of movers.entries()) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.mouse.move(pointer.x + index, pointer.y);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(page.locator('[data-order-held]')).toHaveCount(1);
+      // eslint-disable-next-line no-await-in-loop
+      await reply(rootId, `Found it: cause ${index + 1} is in the exporter.`);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(cardOf(page, rootId)).toContainText(`cause ${index + 1} is in the exporter`, {
+        timeout: 30_000,
+      });
+    }
+    expect((await leadWatch(page)).now.crossed, `${move}: the held cards kept their order`).toBe(
+      false
+    );
+    // The pointer leaves the list: the three cards move up in one render.
+    await page.mouse.move(5, 795);
   } else {
     await reply(mover, 'Found it: the exporter quotes a comma twice.');
   }
@@ -503,7 +524,12 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       timeout: 30_000,
     })
     .toBe(true);
-  if (!sections) expect((await cardOrder(page))[0], `${move}: the card leads the list`).toBe(mover);
+  if (!sections) {
+    expect(
+      (await cardOrder(page)).slice(0, movers.length),
+      `${move}: the cards that moved lead the list, the last reply first`
+    ).toEqual([...movers].reverse());
+  }
   // The glides end.
   await page.waitForTimeout(600);
   const { first, furthest, now } = await leadWatch(page);
@@ -519,6 +545,8 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
   });
   await shot(page, `move-${move}-2-after`);
   expect(moved(first), `${move}: what leads the view moved, in the first frame`).toBeLessThan(1);
+  // The same places in every frame since: a header's without its glide, a card's as it shows.
+  expect(furthest, `${move}: what leads the view moved, in some frame`).toBeLessThan(1);
   expect(moved(now), `${move}: what leads the view moved, at rest`).toBeLessThan(1);
 };
 
@@ -575,6 +603,10 @@ test.describe('a card moves up past the cards in view (Chromium, desktop)', () =
       [
         'swap',
         'a reply in the thread of the second card leaves the first, which leads the view, in place',
+      ],
+      [
+        'release',
+        'three cards that move up at once, a held order let go, leave the cards in view in place',
       ],
     ] as const
   ).entries()) {
