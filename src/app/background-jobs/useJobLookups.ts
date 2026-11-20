@@ -119,8 +119,8 @@ const useJobToolCalls = (room: Room, jobs: readonly BackgroundJob[], listed: boo
 };
 
 /**
- * What the jobs bar joins its jobs to (`presentBackgroundJobs`): `listed` while rows on show say
- * the calls, `details` while they show the usage (`showUsageDetails`).
+ * What the jobs bar joins its jobs to (`presentBackgroundJobs`): `listed` when the visible
+ * rows show both usage and current calls.
  */
 export const useJobLookups = (
   room: Room,
