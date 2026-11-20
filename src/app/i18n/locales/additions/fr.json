@@ -448,7 +448,8 @@
         "localMindroom": "associer, code d’association, local, ordinateur",
         "emoji": "emoji, autocollants, packs, emoji personnalisés",
         "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
-        "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre"
+        "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre",
+        "usage": "jetons, coût, prix, modèle, appels d’outils, sous-agents, tâches en arrière-plan"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -1156,7 +1157,38 @@
       "toolCallsNote": "appels d'outils",
       "tokensSplit": "{{input}} entrée · {{output}} sortie",
       "costNested": "+{{cost}} imbriqués",
-      "costOwn": "cette exécution"
+      "costOwn": "cette exécution",
+      "showUsageDetails": "Afficher les détails d’utilisation",
+      "showUsageDetailsDescription": "Affiche les appels d’outils, les jetons, le coût et le modèle des assistants et des tâches en arrière-plan.",
+      "usage": "Utilisation",
+      "model": "Modèle",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "En attente de votre accord : {{step}}",
+        "reading": "Lecture de {{file}}",
+        "readingAny": "Lecture d’un fichier",
+        "writing": "Écriture de {{file}}",
+        "writingAny": "Écriture d’un fichier",
+        "editing": "Modification de {{file}}",
+        "editingAny": "Modification d’un fichier",
+        "searchingFiles": "Recherche dans les fichiers",
+        "searchingFilesFor": "Recherche de « {{query}} » dans les fichiers",
+        "lookingThroughFiles": "Parcours des fichiers",
+        "runningCommand": "Exécution d’une commande",
+        "opening": "Ouverture de {{site}}",
+        "openingPage": "Ouverture d’une page web",
+        "searchingWeb": "Recherche sur le web",
+        "searchingWebFor": "Recherche de « {{query}} » sur le web",
+        "askingHelper": "Appel à un assistant",
+        "usingBrowser": "Utilisation du navigateur",
+        "checkingMemory": "Consultation de la mémoire",
+        "updatingMemory": "Mise à jour de la mémoire",
+        "sendingMessage": "Envoi d’un message",
+        "scheduling": "Planification d’une tâche",
+        "checkingSchedule": "Consultation du planning",
+        "updatingSchedule": "Mise à jour du planning",
+        "using": "Utilisation de {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

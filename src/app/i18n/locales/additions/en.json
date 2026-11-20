@@ -439,7 +439,8 @@
         "localMindroom": "pair, pairing code, local, desktop",
         "emoji": "emoji, stickers, packs, custom emoji",
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
-        "midTurn": "steer, queue, auto, agent, reply, interrupt"
+        "midTurn": "steer, queue, auto, agent, reply, interrupt",
+        "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -1125,7 +1126,38 @@
       "toolCallsNote": "tool calls",
       "tokensSplit": "{{input}} in · {{output}} out",
       "costNested": "+{{cost}} nested",
-      "costOwn": "this run"
+      "costOwn": "this run",
+      "showUsageDetails": "Show usage details",
+      "showUsageDetailsDescription": "Show tool calls, tokens, cost and the model on helpers and background jobs.",
+      "usage": "Usage",
+      "model": "Model",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "Waiting for your OK: {{step}}",
+        "reading": "Reading {{file}}",
+        "readingAny": "Reading a file",
+        "writing": "Writing {{file}}",
+        "writingAny": "Writing a file",
+        "editing": "Editing {{file}}",
+        "editingAny": "Editing a file",
+        "searchingFiles": "Searching files",
+        "searchingFilesFor": "Searching files for “{{query}}”",
+        "lookingThroughFiles": "Looking through files",
+        "runningCommand": "Running a command",
+        "opening": "Opening {{site}}",
+        "openingPage": "Opening a web page",
+        "searchingWeb": "Searching the web",
+        "searchingWebFor": "Searching the web for “{{query}}”",
+        "askingHelper": "Asking a helper",
+        "usingBrowser": "Using the browser",
+        "checkingMemory": "Checking memory",
+        "updatingMemory": "Updating memory",
+        "sendingMessage": "Sending a message",
+        "scheduling": "Scheduling a task",
+        "checkingSchedule": "Checking the schedule",
+        "updatingSchedule": "Updating the schedule",
+        "using": "Using {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

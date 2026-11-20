@@ -439,7 +439,8 @@
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
-        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen"
+        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
+        "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -1125,7 +1126,38 @@
       "toolCallsNote": "Werkzeugaufrufe",
       "tokensSplit": "{{input}} ein · {{output}} aus",
       "costNested": "+{{cost}} verschachtelt",
-      "costOwn": "dieser Lauf"
+      "costOwn": "dieser Lauf",
+      "showUsageDetails": "Nutzungsdetails anzeigen",
+      "showUsageDetailsDescription": "Zeigt Tool-Aufrufe, Tokens, Kosten und das Modell bei Helfern und Hintergrundaufgaben.",
+      "usage": "Nutzung",
+      "model": "Modell",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "Wartet auf dein OK: {{step}}",
+        "reading": "Liest {{file}}",
+        "readingAny": "Liest eine Datei",
+        "writing": "Schreibt {{file}}",
+        "writingAny": "Schreibt eine Datei",
+        "editing": "Bearbeitet {{file}}",
+        "editingAny": "Bearbeitet eine Datei",
+        "searchingFiles": "Durchsucht Dateien",
+        "searchingFilesFor": "Durchsucht Dateien nach „{{query}}“",
+        "lookingThroughFiles": "Sieht Dateien durch",
+        "runningCommand": "Führt einen Befehl aus",
+        "opening": "Öffnet {{site}}",
+        "openingPage": "Öffnet eine Webseite",
+        "searchingWeb": "Sucht im Web",
+        "searchingWebFor": "Sucht im Web nach „{{query}}“",
+        "askingHelper": "Fragt einen Helfer",
+        "usingBrowser": "Nutzt den Browser",
+        "checkingMemory": "Sieht im Gedächtnis nach",
+        "updatingMemory": "Aktualisiert das Gedächtnis",
+        "sendingMessage": "Sendet eine Nachricht",
+        "scheduling": "Plant eine Aufgabe",
+        "checkingSchedule": "Sieht den Zeitplan durch",
+        "updatingSchedule": "Aktualisiert den Zeitplan",
+        "using": "Nutzt {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

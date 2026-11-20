@@ -430,7 +430,8 @@
         "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
         "emoji": "emoji, stiker, paket, emoji kustom",
         "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
-        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela"
+        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela",
+        "usage": "token, biaya, harga, model, panggilan alat, subagen, tugas latar belakang"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -1094,7 +1095,38 @@
       "toolCallsNote": "panggilan alat",
       "tokensSplit": "{{input}} masuk · {{output}} keluar",
       "costNested": "+{{cost}} bertingkat",
-      "costOwn": "proses ini"
+      "costOwn": "proses ini",
+      "showUsageDetails": "Tampilkan detail penggunaan",
+      "showUsageDetailsDescription": "Menampilkan panggilan alat, token, biaya, dan model pada asisten dan tugas latar belakang.",
+      "usage": "Penggunaan",
+      "model": "Model",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "Menunggu persetujuan Anda: {{step}}",
+        "reading": "Membaca {{file}}",
+        "readingAny": "Membaca file",
+        "writing": "Menulis {{file}}",
+        "writingAny": "Menulis file",
+        "editing": "Mengedit {{file}}",
+        "editingAny": "Mengedit file",
+        "searchingFiles": "Mencari di file",
+        "searchingFilesFor": "Mencari “{{query}}” di file",
+        "lookingThroughFiles": "Menelusuri file",
+        "runningCommand": "Menjalankan perintah",
+        "opening": "Membuka {{site}}",
+        "openingPage": "Membuka halaman web",
+        "searchingWeb": "Mencari di web",
+        "searchingWebFor": "Mencari “{{query}}” di web",
+        "askingHelper": "Bertanya ke asisten",
+        "usingBrowser": "Menggunakan browser",
+        "checkingMemory": "Memeriksa memori",
+        "updatingMemory": "Memperbarui memori",
+        "sendingMessage": "Mengirim pesan",
+        "scheduling": "Menjadwalkan tugas",
+        "checkingSchedule": "Memeriksa jadwal",
+        "updatingSchedule": "Memperbarui jadwal",
+        "using": "Menggunakan {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

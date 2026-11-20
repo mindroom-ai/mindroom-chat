@@ -430,7 +430,8 @@
         "localMindroom": "페어링, 페어링 코드, 로컬, 데스크톱",
         "emoji": "이모지, 스티커, 팩, 사용자 지정 이모지",
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
-        "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단"
+        "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
+        "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -1094,7 +1095,38 @@
       "toolCallsNote": "도구 호출",
       "tokensSplit": "입력 {{input}} · 출력 {{output}}",
       "costNested": "+{{cost}} 중첩",
-      "costOwn": "이 실행"
+      "costOwn": "이 실행",
+      "showUsageDetails": "사용량 세부 정보 표시",
+      "showUsageDetailsDescription": "도우미와 백그라운드 작업에 도구 호출, 토큰, 비용, 모델을 표시합니다.",
+      "usage": "사용량",
+      "model": "모델",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "승인 대기 중: {{step}}",
+        "reading": "{{file}} 읽는 중",
+        "readingAny": "파일 읽는 중",
+        "writing": "{{file}} 쓰는 중",
+        "writingAny": "파일 쓰는 중",
+        "editing": "{{file}} 편집 중",
+        "editingAny": "파일 편집 중",
+        "searchingFiles": "파일 검색 중",
+        "searchingFilesFor": "파일에서 ‘{{query}}’ 검색 중",
+        "lookingThroughFiles": "파일 살펴보는 중",
+        "runningCommand": "명령 실행 중",
+        "opening": "{{site}} 여는 중",
+        "openingPage": "웹 페이지 여는 중",
+        "searchingWeb": "웹 검색 중",
+        "searchingWebFor": "웹에서 ‘{{query}}’ 검색 중",
+        "askingHelper": "도우미에게 요청하는 중",
+        "usingBrowser": "브라우저 사용 중",
+        "checkingMemory": "메모리 확인 중",
+        "updatingMemory": "메모리 업데이트 중",
+        "sendingMessage": "메시지 보내는 중",
+        "scheduling": "작업 예약 중",
+        "checkingSchedule": "일정 확인 중",
+        "updatingSchedule": "일정 업데이트 중",
+        "using": "{{tool}} 사용 중"
+      }
     },
     "models": {
       "modelPicker": {

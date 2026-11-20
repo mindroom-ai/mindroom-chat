@@ -439,7 +439,8 @@
         "localMindroom": "পেয়ার, পেয়ারিং কোড, লোকাল, ডেস্কটপ",
         "emoji": "ইমোজি, স্টিকার, প্যাক, কাস্টম ইমোজি",
         "errorReports": "ত্রুটি, ক্র্যাশ, বাগ, ডায়াগনস্টিক, টেলিমেট্রি, গোপনীয়তা",
-        "midTurn": "দিক বদলান, সারি, স্বয়ংক্রিয়, এজেন্ট, উত্তর, থামান"
+        "midTurn": "দিক বদলান, সারি, স্বয়ংক্রিয়, এজেন্ট, উত্তর, থামান",
+        "usage": "টোকেন, খরচ, দাম, মডেল, টুল কল, সাব-এজেন্ট, ব্যাকগ্রাউন্ড কাজ"
       },
       "errorReports": {
         "title": "ত্রুটির রিপোর্ট পাঠান",
@@ -1125,7 +1126,38 @@
       "toolCallsNote": "টুল কল",
       "tokensSplit": "{{input}} ইন · {{output}} আউট",
       "costNested": "+{{cost}} নেস্টেড",
-      "costOwn": "এই রান"
+      "costOwn": "এই রান",
+      "showUsageDetails": "ব্যবহারের বিস্তারিত দেখান",
+      "showUsageDetailsDescription": "সহকারী ও ব্যাকগ্রাউন্ড কাজে টুল কল, টোকেন, খরচ এবং মডেল দেখায়।",
+      "usage": "ব্যবহার",
+      "model": "মডেল",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "আপনার অনুমোদনের অপেক্ষায়: {{step}}",
+        "reading": "{{file}} পড়ছে",
+        "readingAny": "একটি ফাইল পড়ছে",
+        "writing": "{{file}} লিখছে",
+        "writingAny": "একটি ফাইল লিখছে",
+        "editing": "{{file}} সম্পাদনা করছে",
+        "editingAny": "একটি ফাইল সম্পাদনা করছে",
+        "searchingFiles": "ফাইলে খুঁজছে",
+        "searchingFilesFor": "ফাইলে “{{query}}” খুঁজছে",
+        "lookingThroughFiles": "ফাইলগুলো দেখছে",
+        "runningCommand": "একটি কমান্ড চালাচ্ছে",
+        "opening": "{{site}} খুলছে",
+        "openingPage": "একটি ওয়েব পেজ খুলছে",
+        "searchingWeb": "ওয়েবে খুঁজছে",
+        "searchingWebFor": "ওয়েবে “{{query}}” খুঁজছে",
+        "askingHelper": "একজন সহকারীকে জিজ্ঞেস করছে",
+        "usingBrowser": "ব্রাউজার ব্যবহার করছে",
+        "checkingMemory": "মেমরি দেখছে",
+        "updatingMemory": "মেমরি আপডেট করছে",
+        "sendingMessage": "একটি বার্তা পাঠাচ্ছে",
+        "scheduling": "একটি কাজ নির্ধারণ করছে",
+        "checkingSchedule": "সময়সূচি দেখছে",
+        "updatingSchedule": "সময়সূচি আপডেট করছে",
+        "using": "{{tool}} ব্যবহার করছে"
+      }
     },
     "models": {
       "modelPicker": {

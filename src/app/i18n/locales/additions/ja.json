@@ -430,7 +430,8 @@
         "localMindroom": "ペアリング, ペアリングコード, ローカル, デスクトップ",
         "emoji": "絵文字, ステッカー, パック, カスタム絵文字",
         "errorReports": "エラー, クラッシュ, バグ, 診断, テレメトリー, プライバシー",
-        "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断"
+        "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
+        "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -1094,7 +1095,38 @@
       "toolCallsNote": "ツール呼び出し",
       "tokensSplit": "入力 {{input}} · 出力 {{output}}",
       "costNested": "+{{cost}} (ネスト)",
-      "costOwn": "この実行"
+      "costOwn": "この実行",
+      "showUsageDetails": "使用量の詳細を表示",
+      "showUsageDetailsDescription": "ヘルパーとバックグラウンドジョブに、ツール呼び出し、トークン、コスト、モデルを表示します。",
+      "usage": "使用量",
+      "model": "モデル",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "承認待ち: {{step}}",
+        "reading": "{{file}} を読んでいます",
+        "readingAny": "ファイルを読んでいます",
+        "writing": "{{file}} に書き込んでいます",
+        "writingAny": "ファイルに書き込んでいます",
+        "editing": "{{file}} を編集しています",
+        "editingAny": "ファイルを編集しています",
+        "searchingFiles": "ファイルを検索しています",
+        "searchingFilesFor": "ファイルで「{{query}}」を検索しています",
+        "lookingThroughFiles": "ファイルを確認しています",
+        "runningCommand": "コマンドを実行しています",
+        "opening": "{{site}} を開いています",
+        "openingPage": "Web ページを開いています",
+        "searchingWeb": "Web を検索しています",
+        "searchingWebFor": "Web で「{{query}}」を検索しています",
+        "askingHelper": "ヘルパーに頼んでいます",
+        "usingBrowser": "ブラウザを使っています",
+        "checkingMemory": "メモリを確認しています",
+        "updatingMemory": "メモリを更新しています",
+        "sendingMessage": "メッセージを送信しています",
+        "scheduling": "タスクを予定に入れています",
+        "checkingSchedule": "スケジュールを確認しています",
+        "updatingSchedule": "スケジュールを更新しています",
+        "using": "{{tool}} を使っています"
+      }
     },
     "models": {
       "modelPicker": {

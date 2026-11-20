@@ -448,7 +448,8 @@
         "localMindroom": "associa, codice di associazione, locale, desktop",
         "emoji": "emoji, sticker, pacchetti, emoji personalizzate",
         "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
-        "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi"
+        "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi",
+        "usage": "token, costo, prezzo, modello, chiamate a strumenti, sottoagenti, attività in background"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -1156,7 +1157,38 @@
       "toolCallsNote": "chiamate a strumenti",
       "tokensSplit": "{{input}} in · {{output}} out",
       "costNested": "+{{cost}} annidati",
-      "costOwn": "questa esecuzione"
+      "costOwn": "questa esecuzione",
+      "showUsageDetails": "Mostra dettagli di utilizzo",
+      "showUsageDetailsDescription": "Mostra chiamate a strumenti, token, costo e modello di assistenti e attività in background.",
+      "usage": "Utilizzo",
+      "model": "Modello",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "In attesa del tuo OK: {{step}}",
+        "reading": "Lettura di {{file}}",
+        "readingAny": "Lettura di un file",
+        "writing": "Scrittura di {{file}}",
+        "writingAny": "Scrittura di un file",
+        "editing": "Modifica di {{file}}",
+        "editingAny": "Modifica di un file",
+        "searchingFiles": "Ricerca nei file",
+        "searchingFilesFor": "Ricerca di “{{query}}” nei file",
+        "lookingThroughFiles": "Esame dei file",
+        "runningCommand": "Esecuzione di un comando",
+        "opening": "Apertura di {{site}}",
+        "openingPage": "Apertura di una pagina web",
+        "searchingWeb": "Ricerca sul web",
+        "searchingWebFor": "Ricerca di “{{query}}” sul web",
+        "askingHelper": "Richiesta a un assistente",
+        "usingBrowser": "Uso del browser",
+        "checkingMemory": "Consultazione della memoria",
+        "updatingMemory": "Aggiornamento della memoria",
+        "sendingMessage": "Invio di un messaggio",
+        "scheduling": "Pianificazione di un’attività",
+        "checkingSchedule": "Consultazione della pianificazione",
+        "updatingSchedule": "Aggiornamento della pianificazione",
+        "using": "Uso di {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

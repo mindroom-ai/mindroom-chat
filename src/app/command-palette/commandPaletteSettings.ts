@@ -20,6 +20,7 @@ export const COMMAND_PALETTE_SETTING_SWITCHES: Readonly<Record<string, SettingSw
   hideMembershipEvents: { key: 'hideMembershipEvents' },
   hideNickAvatarEvents: { key: 'hideNickAvatarEvents' },
   showToolCalls: { key: 'showToolCalls' },
+  showUsageDetails: { key: 'showUsageDetails' },
   // The Chats page shows it as "Disable Media Auto Load".
   mediaAutoLoad: { key: 'mediaAutoLoad', inverted: true },
   urlPreview: { key: 'urlPreview' },

@@ -439,7 +439,8 @@
         "localMindroom": "पेयर, पेयरिंग कोड, लोकल, डेस्कटॉप",
         "emoji": "इमोजी, स्टिकर, पैक, कस्टम इमोजी",
         "errorReports": "त्रुटियाँ, क्रैश, बग, निदान, टेलीमेट्री, गोपनीयता",
-        "midTurn": "दिशा बदलें, कतार, स्वतः, एजेंट, जवाब, रोकें"
+        "midTurn": "दिशा बदलें, कतार, स्वतः, एजेंट, जवाब, रोकें",
+        "usage": "टोकन, लागत, कीमत, मॉडल, टूल कॉल, सब-एजेंट, बैकग्राउंड जॉब"
       },
       "errorReports": {
         "title": "त्रुटि रिपोर्ट भेजें",
@@ -1125,7 +1126,38 @@
       "toolCallsNote": "टूल कॉल",
       "tokensSplit": "{{input}} इन · {{output}} आउट",
       "costNested": "+{{cost}} नेस्टेड",
-      "costOwn": "यह रन"
+      "costOwn": "यह रन",
+      "showUsageDetails": "उपयोग का विवरण दिखाएँ",
+      "showUsageDetailsDescription": "सहायकों और बैकग्राउंड जॉब पर टूल कॉल, टोकन, लागत और मॉडल दिखाता है।",
+      "usage": "उपयोग",
+      "model": "मॉडल",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "आपकी मंज़ूरी का इंतज़ार: {{step}}",
+        "reading": "{{file}} पढ़ रहा है",
+        "readingAny": "एक फ़ाइल पढ़ रहा है",
+        "writing": "{{file}} लिख रहा है",
+        "writingAny": "एक फ़ाइल लिख रहा है",
+        "editing": "{{file}} संपादित कर रहा है",
+        "editingAny": "एक फ़ाइल संपादित कर रहा है",
+        "searchingFiles": "फ़ाइलों में खोज रहा है",
+        "searchingFilesFor": "फ़ाइलों में “{{query}}” खोज रहा है",
+        "lookingThroughFiles": "फ़ाइलें देख रहा है",
+        "runningCommand": "एक कमांड चला रहा है",
+        "opening": "{{site}} खोल रहा है",
+        "openingPage": "एक वेब पेज खोल रहा है",
+        "searchingWeb": "वेब पर खोज रहा है",
+        "searchingWebFor": "वेब पर “{{query}}” खोज रहा है",
+        "askingHelper": "एक सहायक से पूछ रहा है",
+        "usingBrowser": "ब्राउज़र इस्तेमाल कर रहा है",
+        "checkingMemory": "मेमोरी देख रहा है",
+        "updatingMemory": "मेमोरी अपडेट कर रहा है",
+        "sendingMessage": "एक संदेश भेज रहा है",
+        "scheduling": "एक काम शेड्यूल कर रहा है",
+        "checkingSchedule": "शेड्यूल देख रहा है",
+        "updatingSchedule": "शेड्यूल अपडेट कर रहा है",
+        "using": "{{tool}} इस्तेमाल कर रहा है"
+      }
     },
     "models": {
       "modelPicker": {

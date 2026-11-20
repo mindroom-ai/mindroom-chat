@@ -457,7 +457,8 @@
         "localMindroom": "сопряжение, код сопряжения, локальный, компьютер",
         "emoji": "эмодзи, стикеры, наборы, свои эмодзи",
         "errorReports": "ошибки, сбой, баг, диагностика, телеметрия, конфиденциальность",
-        "midTurn": "направить, очередь, авто, агент, ответ, прервать"
+        "midTurn": "направить, очередь, авто, агент, ответ, прервать",
+        "usage": "токены, стоимость, цена, модель, вызовы инструментов, субагенты, фоновые задачи"
       },
       "errorReports": {
         "title": "Отправлять отчёты об ошибках",
@@ -1187,7 +1188,38 @@
       "toolCallsNote": "вызовы инструментов",
       "tokensSplit": "{{input}} вход · {{output}} выход",
       "costNested": "+{{cost}} вложенные",
-      "costOwn": "этот запуск"
+      "costOwn": "этот запуск",
+      "showUsageDetails": "Показывать подробности использования",
+      "showUsageDetailsDescription": "Показывать вызовы инструментов, токены, стоимость и модель у помощников и фоновых задач.",
+      "usage": "Использование",
+      "model": "Модель",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "Ждёт вашего одобрения: {{step}}",
+        "reading": "Читает {{file}}",
+        "readingAny": "Читает файл",
+        "writing": "Записывает {{file}}",
+        "writingAny": "Записывает файл",
+        "editing": "Редактирует {{file}}",
+        "editingAny": "Редактирует файл",
+        "searchingFiles": "Ищет в файлах",
+        "searchingFilesFor": "Ищет «{{query}}» в файлах",
+        "lookingThroughFiles": "Просматривает файлы",
+        "runningCommand": "Выполняет команду",
+        "opening": "Открывает {{site}}",
+        "openingPage": "Открывает веб-страницу",
+        "searchingWeb": "Ищет в интернете",
+        "searchingWebFor": "Ищет в интернете «{{query}}»",
+        "askingHelper": "Спрашивает помощника",
+        "usingBrowser": "Работает в браузере",
+        "checkingMemory": "Смотрит в памяти",
+        "updatingMemory": "Обновляет память",
+        "sendingMessage": "Отправляет сообщение",
+        "scheduling": "Планирует задачу",
+        "checkingSchedule": "Смотрит расписание",
+        "updatingSchedule": "Обновляет расписание",
+        "using": "Использует {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

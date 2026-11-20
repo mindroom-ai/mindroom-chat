@@ -439,7 +439,8 @@
         "localMindroom": "koppelen, koppelcode, lokaal, desktop",
         "emoji": "emoji, stickers, pakketten, eigen emoji",
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
-        "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken"
+        "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
+        "usage": "tokens, kosten, prijs, model, toolaanroepen, subagenten, achtergrondtaken"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -1125,7 +1126,38 @@
       "toolCallsNote": "toolaanroepen",
       "tokensSplit": "{{input}} in · {{output}} uit",
       "costNested": "+{{cost}} genest",
-      "costOwn": "deze run"
+      "costOwn": "deze run",
+      "showUsageDetails": "Gebruiksdetails tonen",
+      "showUsageDetailsDescription": "Toont toolaanroepen, tokens, kosten en het model bij helpers en achtergrondtaken.",
+      "usage": "Gebruik",
+      "model": "Model",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "Wacht op je akkoord: {{step}}",
+        "reading": "Leest {{file}}",
+        "readingAny": "Leest een bestand",
+        "writing": "Schrijft {{file}}",
+        "writingAny": "Schrijft een bestand",
+        "editing": "Bewerkt {{file}}",
+        "editingAny": "Bewerkt een bestand",
+        "searchingFiles": "Doorzoekt bestanden",
+        "searchingFilesFor": "Doorzoekt bestanden op ‘{{query}}’",
+        "lookingThroughFiles": "Bekijkt bestanden",
+        "runningCommand": "Voert een opdracht uit",
+        "opening": "Opent {{site}}",
+        "openingPage": "Opent een webpagina",
+        "searchingWeb": "Zoekt op het web",
+        "searchingWebFor": "Zoekt op het web naar ‘{{query}}’",
+        "askingHelper": "Vraagt een helper",
+        "usingBrowser": "Gebruikt de browser",
+        "checkingMemory": "Raadpleegt het geheugen",
+        "updatingMemory": "Werkt het geheugen bij",
+        "sendingMessage": "Verstuurt een bericht",
+        "scheduling": "Plant een taak",
+        "checkingSchedule": "Bekijkt de planning",
+        "updatingSchedule": "Werkt de planning bij",
+        "using": "Gebruikt {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

@@ -448,7 +448,8 @@
         "localMindroom": "emparelhar, código de emparelhamento, local, computador",
         "emoji": "emoji, autocolantes, pacotes, emoji personalizados",
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
-        "midTurn": "redirecionar, fila, automático, agente, resposta, interromper"
+        "midTurn": "redirecionar, fila, automático, agente, resposta, interromper",
+        "usage": "tokens, custo, preço, modelo, chamadas de ferramentas, subagentes, tarefas em segundo plano"
       },
       "errorReports": {
         "title": "Enviar relatórios de erros",
@@ -1156,7 +1157,38 @@
       "toolCallsNote": "chamadas de ferramentas",
       "tokensSplit": "{{input}} entrada · {{output}} saída",
       "costNested": "+{{cost}} aninhados",
-      "costOwn": "esta execução"
+      "costOwn": "esta execução",
+      "showUsageDetails": "Mostrar detalhes de utilização",
+      "showUsageDetailsDescription": "Mostra as chamadas de ferramentas, os tokens, o custo e o modelo dos assistentes e das tarefas em segundo plano.",
+      "usage": "Utilização",
+      "model": "Modelo",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "A aguardar a sua aprovação: {{step}}",
+        "reading": "A ler {{file}}",
+        "readingAny": "A ler um ficheiro",
+        "writing": "A escrever {{file}}",
+        "writingAny": "A escrever um ficheiro",
+        "editing": "A editar {{file}}",
+        "editingAny": "A editar um ficheiro",
+        "searchingFiles": "A pesquisar ficheiros",
+        "searchingFilesFor": "A pesquisar «{{query}}» nos ficheiros",
+        "lookingThroughFiles": "A percorrer ficheiros",
+        "runningCommand": "A executar um comando",
+        "opening": "A abrir {{site}}",
+        "openingPage": "A abrir uma página web",
+        "searchingWeb": "A pesquisar na web",
+        "searchingWebFor": "A pesquisar «{{query}}» na web",
+        "askingHelper": "A consultar um assistente",
+        "usingBrowser": "A usar o navegador",
+        "checkingMemory": "A consultar a memória",
+        "updatingMemory": "A atualizar a memória",
+        "sendingMessage": "A enviar uma mensagem",
+        "scheduling": "A agendar uma tarefa",
+        "checkingSchedule": "A consultar o agendamento",
+        "updatingSchedule": "A atualizar o agendamento",
+        "using": "A usar {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

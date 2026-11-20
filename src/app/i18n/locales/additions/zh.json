@@ -430,7 +430,8 @@
         "localMindroom": "配对, 配对码, 本地, 桌面",
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
-        "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断"
+        "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
+        "usage": "令牌, 费用, 价格, 模型, 工具调用, 子智能体, 后台任务"
       },
       "errorReports": {
         "title": "发送错误报告",
@@ -1094,7 +1095,38 @@
       "toolCallsNote": "工具调用",
       "tokensSplit": "输入 {{input}} · 输出 {{output}}",
       "costNested": "+{{cost}} 嵌套",
-      "costOwn": "本次运行"
+      "costOwn": "本次运行",
+      "showUsageDetails": "显示用量详情",
+      "showUsageDetailsDescription": "在助手和后台任务上显示工具调用、令牌、费用和模型。",
+      "usage": "用量",
+      "model": "模型",
+      "step": {
+        "doing": "{{step}}…",
+        "waitingForOk": "等待你的确认：{{step}}",
+        "reading": "正在读取 {{file}}",
+        "readingAny": "正在读取文件",
+        "writing": "正在写入 {{file}}",
+        "writingAny": "正在写入文件",
+        "editing": "正在编辑 {{file}}",
+        "editingAny": "正在编辑文件",
+        "searchingFiles": "正在搜索文件",
+        "searchingFilesFor": "正在文件中搜索“{{query}}”",
+        "lookingThroughFiles": "正在浏览文件",
+        "runningCommand": "正在运行命令",
+        "opening": "正在打开 {{site}}",
+        "openingPage": "正在打开网页",
+        "searchingWeb": "正在网上搜索",
+        "searchingWebFor": "正在网上搜索“{{query}}”",
+        "askingHelper": "正在请助手帮忙",
+        "usingBrowser": "正在使用浏览器",
+        "checkingMemory": "正在查看记忆",
+        "updatingMemory": "正在更新记忆",
+        "sendingMessage": "正在发送消息",
+        "scheduling": "正在安排任务",
+        "checkingSchedule": "正在查看日程",
+        "updatingSchedule": "正在更新日程",
+        "using": "正在使用 {{tool}}"
+      }
     },
     "models": {
       "modelPicker": {

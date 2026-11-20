@@ -44,6 +44,13 @@ describe('getSettings', () => {
     expect(getSettings().showToolCalls).toBe(false);
   });
 
+  it('hides what helpers and background jobs used until the reader shows it', async () => {
+    const { getSettings } = await import('./settings');
+    storageValue = null;
+
+    expect(getSettings().showUsageDetails).toBe(false);
+  });
+
   it('sends with Auto while an agent replies, as a message without a mode does, unless a known mode is stored', async () => {
     const { getSettings } = await import('./settings');
     const stored = (midTurnSend: unknown) => {
