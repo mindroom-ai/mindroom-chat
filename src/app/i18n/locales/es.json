@@ -2258,7 +2258,6 @@
       "resumeRecording": "Reanudar grabación de voz",
       "statusActive": "Grabación de voz activa",
       "statusPaused": "Grabación de voz en pausa",
-      "statusProcessing": "Procesando grabación de voz",
       "statusReadyToRetry": "Grabación de voz lista para reintentar",
       "statusSending": "Enviando grabación de voz",
       "statusStarting": "Iniciando grabación de voz",

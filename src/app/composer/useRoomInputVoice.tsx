@@ -40,7 +40,12 @@ import {
   VoiceRecorderComposer,
   type VoiceRecorderComposerHandle,
 } from './voice/VoiceRecorderDialog';
-import { liveVoiceRecordingAtom, startLiveVoiceRecording } from './voice/liveVoiceRecording';
+import {
+  liveVoiceRecordingAtom,
+  startLiveVoiceRecording,
+  voiceAccountGuard,
+} from './voice/liveVoiceRecording';
+import type { VoiceCaptureSession } from './voice/voiceCaptureSession';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -77,9 +82,22 @@ type UseRoomInputVoiceOptions = {
   onRoomMessageSent?: (eventId: string) => boolean | void;
 };
 
+/**
+ * The voice message a Send carries, decided as it is pressed: the recording that was live then,
+ * or the parked one this composer offered then. A Send pressed with neither carries none, however
+ * long it waits before it goes out.
+ */
+export type VoiceSendBinding = { live: VoiceCaptureSession } | { parked: File };
+
 type VoiceFeature = {
   blocksSubmit: () => boolean;
-  submitIfActive: (textContent?: IContent) => Promise<boolean>;
+  /** What a Send pressed here now carries. Call it before the Send waits for anything. */
+  bindSend: () => VoiceSendBinding | undefined;
+  /**
+   * Sends what the Send was bound to, with the text, if that is still there to send. False
+   * leaves the text to go out alone.
+   */
+  submitBound: (binding: VoiceSendBinding | undefined, textContent?: IContent) => Promise<boolean>;
   microphone: React.ReactNode;
   renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
 };
@@ -114,6 +132,8 @@ export const useRoomInputVoice = ({
   // pressed (voice/liveVoiceRecording.ts). It is not this composer's until then.
   const liveRecording = useAtomValue(liveVoiceRecordingAtom) !== undefined;
   // This composer's Send took the recording: its capsule stays, as sending, until that settles.
+  // It covers the whole send; the recorder hook's `claimed` (voice/useVoiceRecorder.ts) holds the
+  // recording itself for the same time, and is what the capsule draws.
   const [sendingHere, setSendingHere] = useState(false);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
   const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
@@ -156,7 +176,9 @@ export const useRoomInputVoice = ({
     (draftKey === voiceComposerKey({ ...composerContext, threadView: true }) &&
       !threadViewComposers.some((entry) => entry.key === draftKey));
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
-  const voiceAutoSendClaimedRef = useRef(false);
+  // Set while this composer holds the send lock (`voiceAutoSendPendingAtom`): the guard of the
+  // account it took the lock under. Left since, the lock is the next account's to release.
+  const voiceAutoSendClaimedRef = useRef<() => boolean>();
   const voiceAutoSendInFlightRef = useRef(false);
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
   const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
@@ -166,9 +188,9 @@ export const useRoomInputVoice = ({
   //      logout/login since the router store is shared across sessions.
   //      A draft from account A must not block voice recording in B.
   //   2. Same-session room loss (rev-A R4 Issue 2): if the user was
-  //      kicked from / left / forgot the parked-draft room, the
-  //      otherComposerOwnsPendingVoiceDraft gate would lock the mic in
-  //      every other room with no in-app surface to discard.
+  //      kicked from / left / forgot the parked-draft room, the draft
+  //      would keep the mic disabled in every composer of the account
+  //      (`microphoneDisabled` below) with no in-app surface to discard.
   //   3. Same-session non-joinable room (rev-B / rev-G R5): a Room
   //      object can survive in mx.getRoom() after the user is no longer
   //      Joined (Leave/Ban/etc), in which case the source room composer
@@ -201,7 +223,7 @@ export const useRoomInputVoice = ({
   const claimVoiceAutoSend = useCallback(() => {
     if (store.get(voiceAutoSendPendingAtom)) return false;
 
-    voiceAutoSendClaimedRef.current = true;
+    voiceAutoSendClaimedRef.current = voiceAccountGuard(store);
     store.set(voiceAutoSendPendingAtom, true);
     const bundle = pendingVoiceComposerBundleRef.current;
     if (bundle?.textContent && !bundle.composerReset) {
@@ -212,7 +234,8 @@ export const useRoomInputVoice = ({
   }, [resetText, store]);
 
   const releaseVoiceAutoSend = useCallback(() => {
-    if (!voiceAutoSendClaimedRef.current) return;
+    const sameAccount = voiceAutoSendClaimedRef.current;
+    if (!sameAccount) return;
 
     const bundle = pendingVoiceComposerBundleRef.current;
     if (bundle?.composerReset && !bundle.handedOff && bundle.composerFallback) {
@@ -221,8 +244,8 @@ export const useRoomInputVoice = ({
     bundle?.releasePasteProtection();
     pendingVoiceComposerBundleRef.current = undefined;
     voiceAutoSendInFlightRef.current = false;
-    voiceAutoSendClaimedRef.current = false;
-    store.set(voiceAutoSendPendingAtom, false);
+    voiceAutoSendClaimedRef.current = undefined;
+    if (sameAccount()) store.set(voiceAutoSendPendingAtom, false);
   }, [restoreText, store]);
 
   const handleVoiceSend = useCallback(
@@ -244,6 +267,11 @@ export const useRoomInputVoice = ({
       let liveContext: PendingVoiceSendContext | null = null;
       let sentEventIdToNotify: string | undefined;
       let voiceSent = false;
+      // Left meanwhile, the account sends nothing more: the send fails, and parks nothing.
+      const sameAccount = voiceAccountGuard(store);
+      const ensureSameAccount = () => {
+        if (!sameAccount()) throw new Error(t('composer.voiceRoomUnavailable'));
+      };
       const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
         const originalName =
           getMatrixUploadOriginalName(err) ?? (err instanceof Error ? err.name : typeof err);
@@ -289,7 +317,7 @@ export const useRoomInputVoice = ({
           throw new Error(t('composer.voiceStillSending'));
         }
         if (!voiceAutoSendClaimedRef.current) {
-          voiceAutoSendClaimedRef.current = true;
+          voiceAutoSendClaimedRef.current = sameAccount;
           store.set(voiceAutoSendPendingAtom, true);
         }
         voiceAutoSendInFlightRef.current = true;
@@ -299,6 +327,7 @@ export const useRoomInputVoice = ({
         } catch (err) {
           return logAndThrowUploadError(err, 'create');
         }
+        ensureSameAccount();
         const [fileItem] = fileItems;
         if (fileItems.length !== 1 || !fileItem) {
           return logAndThrowUploadError(
@@ -357,6 +386,7 @@ export const useRoomInputVoice = ({
             return logAndThrowUploadError(err, 'upload');
           }
           const companionUploadResults = await companionUploadResultsPromise;
+          ensureSameAccount();
 
           const readyItems = [
             ...companionUploadResults
@@ -406,6 +436,7 @@ export const useRoomInputVoice = ({
         } catch (err) {
           return logAndThrowUploadError(err, 'upload');
         }
+        ensureSameAccount();
         try {
           sentEventIdToNotify = await sendVoiceItem(liveContext, fileItem, mxc);
         } catch (err) {
@@ -421,7 +452,7 @@ export const useRoomInputVoice = ({
         }
         releaseVoiceAutoSend();
       }
-      if (sentEventIdToNotify) {
+      if (sentEventIdToNotify && sameAccount()) {
         onRoomMessageSent?.(sentEventIdToNotify);
       }
     },
@@ -444,10 +475,24 @@ export const useRoomInputVoice = ({
   );
 
   const blocksSubmit = useCallback(() => store.get(voiceAutoSendPendingAtom), [store]);
-  const submitIfActive = useCallback(
-    async (content?: IContent): Promise<boolean> => {
-      // Send here sends the account's recording here, with this composer's text and files.
-      if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return false;
+  // Send here sends the account's recording here, with this composer's text and files.
+  const bindSend = useCallback((): VoiceSendBinding | undefined => {
+    const live = store.get(liveVoiceRecordingAtom);
+    if (live) return { live };
+    const parked = ownsPendingVoiceDraft ? store.get(pendingVoiceSendDraftAtom) : undefined;
+    return parked && { parked: parked.file };
+  }, [ownsPendingVoiceDraft, store]);
+  const submitBound = useCallback(
+    async (binding: VoiceSendBinding | undefined, content?: IContent): Promise<boolean> => {
+      if (!binding) return false;
+      // A Send that waited (for a paste, for its thread's root) sends only what it was pressed
+      // with. Sent from another composer or discarded since, that is gone, and what is recorded
+      // now is not this Send's. Nothing below waits before the recorder takes it.
+      const stillThere =
+        'live' in binding
+          ? store.get(liveVoiceRecordingAtom) === binding.live
+          : ownsPendingVoiceDraft && store.get(pendingVoiceSendDraftAtom)?.file === binding.parked;
+      if (!stillThere) return false;
       if (hasFailedPasteMarkerInText(content, attachmentAccess.snapshot().staged)) return true;
 
       const recorder = voiceRecorderRef.current;
@@ -536,5 +581,5 @@ export const useRoomInputVoice = ({
     </IconTooltip>
   );
 
-  return { blocksSubmit, submitIfActive, microphone, renderRecorder };
+  return { blocksSubmit, bindSend, submitBound, microphone, renderRecorder };
 };

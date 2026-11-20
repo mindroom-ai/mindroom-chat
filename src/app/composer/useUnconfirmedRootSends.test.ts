@@ -146,6 +146,29 @@ describe('useUnconfirmedRootSends', () => {
     expect(exposed!.hold({ kind: 'message' })).toBe(false);
   });
 
+  it('holds one message, as its newest Send was pressed, with the voice message that Send carried', async () => {
+    const { room, root } = makeRoom();
+    const editor = withHistory(createEditor());
+    editor.children = paragraph('');
+    await render(room, editor, LOCAL_ID);
+    const voice = { parked: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }) };
+
+    await act(async () => {
+      exposed!.hold({ kind: 'message' });
+      exposed!.hold({ kind: 'sticker', mxc: 'mxc://example.org/wave', label: 'Wave' });
+      exposed!.hold({ kind: 'message', voice });
+    });
+    await act(async () => room.updatePendingEvent(root, EventStatus.SENT, '$root'));
+    await render(room, editor, '$root');
+
+    expect(confirmed).toEqual([
+      [
+        { kind: 'message', voice },
+        { kind: 'sticker', mxc: 'mxc://example.org/wave', label: 'Wave' },
+      ],
+    ]);
+  });
+
   it('drops the wait when the root fails, and holds nothing for a failed root', async () => {
     const { room, root } = makeRoom();
     const editor = withHistory(createEditor());

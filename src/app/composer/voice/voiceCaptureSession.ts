@@ -82,6 +82,7 @@ export type VoiceCaptureSession = {
   resume: () => boolean;
   finish: () => Promise<VoiceCaptureResult>;
   discard: () => Promise<boolean>;
+  /** Ends capture now: the microphone is released at once and the audio is dropped. */
   reset: () => void;
 };
 

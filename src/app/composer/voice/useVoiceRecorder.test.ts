@@ -650,6 +650,92 @@ describe('useVoiceRecorder', () => {
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
 
+  it('releases the microphone at once and says nothing more when the account leaves while a claimed recording stops', async () => {
+    MockMediaRecorder.autoStop = false;
+    const onSendRecording = vi.fn();
+    const { store } = await renderHarness({ onSendRecording });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    let sendPromise!: Promise<boolean>;
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      sendPromise = recorderState.current!.send();
+      await Promise.resolve();
+    });
+    // The Send took the recording out of the account's hands; its recorder has yet to stop.
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(stream.track.stop).not.toHaveBeenCalled();
+
+    act(() => forgetComposerStateOfSession(store));
+
+    // Now, not when the recorder says it stopped or the time it is given for that runs out.
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+
+    // The recorder stops late, with no audio: under the account, that was an error to show.
+    let sent: boolean | undefined;
+    await act(async () => {
+      MockMediaRecorder.instances[0]!.dispatch('stop', new Event('stop'));
+      sent = await sendPromise;
+    });
+
+    expect(sent).toBe(false);
+    expect(onSendRecording).not.toHaveBeenCalled();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+  });
+
+  it.each([
+    ['is delivered', (settle: { resolve: () => void }) => settle.resolve()],
+    [
+      'fails',
+      (settle: { reject: (error: Error) => void }) => settle.reject(new Error('voice send failed')),
+    ],
+  ])(
+    "leaves the next account's parked recording alone when a send begun before the switch %s",
+    async (_outcome, settleSend) => {
+      const settle = {} as { resolve: () => void; reject: (error: Error) => void };
+      const onSendRecording = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            settle.resolve = resolve;
+            settle.reject = reject;
+          })
+      );
+      const { store } = await renderHarness({ onSendRecording });
+      await act(async () => {
+        await recorderState.current!.start();
+      });
+      let sendPromise!: Promise<boolean>;
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+        sendPromise = recorderState.current!.send();
+        await Promise.resolve();
+      });
+      expect(onSendRecording).toHaveBeenCalledOnce();
+
+      // The account is left during the upload, and the next one parks a recording of its own.
+      const nextAccountsDraft: PendingVoiceSendDraft = {
+        file: new File(['voice'], 'voice.ogg', { type: 'audio/ogg' }),
+        duration: 1200,
+        waveform: undefined,
+        context: { ...createTestSendContext(), ownerSessionId: '@next:example.org' },
+        errorMessage: 'offline',
+      };
+      act(() => {
+        forgetComposerStateOfSession(store);
+        store.set(pendingVoiceSendDraftAtom, nextAccountsDraft);
+      });
+      await act(async () => {
+        settleSend(settle);
+        await sendPromise;
+      });
+
+      expect(store.get(pendingVoiceSendDraftAtom)).toBe(nextAccountsDraft);
+      expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    }
+  );
+
   it('passes the audio bitrate even when no preferred MIME type is supported', async () => {
     MockMediaRecorder.isTypeSupported.mockReturnValue(false);
     const { renderer } = await renderHarness();

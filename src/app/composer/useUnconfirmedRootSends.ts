@@ -4,9 +4,15 @@ import { EventStatus, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
 import { moveMessageDraft } from './roomInputDrafts';
+import type { VoiceSendBinding } from './useRoomInputVoice';
 
-/** A send the composer holds while its thread's root waits for the server. */
-export type HeldSend = { kind: 'message' } | { kind: 'sticker'; mxc: string; label: string };
+/**
+ * A send the composer holds while its thread's root waits for the server. A message keeps the
+ * voice message its Send was pressed with, or none: it takes no recording made while it waits.
+ */
+export type HeldSend =
+  | { kind: 'message'; voice?: VoiceSendBinding | undefined }
+  | { kind: 'sticker'; mxc: string; label: string };
 
 type Held = { root: MatrixEvent; localId: string; sends: HeldSend[] };
 
@@ -71,10 +77,15 @@ export const useUnconfirmedRootSends = ({
       if (!root || isDeadRoot(root)) return true;
       setHeld((current) => {
         const sends = current?.localId === threadId ? current.sends : [];
-        if (send.kind === 'message' && sends.some((waiting) => waiting.kind === 'message')) {
-          return current;
-        }
-        return { root, localId: threadId, sends: [...sends, send] };
+        // One message waits, as its newest Send was pressed.
+        const waits = send.kind === 'message' && sends.some((held) => held.kind === 'message');
+        return {
+          root,
+          localId: threadId,
+          sends: waits
+            ? sends.map((held) => (held.kind === 'message' ? send : held))
+            : [...sends, send],
+        };
       });
       return true;
     },

@@ -19,11 +19,7 @@ import {
 import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/state/upload';
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { clearKeptPastes } from './keptPastes';
-import {
-  discardLiveVoiceRecording,
-  liveVoiceRecordingAtom,
-  liveVoiceRecordingErrorAtom,
-} from './voice/liveVoiceRecording';
+import { endVoiceRecordingsOfAccount, liveVoiceRecordingAtom } from './voice/liveVoiceRecording';
 import { composerStateKey } from '../navigation/conversationView';
 
 // TUploadItem is declared with the upload state; this module keeps exporting it.
@@ -463,12 +459,12 @@ const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null
  * a room both accounts are in would otherwise show them and send them as its own. Unsent
  * messages stay, since they are kept per account. A recorded voice message waiting for a retry
  * stays too: it names its account and no other one sends it. A voice message still being recorded
- * is discarded, which frees the microphone: the account owns it, and no later account sends it.
+ * ends, and so does one whose Send is still on its way: the microphone is released at once, and
+ * neither writes anything under the next account.
  */
 export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
-  discardLiveVoiceRecording(store);
-  store.set(liveVoiceRecordingErrorAtom, undefined);
+  endVoiceRecordingsOfAccount(store);
 };

@@ -2258,7 +2258,6 @@
       "resumeRecording": "Reprendre l'enregistrement vocal",
       "statusActive": "Enregistrement vocal actif",
       "statusPaused": "Enregistrement vocal en pause",
-      "statusProcessing": "Traitement de l'enregistrement vocal",
       "statusReadyToRetry": "Enregistrement vocal prêt à être réessayé",
       "statusSending": "Envoi de l'enregistrement vocal",
       "statusStarting": "Démarrage de l'enregistrement vocal",

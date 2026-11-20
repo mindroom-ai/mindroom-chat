@@ -2230,7 +2230,6 @@
       "resumeRecording": "音声録音を再開する",
       "statusActive": "音声録音が有効です",
       "statusPaused": "音声録音が一時停止されました",
-      "statusProcessing": "音声録音の処理",
       "statusReadyToRetry": "音声録音を再試行する準備ができています",
       "statusSending": "音声録音を送信する",
       "statusStarting": "音声録音を開始する",

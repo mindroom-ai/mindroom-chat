@@ -1,9 +1,6 @@
 import { MatrixError } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  PendingVoiceSendContext,
-  PendingVoiceSendDraft,
-} from '../roomInputDrafts';
+import type { PendingVoiceSendContext, PendingVoiceSendDraft } from '../roomInputDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
 import { createVoiceSendDraftController, type VoiceDraftStore } from './voiceSendDraftController';
 
@@ -59,9 +56,13 @@ describe('voiceSendDraftController', () => {
     const sendRecording = vi.fn();
     const onFailure = vi.fn();
 
-    expect(await controller.sendInitial(recording, context, { sendRecording, onFailure })).toBe(
-      true
-    );
+    expect(
+      await controller.sendInitial(recording, context, {
+        sendRecording,
+        onFailure,
+        sameAccount: () => true,
+      })
+    ).toBe(true);
     expect(sendRecording).toHaveBeenCalledWith(
       recording.file,
       recording.duration,
@@ -85,6 +86,7 @@ describe('voiceSendDraftController', () => {
           throw new Error('voice upload failed');
         },
         onFailure,
+        sameAccount: () => true,
       })
     ).toBe(false);
     expect(store.read()).toEqual({
@@ -114,10 +116,32 @@ describe('voiceSendDraftController', () => {
     await controller.sendInitial(createRecording(), createContext(), {
       sendRecording: () => Promise.reject(error),
       onFailure: vi.fn(),
+      sameAccount: () => true,
     });
 
     expect(store.read()?.errorMessage).toBe(expectedMessage);
   });
+
+  it.each([
+    ['is delivered', () => Promise.resolve()],
+    ['fails', () => Promise.reject(new Error('voice upload failed'))],
+  ])(
+    'leaves the parked recording of the next account alone when a send begun before the switch %s',
+    async (_outcome, sendRecording) => {
+      const nextAccountsDraft = createDraft();
+      const store = createDraftStore(nextAccountsDraft);
+      const controller = createVoiceSendDraftController(store);
+      const onFailure = vi.fn();
+
+      await controller.sendInitial(createRecording(), createContext(), {
+        sendRecording,
+        onFailure,
+        sameAccount: () => false,
+      });
+
+      expect(store.read()).toBe(nextAccountsDraft);
+    }
+  );
 
   it('stamps retry ownership synchronously and blocks a controller created after remount', async () => {
     const draft = createDraft();

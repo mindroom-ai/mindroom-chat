@@ -222,9 +222,9 @@ describe('forgetAccountState', () => {
       isTyping: () => true,
     });
     store.set(calls.activeCallAtom, runningCall().active);
-    const discardRecording = vi.fn(async () => false);
+    const endRecording = vi.fn();
     store.set(liveVoice.liveVoiceRecordingAtom, {
-      discard: discardRecording,
+      reset: endRecording,
     } as unknown as VoiceCaptureSession);
     forgotten.forEach(({ atom, module }) => {
       if (isDeepStrictEqual(store.get(atom as never), atom.init)) {
@@ -241,8 +241,8 @@ describe('forgetAccountState', () => {
     // Each one is account state that the next account would see: list it in accountState.ts,
     // or add its module to KEPT_MODULES above with the reason it may outlive the account.
     expect(forgotten.filter(left).map(describeAtom)).toEqual([]);
-    // The recording the account was making is ended, which frees the microphone.
-    expect(discardRecording).toHaveBeenCalledTimes(1);
+    // The recording the account was making is ended at once, which frees the microphone.
+    expect(endRecording).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the call and runs what follows its end', () => {

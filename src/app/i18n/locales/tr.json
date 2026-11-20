@@ -2230,7 +2230,6 @@
       "resumeRecording": "Ses kaydını sürdür",
       "statusActive": "Ses kaydı etkin",
       "statusPaused": "Ses kaydı duraklatıldı",
-      "statusProcessing": "Ses kaydı işleniyor",
       "statusReadyToRetry": "Ses kaydı yeniden denemeye hazır",
       "statusSending": "Ses kaydı gönderiliyor",
       "statusStarting": "Ses kaydı başlatılıyor",

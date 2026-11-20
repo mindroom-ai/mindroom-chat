@@ -30,7 +30,8 @@ export type VoiceSendDraftController = {
   sendInitial: (
     recording: CapturedVoiceRecording,
     context: PendingVoiceSendContext,
-    attempt: VoiceSendAttempt
+    /** `sameAccount`: false once the account the Send was pressed under was left. */
+    attempt: VoiceSendAttempt & { sameAccount: () => boolean }
   ) => Promise<boolean>;
   retry: (attempt: VoiceSendAttempt & { claim: () => boolean | void }) => Promise<boolean>;
   discardPending: () => void;
@@ -61,16 +62,19 @@ export const createVoiceSendDraftController = (
   ) => {
     try {
       await attempt.sendRecording(recording.file, recording.duration, recording.waveform, context);
-      drafts.write(undefined);
+      // The one slot for a parked recording is the next account's once this one was left.
+      if (attempt.sameAccount()) drafts.write(undefined);
       return true;
     } catch (error) {
-      drafts.write({
-        file: recording.file,
-        duration: recording.duration,
-        waveform: recording.waveform,
-        context,
-        errorMessage: getVoiceSendErrorMessage(error),
-      });
+      if (attempt.sameAccount()) {
+        drafts.write({
+          file: recording.file,
+          duration: recording.duration,
+          waveform: recording.waveform,
+          context,
+          errorMessage: getVoiceSendErrorMessage(error),
+        });
+      }
       attempt.onFailure();
       return false;
     }

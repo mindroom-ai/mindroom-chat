@@ -27,7 +27,7 @@ import {
 } from '../editor/autocomplete/autocompleteQuery';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { EmoticonAutocomplete } from '../editor/autocomplete/EmoticonAutocomplete';
-import { createEmoticonElement, moveCursor, restoreEditorContent } from '../editor/utils';
+import { createEmoticonElement, moveCursor } from '../editor/utils';
 import { toggleKeyboardShortcut } from '../editor/keyboard';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
@@ -107,6 +107,8 @@ import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/th
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
+
+type HeldMessage = Extract<HeldSend, { kind: 'message' }>;
 
 export type RoomInputProps = {
   editor: Editor;
@@ -390,6 +392,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       forkFrom,
     });
 
+    const { restoreText: restoreSentText } = sessions;
     const composer = useMemo(
       () => ({
         getContext: () => ({
@@ -405,20 +408,17 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           resetEditor(editor);
           resetEditorHistory(editor);
         },
-        restoreText: (restoreRoomId: string, fragment: Descendant[], restoreThreadId?: string) => {
-          if (restoreRoomId === roomId && restoreThreadId === threadId && mountedRef.current) {
-            restoreEditorContent(editor, fragment);
-            return;
-          }
-          restoreComposerFallbackForRoom(restoreRoomId, fragment, restoreThreadId);
-        },
+        // Into the editor only while it still shows that room and thread, as a failed text send
+        // is: asked from a send that began before the composer moved on, it goes to that draft.
+        restoreText: (restoreRoomId: string, fragment: Descendant[], restoreThreadId?: string) =>
+          restoreSentText({ roomId: restoreRoomId, threadId: restoreThreadId }, fragment),
         clearConsumedReply: clearReplyDraft,
       }),
       [
         clearReplyDraft,
         editor,
         replyDraft,
-        restoreComposerFallbackForRoom,
+        restoreSentText,
         room,
         roomId,
         threadId,
@@ -478,8 +478,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
     const voiceActive = !forkFrom;
     const submit = useCallback(
-      async (mode: MidTurnMode) => {
+      async (mode: MidTurnMode, held?: HeldMessage) => {
         if (voiceActive && voice.blocksSubmit()) return;
+        // Whether this Send carries a voice message is settled as it is pressed, before it waits
+        // for anything (a paste, its thread's root); one that waited brings what it was pressed
+        // with, and takes no recording made since.
+        const pressedWith = voiceActive ? voice.bindSend() : undefined;
+        const voiceMessage = held ? held.voice : pressedWith;
         // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
         // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
         const unknownCommand = readUnknownCommand(editor.children, commands);
@@ -491,14 +496,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         const acting = readActingCommand(editor.children, commands);
         if (acting) {
-          if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
+          if (acting.command.inThread && holdForRoot({ kind: 'message', voice: voiceMessage })) {
+            return;
+          }
           await runActingCommand(acting);
           return;
         }
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
         const settled = settlePastes();
         if (settled !== true && !(await settled)) return;
-        if (holdForRoot({ kind: 'message' })) return;
+        if (holdForRoot({ kind: 'message', voice: voiceMessage })) return;
         const textContent = buildTextContent(mode);
         // Sending the text answers the notices of files and pastes a reload lost.
         if (textContent) {
@@ -507,7 +514,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         setSubmitPending(true);
         try {
-          if (voiceActive && (await voice.submitIfActive(textContent))) return;
+          if (await voice.submitBound(voiceMessage, textContent)) return;
           const sending = sessions.startSendSession({ textContent });
           // The composer is free again once the send session owns the text.
           sendTypingStatus(false);
@@ -535,10 +542,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it. Without a mode picked from the Send button's menu, the
-    // message takes the one the Chats settings name.
+    // message takes the one the Chats settings name. `held`: the Send that waited for its root.
     const handleSend = useCallback(
-      (mode?: MidTurnMode) => {
-        const sending = submit(mode ?? midTurnSend);
+      (mode?: MidTurnMode, held?: HeldMessage) => {
+        const sending = submit(mode ?? midTurnSend, held);
         sending.catch((error: unknown) => {
           // eslint-disable-next-line no-console
           console.warn('[room-input] could not send the message', error);
@@ -653,7 +660,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     rootConfirmedRef.current = (sends) =>
       sends.forEach((send) => {
         if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
-        else void handleSend();
+        else void handleSend(undefined, send);
       });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);

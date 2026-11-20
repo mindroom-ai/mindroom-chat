@@ -7,6 +7,7 @@ import {
   discardLiveVoiceRecording,
   liveVoiceRecordingAtom,
   liveVoiceRecordingErrorAtom,
+  voiceAccountGuard,
 } from './liveVoiceRecording';
 import type {
   VoiceCapturePhase,
@@ -23,7 +24,11 @@ export {
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
   getVoiceRecorderErrorMessage,
 } from './voiceCaptureSession';
-export type VoiceRecorderPhase = VoiceCapturePhase | 'sending';
+/**
+ * What a composer shows of a recording. Capture's `processing` (a recorder that is stopping) is
+ * not among them: a recording stops only once a Send claimed it, and that one is `sending`.
+ */
+export type VoiceRecorderPhase = Exclude<VoiceCapturePhase, 'processing'> | 'sending';
 
 const NO_RECORDING: VoiceCaptureSnapshot = {
   phase: 'idle',
@@ -82,7 +87,9 @@ export function useVoiceRecorder({
   const captureSnapshot = useVoiceCaptureSnapshot(claimed ?? live);
   const pendingDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const phase: VoiceRecorderPhase =
-    pendingDraft?.inFlight || claimed ? 'sending' : captureSnapshot.phase;
+    pendingDraft?.inFlight || claimed || captureSnapshot.phase === 'processing'
+      ? 'sending'
+      : captureSnapshot.phase;
   const { elapsedMs, waveform, sampleCount, canPause } = captureSnapshot;
   const hasPendingSend = !!pendingDraft;
   const pendingDuration = pendingDraft?.duration ?? 0;
@@ -129,18 +136,20 @@ export function useVoiceRecorder({
       notifySendStopFailure();
       return false;
     }
-    // The destination is this composer's, read once, now. The send outlives the composer.
+    // The destination is this composer's, read once, now. The send outlives the composer, but
+    // not the account: once that is left, it writes nothing more.
     const sendRecording = latestOnSendRecordingRef.current;
     const sendContext = latestGetSendContextRef.current();
+    const sameAccount = voiceAccountGuard(store);
     setClaimed(session);
     const settle = () => {
       session.reset();
       if (mountedRef.current) setClaimed(undefined);
     };
     const result = await session.finish();
-    if (result.status !== 'captured' || !sendRecording) {
+    if (result.status !== 'captured' || !sendRecording || !sameAccount()) {
       const { errorMessage: captureError } = session.getSnapshot();
-      if (captureError) store.set(liveVoiceRecordingErrorAtom, captureError);
+      if (captureError && sameAccount()) store.set(liveVoiceRecordingErrorAtom, captureError);
       settle();
       notifySendStopFailure();
       return false;
@@ -148,6 +157,7 @@ export function useVoiceRecorder({
     const delivered = await draftController.sendInitial(result.recording, sendContext, {
       sendRecording,
       onFailure: notifySendStopFailure,
+      sameAccount,
     });
     settle();
     return delivered;
