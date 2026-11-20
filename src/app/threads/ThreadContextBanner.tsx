@@ -46,6 +46,7 @@ import { focusedCompactCard } from './overview/compactCardKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
+import { useShortViewport } from '../ui/page/floatingCards';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
@@ -96,13 +97,13 @@ const inlineSpace = (style: CSSStyleDeclaration, side: 'margin' | 'padding') =>
   (parseFloat(style[`${side}Left`]) || 0) + (parseFloat(style[`${side}Right`]) || 0);
 
 /**
- * How the banner fits: `wide`; `narrow`, under COMPACT_BANNER_REM; `short`, narrow on a short
- * screen, which keeps one row. Measured from the banner's slot, the width the banner has expanded,
- * so a collapsed pill gets the same answer; again as the slot resizes and as Page Zoom changes the
- * root's font size. A hidden slot (no width) keeps the last answer. Not measured while `skip`.
+ * Whether the banner is narrower than COMPACT_BANNER_REM. Measured from the banner's slot, the
+ * width the banner has expanded, so a collapsed pill gets the same answer; again as the slot
+ * resizes and as Page Zoom changes the root's font size. A hidden slot (no width) keeps the last
+ * answer. Not measured while `skip`.
  */
-const useBannerFit = (banner: RefObject<HTMLElement>, skip: boolean) => {
-  const [fit, setFit] = useState<'wide' | 'narrow' | 'short'>('wide');
+const useNarrowBanner = (banner: RefObject<HTMLElement>, skip: boolean) => {
+  const [narrow, setNarrow] = useState(false);
   useLayoutEffect(() => {
     const node = banner.current;
     const slot = node?.parentElement;
@@ -112,10 +113,7 @@ const useBannerFit = (banner: RefObject<HTMLElement>, skip: boolean) => {
         slot.clientWidth -
         inlineSpace(getComputedStyle(slot), 'padding') -
         inlineSpace(getComputedStyle(node), 'margin');
-      if (width <= 0) return;
-      const short = typeof matchMedia === 'function' && matchMedia(shortViewport).matches;
-      if (width >= COMPACT_BANNER_REM * rootFontSize()) setFit('wide');
-      else setFit(short ? 'short' : 'narrow');
+      if (width > 0) setNarrow(width < COMPACT_BANNER_REM * rootFontSize());
     };
     measure();
     const zoom =
@@ -128,7 +126,7 @@ const useBannerFit = (banner: RefObject<HTMLElement>, skip: boolean) => {
       resize?.disconnect();
     };
   }, [banner, skip]);
-  return fit;
+  return narrow;
 };
 
 // A phone's row narrower than this (a small phone, Page Zoom) gives the title the row under its
@@ -243,9 +241,10 @@ export function ThreadContextBanner({
   // A phone always gets the phone layout, so it looks as before whatever its width or zoom. Other
   // screens get it when the banner is narrow: the tags and the pin move to More, and, unless the
   // screen is short and keeps one row, the title shows whole and the buttons can stack.
-  const fit = useBannerFit(bannerRef, phone);
-  const compact = phone || fit !== 'wide';
-  const wholeTitle = phone || fit === 'narrow';
+  const narrow = useNarrowBanner(bannerRef, phone);
+  const short = useShortViewport();
+  const compact = phone || narrow;
+  const wholeTitle = phone || (narrow && !short);
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -256,11 +255,15 @@ export function ThreadContextBanner({
   const [menu, setMenu] = useState<BannerMenuState>();
   const menuRef = useRef<BannerMenuState>();
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
-  // Turning compact removes the tags and Pin; the one that had the focus hands it to More.
+  // Turning compact removes the tags and Pin; the one of them that had the focus hands it to More.
+  // Only focus this banner holds counts: React's focus events reach the banner from the tag
+  // picker's popout too, which renders outside it.
+  const focusInBanner = useRef<Element | null>(null);
   const [compactFocus, setCompactFocus] = useState({ compact, focused: null as Element | null });
   if (compactFocus.compact !== compact) {
-    const focused = compact && typeof document !== 'undefined' ? document.activeElement : null;
-    setCompactFocus({ compact, focused: focused ?? null });
+    const active = typeof document === 'undefined' ? null : document.activeElement;
+    const focused = compact && active && active === focusInBanner.current ? active : null;
+    setCompactFocus({ compact, focused });
   }
   useLayoutEffect(() => {
     if (compactFocus.focused?.isConnected === false) {
@@ -499,6 +502,12 @@ export function ThreadContextBanner({
         )}
         data-thread-context-banner="true"
         tabIndex={-1}
+        onFocus={(event) => {
+          focusInBanner.current = event.target;
+        }}
+        onBlur={() => {
+          focusInBanner.current = null;
+        }}
         onContextMenu={(event) => {
           if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
           event.preventDefault();

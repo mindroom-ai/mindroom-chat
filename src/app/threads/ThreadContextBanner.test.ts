@@ -1086,8 +1086,50 @@ describe('ThreadContextBanner rendering', () => {
       });
       return menuProps.mock.calls.at(-1)![0] as { tagsAtTop?: boolean; onClose: () => void };
     };
-    const shortScreen = () =>
-      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('500px') }));
+    // A short screen (the short viewport query matches) while `short()` says so; `turn()` tells
+    // the banner's listeners that it changed.
+    const shortScreen = (short = () => true) => {
+      const listeners = new Set<() => void>();
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query.includes('500px') && short(),
+        addEventListener: (_: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_: string, listener: () => void) => listeners.delete(listener),
+      }));
+      return { turn: () => act(() => listeners.forEach((listener) => listener())), listeners };
+    };
+    // Resize observers whose callbacks `resizeAll()` runs, in one update.
+    const observeResizes = () => {
+      const resized: (() => void)[] = [];
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            resized.push(this.callback);
+          }
+
+          disconnect() {
+            resized.splice(resized.indexOf(this.callback), 1);
+          }
+        }
+      );
+      return () => act(() => resized.forEach((measure) => measure()));
+    };
+    // Focus moves to `element` in the banner: the page says so, and React's focus event reaches
+    // the banner.
+    const focusIn = (
+      renderer: ReturnType<typeof renderBanner>,
+      page: { activeElement: unknown },
+      element: unknown
+    ) => {
+      page.activeElement = element;
+      act(() => {
+        renderer.root
+          .findByProps({ 'data-thread-context-banner': 'true' })
+          .props.onFocus({ target: element });
+      });
+    };
     const menuOf = async (renderer: ReturnType<typeof renderBanner>) => {
       const more = renderer.root
         .findAllByType('button')
@@ -1258,52 +1300,116 @@ describe('ThreadContextBanner rendering', () => {
       wide.unmount();
     });
 
-    it('hands the focus to More when the control that had it leaves as the banner narrows', () => {
-      let width = 646;
-      const resized: (() => void)[] = [];
-      vi.stubGlobal(
-        'ResizeObserver',
-        class {
-          constructor(private readonly callback: () => void) {}
-
-          observe() {
-            resized.push(this.callback);
-          }
-
-          disconnect() {
-            resized.splice(resized.indexOf(this.callback), 1);
-          }
-        }
+    it('follows the short screen query at the same width', () => {
+      let short = false;
+      const screen = shortScreen(() => short);
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => 466)
       );
-      const pin = { isConnected: true, focus: vi.fn() };
-      const more = { focus: vi.fn(), disabled: false };
-      const nodes = (element: React.ReactElement) => {
+      expect(title(banner).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      // Turned sideways: one truncated row; the tags stay in More.
+      short = true;
+      screen.turn();
+      expect(rowClass(banner)).toBe('TitleRow');
+      expect(title(banner).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect(tagPills(banner)).toHaveLength(0);
+      short = false;
+      screen.turn();
+      expect(title(banner).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      banner.unmount();
+      expect(screen.listeners.size).toBe(0);
+    });
+
+    // A control of the banner's: connected until the banner drops it.
+    const control = () => ({ isConnected: true, focus: vi.fn(), disabled: false });
+    const nodesOf =
+      (pin: ReturnType<typeof control>, more: ReturnType<typeof control>) =>
+      (element: React.ReactElement) => {
         const props = element.props as Record<string, unknown>;
         if (props['aria-label'] === 'Pin thread') return pin;
         if (props['aria-haspopup'] === 'menu') return more;
         return null;
       };
-      const page = { documentElement: {}, activeElement: pin as unknown };
+
+    it('hands the focus to More when the control that had it leaves as the banner narrows', () => {
+      let width = 646;
+      const resizeAll = observeResizes();
+      const [pin, more] = [control(), control()];
+      const page = { documentElement: {}, activeElement: null as unknown };
       vi.stubGlobal('document', page);
       const banner = renderBanner(
         TITLE,
-        bannerOf(() => width, nodes)
+        bannerOf(() => width, nodesOf(pin, more))
       );
       expect(buttons(banner)).toContain('Pin thread');
       // Pin has the focus and leaves the row.
+      focusIn(banner, page, pin);
       width = 330;
       pin.isConnected = false;
-      act(() => resized.forEach((measure) => measure()));
+      resizeAll();
       expect(buttons(banner)).not.toContain('Pin thread');
       expect(more.focus).toHaveBeenCalledWith({ preventScroll: true });
 
       // Focus on a control that stays (More itself) stays where it is.
       more.focus.mockClear();
       width = 646;
-      act(() => resized.forEach((measure) => measure()));
-      page.activeElement = more;
+      resizeAll();
+      focusIn(banner, page, more);
       width = 330;
-      act(() => resized.forEach((measure) => measure()));
+      resizeAll();
+      expect(more.focus).not.toHaveBeenCalled();
+      banner.unmount();
+    });
+
+    it('moves the focus only in the banner that had it when two narrow at once', () => {
+      let width = 646;
+      const resizeAll = observeResizes();
+      const [firstPin, firstMore, secondPin, secondMore] = [
+        control(),
+        control(),
+        control(),
+        control(),
+      ];
+      const page = { documentElement: {}, activeElement: null as unknown };
+      vi.stubGlobal('document', page);
+      const first = renderBanner(
+        TITLE,
+        bannerOf(() => width, nodesOf(firstPin, firstMore))
+      );
+      const second = renderBanner(
+        TITLE,
+        bannerOf(() => width, nodesOf(secondPin, secondMore))
+      );
+      focusIn(first, page, firstPin);
+      // Page Zoom or a resize narrows both in one update; the first's Pin leaves with the focus.
+      width = 330;
+      firstPin.isConnected = false;
+      secondPin.isConnected = false;
+      resizeAll();
+      expect(buttons(first)).not.toContain('Pin thread');
+      expect(buttons(second)).not.toContain('Pin thread');
+      expect(firstMore.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(secondMore.focus).not.toHaveBeenCalled();
+      first.unmount();
+      second.unmount();
+    });
+
+    it('leaves the focus alone when it is outside the banner', () => {
+      let width = 646;
+      const resizeAll = observeResizes();
+      const [pin, more] = [control(), control()];
+      const outside = { isConnected: true };
+      const page = { documentElement: {}, activeElement: outside as unknown };
+      vi.stubGlobal('document', page);
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width, nodesOf(pin, more))
+      );
+      // A control elsewhere on the page with the focus goes in the same update.
+      width = 330;
+      outside.isConnected = false;
+      resizeAll();
       expect(more.focus).not.toHaveBeenCalled();
       banner.unmount();
     });

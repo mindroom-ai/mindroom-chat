@@ -28,17 +28,47 @@ const openRoute = (page: Page, url: string) =>
 // Thread chrome stacks the room header, the thread banner, the composer and
 // the receipt row. On a landscape phone that left about a third of the
 // viewport for messages; short touch screens now keep a single bar at the top.
+// `shortChrome`: the screen is short, so the room chrome keeps a single bar. `compactBanner`: the
+// thread banner is a phone's or narrow, so it leaves the tags to its menu.
 for (const viewport of [
-  { name: 'landscape phone', width: 667, height: 375, touch: true, compact: true },
-  { name: 'large landscape phone', width: 844, height: 390, touch: true, compact: true },
-  { name: 'portrait phone', width: 390, height: 844, touch: true, compact: false },
-  { name: 'short desktop window', width: 1280, height: 400, touch: false, compact: false },
+  {
+    name: 'landscape phone',
+    width: 667,
+    height: 375,
+    touch: true,
+    shortChrome: true,
+    compactBanner: true,
+  },
+  {
+    name: 'large landscape phone',
+    width: 844,
+    height: 390,
+    touch: true,
+    shortChrome: true,
+    compactBanner: true,
+  },
+  {
+    name: 'portrait phone',
+    width: 390,
+    height: 844,
+    touch: true,
+    shortChrome: false,
+    compactBanner: true,
+  },
+  {
+    name: 'short desktop window',
+    width: 1280,
+    height: 400,
+    touch: false,
+    shortChrome: false,
+    compactBanner: false,
+  },
 ]) {
   test.describe(viewport.name, () => {
     test.use({ hasTouch: viewport.touch, isMobile: viewport.touch });
 
     test(`${viewport.width}x${viewport.height} ${
-      viewport.compact ? 'compacts' : 'keeps'
+      viewport.shortChrome ? 'compacts' : 'keeps'
     } the room chrome`, async ({ page }, testInfo) => {
       test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -108,7 +138,7 @@ for (const viewport of [
         if (phone) await expect(topic, 'phones leave the topic out').toHaveCount(0);
         else await expect(topic).toBeAttached();
         await page.screenshot({ path: testInfo.outputPath('room.png') });
-        if (viewport.compact) {
+        if (viewport.shortChrome) {
           await expect(topic, 'short viewports drop the topic line').toBeHidden();
           expect((await roomHeader.boundingBox())!.height).toBeLessThanOrEqual(44);
         } else if (!phone) {
@@ -142,7 +172,7 @@ for (const viewport of [
           contentType: 'application/json',
         });
 
-        if (viewport.compact) {
+        if (viewport.shortChrome) {
           await expect(roomHeader).toBeAttached();
           await expect(roomHeader, 'the thread banner replaces the room header').toBeHidden();
           // Right below the app's top bar where a phone has one (667 wide), else at the top.
@@ -205,9 +235,10 @@ for (const viewport of [
           await expect(roomHeader).toBeVisible();
           await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
           await expect(banner.getByRole('button', { name: 'Resolve' })).toBeVisible();
+          // A compact banner leaves the tags to its menu.
           await expect(
             banner.getByText('fea', { exact: true }).filter({ visible: true })
-          ).toHaveCount(1);
+          ).toHaveCount(viewport.compactBanner ? 0 : 1);
           // No strip under the composer keeps room for the names any more.
           await expect(page.locator('[data-room-footer] [data-room-following]')).toHaveCount(0);
         }

@@ -12,14 +12,17 @@ export const FloatingCardsContext = createContext(false);
 export const useFloatingCards = (): boolean => useContext(FloatingCardsContext);
 
 const subscribeShortViewport = (onChange: () => void) => {
-  if (typeof window.matchMedia !== 'function') return () => undefined;
-  const query = window.matchMedia(shortViewport);
-  query.addEventListener('change', onChange);
-  return () => query.removeEventListener('change', onChange);
+  if (typeof matchMedia !== 'function') return () => undefined;
+  const query = matchMedia(shortViewport);
+  query.addEventListener?.('change', onChange);
+  return () => query.removeEventListener?.('change', onChange);
 };
 
-const isShortViewport = () =>
-  typeof window.matchMedia === 'function' && window.matchMedia(shortViewport).matches;
+const isShortViewport = () => typeof matchMedia === 'function' && matchMedia(shortViewport).matches;
+
+/** Whether the screen is short (a phone held sideways), following changes. */
+export const useShortViewport = (): boolean =>
+  useSyncExternalStore(subscribeShortViewport, isShortViewport, () => false);
 
 /**
  * Whether this screen floats the content as cards: wider than a phone, and not a phone held
@@ -27,6 +30,6 @@ const isShortViewport = () =>
  */
 export const useFloatingCardsLayout = (): boolean => {
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const short = useSyncExternalStore(subscribeShortViewport, isShortViewport, () => false);
+  const short = useShortViewport();
   return !mobile && !short;
 };
