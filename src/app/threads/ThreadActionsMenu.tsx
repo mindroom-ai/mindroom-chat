@@ -2,7 +2,6 @@ import React, {
   useContext,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -264,66 +263,17 @@ export function ThreadActionsMenu({
   }, [dialog, details]);
 
   const tagSectionRef = useRef<HTMLDivElement>(null);
-  // The tag whose focused ✕ was pressed, its place among the tags, and where the focus went once
-  // the tag was gone, until its save is done.
-  const removedFocusRef = useRef<{ tag: string; index: number; fallback?: HTMLElement }>();
   const writeTag = (write: () => Promise<void>) => {
     setTagWrite(true);
     void write().finally(() => setTagWrite(false));
   };
-  const removeTag = (tagName: string, index: number) => {
+  // A ✕ pressed with the focus goes as its tag does (at once, before the save is done): the focus
+  // waits on the tags section, from where Tab reaches the first ✕.
+  const removeTag = (tagName: string) => {
     const section = tagSectionRef.current;
-    const focused = section?.ownerDocument.activeElement;
-    if (
-      focused &&
-      section?.contains(focused) &&
-      focused.closest('.thread-tag-pill')?.getAttribute('title') === tagName
-    ) {
-      removedFocusRef.current = { tag: tagName, index };
-    }
+    if (section?.contains(section.ownerDocument.activeElement)) section.focus();
     writeTag(() => mutations.removeTag(rootId, tagName));
   };
-
-  // Once a tag removed with its focused ✕ is gone (shown at once, before its save is done), the
-  // focus goes to the next tag's ✕, else the previous one's, else the tag picker, else (the picker
-  // waits for the save) the menu's first row. A removal that fails brings the tag back, and its ✕
-  // the focus, unless the user has moved it on.
-  useLayoutEffect(() => {
-    const removed = removedFocusRef.current;
-    const section = tagSectionRef.current;
-    if (!removed || !section) return;
-    const focused = section.ownerDocument.activeElement;
-    if (tags.displayTags.includes(removed.tag)) {
-      if (removed.fallback && focused === removed.fallback) {
-        Array.from(section.querySelectorAll<HTMLElement>('.thread-tag-pill'))
-          .find((pill) => pill.getAttribute('title') === removed.tag)
-          ?.querySelector<HTMLElement>('.thread-tag-pill-remove')
-          ?.focus();
-        removed.fallback = undefined;
-      }
-      if (!tagsUpdating) removedFocusRef.current = undefined;
-      return;
-    }
-    if (removed.fallback) {
-      if (!tagsUpdating) removedFocusRef.current = undefined;
-      return;
-    }
-    if (focused && focused !== section.ownerDocument.body && !section.contains(focused)) {
-      // The focus has moved on in the meantime.
-      removedFocusRef.current = undefined;
-      return;
-    }
-    const removes = Array.from(section.querySelectorAll<HTMLElement>('.thread-tag-pill-remove'));
-    const picker = section.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
-    const target =
-      removes[removed.index] ??
-      removes[removed.index - 1] ??
-      (picker && !picker.disabled ? picker : null) ??
-      surfaceRef.current?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)');
-    target?.focus();
-    if (tagsUpdating && target) removed.fallback = target;
-    else removedFocusRef.current = undefined;
-  }, [tags.displayTags, tagsUpdating]);
 
   // The thread's tags, removable and with the tag picker for an editor; a save shows its failure
   // here. At the menu's top, the tags wrap onto rows set apart for their ✕es' touch areas, and a
@@ -336,9 +286,9 @@ export function ThreadActionsMenu({
         alignItems="Center"
         style={inMenu ? { columnGap: '0.5rem', rowGap: '0.75rem' } : undefined}
       >
-        {tags.displayTags.map((tagName, index) => {
+        {tags.displayTags.map((tagName) => {
           let onRemove: (() => void) | undefined;
-          if (inMenu && tagsEditable) onRemove = () => removeTag(tagName, index);
+          if (inMenu && tagsEditable) onRemove = () => removeTag(tagName);
           else if (tagsEditable && !tagsUpdating) {
             onRemove = () => void mutations.removeTag(rootId, tagName);
           }
@@ -738,6 +688,8 @@ export function ThreadActionsMenu({
                 <div
                   ref={tagSectionRef}
                   role="group"
+                  tabIndex={-1}
+                  className={css.ThreadMenuTags}
                   aria-label={t('thread.stats.tags')}
                   data-thread-menu-tags=""
                 >

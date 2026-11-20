@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu } from './ThreadActionsMenu';
 
 // A phone's thread menu holds the tags at its top. A tag write there does not hold the menu open,
-// and removing the focused tag hands the focus on within the menu.
+// and removing a tag with its focused ✕ leaves the focus on the tags section.
 
 vi.mock('./ThreadContextBanner.css', () => ({
   TagPickerInput: 'input',
@@ -148,6 +148,8 @@ describe('ThreadActionsMenu tags at its top', () => {
   it('closes on Escape while a tag removal is still being saved', async () => {
     removeFocused('uploads');
     expect(state.updating).toBe(true);
+    // Escape comes from the tags section, which holds the focus while the save runs.
+    expect(document.activeElement).toBe(tagSection());
     act(() => {
       document.activeElement!.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
@@ -166,76 +168,50 @@ describe('ThreadActionsMenu tags at its top', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('keeps the focus on the ✕ while the removal is saved, then moves it to the next tag', async () => {
-    removeFocused('uploads');
-    expect(document.activeElement).toBe(removeButton('uploads'));
-    await settle(['flaky', 'networking']);
-    expect(document.activeElement).toBe(removeButton('networking'));
-  });
+  const tagSection = () => host.querySelector<HTMLElement>('[data-thread-menu-tags]');
 
-  it('moves the focus to the next tag as soon as the tag goes, while the save is still pending', async () => {
+  it('moves the focus to the tags section when its focused ✕ is pressed, and keeps it there', async () => {
     removeFocused('uploads');
+    expect(document.activeElement).toBe(tagSection());
+    expect(tagSection()!.getAttribute('role')).toBe('group');
+    expect(tagSection()!.tabIndex).toBe(-1);
     // The client shows the pending removal at once.
     state.displayTags = ['flaky', 'networking'];
     renderMenu();
-    expect(document.activeElement).toBe(removeButton('networking'));
+    expect(document.activeElement).toBe(tagSection());
+    // The other ✕es stay while the save runs, and wait for it.
     expect(removeButton('networking')!.getAttribute('aria-disabled')).toBe('true');
     await settle(['flaky', 'networking']);
-    expect(document.activeElement).toBe(removeButton('networking'));
+    expect(document.activeElement).toBe(tagSection());
   });
 
-  it('moves the focus to the previous tag after removing the last one', async () => {
-    removeFocused('networking');
-    await settle(['flaky', 'uploads']);
-    expect(document.activeElement).toBe(removeButton('uploads'));
-  });
-
-  it('moves the focus to the tag picker after removing the only tag', async () => {
+  it('keeps the focus on the tags section after removing the only tag', async () => {
     state.displayTags = ['flaky'];
     removeFocused('flaky');
-    await settle([]);
-    expect(document.activeElement).toBe(
-      host.querySelector('[data-thread-menu-tags] button[aria-haspopup="menu"]')
-    );
-  });
-
-  it('keeps the focus in the menu while the only tag is gone and its save is still pending', async () => {
-    state.displayTags = ['flaky'];
-    removeFocused('flaky');
-    // The client shows the pending removal at once; the picker waits for the save.
     state.displayTags = [];
     renderMenu();
-    const focused = document.activeElement!;
-    expect(focused).not.toBe(document.body);
-    expect(host.querySelector('[role="menu"]')!.contains(focused)).toBe(true);
-    expect(focused.getAttribute('role')).toMatch(/^menuitem/);
+    expect(document.activeElement).toBe(tagSection());
     await settle([]);
-    expect(host.querySelector('[role="menu"]')!.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(tagSection());
   });
 
-  it('gives the focus back to the ✕ when a removal shown at once fails', async () => {
+  it('keeps the focus on the tags section when the removal fails', async () => {
     removeFocused('uploads');
     state.displayTags = ['flaky', 'networking'];
     renderMenu();
-    expect(document.activeElement).toBe(removeButton('networking'));
     // The save fails: the tag comes back.
     await settle(['flaky', 'uploads', 'networking']);
-    expect(document.activeElement).toBe(removeButton('uploads'));
+    expect(document.activeElement).toBe(tagSection());
   });
 
-  it('leaves the focus where the user moved it when a removal shown at once fails', async () => {
-    removeFocused('uploads');
-    state.displayTags = ['flaky', 'networking'];
+  it('leaves a focus outside the tags section where it is', async () => {
     renderMenu();
     const copy = host.querySelector<HTMLButtonElement>('[data-thread-action="copy"]')!;
     act(() => copy.focus());
-    await settle(['flaky', 'uploads', 'networking']);
+    act(() => removeButton('uploads')!.click());
+    renderMenu();
     expect(document.activeElement).toBe(copy);
-  });
-
-  it('leaves the focus on the ✕ when the removal fails', async () => {
-    removeFocused('uploads');
-    await settle(['flaky', 'uploads', 'networking']);
-    expect(document.activeElement).toBe(removeButton('uploads'));
+    await settle(['flaky', 'networking']);
+    expect(document.activeElement).toBe(copy);
   });
 });

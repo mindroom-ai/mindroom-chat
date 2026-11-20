@@ -936,8 +936,11 @@ const expectTagTargets = async (section: Locator) => {
   expect(found.overlaps).toEqual([]);
 };
 
-/** Holds the page's state writes (a tag's save) until the returned function lets them go. */
-const holdStateWrites = async (page: Page) => {
+/**
+ * Holds the page's state writes (a tag's save) until the returned function lets them go, or with
+ * `fail` refuses them then.
+ */
+const holdStateWrites = async (page: Page, { fail = false } = {}) => {
   let release: () => void = () => undefined;
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -946,6 +949,9 @@ const holdStateWrites = async (page: Page) => {
   const handler = async (route: Route) => {
     if (route.request().method() !== 'PUT') return route.fallback();
     await held;
+    if (fail) {
+      return route.fulfill({ status: 403, json: { errcode: 'M_FORBIDDEN', error: 'Not allowed' } });
+    }
     return route.continue();
   };
   await page.route(matcher, handler);
@@ -953,6 +959,21 @@ const holdStateWrites = async (page: Page) => {
     release();
     await page.unroute(matcher, handler);
   };
+};
+
+/** Saves the page as `<name>-light.png` and `<name>-dark.png` where PHONE_BANNER_SHOTS says. */
+const shootSchemes = async (page: Page, name: string) => {
+  if (!SHOTS) return;
+  mkdirSync(SHOTS, { recursive: true });
+  for (const colorScheme of ['light', 'dark'] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.emulateMedia({ colorScheme });
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(400);
+    // eslint-disable-next-line no-await-in-loop
+    await page.screenshot({ path: path.join(SHOTS, `${name}-${colorScheme}.png`) });
+  }
+  await page.emulateMedia({ colorScheme: null });
 };
 
 test("a phone's thread menu starts with the tags, and a tag added there shows in it", async ({
@@ -965,47 +986,61 @@ test("a phone's thread menu starts with the tags, and a tag added there shows in
   try {
     await openThread(page, world, 'busy');
     const menu = await openMenuWithTags(page, THREADS.busy.tags);
-    if (SHOTS) {
-      mkdirSync(SHOTS, { recursive: true });
-      for (const colorScheme of ['light', 'dark'] as const) {
-        // eslint-disable-next-line no-await-in-loop
-        await page.emulateMedia({ colorScheme });
-        // eslint-disable-next-line no-await-in-loop
-        await page.waitForTimeout(400);
-        // eslint-disable-next-line no-await-in-loop
-        await page.screenshot({ path: path.join(SHOTS, `phone-menu-tags-${colorScheme}.png`) });
-      }
-      await page.emulateMedia({ colorScheme: null });
-    }
+    await shootSchemes(page, 'phone-menu-tags');
     const section = menu.locator('[data-thread-menu-tags]');
     const addTag = section.getByRole('button', { name: 'Add tag' });
     const field = page.getByRole('textbox', { name: 'Filter or create tag' });
     const remove = (tag: string) => section.getByRole('button', { name: `Remove ${tag} tag` });
     await expectTagTargets(section);
 
-    // From the keyboard: the tag goes at once while its save is held, and the next tag's ✕ takes
-    // the focus and keeps it once the save is done.
-    let release = await holdStateWrites(page);
+    // From the keyboard: the tag goes at once while its save is held, and the focus waits on the
+    // tags section, while the other ✕es stay. A save that fails brings the tag back and leaves the
+    // focus there.
+    let release = await holdStateWrites(page, { fail: true });
     await remove('flaky').focus();
     await page.keyboard.press('Enter');
     await expect(section.getByText('flaky', { exact: true })).toHaveCount(0);
-    await expect(remove('networking')).toBeFocused();
+    await expect(section).toBeFocused();
     await expect(remove('networking')).toHaveAttribute('aria-disabled', 'true');
+    await shootSchemes(page, 'phone-menu-tags-focused');
+    await release();
+    await expect(section.getByRole('alert')).toBeVisible({ timeout: 30_000 });
+    await expect(section.getByText('flaky', { exact: true })).toBeVisible();
+    await expect(section).toBeFocused();
+
+    // Tab goes on to the first ✕. A save that lands leaves the focus on the section too.
+    await page.keyboard.press('Tab');
+    await expect(remove('flaky')).toBeFocused();
+    release = await holdStateWrites(page);
+    await page.keyboard.press('Enter');
+    await expect(section.getByText('flaky', { exact: true })).toHaveCount(0);
+    await expect(section).toBeFocused();
     await release();
     await expect(remove('networking')).not.toHaveAttribute('aria-disabled', 'true', {
       timeout: 30_000,
     });
+    await expect(section).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(remove('networking')).toBeFocused();
 
-    // A tap a few px above the ✕ removes the tag; while its save is held, Escape closes the menu,
-    // and the save still lands.
+    // A tap a few px above the ✕ removes the tag; the focus stays in the menu (on the section, or
+    // where it was where a tap focuses no button). While its save is held, Escape closes the menu,
+    // gives the focus back to More, and the save still lands.
+    const focusInMenu = () =>
+      menu.evaluate(
+        (element) =>
+          document.activeElement !== document.body && element.contains(document.activeElement)
+      );
+    expect(await focusInMenu()).toBe(true);
     release = await holdStateWrites(page);
     const glyph = (await remove('release-blocker').boundingBox())!;
     await page.touchscreen.tap(glyph.x + glyph.width / 2, glyph.y - 4);
     await expect(section.getByText('release-blocker', { exact: true })).toHaveCount(0);
     await expect(remove('networking')).toHaveAttribute('aria-disabled', 'true');
+    expect(await focusInMenu()).toBe(true);
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
+    await expect(banner(page).locator('button[aria-haspopup="menu"]').last()).toBeFocused();
     await release();
     await openMenuWithTags(page, ['networking', 'uploads']);
     await expect(section.getByText('release-blocker', { exact: true })).toHaveCount(0, {
