@@ -10,7 +10,7 @@ import {
   PopOutContainerProvider,
   Text,
 } from 'folds';
-import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
+import { FocusScope, mergeProps, useDialog, useModalOverlay } from 'react-aria';
 import { PageScroll } from './page/PageScroll';
 import { Header, Modal } from './glass/GlassPrimitives';
 import * as css from './BottomSheet.css';
@@ -52,28 +52,25 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [menus, setMenus] = useState<HTMLDivElement | null>(null);
-  const { overlayProps } = useOverlay(
-    {
-      isOpen: true,
-      isDismissable: true,
-      onClose: requestClose,
-      shouldCloseOnInteractOutside: (element) => !menus?.contains(element),
-      isKeyboardDismissDisabled: true,
-    },
+  // Modal to assistive tech too: what is outside the sheet (and its menus) is hidden and inert.
+  const { modalProps } = useModalOverlay(
+    { isDismissable: true },
+    // It reads only these two of an overlay's state.
+    { isOpen: true, close: requestClose } as Parameters<typeof useModalOverlay>[1],
     dialogRef
   );
-  // A menu the content opened takes Escape first and closes on its own (its focus trap).
-  const closeOnEscape = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || menus?.hasChildNodes()) return;
-    event.stopPropagation();
-    requestClose();
-  };
+  // A menu the content opened takes Escape itself: its focus trap closes just the menu.
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) =>
+    menus?.hasChildNodes() || modalProps.onKeyDown?.(event);
   const { dialogProps } = useDialog({ 'aria-label': title }, dialogRef);
-  usePreventScroll();
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
-      <div className={css.SheetContainer}>
+      <div
+        ref={dialogRef}
+        className={css.SheetContainer}
+        {...mergeProps(dialogProps, { ...modalProps, onKeyDown })}
+      >
         <FocusScope contain restoreFocus autoFocus>
           <Modal
             size="500"
@@ -82,9 +79,7 @@ export function BottomSheet({
             style={fitContent ? { ...SHEET_STYLE, height: 'auto' } : SHEET_STYLE}
           >
             <div
-              ref={dialogRef}
               style={{ display: 'flex', flex: '1 1 auto', flexDirection: 'column', minHeight: 0 }}
-              {...mergeProps(overlayProps, dialogProps, { onKeyDown: closeOnEscape })}
             >
               <PageScroll
                 header={

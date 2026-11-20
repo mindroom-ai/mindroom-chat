@@ -47,14 +47,18 @@ const getMutualRooms = (
   };
 };
 
-/** The joined rooms `userId` is also joined to, kept up to date with the room list. */
-export const useMutualRooms = (userId: string): Shared => {
+/**
+ * The joined rooms `userId` is also joined to, kept up to date with the room list and, given
+ * their latest `membership` event in a room, with their membership there.
+ */
+export const useMutualRooms = (userId: string, membership?: unknown): Shared => {
   const client = useMatrixClient();
   const roomIds = useAtomValue(allRoomsAtom);
   const directIds = useAtomValue(mDirectAtom);
   return useMemo(
     () => getMutualRooms(client, roomIds, directIds, userId),
-    [client, roomIds, directIds, userId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `membership` only says when to count again.
+    [client, roomIds, directIds, userId, membership]
   );
 };
 

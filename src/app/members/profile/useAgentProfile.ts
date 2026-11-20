@@ -32,6 +32,8 @@ export const useAgentProfile = (room: Room, agentUserId: string): AgentProfileSt
   // The answer belongs to the server, room and agent asked; any other shows none of it.
   const key = joined && !pending && apiUrl ? `${apiUrl}${path}` : undefined;
   const [answer, setAnswer] = useState<{ key: string; profile?: AgentProfile }>();
+  // Once the key changes, even back to what was asked, only a fresh answer shows.
+  if (answer && answer.key !== key) setAnswer(undefined);
 
   useEffect(() => {
     if (!key || !apiUrl) return undefined;

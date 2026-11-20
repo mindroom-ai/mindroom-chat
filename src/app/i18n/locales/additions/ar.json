@@ -326,12 +326,12 @@
       "worksIn": "يعمل في",
       "loading": "جارٍ تحميل الأدوات المُعدّة",
       "availability": "قد يختلف التوفر حسب الطلب والأذونات.",
-      "moreRooms_zero": "+⁨{{count}}⁩",
-      "moreRooms_one": "+⁨{{count}}⁩",
-      "moreRooms_two": "+⁨{{count}}⁩",
-      "moreRooms_few": "+⁨{{count}}⁩",
-      "moreRooms_many": "+⁨{{count}}⁩",
-      "moreRooms_other": "+⁨{{count}}⁩",
+      "moreRooms_zero": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_one": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_two": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_few": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_many": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_other": "⁨+⁨{{count}}⁩⁩",
       "groups": {
         "development": "الشيفرة والملفات",
         "research": "الويب",
@@ -610,7 +610,7 @@
         "listening": "يستمع",
         "muted": "أنت مكتوم الصوت",
         "waiting": "في انتظار انضمام الآخرين",
-        "more": "+⁨{{count}}⁩",
+        "more": "⁨+⁨{{count}}⁩⁩",
         "moreLabel": "⁨{{count}}⁩ آخرون"
       },
       "window": {

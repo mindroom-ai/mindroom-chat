@@ -13,7 +13,7 @@ import { Menu } from '../../ui/glass/GlassPrimitives';
 import { BottomSheet } from '../../ui/BottomSheet';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import { UserRoomProfile, useProfileName } from './UserRoomProfile';
+import { ProfileCard, useProfileName } from './UserRoomProfile';
 
 // Escape (which goes no further than the card) and clicks outside end the trap and the card.
 const ENDS_ON = { escapeDeactivates: stopPropagation, clickOutsideDeactivates: true };
@@ -34,10 +34,11 @@ function OpenProfile({
   const { t } = useTranslation();
   const me = useMatrixClient().getUserId() ?? undefined;
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  const name = useProfileName(room, open.userId);
+  const read = useProfileName(room, open.userId);
+  const { name } = read;
   const agent = open.userId !== me && isMindroomAgentUserIdForViewer(open.userId, me);
   const card = (titled: boolean) => (
-    <UserRoomProfile room={room} userId={open.userId} onDone={close} titled={titled} />
+    <ProfileCard room={room} userId={open.userId} onDone={close} titled={titled} {...read} />
   );
 
   if (phone && agent) {

@@ -100,14 +100,19 @@ function BlockControl({ userId }: { userId: string }) {
   );
 }
 
-/** The name a card shows for `userId`: as the room knows them, else their profile's, else their ID's. */
-export const useProfileName = (room: Room, userId: string): string => {
+/**
+ * A card's one read of `userId`'s profile and membership, and the name it shows: as the room
+ * knows them, else their profile's, else their ID's.
+ */
+export const useProfileName = (room: Room, userId: string) => {
   const profile = useUserProfile(userId);
+  // The card follows their membership, so a kick or ban from it shows at once, in Works in too.
+  const membership = useStateEvent(room, StateEvent.RoomMember, userId);
   const user = useMatrixClient().getUser(userId);
   // A member event without a name (a ban, the leave that lifts it) names the person by their ID;
   // their profile still has the name.
   // The ID shows under the name, so the name goes without it, and without what disguises it.
-  return (
+  const name =
     withoutNameDisguises(
       getMemberRawDisplayName(room, userId) ||
         profile.displayName ||
@@ -115,9 +120,23 @@ export const useProfileName = (room: Room, userId: string): string => {
         ''
     ) ||
     getMxIdLocalPart(userId) ||
-    userId
-  );
+    userId;
+  return { profile, name, membership };
 };
+
+type CardProps = {
+  room: Room;
+  userId: string;
+  /** The card has done its job, such as opening the direct room. */
+  onDone(): void;
+  /** What holds the card (a sheet) shows the name already. */
+  titled?: boolean;
+};
+
+/** The card, reading the person's profile itself. */
+export function UserRoomProfile(props: CardProps) {
+  return <ProfileCard {...props} {...useProfileName(props.room, props.userId)} />;
+}
 
 /**
  * Who a person is in a room: their avatar, name and user ID, an agent's role, their power tag (a menu for those
@@ -126,19 +145,15 @@ export const useProfileName = (room: Room, userId: string): string => {
  * the card falls back to their server profile. An agent's card adds its model, configured tools
  * and named rooms, and keeps the ID, chips, moderation and blocking under "More".
  */
-export function UserRoomProfile({
+export function ProfileCard({
   room,
   userId,
   onDone,
   titled = false,
-}: {
-  room: Room;
-  userId: string;
-  /** The card has done its job, such as opening the direct room. */
-  onDone(): void;
-  /** What holds the card (a sheet) shows the name already. */
-  titled?: boolean;
-}) {
+  profile,
+  name,
+  membership,
+}: CardProps & ReturnType<typeof useProfileName>) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const navigate = useNavigate();
@@ -149,13 +164,9 @@ export function UserRoomProfile({
   const levels = usePowerLevels(room);
   const may = useRoomPermissions(creators, levels);
   const getPowerTag = useGetMemberPowerTag(room, creators, levels);
-  const profile = useUserProfile(userId);
-  const name = useProfileName(room, userId);
   const roomRole = useAgentRoles(room).get(userId);
-  const shared = useMutualRooms(userId);
   const me = client.getSafeUserId();
-  // The card follows both memberships, so a kick or ban from it shows at once.
-  useStateEvent(room, StateEvent.RoomMember, userId);
+  const shared = useMutualRooms(userId, membership);
   useStateEvent(room, StateEvent.RoomMember, me);
   const isMe = userId === me;
   const agent = !isMe && isMindroomAgentUserIdForViewer(userId, me);

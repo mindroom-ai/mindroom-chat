@@ -115,6 +115,29 @@ describe('useAgentProfile', () => {
     expect(result.current.status).toBe('loading');
   });
 
+  it('shows a profile again only once a fresh ask for the same key answers', async () => {
+    send.mockImplementation(() => Promise.resolve(new Response(JSON.stringify(PROFILE))));
+    const { result, rerender } = open();
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    const asked = send.mock.calls.length;
+    let refuse = () => {};
+    send.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          refuse = () => resolve(new Response('{}', { status: 403 }));
+        })
+    );
+    membership.agent = 'leave';
+    rerender();
+    membership.agent = 'join';
+    rerender();
+    expect(result.current.status).toBe('loading');
+    await waitFor(() => expect(send.mock.calls.length).toBeGreaterThan(asked));
+    expect(result.current.status).toBe('loading');
+    await act(async () => refuse());
+    expect(result.current.status).toBe('none');
+  });
+
   it('asks nothing while Chat may ask no server', () => {
     server.apiUrl = undefined;
     expect(open().result.current.status).toBe('none');
