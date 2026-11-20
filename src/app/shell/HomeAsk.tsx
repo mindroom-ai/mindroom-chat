@@ -2,12 +2,11 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Avatar, Icons, Text } from 'folds';
 import { useAtomValue } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
-import { type Room, RoomEvent, type RoomEventHandlerMap } from 'matrix-js-sdk';
-import type { Editor } from 'slate';
+import { RoomEvent, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { ComposerMenuButton } from '../composer/ComposerMenuButton';
-import { RoomInput, type RoomInputProps } from '../composer/RoomInput';
+import { RoomInput } from '../composer/RoomInput';
 import * as composerCss from '../composer/RoomInput.css';
 import { getHomeAskDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
 import { useEditor } from '../editor/Editor';
@@ -51,66 +50,6 @@ const agentBadge = (agent: HomeAgent) => (
   <Badge id={agent.userId} name={agent.name} mxc={agent.avatarMxc} />
 );
 
-type ComposerProps = {
-  room: Room;
-  editor: Editor;
-  ask: NonNullable<RoomInputProps['ask']>;
-  /** The field opened by the reader's own action, a chat just started: it takes the focus. */
-  focusOnMount: boolean;
-};
-
-/**
- * The room's composer, text only, whose message opens once the server has it, under the ID the
- * server gave: in a room whose agents answer in its main timeline the room opens at it, elsewhere
- * its new thread.
- */
-function HomeAskComposer({ room, editor, ask, focusOnMount }: ComposerProps) {
-  const mx = useMatrixClient();
-  const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
-  // No drop zone: a file dropped on Home is not attached.
-  const noDrop = useRef<HTMLElement>(null);
-  const sentRef = useRef<string>();
-  useEffect(() => {
-    if (focusOnMount) ReactEditor.focus(editor as ReactEditor);
-  }, [editor, focusOnMount]);
-  const open = useCallback(
-    (roomId: string, eventId: string) => {
-      if (getRoomThreadMode(mx.getRoom(roomId)) === 'room') navigateRoom(roomId, eventId);
-      else navigateRoomThreadDirect(roomId, eventId);
-    },
-    [mx, navigateRoom, navigateRoomThreadDirect]
-  );
-  useEffect(() => {
-    const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, echoRoom, oldId) => {
-      const confirmed = event.getId();
-      if (oldId && oldId === sentRef.current && confirmed && !isLocalEchoEventId(confirmed)) {
-        open(echoRoom.roomId, confirmed);
-      }
-    };
-    mx.on(RoomEvent.LocalEchoUpdated, onEcho);
-    return () => {
-      mx.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
-    };
-  }, [mx, open]);
-  const onSent = (eventId: string) => {
-    if (isLocalEchoEventId(eventId)) sentRef.current = eventId;
-    else open(room.roomId, eventId);
-    return false;
-  };
-  return (
-    <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
-      <RoomInput
-        editor={editor}
-        room={room}
-        roomId={room.roomId}
-        fileDropContainerRef={noDrop}
-        onRoomMessageSent={onSent}
-        ask={ask}
-      />
-    </ConversationViewContext.Provider>
-  );
-}
-
 /** An agent no longer among the account's, as a choice made before it went names it. */
 const goneAgent = (userId: string): HomeAgent => ({
   userId,
@@ -153,6 +92,10 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   if (typed && !choice) setChoice({ agentId: agent.userId, roomId });
   const selection = useRef({ agentId: agent.userId, roomId });
   selection.current = { agentId: agent.userId, roomId };
+  const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
+  // No drop zone: a file dropped on Home is not attached.
+  const noDrop = useRef<HTMLElement>(null);
+  const sentRef = useRef<string>();
 
   // Names read in their own direction in a sentence; an accessible name needs no isolate.
   const name = isolateInSentence(agent.name);
@@ -168,6 +111,34 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
   const waiting = !!direct?.waiting && roomId === direct.roomId;
   const usable = valid && !!room && canAskIn(room, agent.userId);
   const starting = starts[agent.userId];
+  const composerShown = !!room && !waiting;
+  useEffect(() => {
+    if (!focusOnMount || !composerShown) return;
+    ReactEditor.focus(editor as ReactEditor);
+    setFocusOnMount(false);
+  }, [composerShown, editor, focusOnMount]);
+
+  // A question opens once the server has it, under the ID it gave: the room at it where agents
+  // answer in the room's main timeline, elsewhere its new thread.
+  const open = useCallback(
+    (openRoomId: string, eventId: string) => {
+      if (getRoomThreadMode(mx.getRoom(openRoomId)) === 'room') navigateRoom(openRoomId, eventId);
+      else navigateRoomThreadDirect(openRoomId, eventId);
+    },
+    [mx, navigateRoom, navigateRoomThreadDirect]
+  );
+  useEffect(() => {
+    const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, echoRoom, oldId) => {
+      const confirmed = event.getId();
+      if (oldId && oldId === sentRef.current && confirmed && !isLocalEchoEventId(confirmed)) {
+        open(echoRoom.roomId, confirmed);
+      }
+    };
+    mx.on(RoomEvent.LocalEchoUpdated, onEcho);
+    return () => {
+      mx.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
+    };
+  }, [mx, open]);
   // A chat being started, or started but not yet in the client.
   const busy = starting === 'busy' || (roomId !== null && !room);
 
@@ -285,21 +256,29 @@ function HomeAskField({ agents, first }: { agents: HomeAgent[]; first: HomeAgent
     </Text>
   );
 
-  if (room && !waiting) {
+  if (room && composerShown) {
     return (
       <div className={css.Ask}>
-        <HomeAskComposer
-          room={room}
-          editor={editor}
-          ask={{
-            agentUserId: agent.userId,
-            placeholder,
-            pickers,
-            // Read again at the press: the room or the agent may have changed since.
-            canSend: () => valid && canAskIn(room, agent.userId),
-          }}
-          focusOnMount={focusOnMount}
-        />
+        <ConversationViewContext.Provider value={HOME_ASK_VIEW}>
+          <RoomInput
+            editor={editor}
+            room={room}
+            roomId={room.roomId}
+            fileDropContainerRef={noDrop}
+            onRoomMessageSent={(eventId) => {
+              if (isLocalEchoEventId(eventId)) sentRef.current = eventId;
+              else open(room.roomId, eventId);
+              return false;
+            }}
+            ask={{
+              agentUserId: agent.userId,
+              placeholder,
+              pickers,
+              // Read again at the press: the room or the agent may have changed since.
+              canSend: () => valid && canAskIn(room, agent.userId),
+            }}
+          />
+        </ConversationViewContext.Provider>
         {!usable && chooseAgain}
       </div>
     );
