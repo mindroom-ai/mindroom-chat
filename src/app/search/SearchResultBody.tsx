@@ -133,8 +133,8 @@ export function SearchResultBody({
     [event]
   );
   const preview = useMemo(
-    () => getSearchResultPreviewText(event, highlights, t),
-    [event, highlights, t]
+    () => getSearchResultPreviewText(event, highlights, t, content),
+    [event, highlights, t, content]
   );
   const matrixEvent = useMemo(() => new MatrixEvent(event), [event]);
   // A mention opens its profile card or room here, as it does in the timeline.

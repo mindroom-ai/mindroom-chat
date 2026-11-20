@@ -72,7 +72,7 @@ const getPlainSnippet = (event: IEventWithRoomId, highlights: string[], t: TFunc
       : '';
   return leadToFirstMatch(
     getSearchResultBodySnippet(
-      plain || getSearchResultPreviewText(event, highlights, t),
+      plain || getSearchResultPreviewText(event, highlights, t, content),
       highlights,
       SNIPPET_CHARS
     ),

@@ -143,13 +143,14 @@ export const getSearchResultLightweightCustomBody = (
 export const getSearchResultPreviewText = (
   event: IEventWithRoomId,
   highlights: string[] = [],
-  t?: TFunction
+  t?: TFunction,
+  // The hit's effective content, from a caller that has read it already.
+  content = getSearchResultEffectiveContent(event)
 ): string => {
   if (event.unsigned?.redacted_because) {
     return t?.('mindroomUi.message-search.searchResultPreview.redacted') ?? 'Message was redacted.';
   }
 
-  const content = getSearchResultEffectiveContent(event);
   const body = typeof content?.body === 'string' ? content.body : undefined;
   const previewBody =
     typeof body === 'string'

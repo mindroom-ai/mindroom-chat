@@ -199,6 +199,16 @@ describe('a search hit of a reply with tool calls', () => {
     expect([body, html]).toEqual([built.body, built.formatted_body]);
   });
 
+  it('previews the content it is given, without reading the hit again', () => {
+    const content = getSearchResultEffectiveContent(hit(AGENT, held));
+    expect(
+      getSearchResultPreviewText(hit(AGENT, held), [], undefined, {
+        ...content,
+        body: 'Read once.',
+      })
+    ).toBe('Read once.');
+  });
+
   it("puts no calls in anyone else's message", () => {
     expect(getSearchResultPreviewText(hit('@someone:example.org', held))).toBe(
       'The walrus plan. Done.'
