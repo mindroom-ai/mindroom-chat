@@ -891,7 +891,10 @@
         "nameChose": "Выбор: {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Субагенты"
+        "subagents": "Субагенты",
+        "writtenToCache": "Записано в кеш",
+        "notCached": "Без кеша",
+        "conversation": "Разговор"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}",

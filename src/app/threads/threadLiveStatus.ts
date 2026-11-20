@@ -17,7 +17,7 @@ export type ThreadLiveStatus = {
   resolved?: boolean;
   /** The room has live jobs its agents do not list, so the thread can have more than `jobs`. */
   jobsUnlisted?: boolean;
-  /** What its loaded replies cost; undefined when none is priced. */
+  /** What its loaded replies cost and used; undefined when none is priced or used tokens. */
   cost?: ThreadConversationCost;
 };
 

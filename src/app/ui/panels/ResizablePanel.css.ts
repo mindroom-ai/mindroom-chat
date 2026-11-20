@@ -31,6 +31,12 @@ globalStyle(`${Panel} > :first-child > *`, {
   width: 'var(--mr-panel-content-width, 100%)',
 });
 
+// Let go now, the drag fills the content's place with the panel: its edge lights up in the accent.
+globalStyle(`${Panel}[data-expand-preview] > :first-child`, {
+  outline: `2px solid ${color.Primary.Main}`,
+  outlineOffset: -2,
+});
+
 export const Handle = style({
   position: 'absolute',
   top: 0,
