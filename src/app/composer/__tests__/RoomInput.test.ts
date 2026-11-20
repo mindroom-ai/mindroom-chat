@@ -5,12 +5,14 @@ import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
+import { resolveVoiceComposer } from '../voiceHoldShortcut';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
   getRoomInputDraftKey,
   IReplyDraft,
+  openVoiceRecorderAtom,
   type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
   roomIdToMsgDraftAtomFamily,
@@ -642,6 +644,7 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
         React.useEffect(() => () => void voiceRecorderState.byView.delete(view), [view]);
         React.useImperativeHandle(ref, () => ({
           send: () => voiceRecorderState.send(view),
+          phase: () => 'recording',
         }));
         return React.createElement('div');
       }
@@ -2786,6 +2789,51 @@ describe('RoomInput', () => {
     expect(micButton.props['aria-label']).toContain(ROOM_ID);
 
     consoleError.mockRestore();
+    renderer.unmount();
+  });
+
+  it('gives the voice key a target that reads the composer as it is now', async () => {
+    const { renderer } = await renderRoomInput(createStore());
+    const target = resolveVoiceComposer();
+    expect(target?.phase()).toBe('none');
+    await act(async () => {
+      expect(target?.start()).toBe(true);
+    });
+    // The target pinned before the recorder opened sees it open, and sends through Enter's path.
+    expect(target?.active()).toBe(true);
+    expect(target?.phase()).toBe('recording');
+    expect(target?.hasContent()).toBe(false);
+    await act(async () => {
+      target?.send();
+    });
+    expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+    expect(target?.start()).toBe(false);
+    expect(resolveVoiceComposer()).toBeUndefined();
+  });
+
+  it('refuses a voice key start once another recorder opened, a failed recording waits or a voice message sends', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+    const target = resolveVoiceComposer();
+    // Changes after the press pinned the composer, before its delayed start runs.
+    store.set(openVoiceRecorderAtom, Symbol('another composer'));
+    expect(target?.start()).toBe(false);
+    store.set(openVoiceRecorderAtom, undefined);
+    store.set(voiceAutoSendPendingAtom, true);
+    expect(target?.start()).toBe(false);
+    store.set(voiceAutoSendPendingAtom, false);
+    store.set(pendingVoiceSendDraftAtom, {
+      file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+      duration: 1000,
+      context: {
+        ownerSessionId: '@me:example.org',
+        roomId: OTHER_ROOM_ID,
+        room: { name: 'Other' },
+      },
+    } as never);
+    expect(target?.start()).toBe(false);
+    expect(voiceRecorderState.props).toBeUndefined();
     renderer.unmount();
   });
 

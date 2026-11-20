@@ -51,7 +51,7 @@ import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
-import type { VoiceTargetPhase } from '../shortcuts/voiceHold';
+import type { VoiceHoldTarget } from '../shortcuts/voiceHold';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -79,21 +79,13 @@ type UseRoomInputVoiceOptions = {
   onRoomMessageSent?: (eventId: string) => boolean | void;
 };
 
-/** What the voice key (right ⌥) reads and does in this composer. */
-export type VoiceKeyAccess = {
-  /** A recorder is open here, or this composer offers a failed recording. */
-  active: () => boolean;
-  phase: () => VoiceTargetPhase;
-  /** Opens the recorder as the mic button does; false when the button would be disabled. */
-  start: () => boolean;
-};
-
 type VoiceFeature = {
   blocksSubmit: () => boolean;
   submitIfActive: (textContent?: IContent) => Promise<boolean>;
   microphone: React.ReactNode;
   renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
-  voiceKey: VoiceKeyAccess;
+  /** What the voice key (right ⌥) reads and does here. */
+  voiceKey: Pick<VoiceHoldTarget, 'active' | 'phase' | 'start'>;
 };
 
 type PendingVoiceComposerBundle = {
@@ -578,26 +570,35 @@ export const useRoomInputVoice = ({
           });
   }
   // The mic button's guards, which the voice key shares: one recording at a time, none while a
-  // voice message sends or another composer offers a failed one.
+  // voice message sends or a failed one waits. Read from the store, as the key acts after a delay.
   const startBlocked =
     voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft;
   const startRecording = (): boolean => {
-    if (startBlocked || store.get(voiceAutoSendPendingAtom)) return false;
+    const draft = store.get(pendingVoiceSendDraftAtom);
+    if (
+      voiceRecorderOpen ||
+      store.get(voiceAutoSendPendingAtom) ||
+      draft?.context.ownerSessionId === currentSessionId
+    )
+      return false;
     pauseAllMediaElements();
     setVoiceRecorderOpen(true);
     return true;
   };
   const recorderShown = voiceRecorderOpen || ownsPendingVoiceDraft;
-  const voiceKey: VoiceKeyAccess = {
+  const voiceKey: VoiceFeature['voiceKey'] = {
     active: () => recorderShown,
     phase: () => {
-      if (!recorderShown) return 'none';
-      const phase = voiceRecorderRef.current?.phase();
-      return phase === 'requesting' || phase === 'recording' || phase === 'paused'
+      const phase = recorderShown ? voiceRecorderRef.current?.phase() : 'none';
+      return phase === 'none' ||
+        phase === 'requesting' ||
+        phase === 'recording' ||
+        phase === 'paused'
         ? phase
         : 'other';
     },
-    start: startRecording,
+    // Unlike the button, the key never takes over a recorder another composer opened meanwhile.
+    start: () => store.get(openVoiceRecorderAtom) === undefined && startRecording(),
   };
 
   const microphone = (
