@@ -152,7 +152,11 @@ export function ResizablePanel({
   const collapseOnRelease =
     !full && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
   const expandOnRelease =
-    !full && !!expand && previewWidth !== undefined && previewWidth > maxWidth + EXPAND_PAST;
+    !full &&
+    !!expand &&
+    phase !== 'exit' &&
+    previewWidth !== undefined &&
+    previewWidth > maxWidth + EXPAND_PAST;
   const resizeDirection = () => {
     const inlineDirection =
       panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
@@ -246,9 +250,10 @@ export function ResizablePanel({
     event.currentTarget.setPointerCapture(event.pointerId);
     // Caught mid-motion, the drag starts from where the panel is on screen.
     const panel = panelRef.current;
+    // Never past its widest, as a swap from a wider panel can be, or a release with no move fills.
     const startWidth =
       panel && motionRef.current?.playState === 'running'
-        ? panel.getBoundingClientRect().width
+        ? Math.min(panel.getBoundingClientRect().width, maxWidth)
         : width;
     motionRef.current?.cancel();
     dragRef.current = {
@@ -285,7 +290,7 @@ export function ResizablePanel({
       return;
     }
     setPreviewWidth(undefined);
-    if (commit && expand && drag.width > maxWidth + EXPAND_PAST) {
+    if (commit && expand && phase !== 'exit' && drag.width > maxWidth + EXPAND_PAST) {
       // The stored width stays, for the panel to come back to it beside the content.
       expand();
       return;
