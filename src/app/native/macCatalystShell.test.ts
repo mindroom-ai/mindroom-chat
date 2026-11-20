@@ -47,6 +47,20 @@ describe('Mac Catalyst shell', () => {
     expect(capacitorConfigSource).toMatch(/preferredContentMode: 'mobile'/);
   });
 
+  it('uses overlay scroll bars on Mac, set before the app starts', () => {
+    // With a mouse attached, Catalyst draws a scroll bar on every web scroller and ignores the
+    // page's `scrollbar-width: none`; overlay scroll bars hide as the page asks. AppKit reads the
+    // setting while the app starts, so the app delegate's init is already too late.
+    const main = appDelegateSource.match(/static func main\(\) \{[\s\S]*?\n {4}\}/)?.[0];
+    expect(main, 'AppDelegate must define its own main()').toBeDefined();
+    expect(appDelegateSource).toMatch(/^@main$/m);
+    expect(appDelegateSource).not.toMatch(/@UIApplicationMain/);
+    expect(main).toMatch(
+      /#if targetEnvironment\(macCatalyst\)[\s\S]*\["AppleShowScrollBars"\] = "WhenScrolling"[\s\S]*setVolatileDomain\([\s\S]*UserDefaults\.argumentDomain\)[\s\S]*#endif[\s\S]*UIApplicationMain\(/
+    );
+    expect(outsideMacOnly(appDelegateSource)).not.toMatch(/AppleShowScrollBars/);
+  });
+
   it('keeps the Mac window large enough for the app', () => {
     expect(sceneSource).toMatch(
       /#if targetEnvironment\(macCatalyst\)\s*windowScene\.sizeRestrictions\?\.minimumSize = CGSize\(width: 400, height: 500\)\s*#endif/
