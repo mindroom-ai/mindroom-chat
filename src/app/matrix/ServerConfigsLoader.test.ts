@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { isValidAuthMetadata } from 'matrix-js-sdk/lib/oauth/discover';
 import { ServerConfigsLoader, type ServerConfigs } from './ServerConfigsLoader';
 
-// The SDK's check of auth metadata (`validateAuthMetadata` of `lib/oidc/validate` until 43.0).
+// The SDK's check of auth metadata for a login, which the loader leaves alone: the settings read
+// only where the provider manages the account.
 vi.mock('matrix-js-sdk/lib/oauth/discover', async (importOriginal) => {
   const actual = await importOriginal<typeof import('matrix-js-sdk/lib/oauth/discover')>();
 
@@ -24,7 +25,7 @@ describe('ServerConfigsLoader', () => {
   it('loads configs from an explicit Matrix client without requiring context', async () => {
     const getCapabilities = vi.fn().mockResolvedValue({ 'm.change_password': { enabled: true } });
     const getMediaConfig = vi.fn().mockResolvedValue({ 'm.upload.size': 1024 });
-    const getAuthMetadata = vi.fn().mockRejectedValue(new Error('auth metadata unavailable'));
+    const request = vi.fn().mockRejectedValue(new Error('auth metadata unavailable'));
     let latestConfigs: ServerConfigs | undefined;
 
     // Inside act, the mount effects run before the test goes on. After a bare create() React's
@@ -38,7 +39,7 @@ describe('ServerConfigsLoader', () => {
             mx: {
               getCapabilities,
               getMediaConfig,
-              getAuthMetadata,
+              http: { request },
             } as never,
           } as never,
           ((configs: ServerConfigs) => {
@@ -53,7 +54,7 @@ describe('ServerConfigsLoader', () => {
 
     expect(getCapabilities).toHaveBeenCalledTimes(1);
     expect(getMediaConfig).toHaveBeenCalledTimes(1);
-    expect(getAuthMetadata).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
     expect(latestConfigs).toEqual({
       capabilities: { 'm.change_password': { enabled: true } },
       mediaConfig: { 'm.upload.size': 1024 },
@@ -66,7 +67,7 @@ describe('ServerConfigsLoader', () => {
   it('does not validate or log auth metadata when fetching it fails', async () => {
     const getCapabilities = vi.fn().mockResolvedValue({ 'm.change_password': { enabled: true } });
     const getMediaConfig = vi.fn().mockResolvedValue({ 'm.upload.size': 1024 });
-    const getAuthMetadata = vi.fn().mockRejectedValue(new Error('auth metadata unavailable'));
+    const request = vi.fn().mockRejectedValue(new Error('auth metadata unavailable'));
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     let latestConfigs: ServerConfigs | undefined;
 
@@ -81,7 +82,7 @@ describe('ServerConfigsLoader', () => {
             mx: {
               getCapabilities,
               getMediaConfig,
-              getAuthMetadata,
+              http: { request },
             } as never,
           } as never,
           ((configs: ServerConfigs) => {
@@ -96,7 +97,7 @@ describe('ServerConfigsLoader', () => {
 
     expect(getCapabilities).toHaveBeenCalledTimes(1);
     expect(getMediaConfig).toHaveBeenCalledTimes(1);
-    expect(getAuthMetadata).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
     expect(vi.mocked(isValidAuthMetadata)).not.toHaveBeenCalled();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     expect(latestConfigs).toEqual({
@@ -108,17 +109,21 @@ describe('ServerConfigsLoader', () => {
     renderer.unmount();
   });
 
-  describe('a homeserver from before Matrix 1.15, which lacks the stable auth metadata route', () => {
+  describe('the auth metadata of a homeserver that delegates auth', () => {
+    const STABLE = '/_matrix/client/v1/auth_metadata';
     const MSC2965 = '/_matrix/client/unstable/org.matrix.msc2965';
     const ISSUER = 'https://auth.example.org/';
-    const metadata = {
+    const management = {
       issuer: ISSUER,
       account_management_uri: 'https://auth.example.org/account',
+    };
+    // What a provider from before Matrix 1.15 states: no `registration_endpoint` and no
+    // `response_modes_supported`, which the SDK's check for a login asks for since 43.0.
+    const metadata = {
+      ...management,
       authorization_endpoint: 'https://auth.example.org/authorize',
       token_endpoint: 'https://auth.example.org/oauth2/token',
       revocation_endpoint: 'https://auth.example.org/oauth2/revoke',
-      registration_endpoint: 'https://auth.example.org/oauth2/registration',
-      response_modes_supported: ['query', 'fragment'],
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
@@ -165,34 +170,55 @@ describe('ServerConfigsLoader', () => {
       return { authMetadata: latestConfigs?.authMetadata, requested };
     };
 
-    it('reads the metadata from the MSC2965 route', async () => {
-      const { authMetadata } = await authMetadataOf({ [`${MSC2965}/auth_metadata`]: metadata });
+    it('reads where the account is managed from the stable route', async () => {
+      const { authMetadata, requested } = await authMetadataOf({ [STABLE]: metadata });
 
-      expect(authMetadata).toEqual(metadata);
+      expect(authMetadata).toEqual(management);
+      expect(requested.filter((route) => route.includes('auth'))).toEqual([STABLE]);
+      expect(vi.mocked(isValidAuthMetadata)).not.toHaveBeenCalled();
     });
 
-    it('reads the metadata from the issuer the oldest MSC2965 route names', async () => {
+    it('reads it from the MSC2965 route of a homeserver without the stable one', async () => {
+      const { authMetadata } = await authMetadataOf({ [`${MSC2965}/auth_metadata`]: metadata });
+
+      expect(authMetadata).toEqual(management);
+    });
+
+    it('reads it from the issuer the oldest MSC2965 route names', async () => {
       const { authMetadata, requested } = await authMetadataOf({
         [`${MSC2965}/auth_issuer`]: { issuer: ISSUER },
         [`${ISSUER}.well-known/openid-configuration`]: metadata,
       });
 
-      expect(authMetadata).toEqual(metadata);
+      expect(authMetadata).toEqual(management);
       expect(requested.filter((route) => route.includes('auth'))).toEqual([
-        '/_matrix/client/v1/auth_metadata',
+        STABLE,
         `${MSC2965}/auth_metadata`,
         `${MSC2965}/auth_issuer`,
         `${ISSUER}.well-known/openid-configuration`,
       ]);
     });
 
-    it('takes no metadata that lacks what the provider links are built from', async () => {
-      const { authMetadata } = await authMetadataOf({
-        [`${MSC2965}/auth_issuer`]: { issuer: ISSUER },
-        [`${ISSUER}.well-known/openid-configuration`]: { account_management_uri: 'javascript:1' },
-      });
+    it('falls back to the issuer of a provider that names no management page', async () => {
+      const { authMetadata } = await authMetadataOf({ [STABLE]: { issuer: ISSUER } });
 
-      expect(authMetadata).toBeUndefined();
+      expect(authMetadata).toEqual({ issuer: ISSUER });
+    });
+
+    it.each([
+      [
+        'a management page that is no web address',
+        { ...metadata, account_management_uri: 'javascript:alert(1)' },
+      ],
+      ['a management page that is no text', { ...metadata, account_management_uri: 7 }],
+      ['an issuer that is no web address', { ...metadata, issuer: 'javascript:alert(1)' }],
+      ['no issuer', { account_management_uri: management.account_management_uri }],
+    ])('takes no metadata with %s, from either route', async (_what, invalid) => {
+      const stable = await authMetadataOf({ [STABLE]: invalid });
+      const legacy = await authMetadataOf({ [`${MSC2965}/auth_metadata`]: invalid });
+
+      expect(stable.authMetadata).toBeUndefined();
+      expect(legacy.authMetadata).toBeUndefined();
     });
 
     it('reports no metadata for a homeserver without delegated auth, having asked each route once', async () => {
@@ -200,7 +226,7 @@ describe('ServerConfigsLoader', () => {
 
       expect(authMetadata).toBeUndefined();
       expect(requested.filter((route) => route.includes('auth'))).toEqual([
-        '/_matrix/client/v1/auth_metadata',
+        STABLE,
         `${MSC2965}/auth_metadata`,
         `${MSC2965}/auth_issuer`,
       ]);
