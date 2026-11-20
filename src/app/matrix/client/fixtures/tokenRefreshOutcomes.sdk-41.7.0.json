@@ -1,0 +1,61 @@
+{
+  "sdkVersion": "41.7.0",
+  "outcomes": {
+    "six requests rejected at once share one refresh": {
+      "result": "ok",
+      "sends": ["A", "A", "A", "A", "A", "A", "S1", "S1", "S1", "S1", "S1", "S1"],
+      "refreshSpends": ["R1"],
+      "logouts": 0,
+      "backoffMs": 0
+    },
+    "another tab rotates before the rejection, and again while the retry is on its way": {
+      "result": "ok",
+      "sends": ["A", "B", "C"],
+      "refreshSpends": [],
+      "logouts": 0,
+      "backoffMs": 4000
+    },
+    "a refresh that keeps the refresh token, then another tab stores a newer access token": {
+      "result": "ok",
+      "sends": ["A", "B", "D"],
+      "refreshSpends": ["R", "R"],
+      "logouts": 0,
+      "backoffMs": 4000
+    },
+    "the stored sessions cannot be read once, while another tab has rotated": {
+      "result": "ok",
+      "sends": ["A", "B", "C"],
+      "refreshSpends": ["R2"],
+      "logouts": 0,
+      "backoffMs": 4000
+    },
+    "the server has ended the session": {
+      "result": "M_UNKNOWN_TOKEN: M_UNKNOWN_TOKEN",
+      "sends": ["A"],
+      "refreshSpends": ["R1"],
+      "logouts": 1,
+      "backoffMs": 0
+    },
+    "six requests made just before the token expires share one refresh": {
+      "result": "ok, then ok",
+      "sends": ["A", "S1", "S2", "S2", "S2", "S2", "S2", "S2"],
+      "refreshSpends": ["R1", "SR1"],
+      "logouts": 0,
+      "backoffMs": 0
+    },
+    "known flaw: every refresh succeeds and every token it returns is rejected": {
+      "result": "M_UNKNOWN: M_UNKNOWN",
+      "sends": ["A", "S1", "S2", "S3", "S4", "S5"],
+      "refreshSpends": ["R1", "SR1", "SR2", "SR3", "SR4"],
+      "logouts": 0,
+      "backoffMs": 60000
+    },
+    "known flaw: another tab rotates tokens that had five minutes left": {
+      "result": "M_UNKNOWN_TOKEN: M_UNKNOWN_TOKEN",
+      "sends": ["A", "B"],
+      "refreshSpends": ["R1"],
+      "logouts": 1,
+      "backoffMs": 0
+    }
+  }
+}

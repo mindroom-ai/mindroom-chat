@@ -356,6 +356,43 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     expect(sync.toDeviceEvents).toEqual([{ ping: 3 }]);
   });
 
+  it('keeps skipping the retries after a response without to-device messages', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const sync = await startClient({
+      // Every response that brings to-device messages fails.
+      failures: Number.POSITIVE_INFINITY,
+      responses: {
+        ...replyAfterInitial,
+        // The crypto layer takes these key counts: they bring no message to store.
+        'after-reply': {
+          next_batch: 'second',
+          device_one_time_keys_count: { signed_curve25519: 12 },
+          rooms: joinedRoom([message('$second', 'Second')]),
+        },
+        second: {
+          next_batch: 'third',
+          to_device: { events: [toDevice(2)] },
+          rooms: joinedRoom([message('$third', 'Third')]),
+        },
+      },
+    });
+
+    await retryUntilLastWait(sync);
+    await vi.advanceTimersByTimeAsync(32_000);
+    // No timer is moved from here: the next failing response is applied at once, not after
+    // another minute of retries.
+    await settle(() => sync.eventIds().includes('$third'));
+
+    expect(sync.sinceTokens.slice(0, 11)).toEqual([
+      null,
+      ...Array(7).fill('initial'),
+      'after-reply',
+      'second',
+      'third',
+    ]);
+    expect(sync.toDeviceEvents).toEqual([]);
+  });
+
   it('retries again after the crypto layer has recovered', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const sync = await startClient({
