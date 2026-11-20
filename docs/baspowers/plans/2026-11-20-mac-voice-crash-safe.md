@@ -27,6 +27,22 @@ File: `ios/App/App/MindRoomVoiceRecorderPlugin.swift`, its contract test
 - Fallback (linear PCM CAF, AAC at stop) only if the kill test in Task 3 shows the fragmented file
   unreadable.
 
+After review (round 1), which the code and its contract test follow:
+
+- Ownership is an exclusive `flock` on `<id>.lock`, held from the start until the page cancels or
+  keeps the recording (or goes); the kernel drops it when the process dies. `orphans()` lists the
+  canonical-UUID regular files whose lock it can take, so a second window or process never lists a
+  live recording. `cancel` deletes a held recording after its file is written (a pending stop
+  rejects `CANCELED`), an orphan only under its lock (else `BUSY`), and rejects a failed delete.
+- New `keep({id})`: lets go of a recording without deleting it.
+- Writes: a bounded queue (64 buffers) for what the writer is not ready for; a failed or overflowing
+  append, an engine configuration change or an interruption ends the recording by itself and keeps
+  what was written; `level` then rejects. `stop` resolves only a file finished `.completed`.
+- Times: the exact sum of each buffer's length at its own rate (`CMTimeAdd`).
+- JS: the file is canceled only after its bytes went to an attached `dataavailable` listener;
+  every other way out (failed stop or read, no listener left, a recording that ended by itself)
+  keeps it.
+
 ## Task 2: The web side lists and forgets them
 
 File: `src/app/native/nativeVoiceRecorder.ts`, its test.

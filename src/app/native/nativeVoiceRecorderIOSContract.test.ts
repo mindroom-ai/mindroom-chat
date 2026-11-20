@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+// These read the Swift source; the behaviour itself was checked on a Mac (the plan, Task 3).
 const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
 const pluginSource = read('ios/App/App/MindRoomVoiceRecorderPlugin.swift');
 const bridgeSource = read('ios/App/App/MindRoomBridgeViewController.swift');
@@ -12,16 +13,24 @@ const body = (method: string) =>
   pluginSource.match(
     new RegExp(`@objc func ${method}\\(_ call: CAPPluginCall\\) \\{\n[\\s\\S]*?\n {4}\\}\n`)
   )?.[0] ?? '';
+/** The body of a function of the plugin or of `Recording`. */
+const func = (signature: string) =>
+  pluginSource.match(
+    new RegExp(
+      `\n {4}(?:@objc )?(?:private )?(?:static )?func ${signature} \\{\n[\\s\\S]*?\n {4}\\}\n`
+    )
+  )?.[0] ?? '';
 
 describe('MindRoomVoiceRecorderPlugin native contract', () => {
   it('is the plugin the web side registers, with its methods', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomVoiceRecorder"');
     expect(wrapperSource).toContain("('MindRoomVoiceRecorder')");
-    ['start', 'level', 'pause', 'resume', 'stop', 'cancel', 'orphans'].forEach((method) => {
+    ['start', 'level', 'pause', 'resume', 'stop', 'cancel', 'keep', 'orphans'].forEach((method) => {
       expect(pluginSource).toContain(
         `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
       );
       expect(pluginSource).toContain(`@objc func ${method}(_ call: CAPPluginCall)`);
+      expect(wrapperSource).toContain(`  ${method}(`);
     });
     // The linear level is the RMS of the newest buffer the engine tapped.
     expect(body('level')).toContain('call.resolve(["level": live.level])');
@@ -31,25 +40,20 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     // A listener notified from the main queue would race the bridge queue's listener changes.
     expect(pluginSource).not.toMatch(/notifyListeners\(|Timer/);
     expect(pluginSource).toContain('call.resolve(["id": id])');
-    expect(pluginSource).toContain('call.resolve(["path": ');
   });
 
-  it('keeps each recording in a file of its own ID, a UUID, and acts only on the ID it is given', () => {
-    expect(pluginSource).toContain('"\\(id).m4a"');
-    expect(pluginSource).toContain('UUID(uuidString: id)');
+  it('keeps each recording in a file of its own UUID, one name per recording, and acts only on the ID it is given', () => {
+    expect(func('file\\(of id: String\\) -> URL\\?')).toContain(
+      'UUID(uuidString: id).map { folder.appendingPathComponent("\\($0.uuidString).m4a") }'
+    );
     ['level', 'pause', 'resume', 'stop'].forEach((method) =>
       expect(body(method), method).toMatch(
         /^.*\n.*\n\s*guard let live = self\.live, live\.id == call\.getString\("id"\) else \{\s*return call\.reject\("No such recording", "NOT_RECORDING"\)/
       )
     );
-    expect(body('resume')).toMatch(/guard live\.resume\(\) else \{\s*endLive\(\)/);
-  });
-
-  it('cancels the recording of its ID and no other', () => {
-    expect(body('cancel')).toMatch(
-      /let id = call\.getString\("id"\) \?\? ""\s*delivered\.remove\(id\)\s*if live\?\.id == id \{\s*endLive \{ try\? FileManager\.default\.removeItem\(at: \$0\.url\) \}\s*\} else if let url = Self\.file\(of: id\) \{\s*try\? FileManager\.default\.removeItem\(at: url\)\s*\}\s*call\.resolve\(\)/
+    expect(body('resume')).toMatch(
+      /guard live\.resume\(\) else \{\s*endIfLive\(live\)\s*live\.finish \{ _ in \}/
     );
-    expect(body('cancel')).not.toMatch(/closed/);
   });
 
   it('writes a fragment each second, so a killed app leaves a file that plays up to it', () => {
@@ -60,13 +64,52 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource).toContain(
       'writer.movieFragmentInterval = CMTime(seconds: 1, preferredTimescale: 600)'
     );
-    // Each buffer's time is the frames written before it, so a pause leaves no gap.
-    expect(pluginSource).toMatch(/presentationTimeStamp: CMTime\(value: frames, timescale: rate\)/);
-    expect(pluginSource).toMatch(
-      /input\.append\(sample\) else \{ return \}\s*frames \+= AVAudioFramePosition\(buffer\.frameLength\)/
+    // Each buffer's time is the length written before it, summed exactly at each buffer's own
+    // rate, so a pause leaves no gap and a rate never rescales what came before.
+    expect(pluginSource).toContain('presentationTimeStamp: written');
+    expect(pluginSource).toContain(
+      'written = CMTimeAdd(written, CMTime(value: CMTimeValue(buffer.frameLength), timescale: rate))'
     );
     expect(pluginSource).toMatch(
-      /func pause\(\) \{\s*engine\.pause\(\)\s*\}\s*func resume\(\) -> Bool \{\s*\(try\? engine\.start\(\)\) != nil\s*\}/
+      /func pause\(\) \{\s*engine\.pause\(\)\s*\}\s*func resume\(\) -> Bool \{\s*!finishing && \(try\? engine\.start\(\)\) != nil\s*\}/
+    );
+    // An input without a rate or a channel records nothing.
+    expect(pluginSource).toMatch(
+      /let format = node\.outputFormat\(forBus: 0\)\s*guard format\.sampleRate > 0, format\.channelCount > 0 else \{ throw/
+    );
+  });
+
+  it('holds what the writer is not ready for, and ends the recording on a write it cannot do', () => {
+    expect(func('append\\(_ buffer: AVAudioPCMBuffer\\)')).toMatch(
+      /\) == noErr else \{ return fail\(\) \}[\s\S]*pending\.append\(sample\)\s*\/\/.*\s*guard drain\(\), pending\.count <= 64 else \{ return fail\(\) \}/
+    );
+    expect(func('drain\\(\\) -> Bool')).toMatch(
+      /while let sample = pending\.first, input\.isReadyForMoreMediaData \{\s*guard input\.append\(sample\) else \{ return false \}\s*pending\.removeFirst\(\)\s*\}\s*return writer\.status == \.writing/
+    );
+    expect(func('fail\\(\\)')).toMatch(
+      /ended = true\s*DispatchQueue\.main\.async \{ \[self\] in interrupt\(\) \}/
+    );
+    // A stop resolves only a file finished whole; another stays held for the page to keep.
+    const finish = func('finish\\(then done: @escaping \\(Bool\\) -> Void\\)');
+    expect(finish).toMatch(/engine\.inputNode\.removeTap\(onBus: 0\)\s*engine\.stop\(\)/);
+    expect(finish).toMatch(
+      /guard pending\.isEmpty, writer\.status == \.writing else \{ return settle\(false\) \}\s*input\.markAsFinished\(\)\s*writer\.finishWriting \{ \[self\] in settle\(writer\.status == \.completed\) \}/
+    );
+    expect(body('stop')).toMatch(
+      /guard written else \{ return call\.reject\("Could not finish the recording", "STOP_FAILED"\) \}\s*call\.resolve\(\["path": live\.url\.path\]\)/
+    );
+  });
+
+  it('ends a recording whose device changed or was interrupted, keeping what it wrote', () => {
+    expect(pluginSource).toMatch(
+      /\(Notification\.Name\.AVAudioEngineConfigurationChange, engine as Any\),\s*\(AVAudioSession\.interruptionNotification, AVAudioSession\.sharedInstance\(\) as Any\)/
+    );
+    expect(func('interrupt\\(\\)')).toMatch(
+      /guard !finishing else \{ return \}\s*finish \{ _ in \}\s*onInterrupt\?\(\)/
+    );
+    // The page learns it from its next call (level), and keeps the file.
+    expect(body('start')).toMatch(
+      /recording\.onInterrupt = \{ \[weak self, weak recording\] in\s*if let self, let recording \{ self\.endIfLive\(recording\) \}/
     );
   });
 
@@ -74,37 +117,56 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource).toMatch(
       /FileManager\.default\.urls\(for: \.applicationSupportDirectory, in: \.userDomainMask\)\[0\]\s*\.appendingPathComponent\("MindRoomVoiceRecorder", isDirectory: true\)/
     );
-    expect(pluginSource).not.toMatch(/temporaryDirectory|clearFolder|deleteRecording/);
-    expect(pluginSource.match(/removeItem\(/g)).toHaveLength(3);
-    expect(body('start').match(/removeItem\(/g)).toHaveLength(1);
-    expect(body('cancel').match(/removeItem\(/g)).toHaveLength(2);
+    expect(pluginSource).not.toMatch(/temporaryDirectory|clearFolder|removeItem|deleteRecording/);
+    // Regular files only, never what a link points at.
+    expect(func('delete\\(_ id: String\\) -> Bool')).toMatch(
+      /guard lstat\(item\.path, &info\) == 0 else \{ return errno == ENOENT \}\s*return info\.st_mode & S_IFMT == S_IFREG && unlink\(item\.path\) == 0/
+    );
+    expect(pluginSource.match(/Self\.delete\(id\)/g)).toHaveLength(3);
+    expect(body('start').match(/Self\.delete\(id\)/g)).toHaveLength(1);
+    expect(body('cancel').match(/Self\.delete\(id\)/g)).toHaveLength(2);
   });
 
-  it('lists as orphans the files no recorder writes and the loaded page was not handed', () => {
+  it('deletes a held recording only after its file is written, and settles a pending stop as canceled', () => {
+    expect(body('cancel')).toMatch(
+      /if let recording = held\.removeValue\(forKey: id\) \{\s*endIfLive\(recording\)\s*recording\.finish \{ _ in\s*let deleted = Self\.delete\(id\)\s*recording\.unlock\(\)\s*settle\(deleted\)/
+    );
+    // An orphan only while no window or process holds it.
+    expect(body('cancel')).toMatch(
+      /\} else if let lock = Self\.lock\(id\) \{\s*let deleted = Self\.delete\(id\)\s*Darwin\.close\(lock\)\s*settle\(deleted\)\s*\} else \{\s*call\.reject\("The recording is held elsewhere", "BUSY"\)/
+    );
+    expect(body('cancel')).toContain(
+      'deleted ? call.resolve() : call.reject("Could not delete the recording", "DELETE_FAILED")'
+    );
+    // The stop's waiter runs before the cancel's: the cancel already let go of it.
+    expect(body('stop')).toContain(
+      'guard held[live.id] === live else { return call.reject("The recording was canceled", "CANCELED") }'
+    );
+    expect(func('finish\\(then done: @escaping \\(Bool\\) -> Void\\)')).toMatch(
+      /if let finished \{ return done\(finished\) \}\s*waiters\.append\(done\)\s*guard !finishing else \{ return \}/
+    );
+  });
+
+  it('lists as orphans the files whose lock no window or process holds', () => {
+    // The kernel drops a lock when its process ends.
+    expect(func('lock\\(_ id: String\\) -> Int32\\?')).toMatch(
+      /open\(url\.path, O_RDWR \| O_CREAT \| O_NOFOLLOW \| O_CLOEXEC, 0o600\)[\s\S]*flock\(fd, LOCK_EX \| LOCK_NB\) == 0/
+    );
+    expect(body('start')).toMatch(
+      /lock = Self\.lock\(id\)\s*guard let lock else \{ throw CocoaError\(\.fileWriteUnknown\) \}[\s\S]*?let recording = try Recording\(id: id, url: url, lock: lock\)\s*self\.live = recording\s*self\.held\[id\] = recording/
+    );
     expect(body('orphans')).toMatch(
-      /guard Self\.file\(of: id\)\?\.lastPathComponent == url\.lastPathComponent,\s*!writing\.contains\(id\), !delivered\.contains\(id\) else \{ return nil \}/
+      /guard Self\.file\(of: id\)\?\.lastPathComponent == url\.lastPathComponent, Self\.isRegularFile\(url\),\s*let lock = Self\.lock\(id\) else \{ return nil \}\s*Darwin\.close\(lock\)/
     );
     expect(body('orphans')).toContain(
       'return ["id": id, "path": url.path, "startedAt": Int(startedAt.timeIntervalSince1970 * 1_000)]'
     );
     expect(body('orphans')).toContain('call.resolve(["recordings": recordings])');
-    // A file is written from its start until its writer finished.
-    expect(body('start')).toMatch(
-      /self\.live = try Recording\(id: id, url: url\)\s*self\.writing\.insert\(id\)/
+    // Its lock goes once the file is written.
+    expect(func('keep\\(_ recording: Recording\\)')).toMatch(
+      /endIfLive\(recording\)\s*held\[recording\.id\] = nil\s*recording\.finish \{ _ in recording\.unlock\(\) \}/
     );
-    expect(pluginSource).toMatch(
-      /live\.finish \{\s*DispatchQueue\.main\.async \{ \[self\] in\s*writing\.remove\(live\.id\)/
-    );
-    // The page holds a stopped file until it cancels it, or until it goes.
-    expect(body('stop')).toMatch(
-      /delivered\.insert\(live\.id\)\s*endLive \{ call\.resolve\(\["path": \$0\.url\.path\]\) \}/
-    );
-    expect(pluginSource.match(/\bdelivered\.\w+\(/g)).toEqual([
-      'delivered.insert(',
-      'delivered.remove(',
-      'delivered.contains(',
-      'delivered.removeAll(',
-    ]);
+    expect(body('keep')).toContain('held[call.getString("id") ?? ""].map(keep)');
   });
 
   it('records only for the newest start of the page that is still loaded', () => {
@@ -124,9 +186,11 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
       /DispatchQueue\.main\.async \{\s*\/\/.*\s*guard !self\.closed, let webView = self\.bridge\?\.webView, !webView\.isLoading else \{\s*return call\.reject\("The page is gone", "START_FAILED"\)\s*\}\s*let generation = self\.generation\s*AVCaptureDevice\.requestAccess\(for: \.audio\) \{ granted in\s*DispatchQueue\.main\.async \{/
     );
     expect(before).not.toMatch(/live|setActive|Recording/);
-    expect(after).toMatch(/self\.endLive\(\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /);
+    expect(after).toMatch(
+      /self\.live\.map\(self\.keep\)[\s\S]*?setActive\(true\)[\s\S]*?self\.live = /
+    );
     expect(pluginSource).toMatch(
-      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*delivered\.removeAll\(\)\s*endLive\(\)\s*\}/
+      /@objc private func pageWillLoad\(\) \{\s*generation \+= 1\s*Array\(held\.values\)\.forEach\(keep\)\s*\}/
     );
     expect(pluginSource.match(/\bgeneration \+?= /g)).toEqual([
       'generation = ',
@@ -147,9 +211,9 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     expect(pluginSource.match(/\bclosed = \w+/g)).toEqual(['closed = false', 'closed = true']);
   });
 
-  it('leaves no file and no active audio session behind a start that fails', () => {
+  it('leaves no file, lock or active audio session behind a start that fails', () => {
     expect(body('start')).toMatch(
-      /\} catch \{\s*try\? FileManager\.default\.removeItem\(at: url\)\s*try\? session\.setActive\(false[\s\S]*?"START_FAILED"/
+      /\} catch \{\s*_ = Self\.delete\(id\)\s*if let lock \{ Darwin\.close\(lock\) \}\s*try\? session\.setActive\(false[\s\S]*?"START_FAILED"/
     );
     // A recording that fails to start lets go of the microphone and of its writer.
     expect(pluginSource).toMatch(
@@ -189,13 +253,9 @@ describe('MindRoomVoiceRecorderPlugin native contract', () => {
     ).toHaveLength(2);
   });
 
-  it('releases the microphone when its page goes away and keeps the recording for the next page', () => {
-    // Every end of a live recording stops the engine first, then finishes the file.
-    expect(pluginSource).toMatch(
-      /func finish\(then done: @escaping \(\) -> Void\) \{\s*engine\.inputNode\.removeTap\(onBus: 0\)\s*engine\.stop\(\)/
-    );
-    expect(pluginSource).toMatch(
-      /private func endLive\(then done: @escaping \(Recording\) -> Void = \{ _ in \}\) \{\s*guard let live else \{ return \}\s*self\.live = nil\s*live\.finish \{/
+  it('releases the microphone when its window closes and keeps the recording for the next page', () => {
+    expect(func('endIfLive\\(_ recording: Recording\\)')).toMatch(
+      /guard live === recording else \{ return \}\s*live = nil\s*try\? AVAudioSession\.sharedInstance\(\)\.setActive\(false/
     );
     expect(sceneSource).toMatch(
       /plugin\(withName: "MindRoomVoiceRecorder"\) as\? MindRoomVoiceRecorderPlugin\)\?\.close\(\)[\s\S]*QuickCapture\.stopPage\(of: window\)/
