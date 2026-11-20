@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabella scorrevole",
-    "scrollHint": "Scorri orizzontalmente"
+    "scrollHint": "Scorri orizzontalmente",
+    "readByRow": "Leggi per riga",
+    "showTable": "Mostra tabella"
   },
   "messageCodeBlock": {
     "actions": "Azioni del blocco di codice",

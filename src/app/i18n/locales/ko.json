@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "스크롤 가능한 표",
-    "scrollHint": "가로로 스크롤"
+    "scrollHint": "가로로 스크롤",
+    "readByRow": "행별로 읽기",
+    "showTable": "표 보기"
   },
   "messageCodeBlock": {
     "actions": "코드 블록 작업",

@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "جدول قابل للتمرير",
-    "scrollHint": "التمرير أفقيًا"
+    "scrollHint": "التمرير أفقيًا",
+    "readByRow": "القراءة حسب الصف",
+    "showTable": "عرض الجدول"
   },
   "messageCodeBlock": {
     "actions": "إجراءات كتلة التعليمات البرمجية",

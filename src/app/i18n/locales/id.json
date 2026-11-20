@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabel yang dapat digulir",
-    "scrollHint": "Gulir secara horizontal"
+    "scrollHint": "Gulir secara horizontal",
+    "readByRow": "Baca per baris",
+    "showTable": "Tampilkan tabel"
   },
   "messageCodeBlock": {
     "actions": "Tindakan blok kode",

@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabla desplazable",
-    "scrollHint": "Desplázate horizontalmente"
+    "scrollHint": "Desplázate horizontalmente",
+    "readByRow": "Leer por fila",
+    "showTable": "Mostrar tabla"
   },
   "messageCodeBlock": {
     "actions": "Acciones del bloque de código",

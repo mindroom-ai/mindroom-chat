@@ -955,7 +955,9 @@
   },
   "messageTable": {
     "label": "স্ক্রোলযোগ্য টেবিল",
-    "scrollHint": "অনুভূমিকভাবে স্ক্রোল করুন"
+    "scrollHint": "অনুভূমিকভাবে স্ক্রোল করুন",
+    "readByRow": "সারি ধরে পড়ুন",
+    "showTable": "সারণি দেখান"
   },
   "messageCodeBlock": {
     "actions": "কোড ব্লকের অ্যাকশন",

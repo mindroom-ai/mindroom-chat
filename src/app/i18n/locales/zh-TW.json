@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "可捲動表格",
-    "scrollHint": "水平捲動"
+    "scrollHint": "水平捲動",
+    "readByRow": "逐列閱讀",
+    "showTable": "顯示表格"
   },
   "messageCodeBlock": {
     "actions": "程式碼區塊操作",

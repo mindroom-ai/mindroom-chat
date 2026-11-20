@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tableau défilant",
-    "scrollHint": "Faites défiler horizontalement"
+    "scrollHint": "Faites défiler horizontalement",
+    "readByRow": "Lire par ligne",
+    "showTable": "Afficher le tableau"
   },
   "messageCodeBlock": {
     "actions": "Actions du bloc de code",
