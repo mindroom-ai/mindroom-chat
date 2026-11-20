@@ -816,6 +816,30 @@ describe('ThreadContextBanner rendering', () => {
       }
     });
 
+    it('keeps the buttons in a row on a short screen held sideways, which hides Resolve', () => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      const sideways = vi.fn((query: string) => ({ matches: query.includes('landscape') }));
+      vi.stubGlobal('matchMedia', sideways);
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      try {
+        screenSize = ScreenSize.Mobile;
+        // A title tall enough to stack them upright.
+        const renderer = renderBanner(
+          'A concise thread summary',
+          rowOf(360, () => ({ title: 120, actions: 96 }))
+        );
+        expect(sideways).toHaveBeenCalled();
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow');
+        renderer.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('decides again when the title changes in place, though no box it shows resizes', () => {
       vi.stubGlobal('document', { documentElement: {} });
       vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));

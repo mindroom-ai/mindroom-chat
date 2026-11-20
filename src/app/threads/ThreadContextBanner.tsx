@@ -10,6 +10,7 @@ import React, {
   useState,
 } from 'react';
 import classNames from 'classnames';
+import { shortViewport } from '../ui/styles/shortViewport';
 import { useAtomValue } from 'jotai';
 import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
@@ -91,7 +92,9 @@ type RowLayout = 'row' | 'stacked' | 'narrow';
  *   one above the other, they stack and the title gets their width; the card gets no taller.
  *   Each is measured in its own layout, whichever the row shows, so the answer does not depend on
  *   the layout it picks and cannot flip back and forth.
- * - `row`: the buttons side by side, beside a short title.
+ * - `row`: the buttons side by side, beside a short title, and always on a short screen held
+ *   sideways, whose one-line row hides an unresolved Resolve (CompactHidden): stacked, the last
+ *   button shown would not be the column's last.
  * Measured again when the row, the title or the buttons resize, when the root's style changes
  * (Page Zoom sets the root font size, which moves 19rem while the row can keep its width), and
  * when the title's `text` changes: a new title can need more lines beside the row while every box
@@ -109,7 +112,8 @@ const usePhoneRowLayout = (row: HTMLElement | null, text: string | undefined): R
         setLayout('narrow');
         return;
       }
-      if (!title || !actions) {
+      const compact = typeof matchMedia === 'function' && matchMedia(shortViewport).matches;
+      if (!title || !actions || compact) {
         setLayout('row');
         return;
       }
