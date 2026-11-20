@@ -12,8 +12,11 @@ import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { formatWorkDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
-import type { SubagentRun } from '../messages/live/subagentRunStore';
-import { isActiveSubagentStatus, isRestartInterrupted } from '../matrix/protocol/subagentFrame';
+import {
+  isActiveSubagentStatus,
+  isRestartInterrupted,
+  type SubagentUsage,
+} from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
 import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
@@ -29,12 +32,14 @@ import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { runToolCall } from './runActivity';
-import { formatTokens } from './runUsage';
+import { formatTokens, runTotals, usageTexts, type RunTotals } from './runUsage';
 import {
   RunStatus,
   SubagentRunCard,
   ToolCallText,
   latestTurn,
+  nodeTitle,
+  turnTitle,
   useRunTime,
   type SubagentNode,
   type SubagentTurn,
@@ -190,33 +195,35 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   );
 }
 
-/** How much of the strip's width each cell takes: status, calls, tokens, cost. */
-const STRIP_WEIGHTS = [1.05, 0.7, 1.2, 1];
-
-/** What every run below `node` cost, its own excluded; none while no run below says. */
-const nestedCost = (node: SubagentNode): number | undefined => {
-  let total: number | undefined;
+/** What every run below `node` used, its own turns excluded. */
+const nestedTotals = (node: SubagentNode): RunTotals => {
+  const below: (SubagentUsage | undefined)[] = [];
   const add = (child: SubagentNode) =>
     child.turns.forEach(({ run, nested }) => {
-      const cost = run.meta.usage?.costUsd;
-      if (cost !== undefined) total = (total ?? 0) + cost;
+      below.push(run.meta.usage);
       nested.forEach(add);
     });
   node.turns.forEach(({ nested }) => nested.forEach(add));
-  return total;
+  return runTotals(below);
 };
 
 /**
  * Under the open run's header, four cells: how it stands and its time, its calls and turns, its
- * tokens in and out, and its cost with what the runs it started cost. A count it does not send is
- * left out.
+ * tokens in and out, and its cost with what the runs it started cost. The numbers are all its
+ * turns' (`runTotals`); a count it does not send is left out.
  */
-function RunStrip({ node, run, time }: { node: SubagentNode; run: SubagentRun; time: string }) {
+function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotals; time: string }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const { meta } = run;
-  const usage = meta.usage!;
-  const below = nestedCost(node);
+  const { meta } = latestTurn(node);
+  const texts = usageTexts(totals, t, language);
+  const below = nestedTotals(node);
+  let costNote: string | undefined;
+  if (!below.tokens) costNote = t('mindroomUi.subagents.costOwn');
+  else if (below.costUsd !== undefined)
+    costNote = t('mindroomUi.subagents.costNested', {
+      cost: formatCostUsd(below.costUsd, language),
+    });
   const cells = [
     {
       key: 'status',
@@ -227,7 +234,7 @@ function RunStrip({ node, run, time }: { node: SubagentNode; run: SubagentRun; t
     {
       key: 'calls',
       name: t('mindroomUi.backgroundJobs.column.calls'),
-      value: String(usage.toolCalls),
+      value: texts.calls?.compact ?? '0',
       note:
         node.turns.length > 1
           ? t('mindroomUi.subagents.turns', { count: node.turns.length })
@@ -236,37 +243,25 @@ function RunStrip({ node, run, time }: { node: SubagentNode; run: SubagentRun; t
     {
       key: 'tokens',
       name: t('mindroomUi.backgroundJobs.column.tokens'),
-      value: formatTokens(usage.inputTokens + usage.outputTokens, language),
+      value: texts.tokens?.compact ?? '0',
       note: t('mindroomUi.subagents.tokensSplit', {
-        input: formatTokens(usage.inputTokens, language),
-        output: formatTokens(usage.outputTokens, language),
+        input: formatTokens(totals.inputTokens ?? 0, language),
+        output: formatTokens(totals.outputTokens ?? 0, language),
       }),
     },
-    ...(usage.costUsd === undefined
-      ? []
-      : [
+    ...(texts.cost
+      ? [
           {
             key: 'cost',
             name: t('mindroomUi.backgroundJobs.column.cost'),
-            value: formatCostUsd(usage.costUsd, language),
-            note:
-              below === undefined
-                ? t('mindroomUi.subagents.costOwn')
-                : t('mindroomUi.subagents.costNested', { cost: formatCostUsd(below, language) }),
+            value: texts.cost.compact,
+            note: costNote,
           },
-        ]),
+        ]
+      : []),
   ];
   return (
-    <dl
-      className={css.Strip}
-      // Status and tokens take the most room, calls the least.
-      style={{
-        gridTemplateColumns: STRIP_WEIGHTS.slice(0, cells.length)
-          .map((weight) => `minmax(0, ${weight}fr)`)
-          .join(' '),
-      }}
-      data-subagent-strip=""
-    >
+    <dl className={css.Strip} data-subagent-strip="">
       {cells.map((cell) => (
         <div key={cell.key} className={css.StripCell} data-subagent-cell={cell.key}>
           <Text as="dt" size="T200" priority="300" className={css.StripName}>
@@ -283,7 +278,7 @@ function RunStrip({ node, run, time }: { node: SubagentNode; run: SubagentRun; t
             title={cell.note}
             truncate
           >
-            {cell.note}
+            {cell.note ?? ' '}
           </Text>
         </div>
       ))}
@@ -302,6 +297,8 @@ type ViewProps = {
   onClose: () => void;
   /** The conversation the panel lists runs of; a run in it needs no button to its thread. */
   viewThreadId?: string | null;
+  /** A fork draft is on screen: its thread is read-only there, so no run of it can be stopped. */
+  readOnly?: boolean;
 };
 
 /**
@@ -318,6 +315,7 @@ export function SubagentRunView({
   onOpen,
   onClose,
   viewThreadId,
+  readOnly = false,
 }: ViewProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
@@ -329,11 +327,17 @@ export function SubagentRunView({
   const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
   const { threadId } = meta;
   const first = node.turns[0].run.meta;
-  const title = first.title || first.task?.split('\n', 1)[0] || agent.name;
+  const title = nodeTitle(node, agent.name);
   const time = useRunTime(meta, now);
-  const stop = useRunStop(room, newest, title);
+  const totals = useMemo(() => runTotals(node.turns.map(({ run }) => run.meta.usage)), [node]);
+  const used = totals.calls !== undefined;
+  // Stop cancels the newest turn's job, so it is named for that turn's task.
+  const turnName = turnTitle(meta, agent.name);
+  const stop = useRunStop(room, newest, turnName, readOnly);
   const activity = runToolCall(newest);
-  const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: title });
+  const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: turnName });
+  // A pressed Stop turns into "Stopping…", so focus moves to the run's title.
+  const heading = useRef<HTMLHeadingElement>(null);
 
   // A sub-agent at work opens at its newest text; an ended one at its first task.
   const box = useRef<HTMLDivElement>(null);
@@ -401,7 +405,15 @@ export function SubagentRunView({
           className={css.HeaderLogo}
         />
         <div className={css.Heading}>
-          <Text as="h2" size="H4" className={css.RunTitle} title={first.task} dir="auto">
+          <Text
+            ref={heading}
+            as="h2"
+            size="H4"
+            tabIndex={-1}
+            className={css.RunTitle}
+            title={first.task}
+            dir="auto"
+          >
             {title}
           </Text>
           <Text as="div" size="T200" priority="300" className={css.Standing}>
@@ -421,7 +433,7 @@ export function SubagentRunView({
               <span>{t('mindroomUi.subagents.turnNumber', { number: node.turns.length })}</span>
             )}
             {/* Without what the run used (older MindRoom), how it stands stays up here. */}
-            {!meta.usage && (
+            {!used && (
               <>
                 <RunStatus meta={meta} />
                 <span>{time}</span>
@@ -455,7 +467,10 @@ export function SubagentRunView({
             className={css.HeaderStop}
             aria-label={stopLabel}
             title={stopLabel}
-            onClick={stop.stop}
+            onClick={() => {
+              heading.current?.focus();
+              stop.stop?.();
+            }}
             data-subagent-stop=""
           >
             <IconPlayerStopFilled size={16} aria-hidden />
@@ -471,11 +486,14 @@ export function SubagentRunView({
           <Icon size="200" src={Icons.Cross} />
         </IconButton>
       </header>
-      {meta.usage && <RunStrip node={node} run={newest} time={time} />}
+      {used && <RunStrip node={node} totals={totals} time={time} />}
       {activity && (
         <Text as="div" size="T200" className={css.NowLine} data-subagent-now="">
           {meta.status === 'running' ? (
-            <span className={css.Tick} aria-hidden />
+            <>
+              <span className={css.Tick} aria-hidden />
+              <span className={css.VisuallyHidden}>{t('mindroomUi.subagents.now')}</span>
+            </>
           ) : (
             <span className={css.LineLabel.approval}>
               <span className={css.LineMark} aria-hidden>

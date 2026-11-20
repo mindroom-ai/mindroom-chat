@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} tools",
       "needApproval_one": "{{count}} needs approval",
       "needApproval_other": "{{count}} need approval",
-      "toolCalls_one": "{{count}} tool call",
-      "toolCalls_other": "{{count}} tool calls",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} tokens",
       "started": "Started {{time}}",

@@ -101,17 +101,3 @@ export const runLine = (
       return { kind: 'plain', ...(preview ? { text: preview } : {}) };
   }
 };
-
-/** What the conversation's runs used, summed; a count no run sent is left out. */
-export type RunTotals = { calls?: number; tokens?: number; costUsd?: number };
-
-export const runTotals = (metas: readonly SubagentMeta[]): RunTotals => {
-  const totals: RunTotals = {};
-  metas.forEach(({ usage }) => {
-    if (!usage) return;
-    totals.calls = (totals.calls ?? 0) + usage.toolCalls;
-    totals.tokens = (totals.tokens ?? 0) + usage.inputTokens + usage.outputTokens;
-    if (usage.costUsd !== undefined) totals.costUsd = (totals.costUsd ?? 0) + usage.costUsd;
-  });
-  return totals;
-};

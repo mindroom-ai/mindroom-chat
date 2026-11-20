@@ -284,9 +284,6 @@ export const Stack = style({
   },
 });
 
-// One job's title logo, small enough that it and its dot stay within the title line.
-export const TitleLogo = style({ vars: { [logoSize]: smallLogo } });
-
 export const StackedLogo = style({
   boxShadow: `inset 0 0 0 1px ${color.SurfaceVariant.ContainerLine}, 0 0 0 2px ${color.SurfaceVariant.Container}`,
   selectors: { '& + &': { marginInlineStart: '-0.375rem' } },

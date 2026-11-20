@@ -1,7 +1,10 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../protocol/backgroundJobsContract';
-import { cancelBackgroundJob } from './cancelBackgroundJob';
+import { renderHook } from '@testing-library/react';
+import { useSentCancels } from '../state/sentCancels';
+import { cancelBackgroundJob, stopBackgroundJobs } from './cancelBackgroundJob';
 
 const failedEcho = { status: EventStatus.NOT_SENT } as MatrixEvent;
 
@@ -48,5 +51,30 @@ describe('cancelBackgroundJob', () => {
     sendEvent.mockRejectedValue(new Error('offline'));
     await expect(cancelBackgroundJob(mx, room, null, { jobId: 'a' })).rejects.toThrow('offline');
     expect(cancelPendingEvent).toHaveBeenCalledWith(failedEcho);
+  });
+});
+
+describe('stopBackgroundJobs', () => {
+  const sent = () => renderHook(() => useSentCancels('!room:example.org')).result.current;
+
+  it('marks the jobs stopping while the cancel goes out, and keeps them so once it went', async () => {
+    const { mx, room, sendEvent } = client();
+    let send!: (value: unknown) => void;
+    sendEvent.mockReturnValueOnce(new Promise((resolve) => (send = resolve)));
+    const stopping = stopBackgroundJobs(mx, room, '$thread', { jobId: 'a' }, ['a']);
+    expect(sent().has('a')).toBe(true);
+    send({ event_id: '$sent' });
+    await expect(stopping).resolves.toBe(true);
+    expect(sent().has('a')).toBe(true);
+  });
+
+  it('unmarks the jobs of a cancel that failed to send, and says it failed', async () => {
+    const { mx, room, sendEvent } = client();
+    sendEvent.mockRejectedValueOnce(new Error('offline'));
+    await expect(stopBackgroundJobs(mx, room, null, { all: true }, ['b', 'c'])).resolves.toBe(
+      false
+    );
+    expect(sent().has('b')).toBe(false);
+    expect(sent().has('c')).toBe(false);
   });
 });

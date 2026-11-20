@@ -56,7 +56,6 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Nested: 'Nested',
   Stack: 'Stack',
   StackedLogo: 'StackedLogo',
-  TitleLogo: 'TitleLogo',
   JobText: 'JobText',
   Headline: 'Headline',
   Detail: 'Detail',
@@ -214,14 +213,37 @@ it('shows one job folded as its row on the title line, which lists it as several
   );
   // Focus follows the title to its new place.
   expect(document.activeElement).toBe(toggle());
+  // One job has one Stop, the labelled one under the list, not its row's icon too.
   const stops = [...container.querySelectorAll('button[data-cancel-job]')];
-  expect(stops.map((stop) => stop.textContent)).toEqual(['', 'mindroomUi.backgroundJobs.stopTask']);
+  expect(stops.map((stop) => stop.textContent)).toEqual(['mindroomUi.backgroundJobs.stopTask']);
+  expect(container.querySelector('.Jobs [data-cancel-job]')).toBeNull();
   // Escape folds it back, with focus on its title.
   act(() => {
     toggle()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   });
   expect(container.querySelector('[data-job-folded]')).not.toBeNull();
   expect(document.activeElement).toBe(toggle());
+});
+
+it('shows the next job folded after the list it was pinned open in emptied', async () => {
+  vi.useFakeTimers();
+  try {
+    state.jobs = [job('a')];
+    render();
+    expand();
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+    state.jobs = [];
+    render();
+    await act(() => vi.advanceTimersByTime(2_000));
+    expect(container.innerHTML).toBe('');
+    state.jobs = [job('b')];
+    render();
+    expect(container.querySelector('[data-job-folded]')).not.toBeNull();
+    expect(container.querySelector('.Jobs')).toBeNull();
+    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("names each listed job's Stop the task it stops, with its icon only", () => {
@@ -802,7 +824,7 @@ it("shows an untitled sub-agent's agent, model, task, the call it makes now and 
   const cells = [...row.querySelectorAll('[data-job-stat]')];
   expect(cells.map((cell) => cell.textContent)).toEqual(['31', '1.9M', '$1.30']);
   expect(cells.map((cell) => cell.getAttribute('title'))).toEqual([
-    tr('mindroomUi.backgroundJobs.toolCalls', { count: 31 }),
+    tr('mindroomUi.subagents.calls', { count: 31 }),
     tr('mindroomUi.backgroundJobs.tokens', { count: 1_900_000, tokens: '1.9M' }),
     '$1.30',
   ]);
@@ -822,7 +844,7 @@ it('shows no cost before any token, and counts one token as one', () => {
       .map((cell) => cell.getAttribute('title') ?? '');
   };
   expect(stats({ inputTokens: 0, outputTokens: 0, toolCalls: 2, costUsd: 0 })).toEqual([
-    tr('mindroomUi.backgroundJobs.toolCalls', { count: 2 }),
+    tr('mindroomUi.subagents.calls', { count: 2 }),
     '',
     '',
   ]);

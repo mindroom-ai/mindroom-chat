@@ -75,7 +75,8 @@ const joinJob = (
 ): Pick<BackgroundJobsBarItem, 'run' | 'activity' | 'agent'> => {
   if (job.kind === 'subagent') {
     const run = runOfJob(runs, job);
-    const activity = run && runToolCall(run);
+    // A job the bar holds after it ended is done, though its run's last frame may not be in yet.
+    const activity = run && job.status !== FINISHED_JOB_STATUS ? runToolCall(run) : undefined;
     return {
       agent: run?.meta.agent ?? job.tool,
       ...(run ? { run } : {}),

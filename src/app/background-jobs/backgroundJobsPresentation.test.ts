@@ -4,7 +4,7 @@ import en from '../i18n/englishResources';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
-import { presentBackgroundJobs } from './backgroundJobsPresentation';
+import { FINISHED_JOB_STATUS, presentBackgroundJobs } from './backgroundJobsPresentation';
 
 let t: TFunction;
 const none = () => false;
@@ -249,6 +249,19 @@ describe('presentBackgroundJobs, rich rows', () => {
       lookups([subagentRun('s1', { tools, status: 'completed' })])
     );
     expect(ended?.items[0]).not.toHaveProperty('activity');
+  });
+
+  it('shows a held job that ended no current call while its run has not sent its last frame', () => {
+    // The job state let the sub-agent go before its terminal frame: the run still says running.
+    const tools = [
+      { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'ls' },
+    ];
+    const held = present(
+      [{ ...subagentJob('job_1', 's1'), status: FINISHED_JOB_STATUS }],
+      lookups([subagentRun('s1', { tools })])
+    )!.items[0];
+    expect(held).toMatchObject({ finished: true, run: { meta: { status: 'running' } } });
+    expect(held).not.toHaveProperty('activity');
   });
 
   it("takes a tool job's activity from its reply's call, and none without the call's ID", () => {

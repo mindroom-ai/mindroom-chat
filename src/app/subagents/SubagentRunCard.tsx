@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -15,12 +15,11 @@ import {
   type SubagentMeta,
 } from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
-import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { useAgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { type RunLine, type ToolActivity, runLine } from './runActivity';
-import { formatTokens } from './runUsage';
+import { runTotals, usageTexts } from './runUsage';
 import * as css from './subagentsPanel.css';
 
 /** One turn of a sub-agent, a run of its own, and the sub-agents that turn started. */
@@ -109,6 +108,32 @@ export function ToolCallText({ activity }: { activity: ToolActivity }) {
   );
 }
 
+/** How each kind of third line is labelled: its words, the mark before them, and their tone. */
+const LINE_LOOKS = {
+  now: { label: 'mindroomUi.subagents.now', mark: '', tone: 'now' },
+  approval: { label: 'mindroomUi.subagents.needsApproval', mark: '!', tone: 'approval' },
+  result: { label: 'mindroomUi.subagents.result', mark: '✓', tone: 'result' },
+  cancelled: { label: 'mindroomUi.subagents.cancelled', mark: '✕', tone: 'ended' },
+  failed: { label: 'mindroomUi.subagents.failed', mark: '✕', tone: 'ended' },
+  denied: { label: 'mindroomUi.subagents.denied', mark: '✕', tone: 'ended' },
+  interrupted: { label: 'mindroomUi.subagents.interrupted', mark: '', tone: 'result' },
+} as const satisfies Record<
+  string,
+  { label: string; mark: string; tone: keyof typeof css.LineLabel }
+>;
+
+/** What follows a line's label: the call, the start of what the run wrote, or why it ended. */
+function LineRest({ line }: { line: Exclude<RunLine, { kind: 'plain' }> }) {
+  if (line.kind === 'now' || line.kind === 'approval')
+    return <ToolCallText activity={line.activity} />;
+  const text = line.kind === 'result' ? line.text : line.reason;
+  return text ? (
+    <span className={css.LineText} dir="auto">
+      {text}
+    </span>
+  ) : null;
+}
+
 /**
  * A card's third line, labelled by what it shows: Now and the call it makes, Needs approval and
  * the call that waits, Result and the start of what it wrote, or how it ended and why. Without
@@ -132,35 +157,7 @@ function RunLineText({ run }: { run: SubagentRun }) {
       </Text>
     );
   }
-  let label: string;
-  let mark: string;
-  let tone: keyof typeof css.LineLabel;
-  let rest: ReactNode = null;
-  if (line.kind === 'now' || line.kind === 'approval') {
-    const now = line.kind === 'now';
-    label = t(now ? 'mindroomUi.subagents.now' : 'mindroomUi.subagents.needsApproval');
-    mark = now ? '' : '!';
-    tone = now ? 'now' : 'approval';
-    rest = <ToolCallText activity={line.activity} />;
-  } else if (line.kind === 'result') {
-    label = t('mindroomUi.subagents.result');
-    mark = '✓';
-    tone = 'result';
-    rest = (
-      <span className={css.LineText} dir="auto">
-        {line.text}
-      </span>
-    );
-  } else {
-    label = t(`mindroomUi.subagents.${line.status}`);
-    mark = line.status === 'interrupted' ? '' : '✕';
-    tone = line.status === 'interrupted' ? 'result' : 'ended';
-    rest = line.reason ? (
-      <span className={css.LineText} dir="auto">
-        {line.reason}
-      </span>
-    ) : null;
-  }
+  const { label, mark, tone } = LINE_LOOKS[line.kind === 'ended' ? line.status : line.kind];
   return (
     <Text as="span" size="T200" className={css.Line} data-subagent-line={line.kind}>
       <span className={css.LineLabel[tone]}>
@@ -170,44 +167,31 @@ function RunLineText({ run }: { run: SubagentRun }) {
             {mark}
           </span>
         )}
-        {label}
+        {t(label)}
       </span>
-      {rest}
+      <LineRest line={line} />
     </Text>
   );
 }
 
-/** The run's calls, tokens and cost, each left out while unknown, then its time. */
-function RunStats({ meta, now }: { meta: SubagentMeta; now: number }) {
+/** A sub-agent's calls, tokens and cost over all its turns (`runTotals`), each left out while unknown, then its time. */
+function RunStats({ node, now }: { node: SubagentNode; now: number }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const time = useRunTime(meta, now);
-  const { usage } = meta;
-  const tokens = usage ? usage.inputTokens + usage.outputTokens : 0;
-  const cells = [
-    usage && usage.toolCalls > 0
-      ? { key: 'calls', text: t('mindroomUi.subagents.calls', { count: usage.toolCalls }) }
-      : undefined,
-    tokens > 0
-      ? {
-          key: 'tokens',
-          text: t('mindroomUi.backgroundJobs.tokens', {
-            count: tokens,
-            tokens: formatTokens(tokens, language),
-          }),
-        }
-      : undefined,
-    tokens > 0 && usage?.costUsd !== undefined
-      ? { key: 'cost', text: formatCostUsd(usage.costUsd, language) }
-      : undefined,
-  ].flatMap((cell) => cell ?? []);
+  const time = useRunTime(latestTurn(node).meta, now);
+  const texts = usageTexts(runTotals(node.turns.map(({ run }) => run.meta.usage)), t, language);
   return (
     <Text as="span" size="T200" priority="300" className={css.Stats}>
-      {cells.map((cell) => (
-        <span key={cell.key} data-subagent-stat={cell.key}>
-          {cell.text}
-        </span>
-      ))}
+      {(['calls', 'tokens', 'cost'] as const).map((key) => {
+        const text = texts[key];
+        return (
+          text && (
+            <span key={key} data-subagent-stat={key}>
+              {text.labelled}
+            </span>
+          )
+        );
+      })}
       <span className={css.StatsTime} data-subagent-time="">
         {time}
       </span>
@@ -215,11 +199,13 @@ function RunStats({ meta, now }: { meta: SubagentMeta; now: number }) {
   );
 }
 
-/** A run's title: the one its first turn's call named, else that turn's task, else its agent. */
-const nodeTitle = (node: SubagentNode, agentName: string): string => {
-  const first = node.turns[0].run.meta;
-  return first.title || first.task?.split('\n', 1)[0] || agentName;
-};
+/** A turn's title: the one its call named, else its task's first line, else its agent. */
+export const turnTitle = (meta: SubagentMeta, agentName: string): string =>
+  meta.title || meta.task?.split('\n', 1)[0] || agentName;
+
+/** A run's title: its first turn's. */
+export const nodeTitle = (node: SubagentNode, agentName: string): string =>
+  turnTitle(node.turns[0].run.meta, agentName);
 
 /**
  * A sub-agent another one started, inside its card: on an elbow from it, its logo, title, and its
@@ -331,7 +317,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
       {nested.map((child) => (
         <NestedRun key={child.id} room={room} node={child} now={now} />
       ))}
-      <RunStats meta={meta} now={now} />
+      <RunStats node={node} now={now} />
     </button>
   );
 });

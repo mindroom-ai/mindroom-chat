@@ -334,9 +334,12 @@ export const VisuallyHidden = style({
 });
 
 /** Under the header, a cell each for how the run stands, its calls, tokens and cost. */
+// Its cells, three or four, share its width evenly.
 export const Strip = style({
   flex: 'none',
   display: 'grid',
+  gridAutoFlow: 'column',
+  gridAutoColumns: 'minmax(0, 1fr)',
   margin: 0,
   borderBlockEnd: headerLine,
   fontVariantNumeric: 'tabular-nums',

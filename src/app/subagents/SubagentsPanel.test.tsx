@@ -140,13 +140,17 @@ let container: HTMLDivElement;
 let root: Root;
 const onClose = vi.fn();
 
-const render = (screenSize: ScreenSize = ScreenSize.Desktop, threadId?: string | null) => {
+const render = (
+  screenSize: ScreenSize = ScreenSize.Desktop,
+  threadId?: string | null,
+  readOnly = false
+) => {
   act(() => {
     root.render(
       <ScreenSizeProvider value={screenSize}>
         <ClientConfigProvider value={{}}>
           <MatrixClientProvider value={mx}>
-            <SubagentsPanel room={room} threadId={threadId} onClose={onClose} />
+            <SubagentsPanel room={room} threadId={threadId} onClose={onClose} readOnly={readOnly} />
           </MatrixClientProvider>
         </ClientConfigProvider>
       </ScreenSizeProvider>
@@ -1019,6 +1023,61 @@ describe('SubagentsPanel', () => {
       );
     });
 
+    it('leaves the total cost out while a run that used tokens sent no cost', () => {
+      ingest('priced', meta('running', { usage: usage(3, 1_000, 200, 0.5) }), docs('Working.'));
+      ingest('unpriced', meta('running', { usage: usage(2, 300, 0) }), docs('Working.'));
+      render();
+
+      expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe(
+        '2 active · 5 calls · 1.5K tokens'
+      );
+    });
+
+    it("counts every turn in a sub-agent's card and its open run, and what the runs below cost", () => {
+      ingest(
+        'turn-1',
+        meta('completed', {
+          subagent: 'lead',
+          task: 'Rework the export queue retry policy',
+          usage: usage(30, 1_000_000, 100_000, 1),
+          startedAt: NOW - 120,
+          endedAt: NOW - 90,
+        }),
+        docs('Done.', [], false)
+      );
+      ingest(
+        'turn-2',
+        meta('running', {
+          subagent: 'lead',
+          task: 'Now the retry backoff',
+          usage: usage(4, 300_000, 24_000, 0.3),
+          startedAt: NOW - 60,
+        }),
+        docs('Working.')
+      );
+      ingest(
+        'kid',
+        meta('completed', {
+          agent: 'writer',
+          parent: 'turn-1',
+          usage: usage(7, 300_000, 14_000, 0.04),
+        }),
+        docs('Written.', [], false)
+      );
+      render();
+
+      const stats = [...card('lead').querySelectorAll('[data-subagent-stat]')].map(
+        (stat) => stat.textContent
+      );
+      expect(stats).toEqual(['34 calls', '1.4M tokens', '$1.30']);
+      open('lead');
+      const cell = (name: string) =>
+        container.querySelector(`[data-subagent-cell="${name}"]`)?.textContent;
+      expect(cell('calls')).toBe('Calls342 turns');
+      expect(cell('tokens')).toBe('Tokens1.4M1.3M in · 124K out');
+      expect(cell('cost')).toBe('Cost$1.30+$0.04 nested');
+    });
+
     it('keeps the header to the active count while no run says what it used', () => {
       ingest('old', meta('running'), docs('Working.'));
       render();
@@ -1144,10 +1203,94 @@ describe('SubagentsPanel', () => {
       expect(cell('tokens')).toBe('Tokens1.4M1.3M in · 124K out');
       expect(cell('cost')).toBe('Cost$1.30+$0.04 nested');
       expect(container.querySelector('[data-subagent-now]')?.textContent).toBe(
-        'run_shell_command uv run pytest tests/export12s'
+        // Its label is for screen readers; the tick says it on screen.
+        'Nowrun_shell_command uv run pytest tests/export12s'
       );
       // The run is in the thread on screen, so it has no button to that thread.
       expect(container.querySelector('header [aria-label="Open thread"]')).toBeNull();
+    });
+
+    it("names the newest turn's Stop for that turn, cancels its job, and gives focus to the title", async () => {
+      ingest(
+        'turn-1',
+        meta('completed', {
+          subagent: 'lead',
+          task: 'Rework the export queue retry policy',
+          startedAt: NOW - 120,
+          endedAt: NOW - 90,
+        }),
+        docs('Done.', [], false)
+      );
+      ingest(
+        'turn-2',
+        meta('running', { subagent: 'lead', task: 'Now the retry backoff', startedAt: NOW - 60 }),
+        docs('Working.')
+      );
+      jobsState.jobs = [
+        {
+          jobId: 'job_turn_2',
+          agentId: SENDER,
+          threadId: '$thread:example.org',
+          kind: 'subagent',
+          tool: 'run_subagent',
+          status: 'running',
+          startedAt: new Date((NOW - 60) * 1000).toISOString(),
+          subagent: 'lead',
+          run: 'turn-2',
+        },
+      ];
+      sendEvent.mockRejectedValueOnce(new Error('offline'));
+      render();
+      open('lead');
+
+      // The sub-agent keeps its first turn's title; its Stop is the turn it cancels.
+      expect(heading()).toBe('Rework the export queue retry policy');
+      const stopLabel = 'Stop task: Now the retry backoff';
+      expect(button(container, stopLabel).getAttribute('title')).toBe(stopLabel);
+      await act(async () => button(container, stopLabel).click());
+      expect(sendEvent).toHaveBeenCalledWith(
+        ROOM_ID,
+        'io.mindroom.background_job_cancel',
+        expect.objectContaining({ job_id: 'job_turn_2' }),
+        'txn'
+      );
+      expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+        'Could not stop Now the retry backoff. Try again.'
+      );
+      expect(document.activeElement).toBe(container.querySelector('header h2'));
+
+      sendEvent.mockReturnValueOnce(new Promise<never>(() => {}));
+      await act(async () => button(container, stopLabel).click());
+      // Stop turned into Stopping…; focus stays on the title, not the page.
+      expect(container.querySelector('[data-subagent-stop]')).toBeNull();
+      expect(document.activeElement).toBe(container.querySelector('header h2'));
+    });
+
+    it('offers no Stop in a fork draft, whose thread is read-only there', () => {
+      ingest(
+        'lead',
+        meta('running', { subagent: 'lead', task: 'Rework the export queue retry policy' }),
+        docs('Working.')
+      );
+      jobsState.jobs = [
+        {
+          jobId: 'job_lead',
+          agentId: SENDER,
+          threadId: '$thread:example.org',
+          kind: 'subagent',
+          tool: 'run_subagent',
+          status: 'running',
+          startedAt: new Date((NOW - 60) * 1000).toISOString(),
+          subagent: 'lead',
+          run: 'lead',
+        },
+      ];
+      render(ScreenSize.Desktop, '$thread:example.org', true);
+      open('lead');
+      expect(container.querySelector('[data-subagent-stop]')).toBeNull();
+
+      render(ScreenSize.Desktop, '$thread:example.org');
+      expect(container.querySelector('[data-subagent-stop]')).not.toBeNull();
     });
 
     it("stops an open run's job, says Stopping until it leaves, and says so when it fails", async () => {

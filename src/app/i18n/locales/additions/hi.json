@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} टूल",
       "needApproval_one": "{{count}} को मंज़ूरी चाहिए",
       "needApproval_other": "{{count}} को मंज़ूरी चाहिए",
-      "toolCalls_one": "{{count}} टूल कॉल",
-      "toolCalls_other": "{{count}} टूल कॉल",
       "tokens_one": "{{tokens}} टोकन",
       "tokens_other": "{{tokens}} टोकन",
       "started": "{{time}} शुरू हुआ",

@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} Werkzeuge",
       "needApproval_one": "{{count}} braucht Freigabe",
       "needApproval_other": "{{count}} brauchen Freigabe",
-      "toolCalls_one": "{{count}} Werkzeugaufruf",
-      "toolCalls_other": "{{count}} Werkzeugaufrufe",
       "tokens_one": "{{tokens}} Token",
       "tokens_other": "{{tokens}} Tokens",
       "started": "Gestartet {{time}}",

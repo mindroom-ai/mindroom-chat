@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} tools",
       "needApproval_one": "{{count}} wacht op goedkeuring",
       "needApproval_other": "{{count}} wachten op goedkeuring",
-      "toolCalls_one": "{{count}} toolaanroep",
-      "toolCalls_other": "{{count}} toolaanroepen",
       "tokens_one": "{{tokens}} token",
       "tokens_other": "{{tokens}} tokens",
       "started": "Gestart {{time}}",

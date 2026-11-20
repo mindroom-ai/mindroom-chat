@@ -7,8 +7,8 @@ import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../matrix/protocol/backgroundJobsContract';
-import { cancelBackgroundJob } from '../matrix/send/cancelBackgroundJob';
-import { forgetCancel, markCancelSent, useSentCancels } from '../matrix/state/sentCancels';
+import { stopBackgroundJobs } from '../matrix/send/cancelBackgroundJob';
+import { useSentCancels } from '../matrix/state/sentCancels';
 import { type SubagentRun, useRoomSubagentRuns } from '../messages/live/subagentRunStore';
 import { jobOfRun } from './runJob';
 
@@ -24,29 +24,31 @@ export type RunStop = {
 
 /**
  * The open run's Stop, the jobs bar's for the same job: one cancel event for its job, "Stopping…"
- * until the job leaves, and the bar's error when the event did not go out.
+ * until the job leaves, and the bar's error, naming `name`, when the event did not go out. A
+ * read-only view (a fork draft) stops nothing, as its jobs bar does not.
  */
-export const useRunStop = (room: Room, run: SubagentRun, name: string): RunStop => {
+export const useRunStop = (
+  room: Room,
+  run: SubagentRun,
+  name: string,
+  readOnly = false
+): RunStop => {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const { jobs } = useRoomBackgroundJobs(room);
   const runs = useRoomSubagentRuns(room.roomId);
   const sent = useSentCancels(room.roomId);
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
-  const canCancel = permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, mx.getSafeUserId());
+  const canCancel =
+    !readOnly && permissions.event(MINDROOM_BACKGROUND_JOB_CANCEL_EVENT, mx.getSafeUserId());
   const job = jobOfRun(jobs, runs, run);
   const [failedJob, setFailedJob] = useState<string>();
   const stopping = !!job && (job.status === 'cancel_requested' || sent.has(job.jobId));
   const send = useCallback(async () => {
     if (!job) return;
     setFailedJob(undefined);
-    const marked = markCancelSent(room.roomId, [job.jobId]);
-    try {
-      await cancelBackgroundJob(mx, room, job.threadId, { jobId: job.jobId });
-    } catch {
-      forgetCancel(room.roomId, marked);
-      setFailedJob(job.jobId);
-    }
+    const { jobId, threadId } = job;
+    if (!(await stopBackgroundJobs(mx, room, threadId, { jobId }, [jobId]))) setFailedJob(jobId);
   }, [job, mx, room]);
   return {
     ...(job && canCancel && !stopping ? { stop: () => void send() } : {}),

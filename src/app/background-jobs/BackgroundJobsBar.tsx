@@ -22,14 +22,9 @@ import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJ
 import { BackgroundJobRow, BackgroundJobsSummary } from './BackgroundJobRow';
 import {
   type BackgroundJobCancelRequest,
-  cancelBackgroundJob,
+  stopBackgroundJobs,
 } from '../matrix/send/cancelBackgroundJob';
-import {
-  forgetCancel,
-  keepCancelsOf,
-  markCancelSent,
-  useSentCancels,
-} from '../matrix/state/sentCancels';
+import { keepCancelsOf, useSentCancels } from '../matrix/state/sentCancels';
 import { useRoomBackgroundJobs } from '../matrix/hooks/useRoomBackgroundJobs';
 import { useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
 import { useJobLookups } from './useJobLookups';
@@ -119,6 +114,11 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     if (wasSeveral.current && !several) hide();
     wasSeveral.current = several;
   }, [several, hide]);
+  // A list whose last job left closes, so the next job to come shows folded.
+  const none = jobs.length === 0;
+  useEffect(() => {
+    if (none) hide();
+  }, [none, hide]);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   useEffect(() => {
     if (!expanded) return undefined;
@@ -147,19 +147,14 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
       setFailures(
         (previous) => new Map([...previous].filter(([jobId]) => !jobIds.includes(jobId)))
       );
-      const marked = markCancelSent(room.roomId, jobIds);
-      try {
-        await cancelBackgroundJob(mx, room, view, request);
-      } catch {
-        forgetCancel(room.roomId, marked);
-        setFailures(
-          (previous) =>
-            new Map([
-              ...previous,
-              ...jobIds.map((jobId): [string, Failure] => [jobId, { view, text: failure }]),
-            ])
-        );
-      }
+      if (await stopBackgroundJobs(mx, room, view, request, jobIds)) return;
+      setFailures(
+        (previous) =>
+          new Map([
+            ...previous,
+            ...jobIds.map((jobId): [string, Failure] => [jobId, { view, text: failure }]),
+          ])
+      );
     },
     [mx, room, threadId]
   );
@@ -397,7 +392,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
                       viewThreadId={threadId}
                       endedAt={endedAt(item)}
                       onOpen={openRun(item) || undefined}
-                      stop={stop(item)}
+                      // One job's Stop is the labelled one under the list, unless it is stopping.
+                      stop={several || item.stopping ? stop(item) : null}
                     />
                   ))}
                 </ul>

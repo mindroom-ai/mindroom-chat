@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}}টি টুল",
       "needApproval_one": "{{count}}টির অনুমোদন দরকার",
       "needApproval_other": "{{count}}টির অনুমোদন দরকার",
-      "toolCalls_one": "{{count}}টি টুল কল",
-      "toolCalls_other": "{{count}}টি টুল কল",
       "tokens_one": "{{tokens}} টোকেন",
       "tokens_other": "{{tokens}} টোকেন",
       "started": "শুরু হয়েছে {{time}}",

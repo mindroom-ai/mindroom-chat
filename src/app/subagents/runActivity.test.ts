@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import type { SubagentMeta, SubagentStatus } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
-import { currentToolCall, runLine, runToolCall, runTotals, toolActivity } from './runActivity';
+import { currentToolCall, runLine, runToolCall, toolActivity } from './runActivity';
 
 const meta = (status: SubagentStatus, extra: Partial<SubagentMeta> = {}): SubagentMeta => ({
   agent: 'researcher',
@@ -152,20 +152,5 @@ describe('runLine', () => {
       status: 'interrupted',
       reason: 'Restarted.',
     });
-  });
-});
-
-describe('runTotals', () => {
-  it('sums what the runs used, leaving out what none sent', () => {
-    expect(runTotals([meta('running'), meta('completed')])).toEqual({});
-    expect(
-      runTotals([
-        meta('running', {
-          usage: { inputTokens: 1_000, outputTokens: 200, toolCalls: 7, costUsd: 0.5 },
-        }),
-        meta('completed', { usage: { inputTokens: 300, outputTokens: 0, toolCalls: 2 } }),
-        meta('failed'),
-      ])
-    ).toEqual({ calls: 9, tokens: 1_500, costUsd: 0.5 });
   });
 });
