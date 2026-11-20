@@ -9,13 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  NavigationType,
-  useLocation,
-  useNavigationType,
-  useParams,
-  useSearchParams,
-} from 'react-router-dom';
+import { NavigationType, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
@@ -34,6 +28,7 @@ import { settingsModalAtom } from '../navigation/settingsModal';
 import { bumpRecentRoom } from '../navigation/recentRooms';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { useRoomRouteParams } from '../navigation/useRoomRouteParams';
 import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
@@ -176,11 +171,11 @@ type PanelEntry = RoomPanel & {
  * whether the router pushed that entry, and whether the app's Back put it in a thread's place.
  */
 const useRoomRoute = () => {
-  const params = useParams();
+  const { eventId } = useRoomRouteParams();
   const [search] = useSearchParams();
   const location = useLocation();
   return {
-    eventId: params.eventId,
+    eventId,
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
     entryKey: location.key,
