@@ -9,6 +9,7 @@ import {
   registerDisposableUser,
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
+import { COMPOSER_NAME } from '../helpers/composerName';
 
 // With the members open beside a room, a window that narrows until they no longer fit beside it
 // (a phone, or a tablet whose room is too narrow) closes them, as the original app does on a
@@ -80,7 +81,7 @@ const narrowWithMembersOpen = async (page: Page, name: string) => {
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
 
   const panel = page.getByTestId('resizable-members-panel');
-  const composer = page.getByRole('textbox', { name: 'Send a message...' });
+  const composer = page.getByRole('textbox', { name: COMPOSER_NAME });
   const showMembers = page.getByRole('button', { name: 'Show Members', exact: true });
 
   const openMembersBeside = async () => {

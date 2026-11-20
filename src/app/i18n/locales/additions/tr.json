@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Bu pencerede bazı görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
+    },
+    "space": {
+      "overview": "Alana genel bakış"
     }
   },
   "featureUi": {
@@ -1128,7 +1131,10 @@
       "autoHint": "Kararı ajana bırak",
       "settingTitle": "Bir ajan yanıt verirken gönder",
       "settingDescription": "Tek bir mesaj için seçmek üzere Gönder'e basılı tutun."
-    }
+    },
+    "replyInThread": "Konuda yanıtla…",
+    "newThreadIn": "{{room}} içinde yeni konu…",
+    "newThreadWith": "{{name}} ile yeni konu…"
   },
   "commandPalette": {
     "state": {

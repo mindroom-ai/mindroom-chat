@@ -19,6 +19,7 @@ import {
 import { joinRoom, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { COMPOSER_NAME } from '../helpers/composerName';
 
 /**
  * Typing in the command palette (live-test finding L1-F021: about 340 ms from a key to the frame
@@ -248,7 +249,7 @@ const measure = async (
       password: reader.password,
     });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
-    const composer = page.getByRole('textbox', { name: 'Send a message...' });
+    const composer = page.getByRole('textbox', { name: COMPOSER_NAME });
     await expect(composer).toBeVisible({ timeout: 60_000 });
     // Let the first syncs and the thread index settle.
     await page.waitForTimeout(5_000);

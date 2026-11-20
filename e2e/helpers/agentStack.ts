@@ -12,6 +12,7 @@ import {
 } from '@playwright/test';
 import { activeAccountButtonNamePattern } from './auth';
 import { matrixFetch, sendRoomMessage } from './matrix';
+import { COMPOSER_NAME } from './composerName';
 
 /**
  * Fixtures for the agent specs (`e2e/<domain>/agent-*.spec.ts`): a real MindRoom backend with the stub model of
@@ -366,7 +367,7 @@ export const showThread = async (page: Page, stack: AgentStack, rootId: string):
 };
 
 export const composer = (page: Page): Locator =>
-  page.getByRole('textbox', { name: 'Send a message...' });
+  page.getByRole('textbox', { name: COMPOSER_NAME });
 
 /** Types into the composer (a rich-text editor, so keystrokes rather than fill) and sends with Enter. */
 export const sendFromComposer = async (page: Page, text: string): Promise<void> => {

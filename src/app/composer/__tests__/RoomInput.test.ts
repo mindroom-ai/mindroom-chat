@@ -20,6 +20,8 @@ import {
   voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
 import type { ThreadForkRef } from '../../event-store/threads/threadFork';
+import type { RoomThreadMode } from '../../matrix/protocol/roomThreadMode';
+import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { TUploadItem, Upload, UploadStatus } from '../../matrix/state/upload';
 import { ConversationViewContext, composerStateKey } from '../../navigation/conversationView';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../lib/audioWaveform';
@@ -358,6 +360,16 @@ vi.mock('../upload/UploadBoard', async () => {
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => mxState,
+}));
+
+const threadModeState = vi.hoisted(() => ({ mode: undefined as RoomThreadMode | undefined }));
+// The room fakes have no event emitter; the composer reads their name as it is.
+vi.mock('../../matrix/hooks/useRoomMeta', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/useRoomMeta')>()),
+  useRoomName: (room: Room) => room.name,
+}));
+vi.mock('../../matrix/hooks/useRoomThreadMode', () => ({
+  useRoomThreadMode: () => threadModeState.mode,
 }));
 
 vi.mock('../useTypingStatusUpdater', () => ({
@@ -882,6 +894,7 @@ const openVoiceRecorder = async (renderer: ReactTestRenderer) => {
 };
 
 afterEach(() => {
+  threadModeState.mode = undefined;
   voiceRecorderState.props = undefined;
   voiceRecorderState.byView.clear();
   voiceRecorderState.send.mockReset();
@@ -4222,6 +4235,57 @@ describe('RoomInput', () => {
       expect(mxState.sendMessage).not.toHaveBeenCalled();
       act(() => renderer.unmount());
     });
+  });
+});
+
+describe('RoomInput placeholder', () => {
+  const placeholderFor = async (
+    props?: Parameters<typeof renderRoomInput>[1],
+    setup?: (store: ReturnType<typeof createStore>) => void
+  ) => {
+    const store = createStore();
+    setup?.(store);
+    await renderRoomInput(store, props);
+    return customEditorState.props?.placeholder;
+  };
+
+  it('says Send replies in the open thread, or the thread a reply from the timeline joins', async () => {
+    expect(await placeholderFor({ threadId: '$root' })).toBe('Reply in thread…');
+    const threadReply = createReplyDraft('$p1', {
+      rel_type: RelationType.Thread,
+      event_id: '$root',
+    });
+    expect(
+      await placeholderFor(undefined, (store) =>
+        store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), threadReply)
+      )
+    ).toBe('Reply in thread…');
+  });
+
+  it('names the room a send from its main timeline starts a thread in, where agents answer in threads', async () => {
+    threadModeState.mode = 'thread';
+    expect(await placeholderFor()).toBe(`New thread in ${ROOM_ID}…`);
+    expect(
+      await placeholderFor(undefined, (store) =>
+        store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([ROOM_ID]) })
+      )
+    ).toBe(`New thread with ${ROOM_ID}…`);
+  });
+
+  it('promises no thread where the main timeline may get none', async () => {
+    threadModeState.mode = 'thread';
+    expect(await placeholderFor({ threadingEnabled: false })).toBe('Send a message...');
+    // A reply to a message outside any thread stays in the timeline.
+    expect(
+      await placeholderFor(undefined, (store) =>
+        store.set(roomIdToReplyDraftAtomFamily(ROOM_ID), createReplyDraft('$p1'))
+      )
+    ).toBe('Send a message...');
+    // The room's agents answer in the main timeline, some of them may, or the room names no mode.
+    for (const mode of ['room', 'mixed', undefined] as const) {
+      threadModeState.mode = mode;
+      expect(await placeholderFor(), String(mode)).toBe('Send a message...');
+    }
   });
 });
 
