@@ -5,7 +5,6 @@ import { Provider, createStore } from 'jotai';
 import React, { useState } from 'react';
 import { voiceAutoSendPendingAtom } from './roomInputDrafts';
 import {
-  UNCERTAIN_KEY_MS,
   resolveVoiceComposer,
   useVoiceComposer,
   useVoiceHoldShortcut,
@@ -55,7 +54,18 @@ const press = (type: 'keydown' | 'keyup', init: KeyboardEventInit) => {
   });
   return event;
 };
-const rightAlt = { key: 'Alt', code: 'AltRight', altKey: true };
+const space = { key: ' ', code: 'Space' };
+const voiceKey = { ...space, ctrlKey: true, shiftKey: true };
+/** Control, then Shift, then Space goes down; the keydown of Space is the app's. */
+const hold = () => {
+  press('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true });
+  press('keydown', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true, shiftKey: true });
+  expect(press('keydown', voiceKey).defaultPrevented).toBe(true);
+};
+const pointer = (type: string) =>
+  act(() => {
+    window.dispatchEvent(Object.assign(new MouseEvent(type), { pointerId: 1 }));
+  });
 const wait = (ms: number) =>
   act(() => {
     vi.advanceTimersByTime(ms);
@@ -144,26 +154,43 @@ describe('resolveVoiceComposer', () => {
 describe('useVoiceHoldShortcut', () => {
   it('sends on release a recording that push-to-talk started and the composer rerendered with', () => {
     const { log } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
+    hold();
+    expect(press('keydown', { ...voiceKey, repeat: true }).defaultPrevented).toBe(true);
     wait(300);
     expect(log).toEqual(['start']);
-    const release = press('keyup', rightAlt);
-    expect(release.defaultPrevented).toBe(true);
+    expect(press('keyup', space).defaultPrevented).toBe(true);
+    expect(log).toEqual(['start', 'send']);
+    // The modifiers' own keyups come after; the press is over.
+    press('keyup', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true });
+    press('keyup', { key: 'Control', code: 'ControlLeft' });
     expect(log).toEqual(['start', 'send']);
   });
 
-  it('starts a hands-free recording on a tap of AltGraph; a second tap sends it', () => {
+  it('ends a press on the first of its keys to come up, and still takes its Space', () => {
     const { log } = setup((l) => <Composer log={l} />);
-    press('keydown', { key: 'AltGraph', code: 'AltRight' });
-    press('keyup', { key: 'AltGraph', code: 'AltRight' });
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
+    hold();
+    press('keyup', { key: 'Control', code: 'ControlLeft', shiftKey: true });
+    expect(log).toEqual(['start']);
+    // Space still down: its repeats and keyup are the app's, and start nothing.
+    const repeat = press('keydown', { key: ' ', code: 'Space', shiftKey: true, repeat: true });
+    expect(repeat.defaultPrevented).toBe(true);
+    press('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true, shiftKey: true });
+    expect(press('keydown', { ...voiceKey, repeat: true }).defaultPrevented).toBe(true);
+    wait(300);
+    expect(press('keyup', { ...space, shiftKey: true }).defaultPrevented).toBe(true);
+    expect(log).toEqual(['start']);
+    // With the modifiers still down, the next Space is a press of its own: a tap that sends.
+    hold();
+    press('keyup', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true });
     expect(log).toEqual(['start', 'send']);
+    // A plain Space types as ever.
+    expect(press('keydown', space).defaultPrevented).toBe(false);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
   });
 
   it('does nothing in a composer that went away, and never moves to another one', () => {
     const { store, log, view } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
+    hold();
     view.rerender(
       <Provider store={store}>
         <Listener />
@@ -171,194 +198,96 @@ describe('useVoiceHoldShortcut', () => {
       </Provider>
     );
     wait(300);
-    press('keyup', rightAlt);
+    press('keyup', space);
     expect(log).toEqual([]);
   });
 
-  it('starts nothing for ⌥ typing in either order, left Alt, AltGr with Ctrl, or a pending send', () => {
+  it('starts nothing for held modifiers, other chords with Space, or a pending send', () => {
     const { store, log } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
-    press('keydown', { key: '–', code: 'Minus', altKey: true });
-    press('keyup', rightAlt);
-    // The other key first: right ⌥ comes while it is still down.
-    press('keydown', { key: 'a', code: 'KeyA' });
-    press('keydown', rightAlt);
-    wait(300);
-    press('keyup', rightAlt);
-    press('keyup', { key: 'å', code: 'KeyA', altKey: true });
+    // Option or Control and Shift held a while, then an arrow: the app's navigation.
     press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
+    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true, repeat: true });
+    wait(1000);
+    press('keydown', { key: 'ArrowUp', code: 'ArrowUp', altKey: true });
     press('keyup', { key: 'Alt', code: 'AltLeft' });
-    press('keydown', { key: 'AltGraph', code: 'AltRight', ctrlKey: true, altKey: true });
-    press('keyup', { key: 'AltGraph', code: 'AltRight' });
+    press('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true });
+    press('keydown', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true, shiftKey: true });
+    wait(1000);
+    press('keyup', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true });
+    press('keyup', { key: 'Control', code: 'ControlLeft' });
+    for (const chord of [
+      { ctrlKey: true },
+      { shiftKey: true },
+      { ctrlKey: true, shiftKey: true, altKey: true },
+      { ctrlKey: true, shiftKey: true, metaKey: true },
+    ]) {
+      expect(press('keydown', { ...space, ...chord }).defaultPrevented).toBe(false);
+      wait(300);
+      expect(press('keyup', space).defaultPrevented).toBe(false);
+    }
     store.set(voiceAutoSendPendingAtom, true);
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    expect(press('keydown', voiceKey).defaultPrevented).toBe(false);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
     expect(log).toEqual([]);
   });
 
-  it('sends nothing while left Alt is held, and works again once it is released', () => {
-    const { log } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
-    expect(log).toEqual(['start']);
-    // The recording runs; left Alt then right Alt is no press of right Alt alone.
-    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
-    press('keyup', { key: 'Alt', code: 'AltLeft' });
-    expect(log).toEqual(['start']);
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
-    expect(log).toEqual(['start', 'send']);
-  });
-
-  it('leaves right Alt alone while the setting is off', () => {
+  it('leaves the keys alone while the setting is off', () => {
     const { log } = setup((l) => <Composer log={l} />, false);
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
-    press('keydown', rightAlt);
+    expect(press('keydown', voiceKey).defaultPrevented).toBe(false);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
+    press('keydown', voiceKey);
     wait(300);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
     expect(log).toEqual([]);
   });
 
   it('cancels a press under way when the setting goes off, and a running recording is not sent', () => {
     const { log, switchTo } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
+    hold();
     switchTo(false);
     wait(300);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    press('keyup', space);
     expect(log).toEqual([]);
 
     switchTo(true);
-    press('keydown', rightAlt);
+    hold();
     wait(300);
     switchTo(false);
-    press('keyup', rightAlt);
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
+    press('keyup', space);
+    expect(press('keydown', voiceKey).defaultPrevented).toBe(false);
+    press('keyup', space);
     expect(log).toEqual(['start']);
   });
 
-  it('counts left Alt held while the setting was off once it is back on', () => {
-    const { log, switchTo } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
-    switchTo(false);
-    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
-    switchTo(true);
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
-    expect(log).toEqual(['start']);
-  });
-
-  it('keeps left Alt held across a ⌘ release, and arms nothing while a mouse button is down', () => {
+  it('arms nothing while a mouse button is down', () => {
     const { log } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
-    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
-    press('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true, altKey: true });
-    press('keyup', { key: 'Meta', code: 'MetaLeft', altKey: true });
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
-    press('keyup', { key: 'Alt', code: 'AltLeft' });
-
-    const pointer = (type: string) =>
-      act(() => {
-        window.dispatchEvent(Object.assign(new MouseEvent(type), { pointerId: 1 }));
-      });
     pointer('pointerdown');
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    expect(press('keydown', voiceKey).defaultPrevented).toBe(false);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
     pointer('pointerup');
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
-    expect(log).toEqual(['start', 'send']);
-  });
-
-  it('sends nothing for right Alt while Caps Lock is held', () => {
-    const { log } = setup((l) => <Composer log={l} />);
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
+    hold();
+    press('keyup', space);
     expect(log).toEqual(['start']);
-
-    press('keydown', { key: 'CapsLock', code: 'CapsLock' });
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
-    press('keyup', { key: 'CapsLock', code: 'CapsLock' });
-
-    expect(log).toEqual(['start']);
-    press('keydown', rightAlt);
-    press('keyup', rightAlt);
-    expect(log).toEqual(['start', 'send']);
   });
 
-  describe('a key down when ⌘ came up', () => {
-    const metaShiftLeft = () => {
-      const view = setup((l) => <Composer log={l} />);
-      press('keydown', rightAlt);
-      press('keyup', rightAlt);
-      press('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true });
-      press('keydown', { key: 'Shift', code: 'ShiftLeft', metaKey: true, shiftKey: true });
-      press('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', metaKey: true, shiftKey: true });
-      press('keyup', { key: 'Meta', code: 'MetaLeft', shiftKey: true });
-      press('keyup', { key: 'Shift', code: 'ShiftLeft' });
-      return view;
-    };
-    const tap = () => {
-      press('keydown', rightAlt);
-      return press('keyup', rightAlt).defaultPrevented;
-    };
-
-    it('blocks right Alt while it may still be down, however many taps or other keys come', () => {
-      const { log } = metaShiftLeft();
-      expect(tap()).toBe(false);
-      press('keydown', { key: 'b', code: 'KeyB' });
-      press('keyup', { key: 'b', code: 'KeyB' });
-      wait(1000);
-      expect(tap()).toBe(false);
-      expect(log).toEqual(['start']);
-    });
-
-    it('blocks until its keyup once it repeats', () => {
-      const { log } = metaShiftLeft();
-      wait(1400);
-      press('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', repeat: true });
-      wait(2000);
-      expect(tap()).toBe(false);
-      press('keyup', { key: 'ArrowLeft', code: 'ArrowLeft' });
-      expect(tap()).toBe(true);
-      expect(log).toEqual(['start', 'send']);
-    });
-
-    it('lapses after 1.5 s without a repeat', () => {
-      const { log } = metaShiftLeft();
-      wait(UNCERTAIN_KEY_MS);
-      expect(tap()).toBe(true);
-      expect(log).toEqual(['start', 'send']);
-    });
-
-    it('leaves a press begun while it blocked inert, even once it lapses', () => {
-      const { log } = metaShiftLeft();
-      press('keydown', rightAlt);
-      wait(UNCERTAIN_KEY_MS + 500);
-      expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
-      expect(log).toEqual(['start']);
-    });
-  });
-
-  it('forgets keys held when the window lost the focus, and latches on a click', () => {
+  it('latches on another key or a click during push-to-talk, and forgets the press on a blur', () => {
     const { log } = setup((l) => <Composer log={l} />);
-    press('keydown', { key: 'a', code: 'KeyA' });
+    hold();
+    wait(300);
+    const other = press('keydown', { key: 'A', code: 'KeyA', ctrlKey: true, shiftKey: true });
+    expect(other.defaultPrevented).toBe(false);
+    press('keyup', space);
+    expect(log).toEqual(['start']);
+    hold();
+    pointer('pointerdown');
+    expect(press('keyup', space).defaultPrevented).toBe(true);
+    pointer('pointerup');
+    expect(log).toEqual(['start']);
+    hold();
     act(() => {
       window.dispatchEvent(new Event('blur'));
     });
-    press('keydown', rightAlt);
-    wait(300);
-    act(() => {
-      window.dispatchEvent(new MouseEvent('pointerdown'));
-    });
-    press('keyup', rightAlt);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
     expect(log).toEqual(['start']);
   });
 });

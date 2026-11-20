@@ -169,7 +169,7 @@ describe('formatShortcut and ariaShortcut', () => {
     ['zoomIn', '⌘+', 'Ctrl++'],
     ['zoomOut', '⌘-', 'Ctrl+-'],
     ['resetZoom', '⌘0', 'Ctrl+0'],
-    ['voiceRecord', 'Right ⌥', 'Right Alt'],
+    ['voiceRecord', '⌃⇧Space', 'Ctrl+Shift+Space'],
   ])('%s is %s on Apple platforms and %s elsewhere', (id, apple, other) => {
     expect(formatShortcut(id, true)).toBe(apple);
     expect(formatShortcut(id, false)).toBe(other);
@@ -181,8 +181,8 @@ describe('formatShortcut and ariaShortcut', () => {
     expect(ariaShortcut('previousRoom', false)).toBe('Alt+ArrowUp');
     expect(ariaShortcut('leaveThread', false)).toBe('Alt+ArrowLeft');
     expect(ariaShortcut('previousThread', true)).toBe('Meta+Alt+ArrowUp');
-    expect(ariaShortcut('voiceRecord', true)).toBe('Alt');
-    expect(shortcutOfAria('Alt', false)).toBe('voiceRecord');
+    expect(ariaShortcut('voiceRecord', true)).toBe('Control+Shift+Space');
+    expect(shortcutOfAria('Control+Shift+Space', false)).toBe('voiceRecord');
     // The palette's own button sets this value itself.
     expect(shortcutOfAria('Control+K', false)).toBe('palette');
     expect(shortcutOfAria('Meta+Shift+M', true)).toBe('members');

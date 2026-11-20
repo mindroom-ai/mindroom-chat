@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'jotai';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 import { openOverlay } from '../shortcuts/shortcutDom';
-import { isComposingKey } from '../shortcuts/shortcuts';
+import { isComposingKey, matchesShortcut } from '../shortcuts/shortcuts';
 import {
   VOICE_HOLD_MS,
   createVoiceHold,
@@ -75,22 +75,20 @@ export const resolveVoiceComposer = (
   )?.target;
 };
 
-const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'Shift', 'Fn']);
-
-/** How long a key down when ⌘ came up blocks the voice key without repeating. */
-export const UNCERTAIN_KEY_MS = 1500;
+/** The keys whose release ends a press of the voice key: Space or either modifier. */
+const RELEASE_KEYS = new Set([' ', 'Control', 'Shift']);
 
 /**
- * The voice key: right ⌥ (right Alt elsewhere, also as AltGraph) pressed alone records a voice
- * message in the composer `resolveVoiceComposer` finds (`createVoiceHold`). Not over a dialog,
- * menu or popover, for the Computer screen, with another key held, in an input method, or with the
- * `voiceHoldShortcut` setting off. Only the releases it acts on are cancelled, so the key keeps
- * its meaning everywhere else.
+ * The voice key: Space pressed with Control and Shift (⌃⇧Space, Ctrl+Shift+Space) records a voice
+ * message in the composer `resolveVoiceComposer` finds (`createVoiceHold`); the first of the
+ * three keys to come up releases it. Not over a dialog, menu or popover, for the Computer screen,
+ * with a mouse button down, in an input method, or with the `voiceHoldShortcut` setting off. The
+ * Space of a press it acts on (its keydown, repeats and keyup) is cancelled, so no space is typed
+ * and no focused button clicks; every other key keeps its meaning.
  */
 export const useVoiceHoldShortcut = (enabled: boolean): void => {
   const store = useStore();
-  // Read live: switched off, the key arms nothing, and a press under way ends as interrupted. The
-  // held keys stay tracked meanwhile, so a key already down when it comes back on still counts.
+  // Read live: switched off, the key arms nothing, and a press under way ends as interrupted.
   const enabledRef = useRef(enabled);
   const holdRef = useRef<VoiceHold>();
   useEffect(() => {
@@ -109,45 +107,33 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       sendPending: () => store.get(voiceAutoSendPendingAtom),
     });
     holdRef.current = hold;
-    // Keys other than modifiers that are down now, as a press of A then right ⌥ is no press alone.
-    // Left ⌥ counts too: `altKey` cannot tell right ⌥ alone from both. So do mouse buttons down.
-    // macOS drops keyups under ⌘, so a key down when ⌘ comes up is uncertain from then (the time
-    // it got so): it blocks until its keyup, a repeat makes it surely held again, and it lapses
-    // after UNCERTAIN_KEY_MS without one. A key still held with no repeat by then (key repeat
-    // turned off) no longer blocks.
-    const held = new Map<string, number | undefined>();
+    // Mouse buttons down, as a press then is part of a drag or a click.
     const pointers = new Set<number>();
-    const blocked = () =>
-      pointers.size > 0 ||
-      [...held.values()].some(
-        (since) => since === undefined || Date.now() - since < UNCERTAIN_KEY_MS
-      );
+    // The Space down is a press the key acts on: its repeats and keyup are the app's too, even
+    // after Control or Shift came up first. A new Space keydown decides afresh, so a keyup that
+    // macOS dropped under ⌘ never outlives the press.
+    let ownsSpace = false;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!MODIFIER_KEYS.has(event.key) || event.code === 'AltLeft')
-        held.set(event.code, undefined);
-      const alone =
+      const space = event.key === ' ';
+      const voiceKey =
         enabledRef.current &&
-        event.code === 'AltRight' &&
-        !blocked() &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.shiftKey &&
+        pointers.size === 0 &&
+        matchesShortcut(event, 'voiceRecord') &&
         !isComposingKey(event) &&
         !computerOwnsKeyboardEvent(event) &&
         !computerOwnsKeyboardFocus() &&
         openOverlay() === 'none';
-      if (alone) hold.keyDown(event.repeat);
+      if (voiceKey) hold.keyDown(event.repeat);
       else hold.interrupt();
+      if (space && !event.repeat) ownsSpace = voiceKey && hold.state !== 'ignored';
+      if (space && ownsSpace) event.preventDefault();
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === 'Meta') {
-        const now = Date.now();
-        held.forEach((since, code) => {
-          if (code !== 'AltLeft' && since === undefined) held.set(code, now);
-        });
-      } else held.delete(event.code);
-      if (event.code === 'AltRight' && hold.keyUp()) event.preventDefault();
+      const space = event.key === ' ';
+      const acted = RELEASE_KEYS.has(event.key) && hold.keyUp();
+      if (acted || (space && ownsSpace)) event.preventDefault();
+      if (space) ownsSpace = false;
     };
     const interrupt = () => hold.interrupt();
     const onPointerDown = (event: PointerEvent) => {
@@ -156,8 +142,8 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     };
     const onPointerUp = (event: PointerEvent) => pointers.delete(event.pointerId);
     const onBlur = () => {
-      held.clear();
       pointers.clear();
+      ownsSpace = false;
       hold.interrupt();
     };
     const onVisibility = () => {
