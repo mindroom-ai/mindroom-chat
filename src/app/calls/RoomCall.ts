@@ -516,7 +516,7 @@ export class RoomCall {
 
     // Only this deployment's backend: a call on one a room member named is refused (rtcFocus.ts).
     const ownService = await getLivekitServiceUrl(mx);
-    const oldest = this.session.getOldestMembership();
+    const oldest = this.session.memberships[0];
     const service = chooseCallService(
       oldest ? firstLivekitServiceUrl(oldest.transports) : undefined,
       ownService
@@ -543,10 +543,9 @@ export class RoomCall {
     try {
       // Announce the membership; the session shares this device's media key with the others.
       this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
-      this.session.joinRTCSession(
+      this.session.join(
         this.ownMembership,
         [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
-        undefined,
         {
           manageMediaKeys: this.encrypted,
           callIntent: this.state.camera ? 'video' : 'audio',
@@ -691,9 +690,7 @@ export class RoomCall {
     this.audioHost?.remove();
     this.audioHost = undefined;
     try {
-      const membership = this.session.isJoined()
-        ? this.session.leaveRoomSession(LEAVE_TIMEOUT_MS)
-        : undefined;
+      const membership = this.session.isJoined() ? this.session.leave(LEAVE_TIMEOUT_MS) : undefined;
       // LiveKit's disconnect rejects when its leave message cannot go out; the call is over anyway.
       await Promise.allSettled([media?.disconnect(true), membership]);
     } finally {
