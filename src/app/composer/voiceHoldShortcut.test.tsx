@@ -157,6 +157,22 @@ describe('useVoiceHoldShortcut', () => {
     expect(log).toEqual([]);
   });
 
+  it('sends nothing while left Alt is held, and works again once it is released', () => {
+    const { log } = setup((l) => <Composer log={l} />);
+    press('keydown', rightAlt);
+    press('keyup', rightAlt);
+    expect(log).toEqual(['start']);
+    // The recording runs; left Alt then right Alt is no press of right Alt alone.
+    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    press('keyup', { key: 'Alt', code: 'AltLeft' });
+    expect(log).toEqual(['start']);
+    press('keydown', rightAlt);
+    press('keyup', rightAlt);
+    expect(log).toEqual(['start', 'send']);
+  });
+
   it('forgets keys held when the window lost the focus, and latches on a click', () => {
     const { log } = setup((l) => <Composer log={l} />);
     press('keydown', { key: 'a', code: 'KeyA' });

@@ -88,10 +88,11 @@ export const useVoiceHoldShortcut = (): void => {
       sendPending: () => store.get(voiceAutoSendPendingAtom),
     });
     // Keys other than modifiers that are down now, as a press of A then right ⌥ is no press alone.
+    // Left ⌥ counts too: `altKey` cannot tell right ⌥ alone from both.
     const held = new Set<string>();
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!MODIFIER_KEYS.has(event.key)) held.add(event.code);
+      if (!MODIFIER_KEYS.has(event.key) || event.code === 'AltLeft') held.add(event.code);
       const alone =
         event.code === 'AltRight' &&
         held.size === 0 &&
