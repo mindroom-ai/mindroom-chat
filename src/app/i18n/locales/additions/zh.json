@@ -278,7 +278,7 @@
     "agentCard": {
       "agent": "智能体",
       "close": "关闭",
-      "whatItCanDo": "能做什么",
+      "configuredTools": "已配置的工具",
       "toolCount_other": "{{count}} 个工具",
       "groupCount_other": "{{count}} 个分组",
       "also": "另有{{groups}}",
@@ -289,56 +289,22 @@
       "back": "返回",
       "more": "更多",
       "worksIn": "所在房间",
-      "loading": "正在加载能做什么",
+      "loading": "正在加载已配置的工具",
+      "availability": "可用性可能因请求和权限而异。",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "编写代码和处理文件",
-          "name": "代码与文件"
-        },
-        "research": {
-          "title": "搜索和阅读网页",
-          "name": "网页与研究"
-        },
-        "productivity": {
-          "title": "计划、安排和记忆",
-          "name": "计划与记忆"
-        },
-        "email": {
-          "title": "读写电子邮件",
-          "name": "电子邮件"
-        },
-        "mcp": {
-          "title": "使用已连接的应用",
-          "name": "已连接的应用"
-        },
-        "integrations": {
-          "title": "使用已连接的服务",
-          "name": "集成"
-        },
-        "communication": {
-          "title": "聊天和发送消息",
-          "name": "聊天与消息"
-        },
-        "entertainment": {
-          "title": "查找和播放媒体",
-          "name": "媒体"
-        },
-        "information": {
-          "title": "查询信息",
-          "name": "信息"
-        },
-        "smart_home": {
-          "title": "控制智能家居",
-          "name": "智能家居"
-        },
-        "social": {
-          "title": "使用社交网络",
-          "name": "社交"
-        },
-        "other": {
-          "title": "其他工具",
-          "name": "其他"
-        }
+        "development": "代码与文件",
+        "research": "网页",
+        "productivity": "日程与记忆",
+        "email": "电子邮件",
+        "mcp": "已连接的应用",
+        "integrations": "集成",
+        "communication": "聊天与消息",
+        "entertainment": "媒体",
+        "information": "信息",
+        "smart_home": "智能家居",
+        "social": "社交",
+        "other": "其他"
       }
     }
   },

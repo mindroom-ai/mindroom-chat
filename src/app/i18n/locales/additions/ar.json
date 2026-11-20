@@ -298,7 +298,7 @@
     "agentCard": {
       "agent": "وكيل",
       "close": "إغلاق",
-      "whatItCanDo": "ما يستطيع فعله",
+      "configuredTools": "الأدوات المُعدّة",
       "toolCount_zero": "⁨{{count}}⁩ أداة",
       "toolCount_one": "أداة واحدة (⁨{{count}}⁩)",
       "toolCount_two": "أداتان (⁨{{count}}⁩)",
@@ -324,56 +324,27 @@
       "back": "رجوع",
       "more": "المزيد",
       "worksIn": "يعمل في",
-      "loading": "جارٍ تحميل ما يستطيع فعله",
+      "loading": "جارٍ تحميل الأدوات المُعدّة",
+      "availability": "قد يختلف التوفر حسب الطلب والأذونات.",
+      "moreRooms_zero": "+⁨{{count}}⁩",
+      "moreRooms_one": "+⁨{{count}}⁩",
+      "moreRooms_two": "+⁨{{count}}⁩",
+      "moreRooms_few": "+⁨{{count}}⁩",
+      "moreRooms_many": "+⁨{{count}}⁩",
+      "moreRooms_other": "+⁨{{count}}⁩",
       "groups": {
-        "development": {
-          "title": "كتابة الشيفرة والعمل على الملفات",
-          "name": "الشيفرة والملفات"
-        },
-        "research": {
-          "title": "البحث في الويب والقراءة",
-          "name": "الويب والبحث"
-        },
-        "productivity": {
-          "title": "التخطيط والجدولة والتذكّر",
-          "name": "التخطيط والذاكرة"
-        },
-        "email": {
-          "title": "قراءة البريد وإرساله",
-          "name": "البريد الإلكتروني"
-        },
-        "mcp": {
-          "title": "العمل مع التطبيقات المتصلة",
-          "name": "التطبيقات المتصلة"
-        },
-        "integrations": {
-          "title": "استخدام الخدمات المتصلة",
-          "name": "التكاملات"
-        },
-        "communication": {
-          "title": "الدردشة وإرسال الرسائل",
-          "name": "الدردشة والرسائل"
-        },
-        "entertainment": {
-          "title": "العثور على الوسائط وتشغيلها",
-          "name": "الوسائط"
-        },
-        "information": {
-          "title": "البحث عن المعلومات",
-          "name": "المعلومات"
-        },
-        "smart_home": {
-          "title": "التحكم في المنزل الذكي",
-          "name": "المنزل الذكي"
-        },
-        "social": {
-          "title": "استخدام الشبكات الاجتماعية",
-          "name": "التواصل الاجتماعي"
-        },
-        "other": {
-          "title": "أدوات أخرى",
-          "name": "أخرى"
-        }
+        "development": "الشيفرة والملفات",
+        "research": "الويب",
+        "productivity": "الجدولة والذاكرة",
+        "email": "البريد الإلكتروني",
+        "mcp": "التطبيقات المتصلة",
+        "integrations": "التكاملات",
+        "communication": "الدردشة والرسائل",
+        "entertainment": "الوسائط",
+        "information": "المعلومات",
+        "smart_home": "المنزل الذكي",
+        "social": "التواصل الاجتماعي",
+        "other": "أخرى"
       }
     }
   },

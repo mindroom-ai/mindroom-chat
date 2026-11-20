@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MutualRoomsChip } from './MutualRoomsChip';
+import { MutualRoomsChip, useMutualRooms } from './MutualRoomsChip';
 
 const ROOM = vi.hoisted(() => ({
   roomId: '!desk:x',
@@ -49,6 +49,11 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
 
 let renderer: ReactTestRenderer | undefined;
 
+/** The chip with the rooms the client shares with `userId`, as the profile card passes them. */
+function Chip({ userId }: { userId: string }) {
+  return <MutualRoomsChip shared={useMutualRooms(userId)} onOpen={() => undefined} />;
+}
+
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
@@ -62,7 +67,7 @@ const text = (node: unknown): string =>
 describe('MutualRoomsChip', () => {
   it('shows the direction controls of a shared room name as code points, as the room list does', () => {
     act(() => {
-      renderer = create(<MutualRoomsChip userId="@quinn:x" onOpen={() => undefined} />);
+      renderer = create(<Chip userId="@quinn:x" />);
     });
     const rows = renderer!.root.findAll((node) => node.props['data-menu-item'] === '');
     expect(rows.map(text)).toEqual(['Desk <U+202E>ksed<U+202C>']);

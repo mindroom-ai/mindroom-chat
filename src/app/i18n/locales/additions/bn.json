@@ -282,7 +282,7 @@
     "agentCard": {
       "agent": "এজেন্ট",
       "close": "বন্ধ করুন",
-      "whatItCanDo": "এটি কী করতে পারে",
+      "configuredTools": "কনফিগার করা টুল",
       "toolCount_one": "{{count}}টি টুল",
       "toolCount_other": "{{count}}টি টুল",
       "groupCount_one": "{{count}}টি গ্রুপ",
@@ -296,56 +296,23 @@
       "back": "ফিরে যান",
       "more": "আরও",
       "worksIn": "যেখানে কাজ করে",
-      "loading": "এটি কী করতে পারে, লোড হচ্ছে",
+      "loading": "কনফিগার করা টুল লোড হচ্ছে",
+      "availability": "অনুরোধ ও অনুমতির ওপর নির্ভর করে প্রাপ্যতা বদলাতে পারে।",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "কোড লেখা ও ফাইল নিয়ে কাজ",
-          "name": "কোড ও ফাইল"
-        },
-        "research": {
-          "title": "ওয়েবে খোঁজা ও পড়া",
-          "name": "ওয়েব ও গবেষণা"
-        },
-        "productivity": {
-          "title": "পরিকল্পনা, সময়সূচি ও মনে রাখা",
-          "name": "পরিকল্পনা ও মেমরি"
-        },
-        "email": {
-          "title": "ইমেল পড়া ও পাঠানো",
-          "name": "ইমেল"
-        },
-        "mcp": {
-          "title": "সংযুক্ত অ্যাপ নিয়ে কাজ",
-          "name": "সংযুক্ত অ্যাপ"
-        },
-        "integrations": {
-          "title": "সংযুক্ত পরিষেবা ব্যবহার",
-          "name": "ইন্টিগ্রেশন"
-        },
-        "communication": {
-          "title": "চ্যাট ও বার্তা পাঠানো",
-          "name": "চ্যাট ও বার্তা"
-        },
-        "entertainment": {
-          "title": "মিডিয়া খোঁজা ও চালানো",
-          "name": "মিডিয়া"
-        },
-        "information": {
-          "title": "তথ্য খোঁজা",
-          "name": "তথ্য"
-        },
-        "smart_home": {
-          "title": "স্মার্ট হোম নিয়ন্ত্রণ",
-          "name": "স্মার্ট হোম"
-        },
-        "social": {
-          "title": "সামাজিক নেটওয়ার্ক ব্যবহার",
-          "name": "সামাজিক"
-        },
-        "other": {
-          "title": "অন্যান্য টুল",
-          "name": "অন্যান্য"
-        }
+        "development": "কোড ও ফাইল",
+        "research": "ওয়েব",
+        "productivity": "সময়সূচি ও মেমরি",
+        "email": "ইমেল",
+        "mcp": "সংযুক্ত অ্যাপ",
+        "integrations": "ইন্টিগ্রেশন",
+        "communication": "চ্যাট ও বার্তা",
+        "entertainment": "মিডিয়া",
+        "information": "তথ্য",
+        "smart_home": "স্মার্ট হোম",
+        "social": "সামাজিক",
+        "other": "অন্যান্য"
       }
     }
   },

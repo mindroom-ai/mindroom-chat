@@ -1,5 +1,15 @@
-import { useRef, type CSSProperties, type ReactNode } from 'react';
-import { Box, config, Icon, IconButton, Icons, Overlay, OverlayBackdrop, Text } from 'folds';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  Box,
+  config,
+  Icon,
+  IconButton,
+  Icons,
+  Overlay,
+  OverlayBackdrop,
+  PopOutContainerProvider,
+  Text,
+} from 'folds';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { PageScroll } from './page/PageScroll';
 import { Header, Modal } from './glass/GlassPrimitives';
@@ -13,8 +23,6 @@ type BottomSheetProps = {
   requestClose: () => void;
   /** Only as tall as its content, up to the usual height. */
   fitContent?: boolean;
-  /** The title only names the dialog, for content that starts with its own heading. */
-  titleHidden?: boolean;
   children: ReactNode;
 };
 
@@ -33,18 +41,24 @@ const SHEET_STYLE: CSSProperties = {
 /**
  * A dialog that slides up from a phone's bottom edge, with its title over scrolling content. A
  * tap on the backdrop, Escape and the close button close it; the focus returns to its opener.
+ * Menus its content opens (a chip's) open inside it, where taps and focus count as the sheet's.
  */
 export function BottomSheet({
   title,
   closeLabel,
   requestClose,
   fitContent,
-  titleHidden,
   children,
 }: BottomSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const [menus, setMenus] = useState<HTMLDivElement | null>(null);
   const { overlayProps } = useOverlay(
-    { isOpen: true, isDismissable: true, onClose: requestClose },
+    {
+      isOpen: true,
+      isDismissable: true,
+      onClose: requestClose,
+      shouldCloseOnInteractOutside: (element) => !menus?.contains(element),
+    },
     dialogRef
   );
   const { dialogProps } = useDialog({ 'aria-label': title }, dialogRef);
@@ -68,7 +82,9 @@ export function BottomSheet({
               <PageScroll
                 header={
                   <Header size="500">
-                    <Box grow="Yes">{!titleHidden && <Text size="H4">{title}</Text>}</Box>
+                    <Box grow="Yes">
+                      <Text size="H4">{title}</Text>
+                    </Box>
                     <IconButton
                       aria-label={closeLabel}
                       size="300"
@@ -80,10 +96,15 @@ export function BottomSheet({
                   </Header>
                 }
               >
-                <div className={css.SheetBody}>{children}</div>
+                <div className={css.SheetBody}>
+                  <PopOutContainerProvider value={menus ?? undefined}>
+                    {children}
+                  </PopOutContainerProvider>
+                </div>
               </PageScroll>
             </div>
           </Modal>
+          <div ref={setMenus} />
         </FocusScope>
       </div>
     </Overlay>

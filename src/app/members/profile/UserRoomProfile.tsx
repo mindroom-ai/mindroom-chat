@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color } from 'folds';
+import { Avatar, Badge, Box, Button, Icon, IconButton, Icons, Spinner, Text, color } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
@@ -29,13 +29,16 @@ import { StateEvent } from '../../matrix/types/room';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { ownDirectionBlock } from '../../ui/directional';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import { AgentProfileCard } from './AgentProfileCard';
-import { MutualRoomsChip } from './MutualRoomsChip';
+import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
+import { AgentCapabilities, AgentProfileRead, AgentToolList, WorksIn } from './AgentTools';
+import { MutualRoomsChip, useMutualRooms } from './MutualRoomsChip';
+import type { AgentProfileState } from './useAgentProfile';
 import { PowerChip } from './PowerChip';
 import { moderationAbilities } from './profileModeration';
 import { ServerChip, ShareChip } from './UserChips';
 import { UserModeration } from './UserModeration';
 import * as css from './UserRoomProfile.css';
+import * as toolsCss from './AgentTools.css';
 
 const CHIPS = 'sharedUi.userChips';
 
@@ -97,21 +100,44 @@ function BlockControl({ userId }: { userId: string }) {
   );
 }
 
+/** The name a card shows for `userId`: as the room knows them, else their profile's, else their ID's. */
+export const useProfileName = (room: Room, userId: string): string => {
+  const profile = useUserProfile(userId);
+  const user = useMatrixClient().getUser(userId);
+  // A member event without a name (a ban, the leave that lifts it) names the person by their ID;
+  // their profile still has the name.
+  // The ID shows under the name, so the name goes without it, and without what disguises it.
+  return (
+    withoutNameDisguises(
+      getMemberRawDisplayName(room, userId) ||
+        profile.displayName ||
+        (user?.displayName !== userId ? user?.displayName : undefined) ||
+        ''
+    ) ||
+    getMxIdLocalPart(userId) ||
+    userId
+  );
+};
+
 /**
  * Who a person is in a room: their avatar, name and user ID, an agent's role, their power tag (a menu for those
  * who may change it), the rooms shared with them, their server, a share menu for the ID, a
  * button to message them directly, moderation, and blocking. The person need not be a member:
- * the card falls back to their server profile.
+ * the card falls back to their server profile. An agent's card adds its model, configured tools
+ * and named rooms, and keeps the ID, chips, moderation and blocking under "More".
  */
 export function UserRoomProfile({
   room,
   userId,
   onDone,
+  titled = false,
 }: {
   room: Room;
   userId: string;
   /** The card has done its job, such as opening the direct room. */
   onDone(): void;
+  /** What holds the card (a sheet) shows the name already. */
+  titled?: boolean;
 }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
@@ -124,27 +150,24 @@ export function UserRoomProfile({
   const may = useRoomPermissions(creators, levels);
   const getPowerTag = useGetMemberPowerTag(room, creators, levels);
   const profile = useUserProfile(userId);
-  const role = useAgentRoles(room).get(userId);
-  // The card follows the person's membership, so a kick or ban from it shows at once.
-  useStateEvent(room, StateEvent.RoomMember, userId);
-
+  const name = useProfileName(room, userId);
+  const roomRole = useAgentRoles(room).get(userId);
+  const shared = useMutualRooms(userId);
   const me = client.getSafeUserId();
+  // The card follows both memberships, so a kick or ban from it shows at once.
+  useStateEvent(room, StateEvent.RoomMember, userId);
+  useStateEvent(room, StateEvent.RoomMember, me);
   const isMe = userId === me;
-  const agent = isMindroomAgentUserIdForViewer(userId, me);
+  const agent = !isMe && isMindroomAgentUserIdForViewer(userId, me);
+  const [allTools, setAllTools] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const viewAll = useRef<HTMLButtonElement>(null);
+  const more = useRef<HTMLDivElement>(null);
+  // "More" opens at the card's end, which may be out of the card's view.
+  useEffect(() => more.current?.scrollIntoView?.({ block: 'nearest' }), [moreOpen]);
+
   const member = room.getMember(userId);
   const user = client.getUser(userId);
-  // A member event without a name (a ban, the leave that lifts it) names the person by their ID;
-  // their profile still has the name.
-  // The ID shows under the name, so the name goes without it, and without what disguises it.
-  const name =
-    withoutNameDisguises(
-      getMemberRawDisplayName(room, userId) ||
-        profile.displayName ||
-        (user?.displayName !== userId ? user?.displayName : undefined) ||
-        ''
-    ) ||
-    getMxIdLocalPart(userId) ||
-    userId;
   const avatarMxc = member?.getMxcAvatarUrl() ?? profile.avatarUrl ?? user?.avatarUrl;
   const avatarSrc = avatarMxc
     ? mxcUrlToHttp(client, avatarMxc, authenticatedMedia, 112, 112, 'crop') ?? undefined
@@ -177,16 +200,6 @@ export function UserRoomProfile({
     openRoomSettings(room.roomId, RoomSettingsPage.PermissionsPage);
   };
 
-  const avatar = (
-    <Avatar className={css.ProfileAvatar} size="500" radii="Pill">
-      <UserAvatar
-        alt={name}
-        userId={userId}
-        src={avatarSrc}
-        renderFallback={() => <Text size="H4">{nameInitials(name)}</Text>}
-      />
-    </Avatar>
-  );
   const userIdLine = (
     <Text size="T200" priority="300" className={css.ProfileUserId}>
       {/* A Matrix ID reads left to right, with its @ at the start, in any language. */}
@@ -207,88 +220,151 @@ export function UserRoomProfile({
       )}
       <ShareChip userId={userId} />
       {server && <ServerChip server={server} />}
-      {!isMe && !agent && <MutualRoomsChip userId={userId} onOpen={onDone} />}
+      {!isMe && !agent && <MutualRoomsChip shared={shared} onOpen={onDone} />}
     </Box>
   );
-  const callButton = !isMe && (
-    <AgentCallButton
-      roomId={room.roomId}
-      userId={userId}
-      displayName={name}
-      presenceStatus={user?.presenceStatusMsg}
-      onStarted={onDone}
-    />
+  const moderation = !isMe && (
+    <>
+      <UserModeration room={room} userId={userId} abilities={abilities} />
+      <BlockControl userId={userId} />
+    </>
   );
 
-  if (agent) {
+  // The agent's profile is read only for an agent's card, while it is shown.
+  const card = (agentProfile: AgentProfileState) => {
+    const ready = agentProfile.status === 'ready' ? agentProfile.profile : undefined;
+    const role = roomRole ?? ready?.role;
+    const modelLabel = ready?.model && getAiRunCompactModelLabel(ready.model);
     return (
-      <AgentProfileCard
-        room={room}
-        userId={userId}
-        name={name}
-        avatar={avatar}
-        role={role}
-        onMessage={openDirectRoom}
-        onDone={onDone}
-        call={callButton}
-        more={
+      <Box className={agent ? toolsCss.AgentCard : css.ProfileCard} direction="Column" gap="400">
+        {allTools && ready ? (
+          <AgentToolList
+            name={name}
+            tools={ready.tools}
+            onBack={() => {
+              setAllTools(false);
+              requestAnimationFrame(() => viewAll.current?.focus());
+            }}
+          />
+        ) : (
           <>
-            {userIdLine}
-            {chips}
-            <UserModeration room={room} userId={userId} abilities={abilities} />
-            <BlockControl userId={userId} />
+            <Box alignItems="Center" gap="300">
+              <Avatar className={css.ProfileAvatar} size="500" radii="Pill">
+                <UserAvatar
+                  alt={name}
+                  userId={userId}
+                  src={avatarSrc}
+                  renderFallback={() => <Text size="H4">{nameInitials(name)}</Text>}
+                />
+              </Avatar>
+              <Box direction="Column" gap="100" style={{ minWidth: 0 }}>
+                <Box alignItems="Center" gap="200" wrap="Wrap">
+                  {!titled && (
+                    <Text as="h2" size="H5" className={css.ProfileName}>
+                      {name}
+                    </Text>
+                  )}
+                  {agent && (
+                    <Badge variant="Secondary" fill="Soft" outlined radii="Pill">
+                      <Text size="L400">{t('sharedUi.agentCard.agent')}</Text>
+                    </Badge>
+                  )}
+                </Box>
+                {!agent && userIdLine}
+                {modelLabel && (
+                  <Text size="T200" priority="300">
+                    {modelLabel}
+                  </Text>
+                )}
+              </Box>
+            </Box>
+            {role && (
+              <Text size="T300" className={css.ProfileRole} {...ownDirectionBlock}>
+                {role}
+              </Text>
+            )}
+            {agent ? (
+              <>
+                <AgentCapabilities
+                  state={agentProfile}
+                  onViewAll={() => setAllTools(true)}
+                  viewAllRef={viewAll}
+                />
+                <WorksIn room={room} shared={shared} onOpen={onDone} />
+              </>
+            ) : (
+              chips
+            )}
           </>
-        }
-      />
-    );
-  }
-
-  return (
-    <Box className={css.ProfileCard} direction="Column" gap="400">
-      <Box alignItems="Center" gap="300">
-        {avatar}
-        <Box direction="Column" gap="100" style={{ minWidth: 0 }}>
-          <Text as="h2" size="H5" className={css.ProfileName}>
-            {name}
-          </Text>
-          {userIdLine}
-        </Box>
+        )}
+        {!isMe && (
+          <Box gap="200">
+            <Button
+              style={{ flexGrow: 1 }}
+              size="300"
+              radii="300"
+              variant="Primary"
+              before={<Icon size="100" src={Icons.Message} />}
+              onClick={openDirectRoom}
+            >
+              <Text size="B300">{t('sharedUi.userRoomProfile.message')}</Text>
+            </Button>
+            {agent && (
+              <IconButton
+                size="300"
+                radii="300"
+                variant="SurfaceVariant"
+                outlined
+                aria-label={t('sharedUi.agentCard.more')}
+                aria-expanded={moreOpen}
+                onClick={() => setMoreOpen((open) => !open)}
+              >
+                <Icon size="100" src={Icons.HorizontalDots} />
+              </IconButton>
+            )}
+          </Box>
+        )}
+        {!isMe && (
+          <AgentCallButton
+            roomId={room.roomId}
+            userId={userId}
+            displayName={name}
+            presenceStatus={user?.presenceStatusMsg}
+            onStarted={onDone}
+          />
+        )}
+        {isMe && (
+          <Button
+            size="300"
+            radii="300"
+            variant="Secondary"
+            fill="Soft"
+            before={<Icon size="100" src={Icons.Pencil} />}
+            onClick={() => {
+              onDone();
+              openSettings({ initialPage: SettingsPages.AccountPage });
+            }}
+          >
+            <Text size="B300">{t('sharedUi.userRoomProfile.editProfile')}</Text>
+          </Button>
+        )}
+        {agent
+          ? moreOpen && (
+              <Box ref={more} className={toolsCss.Section} direction="Column" gap="300">
+                {userIdLine}
+                {chips}
+                {moderation}
+              </Box>
+            )
+          : moderation}
       </Box>
-      {role && (
-        <Text size="T300" className={css.ProfileRole} {...ownDirectionBlock}>
-          {role}
-        </Text>
-      )}
-      {chips}
-      {!isMe && (
-        <Button
-          size="300"
-          radii="300"
-          variant="Primary"
-          before={<Icon size="100" src={Icons.Message} />}
-          onClick={openDirectRoom}
-        >
-          <Text size="B300">{t('sharedUi.userRoomProfile.message')}</Text>
-        </Button>
-      )}
-      {callButton}
-      {isMe && (
-        <Button
-          size="300"
-          radii="300"
-          variant="Secondary"
-          fill="Soft"
-          before={<Icon size="100" src={Icons.Pencil} />}
-          onClick={() => {
-            onDone();
-            openSettings({ initialPage: SettingsPages.AccountPage });
-          }}
-        >
-          <Text size="B300">{t('sharedUi.userRoomProfile.editProfile')}</Text>
-        </Button>
-      )}
-      {!isMe && <UserModeration room={room} userId={userId} abilities={abilities} />}
-      {!isMe && <BlockControl userId={userId} />}
-    </Box>
+    );
+  };
+
+  if (!agent) return card({ status: 'none' });
+  return (
+    <AgentProfileRead room={room} agentUserId={userId}>
+      {card}
+    </AgentProfileRead>
   );
 }

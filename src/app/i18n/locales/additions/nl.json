@@ -282,7 +282,7 @@
     "agentCard": {
       "agent": "Agent",
       "close": "Sluiten",
-      "whatItCanDo": "Wat hij kan",
+      "configuredTools": "Ingestelde tools",
       "toolCount_one": "{{count}} tool",
       "toolCount_other": "{{count}} tools",
       "groupCount_one": "{{count}} groep",
@@ -296,56 +296,23 @@
       "back": "Terug",
       "more": "Meer",
       "worksIn": "Werkt in",
-      "loading": "Laden wat hij kan",
+      "loading": "Ingestelde tools laden",
+      "availability": "Beschikbaarheid kan per verzoek en rechten verschillen.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Code schrijven en met bestanden werken",
-          "name": "Code & bestanden"
-        },
-        "research": {
-          "title": "Het web doorzoeken en lezen",
-          "name": "Web & onderzoek"
-        },
-        "productivity": {
-          "title": "Plannen, inplannen en onthouden",
-          "name": "Planning & geheugen"
-        },
-        "email": {
-          "title": "E-mail lezen en versturen",
-          "name": "E-mail"
-        },
-        "mcp": {
-          "title": "Met gekoppelde apps werken",
-          "name": "Gekoppelde apps"
-        },
-        "integrations": {
-          "title": "Gekoppelde diensten gebruiken",
-          "name": "Integraties"
-        },
-        "communication": {
-          "title": "Chatten en berichten sturen",
-          "name": "Chat & berichten"
-        },
-        "entertainment": {
-          "title": "Media zoeken en afspelen",
-          "name": "Media"
-        },
-        "information": {
-          "title": "Dingen opzoeken",
-          "name": "Informatie"
-        },
-        "smart_home": {
-          "title": "Het slimme huis bedienen",
-          "name": "Slim huis"
-        },
-        "social": {
-          "title": "Sociale netwerken gebruiken",
-          "name": "Sociaal"
-        },
-        "other": {
-          "title": "Andere tools",
-          "name": "Overig"
-        }
+        "development": "Code & bestanden",
+        "research": "Web",
+        "productivity": "Planning & geheugen",
+        "email": "E-mail",
+        "mcp": "Gekoppelde apps",
+        "integrations": "Integraties",
+        "communication": "Chat & berichten",
+        "entertainment": "Media",
+        "information": "Informatie",
+        "smart_home": "Slim huis",
+        "social": "Sociaal",
+        "other": "Overig"
       }
     }
   },

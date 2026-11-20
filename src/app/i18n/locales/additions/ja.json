@@ -278,7 +278,7 @@
     "agentCard": {
       "agent": "エージェント",
       "close": "閉じる",
-      "whatItCanDo": "できること",
+      "configuredTools": "設定済みのツール",
       "toolCount_other": "{{count}} 個のツール",
       "groupCount_other": "{{count}} グループ",
       "also": "ほかに {{groups}}",
@@ -289,56 +289,22 @@
       "back": "戻る",
       "more": "その他",
       "worksIn": "参加ルーム",
-      "loading": "できることを読み込み中",
+      "loading": "設定済みのツールを読み込み中",
+      "availability": "利用できるかどうかはリクエストと権限によって異なります。",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "コードを書き、ファイルを扱う",
-          "name": "コードとファイル"
-        },
-        "research": {
-          "title": "Web を検索して読む",
-          "name": "Web と調査"
-        },
-        "productivity": {
-          "title": "計画、予定、記憶",
-          "name": "計画とメモリ"
-        },
-        "email": {
-          "title": "メールを読み書きする",
-          "name": "メール"
-        },
-        "mcp": {
-          "title": "接続したアプリを使う",
-          "name": "接続したアプリ"
-        },
-        "integrations": {
-          "title": "接続したサービスを使う",
-          "name": "連携"
-        },
-        "communication": {
-          "title": "チャットとメッセージ送信",
-          "name": "チャットとメッセージ"
-        },
-        "entertainment": {
-          "title": "メディアを探して再生する",
-          "name": "メディア"
-        },
-        "information": {
-          "title": "情報を調べる",
-          "name": "情報"
-        },
-        "smart_home": {
-          "title": "スマートホームを操作する",
-          "name": "スマートホーム"
-        },
-        "social": {
-          "title": "SNS を使う",
-          "name": "ソーシャル"
-        },
-        "other": {
-          "title": "その他のツール",
-          "name": "その他"
-        }
+        "development": "コードとファイル",
+        "research": "Web",
+        "productivity": "スケジュールとメモリ",
+        "email": "メール",
+        "mcp": "接続したアプリ",
+        "integrations": "連携",
+        "communication": "チャットとメッセージ",
+        "entertainment": "メディア",
+        "information": "情報",
+        "smart_home": "スマートホーム",
+        "social": "ソーシャル",
+        "other": "その他"
       }
     }
   },

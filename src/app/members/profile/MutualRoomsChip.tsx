@@ -64,18 +64,17 @@ export const useMutualRooms = (userId: string): Shared => {
  * `label` names the chip instead of the count, such as "+3" after rooms shown beside it.
  */
 export function MutualRoomsChip({
-  userId,
+  shared,
   onOpen,
   label,
 }: {
-  userId: string;
+  shared: Shared;
   onOpen: () => void;
   label?: string;
 }) {
   const { t } = useTranslation();
   const { navigateRoom, navigateSpace } = useRoomNavigate();
   const [anchor, setAnchor] = useState<RectCords>();
-  const shared = useMutualRooms(userId);
   const count = shared.spaces.length + shared.rooms.length + shared.directs.length;
   if (count === 0) return null;
 

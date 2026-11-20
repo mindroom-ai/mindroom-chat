@@ -286,7 +286,7 @@
     "agentCard": {
       "agent": "Agent",
       "close": "Fermer",
-      "whatItCanDo": "Ce qu’il sait faire",
+      "configuredTools": "Outils configurés",
       "toolCount_one": "{{count}} outil",
       "toolCount_many": "{{count}} d’outils",
       "toolCount_other": "{{count}} outils",
@@ -303,56 +303,24 @@
       "back": "Retour",
       "more": "Plus",
       "worksIn": "Travaille dans",
-      "loading": "Chargement de ce qu’il sait faire",
+      "loading": "Chargement des outils configurés",
+      "availability": "La disponibilité peut varier selon la demande et les autorisations.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Écrire du code et travailler sur des fichiers",
-          "name": "Code et fichiers"
-        },
-        "research": {
-          "title": "Chercher et lire sur le web",
-          "name": "Web et recherche"
-        },
-        "productivity": {
-          "title": "Planifier, programmer et mémoriser",
-          "name": "Planification et mémoire"
-        },
-        "email": {
-          "title": "Lire et envoyer des e-mails",
-          "name": "E-mail"
-        },
-        "mcp": {
-          "title": "Travailler avec les applis connectées",
-          "name": "Applis connectées"
-        },
-        "integrations": {
-          "title": "Utiliser des services connectés",
-          "name": "Intégrations"
-        },
-        "communication": {
-          "title": "Discuter et envoyer des messages",
-          "name": "Discussions et messages"
-        },
-        "entertainment": {
-          "title": "Trouver et lire des médias",
-          "name": "Médias"
-        },
-        "information": {
-          "title": "Chercher des informations",
-          "name": "Informations"
-        },
-        "smart_home": {
-          "title": "Piloter la maison connectée",
-          "name": "Maison connectée"
-        },
-        "social": {
-          "title": "Utiliser les réseaux sociaux",
-          "name": "Réseaux sociaux"
-        },
-        "other": {
-          "title": "Autres outils",
-          "name": "Autres"
-        }
+        "development": "Code et fichiers",
+        "research": "Web",
+        "productivity": "Planification et mémoire",
+        "email": "E-mail",
+        "mcp": "Applis connectées",
+        "integrations": "Intégrations",
+        "communication": "Discussions et messages",
+        "entertainment": "Médias",
+        "information": "Informations",
+        "smart_home": "Maison connectée",
+        "social": "Réseaux sociaux",
+        "other": "Autres"
       }
     }
   },

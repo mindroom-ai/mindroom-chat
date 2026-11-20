@@ -286,7 +286,7 @@
     "agentCard": {
       "agent": "Agente",
       "close": "Fechar",
-      "whatItCanDo": "O que ele faz",
+      "configuredTools": "Ferramentas configuradas",
       "toolCount_one": "{{count}} ferramenta",
       "toolCount_many": "{{count}} de ferramentas",
       "toolCount_other": "{{count}} ferramentas",
@@ -303,56 +303,24 @@
       "back": "Voltar",
       "more": "Mais",
       "worksIn": "Trabalha em",
-      "loading": "Carregando o que ele faz",
+      "loading": "Carregando ferramentas configuradas",
+      "availability": "A disponibilidade pode variar conforme a solicitação e as permissões.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Escrever código e trabalhar com arquivos",
-          "name": "Código e arquivos"
-        },
-        "research": {
-          "title": "Pesquisar e ler na web",
-          "name": "Web e pesquisa"
-        },
-        "productivity": {
-          "title": "Planejar, agendar e lembrar",
-          "name": "Planejamento e memória"
-        },
-        "email": {
-          "title": "Ler e enviar e-mails",
-          "name": "E-mail"
-        },
-        "mcp": {
-          "title": "Trabalhar com apps conectados",
-          "name": "Apps conectados"
-        },
-        "integrations": {
-          "title": "Usar serviços conectados",
-          "name": "Integrações"
-        },
-        "communication": {
-          "title": "Conversar e enviar mensagens",
-          "name": "Chat e mensagens"
-        },
-        "entertainment": {
-          "title": "Encontrar e reproduzir mídia",
-          "name": "Mídia"
-        },
-        "information": {
-          "title": "Consultar informações",
-          "name": "Informações"
-        },
-        "smart_home": {
-          "title": "Controlar a casa inteligente",
-          "name": "Casa inteligente"
-        },
-        "social": {
-          "title": "Usar redes sociais",
-          "name": "Social"
-        },
-        "other": {
-          "title": "Outras ferramentas",
-          "name": "Outras"
-        }
+        "development": "Código e arquivos",
+        "research": "Web",
+        "productivity": "Agendamento e memória",
+        "email": "E-mail",
+        "mcp": "Apps conectados",
+        "integrations": "Integrações",
+        "communication": "Chat e mensagens",
+        "entertainment": "Mídia",
+        "information": "Informações",
+        "smart_home": "Casa inteligente",
+        "social": "Social",
+        "other": "Outras"
       }
     }
   },

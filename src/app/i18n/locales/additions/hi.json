@@ -282,7 +282,7 @@
     "agentCard": {
       "agent": "एजेंट",
       "close": "बंद करें",
-      "whatItCanDo": "यह क्या कर सकता है",
+      "configuredTools": "कॉन्फ़िगर किए गए टूल",
       "toolCount_one": "{{count}} टूल",
       "toolCount_other": "{{count}} टूल",
       "groupCount_one": "{{count}} समूह",
@@ -296,56 +296,23 @@
       "back": "वापस",
       "more": "और",
       "worksIn": "यहाँ काम करता है",
-      "loading": "यह क्या कर सकता है, लोड हो रहा है",
+      "loading": "कॉन्फ़िगर किए गए टूल लोड हो रहे हैं",
+      "availability": "उपलब्धता अनुरोध और अनुमतियों के अनुसार बदल सकती है।",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "कोड लिखना और फ़ाइलों पर काम करना",
-          "name": "कोड और फ़ाइलें"
-        },
-        "research": {
-          "title": "वेब पर खोजना और पढ़ना",
-          "name": "वेब और रिसर्च"
-        },
-        "productivity": {
-          "title": "योजना बनाना, शेड्यूल करना और याद रखना",
-          "name": "योजना और मेमोरी"
-        },
-        "email": {
-          "title": "ईमेल पढ़ना और भेजना",
-          "name": "ईमेल"
-        },
-        "mcp": {
-          "title": "जुड़े ऐप्स के साथ काम करना",
-          "name": "जुड़े ऐप्स"
-        },
-        "integrations": {
-          "title": "जुड़ी सेवाओं का उपयोग करना",
-          "name": "इंटीग्रेशन"
-        },
-        "communication": {
-          "title": "चैट करना और संदेश भेजना",
-          "name": "चैट और संदेश"
-        },
-        "entertainment": {
-          "title": "मीडिया ढूँढना और चलाना",
-          "name": "मीडिया"
-        },
-        "information": {
-          "title": "जानकारी खोजना",
-          "name": "जानकारी"
-        },
-        "smart_home": {
-          "title": "स्मार्ट होम नियंत्रित करना",
-          "name": "स्मार्ट होम"
-        },
-        "social": {
-          "title": "सोशल नेटवर्क का उपयोग करना",
-          "name": "सोशल"
-        },
-        "other": {
-          "title": "अन्य टूल",
-          "name": "अन्य"
-        }
+        "development": "कोड और फ़ाइलें",
+        "research": "वेब",
+        "productivity": "शेड्यूलिंग और मेमोरी",
+        "email": "ईमेल",
+        "mcp": "जुड़े ऐप्स",
+        "integrations": "इंटीग्रेशन",
+        "communication": "चैट और संदेश",
+        "entertainment": "मीडिया",
+        "information": "जानकारी",
+        "smart_home": "स्मार्ट होम",
+        "social": "सोशल",
+        "other": "अन्य"
       }
     }
   },

@@ -290,7 +290,7 @@
     "agentCard": {
       "agent": "Агент",
       "close": "Закрыть",
-      "whatItCanDo": "Что он умеет",
+      "configuredTools": "Настроенные инструменты",
       "toolCount_one": "{{count}} инструмент",
       "toolCount_few": "{{count}} инструмента",
       "toolCount_many": "{{count}} инструментов",
@@ -310,56 +310,25 @@
       "back": "Назад",
       "more": "Ещё",
       "worksIn": "Работает в",
-      "loading": "Загрузка возможностей",
+      "loading": "Загрузка настроенных инструментов",
+      "availability": "Доступность может зависеть от запроса и прав доступа.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_few": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Писать код и работать с файлами",
-          "name": "Код и файлы"
-        },
-        "research": {
-          "title": "Искать и читать в интернете",
-          "name": "Веб и поиск"
-        },
-        "productivity": {
-          "title": "Планировать, назначать и запоминать",
-          "name": "Планы и память"
-        },
-        "email": {
-          "title": "Читать и отправлять почту",
-          "name": "Почта"
-        },
-        "mcp": {
-          "title": "Работать с подключёнными приложениями",
-          "name": "Подключённые приложения"
-        },
-        "integrations": {
-          "title": "Пользоваться подключёнными сервисами",
-          "name": "Интеграции"
-        },
-        "communication": {
-          "title": "Общаться и отправлять сообщения",
-          "name": "Чаты и сообщения"
-        },
-        "entertainment": {
-          "title": "Искать и воспроизводить медиа",
-          "name": "Медиа"
-        },
-        "information": {
-          "title": "Искать сведения",
-          "name": "Справки"
-        },
-        "smart_home": {
-          "title": "Управлять умным домом",
-          "name": "Умный дом"
-        },
-        "social": {
-          "title": "Пользоваться соцсетями",
-          "name": "Соцсети"
-        },
-        "other": {
-          "title": "Другие инструменты",
-          "name": "Другое"
-        }
+        "development": "Код и файлы",
+        "research": "Веб",
+        "productivity": "Расписание и память",
+        "email": "Почта",
+        "mcp": "Подключённые приложения",
+        "integrations": "Интеграции",
+        "communication": "Чаты и сообщения",
+        "entertainment": "Медиа",
+        "information": "Справки",
+        "smart_home": "Умный дом",
+        "social": "Соцсети",
+        "other": "Другое"
       }
     }
   },

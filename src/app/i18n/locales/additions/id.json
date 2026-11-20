@@ -278,7 +278,7 @@
     "agentCard": {
       "agent": "Agen",
       "close": "Tutup",
-      "whatItCanDo": "Yang bisa dilakukan",
+      "configuredTools": "Alat yang dikonfigurasi",
       "toolCount_other": "{{count}} alat",
       "groupCount_other": "{{count}} grup",
       "also": "Juga {{groups}}",
@@ -289,56 +289,22 @@
       "back": "Kembali",
       "more": "Lainnya",
       "worksIn": "Bekerja di",
-      "loading": "Memuat yang bisa dilakukan",
+      "loading": "Memuat alat yang dikonfigurasi",
+      "availability": "Ketersediaan dapat berbeda menurut permintaan dan izin.",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Menulis kode dan mengolah file",
-          "name": "Kode & file"
-        },
-        "research": {
-          "title": "Mencari dan membaca web",
-          "name": "Web & riset"
-        },
-        "productivity": {
-          "title": "Merencanakan, menjadwalkan, dan mengingat",
-          "name": "Perencanaan & memori"
-        },
-        "email": {
-          "title": "Membaca dan mengirim email",
-          "name": "Email"
-        },
-        "mcp": {
-          "title": "Bekerja dengan aplikasi terhubung",
-          "name": "Aplikasi terhubung"
-        },
-        "integrations": {
-          "title": "Memakai layanan terhubung",
-          "name": "Integrasi"
-        },
-        "communication": {
-          "title": "Mengobrol dan mengirim pesan",
-          "name": "Obrolan & pesan"
-        },
-        "entertainment": {
-          "title": "Mencari dan memutar media",
-          "name": "Media"
-        },
-        "information": {
-          "title": "Mencari informasi",
-          "name": "Informasi"
-        },
-        "smart_home": {
-          "title": "Mengendalikan rumah pintar",
-          "name": "Rumah pintar"
-        },
-        "social": {
-          "title": "Memakai jejaring sosial",
-          "name": "Sosial"
-        },
-        "other": {
-          "title": "Alat lainnya",
-          "name": "Lainnya"
-        }
+        "development": "Kode & file",
+        "research": "Web",
+        "productivity": "Penjadwalan & memori",
+        "email": "Email",
+        "mcp": "Aplikasi terhubung",
+        "integrations": "Integrasi",
+        "communication": "Obrolan & pesan",
+        "entertainment": "Media",
+        "information": "Informasi",
+        "smart_home": "Rumah pintar",
+        "social": "Sosial",
+        "other": "Lainnya"
       }
     }
   },

@@ -278,7 +278,7 @@
     "agentCard": {
       "agent": "에이전트",
       "close": "닫기",
-      "whatItCanDo": "할 수 있는 일",
+      "configuredTools": "설정된 도구",
       "toolCount_other": "도구 {{count}}개",
       "groupCount_other": "그룹 {{count}}개",
       "also": "그 밖에 {{groups}}",
@@ -289,56 +289,22 @@
       "back": "뒤로",
       "more": "더 보기",
       "worksIn": "활동하는 방",
-      "loading": "할 수 있는 일을 불러오는 중",
+      "loading": "설정된 도구를 불러오는 중",
+      "availability": "요청과 권한에 따라 사용 가능 여부가 달라질 수 있습니다.",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "코드 작성과 파일 작업",
-          "name": "코드 및 파일"
-        },
-        "research": {
-          "title": "웹 검색과 읽기",
-          "name": "웹 및 조사"
-        },
-        "productivity": {
-          "title": "계획, 일정, 기억",
-          "name": "계획 및 메모리"
-        },
-        "email": {
-          "title": "이메일 읽기와 보내기",
-          "name": "이메일"
-        },
-        "mcp": {
-          "title": "연결된 앱과 작업",
-          "name": "연결된 앱"
-        },
-        "integrations": {
-          "title": "연결된 서비스 사용",
-          "name": "통합"
-        },
-        "communication": {
-          "title": "채팅과 메시지 보내기",
-          "name": "채팅 및 메시지"
-        },
-        "entertainment": {
-          "title": "미디어 찾기와 재생",
-          "name": "미디어"
-        },
-        "information": {
-          "title": "정보 찾아보기",
-          "name": "정보"
-        },
-        "smart_home": {
-          "title": "스마트 홈 제어",
-          "name": "스마트 홈"
-        },
-        "social": {
-          "title": "소셜 네트워크 사용",
-          "name": "소셜"
-        },
-        "other": {
-          "title": "기타 도구",
-          "name": "기타"
-        }
+        "development": "코드 및 파일",
+        "research": "웹",
+        "productivity": "일정 및 메모리",
+        "email": "이메일",
+        "mcp": "연결된 앱",
+        "integrations": "통합",
+        "communication": "채팅 및 메시지",
+        "entertainment": "미디어",
+        "information": "정보",
+        "smart_home": "스마트 홈",
+        "social": "소셜",
+        "other": "기타"
       }
     }
   },

@@ -286,7 +286,7 @@
     "agentCard": {
       "agent": "Agente",
       "close": "Chiudi",
-      "whatItCanDo": "Cosa sa fare",
+      "configuredTools": "Strumenti configurati",
       "toolCount_one": "{{count}} strumento",
       "toolCount_many": "{{count}} di strumenti",
       "toolCount_other": "{{count}} strumenti",
@@ -303,56 +303,24 @@
       "back": "Indietro",
       "more": "Altro",
       "worksIn": "Lavora in",
-      "loading": "Caricamento di cosa sa fare",
+      "loading": "Caricamento degli strumenti configurati",
+      "availability": "La disponibilità può variare in base alla richiesta e ai permessi.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Scrivere codice e lavorare con i file",
-          "name": "Codice e file"
-        },
-        "research": {
-          "title": "Cercare e leggere sul web",
-          "name": "Web e ricerca"
-        },
-        "productivity": {
-          "title": "Pianificare, programmare e ricordare",
-          "name": "Pianificazione e memoria"
-        },
-        "email": {
-          "title": "Leggere e inviare email",
-          "name": "Email"
-        },
-        "mcp": {
-          "title": "Lavorare con le app collegate",
-          "name": "App collegate"
-        },
-        "integrations": {
-          "title": "Usare servizi collegati",
-          "name": "Integrazioni"
-        },
-        "communication": {
-          "title": "Chattare e inviare messaggi",
-          "name": "Chat e messaggi"
-        },
-        "entertainment": {
-          "title": "Trovare e riprodurre contenuti",
-          "name": "Contenuti multimediali"
-        },
-        "information": {
-          "title": "Cercare informazioni",
-          "name": "Informazioni"
-        },
-        "smart_home": {
-          "title": "Controllare la casa intelligente",
-          "name": "Casa intelligente"
-        },
-        "social": {
-          "title": "Usare i social network",
-          "name": "Social"
-        },
-        "other": {
-          "title": "Altri strumenti",
-          "name": "Altro"
-        }
+        "development": "Codice e file",
+        "research": "Web",
+        "productivity": "Pianificazione e memoria",
+        "email": "Email",
+        "mcp": "App collegate",
+        "integrations": "Integrazioni",
+        "communication": "Chat e messaggi",
+        "entertainment": "Contenuti multimediali",
+        "information": "Informazioni",
+        "smart_home": "Casa intelligente",
+        "social": "Social",
+        "other": "Altro"
       }
     }
   },

@@ -5,8 +5,9 @@ import { MINDROOM_SERVER_EVENT } from '../../computer/agentServer';
 import { UserRoomProfile } from './UserRoomProfile';
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+const viewer = vi.hoisted(() => ({ id: '@me:x' }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:x', getUser: () => null }),
+  useMatrixClient: () => ({ getSafeUserId: () => viewer.id, getUser: () => null }),
 }));
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
@@ -114,6 +115,16 @@ describe('UserRoomProfile role', () => {
     const withRole = cardText(await roomWith({ [HELPER]: { role: ROLE } }), HELPER);
     act(() => renderer?.unmount());
     expect(cardText(room, HELPER)).toEqual(withRole.filter((line) => line !== ROLE));
+  });
+
+  it('gives an account named like an agent its own card, with Edit Profile', async () => {
+    viewer.id = HELPER;
+    const text = cardText(await roomWith({ [HELPER]: { role: ROLE } }), HELPER);
+    viewer.id = '@me:x';
+    expect(text).toContain('Edit Profile');
+    expect(text).toContain(HELPER);
+    expect(text).not.toContain('Message');
+    expect(text).not.toContain('Agent');
   });
 
   it("leaves a person's card as it was, whatever state the person writes", async () => {

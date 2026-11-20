@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterAgentTools, groupAgentTools, parseAgentProfile } from './agentProfile';
+import { groupAgentTools, parseAgentProfile } from './agentProfile';
 
 const tool = (name: string, category: string, mcpServer: string | null = null) => ({
   name,
@@ -78,13 +78,16 @@ describe('groupAgentTools', () => {
   });
 });
 
-describe('filterAgentTools', () => {
-  it('matches the shown name or the registry name, ignoring case', () => {
+describe('groupAgentTools with a query', () => {
+  it('keeps the tools whose shown or registry name matches, ignoring case', () => {
     const { tools } = parseAgentProfile({
       tools: [tool('shell', 'development'), tool('gmail', 'email')],
     })!;
-    expect(filterAgentTools(tools, ' SHE').map((each) => each.name)).toEqual(['shell']);
-    expect(filterAgentTools(tools, 'gmail').map((each) => each.name)).toEqual(['gmail']);
-    expect(filterAgentTools(tools, '')).toEqual(tools);
+    const names = (query: string) =>
+      groupAgentTools(tools, query).flatMap((group) => group.tools.map((each) => each.name));
+    expect(names(' SHE')).toEqual(['shell']);
+    expect(names('gmail')).toEqual(['gmail']);
+    expect(names('')).toEqual(['shell', 'gmail']);
+    expect(groupAgentTools(tools, 'nothing')).toEqual([]);
   });
 });

@@ -282,7 +282,7 @@
     "agentCard": {
       "agent": "Ajan",
       "close": "Kapat",
-      "whatItCanDo": "Neler yapabilir",
+      "configuredTools": "Yapılandırılmış araçlar",
       "toolCount_one": "{{count}} araç",
       "toolCount_other": "{{count}} araç",
       "groupCount_one": "{{count}} grup",
@@ -296,56 +296,23 @@
       "back": "Geri",
       "more": "Daha fazla",
       "worksIn": "Çalıştığı yerler",
-      "loading": "Neler yapabileceği yükleniyor",
+      "loading": "Yapılandırılmış araçlar yükleniyor",
+      "availability": "Kullanılabilirlik isteğe ve izinlere göre değişebilir.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Kod yazar ve dosyalarla çalışır",
-          "name": "Kod ve dosyalar"
-        },
-        "research": {
-          "title": "Web’de arar ve okur",
-          "name": "Web ve araştırma"
-        },
-        "productivity": {
-          "title": "Planlar, zamanlar ve hatırlar",
-          "name": "Planlama ve bellek"
-        },
-        "email": {
-          "title": "E-posta okur ve gönderir",
-          "name": "E-posta"
-        },
-        "mcp": {
-          "title": "Bağlı uygulamalarla çalışır",
-          "name": "Bağlı uygulamalar"
-        },
-        "integrations": {
-          "title": "Bağlı hizmetleri kullanır",
-          "name": "Entegrasyonlar"
-        },
-        "communication": {
-          "title": "Sohbet eder ve mesaj gönderir",
-          "name": "Sohbet ve mesajlar"
-        },
-        "entertainment": {
-          "title": "Medya bulur ve oynatır",
-          "name": "Medya"
-        },
-        "information": {
-          "title": "Bilgi arar",
-          "name": "Bilgi"
-        },
-        "smart_home": {
-          "title": "Akıllı evi yönetir",
-          "name": "Akıllı ev"
-        },
-        "social": {
-          "title": "Sosyal ağları kullanır",
-          "name": "Sosyal"
-        },
-        "other": {
-          "title": "Diğer araçlar",
-          "name": "Diğer"
-        }
+        "development": "Kod ve dosyalar",
+        "research": "Web",
+        "productivity": "Zamanlama ve bellek",
+        "email": "E-posta",
+        "mcp": "Bağlı uygulamalar",
+        "integrations": "Entegrasyonlar",
+        "communication": "Sohbet ve mesajlar",
+        "entertainment": "Medya",
+        "information": "Bilgi",
+        "smart_home": "Akıllı ev",
+        "social": "Sosyal",
+        "other": "Diğer"
       }
     }
   },

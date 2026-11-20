@@ -282,7 +282,7 @@
     "agentCard": {
       "agent": "Agent",
       "close": "Schließen",
-      "whatItCanDo": "Was er kann",
+      "configuredTools": "Eingerichtete Werkzeuge",
       "toolCount_one": "{{count}} Werkzeug",
       "toolCount_other": "{{count}} Werkzeuge",
       "groupCount_one": "{{count}} Gruppe",
@@ -296,56 +296,23 @@
       "back": "Zurück",
       "more": "Mehr",
       "worksIn": "Arbeitet in",
-      "loading": "Lade, was er kann",
+      "loading": "Eingerichtete Werkzeuge werden geladen",
+      "availability": "Die Verfügbarkeit kann je nach Anfrage und Berechtigungen variieren.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Code schreiben und mit Dateien arbeiten",
-          "name": "Code & Dateien"
-        },
-        "research": {
-          "title": "Im Web suchen und lesen",
-          "name": "Web & Recherche"
-        },
-        "productivity": {
-          "title": "Planen, terminieren und merken",
-          "name": "Planung & Gedächtnis"
-        },
-        "email": {
-          "title": "E-Mails lesen und senden",
-          "name": "E-Mail"
-        },
-        "mcp": {
-          "title": "Mit verbundenen Apps arbeiten",
-          "name": "Verbundene Apps"
-        },
-        "integrations": {
-          "title": "Verbundene Dienste nutzen",
-          "name": "Integrationen"
-        },
-        "communication": {
-          "title": "Chatten und Nachrichten senden",
-          "name": "Chat & Nachrichten"
-        },
-        "entertainment": {
-          "title": "Medien finden und abspielen",
-          "name": "Medien"
-        },
-        "information": {
-          "title": "Dinge nachschlagen",
-          "name": "Informationen"
-        },
-        "smart_home": {
-          "title": "Das Smart Home steuern",
-          "name": "Smart Home"
-        },
-        "social": {
-          "title": "Soziale Netzwerke nutzen",
-          "name": "Soziales"
-        },
-        "other": {
-          "title": "Weitere Werkzeuge",
-          "name": "Sonstiges"
-        }
+        "development": "Code & Dateien",
+        "research": "Web",
+        "productivity": "Planung & Gedächtnis",
+        "email": "E-Mail",
+        "mcp": "Verbundene Apps",
+        "integrations": "Integrationen",
+        "communication": "Chat & Nachrichten",
+        "entertainment": "Medien",
+        "information": "Informationen",
+        "smart_home": "Smart Home",
+        "social": "Soziales",
+        "other": "Sonstiges"
       }
     }
   },

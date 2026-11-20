@@ -282,7 +282,7 @@
     "agentCard": {
       "agent": "Agent",
       "close": "Close",
-      "whatItCanDo": "What it can do",
+      "configuredTools": "Configured tools",
       "toolCount_one": "{{count}} tool",
       "toolCount_other": "{{count}} tools",
       "groupCount_one": "{{count}} group",
@@ -296,56 +296,23 @@
       "back": "Back",
       "more": "More",
       "worksIn": "Works in",
-      "loading": "Loading what it can do",
+      "loading": "Loading configured tools",
+      "availability": "Availability can vary by request and permissions.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
       "groups": {
-        "development": {
-          "title": "Write code and work with files",
-          "name": "Code & files"
-        },
-        "research": {
-          "title": "Search and read the web",
-          "name": "Web & research"
-        },
-        "productivity": {
-          "title": "Plan, schedule and remember",
-          "name": "Planning & memory"
-        },
-        "email": {
-          "title": "Read and send email",
-          "name": "Email"
-        },
-        "mcp": {
-          "title": "Work with connected apps",
-          "name": "Connected apps"
-        },
-        "integrations": {
-          "title": "Use connected services",
-          "name": "Integrations"
-        },
-        "communication": {
-          "title": "Chat and send messages",
-          "name": "Chat & messages"
-        },
-        "entertainment": {
-          "title": "Find and play media",
-          "name": "Media"
-        },
-        "information": {
-          "title": "Look things up",
-          "name": "Information"
-        },
-        "smart_home": {
-          "title": "Control the smart home",
-          "name": "Smart home"
-        },
-        "social": {
-          "title": "Use social networks",
-          "name": "Social"
-        },
-        "other": {
-          "title": "Other tools",
-          "name": "Other"
-        }
+        "development": "Code & files",
+        "research": "Web",
+        "productivity": "Scheduling & memory",
+        "email": "Email",
+        "mcp": "Connected apps",
+        "integrations": "Integrations",
+        "communication": "Chat & messages",
+        "entertainment": "Media",
+        "information": "Information",
+        "smart_home": "Smart home",
+        "social": "Social",
+        "other": "Other"
       }
     }
   },
