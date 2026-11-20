@@ -278,7 +278,7 @@ const sizeScript = (fitted: boolean): string => `
     if (!body) return;
     const root = document.documentElement;
     // A fitted page scrolls sideways only while it is wider than its frame; see FITTED_STYLE.
-    ${fitted ? "root.style.overflowX = root.scrollWidth > root.clientWidth ? 'auto' : '';" : ''}
+    ${fitted ? "root.toggleAttribute('data-mr-wide', root.scrollWidth > root.clientWidth);" : ''}
     const box = body.getBoundingClientRect();
     const height = Math.ceil(Math.max(
       box.top + scrollY + Math.max(body.scrollHeight, box.height)
@@ -437,9 +437,9 @@ export const RAW_COLOR_SCHEME = 'light dark';
 
 // The wheel never scrolls a fitted page's root up or down: the Mac app's WebKit gives the whole wheel
 // to a frame whose root can scroll even a pixel, so a size report a few pixels short would stop the
-// thread from scrolling under the pointer. The size script lets a page wider than its frame scroll
-// sideways.
-const FITTED_STYLE = 'html{overflow:hidden}';
+// thread from scrolling under the pointer. The size script marks a page wider than its frame, which
+// then scrolls sideways. Both rules weigh nothing, so a page's own overflow rules win.
+const FITTED_STYLE = ':where(html){overflow:hidden}:where(html[data-mr-wide]){overflow-x:auto}';
 
 const pageStyle = (theme: CanvasTheme, inline: boolean, fitted: boolean): string =>
   `<style>${canvasThemeCss(theme)}${

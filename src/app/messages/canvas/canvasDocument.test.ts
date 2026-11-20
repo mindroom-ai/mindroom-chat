@@ -869,8 +869,8 @@ describe('inline canvas sizing', () => {
     const page = (display?: CanvasDisplay) =>
       buildCanvasPage('', 'light', undefined, false, {}, display);
     const fitted = [
-      'html{overflow:hidden}',
-      'root.style.overflowX =',
+      ':where(html){overflow:hidden}',
+      "root.toggleAttribute('data-mr-wide'",
       "addEventListener('resize', queueSize)",
     ];
     for (const part of fitted) expect(page({ inline: true })).toContain(part);
