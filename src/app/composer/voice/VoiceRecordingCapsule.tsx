@@ -15,6 +15,8 @@ type VoiceRecordingCapsuleProps = {
   /** Samples of the live recording so far; the bars glide left as it grows. */
   sampleCount?: number;
   canPause: boolean;
+  /** Shown before the time: "Recovered recording", or "Not protected against a crash". */
+  label?: string;
   hasPendingSend?: boolean;
   onDiscard: () => void;
   onPause: () => void;
@@ -38,6 +40,7 @@ export function VoiceRecordingCapsule({
   waveform,
   sampleCount,
   canPause,
+  label,
   hasPendingSend,
   onDiscard,
   onPause,
@@ -79,6 +82,11 @@ export function VoiceRecordingCapsule({
         dimmed={paused || busy}
         compact
       />
+      {label && (
+        <Text className={css.Label} size="T200" truncate aria-live="polite">
+          {`${label} ·`}
+        </Text>
+      )}
       <Text className={css.Timer} size="B300" aria-live="polite">
         {millisecondsToMinutesAndSeconds(elapsedMs)}
       </Text>

@@ -11,6 +11,7 @@ import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError, uploadContent } from '../matrix/matrix';
 import { getRoomInputVoiceUploadRelation } from './RoomInputExtensions';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import { txnIdToSendUnder } from '../matrix/protocol/pendingLocalEcho';
 
 type Store = ReturnType<typeof createStore>;
 
@@ -33,11 +34,12 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       file: File,
       duration: number,
       waveform: number[] | undefined,
-      targetRoom: Room = room
+      targetRoom: Room = room,
+      txnId?: string
     ): Promise<TUploadItem[]> => {
       const items = await createRoomUploadItems([file], targetRoom, () => ({
         markedAsSpoiler: false,
-        voiceMessage: { duration, waveform },
+        voiceMessage: { duration, waveform, ...(txnId && { txnId }) },
       }));
       const failed = items.find((item) => item.prepError);
       if (failed?.prepError) throw failed.prepError;
@@ -124,7 +126,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       );
       const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
-      const txnId = mx.makeTxnId();
+      const txnId = txnIdToSendUnder(mx, context.room, item.metadata.voiceMessage?.txnId);
       try {
         const { event_id: eventId } = await mx.sendMessage(context.roomId, content as never, txnId);
         return eventId;

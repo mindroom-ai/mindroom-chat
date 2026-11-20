@@ -132,6 +132,14 @@ const keptAtoms = (): Map<object, string> =>
       'names the account that recorded it: no other account sends it, its own can retry',
     ],
     [
+      loaded.drafts.queuedVoiceDraftsAtom,
+      'each names the account that recorded it and is offered to no other',
+    ],
+    [
+      loaded.drafts.discardedVoiceDraftAtom,
+      'the discard of the last ten seconds, whose Undo outlives the composer it was made in',
+    ],
+    [
       loaded.drafts.threadViewVoiceComposersAtom,
       'lists the mounted thread views, each taken out as its composer goes',
     ],

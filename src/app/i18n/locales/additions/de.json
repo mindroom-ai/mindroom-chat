@@ -1188,6 +1188,11 @@
   "composer": {
     "voicePausedInThisRoom": "Sprachaufnahme pausiert — schließe deine nicht gesendete Aufnahme an anderer Stelle in diesem Raum ab oder verwirf sie",
     "voiceThreadRootUnsent": "Der Thread dieser Sprachnachricht hat keine gesendete erste Nachricht. Versuche es erneut, sobald diese Nachricht gesendet ist, oder verwirf die Aufnahme.",
+    "voiceRecovered": "Wiederhergestellte Aufnahme",
+    "voiceUnprotected": "Nicht gegen einen Absturz geschützt",
+    "voiceDiscarded": "Aufnahme verworfen",
+    "voiceUndoDiscard": "Rückgängig",
+    "voiceSendInterrupted": "Das Senden dieser Sprachnachricht wurde unterbrochen.",
     "emoji": "Emoji",
     "cancelReply": "Antwort abbrechen",
     "moreActions": "Weitere Aktionen",

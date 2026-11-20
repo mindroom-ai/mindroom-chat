@@ -62,4 +62,65 @@ describe('useRoomInputUploadTransport voice sends', () => {
     expect(mx.sendMessage.mock.calls[0]![2]).toBe('txn-voice');
     expect(mx.cancelPendingEvent).toHaveBeenCalledWith(localEvents.get('txn-voice'));
   });
+
+  it("sends under the recording's transaction ID until the room has had an echo under it", async () => {
+    const localEvents = new Map<string, { status: EventStatus }>();
+    let made = 0;
+    const mx = {
+      makeTxnId: () => {
+        made += 1;
+        return `txn-fresh-${made}`;
+      },
+      sendMessage: vi.fn(async (_roomId: string, _content: unknown, txnId: string) => {
+        localEvents.set(txnId, { status: EventStatus.NOT_SENT });
+        if (localEvents.size === 1) throw new Error('offline');
+        return { event_id: '$voice' };
+      }),
+      cancelPendingEvent: vi.fn(),
+    };
+    const room = {
+      roomId: '!room:example.org',
+      getEventForTxnId: (txnId: string) => localEvents.get(txnId),
+      hasEncryptionStateEvent: () => false,
+    };
+    let transport!: ReturnType<typeof useRoomInputUploadTransport>;
+    const Harness = () => {
+      transport = useRoomInputUploadTransport(mx as never, createStore(), room as never);
+      return null;
+    };
+    act(() => {
+      renderer = create(React.createElement(Harness));
+    });
+    const [item] = await transport.createVoiceUploadItems(
+      new File(['voice'], 'voice.ogg', { type: 'audio/ogg' }),
+      900,
+      [1, 2],
+      room as never,
+      'txn-kept'
+    );
+    expect(item!.metadata.voiceMessage).toEqual({
+      duration: 900,
+      waveform: [1, 2],
+      txnId: 'txn-kept',
+    });
+    const context = {
+      ownerSessionId: '@alice:example.org',
+      roomId: room.roomId,
+      room: room as never,
+      threadId: undefined,
+      replyDraft: undefined,
+      threadingEnabled: true,
+      signalBridgedRoom: false,
+    };
+
+    // After a crash this is the first attempt of its page: the server sees the same event again.
+    await expect(
+      transport.sendVoiceItem(context, item!, 'mxc://example.org/voice')
+    ).rejects.toThrow('offline');
+    // The room never forgets an ID it gave an echo, so the next attempt of this page gets a new one.
+    expect(await transport.sendVoiceItem(context, item!, 'mxc://example.org/voice')).toBe('$voice');
+    expect(mx.sendMessage.mock.calls.map((call) => call[2])).toEqual(['txn-kept', 'txn-fresh-1']);
+    // The transaction ID is not part of the message.
+    expect(JSON.stringify(mx.sendMessage.mock.calls[0]![1])).not.toContain('txn-kept');
+  });
 });

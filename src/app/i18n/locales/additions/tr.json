@@ -1188,6 +1188,11 @@
   "composer": {
     "voicePausedInThisRoom": "Ses kaydı duraklatıldı — bu odanın başka bir yerindeki gönderilmemiş kaydınızı tamamlayın veya silin",
     "voiceThreadRootUnsent": "Bu sesli mesajın konusunda gönderilmiş bir ilk mesaj yok. O mesaj gönderildiğinde yeniden deneyin veya kaydı silin.",
+    "voiceRecovered": "Kurtarılan kayıt",
+    "voiceUnprotected": "Çökmeye karşı korunmuyor",
+    "voiceDiscarded": "Kayıt silindi",
+    "voiceUndoDiscard": "Geri al",
+    "voiceSendInterrupted": "Bu sesli mesajın gönderimi yarıda kesildi.",
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et",
     "moreActions": "Diğer işlemler",

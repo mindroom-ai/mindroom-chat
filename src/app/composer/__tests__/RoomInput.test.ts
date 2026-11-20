@@ -13,6 +13,7 @@ import {
   IReplyDraft,
   type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
+  queuedVoiceDraftsAtom,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
@@ -2336,6 +2337,7 @@ describe('RoomInput', () => {
     await updateRoomInput(renderer, store, { threadId: '$current-thread' });
     await act(async () => {
       store.set(pendingVoiceSendDraftAtom, {
+        recordingId: 'rec-1',
         file: voice,
         duration: 575,
         errorMessage: undefined,
@@ -2600,6 +2602,7 @@ describe('RoomInput', () => {
     await act(async () => {
       stageUploadItems(store, [createUploadItem(later)], [later]);
       store.set(pendingVoiceSendDraftAtom, {
+        recordingId: 'rec-1',
         file: voice,
         duration: 350,
         context: capturedContext,
@@ -2761,6 +2764,7 @@ describe('RoomInput', () => {
     // the mocked composer doesn't run the hook; the persistence-through-hook
     // path is covered by the dedicated useVoiceRecorder test.
     store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-1',
       file,
       duration: 1100,
       context: voiceRecorderState.props!.getSendContext(),
@@ -3337,6 +3341,7 @@ describe('RoomInput', () => {
     const store = createStore();
     // Park a failed-send draft for ROOM_ID, owned by the current session.
     store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-1',
       file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
       duration: 1100,
       errorMessage: 'upload failed',
@@ -3379,15 +3384,16 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('discards a parked draft when the source room is no longer reachable (kicked/left/forgot)', async () => {
+  it('offers a parked draft in every composer when the source room is no longer reachable (kicked/left/forgot)', async () => {
     // R4 rev-A Issue 2 (MAJOR): same-session orphan drafts would otherwise
     // lock voice recording globally with no in-app recovery surface.
     // mx.getRoom returning null means the user lost access to that room
-    // (kicked, left, forgot, sync drift); the cleanup useEffect must clear
-    // the orphan so other rooms regain a working mic.
+    // (kicked, left, forgot, sync drift); the recording is never dropped for
+    // that: it loses its destination, so every composer offers it.
     const store = createStore();
     const FORGOTTEN_ROOM_ID = '!forgotten:example.org';
     store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-forgotten',
       file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
       duration: 1100,
       errorMessage: 'upload failed',
@@ -3409,16 +3415,20 @@ describe('RoomInput', () => {
 
     const { renderer } = await renderRoomInput(store);
 
-    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
-    const micButton = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Record voice message'
-    );
-    expect(micButton.props.disabled).toBe(false);
+    expect(store.get(pendingVoiceSendDraftAtom)).toMatchObject({
+      recordingId: 'rec-forgotten',
+      duration: 1100,
+      errorMessage: undefined,
+      context: { ownerSessionId: '@me:example.org' },
+    });
+    expect(store.get(pendingVoiceSendDraftAtom)?.context.roomId).toBeUndefined();
+    // This composer, of another room, mounted the recorder that offers it.
+    expect(voiceRecorderState.props).toBeDefined();
 
     renderer.unmount();
   });
 
-  it('discards a parked draft when the source room exists but the user is no longer Joined', async () => {
+  it('offers a parked draft in every composer when the user is no longer Joined to its room', async () => {
     // R5 FIX 2 (rev-B Issue 1, rev-G Issue 1): the orphan-room cleanup
     // previously only checked `mx.getRoom()` truthiness. A Room object can
     // survive in the SDK store after the user is no longer joined
@@ -3428,6 +3438,7 @@ describe('RoomInput', () => {
     const store = createStore();
     const LEFT_ROOM_ID = '!left:example.org';
     store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-1',
       file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
       duration: 1100,
       errorMessage: 'upload failed',
@@ -3466,11 +3477,11 @@ describe('RoomInput', () => {
 
     const { renderer } = await renderRoomInput(store);
 
-    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
-    const micButton = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Record voice message'
-    );
-    expect(micButton.props.disabled).toBe(false);
+    expect(store.get(pendingVoiceSendDraftAtom)?.context).toEqual({
+      ownerSessionId: '@me:example.org',
+    });
+    // This composer, of another room, mounted the recorder that offers it.
+    expect(voiceRecorderState.props).toBeDefined();
 
     renderer.unmount();
   });
@@ -3579,12 +3590,14 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('discards a parked draft that belongs to a different session (account switch)', async () => {
+  it('takes a parked draft of a different session out of the slot (account switch)', async () => {
     // CLUSTER 1b (R3 reviewer C Issue 2): the global atom survives logout/
     // login since the router store is shared. A draft from account A must
-    // not block voice recording or leak audio in account B.
+    // not block voice recording or leak audio in account B. It is not erased
+    // for that: it waits for its own account.
     const store = createStore();
     store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-1',
       file: new File(['voice-a'], 'voice-a.m4a', { type: 'audio/mp4' }),
       duration: 900,
       context: {
@@ -3600,8 +3613,11 @@ describe('RoomInput', () => {
 
     const { renderer } = await renderRoomInput(store);
 
-    // Cleanup useEffect must wipe the orphaned draft.
+    // Cleanup useEffect must take the orphaned draft out of the slot, and this account's
+    // composer must not get it back from those that wait.
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(store.get(queuedVoiceDraftsAtom).map((draft) => draft.recordingId)).toEqual(['rec-1']);
+    expect(voiceRecorderState.props).toBeUndefined();
 
     // The mic in this room must be enabled (not "Voice recording paused").
     const micButton = renderer.root.find(
@@ -3618,6 +3634,7 @@ describe('RoomInput', () => {
     // dismissal) must not silently destroy the parked recording.
     const store = createStore();
     store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-1',
       file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
       duration: 1100,
       errorMessage: 'upload failed',
@@ -3679,6 +3696,7 @@ describe('RoomInput', () => {
     } as never;
     await act(async () => {
       store.set(pendingVoiceSendDraftAtom, {
+        recordingId: 'rec-1',
         file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
         duration: 1100,
         context: parkedContext,
@@ -3952,7 +3970,12 @@ describe('RoomInput', () => {
       // The recorder keeps the recording it failed to send (useVoiceRecorder does that).
       const context = voiceRecorderState.byView.get(VIEW).getSendContext();
       await act(async () => {
-        store.set(pendingVoiceSendDraftAtom, { file, duration: 900, context });
+        store.set(pendingVoiceSendDraftAtom, {
+          recordingId: 'rec-1',
+          file,
+          duration: 900,
+          context,
+        });
       });
       expect(context).toMatchObject({ roomId: ROOM_ID, threadId: VIEW_THREAD, threadView: true });
 
@@ -3994,7 +4017,12 @@ describe('RoomInput', () => {
       await openRecorder(renderer, 'view');
       const context = voiceRecorderState.byView.get(VIEW).getSendContext();
       await act(async () => {
-        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+        store.set(pendingVoiceSendDraftAtom, {
+          recordingId: 'rec-1',
+          file: voiceFile(),
+          duration: 900,
+          context,
+        });
       });
       await act(async () => {
         renderer.update(composersTree(store, null));
@@ -4034,7 +4062,12 @@ describe('RoomInput', () => {
       await openRecorder(renderer, 'view');
       const context = voiceRecorderState.byView.get(VIEW).getSendContext();
       await act(async () => {
-        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+        store.set(pendingVoiceSendDraftAtom, {
+          recordingId: 'rec-1',
+          file: voiceFile(),
+          duration: 900,
+          context,
+        });
       });
       await act(async () => {
         store.set(pendingVoiceSendDraftAtom, undefined);
@@ -4050,7 +4083,12 @@ describe('RoomInput', () => {
       await openRecorder(renderer, 'view');
       const context = voiceRecorderState.byView.get(VIEW).getSendContext();
       await act(async () => {
-        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+        store.set(pendingVoiceSendDraftAtom, {
+          recordingId: 'rec-1',
+          file: voiceFile(),
+          duration: 900,
+          context,
+        });
       });
       expect(voiceRecorderState.byView.has(VIEW)).toBe(true);
 
@@ -4081,7 +4119,12 @@ describe('RoomInput', () => {
       expect(voiceRecorderState.byView.has(VIEW)).toBe(true);
 
       await act(async () => {
-        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+        store.set(pendingVoiceSendDraftAtom, {
+          recordingId: 'rec-1',
+          file: voiceFile(),
+          duration: 900,
+          context,
+        });
       });
       expect(voiceRecorderState.byView.has(VIEW)).toBe(false);
       await act(async () => {

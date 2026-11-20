@@ -4,7 +4,11 @@ import { Room } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecorderDialog';
-import type { PendingVoiceSendContext } from '../roomInputDrafts';
+import {
+  pendingVoiceSendDraftAtom,
+  queuedVoiceDraftsAtom,
+  type PendingVoiceSendContext,
+} from '../roomInputDrafts';
 
 const TEST_ROOM_ID = '!room:example.org';
 
@@ -38,11 +42,17 @@ class MockMediaStream {
 class MockMediaRecorder {
   static isTypeSupported = vi.fn(() => true);
 
+  static latest: MockMediaRecorder | undefined;
+
   state: RecordingState = 'inactive';
 
   mimeType = 'audio/ogg;codecs=opus';
 
   private listeners = new Map<string, Set<Listener>>();
+
+  constructor() {
+    MockMediaRecorder.latest = this;
+  }
 
   addEventListener(type: string, listener: EventListenerOrEventListenerObject | null) {
     if (!listener) return;
@@ -167,6 +177,7 @@ vi.mock('focus-trap-react', () => {
 vi.mock('./VoiceRecordingCapsule.css', () => ({
   Capsule: 'Capsule',
   HiddenStatus: 'HiddenStatus',
+  Label: 'Label',
   Timer: 'Timer',
 }));
 
@@ -529,6 +540,98 @@ describe('VoiceRecorderComposer', () => {
     // Same-message failure must re-surface the overlay.
     expect(JSON.stringify(renderer.toJSON())).toContain('Voice send failed');
     expect(onSendRecording).toHaveBeenCalledTimes(2);
+
+    renderer.unmount();
+  });
+
+  it('names a recording without a destination and sends it where Send is pressed', async () => {
+    const store = createStore();
+    store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-recovered',
+      file: new File(['voice'], 'voice.webm', { type: 'audio/webm' }),
+      duration: 272_000,
+      context: { ownerSessionId: '@me:example.org' },
+    });
+    const onClose = vi.fn();
+    const onSendRecording = vi.fn();
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(VoiceRecorderComposer, {
+            ref: recorderRef,
+            active: false,
+            onClose,
+            onRetryRequest: vi.fn(),
+            onSendRecording,
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+
+    // No failure to report: the capsule says what it is, with its length.
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('Recovered recording ·');
+    expect(rendered).toContain('4:32');
+    expect(rendered).not.toContain('Voice send failed');
+
+    await act(async () => {
+      await recorderRef.current?.send();
+    });
+    expect(onSendRecording).toHaveBeenCalledExactlyOnceWith(
+      expect.any(File),
+      272_000,
+      undefined,
+      expect.objectContaining({ roomId: TEST_ROOM_ID, ownerSessionId: '@me:example.org' }),
+      expect.any(String)
+    );
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(onClose).toHaveBeenCalledOnce();
+
+    renderer.unmount();
+  });
+
+  it('closes when its recorder stops by itself, leaving the audio to wait for the slot', async () => {
+    setupSupportedRecorder();
+    const store = createStore();
+    const onClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(VoiceRecorderComposer, {
+            active: true,
+            onClose,
+            onRetryRequest: vi.fn(),
+            onSendRecording: vi.fn(),
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+    // Without a database here, the capsule says the live recording is not on disk.
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('Not protected against a crash ·');
+
+    await act(async () => {
+      MockMediaRecorder.latest!.stop();
+    });
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(store.get(queuedVoiceDraftsAtom)).toMatchObject([
+      { context: { ownerSessionId: '@me:example.org' } },
+    ]);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Voice Recording Error');
 
     renderer.unmount();
   });

@@ -18,8 +18,10 @@ import {
   type PendingVoiceSendContext,
   type StagedList,
   composerUploadItemsAtom,
+  hasVoiceDestination,
   openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
+  queuedVoiceDraftsAtom,
   roomUploadAtomFamily,
   threadViewVoiceComposersAtom,
   voiceAutoSendPendingAtom,
@@ -50,6 +52,7 @@ import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
+import { offerQueuedVoiceDraft, parkVoiceDraft, recoverVoiceDrafts } from './voice/voiceDrafts';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -126,14 +129,17 @@ export const useRoomInputVoice = ({
   const { roomId } = composerContext;
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
+  // Where this account's parked recording goes. One without a destination (recovered after a
+  // crash, or stopped by itself) shows in every composer, and Send in one sends it there.
+  const draftContext =
+    draftBelongsToCurrentSession && hasVoiceDestination(pendingVoiceSendDraft.context)
+      ? pendingVoiceSendDraft.context
+      : undefined;
   // A recording made while its thread's root was still sending belongs to that thread after.
-  const draftKey = draftBelongsToCurrentSession
+  const draftKey = draftContext
     ? voiceComposerKey({
-        ...pendingVoiceSendDraft.context,
-        threadId: confirmedVoiceThreadId(
-          pendingVoiceSendDraft.context.room,
-          pendingVoiceSendDraft.context.threadId
-        ),
+        ...draftContext,
+        threadId: confirmedVoiceThreadId(draftContext.room, draftContext.threadId),
       })
     : undefined;
   // A thread view's composer, while mounted, is the one to offer its thread's recording.
@@ -149,6 +155,7 @@ export const useRoomInputVoice = ({
   // Without one, the room's page offers it while it shows that thread: on a page with no room for
   // the thread's column, the thread shows only there.
   const ownsPendingVoiceDraft =
+    (draftBelongsToCurrentSession && !draftContext) ||
     draftKey === composerKey ||
     (draftKey === voiceComposerKey({ ...composerContext, threadView: true }) &&
       !threadViewComposers.some((entry) => entry.key === draftKey));
@@ -197,7 +204,7 @@ export const useRoomInputVoice = ({
     if (openRecorder !== undefined && openRecorder !== recorderToken) setVoiceRecorderOpen(false);
   }, [openRecorder, recorderToken]);
 
-  // Discard any orphaned draft. Three cases:
+  // A draft no composer of this account can offer. Three cases:
   //   1. Account-switch leak: the atom is module-level and survives
   //      logout/login since the router store is shared across sessions.
   //      A draft from account A must not block voice recording in B.
@@ -210,17 +217,43 @@ export const useRoomInputVoice = ({
   //      Joined (Leave/Ban/etc), in which case the source room composer
   //      cannot render and the user has no way to retry/discard. Treat
   //      "not joined" the same as "not present".
+  // Another account's draft leaves the slot and waits for its account. A draft whose room is
+  // gone loses its destination instead of being dropped: it shows in every composer, to send
+  // elsewhere or discard.
   useEffect(() => {
     if (!pendingVoiceSendDraft) return;
     if (!draftBelongsToCurrentSession) {
       setPendingVoiceSendDraft(undefined);
+      parkVoiceDraft(store, pendingVoiceSendDraft);
       return;
     }
-    const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
+    if (!draftContext) return;
+    const sourceRoom = mx.getRoom(draftContext.roomId);
     if (!sourceRoom || !isJoined(sourceRoom)) {
-      setPendingVoiceSendDraft(undefined);
+      setPendingVoiceSendDraft({
+        ...pendingVoiceSendDraft,
+        context: { ownerSessionId: draftContext.ownerSessionId },
+        errorMessage: undefined,
+      });
     }
-  }, [draftBelongsToCurrentSession, mx, pendingVoiceSendDraft, setPendingVoiceSendDraft]);
+  }, [
+    draftBelongsToCurrentSession,
+    draftContext,
+    mx,
+    pendingVoiceSendDraft,
+    setPendingVoiceSendDraft,
+    store,
+  ]);
+
+  // Recordings that a crash, a reload or an app update left on disk come back, and take the slot
+  // one at a time with the others that wait for it (voice/voiceDrafts.ts).
+  const queuedVoiceDrafts = useAtomValue(queuedVoiceDraftsAtom);
+  useEffect(() => {
+    void recoverVoiceDrafts(mx, store);
+  }, [mx, store]);
+  useEffect(() => {
+    offerQueuedVoiceDraft(store, currentSessionId);
+  }, [currentSessionId, openRecorder, pendingVoiceSendDraft, queuedVoiceDrafts, store]);
 
   // Provide the recording room at start and the latest relation again when Send is claimed.
   // The hook preserves the recording room, refreshes only a same-room thread/reply relation,
@@ -276,7 +309,8 @@ export const useRoomInputVoice = ({
       file: File,
       duration: number,
       waveform: number[] | undefined,
-      context: PendingVoiceSendContext
+      context: PendingVoiceSendContext,
+      txnId: string
     ) => {
       // Wrap the ENTIRE body in try/finally. The voice auto-send slot is
       // claimed by claimVoiceAutoSend() in onSendStopRequest BEFORE this
@@ -344,7 +378,13 @@ export const useRoomInputVoice = ({
         voiceAutoSendInFlightRef.current = true;
 
         try {
-          fileItems = await createVoiceUploadItems(file, duration, waveform, liveContext.room);
+          fileItems = await createVoiceUploadItems(
+            file,
+            duration,
+            waveform,
+            liveContext.room,
+            txnId
+          );
         } catch (err) {
           return logAndThrowUploadError(err, 'create');
         }
@@ -556,8 +596,8 @@ export const useRoomInputVoice = ({
     ) : null;
 
   let microphoneLabel = t('composer.recordVoice');
-  if (otherComposerOwnsPendingVoiceDraft) {
-    const { room: draftRoom, roomId: draftRoomId } = pendingVoiceSendDraft.context;
+  if (otherComposerOwnsPendingVoiceDraft && draftContext) {
+    const { room: draftRoom, roomId: draftRoomId } = draftContext;
     microphoneLabel =
       draftRoomId === roomId
         ? t('composer.voicePausedInThisRoom')
@@ -573,15 +613,15 @@ export const useRoomInputVoice = ({
         <IconButton
           ref={triggerRef}
           onClick={() => {
-            if (voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft)
-              return;
+            if (voiceRecorderOpen || voiceAutoSendPending || draftBelongsToCurrentSession) return;
             pauseAllMediaElements();
             setVoiceRecorderOpen(true);
           }}
           variant="SurfaceVariant"
           size="300"
           radii="300"
-          disabled={voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft}
+          // A parked recording, here or elsewhere, is sent or discarded before the next one starts.
+          disabled={voiceRecorderOpen || voiceAutoSendPending || draftBelongsToCurrentSession}
           aria-label={microphoneLabel}
           className={ComposerIconButton}
         >

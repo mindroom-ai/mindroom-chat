@@ -53,6 +53,8 @@ export type TUploadMetadata = {
     /** Length in milliseconds. */
     duration: number;
     waveform?: number[];
+    /** The Matrix transaction ID its recording keeps for the voice event, on every attempt. */
+    txnId?: string;
   };
 };
 

@@ -1219,6 +1219,11 @@
   "composer": {
     "voicePausedInThisRoom": "A gravação de voz está em pausa — termine ou descarte a gravação não enviada em outro lugar desta sala",
     "voiceThreadRootUnsent": "O tópico desta mensagem de voz não tem uma primeira mensagem enviada. Tente novamente quando essa mensagem for enviada ou descarte a gravação.",
+    "voiceRecovered": "Gravação recuperada",
+    "voiceUnprotected": "Sem proteção contra falhas",
+    "voiceDiscarded": "Gravação descartada",
+    "voiceUndoDiscard": "Desfazer",
+    "voiceSendInterrupted": "O envio desta mensagem de voz foi interrompido.",
     "emoji": "Emoji",
     "cancelReply": "Cancelar resposta",
     "moreActions": "Mais ações",

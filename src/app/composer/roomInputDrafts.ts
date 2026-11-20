@@ -56,15 +56,34 @@ export type PendingVoiceSendInFlight = {
   startedAt: number;
 };
 
-/** A recorded voice message kept for retry after its send failed. */
+/**
+ * All that is known of a recording without a destination: its account. A recording has none
+ * when it was recovered after a crash or a reload, when its recorder stopped by itself, when its
+ * discard was undone, or when its room is gone. Every composer shows it, and Send in one sends it
+ * there.
+ */
+export type UnplacedVoiceContext = { ownerSessionId: string; roomId?: undefined };
+
+/**
+ * A recorded voice message that waits to be sent: its send failed, or it has no destination yet.
+ * The voice journal (voice/voiceRecordingJournal.ts) keeps it on disk under `recordingId`.
+ */
 export type PendingVoiceSendDraft = {
+  recordingId: string;
   file: File;
   duration: number;
   waveform?: number[];
-  context: PendingVoiceSendContext;
+  context: PendingVoiceSendContext | UnplacedVoiceContext;
+  /** The Matrix transaction ID of its send, written to the journal before the first attempt. */
+  txnId?: string;
   errorMessage?: string;
   inFlight?: PendingVoiceSendInFlight;
 };
+
+/** Whether a recording has a destination: the room and thread its send was attempted in. */
+export const hasVoiceDestination = (
+  context: PendingVoiceSendDraft['context']
+): context is PendingVoiceSendContext => context.roomId !== undefined;
 
 type JotaiStore = ReturnType<typeof createStore>;
 
@@ -369,7 +388,16 @@ export const readKeptFileNames = (userId: string, roomId: string): string[] => {
 
 // Voice messages.
 
+/** The one recording the composers show: its send failed, or it has no destination yet. */
 export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>(undefined);
+
+/** Recordings that wait for that slot, the next one first (voice/voiceDrafts.ts). */
+export const queuedVoiceDraftsAtom = atom<PendingVoiceSendDraft[]>([]);
+
+/** The recording that was discarded last, while its Undo is offered, and until when. */
+export const discardedVoiceDraftAtom = atom<
+  { draft: PendingVoiceSendDraft; until: number } | undefined
+>(undefined);
 
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
@@ -404,9 +432,13 @@ export const composerOfferAtom = (
       ? get(threadViewVoiceComposersAtom).flatMap((c) => (c.key === owner ? [c.view] : []))
       : [undefined];
     const voice = get(pendingVoiceSendDraftAtom)?.context;
-    const parked = voice && { ...voice, threadId: confirm(voice.room, voice.threadId) };
+    // A recording without a destination shows in every composer.
+    const parked =
+      voice && hasVoiceDestination(voice)
+        ? voiceComposerKey({ ...voice, threadId: confirm(voice.room, voice.threadId) })
+        : voice && owner;
     const busy =
-      (!!parked && voiceComposerKey(parked) === owner) ||
+      parked === owner ||
       views.some(
         (v) =>
           get(composerUploadItemsAtom(roomId, v)).length || get(composerReplyDraftAtom(roomId, v))

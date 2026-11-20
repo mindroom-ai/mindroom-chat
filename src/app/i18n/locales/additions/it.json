@@ -1219,6 +1219,11 @@
   "composer": {
     "voicePausedInThisRoom": "Registrazione vocale in pausa — completa o elimina la registrazione non inviata altrove in questa stanza",
     "voiceThreadRootUnsent": "Il thread di questo messaggio vocale non ha un primo messaggio inviato. Riprova quando quel messaggio sarà inviato, oppure elimina la registrazione.",
+    "voiceRecovered": "Registrazione recuperata",
+    "voiceUnprotected": "Non protetta in caso di arresto anomalo",
+    "voiceDiscarded": "Registrazione eliminata",
+    "voiceUndoDiscard": "Annulla",
+    "voiceSendInterrupted": "L’invio di questo messaggio vocale è stato interrotto.",
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",

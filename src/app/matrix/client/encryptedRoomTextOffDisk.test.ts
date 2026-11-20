@@ -1,8 +1,6 @@
 import 'fake-indexeddb/auto';
 import { EventEmitter } from 'node:events';
-import React from 'react';
-import { act, create } from 'react-test-renderer';
-import { createStore, getDefaultStore, Provider } from 'jotai';
+import { createStore, getDefaultStore } from 'jotai';
 import { openDB } from 'idb';
 import { ClientEvent, SyncState, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +18,13 @@ import {
   roomIdToReplyDraftAtomFamily,
   type IReplyDraft,
 } from '../../composer/roomInputDrafts';
-import { clearSavedVoiceDraft, useSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
+import {
+  clearVoiceRecordings,
+  deleteVoiceRecording,
+  updateVoiceRecording,
+  voiceCaptureJournal,
+} from '../../composer/voice/voiceRecordingJournal';
+import { createVoiceSendDraftController } from '../../composer/voice/voiceSendDraftController';
 
 // P2-e2ee-F011: the offline cache keeps encrypted rooms as ciphertext, but the account's other
 // stores kept text read out of their decrypted events in the clear: the preview of a recently
@@ -82,7 +86,7 @@ afterEach(async () => {
   stopKeeping = undefined;
   clearRecentThreadsStore(USER);
   roomIdToReplyDraftAtomFamily.remove(SECRET);
-  await clearSavedVoiceDraft(USER);
+  await clearVoiceRecordings(USER);
   vi.unstubAllGlobals();
 });
 
@@ -143,32 +147,46 @@ describe('text read out of encrypted rooms stays off disk', () => {
     const mx = createClient();
     stopKeeping = keepEncryptedRoomTextOffDisk(mx, []);
     const store = createStore();
-    function Harness() {
-      useSavedVoiceDraft(mx);
-      return null;
-    }
-    act(() => {
-      create(React.createElement(Provider, { store }, React.createElement(Harness)));
-    });
-    await act(async () => {
-      store.set(pendingVoiceSendDraftAtom, {
-        file: new File(['voice bytes'], 'voice.ogg', { type: 'audio/ogg' }),
-        duration: 1_000,
-        context: {
-          ownerSessionId: USER,
-          roomId: SECRET,
-          room: rooms.get(SECRET)!,
-          threadId: undefined,
-          replyDraft: quoted(SECRET),
-          threadingEnabled: true,
-          signalBridgedRoom: false,
-        },
-      });
+    // The recording is on disk from its first second; its failed send parks it there.
+    const file = new File(['voice bytes'], 'voice.ogg', { type: 'audio/ogg' });
+    const capture = voiceCaptureJournal(() => USER);
+    await capture.begin({ recordingId: 'rec-1', startedAt: 1, mimeType: file.type });
+    await capture.append('rec-1', 0, { data: file, elapsedMs: 1_000, samples: [] });
+    const controller = createVoiceSendDraftController(
+      {
+        read: () => store.get(pendingVoiceSendDraftAtom),
+        write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
+      },
+      { update: updateVoiceRecording, remove: deleteVoiceRecording }
+    );
+    await controller.sendInitial(
+      { recordingId: 'rec-1', file, duration: 1_000, waveform: undefined },
+      {
+        ownerSessionId: USER,
+        roomId: SECRET,
+        room: rooms.get(SECRET)!,
+        threadId: undefined,
+        replyDraft: quoted(SECRET),
+        threadingEnabled: true,
+        signalBridgedRoom: false,
+      },
+      {
+        sendRecording: () => Promise.reject(new Error('offline')),
+        onFailure: () => undefined,
+      }
+    );
+    // In memory the parked draft keeps the text its reply bar shows.
+    expect(store.get(pendingVoiceSendDraftAtom)?.context).toMatchObject({
+      replyDraft: quoted(SECRET),
     });
     const readSaved = async () => {
-      const db = await openDB('mindroom-voice-drafts', 1);
+      const db = await openDB('mindroom-voice-journal', 1);
       try {
-        return (await db.get('drafts', USER)) as { replyDraft?: IReplyDraft } | undefined;
+        return (
+          (await db.get('recordings', 'rec-1')) as
+            | { destination?: { replyDraft?: IReplyDraft } }
+            | undefined
+        )?.destination;
       } finally {
         db.close();
       }

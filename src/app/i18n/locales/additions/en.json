@@ -1188,6 +1188,11 @@
   "composer": {
     "voicePausedInThisRoom": "Voice recording paused — finish or discard your unsent recording elsewhere in this room",
     "voiceThreadRootUnsent": "This voice message's thread has no sent first message. Retry once that message is sent, or discard the recording.",
+    "voiceRecovered": "Recovered recording",
+    "voiceUnprotected": "Not protected against a crash",
+    "voiceDiscarded": "Recording discarded",
+    "voiceUndoDiscard": "Undo",
+    "voiceSendInterrupted": "Sending this voice message was interrupted.",
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",

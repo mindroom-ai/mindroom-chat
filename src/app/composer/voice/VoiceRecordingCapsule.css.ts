@@ -25,6 +25,13 @@ export const Capsule = style([
   { color: color.SurfaceVariant.OnContainer },
 ]);
 
+// What the recording is ("Recovered recording"), before its time: it gives way to the waveform
+// only once that is down to a few bars, then ends in an ellipsis.
+export const Label = style({
+  flex: '0 1 auto',
+  minInlineSize: 0,
+});
+
 // Digits of equal width keep the elapsed time from jittering as it counts up.
 export const Timer = style({
   fontVariantNumeric: 'tabular-nums',

@@ -47,29 +47,34 @@ delivery calls the journal only from `voiceSendDraftController.ts`.
 
 `voice/voiceCaptureSession.ts`:
 
-- `createVoiceCaptureSession({ journal?, park? })`. `CapturedVoiceRecording` gains `recordingId`;
+- `createVoiceCaptureSession({ journal?, keep? })`. `CapturedVoiceRecording` gains `recordingId`;
   the snapshot gains `unprotected`.
 - `dataavailable` assigns `seq` synchronously and hands the chunk to `journal.append`.
 - `pagehide` and `visibilitychange` to hidden call `recorder.requestData()`.
-- A recorder that stops by itself, `retire` and `releaseOwner` hand the audio they have to `park`.
-  Without audio, today's error stays. `discard()` resolves the recording, for Undo.
+- Audio that was not sent goes to `keep(recording, discarded)` instead of being dropped: a discard
+  (for its Undo), a recorder that stops by itself, `retire` and `releaseOwner`. Without audio,
+  today's error stays.
 
-`composer/roomInputDrafts.ts`: `PendingVoiceSendDraft` gains `recordingId`, `ownerSessionId` and
-`txnId?`; `context` becomes optional (a recovered recording has no destination).
+`composer/roomInputDrafts.ts`: `PendingVoiceSendDraft` gains `recordingId` and `txnId?`; its
+`context` is a destination or, for a recording that has none, only its account
+(`UnplacedVoiceContext`, told apart by `hasVoiceDestination`). `queuedVoiceDraftsAtom` and
+`discardedVoiceDraftAtom` sit beside the slot.
 
 `voice/voiceSendDraftController.ts`: `createVoiceSendDraftController(drafts, journal)`. Before a
 send it writes `destination` and `txnId` and waits for that write; it deletes the record after
 `sendRecording` resolved (the voice event has an ID); a failure writes `errorMessage`. `retry`
 takes the pressing composer's context for a draft without one. `SendRecordingCallback` gains
-`txnId`, which `sendVoiceItem` and the send session's upload step pass to `mx.sendMessage`.
+`txnId`; the voice upload item carries it (`metadata.voiceMessage.txnId`), and `sendVoiceItem` and
+the send session's upload step send under it (`txnIdToSendUnder`).
 
-`voice/voiceDrafts.ts` (jotai, no React): `queuedVoiceDraftsAtom`, `discardedVoiceDraftAtom`,
-`parkVoiceDraft`, `discardVoiceDraft`, `undoVoiceDiscard`, `confirmVoiceDiscard`,
-`recoverVoiceDrafts(mx, store)`, `offerQueuedVoiceDraft(store, userId)`.
+`voice/voiceDrafts.ts` (jotai, no React): `parkVoiceDraft`, `discardVoiceDraft`,
+`undoVoiceDiscard`, `confirmVoiceDiscard`, `recoverVoiceDrafts(mx, store)` (once per account and
+page) and `offerQueuedVoiceDraft(store, userId)`, which moves the account's next queued draft
+into the single slot while it is empty and no recorder is open. `useRoomInputVoice` calls the last
+two: a composer is where the account's rooms are loaded and where a draft can show.
 
-`voice/VoiceRecordingsFeature.tsx` (mounted in `shell/ClientNonUIFeatures.tsx`): recovers once per
-account and page, moves the next queued draft into the single slot while it is empty and no
-recorder is open, and shows the Undo toast in the page's notice place.
+`voice/VoiceDiscardToast.tsx` (mounted in `shell/ClientShell.tsx`): "Recording discarded" with
+Undo in the page's notice place, for `VOICE_DISCARD_UNDO_MS`.
 
 ## Tasks
 
@@ -97,7 +102,7 @@ Each task: failing test first, then the code, then `nix develop -c npx vitest ru
    - `keeps the record and the error of a failed send`
    - `retries a crash mid-send with the same txnId`
    - `sends a recovered recording where Send is pressed`
-4. **Drafts, recovery, Undo.** `voiceDrafts.ts`, `VoiceRecordingsFeature.tsx` (+ `.css.ts`), delete
+4. **Drafts, recovery, Undo.** `voiceDrafts.ts`, `VoiceDiscardToast.tsx` (+ `.css.ts`), delete
    `savedVoiceDraft.ts` and its test, `sessionCleanup.ts`, `encryptedRoomTextOffDisk.test.ts`:
    - `shows orphans one at a time, oldest first, and erases none while the slot is taken`
    - `parks a mid-send orphan at its destination with Retry`

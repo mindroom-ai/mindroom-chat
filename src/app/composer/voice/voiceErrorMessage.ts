@@ -30,6 +30,8 @@ export const localizeVoiceErrorMessage = (
       return t('mindroomUi.voice.errors.sendBusy');
     case 'Failed to send voice message.':
       return t('mindroomUi.voice.errors.sendFailed');
+    case 'Sending this voice message was interrupted.':
+      return t('composer.voiceSendInterrupted');
     default:
       return fallback;
   }

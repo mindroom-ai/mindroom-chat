@@ -16,6 +16,7 @@ import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
+import type { SendRecordingCallback } from './voiceSendDraftController';
 
 type VoiceRecorderComposerProps = {
   active: boolean;
@@ -25,12 +26,7 @@ type VoiceRecorderComposerProps = {
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
   onRetryRequest: () => void;
-  onSendRecording: (
-    file: File,
-    duration: number,
-    waveform: number[] | undefined,
-    context: PendingVoiceSendContext
-  ) => Promise<void> | void;
+  onSendRecording: SendRecordingCallback;
   getSendContext: () => PendingVoiceSendContext;
 };
 
@@ -77,7 +73,9 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     sampleCount,
     errorMessage,
     canPause,
+    unprotected,
     hasPendingSend,
+    pendingUnplaced,
     pendingDuration,
     pendingWaveform,
     start,
@@ -91,6 +89,8 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     clearError,
   } = useVoiceRecorder({
     onRecordingStart,
+    // Closed, the recorder gives the slot to the recording it parked.
+    onRecordingParked: onClose,
     onSendStopRequest,
     onSendStopFailure,
     onSendRecording,
@@ -186,6 +186,13 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     }
     return true;
   };
+
+  // What the capsule says beside the time: a recording that has no destination was recovered
+  // (after a crash or a reload, or from a recorder that stopped by itself), and a live one whose
+  // write to disk failed would be lost by a crash.
+  let capsuleLabel: string | undefined;
+  if (hasPendingSend) capsuleLabel = pendingUnplaced ? t('composer.voiceRecovered') : undefined;
+  else if (unprotected) capsuleLabel = t('composer.voiceUnprotected');
 
   return (
     <>
@@ -319,6 +326,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
               waveform={hasPendingSend ? pendingWaveform : waveform}
               sampleCount={hasPendingSend ? undefined : sampleCount}
               canPause={canPause}
+              label={capsuleLabel}
               hasPendingSend={hasPendingSend}
               onDiscard={discardAndClose}
               onPause={pause}

@@ -17,7 +17,9 @@ import {
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
 } from './useVoiceRecorder';
 import {
+  discardedVoiceDraftAtom,
   pendingVoiceSendDraftAtom,
+  queuedVoiceDraftsAtom,
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
@@ -165,6 +167,7 @@ const createTestSendContext = (
 
 type HarnessProps = {
   onRecordingStart?: () => void;
+  onRecordingParked?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
   onSendRecording?: (
@@ -186,6 +189,7 @@ const mountedRenderers = new Set<ReactTestRenderer>();
 
 function Harness({
   onRecordingStart,
+  onRecordingParked,
   onSendStopRequest,
   onSendStopFailure,
   onSendRecording,
@@ -194,6 +198,7 @@ function Harness({
 }: HarnessProps) {
   state.current = useVoiceRecorder({
     onRecordingStart,
+    onRecordingParked,
     onSendStopRequest,
     onSendStopFailure,
     onSendRecording,
@@ -1237,8 +1242,7 @@ describe('useVoiceRecorder', () => {
     expect(recorderState.current?.hasPendingSend).toBe(true);
     const persisted = store.get(pendingVoiceSendDraftAtom);
     expect(persisted?.errorMessage).toBe('upload failed');
-    expect(persisted?.context.roomId).toBe(ROOM_ID);
-    expect(persisted?.context.threadId).toBe('$thread-a');
+    expect(persisted?.context).toMatchObject({ roomId: ROOM_ID, threadId: '$thread-a' });
 
     firstRenderer.unmount();
 
@@ -1545,9 +1549,10 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('does not send when recording stops without an explicit send action', async () => {
+  it('parks the audio of a recorder that stopped by itself instead of sending or dropping it', async () => {
     const onSendRecording = vi.fn();
-    const { renderer } = await renderHarness({ onSendRecording });
+    const onRecordingParked = vi.fn();
+    const { renderer, store } = await renderHarness({ onSendRecording, onRecordingParked });
 
     await act(async () => {
       await recorderState.current?.start();
@@ -1555,6 +1560,7 @@ describe('useVoiceRecorder', () => {
 
     const recorder = MockMediaRecorder.instances[0]!;
     await act(async () => {
+      vi.advanceTimersByTime(700);
       recorder.state = 'inactive';
       recorder.flushStop();
       await Promise.resolve();
@@ -1563,9 +1569,100 @@ describe('useVoiceRecorder', () => {
     expect(onSendRecording).not.toHaveBeenCalled();
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(recorderState.current?.phase).toBe('idle');
+    expect(recorderState.current?.errorMessage).toBeUndefined();
+    // It waits for the slot without a destination: every composer offers it.
+    const [parked, ...rest] = store.get(queuedVoiceDraftsAtom);
+    expect(rest).toEqual([]);
+    expect(parked).toMatchObject({ duration: 700, context: { ownerSessionId: TEST_USER_ID } });
+    expect(parked!.context.roomId).toBeUndefined();
+    expect(await parked!.file.text()).toBe('voice');
+    expect(onRecordingParked).toHaveBeenCalledOnce();
+
+    renderer.unmount();
+  });
+
+  it('still reports a recorder that stopped by itself without audio', async () => {
+    const { renderer, store } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      const recorder = MockMediaRecorder.instances[0]!;
+      recorder.state = 'inactive';
+      recorder.dispatch('stop', new Event('stop'));
+      await Promise.resolve();
+    });
+
     expect(recorderState.current?.errorMessage).toBe(
       'Voice recording stopped unexpectedly. Please record again.'
     );
+    expect(store.get(queuedVoiceDraftsAtom)).toEqual([]);
+
+    renderer.unmount();
+  });
+
+  it('parks the audio it has when its composer goes while recording', async () => {
+    MockMediaRecorder.autoStop = false;
+    const { renderer, store } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      MockMediaRecorder.instances[0]!.dispatch('dataavailable', {
+        data: new Blob(['first second'], { type: 'audio/ogg' }),
+      } as BlobEvent);
+    });
+    act(() => renderer.unmount());
+
+    const [parked] = store.get(queuedVoiceDraftsAtom);
+    expect(parked).toMatchObject({ duration: 1_000, context: { ownerSessionId: TEST_USER_ID } });
+    expect(await parked!.file.text()).toBe('first second');
+  });
+
+  it('offers Undo for a discarded recording instead of deleting it at once', async () => {
+    const { renderer, store } = await renderHarness();
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await recorderState.current?.discard();
+    });
+
+    const discarded = store.get(discardedVoiceDraftAtom);
+    expect(discarded?.draft).toMatchObject({
+      duration: 300,
+      context: { ownerSessionId: TEST_USER_ID },
+    });
+    expect(await discarded!.draft.file.text()).toBe('voice');
+    expect(discarded!.until - Date.now()).toBe(10_000);
+    expect(store.get(queuedVoiceDraftsAtom)).toEqual([]);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it('offers Undo for a discarded parked recording, with where it was going', async () => {
+    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const { renderer, store } = await renderHarness({ onSendRecording });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+      await recorderState.current?.send();
+    });
+    const parked = store.get(pendingVoiceSendDraftAtom);
+    expect(parked?.errorMessage).toBe('upload failed');
+
+    act(() => recorderState.current?.discardPending());
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(store.get(discardedVoiceDraftAtom)?.draft).toBe(parked);
 
     renderer.unmount();
   });
@@ -1787,6 +1884,7 @@ describe('useVoiceRecorder', () => {
     // failed recording parked a fresh draft). Different file, no inFlight,
     // different (or absent) token.
     const replacementDraft: PendingVoiceSendDraft = {
+      recordingId: 'rec-replacement',
       file: new File(['replacement-audio'], 'new.m4a', { type: 'audio/mp4' }),
       duration: 700,
       errorMessage: 'replacement upload failed',

@@ -159,6 +159,7 @@ describe('composerOfferAtom', () => {
     };
     const voice = (threadId: string | undefined, threadView: boolean) =>
       store.set(pendingVoiceSendDraftAtom, {
+        recordingId: 'rec-1',
         file,
         duration: 1,
         context: { roomId, room, threadId, threadView } as never,
@@ -172,6 +173,17 @@ describe('composerOfferAtom', () => {
     expect(store.get(state)).toBe('busy');
     voice('~echo', true);
     expect(store.get(state)).toBe('busy');
+    // One without a destination, recovered after a crash, shows in every composer.
+    voice('$other', true);
+    expect(store.get(state)).toBe('empty');
+    store.set(pendingVoiceSendDraftAtom, {
+      recordingId: 'rec-1',
+      file,
+      duration: 1,
+      context: { ownerSessionId: '@alice:example.org' },
+    });
+    expect(store.get(state)).toBe('busy');
+    expect(store.get(roomState)).toBe('busy');
     store.set(pendingVoiceSendDraftAtom, undefined);
   });
 });

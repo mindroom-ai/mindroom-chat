@@ -39,6 +39,7 @@ vi.mock('folds', () => {
 vi.mock('./VoiceRecordingCapsule.css', () => ({
   Capsule: 'Capsule',
   HiddenStatus: 'HiddenStatus',
+  Label: 'Label',
   Timer: 'Timer',
 }));
 
@@ -224,6 +225,30 @@ describe('VoiceRecordingCapsule', () => {
     expect(discardButton.props.disabled).toBe(true);
 
     renderer.unmount();
+  });
+
+  it('says what the recording is before its time', () => {
+    const capsule = (label?: string) =>
+      create(
+        React.createElement(VoiceRecordingCapsule, {
+          phase: 'idle',
+          elapsedMs: 272_000,
+          waveform: createFallbackWaveform(),
+          canPause: true,
+          label,
+          hasPendingSend: true,
+          onDiscard: vi.fn(),
+          onPause: vi.fn(),
+          onResume: vi.fn(),
+        })
+      );
+    const text = (renderer: ReturnType<typeof create>) =>
+      renderer.root
+        .findAll((node) => node.props.className === 'Label' || node.props.className === 'Timer')
+        .filter((node) => typeof node.type === 'string')
+        .map((node) => node.children.join(''));
+    expect(text(capsule('Recovered recording'))).toEqual(['Recovered recording ·', '4:32']);
+    expect(text(capsule())).toEqual(['4:32']);
   });
 
   it('keeps a pending recording ready for primary composer Send', () => {

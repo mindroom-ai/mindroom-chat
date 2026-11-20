@@ -6,6 +6,7 @@ import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import {
   getRoomInputDraftKey,
   hasKeptDraft,
+  hasVoiceDestination,
   moveMessageDraft,
   pendingVoiceSendDraftAtom,
 } from './roomInputDrafts';
@@ -36,7 +37,9 @@ export function UnconfirmedRootsFeature() {
       const recording = store.get(pendingVoiceSendDraftAtom);
       if (
         event.status === EventStatus.CANCELLED &&
-        recording?.context.roomId === room.roomId &&
+        recording &&
+        hasVoiceDestination(recording.context) &&
+        recording.context.roomId === room.roomId &&
         recording.context.threadId === oldId
       ) {
         store.set(pendingVoiceSendDraftAtom, {

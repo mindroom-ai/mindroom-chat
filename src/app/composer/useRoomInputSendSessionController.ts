@@ -35,7 +35,7 @@ import {
 } from '../matrix/protocol/longText';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
-import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
+import { discardFailedLocalEcho, txnIdToSendUnder } from '../matrix/protocol/pendingLocalEcho';
 import {
   createRoomInputSendSessionState,
   getSubmissionMarker,
@@ -584,7 +584,8 @@ export const useRoomInputSendSessionController = ({
         settleFork?.();
         return;
       }
-      const txnId = mx.makeTxnId();
+      // A voice message goes under the ID its recording keeps.
+      const txnId = txnIdToSendUnder(mx, session.room, fileItem.metadata.voiceMessage?.txnId);
       const response = await mx
         .sendMessage(
           session.roomId,
