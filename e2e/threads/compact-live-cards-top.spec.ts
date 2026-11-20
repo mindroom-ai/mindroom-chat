@@ -323,7 +323,12 @@ const watchLead = (page: Page, moverIds: string[]) =>
     const mover = movers[0] ?? '';
     const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
     if (!view) throw new Error('no Compact list');
-    const edge = view.getBoundingClientRect().top + view.clientTop;
+    // The view's top edge is where the browser anchors from: under the bar that floats over the
+    // list's top, which the list's scroll padding leaves room for.
+    const edge =
+      view.getBoundingClientRect().top +
+      view.clientTop +
+      parseFloat(getComputedStyle(view).scrollPaddingTop);
     const cardOf = (rootId: string) =>
       [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].find(
         (shell) => shell.getAttribute('data-scroll-anchor') === rootId
@@ -456,7 +461,10 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
       const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
       const header = view?.querySelector<HTMLElement>('[data-compact-section="needsYou"]');
       if (!view || !header) return;
-      const edge = view.getBoundingClientRect().top + view.clientTop;
+      const edge =
+        view.getBoundingClientRect().top +
+        view.clientTop +
+        parseFloat(getComputedStyle(view).scrollPaddingTop);
       view.scrollTop += header.getBoundingClientRect().top - edge;
     });
   } else {
@@ -478,7 +486,10 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
     await page.evaluate(() => {
       const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
       if (!view) return;
-      const edge = view.getBoundingClientRect().top + view.clientTop;
+      const edge =
+        view.getBoundingClientRect().top +
+        view.clientTop +
+        parseFloat(getComputedStyle(view).scrollPaddingTop);
       const lead = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].find(
         (shell) => shell.getBoundingClientRect().bottom > edge + 1
       );
@@ -489,8 +500,12 @@ const checkMove = async (page: Page, seeded: Seeded, move: Move) => {
 
   const shown = await page.evaluate(() => {
     const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
-    const edge = view?.getBoundingClientRect().top ?? 0;
-    return [...(view?.querySelectorAll<HTMLElement>('[data-scroll-anchor]') ?? [])]
+    if (!view) return [];
+    const edge =
+      view.getBoundingClientRect().top +
+      view.clientTop +
+      parseFloat(getComputedStyle(view).scrollPaddingTop);
+    return [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')]
       .filter((shell) => shell.getBoundingClientRect().bottom > edge + 1)
       .map((shell) => shell.getAttribute('data-scroll-anchor') ?? '');
   });
