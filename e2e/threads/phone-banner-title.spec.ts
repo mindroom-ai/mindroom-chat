@@ -936,8 +936,11 @@ const expectTagTargets = async (section: Locator) => {
   expect(found.overlaps).toEqual([]);
 };
 
-/** Holds the page's state writes (a tag's save) until the returned function lets them go. */
-const holdStateWrites = async (page: Page) => {
+/**
+ * Holds the page's state writes (a tag's save) until the returned function lets them go, or with
+ * `fail` refuses them then.
+ */
+const holdStateWrites = async (page: Page, { fail = false } = {}) => {
   let release: () => void = () => undefined;
   const held = new Promise<void>((resolve) => {
     release = resolve;
@@ -946,6 +949,9 @@ const holdStateWrites = async (page: Page) => {
   const handler = async (route: Route) => {
     if (route.request().method() !== 'PUT') return route.fallback();
     await held;
+    if (fail) {
+      return route.fulfill({ status: 403, json: { errcode: 'M_FORBIDDEN', error: 'Not allowed' } });
+    }
     return route.continue();
   };
   await page.route(matcher, handler);
@@ -983,18 +989,33 @@ test("a phone's thread menu starts with the tags, and a tag added there shows in
     const remove = (tag: string) => section.getByRole('button', { name: `Remove ${tag} tag` });
     await expectTagTargets(section);
 
-    // From the keyboard: the tag goes at once while its save is held, and the next tag's ✕ takes
-    // the focus and keeps it once the save is done.
-    let release = await holdStateWrites(page);
+    // From the keyboard: the tag goes at once while its save is held, and the focus waits on the
+    // tags section, while the other ✕es stay. A save that fails brings the tag back and leaves the
+    // focus there.
+    let release = await holdStateWrites(page, { fail: true });
     await remove('flaky').focus();
     await page.keyboard.press('Enter');
     await expect(section.getByText('flaky', { exact: true })).toHaveCount(0);
-    await expect(remove('networking')).toBeFocused();
+    await expect(section).toBeFocused();
     await expect(remove('networking')).toHaveAttribute('aria-disabled', 'true');
+    await release();
+    await expect(section.getByRole('alert')).toBeVisible({ timeout: 30_000 });
+    await expect(section.getByText('flaky', { exact: true })).toBeVisible();
+    await expect(section).toBeFocused();
+
+    // Tab goes on to the first ✕. A save that lands leaves the focus on the section too.
+    await page.keyboard.press('Tab');
+    await expect(remove('flaky')).toBeFocused();
+    release = await holdStateWrites(page);
+    await page.keyboard.press('Enter');
+    await expect(section.getByText('flaky', { exact: true })).toHaveCount(0);
+    await expect(section).toBeFocused();
     await release();
     await expect(remove('networking')).not.toHaveAttribute('aria-disabled', 'true', {
       timeout: 30_000,
     });
+    await expect(section).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(remove('networking')).toBeFocused();
 
     // A tap a few px above the ✕ removes the tag; while its save is held, Escape closes the menu,
