@@ -230,7 +230,8 @@ function Composer(
   const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
   useLayoutEffect(() => {
     if (!threadView) return undefined;
-    const entry = { key: voiceComposerKey({ roomId: room.roomId, threadId, threadView }) };
+    const key = voiceComposerKey({ roomId: room.roomId, threadId, threadView });
+    const entry = { key, view: 'thread-view' };
     setThreadViewComposers((entries) => [...entries, entry]);
     return () => setThreadViewComposers((entries) => entries.filter((other) => other !== entry));
   }, [setThreadViewComposers, threadId, threadView]);

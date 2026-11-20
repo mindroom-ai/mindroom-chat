@@ -44,7 +44,11 @@ vi.mock('../../avatars/UserAvatar', () => ({
     return null;
   },
 }));
-vi.mock('./MutualRoomsChip', () => ({ MutualRoomsChip: () => null }));
+vi.mock('./MutualRoomsChip', () => ({
+  MutualRoomsChip: () => null,
+  useMutualRooms: () => ({ spaces: [], rooms: [], directs: [] }),
+}));
+vi.mock('./useAgentProfile', () => ({ useAgentProfile: () => ({ status: 'none' }) }));
 vi.mock('./PowerChip', () => ({ PowerChip: () => null }));
 vi.mock('./UserChips', () => ({ ServerChip: () => null, ShareChip: () => null }));
 vi.mock('./UserModeration', () => ({ UserModeration: () => null }));

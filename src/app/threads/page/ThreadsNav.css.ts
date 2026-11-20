@@ -19,8 +19,6 @@ export const GroupHeading = style({
   paddingBlock: `${space.S300} ${space.S100}`,
   paddingInline: space.S300,
   color: color.Background.OnContainer,
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
 });
 
 export const Row = style({

@@ -274,6 +274,42 @@
     },
     "syncStatus": {
       "mediaUnavailable": "이 창에서는 일부 이미지를 불러올 수 없습니다: 브라우저가 여기서 MindRoom의 서비스 워커를 실행하지 않습니다."
+    },
+    "agentCard": {
+      "agent": "에이전트",
+      "close": "닫기",
+      "configuredTools": "설정된 도구",
+      "toolCount_other": "도구 {{count}}개",
+      "groupCount_other": "그룹 {{count}}개",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "그 밖에 {{groups}}",
+      "viewAll_other": "도구 {{count}}개 모두 보기",
+      "toolsTitle": "{{name}}의 도구",
+      "filter": "도구 필터",
+      "noMatch": "일치하는 도구가 없습니다.",
+      "back": "뒤로",
+      "more": "더 보기",
+      "worksIn": "활동하는 방",
+      "loading": "설정된 도구를 불러오는 중",
+      "availability": "요청과 권한에 따라 사용 가능 여부가 달라질 수 있습니다.",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "코드 및 파일",
+        "research": "웹",
+        "productivity": "일정 및 메모리",
+        "email": "이메일",
+        "mcp": "연결된 앱",
+        "integrations": "통합",
+        "communication": "채팅 및 메시지",
+        "entertainment": "미디어",
+        "information": "정보",
+        "smart_home": "스마트 홈",
+        "social": "소셜",
+        "other": "기타"
+      }
+    },
+    "space": {
+      "overview": "스페이스 개요"
     }
   },
   "featureUi": {
@@ -938,7 +974,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "검색하지 못했습니다. 다시 시도하세요.",
-        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개"
+        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개",
+        "retry": "다시 시도"
       }
     },
     "notifications": {
@@ -1079,6 +1116,18 @@
       "pageUpdated": "{{agent}}이(가) 이 페이지를 업데이트했습니다.",
       "shownInPanel": "패널에 표시됨",
       "inlineDisclosure": "{{agent}}이(가) 만들었습니다. 계정에는 접근할 수 없지만, 여기에 입력한 내용은 이 페이지 밖으로 전송될 수 있습니다."
+    },
+    "uiActions": {
+      "canvasOff": "패널 공유됨 · 이 앱에서는 패널이 꺼져 있습니다",
+      "askForText": "텍스트 버전 요청",
+      "copyRequest": "요청 복사",
+      "textVersionRequest": "“{{title}}”을(를) 대신 텍스트로 여기에 보내 주세요. 제 앱에서는 대화형 패널이 꺼져 있습니다.",
+      "askForTextStatus": {
+        "hint": "입력창에 요청을 넣습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "added": "입력창에 요청을 넣었습니다. 보내기를 누르기 전에는 아무것도 전송되지 않습니다.",
+        "kept": "작성 중인 초안은 그대로 두었습니다. 요청을 복사해 직접 추가하세요.",
+        "copied": "요청을 복사했습니다. 초안에 붙여 넣으세요."
+      }
     }
   },
   "composer": {
@@ -1103,7 +1152,10 @@
       "autoHint": "에이전트가 결정하도록 하기",
       "settingTitle": "에이전트가 답변 중일 때 보내기",
       "settingDescription": "보내기를 길게 눌러 메시지마다 선택하세요."
-    }
+    },
+    "replyInThread": "스레드에 답장…",
+    "newThreadIn": "{{room}}에 새 스레드…",
+    "newThreadWith": "{{name}}에게 새 스레드…"
   },
   "commandPalette": {
     "state": {

@@ -37,7 +37,13 @@ const rowBackground = createVar();
 const button = config.size.X500;
 // The title line keeps the typing strip's height beside it: its controls are a line tall.
 const lineHeight = '1.5rem';
-const actions = `calc(2 * ${button} + ${config.space.S100})`;
+// A row's buttons, each in its own slot: Thread, Stop. Thread's slot is there only while a job of
+// another thread lists (WithThreads).
+const actionSlots = createVar();
+// Between them, to a finger, twice the 8 px each button's hit area reaches out, so no two share a
+// point.
+const actionGap = createVar();
+const actions = `calc(${actionSlots} * ${button} + (${actionSlots} - 1) * ${actionGap})`;
 
 // The typing bar's size and material; the rows inside take no surface of their own. Listed jobs
 // sit above the title line, though they follow the title in reading and focus order.
@@ -64,7 +70,10 @@ export const Bar = style([
       [tokens]: '3.25rem',
       [cost]: '3.5rem',
       [time]: '3.5rem',
+      [actionSlots]: '1',
+      [actionGap]: config.space.S100,
     },
+    '@media': { '(pointer: coarse)': { vars: { [actionGap]: '16px' } } },
     '@container': {
       [panel]: {
         vars: { [gap]: config.space.S200, [calls]: '2rem', [tokens]: '3rem', [cost]: '3.25rem' },
@@ -72,6 +81,8 @@ export const Bar = style([
     },
   },
 ]);
+
+export const WithThreads = style({ vars: { [actionSlots]: '2' } });
 
 // Listed, the bar spans the dock's whole line (DockBars, in RoomOverlay.css, holds it), over the
 // typing strip beside it, which keeps its place, so the dock keeps its rows whatever changes while
@@ -359,6 +370,28 @@ const truncate = {
 // The task (or the tool's name) is the row's one bold text; it gives way after nothing else.
 export const Task = style({ ...truncate, flex: '1 1 0', fontWeight: config.fontWeight.W600 });
 
+// A sub-agent job's title opens its run, and reaches over its whole row: a press anywhere on the
+// row but its buttons is one on the title. It lies over the row's muted text, whose opacity
+// stacks it as a positioned box would. Under the pointer its title is underlined; to the keyboard
+// the row is ringed.
+export const RowOpen = style({
+  ...textButton,
+  // The button's inherited font would undo the title's weight.
+  fontWeight: config.fontWeight.W600,
+  selectors: {
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      inset: 0,
+      zIndex: 1,
+      borderRadius: 'inherit',
+    },
+    [`${Job}:hover &`]: { textDecoration: 'underline' },
+    '&:focus-visible': { outline: 'none' },
+    '&:focus-visible::before': { ...keyboardRing, outlineOffset: -2 },
+  },
+});
+
 // The agent's name gives way only once what it does is gone.
 export const Name = style({
   ...truncate,
@@ -411,31 +444,21 @@ export const Pill = styleVariants({
   done: [pill, { background: color.Secondary.Container, color: color.Secondary.OnContainer }],
 });
 
-export const PillText = style(hiddenOnPhone);
+// On a phone the pill is its icon; its words stay for screen readers.
+export const PillText = style({
+  '@container': {
+    [phone]: {
+      position: 'absolute',
+      width: 1,
+      height: 1,
+      overflow: 'hidden',
+      clipPath: 'inset(50%)',
+      whiteSpace: 'nowrap',
+    },
+  },
+});
 
 export const PillIcon = style({ display: 'none', '@container': { [phone]: { display: 'grid' } } });
-
-// A job of another thread names it; pressing it shows that thread. Beside the Sub-agents panel
-// it is its icon, and its title names the thread.
-export const ThreadChip = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: config.space.S100,
-  flex: '0 1 auto',
-  minWidth: '3rem',
-  maxWidth: '11rem',
-  marginInlineStart: 'auto',
-  ...textButton,
-  color: color.Primary.Main,
-  selectors: { '&:focus-visible': keyboardRing },
-  '@container': { [panel]: { minWidth: 0 } },
-});
-
-export const ThreadTitle = style({
-  ...truncate,
-  selectors: { [`${ThreadChip}:hover > &`]: { textDecoration: 'underline' } },
-  '@container': { [panel]: { display: 'none' } },
-});
 
 // The number columns: bare numbers, end-aligned on the row's middle with its time and buttons.
 export const Num = style({ textAlign: 'end', whiteSpace: 'nowrap', opacity: config.opacity.P300 });
@@ -443,10 +466,23 @@ export const Num = style({ textAlign: 'end', whiteSpace: 'nowrap', opacity: conf
 export const Stat = style([Num, hiddenOnPhone]);
 
 export const Actions = style({
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: config.space.S100,
+  display: 'grid',
+  gridTemplateColumns: `repeat(${actionSlots}, ${button})`,
+  justifyContent: 'end',
+  alignItems: 'center',
+  gap: actionGap,
+  // Over the reach of the row's title, so its buttons keep their own presses; between and beside
+  // them a press goes through to the row.
+  position: 'relative',
+  zIndex: 2,
+  pointerEvents: 'none',
 });
+
+// Each button keeps its slot, so a row without Thread lines its Stop up with the rows that have
+// one: Stop (or its Stopping) last, Thread before it.
+globalStyle(`${Actions} > *`, { gridColumn: '-2 / -1', gridRow: 1 });
+globalStyle(`${Actions} > button`, { pointerEvents: 'auto' });
+globalStyle(`${Actions} > [data-job-thread]`, { gridColumn: '-3 / -2' });
 
 // Open, Stop and Stop all: one family of 28 px icon buttons on the bar's own material, Stop
 // turning red under the pointer. To a finger each reaches 44 px.

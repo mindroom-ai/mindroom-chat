@@ -4,7 +4,18 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExpandAllInitContext, ManualExpansionStateContext } from '../manualExpansionState';
 import { FinishedWorkFold } from './FinishedWorkFold';
 
-vi.mock('./FinishedWorkFold.css', () => ({ Work: 'Work' }));
+vi.mock('./FinishedWorkFold.css', () => ({
+  Row: 'Row',
+  ClockBox: 'ClockBox',
+  Clock: 'Clock',
+  Hands: 'Hands',
+  Label: 'WorkLabel',
+  Chevron: 'WorkChevron',
+  Ring: 'Ring',
+  Work: 'Work',
+  WorkInner: 'WorkInner',
+}));
+vi.mock('./OutlineComet.css', () => ({ Outline: 'Outline' }));
 vi.mock('./Reasoning.css', () => ({
   Reasoning: 'Reasoning',
   Toggle: 'Toggle',
@@ -25,6 +36,7 @@ describe('FinishedWorkFold', () => {
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
+    vi.unstubAllGlobals();
   });
 
   const render = (element: JSX.Element) => {
@@ -47,8 +59,22 @@ describe('FinishedWorkFold', () => {
 
   const rows = () => renderer!.root.findAllByType('button');
   const toggle = () => renderer!.root.findByType('button');
-  const label = () => renderer!.root.findByProps({ className: 'Label' }).children.join('');
+  const label = () =>
+    renderer!.root.findByProps({ className: 'Label WorkLabel' }).children.join('');
   const byId = (id: string) => renderer!.root.findAll((node) => node.props.id === id);
+  const click = () => {
+    act(() => {
+      toggle().props.onClick();
+    });
+  };
+  // The work's wrapper finishing its slide, not an animation inside the work.
+  const settle = () => {
+    const work = renderer!.root.findByProps({ className: 'Work' });
+    const event = { target: work, currentTarget: work };
+    act(() => {
+      work.props.onAnimationEnd(event);
+    });
+  };
 
   it('folds a reply that may fold', () => {
     render(fold(nextKey()));
@@ -101,6 +127,80 @@ describe('FinishedWorkFold', () => {
       toggle().props.onClick();
     });
     expect(toggle().props['aria-expanded']).toBe(false);
+    settle();
+    expect(byId('work')).toHaveLength(0);
+  });
+
+  it('sheds a new ring off the clock on each click', () => {
+    render(fold(nextKey()));
+    expect(renderer!.root.findAllByType('circle')).toHaveLength(0);
+
+    click();
+    const first = renderer!.root.findByType('circle');
+    click();
+    // A compared instance, not a printed one: printing a test instance does not end.
+    expect(renderer!.root.findByType('circle') === first).toBe(false);
+  });
+
+  it('keeps the work until it has folded back', () => {
+    render(fold(nextKey()));
+    click();
+    click();
+    expect(toggle().props['aria-expanded']).toBe(false);
+    expect(byId('work')).toHaveLength(1);
+
+    const work = renderer!.root.findByProps({ className: 'Work' });
+    act(() => {
+      work.props.onAnimationEnd({ target: byId('work')[0], currentTarget: work });
+    });
+    expect(byId('work')).toHaveLength(1);
+
+    settle();
+    expect(byId('work')).toHaveLength(0);
+  });
+
+  it('slides the work open again when it is reopened as it folds back', () => {
+    render(fold(nextKey()));
+    click();
+    settle();
+    click();
+    click();
+    expect(toggle().props['aria-expanded']).toBe(true);
+    expect(renderer!.root.findByProps({ className: 'Work' }).props['data-motion']).toBe('opening');
+  });
+
+  it('starts at rest when its split comes back after it went as the work folded back', () => {
+    const key = nextKey();
+    render(fold(key));
+    click();
+    settle();
+    click();
+    act(() => renderer!.update(fold(key, undefined, false)));
+    act(() => renderer!.update(fold(key)));
+
+    expect(toggle().props['aria-expanded']).toBe(false);
+    expect(byId('work')).toHaveLength(0);
+  });
+
+  it('folds the work at once when collapse all comes as it folds back', () => {
+    const key = nextKey();
+    const tree = (expandAll: boolean | undefined) => (
+      <ExpandAllInitContext.Provider value={expandAll}>{fold(key)}</ExpandAllInitContext.Provider>
+    );
+    render(tree(undefined));
+    click();
+    settle();
+    click();
+    act(() => renderer!.update(tree(false)));
+
+    expect(byId('work')).toHaveLength(0);
+  });
+
+  it('folds the work back at once with reduced motion', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }));
+    render(fold(nextKey()));
+    click();
+    click();
     expect(byId('work')).toHaveLength(0);
   });
 

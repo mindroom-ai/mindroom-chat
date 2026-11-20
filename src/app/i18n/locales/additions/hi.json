@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "इस विंडो में कुछ चित्र लोड नहीं हो सकते: ब्राउज़र यहाँ MindRoom के लिए कोई सर्विस वर्कर नहीं चलाता।"
+    },
+    "agentCard": {
+      "agent": "एजेंट",
+      "close": "बंद करें",
+      "configuredTools": "कॉन्फ़िगर किए गए टूल",
+      "toolCount_one": "{{count}} टूल",
+      "toolCount_other": "{{count}} टूल",
+      "groupCount_one": "{{count}} समूह",
+      "groupCount_other": "{{count}} समूह",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "इसके अलावा {{groups}}",
+      "viewAll_one": "सभी {{count}} टूल देखें",
+      "viewAll_other": "सभी {{count}} टूल देखें",
+      "toolsTitle": "{{name}} के टूल",
+      "filter": "टूल फ़िल्टर करें",
+      "noMatch": "कोई टूल मेल नहीं खाता।",
+      "back": "वापस",
+      "more": "और",
+      "worksIn": "यहाँ काम करता है",
+      "loading": "कॉन्फ़िगर किए गए टूल लोड हो रहे हैं",
+      "availability": "उपलब्धता अनुरोध और अनुमतियों के अनुसार बदल सकती है।",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "कोड और फ़ाइलें",
+        "research": "वेब",
+        "productivity": "शेड्यूलिंग और मेमोरी",
+        "email": "ईमेल",
+        "mcp": "जुड़े ऐप्स",
+        "integrations": "इंटीग्रेशन",
+        "communication": "चैट और संदेश",
+        "entertainment": "मीडिया",
+        "information": "जानकारी",
+        "smart_home": "स्मार्ट होम",
+        "social": "सोशल",
+        "other": "अन्य"
+      }
+    },
+    "space": {
+      "overview": "स्पेस का अवलोकन"
     }
   },
   "featureUi": {
@@ -954,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "खोज विफल रही। फिर से कोशिश करें।",
         "resultCountFor_one": "\"{{term}}\" के लिए {{count}} परिणाम",
-        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम"
+        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम",
+        "retry": "पुन: प्रयास करें"
       }
     },
     "notifications": {
@@ -1104,6 +1145,18 @@
       "pageUpdated": "{{agent}} ने यह पेज अपडेट किया।",
       "shownInPanel": "पैनल में दिखाया गया",
       "inlineDisclosure": "{{agent}} ने बनाया। यह आपके खाते तक नहीं पहुँच सकता; यहाँ आप जो दर्ज करते हैं, वह इस पेज से बाहर जा सकता है।"
+    },
+    "uiActions": {
+      "canvasOff": "पैनल साझा किया गया · इस ऐप में पैनल बंद हैं",
+      "askForText": "टेक्स्ट संस्करण माँगें",
+      "copyRequest": "अनुरोध कॉपी करें",
+      "textVersionRequest": "कृपया “{{title}}” यहाँ टेक्स्ट के रूप में भेजें। मेरे ऐप में इंटरैक्टिव पैनल बंद हैं।",
+      "askForTextStatus": {
+        "hint": "कंपोज़र में एक अनुरोध रखता है। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "added": "अनुरोध कंपोज़र में जोड़ दिया गया। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "kept": "आपका ड्राफ़्ट जैसा था वैसा ही है। खुद जोड़ने के लिए अनुरोध कॉपी करें।",
+        "copied": "अनुरोध कॉपी हो गया। इसे अपने ड्राफ़्ट में पेस्ट करें।"
+      }
     }
   },
   "composer": {
@@ -1128,7 +1181,10 @@
       "autoHint": "एजेंट को तय करने दें",
       "settingTitle": "एजेंट के जवाब देते समय भेजें",
       "settingDescription": "किसी एक संदेश के लिए चुनने को भेजें दबाकर रखें।"
-    }
+    },
+    "replyInThread": "थ्रेड में जवाब दें…",
+    "newThreadIn": "{{room}} में नया थ्रेड…",
+    "newThreadWith": "{{name}} के साथ नया थ्रेड…"
   },
   "commandPalette": {
     "state": {

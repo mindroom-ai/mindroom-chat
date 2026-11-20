@@ -90,7 +90,7 @@ const expectHostKnown = async (page: Page, { host }: People, body: string) => {
   const message = page.getByText(body, { exact: true }).first();
   await expect(message).toBeVisible({ timeout: 30_000 });
   // The header's button says Hide Members while the panel is open.
-  const showMembers = page.getByRole('button', { name: 'Members', exact: true });
+  const showMembers = page.getByRole('button', { name: 'Show Members', exact: true });
   await expect(showMembers.or(page.getByRole('button', { name: 'Hide Members' }))).toBeVisible();
   if (await showMembers.isVisible()) await showMembers.click();
   // The panel: the nearest box around its name filter that holds member rows. The filter also

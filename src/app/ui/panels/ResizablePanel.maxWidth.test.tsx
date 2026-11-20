@@ -8,11 +8,7 @@ import { ResizablePanel } from './ResizablePanel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('./ResizablePanel.css', () => ({
-  Panel: 'panel',
-  Handle: 'handle',
-  RESIZING: 'data-panel-resizing',
-}));
+vi.mock('./ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -69,6 +65,31 @@ describe('ResizablePanel width bounds', () => {
     localStorage.setItem('test.width', JSON.stringify(1200));
     render({ maxPanelWidth: 1600 });
     expect(panel().style.width).toBe('1200px');
+  });
+
+  it('lays out at its stored width from the first commit, before it measures the row', () => {
+    localStorage.setItem('test.width', JSON.stringify(400));
+    const firstWidths: string[] = [];
+    function Probe() {
+      React.useLayoutEffect(() => {
+        firstWidths.push(panel().style.width);
+      }, []);
+      return null;
+    }
+    act(() => {
+      root.render(
+        <ResizablePanel
+          storageKey="test.width"
+          resizeLabel="Resize"
+          collapseLabel="Close"
+          testId="panel"
+        >
+          <Probe />
+        </ResizablePanel>
+      );
+    });
+    expect(firstWidths).toEqual(['400px']);
+    expect(panel().style.width).toBe('400px');
   });
 
   it('renders no box and no handle in passthrough mode', () => {

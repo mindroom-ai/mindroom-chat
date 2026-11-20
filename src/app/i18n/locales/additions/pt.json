@@ -282,6 +282,50 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Algumas imagens não podem ser carregadas nesta janela: o navegador não executa aqui nenhum service worker para o MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agente",
+      "close": "Fechar",
+      "configuredTools": "Ferramentas configuradas",
+      "toolCount_one": "{{count}} ferramenta",
+      "toolCount_many": "{{count}} de ferramentas",
+      "toolCount_other": "{{count}} ferramentas",
+      "groupCount_one": "{{count}} grupo",
+      "groupCount_many": "{{count}} de grupos",
+      "groupCount_other": "{{count}} grupos",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Também {{groups}}",
+      "viewAll_one": "Ver todas as {{count}} ferramentas",
+      "viewAll_many": "Ver todas as {{count}} de ferramentas",
+      "viewAll_other": "Ver todas as {{count}} ferramentas",
+      "toolsTitle": "Ferramentas de {{name}}",
+      "filter": "Filtrar ferramentas",
+      "noMatch": "Nenhuma ferramenta corresponde.",
+      "back": "Voltar",
+      "more": "Mais",
+      "worksIn": "Trabalha em",
+      "loading": "Carregando ferramentas configuradas",
+      "availability": "A disponibilidade pode variar conforme a solicitação e as permissões.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Código e arquivos",
+        "research": "Web",
+        "productivity": "Agendamento e memória",
+        "email": "E-mail",
+        "mcp": "Apps conectados",
+        "integrations": "Integrações",
+        "communication": "Chat e mensagens",
+        "entertainment": "Mídia",
+        "information": "Informações",
+        "smart_home": "Casa inteligente",
+        "social": "Social",
+        "other": "Outras"
+      }
+    },
+    "space": {
+      "overview": "Visão geral do espaço"
     }
   },
   "featureUi": {
@@ -970,7 +1014,8 @@
         "searchFailed": "A pesquisa falhou. Tente novamente.",
         "resultCountFor_one": "{{count}} resultado para “{{term}}”",
         "resultCountFor_many": "{{count}} de resultados para “{{term}}”",
-        "resultCountFor_other": "{{count}} resultados para “{{term}}”"
+        "resultCountFor_other": "{{count}} resultados para “{{term}}”",
+        "retry": "Tentar novamente"
       }
     },
     "notifications": {
@@ -1129,6 +1174,18 @@
       "pageUpdated": "{{agent}} atualizou esta página.",
       "shownInPanel": "Mostrada no painel",
       "inlineDisclosure": "Criada por {{agent}}. Não pode acessar sua conta; o que você digitar aqui pode sair desta página."
+    },
+    "uiActions": {
+      "canvasOff": "Painel compartilhado · os painéis estão desativados neste app",
+      "askForText": "Pedir uma versão em texto",
+      "copyRequest": "Copiar pedido",
+      "textVersionRequest": "Envie “{{title}}” aqui como texto, por favor. Os painéis interativos estão desativados no meu app.",
+      "askForTextStatus": {
+        "hint": "Coloca um pedido no editor. Nada é enviado até você pressionar Enviar.",
+        "added": "Pedido adicionado ao editor. Nada é enviado até você pressionar Enviar.",
+        "kept": "Seu rascunho ficou como estava. Copie o pedido para adicioná-lo você mesmo.",
+        "copied": "Pedido copiado. Cole-o no seu rascunho."
+      }
     }
   },
   "composer": {
@@ -1153,7 +1210,10 @@
       "autoHint": "Deixar o agente decidir",
       "settingTitle": "Enviar enquanto um agente responde",
       "settingDescription": "Mantenha Enviar pressionado para escolher em uma só mensagem."
-    }
+    },
+    "replyInThread": "Responder no tópico…",
+    "newThreadIn": "Novo tópico em {{room}}…",
+    "newThreadWith": "Novo tópico com {{name}}…"
   },
   "commandPalette": {
     "state": {

@@ -262,7 +262,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
         ref={bar}
         tabIndex={-1}
         // Listed jobs hold irreversible actions over the timeline; the thread behind them must not compete.
-        className={classNames(css.Bar, expanded && glassDenseOverBackdrop)}
+        className={classNames(
+          css.Bar,
+          expanded && glassDenseOverBackdrop,
+          // A row's Thread button needs its slot in every row, so the buttons line up.
+          model.items.some((item) => item.threadId !== null && item.threadId !== threadId) &&
+            css.WithThreads
+        )}
         role="region"
         aria-label={model.title}
         onPointerLeave={(event: React.PointerEvent) => {

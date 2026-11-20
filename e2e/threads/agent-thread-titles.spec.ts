@@ -14,6 +14,7 @@ import {
 import { createPrivateRoom, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
+import { COMPOSER_NAME } from '../helpers/composerName';
 
 // MindRoom titles a thread with an `m.notice` thread event that carries `io.mindroom.thread_summary`.
 // The server's thread summary names that notice as the thread's latest event until someone writes
@@ -191,7 +192,7 @@ const reloadKeepsReplyPreview = async (page: Page, stack: AgentStack, engine: st
     topic: 'A room without agents',
   });
   await page.goto(`/home/${encodeURIComponent(elsewhere)}`, { timeout: 180_000 });
-  await expect(page.getByRole('textbox', { name: 'Send a message...' })).toBeVisible({
+  await expect(page.getByRole('textbox', { name: COMPOSER_NAME })).toBeVisible({
     timeout: 90_000,
   });
   const word = uniqueWord('preview');

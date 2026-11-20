@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Bu pencerede bazı görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
+    },
+    "agentCard": {
+      "agent": "Ajan",
+      "close": "Kapat",
+      "configuredTools": "Yapılandırılmış araçlar",
+      "toolCount_one": "{{count}} araç",
+      "toolCount_other": "{{count}} araç",
+      "groupCount_one": "{{count}} grup",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ayrıca {{groups}}",
+      "viewAll_one": "{{count}} aracın tümünü gör",
+      "viewAll_other": "{{count}} aracın tümünü gör",
+      "toolsTitle": "{{name}} araçları",
+      "filter": "Araçları filtrele",
+      "noMatch": "Eşleşen araç yok.",
+      "back": "Geri",
+      "more": "Daha fazla",
+      "worksIn": "Çalıştığı yerler",
+      "loading": "Yapılandırılmış araçlar yükleniyor",
+      "availability": "Kullanılabilirlik isteğe ve izinlere göre değişebilir.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kod ve dosyalar",
+        "research": "Web",
+        "productivity": "Zamanlama ve bellek",
+        "email": "E-posta",
+        "mcp": "Bağlı uygulamalar",
+        "integrations": "Entegrasyonlar",
+        "communication": "Sohbet ve mesajlar",
+        "entertainment": "Medya",
+        "information": "Bilgi",
+        "smart_home": "Akıllı ev",
+        "social": "Sosyal",
+        "other": "Diğer"
+      }
+    },
+    "space": {
+      "overview": "Alana genel bakış"
     }
   },
   "featureUi": {
@@ -954,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
         "resultCountFor_one": "“{{term}}” için {{count}} sonuç",
-        "resultCountFor_other": "“{{term}}” için {{count}} sonuç"
+        "resultCountFor_other": "“{{term}}” için {{count}} sonuç",
+        "retry": "Tekrar dene"
       }
     },
     "notifications": {
@@ -1104,6 +1145,18 @@
       "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
       "shownInPanel": "Panelde gösteriliyor",
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
+    },
+    "uiActions": {
+      "canvasOff": "Panel paylaşıldı · bu uygulamada paneller kapalı",
+      "askForText": "Metin sürümü iste",
+      "copyRequest": "İsteği kopyala",
+      "textVersionRequest": "Lütfen “{{title}}” içeriğini buraya metin olarak gönder. Uygulamamda etkileşimli paneller kapalı.",
+      "askForTextStatus": {
+        "hint": "Yazma alanına bir istek koyar. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "added": "İstek yazma alanına eklendi. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "kept": "Taslağın olduğu gibi bırakıldı. Kendin eklemek için isteği kopyala.",
+        "copied": "İstek kopyalandı. Taslağına yapıştır."
+      }
     }
   },
   "composer": {
@@ -1128,7 +1181,10 @@
       "autoHint": "Kararı ajana bırak",
       "settingTitle": "Bir ajan yanıt verirken gönder",
       "settingDescription": "Tek bir mesaj için seçmek üzere Gönder'e basılı tutun."
-    }
+    },
+    "replyInThread": "Konuda yanıtla…",
+    "newThreadIn": "{{room}} içinde yeni konu…",
+    "newThreadWith": "{{name}} ile yeni konu…"
   },
   "commandPalette": {
     "state": {

@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Some images can't load in this window: the browser runs no service worker for MindRoom here."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Close",
+      "configuredTools": "Configured tools",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} group",
+      "groupCount_other": "{{count}} groups",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Also {{groups}}",
+      "viewAll_one": "View all {{count}} tool",
+      "viewAll_other": "View all {{count}} tools",
+      "toolsTitle": "{{name}}’s tools",
+      "filter": "Filter tools",
+      "noMatch": "No tools match.",
+      "back": "Back",
+      "more": "More",
+      "worksIn": "Works in",
+      "loading": "Loading configured tools",
+      "availability": "Availability can vary by request and permissions.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & files",
+        "research": "Web",
+        "productivity": "Scheduling & memory",
+        "email": "Email",
+        "mcp": "Connected apps",
+        "integrations": "Integrations",
+        "communication": "Chat & messages",
+        "entertainment": "Media",
+        "information": "Information",
+        "smart_home": "Smart home",
+        "social": "Social",
+        "other": "Other"
+      }
+    },
+    "space": {
+      "overview": "Space overview"
     }
   },
   "featureUi": {
@@ -954,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Search failed. Try again.",
         "resultCountFor_one": "{{count}} result for “{{term}}”",
-        "resultCountFor_other": "{{count}} results for “{{term}}”"
+        "resultCountFor_other": "{{count}} results for “{{term}}”",
+        "retry": "Retry"
       }
     },
     "notifications": {
@@ -1104,6 +1145,18 @@
       "pageUpdated": "{{agent}} updated this page.",
       "shownInPanel": "Shown in the panel",
       "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page."
+    },
+    "uiActions": {
+      "canvasOff": "Canvas shared · panels are off in this app",
+      "askForText": "Ask for a text version",
+      "copyRequest": "Copy request",
+      "textVersionRequest": "Please send “{{title}}” here as text instead. Interactive panels are off in my app.",
+      "askForTextStatus": {
+        "hint": "Puts a request in the composer. Nothing is sent until you press Send.",
+        "added": "Request added to the composer. Nothing is sent until you press Send.",
+        "kept": "Your draft was kept as it is. Copy the request to add it yourself.",
+        "copied": "Request copied. Paste it into your draft."
+      }
     }
   },
   "composer": {
@@ -1128,7 +1181,10 @@
       "autoHint": "Let the agent decide",
       "settingTitle": "When an agent is replying, Send",
       "settingDescription": "Hold Send to choose for one message."
-    }
+    },
+    "replyInThread": "Reply in thread…",
+    "newThreadIn": "New thread in {{room}}…",
+    "newThreadWith": "New thread with {{name}}…"
   },
   "commandPalette": {
     "state": {

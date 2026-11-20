@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Scrollbare tabel",
-    "scrollHint": "Horizontaal scrollen"
+    "scrollHint": "Horizontaal scrollen",
+    "readByRow": "Per rij lezen",
+    "showTable": "Tabel tonen"
   },
   "messageCodeBlock": {
     "actions": "Codeblokacties",
@@ -1155,7 +1157,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Deze space is vervangen en niet meer actief.",
       "openNewSpace": "Nieuwe space openen",
       "joinNewSpace": "Deelnemen aan nieuwe space",
-      "lobby": "Lobby",
       "messageSearch": "Berichten zoeken",
       "failedToJoinReplacementSpace": "Deelnemen aan vervangende space mislukt!",
       "rooms": "Kamers",
@@ -2930,7 +2931,9 @@
       "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
       "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
-      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
+      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen.",
+      "canvasCard": "Interactief paneel",
+      "reminderCard": "Herinnering · {{when}}"
     },
     "canvas": {
       "panelLabel": "Interactief paneel",

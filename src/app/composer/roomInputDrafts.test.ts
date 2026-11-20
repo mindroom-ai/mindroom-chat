@@ -2,10 +2,16 @@ import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearRoomInputDrafts,
+  composerOfferAtom,
+  composerReplyDraftAtom,
+  composerUploadItemsAtom,
+  pendingVoiceSendDraftAtom,
+  threadViewVoiceComposersAtom,
   getRoomInputDraftKey,
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
+import { confirmedVoiceThreadId } from './RoomInputExtensions';
 
 const KEY = JSON.stringify(['@alice:example.org', '!room:example.org', '$thread']);
 const draft = [{ type: 'paragraph' as const, children: [{ text: 'Unsent draft', bold: true }] }];
@@ -98,5 +104,74 @@ describe('restoreTextToDraft', () => {
     restoreTextToDraft(store, key, caption);
     expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual([...typed, ...caption]);
     store.set(roomIdToMsgDraftAtomFamily(key), []);
+  });
+});
+
+describe('composerOfferAtom', () => {
+  it("is busy only with the destination's own work, in a composer mounted for it", () => {
+    const store = createStore();
+    const roomId = '!offer:example.org';
+    const key: [string, string, string] = ['@alice:example.org', roomId, '$thread'];
+    const offer = [{ type: 'paragraph', children: [{ text: 'Text version, please' }] }] as never[];
+    const draft = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(...key));
+    const state = composerOfferAtom(key, offer, confirmedVoiceThreadId);
+    const roomState = composerOfferAtom([key[0], roomId], offer, confirmedVoiceThreadId);
+    const file = new File(['x'], 'notes.txt');
+    const staged = [
+      { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } },
+    ];
+    const reply = { userId: '@bob:example.org', eventId: '$event', body: 'Earlier message' };
+    expect(store.get(state)).toBe('empty');
+    store.set(draft, offer);
+    expect(store.get(state)).toBe('offered');
+    store.set(draft, [{ type: 'paragraph', children: [{ text: 'my own words' }] }] as never[]);
+    expect(store.get(state)).toBe('busy');
+    store.set(draft, []);
+    // Another thread's text, and the room page's files and reply, are not the thread's work.
+    store.set(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(key[0], roomId, '$other')), offer);
+    store.set(composerUploadItemsAtom(roomId, undefined), { type: 'PUT', item: staged });
+    store.set(composerReplyDraftAtom(roomId, undefined), reply);
+    expect(store.get(state)).toBe('empty');
+    expect(store.get(roomState)).toBe('busy');
+    store.set(composerUploadItemsAtom(roomId, undefined), { type: 'RESET' });
+    store.set(composerReplyDraftAtom(roomId, undefined), undefined);
+    expect(store.get(roomState)).toBe('empty');
+    // A thread view's composer, mounted for the thread (folded too), holds files or a reply.
+    store.set(composerUploadItemsAtom(roomId, 'column'), { type: 'PUT', item: staged });
+    store.set(composerReplyDraftAtom(roomId, 'panel'), reply);
+    expect(store.get(state)).toBe('empty');
+    const mounted = (threadId: string, view: string) => ({
+      key: JSON.stringify([roomId, threadId]),
+      view,
+    });
+    store.set(threadViewVoiceComposersAtom, [mounted('$other', 'column')]);
+    expect(store.get(state)).toBe('empty');
+    store.set(threadViewVoiceComposersAtom, [mounted('$thread', 'column')]);
+    expect(store.get(state)).toBe('busy');
+    store.set(threadViewVoiceComposersAtom, [mounted('$thread', 'panel')]);
+    expect(store.get(state)).toBe('busy');
+    store.set(threadViewVoiceComposersAtom, []);
+    // A voice message waiting to be sent belongs to the composer that recorded it.
+    // The thread's root was still a local echo when this one was recorded; it is '$thread' now.
+    const room = {
+      getThread: (id: string) =>
+        id === '~echo' ? { rootEvent: { getId: () => '$thread' } } : null,
+    };
+    const voice = (threadId: string | undefined, threadView: boolean) =>
+      store.set(pendingVoiceSendDraftAtom, {
+        file,
+        duration: 1,
+        context: { roomId, room, threadId, threadView } as never,
+      });
+    voice('$other', true);
+    expect(store.get(state)).toBe('empty');
+    voice(undefined, false);
+    expect(store.get(state)).toBe('empty');
+    expect(store.get(roomState)).toBe('busy');
+    voice('$thread', true);
+    expect(store.get(state)).toBe('busy');
+    voice('~echo', true);
+    expect(store.get(state)).toBe('busy');
+    store.set(pendingVoiceSendDraftAtom, undefined);
   });
 });

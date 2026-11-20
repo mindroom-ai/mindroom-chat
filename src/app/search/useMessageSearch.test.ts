@@ -1,6 +1,12 @@
 import { IResultContext, ISearchResult } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { deduplicateResults, dropEditedAwayResults } from './useMessageSearch';
+import {
+  collapseThreadTitleHits,
+  deduplicateResults,
+  dropEditedAwayResults,
+  type MessageSearchPage,
+  type ResultItem,
+} from './useMessageSearch';
 
 type SearchResultOptions = {
   eventId: string;
@@ -244,5 +250,74 @@ describe('dropEditedAwayResults', () => {
       '$stemmed',
     ]);
     expect(getEventIds(dropEditedAwayResults(results, '  '))).toHaveLength(3);
+  });
+});
+
+describe('collapseThreadTitleHits', () => {
+  const inThread = (rootId: string) => ({
+    'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+  });
+  const title = (eventId: string, rootId: string, roomId = '!a:example.org'): ResultItem => {
+    const { result, rank, context } = makeSearchResult({
+      eventId,
+      roomId,
+      ts: 1,
+      sender: '@mindroom_helper:example.org',
+      content: {
+        msgtype: 'm.notice',
+        body: 'Roadmap for the beta',
+        'io.mindroom.thread_summary': { version: 1, summary: 'Roadmap for the beta' },
+        ...inThread(rootId),
+      },
+    });
+    return { event: result, rank, context };
+  };
+  const message = (eventId: string, roomId = '!a:example.org', content?: object): ResultItem => {
+    const { result, rank, context } = makeSearchResult({
+      eventId,
+      roomId,
+      ts: 1,
+      content: { msgtype: 'm.text', body: 'Roadmap for the beta', ...content },
+    });
+    return { event: result, rank, context };
+  };
+  const page = (items: ResultItem[]): MessageSearchPage => ({
+    highlights: ['roadmap'],
+    // As the server's order groups them: a new group whenever the room changes.
+    groups: items.reduce<MessageSearchPage['groups']>((groups, item) => {
+      const last = groups.at(-1);
+      if (last?.roomId === item.event.room_id) last.items.push(item);
+      else groups.push({ roomId: item.event.room_id, items: [item] });
+      return groups;
+    }, []),
+    hidden: 0,
+  });
+  const collapse = (...pages: MessageSearchPage[]) =>
+    collapseThreadTitleHits({ pages, pageParams: pages.map(() => undefined) }).pages.map(
+      ({ groups, hidden }) => ({
+        groups: groups.map((group) => [group.roomId, group.items.map((i) => i.event.event_id)]),
+        hidden,
+      })
+    );
+
+  it('keeps one title per thread over every page, and every message people and agents wrote', () => {
+    expect(
+      collapse(
+        page([title('$t3', '$root'), message('$said', '!a:example.org', inThread('$root'))]),
+        page([message('$same'), title('$t2', '$root'), title('$t1', '$root'), message('$next')]),
+        page([title('$other', '$root', '!b:example.org'), title('$t4', '$another')])
+      )
+    ).toEqual([
+      { groups: [['!a:example.org', ['$t3', '$said']]], hidden: 0 },
+      { groups: [['!a:example.org', ['$same', '$next']]], hidden: 2 },
+      // The same root id in another room is another thread.
+      {
+        groups: [
+          ['!b:example.org', ['$other']],
+          ['!a:example.org', ['$t4']],
+        ],
+        hidden: 0,
+      },
+    ]);
   });
 });

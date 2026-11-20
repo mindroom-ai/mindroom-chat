@@ -136,6 +136,10 @@ vi.mock('folds', () => ({
   OverlayBackdrop: () => React.createElement('div'),
 }));
 
+// The composer's helpers draw with folds, which is mocked thin here.
+vi.mock('../../composer/RoomInputExtensions', () => ({
+  confirmedVoiceThreadId: (_room: unknown, threadId?: string) => threadId,
+}));
 vi.mock('../SecondThreadPanel', () => ({ SecondThreadPanel: () => null }));
 vi.mock('../SecondThreadDropZone', () => ({ SecondThreadDropZone: () => null }));
 vi.mock('../MessageLinkCards', () => ({

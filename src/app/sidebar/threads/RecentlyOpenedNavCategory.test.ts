@@ -7,6 +7,7 @@ import { archivedRoomsAtom } from '../../matrix/state/archivedRooms';
 import { makeClosedNavCategoriesAtom } from '../../ui/nav/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../ui/nav/useClosedNavCategories';
 import { clearRecentThreadsStore, makeRecentThreadsAtom } from '../../event-store/threads/recentThreads';
+import { blockSelection } from '../../ui/dragSelection';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
 import {
   DEFAULT_RECENTLY_OPENED_THREAD_LIMIT,
@@ -23,8 +24,9 @@ import {
 
 enableMapSet();
 
-const { rooms } = vi.hoisted(() => ({
+const { rooms, selectionHolds } = vi.hoisted(() => ({
   rooms: new Map<string, { getMyMembership: () => string; roomId: string }>(),
+  selectionHolds: { count: 0 },
 }));
 
 vi.mock('react-i18next', async () => {
@@ -56,6 +58,17 @@ vi.mock('folds', () => ({
 vi.mock('../../ui/nav/NavItem', () => ({
   NavCategory: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
     React.createElement('section', props, children),
+}));
+// The renderer has no document to block the selection in: the holds are counted instead.
+vi.mock('../../ui/dragSelection', () => ({
+  blockSelection: () => {
+    selectionHolds.count += 1;
+    let held = true;
+    return () => {
+      if (held) selectionHolds.count -= 1;
+      held = false;
+    };
+  },
 }));
 vi.mock('../../ui/nav/NavCategoryHeader', () => ({
   NavCategoryHeader: ({ children }: { children?: React.ReactNode }) =>
@@ -300,6 +313,69 @@ describe('RecentlyOpenedNavCategory', () => {
       });
     }
   );
+
+  it('takes one drag at a time on its handle', () => {
+    seedJoinedThreads(2);
+    renderCategory();
+    const handle = renderer!.root.findByProps({ 'data-testid': 'recently-opened-resize-handle' });
+    const resizeTarget = createResizeTarget(100);
+    const pointer = (type: string, pointerId: number, clientY: number) =>
+      act(() => {
+        handle.props[type]({
+          clientY,
+          currentTarget: resizeTarget,
+          pointerId,
+          preventDefault: vi.fn(),
+        });
+      });
+
+    // A mouse and a pen are each primary for their own kind of pointer.
+    pointer('onPointerDown', 1, 400);
+    pointer('onPointerDown', 2, 400);
+    expect(selectionHolds.count).toBe(1);
+    pointer('onPointerUp', 2, 400);
+    expect(selectionHolds.count).toBe(1);
+    pointer('onPointerMove', 1, 350);
+    pointer('onPointerUp', 1, 350);
+    expect(selectionHolds.count).toBe(0);
+    expect(storage.get(getRecentlyOpenedPanelHeightStoreKey(USER_ID))).toBe('370');
+  });
+
+  it('lets the page select again when a drag ends without a release, leaving other holds', () => {
+    seedJoinedThreads(2);
+    renderCategory();
+    const other = blockSelection();
+    const handle = () =>
+      renderer!.root.findByProps({ 'data-testid': 'recently-opened-resize-handle' });
+    const resizeTarget = createResizeTarget(100);
+    const press = () =>
+      act(() => {
+        handle().props.onPointerDown({
+          clientY: 400,
+          currentTarget: resizeTarget,
+          pointerId: 7,
+          preventDefault: vi.fn(),
+        });
+      });
+
+    press();
+    expect(selectionHolds.count).toBe(2);
+    // The pointer capture goes, the category folds away with its handle, the panel goes.
+    act(() => {
+      handle().props.onLostPointerCapture({ currentTarget: resizeTarget, pointerId: 7 });
+    });
+    expect(selectionHolds.count).toBe(1);
+    press();
+    toggleCategory();
+    expect(selectionHolds.count).toBe(1);
+    toggleCategory();
+    press();
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    expect(selectionHolds.count).toBe(1);
+    other();
+    expect(selectionHolds.count).toBe(0);
+  });
 
   it('supports keyboard resizing and clamps to the available range', () => {
     seedJoinedThreads(1);

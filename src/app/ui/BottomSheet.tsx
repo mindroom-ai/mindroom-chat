@@ -1,6 +1,25 @@
-import { useRef, type CSSProperties, type ReactNode } from 'react';
-import { Box, config, Icon, IconButton, Icons, Overlay, OverlayBackdrop, Text } from 'folds';
-import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import {
+  Box,
+  config,
+  Icon,
+  IconButton,
+  Icons,
+  Overlay,
+  OverlayBackdrop,
+  PopOutContainerProvider,
+  Text,
+} from 'folds';
+import { FocusScope, mergeProps, useDialog, useModalOverlay } from 'react-aria';
+import { observeLayerHost } from '../lib/overlayFocus';
+import { holdModalSheet } from '../lib/portalOverlay';
 import { PageScroll } from './page/PageScroll';
 import { Header, Modal } from './glass/GlassPrimitives';
 import * as css from './BottomSheet.css';
@@ -11,6 +30,8 @@ type BottomSheetProps = {
   /** The close button's label. */
   closeLabel: string;
   requestClose: () => void;
+  /** Only as tall as its content, up to the usual height. */
+  fitContent?: boolean;
   children: ReactNode;
 };
 
@@ -29,25 +50,51 @@ const SHEET_STYLE: CSSProperties = {
 /**
  * A dialog that slides up from a phone's bottom edge, with its title over scrolling content. A
  * tap on the backdrop, Escape and the close button close it; the focus returns to its opener.
+ * Menus its content opens (a chip's) open inside it, where taps and focus count as the sheet's.
  */
-export function BottomSheet({ title, closeLabel, requestClose, children }: BottomSheetProps) {
+export function BottomSheet({
+  title,
+  closeLabel,
+  requestClose,
+  fitContent,
+  children,
+}: BottomSheetProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const { overlayProps } = useOverlay(
-    { isOpen: true, isDismissable: true, onClose: requestClose },
+  const [menus, setMenus] = useState<HTMLDivElement | null>(null);
+  // Modal to assistive tech too: what is outside the sheet (and its menus) is hidden and inert.
+  const { modalProps } = useModalOverlay(
+    { isDismissable: true },
+    // It reads only these two of an overlay's state.
+    { isOpen: true, close: requestClose } as Parameters<typeof useModalOverlay>[1],
     dialogRef
   );
+  // A menu the content opened takes Escape itself: its focus trap closes just the menu.
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) =>
+    menus?.hasChildNodes() || modalProps.onKeyDown?.(event);
   const { dialogProps } = useDialog({ 'aria-label': title }, dialogRef);
-  usePreventScroll();
+  // Global shortcuts wait while it is open: a layer they opened over it would be inert.
+  useEffect(() => holdModalSheet(), []);
+  // Its menus are layers to the app's focus: one opened with Enter takes the focus.
+  useEffect(() => {
+    if (menus) observeLayerHost(menus);
+  }, [menus]);
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
-      <div className={css.SheetContainer}>
+      <div
+        ref={dialogRef}
+        className={css.SheetContainer}
+        {...mergeProps(dialogProps, { ...modalProps, onKeyDown })}
+      >
         <FocusScope contain restoreFocus autoFocus>
-          <Modal size="500" flexHeight variant="Background" style={SHEET_STYLE}>
+          <Modal
+            size="500"
+            flexHeight
+            variant="Background"
+            style={fitContent ? { ...SHEET_STYLE, height: 'auto' } : SHEET_STYLE}
+          >
             <div
-              ref={dialogRef}
               style={{ display: 'flex', flex: '1 1 auto', flexDirection: 'column', minHeight: 0 }}
-              {...mergeProps(overlayProps, dialogProps)}
             >
               <PageScroll
                 header={
@@ -66,10 +113,15 @@ export function BottomSheet({ title, closeLabel, requestClose, children }: Botto
                   </Header>
                 }
               >
-                <div className={css.SheetBody}>{children}</div>
+                <div className={css.SheetBody}>
+                  <PopOutContainerProvider value={menus ?? undefined}>
+                    {children}
+                  </PopOutContainerProvider>
+                </div>
               </PageScroll>
             </div>
           </Modal>
+          <div ref={setMenus} />
         </FocusScope>
       </div>
     </Overlay>

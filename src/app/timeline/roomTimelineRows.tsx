@@ -298,6 +298,7 @@ export const isTimelineRowHidden = (
       threadSummaryTimeline,
       secretRequestTimeline,
       voiceTranscripts,
+      replyCards,
       modelChanges,
     },
     ignoredUsersSet,
@@ -311,6 +312,7 @@ export const isTimelineRowHidden = (
       | 'secretRequestTimeline'
       | 'voiceTranscripts'
       | 'modelChanges'
+      | 'replyCards'
     >;
     ignoredUsersSet: ReadonlySet<string>;
     showHiddenEvents: boolean;
@@ -323,7 +325,8 @@ export const isTimelineRowHidden = (
     threadSummaryTimeline.hiddenEventIds.has(id) ||
     secretRequestTimeline.hiddenEventIds.has(id) ||
     voiceTranscripts.hiddenEventIds.has(id) ||
-    modelChanges.hiddenEventIds.has(id)
+    modelChanges.hiddenEventIds.has(id) ||
+    !!replyCards?.hiddenEventIds.has(id)
   ) {
     return true;
   }

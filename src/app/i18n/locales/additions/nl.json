@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Sommige afbeeldingen kunnen in dit venster niet laden: de browser draait hier geen service worker voor MindRoom."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Sluiten",
+      "configuredTools": "Ingestelde tools",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} groep",
+      "groupCount_other": "{{count}} groepen",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ook {{groups}}",
+      "viewAll_one": "Alle {{count}} tools bekijken",
+      "viewAll_other": "Alle {{count}} tools bekijken",
+      "toolsTitle": "Tools van {{name}}",
+      "filter": "Tools filteren",
+      "noMatch": "Geen tool past.",
+      "back": "Terug",
+      "more": "Meer",
+      "worksIn": "Werkt in",
+      "loading": "Ingestelde tools laden",
+      "availability": "Beschikbaarheid kan per verzoek en rechten verschillen.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & bestanden",
+        "research": "Web",
+        "productivity": "Planning & geheugen",
+        "email": "E-mail",
+        "mcp": "Gekoppelde apps",
+        "integrations": "Integraties",
+        "communication": "Chat & berichten",
+        "entertainment": "Media",
+        "information": "Informatie",
+        "smart_home": "Slim huis",
+        "social": "Sociaal",
+        "other": "Overig"
+      }
+    },
+    "space": {
+      "overview": "Space-overzicht"
     }
   },
   "featureUi": {
@@ -954,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Zoeken mislukt. Probeer het opnieuw.",
         "resultCountFor_one": "{{count}} resultaat voor ‘{{term}}’",
-        "resultCountFor_other": "{{count}} resultaten voor ‘{{term}}’"
+        "resultCountFor_other": "{{count}} resultaten voor ‘{{term}}’",
+        "retry": "Opnieuw proberen"
       }
     },
     "notifications": {
@@ -1104,6 +1145,18 @@
       "pageUpdated": "{{agent}} heeft deze pagina bijgewerkt.",
       "shownInPanel": "Getoond in het paneel",
       "inlineDisclosure": "Gemaakt door {{agent}}. De pagina heeft geen toegang tot je account, maar wat je hier invoert kan deze pagina verlaten."
+    },
+    "uiActions": {
+      "canvasOff": "Paneel gedeeld · panelen staan uit in deze app",
+      "askForText": "Vraag om een tekstversie",
+      "copyRequest": "Verzoek kopiëren",
+      "textVersionRequest": "Stuur “{{title}}” hier liever als tekst. Interactieve panelen staan uit in mijn app.",
+      "askForTextStatus": {
+        "hint": "Zet een verzoek in het invoerveld. Er wordt niets verstuurd tot je op Versturen drukt.",
+        "added": "Verzoek in het invoerveld gezet. Er wordt niets verstuurd tot je op Versturen drukt.",
+        "kept": "Je concept is gebleven zoals het was. Kopieer het verzoek om het zelf toe te voegen.",
+        "copied": "Verzoek gekopieerd. Plak het in je concept."
+      }
     }
   },
   "composer": {
@@ -1128,7 +1181,10 @@
       "autoHint": "De agent laten beslissen",
       "settingTitle": "Verzenden terwijl een agent antwoordt",
       "settingDescription": "Houd Verzenden ingedrukt om per bericht te kiezen."
-    }
+    },
+    "replyInThread": "Antwoorden in thread…",
+    "newThreadIn": "Nieuwe thread in {{room}}…",
+    "newThreadWith": "Nieuwe thread met {{name}}…"
   },
   "commandPalette": {
     "state": {

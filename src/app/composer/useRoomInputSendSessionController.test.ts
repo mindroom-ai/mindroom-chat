@@ -451,7 +451,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     // itself before the room's goes, as in one commit), the room's goes, and the thread's holds
     // what is still to go.
     const { api: thread, current } = mountThreadView('$event-0');
-    const listed = [{ key: JSON.stringify(['!room:example.org', '$event-0']) }];
+    const listed = [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }];
     getDefaultStore().set(threadViewVoiceComposersAtom, listed);
     unmount();
     getDefaultStore().set(threadViewVoiceComposersAtom, []);
@@ -481,7 +481,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const root = createFile('root.txt');
     const child = createFile('child.txt');
     await sendRootWhileChildRetries(api, root, child);
-    const viewKey = { key: JSON.stringify(['!room:example.org', '$event-0']) };
+    const viewKey = { key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' };
     const thread = mountThreadView('$event-0');
     store.set(threadViewVoiceComposersAtom, [viewKey]);
     unmount();
@@ -504,7 +504,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const child = createFile('child.txt');
     await sendRootWhileChildRetries(api, root, child);
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
     unmount();
     expect(thread.current().joinedSendPending).toBe(true);
     // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
@@ -523,7 +523,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await sendRootWhileChildRetries(api, root, child);
     // The thread beside the messages has a send of its own going out.
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']), view: 'column' }]);
     const own = createFile('own.txt');
     thread.api.selectedFilesRef.current = [createUploadItem(own)];
     thread.api.uploadsRef.current = [loadingUpload(own)];

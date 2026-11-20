@@ -255,13 +255,33 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
 
   // Open shows that sub-agent's run in the Sub-agents panel.
   await sendRuns(room);
-  await child.locator('[data-job-open]').click();
+  // The row's title is its way there, from anywhere on the row but its buttons: here a press on
+  // its pill.
+  await expect(child.locator('[data-job-open]')).toHaveText('List every caller of schedule_retry');
+  await child.getByText('Waiting for approval', { exact: true }).click({ force: true });
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
-  // Beside the panel the bar is narrower: the columns stay, and a thread chip is its icon.
+  // Beside the panel the bar is narrower: the columns stay.
   await bar.getByRole('button', { name: /^3 background jobs/ }).click();
   await expect(lead.locator('[data-job-stat="calls"]')).toBeVisible();
   await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-panel.png') });
+
+  // In the room's own timeline each row also has its thread's button; a press between it and the
+  // row's Stop goes through to the row, and shows that row's run.
+  await page.keyboard.press('Escape');
+  await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
+  const roomBar = page.getByRole('region', { name: '3 background jobs' });
+  await expect(roomBar).toBeVisible();
+  await sendRuns(room);
+  await roomBar.getByRole('button', { name: /^3 background jobs/ }).click();
+  const roomLead = row(roomBar, 'subagent');
+  const thread = await roomLead.locator('[data-job-thread]').boundingBox();
+  const stopBox = await roomLead.locator('[data-cancel-job]').boundingBox();
+  if (!thread || !stopBox) throw new Error('The row has no thread button or Stop.');
+  await page.mouse.click((thread.x + thread.width + stopBox.x) / 2, thread.y + thread.height / 2);
+  await expect(
+    panelLocator(page, 'subagents').locator('[data-subagent-view="sub-lead"]')
+  ).toBeVisible();
 
   // On a phone the rows drop the model and the usage; the logos stay.
   await page.keyboard.press('Escape');

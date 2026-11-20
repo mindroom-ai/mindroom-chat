@@ -147,7 +147,7 @@ afterEach(() => {
 });
 
 describe("ThreadActionsMenu's thread details", () => {
-  it('observes nothing and describes nothing when no detail shows', () => {
+  it('observes no details and describes nothing when no detail shows', () => {
     const resized = vi.fn();
     vi.stubGlobal(
       'ResizeObserver',
@@ -179,7 +179,8 @@ describe("ThreadActionsMenu's thread details", () => {
       />
     );
     expect(menu()).toBeTruthy();
-    expect(resized).not.toHaveBeenCalled();
+    // Only the pop-out's own observer, which places it again when it resizes.
+    expect(resized).toHaveBeenCalledTimes(1);
     expect(mutated).not.toHaveBeenCalled();
     expect(document.querySelector('[data-thread-details]')).toBeNull();
     expect(menu().hasAttribute('aria-describedby')).toBe(false);

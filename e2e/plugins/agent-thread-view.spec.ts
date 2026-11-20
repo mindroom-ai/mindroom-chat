@@ -198,7 +198,8 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
 
   // The helper's profile card, opened from the panel's thread, closes on Escape alone.
   await panel.locator(`[data-user-id="${stack.agents.helper}"]`).first().click();
-  const card = page.getByRole('dialog', { name: stack.agents.helper, exact: true });
+  // An agent's card is named by the name it shows.
+  const card = page.getByRole('dialog', { name: 'Helper', exact: true });
   await expect(card).toBeVisible();
   await shot(page, 'profile-card');
   await page.keyboard.press('Escape');

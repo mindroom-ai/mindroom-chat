@@ -13,12 +13,12 @@ import {
   formatAiRunPercentage,
   formatAiRunTimeToFirstToken,
   formatCostUsd,
-  getAiRunCompactModelLabel,
   getAiRunContextBarSegments,
   getAiRunContextLabel,
   getAiRunTokenCountParts,
   getAiRunTokenParts,
 } from '../agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
 import * as segmented from '../../ui/styles/Segmented.css';
 import * as css from './ReplyDetails.css';
 

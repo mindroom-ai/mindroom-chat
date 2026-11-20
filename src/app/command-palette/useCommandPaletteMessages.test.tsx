@@ -3,7 +3,14 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ISearchResponse } from 'matrix-js-sdk';
+import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  crossRoomThreadIndexAtom,
+  emptyCrossRoomThreadIndexSnapshot,
+  getCrossRoomThreadIndexKey,
+  type CrossRoomThreadIndexEntry,
+} from '../threads/cross-room/crossRoomThreadIndex';
 import { hasEncryptedRooms, useCommandPaletteMessages } from './useCommandPaletteMessages';
 
 type PendingSearch = {
@@ -74,10 +81,14 @@ const responseWith = (eventId: string, body: string): ISearchResponse =>
     },
   } as unknown as ISearchResponse);
 
+const store = createStore();
+
 const renderMessages = (text: string, enabled = true) => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <Provider store={store}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </Provider>
   );
   return renderHook(
     (props: { text: string; enabled: boolean }) =>
@@ -159,6 +170,50 @@ describe('useCommandPaletteMessages', () => {
     const snippet = result.current.items[0]?.snippet ?? '';
     expect(snippet).toBe('…وتم إصلاح الخطأ WALRUS-88 في الإصدار الأخير.');
     expect(snippet.indexOf('WALRUS')).toBeLessThan(21);
+  });
+
+  it('lists a retitled thread once, by its current title, beside what was said in it', async () => {
+    const key = getCrossRoomThreadIndexKey('!ops:example.org', '$root');
+    const entry = { key, summaryText: 'Walrus launch plan', rootPreviewText: '' };
+    store.set(crossRoomThreadIndexAtom, {
+      ...emptyCrossRoomThreadIndexSnapshot(),
+      entries: new Map([[key, entry as CrossRoomThreadIndexEntry]]),
+    });
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const response = responseWith('$said', 'walrus sighting');
+    const [said] = response.search_categories.room_events.results ?? [];
+    if (!said) throw new Error('no hit');
+    const relation = { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } };
+    const title = (eventId: string, body: string) => ({
+      ...said,
+      result: {
+        ...said.result,
+        event_id: eventId,
+        content: {
+          msgtype: 'm.notice',
+          body,
+          'io.mindroom.thread_summary': { version: 1 },
+          ...relation,
+        },
+      },
+    });
+    said.result.content = { ...said.result.content, ...relation };
+    response.search_categories.room_events.results = [
+      title('$new', 'Walrus plan'),
+      said,
+      title('$old', 'Walrus sketch'),
+    ];
+    await act(async () => pending[0]?.resolve(response));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items).toMatchObject([
+      { id: 'message:!ops:example.org:$new', snippet: 'Walrus launch plan', threadName: undefined },
+      { id: 'message:!ops:example.org:$said', threadName: 'Walrus launch plan' },
+    ]);
+    expect(result.current.items[0]?.titleOfThreadId).toBe(`thread:${key}`);
+    expect(result.current.items[1]?.titleOfThreadId).toBeUndefined();
+    store.set(crossRoomThreadIndexAtom, emptyCrossRoomThreadIndexSnapshot());
   });
 
   it('reports a failed search as an error', async () => {

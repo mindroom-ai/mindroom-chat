@@ -278,6 +278,46 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Einige Bilder können in diesem Fenster nicht geladen werden: Der Browser führt hier keinen Service Worker für MindRoom aus."
+    },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Schließen",
+      "configuredTools": "Eingerichtete Werkzeuge",
+      "toolCount_one": "{{count}} Werkzeug",
+      "toolCount_other": "{{count}} Werkzeuge",
+      "groupCount_one": "{{count}} Gruppe",
+      "groupCount_other": "{{count}} Gruppen",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Außerdem {{groups}}",
+      "viewAll_one": "Alle {{count}} Werkzeuge ansehen",
+      "viewAll_other": "Alle {{count}} Werkzeuge ansehen",
+      "toolsTitle": "Werkzeuge von {{name}}",
+      "filter": "Werkzeuge filtern",
+      "noMatch": "Kein Werkzeug passt.",
+      "back": "Zurück",
+      "more": "Mehr",
+      "worksIn": "Arbeitet in",
+      "loading": "Eingerichtete Werkzeuge werden geladen",
+      "availability": "Die Verfügbarkeit kann je nach Anfrage und Berechtigungen variieren.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & Dateien",
+        "research": "Web",
+        "productivity": "Planung & Gedächtnis",
+        "email": "E-Mail",
+        "mcp": "Verbundene Apps",
+        "integrations": "Integrationen",
+        "communication": "Chat & Nachrichten",
+        "entertainment": "Medien",
+        "information": "Informationen",
+        "smart_home": "Smart Home",
+        "social": "Soziales",
+        "other": "Sonstiges"
+      }
+    },
+    "space": {
+      "overview": "Space-Übersicht"
     }
   },
   "featureUi": {
@@ -954,7 +994,8 @@
       "messageSearch": {
         "searchFailed": "Die Suche ist fehlgeschlagen. Versuche es erneut.",
         "resultCountFor_one": "{{count}} Ergebnis für „{{term}}“",
-        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“"
+        "resultCountFor_other": "{{count}} Ergebnisse für „{{term}}“",
+        "retry": "Erneut versuchen"
       }
     },
     "notifications": {
@@ -1104,6 +1145,18 @@
       "pageUpdated": "{{agent}} hat diese Seite aktualisiert.",
       "shownInPanel": "Im Panel angezeigt",
       "inlineDisclosure": "Erstellt von {{agent}}. Die Seite hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können die Seite verlassen."
+    },
+    "uiActions": {
+      "canvasOff": "Panel geteilt · Panels sind in dieser App deaktiviert",
+      "askForText": "Textversion anfordern",
+      "copyRequest": "Anfrage kopieren",
+      "textVersionRequest": "Bitte schick „{{title}}“ hier stattdessen als Text. Interaktive Panels sind in meiner App deaktiviert.",
+      "askForTextStatus": {
+        "hint": "Setzt eine Anfrage ins Eingabefeld. Gesendet wird erst, wenn du auf Senden drückst.",
+        "added": "Anfrage ins Eingabefeld gesetzt. Gesendet wird erst, wenn du auf Senden drückst.",
+        "kept": "Dein Entwurf bleibt unverändert. Kopiere die Anfrage, um sie selbst einzufügen.",
+        "copied": "Anfrage kopiert. Füge sie in deinen Entwurf ein."
+      }
     }
   },
   "composer": {
@@ -1128,7 +1181,10 @@
       "autoHint": "Den Agenten entscheiden lassen",
       "settingTitle": "Senden, während ein Agent antwortet",
       "settingDescription": "Halte Senden gedrückt, um für eine Nachricht anders zu wählen."
-    }
+    },
+    "replyInThread": "Im Thread antworten…",
+    "newThreadIn": "Neuer Thread in {{room}}…",
+    "newThreadWith": "Neuer Thread mit {{name}}…"
   },
   "commandPalette": {
     "state": {

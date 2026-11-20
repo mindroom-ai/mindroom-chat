@@ -7,6 +7,7 @@ import {
   setLocalStorageItem,
 } from '../../lib/state/atomWithLocalStorage';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { blockSelection } from '../dragSelection';
 import {
   animatePanel,
   currentPanelSize,
@@ -43,30 +44,6 @@ type Drag = {
   width: number;
   direction: number;
   unblock: () => void;
-};
-
-let selectionHolds = 0; // The drags on any panel's splitter that hold the block below.
-const preventSelection = (event: Event) => event.preventDefault();
-const setSelectionBlocked = (blocked: boolean) => {
-  if (blocked) document.addEventListener('selectstart', preventSelection, true);
-  else document.removeEventListener('selectstart', preventSelection, true);
-  // Text already selected keeps its highlight: Chromium on macOS paints it no more once unblocked.
-  const kept = blocked && window.getSelection()?.isCollapsed === false;
-  document.documentElement.toggleAttribute(css.RESIZING, blocked && !kept);
-};
-
-/**
- * Keeps the page from selecting text until every drag holding it lets go, once each: a held mouse
- * off the splitter (a panel at its widest stays put) selected messages in the Mac app's web view.
- */
-const blockSelection = (): (() => void) => {
-  if (++selectionHolds === 1) setSelectionBlocked(true);
-  let held = true;
-  return () => {
-    if (!held) return;
-    held = false;
-    if (--selectionHolds === 0) setSelectionBlocked(false);
-  };
 };
 
 /** Ends the drag a panel holds, if any, without committing it. */
@@ -137,7 +114,9 @@ export function ResizablePanel({
   );
   const [preferredWidth, setPreferredWidth] = useAtom(widthAtom);
   const [previewWidth, setPreviewWidth] = useState<number>();
-  const [availableWidth, setAvailableWidth] = useState(maxPanelWidth);
+  // Until the row is measured, as much room as the panel can use: its first layout is the width it
+  // settles on, which what lies beside it (PanelRow) measures.
+  const [availableWidth, setAvailableWidth] = useState(maxPanelWidth + minContentWidth);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const presence = usePanelPresence();
@@ -275,19 +254,7 @@ export function ResizablePanel({
     observer.observe(parent);
     return () => observer.disconnect();
   }, [resizable, maxPanelWidth, minContentWidth]);
-  // A page left with the pointer held (Back mid-drag) may come back without the drag's end.
-  useLayoutEffect(() => {
-    const leave = () => {
-      if (!dragRef.current) return;
-      dropDrag(dragRef);
-      setPreviewWidth(undefined);
-    };
-    window.addEventListener('pagehide', leave);
-    return () => {
-      window.removeEventListener('pagehide', leave);
-      dropDrag(dragRef);
-    };
-  }, []);
+  useLayoutEffect(() => () => dropDrag(dragRef), []);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
@@ -307,7 +274,10 @@ export function ResizablePanel({
       startWidth,
       width: startWidth,
       direction: resizeDirection(),
-      unblock: blockSelection(),
+      unblock: blockSelection(() => {
+        dragRef.current = undefined;
+        setPreviewWidth(undefined);
+      }),
     };
   };
   const moveResize = (event: React.PointerEvent<HTMLDivElement>) => {
