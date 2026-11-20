@@ -32,7 +32,7 @@ delivery calls the journal only from `voiceSendDraftController.ts`.
   `destination?`, `txnId?`, `discardUntil?`, `errorMessage?`.
 - `voiceCaptureJournal(userId: () => string)`: what capture gets, `{ begin, append, stop }`.
   `begin` takes the lock, then writes the meta. `append(recordingId, seq, { data, elapsedMs,
-  samples })` reads the Blob and writes the chunk, one write after another per recording. Both
+samples })` reads the Blob and writes the chunk, one write after another per recording. Both
   resolve `false` once a write failed; later chunks of that recording are skipped, so what is on
   disk stays a clean prefix. `stop(recordingId, hasAudio)` writes `stoppedAt`, or deletes a
   recording that has no audio.
@@ -111,12 +111,11 @@ Each task: failing test first, then the code, then `nix develop -c npx vitest ru
 5. **Wiring and UI.** `useVoiceRecorder.ts`, `VoiceRecorderDialog.tsx`, `VoiceRecordingCapsule.tsx`
    (+ `.css.ts`), `useRoomInputVoice.tsx`, `UnconfirmedRootsFeature.tsx`, locale additions:
    "Recovered recording · 4:32", "Not protected against a crash", "Recording discarded" with Undo.
-6. **e2e.** Update `e2e/composer/voice-draft-reload.spec.ts` to the journal; add
-   `e2e/composer/voice-recording-recovery.spec.ts`: record about 5 s, close the page without
-   stopping, open a new page in the same context, "Recovered recording" shows, Send posts exactly
+6. **e2e.** Update `e2e/composer/voice-draft-reload.spec.ts` to the journal and add the kill
+   case to it (one spec, shared helpers): record about 5 s, close the page without stopping, open a new page in the same context, "Recovered recording" shows, Send posts exactly
    one `m.audio` of about 5 s, and its bytes decode with `decodeAudioData` (Chromium and WebKit).
 7. **Verify.** `just typecheck`, `just strict`, `just lint`, `npx vite build`, the full vitest suite
-   and the two e2e specs on the mac-runner, screenshots under `.pr-screenshots/` (not committed).
+   and the e2e spec on the mac-runner, screenshots under `.pr-screenshots/` (not committed).
 
 ## Decisions where the spec left room, or proved wrong
 
