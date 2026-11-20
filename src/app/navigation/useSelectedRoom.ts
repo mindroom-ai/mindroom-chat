@@ -1,5 +1,4 @@
-import { useParams } from 'react-router-dom';
-import { decodeRouteParam } from '../routes/pathUtils';
+import { useRoomRouteParams } from './useRoomRouteParams';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 
@@ -9,8 +8,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
  */
 export const useSelectedRoom = (): string | undefined => {
   const mx = useMatrixClient();
-  const { roomIdOrAlias: encoded } = useParams();
-  const roomIdOrAlias = encoded ? decodeRouteParam(encoded) : undefined;
+  const { roomIdOrAlias } = useRoomRouteParams();
   if (!roomIdOrAlias) return undefined;
   return isRoomAlias(roomIdOrAlias) ? getCanonicalAliasRoomId(mx, roomIdOrAlias) : roomIdOrAlias;
 };

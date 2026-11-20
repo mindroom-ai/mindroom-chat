@@ -7,12 +7,13 @@ import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { HOME_ROOM_PATH, SPACE_PATH } from '../routes/paths';
+import { getHomeRoomPath } from '../routes/pathUtils';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { RoomRoute } from './RoomRoute';
 
 vi.mock('../rooms/join/JoinBeforeNavigate', () => ({
-  JoinBeforeNavigate: ({ roomIdOrAlias }: { roomIdOrAlias: string }) => (
-    <div data-join-before-navigate={roomIdOrAlias} />
+  JoinBeforeNavigate: ({ roomIdOrAlias, eventId }: { roomIdOrAlias: string; eventId?: string }) => (
+    <div data-join-before-navigate={roomIdOrAlias} data-join-event={eventId} />
   ),
 }));
 
@@ -170,5 +171,18 @@ describe('RoomRoute', () => {
   it('keeps a room segment that is not valid percent-encoding instead of crashing', () => {
     const renderer = renderRoute(makeClient([]), '/home/%25zz/');
     expect(joinOffers(renderer)).toEqual(['%zz']);
+  });
+
+  // A `%` that is part of an ID stays: `%41` is no `A`, and a literal `%2F` is no `/`.
+  it.each([
+    ['!other:example.org', undefined],
+    ['!room:example.org', '$event:example.org'],
+    ['!sales%41:example.org', '$event%41'],
+    ['!sales%2Feu:example.org', '$event%2Fx'],
+    ['!sales/eu:example.org', '$event/x+y'],
+  ])('offers to join the room %s at the event %s as its address names them', (room, event) => {
+    const renderer = renderRoute(makeClient([]), getHomeRoomPath(room, event));
+    const offer = renderer.root.findByProps({ 'data-join-before-navigate': room });
+    expect(offer.props['data-join-event']).toBe(event);
   });
 });
