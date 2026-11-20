@@ -253,7 +253,7 @@ export function AuthLayout() {
 
   const registrationAllowed = auth?.allowRegistration !== false;
   const showServer = (nextServer: string) =>
-    navigate(
+    void navigate(
       buildAuthRoutePath({ pathname, search, hash, registrationAllowed, server: nextServer }),
       { replace: true }
     );

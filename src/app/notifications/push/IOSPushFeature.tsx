@@ -161,7 +161,7 @@ export function NativeIOSPushOpenFeature() {
       }
       // The switch mounts the account's pages anew, which open the push after its first sync.
       switchedPush = { sessionId: owner.sessionId, target: next };
-      latest.current.navigate(resolveSessionRestorePath(owner.lastKnownPath));
+      void latest.current.navigate(resolveSessionRestorePath(owner.lastKnownPath));
     });
     return () => {
       handle.then((listener) => listener.remove()).catch(() => undefined);

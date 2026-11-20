@@ -12,6 +12,8 @@ export const REGISTER_PATH = signedOutPath('register');
 export const RESET_PASSWORD_PATH = signedOutPath('reset-password');
 
 export const CONNECT_PATH = '/connect/';
+/** An invitation link from a mail (invites/InvitePage.tsx); its values travel in the fragment. */
+export const INVITE_PATH = '/invite/';
 /** The quick capture widget (quick-capture/QuickCapturePage.tsx), served by the signed-in app. */
 export const QUICK_CAPTURE_PATH = '/quick-capture/';
 export const CONNECTIONS_PATH = '/connections/';

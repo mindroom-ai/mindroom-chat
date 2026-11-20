@@ -433,7 +433,7 @@ export function Invites() {
   // A direct chat opens under Direct Messages before sync reports the m.direct entry for it.
   const handleNavigate = (roomId: string, isSpace: boolean, isDirect?: boolean) => {
     if (isSpace) navigateSpace(roomId);
-    else if (isDirect) navigate(getDirectRoomPath(roomId));
+    else if (isDirect) void navigate(getDirectRoomPath(roomId));
     else navigateRoom(roomId);
   };
 

@@ -1,4 +1,5 @@
 import { type RefObject, useLayoutEffect, useRef, useState } from 'react';
+import { readTopInset } from '../ui/styles/threadHeaderInset';
 
 /**
  * Whether focus that just landed on `target` came from the keyboard. A click on a message gives
@@ -58,8 +59,7 @@ const ROW_END_GAP_PX = 4;
  * rows.
  */
 const coveredUntilY = (scroller: HTMLElement, left: number, right: number): number => {
-  const inset = Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop);
-  let bottom = scroller.getBoundingClientRect().top + (Number.isFinite(inset) ? inset : 0);
+  let bottom = scroller.getBoundingClientRect().top + readTopInset(scroller);
   scroller.querySelectorAll(`[${TIMELINE_OVERLAY_ATTRIBUTE}]`).forEach((overlay) => {
     const rect = overlay.getBoundingClientRect();
     if (rect.width > 0 && rect.left < right && rect.right > left) {

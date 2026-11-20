@@ -1094,9 +1094,6 @@
       "needApproval_one": "{{count}} attend une approbation",
       "needApproval_many": "{{count}} attendent une approbation",
       "needApproval_other": "{{count}} attendent une approbation",
-      "toolCalls_one": "{{count}} appel d'outil",
-      "toolCalls_many": "{{count}} appels d'outils",
-      "toolCalls_other": "{{count}} appels d'outils",
       "tokens_one": "{{tokens}} jeton",
       "tokens_many": "{{tokens}} jetons",
       "tokens_other": "{{tokens}} jetons",
@@ -1110,7 +1107,13 @@
         "time": "Durée"
       },
       "stopTask": "Arrêter la tâche",
-      "stopTaskFor": "Arrêter la tâche : {{tool}}"
+      "stopTaskFor": "Arrêter la tâche : {{tool}}",
+      "jobTotal_one": "{{count}} tâche en arrière-plan",
+      "jobTotal_many": "{{count}} tâches en arrière-plan",
+      "jobTotal_other": "{{count}} tâches en arrière-plan",
+      "jobTotalFinished_one": "{{count}} tâche en arrière-plan terminée",
+      "jobTotalFinished_many": "{{count}} tâches en arrière-plan terminées",
+      "jobTotalFinished_other": "{{count}} tâches en arrière-plan terminées"
     },
     "subagents": {
       "title": "Sous-agents",
@@ -1141,7 +1144,19 @@
       "withCount_one": "{{label}}, {{count}} actif",
       "withCount_many": "{{label}}, {{count}} actifs",
       "withCount_other": "{{label}}, {{count}} actifs",
-      "resize": "Redimensionner le panneau des sous-agents"
+      "resize": "Redimensionner le panneau des sous-agents",
+      "calls_one": "{{count}} appel",
+      "calls_many": "{{count}} appels",
+      "calls_other": "{{count}} appels",
+      "now": "En cours",
+      "needsApproval": "Approbation requise",
+      "result": "Résultat",
+      "turnNumber": "tour {{number}}",
+      "status": "Statut",
+      "toolCallsNote": "appels d'outils",
+      "tokensSplit": "{{input}} entrée · {{output}} sortie",
+      "costNested": "+{{cost}} imbriqués",
+      "costOwn": "cette exécution"
     },
     "models": {
       "modelPicker": {
@@ -1174,6 +1189,19 @@
       "pageUpdated": "{{agent}} a mis à jour cette page.",
       "shownInPanel": "Affichée dans le panneau",
       "inlineDisclosure": "Créée par {{agent}}. Elle n’a pas accès à votre compte ; ce que vous saisissez ici peut quitter cette page."
+    },
+    "invites": {
+      "invalid": "Ce lien d'invitation est incomplet. Rouvrez le lien depuis l'e-mail.",
+      "reopen": "Vous êtes connecté. Rouvrez le lien d'invitation depuis votre e-mail.",
+      "framed": "Ouvrez cette page dans son propre onglet pour utiliser l'invitation.",
+      "ready": "Rejoindre un salon via {{router}} en tant que {{user}}",
+      "claiming": "Récupération de l'invitation…",
+      "offline": "Ce MindRoom ne répond pas. Votre demande est enregistrée ; l'invitation apparaîtra dans votre liste de salons dès son retour.",
+      "rejected": "Cette invitation n'est plus valide. Demandez-en une nouvelle.",
+      "retry": "Cela n'a pas fonctionné. Réessayez dans un instant.",
+      "joining": "Connexion au salon…",
+      "join": "Rejoindre",
+      "tryAgain": "Réessayer"
     },
     "uiActions": {
       "canvasOff": "Panneau partagé · les panneaux sont désactivés dans cette app",

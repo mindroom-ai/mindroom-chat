@@ -216,6 +216,22 @@ describe('routeSessionGuards', () => {
     });
   });
 
+  it('keeps the invite fragment through sign-in', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: { location: { origin: 'https://chat.mindroom.chat' } },
+      configurable: true,
+    });
+
+    expect(
+      resolveProtectedRouteRedirect(
+        'https://chat.mindroom.chat/invite/#r=%40router%3Aexample.org&c=x',
+        undefined,
+        false,
+        undefined
+      )?.afterLoginPath
+    ).toBe('/invite/#r=%40router%3Aexample.org&c=x');
+  });
+
   it.each(['root', 'protected'])(
     'does not save the recovery marker in a %s login return path',
     (route) => {

@@ -81,7 +81,7 @@ describe('ClientLayout with an alias the client knows', () => {
 
     // A thread link the app built names the room by its alias.
     await act(async () => {
-      navigate?.('/home/%23room%3Aexample.org?threadId=%24root');
+      void navigate?.('/home/%23room%3Aexample.org?threadId=%24root');
       await Promise.resolve();
     });
 
@@ -151,7 +151,7 @@ describe('ClientLayout with a data router whose page shows a new location late',
       useEffect(() => {
         if (eventId !== '$root' || redirects > 0) return;
         redirects += 1;
-        navigate('/home/%23room%3Aexample.org?threadId=%24root', { replace: true });
+        void navigate('/home/%23room%3Aexample.org?threadId=%24root', { replace: true });
       }, [navigate, eventId]);
       return null;
     };

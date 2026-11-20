@@ -125,7 +125,7 @@ describe('useHistoryStackRecorder', () => {
       go: (to: string, options?: NavigateOptions, session = sessionId) =>
         act(async () => {
           renderer?.update(element(session));
-          navigate?.(to, options);
+          void navigate?.(to, options);
         }),
       unmount: () => renderer?.unmount(),
     };

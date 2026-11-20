@@ -1,13 +1,14 @@
 import type { TFunction } from 'i18next';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
-import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
+import { runToolCall, type ToolActivity } from '../subagents/runActivity';
+import { runOfJob } from '../subagents/runJob';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
   // The job's own name, for its row, its Stop button and errors.
   name: string;
-  // Among several, its row says it waits for approval; one job's title says so.
+  // Its row says it waits for approval.
   waiting: boolean;
   // Its cancel was sent from this client, or requested anywhere else.
   stopping: boolean;
@@ -25,26 +26,28 @@ export type BackgroundJobsBarItem = {
   startedAt: number;
   // A sub-agent's newest turn, joined by the sub-agent the job names; none before its first frame.
   run?: SubagentRun;
-  // A tool job's own call in its reply; a sub-agent's row names its run instead of its calls.
+  // What it does now: a tool job's own call in its reply, a sub-agent's run's current call.
   activity?: JobActivity;
   // How many listed sub-agent jobs it runs under, at most `MAX_JOB_DEPTH`.
   depth: number;
 };
 
-export type JobActivity = { tool: string; preview?: string };
+export type JobActivity = ToolActivity;
 
 export type JobKind = 'subagent' | 'tool';
 
 export type JobState = 'running' | 'waiting' | 'stopping' | 'finished';
 
 export type BackgroundJobsBarModel = {
+  // How the jobs stand, the bar's name: one job's state and name, or how many run.
   title: string;
+  // The listed bar's title line: how many jobs run, or ran.
+  heading: string;
   // Sub-agents first, each child right under its parent, then tools; oldest first in each.
   items: BackgroundJobsBarItem[];
   // The items by kind, one group per kind present.
   groups: { kind: JobKind; items: BackgroundJobsBarItem[] }[];
-  // Several jobs only.
-  summary?: { subagents: number; tools: number; waiting: number };
+  summary: { subagents: number; tools: number; waiting: number };
 };
 
 /** What the bar joins the jobs to: the room's sub-agent runs, and each tool job's call. */
@@ -56,25 +59,6 @@ export type BackgroundJobLookups = {
 
 const NO_LOOKUPS: BackgroundJobLookups = { runs: [], toolCallFor: () => undefined };
 
-/**
- * A sub-agent job's own run: the run the job names. A job from MindRoom before that field takes
- * its sub-agent's newest turn, only one that started with the job or later, so a follow-up turn
- * whose first frame has not come shows nothing of the turn before it.
- */
-export const runOfJob = (
-  runs: readonly SubagentRun[],
-  job: BackgroundJob
-): SubagentRun | undefined => {
-  if (job.run !== undefined) return runs.find((run) => run.run === job.run);
-  const startedAt = Date.parse(job.startedAt) / 1000;
-  let newest: SubagentRun | undefined;
-  runs.forEach((run) => {
-    if (run.meta.subagent !== job.subagent || !(run.meta.startedAt >= startedAt)) return;
-    if (!newest || run.meta.startedAt >= newest.meta.startedAt) newest = run;
-  });
-  return job.subagent === undefined ? undefined : newest;
-};
-
 export const MAX_JOB_DEPTH = 3;
 
 const jobName = (job: BackgroundJob, t: TFunction): string =>
@@ -85,20 +69,19 @@ const awaitingApproval = (job: BackgroundJob): boolean => job.status === 'awaiti
 /** The status the bar gives the jobs it keeps after they ended; agents list only live jobs. */
 export const FINISHED_JOB_STATUS = 'finished';
 
-/** A tool call as a row shows it: its tool, and its arguments when sent. */
-export const toolActivity = (event: ToolTraceEvent | undefined): JobActivity | undefined => {
-  const { tool_name: tool, args_preview: preview } = event ?? {};
-  if (typeof tool !== 'string' || !tool) return undefined;
-  return typeof preview === 'string' && preview ? { tool, preview } : { tool };
-};
-
 const joinJob = (
   job: BackgroundJob,
   { runs, toolCallFor }: BackgroundJobLookups
 ): Pick<BackgroundJobsBarItem, 'run' | 'activity' | 'agent'> => {
   if (job.kind === 'subagent') {
     const run = runOfJob(runs, job);
-    return { agent: run?.meta.agent ?? job.tool, ...(run ? { run } : {}) };
+    // A job the bar holds after it ended is done, though its run's last frame may not be in yet.
+    const activity = run && job.status !== FINISHED_JOB_STATUS ? runToolCall(run) : undefined;
+    return {
+      agent: run?.meta.agent ?? job.tool,
+      ...(run ? { run } : {}),
+      ...(activity ? { activity } : {}),
+    };
   }
   const activity = toolCallFor(job);
   return activity ? { activity } : {};
@@ -158,7 +141,7 @@ export const presentBackgroundJobs = (
     return {
       jobId: job.jobId,
       name: jobName(job, t),
-      waiting: !finished && several && awaitingApproval(job),
+      waiting: !finished && awaitingApproval(job),
       stopping,
       finished,
       state,
@@ -180,22 +163,25 @@ export const presentBackgroundJobs = (
   ].filter((group) => group.items.length > 0);
   const items = [...subagents, ...tools];
   const finished = items.every((item) => item.finished);
+  const summary = {
+    subagents: subagents.length,
+    tools: tools.length,
+    // A job being stopped no longer waits, as its row says.
+    waiting: items.filter((item) => item.state === 'waiting').length,
+  };
   if (several) {
-    const summary = {
-      subagents: subagents.length,
-      tools: tools.length,
-      // A job being stopped no longer waits, as its row says.
-      waiting: items.filter((item) => item.state === 'waiting').length,
-    };
     let title: string;
     if (finished) title = t('mindroomUi.backgroundJobs.jobCountFinished', { count: jobs.length });
     else if (total > jobs.length)
       title = t('mindroomUi.backgroundJobs.jobCountShowing', { count: total, shown: jobs.length });
     else title = t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length });
-    return { title, items, groups, summary };
+    return { title, heading: title, items, groups, summary };
   }
   const tool = items[0]!.name;
-  const one = { items, groups };
+  const heading = finished
+    ? t('mindroomUi.backgroundJobs.jobTotalFinished', { count: 1 })
+    : t('mindroomUi.backgroundJobs.jobTotal', { count: 1 });
+  const one = { heading, items, groups, summary };
   if (finished) return { title: t('mindroomUi.backgroundJobs.finished', { tool }), ...one };
   if (items[0]!.stopping)
     return { title: t('mindroomUi.backgroundJobs.stoppingJob', { tool }), ...one };

@@ -14,7 +14,7 @@ import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Browser, Page } from '@playwright/test';
+import { errors, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   STACK_SCRIPT,
@@ -69,7 +69,11 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  * or a switch to a thread also has `<name>-settled`: the time from the same press to the last
  * frame in which a message row came into view for the first time, once 1 s passed without
  * another, with `rows`, how many were in view then. A thread shows its first row before its
- * history is there, so the first row alone can come early on an open that keeps changing),
+ * history is there, so the first row alone can come early on an open that keeps changing;
+ * in WebKit only, `lostPresses` and `latePresses` count the presses on a card that showed no
+ * thread within 10 s, never or before the card was pressed again; such a step's card is pressed
+ * again, up to 3 presses in all, and `untimed` names the step, whose timing and `<name>-settled`
+ * are left out, since its rows could be those of an earlier press),
  * `typing` (key latency), `target` (the streams asked for) and `achieved` (what the driver saw in
  * its 5 s reports that overlap the window: replies streaming on average, live frames, edits and
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
@@ -91,6 +95,15 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *   PERF_SOAK_GC=1     the soak forces a garbage collection before each of its samples, so the
  *                      heap it compares is what stays (a busy page lets garbage pile up between
  *                      collections, which the plain samples count); its result has `collected`
+ *
+ * WebKit: with PLAYWRIGHT_WEBKIT_EXECUTABLE naming Playwright's WebKit, `--project=webkit` runs the
+ * scenarios there at 1x. With it exported, pass `--project=chromium` for a Chromium-only run:
+ * without a project WebKit runs a full pass of its own, and starts the stack and the driver
+ * even when it then skips every test, as for PERF_CPU_THROTTLE=4 alone. WebKit gives
+ * no developer tools session, so its results have frame intervals, timings, typing, commits and
+ * the load, and zeros for busy, long animation frames and long tasks (each result's `notes` say
+ * so); PERF_PROFILE and PERF_TRACE do nothing there. For where its time goes, run macOS's
+ * `sample <pid>` on the page's WebContent process over a window.
  *
  * External mode, for an account that is already there, in Chromium only (any other engine is
  * refused): PERF_TARGET=external with PERF_HOMESERVER (which must be on 127.0.0.1 or localhost),
@@ -361,6 +374,8 @@ type Run = {
   heavy?: string[];
   /** The thread `showThread` opened last, which the first step of `switch` leaves. */
   shown?: string;
+  /** In WebKit, the scenario's presses that showed no thread in time and its untimed steps. */
+  presses?: { lostPresses: number; latePresses: number; untimed: string[] };
 };
 
 const cards = (page: Page) => page.locator(CARD);
@@ -401,6 +416,94 @@ const pickThread = async (run: Run, except = ''): Promise<{ root: string; stream
 const card = (page: Page, root: string) =>
   page.locator(`${CARD}[data-thread-root-id="${root}"]`).first();
 
+/** How long a pressed card's thread may take to show its banner before the press counts as lost. */
+const LOST_PRESS_MS = 10_000;
+
+/** How many presses one open of a card may take in WebKit, the first one included. */
+const PRESS_ATTEMPTS = 3;
+
+class LostPress extends Error {}
+
+const bannerInTime = (page: Page): Promise<boolean> =>
+  banner(page)
+    .waitFor({ state: 'visible', timeout: LOST_PRESS_MS })
+    .then(
+      () => true,
+      () => false
+    );
+
+/**
+ * Presses a card and waits for its thread's banner; throws `LostPress` when none shows within
+ * `LOST_PRESS_MS`, rather than a wait of a minute for a row. A card that moves from under the
+ * pointer between the press's down and its up gets no click (the browser sends it to what the two
+ * targets share, the list), so no thread opens. Seen in WebKit, which alone takes this path:
+ * Chromium keeps one press and the wait of a minute, so its results stay comparable.
+ */
+const pressCard = async (page: Page, root: string): Promise<void> => {
+  await card(page, root).click();
+  if (!(await bannerInTime(page))) {
+    throw new LostPress(`a press on a card opened no thread within ${LOST_PRESS_MS / 1000} s`);
+  }
+};
+
+/**
+ * Clicks a card unless its thread's banner shows first, from an earlier press that came late, as
+ * the card leaves the view then; returns whether it clicked.
+ */
+const clickUnlessOpen = async (page: Page, root: string): Promise<boolean> => {
+  const end = Date.now() + 15_000;
+  for (;;) {
+    if (await banner(page).isVisible()) return false;
+    try {
+      await card(page, root).click({ timeout: 1_000 });
+      return true;
+    } catch (error) {
+      if (!(error instanceof errors.TimeoutError)) throw error;
+      if (await banner(page).isVisible()) return false;
+      if (Date.now() > end) throw error;
+    }
+  }
+};
+
+/**
+ * After a press that showed no thread in time: counts it as late when the thread shows before the
+ * card is pressed again, else as lost and presses again, up to `PRESS_ATTEMPTS` presses in all.
+ */
+const reopen = async (run: Run, root: string): Promise<void> => {
+  const counts = (run.presses ??= { lostPresses: 0, latePresses: 0, untimed: [] });
+  for (let presses = 1; ; presses += 1) {
+    const last = presses === PRESS_ATTEMPTS;
+    const clicked = !last && (await clickUnlessOpen(run.page, root));
+    if (!clicked && (await banner(run.page).isVisible())) {
+      counts.latePresses += 1;
+      return;
+    }
+    counts.lostPresses += 1;
+    if (last) throw new Error(`${PRESS_ATTEMPTS} presses on a card opened no thread`);
+    if (await bannerInTime(run.page)) return;
+  }
+};
+
+/** Presses a card until its thread opens (WebKit): a press that showed no thread is counted. */
+const openCard = async (run: Run, root: string): Promise<void> => {
+  try {
+    await pressCard(run.page, root);
+  } catch (error) {
+    if (!(error instanceof LostPress)) throw error;
+    await reopen(run, root);
+  }
+};
+
+/** Opens a card's thread: in WebKit with `openCard`, elsewhere with one press, as before. */
+const openThread = async (run: Run, root: string): Promise<void> => {
+  if (run.engine === 'webkit') {
+    await openCard(run, root);
+    return;
+  }
+  await card(run.page, root).click();
+  await expect(banner(run.page)).toBeVisible({ timeout: 60_000 });
+};
+
 /** Shows the Compact view, leaving an open thread through its Back button. */
 const showCompact = async (page: Page): Promise<void> => {
   if ((await banner(page).count()) > 0) await back(page).click();
@@ -418,8 +521,7 @@ const showThread = async (run: Run): Promise<boolean> => {
   await showCompact(page);
   const { root, streaming } = await pickThread(run);
   run.shown = root;
-  await card(page, root).click();
-  await expect(banner(page)).toBeVisible({ timeout: 60_000 });
+  await openThread(run, root);
   await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
   return streaming;
 };
@@ -427,7 +529,10 @@ const showThread = async (run: Run): Promise<boolean> => {
 /** How long no new row may come into view for the rows to count as settled. */
 const SETTLED_QUIET_MS = 1_000;
 type SettledOutcome = { ms?: number; rows?: number; error?: string };
-type SettledWindow = { __realWorkSettled?: Promise<SettledOutcome> };
+type SettledWindow = {
+  __realWorkSettled?: Promise<SettledOutcome>;
+  __realWorkSettledCancel?: () => void;
+};
 
 /**
  * Watches, from the next press on, which message rows are in view (shown, and inside the scroll
@@ -463,6 +568,10 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
             ? [row.getAttribute('data-message-id') ?? '']
             : [];
         });
+      let cancelled = false;
+      (window as unknown as SettledWindow).__realWorkSettledCancel = () => {
+        cancelled = true;
+      };
       (window as unknown as SettledWindow).__realWorkSettled = new Promise<SettledOutcome>(
         (resolve) => {
           const start = (event: Event) => {
@@ -473,6 +582,7 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
             let rows = 0;
             let changedAt = now;
             const tick = () => {
+              if (cancelled) return;
               const at = performance.now();
               const shown = inView();
               if (shown.some((id) => !seen.has(id))) {
@@ -514,6 +624,38 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
 
 type Measured = { timings?: Timing[]; typing?: Stats; openedStreaming?: boolean };
 
+/**
+ * Presses a card and times its thread to the first row, as `name`; `settled` gives the settled
+ * rows' timing of the same press, as `<name>-settled`. In WebKit a press that shows no thread in
+ * time (`pressCard`) gives no timing (undefined, the name in `untimed`): the thread may still
+ * come from that press, so a press again, which opens it, would time the first one's rows from
+ * the second press.
+ */
+const timedOpen = async (
+  run: Run,
+  root: string,
+  name: string
+): Promise<{ ms: number; settled: () => Promise<Timing> } | undefined> => {
+  const { page } = run;
+  const settled = await watchRowsSettled(page, `${name}-settled`);
+  if (run.engine !== 'webkit') {
+    const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
+    await expect(banner(page)).toBeVisible();
+    return { ms, settled };
+  }
+  try {
+    return { ms: await timeToVisible(page, () => pressCard(page, root), ROW), settled };
+  } catch (error) {
+    if (!(error instanceof LostPress)) throw error;
+  }
+  // Its frame loop would run on for up to 30 s inside the window.
+  await page.evaluate(() => (window as unknown as SettledWindow).__realWorkSettledCancel?.());
+  run.presses?.untimed.push(name);
+  await reopen(run, root);
+  await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
+  return undefined;
+};
+
 const idle = async (run: Run): Promise<void> => {
   await run.page.waitForTimeout(30_000);
 };
@@ -545,13 +687,13 @@ const SCENARIO: Record<
     measure: async (run) => {
       const { page } = run;
       const { root, streaming } = await pickThread(run);
-      const settled = await watchRowsSettled(page, 'open-settled');
-      const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
-      await expect(banner(page)).toBeVisible();
+      const opened = await timedOpen(run, root, 'open');
       // The rest of the thread arrives and settles inside the window, which lasts 5 s as before,
       // or until the rows settled when that takes longer.
-      const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(5_000)]);
-      return { timings: [{ name: 'open', ms }, settledTiming], openedStreaming: streaming };
+      const [settledTiming] = await Promise.all([opened?.settled(), page.waitForTimeout(5_000)]);
+      const timings =
+        opened && settledTiming ? [{ name: 'open', ms: opened.ms }, settledTiming] : [];
+      return { timings, openedStreaming: streaming };
     },
   },
   'thread-idle': { prepare: showThread, measure: idle },
@@ -576,13 +718,12 @@ const SCENARIO: Record<
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;
-        const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
-        const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
-        await expect(banner(page)).toBeVisible();
-        timings.push({ name: `switch-${turn}`, ms });
+        const opened = await timedOpen(run, root, `switch-${turn}`);
         // As long as before when the rows settle at once: 1 s after the first row.
-        const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(1_000)]);
-        timings.push(settledTiming);
+        const [settledTiming] = await Promise.all([opened?.settled(), page.waitForTimeout(1_000)]);
+        if (opened && settledTiming) {
+          timings.push({ name: `switch-${turn}`, ms: opened.ms }, settledTiming);
+        }
       }
       return { timings, openedStreaming };
     },
@@ -665,7 +806,15 @@ const expectDriverRuns = (label: string, driver: Driver | undefined): void => {
 
 const report = (
   result: ProbeResult,
-  extra: { timings: Timing[]; typing?: Stats; openedStreaming?: boolean; target: number | null },
+  extra: {
+    timings: Timing[];
+    typing?: Stats;
+    openedStreaming?: boolean;
+    lostPresses?: number;
+    latePresses?: number;
+    untimed?: string[];
+    target: number | null;
+  },
   achieved: Achieved | undefined,
   driver?: Driver
 ): void => {
@@ -704,6 +853,8 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const { page, driver } = run;
   const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
   await throttleCpu(page, run.throttle);
+  run.presses =
+    run.engine === 'webkit' ? { lostPresses: 0, latePresses: 0, untimed: [] } : undefined;
   const prepared = await SCENARIO[name].prepare(run);
   expectDriverRuns(label, driver);
   const from = Date.now();
@@ -718,9 +869,14 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     typing: undefined as Stats | undefined,
     // Whether every thread the scenario opened showed the streaming marker when pressed.
     openedStreaming: typeof prepared === 'boolean' ? prepared : undefined,
+    // In WebKit, the presses on a card, in the setup or the window, that showed no thread in
+    // time, and the untimed steps; Chromium's results have no such fields, as before.
+    ...run.presses,
   };
   try {
-    const measured = await SCENARIO[name].measure(run);
+    const measured = await SCENARIO[name].measure(run).finally(() => {
+      Object.assign(extra, run.presses);
+    });
     if (measured?.timings) extra.timings = measured.timings;
     extra.typing = measured?.typing;
     if (measured?.openedStreaming !== undefined) {
@@ -904,7 +1060,8 @@ test.describe('PERF: real work under the backend load', () => {
       };
 
       for (const throttle of THROTTLES) {
-        test(`scenarios at ${throttle}x CPU`, async ({ page, browserName }) => {
+        // The tag lets the `webkit` project (PLAYWRIGHT_WEBKIT_EXECUTABLE) run it as well.
+        test(`scenarios at ${throttle}x CPU`, { tag: '@webkit' }, async ({ page, browserName }) => {
           test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
           test.skip(throttle !== 1 && browserName !== 'chromium', 'CPU throttling needs Chromium');
           test.setTimeout(scenariosTimeout(throttle));

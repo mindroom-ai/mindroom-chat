@@ -95,7 +95,12 @@ const openRoom = async (page: Page, label: string) => {
     roomId,
     userId: reader.userId,
     viewMode: 'compact',
-    filterState: { ...createDefaultThreadFilterState(), resolved: 'exclude' },
+    // A stored filter of this version takes its statuses from its query.
+    filterState: {
+      ...createDefaultThreadFilterState(),
+      resolved: 'exclude',
+      searchQuery: '-is:resolved',
+    },
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await expectRoomCompact(page, true, 60_000);

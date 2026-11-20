@@ -247,7 +247,9 @@ test('a thread opened for the first time paints its replies once, its long reply
     });
   }
   const longId = await sendLongReply(agent, roomId, rootId);
-  const newestId = await send(agent, roomId, {
+  // A person sends the newest reply, so the long reply ends the agent's turn: a finished turn
+  // folds the messages before its last one (threadTurnFolds.ts), and a folded row is not painted.
+  const newestId = await send(colleague, roomId, {
     msgtype: 'm.text',
     body: 'Secret for the deploy: sent.',
     'm.relates_to': inThread(rootId),

@@ -680,7 +680,12 @@ describe('withPhonePageSlide', () => {
     } as unknown as Router;
     const emit = (state: RouterState, flushSync = false) =>
       listeners.forEach((listener) =>
-        listener(state, { deletedFetchers: [], flushSync, viewTransitionOpts: undefined })
+        listener(state, {
+          deletedFetchers: [],
+          newErrors: null,
+          flushSync,
+          viewTransitionOpts: undefined,
+        })
       );
     return { router, emit };
   };

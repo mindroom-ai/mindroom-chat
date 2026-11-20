@@ -134,13 +134,18 @@ test.describe('the Compact cards in motion', () => {
       username: reader.username,
       password: PASSWORD,
     });
-    // Resolved threads leave the list.
+    // Resolved threads leave the list. A stored filter of this version takes its statuses from
+    // its query (deserializeThreadFilterState), so the query names the one that hides them.
     await seedRoomOverviewState({
       page,
       roomId,
       userId: reader.userId,
       viewMode: 'compact',
-      filterState: { ...createDefaultThreadFilterState(), resolved: 'exclude' },
+      filterState: {
+        ...createDefaultThreadFilterState(),
+        resolved: 'exclude',
+        searchQuery: '-is:resolved',
+      },
     });
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
     await expectRoomCompact(page, true, 60_000);

@@ -99,6 +99,8 @@ describe('PersistentParticleBackground', () => {
       [
         {
           path: '/',
+          // Shown while the initial loader runs (RouterProvider's `fallbackElement` until v7).
+          hydrateFallbackElement: <ParticleBackgroundSurface position="fixed" />,
           loader: async () => {
             await initialLoader;
             return redirect('/login');
@@ -124,10 +126,7 @@ describe('PersistentParticleBackground', () => {
     await act(async () => {
       renderer!.update(
         <PersistentParticleBackgroundProvider>
-          <RouterProvider
-            router={router}
-            fallbackElement={<ParticleBackgroundSurface position="fixed" />}
-          />
+          <RouterProvider router={router} />
         </PersistentParticleBackgroundProvider>
       );
       await Promise.resolve();

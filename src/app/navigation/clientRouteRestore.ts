@@ -44,12 +44,9 @@ const matchRoomRoute = (pathname: string): RoomRoute | undefined => {
 
 const namesRoom = (segment: Segment): boolean => segment.name !== EVENT_SEGMENT;
 
-/** The route's path, each segment encoded on its own; `generatePath` drops the trailing slash. */
+/** The route's path; `generatePath` encodes each segment on its own and drops the trailing slash. */
 const buildPathname = (pattern: string, segments: Segment[]): string =>
-  generatePath(
-    pattern,
-    Object.fromEntries(segments.map(({ name, text }) => [name, encodeURIComponent(text)]))
-  );
+  generatePath(pattern, Object.fromEntries(segments.map(({ name, text }) => [name, text])));
 
 /**
  * A room or space segment as a room ID from what the client already holds: an alias maps to the

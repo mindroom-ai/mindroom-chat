@@ -127,7 +127,7 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           )}
         </Text>
         {loginLink && (
-          <Button variant="Primary" size="500" onClick={() => navigate(loginLink)}>
+          <Button variant="Primary" size="500" onClick={() => void navigate(loginLink)}>
             <Text as="span" size="B500">
               {t('sharedUi.passwordResetForm.login')}
             </Text>
