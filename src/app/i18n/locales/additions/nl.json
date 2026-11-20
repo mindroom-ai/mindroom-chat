@@ -1094,6 +1094,7 @@
     },
     "invites": {
       "invalid": "Deze uitnodigingslink is onvolledig. Open de link uit de e-mail opnieuw.",
+      "reopen": "Je bent ingelogd. Open de uitnodigingslink uit je e-mail opnieuw.",
       "framed": "Open deze pagina in een eigen tabblad om de uitnodiging te gebruiken.",
       "ready": "Neem deel aan een ruimte via {{router}} als {{user}}",
       "claiming": "Uitnodiging wordt geclaimd…",

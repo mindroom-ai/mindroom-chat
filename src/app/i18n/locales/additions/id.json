@@ -1069,6 +1069,7 @@
     },
     "invites": {
       "invalid": "Tautan undangan ini tidak lengkap. Buka lagi tautan dari email.",
+      "reopen": "Anda sudah masuk. Buka lagi tautan undangan dari email Anda.",
       "framed": "Buka halaman ini di tab tersendiri untuk menggunakan undangan.",
       "ready": "Bergabung ke ruang melalui {{router}} sebagai {{user}}",
       "claiming": "Mengklaim undangan…",

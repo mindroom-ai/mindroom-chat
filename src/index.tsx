@@ -46,11 +46,6 @@ import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNa
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/basePath';
 import { isQuickCapturePath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
-import { holdInviteLink } from './app/invites/inviteHandoff';
-
-// First of all: an invite link's code leaves the address before anything can read or save it.
-holdInviteLink();
-window.addEventListener('popstate', holdInviteLink);
 
 /** Marks the one reload that recovers a page the service worker does not control. */
 const SW_CONTROL_RELOAD_KEY = 'mindroom_sw_control_reloaded';

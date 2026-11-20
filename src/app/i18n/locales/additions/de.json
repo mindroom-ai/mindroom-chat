@@ -1094,6 +1094,7 @@
     },
     "invites": {
       "invalid": "Dieser Einladungslink ist unvollständig. Öffne den Link aus der E-Mail erneut.",
+      "reopen": "Du bist angemeldet. Öffne den Einladungslink aus deiner E-Mail erneut.",
       "framed": "Öffne diese Seite in einem eigenen Tab, um die Einladung zu nutzen.",
       "ready": "Einem Raum über {{router}} als {{user}} beitreten",
       "claiming": "Einladung wird eingelöst…",

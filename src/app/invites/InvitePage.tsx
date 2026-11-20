@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ClientEvent, KnownMembership, RoomEvent, type Room } from 'matrix-js-sdk';
 import { Box, Button, Spinner, Text } from 'folds';
 import * as css from '../account/auth/styles.css';
@@ -11,9 +11,18 @@ import { matchesEnum } from '../lib/matchesEnum';
 import { getHomeRoomPath } from '../routes/pathUtils';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { CLAIM_TIMEOUT_MS, inviterOf, startClaim } from './inviteClaim';
-import { parseInviteFragment } from './inviteLink';
-import { takeInviteFragment } from './inviteHandoff';
+import { parseInviteFragment, type InviteLink } from './inviteLink';
 import { IsolatedText, isolateInSentence } from '../ui/directional';
+
+/** The link in the address, read once and then cleared: null when malformed, undefined when absent. */
+const takeLink = (): InviteLink | null | undefined => {
+  const url = new URL(window.location.href);
+  if (!url.hash) return undefined;
+  const link = parseInviteFragment(url.hash) ?? null;
+  url.hash = '';
+  window.history.replaceState(window.history.state, '', url.href);
+  return link;
+};
 
 type PageState =
   | { status: 'ready' | 'claiming' | 'offline' | 'rejected' | 'retry' | 'joining' }
@@ -36,9 +45,8 @@ export function InvitePage(): JSX.Element {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const navigate = useNavigate();
-  const location = useLocation();
-  // src/index.tsx holds the link in this tab before the router starts; the page takes it once.
-  const [link, setLink] = useState(() => parseInviteFragment(takeInviteFragment()));
+  // In memory only: the code leaves the address on mount and on each link opened here.
+  const [link, setLink] = useState(takeLink);
   const [state, setState] = useState<PageState>({ status: 'ready' });
   // Stops what runs now: the claim, the wait for the invitation, or the join.
   const stopRef = useRef<() => void>();
@@ -48,13 +56,14 @@ export function InvitePage(): JSX.Element {
   }, []);
   useEffect(() => halt, [halt]);
   useEffect(() => {
-    // A link opened again on this page starts over.
-    const held = takeInviteFragment();
-    if (!held) return;
-    halt();
-    setLink(parseInviteFragment(held));
-    setState({ status: 'ready' });
-  }, [halt, location]);
+    const onHashChange = (): void => {
+      halt();
+      setLink(takeLink());
+      setState({ status: 'ready' });
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [halt]);
 
   if (window.top !== window.self) {
     return (
@@ -66,7 +75,7 @@ export function InvitePage(): JSX.Element {
   if (!link) {
     return (
       <InviteCard>
-        <Text size="T300">{t('mindroomUi.invites.invalid')}</Text>
+        <Text size="T300">{t(`mindroomUi.invites.${link === null ? 'invalid' : 'reopen'}`)}</Text>
       </InviteCard>
     );
   }

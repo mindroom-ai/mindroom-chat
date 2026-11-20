@@ -1119,6 +1119,7 @@
     },
     "invites": {
       "invalid": "Este link de convite está incompleto. Abra novamente o link do e-mail.",
+      "reopen": "Você entrou. Abra novamente o link de convite do seu e-mail.",
       "framed": "Abra esta página em uma aba própria para usar o convite.",
       "ready": "Entrar em uma sala por meio de {{router}} como {{user}}",
       "claiming": "Resgatando o convite…",

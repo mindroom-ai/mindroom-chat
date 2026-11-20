@@ -1119,6 +1119,7 @@
     },
     "invites": {
       "invalid": "Questo link di invito è incompleto. Apri di nuovo il link dall'email.",
+      "reopen": "Hai effettuato l'accesso. Apri di nuovo il link di invito dalla tua email.",
       "framed": "Apri questa pagina in una scheda a sé per usare l'invito.",
       "ready": "Entra in una stanza tramite {{router}} come {{user}}",
       "claiming": "Riscatto dell'invito…",

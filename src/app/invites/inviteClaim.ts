@@ -15,7 +15,6 @@ import type { InviteLink } from './inviteLink';
 export const CLAIM_EVENT = 'io.mindroom.email_invite.claim';
 export const RESULT_EVENT = 'io.mindroom.email_invite.result';
 export const CLAIM_TIMEOUT_MS = 20_000;
-export const CLAIM_RESEND_MS = 5_000;
 
 export type ClaimOutcome =
   | { status: 'invited'; roomId: string }
@@ -58,17 +57,6 @@ export const startClaim = (
   );
 
   let stopped = false;
-  let failedSends = 0;
-  const send = (): void => {
-    // Both sends failing means the claim never left this device: that is `retry`, not `offline`.
-    mx.sendToDevice(CLAIM_EVENT, new Map([[link.routerId, new Map([['*', content]])]])).catch(
-      () => {
-        failedSends += 1;
-        if (failedSends === 2 && !stopped) finish({ status: 'retry' });
-      }
-    );
-  };
-
   // Read encrypted or not: the router may answer either way.
   function onMessage({ message }: ReceivedToDeviceMessage): void {
     if (message.type !== RESULT_EVENT || message.sender !== link.routerId) return;
@@ -86,13 +74,14 @@ export const startClaim = (
 
   mx.on(ClientEvent.ReceivedToDeviceMessage, onMessage);
   mx.on(RoomEvent.MyMembership, onMembership);
-  send();
-  const resend = setTimeout(send, CLAIM_RESEND_MS);
+  // Sent once. A failed send means the claim never left this device: `retry`, not `offline`.
+  mx.sendToDevice(CLAIM_EVENT, new Map([[link.routerId, new Map([['*', content]])]])).catch(() => {
+    if (!stopped) finish({ status: 'retry' });
+  });
   const offline = setTimeout(() => onOutcome({ status: 'offline' }), CLAIM_TIMEOUT_MS);
 
   function stop(): void {
     stopped = true;
-    clearTimeout(resend);
     clearTimeout(offline);
     mx.removeListener(ClientEvent.ReceivedToDeviceMessage, onMessage);
     mx.removeListener(RoomEvent.MyMembership, onMembership);

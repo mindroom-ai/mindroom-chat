@@ -1094,6 +1094,7 @@
     },
     "invites": {
       "invalid": "This invite link is incomplete. Open the link from the mail again.",
+      "reopen": "You're signed in. Open the invite link from your mail again.",
       "framed": "Open this page in its own tab to use the invitation.",
       "ready": "Join a room through {{router}} as {{user}}",
       "claiming": "Claiming the invitation…",

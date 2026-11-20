@@ -3,13 +3,12 @@
 import { EventEmitter } from 'events';
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { ClientEvent, RoomEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InvitePage } from './InvitePage';
 import { startClaim, type ClaimOutcome } from './inviteClaim';
 import { getHomeRoomPath } from '../routes/pathUtils';
-import { holdInviteLink } from './inviteHandoff';
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -95,19 +94,15 @@ const flush = () =>
     await Promise.resolve();
   });
 
-let navigate: ReturnType<typeof useNavigate>;
-
 /** The router's own address while the page shows. */
 function AddressProbe() {
   const location = useLocation();
-  navigate = useNavigate();
   return <output>{`address ${location.pathname}${location.hash}`}</output>;
 }
 
-/** Opens `/invite/<hash>` the way the app does: src/index.tsx holds the link at boot. */
-const openLink = (hash: string) => {
-  window.history.replaceState(null, '', `/invite/${hash}`);
-  holdInviteLink();
+/** Puts `<path><hash>` in the address, as an absolute URL of this origin. */
+const openLink = (hash: string, path = '/invite/') => {
+  window.history.replaceState(null, '', `${window.location.origin}${path}${hash}`);
 };
 
 const renderPage = async (hash = FRAGMENT) => {
@@ -171,8 +166,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  sessionStorage.clear();
   renderer?.unmount();
+  window.history.replaceState(null, '', '/');
   renderer = undefined;
   vi.useRealTimers();
   vi.clearAllMocks();
@@ -224,11 +219,12 @@ describe('InvitePage', () => {
     await click('Join');
     openLink('#r=%40router%3Aexample.org&c=code-b');
     await act(async () => {
-      navigate('/invite/');
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
     await flush();
     expect(stopClaim).toHaveBeenCalled();
-    expect(textOf()).not.toContain('code-b');
+    expect(window.location.hash).toBe('');
+    expect(buttons()).toEqual(['Join']);
     await click('Join');
     expect(startClaimMock).toHaveBeenLastCalledWith(
       mx,
@@ -408,38 +404,24 @@ describe('InvitePage', () => {
     expect(textOf()).toContain('Joining the room');
   });
 
-  it('restores the link it held through sign-in, once', async () => {
-    openLink('#r=%40router%3Aexample.org&c=held-code');
+  it('tells a visitor back from sign-in to open the link from the mail again', async () => {
     await renderPage('');
-    await click('Join');
-    expect(startClaimMock).toHaveBeenCalledWith(
-      mx,
-      { routerId: ROUTER, code: 'held-code' },
-      expect.any(Function)
-    );
-    act(() => renderer?.unmount());
-    await renderPage('');
-    expect(textOf()).toContain('This invite link is incomplete.');
+    expect(textOf()).toContain("You're signed in. Open the invite link from your mail again.");
+    expect(buttons()).toEqual([]);
   });
 
-  it('shows invalid when the link it held has expired', async () => {
-    vi.useFakeTimers();
-    openLink('#r=%40router%3Aexample.org&c=held-code');
-    vi.setSystemTime(Date.now() + 15 * 60_000 + 1);
-    await renderPage('');
-    expect(textOf()).toContain('This invite link is incomplete.');
-    expect(sessionStorage.length).toBe(0);
-  });
-
-  it('shows invalid, without crashing, when session storage is denied', async () => {
-    const denied = () => {
-      throw new DOMException('denied', 'SecurityError');
-    };
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(denied);
-    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(denied);
-    await renderPage('');
-    expect(textOf()).toContain('This invite link is incomplete.');
-    vi.restoreAllMocks();
+  it('clears the fragment of a //invite// address with an absolute URL', async () => {
+    openLink(FRAGMENT, '//invite//');
+    await act(async () => {
+      renderer = create(
+        <MemoryRouter initialEntries={['/invite/']}>
+          <InvitePage />
+        </MemoryRouter>
+      );
+    });
+    expect(window.location.pathname).toBe('//invite//');
+    expect(window.location.hash).toBe('');
+    expect(buttons()).toEqual(['Join']);
   });
 
   it('stops the claim on unmount', async () => {

@@ -76,19 +76,13 @@ afterEach(() => {
 });
 
 describe('startClaim', () => {
-  it("sends the claim to the router's devices and resends once", () => {
+  it("sends the claim to the router's devices exactly once", () => {
     start();
-    expect(mx.sendToDevice).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(4_999);
-    expect(mx.sendToDevice).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(1);
-    expect(mx.sendToDevice).toHaveBeenCalledTimes(2);
     const first = sentContent(0);
     expect(first).toEqual({ version: 1, request_id: first.request_id, code: 'secret-code' });
     expect(typeof first.request_id).toBe('string');
-    expect(sentContent(1)).toEqual(first);
     vi.advanceTimersByTime(30_000);
-    expect(mx.sendToDevice).toHaveBeenCalledTimes(2);
+    expect(mx.sendToDevice).toHaveBeenCalledTimes(1);
   });
 
   it("reports the router's result", () => {
@@ -162,20 +156,14 @@ describe('startClaim', () => {
     expect(outcomes).toEqual([]);
   });
 
-  it('reports retry when neither send reaches the homeserver', async () => {
-    mx.sendToDevice.mockRejectedValue(new Error('offline'));
+  it('reports retry when the send does not reach the homeserver', async () => {
+    mx.sendToDevice.mockRejectedValueOnce(new Error('offline'));
     start();
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(0);
     expect(outcomes).toEqual([{ status: 'retry' }]);
     await vi.advanceTimersByTimeAsync(30_000);
     expect(outcomes).toEqual([{ status: 'retry' }]);
-  });
-
-  it('still waits for the router when the resend reaches the homeserver', async () => {
-    mx.sendToDevice.mockRejectedValueOnce(new Error('offline'));
-    start();
-    await vi.advanceTimersByTimeAsync(20_000);
-    expect(outcomes).toEqual([{ status: 'offline' }]);
+    expect(mx.sendToDevice).toHaveBeenCalledTimes(1);
   });
 
   it('stop removes listeners and timers', () => {

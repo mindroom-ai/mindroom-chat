@@ -1094,6 +1094,7 @@
     },
     "invites": {
       "invalid": "Bu davet bağlantısı eksik. Bağlantıyı e-postadan yeniden açın.",
+      "reopen": "Oturum açtınız. Davet bağlantısını e-postanızdan yeniden açın.",
       "framed": "Daveti kullanmak için bu sayfayı kendi sekmesinde açın.",
       "ready": "{{router}} üzerinden {{user}} olarak bir odaya katıl",
       "claiming": "Davet alınıyor…",

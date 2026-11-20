@@ -1119,6 +1119,7 @@
     },
     "invites": {
       "invalid": "Este enlace de invitación está incompleto. Vuelve a abrir el enlace del correo.",
+      "reopen": "Has iniciado sesión. Vuelve a abrir el enlace de invitación de tu correo.",
       "framed": "Abre esta página en su propia pestaña para usar la invitación.",
       "ready": "Unirse a una sala a través de {{router}} como {{user}}",
       "claiming": "Reclamando la invitación…",

@@ -1119,6 +1119,7 @@
     },
     "invites": {
       "invalid": "Ce lien d'invitation est incomplet. Rouvrez le lien depuis l'e-mail.",
+      "reopen": "Vous êtes connecté. Rouvrez le lien d'invitation depuis votre e-mail.",
       "framed": "Ouvrez cette page dans son propre onglet pour utiliser l'invitation.",
       "ready": "Rejoindre un salon via {{router}} en tant que {{user}}",
       "claiming": "Récupération de l'invitation…",
