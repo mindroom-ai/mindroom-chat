@@ -203,6 +203,18 @@ describe('useVoiceHoldShortcut', () => {
     expect(log).toEqual(['start']);
   });
 
+  it('counts left Alt held while the setting was off once it is back on', () => {
+    const { log, switchTo } = setup((l) => <Composer log={l} />);
+    press('keydown', rightAlt);
+    press('keyup', rightAlt);
+    switchTo(false);
+    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
+    switchTo(true);
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    expect(log).toEqual(['start']);
+  });
+
   it('forgets keys held when the window lost the focus, and latches on a click', () => {
     const { log } = setup((l) => <Composer log={l} />);
     press('keydown', { key: 'a', code: 'KeyA' });

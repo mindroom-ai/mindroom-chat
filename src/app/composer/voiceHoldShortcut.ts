@@ -1,9 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'jotai';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 import { openOverlay } from '../shortcuts/shortcutDom';
 import { isComposingKey } from '../shortcuts/shortcuts';
-import { VOICE_HOLD_MS, createVoiceHold, type VoiceHoldTarget } from '../shortcuts/voiceHold';
+import {
+  VOICE_HOLD_MS,
+  createVoiceHold,
+  type VoiceHold,
+  type VoiceHoldTarget,
+} from '../shortcuts/voiceHold';
 import { voiceAutoSendPendingAtom } from './roomInputDrafts';
 
 /** A composer that records voice: its root element, whether it writes a thread, and its actions. */
@@ -77,10 +82,16 @@ const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'Shift', 'C
  */
 export const useVoiceHoldShortcut = (enabled: boolean): void => {
   const store = useStore();
-
-  // Switched off, the key is left alone; a press under way ends as interrupted (the cleanup).
+  // Read live: switched off, the key arms nothing, and a press under way ends as interrupted. The
+  // held keys stay tracked meanwhile, so a key already down when it comes back on still counts.
+  const enabledRef = useRef(enabled);
+  const holdRef = useRef<VoiceHold>();
   useEffect(() => {
-    if (!enabled) return undefined;
+    enabledRef.current = enabled;
+    if (!enabled) holdRef.current?.interrupt();
+  }, [enabled]);
+
+  useEffect(() => {
     const hold = createVoiceHold({
       delayMs: VOICE_HOLD_MS,
       schedule: (run, ms) => {
@@ -90,6 +101,7 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       resolve: () => resolveVoiceComposer(),
       sendPending: () => store.get(voiceAutoSendPendingAtom),
     });
+    holdRef.current = hold;
     // Keys other than modifiers that are down now, as a press of A then right ⌥ is no press alone.
     // Left ⌥ counts too: `altKey` cannot tell right ⌥ alone from both.
     const held = new Set<string>();
@@ -97,6 +109,7 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!MODIFIER_KEYS.has(event.key) || event.code === 'AltLeft') held.add(event.code);
       const alone =
+        enabledRef.current &&
         event.code === 'AltRight' &&
         held.size === 0 &&
         !event.ctrlKey &&
@@ -140,5 +153,5 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       document.removeEventListener('visibilitychange', onVisibility);
       hold.interrupt();
     };
-  }, [enabled, store]);
+  }, [store]);
 };
