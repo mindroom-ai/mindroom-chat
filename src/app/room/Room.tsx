@@ -112,6 +112,7 @@ import {
 } from '../composer/roomInputDrafts';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import { createParagraphElement } from '../editor/utils';
+import { confirmedVoiceThreadId as confirmed } from '../composer/RoomInputExtensions';
 
 const SECOND_THREAD_PANEL = '[data-testid="second-thread-panel"]';
 // The composers the focus goes back to from the second thread: the open thread's, else the room's.
@@ -796,7 +797,7 @@ function RoomContent() {
   // With canvases off, a canvas asks for a text version in its thread's draft, never over work.
   const textRequest = useMemo(() => {
     const offer = (threadId: string | undefined, text: string) =>
-      composerOfferAtom([ownUserId, roomId, threadId], [createParagraphElement(text)]);
+      composerOfferAtom([ownUserId, roomId, threadId], [createParagraphElement(text)], confirmed);
     const fill = (action: ChatUiAction, text: string) => {
       if (store.get(offer(action.threadId, text)) !== 'empty') return;
       const draftKey = getRoomInputDraftKey(ownUserId, roomId, action.threadId);

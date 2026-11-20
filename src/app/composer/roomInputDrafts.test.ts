@@ -11,6 +11,7 @@ import {
   restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
 } from './roomInputDrafts';
+import { confirmedVoiceThreadId } from './RoomInputExtensions';
 
 const KEY = JSON.stringify(['@alice:example.org', '!room:example.org', '$thread']);
 const draft = [{ type: 'paragraph' as const, children: [{ text: 'Unsent draft', bold: true }] }];
@@ -113,8 +114,8 @@ describe('composerOfferAtom', () => {
     const key: [string, string, string] = ['@alice:example.org', roomId, '$thread'];
     const offer = [{ type: 'paragraph', children: [{ text: 'Text version, please' }] }] as never[];
     const draft = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(...key));
-    const state = composerOfferAtom(key, offer);
-    const roomState = composerOfferAtom([key[0], roomId], offer);
+    const state = composerOfferAtom(key, offer, confirmedVoiceThreadId);
+    const roomState = composerOfferAtom([key[0], roomId], offer, confirmedVoiceThreadId);
     const file = new File(['x'], 'notes.txt');
     const staged = [
       { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } },
@@ -151,11 +152,16 @@ describe('composerOfferAtom', () => {
     expect(store.get(state)).toBe('busy');
     store.set(threadViewVoiceComposersAtom, []);
     // A voice message waiting to be sent belongs to the composer that recorded it.
+    // The thread's root was still a local echo when this one was recorded; it is '$thread' now.
+    const room = {
+      getThread: (id: string) =>
+        id === '~echo' ? { rootEvent: { getId: () => '$thread' } } : null,
+    };
     const voice = (threadId: string | undefined, threadView: boolean) =>
       store.set(pendingVoiceSendDraftAtom, {
         file,
         duration: 1,
-        context: { roomId, threadId, threadView } as never,
+        context: { roomId, room, threadId, threadView } as never,
       });
     voice('$other', true);
     expect(store.get(state)).toBe('empty');
@@ -163,6 +169,8 @@ describe('composerOfferAtom', () => {
     expect(store.get(state)).toBe('empty');
     expect(store.get(roomState)).toBe('busy');
     voice('$thread', true);
+    expect(store.get(state)).toBe('busy');
+    voice('~echo', true);
     expect(store.get(state)).toBe('busy');
     store.set(pendingVoiceSendDraftAtom, undefined);
   });

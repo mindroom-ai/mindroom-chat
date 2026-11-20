@@ -392,16 +392,21 @@ export const threadViewVoiceComposersAtom = atom<readonly { key: string; view: s
  * A destination's composers against an offered draft: empty, holding the offer, or busy with its
  * work, in each composer mounted for it (folded too): a thread's views, or the room's page.
  */
-export const composerOfferAtom = (key: [string, string, string?], offer: Descendant[]) =>
+export const composerOfferAtom = (
+  key: [string, string, string?],
+  offer: Descendant[],
+  confirm: (room: Room, threadId?: string) => string | undefined // a parked echo root, confirmed
+) =>
   atom((get): 'empty' | 'offered' | 'busy' => {
     const [, roomId, threadId] = key;
     const owner = voiceComposerKey({ roomId, threadId, threadView: threadId !== undefined });
     const views = threadId
       ? get(threadViewVoiceComposersAtom).flatMap((c) => (c.key === owner ? [c.view] : []))
       : [undefined];
-    const voice = get(pendingVoiceSendDraftAtom);
+    const voice = get(pendingVoiceSendDraftAtom)?.context;
+    const parked = voice && { ...voice, threadId: confirm(voice.room, voice.threadId) };
     const busy =
-      (!!voice && voiceComposerKey(voice.context) === owner) ||
+      (!!parked && voiceComposerKey(parked) === owner) ||
       views.some(
         (v) =>
           get(composerUploadItemsAtom(roomId, v)).length || get(composerReplyDraftAtom(roomId, v))
