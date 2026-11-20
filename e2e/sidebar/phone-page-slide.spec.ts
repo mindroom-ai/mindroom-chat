@@ -308,7 +308,9 @@ for (const engine of ENGINES) {
       // Pictures the browser may not keep: every showing of one from the network is a request.
       const requests: string[] = [];
       await page.route('**/pps-media/*', (route) => {
-        requests.push(new URL(route.request().url()).pathname);
+        const { pathname } = new URL(route.request().url());
+        requests.push(pathname);
+        if (pathname.endsWith('/missing.png')) return route.fulfill({ status: 404 });
         return route.fulfill({
           contentType: 'image/png',
           headers: { 'Cache-Control': 'no-store' },
@@ -317,42 +319,51 @@ for (const engine of ENGINES) {
       });
       await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
       await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-      // In the page: a picture from the network, a `picture` whose source picks another, and one
-      // the page holds in memory, as the app's avatars and message pictures are.
+      // In the page: a picture from the network, a `picture` whose source picks another, one the
+      // page holds in memory, as the app's avatars and message pictures are, one whose address
+      // the page has let go of since (the app does with avatars it has not shown for a while),
+      // and one that failed to load.
       await page.locator('[data-phone-stage] > [data-phone-page]').evaluate(async (phonePage) => {
-        const held = URL.createObjectURL(await (await fetch('/pps-media/held.png')).blob());
+        const memory = async () =>
+          URL.createObjectURL(await (await fetch('/pps-media/held.png')).blob());
+        const [held, gone] = [await memory(), await memory()];
         phonePage.insertAdjacentHTML(
           'beforeend',
           '<div data-pps-media style="position: absolute; pointer-events: none">' +
             '<img src="/pps-media/network.png">' +
             '<picture><source srcset="/pps-media/source.png"><img src="/pps-media/fallback.png">' +
-            `</picture><img src="${held}"></div>`
+            `</picture><img src="${held}"><img src="${gone}"><img src="/pps-media/missing.png">` +
+            '</div>'
         );
         const pictures = Array.from(phonePage.querySelectorAll('[data-pps-media] img'));
-        await Promise.all(pictures.map((picture) => (picture as HTMLImageElement).decode()));
+        await Promise.allSettled(pictures.map((picture) => (picture as HTMLImageElement).decode()));
+        URL.revokeObjectURL(gone);
       });
       const before = [...requests].sort();
       expect(before, 'the page loads each picture once').toEqual(
-        ['held', 'network', 'source'].map((name) => `/pps-media/${name}.png`)
+        ['held', 'held', 'missing', 'network', 'source'].map((name) => `/pps-media/${name}.png`)
       );
 
       await card(page, root).tap();
       await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
       const copied = await page
-        .locator('[data-page-slide-copy] [data-pps-media] img')
-        .evaluateAll((pictures) =>
-          pictures.map((picture) => {
-            const { complete, naturalWidth } = picture as HTMLImageElement;
-            const from = picture.getAttribute('src')?.split(':')[0] ?? null;
-            return { from, shows: complete && naturalWidth > 0 };
+        .locator('[data-page-slide-copy] [data-pps-media]')
+        .evaluate((media) =>
+          Array.from(media.querySelectorAll('img, canvas'), (picture) => {
+            if (!(picture instanceof HTMLCanvasElement)) {
+              return picture.hasAttribute('src') ? 'a picture to load' : 'a blank box';
+            }
+            const [red = 0, , , alpha = 0] = picture
+              .getContext('2d')!
+              .getImageData(0, 0, 1, 1).data;
+            return red > 200 && alpha > 0 ? 'drawn' : 'an empty canvas';
           })
         );
-      // Only the picture held in memory shows in the copy; the others are blank boxes.
-      expect.soft(copied, 'the pictures of the copy').toEqual([
-        { from: null, shows: false },
-        { from: null, shows: false },
-        { from: 'blob', shows: true },
-      ]);
+      // Each picture the page shows is drawn in the copy at once, with nothing to load or decode,
+      // the one whose address is gone too; the one that failed is a blank box.
+      expect
+        .soft(copied, 'the pictures of the copy')
+        .toEqual(['drawn', 'drawn', 'drawn', 'drawn', 'a blank box']);
       expect
         .soft(
           await page.locator('[data-page-slide-copy] :is([srcset], source[src])').count(),

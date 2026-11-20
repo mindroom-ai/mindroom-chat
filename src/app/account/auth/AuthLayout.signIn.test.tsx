@@ -11,6 +11,8 @@ import {
 } from '../../routes/afterLoginRedirectPath';
 import { getActiveSession, removeSession } from '../../matrix/session/sessions';
 import { followRouterSignalsInNode } from '../../../test/utils/nodeSignalRequests';
+import { getLoginPath } from '../../routes/pathUtils';
+import { LOGIN_PATH } from '../../routes/paths';
 import { AuthLayout } from './AuthLayout';
 import { useLoginComplete } from './login/loginUtil';
 
@@ -19,10 +21,14 @@ vi.mock('../../config/useClientConfig', () => ({
   useClientConfig: () => ({ homeserverList: ['example.org'] }),
   useOptionalClientConfig: () => ({ homeserverList: ['example.org'] }),
 }));
+// The server each discovery asked, in the order asked.
+const { discovered } = vi.hoisted(() => ({ discovered: [] as string[] }));
 vi.mock('../../matrix/cs-api', async () => ({
   ...(await vi.importActual<typeof import('../../matrix/cs-api')>('../../matrix/cs-api')),
-  autoDiscovery: () =>
-    Promise.resolve([undefined, { 'm.homeserver': { base_url: 'https://example.org' } }]),
+  autoDiscovery: (_fetch: unknown, server: string) => {
+    discovered.push(server);
+    return Promise.resolve([undefined, { 'm.homeserver': { base_url: 'https://example.org' } }]);
+  },
 }));
 
 followRouterSignalsInNode();
@@ -73,7 +79,28 @@ afterEach(() => {
   const session = getActiveSession();
   if (session) removeSession(session.sessionId);
   deleteAfterLoginRedirectPath();
+  discovered.length = 0;
   window.history.replaceState(null, '', '/');
+});
+
+// A server entered as a full URL keeps its path as written: `%41` is no `A`, a literal `%2F` no `/`.
+describe('the server a sign-in page names', () => {
+  it.each([
+    'example.org',
+    'https://example.org/team/eu',
+    'https://example.org/team%2Feu',
+    'https://example.org/a%41',
+  ])('looks %s up as written', async (server) => {
+    window.history.replaceState(null, '', getLoginPath(server));
+    const router = createBrowserRouter([
+      { element: <AuthLayout />, children: [{ path: LOGIN_PATH, element: <p>login page</p> }] },
+    ]);
+    render(<RouterProvider router={router} />);
+    await act(async () => undefined);
+    expect(discovered).toEqual([server]);
+    expect(router.state.location.pathname).toBe(getLoginPath(server));
+    router.dispose();
+  });
 });
 
 describe('signing in on the sign-in pages', () => {

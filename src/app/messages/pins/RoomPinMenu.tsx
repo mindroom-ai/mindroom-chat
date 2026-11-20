@@ -1,6 +1,5 @@
 import { forwardRef, useMemo, useRef, useState, useId, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
 import { Menu } from '../../ui/glass/GlassPrimitives';
@@ -20,6 +19,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomEvent } from '../../event-store/cache/useRoomEvent';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
+import { useRoomRouteParams } from '../../navigation/useRoomRouteParams';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { Time } from '../Time';
 import { isPinnedToolApprovalEvent, renderPinnedToolApprovalEvent } from './pinnedToolApproval';
@@ -309,7 +309,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
     const [clock24] = useSetting(settingsAtom, 'hour24Clock');
     const { navigateRoom, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
-    const { eventId: routedEventId } = useParams();
+    const { eventId: routedEventId } = useRoomRouteParams();
     const [datePattern] = useSetting(settingsAtom, 'dateFormatString');
     const { t } = useTranslation();
     const timeFormat = useMemo(

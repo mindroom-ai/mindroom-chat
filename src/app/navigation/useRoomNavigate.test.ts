@@ -51,9 +51,13 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => mocks.navigate,
-    useParams: () => ({ roomIdOrAlias: mocks.routeRoom }),
   };
 });
+
+// The route's room segment, decoded as the hook gives it.
+vi.mock('./useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({ roomIdOrAlias: mocks.routeRoom }),
+}));
 
 vi.mock('../routes/historyStack', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../routes/historyStack')>()),
@@ -434,7 +438,7 @@ describe('useRoomNavigate', () => {
     it('knows the room by an alias in the route', () => {
       inSpace();
       mocks.aliases.set('#room:example.org', roomId);
-      mocks.routeRoom = encodeURIComponent('#room:example.org');
+      mocks.routeRoom = '#room:example.org';
       const { getSnapshot, renderer } = renderHookHarness();
 
       act(() => {
@@ -470,7 +474,7 @@ describe('useRoomNavigate', () => {
     it('keeps a room shown in Threads by its alias there', () => {
       inSpace();
       mocks.aliases.set('#room:example.org', roomId);
-      mocks.routeRoom = encodeURIComponent('#room:example.org');
+      mocks.routeRoom = '#room:example.org';
       mocks.threadsSelected = true;
       const { getSnapshot, renderer } = renderHookHarness();
 

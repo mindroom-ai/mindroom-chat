@@ -1,7 +1,7 @@
 import { Fragment, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
 import type { IconSrc } from 'folds';
-import { Navigate, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useMatch, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -16,6 +16,7 @@ import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
 import { JoinBeforeNavigate } from '../../rooms/join/JoinBeforeNavigate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../navigation/useResolvedRoomIdOrAlias';
+import { useRoomRouteParams } from '../../navigation/useRoomRouteParams';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
@@ -44,7 +45,6 @@ import { allRoomsAtom } from '../../matrix/state/roomList';
 import { getRoomSearchParams } from '../../routes/pathSearchParam';
 import { SPACE_LOBBY_PATH } from '../../routes/paths';
 import {
-  decodeRouteParam,
   getDirectRoomPath,
   getHomePath,
   getHomeRoomPath,
@@ -95,9 +95,7 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const { hasCompletedInitialSync } = useClientStartupContext();
   const [searchParams] = useSearchParams();
-  const { spaceIdOrAlias: encoded, roomIdOrAlias: encodedSecond } = useParams();
-  const spaceIdOrAlias = encoded ? decodeRouteParam(encoded) : '';
-  const second = encodedSecond ? decodeRouteParam(encodedSecond) : undefined;
+  const { spaceIdOrAlias = '', roomIdOrAlias: second } = useRoomRouteParams();
   const { roomId, isResolvingAlias } = useResolvedRoomIdOrAlias(spaceIdOrAlias);
   const room = mx.getRoom(roomId ?? '');
   const joined = canRenderRoutedRoom(room, joinedRoomIds);
