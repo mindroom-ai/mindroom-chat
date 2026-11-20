@@ -44,7 +44,9 @@ const inviteTwoInOneDialog = async (page: Page, name: string) => {
     password: PASSWORD,
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
-  await page.getByRole('button', { name: 'Invite people' }).click({ timeout: 60_000 });
+  // A 1280 px window leaves the room too narrow to read beside the members: they start closed.
+  await page.getByRole('button', { name: 'Show Members', exact: true }).click({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Invite people' }).click();
   const dialog = page.getByRole('dialog', { name: 'Invite' });
   await expect(dialog).toBeVisible();
   const field = dialog.getByRole('combobox');

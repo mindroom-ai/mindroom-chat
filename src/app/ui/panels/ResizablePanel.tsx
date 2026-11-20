@@ -137,7 +137,9 @@ export function ResizablePanel({
   );
   const [preferredWidth, setPreferredWidth] = useAtom(widthAtom);
   const [previewWidth, setPreviewWidth] = useState<number>();
-  const [availableWidth, setAvailableWidth] = useState(maxPanelWidth);
+  // Until the row is measured, as much room as the panel can use: its first layout is the width it
+  // settles on, which what lies beside it (PanelRow) measures.
+  const [availableWidth, setAvailableWidth] = useState(maxPanelWidth + minContentWidth);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const presence = usePanelPresence();

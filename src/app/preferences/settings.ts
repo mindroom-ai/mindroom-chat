@@ -58,6 +58,7 @@ const BOOLEAN_SETTING_KEYS = [
   'hideActivity', // Send read receipts and typing notices privately.
   // Layout
   'isPeopleDrawer', // Whether the members drawer is open on wide screens.
+  'membersBesideNarrowRoom', // The members were opened beside a room too narrow to read beside them.
   // Timeline
   'hideMembershipEvents', // Leave joins, leaves, invites and kicks out of the timeline.
   'hideNickAvatarEvents', // Leave display name and avatar changes out of the timeline.
