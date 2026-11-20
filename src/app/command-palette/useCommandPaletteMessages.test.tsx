@@ -182,6 +182,25 @@ describe('useCommandPaletteMessages', () => {
     expect(result.current.items[0]?.snippet).toBe('…then the plain walrus here.');
   });
 
+  // The first pass keeps 2,000 characters from 599 before the real match, which falls inside
+  // "subwalrus" (or inside the two halves of "𝐀" in "sub𝐀walrus"); the cut-off tail must not
+  // become the match the second pass centers on.
+  it.each([
+    ['inside a word', 'sub'],
+    ['inside a letter written as a surrogate pair', 'sub\uD835\uDC00'],
+  ])('reads no word cut %s at the edge of a long message as a match', async (_, cut) => {
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const head = `${'gamma '.repeat(400)}${cut.slice(0, -1)}`;
+    const tail = `${cut.slice(-1)}walrus helpers`.padEnd(599);
+    const body = `${head}${tail}walrus here. ${'omega '.repeat(400)}`;
+    expect(body.indexOf(' walrus ') + 1 - 599).toBe(head.length);
+    await act(async () => pending[0]?.resolve(responseWith('$cut', body)));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.snippet).toMatch(/^…helpers walrus here\. omega/);
+  });
+
   it('lists a retitled thread once, by its current title, beside what was said in it', async () => {
     const key = getCrossRoomThreadIndexKey('!ops:example.org', '$root');
     const entry = { key, summaryText: 'Walrus launch plan', rootPreviewText: '' };
