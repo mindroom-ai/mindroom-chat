@@ -689,6 +689,7 @@ export function ThreadActionsMenu({
                   ref={tagSectionRef}
                   role="group"
                   tabIndex={-1}
+                  className={css.ThreadMenuTags}
                   aria-label={t('thread.stats.tags')}
                   data-thread-menu-tags=""
                 >

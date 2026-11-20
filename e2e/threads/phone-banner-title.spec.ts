@@ -961,6 +961,21 @@ const holdStateWrites = async (page: Page, { fail = false } = {}) => {
   };
 };
 
+/** Saves the page as `<name>-light.png` and `<name>-dark.png` where PHONE_BANNER_SHOTS says. */
+const shootSchemes = async (page: Page, name: string) => {
+  if (!SHOTS) return;
+  mkdirSync(SHOTS, { recursive: true });
+  for (const colorScheme of ['light', 'dark'] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.emulateMedia({ colorScheme });
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(400);
+    // eslint-disable-next-line no-await-in-loop
+    await page.screenshot({ path: path.join(SHOTS, `${name}-${colorScheme}.png`) });
+  }
+  await page.emulateMedia({ colorScheme: null });
+};
+
 test("a phone's thread menu starts with the tags, and a tag added there shows in it", async ({
   browser,
   baseURL,
@@ -971,18 +986,7 @@ test("a phone's thread menu starts with the tags, and a tag added there shows in
   try {
     await openThread(page, world, 'busy');
     const menu = await openMenuWithTags(page, THREADS.busy.tags);
-    if (SHOTS) {
-      mkdirSync(SHOTS, { recursive: true });
-      for (const colorScheme of ['light', 'dark'] as const) {
-        // eslint-disable-next-line no-await-in-loop
-        await page.emulateMedia({ colorScheme });
-        // eslint-disable-next-line no-await-in-loop
-        await page.waitForTimeout(400);
-        // eslint-disable-next-line no-await-in-loop
-        await page.screenshot({ path: path.join(SHOTS, `phone-menu-tags-${colorScheme}.png`) });
-      }
-      await page.emulateMedia({ colorScheme: null });
-    }
+    await shootSchemes(page, 'phone-menu-tags');
     const section = menu.locator('[data-thread-menu-tags]');
     const addTag = section.getByRole('button', { name: 'Add tag' });
     const field = page.getByRole('textbox', { name: 'Filter or create tag' });
@@ -998,6 +1002,7 @@ test("a phone's thread menu starts with the tags, and a tag added there shows in
     await expect(section.getByText('flaky', { exact: true })).toHaveCount(0);
     await expect(section).toBeFocused();
     await expect(remove('networking')).toHaveAttribute('aria-disabled', 'true');
+    await shootSchemes(page, 'phone-menu-tags-focused');
     await release();
     await expect(section.getByRole('alert')).toBeVisible({ timeout: 30_000 });
     await expect(section.getByText('flaky', { exact: true })).toBeVisible();
