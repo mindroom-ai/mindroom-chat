@@ -561,14 +561,12 @@ it('keeps keyboard focus in the bar when two jobs become one, and one becomes tw
   button(cancelA)?.focus();
   await click(cancelA);
   expect(document.activeElement).toBe(button(cancelB));
-  // The list stays open for the one job left, its Stop where it was.
+  // The one job left folds to its row; focus stays in the bar.
   state.jobs = [job('b')];
   render();
-  expect(document.activeElement).toBe(button(cancelB));
-  // Folded, one job's focused Stop does not turn into Stop all under the pointer or keyboard.
-  act(() => root.unmount());
-  root = createRoot(container);
-  render();
+  expect(container.querySelector('[data-job-folded]')).not.toBeNull();
+  expect(document.activeElement).toBe(container.querySelector('[role="region"]'));
+  // One job's focused Stop does not turn into Stop all under the pointer or keyboard.
   button(cancelB)?.focus();
   state.jobs = [job('b'), job('c')];
   render();

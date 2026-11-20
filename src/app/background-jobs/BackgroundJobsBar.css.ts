@@ -611,3 +611,7 @@ export const FoldedActions = style({
   position: 'relative',
   zIndex: 2,
 });
+
+// On the title line its buttons and Stopping are a line tall, as the title line's are, so the bar
+// keeps the typing strip's height with Stop or without it.
+globalStyle(`${FoldedActions} > *`, { blockSize: lineHeight });

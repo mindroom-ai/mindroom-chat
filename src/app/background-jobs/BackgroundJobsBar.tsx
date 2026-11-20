@@ -113,6 +113,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     toggled.current = document.activeElement === toggle.current;
     setOpen(undefined);
   }, []);
+  // Several jobs becoming one fold to that job's row, which shows what the list did.
+  const wasSeveral = useRef(several);
+  useEffect(() => {
+    if (wasSeveral.current && !several) hide();
+    wasSeveral.current = several;
+  }, [several, hide]);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   useEffect(() => {
     if (!expanded) return undefined;
