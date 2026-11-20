@@ -1373,7 +1373,7 @@ describe('SubagentsPanel', () => {
     describe('without the usage details, as they start', () => {
       beforeEach(() => showUsageDetails(false));
 
-      it('leaves out what the runs used, their models and what a run at work does now', () => {
+      it('keeps the models but leaves out usage and what a run at work does now', () => {
         ingest(
           'notes',
           meta('running', {
@@ -1433,9 +1433,6 @@ describe('SubagentsPanel', () => {
         expect(line('notes')).toBeNull();
         expect(line('wait')).toBeNull();
         expect(card('wait').textContent).toContain('Waiting for approval');
-        expect(
-          card('between').querySelector('[data-subagent-nested] [data-subagent-line]')
-        ).toBeNull();
         expect(line('between')).toBeNull();
         // A nested run has no status chip of its own, so it says beside its time that it runs.
         const nestedTime = () => card('between').querySelector('[data-subagent-nested-time]');
@@ -1455,7 +1452,7 @@ describe('SubagentsPanel', () => {
         expect(nestedTime()?.textContent).toBe('10s');
       });
 
-      it("folds an open run's numbers and model into a closed Usage, with no line of what it does", () => {
+      it('keeps the model in the header and folds usage, without a Now line', () => {
         ingest(
           'lead',
           meta('running', {
@@ -1479,7 +1476,9 @@ describe('SubagentsPanel', () => {
 
         // How it stands and its model stay in the header.
         const header = container.querySelector('header');
-        expect(header?.querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
+        const standingModel = header?.querySelector('[data-subagent-model]');
+        expect(standingModel?.textContent).toBe('Fable');
+        expect(standingModel?.getAttribute('title')).toBe('fable (anthropic / claude-fable-5.2)');
         expect(header?.textContent).toContain('Running');
         expect(header?.textContent).toContain('1m 0s');
         const usageDetails = container.querySelector<HTMLDetailsElement>('[data-subagent-usage]');
@@ -1490,7 +1489,6 @@ describe('SubagentsPanel', () => {
         expect(cell('calls')).toBe('Calls12tool calls');
         expect(cell('tokens')).toBe('Tokens320K300K in · 20K out');
         expect(cell('cost')).toBe('Cost$0.40this run');
-        expect(cell('model')).toBeUndefined();
         expect(container.querySelector('[data-subagent-cell="status"]')).toBeNull();
         const now = () => container.querySelector('[data-subagent-now]');
         expect(now()).toBeNull();
@@ -1506,32 +1504,22 @@ describe('SubagentsPanel', () => {
         expect(now()?.textContent).toBe('Nowread_file path=notes/2026-11-16.md12s');
         act(() => showUsageDetails(false));
 
-        // A run that sends its model but not what it used has no Usage; its model stays in the
-        // header.
-        ingest(
-          'lead',
-          meta('running', {
-            subagent: 'lead',
-            task: "Summarize this week's meeting notes",
-            startedAt: NOW - 60,
-            model: fable,
-          }),
-          docs('Reading the notes.')
-        );
-        expect(container.querySelector('[data-subagent-usage]')).toBeNull();
-        expect(container.querySelector('header [data-subagent-model]')?.textContent).toBe('Fable');
-
-        // Nor does a run that sends neither (older MindRoom).
-        ingest(
-          'lead',
-          meta('running', {
-            subagent: 'lead',
-            task: "Summarize this week's meeting notes",
-            startedAt: NOW - 60,
-          }),
-          docs('Reading the notes.')
-        );
-        expect(container.querySelector('[data-subagent-usage]')).toBeNull();
+        for (const model of [fable, undefined]) {
+          ingest(
+            'lead',
+            meta('running', {
+              subagent: 'lead',
+              task: "Summarize this week's meeting notes",
+              startedAt: NOW - 60,
+              model,
+            }),
+            docs('Reading the notes.')
+          );
+          expect(container.querySelector('[data-subagent-usage]')).toBeNull();
+          expect(container.querySelector('header [data-subagent-model]')?.textContent).toBe(
+            model ? 'Fable' : undefined
+          );
+        }
       });
     });
   });

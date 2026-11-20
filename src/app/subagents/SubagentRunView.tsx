@@ -209,24 +209,14 @@ const nestedTotals = (node: SubagentNode): RunTotals => {
   return runTotals(below);
 };
 
-type StripProps = {
-  node: SubagentNode;
-  totals: RunTotals;
-  time: string;
-  /**
-   * The strip inside the Usage disclosure, without the usage details: what the run used, not how
-   * it stands, which its header says.
-   */
-  folded?: boolean;
-};
-
 /**
  * Under the open run's header, four cells: how it stands and its time, its calls and turns, its
  * tokens in and out, and its cost with what the runs it started cost. The numbers are all its
- * turns' (`runTotals`); a count it does not send is left out. In the Usage disclosure (`folded`)
+ * turns' (`runTotals`); a count it does not send is left out. In the Usage disclosure
  * its cells are what it used alone.
  */
-function RunStrip({ node, totals, time, folded }: StripProps) {
+function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotals; time: string }) {
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { meta } = latestTurn(node);
@@ -274,8 +264,8 @@ function RunStrip({ node, totals, time, folded }: StripProps) {
         ]
       : []),
   ];
-  const cells = folded ? used : [status, ...used];
-  return (
+  const cells = details ? [status, ...used] : used;
+  const strip = (
     <dl className={css.Strip} data-subagent-strip="">
       {cells.map((cell) => (
         <div key={cell.key} className={css.StripCell} data-subagent-cell={cell.key}>
@@ -298,6 +288,17 @@ function RunStrip({ node, totals, time, folded }: StripProps) {
         </div>
       ))}
     </dl>
+  );
+  return details ? (
+    strip
+  ) : (
+    <details className={css.Usage} data-subagent-usage="">
+      <summary className={css.UsageSummary}>
+        <Icon size="50" src={Icons.ChevronRight} className={css.UsageChevron} aria-hidden />
+        {t('mindroomUi.subagents.usage')}
+      </summary>
+      {strip}
+    </details>
   );
 }
 
@@ -342,7 +343,6 @@ export function SubagentRunView({
   const active = isActiveSubagentStatus(meta.status);
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
-  const modelTitle = meta.model && getAiRunModelLabel(meta.model);
   const { threadId } = meta;
   const first = node.turns[0].run.meta;
   const title = nodeTitle(node, agent.name);
@@ -352,9 +352,7 @@ export function SubagentRunView({
   // Stop cancels the newest turn's job, so it is named for that turn's task.
   const turnName = turnTitle(meta, agent.name);
   const stop = useRunStop(room, newest, turnName, readOnly);
-  const activity = runToolCall(newest);
-  // Without the usage details, its numbers folded away.
-  const usageFolded = !details && used;
+  const activity = details ? runToolCall(newest) : undefined;
   const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: turnName });
   // A pressed Stop turns into "Stopping…", so focus moves to the run's title.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -441,7 +439,11 @@ export function SubagentRunView({
               {agent.name}
             </span>
             {modelLabel && (
-              <span className={css.StandingModel} title={modelTitle} data-subagent-model="">
+              <span
+                className={css.StandingModel}
+                title={meta.model && getAiRunModelLabel(meta.model)}
+                data-subagent-model=""
+              >
                 {modelLabel}
               </span>
             )}
@@ -503,17 +505,8 @@ export function SubagentRunView({
           <Icon size="200" src={Icons.Cross} />
         </IconButton>
       </header>
-      {details && used && <RunStrip node={node} totals={totals} time={time} />}
-      {usageFolded && (
-        <details className={css.Usage} data-subagent-usage="">
-          <summary className={css.UsageSummary}>
-            <Icon size="50" src={Icons.ChevronRight} className={css.UsageChevron} aria-hidden />
-            {t('mindroomUi.subagents.usage')}
-          </summary>
-          <RunStrip node={node} totals={totals} time={time} folded />
-        </details>
-      )}
-      {details && activity && (
+      {used && <RunStrip node={node} totals={totals} time={time} />}
+      {activity && (
         <Text as="div" size="T200" className={css.NowLine} data-subagent-now="">
           {meta.status === 'running' ? (
             <>

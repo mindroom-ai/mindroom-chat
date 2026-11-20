@@ -179,11 +179,8 @@ export function SubagentsPanel({
   // the usage details show.
   const language = useAppLanguageCode();
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
-  const totals = useMemo(
-    () => runTotals(details ? runs.map(({ meta }) => meta.usage) : []),
-    [details, runs]
-  );
-  const { calls, tokens, cost } = usageTexts(totals, t, language);
+  const totals = useMemo(() => runTotals(runs.map(({ meta }) => meta.usage)), [runs]);
+  const { calls, tokens, cost } = usageTexts(details ? totals : {}, t, language);
   const subtitle = [
     active > 0 && t('mindroomUi.subagents.count', { count: active }),
     calls?.labelled,
