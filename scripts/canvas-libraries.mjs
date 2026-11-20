@@ -24,6 +24,18 @@ export const inlineFonts = (/** @type {string} */ css, /** @type {string} */ dir
 
 const KATEX = new URL('katex/dist/', MODULES);
 
+/**
+ * Put before Mermaid, whose use case diagrams call `Object.groupBy`, which WebKit lacks before
+ * iOS 17.4: a stand-in where it is missing. It starts with Mermaid's own "use strict", so the whole
+ * file stays strict.
+ */
+export const GROUP_BY_FALLBACK =
+  '"use strict";Object.groupBy||Object.defineProperty(Object,"groupBy",{writable:true,' +
+  'configurable:true,value:function(items,key){if(typeof key!=="function")throw new TypeError(' +
+  '"Object.groupBy: the callback is not a function");var groups=Object.create(null),index=0;' +
+  'for(var item of items){var name=Reflect.ownKeys({[key(item,index++)]:0})[0];' +
+  '(groups[name]||(groups[name]=[])).push(item)}return groups}});\n';
+
 /** The files, by the name a canvas page's head refers to them. */
 export const CANVAS_LIBRARY_FILES = [
   {
@@ -31,7 +43,13 @@ export const CANVAS_LIBRARY_FILES = [
     source: readFileSync(new URL('chart.js/dist/chart.umd.min.js', MODULES)),
   },
   { name: 'd3.min.js', source: readFileSync(new URL('d3/dist/d3.min.js', MODULES)) },
-  { name: 'mermaid.min.js', source: readFileSync(new URL('mermaid/dist/mermaid.min.js', MODULES)) },
+  {
+    name: 'mermaid.min.js',
+    source: Buffer.concat([
+      Buffer.from(GROUP_BY_FALLBACK),
+      readFileSync(new URL('mermaid/dist/mermaid.min.js', MODULES)),
+    ]),
+  },
   { name: 'katex.min.js', source: readFileSync(new URL('katex.min.js', KATEX)) },
   {
     name: 'auto-render.min.js',

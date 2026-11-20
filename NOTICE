@@ -30,11 +30,11 @@ and notice files of the production dependencies into THIRD_PARTY_NOTICES.txt
 MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Zlib,
 Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
 MPL-2.0 (used unmodified), Python-2.0 (argparse), and Unlicense (big-integer
-and stream-buffers, under @capacitor/cli). It accepts four packages by name:
+and stream-buffers, under @capacitor/cli). It accepts five packages by name:
 require-like and khroma (MIT license text, no license field; khroma is part of
-Mermaid's build for canvases), caniuse-lite (CC-BY-4.0 browser data, build
-tooling only, not in the bundle), and jsonify (public domain, development
-only).
+Mermaid's build for canvases), elkjs (see below), caniuse-lite (CC-BY-4.0
+browser data, build tooling only, not in the bundle), and jsonify (public
+domain, development only).
 
 matrix-rust-sdk (Apple Watch app)
   matrix-sdk-ffi and the other crates of matrix-rust-sdk, Copyright The
@@ -87,7 +87,7 @@ Inter
   unmodified. License text: licenses/Inter-OFL-1.1.txt.
 
 KaTeX fonts
-  The math renderer, katex 0.16.44 (MIT, Copyright (c) 2013-2020 Khan Academy
+  The math renderer, katex 0.19.1 (MIT, Copyright (c) 2013-2020 Khan Academy
   and other contributors), brings its fonts into the web bundle: 20 KaTeX
   typefaces in woff2, woff and ttf, Copyright (c) 2009-2010 Design Science,
   Inc. and Copyright (c) 2014-2018 Khan Academy, SIL Open Font License 1.1,
@@ -95,6 +95,16 @@ KaTeX fonts
   KaTeX_Main, KaTeX_Math, KaTeX_SansSerif, KaTeX_Script, KaTeX_Size1,
   KaTeX_Size2, KaTeX_Size3, KaTeX_Size4 and KaTeX_Typewriter. They are
   included unmodified. License text: licenses/KaTeX-fonts-OFL-1.1.txt.
+
+ELK in Mermaid
+  Mermaid 12, which Chat serves to canvas pages (scripts/canvas-libraries.mjs),
+  builds elkjs 0.12.0 into its mermaid.min.js (as its source map records), the
+  Eclipse Layout Kernel compiled to JavaScript, Copyright (c) Kiel University
+  and others, offered under the Eclipse Public License 2.0 or
+  GPL-3.0-or-later. Chat takes it under EPL-2.0 and ships it unmodified inside
+  mermaid.min.js. Its source is at https://github.com/kieler/elkjs (tag
+  0.12.0). The license text is in THIRD_PARTY_NOTICES.txt, under the elkjs
+  0.12.1 that npm installs beside Mermaid, whose license is the same.
 
 Voice-activity detector
   Call transcription finds speech with @ricky0123/vad-web 0.0.31
