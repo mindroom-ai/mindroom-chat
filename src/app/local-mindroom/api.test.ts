@@ -54,7 +54,7 @@ describe('local mindroom api', () => {
       'ABCD-EFGH',
       'openid-token-123',
       undefined,
-      request as unknown as typeof fetch
+      request
     );
 
     expect(data).toEqual(pendingPairDevice);
@@ -79,7 +79,7 @@ describe('local mindroom api', () => {
       'ABCD-EFGH',
       'openid-token-123',
       'https://provisioning.example/',
-      request as unknown as typeof fetch
+      request
     );
 
     expect(data.status).toBe('approved');
@@ -105,7 +105,7 @@ describe('local mindroom api', () => {
       'ABCD-EFGH',
       'openid-token-123',
       undefined,
-      request as unknown as typeof fetch
+      request
     );
 
     await expect(result).rejects.toMatchObject({ status: 410, message: 'Pair code expired' });
@@ -114,12 +114,7 @@ describe('local mindroom api', () => {
   it('revokes a linked connection', async () => {
     const request = vi.fn().mockResolvedValue(createResponse(204));
 
-    await revokeLocalMindroomConnection(
-      'conn-1',
-      'openid-token-123',
-      undefined,
-      request as unknown as typeof fetch
-    );
+    await revokeLocalMindroomConnection('conn-1', 'openid-token-123', undefined, request);
 
     expect(request).toHaveBeenCalledWith('/v1/local-mindroom/connections/conn-1', {
       credentials: 'omit',
@@ -152,7 +147,7 @@ describe('local mindroom api', () => {
       ok: true,
       status: 200,
       json: vi.fn().mockRejectedValue(new SyntaxError('Unexpected token <')),
-    } as unknown as Response);
+    });
 
     await expect(
       inspectLocalMindroomPairCode(
@@ -262,7 +257,7 @@ describe('local mindroom api', () => {
         userId: '@alice:mindroom.chat',
         accessToken: 'matrix-token-123',
       },
-      request as unknown as typeof fetch
+      request
     );
 
     expect(token).toBe('openid-token-123');

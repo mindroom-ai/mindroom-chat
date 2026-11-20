@@ -57,6 +57,7 @@ const RESET = { operation: 'reset', model: undefined, override: null };
 /** The router's reply with `resultContent`, in the thread. */
 const ack = (
   resultContent: Record<string, unknown> = result(),
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   { id = '$ack', sender = ROUTER, relation = inThread() as Record<string, unknown> } = {}
 ) =>
   message(

@@ -93,7 +93,7 @@ describe('MindRoom runtime client config defaults', () => {
       expect.objectContaining({
         src: 'config/mindroom.json',
         dest: '',
-        rename: 'config.json',
+        rename: { stripBase: true, name: 'config.json' },
       })
     );
   });

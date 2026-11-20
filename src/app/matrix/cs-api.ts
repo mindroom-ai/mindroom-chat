@@ -135,7 +135,7 @@ export const autoDiscovery = async (
     {
       ...(content as Record<string, unknown>),
       'm.homeserver': { ...(homeserver as Record<string, unknown>), base_url: normalizedBaseUrl },
-    } as AutoDiscoveryInfo,
+    },
   ];
 };
 

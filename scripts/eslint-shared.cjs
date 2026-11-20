@@ -79,8 +79,13 @@ const TYPE_AWARE_RULES = {
     },
   ],
   '@typescript-eslint/no-misused-promises': 'error',
-  '@typescript-eslint/await-thenable': 'error',
-  '@typescript-eslint/switch-exhaustiveness-check': 'error',
+  // A promise aggregator may take `undefined` for an entry that has nothing to wait for, and a
+  // `default` case covers the rest of a union, as before typescript-eslint 8.
+  '@typescript-eslint/await-thenable': ['error', { allowMixedPromiseArrays: true }],
+  '@typescript-eslint/switch-exhaustiveness-check': [
+    'error',
+    { considerDefaultExhaustiveForUnions: true },
+  ],
   '@typescript-eslint/no-unnecessary-type-assertion': 'error',
   '@typescript-eslint/no-unsafe-enum-comparison': 'error',
 };

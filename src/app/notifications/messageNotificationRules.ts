@@ -87,7 +87,7 @@ export const getCompletedAgentReply = (
   // An edit of a message that was sent finished already (an approval, a correction) is no news.
   if (!reply || !isUnfinishedReply(reply.getOriginalContent())) return undefined;
   if (reply.getSender() !== edit.getSender()) return undefined;
-  return { reply, content: finished as IContent };
+  return { reply, content: finished };
 };
 
 const NOTIFYING_TYPES = new Set<string>([EventType.RoomMessage, EventType.Sticker]);

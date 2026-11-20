@@ -42,7 +42,7 @@ vi.stubGlobal('window', {
   history: {
     state: mocks.historyState,
   },
-} as unknown as Window & typeof globalThis);
+});
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();

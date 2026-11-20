@@ -345,7 +345,7 @@ const runContract = (label: string, contract: CacheContract): void => {
       await contract.saveRoomEvents({
         sessionId: SESSION_ID,
         roomId: ROOM_ID,
-        events: [{ event_id: '~echo', origin_server_ts: 100 } as RawEvent],
+        events: [{ event_id: '~echo', origin_server_ts: 100 }],
         beforeTokenForEarliest: 'token-a',
       });
       const page = await contract.loadLatestRoom(SESSION_ID, ROOM_ID, 10);

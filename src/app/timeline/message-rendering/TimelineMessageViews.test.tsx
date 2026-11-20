@@ -7,7 +7,7 @@ import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { create, makeRoom } from '../test-utils/RoomTimeline.test.shared';
 import { useKeyDown } from '../../lib/hooks/useKeyDown';
-import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
+import { MessageLayout } from '../../preferences/settings';
 import { BlockType } from '../../editor/types';
 import { ConversationViewContext } from '../../navigation/conversationView';
 import type { TimelineMessageRow } from './types';
@@ -101,7 +101,7 @@ const mountTwoViews = async () => {
       scrollRef: createRef<HTMLDivElement>(),
       showThreadRepliesInRoom: false,
       messageLayout: MessageLayout.Compact,
-      messageSpacing: '400' as MessageSpacing,
+      messageSpacing: '400',
       hideActivity: false,
     });
     features[name] = feature;

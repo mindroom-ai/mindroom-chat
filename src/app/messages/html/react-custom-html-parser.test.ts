@@ -45,6 +45,7 @@ const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
 }));
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const approvals = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../../matrix/session/useSessionStore', async (original) => ({
   ...(await original<typeof import('../../matrix/session/useSessionStore')>()),

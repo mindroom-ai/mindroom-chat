@@ -4,7 +4,6 @@ import {
   useRef,
   type CSSProperties,
   type Dispatch,
-  type Key,
   type MutableRefObject,
   type ReactNode,
   type Ref,
@@ -510,7 +509,7 @@ export const renderTimelineTiles = ({
     }
     return (
       <VirtualTile
-        key={item.key as Key}
+        key={item.key}
         ref={measureElement}
         virtualItem={item}
         style={{ top: item.start + ledgerPxAtRender }}

@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   getDebugModeEnabled: vi.fn(),
   setDebugModeEnabled: vi.fn(),
   isMacOS: vi.fn(() => false),
-  config: {} as Record<string, unknown>,
+  config: {},
   copyToClipboard: vi.fn(async () => true),
 }));
 

@@ -3,7 +3,6 @@ import { EventEmitter } from 'events';
 import parse from 'html-react-parser';
 import { act } from 'react-dom/test-utils';
 import { createRoot, type Root } from 'react-dom/client';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import { MatrixEvent, type EventTimelineSet, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markerParserOptions } from '../../test/utils/markerParserOptions';
@@ -138,10 +137,14 @@ function Thread({ events, shown }: { events: MatrixEvent[]; shown: Record<string
     );
   };
   const tiles = renderTimelineTiles({
-    virtualItems: events.map(
-      (_row, index) =>
-        ({ index, key: index, start: index * 40, size: 40, end: 0, lane: 0 } as VirtualItem)
-    ),
+    virtualItems: events.map((_row, index) => ({
+      index,
+      key: index,
+      start: index * 40,
+      size: 40,
+      end: 0,
+      lane: 0,
+    })),
     threadId: ROOT,
     threadEvents: events,
     roomWindowRows: [],

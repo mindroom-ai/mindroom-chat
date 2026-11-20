@@ -64,7 +64,7 @@ function AddressRow({ address, onOpen }: { address: JoinAddress; onOpen: OpenRoo
         const summary = state.status === AsyncStatus.Success ? state.data : undefined;
         // Without a summary the server decides at the join, and its answer shows on the row.
         let joinRule: JoinRule | undefined;
-        if (summary) joinRule = (summary.join_rule as JoinRule | undefined) ?? JoinRule.Public;
+        if (summary) joinRule = summary.join_rule ?? JoinRule.Public;
         else if (state.status === AsyncStatus.Error) joinRule = JoinRule.Public;
         return (
           <JoinRoomRow
@@ -117,7 +117,7 @@ function DirectoryRooms({ search, term, onOpen }: DirectoryRoomsProps) {
   const rooms = useMemo(() => {
     const byId = new Map<string, DirectoryRoom>();
     directory.data?.pages.forEach((page) =>
-      page.chunk.forEach((room) => byId.set(room.room_id, room as DirectoryRoom))
+      page.chunk.forEach((room) => byId.set(room.room_id, room))
     );
     return filterDirectoryRooms([...byId.values()], search);
   }, [directory.data, search]);

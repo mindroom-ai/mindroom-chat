@@ -146,7 +146,7 @@ const pageProbe = () => {
     if (!supported.includes(type)) return;
     new PerformanceObserver((list) => {
       if (state.recording) list.getEntries().forEach(record);
-    }).observe({ type, buffered: false, ...options } as PerformanceObserverInit);
+    }).observe({ type, buffered: false, ...options });
   };
   observe('longtask', (entry) => state.longTasks.push(entry.duration));
   observe('long-animation-frame', (entry) => {

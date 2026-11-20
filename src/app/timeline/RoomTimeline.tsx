@@ -549,10 +549,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     overviewChanges,
     sessionId,
     mx,
-    onStoreThreadSummary: onStoreThreadSummary as (
-      threadRootId: string,
-      info: ThreadSummaryInfo | undefined
-    ) => void,
+    onStoreThreadSummary: onStoreThreadSummary,
   });
 
   // Compact shows the room's threads as cards (a link to a message outside them shows the room's
@@ -1605,10 +1602,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     filteredThreadRootIds: threadIndex.filteredThreadRootIds,
     limit: windowLimit,
     mx,
-    onStoreThreadSummary: onStoreThreadSummary as (
-      threadRootId: string,
-      info: ThreadSummaryInfo | undefined
-    ) => void,
+    onStoreThreadSummary: onStoreThreadSummary,
     onApplyThreadRelations: applyThreadRelations,
     beginThreadCacheWrite,
     refreshCompactThreadList: threadIndex.refreshRoomThreadList,

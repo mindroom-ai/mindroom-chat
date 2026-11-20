@@ -18,16 +18,15 @@ const HELPER = '@mindroom_helper:example.org';
 
 const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: ROOT } };
 
-const encrypted = (eventId: string, ts: number): IEvent =>
-  ({
-    type: 'm.room.encrypted',
-    event_id: eventId,
-    room_id: ROOM,
-    sender: HELPER,
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: eventId, ...inThread },
-  } as IEvent);
+const encrypted = (eventId: string, ts: number): IEvent => ({
+  type: 'm.room.encrypted',
+  event_id: eventId,
+  room_id: ROOM,
+  sender: HELPER,
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: eventId, ...inThread },
+});
 
 /** What each cached event decrypts to: the helper's reply, then its title notice. */
 const clear: Record<string, { type: string; content: Record<string, unknown> }> = {

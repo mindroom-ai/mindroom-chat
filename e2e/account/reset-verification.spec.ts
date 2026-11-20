@@ -109,7 +109,7 @@ const resetFromFreshPage = async (browser: Browser, baseURL: string | undefined)
     const newStorageKey = (await accountData(token, userId, 'm.secret_storage.default_key')).key;
     expect(newStorageKey).not.toBe(firstStorageKey);
     const storedMaster = await accountData(token, userId, 'm.cross_signing.master');
-    expect(Object.keys((storedMaster.encrypted ?? {}) as object)).toEqual([newStorageKey]);
+    expect(Object.keys(storedMaster.encrypted ?? {})).toEqual([newStorageKey]);
 
     // This session stays verified with the new identity: the new self-signing key signed its
     // device, and it shows no prompt to verify it again.

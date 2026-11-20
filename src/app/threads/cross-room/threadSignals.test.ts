@@ -107,7 +107,7 @@ const readUpTo = (room: Room, eventId: string, ts: number) =>
 const setup = async (
   rootSender: string,
   replies: MatrixEvent[],
-  { opened = false, rootContent = {} as Record<string, unknown> } = {}
+  { opened = false, rootContent = {} } = {}
 ) => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
   vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
@@ -673,7 +673,7 @@ describe('readThreadSignals in a loaded thread with edits', () => {
           'io.mindroom.stream_status': 'completed',
         }).event,
       },
-    } as never);
+    });
     const { room } = await setup(ME, [reply]);
     readUpTo(room, '$finish', 3100);
 

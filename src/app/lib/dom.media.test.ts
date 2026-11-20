@@ -16,7 +16,7 @@ afterEach(() => {
 // jsdom never loads media, so the tests fire the element's events by hand.
 const settleLater = (event: 'load' | 'loadeddata' | 'error') => {
   const create = document.createElement.bind(document);
-  vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+  vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
     const element = create(tag);
     if (tag === 'img' || tag === 'video') {
       Object.defineProperty(element, 'src', {
@@ -25,7 +25,7 @@ const settleLater = (event: 'load' | 'loadeddata' | 'error') => {
       });
     }
     return element;
-  }) as typeof document.createElement);
+  });
 };
 
 describe('loadImageElement', () => {
@@ -100,8 +100,9 @@ describe('loadVideoElement', () => {
       });
     }
     const create = document.createElement.bind(document);
-    vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
-      tag === 'video' ? video : create(tag)) as typeof document.createElement);
+    vi.spyOn(document, 'createElement').mockImplementation((tag: string) =>
+      tag === 'video' ? video : create(tag)
+    );
     return {
       video,
       loaded: () => video.dispatchEvent(new Event('loadeddata')),

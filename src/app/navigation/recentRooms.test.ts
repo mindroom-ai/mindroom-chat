@@ -9,6 +9,7 @@ import {
 
 const USER_ID = '@alice:example.org';
 const sessions = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   active: { userId: '@alice:example.org' } as { userId: string } | undefined,
 }));
 

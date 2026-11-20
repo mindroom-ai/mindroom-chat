@@ -69,7 +69,7 @@ export function SidebarItemTooltip({ tooltip, shortcut, children }: SidebarItemT
         </Tooltip>
       }
     >
-      {(triggerRef) => children(triggerRef as RefCallback<HTMLElement>)}
+      {(triggerRef) => children(triggerRef)}
     </TooltipProvider>
   );
 }

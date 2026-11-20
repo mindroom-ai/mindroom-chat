@@ -15,6 +15,7 @@ const OTHER = 'https://other.example.org';
 
 const state = vi.hoisted(() => ({
   // Undefined asks the homeserver, as the app does.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   bindsTokens: true as boolean | undefined,
   published: undefined as string | undefined,
   members: [] as { userId: string; membership: string }[],

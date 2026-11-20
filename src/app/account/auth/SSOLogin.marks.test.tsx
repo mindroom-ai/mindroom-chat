@@ -5,6 +5,9 @@ import { SSOAction, type IIdentityProvider } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../matrix/hooks/useAutoDiscoveryInfo';
+import appleMark from '../../../../public/res/svg/sso-apple-white.svg';
+import githubMark from '../../../../public/res/svg/sso-github.svg';
+import googleMark from '../../../../public/res/svg/sso-google.svg';
 import { SSOLogin } from './SSOLogin';
 import * as css from './SSOLogin.css';
 
@@ -81,14 +84,15 @@ describe('SSOLogin provider marks', () => {
   });
 
   it.each([
-    ['Sign in with Apple', { id: 'oidc-apple', name: 'Apple', brand: 'apple' }, 'sso-apple-white.svg'],
-    ['Continue with Google', { id: 'google', name: 'Google' }, 'sso-google.svg'],
-    ['Continue with GitHub', { id: 'oidc', name: 'GitHub', brand: 'github' }, 'sso-github.svg'],
-  ])('%s shows the bundled mark, not the icon the server lists', (label, provider, file) => {
+    ['Sign in with Apple', { id: 'oidc-apple', name: 'Apple', brand: 'apple' }, appleMark],
+    ['Continue with Google', { id: 'google', name: 'Google' }, googleMark],
+    ['Continue with GitHub', { id: 'oidc', name: 'GitHub', brand: 'github' }, githubMark],
+  ])('%s shows the bundled mark, not the icon the server lists', (label, provider, bundled) => {
     const renderer = render([{ ...provider, icon: 'mxc://hs.example/server-icon' }]);
 
     const mark = markOf(buttonFor(renderer, label));
-    expect(String(mark?.src)).toMatch(new RegExp(`/${file.replace('.', '\\.')}$`));
+    // The asset's URL, which Vite gives a small image as a data: URL.
+    expect(mark?.src).toBe(bundled);
     expect(mark?.src).not.toBe(mediaUrlOf('mxc://hs.example/server-icon'));
     // Decorative: the label alone names the button.
     expect(mark?.alt).toBe('');

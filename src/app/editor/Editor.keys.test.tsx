@@ -80,7 +80,7 @@ const pressOptionDown = (target: HTMLElement): ShortcutId | undefined => {
         altKey: true,
         bubbles: true,
         cancelable: true,
-      } as KeyboardEventInit)
+      })
     );
   });
   window.removeEventListener('keydown', listen);

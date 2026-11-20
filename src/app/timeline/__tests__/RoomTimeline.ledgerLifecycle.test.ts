@@ -100,7 +100,7 @@ const buildThread = (rootId: string, replyPrefix: string, replyCount: number) =>
 };
 
 const setThreadEvents = (events: MockEvent[]) => {
-  threadRenderStateMock.threadEvents = events as never;
+  threadRenderStateMock.threadEvents = events;
   threadRenderStateMock.threadEventIndexMapRef.current = new Map(
     events.map((event, index) => [event.getId(), index])
   );
@@ -177,7 +177,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       makeEvent(`$room-ledger-${index}`, { ts: index })
     );
     const room = makeRoom({ liveEvents: roomEvents });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
     settingsState.prefetchDepth = 200;
     roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
 
@@ -275,7 +275,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const b = buildThread(threadB, '$gb-', 5);
     const room = makeRoom({ liveEvents: [] });
     room.getThread = (eventId: string) =>
-      eventId === threadA ? (a.model as never) : eventId === threadB ? (b.model as never) : null;
+      eventId === threadA ? a.model : eventId === threadB ? b.model : null;
     setThreadEvents(a.initialEvents);
 
     roomTimelineVirtualizerState.firstVisibleKey = '$ga-100';
@@ -396,7 +396,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const b = buildThread(threadB, '$switch-b-', 0);
     const room = makeRoom({ liveEvents: [] });
     room.getThread = (eventId: string) =>
-      eventId === threadA ? (a.model as never) : eventId === threadB ? (b.model as never) : null;
+      eventId === threadA ? a.model : eventId === threadB ? b.model : null;
     setThreadEvents(a.initialEvents);
     roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
     const scrollElement = {
@@ -492,7 +492,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const threadA = '$ledger-tick-a';
     const a = buildThread(threadA, '$tick-', 5);
     const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadA ? (a.model as never) : null);
+    room.getThread = (eventId: string) => (eventId === threadA ? a.model : null);
     setThreadEvents(a.initialEvents);
     const scrollElement = {
       addEventListener: vi.fn(),
@@ -576,7 +576,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const threadId = '$ledger-positive-top-runway';
     const thread = buildThread(threadId, '$top-runway-', 5);
     const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
     setThreadEvents(thread.initialEvents);
     const innerRect = { top: -1114, bottom: 60_000 };
     const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
@@ -666,7 +666,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const threadId = '$ledger-boundary-cause';
     const thread = buildThread(threadId, '$boundary-', 5);
     const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
     setThreadEvents(thread.initialEvents);
     // Trace-shaped geometry: the inner bottom is inside the positive-
     // ledger bottom guard while the top is tens of thousands of px away.
@@ -884,7 +884,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const threadId = '$ledger-discard-watchdog';
     const thread = buildThread(threadId, '$discard-', 5);
     const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
     setThreadEvents(thread.initialEvents);
     const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
       34331,
@@ -979,7 +979,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const threadId = '$ledger-discard-standdown';
     const thread = buildThread(threadId, '$standdown-', 5);
     const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
     setThreadEvents(thread.initialEvents);
     const { scrollElement, innerElement, scrollWrites, fireScroll } = makeLedgerSettleElements(
       34331,
@@ -1148,7 +1148,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const threadId = '$opening-input-ownership';
     const thread = buildThread(threadId, '$opening-input-', 0);
     const room = makeRoom({ liveEvents: [] });
-    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    room.getThread = (eventId: string) => (eventId === threadId ? thread.model : null);
     setThreadEvents(thread.initialEvents);
     vi.mocked(loadLatestCachedThreadEvents).mockResolvedValueOnce({
       beforeToken: null,
@@ -1162,7 +1162,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       relationSnapshotComplete: true,
       snapshotComplete: true,
       tailLoaded: true,
-    } as never);
+    });
 
     let releaseOpen!: () => void;
     threadOpenGates.set(
@@ -1244,7 +1244,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const b = buildThread(threadB, '$kb-', 0);
     const room = makeRoom({ liveEvents: [] });
     room.getThread = (eventId: string) =>
-      eventId === threadA ? (a.model as never) : eventId === threadB ? (b.model as never) : null;
+      eventId === threadA ? a.model : eventId === threadB ? b.model : null;
     setThreadEvents(a.initialEvents);
     const { scrollElement, innerElement } = makePinHarnessElements();
     const scrollToBottomMock = await getScrollToBottomMock();
@@ -1321,7 +1321,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     const b = buildThread(threadB, '$pb-', 0);
     const room = makeRoom({ liveEvents: [] });
     room.getThread = (eventId: string) =>
-      eventId === threadA ? (a.model as never) : eventId === threadB ? (b.model as never) : null;
+      eventId === threadA ? a.model : eventId === threadB ? b.model : null;
     setThreadEvents(a.initialEvents);
     const { scrollElement, innerElement } = makePinHarnessElements();
     const scrollToBottomMock = await getScrollToBottomMock();

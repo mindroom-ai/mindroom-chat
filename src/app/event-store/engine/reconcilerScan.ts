@@ -74,9 +74,7 @@ export type ThreadRelationScanResult = {
 const isRawThreadReply = (rawEvent: Partial<IEvent>, threadId: string): boolean => {
   const eventId = rawEvent.event_id;
   if (typeof eventId !== 'string' || eventId.length === 0 || eventId === threadId) return false;
-  const relatesTo = (rawEvent.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-    | { rel_type?: string; event_id?: string }
-    | undefined;
+  const relatesTo = rawEvent.content?.['m.relates_to'];
   return relatesTo?.rel_type === 'm.thread' && relatesTo.event_id === threadId;
 };
 
@@ -108,7 +106,7 @@ const fetchThreadRelationPage = async (
   }
   if (!relData) return undefined;
   return {
-    events: (relData.chunk ?? []) as Partial<IEvent>[],
+    events: relData.chunk ?? [],
     nextToken: relData.next_batch ?? undefined,
   };
 };
@@ -121,12 +119,8 @@ const logReconcileChunk = (
 ): void => {
   if (!debugTraceId) return;
   const triples = events.map((raw) => {
-    const relatesTo = (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-      | { rel_type?: string }
-      | undefined;
-    const bundled = (raw.unsigned as Record<string, unknown> | undefined)?.['m.relations'] as
-      | Record<string, unknown>
-      | undefined;
+    const relatesTo = raw.content?.['m.relates_to'];
+    const bundled = raw.unsigned?.['m.relations'] as Record<string, unknown> | undefined;
     return {
       event_id: raw.event_id,
       type: raw.type,

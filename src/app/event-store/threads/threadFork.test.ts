@@ -23,7 +23,7 @@ const makeEvent = (
     type = 'm.room.message',
     redacted = false,
     relType = undefined as string | undefined,
-    content = {} as Record<string, unknown>,
+    content = {},
   } = {}
 ) =>
   ({

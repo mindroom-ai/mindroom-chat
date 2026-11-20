@@ -35,16 +35,15 @@ const message = (
   ts: number,
   content: Record<string, unknown>,
   sender = agentId
-): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', ...content },
-  } as IEvent);
+): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', ...content },
+});
 const root = (): IEvent => message(rootId, 1, { body: 'What changed in the build?' });
 const reply = (): IEvent =>
   message('$reply', 100, {
@@ -72,23 +71,22 @@ const title = (ts: number): IEvent =>
     'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
   });
 /** An edit as an encrypted room delivers it: only its relation is in the clear. */
-const encryptedEdit = (ts: number): IEvent =>
-  ({
-    event_id: `$edit-${ts}`,
-    room_id: roomId,
-    sender: agentId,
-    type: 'm.room.encrypted',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: {
-      algorithm: 'm.megolm.v1.aes-sha2',
-      ciphertext: 'ciphertext',
-      sender_key: 'sender-key',
-      session_id: 'session',
-      device_id: 'DEVICE',
-      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
-    },
-  } as IEvent);
+const encryptedEdit = (ts: number): IEvent => ({
+  event_id: `$edit-${ts}`,
+  room_id: roomId,
+  sender: agentId,
+  type: 'm.room.encrypted',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: {
+    algorithm: 'm.megolm.v1.aes-sha2',
+    ciphertext: 'ciphertext',
+    sender_key: 'sender-key',
+    session_id: 'session',
+    device_id: 'DEVICE',
+    'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+  },
+});
 const redaction = (eventId: string, ts: number): IEvent => ({
   ...message(`$redaction-${ts}`, ts, {}),
   type: 'm.room.redaction',

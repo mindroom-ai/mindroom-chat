@@ -17,6 +17,7 @@ const VIEWER = '@alice:example.org';
 const HOMESERVER = 'https://example.org';
 
 const state = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   pins: undefined as unknown,
   mx: {
     getSafeUserId: () => '@alice:example.org',

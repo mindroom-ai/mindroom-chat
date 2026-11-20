@@ -25,7 +25,7 @@ type ToolTraceContent = {
 export const MINDROOM_TOOL_TRACE_KEY = 'io.mindroom.tool_trace';
 
 const asToolTrace = (trace: unknown): ToolTraceContent | undefined =>
-  trace && typeof trace === 'object' ? (trace as ToolTraceContent) : undefined;
+  trace && typeof trace === 'object' ? trace : undefined;
 
 const getToolTraceEvents = (trace: ToolTraceContent | undefined): ToolTraceEvent[] | undefined => {
   const eventsRaw = trace?.events;

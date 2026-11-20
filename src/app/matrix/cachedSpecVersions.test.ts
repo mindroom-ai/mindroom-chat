@@ -23,7 +23,7 @@ describe('cachedSpecVersions', () => {
       setItem: vi.fn((key: string, value: string) => {
         storageState.set(key, value);
       }),
-    } as unknown as Storage);
+    });
   });
 
   afterEach(() => {

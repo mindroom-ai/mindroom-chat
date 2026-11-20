@@ -20,7 +20,7 @@ type ThreadSummary = { latest_event?: RawEvent; count?: number };
 
 const summaryOf = (root: RawEvent): ThreadSummary | undefined => {
   const summary: unknown = root.unsigned?.['m.relations']?.['m.thread'];
-  return summary && typeof summary === 'object' ? (summary as ThreadSummary) : undefined;
+  return summary && typeof summary === 'object' ? summary : undefined;
 };
 
 /** The event a root's thread summary names as the thread's newest. */

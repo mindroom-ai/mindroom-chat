@@ -35,16 +35,15 @@ const message = (
   ts: number,
   content: Record<string, unknown>,
   sender = agentId
-): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', ...content },
-  } as IEvent);
+): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', ...content },
+});
 const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: rootId } };
 const root = (): IEvent => message(rootId, 1, { body: 'What goes into the release?' }, personId);
 const reply = (): IEvent =>
@@ -74,35 +73,33 @@ const listedRoot = (latest: IEvent, count: number): IEvent => ({
   },
 });
 /** The title the room's state holds for the thread, as MindRoom would write it. */
-const titleState = (summary = TITLE): IEvent =>
-  ({
-    type: 'io.mindroom.thread_summary',
-    event_id: '$title-state',
-    room_id: roomId,
-    sender: agentId,
-    state_key: rootId,
-    origin_server_ts: 120,
-    unsigned: {},
-    content: {
-      version: 1,
-      summary,
-      message_count: 1,
-      generated_at: '2026-11-05T10:00:00Z',
-      model: 'default',
-      event_id: '$title',
-    },
-  } as IEvent);
-const encryption = (): IEvent =>
-  ({
-    type: 'm.room.encryption',
-    event_id: '$encryption',
-    room_id: roomId,
-    sender: personId,
-    state_key: '',
-    origin_server_ts: 0,
-    unsigned: {},
-    content: { algorithm: 'm.megolm.v1.aes-sha2' },
-  } as IEvent);
+const titleState = (summary = TITLE): IEvent => ({
+  type: 'io.mindroom.thread_summary',
+  event_id: '$title-state',
+  room_id: roomId,
+  sender: agentId,
+  state_key: rootId,
+  origin_server_ts: 120,
+  unsigned: {},
+  content: {
+    version: 1,
+    summary,
+    message_count: 1,
+    generated_at: '2026-11-05T10:00:00Z',
+    model: 'default',
+    event_id: '$title',
+  },
+});
+const encryption = (): IEvent => ({
+  type: 'm.room.encryption',
+  event_id: '$encryption',
+  room_id: roomId,
+  sender: personId,
+  state_key: '',
+  origin_server_ts: 0,
+  unsigned: {},
+  content: { algorithm: 'm.megolm.v1.aes-sha2' },
+});
 const membership = (userId: string): IEvent =>
   ({
     type: 'm.room.member',

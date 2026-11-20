@@ -31,7 +31,6 @@ const homeserver = getHomeserver();
 const DESKTOP = { viewport: { width: 1280, height: 800 } };
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 type Device = 'desktop' | 'phone';
-type ViewMode = 'classic' | 'threaded';
 /** More than the first sync (20 events) and one page of history (200) bring together. */
 const MESSAGES = 250;
 /** The newest events, the ones the first sync brings: short lines. */
@@ -308,7 +307,7 @@ test.describe('a long room opened at its first unread message reads back to its 
             page,
             roomId: room.roomId,
             userId: fixture.viewer.userId,
-            viewMode: mode as ViewMode,
+            viewMode: mode,
             filterState: createDefaultThreadFilterState(),
           });
           // eslint-disable-next-line no-await-in-loop

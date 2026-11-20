@@ -72,7 +72,7 @@ const openRestoredDraft = async () => {
   store.set(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(USER, ROOM_ID)), draftWithPaste());
   // The composer's editor treats a paste chip as an inline void element.
   const editor = withInlineElements(createEditor());
-  editor.children = [{ type: 'paragraph', children: [{ text: '' }] } as Descendant];
+  editor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
   const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };
   let feature!: ReturnType<typeof useRoomInputAttachments>;
   const Harness = () => {

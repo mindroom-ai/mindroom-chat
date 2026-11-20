@@ -62,7 +62,7 @@ module.exports = {
   overrides: [
     {
       files: ['**/*.cjs'],
-      rules: { '@typescript-eslint/no-var-requires': 'off' },
+      rules: { '@typescript-eslint/no-require-imports': 'off' },
     },
     {
       files: TESTS,
