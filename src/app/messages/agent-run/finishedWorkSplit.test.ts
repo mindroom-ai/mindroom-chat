@@ -15,6 +15,8 @@ const baseOpts = getReactCustomHtmlParser(mx, undefined, {
 const split = (html: string) => splitFinishedWork(html, baseOpts, {});
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
+// Text before the calls, without which a reply does not fold.
+const note = '<p>Checking.</p>';
 
 describe('splitFinishedWork', () => {
   it('returns undefined without a tool marker', () => {
@@ -26,28 +28,28 @@ describe('splitFinishedWork', () => {
   });
 
   it('returns undefined when only whitespace follows', () => {
-    expect(split(`${marker('shell', 1)}\n  `)).toBeUndefined();
+    expect(split(`${note}${marker('shell', 1)}\n  `)).toBeUndefined();
   });
 
   it('returns undefined when only an empty paragraph follows', () => {
-    expect(split(`${marker('shell', 1)}<p> </p>`)).toBeUndefined();
+    expect(split(`${note}${marker('shell', 1)}<p> </p>`)).toBeUndefined();
   });
 
   it('returns undefined when only the pending mark follows', () => {
-    expect(split(`${marker('shell', 1)}<p>⏳</p>`)).toBeUndefined();
+    expect(split(`${note}${marker('shell', 1)}<p>⏳</p>`)).toBeUndefined();
   });
 
   it('returns undefined when only content the renderer drops follows', () => {
-    expect(split(`${marker('shell', 1)}<script>x</script>`)).toBeUndefined();
+    expect(split(`${note}${marker('shell', 1)}<script>x</script>`)).toBeUndefined();
   });
 
   it('splits before an answer that is only an image', () => {
     const image = '<p><img src="mxc://example.org/a" alt="Answer"></p>';
-    expect(split(`${marker('shell', 1)}${image}`)?.tail).toBe(image);
+    expect(split(`${note}${marker('shell', 1)}${image}`)?.tail).toBe(image);
   });
 
   it('drops comments, which are not text', () => {
-    expect(split(`${marker('shell', 1)}<!-- note -->`)).toBeUndefined();
+    expect(split(`${note}${marker('shell', 1)}<!-- note -->`)).toBeUndefined();
     expect(split(`<p>a</p><!-- b -->${marker('shell', 1)}<!-- c --><p>x</p>`)).toEqual({
       head: `<p>a</p>${marker('shell', 1)}`,
       tail: '<p>x</p>',
@@ -72,20 +74,23 @@ describe('splitFinishedWork', () => {
   });
 
   it('splits after a div holding a direct call, then a call in a paragraph', () => {
-    const work = `<div>🔧 <code>shell</code> [1]${marker('grep', 2)}</div>`;
+    const work = `${note}<div>🔧 <code>shell</code> [1]${marker('grep', 2)}</div>`;
     expect(split(`${work}<p>done</p>`)).toEqual({ head: work, tail: '<p>done</p>' });
   });
 
   it('keeps in the work a marker that would draw as a call in the answer alone', () => {
     // The whole body shows call 2 as text: its name holds the index of a call drawn before it.
-    const work = `${marker('x', 1)}<p>🔧 <code>a [1] b</code> [2]</p>`;
+    const work = `${note}${marker('x', 1)}<p>🔧 <code>a [1] b</code> [2]</p>`;
     expect(split(`${work}<p>Answer</p>`)).toEqual({ head: work, tail: '<p>Answer</p>' });
   });
 
   it('folds the work as the HTML says, not as finding its last call left it', () => {
     // Chromium writes a paragraph that starts with line breaks this way; drawing its call takes
     // one of them, so the work must be cut from the HTML itself.
-    const work = `${marker('shell', 1)}<p><br><br>🔧 <code>grep</code> [2]</p>${marker('read', 3)}`;
+    const work = `${note}${marker('shell', 1)}<p><br><br>🔧 <code>grep</code> [2]</p>${marker(
+      'read',
+      3
+    )}`;
     expect(split(`${work}<p>done</p>`)).toEqual({ head: work, tail: '<p>done</p>' });
   });
 
@@ -99,7 +104,7 @@ describe('splitFinishedWork', () => {
   });
 
   it('treats a pending marker as a marker', () => {
-    expect(split(`${marker('shell', 1).replace('</p>', ' ⏳</p>')}<p>x</p>`)?.tail).toBe(
+    expect(split(`${note}${marker('shell', 1).replace('</p>', ' ⏳</p>')}<p>x</p>`)?.tail).toBe(
       '<p>x</p>'
     );
   });
@@ -136,7 +141,9 @@ describe('splitFinishedWork', () => {
   });
 
   it('does not split where the answer starts in a node that does not cut cleanly', () => {
-    expect(split(`<div>🔧 <code>shell</code> [1]<p>Answer</p></div><p>More.</p>`)).toBeUndefined();
+    expect(
+      split(`${note}<div>🔧 <code>shell</code> [1]<p>Answer</p></div><p>More.</p>`)
+    ).toBeUndefined();
   });
 
   it('splits the backend HTML of a reply with grouped calls after the last one', () => {
@@ -152,8 +159,8 @@ describe('splitFinishedWork', () => {
   });
 
   it('splits a reply of one tool call and a one-line answer', () => {
-    expect(split(`${marker('shell', 1)}<p>Done.</p>`)).toEqual({
-      head: marker('shell', 1),
+    expect(split(`${note}${marker('shell', 1)}<p>Done.</p>`)).toEqual({
+      head: `${note}${marker('shell', 1)}`,
       tail: '<p>Done.</p>',
     });
   });
@@ -165,6 +172,36 @@ describe('splitFinishedWork', () => {
     expect(split(`<p>Line.</p>\n${marker('shell', 1)}\n${table}`)).toEqual({
       head: `<p>Line.</p>\n${marker('shell', 1)}`,
       tail: `\n${table}`,
+    });
+  });
+
+  it('does not split a reply of only calls before its answer', () => {
+    expect(split(`${marker('shell', 1)}${marker('grep', 2)}<p>Done.</p>`)).toBeUndefined();
+  });
+
+  it('splits a reply with text before its calls', () => {
+    expect(split(`${note}${marker('shell', 1)}${marker('grep', 2)}<p>Done.</p>`)).toEqual({
+      head: `${note}${marker('shell', 1)}${marker('grep', 2)}`,
+      tail: '<p>Done.</p>',
+    });
+  });
+
+  it('splits a reply whose only text before the answer is between two calls', () => {
+    const work = `${marker('shell', 1)}<p>Now the logs.</p>${marker('grep', 2)}`;
+    expect(split(`${work}<p>Done.</p>`)).toEqual({ head: work, tail: '<p>Done.</p>' });
+  });
+
+  it('does not split when the work shows nothing but its calls', () => {
+    for (const filler of ['<p><br></p>', '<p>⏳</p>', '<p> </p>', '<p></p>', '<p>\u200B</p>']) {
+      expect(split(`${filler}${marker('shell', 1)}<p>Done.</p>`)).toBeUndefined();
+    }
+  });
+
+  it('counts an image before the calls as work', () => {
+    const image = '<p><img src="mxc://example.org/a" alt="Chart"></p>';
+    expect(split(`${image}${marker('shell', 1)}<p>Done.</p>`)).toEqual({
+      head: `${image}${marker('shell', 1)}`,
+      tail: '<p>Done.</p>',
     });
   });
 });

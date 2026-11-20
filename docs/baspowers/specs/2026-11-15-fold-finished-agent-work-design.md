@@ -23,13 +23,19 @@ A MindRoom agent reply folds when all of these hold:
 3. Its rendered HTML has at least one tool marker, and visible content follows the last one:
    once sanitized as the renderer sanitizes it, text other than whitespace and the pending mark
    `⏳`, or an image, video or audio element.
-4. (owner decision, 2026-11-19, T3 Code parity) No length condition: as in T3 Code's
-   `deriveTurnFolds`, any finished reply with work before its answer folds, even one tool call.
+4. (owner decision, 2026-11-19) Visible content also comes before the last tool marker: the
+   work, with every tool marker removed, shows text or media by the same test as 3. The
+   reasoning does not count (it renders from `io.mindroom.reasoning`, not from the HTML). A
+   reply whose work is only reasoning and tool calls has nothing worth folding: its thoughts
+   already show collapsed and each call is one row. Here MindRoom differs from T3 Code, which
+   folds any finished turn with work. No other condition: no count of calls, no length.
+5. (owner decision, 2026-11-19, T3 Code parity) No length condition: as in T3 Code's
+   `deriveTurnFolds`, any finished reply with text before its answer folds, even one tool call.
    This replaces the row rule of #596 (W >= 8 and W >= 13 or 3W >= A), which left the replies the
    owner cared about unfolded.
-5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
+6. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
-6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
+7. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
    preview never folds, also when the sidecar cannot be read.
 
 When it folds:
@@ -53,11 +59,12 @@ When it folds:
 - The timeline's expand all opens the folded work and collapse all folds it, as it does for
   `CollapsibleMessage` (`ExpandAllInitContext`: true opens, false folds, undefined keeps the
   reply's own state).
-- Every finished reply with work before its answer folds, in the whole history, not just the
+- Every finished reply with text before its answer folds, in the whole history, not just the
   latest one.
 
-Nothing else changes: user messages, agent replies without tool calls and replies that end in a
-tool call render as today, with no row and no element of their own.
+Nothing else changes: user messages, agent replies without tool calls, replies that end in a
+tool call and replies whose work is only reasoning and tool calls render as today, with no row
+and no element of their own.
 
 ## Design
 
