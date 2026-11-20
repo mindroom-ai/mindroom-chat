@@ -12,7 +12,7 @@ import {
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   build,
   createServer,
@@ -37,6 +37,7 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const EXAMPLE = path.join(ROOT, 'src/app/plugins/__fixtures__/example-plugin');
 const ENTRIES = path.join(ROOT, 'src/app/plugins/pluginEntries.ts');
 const APP_IMPORTS = path.join(ROOT, 'src/build/__fixtures__/appImports.ts');
+const APP_SHARED_MODULES = path.join(ROOT, 'src/build/__fixtures__/appSharedModules.ts');
 
 /** The output of an in-memory build of the entries module and `inputs`, with these build variables. */
 const buildOutput = async (
@@ -501,6 +502,68 @@ describe('packages the app shares with plugins', () => {
       expect(builds.length).toBeGreaterThan(0);
       expect(new Set(builds).size).toBe(1);
     }
+  });
+
+  it("runs a plugin's CommonJS require of React and of a package with an ES module build on the app's own modules", async () => {
+    // jotai has an ES module build for `import` and a CommonJS one for `require`; React has one.
+    const dir = realpathSync(pluginDir(declaring(), { entry: false }));
+    writeFileSync(
+      path.join(dir, 'index.js'),
+      "import helper from 'helper';\nexport default { messageRenderers: [], helper };\n"
+    );
+    installStandIn(
+      dir,
+      'helper',
+      "const react = require('react');\nconst jotai = require('jotai');\nmodule.exports = { useState: react.useState, atom: jotai.atom };\n"
+    );
+    // A production build of the plugin and of an app module, written out to run in Node.
+    const outDir = emptyDir();
+    const output = (await build({
+      configFile: false,
+      root: ROOT,
+      publicDir: false,
+      logLevel: 'silent',
+      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+      build: {
+        outDir,
+        emptyOutDir: false,
+        minify: false,
+        rollupOptions: {
+          input: { plugin: path.join(dir, 'index.js'), app: APP_SHARED_MODULES },
+          preserveEntrySignatures: 'strict',
+          output: { entryFileNames: '[name].mjs', chunkFileNames: '[name]-[hash].mjs' },
+        },
+      },
+    })) as Rollup.RollupOutput;
+    // Module files, without the wrappers the CommonJS plugin adds (`\0…?commonjs-exports`).
+    const modules = [
+      ...new Set(
+        output.output.flatMap((file) =>
+          file.type === 'chunk'
+            ? Object.keys(file.modules).map((id) => id.replace(/^\0/, '').replace(/\?.*$/, ''))
+            : []
+        )
+      ),
+    ];
+    // One build of each package, the app's: a second would be a second copy.
+    for (const name of ['react', 'jotai']) {
+      const builds = modules.filter((id) => id.startsWith(appCopy(name)) && !id.endsWith('.json'));
+      expect(builds.length).toBeGreaterThan(0);
+      expect(new Set(builds.map((id) => path.extname(id))).size).toBe(1);
+    }
+    expect(modules.filter((id) => /\/react\/cjs\/react\./.test(id))).toHaveLength(1);
+    // At run time the plugin's `require` gives the functions the app imports.
+    const load = async (name: string) =>
+      (await import(/* @vite-ignore */ pathToFileURL(path.join(outDir, `${name}.mjs`)).href)) as {
+        default: { helper: { useState: unknown; atom: unknown } };
+        useState: unknown;
+        atom: unknown;
+      };
+    const [plugin, app] = await Promise.all([load('plugin'), load('app')]);
+    expect(typeof plugin.default.helper.useState).toBe('function');
+    expect(typeof plugin.default.helper.atom).toBe('function');
+    expect(plugin.default.helper.useState).toBe(app.useState);
+    expect(plugin.default.helper.atom).toBe(app.atom);
   });
 
   it("lets a plugin's build module put a module of its own in place of one, whose import of it gets the app's", async () => {
