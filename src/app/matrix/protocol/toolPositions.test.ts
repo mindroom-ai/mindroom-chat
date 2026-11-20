@@ -213,13 +213,21 @@ describe('tool positions on read', () => {
     expect(read.body).toBe('* 🔧 `read_file` [1]\n\nReading done.\n\n🔧 `shell` [2]');
   });
 
-  it('leaves the text of a fallback that does not repeat its replacement as it was sent', () => {
+  it('puts the calls back in a fallback that names an agent as its author typed it', () => {
     const wire = wireContent(between);
-    const { [TRACE]: _trace, ...plain } = wire;
-    const edit = { ...editOf(wire, false), body: '* Something else.' };
+    const edit = editOf({ ...wire, body: wire.body.replace('Found it.', 'Over to @helper:x.') });
+    const read = event(AGENT, { ...edit, body: `* ${wire.body.replace('Found it.', '@helper')}` });
+    expect(read.getContent().body).toBe(`* ${between.sent.body.replace('Found it.', '@helper')}`);
+    expect(read.getContent().formatted_body).toBe(between.sent.formatted_body);
+  });
+
+  it.each([
+    ['has other HTML', { formatted_body: '<p>Something else.</p>\n' }],
+    ['does not open with "* "', { body: 'Something else.' }],
+  ])('leaves a fallback that %s as it was sent', (_name, fallback) => {
+    const edit: Record<string, unknown> = { ...editOf(wireContent(between), false), ...fallback };
     const read = event(AGENT, edit).getContent();
-    expect(read.body).toBe('* Something else.');
-    expect(read.formatted_body).toBe(plain.formatted_body);
+    expect([read.body, read.formatted_body]).toEqual([edit.body, edit.formatted_body]);
     expect((read['m.new_content'] as Record<string, unknown>).body).toBe(between.sent.body);
   });
 

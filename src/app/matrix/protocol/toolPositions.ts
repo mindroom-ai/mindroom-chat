@@ -106,8 +106,9 @@ const layerWithMarkers = (content: Record<string, unknown>): Record<string, unkn
 
 /**
  * `content` as its version-2 reply: its markers back in its text, or in an edit's replacement.
- * An edit's fallback repeats its replacement after "* ", where an opening marker is no line of
- * its own, so it is built from the restored replacement; any other fallback stays as sent.
+ * An edit's fallback is its replacement again with its text after "* ", where an opening marker
+ * is no line of its own, so its markers go back where the replacement's do. A fallback that
+ * shows other HTML stays as sent.
  */
 export const withToolMarkersRestored = (
   content: Record<string, unknown>
@@ -116,13 +117,16 @@ export const withToolMarkersRestored = (
   if (!isRecord(replacement)) return layerWithMarkers(content);
   const restored = layerWithMarkers(replacement);
   if (restored === replacement) return layerWithMarkers(content);
-  const edit = { ...content, 'm.new_content': restored };
+  const edit: Record<string, unknown> = { ...content, 'm.new_content': restored };
+  const { body } = content;
   const repeats =
-    content.body === `* ${String(replacement.body)}` &&
+    typeof body === 'string' &&
+    body.startsWith('* ') &&
     content.formatted_body === replacement.formatted_body;
   if (!repeats) return edit;
   if (MINDROOM_TOOL_TRACE_KEY in content) {
     edit[MINDROOM_TOOL_TRACE_KEY] = restored[MINDROOM_TOOL_TRACE_KEY];
   }
-  return { ...edit, body: `* ${String(restored.body)}`, formatted_body: restored.formatted_body };
+  const fallback = layerWithMarkers({ ...replacement, body: body.slice(2) });
+  return { ...edit, body: `* ${String(fallback.body)}`, formatted_body: restored.formatted_body };
 };
