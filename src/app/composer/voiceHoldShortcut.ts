@@ -75,7 +75,7 @@ export const resolveVoiceComposer = (
   )?.target;
 };
 
-const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'Shift', 'CapsLock', 'Fn']);
+const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'Shift', 'Fn']);
 
 /**
  * The voice key: right ⌥ (right Alt elsewhere, also as AltGraph) pressed alone records a voice
@@ -110,10 +110,16 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     // Left ⌥ counts too: `altKey` cannot tell right ⌥ alone from both. So do mouse buttons down.
     const held = new Set<string>();
     const pointers = new Set<number>();
+    // After ⌘ comes up with other keys possibly held, the next right ⌥ press is ignored, because
+    // macOS drops their keyups under ⌘.
+    let staleAfterMeta = false;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!MODIFIER_KEYS.has(event.key) || event.code === 'AltLeft') held.add(event.code);
+      const stale = staleAfterMeta;
+      staleAfterMeta = false;
       const alone =
+        !stale &&
         enabledRef.current &&
         event.code === 'AltRight' &&
         held.size === 0 &&
@@ -129,12 +135,13 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       else hold.interrupt();
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      // macOS drops the release of a key pressed with ⌘, but not of a modifier.
-      if (event.key !== 'Meta') held.delete(event.code);
-      else
+      const before = held.size;
+      if (event.key === 'Meta') {
         held.forEach((code) => {
           if (code !== 'AltLeft') held.delete(code);
         });
+      } else held.delete(event.code);
+      staleAfterMeta = event.key === 'Meta' && held.size < before;
       if (event.code === 'AltRight' && hold.keyUp()) event.preventDefault();
     };
     const interrupt = () => hold.interrupt();

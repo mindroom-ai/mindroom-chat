@@ -271,6 +271,30 @@ describe('useVoiceHoldShortcut', () => {
     expect(log).toEqual(['start', 'send']);
   });
 
+  it('sends nothing for right Alt while Caps Lock is held, or once after ⌘ came up over a key', () => {
+    const { log } = setup((l) => <Composer log={l} />);
+    press('keydown', rightAlt);
+    press('keyup', rightAlt);
+    expect(log).toEqual(['start']);
+
+    press('keydown', { key: 'CapsLock', code: 'CapsLock' });
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    press('keyup', { key: 'CapsLock', code: 'CapsLock' });
+
+    // ⌘ then the left arrow, whose release macOS drops, then ⌘ up.
+    press('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true });
+    press('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', metaKey: true });
+    press('keyup', { key: 'Meta', code: 'MetaLeft' });
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    expect(log).toEqual(['start']);
+
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(true);
+    expect(log).toEqual(['start', 'send']);
+  });
+
   it('forgets keys held when the window lost the focus, and latches on a click', () => {
     const { log } = setup((l) => <Composer log={l} />);
     press('keydown', { key: 'a', code: 'KeyA' });
