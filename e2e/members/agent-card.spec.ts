@@ -225,4 +225,8 @@ test('on a short window the card stays inside it as its tools arrive and More op
   const box = (await card.boundingBox())!;
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(560);
+  // Closing the card with More open leaves the page as it was.
+  await page.keyboard.press('Escape');
+  await expect(card).toBeHidden();
+  await expect(page.getByText('Sorted by project, newest first.')).toBeVisible();
 });

@@ -164,7 +164,10 @@ export function UserRoomProfile({
   const viewAll = useRef<HTMLButtonElement>(null);
   const more = useRef<HTMLDivElement>(null);
   // "More" opens at the card's end, which may be out of the card's view.
-  useEffect(() => more.current?.scrollIntoView?.({ block: 'nearest' }), [moreOpen]);
+  useEffect(() => {
+    // Newer browsers return a promise from scrolling, which no effect may return.
+    void more.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [moreOpen]);
 
   const member = room.getMember(userId);
   const user = client.getUser(userId);

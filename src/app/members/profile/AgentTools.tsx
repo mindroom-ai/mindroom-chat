@@ -187,7 +187,9 @@ export function AgentToolList({ name, tools, onBack }: ListProps) {
   const [query, setQuery] = useState('');
   const [opened, setOpened] = useState<string>();
   const back = useRef<HTMLButtonElement>(null);
-  useEffect(() => back.current?.focus(), []);
+  useEffect(() => {
+    back.current?.focus();
+  }, []);
   const groups = groupAgentTools(tools, query);
   const title = t(`${KEY}.toolsTitle`, { name });
   return (
@@ -246,7 +248,7 @@ export function AgentToolList({ name, tools, onBack }: ListProps) {
                   {group.tools.map((tool) => (
                     <Chip
                       key={tool.name}
-                      variant="SurfaceVariant"
+                      variant={opened === tool.name ? 'Secondary' : 'SurfaceVariant'}
                       radii="Pill"
                       aria-expanded={tool.description ? opened === tool.name : undefined}
                       disabled={!tool.description}
