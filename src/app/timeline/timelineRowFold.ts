@@ -1,10 +1,9 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
-import { reactionOrEditEvent } from '../matrix/room';
 import { inSameDay, minuteDifference } from '../lib/time';
 import { shouldRenderUnreadDividerAt } from '../event-store/timeline/timelineScrollUtils';
 import {
-  NOTICE_STATE_EVENT_TYPES,
   getTimelineMessageKind,
+  isRowlessTimelineEvent,
 } from '../event-store/timeline/timelineRowTypes';
 
 /** How one mounted row relates to the rows before it. */
@@ -42,17 +41,6 @@ const groupKind = (event: MatrixEvent): string => {
   const type = event.getType();
   return getTimelineMessageKind(type) ? 'turn' : type;
 };
-
-/**
- * Edits, reactions and redactions change other rows and have no row of their own, and an event
- * of a type the timeline draws no row for (`timelineRowTypes`) renders nothing.
- */
-export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
-  reactionOrEditEvent(event) ||
-  !!event.isRedaction?.() ||
-  (event.getStateKey() !== undefined
-    ? !NOTICE_STATE_EVENT_TYPES.has(event.getType())
-    : !getTimelineMessageKind(event.getType()));
 
 /**
  * The event `event` replies to, if it is a genuine reply. A thread message with an MSC3440

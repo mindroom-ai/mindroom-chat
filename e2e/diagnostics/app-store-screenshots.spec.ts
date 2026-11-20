@@ -123,6 +123,16 @@ const expectFixtureAvatars = async (page: Page, requiredNames: string[], timeout
     .toBe(true);
 };
 
+// The page on screen, not the still copy of the last one that slides away over it on a phone
+// (navigation/phonePageSlide.ts).
+const LIVE = ':not([data-page-slide-copy] *)';
+
+/** Until a phone's page slide has played and its copy of the last page is gone. */
+const waitForPageSlide = async (page: Page) => {
+  await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
+};
+
 const captureScene = async (
   page: Page,
   device: AppStoreScreenshotDevice,
@@ -131,6 +141,8 @@ const captureScene = async (
 ) => {
   const outputPath = resolve(process.cwd(), getAppStoreScreenshotRelativePath(device, scene));
   await mkdir(dirname(outputPath), { recursive: true });
+  // No store screenshot shows a page halfway in.
+  await waitForPageSlide(page);
   await installAppStoreScreenshotStyles(page);
   await page.mouse.move(1, 1);
   await page
@@ -190,7 +202,7 @@ const captureScene = async (
 };
 
 const getThreadEntry = (page: Page, title: string) =>
-  page.locator('button[data-thread-root-id]').filter({ hasText: title });
+  page.locator(`button[data-thread-root-id]${LIVE}`).filter({ hasText: title });
 
 const expectFixtureRoomOverview = async (page: Page) => {
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
@@ -208,6 +220,12 @@ const openFixtureRoom = async (page: Page, roomId: string) => {
 
 const returnToFixtureRoomOverview = async (page: Page) => {
   await page.goBack({ waitUntil: 'domcontentloaded' });
+  // The thread has left the page on screen, which the slide back shows: from here on the copy of
+  // the thread is there until the slide has played.
+  await expect(page.locator(`[data-thread-context-banner]${LIVE}`)).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  await waitForPageSlide(page);
   await expectFixtureRoomOverview(page);
 };
 

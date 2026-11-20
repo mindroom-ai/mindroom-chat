@@ -428,6 +428,7 @@
         "profile": "头像, 照片, 名称, 昵称",
         "deactivate": "删除账号, 注销账号",
         "localMindroom": "配对, 配对码, 本地, 桌面",
+        "voiceKey": "语音消息, 麦克风, 录音, 按住说话, Control, Ctrl, Shift, 空格键, 键盘快捷键",
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断",
@@ -1038,6 +1039,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "在此对话中，于智能体下一次回复前压缩其上下文。",
         "reply_mode": "显示或切换智能体在此开始对话是否需要被提及（设置/重置仅限房间管理员）。"
       }
     },
@@ -1252,6 +1254,10 @@
     "hints": {
       "chip": "{{keys}} 查看所有快捷键"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} 录制语音消息",
+      "description": "轻点开始或发送，按住说话，松开发送。"
+    },
     "actions": {
       "palette": "搜索和命令",
       "settings": "打开设置",
@@ -1277,7 +1283,8 @@
       "newLine": "换行",
       "editLast": "编辑你的最后一条消息（输入框为空时）",
       "inlineCode": "行内代码",
-      "callView": "转到通话"
+      "callView": "转到通话",
+      "voiceRecord": "按住录制语音消息，轻点开始或发送"
     }
   },
   "thread": {
@@ -1311,7 +1318,10 @@
     "close": "关闭讨论串",
     "resizeSecond": "调整第二个讨论串大小",
     "second": "第二个讨论串",
-    "dropSecond": "松开以在第二栏打开"
+    "dropSecond": "松开以在第二栏打开",
+    "newUnknown": "新消息",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "提及你"
   },
   "threadSnooze": {
     "title": "延后至",

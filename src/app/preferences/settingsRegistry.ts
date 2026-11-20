@@ -509,6 +509,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'voiceHoldShortcut',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'shortcuts.voiceKey.label',
+    descriptionKey: 'shortcuts.voiceKey.description',
+    keywordsKey: `${KEYWORDS}.voiceKey`,
+    scope: 'device',
+  },
+  {
     id: 'markdown',
     page: 'chats',
     group: 'settings.general.editor.sectionTitle',

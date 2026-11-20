@@ -437,6 +437,7 @@
         "profile": "profielfoto, foto, naam, bijnaam",
         "deactivate": "account verwijderen, account opheffen",
         "localMindroom": "koppelen, koppelcode, lokaal, desktop",
+        "voiceKey": "spraakbericht, microfoon, opnemen, push-to-talk, Control, Ctrl, Shift, spatiebalk, sneltoets",
         "emoji": "emoji, stickers, pakketten, eigen emoji",
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken",
@@ -1059,6 +1060,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Comprimeer de context van de agents vóór hun volgende antwoord in dit gesprek.",
         "reply_mode": "Toon of wijzig of agents hier een vermelding nodig hebben om een gesprek te beginnen (instellen/herstellen alleen kamerbeheerders)."
       }
     },
@@ -1283,6 +1285,10 @@
     "hints": {
       "chip": "{{keys}} voor alle sneltoetsen"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} neemt spraakberichten op",
+      "description": "Tik om te starten of te versturen, houd ingedrukt om te praten en laat los om te versturen."
+    },
     "actions": {
       "palette": "Zoeken en commando's",
       "settings": "Instellingen openen",
@@ -1308,7 +1314,8 @@
       "newLine": "Nieuwe regel",
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code",
-      "callView": "Naar de oproep gaan"
+      "callView": "Naar de oproep gaan",
+      "voiceRecord": "Ingedrukt houden om een spraakbericht op te nemen, tikken om te starten of te versturen"
     }
   },
   "thread": {
@@ -1342,7 +1349,10 @@
     "close": "Thread sluiten",
     "resizeSecond": "Breedte van de tweede thread wijzigen",
     "second": "Tweede thread",
-    "dropSecond": "Loslaten om in tweede kolom te openen"
+    "dropSecond": "Loslaten om in tweede kolom te openen",
+    "newUnknown": "Nieuw",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Vermeldt jou"
   },
   "threadSnooze": {
     "title": "Snoozen tot",

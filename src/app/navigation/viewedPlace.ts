@@ -1,8 +1,8 @@
 import { matchPath } from 'react-router-dom';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
-import { decodeRouteParam } from '../routes/pathUtils';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_ROOM_PATH } from '../routes/paths';
+import { ROUTE_PARAM_SEGMENT, routeSegment } from './useRoomRouteParams';
 
 /** The room and thread the window shows, read from the app's address. */
 export type ViewedPlace = { roomId?: string; threadId?: string };
@@ -16,9 +16,11 @@ export const getViewedPlace = (
 ): ViewedPlace => {
   const threadId = new URLSearchParams(location.search).get('threadId') ?? undefined;
   for (const route of ROOM_ROUTES) {
-    const encoded = matchPath(route, location.pathname)?.params.roomIdOrAlias;
-    if (encoded) {
-      const roomIdOrAlias = decodeRouteParam(encoded);
+    // The room segment as written, decoded once, as the room page reads it.
+    const roomIdOrAlias =
+      matchPath(route, location.pathname)?.params.roomIdOrAlias &&
+      routeSegment(location.pathname, ROUTE_PARAM_SEGMENT.roomIdOrAlias);
+    if (roomIdOrAlias) {
       const roomId = isRoomAlias(roomIdOrAlias)
         ? getCanonicalAliasRoomId(client, roomIdOrAlias)
         : roomIdOrAlias;

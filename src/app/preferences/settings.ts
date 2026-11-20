@@ -73,6 +73,7 @@ const BOOLEAN_SETTING_KEYS = [
   'showUsageDetails', // Sub-agents and background jobs show their tool calls, tokens, cost and model.
   // Keyboard
   'shortcutHints', // Holding Command or Ctrl for a second shows the shortcut keys on the buttons.
+  'voiceHoldShortcut', // Control, Shift and Space record a voice message in the composer.
   // Notifications
   'showNotifications', // Desktop notifications for new messages.
   'isNotificationSounds', // Play a sound with each notification.
@@ -117,6 +118,7 @@ const ON_BY_DEFAULT: readonly BooleanSettingKey[] = [
   'isNotificationSounds',
   'simpleThreadFilters',
   'shortcutHints',
+  'voiceHoldShortcut',
   'sendErrorReports',
 ];
 

@@ -1,12 +1,13 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { useSpace } from '../../matrix/hooks/useSpace';
 import { allRoomsAtom } from '../../matrix/state/roomList';
-import { ROOT_PATH, SPACE_PATH } from '../../routes/paths';
+import { HOME_ROOM_PATH, ROOT_PATH, SPACE_PATH, SPACE_ROOM_PATH } from '../../routes/paths';
+import { getHomeRoomPath, getSpaceRoomPath } from '../../routes/pathUtils';
 import { ClientStartupProvider } from '../../matrix/ClientStartupContext';
 import { SpaceRouteProvider } from './Space';
 
@@ -51,6 +52,10 @@ function ShownSpace() {
   return <div data-shown-space={useSpace().roomId} />;
 }
 
+function Landed() {
+  return <div data-landed={useLocation().pathname} />;
+}
+
 const renderRoute = (
   mx: MatrixClient,
   path: string,
@@ -65,6 +70,7 @@ const renderRoute = (
             <MemoryRouter initialEntries={[path]}>
               <Routes>
                 <Route path={ROOT_PATH} element={<div data-root />} />
+                <Route path={HOME_ROOM_PATH} element={<Landed />} />
                 <Route
                   path={SPACE_PATH}
                   element={
@@ -72,7 +78,9 @@ const renderRoute = (
                       <ShownSpace />
                     </SpaceRouteProvider>
                   }
-                />
+                >
+                  <Route path={SPACE_ROOM_PATH} element={null} />
+                </Route>
               </Routes>
             </MemoryRouter>
           </ClientStartupProvider>
@@ -163,5 +171,28 @@ describe('SpaceRouteProvider', () => {
   it('keeps a space segment that is not valid percent-encoding instead of crashing', () => {
     const renderer = renderRoute(makeClient([]), '/!%25zz/');
     expect(joinOffers(renderer)).toEqual(['!%zz']);
+  });
+
+  // A `%` that is part of an ID stays: `%41` is no `A`, and a literal `%2F` is no `/`.
+  it.each([
+    '!other:example.org',
+    '!sales%41:example.org',
+    '!sales%2Feu:example.org',
+    '!sales/eu:example.org',
+  ])('offers to join the space %s as its address names it', (space) => {
+    const renderer = renderRoute(makeClient([]), `/${encodeURIComponent(space)}/`);
+    expect(joinOffers(renderer)).toEqual([space]);
+  });
+
+  it.each([
+    ['!sales%41:example.org', '$event%41'],
+    ['!sales%2Feu:example.org', '$event%2Fx'],
+    ['!sales/eu:example.org', '$event/x+y'],
+    ['!room:example.org', '$event:example.org'],
+  ])('sends the room link %s at the event %s to its room route', (room, event) => {
+    const renderer = renderRoute(makeClient([]), getSpaceRoomPath(room, event));
+    expect(
+      renderer.root.findByProps({ 'data-landed': getHomeRoomPath(room, event) })
+    ).toBeDefined();
   });
 });

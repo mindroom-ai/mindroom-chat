@@ -428,6 +428,7 @@
         "profile": "大頭貼, 照片, 名稱, 暱稱",
         "deactivate": "刪除帳號, 關閉帳號",
         "localMindroom": "配對, 配對碼, 本機, 桌面",
+        "voiceKey": "語音訊息, 麥克風, 錄音, 按住說話, Control, Ctrl, Shift, 空白鍵, 鍵盤快捷鍵",
         "emoji": "表情符號, 貼圖, 表情包, 自訂表情符號",
         "errorReports": "錯誤, 當機, 程式錯誤, 診斷, 遙測, 隱私",
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
@@ -1038,6 +1039,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "在此對話中，於代理程式下一次回覆前壓縮其上下文。",
         "reply_mode": "顯示或切換代理程式在此開始對話是否需要被提及（設定/重設僅限房間管理員）。"
       }
     },
@@ -1252,6 +1254,10 @@
     "hints": {
       "chip": "{{keys}} 查看所有快速鍵"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} 錄製語音訊息",
+      "description": "輕點開始或傳送，按住說話，放開傳送。"
+    },
     "actions": {
       "palette": "搜尋和指令",
       "settings": "開啟設定",
@@ -1277,7 +1283,8 @@
       "newLine": "換行",
       "editLast": "編輯你的最後一則訊息（輸入框為空時）",
       "inlineCode": "行內程式碼",
-      "callView": "前往通話"
+      "callView": "前往通話",
+      "voiceRecord": "按住錄製語音訊息，輕點開始或傳送"
     }
   },
   "thread": {
@@ -1311,7 +1318,10 @@
     "close": "關閉討論串",
     "resizeSecond": "調整第二個討論串大小",
     "second": "第二個討論串",
-    "dropSecond": "放開以在第二欄開啟"
+    "dropSecond": "放開以在第二欄開啟",
+    "newUnknown": "新訊息",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "提及你"
   },
   "threadSnooze": {
     "title": "延後至",

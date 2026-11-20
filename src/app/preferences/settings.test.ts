@@ -37,6 +37,13 @@ describe('getSettings', () => {
     storageValue = null;
   });
 
+  it('turns the voice key on until the person switches it off', async () => {
+    const { getSettings } = await import('./settings');
+    storageValue = null;
+
+    expect(getSettings().voiceHoldShortcut).toBe(true);
+  });
+
   it.each(['showToolCalls', 'showUsageDetails'] as const)('defaults %s to false', async (key) => {
     const { getSettings } = await import('./settings');
     storageValue = null;

@@ -10,6 +10,7 @@ import { HELP_DIALOG_ATTRIBUTE } from '../../shortcuts/shortcutDom';
 import {
   SHORTCUT_IDS,
   SHORTCUTS,
+  formatShortcut,
   keyCapsOf,
   shortcutKeyCaps,
   usesCommandKey,
@@ -39,6 +40,8 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
   const apple = usesCommandKey();
   const native = Capacitor.isNativePlatform();
   const [hintsOn, setHintsOn] = useSetting(settingsAtom, 'shortcutHints');
+  const voiceSwitchId = useId();
+  const [voiceKeyOn, setVoiceKeyOn] = useSetting(settingsAtom, 'voiceHoldShortcut');
   // With Enter for new lines, ⌘ or Ctrl and Enter sends.
   const enterForNewline = useSettingValue(settingsAtom, 'enterForNewline');
   const capsOf = (id: ShortcutId): string[] => {
@@ -97,6 +100,17 @@ export function ShortcutHelpDialog({ onClose }: { onClose: () => void }) {
                 {t('shortcuts.help.hintsSwitch', { key: apple ? '⌘' : 'Ctrl' })}
               </Text>
               <Switch id={switchId} variant="Primary" value={hintsOn} onChange={setHintsOn} />
+            </Box>
+            <Box alignItems="Center" justifyContent="SpaceBetween" gap="300">
+              <Text as="label" htmlFor={voiceSwitchId} size="T300">
+                {t('shortcuts.voiceKey.label', { voiceKey: formatShortcut('voiceRecord', apple) })}
+              </Text>
+              <Switch
+                id={voiceSwitchId}
+                variant="Primary"
+                value={voiceKeyOn}
+                onChange={setVoiceKeyOn}
+              />
             </Box>
           </Box>
         </div>

@@ -16,6 +16,7 @@ type SettingSwitch = { key: BooleanSettingKey; inverted?: boolean };
  */
 export const COMMAND_PALETTE_SETTING_SWITCHES: Readonly<Record<string, SettingSwitch>> = {
   enterForNewline: { key: 'enterForNewline' },
+  voiceHoldShortcut: { key: 'voiceHoldShortcut' },
   markdown: { key: 'isMarkdown' },
   hideMembershipEvents: { key: 'hideMembershipEvents' },
   hideNickAvatarEvents: { key: 'hideNickAvatarEvents' },

@@ -437,6 +437,7 @@
         "profile": "Profilbild, Foto, Name, Spitzname",
         "deactivate": "Konto löschen, Konto schließen",
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
+        "voiceKey": "Sprachnachricht, Mikrofon, aufnehmen, Push-to-Talk, Strg, Ctrl, Umschalt, Shift, Leertaste, Tastenkürzel",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
@@ -1059,6 +1060,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Verdichte den Kontext der Agenten vor ihrer nächsten Antwort in diesem Gespräch.",
         "reply_mode": "Zeige oder wechsle, ob Agenten hier eine Erwähnung brauchen, um ein Gespräch zu beginnen (Setzen/Zurücksetzen nur Raumadministratoren)."
       }
     },
@@ -1283,6 +1285,10 @@
     "hints": {
       "chip": "{{keys}} für alle Tastenkürzel"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} nimmt Sprachnachrichten auf",
+      "description": "Tippen zum Starten oder Senden, halten zum Sprechen und loslassen zum Senden."
+    },
     "actions": {
       "palette": "Suche und Befehle",
       "settings": "Einstellungen öffnen",
@@ -1308,7 +1314,8 @@
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",
-      "callView": "Zum Anruf wechseln"
+      "callView": "Zum Anruf wechseln",
+      "voiceRecord": "Halten, um eine Sprachnachricht aufzunehmen, tippen zum Starten oder Senden"
     }
   },
   "thread": {
@@ -1342,7 +1349,10 @@
     "close": "Thread schließen",
     "resizeSecond": "Breite des zweiten Threads ändern",
     "second": "Zweiter Thread",
-    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen"
+    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen",
+    "newUnknown": "Neu",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Erwähnt dich"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",

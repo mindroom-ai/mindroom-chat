@@ -2,7 +2,7 @@ import React, { forwardRef, type ComponentPropsWithoutRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import type { EventTimelineSet, Room } from 'matrix-js-sdk';
-import { Avatar, Icon, Icons, Text } from 'folds';
+import { Avatar, Badge, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -12,6 +12,12 @@ import { getThreadRootReplyCount } from './threadIndicatorViewModel';
 import * as css from './ThreadIndicator.css';
 
 const MAX_PARTICIPANTS = 3;
+
+/** What an unread thread's chip tells. */
+export type ThreadIndicatorUnread = {
+  /** A new reply (or the unread root) names the user. */
+  mentionsMe: boolean;
+};
 
 type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'> & {
   as?: 'button' | 'div' | 'span';
@@ -24,6 +30,8 @@ type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'>
   threadReplyCount?: number;
   threadParticipantIds?: string[];
   isResolved?: boolean;
+  /** Set while the thread is unread: the chip takes the accent and reads "New". */
+  unread?: ThreadIndicatorUnread;
 };
 
 const resolveReplyCount = (
@@ -64,7 +72,8 @@ function ParticipantAvatar({ room, userId }: { room: Room; userId: string }) {
 
 /**
  * A chip with a thread's reply count, its first participants and a resolved mark. With
- * `as="button"` it opens the thread; without a `threadRootId` it only reads "Thread".
+ * `as="button"` it opens the thread; without a `threadRootId` it only reads "Thread". While
+ * `unread` is set it reads "New · 11 replies" in the accent, with an @ pill for a mention.
  */
 export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
   function ThreadIndicator(
@@ -74,6 +83,7 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
       threadRootId,
       timelineSet,
       isResolved,
+      unread,
       room,
       className,
       as: tag = 'div',
@@ -88,7 +98,10 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
       replyCount = resolveReplyCount(room, threadRootId, timelineSet);
     }
     const counted = replyCount !== undefined;
-    const label = counted ? t('thread.replyCount', { count: replyCount }) : t('thread.chip');
+    const replies = counted ? t('thread.replyCount', { count: replyCount }) : t('thread.chip');
+    const label = unread
+      ? t('thread.newAndReplies', { news: t('thread.newUnknown'), replies })
+      : replies;
     // With a count, the icon names what is counted, so a badge reads "Thread 2 replies".
     const iconLabel = counted
       ? { role: 'img', 'aria-label': t('thread.chip') }
@@ -103,6 +116,7 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
       className: classNames(
         css.ThreadIndicator,
         isResolved ? css.ThreadIndicatorResolved : undefined,
+        unread ? css.ThreadIndicatorUnread : undefined,
         className
       ),
     };
@@ -120,6 +134,21 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
             <ParticipantAvatar key={userId} room={room} userId={userId} />
           ))}
         </span>
+      ),
+      unread?.mentionsMe && (
+        <Badge
+          className={css.ThreadMentionPill}
+          variant="Primary"
+          fill="Solid"
+          radii="Pill"
+          size="200"
+          role="img"
+          aria-label={t('thread.mentionsYou')}
+        >
+          <Text as="span" size="L400" aria-hidden="true">
+            @
+          </Text>
+        </Badge>
       ),
       isResolved && (
         <Icon size="50" src={Icons.Check} aria-label={t('thread.aria.resolvedThread')} role="img" />

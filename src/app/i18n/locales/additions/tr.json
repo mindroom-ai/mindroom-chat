@@ -437,6 +437,7 @@
         "profile": "profil fotoğrafı, fotoğraf, ad, takma ad",
         "deactivate": "hesabı sil, hesabı kapat",
         "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
+        "voiceKey": "sesli mesaj, mikrofon, kayıt, bas konuş, Control, Ctrl, Shift, boşluk, klavye kısayolu",
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
@@ -1059,6 +1060,7 @@
     },
     "commands": {
       "descriptions": {
+        "compact": "Bu konuşmada ajanların bağlamını bir sonraki yanıtlarından önce sıkıştırın.",
         "reply_mode": "Ajanların burada bir konuşma başlatmak için bahsedilmeye ihtiyaç duyup duymadığını gösterin veya değiştirin (ayarlama/sıfırlama yalnızca oda yöneticileri)."
       }
     },
@@ -1283,6 +1285,10 @@
     "hints": {
       "chip": "Tüm kısayollar için {{keys}}"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} sesli mesaj kaydeder",
+      "description": "Başlatmak veya göndermek için dokunun; konuşmak için basılı tutun, göndermek için bırakın."
+    },
     "actions": {
       "palette": "Arama ve komutlar",
       "settings": "Ayarları aç",
@@ -1308,7 +1314,8 @@
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",
-      "callView": "Aramaya git"
+      "callView": "Aramaya git",
+      "voiceRecord": "Sesli mesaj kaydetmek için basılı tutun, başlatmak veya göndermek için dokunun"
     }
   },
   "thread": {
@@ -1342,7 +1349,10 @@
     "close": "Konuyu kapat",
     "resizeSecond": "İkinci konuyu yeniden boyutlandır",
     "second": "İkinci konu",
-    "dropSecond": "İkinci sütunda açmak için bırakın"
+    "dropSecond": "İkinci sütunda açmak için bırakın",
+    "newUnknown": "Yeni",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Sizden bahsediyor"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",

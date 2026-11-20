@@ -65,6 +65,7 @@ describe('buildThreadBadgeViewModelFromRecord', () => {
         status: {
           ...makeRecord().status,
           isResolved: true,
+          isUnread: true,
         },
       }),
     });
@@ -79,6 +80,7 @@ describe('buildThreadBadgeViewModelFromRecord', () => {
       replyCount: 3,
       participantIds: ['@agent:server'],
       isResolved: true,
+      isUnread: true,
     });
   });
 
