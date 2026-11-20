@@ -53,8 +53,8 @@ const splitsPair = (text: string, at: number): boolean =>
 
 /**
  * The window `start`..`end` of `text` without the parts of words cut at its edges, so a word's
- * tail is never read as a whole word. An edge never splits a character. A window that trimming
- * would leave with no letter or digit keeps its cut words.
+ * tail is never read as a whole word. An edge never splits a character. When trimming leaves no
+ * letter or digit, the window keeps its cut words.
  */
 const clipToWords = (text: string, start: number, end: number): [number, number] => {
   const first = splitsPair(text, start) ? start + 1 : start;

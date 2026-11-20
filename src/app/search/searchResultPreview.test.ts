@@ -213,7 +213,7 @@ describe('getSearchResultBodySnippet', () => {
     expect(getSearchResultBodySnippet('x'.repeat(50), [], 12)).toBe(`${'x'.repeat(10)}…`);
   });
 
-  it('keeps the cut word when trimming it would leave no letter or digit', () => {
+  it('keeps the cut word when trimming leaves no letter or digit', () => {
     expect(getSearchResultBodySnippet(`(${'x'.repeat(300)}`, [], 100)).toBe(`(${'x'.repeat(97)}…`);
   });
 });
