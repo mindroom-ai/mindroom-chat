@@ -44,13 +44,15 @@ type Drag = {
   unblock: () => void;
 };
 
-/** The drags on any panel's splitter that keep the page from selecting text now. */
-let selectionHolds = 0;
+let selectionHolds = 0; // The drags on any panel's splitter that hold the block below.
 const preventSelection = (event: Event) => event.preventDefault();
 const setSelectionBlocked = (blocked: boolean) => {
   if (blocked) document.addEventListener('selectstart', preventSelection, true);
   else document.removeEventListener('selectstart', preventSelection, true);
   document.documentElement.toggleAttribute(css.RESIZING, blocked);
+  // Chromium on macOS paints a selection kept through the block again once it is set anew.
+  const sel = window.getSelection();
+  if (!blocked && sel?.focusNode && !sel.isCollapsed) sel.extend(sel.focusNode, sel.focusOffset);
 };
 
 /**
@@ -58,14 +60,12 @@ const setSelectionBlocked = (blocked: boolean) => {
  * off the splitter (a panel at its widest stays put) selected messages in the Mac app's web view.
  */
 const blockSelection = (): (() => void) => {
-  selectionHolds += 1;
-  if (selectionHolds === 1) setSelectionBlocked(true);
+  if (++selectionHolds === 1) setSelectionBlocked(true);
   let held = true;
   return () => {
     if (!held) return;
     held = false;
-    selectionHolds -= 1;
-    if (selectionHolds === 0) setSelectionBlocked(false);
+    if (--selectionHolds === 0) setSelectionBlocked(false);
   };
 };
 
