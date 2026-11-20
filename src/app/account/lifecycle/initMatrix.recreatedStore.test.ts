@@ -60,9 +60,18 @@ describe('a crypto store that vanishes after the startup check', () => {
       deletion.onsuccess = () => resolve();
       deletion.onerror = () => reject(deletion.error);
     });
-    const request = vi.fn<typeof fetch>(
-      async () =>
-        new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    // A homeserver without a key backup answers the lookup with 404. An empty object is no backup
+    // info: matrix-js-sdk 45 no longer ignores one without a version and fails its background check.
+    const request = vi.fn<typeof fetch>(async (input) =>
+      new URL(String(input)).pathname.endsWith('/room_keys/version')
+        ? new Response(
+            JSON.stringify({ errcode: 'M_NOT_FOUND', error: 'No current backup version' }),
+            {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          )
+        : new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })
     );
     vi.stubGlobal('fetch', request);
 

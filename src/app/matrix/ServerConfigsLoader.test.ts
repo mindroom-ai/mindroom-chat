@@ -1,15 +1,16 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { validateAuthMetadata } from 'matrix-js-sdk/lib/oidc/validate';
+import { isValidAuthMetadata } from 'matrix-js-sdk/lib/oauth/discover';
 import { ServerConfigsLoader, type ServerConfigs } from './ServerConfigsLoader';
 
-vi.mock('matrix-js-sdk/lib/oidc/validate', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('matrix-js-sdk/lib/oidc/validate')>();
+// The SDK's check of auth metadata (`validateAuthMetadata` of `lib/oidc/validate` until 43.0).
+vi.mock('matrix-js-sdk/lib/oauth/discover', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('matrix-js-sdk/lib/oauth/discover')>();
 
   return {
     ...actual,
-    validateAuthMetadata: vi.fn(),
+    isValidAuthMetadata: vi.fn(),
   };
 });
 
@@ -95,7 +96,7 @@ describe('ServerConfigsLoader', () => {
     expect(getCapabilities).toHaveBeenCalledTimes(1);
     expect(getMediaConfig).toHaveBeenCalledTimes(1);
     expect(getAuthMetadata).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(validateAuthMetadata)).not.toHaveBeenCalled();
+    expect(vi.mocked(isValidAuthMetadata)).not.toHaveBeenCalled();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
     expect(latestConfigs).toEqual({
       capabilities: { 'm.change_password': { enabled: true } },
