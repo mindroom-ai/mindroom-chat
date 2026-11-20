@@ -47,7 +47,7 @@ type FinishedWorkFoldProps = {
 };
 
 /**
- * A long finished agent reply, its work folded into one `Worked for 2m 13s` row above its answer,
+ * A finished agent reply, its work folded into one `Worked for 2m 13s` row above its answer,
  * as T3 Code folds a finished turn. Until it may fold, the reply renders whole, as it would
  * without this component, which stays in its tree so its state lasts while it streams.
  * Clicking the row shows the work in place. The choice survives virtualization remounts through
@@ -66,6 +66,19 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
   const [moving, setMoving] = useState<'opening' | 'closing'>();
   // Each click sheds a ring off the clock: the count keys it, so a new one starts at once.
   const [rings, setRings] = useState(0);
+  const workRef = useRef<HTMLDivElement>(null);
+
+  // A slide that stops before its end (reduced motion turned on mid-slide drops its animation)
+  // settles too. React has no handler for that event, so the wrapper is listened to itself.
+  useEffect(() => {
+    const work = workRef.current;
+    if (!work || moving === undefined) return undefined;
+    const cancel = (event: Event) => {
+      if (event.target === work) setMoving(undefined);
+    };
+    work.addEventListener('animationcancel', cancel);
+    return () => work.removeEventListener('animationcancel', cancel);
+  }, [moving]);
 
   // As CollapsibleMessage: expand all opens the work and collapse all folds it, unless the reader
   // chose for this reply since.
@@ -77,7 +90,11 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
     setMoving(undefined);
   }, [expandAllInit, foldKey, manualExpansionState]);
 
-  if (!folded) return whole;
+  if (!folded) {
+    // A split that comes back later starts at rest, not in the middle of a slide it lost.
+    if (moving !== undefined) setMoving(undefined);
+    return whole;
+  }
 
   const toggle = () => {
     const next = !open;
@@ -131,7 +148,7 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
           />
         </button>
         {(open || moving === 'closing') && (
-          <div className={css.Work} data-motion={moving} onAnimationEnd={settle}>
+          <div ref={workRef} className={css.Work} data-motion={moving} onAnimationEnd={settle}>
             <div className={css.WorkInner}>{folded.work}</div>
           </div>
         )}

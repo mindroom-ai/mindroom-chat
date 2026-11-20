@@ -22,9 +22,16 @@ const unfold = keyframes({
   to: { gridTemplateRows: '1fr', marginTop: config.space.S100, opacity: 1 },
 });
 const foldUp = keyframes({
-  from: { gridTemplateRows: '1fr', marginTop: config.space.S100, opacity: 1 },
-  to: { gridTemplateRows: '0fr', marginTop: 0, opacity: 0 },
+  from: {
+    gridTemplateRows: '1fr',
+    marginTop: config.space.S100,
+    opacity: 1,
+    visibility: 'visible',
+  },
+  to: { gridTemplateRows: '0fr', marginTop: 0, opacity: 0, visibility: 'hidden' },
 });
+// The work while it folds back, as it ends: what shows if the slide stops before its end.
+const folded = { gridTemplateRows: '0fr', marginTop: 0, opacity: 0, visibility: 'hidden' } as const;
 
 /** The row's button, on top of the reasoning header's Toggle. A press sinks it a little. */
 export const Row = style({
@@ -93,11 +100,21 @@ export const Label = style({
     '(hover: hover) and (prefers-reduced-motion: no-preference)': {
       selectors: { [`${Row}:hover &`]: shining },
     },
+    // Forced colors may drop the light's gradient, which would leave the label blank.
+    '(forced-colors: active)': {
+      selectors: {
+        [`${Row}:hover &, ${Row}:focus-visible &`]: {
+          background: 'none',
+          WebkitTextFillColor: 'currentColor',
+          animation: 'none',
+        },
+      },
+    },
   },
 });
 
-// The chevron nudges along the text while the work is folded. `translate` applies before the
-// reasoning Chevron's `transform`, which turns it for right-to-left, so it moves the reading way.
+// The chevron nudges along the text while the work is folded. `translate` is not turned by the
+// reasoning Chevron's right-to-left `transform`, so right to left nudges it the other way.
 const nudge = (hovered: string) => ({
   [`${Row}:not([aria-expanded="true"])${hovered} &`]: { translate: `${toRem(2)} 0` },
   [`[dir=rtl] ${Row}:not([aria-expanded="true"])${hovered} &`]: {
@@ -143,6 +160,7 @@ export const Ring = style({
 export const Work = style({
   display: 'grid',
   marginTop: config.space.S100,
+  selectors: { '&[data-motion="closing"]': folded },
   '@media': {
     '(prefers-reduced-motion: no-preference)': {
       selectors: {

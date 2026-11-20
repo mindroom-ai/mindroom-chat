@@ -159,6 +159,59 @@ describe('FinishedWorkFold', () => {
     expect(byId('work')).toHaveLength(0);
   });
 
+  it('slides the work open again when it is reopened as it folds back', () => {
+    render(fold(nextKey()));
+    click();
+    settle();
+    click();
+    click();
+    expect(toggle().props['aria-expanded']).toBe(true);
+    expect(renderer!.root.findByProps({ className: 'Work' }).props['data-motion']).toBe('opening');
+  });
+
+  it('settles a fold back whose slide is cancelled', () => {
+    const wrapper = new EventTarget();
+    act(() => {
+      renderer = create(fold(nextKey()), { createNodeMock: () => wrapper });
+    });
+    click();
+    settle();
+    click();
+    expect(byId('work')).toHaveLength(1);
+
+    act(() => {
+      wrapper.dispatchEvent(new Event('animationcancel'));
+    });
+    expect(byId('work')).toHaveLength(0);
+  });
+
+  it('starts at rest when its split comes back after it went as the work folded back', () => {
+    const key = nextKey();
+    render(fold(key));
+    click();
+    settle();
+    click();
+    act(() => renderer!.update(fold(key, undefined, false)));
+    act(() => renderer!.update(fold(key)));
+
+    expect(toggle().props['aria-expanded']).toBe(false);
+    expect(byId('work')).toHaveLength(0);
+  });
+
+  it('folds the work at once when collapse all comes as it folds back', () => {
+    const key = nextKey();
+    const tree = (expandAll: boolean | undefined) => (
+      <ExpandAllInitContext.Provider value={expandAll}>{fold(key)}</ExpandAllInitContext.Provider>
+    );
+    render(tree(undefined));
+    click();
+    settle();
+    click();
+    act(() => renderer!.update(tree(false)));
+
+    expect(byId('work')).toHaveLength(0);
+  });
+
   it('folds the work back at once with reduced motion', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }));
     render(fold(nextKey()));
