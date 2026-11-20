@@ -92,8 +92,8 @@
     "slate-dom": "0.123.0",
     "slate-history": "0.113.1",
     "slate-react": "0.123.0",
-    "workbox-precaching": "7.3.0",
-    "workbox-routing": "7.3.0",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
     "yaml": "1.10.2"
   },
   "devDependencies": {
