@@ -86,6 +86,8 @@ type VoiceFeature = {
   submitIfActive: (textContent?: IContent) => Promise<boolean>;
   microphone: React.ReactNode;
   renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
+  /** Pauses the recording, if one runs here, while its send waits. */
+  pauseRecording: () => void;
   /** What the voice key (right ⌥) reads and does here. */
   voiceKey: Pick<VoiceHoldTarget, 'active' | 'phase' | 'start'>;
 };
@@ -630,5 +632,7 @@ export const useRoomInputVoice = ({
     </IconTooltip>
   );
 
-  return { blocksSubmit, submitIfActive, microphone, renderRecorder, voiceKey };
+  const pauseRecording = () => voiceRecorderRef.current?.pause();
+
+  return { blocksSubmit, submitIfActive, microphone, renderRecorder, pauseRecording, voiceKey };
 };

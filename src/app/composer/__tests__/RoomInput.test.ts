@@ -6,6 +6,7 @@ import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
 import { resolveVoiceComposer } from '../voiceHoldShortcut';
+import { conversationCoveredAtom } from '../../navigation/conversationCover';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
@@ -144,6 +145,7 @@ const {
   },
   voiceRecorderState: {
     send: vi.fn<(view?: string) => Promise<boolean>>(async () => false),
+    pause: vi.fn(),
     props: undefined as
       | {
           active?: boolean;
@@ -645,6 +647,7 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
         React.useImperativeHandle(ref, () => ({
           send: () => voiceRecorderState.send(view),
           phase: () => 'recording',
+          pause: voiceRecorderState.pause,
         }));
         return React.createElement('div');
       }
@@ -691,6 +694,8 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
     getMember: () => undefined,
     getMembers: () => [],
     getMyMembership: () => 'join',
+    // A thread root still sending, for the threads with a local ID.
+    findEventById: () => ({ status: 'sending' }),
   } as never);
 
 const createEditor = () => {
@@ -903,6 +908,7 @@ afterEach(() => {
   voiceRecorderState.props = undefined;
   voiceRecorderState.byView.clear();
   voiceRecorderState.send.mockReset();
+  voiceRecorderState.pause.mockReset();
   voiceRecorderState.send.mockResolvedValue(false);
   customEditorState.autocompleteQuery = undefined;
   customEditorState.editor = undefined;
@@ -2810,6 +2816,29 @@ describe('RoomInput', () => {
     renderer.unmount();
     expect(target?.start()).toBe(false);
     expect(resolveVoiceComposer()).toBeUndefined();
+  });
+
+  it('offers the voice key no composer whose conversation is out of sight', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+    expect(resolveVoiceComposer()).toBeDefined();
+    await act(async () => {
+      store.set(conversationCoveredAtom, true);
+    });
+    expect(resolveVoiceComposer()).toBeUndefined();
+    renderer.unmount();
+  });
+
+  it('pauses the recording while its send waits for an unconfirmed thread root', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '~!room:root' });
+    await openVoiceRecorder(renderer);
+    await act(async () => {
+      resolveVoiceComposer()?.send();
+    });
+    // No audio after the release goes out with the send that waits for the root.
+    expect(voiceRecorderState.pause).toHaveBeenCalledTimes(1);
+    expect(voiceRecorderState.send).not.toHaveBeenCalled();
+    renderer.unmount();
   });
 
   it('refuses a voice key start once another recorder opened, a failed recording waits or a voice message sends', async () => {

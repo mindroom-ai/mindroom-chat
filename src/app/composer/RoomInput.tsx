@@ -500,7 +500,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
         const settled = settlePastes();
         if (settled !== true && !(await settled)) return;
-        if (holdForRoot({ kind: 'message' })) return;
+        if (holdForRoot({ kind: 'message' })) {
+          // The send goes out once the root is confirmed: the recording ends where it was asked.
+          if (voiceActive) voice.pauseRecording();
+          return;
+        }
         const textContent = buildTextContent(mode);
         // Sending the text answers the notices of files and pastes a reload lost.
         if (textContent) {
@@ -679,8 +683,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     // Right ⌥ (right Alt) records here (useVoiceHoldShortcut): a send takes the same path as Enter,
     // and only from a composer with nothing else in it.
+    // A composer out of sight (under a cover, behind a side panel) records nothing.
     useVoiceComposer(
-      voiceActive
+      voiceActive && !conversationHidden
         ? {
             ...voice.voiceKey,
             root: () => rootRef.current,
