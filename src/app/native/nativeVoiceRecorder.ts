@@ -3,8 +3,9 @@ import { randomUuid } from '../lib/randomUuid';
 
 /** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture):
  *  start({ nonce }) resolving { id }; level, pause, resume, stop and cancel({ id }) act on that
- *  recording only; level resolves { level } from 0 to 1, stop { path } of its `.m4a`; rejections
- *  carry `code`. */
+ *  recording only; level resolves { level } from 0 to 1, stop { path } of its `.m4a`, kept until
+ *  cancel; orphans resolves the files no recorder of the loaded page holds; rejections carry
+ *  `code`. */
 type MindRoomVoiceRecorderPlugin = {
   start(options: { nonce: string }): Promise<{ id: string }>;
   level(options: { id: string }): Promise<{ level: number }>;
@@ -12,6 +13,7 @@ type MindRoomVoiceRecorderPlugin = {
   resume(options: { id: string }): Promise<void>;
   stop(options: { id: string }): Promise<{ path: string }>;
   cancel(options: { id: string }): Promise<void>;
+  orphans(): Promise<{ recordings: { id: string; path: string; startedAt: number }[] }>;
 };
 
 const START_ERROR_NAMES: Record<string, string> = {
@@ -26,6 +28,18 @@ const getVoiceRecorderPlugin = (): MindRoomVoiceRecorderPlugin => {
     voiceRecorderPlugin = registerPlugin<MindRoomVoiceRecorderPlugin>('MindRoomVoiceRecorder');
   }
   return voiceRecorderPlugin;
+};
+
+/** A file of the native recorder, read through Capacitor; undefined when it is empty or not
+ *  answered. */
+const readNativeFile = async (path: string): Promise<Blob | undefined> => {
+  const response = await fetch(Capacitor.convertFileSrc(path), {
+    signal: AbortSignal.timeout(5_000),
+  });
+  // Capacitor answers a local media file without an HTTP status, which WebKit reports as 0.
+  if (!response.ok && response.status !== 0) return undefined;
+  const data = await response.blob();
+  return data.size > 0 ? data : undefined;
 };
 
 export const isNativeVoiceRecorderAvailable = (): boolean =>
@@ -93,13 +107,8 @@ export class NativeVoiceRecorder extends EventTarget {
 
   private async deliver(): Promise<void> {
     const { path } = await getVoiceRecorderPlugin().stop({ id: this.id });
-    const response = await fetch(Capacitor.convertFileSrc(path), {
-      signal: AbortSignal.timeout(5_000),
-    });
-    // Capacitor answers a local media file without an HTTP status, which WebKit reports as 0.
-    if (!response.ok && response.status !== 0) return;
-    const data = await response.blob();
-    if (data.size > 0) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
+    const data = await readNativeFile(path);
+    if (data) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
   }
 
   /** Every way out, once (`state` is `inactive` by then): the native side deletes the file. */
@@ -127,4 +136,28 @@ export const startNativeVoiceRecorder = async (): Promise<NativeVoiceRecorder> =
       name: START_ERROR_NAMES[code ?? ''] ?? 'NotReadableError',
     });
   }
+};
+
+export type NativeVoiceOrphan = { id: string; file: File; startedAt: number };
+
+/** The recordings a killed app, a reloaded page or a closed window left on disk, oldest first;
+ *  none off the Mac app. One that cannot be read is left out. Each stays on disk until
+ *  `forgetNativeVoiceRecording`. */
+export const listNativeVoiceOrphans = async (): Promise<NativeVoiceOrphan[]> => {
+  if (!isNativeVoiceRecorderAvailable()) return [];
+  const { recordings } = await getVoiceRecorderPlugin().orphans();
+  const orphans = await Promise.all(
+    recordings.map(async ({ id, path, startedAt }): Promise<NativeVoiceOrphan | undefined> => {
+      const data = await readNativeFile(path).catch(() => undefined);
+      return data && { id, file: new File([data], `${id}.m4a`, { type: 'audio/mp4' }), startedAt };
+    })
+  );
+  return orphans
+    .filter((orphan): orphan is NativeVoiceOrphan => orphan !== undefined)
+    .sort((a, b) => a.startedAt - b.startedAt);
+};
+
+/** Deletes the file of a recording `listNativeVoiceOrphans` listed. */
+export const forgetNativeVoiceRecording = async (id: string): Promise<void> => {
+  await getVoiceRecorderPlugin().cancel({ id });
 };

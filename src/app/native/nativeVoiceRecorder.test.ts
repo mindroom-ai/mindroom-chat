@@ -1,6 +1,11 @@
 import { Capacitor } from '@capacitor/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isNativeVoiceRecorderAvailable, startNativeVoiceRecorder } from './nativeVoiceRecorder';
+import {
+  forgetNativeVoiceRecording,
+  isNativeVoiceRecorderAvailable,
+  listNativeVoiceOrphans,
+  startNativeVoiceRecorder,
+} from './nativeVoiceRecorder';
 
 const plugin = vi.hoisted(() => ({
   start: vi.fn(),
@@ -9,6 +14,7 @@ const plugin = vi.hoisted(() => ({
   stop: vi.fn(),
   cancel: vi.fn(),
   level: vi.fn(),
+  orphans: vi.fn(),
 }));
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -238,5 +244,68 @@ describe('native voice recorder', () => {
     recorder.stop();
     await vi.waitFor(() => expect(seen).toEqual(['stop after cancel']));
     expect(plugin.cancel.mock.calls).toEqual([[{ id: 'a' }]]);
+  });
+});
+
+describe('native voice orphans', () => {
+  const recording = (id: string, startedAt: number) => ({
+    id,
+    path: `/support/MindRoomVoiceRecorder/${id}.m4a`,
+    startedAt,
+  });
+
+  it('lists the recordings left on disk oldest first, as audio/mp4 files', async () => {
+    plugin.orphans.mockResolvedValue({
+      recordings: [recording('new', 20), recording('old', 10), recording('gone', 5)],
+    });
+    const fetchMock = vi.fn((url: string) =>
+      url.endsWith('gone.m4a')
+        ? Promise.resolve({ ok: false, status: 404 } as Response)
+        : Promise.resolve({ ...audio(url.includes('new') ? 'later' : 'earlier') } as Response)
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const orphans = await listNativeVoiceOrphans();
+    expect(orphans.map(({ id, startedAt }) => [id, startedAt])).toEqual([
+      ['old', 10],
+      ['new', 20],
+    ]);
+    expect(orphans.map(({ file }) => [file.name, file.type])).toEqual([
+      ['old.m4a', 'audio/mp4'],
+      ['new.m4a', 'audio/mp4'],
+    ]);
+    expect(await orphans[0]!.file.text()).toBe('earlier');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'capacitor://localhost/_capacitor_file_/support/MindRoomVoiceRecorder/old.m4a',
+      { signal: expect.any(AbortSignal) }
+    );
+    // Listing deletes nothing.
+    expect(plugin.cancel).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['empty', () => stubFetch(audio(''))],
+    [
+      'unread',
+      () =>
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(() => Promise.reject(new TypeError('gone')))
+        ),
+    ],
+  ])('leaves out a recording whose file is %s', async (_name, fail) => {
+    plugin.orphans.mockResolvedValue({ recordings: [recording('a', 1)] });
+    fail();
+    expect(await listNativeVoiceOrphans()).toEqual([]);
+  });
+
+  it('lists none off the Mac app', async () => {
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValueOnce(false);
+    expect(await listNativeVoiceOrphans()).toEqual([]);
+    expect(plugin.orphans).not.toHaveBeenCalled();
+  });
+
+  it('forgets a recording by deleting its file natively', async () => {
+    await forgetNativeVoiceRecording('old');
+    expect(plugin.cancel.mock.calls).toEqual([[{ id: 'old' }]]);
   });
 });
