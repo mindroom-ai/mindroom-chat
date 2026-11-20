@@ -1094,9 +1094,6 @@
       "needApproval_one": "{{count}} precisa de aprovação",
       "needApproval_many": "{{count}} precisam de aprovação",
       "needApproval_other": "{{count}} precisam de aprovação",
-      "toolCalls_one": "{{count}} chamada de ferramenta",
-      "toolCalls_many": "{{count}} chamadas de ferramentas",
-      "toolCalls_other": "{{count}} chamadas de ferramentas",
       "tokens_one": "{{tokens}} token",
       "tokens_many": "{{tokens}} tokens",
       "tokens_other": "{{tokens}} tokens",
@@ -1110,7 +1107,13 @@
         "time": "Tempo"
       },
       "stopTask": "Parar tarefa",
-      "stopTaskFor": "Parar tarefa: {{tool}}"
+      "stopTaskFor": "Parar tarefa: {{tool}}",
+      "jobTotal_one": "{{count}} tarefa em segundo plano",
+      "jobTotal_many": "{{count}} tarefas em segundo plano",
+      "jobTotal_other": "{{count}} tarefas em segundo plano",
+      "jobTotalFinished_one": "{{count}} tarefa em segundo plano concluída",
+      "jobTotalFinished_many": "{{count}} tarefas em segundo plano concluídas",
+      "jobTotalFinished_other": "{{count}} tarefas em segundo plano concluídas"
     },
     "subagents": {
       "title": "Subagentes",
@@ -1141,7 +1144,19 @@
       "withCount_one": "{{label}}, {{count}} ativo",
       "withCount_many": "{{label}}, {{count}} ativos",
       "withCount_other": "{{label}}, {{count}} ativos",
-      "resize": "Redimensionar o painel de subagentes"
+      "resize": "Redimensionar o painel de subagentes",
+      "calls_one": "{{count}} chamada",
+      "calls_many": "{{count}} chamadas",
+      "calls_other": "{{count}} chamadas",
+      "now": "Agora",
+      "needsApproval": "Precisa de aprovação",
+      "result": "Resultado",
+      "turnNumber": "turno {{number}}",
+      "status": "Estado",
+      "toolCallsNote": "chamadas de ferramentas",
+      "tokensSplit": "{{input}} entrada · {{output}} saída",
+      "costNested": "+{{cost}} aninhados",
+      "costOwn": "esta execução"
     },
     "models": {
       "modelPicker": {

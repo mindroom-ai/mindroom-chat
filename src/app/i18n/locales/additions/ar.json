@@ -1163,12 +1163,6 @@
       "needApproval_few": "بانتظار الموافقة: ⁨{{count}}⁩",
       "needApproval_many": "بانتظار الموافقة: ⁨{{count}}⁩",
       "needApproval_other": "بانتظار الموافقة: ⁨{{count}}⁩",
-      "toolCalls_zero": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_one": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_two": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_few": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_many": "استدعاءات الأدوات: ⁨{{count}}⁩",
-      "toolCalls_other": "استدعاءات الأدوات: ⁨{{count}}⁩",
       "tokens_zero": "الرموز: ⁨{{tokens}}⁩",
       "tokens_one": "الرموز: ⁨{{tokens}}⁩",
       "tokens_two": "الرموز: ⁨{{tokens}}⁩",
@@ -1185,7 +1179,19 @@
         "time": "الوقت"
       },
       "stopTask": "إيقاف المهمة",
-      "stopTaskFor": "إيقاف المهمة: ⁨{{tool}}⁩"
+      "stopTaskFor": "إيقاف المهمة: ⁨{{tool}}⁩",
+      "jobTotal_zero": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_one": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_two": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_few": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_many": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotal_other": "مهام في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_zero": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_one": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_two": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_few": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_many": "مهام منتهية في الخلفية: ⁨{{count}}⁩",
+      "jobTotalFinished_other": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
     },
     "subagents": {
       "title": "الوكلاء الفرعيون",
@@ -1228,7 +1234,22 @@
       "withCount_few": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_many": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_other": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
-      "resize": "تغيير حجم لوحة الوكلاء الفرعيين"
+      "resize": "تغيير حجم لوحة الوكلاء الفرعيين",
+      "calls_zero": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_one": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_two": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_few": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_many": "الاستدعاءات: ⁨{{count}}⁩",
+      "calls_other": "الاستدعاءات: ⁨{{count}}⁩",
+      "now": "الآن",
+      "needsApproval": "بحاجة إلى موافقة",
+      "result": "النتيجة",
+      "turnNumber": "الدور ⁨{{number}}⁩",
+      "status": "الحالة",
+      "toolCallsNote": "استدعاءات الأدوات",
+      "tokensSplit": "⁨{{input}}⁩ داخل · ⁨{{output}}⁩ خارج",
+      "costNested": "+⁨{{cost}}⁩ للمتداخلة",
+      "costOwn": "هذا التشغيل"
     },
     "models": {
       "modelPicker": {
