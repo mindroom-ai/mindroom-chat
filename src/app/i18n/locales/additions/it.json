@@ -973,7 +973,8 @@
         "searchFailed": "Ricerca non riuscita. Riprova.",
         "resultCountFor_one": "{{count}} risultato per “{{term}}”",
         "resultCountFor_many": "{{count}} di risultati per “{{term}}”",
-        "resultCountFor_other": "{{count}} risultati per “{{term}}”"
+        "resultCountFor_other": "{{count}} risultati per “{{term}}”",
+        "retry": "Riprova"
       }
     },
     "notifications": {

@@ -957,7 +957,8 @@
       "messageSearch": {
         "searchFailed": "Zoeken mislukt. Probeer het opnieuw.",
         "resultCountFor_one": "{{count}} resultaat voor ‘{{term}}’",
-        "resultCountFor_other": "{{count}} resultaten voor ‘{{term}}’"
+        "resultCountFor_other": "{{count}} resultaten voor ‘{{term}}’",
+        "retry": "Opnieuw proberen"
       }
     },
     "notifications": {

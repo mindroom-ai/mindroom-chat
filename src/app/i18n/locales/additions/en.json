@@ -957,7 +957,8 @@
       "messageSearch": {
         "searchFailed": "Search failed. Try again.",
         "resultCountFor_one": "{{count}} result for “{{term}}”",
-        "resultCountFor_other": "{{count}} results for “{{term}}”"
+        "resultCountFor_other": "{{count}} results for “{{term}}”",
+        "retry": "Retry"
       }
     },
     "notifications": {

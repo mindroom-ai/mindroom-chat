@@ -957,7 +957,8 @@
       "messageSearch": {
         "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
         "resultCountFor_one": "“{{term}}” için {{count}} sonuç",
-        "resultCountFor_other": "“{{term}}” için {{count}} sonuç"
+        "resultCountFor_other": "“{{term}}” için {{count}} sonuç",
+        "retry": "Tekrar dene"
       }
     },
     "notifications": {
