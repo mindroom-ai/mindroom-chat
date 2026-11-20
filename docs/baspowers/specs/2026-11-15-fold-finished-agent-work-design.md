@@ -23,10 +23,15 @@ A MindRoom agent reply folds when all of these hold:
 3. Its rendered HTML has at least one tool marker, and visible content follows the last one:
    once sanitized as the renderer sanitizes it, text other than whitespace and the pending mark
    `⏳`, or an image, video or audio element.
-4. (owner decision, 2026-11-19, T3 Code parity) No length condition: as in T3 Code's
-   `deriveTurnFolds`, any finished reply with work before its answer folds, even one tool call.
-   This replaces the row rule of #596 (W >= 8 and W >= 13 or 3W >= A), which left the replies the
-   owner cared about unfolded.
+4. (owner decision, 2026-11-19) Visible content also comes before the last tool marker: the
+   work, without the calls the reply draws, shows text or media by the same test as 3. A marker
+   of a call the reply never draws (in a quote, a list or a heading) shows as text and counts; a
+   repeated marker of a drawn call is drawn with it or hidden, and does not. The reasoning does
+   not count (it renders from `io.mindroom.reasoning`, not from the HTML). A reply whose work is
+   only reasoning and tool calls has nothing worth folding: its thoughts already show collapsed
+   and each call is one row. No other condition: no count of calls and no length, which replaces
+   the row rule of #596 (W >= 8 and W >= 13 or 3W >= A). Here MindRoom differs from T3 Code,
+   whose `deriveTurnFolds` folds any finished turn with work.
 5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
 6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
@@ -53,11 +58,12 @@ When it folds:
 - The timeline's expand all opens the folded work and collapse all folds it, as it does for
   `CollapsibleMessage` (`ExpandAllInitContext`: true opens, false folds, undefined keeps the
   reply's own state).
-- Every finished reply with work before its answer folds, in the whole history, not just the
-  latest one.
+- Every finished reply with text or media before its last tool call folds, in the whole
+  history, not just the latest one.
 
-Nothing else changes: user messages, agent replies without tool calls and replies that end in a
-tool call render as today, with no row and no element of their own.
+Nothing else changes: user messages, agent replies without tool calls, replies that end in a
+tool call and replies whose work is only reasoning and tool calls render as today, with no row
+and no element of their own.
 
 ## Design
 
@@ -65,12 +71,13 @@ tool call render as today, with no row and no element of their own.
   `src/app/messages/agent-run/finishedWorkSplit.ts`. Parse with `htmlToDOM` (already used by
   `toolRefDom.ts`), find the last top-level node whose text matches
   `MINDROOM_TOOL_REF_HTML_REG_G`'s marker form, and return `{ head, tail }` HTML strings, or
-  `undefined` when no marker exists or nothing visible follows it. The backend writes every
-  marker as its own paragraph (`_format_tool_marker` wraps it in blank lines), so a top-level
-  split is exact. The rendering component memoizes it on the HTML string (`useMemo`), because
-  every streamed edit re-renders the row. When the answer starts in the paragraph of the last
-  call, the split cuts that paragraph after the call; a reply whose answer starts in a node that
-  does not cut cleanly does not fold.
+  `undefined` when no marker exists, nothing visible follows it, or nothing but drawn calls
+  comes before it (every marker of a drawn call is removed, then the same visible test runs on
+  the rest). The backend writes every marker as its own paragraph (`_format_tool_marker` wraps
+  it in blank lines), so a top-level split is exact. The rendering component memoizes it on the
+  HTML string (`useMemo`), because every streamed edit re-renders the row. When the answer
+  starts in the paragraph of the last call, the split cuts that paragraph after the call; a
+  reply whose answer starts in a node that does not cut cleanly does not fold.
 - **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Given a split, it
   renders the row, the work when open, and the answer; without one it returns the whole reply
   with no element of its own, so the tree is the same as without the fold (an emote's

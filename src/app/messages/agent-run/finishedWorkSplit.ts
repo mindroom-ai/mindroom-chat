@@ -107,7 +107,9 @@ const cutAfterCalls = (node: ChildNode): [string, string] | undefined => {
  * (`useBodySanitizeOptions`), after the last call the renderer draws with these base parser
  * options (see `readRenderedToolCalls`): after its top-level node, or inside the paragraph whose
  * text after the call starts the answer. Returns undefined when it draws no call, nothing visible
- * follows the last one, or the answer starts inside a node that does not cut cleanly.
+ * follows the last one, the answer starts inside a node that does not cut cleanly, or the work
+ * shows nothing but its calls: its reasoning, which is not in the HTML, already shows folded and
+ * each call is one row, so only text or media before the last call is worth folding.
  */
 export const splitFinishedWork = (
   html: string,
@@ -116,8 +118,17 @@ export const splitFinishedWork = (
 ): FinishedWorkSplit | undefined => {
   if (!html.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
   const sanitized = sanitizeCustomHtml(html, sanitizeOptions);
-  const { lastNode } = readRenderedToolCalls(sanitized, baseOpts);
+  const { indexes, lastNode } = readRenderedToolCalls(sanitized, baseOpts);
   if (lastNode < 0) return undefined;
+  // The work without the calls the reply draws: a marker of a call it never draws (in a quote, a
+  // list or a heading) shows as text. A repeated marker of a drawn call is drawn with it or hidden,
+  // so it goes too. (`replace` starts from the first character, whatever the shared pattern's
+  // `lastIndex`.)
+  const drawn = new Set(indexes);
+  const withoutDrawnCalls = (work: string) =>
+    work.replace(MINDROOM_TOOL_REF_HTML_REG_G, (marker: string, _name: string, index: string) =>
+      drawn.has(Number(index)) ? '' : marker
+    );
   // Cut from a parse of its own: finding the calls draws them, which changes the nodes it read.
   const nodes = parseRenderedHtml(sanitized, baseOpts);
   const serialize = (from: number, to?: number) =>
@@ -127,18 +138,19 @@ export const splitFinishedWork = (
   let end = lastNode + 1;
   for (;;) {
     const tail = serialize(end);
-    const drawn = tail.includes(MINDROOM_TOOL_REF_ICON)
+    const drawnInTail = tail.includes(MINDROOM_TOOL_REF_ICON)
       ? readRenderedToolCalls(tail, baseOpts).lastNode
       : -1;
-    if (drawn < 0) {
+    if (drawnInTail < 0) {
       const last = nodes[end - 1];
       const cut = last && cutAfterCalls(last);
       if (!cut) return undefined;
+      const head = `${serialize(0, end - 1)}${cut[0]}`;
       const answer = `${cut[1]}${tail}`;
-      return rendersVisibleContent(answer)
-        ? { head: `${serialize(0, end - 1)}${cut[0]}`, tail: answer }
+      return rendersVisibleContent(withoutDrawnCalls(head)) && rendersVisibleContent(answer)
+        ? { head, tail: answer }
         : undefined;
     }
-    end += drawn + 1;
+    end += drawnInTail + 1;
   }
 };
