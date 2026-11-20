@@ -682,15 +682,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     useVoiceComposer(
       voiceActive
         ? {
+            ...voice.voiceKey,
             root: () => rootRef.current,
             thread: threadId !== undefined,
-            target: {
-              ...voice.voiceKey,
-              hasContent: () =>
-                !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
-              send: () => void handleSend(),
-              focus: () => ReactEditor.focus(editor),
-            },
+            hasContent: () =>
+              !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
+            send: () => void handleSend(),
+            focus: () => ReactEditor.focus(editor),
           }
         : undefined
     );
