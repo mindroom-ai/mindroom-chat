@@ -146,10 +146,9 @@ export const toolStep = (activity: ToolActivity, t: TFunction): string => {
   if (!step) return t('mindroomUi.subagents.step.using', { tool: tool.replace(/_+/g, ' ').trim() });
   if (!step.arg) return t(`mindroomUi.subagents.step.${step.key}`);
   const value = stepValue(step.arg, preview);
-  // Each phrase reads the one value it names.
-  return value === undefined
-    ? t(`mindroomUi.subagents.step.${step.bare}`)
-    : t(`mindroomUi.subagents.step.${step.key}`, { file: value, query: value, site: value });
+  if (value === undefined) return t(`mindroomUi.subagents.step.${step.bare}`);
+  const values: Partial<Record<StepArg, string>> = { [step.arg]: value };
+  return t(`mindroomUi.subagents.step.${step.key}`, values);
 };
 
 /** A Markdown line as plain text: no marks of headings, lists, quotes, emphasis, code or links. */
