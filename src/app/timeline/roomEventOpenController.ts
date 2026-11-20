@@ -52,7 +52,16 @@ export type OpenRoomEventHandler = (
   onScroll?: (scrolled: boolean) => void
 ) => Promise<void>;
 
-export type OpenRoomEventRoute = (eventId: string, isCurrentRoute: () => boolean) => Promise<void>;
+/**
+ * Opens the event a room's address names. `returned` says the app's Back put that address in a
+ * thread's place (`RETURN_TO_ROOM_STATE`): the room stays the room, as its address is the one the
+ * thread was opened from, and the event it names would open its thread again, on every Back.
+ */
+export type OpenRoomEventRoute = (
+  eventId: string,
+  isCurrentRoute: () => boolean,
+  returned: boolean
+) => Promise<void>;
 
 export const useRoomEventOpenController = ({
   alive,
@@ -184,9 +193,9 @@ export const useRoomEventOpenController = ({
     mx,
     room,
     useCallback(
-      (evtId, linkedTimelines, eventAbsoluteIndex) => {
+      (evtId, linkedTimelines, eventAbsoluteIndex, returned) => {
         if (!alive()) return;
-        if (redirectRoomEventDeepLink(evtId, linkedTimelines)) {
+        if (!returned && redirectRoomEventDeepLink(evtId, linkedTimelines)) {
           return;
         }
         const filterOpts = recalibrateFilterOptsRef.current;
@@ -331,8 +340,13 @@ export const useRoomEventOpenController = ({
     recalibrateFilterOptsRef
   );
 
-  const handleOpenEvent = useCallback<OpenRoomEventHandler>(
-    async (evtId, highlight = true, onScroll = undefined) => {
+  const handleOpenEvent = useCallback(
+    async (
+      ...[evtId, highlight = true, onScroll, returned]: [
+        ...Parameters<OpenRoomEventHandler>,
+        returned?: boolean
+      ]
+    ) => {
       if (threadId && evtId !== threadId) {
         // The render index map is authoritative thread membership: events
         // loaded through the MindRoom thread cache may be absent from the SDK
@@ -456,7 +470,7 @@ export const useRoomEventOpenController = ({
           return;
         }
         setTimeline(getEmptyTimeline());
-        await loadEventTimeline(evtId);
+        await loadEventTimeline(evtId, returned);
       }
     },
     [
@@ -483,7 +497,11 @@ export const useRoomEventOpenController = ({
   // loaded asks the server for its thread before anything replaces the room timeline;
   // an answer for a route that has since changed is dropped.
   const openRoomEventRoute = useCallback<OpenRoomEventRoute>(
-    async (targetEventId, isCurrentRoute) => {
+    async (targetEventId, isCurrentRoute, returned) => {
+      if (returned) {
+        await handleOpenEvent(targetEventId, true, undefined, true);
+        return;
+      }
       if (redirectRoomEventDeepLink(targetEventId)) return;
 
       if (
@@ -520,6 +538,7 @@ export const useRoomEventOpenController = ({
 
 export const useRoomEventRouteOpenController = ({
   effectiveViewMode,
+  entryReturned = false,
   eventId,
   focusEventInRoom,
   openRoomEventRoute,
@@ -528,6 +547,8 @@ export const useRoomEventRouteOpenController = ({
   threadId,
 }: {
   effectiveViewMode: RoomViewMode;
+  /** Whether the app's Back put the entry in a thread's place: `OpenRoomEventRoute`. */
+  entryReturned?: boolean;
   eventId?: string;
   focusEventInRoom?: boolean;
   openRoomEventRoute: OpenRoomEventRoute;
@@ -554,6 +575,8 @@ export const useRoomEventRouteOpenController = ({
       threadId ?? '',
       eventId,
       focusEventInRoom ? '1' : '0',
+      // A link followed to the address Back returned to is a new open, which leads into the thread.
+      entryReturned ? '1' : '0',
       effectiveViewMode,
       roomOverviewOrderActive ? '1' : '0',
     ].join('|');
@@ -567,7 +590,16 @@ export const useRoomEventRouteOpenController = ({
 
     void openRoomEventRouteRef.current(
       eventId,
-      () => handledRoomEventRouteRef.current === routeOpen
+      () => handledRoomEventRouteRef.current === routeOpen,
+      entryReturned
     );
-  }, [effectiveViewMode, eventId, focusEventInRoom, roomId, roomOverviewOrderActive, threadId]);
+  }, [
+    effectiveViewMode,
+    entryReturned,
+    eventId,
+    focusEventInRoom,
+    roomId,
+    roomOverviewOrderActive,
+    threadId,
+  ]);
 };

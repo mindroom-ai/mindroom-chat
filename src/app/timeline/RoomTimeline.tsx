@@ -1247,9 +1247,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     alive,
     cancelThreadBottomSettle,
     effectiveViewMode: viewMode,
-    // The room the app's Back returned to stays the room: its address is the one the thread was
-    // opened from, and the event that names would open its thread again, on every Back.
-    focusEventInRoom: focusEventInRoom || entryReturned,
+    focusEventInRoom,
     hideMembershipEvents,
     hideNickAvatarEvents,
     ignoredUsersSet,
@@ -1288,6 +1286,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
   useRoomEventRouteOpenController({
     effectiveViewMode: viewMode,
+    entryReturned,
     eventId,
     focusEventInRoom,
     openRoomEventRoute,
