@@ -4,7 +4,12 @@ import { act, cleanup, render, renderHook } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import React, { useState } from 'react';
 import { voiceAutoSendPendingAtom } from './roomInputDrafts';
-import { resolveVoiceComposer, useVoiceComposer, useVoiceHoldShortcut } from './voiceHoldShortcut';
+import {
+  UNCERTAIN_KEY_MS,
+  resolveVoiceComposer,
+  useVoiceComposer,
+  useVoiceHoldShortcut,
+} from './voiceHoldShortcut';
 
 type Log = string[];
 
@@ -271,7 +276,7 @@ describe('useVoiceHoldShortcut', () => {
     expect(log).toEqual(['start', 'send']);
   });
 
-  it('sends nothing for right Alt while Caps Lock is held, or once after ⌘ came up over a key', () => {
+  it('sends nothing for right Alt while Caps Lock is held', () => {
     const { log } = setup((l) => <Composer log={l} />);
     press('keydown', rightAlt);
     press('keyup', rightAlt);
@@ -282,17 +287,64 @@ describe('useVoiceHoldShortcut', () => {
     expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
     press('keyup', { key: 'CapsLock', code: 'CapsLock' });
 
-    // ⌘ then the left arrow, whose release macOS drops, then ⌘ up.
-    press('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true });
-    press('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', metaKey: true });
-    press('keyup', { key: 'Meta', code: 'MetaLeft' });
-    press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
     expect(log).toEqual(['start']);
-
     press('keydown', rightAlt);
-    expect(press('keyup', rightAlt).defaultPrevented).toBe(true);
+    press('keyup', rightAlt);
     expect(log).toEqual(['start', 'send']);
+  });
+
+  describe('a key down when ⌘ came up', () => {
+    const metaShiftLeft = () => {
+      const view = setup((l) => <Composer log={l} />);
+      press('keydown', rightAlt);
+      press('keyup', rightAlt);
+      press('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true });
+      press('keydown', { key: 'Shift', code: 'ShiftLeft', metaKey: true, shiftKey: true });
+      press('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', metaKey: true, shiftKey: true });
+      press('keyup', { key: 'Meta', code: 'MetaLeft', shiftKey: true });
+      press('keyup', { key: 'Shift', code: 'ShiftLeft' });
+      return view;
+    };
+    const tap = () => {
+      press('keydown', rightAlt);
+      return press('keyup', rightAlt).defaultPrevented;
+    };
+
+    it('blocks right Alt while it may still be down, however many taps or other keys come', () => {
+      const { log } = metaShiftLeft();
+      expect(tap()).toBe(false);
+      press('keydown', { key: 'b', code: 'KeyB' });
+      press('keyup', { key: 'b', code: 'KeyB' });
+      wait(1000);
+      expect(tap()).toBe(false);
+      expect(log).toEqual(['start']);
+    });
+
+    it('blocks until its keyup once it repeats', () => {
+      const { log } = metaShiftLeft();
+      wait(1400);
+      press('keydown', { key: 'ArrowLeft', code: 'ArrowLeft', repeat: true });
+      wait(2000);
+      expect(tap()).toBe(false);
+      press('keyup', { key: 'ArrowLeft', code: 'ArrowLeft' });
+      expect(tap()).toBe(true);
+      expect(log).toEqual(['start', 'send']);
+    });
+
+    it('lapses after 1.5 s without a repeat', () => {
+      const { log } = metaShiftLeft();
+      wait(UNCERTAIN_KEY_MS);
+      expect(tap()).toBe(true);
+      expect(log).toEqual(['start', 'send']);
+    });
+
+    it('leaves a press begun while it blocked inert, even once it lapses', () => {
+      const { log } = metaShiftLeft();
+      press('keydown', rightAlt);
+      wait(UNCERTAIN_KEY_MS + 500);
+      expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+      expect(log).toEqual(['start']);
+    });
   });
 
   it('forgets keys held when the window lost the focus, and latches on a click', () => {

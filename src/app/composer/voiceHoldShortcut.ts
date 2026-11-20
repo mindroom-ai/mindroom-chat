@@ -77,6 +77,9 @@ export const resolveVoiceComposer = (
 
 const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'Shift', 'Fn']);
 
+/** How long a key down when ⌘ came up blocks the voice key without repeating. */
+export const UNCERTAIN_KEY_MS = 1500;
+
 /**
  * The voice key: right ⌥ (right Alt elsewhere, also as AltGraph) pressed alone records a voice
  * message in the composer `resolveVoiceComposer` finds (`createVoiceHold`). Not over a dialog,
@@ -108,22 +111,25 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     holdRef.current = hold;
     // Keys other than modifiers that are down now, as a press of A then right ⌥ is no press alone.
     // Left ⌥ counts too: `altKey` cannot tell right ⌥ alone from both. So do mouse buttons down.
-    const held = new Set<string>();
+    // macOS drops keyups under ⌘, so a key down when ⌘ comes up is uncertain from then (the time
+    // it got so): it blocks until its keyup, a repeat makes it surely held again, and it lapses
+    // after UNCERTAIN_KEY_MS without one. A key still held with no repeat by then (key repeat
+    // turned off) no longer blocks.
+    const held = new Map<string, number | undefined>();
     const pointers = new Set<number>();
-    // After ⌘ comes up with other keys possibly held, the next right ⌥ press is ignored, because
-    // macOS drops their keyups under ⌘.
-    let staleAfterMeta = false;
+    const blocked = () =>
+      pointers.size > 0 ||
+      [...held.values()].some(
+        (since) => since === undefined || Date.now() - since < UNCERTAIN_KEY_MS
+      );
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!MODIFIER_KEYS.has(event.key) || event.code === 'AltLeft') held.add(event.code);
-      const stale = staleAfterMeta;
-      staleAfterMeta = false;
+      if (!MODIFIER_KEYS.has(event.key) || event.code === 'AltLeft')
+        held.set(event.code, undefined);
       const alone =
-        !stale &&
         enabledRef.current &&
         event.code === 'AltRight' &&
-        held.size === 0 &&
-        pointers.size === 0 &&
+        !blocked() &&
         !event.ctrlKey &&
         !event.metaKey &&
         !event.shiftKey &&
@@ -135,13 +141,12 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       else hold.interrupt();
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      const before = held.size;
       if (event.key === 'Meta') {
-        held.forEach((code) => {
-          if (code !== 'AltLeft') held.delete(code);
+        const now = Date.now();
+        held.forEach((since, code) => {
+          if (code !== 'AltLeft' && since === undefined) held.set(code, now);
         });
       } else held.delete(event.code);
-      staleAfterMeta = event.key === 'Meta' && held.size < before;
       if (event.code === 'AltRight' && hold.keyUp()) event.preventDefault();
     };
     const interrupt = () => hold.interrupt();
