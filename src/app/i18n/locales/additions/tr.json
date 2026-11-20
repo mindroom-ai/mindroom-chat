@@ -437,6 +437,7 @@
         "profile": "profil fotoğrafı, fotoğraf, ad, takma ad",
         "deactivate": "hesabı sil, hesabı kapat",
         "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
+        "voiceKey": "sesli mesaj, mikrofon, kayıt, bas konuş, Option, Alt, klavye kısayolu",
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes"
@@ -1259,6 +1260,10 @@
     "hints": {
       "chip": "Tüm kısayollar için {{keys}}"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} sesli mesaj kaydeder",
+      "description": "Başlatmak veya göndermek için dokunun; konuşmak için basılı tutun, göndermek için bırakın."
+    },
     "actions": {
       "palette": "Arama ve komutlar",
       "settings": "Ayarları aç",
@@ -1284,7 +1289,8 @@
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",
-      "callView": "Aramaya git"
+      "callView": "Aramaya git",
+      "voiceRecord": "Sesli mesaj kaydetmek için basılı tutun, başlatmak veya göndermek için dokunun"
     }
   },
   "thread": {

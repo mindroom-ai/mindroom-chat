@@ -50,6 +50,10 @@ import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
+import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
+import type { VoiceHoldTarget } from '../shortcuts/voiceHold';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -82,6 +86,8 @@ type VoiceFeature = {
   submitIfActive: (textContent?: IContent) => Promise<boolean>;
   microphone: React.ReactNode;
   renderRecorder: (onRetryRequest: () => void) => React.ReactNode;
+  /** What the voice key (right ⌥) reads and does here. */
+  voiceKey: Pick<VoiceHoldTarget, 'active' | 'phase' | 'start'>;
 };
 
 type PendingVoiceComposerBundle = {
@@ -565,24 +571,57 @@ export const useRoomInputVoice = ({
             roomName: revealDirectionControls(draftRoom.name ?? draftRoomId),
           });
   }
+  // The mic button's guards, which the voice key shares: one recording at a time, none while a
+  // voice message sends or a failed one waits. Read from the store, as the key acts after a delay.
+  const startBlocked =
+    voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft;
+  const startRecording = (): boolean => {
+    const draft = store.get(pendingVoiceSendDraftAtom);
+    if (
+      voiceRecorderOpen ||
+      store.get(voiceAutoSendPendingAtom) ||
+      draft?.context.ownerSessionId === currentSessionId
+    )
+      return false;
+    pauseAllMediaElements();
+    setVoiceRecorderOpen(true);
+    return true;
+  };
+  const recorderShown = voiceRecorderOpen || ownsPendingVoiceDraft;
+  const voiceShortcut = useSettingValue(settingsAtom, 'voiceHoldShortcut')
+    ? 'voiceRecord'
+    : undefined;
+  const voiceKey: VoiceFeature['voiceKey'] = {
+    active: () => recorderShown,
+    phase: () => {
+      const phase = recorderShown ? voiceRecorderRef.current?.phase() : 'none';
+      return phase === 'none' ||
+        phase === 'requesting' ||
+        phase === 'recording' ||
+        phase === 'paused'
+        ? phase
+        : 'other';
+    },
+    // Unlike the button, the key never takes over a recorder another composer opened meanwhile.
+    start: () => store.get(openVoiceRecorderAtom) === undefined && startRecording(),
+  };
+
   const microphone = (
     // The label says why the button is disabled while another composer holds a draft;
     // the tooltip shows it too where the browser reports hovering a disabled button.
-    <IconTooltip label={microphoneLabel} position="Top">
+    <IconTooltip label={microphoneLabel} position="Top" shortcut={voiceShortcut}>
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
           onClick={() => {
-            if (voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft)
-              return;
-            pauseAllMediaElements();
-            setVoiceRecorderOpen(true);
+            startRecording();
           }}
           variant="SurfaceVariant"
           size="300"
           radii="300"
-          disabled={voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft}
+          disabled={startBlocked}
           aria-label={microphoneLabel}
+          {...shortcutAttributes(voiceShortcut)}
           className={ComposerIconButton}
         >
           <Icon src={Icons.Mic} />
@@ -591,5 +630,5 @@ export const useRoomInputVoice = ({
     </IconTooltip>
   );
 
-  return { blocksSubmit, submitIfActive, microphone, renderRecorder };
+  return { blocksSubmit, submitIfActive, microphone, renderRecorder, voiceKey };
 };

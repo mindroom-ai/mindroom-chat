@@ -37,6 +37,13 @@ describe('getSettings', () => {
     storageValue = null;
   });
 
+  it('turns the right Option voice key on until the person switches it off', async () => {
+    const { getSettings } = await import('./settings');
+    storageValue = null;
+
+    expect(getSettings().voiceHoldShortcut).toBe(true);
+  });
+
   it('hides the tool calls of agent replies until the reader shows them', async () => {
     const { getSettings } = await import('./settings');
     storageValue = null;

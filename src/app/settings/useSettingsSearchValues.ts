@@ -3,6 +3,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { isMacOS } from '../lib/user-agent';
 import { getCommandPaletteShortcutLabel } from '../shortcuts/paletteShortcut';
+import { formatShortcut } from '../shortcuts/shortcuts';
 import type { SettingsSearchValues } from './settingsSearchIndex';
 
 /** The values some labels and descriptions fill in, so search reads them as the page does. */
@@ -14,6 +15,7 @@ export const useSettingsSearchValues = (): SettingsSearchValues => {
       username: getMxIdLocalPart(userId) ?? userId,
       sendKey: isMacOS() ? 'Cmd' : 'Ctrl',
       shortcut: getCommandPaletteShortcutLabel(),
+      voiceKey: formatShortcut('voiceRecord'),
     }),
     [userId]
   );
