@@ -5,12 +5,14 @@ import {
   createBrowserRouter,
   createHashRouter,
   createRoutesFromElements,
+  useParams,
   useRouteError,
 } from 'react-router-dom';
 import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
 import { useHistoryStackRecorder } from '../routes/historyStack';
+import { decodeRouteParam, getSpaceLobbyPath } from '../routes/pathUtils';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import {
   resolveProtectedRouteRedirect,
@@ -176,6 +178,16 @@ function RootRedirect() {
   return <Navigate to={decision.redirectTo} replace />;
 }
 
+/**
+ * A space's own address on a desktop: its lobby, at the address the app's links to it use. Not the
+ * relative `lobby`, which React Router 7 resolves from the address as typed, encoding the `%` of
+ * an escaped `/` in the space's ID again.
+ */
+function SpaceLobbyRedirect() {
+  const { spaceIdOrAlias = '' } = useParams();
+  return <Navigate to={getSpaceLobbyPath(decodeRouteParam(spaceIdOrAlias))} replace />;
+}
+
 /** Signed-in routes send signed-out visitors to login and remember where they were going. */
 function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'] }) {
   const decision = resolveProtectedRouteRedirect(currentHref(), hashRouter);
@@ -293,7 +305,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
           {/* A space opens on its lobby; phones stay here, its room list out over the lobby. */}
           <Route
             index
-            element={<SectionIndex page={<Navigate to="lobby" replace />} phonePage={<Lobby />} />}
+            element={<SectionIndex page={<SpaceLobbyRedirect />} phonePage={<Lobby />} />}
           />
           <Route path={SPACE_LOBBY_PATH} element={<Lobby />} />
           <Route path={SPACE_SEARCH_PATH} element={<SpaceSearchPage />} />

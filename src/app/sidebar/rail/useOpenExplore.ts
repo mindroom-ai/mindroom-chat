@@ -25,19 +25,19 @@ export function useOpenExplore(): () => void {
 
   return () => {
     if (isMobile) {
-      navigate(getExplorePath());
+      void navigate(getExplorePath());
       return;
     }
     const lastPath = navToActivePath.get('explore');
     if (lastPath) {
-      navigate(joinPathComponent(lastPath));
+      void navigate(joinPathComponent(lastPath));
       return;
     }
     if (featuredCommunities?.openAsDefault) {
-      navigate(getExploreFeaturedPath());
+      void navigate(getExploreFeaturedPath());
       return;
     }
     const server = getMxIdServer(client.getUserId() ?? '');
-    navigate(server ? getExploreServerPath(server) : getExploreFeaturedPath());
+    void navigate(server ? getExploreServerPath(server) : getExploreFeaturedPath());
   };
 }

@@ -52,7 +52,6 @@
     "./src/types/novnc-core.d.ts",
     "./src/types/novnc.d.ts",
     "./src/types/react-act-environment.d.ts",
-    "./src/types/react-router-navigate.d.ts",
     "./node_modules/vite/client.d.ts"
   ],
   "include": []

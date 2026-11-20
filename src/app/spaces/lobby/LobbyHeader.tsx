@@ -89,7 +89,7 @@ function LeaveSpaceDialog({ spaceId, onClose }: { spaceId: string; onClose: () =
       requestClose={onClose}
       onLeft={() => {
         onClose();
-        navigate(getHomePath());
+        void navigate(getHomePath());
       }}
     />
   );

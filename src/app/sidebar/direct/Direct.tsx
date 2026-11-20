@@ -79,7 +79,7 @@ export function Direct() {
                 variant="Secondary"
                 size="300"
                 radii="300"
-                onClick={() => navigate(getDirectCreatePath())}
+                onClick={() => void navigate(getDirectCreatePath())}
               >
                 <Text size="B300" truncate>
                   {t('nav.directMessage')}

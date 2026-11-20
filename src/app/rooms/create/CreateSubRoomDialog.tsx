@@ -45,7 +45,7 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
   const open = (roomId: string) => {
     if (!spaceId) navigateRoom(roomId);
     else {
-      navigate(
+      void navigate(
         getSpaceRoomPath(
           getCanonicalAliasOrRoomId(client, spaceId),
           getCanonicalAliasOrRoomId(client, roomId)

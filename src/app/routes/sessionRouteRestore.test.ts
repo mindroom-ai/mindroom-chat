@@ -10,6 +10,9 @@ describe('sessionRouteRestore', () => {
     expect(resolveSessionRestorePath(undefined)).toBe(getHomePath());
     expect(resolveSessionRestorePath('')).toBe(getHomePath());
     expect(resolveSessionRestorePath('//evil.com')).toBe(getHomePath());
+    // A browser reads a backslash as a slash: React Router's <Navigate> refuses these as external.
+    expect(resolveSessionRestorePath('/\\evil.com')).toBe(getHomePath());
+    expect(resolveSessionRestorePath('\\\\evil.com')).toBe(getHomePath());
     expect(resolveSessionRestorePath('https://example.com/outside')).toBe(getHomePath());
   });
 });

@@ -283,7 +283,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
             requestClose={() => setLeaving(false)}
             onLeft={() => {
               setLeaving(false);
-              navigate(getHomePath());
+              void navigate(getHomePath());
             }}
           />
         </Suspense>

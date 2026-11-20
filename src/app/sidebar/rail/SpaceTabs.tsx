@@ -196,11 +196,11 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
     const spacePath = getSpacePath(getCanonicalAliasOrRoomId(client, roomId));
     // On phones the first tap shows the space's list; a second one returns to its last room.
     if (isMobile && !selected) {
-      navigate(spacePath);
+      void navigate(spacePath);
       return;
     }
     const lastPath = activePaths.get(roomId);
-    navigate(lastPath ? joinPathComponent(lastPath) : spacePath);
+    void navigate(lastPath ? joinPathComponent(lastPath) : spacePath);
   };
 
   // The button's name says what the badge shows, so the badge itself stays out of the reading.

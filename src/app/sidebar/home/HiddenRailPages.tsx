@@ -41,14 +41,14 @@ export function HiddenRailPages({ onClose }: { onClose: () => void }) {
           <MenuEntry
             icon={Icons.Thread}
             label={t('nav.threads')}
-            onSelect={closeThen(() => navigate(getThreadsPath()))}
+            onSelect={closeThen(() => void navigate(getThreadsPath()))}
           />
         )}
         {canvases && (
           <MenuEntry
             icon={Icons.Category}
             label={t('nav.canvases')}
-            onSelect={closeThen(() => navigate(getCanvasesPath()))}
+            onSelect={closeThen(() => void navigate(getCanvasesPath()))}
           />
         )}
         {explore && (

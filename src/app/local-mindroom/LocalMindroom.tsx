@@ -270,7 +270,7 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
           />
           <PairCodeForm
             onSubmit={(code) => {
-              navigate(getConnectPath(code));
+              void navigate(getConnectPath(code));
               onNavigate();
             }}
           />

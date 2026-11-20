@@ -620,7 +620,7 @@ export function RoomViewHeader({
               submenuSide="Left"
               close={closeMenu}
               showDialog={showDialog}
-              onLeft={() => navigate(sectionPath)}
+              onLeft={() => void navigate(sectionPath)}
               roomEntries={roomEntries}
             />
           </FocusTrap>

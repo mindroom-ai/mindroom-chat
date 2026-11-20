@@ -81,7 +81,9 @@ export function ClientLayout({
   useEffect(() => {
     if (!sessionId || isRuntimeHandOffPath(pathname)) return;
     if (routeOpener && routeOpener.key === key && routeOpener.sessionId !== sessionId) {
-      navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), { replace: true });
+      void navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), {
+        replace: true,
+      });
       return;
     }
     routeOpener = { key, sessionId };
@@ -99,7 +101,7 @@ export function ClientLayout({
         // A navigation since, which the page may not show yet, keeps its own address: a link's
         // redirect into its thread, or a step back to the entry the page load started on.
         if (router && router.state.location.key !== key) return;
-        if (resolved !== pathname) navigate(`${resolved}${search}${hash}`, { replace: true });
+        if (resolved !== pathname) void navigate(`${resolved}${search}${hash}`, { replace: true });
       })
       .catch(() => {
         if (!cancelled) setResolvedAliasPath(pathname);
