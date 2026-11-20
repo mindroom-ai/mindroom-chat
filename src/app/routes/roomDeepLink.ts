@@ -111,18 +111,26 @@ export const isRoomEventThreadRedirectActive = ({
   roomOverviewOrderActive: boolean;
 }): boolean => !focusEventInRoom && !threadId && roomOverviewOrderActive;
 
-// The thread an event is in, from the cleartext relation of the server's copy.
-export const fetchRoomEventThreadRootId = async (
+// The thread an event is in and the event to show there (the one an edit replaces), from the
+// cleartext relations of the server's copies.
+export const fetchRoomEventThreadTarget = async (
   mx: Pick<MatrixClient, 'fetchRoomEvent'>,
   roomId: string,
   eventId: string
-): Promise<string | undefined> => {
-  const [, event] = await to(mx.fetchRoomEvent(roomId, eventId));
-  const relation = event?.content?.['m.relates_to'];
-  return relation?.rel_type === RelationType.Thread &&
-    typeof relation.event_id === 'string' &&
-    relation.event_id !== eventId
-    ? relation.event_id
+): Promise<{ threadId: string; eventId: string } | undefined> => {
+  const relationOf = async (id: string) => {
+    const [, event] = await to(mx.fetchRoomEvent(roomId, id));
+    const relation = event?.content?.['m.relates_to'];
+    const relatedId: unknown = relation?.event_id;
+    return typeof relatedId === 'string' && relatedId !== id
+      ? { type: relation?.rel_type, relatedId }
+      : undefined;
+  };
+  let relation = await relationOf(eventId);
+  const target = relation?.type === RelationType.Replace ? relation.relatedId : eventId;
+  if (target !== eventId) relation = await relationOf(target);
+  return relation?.type === RelationType.Thread
+    ? { threadId: relation.relatedId, eventId: target }
     : undefined;
 };
 

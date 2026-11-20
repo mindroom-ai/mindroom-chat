@@ -8,7 +8,14 @@ import {
   type SetStateAction,
 } from 'react';
 import type { NavigateOptions } from 'react-router-dom';
-import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import {
+  RelationType,
+  type EventTimeline,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type Thread,
+} from 'matrix-js-sdk';
 import to from 'await-to-js';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollToElement, ScrollToItem } from './useVirtualPaginator';
@@ -28,7 +35,7 @@ import {
 } from '../event-store/timeline/timelineScrollUtils';
 import { useEventTimelineLoader } from './timelinePaginationController';
 import {
-  fetchRoomEventThreadRootId,
+  fetchRoomEventThreadTarget,
   isRoomEventThreadRedirectActive,
   resolveRoomEventThreadRedirect,
 } from '../routes/roomDeepLink';
@@ -504,15 +511,17 @@ export const useRoomEventOpenController = ({
       }
       if (redirectRoomEventDeepLink(targetEventId)) return;
 
+      // An edit that is loaded without the event it replaces says nothing of its thread either.
+      const loaded = room.findEventById(targetEventId);
       if (
         effectiveViewMode !== 'classic' &&
         isRoomEventThreadRedirectActive({ focusEventInRoom, threadId, roomOverviewOrderActive }) &&
-        !room.findEventById(targetEventId)
+        (!loaded || loaded.getRelation()?.rel_type === RelationType.Replace)
       ) {
-        const threadRootId = await fetchRoomEventThreadRootId(mx, room.roomId, targetEventId);
+        const target = await fetchRoomEventThreadTarget(mx, room.roomId, targetEventId);
         if (!alive() || !isCurrentRoute()) return;
-        if (threadRootId) {
-          navigateRoomThread(room.roomId, threadRootId, targetEventId, { replace: true });
+        if (target) {
+          navigateRoomThread(room.roomId, target.threadId, target.eventId, { replace: true });
           return;
         }
       }
