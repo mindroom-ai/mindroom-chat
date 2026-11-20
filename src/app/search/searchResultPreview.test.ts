@@ -228,6 +228,15 @@ describe('getSearchResultBodySnippet', () => {
     expect(snippet.indexOf('ISSUE-023')).toBeGreaterThanOrEqual(0);
     expect(snippet.endsWith('…')).toBe(true);
   });
+  it('anchors on a whole-word match, not on the highlight inside a longer word', () => {
+    const body = `alpha_beta ${'gamma '.repeat(300)}be ${'delta '.repeat(300)}`;
+
+    const snippet = getSearchResultBodySnippet(body, ['be'], 200);
+
+    expect(snippet).toMatch(/ be /);
+    expect(snippet).not.toContain('alpha_beta');
+    expect(snippet.startsWith('…')).toBe(true);
+  });
 });
 
 describe('shouldUseLightweightSearchResultBody', () => {
