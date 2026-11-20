@@ -94,7 +94,7 @@
     "slate-react": "0.123.0",
     "workbox-precaching": "7.4.1",
     "workbox-routing": "7.4.1",
-    "yaml": "1.10.3"
+    "yaml": "2.9.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.6.2",
@@ -149,10 +149,8 @@
       "@vanilla-extract/recipes": "$@vanilla-extract/recipes"
     },
     "@vanilla-extract/vite-plugin": {
-      "vite": "$vite"
-    },
-    "vite": {
-      "yaml": "$yaml"
+      "vite": "$vite",
+      "vite-node": "5.3.0"
     }
   },
   "prettier": {

@@ -246,7 +246,8 @@ check_lint() {
 
 check_vitest() {
   local rc=0 files tests failed=() again
-  (cd "$tree" && bash scripts/with-fhs-bin.sh npx vitest run --reporter=default --reporter=json \
+  # Vitest colours its summary even into a file unless NO_COLOR is set, and the sed below reads it plain.
+  (cd "$tree" && NO_COLOR=1 bash scripts/with-fhs-bin.sh npx vitest run --reporter=default --reporter=json \
     --outputFile.json="$work/vitest.json") >"$logs/vitest.log" 2>&1 || rc=$?
   files="$(sed -nE 's/^ *Test Files +//p' "$logs/vitest.log" | tail -n 1)"
   tests="$(sed -nE 's/^ *Tests +//p' "$logs/vitest.log" | tail -n 1)"
@@ -261,7 +262,7 @@ check_vitest() {
   # A loaded machine can starve a test past its timeout or a timer window. The files that failed run
   # once more on their own, and only a second failure fails the gate; the detail names the count.
   rc=0
-  (cd "$tree" && bash scripts/with-fhs-bin.sh npx vitest run "${failed[@]}") \
+  (cd "$tree" && NO_COLOR=1 bash scripts/with-fhs-bin.sh npx vitest run "${failed[@]}") \
     >"$logs/vitest-rerun.log" 2>&1 || rc=$?
   again="$(sed -nE 's/^ *Test Files +//p' "$logs/vitest-rerun.log" | tail -n 1)"
   if [ "$rc" = 0 ]; then
