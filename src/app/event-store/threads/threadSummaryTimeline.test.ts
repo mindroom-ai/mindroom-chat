@@ -24,6 +24,7 @@ const reply = (id: string) =>
   });
 
 const startLoaded = { sdkLoaded: true, canPaginateBack: false, hasMoreCachedBack: false };
+const isIgnored = (event: MatrixEvent) => event.getSender() === '@spam:example.org';
 
 describe('thread summary timeline plan', () => {
   it('marks the first summary of a fully loaded thread as its first title', () => {
@@ -54,7 +55,7 @@ describe('thread summary timeline plan', () => {
     expect([...plan.hiddenEventIds]).toEqual(['$s2']);
   });
 
-  it('gives a changed summary the text it replaces', () => {
+  it('keeps the earlier title when a visible reply separates it from an update', () => {
     const plan = planThreadSummaryTimeline(
       [
         summary('$s1', 'Push bug'),
@@ -65,6 +66,8 @@ describe('thread summary timeline plan', () => {
       { history: startLoaded }
     );
 
+    expect([...plan.hiddenEventIds]).toEqual(['$s2']);
+    expect(plan.markersByEventId.get('$s1')).toEqual({ first: true });
     expect(plan.markersByEventId.get('$s3')).toEqual({
       first: false,
       previousSummaryText: 'Push bug',
@@ -106,7 +109,7 @@ describe('thread summary timeline plan', () => {
     });
     const plan = planThreadSummaryTimeline(
       [summary('$s1', 'Push bug'), reply('$r1'), fromIgnored, summary('$s2', 'Token refresh', 11)],
-      { history: startLoaded, ignoredUserIds: new Set(['@spam:example.org']) }
+      { history: startLoaded, isHidden: isIgnored }
     );
 
     expect(plan.markersByEventId.has('$ignored')).toBe(false);
@@ -195,6 +198,60 @@ describe('thread summary timeline plan', () => {
     expect(plan.markersByEventId.get('$s2')).toEqual({ first: true });
   });
 
+  it.each([
+    [
+      'a reaction redaction',
+      new MatrixEvent({
+        type: 'm.room.redaction',
+        event_id: '$redaction',
+        redacts: '$reaction',
+        content: {},
+      }),
+    ],
+    [
+      'a redacted message',
+      new MatrixEvent({
+        type: 'm.room.message',
+        event_id: '$removed',
+        content: {},
+        unsigned: {
+          redacted_because: {
+            type: 'm.room.redaction',
+            event_id: '$message-redaction',
+            redacts: '$removed',
+            content: {},
+            sender: '@code:example.org',
+            origin_server_ts: 1,
+            unsigned: {},
+          },
+        },
+      }),
+    ],
+    [
+      'a state event with no notice row',
+      new MatrixEvent({
+        type: 'm.room.power_levels',
+        event_id: '$levels',
+        state_key: '',
+        content: {},
+      }),
+    ],
+  ])('folds title markers separated by %s', (_label, between) => {
+    const plan = planThreadSummaryTimeline(
+      [
+        reply('$r1'),
+        summary('$s1', 'Sketch a garden'),
+        between,
+        summary('$s2', 'Plan a greenhouse'),
+      ],
+      { history: startLoaded }
+    );
+
+    expect([...plan.hiddenEventIds]).toEqual(['$s1']);
+    expect(plan.markersByEventId.has('$s1')).toBe(false);
+    expect(plan.markersByEventId.get('$s2')).toEqual({ first: true });
+  });
+
   it('folds a run of summaries into its last, which replaces the title before the run', () => {
     const plan = planThreadSummaryTimeline(
       [
@@ -250,7 +307,7 @@ describe('thread summary timeline plan', () => {
         fromIgnored,
         summary('$s2', 'Token refresh'),
       ],
-      { history: startLoaded, ignoredUserIds: new Set(['@spam:example.org']) }
+      { history: startLoaded, isHidden: isIgnored }
     );
 
     expect([...plan.hiddenEventIds]).toEqual(['$s1']);

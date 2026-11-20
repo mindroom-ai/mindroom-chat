@@ -9,8 +9,6 @@ const hidden = (id: string, replyCardIds?: Set<string>) =>
   isTimelineRowHidden(new MatrixEvent({ event_id: id, type: 'm.room.message' }), {
     messageData: {
       approvalTimeline: { hiddenEventIds: NONE } as never,
-      threadSummaryTimeline: { hiddenEventIds: NONE } as never,
-      secretRequestTimeline: { hiddenEventIds: NONE },
       voiceTranscripts: NO_VOICE_TRANSCRIPTS,
       modelChanges: NO_MODEL_CHANGES,
       replyCards: replyCardIds && { hiddenEventIds: replyCardIds, byReply: new Map() },

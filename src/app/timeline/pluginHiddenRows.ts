@@ -1,7 +1,8 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isThreadReplyEvent } from '../event-store/threads/threadUtils';
 import type { PluginEvent } from '../plugins/messageRenderers';
-import { genuineReplyEventId, isRowlessTimelineEvent } from './timelineRowFold';
+import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
+import { genuineReplyEventId } from './timelineRowFold';
 
 /**
  * Whether a plugin's message renderer leaves `event` without a row (`MessageRenderer.hidden`,

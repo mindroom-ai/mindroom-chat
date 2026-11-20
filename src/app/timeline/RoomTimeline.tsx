@@ -768,7 +768,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     hideActivity,
   });
 
-  // Rows the thread's plans hide: repeated summaries and settled approvals.
   const getRowContent = useCallback(
     (event: MatrixEvent) =>
       getLatestMessageContent(
@@ -777,17 +776,6 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ) as Record<string, unknown>,
     [threadStateRef]
   );
-  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
-    history: {
-      sdkLoaded: session.snapshot.open.sdkReady,
-      canPaginateBack: threadState.canPaginateThreadBack,
-      hasMoreCachedBack: threadHasMoreCachedBack,
-    },
-    getContent: getRowContent,
-    ignoredUserIds: ignoredUsersSet,
-    routeId: threadId ? eventId : undefined,
-    focusId: threadId ? focusItem?.eventId : undefined,
-  });
   // Replies a plugin's renderer hides in the open thread (`MessageRenderer.hidden`), read as their
   // rows show them; one the route or a jump opened stays visible after the route moves on. The
   // room's own timeline hides none: Classic's thread replies among its rows keep theirs.
@@ -930,6 +918,37 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     isHidden: (event) => isHiddenByPlugin(event) || modelChanges.byAckId.has(event.getId() ?? ''),
     revealed: pluginRevealedRef.current,
   });
+  // Plan title and turn folds before mounting any inline secret request lines. Whether a line
+  // mounts depends on which rows the folds leave visible.
+  const isHiddenBeforeFolding = useCallback(
+    (event: MatrixEvent) =>
+      isTimelineRowHidden(event, {
+        messageData: { approvalTimeline, voiceTranscripts, replyCards, modelChanges },
+        ignoredUsersSet,
+        showHiddenEvents,
+        isHiddenByPlugin,
+      }),
+    [
+      approvalTimeline,
+      voiceTranscripts,
+      replyCards,
+      modelChanges,
+      ignoredUsersSet,
+      showHiddenEvents,
+      isHiddenByPlugin,
+    ]
+  );
+  const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
+    history: {
+      sdkLoaded: session.snapshot.open.sdkReady,
+      canPaginateBack: threadState.canPaginateThreadBack,
+      hasMoreCachedBack: threadHasMoreCachedBack,
+    },
+    getContent: getRowContent,
+    isHidden: isHiddenBeforeFolding,
+    routeId: threadId ? eventId : undefined,
+    focusId: threadId ? focusItem?.eventId : undefined,
+  });
   // A finished turn of the open thread folds its rows between the person's message and the answer
   // behind a break (threadTurnFolds), read from the rows as they render. Rows the route or a jump
   // opened, and the rows a fork's lines sit on, keep their turn unfolded.
@@ -943,33 +962,10 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
       ),
     [forkPrefixEventIds, isQuietMarkerRow, modelChanges, rowTimelineSet, threadSummaryTimeline]
   );
-  // A secret request card counts as a row of its turn whether or not a reply draws it now: the
-  // folds would hide that reply, and so change what it draws.
   const isTurnRowSkipped = useCallback(
     (event: MatrixEvent) =>
-      isTimelineRowHidden(event, {
-        messageData: {
-          approvalTimeline,
-          threadSummaryTimeline,
-          secretRequestTimeline: { hiddenEventIds: EMPTY_IDS },
-          voiceTranscripts,
-          replyCards,
-          modelChanges,
-        },
-        ignoredUsersSet,
-        showHiddenEvents,
-        isHiddenByPlugin,
-      }),
-    [
-      approvalTimeline,
-      ignoredUsersSet,
-      isHiddenByPlugin,
-      replyCards,
-      modelChanges,
-      showHiddenEvents,
-      threadSummaryTimeline,
-      voiceTranscripts,
-    ]
+      threadSummaryTimeline.hiddenEventIds.has(event.getId() ?? '') || isHiddenBeforeFolding(event),
+    [isHiddenBeforeFolding, threadSummaryTimeline]
   );
   const forkStartId = forkPrefix.parent ? ownThreadEvents[0]?.getId() : undefined;
   const turnPinnedIds = useMemo(() => {

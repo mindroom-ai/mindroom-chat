@@ -25,7 +25,7 @@ import {
   type ThreadTurnFold,
   type ThreadTurnFoldView,
 } from './threadTurnFolds';
-import { isRowlessTimelineEvent } from './timelineRowFold';
+import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
 
 type TurnRowContext = {
   room: Room;

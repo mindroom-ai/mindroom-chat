@@ -9,6 +9,7 @@ import {
   makeEvent,
   makeRoom,
   makeTimeline,
+  pluginRowHiddenMock,
   roomTimelineVirtualizerState,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -292,6 +293,29 @@ describe('thread summary markers', () => {
           .findAll((node) => typeof node.props['data-message-id'] === 'string')
           .map((node) => node.props['data-message-id'] as string)
       );
+
+  it('draws only the latest title if a plugin hides the reply between titles', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    pluginRowHiddenMock.test = (event) => event.eventId === '$relay';
+    const { room, show } = mountThread([
+      makeEvent(threadId, { isThreadRoot: true, ts: 1_000 }),
+      summary('$s1', 'Sketch a garden', 2_000),
+      makeEvent('$relay', { threadRootId: threadId, ts: 3_000 }),
+      summary('$s2', 'Plan a greenhouse', 4_000),
+    ]);
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      show();
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, threadId }));
+        await flushAsyncWork();
+      });
+      expect(getRenderedEventIds(renderer!)).toEqual(['$s2']);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 
   it('keeps the title marker mounted when a skill review notice joins it', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
