@@ -437,6 +437,7 @@
         "profile": "profile picture, photo, name, nickname",
         "deactivate": "delete account, close account",
         "localMindroom": "pair, pairing code, local, desktop",
+        "voiceKey": "voice message, microphone, record, push to talk, Option, Alt, keyboard shortcut",
         "emoji": "emoji, stickers, packs, custom emoji",
         "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
         "midTurn": "steer, queue, auto, agent, reply, interrupt"
@@ -1264,6 +1265,10 @@
     "hints": {
       "chip": "{{keys}} for all shortcuts"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} records voice messages",
+      "description": "Tap to start or send, hold to talk and release to send."
+    },
     "actions": {
       "palette": "Search and commands",
       "settings": "Open settings",
@@ -1289,7 +1294,8 @@
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",
-      "callView": "Go to the call"
+      "callView": "Go to the call",
+      "voiceRecord": "Hold to record a voice message, tap to start or send"
     }
   },
   "thread": {

@@ -13,7 +13,7 @@ import FocusTrap from 'focus-trap-react';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
-import { useVoiceRecorder } from './useVoiceRecorder';
+import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
 import type { SendRecordingCallback } from './voiceSendDraftController';
@@ -32,6 +32,8 @@ type VoiceRecorderComposerProps = {
 
 export type VoiceRecorderComposerHandle = {
   send: () => Promise<boolean>;
+  /** The phase as last rendered, for the voice key, which sends only a recording that runs. */
+  phase: () => VoiceRecorderPhase;
 };
 
 const VoiceRecorderComposerRender: ForwardRefRenderFunction<
@@ -133,7 +135,11 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     return sent;
   }, [beginRetry, hasPendingSend, onClose, send, sendDisabled]);
 
-  useImperativeHandle(ref, () => ({ send: submitRecording }), [submitRecording]);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useImperativeHandle(ref, () => ({ send: submitRecording, phase: () => phaseRef.current }), [
+    submitRecording,
+  ]);
 
   const confirmDiscardAndClose = () => {
     discardPending();

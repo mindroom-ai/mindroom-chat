@@ -437,6 +437,7 @@
         "profile": "Profilbild, Foto, Name, Spitzname",
         "deactivate": "Konto löschen, Konto schließen",
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
+        "voiceKey": "Sprachnachricht, Mikrofon, aufnehmen, Push-to-Talk, Option, Alt, Tastenkürzel",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen"
@@ -1264,6 +1265,10 @@
     "hints": {
       "chip": "{{keys}} für alle Tastenkürzel"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}} nimmt Sprachnachrichten auf",
+      "description": "Tippen zum Starten oder Senden, halten zum Sprechen und loslassen zum Senden."
+    },
     "actions": {
       "palette": "Suche und Befehle",
       "settings": "Einstellungen öffnen",
@@ -1289,7 +1294,8 @@
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",
-      "callView": "Zum Anruf wechseln"
+      "callView": "Zum Anruf wechseln",
+      "voiceRecord": "Halten, um eine Sprachnachricht aufzunehmen, tippen zum Starten oder Senden"
     }
   },
   "thread": {

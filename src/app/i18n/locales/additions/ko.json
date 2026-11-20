@@ -428,6 +428,7 @@
         "profile": "프로필 사진, 사진, 이름, 닉네임",
         "deactivate": "계정 삭제, 계정 해지",
         "localMindroom": "페어링, 페어링 코드, 로컬, 데스크톱",
+        "voiceKey": "음성 메시지, 마이크, 녹음, 눌러서 말하기, Option, Alt, 키보드 단축키",
         "emoji": "이모지, 스티커, 팩, 사용자 지정 이모지",
         "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단"
@@ -1233,6 +1234,10 @@
     "hints": {
       "chip": "모든 단축키: {{keys}}"
     },
+    "voiceKey": {
+      "label": "{{voiceKey}}로 음성 메시지 녹음",
+      "description": "탭하여 시작하거나 보내고, 길게 눌러 말한 뒤 놓으면 보냅니다."
+    },
     "actions": {
       "palette": "검색 및 명령",
       "settings": "설정 열기",
@@ -1258,7 +1263,8 @@
       "newLine": "줄 바꿈",
       "editLast": "마지막 메시지 편집 (입력창이 비어 있을 때)",
       "inlineCode": "인라인 코드",
-      "callView": "통화로 이동"
+      "callView": "통화로 이동",
+      "voiceRecord": "길게 눌러 음성 메시지 녹음, 탭하여 시작하거나 보내기"
     }
   },
   "thread": {
