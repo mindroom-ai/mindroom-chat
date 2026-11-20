@@ -32,7 +32,8 @@ import {
 // - The title is readable beside the schedule: a title cut short has the whole line to itself,
 //   whether it is an AI summary or the start of the first message.
 // - A reader at the end of the thread stays there while the banner's thread menu, its tag picker
-//   and Edit summary open and close, and while keyboard focus moves into the banner (Tab, or focus
+//   (at the top of More on a phone) and Edit summary open and close, and while keyboard focus
+//   moves into the banner (Tab, or focus
 //   handed back by a dialog): the thread does not move. Browsers scrolled it to bring a focused
 //   banner control out from under the scroll padding that keeps rows clear of the banner, about
 //   380 px in Chromium and 90 px in WebKit.
@@ -393,18 +394,28 @@ const checkScroll = async (page: Page, world: World, label: string, phone: boole
     await expect(menu).toBeHidden();
   });
 
-  // Phones show the tags in a row of their own; desktops beside the title.
-  const addTag = banner(page)
+  // Desktops show the tags beside the title; a phone edits them at the top of More.
+  const addTag = (phone ? menu.locator('[data-thread-menu-tags]') : banner(page))
     .getByRole('button', { name: 'Add tag', exact: true })
     .filter({ visible: true });
   const filter = page.getByRole('textbox', { name: 'Filter or create tag' });
   await expectHeld(page, label, 'tag-picker-open', async () => {
+    if (phone) {
+      await press(page, options, phone);
+      await expect(menu).toBeVisible();
+    }
     await press(page, addTag, phone);
     await expect(filter).toBeFocused();
   });
   await expectHeld(page, label, 'tag-picker-escape', async () => {
     await page.keyboard.press('Escape');
     await expect(filter).toBeHidden();
+    if (phone) {
+      // The first Escape closes the picker only; the next one closes the menu.
+      await expect(menu).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(menu).toBeHidden();
+    }
   });
 
   const dialog = page.getByRole('dialog', { name: 'Edit summary' });

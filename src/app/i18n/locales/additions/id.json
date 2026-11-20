@@ -1048,7 +1048,6 @@
       "groupTools": "Alat · {{number}}",
       "tools_other": "{{count}} alat",
       "needApproval_other": "{{count}} perlu persetujuan",
-      "toolCalls_other": "{{count}} panggilan alat",
       "tokens_other": "{{tokens}} token",
       "started": "Dimulai {{time}}",
       "open": "Buka",
@@ -1060,7 +1059,9 @@
         "time": "Waktu"
       },
       "stopTask": "Hentikan tugas",
-      "stopTaskFor": "Hentikan tugas: {{tool}}"
+      "stopTaskFor": "Hentikan tugas: {{tool}}",
+      "jobTotal_other": "{{count}} tugas latar belakang",
+      "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
     },
     "subagents": {
       "title": "Subagen",
@@ -1083,7 +1084,17 @@
       "hide": "Sembunyikan subagen",
       "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
-      "resize": "Ubah ukuran panel subagen"
+      "resize": "Ubah ukuran panel subagen",
+      "calls_other": "{{count}} panggilan",
+      "now": "Sekarang",
+      "needsApproval": "Perlu persetujuan",
+      "result": "Hasil",
+      "turnNumber": "giliran {{number}}",
+      "status": "Status",
+      "toolCallsNote": "panggilan alat",
+      "tokensSplit": "{{input}} masuk · {{output}} keluar",
+      "costNested": "+{{cost}} bertingkat",
+      "costOwn": "proses ini"
     },
     "models": {
       "modelPicker": {
@@ -1116,6 +1127,19 @@
       "pageUpdated": "{{agent}} memperbarui halaman ini.",
       "shownInPanel": "Ditampilkan di panel",
       "inlineDisclosure": "Dibuat oleh {{agent}}. Halaman ini tidak dapat mengakses akun Anda; yang Anda masukkan di sini dapat keluar dari halaman ini."
+    },
+    "invites": {
+      "invalid": "Tautan undangan ini tidak lengkap. Buka lagi tautan dari email.",
+      "reopen": "Anda sudah masuk. Buka lagi tautan undangan dari email Anda.",
+      "framed": "Buka halaman ini di tab tersendiri untuk menggunakan undangan.",
+      "ready": "Bergabung ke ruang melalui {{router}} sebagai {{user}}",
+      "claiming": "Mengklaim undangan…",
+      "offline": "MindRoom ini tidak menjawab. Permintaan Anda tersimpan; undangan akan muncul di daftar ruang Anda saat MindRoom kembali.",
+      "rejected": "Undangan ini sudah tidak berlaku. Minta undangan baru.",
+      "retry": "Itu tidak berhasil. Coba lagi sebentar lagi.",
+      "joining": "Bergabung ke ruang…",
+      "join": "Gabung",
+      "tryAgain": "Coba lagi"
     },
     "uiActions": {
       "canvasOff": "Panel dibagikan · panel dinonaktifkan di aplikasi ini",

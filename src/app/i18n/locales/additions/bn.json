@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}}টি টুল",
       "needApproval_one": "{{count}}টির অনুমোদন দরকার",
       "needApproval_other": "{{count}}টির অনুমোদন দরকার",
-      "toolCalls_one": "{{count}}টি টুল কল",
-      "toolCalls_other": "{{count}}টি টুল কল",
       "tokens_one": "{{tokens}} টোকেন",
       "tokens_other": "{{tokens}} টোকেন",
       "started": "শুরু হয়েছে {{time}}",
@@ -1085,7 +1083,11 @@
         "time": "সময়"
       },
       "stopTask": "কাজ থামান",
-      "stopTaskFor": "কাজ থামান: {{tool}}"
+      "stopTaskFor": "কাজ থামান: {{tool}}",
+      "jobTotal_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
+      "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
+      "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
@@ -1112,7 +1114,18 @@
       "showFor": "সাব-এজেন্ট দেখান: {{name}}",
       "withCount_one": "{{label}}, {{count}}টি সক্রিয়",
       "withCount_other": "{{label}}, {{count}}টি সক্রিয়",
-      "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান"
+      "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান",
+      "calls_one": "{{count}}টি কল",
+      "calls_other": "{{count}}টি কল",
+      "now": "এখন",
+      "needsApproval": "অনুমোদন দরকার",
+      "result": "ফলাফল",
+      "turnNumber": "পালা {{number}}",
+      "status": "অবস্থা",
+      "toolCallsNote": "টুল কল",
+      "tokensSplit": "{{input}} ইন · {{output}} আউট",
+      "costNested": "+{{cost}} নেস্টেড",
+      "costOwn": "এই রান"
     },
     "models": {
       "modelPicker": {
@@ -1145,6 +1158,19 @@
       "pageUpdated": "{{agent}} এই পৃষ্ঠাটি আপডেট করেছে।",
       "shownInPanel": "প্যানেলে দেখানো হচ্ছে",
       "inlineDisclosure": "{{agent}} তৈরি করেছে। এটি আপনার অ্যাকাউন্টে প্রবেশ করতে পারে না; এখানে আপনি যা লেখেন তা এই পৃষ্ঠার বাইরে যেতে পারে।"
+    },
+    "invites": {
+      "invalid": "এই আমন্ত্রণ লিংকটি অসম্পূর্ণ। ইমেইল থেকে লিংকটি আবার খুলুন।",
+      "reopen": "আপনি সাইন ইন করেছেন। আপনার ইমেইল থেকে আমন্ত্রণ লিংকটি আবার খুলুন।",
+      "framed": "আমন্ত্রণটি ব্যবহার করতে এই পৃষ্ঠাটি আলাদা ট্যাবে খুলুন।",
+      "ready": "{{router}}-এর মাধ্যমে {{user}} হিসেবে একটি রুমে যোগ দিন",
+      "claiming": "আমন্ত্রণ দাবি করা হচ্ছে…",
+      "offline": "এই MindRoom সাড়া দিচ্ছে না। আপনার অনুরোধ সংরক্ষিত আছে; এটি ফিরে এলে আমন্ত্রণটি আপনার রুম তালিকায় দেখা যাবে।",
+      "rejected": "এই আমন্ত্রণটি আর বৈধ নয়। নতুন একটি চেয়ে নিন।",
+      "retry": "কাজ হয়নি। একটু পরে আবার চেষ্টা করুন।",
+      "joining": "রুমে যোগ দেওয়া হচ্ছে…",
+      "join": "যোগ দিন",
+      "tryAgain": "আবার চেষ্টা করুন"
     },
     "uiActions": {
       "canvasOff": "প্যানেল শেয়ার করা হয়েছে · এই অ্যাপে প্যানেল বন্ধ",

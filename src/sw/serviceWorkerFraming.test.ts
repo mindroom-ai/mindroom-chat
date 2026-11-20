@@ -13,11 +13,12 @@ const shell = () =>
   });
 
 describe('withPageFraming', () => {
-  it('gives the pairing page its own framing headers, in any spelling, and keeps the rest', async () => {
+  it('gives the pairing and invite pages their own framing headers, in any spelling, and keeps the rest', async () => {
     for (const url of [
       'https://chat.example/connect/?code=ABCD-1234',
       'https://chat.example/CONNECT',
       'https://chat.example/%63onnect/',
+      'https://chat.example/invite/#r=%40router%3Aexample.org&c=code',
     ]) {
       const answer = withPageFraming(url, shell());
       expect(answer.headers.get('Content-Security-Policy'), url).toBe("frame-ancestors 'none'");

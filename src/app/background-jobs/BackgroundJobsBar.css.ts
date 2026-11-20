@@ -1,6 +1,7 @@
-import { createVar, globalStyle, keyframes, style, styleVariants } from '@vanilla-extract/css';
+import { createVar, globalStyle, style, styleVariants } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import * as approvals from '../approvals/ThreadApprovals.css';
+import { logoRing as rowBackground, logoSize } from '../subagents/RunLogo.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
 // The bar's place in the dock's row, nearly all the room beside the typing strip; it goes above
@@ -24,7 +25,6 @@ const phone = '(max-width: 30rem)';
 const hiddenOnPhone = { '@container': { [phone]: { display: 'none' } } };
 
 // The columns every row shares: logo | text | calls | tokens | cost | time | Open and Stop.
-const logoSize = createVar();
 const gap = createVar();
 const calls = createVar();
 const tokens = createVar();
@@ -32,8 +32,6 @@ const cost = createVar();
 const time = createVar();
 // The logo tile of a nested job, of several jobs' stacked sub-agents and of one job's title.
 const smallLogo = '1.25rem';
-// The background behind a logo, which its status dot's ring takes so it never shows as a halo.
-const rowBackground = createVar();
 const button = config.size.X500;
 // The title line keeps the typing strip's height beside it: its controls are a line tall.
 const lineHeight = '1.5rem';
@@ -275,20 +273,6 @@ export const Nested = style({
   },
 });
 
-// The run's model, the agent's picture or a terminal, on a tile that stands out from the bar.
-export const Logo = style({
-  position: 'relative',
-  display: 'grid',
-  placeItems: 'center',
-  flex: 'none',
-  inlineSize: logoSize,
-  blockSize: logoSize,
-  borderRadius: config.radii.R300,
-  background: color.Surface.Container,
-  color: color.Surface.OnContainer,
-  boxShadow: `inset 0 0 0 1px ${color.SurfaceVariant.ContainerLine}`,
-});
-
 // Several jobs' title stacks the first sub-agents' logos, each over the one before; on a phone,
 // what needs approval takes their place.
 export const Stack = style({
@@ -300,40 +284,9 @@ export const Stack = style({
   },
 });
 
-// One job's title logo, small enough that it and its dot stay within the title line.
-export const TitleLogo = style({ vars: { [logoSize]: smallLogo } });
-
 export const StackedLogo = style({
   boxShadow: `inset 0 0 0 1px ${color.SurfaceVariant.ContainerLine}, 0 0 0 2px ${color.SurfaceVariant.Container}`,
   selectors: { '& + &': { marginInlineStart: '-0.375rem' } },
-});
-
-const pulse = keyframes({ '50%': { opacity: 0.45 } });
-const statusDot = {
-  position: 'absolute',
-  insetBlockEnd: '-3px',
-  insetInlineEnd: '-3px',
-  inlineSize: '0.625rem',
-  blockSize: '0.625rem',
-  borderRadius: '50%',
-  border: `2px solid ${rowBackground}`,
-} as const;
-
-export const Dot = styleVariants({
-  running: [
-    statusDot,
-    {
-      background: color.Success.Main,
-      '@media': {
-        '(prefers-reduced-motion: no-preference)': {
-          animation: `${pulse} 2s ease-in-out infinite`,
-        },
-      },
-    },
-  ],
-  waiting: [statusDot, { background: color.Warning.Main }],
-  stopping: [statusDot, { background: color.Critical.Main }],
-  finished: [statusDot, { background: color.SurfaceVariant.OnContainer }],
 });
 
 // The text column: the task as the headline, then who, on what, doing what, on one muted line.
@@ -589,3 +542,73 @@ export const VisuallyHidden = style({
 });
 
 export const Alert = style({ gridArea: 'alert', paddingBlock: config.space.S100 });
+
+// A sub-agent's tool, before its arguments: the code font at the row's own contrast.
+export const ToolName = style({
+  fontFamily: 'var(--font-mono)',
+  fontWeight: config.fontWeight.W600,
+});
+
+// The folded bar's one job: the rows' grid on the title line, a line tall, its buttons as many as
+// it has. Its logo is the title line's small tile.
+export const Folded = style({
+  ...grid,
+  gridRow: 2,
+  gridColumn: '1 / -1',
+  position: 'relative',
+  minHeight: lineHeight,
+  gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${calls} ${tokens} ${cost} ${time} auto`,
+  vars: { [logoSize]: smallLogo },
+  '@container': {
+    [phone]: { gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} auto` },
+  },
+});
+
+// Its headline, then who and what it does on the same line, in the room the headline leaves, so it
+// gives way first; beside the Sub-agents panel it goes. The chevron at the end.
+export const FoldedText = style({
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minWidth: 0,
+  whiteSpace: 'nowrap',
+});
+globalStyle(`${FoldedText} > ${Headline}`, { flex: '0 1 auto', minWidth: '4rem' });
+globalStyle(`${FoldedText} > ${Headline} > ${Task}`, { flex: '0 1 auto' });
+globalStyle(`${FoldedText} > ${Detail}`, {
+  flex: '1 1 0',
+  '@container': { [panel]: { display: 'none' } },
+});
+
+// Its title lists the job, from anywhere on its text; to the keyboard the text is ringed.
+export const FoldedToggle = style({
+  ...textButton,
+  fontWeight: config.fontWeight.W600,
+  selectors: {
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      insetBlock: `calc(-1 * ${config.space.S100})`,
+      insetInline: 0,
+      zIndex: 1,
+      borderRadius: config.radii.R300,
+    },
+    [`${FoldedText}:hover > ${Headline} > &`]: { textDecoration: 'underline' },
+    '&:focus-visible': { outline: 'none' },
+    '&:focus-visible::before': keyboardRing,
+  },
+});
+
+export const FoldedActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'end',
+  gap: actionGap,
+  position: 'relative',
+  zIndex: 2,
+});
+
+// On the title line its buttons and Stopping are a line tall, as the title line's are, so the bar
+// keeps the typing strip's height with Stop or without it.
+globalStyle(`${FoldedActions} > *`, { blockSize: lineHeight });

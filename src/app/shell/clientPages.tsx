@@ -53,6 +53,7 @@ export { ActivityNav } from '../activity/ActivityNav';
 export { ActivityEmpty } from '../activity/ActivityEmpty';
 export { ExploreNav } from '../rooms/explore/ExploreNav';
 export { PluginPageRoute } from '../plugins/PluginPageRoute';
+export { InvitePage } from '../invites/InvitePage';
 
 /**
  * The rail beside the page, but none beside a plugin page that fills the window. It reads the
