@@ -198,6 +198,14 @@ describe('the offset ledger after a settle', () => {
     ledger.unmount();
   });
 
+  it('forgets the position its settle wrote once the rows it settled for are replaced', () => {
+    const ledger = mountRoomLedger();
+    // No scroll event read the settle's write before the room showed other rows.
+    ledger.replaceRows();
+    expect(ledger.takeSettledScrollTop()).toBeUndefined();
+    ledger.unmount();
+  });
+
   it('drops a fold that the replaced rows were still waiting to settle', () => {
     const ledger = mountRoomLedger({ settle: false });
     ledger.replaceRows();
