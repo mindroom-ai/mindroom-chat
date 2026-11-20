@@ -428,6 +428,7 @@
         "profile": "foto profil, foto, nama, nama panggilan",
         "deactivate": "hapus akun, tutup akun",
         "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
+        "voiceKey": "pesan suara, mikrofon, rekam, tekan untuk bicara, Option, Alt, pintasan keyboard",
         "emoji": "emoji, stiker, paket, emoji kustom",
         "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
         "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela"
@@ -1227,6 +1228,10 @@
     },
     "hints": {
       "chip": "{{keys}} untuk semua pintasan"
+    },
+    "voiceKey": {
+      "label": "{{voiceKey}} merekam pesan suara",
+      "description": "Ketuk untuk memulai atau mengirim, tahan untuk bicara dan lepas untuk mengirim."
     },
     "actions": {
       "palette": "Pencarian dan perintah",

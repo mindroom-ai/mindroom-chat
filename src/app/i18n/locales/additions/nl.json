@@ -437,6 +437,7 @@
         "profile": "profielfoto, foto, naam, bijnaam",
         "deactivate": "account verwijderen, account opheffen",
         "localMindroom": "koppelen, koppelcode, lokaal, desktop",
+        "voiceKey": "spraakbericht, microfoon, opnemen, push-to-talk, Option, Alt, sneltoets",
         "emoji": "emoji, stickers, pakketten, eigen emoji",
         "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
         "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken"
@@ -1258,6 +1259,10 @@
     },
     "hints": {
       "chip": "{{keys}} voor alle sneltoetsen"
+    },
+    "voiceKey": {
+      "label": "{{voiceKey}} neemt spraakberichten op",
+      "description": "Tik om te starten of te versturen, houd ingedrukt om te praten en laat los om te versturen."
     },
     "actions": {
       "palette": "Zoeken en commando's",

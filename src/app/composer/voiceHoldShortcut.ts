@@ -71,13 +71,16 @@ const MODIFIER_KEYS = new Set(['Alt', 'AltGraph', 'Control', 'Meta', 'Shift', 'C
 /**
  * The voice key: right ⌥ (right Alt elsewhere, also as AltGraph) pressed alone records a voice
  * message in the composer `resolveVoiceComposer` finds (`createVoiceHold`). Not over a dialog,
- * menu or popover, for the Computer screen, with another key held or in an input method. Only the
- * releases it acts on are cancelled, so the key keeps its meaning everywhere else.
+ * menu or popover, for the Computer screen, with another key held, in an input method, or with the
+ * `voiceHoldShortcut` setting off. Only the releases it acts on are cancelled, so the key keeps
+ * its meaning everywhere else.
  */
-export const useVoiceHoldShortcut = (): void => {
+export const useVoiceHoldShortcut = (enabled: boolean): void => {
   const store = useStore();
 
+  // Switched off, the key is left alone; a press under way ends as interrupted (the cleanup).
   useEffect(() => {
+    if (!enabled) return undefined;
     const hold = createVoiceHold({
       delayMs: VOICE_HOLD_MS,
       schedule: (run, ms) => {
@@ -137,5 +140,5 @@ export const useVoiceHoldShortcut = (): void => {
       document.removeEventListener('visibilitychange', onVisibility);
       hold.interrupt();
     };
-  }, [store]);
+  }, [enabled, store]);
 };

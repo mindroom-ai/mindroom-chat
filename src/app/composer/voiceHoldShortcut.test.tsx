@@ -29,8 +29,8 @@ function Composer({ log, thread = false }: { log: Log; thread?: boolean }) {
   return null;
 }
 
-function Listener() {
-  useVoiceHoldShortcut();
+function Listener({ enabled = true }: { enabled?: boolean }) {
+  useVoiceHoldShortcut(enabled);
   return null;
 }
 
@@ -56,16 +56,18 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-const setup = (children: (log: Log) => React.ReactNode) => {
+const setup = (children: (log: Log) => React.ReactNode, enabled = true) => {
   const store = createStore();
   const log: Log = [];
-  const view = render(
+  const tree = (on: boolean) => (
     <Provider store={store}>
-      <Listener />
+      <Listener enabled={on} />
       {children(log)}
     </Provider>
   );
-  return { store, log, view };
+  const view = render(tree(enabled));
+  const switchTo = (on: boolean) => view.rerender(tree(on));
+  return { store, log, view, switchTo };
 };
 
 describe('resolveVoiceComposer', () => {
@@ -171,6 +173,34 @@ describe('useVoiceHoldShortcut', () => {
     press('keydown', rightAlt);
     press('keyup', rightAlt);
     expect(log).toEqual(['start', 'send']);
+  });
+
+  it('leaves right Alt alone while the setting is off', () => {
+    const { log } = setup((l) => <Composer log={l} />, false);
+    press('keydown', rightAlt);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    press('keydown', rightAlt);
+    wait(300);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    expect(log).toEqual([]);
+  });
+
+  it('cancels a press under way when the setting goes off, and a running recording is not sent', () => {
+    const { log, switchTo } = setup((l) => <Composer log={l} />);
+    press('keydown', rightAlt);
+    switchTo(false);
+    wait(300);
+    expect(press('keyup', rightAlt).defaultPrevented).toBe(false);
+    expect(log).toEqual([]);
+
+    switchTo(true);
+    press('keydown', rightAlt);
+    wait(300);
+    switchTo(false);
+    press('keyup', rightAlt);
+    press('keydown', rightAlt);
+    press('keyup', rightAlt);
+    expect(log).toEqual(['start']);
   });
 
   it('forgets keys held when the window lost the focus, and latches on a click', () => {

@@ -428,6 +428,7 @@
         "profile": "头像, 照片, 名称, 昵称",
         "deactivate": "删除账号, 注销账号",
         "localMindroom": "配对, 配对码, 本地, 桌面",
+        "voiceKey": "语音消息, 麦克风, 录音, 按住说话, Option, Alt, 键盘快捷键",
         "emoji": "表情, 贴纸, 表情包, 自定义表情",
         "errorReports": "错误, 崩溃, 漏洞, 诊断, 遥测, 隐私",
         "midTurn": "转向, 排队, 自动, 智能体, 回复, 打断"
@@ -1227,6 +1228,10 @@
     },
     "hints": {
       "chip": "{{keys}} 查看所有快捷键"
+    },
+    "voiceKey": {
+      "label": "{{voiceKey}} 录制语音消息",
+      "description": "轻点开始或发送，按住说话，松开发送。"
     },
     "actions": {
       "palette": "搜索和命令",

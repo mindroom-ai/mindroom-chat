@@ -25,7 +25,7 @@ export function ShortcutRoot() {
   const openPalette = useSetAtom(commandPaletteOpenAtom);
   const hintsEnabled = useSettingValue(settingsAtom, 'shortcutHints');
   const hintsShown = useShortcutHintHold(hintsEnabled);
-  useVoiceHoldShortcut();
+  useVoiceHoldShortcut(useSettingValue(settingsAtom, 'voiceHoldShortcut'));
   const closeHelp = useCallback(() => setHelpOpen(false), [setHelpOpen]);
 
   useShortcut('help', () => {

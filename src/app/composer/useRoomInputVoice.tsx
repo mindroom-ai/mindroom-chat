@@ -51,6 +51,8 @@ import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import type { VoiceHoldTarget } from '../shortcuts/voiceHold';
 
 type VoiceComposerAdapter = {
@@ -586,6 +588,9 @@ export const useRoomInputVoice = ({
     return true;
   };
   const recorderShown = voiceRecorderOpen || ownsPendingVoiceDraft;
+  const voiceShortcut = useSettingValue(settingsAtom, 'voiceHoldShortcut')
+    ? 'voiceRecord'
+    : undefined;
   const voiceKey: VoiceFeature['voiceKey'] = {
     active: () => recorderShown,
     phase: () => {
@@ -604,7 +609,7 @@ export const useRoomInputVoice = ({
   const microphone = (
     // The label says why the button is disabled while another composer holds a draft;
     // the tooltip shows it too where the browser reports hovering a disabled button.
-    <IconTooltip label={microphoneLabel} position="Top" shortcut="voiceRecord">
+    <IconTooltip label={microphoneLabel} position="Top" shortcut={voiceShortcut}>
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
@@ -616,7 +621,7 @@ export const useRoomInputVoice = ({
           radii="300"
           disabled={startBlocked}
           aria-label={microphoneLabel}
-          {...shortcutAttributes('voiceRecord')}
+          {...shortcutAttributes(voiceShortcut)}
           className={ComposerIconButton}
         >
           <Icon src={Icons.Mic} />
