@@ -95,6 +95,21 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
     return element.getBoundingClientRect().height / lineHeight;
   });
   expect(lines).toBeGreaterThan(1.5);
+  // With no tags and no status chip, the row above the title is empty: hidden, and the title
+  // has no gap above it.
+  const aboveTitle = await title.evaluate((element) => {
+    let column: Element | null = element;
+    while (column && getComputedStyle(column).containerType !== 'inline-size') {
+      column = column.parentElement;
+    }
+    const [eyebrow, subtitle] = [...(column?.children ?? [])];
+    return {
+      eyebrowChildren: eyebrow?.childNodes.length,
+      eyebrow: eyebrow && getComputedStyle(eyebrow).display,
+      gap: subtitle && getComputedStyle(subtitle).marginTop,
+    };
+  });
+  expect(aboveTitle).toEqual({ eyebrowChildren: 0, eyebrow: 'none', gap: '0px' });
   await expect
     .poll(async () => {
       const [moreBox, resolveBox] = [(await more.boundingBox())!, (await resolve.boundingBox())!];
@@ -123,4 +138,27 @@ test('a narrow thread pane on a desktop gets the compact banner, a full one keep
     wide.getByRole('button', { name: 'Resolve', exact: true }).boundingBox(),
   ]);
   expect(Math.abs(moreBox!.y - resolveBox!.y)).toBeLessThan(1);
+
+  // A tag typed at the top of More, in a narrow banner, survives the banner widening past the
+  // threshold while the menu is open; the next menu follows the wide layout.
+  await page.setViewportSize({ width: 900, height: 900 });
+  await expect(wide.getByRole('button', { name: 'Add tag', exact: true })).toHaveCount(0);
+  await wide.getByRole('button', { name: 'Thread options', exact: true }).click();
+  const tagSection = menu.locator('[data-thread-menu-tags]');
+  await tagSection.getByRole('button', { name: 'Add tag', exact: true }).click();
+  const field = page.getByRole('textbox', { name: 'Filter or create tag' });
+  await expect(field).toBeFocused();
+  await field.pressSequentially('gamma');
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(wide.getByText('alpha', { exact: true })).toBeVisible();
+  await expect(tagSection).toBeVisible();
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue('gamma');
+  await page.keyboard.press('Escape');
+  await expect(field).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await wide.getByRole('button', { name: 'Thread options', exact: true }).click();
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('[data-thread-menu-tags]')).toHaveCount(0);
 });

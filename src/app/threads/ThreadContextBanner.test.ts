@@ -24,10 +24,13 @@ import { runShortcut } from '../shortcuts/useShortcut';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
 const menuProps = vi.hoisted(() => vi.fn());
+// Each time a menu mounts: a menu that mounts again loses what was typed in it.
+const menuMounts = vi.hoisted(() => vi.fn());
 const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
 vi.mock('./ThreadActionsMenu', () => ({
   ThreadActionsMenu: (props: unknown) => {
     menuProps(props);
+    React.useEffect(() => menuMounts(), []);
     return React.createElement('div', { role: 'menu' });
   },
 }));
@@ -1298,6 +1301,31 @@ describe('ThreadContextBanner rendering', () => {
       );
       expect(contextMenuOf(wide).tagsAtTop).toBe(false);
       wide.unmount();
+    });
+
+    it('keeps an open menu as it opened when the banner widens, and the next one follows', async () => {
+      let width = 330;
+      const resizeAll = observeResizes();
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width)
+      );
+      menuMounts.mockClear();
+      expect((await menuOf(banner)).tagsAtTop).toBe(true);
+      expect(menuMounts).toHaveBeenCalledTimes(1);
+      // Widened past 36rem with the menu open (a tag being typed at its top): the same menu, its
+      // tags still at the top.
+      width = 646;
+      resizeAll();
+      expect(tagPills(banner)).toHaveLength(2);
+      expect(menuMounts).toHaveBeenCalledTimes(1);
+      expect(menuProps.mock.calls.at(-1)![0].tagsAtTop).toBe(true);
+      act(() => {
+        (menuProps.mock.calls.at(-1)![0] as { onClose: () => void }).onClose();
+      });
+      // Opened again, it follows the banner's new layout.
+      expect((await menuOf(banner)).tagsAtTop).toBe(false);
+      banner.unmount();
     });
 
     it('follows the short screen query at the same width', () => {

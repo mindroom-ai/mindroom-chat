@@ -63,6 +63,9 @@ type BannerMenuState = {
   rootId: string;
   anchor: RectCords;
   trigger: HTMLElement;
+  // The layout's at the opening: a banner that crosses COMPACT_BANNER_REM while the menu is open
+  // keeps its tag section, and a tag being typed there.
+  tagsAtTop: boolean;
 };
 
 export interface ThreadContextBannerProps {
@@ -272,7 +275,14 @@ export function ThreadContextBanner({
   }, [compactFocus]);
   const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
     if (!canOpenMenu) return;
-    const nextMenu = { roomId: room.roomId, threadId, rootId: threadRootId, anchor, trigger };
+    const nextMenu = {
+      roomId: room.roomId,
+      threadId,
+      rootId: threadRootId,
+      anchor,
+      trigger,
+      tagsAtTop: compact,
+    };
     menuRef.current = nextMenu;
     setMenu(nextMenu);
   };
@@ -868,7 +878,7 @@ export function ThreadContextBanner({
             onShowBeside={onShowBeside}
             onShowFull={onShowFull}
             shortcutless={!!onClose}
-            tagsAtTop={compact}
+            tagsAtTop={activeMenu.tagsAtTop}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />
