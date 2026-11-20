@@ -84,15 +84,15 @@ export const Row = style({
   borderTop: `1px solid ${color.Surface.ContainerLine}`,
 });
 
-export const RowTitle = style({ fontWeight: config.fontWeight.W600 });
-
 export const Pairs = style({ display: 'grid', gap: config.space.S100, margin: 0 });
 
 export const Pair = style({ display: 'flex', gap: config.space.S300 });
+
+export const RowTitle = style([Pair, { fontWeight: config.fontWeight.W600 }]);
 
 export const Label = style({ flexShrink: 0, maxWidth: '50%', opacity: 0.72 });
 
 export const Value = style({ flex: 1, minWidth: 0, margin: 0, textAlign: 'end' });
 
 // Long values and links wrap instead of widening the message.
-globalStyle(`${Row} :is(${RowTitle}, ${Label}, ${Value})`, { overflowWrap: 'anywhere' });
+globalStyle(`${Row} :is(${Label}, ${Value})`, { overflowWrap: 'anywhere' });
