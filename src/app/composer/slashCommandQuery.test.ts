@@ -30,8 +30,8 @@ describe('readUnknownCommand', () => {
   });
 
   it("knows MindRoom's commands in any case, as MindRoom reads them", () => {
-    ['/Schedule in 5 min do x', '/LIST_SCHEDULES', '/Reload-Plugins', '/E2ee'].forEach((text) =>
-      expect(readUnknownCommand([line({ text })], commands), text).toBeUndefined()
+    ['/Schedule in 5 min do x', '/LIST_SCHEDULES', '/Reload-Plugins', '/E2ee', '/Compact'].forEach(
+      (text) => expect(readUnknownCommand([line({ text })], commands), text).toBeUndefined()
     );
   });
 
