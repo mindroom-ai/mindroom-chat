@@ -74,13 +74,17 @@ afterEach(() => {
 });
 
 describe("a space's own address", () => {
-  it.each(['!space:example.org', '#space:example.org', '!sales/eu:example.org'])(
-    'opens the lobby of %s on a desktop, at its link address',
-    async (space) => {
-      const url = `/${encodeURIComponent(space)}/`;
-      expect(await open(url, ScreenSize.Desktop, 'Lobby page')).toBe(getSpaceLobbyPath(space));
-    }
-  );
+  // A `%` that is part of the ID stays: `!sales%41:…` is not `!salesA:…`, nor `!sales%2F:…` `!sales/:…`.
+  it.each([
+    '!space:example.org',
+    '#space:example.org',
+    '!sales/eu:example.org',
+    '!sales%41:example.org',
+    '!sales%2F:example.org',
+  ])('opens the lobby of %s on a desktop, at its link address', async (space) => {
+    const url = `/${encodeURIComponent(space)}/`;
+    expect(await open(url, ScreenSize.Desktop, 'Lobby page')).toBe(getSpaceLobbyPath(space));
+  });
 
   it('stays at the address on a phone, the lobby under its list', async () => {
     const url = `/${encodeURIComponent('!sales/eu:example.org')}/`;

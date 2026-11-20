@@ -5,7 +5,7 @@ import {
   createBrowserRouter,
   createHashRouter,
   createRoutesFromElements,
-  useParams,
+  useLocation,
   useRouteError,
 } from 'react-router-dom';
 import type { ClientConfig } from '../config/useClientConfig';
@@ -181,11 +181,13 @@ function RootRedirect() {
 /**
  * A space's own address on a desktop: its lobby, at the address the app's links to it use. Not the
  * relative `lobby`, which React Router 7 resolves from the address as typed, encoding the `%` of
- * an escaped `/` in the space's ID again.
+ * an escaped `/` in the space's ID again. The ID comes from the address's own segment, decoded
+ * once: the route's parameter has its escaped `/` decoded already, so a `%2F` in the ID itself
+ * would be lost.
  */
 function SpaceLobbyRedirect() {
-  const { spaceIdOrAlias = '' } = useParams();
-  return <Navigate to={getSpaceLobbyPath(decodeRouteParam(spaceIdOrAlias))} replace />;
+  const [, segment = ''] = useLocation().pathname.split('/');
+  return <Navigate to={getSpaceLobbyPath(decodeRouteParam(segment))} replace />;
 }
 
 /** Signed-in routes send signed-out visitors to login and remember where they were going. */
