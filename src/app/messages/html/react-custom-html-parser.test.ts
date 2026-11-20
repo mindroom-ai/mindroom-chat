@@ -762,11 +762,11 @@ describe('tool call status from approval cards', () => {
       { ...failed, ...preview }
     );
     // The line puts the call that ran in words and names the one that did not, then counts it.
-    expect(failedText).toContain("Read 1 filerun_shell_command· 1 didn't complete");
+    expect(failedText).toContain("Read a filerun_shell_command· 1 didn't complete");
     expect(failedText).toContain("Run commandDidn't complete");
     expect(failedText).not.toContain("Read fileDidn't complete");
     const workedText = renderCalls(completed, { ...completed, ...preview });
-    expect(workedText).toContain('Read 1 file and ran 1 command');
+    expect(workedText).toContain('Read a file and ran 1 command');
     expect(workedText).not.toContain("didn't complete");
     expect(workedText).not.toContain("Didn't complete");
     // Without a preview, or with a cut one, a call that did not succeed says so just the same.

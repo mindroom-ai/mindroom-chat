@@ -852,15 +852,15 @@
         "toolWords": {
           "read": {
             "row": "ファイルの読み取り",
-            "title_other": "{{count}} 件のファイルを読み取り"
+            "title_other": "ファイルを {{count}} 回読み取り"
           },
           "write": {
             "row": "ファイルの書き込み",
-            "title_other": "{{count}} 件のファイルを書き込み"
+            "title_other": "ファイルを {{count}} 回書き込み"
           },
           "edit": {
             "row": "ファイルの編集",
-            "title_other": "{{count}} 件の編集"
+            "title_other": "ファイルを {{count}} 回編集"
           },
           "command": {
             "row": "コマンドの実行",
@@ -876,7 +876,7 @@
           },
           "readPage": {
             "row": "Web ページの読み取り",
-            "title_other": "{{count}} 件の Web ページを読み取り"
+            "title_other": "Web ページを {{count}} 回読み取り"
           },
           "schedule": {
             "row": "スケジュール設定",

@@ -134,7 +134,7 @@ for (const theme of ['light', 'dark']) {
     await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
     const tool = page
       .getByTestId('tool')
-      .getByRole('button', { name: /^Searched the web and read 1 file/ });
+      .getByRole('button', { name: /^Searched the web and read a file/ });
     await tool.click();
     await expect(tool).toHaveAttribute('aria-expanded', 'true');
     await expect(

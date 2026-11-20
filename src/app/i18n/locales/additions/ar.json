@@ -922,30 +922,30 @@
         "toolWords": {
           "read": {
             "row": "قراءة ملف",
-            "title_zero": "قراءة ⁨{{count}}⁩ ملف",
-            "title_one": "قراءة ⁨{{count}}⁩ ملف",
-            "title_two": "قراءة ملفين (⁨{{count}}⁩)",
-            "title_few": "قراءة ⁨{{count}}⁩ ملفات",
-            "title_many": "قراءة ⁨{{count}}⁩ ملفًا",
-            "title_other": "قراءة ⁨{{count}}⁩ ملف"
+            "title_zero": "قراءة الملفات ⁨{{count}}⁩ مرة",
+            "title_one": "قراءة ملف",
+            "title_two": "قراءة الملفات مرتين (⁨{{count}}⁩)",
+            "title_few": "قراءة الملفات ⁨{{count}}⁩ مرات",
+            "title_many": "قراءة الملفات ⁨{{count}}⁩ مرة",
+            "title_other": "قراءة الملفات ⁨{{count}}⁩ مرة"
           },
           "write": {
             "row": "كتابة ملف",
-            "title_zero": "كتابة ⁨{{count}}⁩ ملف",
-            "title_one": "كتابة ⁨{{count}}⁩ ملف",
-            "title_two": "كتابة ملفين (⁨{{count}}⁩)",
-            "title_few": "كتابة ⁨{{count}}⁩ ملفات",
-            "title_many": "كتابة ⁨{{count}}⁩ ملفًا",
-            "title_other": "كتابة ⁨{{count}}⁩ ملف"
+            "title_zero": "كتابة الملفات ⁨{{count}}⁩ مرة",
+            "title_one": "كتابة ملف",
+            "title_two": "كتابة الملفات مرتين (⁨{{count}}⁩)",
+            "title_few": "كتابة الملفات ⁨{{count}}⁩ مرات",
+            "title_many": "كتابة الملفات ⁨{{count}}⁩ مرة",
+            "title_other": "كتابة الملفات ⁨{{count}}⁩ مرة"
           },
           "edit": {
             "row": "تعديل ملف",
-            "title_zero": "إجراء ⁨{{count}}⁩ تعديل",
-            "title_one": "إجراء ⁨{{count}}⁩ تعديل",
-            "title_two": "إجراء تعديلين (⁨{{count}}⁩)",
-            "title_few": "إجراء ⁨{{count}}⁩ تعديلات",
-            "title_many": "إجراء ⁨{{count}}⁩ تعديلًا",
-            "title_other": "إجراء ⁨{{count}}⁩ تعديل"
+            "title_zero": "تعديل الملفات ⁨{{count}}⁩ مرة",
+            "title_one": "تعديل ملف",
+            "title_two": "تعديل الملفات مرتين (⁨{{count}}⁩)",
+            "title_few": "تعديل الملفات ⁨{{count}}⁩ مرات",
+            "title_many": "تعديل الملفات ⁨{{count}}⁩ مرة",
+            "title_other": "تعديل الملفات ⁨{{count}}⁩ مرة"
           },
           "command": {
             "row": "تشغيل أمر",
@@ -966,12 +966,12 @@
           },
           "readPage": {
             "row": "قراءة صفحة ويب",
-            "title_zero": "قراءة ⁨{{count}}⁩ صفحة ويب",
-            "title_one": "قراءة ⁨{{count}}⁩ صفحة ويب",
-            "title_two": "قراءة صفحتي ويب (⁨{{count}}⁩)",
-            "title_few": "قراءة ⁨{{count}}⁩ صفحات ويب",
-            "title_many": "قراءة ⁨{{count}}⁩ صفحة ويب",
-            "title_other": "قراءة ⁨{{count}}⁩ صفحة ويب"
+            "title_zero": "قراءة صفحات الويب ⁨{{count}}⁩ مرة",
+            "title_one": "قراءة صفحة ويب",
+            "title_two": "قراءة صفحات الويب مرتين (⁨{{count}}⁩)",
+            "title_few": "قراءة صفحات الويب ⁨{{count}}⁩ مرات",
+            "title_many": "قراءة صفحات الويب ⁨{{count}}⁩ مرة",
+            "title_other": "قراءة صفحات الويب ⁨{{count}}⁩ مرة"
           },
           "schedule": {
             "row": "جدولة",

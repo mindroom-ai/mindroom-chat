@@ -852,15 +852,15 @@
         "toolWords": {
           "read": {
             "row": "Baca file",
-            "title_other": "membaca {{count}} file"
+            "title_other": "membaca file {{count}} kali"
           },
           "write": {
             "row": "Tulis file",
-            "title_other": "menulis {{count}} file"
+            "title_other": "menulis file {{count}} kali"
           },
           "edit": {
             "row": "Edit file",
-            "title_other": "membuat {{count}} suntingan"
+            "title_other": "menyunting file {{count}} kali"
           },
           "command": {
             "row": "Jalankan perintah",
@@ -876,7 +876,7 @@
           },
           "readPage": {
             "row": "Baca halaman web",
-            "title_other": "membaca {{count}} halaman web"
+            "title_other": "membaca halaman web {{count}} kali"
           },
           "schedule": {
             "row": "Jadwalkan",

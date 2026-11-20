@@ -77,7 +77,11 @@ describe('language overlays (locales/additions/<code>.json)', () => {
         const source = sourceText(path);
         expect(source, path).toBeDefined();
         if (source === undefined) return;
-        expect(placeholders(value), path).toEqual(placeholders(source));
+        // A `one` that takes more numbers than 1 (Russian 21) says the count English's may leave out.
+        const other = english.get(`${logicalKey(path)}_other`) ?? source;
+        expect([placeholders(source), placeholders(other)], path).toContainEqual(
+          placeholders(value)
+        );
         expect(markupTags(value), path).toEqual(markupTags(source));
         const bare = value.replace(/[\u2068\u2069]/g, '');
         LITERAL_TOKENS.filter((token) => source.includes(token)).forEach((token) =>

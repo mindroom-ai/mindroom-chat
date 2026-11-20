@@ -14,21 +14,24 @@ const done = (...names: string[]) => names.map((name) => call(name));
 describe('describeToolRun', () => {
   it('says what a run did in words', () => {
     expect(describeToolRun(t, 'en', done('read_file', 'run_shell_command', 'web_search'))).toEqual({
-      title: 'Read 1 file, ran 1 command, and searched the web',
+      title: 'Read a file, ran 1 command, and searched the web',
       detail: '',
       status: '',
     });
   });
 
-  it('counts the reads, as a preview cannot tell two files apart', () => {
+  it('counts the reads as times, as a preview cannot tell two files apart', () => {
     const pages = ['path=notes.md, offset=1', 'path=notes.md, offset=200', 'path=plan.md'];
     const calls = pages.map((args) => call('read_file', 'done', args));
-    expect(describeToolRun(t, 'en', calls)?.title).toBe('Read 3 files');
+    expect(describeToolRun(t, 'en', calls)?.title).toBe('Read files 3 times');
+    expect(describeToolRun(t, 'en', done('edit_file', 'write_file', 'edit_file'))?.title).toBe(
+      'Edited files 2 times and wrote a file'
+    );
   });
 
   it('counts the tools without words and names them as its detail', () => {
     expect(describeToolRun(t, 'en', done('send_email', 'read_file', 'send_email'))).toMatchObject({
-      title: 'Read 1 file and used 2 more tools',
+      title: 'Read a file and used 2 more tools',
       detail: 'send_email ×2',
     });
   });
@@ -41,12 +44,12 @@ describe('describeToolRun', () => {
       call('write_file', 'expired'),
     ];
     expect(describeToolRun(t, 'en', calls)).toEqual({
-      title: 'Read 1 file',
+      title: 'Read a file',
       detail: 'schedule, send_email, write_file',
       status: "· 3 didn't complete",
     });
     expect(describeToolRun(t, 'en', [call('read_file'), call('write_file', 'denied')])).toEqual({
-      title: 'Read 1 file',
+      title: 'Read a file',
       detail: 'write_file',
       status: '· 1 denied',
     });
@@ -60,7 +63,7 @@ describe('describeToolRun', () => {
   it("joins the phrases as the language's list does", () => {
     // English phrases, so only the separator comes from the language.
     expect(describeToolRun(t, 'ja', done('read_file', 'web_search', 'grep'))?.title).toBe(
-      'Read 1 file、searched the web、searched files'
+      'Read a file、searched the web、searched files'
     );
   });
 });

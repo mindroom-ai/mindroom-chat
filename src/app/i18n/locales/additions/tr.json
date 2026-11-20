@@ -866,18 +866,18 @@
         "toolWords": {
           "read": {
             "row": "Dosya okuma",
-            "title_one": "{{count}} dosya okundu",
-            "title_other": "{{count}} dosya okundu"
+            "title_one": "bir dosya okundu",
+            "title_other": "{{count}} kez dosya okundu"
           },
           "write": {
             "row": "Dosya yazma",
-            "title_one": "{{count}} dosya yazıldı",
-            "title_other": "{{count}} dosya yazıldı"
+            "title_one": "bir dosya yazıldı",
+            "title_other": "{{count}} kez dosya yazıldı"
           },
           "edit": {
             "row": "Dosya düzenleme",
-            "title_one": "{{count}} düzenleme yapıldı",
-            "title_other": "{{count}} düzenleme yapıldı"
+            "title_one": "bir dosya düzenlendi",
+            "title_other": "{{count}} kez dosya düzenlendi"
           },
           "command": {
             "row": "Komut çalıştırma",
@@ -894,8 +894,8 @@
           },
           "readPage": {
             "row": "Web sayfası okuma",
-            "title_one": "{{count}} web sayfası okundu",
-            "title_other": "{{count}} web sayfası okundu"
+            "title_one": "bir web sayfası okundu",
+            "title_other": "{{count}} kez web sayfası okundu"
           },
           "schedule": {
             "row": "Zamanlama",

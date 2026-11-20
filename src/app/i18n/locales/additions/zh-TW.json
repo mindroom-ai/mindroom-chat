@@ -852,15 +852,15 @@
         "toolWords": {
           "read": {
             "row": "讀取檔案",
-            "title_other": "讀取了 {{count}} 個檔案"
+            "title_other": "讀取檔案 {{count}} 次"
           },
           "write": {
             "row": "寫入檔案",
-            "title_other": "寫入了 {{count}} 個檔案"
+            "title_other": "寫入檔案 {{count}} 次"
           },
           "edit": {
             "row": "編輯檔案",
-            "title_other": "進行了 {{count}} 處編輯"
+            "title_other": "編輯檔案 {{count}} 次"
           },
           "command": {
             "row": "執行指令",
@@ -876,7 +876,7 @@
           },
           "readPage": {
             "row": "讀取網頁",
-            "title_other": "讀取了 {{count}} 個網頁"
+            "title_other": "讀取網頁 {{count}} 次"
           },
           "schedule": {
             "row": "排程",

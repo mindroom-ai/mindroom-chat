@@ -880,21 +880,21 @@
         "toolWords": {
           "read": {
             "row": "Lire le fichier",
-            "title_one": "{{count}} fichier lu",
-            "title_many": "{{count}} fichiers lus",
-            "title_other": "{{count}} fichiers lus"
+            "title_one": "un fichier lu",
+            "title_many": "{{count}} lectures de fichiers",
+            "title_other": "{{count}} lectures de fichiers"
           },
           "write": {
             "row": "Écrire le fichier",
-            "title_one": "{{count}} fichier écrit",
-            "title_many": "{{count}} fichiers écrits",
-            "title_other": "{{count}} fichiers écrits"
+            "title_one": "un fichier écrit",
+            "title_many": "{{count}} écritures de fichiers",
+            "title_other": "{{count}} écritures de fichiers"
           },
           "edit": {
             "row": "Modifier le fichier",
-            "title_one": "{{count}} modification effectuée",
-            "title_many": "{{count}} modifications effectuées",
-            "title_other": "{{count}} modifications effectuées"
+            "title_one": "un fichier modifié",
+            "title_many": "{{count}} modifications de fichiers",
+            "title_other": "{{count}} modifications de fichiers"
           },
           "command": {
             "row": "Exécuter une commande",
@@ -912,9 +912,9 @@
           },
           "readPage": {
             "row": "Lire la page web",
-            "title_one": "{{count}} page web lue",
-            "title_many": "{{count}} pages web lues",
-            "title_other": "{{count}} pages web lues"
+            "title_one": "une page web lue",
+            "title_many": "{{count}} lectures de pages web",
+            "title_other": "{{count}} lectures de pages web"
           },
           "schedule": {
             "row": "Planifier",

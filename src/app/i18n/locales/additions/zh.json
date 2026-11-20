@@ -852,15 +852,15 @@
         "toolWords": {
           "read": {
             "row": "读取文件",
-            "title_other": "读取了 {{count}} 个文件"
+            "title_other": "读取文件 {{count}} 次"
           },
           "write": {
             "row": "写入文件",
-            "title_other": "写入了 {{count}} 个文件"
+            "title_other": "写入文件 {{count}} 次"
           },
           "edit": {
             "row": "编辑文件",
-            "title_other": "进行了 {{count}} 处编辑"
+            "title_other": "编辑文件 {{count}} 次"
           },
           "command": {
             "row": "运行命令",
@@ -876,7 +876,7 @@
           },
           "readPage": {
             "row": "读取网页",
-            "title_other": "读取了 {{count}} 个网页"
+            "title_other": "读取网页 {{count}} 次"
           },
           "schedule": {
             "row": "安排",

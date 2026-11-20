@@ -880,21 +880,21 @@
         "toolWords": {
           "read": {
             "row": "Ler arquivo",
-            "title_one": "{{count}} arquivo lido",
-            "title_many": "{{count}} arquivos lidos",
-            "title_other": "{{count}} arquivos lidos"
+            "title_one": "um arquivo lido",
+            "title_many": "{{count}} leituras de arquivos",
+            "title_other": "{{count}} leituras de arquivos"
           },
           "write": {
             "row": "Gravar arquivo",
-            "title_one": "{{count}} arquivo gravado",
-            "title_many": "{{count}} arquivos gravados",
-            "title_other": "{{count}} arquivos gravados"
+            "title_one": "um arquivo gravado",
+            "title_many": "{{count}} gravações de arquivos",
+            "title_other": "{{count}} gravações de arquivos"
           },
           "edit": {
             "row": "Editar arquivo",
-            "title_one": "{{count}} edição feita",
-            "title_many": "{{count}} edições feitas",
-            "title_other": "{{count}} edições feitas"
+            "title_one": "um arquivo editado",
+            "title_many": "{{count}} edições de arquivos",
+            "title_other": "{{count}} edições de arquivos"
           },
           "command": {
             "row": "Executar comando",
@@ -912,9 +912,9 @@
           },
           "readPage": {
             "row": "Ler página web",
-            "title_one": "{{count}} página web lida",
-            "title_many": "{{count}} páginas web lidas",
-            "title_other": "{{count}} páginas web lidas"
+            "title_one": "uma página web lida",
+            "title_many": "{{count}} leituras de páginas web",
+            "title_other": "{{count}} leituras de páginas web"
           },
           "schedule": {
             "row": "Agendar",

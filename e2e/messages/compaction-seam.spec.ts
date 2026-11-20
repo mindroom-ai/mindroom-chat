@@ -409,7 +409,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     ],
     ['text', 'first run', 'seam', 'next text', 'second run']
   );
-  await expect(toolRows(mid).nth(0)).toContainText('Ran 2 commands and read 1 file');
+  await expect(toolRows(mid).nth(0)).toContainText('Ran 2 commands and read a file');
 
   // The card, on a hover: what the compaction did, in full numbers.
   const card = page.getByRole('tooltip');

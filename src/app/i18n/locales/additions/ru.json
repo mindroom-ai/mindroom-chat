@@ -894,24 +894,24 @@
         "toolWords": {
           "read": {
             "row": "Чтение файла",
-            "title_one": "прочитан {{count}} файл",
-            "title_few": "прочитано {{count}} файла",
-            "title_many": "прочитано {{count}} файлов",
-            "title_other": "прочитано {{count}} файла"
+            "title_one": "{{count}} чтение файла",
+            "title_few": "{{count}} чтения файлов",
+            "title_many": "{{count}} чтений файлов",
+            "title_other": "{{count}} чтения файлов"
           },
           "write": {
             "row": "Запись файла",
-            "title_one": "записан {{count}} файл",
-            "title_few": "записано {{count}} файла",
-            "title_many": "записано {{count}} файлов",
-            "title_other": "записано {{count}} файла"
+            "title_one": "{{count}} запись в файл",
+            "title_few": "{{count}} записи в файлы",
+            "title_many": "{{count}} записей в файлы",
+            "title_other": "{{count}} записи в файлы"
           },
           "edit": {
             "row": "Изменение файла",
-            "title_one": "внесено {{count}} изменение",
-            "title_few": "внесено {{count}} изменения",
-            "title_many": "внесено {{count}} изменений",
-            "title_other": "внесено {{count}} изменения"
+            "title_one": "{{count}} правка файла",
+            "title_few": "{{count}} правки файлов",
+            "title_many": "{{count}} правок файлов",
+            "title_other": "{{count}} правки файлов"
           },
           "command": {
             "row": "Выполнение команды",
@@ -930,10 +930,10 @@
           },
           "readPage": {
             "row": "Чтение веб-страницы",
-            "title_one": "прочитана {{count}} веб-страница",
-            "title_few": "прочитано {{count}} веб-страницы",
-            "title_many": "прочитано {{count}} веб-страниц",
-            "title_other": "прочитано {{count}} веб-страницы"
+            "title_one": "{{count}} чтение веб-страницы",
+            "title_few": "{{count}} чтения веб-страниц",
+            "title_many": "{{count}} чтений веб-страниц",
+            "title_other": "{{count}} чтения веб-страниц"
           },
           "schedule": {
             "row": "Планирование",

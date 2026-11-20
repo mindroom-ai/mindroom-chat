@@ -866,18 +866,18 @@
         "toolWords": {
           "read": {
             "row": "फ़ाइल पढ़ें",
-            "title_one": "{{count}} फ़ाइल पढ़ी",
-            "title_other": "{{count}} फ़ाइलें पढ़ीं"
+            "title_one": "एक फ़ाइल पढ़ी",
+            "title_other": "{{count}} बार फ़ाइलें पढ़ीं"
           },
           "write": {
             "row": "फ़ाइल लिखें",
-            "title_one": "{{count}} फ़ाइल लिखी",
-            "title_other": "{{count}} फ़ाइलें लिखीं"
+            "title_one": "एक फ़ाइल लिखी",
+            "title_other": "{{count}} बार फ़ाइलें लिखीं"
           },
           "edit": {
             "row": "फ़ाइल संपादित करें",
-            "title_one": "{{count}} बदलाव किया",
-            "title_other": "{{count}} बदलाव किए"
+            "title_one": "एक फ़ाइल संपादित की",
+            "title_other": "{{count}} बार फ़ाइलें संपादित कीं"
           },
           "command": {
             "row": "कमांड चलाएँ",
@@ -894,8 +894,8 @@
           },
           "readPage": {
             "row": "वेब पेज पढ़ें",
-            "title_one": "{{count}} वेब पेज पढ़ा",
-            "title_other": "{{count}} वेब पेज पढ़े"
+            "title_one": "एक वेब पेज पढ़ा",
+            "title_other": "{{count}} बार वेब पेज पढ़े"
           },
           "schedule": {
             "row": "शेड्यूल करें",

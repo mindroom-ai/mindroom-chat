@@ -49,9 +49,10 @@ const labelTexts = (renderer: ReturnType<typeof renderPlaceholder> | undefined) 
 
 describe('resolveThinkingPlaceholderMessages', () => {
   it('uses non-empty configured messages', () => {
-    expect(
-      resolveThinkingPlaceholderMessages([' Configured ', '', 'Also configured'])
-    ).toEqual(['Configured', 'Also configured']);
+    expect(resolveThinkingPlaceholderMessages([' Configured ', '', 'Also configured'])).toEqual([
+      'Configured',
+      'Also configured',
+    ]);
   });
 
   it('falls back to built-in messages when config has no usable messages', () => {

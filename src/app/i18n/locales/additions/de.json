@@ -866,18 +866,18 @@
         "toolWords": {
           "read": {
             "row": "Datei lesen",
-            "title_one": "{{count}} Datei gelesen",
-            "title_other": "{{count}} Dateien gelesen"
+            "title_one": "eine Datei gelesen",
+            "title_other": "Dateien {{count}}-mal gelesen"
           },
           "write": {
             "row": "Datei schreiben",
-            "title_one": "{{count}} Datei geschrieben",
-            "title_other": "{{count}} Dateien geschrieben"
+            "title_one": "eine Datei geschrieben",
+            "title_other": "Dateien {{count}}-mal geschrieben"
           },
           "edit": {
             "row": "Datei bearbeiten",
-            "title_one": "{{count}} Änderung vorgenommen",
-            "title_other": "{{count}} Änderungen vorgenommen"
+            "title_one": "eine Datei bearbeitet",
+            "title_other": "Dateien {{count}}-mal bearbeitet"
           },
           "command": {
             "row": "Befehl ausführen",
@@ -894,8 +894,8 @@
           },
           "readPage": {
             "row": "Webseite lesen",
-            "title_one": "{{count}} Webseite gelesen",
-            "title_other": "{{count}} Webseiten gelesen"
+            "title_one": "eine Webseite gelesen",
+            "title_other": "Webseiten {{count}}-mal gelesen"
           },
           "schedule": {
             "row": "Planen",

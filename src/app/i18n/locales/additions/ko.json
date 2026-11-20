@@ -852,15 +852,15 @@
         "toolWords": {
           "read": {
             "row": "파일 읽기",
-            "title_other": "파일 {{count}}개 읽음"
+            "title_other": "파일 {{count}}회 읽음"
           },
           "write": {
             "row": "파일 쓰기",
-            "title_other": "파일 {{count}}개 작성함"
+            "title_other": "파일 {{count}}회 작성함"
           },
           "edit": {
             "row": "파일 편집",
-            "title_other": "{{count}}건 편집함"
+            "title_other": "파일 {{count}}회 편집함"
           },
           "command": {
             "row": "명령 실행",
@@ -876,7 +876,7 @@
           },
           "readPage": {
             "row": "웹 페이지 읽기",
-            "title_other": "웹 페이지 {{count}}개 읽음"
+            "title_other": "웹 페이지 {{count}}회 읽음"
           },
           "schedule": {
             "row": "예약",

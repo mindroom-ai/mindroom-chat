@@ -56,9 +56,7 @@ describe('getAiRunCompactModelLabel', () => {
         modelId: 'claude-opus-4-6',
       })
     ).toBe('Opus');
-    expect(getAiRunCompactModelLabel({ modelConfig: 'bedtime_fable' })).toBe(
-      'Bedtime Fable'
-    );
+    expect(getAiRunCompactModelLabel({ modelConfig: 'bedtime_fable' })).toBe('Bedtime Fable');
   });
 
   it('uses a concise model id when the config name is generic', () => {
@@ -102,11 +100,7 @@ describe('getAiRunContextLabel', () => {
 
   it('formats the percentage as the context bar tooltips do', () => {
     expect(
-      getAiRunContextLabel(
-        { contextInputTokens: 500, contextWindowTokens: 2000 },
-        undefined,
-        'ru'
-      )
+      getAiRunContextLabel({ contextInputTokens: 500, contextWindowTokens: 2000 }, undefined, 'ru')
     ).toBe(`500 of 2\u00a0000 · ${formatAiRunPercentage(25, 'ru')}`);
   });
 

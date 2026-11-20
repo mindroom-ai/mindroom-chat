@@ -56,9 +56,10 @@ const STATUS = {
 type RunCall = { toolName: string; state: ToolCallState };
 
 /**
- * A finished run's line in words for the calls that ran ("Read 3 files"), the names of the tools
- * without words or that did not run as its detail, and how many did not run as its status ("· 1
- * denied", or "· 3 didn't complete" for more than one kind); undefined when no call with words ran.
+ * A finished run's line in words for the calls that ran ("Read files 3 times", as it counts calls),
+ * the names of the tools without words or that did not run as its detail, and how many did not run
+ * as its status ("· 1 denied", or "· 3 didn't complete" for more than one kind); undefined when no
+ * call with words ran.
  */
 export const describeToolRun = (t: TFunction, language: string, calls: readonly RunCall[]) => {
   const groups = new Map<ToolWordGroup, number>();

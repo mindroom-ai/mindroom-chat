@@ -880,21 +880,21 @@
         "toolWords": {
           "read": {
             "row": "Leer archivo",
-            "title_one": "leyó {{count}} archivo",
-            "title_many": "leyó {{count}} archivos",
-            "title_other": "leyó {{count}} archivos"
+            "title_one": "leyó un archivo",
+            "title_many": "leyó archivos {{count}} veces",
+            "title_other": "leyó archivos {{count}} veces"
           },
           "write": {
             "row": "Escribir archivo",
-            "title_one": "escribió {{count}} archivo",
-            "title_many": "escribió {{count}} archivos",
-            "title_other": "escribió {{count}} archivos"
+            "title_one": "escribió un archivo",
+            "title_many": "escribió archivos {{count}} veces",
+            "title_other": "escribió archivos {{count}} veces"
           },
           "edit": {
             "row": "Editar archivo",
-            "title_one": "hizo {{count}} edición",
-            "title_many": "hizo {{count}} ediciones",
-            "title_other": "hizo {{count}} ediciones"
+            "title_one": "editó un archivo",
+            "title_many": "editó archivos {{count}} veces",
+            "title_other": "editó archivos {{count}} veces"
           },
           "command": {
             "row": "Ejecutar comando",
@@ -912,9 +912,9 @@
           },
           "readPage": {
             "row": "Leer página web",
-            "title_one": "leyó {{count}} página web",
-            "title_many": "leyó {{count}} páginas web",
-            "title_other": "leyó {{count}} páginas web"
+            "title_one": "leyó una página web",
+            "title_many": "leyó páginas web {{count}} veces",
+            "title_other": "leyó páginas web {{count}} veces"
           },
           "schedule": {
             "row": "Programar",
