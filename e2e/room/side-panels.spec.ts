@@ -83,16 +83,30 @@ test(
     const conversationWidth = await widthOf(roomHeader(page));
 
     const handle = (await splitter.boundingBox())!;
-    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handle.x - conversationWidth + 40, handle.y + handle.height / 2, {
-      steps: 10,
-    });
-    // Held over the conversation, the panel follows the pointer past its widest.
-    await expect(panel).toHaveAttribute('data-expand-preview', 'true');
-    await expect(splitter).toHaveAttribute('aria-valuetext', 'Fill the room with Sub-agents');
+    const start = handle.x + handle.width / 2;
+    const y = handle.y + handle.height / 2;
     const widest = Number(await splitter.getAttribute('aria-valuemax'));
-    expect(await widthOf(panel)).toBeGreaterThan(widest + 40);
+    const overConversation = async () => {
+      await page.mouse.move(start - conversationWidth + 40, y, { steps: 10 });
+      // Held over the conversation, the panel follows the pointer past its widest.
+      await expect(panel).toHaveAttribute('data-expand-preview', 'true');
+      await expect(splitter).toHaveAttribute('aria-valuetext', 'Fill the room with Sub-agents');
+      expect(await widthOf(panel)).toBeGreaterThan(widest + 40);
+      // It reaches over the conversation, which keeps the width it has beside the panel at its
+      // widest.
+      const besideWidest = conversationWidth + besideWidth - widest;
+      expect(Math.abs((await widthOf(roomHeader(page))) - besideWidest)).toBeLessThanOrEqual(1);
+    };
+    await page.mouse.move(start, y);
+    await page.mouse.down();
+    await overConversation();
+    // Back where it started, nothing changed.
+    await page.mouse.move(start, y, { steps: 10 });
+    await expect(panel).not.toHaveAttribute('data-expand-preview', 'true');
+    await expect
+      .poll(async () => Math.abs((await widthOf(roomHeader(page))) - conversationWidth))
+      .toBeLessThanOrEqual(1);
+    await overConversation();
     await page.mouse.up();
 
     await expect(fill).toHaveAttribute('aria-pressed', 'true');

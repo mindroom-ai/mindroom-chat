@@ -24,7 +24,7 @@ class TestPointerEvent extends MouseEvent {
  * At the end of a 1000 px row that keeps 360 px for the conversation: the panel is at most 600 px
  * wide, and a drag over the conversation reaches the row's end. It starts 400 px wide.
  */
-const renderPanel = ({ framed = true, row: rowWidth = 1000 } = {}) => {
+const renderPanel = ({ framed = true, row: rowWidth = 1000, content = 360 } = {}) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
   const onCollapse = vi.fn();
   const row = document.body.appendChild(document.createElement('div'));
@@ -39,7 +39,7 @@ const renderPanel = ({ framed = true, row: rowWidth = 1000 } = {}) => {
         collapseLabel="Close"
         testId="panel"
         side="end"
-        minContentWidth={360}
+        minContentWidth={content}
         onCollapse={onCollapse}
       >
         <p>content</p>
@@ -100,6 +100,34 @@ describe('dragging a side panel past its widest', () => {
     // Shrink brings it back at the width it had before the drag.
     expect(stored()).toBe(400);
     expect(screen.getByTestId('panel').style.width).toBe('400px');
+  });
+
+  it('keeps its widest in the row while it reaches over the conversation, and back', () => {
+    renderPanel();
+    const footprint = () => {
+      const { style } = screen.getByTestId('panel');
+      return Number.parseFloat(style.width) + (Number.parseFloat(style.marginInlineStart) || 0);
+    };
+    dragTo(900);
+    // 300 px over the conversation, which keeps the width it has beside the panel at its widest.
+    expect(screen.getByTestId('panel').style.width).toBe('900px');
+    expect(screen.getByTestId('panel').style.marginInlineStart).toBe('-300px');
+    expect(footprint()).toBe(600);
+    fireEvent.pointerMove(separator(), { clientX: 500 - (500 - 400) });
+    expect(screen.getByTestId('panel').style.marginInlineStart).toBe('');
+    expect(footprint()).toBe(500);
+    release();
+    expect(stored()).toBe(500);
+  });
+
+  it('in a row too narrow to go past its widest, neither fills nor says it would', () => {
+    const { setLayout } = renderPanel({ row: 620, content: 0 });
+    dragTo(700);
+    expect(screen.getByTestId('panel').style.width).toBe('620px');
+    expect(separator().getAttribute('aria-valuetext')).toBeNull();
+    release();
+    expect(setLayout).not.toHaveBeenCalled();
+    expect(stored()).toBe(600);
   });
 
   it('follows a drag over the whole conversation of a wide row', () => {

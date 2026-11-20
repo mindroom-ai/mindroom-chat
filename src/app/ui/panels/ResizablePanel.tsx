@@ -106,6 +106,8 @@ export function ResizablePanel({
   const [preferredWidth, setPreferredWidth] = useAtom(widthAtom);
   const [previewWidth, setPreviewWidth] = useState<number>();
   const [availableWidth, setAvailableWidth] = useState(maxPanelWidth);
+  /** All of the row's width, which a drag that can expand the panel reaches over. */
+  const usableWidth = useRef(maxPanelWidth);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const presence = usePanelPresence();
@@ -120,7 +122,6 @@ export function ResizablePanel({
   const expandText = onExpand
     ? expandLabel
     : frame && t('mindroomUi.sidePanel.fill', { label: frame.label });
-  const canExpand = !!expand;
   const full = fullWidth || frame?.layout === 'filled';
   const folded = frame?.layout === 'folded';
   /** Beside the content, at a width of its own: the splitter resizes it. */
@@ -147,7 +148,10 @@ export function ResizablePanel({
   const width =
     previewWidth === undefined || full
       ? settledWidth
-      : Math.min(previewWidth, expand ? availableWidth : maxWidth);
+      : Math.min(previewWidth, expand ? Infinity : maxWidth);
+  // Past its widest, the panel keeps its widest in the row and reaches over the content beside it,
+  // which keeps its width.
+  const overhang = Math.max(0, width - maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
   // content instead of squeezing it.
   const contentWidth = Math.max(width, minWidth);
@@ -197,7 +201,8 @@ export function ResizablePanel({
     movesRef.current = moves;
     if (panel && released !== undefined && moves && released !== width) {
       motionRef.current?.cancel();
-      const from = { width: released, gap: 0 };
+      // From over the content (an end panel's overhang is its start margin), the row keeps its width.
+      const from = { width: released, gap: side === 'end' ? Math.max(0, released - maxWidth) : 0 };
       motionRef.current = animatePanel(panel, from, { width, gap: 0 }, false);
     }
   });
@@ -234,14 +239,14 @@ export function ResizablePanel({
       // Room beyond the widest panel and the content beside it changes nothing, so a row that
       // grows or shrinks around a wide-enough panel (another panel moving) does not render it.
       const usable = Math.max(0, parent.clientWidth - padding);
-      // One that can expand follows a drag over all of it.
-      setAvailableWidth(canExpand ? usable : Math.min(usable, maxPanelWidth + minContentWidth));
+      usableWidth.current = usable;
+      setAvailableWidth(Math.min(usable, maxPanelWidth + minContentWidth));
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [resizable, maxPanelWidth, minContentWidth, canExpand]);
+  }, [resizable, maxPanelWidth, minContentWidth]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
@@ -269,7 +274,8 @@ export function ResizablePanel({
     // A panel that can close follows the pointer all the way to nothing, one that can expand past
     // its widest; others stop at their smallest and widest.
     if (onCollapse || expand) {
-      const widest = expand ? Infinity : maxWidth;
+      // One that can expand follows a drag over all of the row.
+      const widest = expand ? Math.max(usableWidth.current, maxWidth) : maxWidth;
       drag.width = Math.max(onCollapse ? 0 : minWidth, Math.min(requestedWidth, widest));
     } else drag.width = clamp(requestedWidth, maxWidth);
     setPreviewWidth(drag.width);
@@ -329,7 +335,10 @@ export function ResizablePanel({
   let panelStyle: CSSProperties | undefined;
   if (passthrough) panelStyle = { display: 'contents' };
   else if (full) panelStyle = { width: '100%' };
-  else if (!folded) panelStyle = { width };
+  else if (!folded) {
+    const edge = side === 'end' ? 'marginInlineStart' : 'marginInlineEnd';
+    panelStyle = { width, ...(overhang > 0 && { [edge]: -overhang, zIndex: 1 }) };
+  }
 
   return (
     <div
