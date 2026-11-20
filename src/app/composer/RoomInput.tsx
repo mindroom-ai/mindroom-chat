@@ -107,6 +107,7 @@ import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSend
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
+import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 
@@ -691,7 +692,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [ref, setRoot]
     );
     // The voice key records here (useVoiceHoldShortcut): a send takes the same path as Enter,
-    // and only from a composer with nothing else in it.
+    // and only from a composer with nothing else in it. In a thread whose root is unconfirmed, the
+    // key sends nothing (the recording keeps going), as Enter's send would wait for the root.
     useVoiceComposer(
       voiceActive
         ? {
@@ -700,7 +702,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             thread: threadId !== undefined,
             hasContent: () =>
               !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
-            send: () => void handleSend(),
+            send: () => {
+              if (!isLocalEchoEventId(threadId)) void handleSend();
+            },
             focus: () => ReactEditor.focus(editor),
           }
         : undefined

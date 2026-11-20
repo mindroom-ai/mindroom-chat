@@ -3,13 +3,12 @@ import React, {
   useContext,
   useEffect,
   useLayoutEffect,
-  useReducer,
   useRef,
   useState,
 } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { IContent, MatrixClient, RoomEvent } from 'matrix-js-sdk';
+import { IContent, MatrixClient } from 'matrix-js-sdk';
 import type { Descendant } from 'slate';
 import { Icon, Icons } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
@@ -113,8 +112,8 @@ type PendingVoiceComposerBundle = {
   composerReset: boolean;
   handedOff: boolean;
   releasePasteProtection: () => void;
-  /** Why this press cannot send: the audio, taken alone, parks at once with this message. */
-  blocked?: string;
+  /** The text's pasted files were not here at the press: the audio, taken alone, parks. */
+  pastesMissing: boolean;
 };
 
 export const useRoomInputVoice = ({
@@ -152,27 +151,15 @@ export const useRoomInputVoice = ({
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
   // A recording made while its thread's root was still sending belongs to that thread after.
-  // A root deleted unsent leaves no thread to show it: the room's page offers it, to discard.
-  const draftContext = draftBelongsToCurrentSession ? pendingVoiceSendDraft.context : undefined;
-  const draftThreadId =
-    draftContext && confirmedVoiceThreadId(draftContext.room, draftContext.threadId);
-  const unsentRootRoom = isLocalEchoEventId(draftThreadId) ? draftContext?.room : undefined;
-  const draftThreadGone =
-    !!unsentRootRoom && !!draftThreadId && !unsentRootRoom.findEventById(draftThreadId);
-  const draftKey =
-    draftContext &&
-    (draftThreadGone
-      ? draftContext.roomId
-      : voiceComposerKey({ ...draftContext, threadId: draftThreadId }));
-  // Asked again as that root is confirmed or deleted.
-  const [, rootChanged] = useReducer((count: number) => count + 1, 0);
-  useEffect(() => {
-    if (!unsentRootRoom) return undefined;
-    unsentRootRoom.on(RoomEvent.LocalEchoUpdated, rootChanged);
-    return () => {
-      unsentRootRoom.off(RoomEvent.LocalEchoUpdated, rootChanged);
-    };
-  }, [unsentRootRoom]);
+  const draftKey = draftBelongsToCurrentSession
+    ? voiceComposerKey({
+        ...pendingVoiceSendDraft.context,
+        threadId: confirmedVoiceThreadId(
+          pendingVoiceSendDraft.context.room,
+          pendingVoiceSendDraft.context.threadId
+        ),
+      })
+    : undefined;
   // A thread view's composer, while mounted, is the one to offer its thread's recording.
   const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
   // Before the page paints: it would show the recording for a frame.
@@ -314,13 +301,13 @@ export const useRoomInputVoice = ({
         const pendingComposerBundle = pendingVoiceComposerBundleRef.current;
         const composerBundle =
           pendingComposerBundle?.roomId === context.roomId ? pendingComposerBundle : undefined;
-        if (composerBundle?.blocked) throw new Error(composerBundle.blocked);
+        if (composerBundle?.pastesMissing) throw new Error(t('composer.voiceBundleBlocked'));
         liveContext = refreshRoomInputVoiceSendContext(mx, context);
         if (!liveContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
         }
         // No reply can point at a root the server has not confirmed (still sending, or deleted
-        // unsent); a retry once it has can. A parked recording's retry comes here.
+        // unsent); a retry once it has can.
         if (isLocalEchoEventId(liveContext.threadId)) {
           throw new Error(t('composer.voiceThreadRootUnsent'));
         }
@@ -498,16 +485,15 @@ export const useRoomInputVoice = ({
   const sendAtPress = useCallback(
     (takeText: () => IContent | undefined, pastesMissing: boolean): Promise<void> | undefined => {
       if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return undefined;
-      const recorder = voiceRecorderRef.current;
       const context = getContext();
-      // Two presses send nothing. Text whose pasted files are not here: its restore reads the
-      // editor, which this Send would empty. A thread whose root the server has not confirmed:
-      // no reply can point at it. The audio is taken and parks alone; the text and files stay.
-      let blocked: string | undefined;
-      if (pastesMissing) blocked = t('composer.voiceBundleBlocked');
-      else if (isLocalEchoEventId(context.threadId)) blocked = t('composer.voiceThreadRootUnsent');
-      const content = blocked ? undefined : takeText();
-      const staged = blocked ? [] : attachmentAccess.snapshot().staged;
+      // No recording is taken for a thread the server has not confirmed: it stays live, so the
+      // next press after confirmation sends it.
+      if (isLocalEchoEventId(context.threadId)) return undefined;
+      const recorder = voiceRecorderRef.current;
+      // Text whose pasted files are not here goes nowhere: its restore reads the editor, which
+      // this Send would empty. The audio is taken and parks alone; the text and files stay.
+      const content = pastesMissing ? undefined : takeText();
+      const staged = pastesMissing ? [] : attachmentAccess.snapshot().staged;
       if (!recorder || hasFailedPasteMarkerInText(content, staged)) return Promise.resolve();
 
       pendingVoiceComposerBundleRef.current = {
@@ -520,7 +506,7 @@ export const useRoomInputVoice = ({
         releasePasteProtection: attachmentAccess.protectPasteItems(staged),
         composerReset: false,
         handedOff: false,
-        blocked,
+        pastesMissing,
       };
       setSendingHere(true);
       // Up to its first wait, in this task: the claim, the destination and the stop of capture.
@@ -538,7 +524,7 @@ export const useRoomInputVoice = ({
           }
         });
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, t, view]
+    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, view]
   );
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>

@@ -29,12 +29,10 @@ and spaces, and send it wherever they press Send.
 - Nothing waits after the press. A send that cannot go to where it was pressed (the room was
   left, the upload fails) parks its audio there as a failed send; it never moves to another
   composer.
-- In a thread whose root the server has not confirmed, no reply can be sent. A Send pressed
-  there with a recording takes the audio alone and parks it at that thread at once, with the
-  message that the thread has no sent first message. The typed text and staged files stay in
-  the composer, and no send lock is held. Retry sends it once the root is confirmed. If the
-  root is deleted unsent, its thread is gone: the room's page then offers the parked audio, to
-  discard. A text Send without a recording waits for the root as on `main`.
+- In a thread whose root the server has not confirmed, no reply can be sent. A press there
+  takes no recording: it stays live and keeps recording, and the next press after confirmation
+  sends it. Typed text in that press waits for the root as on `main` and goes out as text
+  alone. No parked draft is ever made under a root's local ID.
 - A Send pressed without a recording never takes one later: a text Send that waited for its
   thread root goes out as text.
 - Text whose pasted files are still being restored cannot go with the press, because the
@@ -94,10 +92,9 @@ asked-for behaviour; the capsule in that composer is the visible cue.
 - Unit: two composers share one session; Send in one clears both; a second Send claims nothing.
 - Unit: account exit stops the microphone and clears the atom, also during a capture stop and
   during an upload, where it leaves the next account's parked recording and send lock alone.
-- Unit: Send under an unconfirmed thread root takes the recording at the press and parks it at
-  once, alone, with the send lock free. The room's page offers a parked recording whose
-  thread's unsent root was deleted. A text Send held for its root takes no recording started
-  since.
+- Unit: Send under an unconfirmed thread root keeps the recording live and sends no audio; its
+  typed text is held and goes out as text alone; the next press after confirmation sends the
+  recording to that thread. A text Send held for its root takes no recording started since.
 - Unit: a parked retry keeps the attempted destination.
 - e2e: record in room A's main view, open a thread in A, go to room B in another space, open a
   thread there, press Send. Exactly one `m.audio` exists, in B's thread; none in A.
