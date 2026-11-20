@@ -207,6 +207,8 @@ it.each([['draft'], ['prerelease']])('writes nothing for a %s, also with both as
   expect(github.feedNow()).toBe(appcast('2026.11.9'));
 });
 
+// The lagging URL runs every readback: up to 5.8 s in a full run on the M5 (3.1 s alone), so
+// about three times that instead of Vitest's 5 s default.
 it('checks the public URL again when the feed already has these bytes', () => {
   const github = fixture();
   github.live('2026.11.10');
@@ -214,7 +216,7 @@ it('checks the public URL again when the feed already has these bytes', () => {
   const result = github.run('v2026.11.10', { TEST_URL_LAGS: '999' });
   expect(result.status).toBe(1);
   expect(github.uploads(result)).toBe(0);
-});
+}, 18_000);
 
 it.each([
   ['at once', { TEST_UPLOAD_LANDS_FAILING: '1' }, 1],
@@ -254,17 +256,23 @@ it.each([
   expect(github.uploads(result)).toBe(0);
 });
 
+// A URL that never serves the feed runs every readback: up to 7.4 s in a full run on the M5 (3.5 s
+// alone), so three times that instead of Vitest's 5 s default.
 it.each([
   ['the feed cannot be read', { TEST_FAIL: 'view:mac-appcast' }, 0, '2026.11.9'],
   ['every upload fails', { TEST_UPLOAD_FAILS: '9' }, 3, undefined],
   ['the URL never serves it', { TEST_URL_LAGS: '999' }, 1, '2026.11.10'],
-])('fails, without another write, when %s', (_name, env, uploadCount, after) => {
-  const github = fixture();
-  github.live('2026.11.9');
-  github.ready('v2026.11.10');
-  const result = github.run('v2026.11.10', env);
-  expect(result.status).toBe(1);
-  expect(result.stdout + result.stderr).toContain('::error::');
-  expect(github.uploads(result)).toBe(uploadCount);
-  expect(github.feedNow()).toBe(after === undefined ? undefined : appcast(after));
-});
+])(
+  'fails, without another write, when %s',
+  (_name, env, uploadCount, after) => {
+    const github = fixture();
+    github.live('2026.11.9');
+    github.ready('v2026.11.10');
+    const result = github.run('v2026.11.10', env);
+    expect(result.status).toBe(1);
+    expect(result.stdout + result.stderr).toContain('::error::');
+    expect(github.uploads(result)).toBe(uploadCount);
+    expect(github.feedNow()).toBe(after === undefined ? undefined : appcast(after));
+  },
+  22_000
+);
