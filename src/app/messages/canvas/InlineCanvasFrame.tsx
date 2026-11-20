@@ -217,6 +217,7 @@ function PassiveInlineCanvas({ mx, room, action, libraries, remote }: InlineCanv
             {
               inline: true,
               raw: action.canvas.raw === true,
+              width: action.canvas.width,
               remote,
               pinned: action.canvas.libraries,
             }
@@ -227,6 +228,7 @@ function PassiveInlineCanvas({ mx, room, action, libraries, remote }: InlineCanv
       theme,
       action.canvas.title,
       action.canvas.raw,
+      action.canvas.width,
       action.canvas.libraries,
       libraries,
       remote,
@@ -299,7 +301,13 @@ function InteractiveInlineCanvas({ mx, room, action, libraries, remote }: Inline
         shown.title,
         libraries,
         saved.read(),
-        { inline: true, raw: shown.raw === true, remote, pinned: shown.libraries }
+        {
+          inline: true,
+          raw: shown.raw === true,
+          width: shown.width,
+          remote,
+          pinned: shown.libraries,
+        }
       ),
     buildKey: `${libraries}:${remote}:${restarts}`,
     onSaveState: (change, byUser) => {

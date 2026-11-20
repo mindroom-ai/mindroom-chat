@@ -864,6 +864,16 @@ describe('inline canvas sizing', () => {
     );
   });
 
+  it('never lets a fitted inline page scroll its root, so the wheel reaches the thread', () => {
+    const fitted = 'html{overflow:hidden}body{overflow:auto hidden}';
+    expect(buildCanvasPage('', 'light', undefined, false, {}, { inline: true })).toContain(fitted);
+    // A preview with its own width scrolls inside its window, and the panel scrolls its page.
+    expect(
+      buildCanvasPage('', 'light', undefined, false, {}, { inline: true, width: 1280 })
+    ).not.toContain(fitted);
+    expect(buildCanvasPage('', 'light')).not.toContain(fitted);
+  });
+
   it('shows raw pages exactly as written: no theme, base style, or color scheme from Chat', () => {
     const page = buildCanvasPage(
       '<p>hi</p>',

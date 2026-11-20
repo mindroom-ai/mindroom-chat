@@ -413,13 +413,15 @@ const BASE_STYLE =
   'body{margin:0;padding:16px;background:var(--mr-bg);color:var(--mr-text);font:14px/1.5 var(--mr-font)}';
 
 /**
- * How a page is shown: in the thread, fitted to its height (`inline`); exactly as written, with no
- * theme variables, base style, or color scheme from Chat (`raw`); with remote assets (`remote`); and
- * with the libraries Chat serves that its revision names (`pinned`, from `canvas.libraries`).
+ * How a page is shown: in the thread (`inline`), fitted to its height unless it has its own viewport
+ * `width`; exactly as written, with no theme variables, base style, or color scheme from Chat (`raw`);
+ * with remote assets (`remote`); and with the libraries Chat serves that its revision names (`pinned`,
+ * from `canvas.libraries`).
  */
 export type CanvasDisplay = {
   inline?: boolean;
   raw?: boolean;
+  width?: number;
   remote?: boolean;
   pinned?: readonly string[];
 };
@@ -427,7 +429,12 @@ export type CanvasDisplay = {
 /** A frame with both schemes uses the browser's preferred one, whatever Chat's theme is. */
 export const RAW_COLOR_SCHEME = 'light dark';
 
-const pageStyle = (theme: CanvasTheme, inline: boolean): string =>
+// A fitted page's root never scrolls, and wide content scrolls sideways in the body: the Mac app's
+// WebKit gives the whole wheel to a frame whose root can scroll even a pixel, so a size report a few
+// pixels short would stop the thread from scrolling under the pointer.
+const FITTED_STYLE = 'html{overflow:hidden}body{overflow:auto hidden}';
+
+const pageStyle = (theme: CanvasTheme, inline: boolean, fitted: boolean): string =>
   `<style>${canvasThemeCss(theme)}${
     inline
       ? BASE_STYLE.replace(
@@ -435,7 +442,7 @@ const pageStyle = (theme: CanvasTheme, inline: boolean): string =>
           'padding:8px;background:transparent;position:relative'
         )
       : BASE_STYLE
-  }</style>`;
+  }${fitted ? FITTED_STYLE : ''}</style>`;
 
 /** Wrap agent HTML in a document whose policy and bridge are fixed before the agent's markup. */
 export const buildCanvasPage = (
@@ -444,7 +451,7 @@ export const buildCanvasPage = (
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false,
   saved: CanvasSaved = {},
-  { inline = false, raw = false, remote = false, pinned }: CanvasDisplay = {}
+  { inline = false, raw = false, remote = false, pinned, width }: CanvasDisplay = {}
 ): string => {
   const served = canvasLibraries(pinned);
   const head = (lineOffset: number) =>
@@ -457,7 +464,7 @@ export const buildCanvasPage = (
       )}">`,
       raw ? '' : `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
-      raw ? '' : pageStyle(theme, inline),
+      raw ? '' : pageStyle(theme, inline, inline && width === undefined),
       `<script>${bridgeScript(colorScheme, lineOffset, saved, inline, served.unknown)}</script>`,
       // After the bridge, so a library that fails to load is reported.
       served.tags,
