@@ -4,7 +4,7 @@ import React from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResizablePanel } from './ResizablePanel';
-import { RESIZING } from './ResizablePanel.css';
+import { DRAG_NO_SELECT } from '../dragSelection.css';
 
 class TestPointerEvent extends MouseEvent {
   pointerId: number;
@@ -26,7 +26,7 @@ const panel = (props: Partial<React.ComponentProps<typeof ResizablePanel>> = {})
 
 /** Both halves of the block, each on its own: the root's attribute and the selectstart listener. */
 const blocked = () => ({
-  attribute: document.documentElement.hasAttribute(RESIZING),
+  attribute: document.documentElement.hasAttribute(DRAG_NO_SELECT),
   selectstart: !document.body.dispatchEvent(new Event('selectstart', { cancelable: true })),
 });
 const ON = { attribute: true, selectstart: true };
