@@ -376,11 +376,15 @@ const endButtonsLayout = (page: Page, titleSelector: string) =>
     const rowTitleWidth = titleElement.getBoundingClientRect().width;
     actions.style.flexDirection = was;
     const box = card.getBoundingClientRect();
+    const rowBox = row.getBoundingClientRect();
+    const actionsBox = actions.getBoundingClientRect();
     return {
       boxes,
       titleWidth,
       rowTitleWidth,
       card: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+      row: { top: rowBox.top, bottom: rowBox.bottom },
+      column: { top: actionsBox.top, bottom: actionsBox.bottom },
     };
   }, titleSelector);
 
@@ -407,36 +411,50 @@ const expectEndButtons = async (page: Page, titleSelector: string, stacked: bool
     );
     const before = layout.boxes[index - 1];
     if (!before) return;
-    if (stacked)
+    if (stacked) {
       expect(box.top, `button ${index} under the one before`).toBeGreaterThanOrEqual(
         before.bottom - 0.5
       );
-    else
+      // Packed: 4 px apart, no more.
+      expect(box.top - before.bottom, `gap above button ${index}`).toBeLessThanOrEqual(4.5);
+    } else
       expect(box.top, `button ${index} on the line of the one before`).toBeLessThan(before.bottom);
   });
-  if (stacked) expect(layout.titleWidth).toBeGreaterThan(layout.rowTitleWidth + 20);
-  else expect(layout.titleWidth).toBeCloseTo(layout.rowTitleWidth, 0);
+  if (stacked) {
+    expect(layout.titleWidth).toBeGreaterThan(layout.rowTitleWidth + 20);
+    // The packed column sits in the middle of the row, beside the middle of the title.
+    const middle = (edges: { top: number; bottom: number }) => (edges.top + edges.bottom) / 2;
+    expect(Math.abs(middle(layout.column) - middle(layout.row))).toBeLessThan(1);
+  } else expect(layout.titleWidth).toBeCloseTo(layout.rowTitleWidth, 0);
   await expectHitAreasApart(page);
 };
 
 /**
- * A finger at the edge of a button's 44 px hit area, above, below and to each side of it, gets
- * that button (More and Resolve, which have such an area) or none, never the next one.
+ * A finger at the edge of a button's hit area gets that button (More and Resolve, which have such
+ * an area) or none, never the next one. The area is 44 px each way, except toward a button stacked
+ * right above or below, where it ends halfway across the gap between them: there the two areas
+ * meet, 1 px either side of the middle of the gap going to each.
  */
 const expectHitAreasApart = async (page: Page) => {
   const hits = await banner(page).evaluate((card) => {
     const buttons = [...card.querySelectorAll<HTMLElement>('button')].filter(
       (button) => button.getBoundingClientRect().width > 0
     );
-    return buttons.map((button) => {
-      const box = button.getBoundingClientRect();
+    const boxes = buttons.map((button) => button.getBoundingClientRect());
+    const sameColumn = (a: DOMRect, b: DOMRect) => a.left < b.right && b.left < a.right;
+    return buttons.map((button, index) => {
+      const box = boxes[index]!;
       const x = box.left + box.width / 2;
       const y = box.top + box.height / 2;
-      const reachY = Math.max(22, box.height / 2) - 1;
+      const full = Math.max(22, box.height / 2);
+      const above = boxes.find((other) => sameColumn(other, box) && other.bottom <= box.top);
+      const below = boxes.find((other) => sameColumn(other, box) && other.top >= box.bottom);
+      const reachUp = above ? box.height / 2 + (box.top - above.bottom) / 2 : full;
+      const reachDown = below ? box.height / 2 + (below.top - box.bottom) / 2 : full;
       const reachX = Math.max(18, box.width / 2) - 1;
       const points = [
-        [x, y - reachY],
-        [x, y + reachY],
+        [x, y - reachUp + 1],
+        [x, y + reachDown - 1],
         [x - reachX, y],
         [x + reachX, y],
       ];

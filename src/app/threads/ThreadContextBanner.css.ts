@@ -1,4 +1,4 @@
-import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
+import { globalStyle, keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { shortViewport } from '../ui/styles/shortViewport';
@@ -64,14 +64,27 @@ export const RowActions = style({
   selectors: {
     // A phone's buttons stay on the first line whatever their order in the DOM.
     [`${PhoneTitleRow} > &`]: { gridRow: 1 },
-    // A 44 px pitch at least, so the buttons' 44 px hit areas (2rem buttons; touchTarget) stay
-    // apart one above the other as they do side by side.
-    [`${StackedPhoneTitleRow} > &`]: {
-      flexDirection: 'column',
-      rowGap: `max(${config.space.S100}, calc(44px - 2rem))`,
-    },
+    // Packed, 4 px apart, in the middle of the row.
+    [`${StackedPhoneTitleRow} > &`]: { flexDirection: 'column' },
   },
 });
+
+// Stacked, a button's hit area (44 px, touchTarget) stops halfway across the gap to the next one,
+// so neighbours meet and never share a point; the first and the last still reach out to 44 px
+// above and below the column. Each stays 44 px wide.
+const stackedButtons = `[data-thread-context-banner] ${StackedPhoneTitleRow} > ${RowActions}`;
+const halfGap = `calc(-0.5 * ${config.space.S100})`;
+const outward = 'min(0px, calc((100% - 44px) / 2))';
+const coarse = (rule: CSSProperties) => ({ '@media': { '(pointer: coarse)': rule } });
+globalStyle(`${stackedButtons} button::after`, coarse({ insetBlock: halfGap }));
+globalStyle(
+  `${stackedButtons} > button:first-child::after, ${stackedButtons} > :first-child button::after`,
+  coarse({ insetBlockStart: outward })
+);
+globalStyle(
+  `${stackedButtons} > button:last-child::after, ${stackedButtons} > :last-child button::after`,
+  coarse({ insetBlockEnd: outward })
+);
 
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({
