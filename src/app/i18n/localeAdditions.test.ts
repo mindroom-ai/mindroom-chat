@@ -63,7 +63,8 @@ describe('language overlays (locales/additions/<code>.json)', () => {
   describe.each(overlayCodes)('%s', (code) => {
     const overlay = readTree(`${ADDITIONS_DIR}${code}.json`);
     const values = new Map(leaves(overlay));
-    const categories = new Intl.PluralRules(code).resolvedOptions().pluralCategories;
+    const rules = new Intl.PluralRules(code);
+    const categories = rules.resolvedOptions().pluralCategories;
 
     it("has exactly the English overlay's keys, with this language's plural categories", () => {
       const expected = englishKeys.flatMap((path) =>
@@ -77,11 +78,13 @@ describe('language overlays (locales/additions/<code>.json)', () => {
         const source = sourceText(path);
         expect(source, path).toBeDefined();
         if (source === undefined) return;
-        // A `one` that takes more numbers than 1 (Russian 21) says the count English's may leave out.
-        const other = english.get(`${logicalKey(path)}_other`) ?? source;
-        expect([placeholders(source), placeholders(other)], path).toContainEqual(
-          placeholders(value)
-        );
+        // A category that also takes counts above 1 (Russian `one` takes 21) has English `_other`'s
+        // placeholders, so it says the count that English `_one` may leave out.
+        const category = PLURAL_SUFFIX.exec(path)?.[1];
+        const many =
+          !!category && [...Array(200).keys()].some((n) => n > 1 && rules.select(n) === category);
+        const expected = many ? english.get(`${logicalKey(path)}_other`) ?? source : source;
+        expect(placeholders(value), path).toEqual(placeholders(expected));
         expect(markupTags(value), path).toEqual(markupTags(source));
         const bare = value.replace(/[\u2068\u2069]/g, '');
         LITERAL_TOKENS.filter((token) => source.includes(token)).forEach((token) =>
