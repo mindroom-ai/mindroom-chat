@@ -10,10 +10,12 @@ import {
 import { joinRoom, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
-// On a tablet (1024 by 768) with the members panel docked, the thread banner's title column is
-// narrow. Its tag row ran on under the banner's buttons: "+ tag" sat under Thread options and the
-// "+N" count was cut (live-test finding P2-lane4-F016). The tags now stay inside the title column,
-// wrapping onto another line when they do not fit, and "+ tag" stays reachable. Runs in Chromium
+// On a tablet (1024 by 768) the thread banner's title column is narrow. With the members panel
+// docked, its tag row ran on under the banner's buttons: "+ tag" sat under Thread options and the
+// "+N" count was cut (live-test finding P2-lane4-F016). Beside the room list alone, the banner
+// keeps its tags inside the title column, wrapping onto another line when they do not fit, and
+// "+ tag" stays reachable; with the members panel docked as well, it is narrow enough for a
+// phone's layout, which leaves the tags to More. Runs in Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the
 // disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh). Set
 // BANNER_TAGS_SHOTS=<directory> for screenshots.
@@ -73,9 +75,9 @@ const tagsStayBesideTheButtons = async (page: Page, label: string) => {
   await page.goto(`/home/${encodeURIComponent(roomId)}/${encodeURIComponent(rootId)}`);
   const banner = page.locator('[data-thread-context-banner="true"]');
   await expect(banner).toBeVisible({ timeout: 30_000 });
-  const showMembers = page.getByRole('button', { name: 'Show Members', exact: true });
-  if (await showMembers.isVisible()) await showMembers.click();
-  await expect(page.getByRole('button', { name: 'Hide Members', exact: true })).toBeVisible();
+  const hideMembers = page.getByRole('button', { name: 'Hide Members', exact: true });
+  if (await hideMembers.isVisible()) await hideMembers.click();
+  await expect(page.getByRole('button', { name: 'Show Members', exact: true })).toBeVisible();
 
   const addTag = banner.getByRole('button', { name: 'Add tag', exact: true }).first();
   const options = banner.getByRole('button', { name: 'Thread options', exact: true });
@@ -101,6 +103,14 @@ const tagsStayBesideTheButtons = async (page: Page, label: string) => {
     return Math.min(own.right, row.right) - Math.max(own.left, row.left);
   });
   expect(visibleWidth, 'the +N count shows whole').toBeGreaterThanOrEqual(overflowBox.width - 1);
+
+  // With the members panel docked too, the tags and "+ tag" leave the banner for More.
+  await page.getByRole('button', { name: 'Show Members', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Hide Members', exact: true })).toBeVisible();
+  await expect(banner.getByRole('button', { name: 'Add tag', exact: true })).toHaveCount(0);
+  await expect(banner.getByText(TAGS[0], { exact: true })).toHaveCount(0);
+  await expect(options).toBeVisible();
+  if (SHOTS) await banner.screenshot({ path: `${SHOTS}/banner-tags-${label}-members.png` });
 };
 
 test('a tablet’s thread banner keeps its tags beside the buttons (Chromium)', async ({ page }) => {
