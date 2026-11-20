@@ -88,14 +88,13 @@ test(
     const widest = Number(await splitter.getAttribute('aria-valuemax'));
     const overConversation = async () => {
       await page.mouse.move(start - conversationWidth + 40, y, { steps: 10 });
-      // Held over the conversation, the panel follows the pointer past its widest.
+      // Held far over the conversation, the panel stays at its widest and says a release fills.
       await expect(panel).toHaveAttribute('data-expand-preview', 'true');
       await expect(splitter).toHaveAttribute('aria-valuetext', 'Fill the room with Sub-agents');
-      expect(await widthOf(panel)).toBeGreaterThan(widest + 40);
-      // It reaches over the conversation, which keeps the width it has beside the panel at its
-      // widest.
+      expect(Math.abs((await widthOf(panel)) - widest)).toBeLessThanOrEqual(1);
+      // The conversation keeps the width it has beside the panel at its widest.
       const besideWidest = conversationWidth + besideWidth - widest;
-      expect(Math.abs((await widthOf(roomHeader(page))) - besideWidest)).toBeLessThanOrEqual(1);
+      expect(await widthOf(roomHeader(page))).toBeGreaterThanOrEqual(besideWidest - 1);
     };
     await page.mouse.move(start, y);
     await page.mouse.down();

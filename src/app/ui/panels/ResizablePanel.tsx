@@ -106,8 +106,6 @@ export function ResizablePanel({
   const [preferredWidth, setPreferredWidth] = useAtom(widthAtom);
   const [previewWidth, setPreviewWidth] = useState<number>();
   const [availableWidth, setAvailableWidth] = useState(maxPanelWidth);
-  /** All of the row's width, which a drag that can expand the panel reaches over. */
-  const usableWidth = useRef(maxPanelWidth);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const presence = usePanelPresence();
@@ -144,21 +142,17 @@ export function ResizablePanel({
   );
   const minWidth = Math.min(smallest, maxWidth);
   const settledWidth = clamp(preferredWidth ?? defaultWidth, maxWidth, smallest);
-  // A drag that can expand the panel goes over the content beside it, as far as the row reaches.
+  // A drag past the panel's widest leaves it there: how far the pointer went says whether its
+  // release fills the content's place.
   const width =
-    previewWidth === undefined || full
-      ? settledWidth
-      : Math.min(previewWidth, expand ? Infinity : maxWidth);
-  // Past its widest, the panel keeps its widest in the row and reaches over the content beside it,
-  // which keeps its width: above the conversation's floating header and composer (z-index 6).
-  const overhang = Math.max(0, width - maxWidth);
+    previewWidth === undefined || full ? settledWidth : Math.min(previewWidth, maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
   // content instead of squeezing it.
   const contentWidth = Math.max(width, minWidth);
   const collapseOnRelease =
     !full && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
   const expandOnRelease =
-    !full && !!expand && previewWidth !== undefined && width > maxWidth + EXPAND_PAST;
+    !full && !!expand && previewWidth !== undefined && previewWidth > maxWidth + EXPAND_PAST;
   const resizeDirection = () => {
     const inlineDirection =
       panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
@@ -201,8 +195,7 @@ export function ResizablePanel({
     movesRef.current = moves;
     if (panel && released !== undefined && moves && released !== width) {
       motionRef.current?.cancel();
-      // From over the content (an end panel's overhang is its start margin), the row keeps its width.
-      const from = { width: released, gap: side === 'end' ? Math.max(0, released - maxWidth) : 0 };
+      const from = { width: released, gap: 0 };
       motionRef.current = animatePanel(panel, from, { width, gap: 0 }, false);
     }
   });
@@ -239,7 +232,6 @@ export function ResizablePanel({
       // Room beyond the widest panel and the content beside it changes nothing, so a row that
       // grows or shrinks around a wide-enough panel (another panel moving) does not render it.
       const usable = Math.max(0, parent.clientWidth - padding);
-      usableWidth.current = usable;
       setAvailableWidth(Math.min(usable, maxPanelWidth + minContentWidth));
     };
     measure();
@@ -271,12 +263,11 @@ export function ResizablePanel({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const requestedWidth = drag.startWidth + (event.clientX - drag.startX) * drag.direction;
-    // A panel that can close follows the pointer all the way to nothing, one that can expand past
-    // its widest; others stop at their smallest and widest.
+    // A panel that can close follows the pointer all the way to nothing, and one that can expand
+    // keeps how far past its widest the pointer went; others stop at their smallest and widest.
     if (onCollapse || expand) {
-      // One that can expand follows a drag over all of the row.
-      const widest = expand ? Math.max(usableWidth.current, maxWidth) : maxWidth;
-      drag.width = Math.max(onCollapse ? 0 : minWidth, Math.min(requestedWidth, widest));
+      const widest = expand ? requestedWidth : Math.min(requestedWidth, maxWidth);
+      drag.width = Math.max(onCollapse ? 0 : minWidth, widest);
     } else drag.width = clamp(requestedWidth, maxWidth);
     setPreviewWidth(drag.width);
   };
@@ -299,7 +290,7 @@ export function ResizablePanel({
       expand();
       return;
     }
-    releasedAt.current = drag.width;
+    releasedAt.current = Math.min(drag.width, maxWidth);
     if (commit) setPreferredWidth(Math.round(clamp(drag.width, maxWidth)));
   };
   const resizeWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -335,10 +326,7 @@ export function ResizablePanel({
   let panelStyle: CSSProperties | undefined;
   if (passthrough) panelStyle = { display: 'contents' };
   else if (full) panelStyle = { width: '100%' };
-  else if (!folded) {
-    const edge = side === 'end' ? 'marginInlineStart' : 'marginInlineEnd';
-    panelStyle = { width, ...(overhang > 0 && { [edge]: -overhang, zIndex: 10 }) };
-  }
+  else if (!folded) panelStyle = { width };
 
   return (
     <div

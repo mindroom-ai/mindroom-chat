@@ -22,13 +22,13 @@ class TestPointerEvent extends MouseEvent {
 
 /**
  * At the end of a 1000 px row that keeps 360 px for the conversation: the panel is at most 600 px
- * wide, and a drag over the conversation reaches the row's end. It starts 400 px wide.
+ * wide, and stays so as a drag goes on over the conversation. It starts 400 px wide.
  */
-const renderPanel = ({ framed = true, row: rowWidth = 1000, content = 360 } = {}) => {
+const renderPanel = ({ framed = true } = {}) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
   const onCollapse = vi.fn();
   const row = document.body.appendChild(document.createElement('div'));
-  Object.defineProperty(row, 'clientWidth', { value: rowWidth });
+  Object.defineProperty(row, 'clientWidth', { value: 1000 });
   render(
     <PanelFrameProvider
       value={framed ? { label: 'Notes', layout: 'beside', setLayout } : undefined}
@@ -39,7 +39,7 @@ const renderPanel = ({ framed = true, row: rowWidth = 1000, content = 360 } = {}
         collapseLabel="Close"
         testId="panel"
         side="end"
-        minContentWidth={content}
+        minContentWidth={360}
         onCollapse={onCollapse}
       >
         <p>content</p>
@@ -87,10 +87,11 @@ describe('dragging a side panel past its widest', () => {
     }
   });
 
-  it('follows the pointer over the conversation and fills the room, keeping its width', () => {
+  it('stays at its widest as the pointer goes far over the conversation, and fills the room on release, keeping its width', () => {
     const { setLayout, onCollapse } = renderPanel();
-    dragTo(700);
-    expect(screen.getByTestId('panel').style.width).toBe('700px');
+    dragTo(900);
+    expect(screen.getByTestId('panel').style.width).toBe('600px');
+    expect(screen.getByTestId('panel').style.marginInlineStart).toBe('');
     expect(screen.getByTestId('panel').dataset.expandPreview).toBe('true');
     expect(separator().getAttribute('aria-valuenow')).toBe('600');
     expect(separator().getAttribute('aria-valuetext')).toBe('Fill the room with Notes');
@@ -102,38 +103,16 @@ describe('dragging a side panel past its widest', () => {
     expect(screen.getByTestId('panel').style.width).toBe('400px');
   });
 
-  it('keeps its widest in the row while it reaches over the conversation, and back', () => {
-    renderPanel();
-    const footprint = () => {
-      const { style } = screen.getByTestId('panel');
-      return Number.parseFloat(style.width) + (Number.parseFloat(style.marginInlineStart) || 0);
-    };
+  it('out past the threshold and back, resizes as any drag does', () => {
+    const { setLayout } = renderPanel();
     dragTo(900);
-    // 300 px over the conversation, which keeps the width it has beside the panel at its widest.
-    expect(screen.getByTestId('panel').style.width).toBe('900px');
-    expect(screen.getByTestId('panel').style.marginInlineStart).toBe('-300px');
-    expect(footprint()).toBe(600);
     fireEvent.pointerMove(separator(), { clientX: 500 - (500 - 400) });
-    expect(screen.getByTestId('panel').style.marginInlineStart).toBe('');
-    expect(footprint()).toBe(500);
-    release();
-    expect(stored()).toBe(500);
-  });
-
-  it('in a row too narrow to go past its widest, neither fills nor says it would', () => {
-    const { setLayout } = renderPanel({ row: 620, content: 0 });
-    dragTo(700);
-    expect(screen.getByTestId('panel').style.width).toBe('620px');
+    expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
+    expect(screen.getByTestId('panel').style.width).toBe('500px');
     expect(separator().getAttribute('aria-valuetext')).toBeNull();
     release();
     expect(setLayout).not.toHaveBeenCalled();
-    expect(stored()).toBe(600);
-  });
-
-  it('follows a drag over the whole conversation of a wide row', () => {
-    renderPanel({ row: 2000 });
-    dragTo(1900);
-    expect(screen.getByTestId('panel').style.width).toBe('1900px');
+    expect(stored()).toBe(500);
   });
 
   it('keeps its widest when let go short of the threshold', () => {
