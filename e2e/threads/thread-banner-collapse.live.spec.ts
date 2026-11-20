@@ -122,14 +122,17 @@ for (const viewport of [
           );
         await expect.poll(bottomGap).toBeLessThan(2);
         const tag = banner.getByText('protocol', { exact: true }).filter({ visible: true });
-        await expect(tag).toHaveCount(1);
+        // A phone leaves the tags to More.
+        await expect(tag).toHaveCount(viewport.name === 'phone' ? 0 : 1);
         const resolve = banner.getByRole('button', { name: 'Resolve', includeHidden: true });
         await expect(resolve).toBeVisible();
         await page.screenshot({ path: testInfo.outputPath('expanded.png') });
         // The two tags share a row.
-        const research = banner.getByText('research', { exact: true }).filter({ visible: true });
-        const tagTop = async (pill: Locator) => (await pill.boundingBox())!.y;
-        expect(Math.abs((await tagTop(tag)) - (await tagTop(research)))).toBeLessThan(2);
+        if (viewport.name !== 'phone') {
+          const research = banner.getByText('research', { exact: true }).filter({ visible: true });
+          const tagTop = async (pill: Locator) => (await pill.boundingBox())!.y;
+          expect(Math.abs((await tagTop(tag)) - (await tagTop(research)))).toBeLessThan(2);
+        }
         // A titled thread drops the "Thread View" eyebrow.
         await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
         const more = banner.getByRole('button', { name: 'Thread options' });
@@ -175,7 +178,7 @@ for (const viewport of [
         await press(page, viewport.touch, show);
         await expect(banner.locator('[data-thread-context-summary]')).toHaveText(SUMMARY);
         await expect(resolve).toBeVisible();
-        await expect(tag).toHaveCount(1);
+        await expect(tag).toHaveCount(viewport.name === 'phone' ? 0 : 1);
         // Show details unmounted with the pill; More, which can hide it again, has focus.
         await expect(more).toBeFocused();
 
@@ -197,7 +200,15 @@ for (const viewport of [
           // Right after the title, not at the far end of the row.
           expect(by.x - (title.x + title.width)).toBeLessThan(16);
         }
-        expect(Math.abs(centerY(await box(resolved)) - centerY(await box(more)))).toBeLessThan(2);
+        // Beside More; on a phone, under it when the title and byline are as tall as both.
+        const centerX = ({ x, width }: { x: number; width: number }) => x + width / 2;
+        const [resolvedAt, moreAt] = [await box(resolved), await box(more)];
+        const besideMore = Math.abs(centerY(resolvedAt) - centerY(moreAt)) < 2;
+        const underMore =
+          viewport.name === 'phone' &&
+          Math.abs(centerX(resolvedAt) - centerX(moreAt)) < 2 &&
+          resolvedAt.y >= moreAt.y + moreAt.height - 0.5;
+        expect(besideMore || underMore, JSON.stringify({ resolvedAt, moreAt })).toBe(true);
         // Resolve is an icon the size of More, named by a tooltip.
         const resolvedBox = await box(resolved);
         const moreBox = await box(more);
