@@ -184,11 +184,14 @@ vi.mock('jotai', async () => {
   };
 });
 
+vi.mock('../../navigation/useRoomRouteParams', () => ({
+  useRoomRouteParams: () => ({ eventId: roomState.eventId }),
+}));
+
 vi.mock('react-router-dom', () => ({
   NavigationType: { Push: 'PUSH' },
   useNavigationType: () => 'PUSH',
   useLocation: () => ({ key: 'entry' }),
-  useParams: () => ({ eventId: roomState.eventId }),
   useSearchParams: () => [new URLSearchParams(roomState.search)],
 }));
 

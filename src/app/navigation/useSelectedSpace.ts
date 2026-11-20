@@ -1,22 +1,17 @@
-import { useMatch } from 'react-router-dom';
-import { SPACE_PATH } from '../routes/paths';
-import { decodeRouteParam } from '../routes/pathUtils';
+import { useLocation } from 'react-router-dom';
 import { getCanonicalAliasRoomId, isRoomAlias, isRoomId } from '../matrix/matrix';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-
-// One pattern object for every call: useMatch memoizes on it, and a new object each render would
-// compile the path again in every row that navigates to rooms.
-const SPACE_ROUTE_PATTERN = { path: SPACE_PATH, caseSensitive: true, end: false };
+import { ROUTE_PARAM_SEGMENT, routeSegment } from './useRoomRouteParams';
 
 /**
  * The ID of the space the route is inside (`/:spaceIdOrAlias/...`), with a known alias resolved.
- * Undefined on the Home, Direct and other fixed sections.
+ * Undefined on the Home, Direct and other fixed sections. The first segment is read as written
+ * and decoded once, from the parse every row of a list shares: useMatch decodes it already, and
+ * reads a literal `%2F` in an ID as `/`.
  */
 export const useSelectedSpace = (): string | undefined => {
   const mx = useMatrixClient();
-  const match = useMatch(SPACE_ROUTE_PATTERN);
-  const encoded = match?.params.spaceIdOrAlias;
-  const spaceIdOrAlias = encoded ? decodeRouteParam(encoded) : undefined;
+  const spaceIdOrAlias = routeSegment(useLocation().pathname, ROUTE_PARAM_SEGMENT.spaceIdOrAlias);
   if (!spaceIdOrAlias) return undefined;
   if (isRoomAlias(spaceIdOrAlias)) return getCanonicalAliasRoomId(mx, spaceIdOrAlias);
   return isRoomId(spaceIdOrAlias) ? spaceIdOrAlias : undefined;

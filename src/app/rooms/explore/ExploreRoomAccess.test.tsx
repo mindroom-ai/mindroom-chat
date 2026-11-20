@@ -47,6 +47,7 @@ vi.mock('@tanstack/react-query', () => ({
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ server: 'example.org' }),
+  useLocation: () => ({ pathname: '/explore/example.org/' }),
   useSearchParams: () => [new URLSearchParams()],
 }));
 
@@ -84,9 +85,9 @@ vi.mock('../../ui/page/PageScroll', () => {
 });
 
 vi.mock('../RoomCard', async () => {
-  const { RoomAccessControl } = await vi.importActual<
-    typeof import('../RoomAccessControl')
-  >('../RoomAccessControl');
+  const { RoomAccessControl } = await vi.importActual<typeof import('../RoomAccessControl')>(
+    '../RoomAccessControl'
+  );
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     RoomCardGrid: Wrapper,

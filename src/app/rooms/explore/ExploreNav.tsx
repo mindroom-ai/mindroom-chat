@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Box, Icons, Text } from 'folds';
-import { useMatch } from 'react-router-dom';
+import { useLocation, useMatch } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
 import { NavCategory } from '../../ui/nav/NavItem';
@@ -9,7 +9,8 @@ import { NavPageLink } from '../../ui/nav/NavPageLink';
 import { useClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { EXPLORE_FEATURED_PATH, EXPLORE_SERVER_PATH } from '../../routes/paths';
-import { decodeRouteParam, getExploreFeaturedPath, getExploreServerPath } from '../../routes/pathUtils';
+import { ROUTE_PARAM_SEGMENT, routeSegment } from '../../navigation/useRoomRouteParams';
+import { getExploreFeaturedPath, getExploreServerPath } from '../../routes/pathUtils';
 
 /** The servers to browse: this account's own first, then the ones the deployment features. */
 const useExploreServers = (): string[] => {
@@ -30,9 +31,11 @@ export function ExploreNav() {
   const { t } = useTranslation();
   const servers = useExploreServers();
   const onFeatured = useMatch({ path: EXPLORE_FEATURED_PATH, end: false }) !== null;
-  // The nav sits above the page routes, so it reads the server from the location itself.
-  const encodedServer = useMatch({ path: EXPLORE_SERVER_PATH, end: false })?.params.server;
-  const openServer = encodedServer ? decodeRouteParam(encodedServer) : undefined;
+  // The nav sits above the page routes, so it reads the server from the location itself, as
+  // written and decoded once.
+  const onServer = useMatch({ path: EXPLORE_SERVER_PATH, end: false }) !== null;
+  const { pathname } = useLocation();
+  const openServer = onServer ? routeSegment(pathname, ROUTE_PARAM_SEGMENT.server) : undefined;
 
   return (
     <PageNav label={t('sharedUi.explore.exploreCommunity')}>
