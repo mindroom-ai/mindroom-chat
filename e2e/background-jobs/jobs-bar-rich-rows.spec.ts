@@ -112,15 +112,7 @@ const sendRuns = async (room: PanelRoom) => {
 const row = (bar: Locator, kind: 'subagent' | 'tool', depth = 0) =>
   bar.locator(`li[data-job-kind="${kind}"][data-job-depth="${depth}"]`);
 
-test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
-  context,
-  page,
-}, testInfo) => {
-  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
-  test.setTimeout(3 * 60_000);
-  // The rows' model and usage show only with the usage details, which this reader turned on.
-  const room = await openPanelRoom(context, page, { showUsageDetails: true });
-  // MindRoom lets its agents publish their jobs; this room's creator does the same.
+async function allowBackgroundJobs(room: Awaited<ReturnType<typeof openPanelRoom>>) {
   const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
   const powerLevels = await matrixFetch<Record<string, unknown>>(
     DISPOSABLE_HOMESERVER,
@@ -141,6 +133,18 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
       },
     }
   );
+}
+
+test('the jobs bar shows each job with its model, task, what it does now, time and usage', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The rows' model and usage show only with the usage details, which this reader turned on.
+  const room = await openPanelRoom(context, page, { showUsageDetails: true });
+  // MindRoom lets its agents publish their jobs; this room's creator does the same.
+  await allowBackgroundJobs(room);
   // The agent's reply that started the shell job, whose trace names the call.
   await sendRoomMessage(DISPOSABLE_HOMESERVER, room.agent.accessToken, room.roomId, {
     msgtype: 'm.text',
@@ -315,42 +319,7 @@ test('a folded quiet bar cuts its title short before the time, with Open, Thread
   test.setTimeout(3 * 60_000);
   // The app's default: no usage details, so the folded row has its title and no line of what it does.
   const room = await openPanelRoom(context, page);
-  const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
-  const powerLevels = await matrixFetch<Record<string, unknown>>(
-    DISPOSABLE_HOMESERVER,
-    powerLevelsPath,
-    { accessToken: room.viewer.accessToken }
-  );
-  await sendStateEvent(
-    DISPOSABLE_HOMESERVER,
-    room.viewer.accessToken,
-    room.roomId,
-    'm.room.power_levels',
-    '',
-    {
-      ...powerLevels,
-      events: {
-        ...(powerLevels.events as Record<string, number>),
-        'io.mindroom.background_jobs': 0,
-      },
-    }
-  );
-  const run = () =>
-    sendRun(
-      room,
-      'run-notes',
-      {
-        subagent: 'sub-notes',
-        task: "Summarize this week's meeting notes and draft the follow-up email",
-      },
-      [
-        {
-          type: 'tool_call_started',
-          tool_name: 'read_file',
-          args_preview: 'path=notes/2026-11-16-weekly-planning-meeting.md',
-        },
-      ]
-    );
+  await allowBackgroundJobs(room);
   await sendStateEvent(
     DISPOSABLE_HOMESERVER,
     room.agent.accessToken,
@@ -378,8 +347,22 @@ test('a folded quiet bar cuts its title short before the time, with Open, Thread
   await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
   const folded = page.locator('[data-job-folded]');
   await expect(folded).toBeVisible({ timeout: 30_000 });
-  await run();
   const title = "Summarize this week's meeting notes and draft the follow-up email";
+  await sendRun(
+    room,
+    'run-notes',
+    {
+      subagent: 'sub-notes',
+      task: title,
+    },
+    [
+      {
+        type: 'tool_call_started',
+        tool_name: 'read_file',
+        args_preview: 'path=notes/2026-11-16-weekly-planning-meeting.md',
+      },
+    ]
+  );
   await expect(folded.locator('button[aria-expanded]')).toHaveText(title);
   await expect(folded.locator('[data-job-activity]')).toHaveCount(0);
   await expect(folded.locator('[data-job-open]')).toBeVisible();

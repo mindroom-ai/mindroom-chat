@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
 
+export const SHELL_JOB = 'Running a command';
+
 /** A change of the shell call's jobs bar: its title, or null once it is gone, by the page's clock. */
 export type JobsBarChange = { at: number; label: string | null };
 
@@ -11,11 +13,9 @@ declare global {
 
 /**
  * Records every change of the jobs bar that names the shell call from now on, as the client
- * commits it to the DOM (a frame loop can starve in a WebKit page and miss a short state). Without
- * the usage details (the default) the bar names `run_shell_command` in words, "Running a command";
- * with them, by its tool: pass `run_shell_command` as `name`.
+ * commits it to the DOM (a frame loop can starve in a WebKit page and miss a short state).
  */
-export const watchJobsBar = (page: Page, name = 'Running a command') =>
+export const watchJobsBar = (page: Page) =>
   page.evaluate((shown) => {
     const changes: JobsBarChange[] = [];
     window.jobsBarChanges = changes;
@@ -35,7 +35,7 @@ export const watchJobsBar = (page: Page, name = 'Running a command') =>
       attributeFilter: ['aria-label'],
     });
     read();
-  }, name);
+  }, SHELL_JOB);
 
 export const jobsBarChanges = (page: Page): Promise<JobsBarChange[]> =>
   page.evaluate(() => window.jobsBarChanges ?? []);

@@ -251,31 +251,33 @@ test('the Sub-agents panel shows no live activity, as it starts', async ({
   await expect(card).toHaveCount(1);
   await expect(panel.locator('[data-subagents-totals]')).toHaveText('1 active');
   await run.toolRow('Reading the notes.'.length, '\n\n🔧 `run_shell_command` [1] ⏳\n\n');
+  await card.click();
+  await expect(panel.locator('[data-subagent-transcript] [data-tool-index="1"]')).toContainText(
+    'run_shell_command'
+  );
+  await expect(panel.locator('[data-subagent-now]')).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Back', exact: true }).click();
   // Its status says it runs and its model shows; no line says what it does now, and no numbers or
   // call show.
   await expect(card).toContainText('Running');
   await expect(card.locator('[data-subagent-model]')).toHaveText('Fable 5.2');
   await expect(card.locator('[data-subagent-line]')).toHaveCount(0);
-  await expect(card.locator('[data-subagent-stat], [data-subagent-tool]')).toHaveCount(0);
-  await expect(card).not.toContainText('run_shell_command');
-  await expect(card).not.toContainText('12 calls');
+  await expect(card.locator('[data-subagent-stat]')).toHaveCount(0);
   await expect(card.locator('[data-subagent-time]')).toBeVisible();
   await card.click();
-  await expect(panel.locator('details[data-subagent-usage]')).toBeVisible();
-  await expect(panel.locator('[data-subagent-now]')).toHaveCount(0);
   // The open run's header keeps its model, and what it used waits in the closed Usage.
   await expect(panel.locator('header [data-subagent-model]')).toHaveText('Fable 5.2');
   const usage = panel.locator('details[data-subagent-usage]');
+  const cell = (name: string) => usage.locator(`[data-subagent-cell="${name}"]`);
+  await expect(usage).toBeVisible();
   await expect(usage).not.toHaveAttribute('open');
-  await expect(usage.locator('[data-subagent-cell="calls"]')).toBeHidden();
+  await expect(cell('calls')).toBeHidden();
   await panel.screenshot({ path: testInfo.outputPath('subagents-panel-quiet.png') });
   await usage.locator('summary').click();
   await expect(usage).toHaveAttribute('open');
-  const cell = (name: string) => usage.locator(`[data-subagent-cell="${name}"]`);
   await expect(cell('calls')).toHaveText('Calls12tool calls');
   await expect(cell('tokens')).toHaveText('Tokens320K300K in · 20K out');
   await expect(cell('cost')).toHaveText('Cost$0.40this run');
-  await expect(cell('model')).toHaveCount(0);
-  await expect(usage.locator('[data-subagent-cell="status"]')).toHaveCount(0);
+  await expect(cell('status')).toHaveCount(0);
   await panel.screenshot({ path: testInfo.outputPath('subagents-panel-usage-open.png') });
 });

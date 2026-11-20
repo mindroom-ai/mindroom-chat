@@ -64,7 +64,7 @@ export const openPanelRoom = async (
   page: Page,
   {
     canvas = {},
-    showUsageDetails = false,
+    showUsageDetails,
   }: {
     canvas?: Record<string, unknown>;
     // Shows sub-agents' and jobs' calls, tokens, cost and model, which the app starts without.

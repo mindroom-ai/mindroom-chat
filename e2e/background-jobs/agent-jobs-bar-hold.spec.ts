@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import type { Page, TestInfo } from '@playwright/test';
-import { jobsBarChanges, watchJobsBar } from '../helpers/jobsBar';
+import { jobsBarChanges, SHELL_JOB, watchJobsBar } from '../helpers/jobsBar';
 import { matrixFetch, sendReaction, sendRoomMessage } from '../helpers/matrix';
 import {
   composer,
@@ -34,12 +34,15 @@ const VIEWPORTS = [
   { name: 'desktop', viewport: { width: 1280, height: 800 }, hasTouch: false },
   { name: 'phone', viewport: { width: 390, height: 844 }, hasTouch: true },
 ];
-const RUNNING = 'Running a command';
-const FINISHED = 'Finished: Running a command';
+const FINISHED = `Finished: ${SHELL_JOB}`;
 const PAUSE_FINISHED = /Finished \W*pause/;
 
 /** When the homeserver received the edit that finished the reply, by the same clock as the page's. */
-const replyEndedAt = async (stack: AgentStack, roomId: string, replyId: string): Promise<number> => {
+const replyEndedAt = async (
+  stack: AgentStack,
+  roomId: string,
+  replyId: string
+): Promise<number> => {
   const { chunk } = await matrixFetch<{ chunk: MatrixEvent[] }>(
     stack.homeserver,
     `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=200`,
@@ -96,7 +99,7 @@ const finishedMainReply = async (stack: AgentStack, roomId: string): Promise<str
  * after the reply ended.
  */
 const expectHeldThroughPause = async (page: Page, testInfo: TestInfo, ended: number) => {
-  await expect(page.getByRole('region', { name: /Running a command/ })).toBeHidden({
+  await expect(page.getByRole('region', { name: new RegExp(SHELL_JOB) })).toBeHidden({
     timeout: 30_000,
   });
   const changes = await jobsBarChanges(page);
@@ -107,9 +110,9 @@ const expectHeldThroughPause = async (page: Page, testInfo: TestInfo, ended: num
   const shown = changes.findIndex((change) => change.label !== null);
   const seen = changes.slice(shown).map((change) => change.label);
   expect(seen, 'the jobs bar from the first call on').toEqual([
-    RUNNING,
+    SHELL_JOB,
     FINISHED,
-    RUNNING,
+    SHELL_JOB,
     FINISHED,
     null,
   ]);
@@ -291,9 +294,14 @@ for (const { name, viewport, hasTouch } of VIEWPORTS) {
         );
         await askInThread(stack, rootId, stack.agents.helper, 'Helper', `#pause ${word}`);
         try {
-          const reply = await waitForAgentReply(stack, rootId, (body) => PAUSE_FINISHED.test(body), {
-            timeout: 120_000,
-          });
+          const reply = await waitForAgentReply(
+            stack,
+            rootId,
+            (body) => PAUSE_FINISHED.test(body),
+            {
+              timeout: 120_000,
+            }
+          );
           const ended = await replyEndedAt(stack, stack.rooms.lobby, reply.event_id);
           await expectHeldThroughPause(page, testInfo, ended);
           const scoutNow = await waitForThreadEvent(
