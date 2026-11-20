@@ -131,9 +131,9 @@ type Row = VoiceJournalRecord | VoiceJournalChunk;
 const owed = new Map<string, Promise<Row>[]>();
 
 /** Writes a recording's next row after all it still owes; true once the disk holds all of it. */
-const writeAudio = (recordingId: string, row: Promise<Row>): Promise<boolean> => {
-  row.catch(() => undefined);
-  owed.set(recordingId, [...(owed.get(recordingId) ?? []), row]);
+const writeAudio = (recordingId: string, row?: Promise<Row>): Promise<boolean> => {
+  row?.catch(() => undefined);
+  if (row) owed.set(recordingId, [...(owed.get(recordingId) ?? []), row]);
   return inOrder(recordingId, async () => {
     try {
       if (!held.has(recordingId) && !(await take(recordingId))) return false;
@@ -221,6 +221,8 @@ export const voiceCaptureJournal = (userId: () => string) => ({
         .arrayBuffer()
         .then((bytes) => ({ recordingId, seq, bytes, type: data.type, elapsedMs, samples }))
     ),
+  /** Once more, what a stopped recording still owes the disk. */
+  flush: (recordingId: string): Promise<boolean> => writeAudio(recordingId),
   /** The recorder stopped without audio: nothing to keep. */
   abandon: (recordingId: string): void => {
     void deleteVoiceRecording(recordingId);

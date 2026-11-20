@@ -130,6 +130,7 @@ const capture = (options?: Parameters<typeof createVoiceCaptureSession>[0]) => {
 const newJournal = () => ({
   begin: vi.fn(async () => true),
   append: vi.fn(async () => true),
+  flush: vi.fn(async () => false),
   abandon: vi.fn(),
 });
 class NativeRecorder extends EventTarget {
@@ -764,8 +765,20 @@ describe('voice capture session with a journal', () => {
     lastWrite.resolve(false);
     const result = await finished;
     if (result.status !== 'captured') throw new Error('missing recording');
+    expect(journal.flush).toHaveBeenCalledExactlyOnceWith(result.recording.recordingId);
     expect(result.recording.unprotected).toBe(true);
     expect(await result.recording.file.text()).toBe('onetwo');
+  });
+
+  it('hands over a recording as saved that one more write put on disk', async () => {
+    const journal = newJournal();
+    const session = capture({ journal });
+    await session.start();
+    journal.append.mockResolvedValueOnce(false);
+    journal.flush.mockResolvedValueOnce(true);
+    const result = await finish(session, 'one');
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(result.recording.unprotected).toBeUndefined();
   });
 
   it('keeps recording and warns once when a journal write fails', async () => {

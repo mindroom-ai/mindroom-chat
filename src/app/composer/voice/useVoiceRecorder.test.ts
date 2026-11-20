@@ -38,6 +38,7 @@ vi.mock('./voiceRecordingJournal', () => ({
   voiceCaptureJournal: () => ({
     begin: async () => true,
     append: async () => true,
+    flush: async () => true,
     abandon: () => undefined,
   }),
   updateVoiceRecording: async () => true,

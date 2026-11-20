@@ -30,10 +30,11 @@ delivery calls the journal only from `voiceSendDraftController.ts`.
   `threadingEnabled`, `threadView?`. IDs only.
 - `VoiceJournalRecord`: `userId`, `recordingId`, `startedAt`, `mimeType`, and later
   `destination?`, `txnId?`, `discardUntil?`.
-- `voiceCaptureJournal(userId: () => string)`: what capture gets, `{ begin, append, abandon }`.
+- `voiceCaptureJournal(userId: () => string)`: what capture gets, `{ begin, append, flush, abandon }`.
   `begin` and `append` add a row to what the recording still owes the disk and write all of it in
   order, taking the Web Lock first; they resolve `true` while the disk holds everything so far.
-  `abandon` deletes a recording that ended without audio.
+  `flush` writes once more what a stopped recording still owes the disk. `abandon` deletes a
+  recording that ended without audio.
 - `updateVoiceRecording(recordingId, changes)` resolves `true` only if this tab owns the record,
   the record exists and the write committed. `deleteVoiceRecording(recordingId, expiredBy?)`
   deletes record, chunks and lock; with `expiredBy`, only if the disk says the discard stood until

@@ -44,8 +44,9 @@ samples}`. Chunks are only appended, never rewritten. `seq` is assigned synchron
 - The in-memory chunks stay the primary copy. If a journal write fails (quota, private mode,
   eviction), recording goes on and the capsule says "Not protected against a crash". The failed
   chunk is written again, in its place, with the next one, and the warning goes once the disk
-  holds everything. A recording that ends while the disk does not hold all of it stays marked as
-  not protected when it is parked, and its failure dialog does not say it is saved.
+  holds everything. A recording that ends while the disk does not hold all of it is written once
+  more; if that fails too it is parked marked as not protected, and its failure dialog does not
+  say it is saved.
   `navigator.storage.persist()` is asked once, best effort.
 - On `pagehide` and `visibilitychange` to hidden, call `recorder.requestData()` (best effort).
 

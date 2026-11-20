@@ -141,6 +141,23 @@ describe('voice recording journal', () => {
     expect(orphan!.duration).toBe(3_000);
   });
 
+  it('writes what it still owes when asked, without a chunk to come', async () => {
+    const tab = await openTab();
+    const capture = tab.journal.voiceCaptureJournal(() => ALICE);
+    await capture.begin({ recordingId: 'rec-1', startedAt: 1_000, mimeType: 'audio/webm' });
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
+      throw new DOMException('The disk is full.', 'QuotaExceededError');
+    });
+    expect(
+      await capture.append('rec-1', 0, { data: blob('last'), elapsedMs: 1_000, samples: [] })
+    ).toBe(false);
+    expect(await capture.flush('rec-1')).toBe(true);
+
+    tab.close();
+    const [orphan] = await (await openTab()).journal.adoptVoiceOrphans(ALICE);
+    expect(await text(orphan!.file)).toBe('last');
+  });
+
   it('keeps what came before a chunk that cannot be written at all, and says so from then on', async () => {
     const tab = await openTab();
     const capture = tab.journal.voiceCaptureJournal(() => ALICE);

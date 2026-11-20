@@ -93,6 +93,8 @@ export type VoiceCaptureJournal = {
     seq: number,
     chunk: { data: Blob; elapsedMs: number; samples: number[] }
   ) => Promise<boolean>;
+  /** Tries once more to write what a stopped recording still owes the disk. */
+  flush: (recordingId: string) => Promise<boolean>;
   /** The recorder stopped without audio. */
   abandon: (recordingId: string) => void;
 };
@@ -257,8 +259,11 @@ export const createVoiceCaptureSession = ({
       duration: Math.max(1, Math.round(generation.elapsedMs)),
       waveform: samples.length > 0 ? normalizeMatrixWaveform(samples) : undefined,
     };
-    return (written ?? Promise.resolve(true)).then((all) =>
-      all ? recording : { ...recording, unprotected: true }
+    return (
+      (written ?? Promise.resolve(true))
+        // The disk does not hold all of it: one more try before it is handed over as unprotected.
+        .then((all) => all || (journal?.flush(recordingId).catch(() => false) ?? false))
+        .then((all) => (all ? recording : { ...recording, unprotected: true }))
     );
   };
   /** Follows a journal write: the capsule says while the recording is not protected against a crash. */
