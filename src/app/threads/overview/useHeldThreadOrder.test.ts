@@ -11,39 +11,133 @@ import {
   useRowKeys,
 } from './useHeldThreadOrder';
 
+const isHeader = (row: string) => row.startsWith('section:');
+
+/** The rows React leaves in the page: all but those `renewed` and those it takes out to move. */
+const rowsLeftInPage = (
+  before: readonly string[],
+  after: readonly string[],
+  renewed: readonly string[]
+) => {
+  // As it places keyed children, React keeps a row in the page unless one that it kept, under
+  // the same key, stood after it.
+  let last = -1;
+  return after.filter((row) => {
+    if (renewed.includes(row) || before.indexOf(row) < last) return false;
+    last = before.indexOf(row);
+    return true;
+  });
+};
+
+/**
+ * How many rows the first row in view that stayed (none of `movers`) shows from its place after
+ * the change, where the browser anchors the scroll: it keeps its place by the first row in view
+ * that never left the page, and the list's offset stays when there is none.
+ */
+const shiftInView = (
+  before: readonly string[],
+  after: readonly string[],
+  inView: readonly string[],
+  movers: readonly string[]
+): number => {
+  const pin = rowToPin(before, after, inView, isHeader);
+  const inPage = rowsLeftInPage(before, after, rowsMovedUp(before, after, pin, inView));
+  const moved = (row?: string) => (row ? after.indexOf(row) - before.indexOf(row) : 0);
+  const anchor = inView.find((row) => inPage.includes(row));
+  const stayed = inView.find((row) => after.includes(row) && !movers.includes(row));
+  return moved(stayed) - moved(anchor);
+};
+
+const moveTo = (rows: readonly string[], movers: readonly string[], place: number) => {
+  const rest = rows.filter((row) => !movers.includes(row));
+  return [...rest.slice(0, place), ...movers, ...rest.slice(place)];
+};
+
+/** Every run of four rows: the views of a list whose view holds four. */
+const viewsOf = (rows: readonly string[]) => rows.slice(3).map((_, at) => rows.slice(at, at + 4));
+
 describe('rowToPin', () => {
   const before = ['$a', '$b', '$c', '$d', '$e', '$f'];
+  const pin = (after: string[], inView: string[]) => rowToPin(before, after, inView, isHeader);
 
   it('pins the row that leads the view when rows moved up past it', () => {
-    expect(rowToPin(before, ['$f', '$a', '$b', '$c', '$d', '$e'], ['$b', '$c', '$d'])).toBe('$b');
+    expect(pin(['$f', '$a', '$b', '$c', '$d', '$e'], ['$b', '$c', '$d'])).toBe('$b');
     // A row in view moved up: the row above it still leads.
-    expect(rowToPin(before, ['$d', '$a', '$b', '$c', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$b');
-    // The leading row itself moved up.
-    expect(rowToPin(before, ['$b', '$a', '$c', '$d', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$b');
+    expect(pin(['$d', '$a', '$b', '$c', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$b');
+    // The two rows right under the leading one moved to the top.
+    expect(pin(['$e', '$d', '$a', '$b', '$c', '$f'], ['$c', '$d', '$e', '$f'])).toBe('$c');
+    expect(pin(['$d', '$e', '$a', '$b', '$c', '$f'], ['$c', '$d', '$e', '$f'])).toBe('$c');
+  });
+
+  it('pins the next row in view that stayed when the leading one moved up', () => {
+    // To the top of the list, as a reply moves it, and past one row only.
+    expect(pin(['$c', '$a', '$b', '$d', '$e', '$f'], ['$c', '$d', '$e'])).toBe('$d');
+    expect(pin(['$b', '$a', '$c', '$d', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$c');
+    // With the row under it, in either order, and with a card that joins.
+    expect(pin(['$c', '$d', '$a', '$b', '$e', '$f'], ['$c', '$d', '$e'])).toBe('$e');
+    expect(pin(['$d', '$c', '$a', '$b', '$e', '$f'], ['$c', '$d', '$e'])).toBe('$e');
+    expect(pin(['$new', '$c', '$a', '$b', '$d', '$e', '$f'], ['$c', '$d', '$e'])).toBe('$d');
+  });
+
+  it('keeps the next card when the leading one went to the top, and the leading one when the two under it did', () => {
+    const rows = Array.from({ length: 12 }, (_, index) => `$r${index}`);
+    const inView = rows.slice(5, 9);
+    const replied = moveTo(rows, ['$r5'], 0);
+    expect(rowToPin(rows, replied, inView, isHeader)).toBe('$r6');
+    expect(rowsMovedUp(rows, replied, '$r6', inView)).toEqual(['$r5']);
+    const both = moveTo(rows, ['$r7', '$r6'], 0);
+    expect(rowToPin(rows, both, inView, isHeader)).toBe('$r5');
+    expect(rowsMovedUp(rows, both, '$r5', inView)).toEqual(['$r7', '$r6']);
   });
 
   it('pins the upper of two rows that swap', () => {
-    expect(rowToPin(before, ['$b', '$a', '$c', '$d', '$e', '$f'], ['$a', '$b', '$c'])).toBe('$a');
+    expect(pin(['$b', '$a', '$c', '$d', '$e', '$f'], ['$a', '$b', '$c'])).toBe('$a');
   });
 
   it('pins the leading row when rows from under the next one came up past both', () => {
     // $c, $d and $e rotate above $a and $b, all five in view.
-    const after = ['$c', '$d', '$e', '$a', '$b', '$f'];
-    expect(rowToPin(before, after, ['$a', '$b', '$c', '$d', '$e'])).toBe('$a');
+    expect(pin(['$c', '$d', '$e', '$a', '$b', '$f'], ['$a', '$b', '$c', '$d', '$e'])).toBe('$a');
   });
 
   it('pins the next row in view when the leading one moved down past the two after it', () => {
-    // An agent's run ended, and its card went from Working to Needs you.
-    const after = ['$b', '$c', '$d', '$a', '$e', '$f'];
-    expect(rowToPin(before, after, ['$a', '$b', '$c', '$d'])).toBe('$b');
+    // A thread was read, and its card went under the unread ones.
+    expect(pin(['$b', '$c', '$d', '$a', '$e', '$f'], ['$a', '$b', '$c', '$d'])).toBe('$b');
     // To the end of the list, past every row in view.
-    expect(rowToPin(before, ['$b', '$c', '$d', '$e', '$f', '$a'], ['$a', '$b'])).toBe('$b');
+    expect(pin(['$b', '$c', '$d', '$e', '$f', '$a'], ['$a', '$b'])).toBe('$b');
+    // The rows it passed did not move up, so the next of them leads.
+    expect(pin(['$a', '$c', '$d', '$e', '$b', '$f'], ['$c', '$d', '$e'])).toBe('$c');
+  });
+
+  it('takes a card that crossed a header as the one that moved, never the header', () => {
+    const rows = ['section:working', '$a', '$b', 'section:needsYou', '$c', '$d', '$e'];
+    const pinOf = (after: string[], inView: string[]) => rowToPin(rows, after, inView, isHeader);
+    // An agent's run ended: its card, the last under Working, went to the top of Needs you.
+    const ended = ['section:working', '$a', 'section:needsYou', '$b', '$c', '$d', '$e'];
+    expect(pinOf(ended, ['$b', 'section:needsYou', '$c'])).toBe('section:needsYou');
+    expect(pinOf(ended, ['section:needsYou', '$c', '$d'])).toBe('section:needsYou');
+    // Both runs ended at once, and the header that led the view still does.
+    const bothEnded = ['section:working', 'section:needsYou', '$a', '$b', '$c', '$d', '$e'];
+    expect(pinOf(bothEnded, ['section:needsYou', '$c', '$d'])).toBe('section:needsYou');
+    // The two cards under the header went up to Working.
+    const asked = ['section:working', '$d', '$c', '$a', '$b', 'section:needsYou', '$e'];
+    expect(pinOf(asked, ['section:needsYou', '$c', '$d', '$e'])).toBe('section:needsYou');
+    expect(pinOf(asked, ['$c', '$d', '$e'])).toBe('$e');
+    // They are the first to work, in their order, right above the header: it is not the header
+    // that went down past two rows.
+    const needsYou = ['section:needsYou', '$c', '$d', '$e'];
+    const working = ['section:working', '$c', '$d', 'section:needsYou', '$e'];
+    expect(rowToPin(needsYou, working, needsYou, isHeader)).toBe('section:needsYou');
   });
 
   it('passes over a row that left the list, and one the list does not hold', () => {
-    expect(rowToPin(before, ['$f', '$b', '$c', '$d', '$e'], ['$a', '$b', '$c'])).toBe('$b');
-    expect(rowToPin(before, ['$f', '$a', '$b', '$c', '$d', '$e'], ['$pinned', '$a'])).toBe('$a');
-    expect(rowToPin(before, ['$f', '$a', '$b', '$c', '$d', '$e'], [])).toBeUndefined();
+    expect(pin(['$f', '$b', '$c', '$d', '$e'], ['$a', '$b', '$c'])).toBe('$b');
+    expect(pin(['$f', '$a', '$b', '$c', '$d', '$e'], ['$pinned', '$a'])).toBe('$a');
+    expect(pin(['$f', '$a', '$b', '$c', '$d', '$e'], [])).toBeUndefined();
+  });
+
+  it('reads two rows that came up from right under a row to right above it as that row going down', () => {
+    // The orders are the same; the two rows keep their places on screen, as without a pin.
+    expect(pin(['$a', '$c', '$d', '$b', '$e', '$f'], ['$b', '$c', '$d'])).toBe('$c');
   });
 });
 
@@ -60,6 +154,16 @@ describe('rowsMovedUp', () => {
     ]);
   });
 
+  it('names the rows in view that stood before the pinned row and still do', () => {
+    // $c led the view and moved to the top: left in the page, the browser would follow it there.
+    const after = ['$c', '$a', '$b', '$d', '$e', '$f'];
+    expect(rowsMovedUp(before, after, '$d', ['$c', '$d', '$e'])).toEqual(['$c']);
+    // Under the pinned row now, React takes it out by itself.
+    expect(rowsMovedUp(before, ['$a', '$b', '$d', '$c', '$e', '$f'], '$d', ['$c', '$d'])).toEqual(
+      []
+    );
+  });
+
   it('leaves to React the rows that end up after the pinned row, and those that stood before it', () => {
     // $d moved up to right under the pinned $b, and $a went down past it.
     expect(rowsMovedUp(before, ['$b', '$d', '$a', '$c', '$e', '$f'], '$b')).toEqual([]);
@@ -71,27 +175,140 @@ describe('rowsMovedUp', () => {
     expect(rowsMovedUp(before, ['$f', '$a', '$b'], undefined)).toEqual([]);
   });
 
+  const orders = (rows: string[]): string[][] =>
+    rows.length < 2
+      ? [rows]
+      : rows.flatMap((row) =>
+          orders(rows.filter((other) => other !== row)).map((rest) => [row, ...rest])
+        );
+
   it('keeps the pinned row in the page for every order of six rows and every pin', () => {
-    const orders = (rows: string[]): string[][] =>
-      rows.length < 2
-        ? [rows]
-        : rows.flatMap((row) =>
-            orders(rows.filter((other) => other !== row)).map((rest) => [row, ...rest])
-          );
     orders(before).forEach((after) =>
       before.forEach((pin) => {
-        const named = new Set(rowsMovedUp(before, after, pin));
-        expect(named.has(pin)).toBe(false);
-        // React, as it places keyed children: it keeps a row in the page unless one that it kept,
-        // under the same key, stood after it.
-        let last = -1;
-        const kept = after.filter((row) => {
-          if (named.has(row) || before.indexOf(row) < last) return false;
-          last = before.indexOf(row);
-          return true;
-        });
-        expect(kept, `${after.join(' ')} with ${pin} pinned`).toContain(pin);
+        const named = rowsMovedUp(before, after, pin);
+        expect(named).not.toContain(pin);
+        expect(
+          rowsLeftInPage(before, after, named),
+          `${after.join(' ')} with ${pin} pinned`
+        ).toContain(pin);
       })
+    );
+  });
+
+  it('leaves the browser the pinned row to keep its place by, for every order of six rows and every view', () => {
+    const views = before.flatMap((_, from) => before.slice(from).map((__, to) => [from, to]));
+    orders(before).forEach((after) =>
+      views.forEach(([from, length]) => {
+        const inView = before.slice(from, (from ?? 0) + (length ?? 0) + 1);
+        const pin = rowToPin(before, after, inView, isHeader);
+        const named = rowsMovedUp(before, after, pin, inView);
+        const inPage = rowsLeftInPage(before, after, named);
+        // No row in view above the pinned one stays in the page, and without a pin every row
+        // keeps its key.
+        if (pin) expect(inView.find((row) => inPage.includes(row))).toBe(pin);
+        else expect(named, `${after.join(' ')} seen from ${inView[0]}`).toEqual([]);
+      })
+    );
+  });
+});
+
+describe('the rows in view through a change of order', () => {
+  const rows = ['$0', '$1', '$2', '$3', '$4', '$5', '$6', '$7', '$8'];
+  // A row moved up when it passed one: a row that stood before it stands after it now.
+  const movedUp = (before: readonly string[], after: readonly string[], movers: string[]) =>
+    movers.filter((mover) =>
+      before
+        .slice(0, before.indexOf(mover))
+        .some((row) => after.indexOf(row) > after.indexOf(mover))
+    );
+
+  it('stay in place when one row moves, from any place to any other', () => {
+    rows.forEach((mover, from) =>
+      rows.forEach((_, to) => {
+        // One place down is the next row's move one place up.
+        if (to === from || to === from + 1) return;
+        const after = moveTo(rows, [mover], to);
+        viewsOf(rows).forEach((inView) =>
+          expect(
+            shiftInView(rows, after, inView, [mover]),
+            `${mover} to ${to}, seen from ${inView[0]}`
+          ).toBe(0)
+        );
+      })
+    );
+  });
+
+  it('stay in place when one or two rows move to the top, with a card that joins or without', () => {
+    rows.forEach((first) =>
+      rows.forEach((second) =>
+        [[], ['$new']].forEach((joined) => {
+          // The first row's two followers came up past it in their order, which is also the
+          // order of that row going down: see `rowToPin`.
+          if (first === '$1' && second === '$2') return;
+          const after = [...joined, ...moveTo(rows, [...new Set([first, second])], 0)];
+          const movers = movedUp(rows, after, [first, second]);
+          viewsOf(rows).forEach((inView) =>
+            expect(
+              shiftInView(rows, after, inView, movers),
+              `${after.join(' ')} seen from ${inView[0]}`
+            ).toBe(0)
+          );
+        })
+      )
+    );
+  });
+
+  const sections: Record<string, string[]> = {
+    'section:working': ['$w0', '$w1', '$w2'],
+    'section:needsYou': ['$n0', '$n1', '$n2', '$n3'],
+    'section:done': ['$d0', '$d1', '$d2', '$d3'],
+  };
+  const rowsOf = (cards: Record<string, string[]>) =>
+    Object.entries(cards).flatMap(([header, members]) => [header, ...members]);
+  /** The cards with `card` at the top of the section under `header`, as a new run or reply puts it. */
+  const toTopOf = (cards: Record<string, string[]>, card: string, header: string) =>
+    Object.fromEntries(
+      Object.entries(cards).map(([id, members]) => {
+        const rest = members.filter((member) => member !== card);
+        return [id, id === header ? [card, ...rest] : rest];
+      })
+    );
+
+  it('stay in place in sections when a card goes to the top of any section, its own too', () => {
+    const before = rowsOf(sections);
+    before
+      .filter((row) => !isHeader(row))
+      .forEach((card) =>
+        Object.keys(sections).forEach((header) => {
+          const after = rowsOf(toTopOf(sections, card, header));
+          if (after.join() === before.join()) return;
+          viewsOf(before).forEach((inView) =>
+            expect(
+              shiftInView(before, after, inView, [card]),
+              `${card} to ${header}, seen from ${inView[0]}`
+            ).toBe(0)
+          );
+        })
+      );
+  });
+
+  it('stay in place in sections when two cards cross to the top of another section at once', () => {
+    const before = rowsOf(sections);
+    const cards = before.filter((row) => !isHeader(row));
+    cards.forEach((first) =>
+      cards.forEach((second) =>
+        Object.keys(sections).forEach((header) => {
+          if (first === second || [first, second].some((card) => sections[header]?.includes(card)))
+            return;
+          const after = rowsOf(toTopOf(toTopOf(sections, first, header), second, header));
+          viewsOf(before).forEach((inView) =>
+            expect(
+              shiftInView(before, after, inView, [first, second]),
+              `${first} and ${second} to ${header}, seen from ${inView[0]}`
+            ).toBe(0)
+          );
+        })
+      )
     );
   });
 });
@@ -110,7 +327,7 @@ describe('useRowKeys', () => {
     vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 600 } as DOMRect);
     vi.spyOn(lead, 'getBoundingClientRect').mockReturnValue({ top: -30, bottom: 56 } as DOMRect);
     const view = { current: element };
-    const { result, rerender } = renderHook(({ rows }) => useRowKeys(rows, view), {
+    const { result, rerender } = renderHook(({ rows }) => useRowKeys(rows, view, isHeader), {
       initialProps: { rows: ['$a', '$b', '$c', '$d'] },
     });
     const keys = (rows: string[]) => {

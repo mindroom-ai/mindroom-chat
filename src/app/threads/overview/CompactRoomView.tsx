@@ -472,7 +472,8 @@ export function CompactRoomView({
   // rows it passed, the cards in view among them, stay in the page and in place.
   const keyOf = useRowKeys(
     threadSections ? sectionRows : ordinaryCards.map((model) => model.id.threadRootId),
-    viewRef
+    viewRef,
+    (row) => !!sectionOfRow(row)
   );
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list

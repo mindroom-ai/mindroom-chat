@@ -35,44 +35,62 @@ export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[
 
 /**
  * The row to keep in the page through a change of order: of the rows `inView`, top to bottom, the
- * first that both orders hold and that did not move down itself.
+ * first that both orders hold and that kept its place. Kept in the page, a row that left its
+ * place would take the view along: the browser follows it. A section's header (`isHeader`) never
+ * leaves its place. A card left its place when
+ * - it crossed a header;
+ * - it moved down: the two rows that stood right after it stand before it now, in their order,
+ *   and after the row that stood before it, so they did not come up past that one as well;
+ * - it moved up: a row that stood before it, and did not leave in the two ways above, stands
+ *   after it now. Of two rows that swap, the lower one moved up, as a reply moves it.
  *
- * The row that leads the view is the one to keep, unless it left: it moved down when both rows
- * that stood right after it now stand before it. Kept in the page, the browser would follow it
- * down the list. With only one of them before it the two swapped, and the upper one stays; with
- * the next one still after it, the rows now before it came up past both.
+ * Two cards that come up from right under a card to right above it, in their order, read as that
+ * card moving down: the orders are the same.
  */
 export const rowToPin = (
   before: readonly string[],
   after: readonly string[],
-  inView: readonly string[]
+  inView: readonly string[],
+  isHeader: (row: string) => boolean
 ): string | undefined => {
   const placeNow = new Map(after.map((row, index) => [row, index]));
-  const now = (row: string) => placeNow.get(row) ?? -1;
+  const now = (row?: string) => placeNow.get(row ?? '') ?? -1;
   const kept = before.filter((row) => placeNow.has(row));
+  const placeBefore = new Map(kept.map((row, index) => [row, index]));
+  const headers = kept.filter(isHeader);
+  const left = (row: string, at: number) =>
+    !isHeader(row) &&
+    (headers.some((header) => (placeBefore.get(header) ?? 0) < at !== now(header) < now(row)) ||
+      (at + 2 < kept.length &&
+        now(kept[at - 1]) < now(kept[at + 1]) &&
+        now(kept[at + 1]) < now(kept[at + 2]) &&
+        now(kept[at + 2]) < now(row)));
   return inView.find((row) => {
-    const at = kept.indexOf(row);
-    const next = kept.slice(at + 1, at + 3);
-    return at >= 0 && (next.length < 2 || next.some((other) => now(other) > now(row)));
+    const at = placeBefore.get(row);
+    const passed = (other: string, index: number) => now(other) > now(row) && !left(other, index);
+    return at !== undefined && !left(row, at) && !kept.slice(0, at).some(passed);
   });
 };
 
 /**
- * The rows that moved up past the row `pin` from `before` to `after`: those that stand before it
- * now and stood after it. With a new key for each (`useRowKeys`), React never takes the pinned
- * row out of the page: it keeps a row in place unless one that stood after it now stands before
- * it under the same key. The other rows are React's to move.
+ * The rows that take a new key (`useRowKeys`) so that the browser keeps its place by the row
+ * `pin`: those that stand before it now and either stood after it or were `inView`, where they
+ * left their place above it. React then never takes the pinned row out of the page (it keeps a
+ * row in place unless one that stood after it now stands before it under the same key), and no
+ * row in view above it stays in the page for the browser to follow. The other rows are React's
+ * to move.
  */
 export const rowsMovedUp = (
   before: readonly string[],
   after: readonly string[],
-  pin: string | undefined
+  pin: string | undefined,
+  inView: readonly string[] = []
 ): string[] => {
   const placeBefore = new Map(before.map((row, index) => [row, index]));
   const pinWas = placeBefore.get(pin ?? '') ?? Infinity;
   return after
     .slice(0, Math.max(after.indexOf(pin ?? ''), 0))
-    .filter((row) => (placeBefore.get(row) ?? -1) > pinWas);
+    .filter((row) => (placeBefore.get(row) ?? -1) > pinWas || inView.includes(row));
 };
 
 /** The topmost cards in view, their tops on screen, the scroll offset and the order then. */
@@ -215,10 +233,11 @@ const rowsInView = (view: HTMLElement): string[] => {
 };
 
 /**
- * The React key of each of the list's rendered `rows` (cards, and in sections their headers): the
- * row's own, or a new one for a row that moved up past the row that leads the view while the list
- * was scrolled down (`rowToPin`, `rowsMovedUp`). React then takes that row out and puts a new one
- * in at its place, as for a card that joins, and the leading row stays in the page.
+ * The React key of each of the list's rendered `rows` (cards, and in sections their headers, which
+ * `isHeader` tells): the row's own, or a new one for a row that moved up past the first row in
+ * view that kept its place, or left its place above that row, while the list was scrolled down
+ * (`rowToPin`, `rowsMovedUp`). React then takes that row out and puts a new one in at its place,
+ * as for a card that joins, and the row that kept its place stays in the page.
  *
  * With the same key, React keeps the row that moved up in the page and takes out and puts back
  * every row it passed, the cards in view among them. The browser's scroll anchoring (Chromium)
@@ -233,7 +252,8 @@ const rowsInView = (view: HTMLElement): string[] => {
  */
 export const useRowKeys = (
   rows: readonly string[],
-  viewRef: RefObject<HTMLElement>
+  viewRef: RefObject<HTMLElement>,
+  isHeader: (row: string) => boolean
 ): ((row: string) => string) => {
   // The rows of the last commit, and those among them that show under their second key.
   const order = rows.join('\n');
@@ -250,9 +270,10 @@ export const useRowKeys = (
       // page at this change as long as the render commits in the task it runs in, as every
       // render of the list does (none is a transition). In a render React may pause, the reader
       // could scroll before the commit, and the row kept would be the best guess.
-      const pin = rowToPin(shown.rows, rows, rowsInView(view));
+      const inView = rowsInView(view);
+      const pin = rowToPin(shown.rows, rows, inView, isHeader);
       // Back to its first key the next time: a row only ever has one of two.
-      rowsMovedUp(shown.rows, rows, pin).forEach((row) => {
+      rowsMovedUp(shown.rows, rows, pin, inView).forEach((row) => {
         if (!renewed.delete(row)) renewed.add(row);
       });
     }
