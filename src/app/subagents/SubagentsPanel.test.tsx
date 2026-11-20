@@ -16,9 +16,12 @@ import { openSubagentsPanel, subagentsPanelAtom } from '../navigation/subagentsP
 import { SubagentsPanel } from './SubagentsPanel';
 import { keepCancelsOf } from '../matrix/state/sentCancels';
 import { showToolCalls } from '../../test/utils/showToolCalls';
+import { showUsageDetails } from '../../test/utils/showUsageDetails';
 
-// These tests show how tool calls render, so they show them.
+// These tests show how tool calls render, so they show them; and what runs used, so they show the
+// usage details too, but for the tests of how they start, without them.
 beforeEach(showToolCalls);
+beforeEach(() => showUsageDetails());
 
 const ROOM_ID = '!room:example.org';
 const VIEWER = '@ann:example.org';
@@ -1365,6 +1368,129 @@ describe('SubagentsPanel', () => {
       expect(container.querySelector('[data-subagent-stop]')).toBeNull();
       expect(container.querySelector('header [title="Stopping…"]')).not.toBeNull();
       expect(container.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    describe('without the usage details, as they start', () => {
+      beforeEach(() => showUsageDetails(false));
+
+      it('leaves out what the runs used and their models, and says each call in plain words', () => {
+        ingest(
+          'notes',
+          meta('running', {
+            task: "Summarize this week's meeting notes",
+            model: fable,
+            usage: usage(12, 300_000, 20_000, 0.4),
+            startedAt: NOW - 50,
+          }),
+          docs('', [
+            {
+              type: 'tool_call_started',
+              tool_name: 'read_file',
+              args_preview: 'path=notes/2026-11-16.md',
+            },
+          ])
+        );
+        ingest(
+          'wait',
+          meta('awaiting_approval', { task: 'Find the open action items', startedAt: NOW - 40 }),
+          docs('', [
+            {
+              type: 'tool_call_started',
+              tool_name: 'grep',
+              args_preview: 'pattern=TODO, path=notes',
+            },
+          ])
+        );
+        render();
+
+        expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe('2 active');
+        expect(card('notes').querySelector('[data-subagent-model]')).toBeNull();
+        expect(card('notes').querySelector('[data-subagent-stat]')).toBeNull();
+        expect(card('notes').querySelector('[data-subagent-time]')?.textContent).toBe('50s');
+        const line = (run: string) => card(run).querySelector('[data-subagent-line]');
+        expect(line('notes')?.textContent).toBe('NowReading 2026-11-16.md');
+        expect(line('notes')?.querySelector('[data-subagent-step]')?.getAttribute('title')).toBe(
+          'read_file path=notes/2026-11-16.md'
+        );
+        expect(line('notes')?.querySelector('[data-subagent-tool]')).toBeNull();
+        expect(line('wait')?.textContent).toBe('!Needs approvalSearching files for “TODO”');
+
+        // Shown, the cards are as they were.
+        act(() => showUsageDetails());
+        expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe(
+          '2 active · 12 calls · 320K tokens'
+        );
+        expect(card('notes').querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
+        expect(line('notes')?.textContent).toBe('Nowread_file path=notes/2026-11-16.md');
+      });
+
+      it("folds an open run's numbers and model into a closed Usage, under a plain line of what it does", () => {
+        ingest(
+          'lead',
+          meta('running', {
+            subagent: 'lead',
+            task: "Summarize this week's meeting notes",
+            model: fable,
+            usage: usage(12, 300_000, 20_000, 0.4),
+            startedAt: NOW - 60,
+          }),
+          docs('Reading the notes.', [
+            {
+              type: 'tool_call_started',
+              tool_name: 'read_file',
+              args_preview: 'path=notes/2026-11-16.md',
+              started_at: NOW - 12,
+            },
+          ])
+        );
+        render(ScreenSize.Desktop, '$thread:example.org');
+        open('lead');
+
+        // How it stands stays in the header, without the model.
+        const header = container.querySelector('header');
+        expect(header?.querySelector('[data-subagent-model]')).toBeNull();
+        expect(header?.textContent).toContain('Running');
+        expect(header?.textContent).toContain('1m 0s');
+        const usageDetails = container.querySelector<HTMLDetailsElement>('[data-subagent-usage]');
+        expect(usageDetails?.open).toBe(false);
+        expect(usageDetails?.querySelector('summary')?.textContent).toBe('Usage');
+        const cell = (name: string) =>
+          usageDetails?.querySelector(`[data-subagent-cell="${name}"]`)?.textContent;
+        expect(cell('calls')).toBe('Calls12tool calls');
+        expect(cell('tokens')).toBe('Tokens320K300K in · 20K out');
+        expect(cell('cost')).toBe('Cost$0.40this run');
+        expect(cell('model')).toBe('ModelFablefable (anthropic / claude-fable-5.2)');
+        expect(container.querySelector('[data-subagent-cell="status"]')).toBeNull();
+        const now = () => container.querySelector('[data-subagent-now]');
+        expect(now()?.textContent).toBe('NowReading 2026-11-16.md…12s');
+        expect(now()?.getAttribute('title')).toBe('read_file path=notes/2026-11-16.md');
+
+        // Shown, the strip is open under the header again, with how the run stands, and the call
+        // is as sent.
+        act(() => showUsageDetails());
+        expect(container.querySelector('[data-subagent-usage]')).toBeNull();
+        expect(container.querySelector('[data-subagent-cell="status"]')?.textContent).toBe(
+          'StatusRunning1m 0s'
+        );
+        expect(header?.querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
+        expect(now()?.textContent).toBe('Nowread_file path=notes/2026-11-16.md12s');
+        act(() => showUsageDetails(false));
+
+        // Between calls it says the last line it wrote.
+        ingest(
+          'lead',
+          meta('running', {
+            subagent: 'lead',
+            task: "Summarize this week's meeting notes",
+            startedAt: NOW - 60,
+          }),
+          docs('Reading the notes.\n\nNow the **decisions**.')
+        );
+        expect(now()?.textContent).toBe('NowNow the decisions.');
+        expect(now()?.hasAttribute('title')).toBe(false);
+        // A run that sends neither what it used nor its model (older MindRoom) has no Usage.
+        expect(container.querySelector('[data-subagent-usage]')).toBeNull();
+      });
     });
   });
 });

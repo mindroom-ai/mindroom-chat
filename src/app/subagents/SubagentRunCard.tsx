@@ -16,9 +16,12 @@ import {
 } from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
+import { settingsAtom } from '../preferences/settings';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { useAgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { type RunLine, type ToolActivity, runLine } from './runActivity';
+import { toolStep } from './runStep';
 import { runTotals, usageTexts } from './runUsage';
 import * as css from './subagentsPanel.css';
 
@@ -108,6 +111,23 @@ export function ToolCallText({ activity }: { activity: ToolActivity }) {
   );
 }
 
+/** The call as sent, for the tooltip of its plain words. */
+export const toolCallTitle = ({ tool, preview }: ToolActivity): string =>
+  preview ? `${tool} ${preview}` : tool;
+
+/**
+ * A call in plain words (`toolStep`), as a reader who leaves the usage details off sees it, the
+ * call as sent its tooltip.
+ */
+export function ToolStepText({ activity }: { activity: ToolActivity }) {
+  const { t } = useTranslation();
+  return (
+    <span className={css.LineText} title={toolCallTitle(activity)} dir="auto" data-subagent-step="">
+      {toolStep(activity, t)}
+    </span>
+  );
+}
+
 /** How each kind of third line is labelled: its words, the mark before them, and their tone. */
 const LINE_LOOKS = {
   now: { label: 'mindroomUi.subagents.now', mark: '', tone: 'now' },
@@ -122,10 +142,23 @@ const LINE_LOOKS = {
   { label: string; mark: string; tone: keyof typeof css.LineLabel }
 >;
 
-/** What follows a line's label: the call, the start of what the run wrote, or why it ended. */
-function LineRest({ line }: { line: Exclude<RunLine, { kind: 'plain' }> }) {
+/**
+ * What follows a line's label: the call (in plain words without the usage details), the start of
+ * what the run wrote, or why it ended.
+ */
+function LineRest({
+  line,
+  details,
+}: {
+  line: Exclude<RunLine, { kind: 'plain' }>;
+  details: boolean;
+}) {
   if (line.kind === 'now' || line.kind === 'approval')
-    return <ToolCallText activity={line.activity} />;
+    return details ? (
+      <ToolCallText activity={line.activity} />
+    ) : (
+      <ToolStepText activity={line.activity} />
+    );
   const text = line.kind === 'result' ? line.text : line.reason;
   return text ? (
     <span className={css.LineText} dir="auto">
@@ -141,6 +174,7 @@ function LineRest({ line }: { line: Exclude<RunLine, { kind: 'plain' }> }) {
  */
 function RunLineText({ run }: { run: SubagentRun }) {
   const { t } = useTranslation();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const { line, failed } = useRunLine(run);
   if (line.kind === 'plain') {
     return (
@@ -169,17 +203,22 @@ function RunLineText({ run }: { run: SubagentRun }) {
         )}
         {t(label)}
       </span>
-      <LineRest line={line} />
+      <LineRest line={line} details={details} />
     </Text>
   );
 }
 
-/** A sub-agent's calls, tokens and cost over all its turns (`runTotals`), each left out while unknown, then its time. */
+/**
+ * A sub-agent's calls, tokens and cost over all its turns (`runTotals`), each left out while
+ * unknown, then its time; its time alone without the usage details.
+ */
 function RunStats({ node, now }: { node: SubagentNode; now: number }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const time = useRunTime(latestTurn(node).meta, now);
-  const texts = usageTexts(runTotals(node.turns.map(({ run }) => run.meta.usage)), t, language);
+  const totals = runTotals(details ? node.turns.map(({ run }) => run.meta.usage) : []);
+  const texts = usageTexts(totals, t, language);
   return (
     <Text as="span" size="T200" priority="300" className={css.Stats}>
       {(['calls', 'tokens', 'cost'] as const).map((key) => {
@@ -273,7 +312,8 @@ type CardProps = {
  * title its first turn's call named (else that turn's task) in bold, then the agent, the model its
  * newest turn ran on, how it stands and how many turns it took, then a line labelled by what it
  * shows (`RunLineText`). The sub-agents it started follow inside it, then what it used and its
- * time. Pressing it opens the sub-agent.
+ * time. Without the usage details (`showUsageDetails`) it shows no model and nothing it used, and
+ * its line says the call in plain words. Pressing it opens the sub-agent.
  */
 export const SubagentRunCard = memo(function SubagentRunCard({
   room,
@@ -286,7 +326,8 @@ export const SubagentRunCard = memo(function SubagentRunCard({
   const { meta } = run;
   const nested = node.turns.flatMap((turn) => turn.nested);
   const agent = useAgentProfile(room, meta.agent);
-  const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
+  const modelLabel = details && meta.model && getAiRunCompactModelLabel(meta.model);
   const first = node.turns[0].run.meta;
 
   return (

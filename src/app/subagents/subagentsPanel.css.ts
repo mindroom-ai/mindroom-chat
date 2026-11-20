@@ -386,6 +386,45 @@ export const NowLine = style({
 
 export const NowTime = style({ flex: 'none', opacity: config.opacity.P300 });
 
+/** What the run does now in plain words, without the usage details: the line's text, cut short. */
+export const NowStep = style({ ...truncate, flex: '1 1 auto' });
+
+/**
+ * Without the usage details, the strip folds away under the header, a quiet line that opens it.
+ * Its cells keep the strip's look, with the line above them.
+ */
+export const Usage = style({ flex: 'none', borderBlockEnd: headerLine });
+globalStyle(`${Usage}[open] > ${Strip}`, { borderBlockStart: headerLine, borderBlockEnd: 0 });
+
+export const UsageSummary = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: space.S100,
+  paddingBlock: space.S100,
+  paddingInline: space.S400,
+  fontSize: toRem(12),
+  cursor: 'pointer',
+  listStyle: 'none',
+  opacity: config.opacity.P300,
+  selectors: {
+    '&::-webkit-details-marker': { display: 'none' },
+    '&:hover': { opacity: 1 },
+    '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
+  },
+});
+
+/** The disclosure's chevron points to the reading end, and down while open. */
+export const UsageChevron = style({
+  flex: 'none',
+  selectors: {
+    '[dir=rtl] &': { transform: 'rotate(180deg)' },
+    [`${Usage}[open] > summary &`]: { transform: 'rotate(90deg)' },
+  },
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': { transition: 'transform 150ms ease' },
+  },
+});
+
 export const StopFailure = style({
   flex: 'none',
   paddingBlock: space.S100,

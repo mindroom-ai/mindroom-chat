@@ -41,7 +41,7 @@ type StepArg = 'file' | 'query' | 'site';
  * A row of the table: the phrase, and when it names something, which argument and the phrase
  * without it (`bare`), for a call that did not send it.
  */
-type Step = { key: StepKey } | { key: StepKey; arg: StepArg; bare: StepKey };
+type Step = { key: StepKey; arg?: undefined } | { key: StepKey; arg: StepArg; bare: StepKey };
 
 const READING: Step = { key: 'reading', arg: 'file', bare: 'readingAny' };
 const WRITING: Step = { key: 'writing', arg: 'file', bare: 'writingAny' };
@@ -144,11 +144,12 @@ export const toolStep = (activity: ToolActivity, t: TFunction): string => {
   const { tool, preview } = activity;
   const step = STEPS.get(tool) ?? (tool.startsWith('browser') ? BROWSER : undefined);
   if (!step) return t('mindroomUi.subagents.step.using', { tool: tool.replace(/_+/g, ' ').trim() });
-  if (!('arg' in step)) return t(`mindroomUi.subagents.step.${step.key}`);
+  if (!step.arg) return t(`mindroomUi.subagents.step.${step.key}`);
   const value = stepValue(step.arg, preview);
+  // Each phrase reads the one value it names.
   return value === undefined
     ? t(`mindroomUi.subagents.step.${step.bare}`)
-    : t(`mindroomUi.subagents.step.${step.key}`, { [step.arg]: value });
+    : t(`mindroomUi.subagents.step.${step.key}`, { file: value, query: value, site: value });
 };
 
 /** A Markdown line as plain text: no marks of headings, lists, quotes, emphasis, code or links. */

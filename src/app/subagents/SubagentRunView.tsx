@@ -27,17 +27,21 @@ import { useLiveMarkdownReady } from '../messages/live/liveMarkdown';
 import { liveDocsContent } from '../messages/live/useLiveReplyContent';
 import { Time } from '../messages/Time';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { settingsAtom } from '../preferences/settings';
 import { useHour24Clock } from '../preferences/useHour24Clock';
+import { useSettingValue } from '../preferences/useSettingValue';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { runToolCall } from './runActivity';
+import { runStepText } from './runStep';
 import { formatTokens, runTotals, usageTexts, type RunTotals } from './runUsage';
 import {
   RunStatus,
   SubagentRunCard,
   ToolCallText,
   latestTurn,
+  toolCallTitle,
   nodeTitle,
   turnTitle,
   useRunTime,
@@ -207,12 +211,24 @@ const nestedTotals = (node: SubagentNode): RunTotals => {
   return runTotals(below);
 };
 
+type StripProps = {
+  node: SubagentNode;
+  totals: RunTotals;
+  time: string;
+  /**
+   * The strip inside the Usage disclosure, without the usage details: what the run used, while it
+   * sent it, and its model, not how it stands, which its header says.
+   */
+  usage?: { used: boolean; model?: string; modelTitle?: string };
+};
+
 /**
  * Under the open run's header, four cells: how it stands and its time, its calls and turns, its
  * tokens in and out, and its cost with what the runs it started cost. The numbers are all its
- * turns' (`runTotals`); a count it does not send is left out.
+ * turns' (`runTotals`); a count it does not send is left out. In the Usage disclosure (`usage`)
+ * its cells are what it used and its model.
  */
-function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotals; time: string }) {
+function RunStrip({ node, totals, time, usage }: StripProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { meta } = latestTurn(node);
@@ -224,13 +240,13 @@ function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotal
     costNote = t('mindroomUi.subagents.costNested', {
       cost: formatCostUsd(below.costUsd, language),
     });
-  const cells = [
-    {
-      key: 'status',
-      name: t('mindroomUi.subagents.status'),
-      value: <RunStatus meta={meta} />,
-      note: time,
-    },
+  const status = {
+    key: 'status',
+    name: t('mindroomUi.subagents.status'),
+    value: <RunStatus meta={meta} />,
+    note: time,
+  };
+  const used = [
     {
       key: 'calls',
       name: t('mindroomUi.backgroundJobs.column.calls'),
@@ -260,6 +276,14 @@ function RunStrip({ node, totals, time }: { node: SubagentNode; totals: RunTotal
         ]
       : []),
   ];
+  const model = usage?.model && {
+    key: 'model',
+    name: t('mindroomUi.subagents.model'),
+    value: usage.model,
+    note: usage.modelTitle,
+  };
+  let cells = [status, ...used];
+  if (usage) cells = [...(usage.used ? used : []), ...(model ? [model] : [])];
   return (
     <dl className={css.Strip} data-subagent-strip="">
       {cells.map((cell) => (
@@ -304,7 +328,8 @@ type ViewProps = {
 /**
  * One sub-agent, as a thread shows a conversation: each turn the caller's task, cards for the
  * sub-agents that turn started, then its reply. A reader at the end follows new text until they
- * scroll up.
+ * scroll up. Without the usage details (`showUsageDetails`) the line under the header says what it
+ * does in plain words (`runStepText`), and what it used and its model fold into a closed Usage.
  */
 export function SubagentRunView({
   room,
@@ -324,7 +349,9 @@ export function SubagentRunView({
   const { run: newestRun, meta } = newest;
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
+  const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
+  const modelTitle = meta.model && getAiRunModelLabel(meta.model);
   const { threadId } = meta;
   const first = node.turns[0].run.meta;
   const title = nodeTitle(node, agent.name);
@@ -335,6 +362,9 @@ export function SubagentRunView({
   const turnName = turnTitle(meta, agent.name);
   const stop = useRunStop(room, newest, turnName, readOnly);
   const activity = runToolCall(newest);
+  // Without the usage details, what it does now in plain words, and its numbers folded away.
+  const step = details ? undefined : runStepText(newest, t);
+  const usageFolded = !details && (used || !!modelLabel);
   const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: turnName });
   // A pressed Stop turns into "Stopping…", so focus moves to the run's title.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -420,20 +450,17 @@ export function SubagentRunView({
             <span className={css.StandingModel} data-subagent-agent="">
               {agent.name}
             </span>
-            {modelLabel && (
-              <span
-                className={css.StandingModel}
-                title={meta.model && getAiRunModelLabel(meta.model)}
-                data-subagent-model=""
-              >
+            {details && modelLabel && (
+              <span className={css.StandingModel} title={modelTitle} data-subagent-model="">
                 {modelLabel}
               </span>
             )}
             {node.turns.length > 1 && (
               <span>{t('mindroomUi.subagents.turnNumber', { number: node.turns.length })}</span>
             )}
-            {/* Without what the run used (older MindRoom), how it stands stays up here. */}
-            {!used && (
+            {/* Without what the run used (older MindRoom), or with it folded away, how it stands
+                stays up here. */}
+            {(!used || !details) && (
               <>
                 <RunStatus meta={meta} />
                 <span>{time}</span>
@@ -486,8 +513,56 @@ export function SubagentRunView({
           <Icon size="200" src={Icons.Cross} />
         </IconButton>
       </header>
-      {used && <RunStrip node={node} totals={totals} time={time} />}
-      {activity && (
+      {details && used && <RunStrip node={node} totals={totals} time={time} />}
+      {usageFolded && (
+        <details className={css.Usage} data-subagent-usage="">
+          <summary className={css.UsageSummary}>
+            <Icon size="50" src={Icons.ChevronRight} className={css.UsageChevron} aria-hidden />
+            {t('mindroomUi.subagents.usage')}
+          </summary>
+          <RunStrip
+            node={node}
+            totals={totals}
+            time={time}
+            usage={{
+              used,
+              ...(modelLabel ? { model: modelLabel } : {}),
+              ...(modelTitle ? { modelTitle } : {}),
+            }}
+          />
+        </details>
+      )}
+      {step && (
+        <Text
+          as="div"
+          size="T200"
+          className={css.NowLine}
+          data-subagent-now=""
+          title={activity && toolCallTitle(activity)}
+        >
+          {meta.status === 'running' ? (
+            <>
+              <span className={css.Tick} aria-hidden />
+              <span className={css.VisuallyHidden}>{t('mindroomUi.subagents.now')}</span>
+            </>
+          ) : (
+            <span className={css.LineLabel.approval}>
+              <span className={css.LineMark} aria-hidden>
+                !
+              </span>
+            </span>
+          )}
+          <span className={css.NowStep} dir="auto" data-subagent-step="">
+            {step}
+          </span>
+          {meta.status === 'running' && activity?.startedAt !== undefined && (
+            <span className={css.NowTime}>
+              {formatWorkDuration(Math.max(0, now - activity.startedAt * 1000), language)}
+            </span>
+          )}
+        </Text>
+      )}
+      {details && activity && (
         <Text as="div" size="T200" className={css.NowLine} data-subagent-now="">
           {meta.status === 'running' ? (
             <>
