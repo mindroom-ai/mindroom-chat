@@ -371,6 +371,11 @@ describe('finished agent work', () => {
     act(() => {
       workedRow().props.onClick();
     });
+    // The work folds back before it leaves.
+    act(() => {
+      const work = renderer!.root.findByProps({ 'data-motion': 'closing' });
+      work.props.onAnimationEnd({ target: work, currentTarget: work });
+    });
     expect(text()).not.toContain('secret line');
     expect([...drawn.getIds()]).toEqual([]);
   });

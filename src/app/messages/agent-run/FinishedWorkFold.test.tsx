@@ -62,12 +62,18 @@ describe('FinishedWorkFold', () => {
   const label = () =>
     renderer!.root.findByProps({ className: 'Label WorkLabel' }).children.join('');
   const byId = (id: string) => renderer!.root.findAll((node) => node.props.id === id);
-  const click = () => act(() => toggle().props.onClick());
+  const click = () => {
+    act(() => {
+      toggle().props.onClick();
+    });
+  };
   // The work's wrapper finishing its slide, not an animation inside the work.
   const settle = () => {
     const work = renderer!.root.findByProps({ className: 'Work' });
     const event = { target: work, currentTarget: work };
-    act(() => work.props.onAnimationEnd(event));
+    act(() => {
+      work.props.onAnimationEnd(event);
+    });
   };
 
   it('folds a reply that may fold', () => {
@@ -144,7 +150,9 @@ describe('FinishedWorkFold', () => {
     expect(byId('work')).toHaveLength(1);
 
     const work = renderer!.root.findByProps({ className: 'Work' });
-    act(() => work.props.onAnimationEnd({ target: byId('work')[0], currentTarget: work }));
+    act(() => {
+      work.props.onAnimationEnd({ target: byId('work')[0], currentTarget: work });
+    });
     expect(byId('work')).toHaveLength(1);
 
     settle();

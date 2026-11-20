@@ -2,12 +2,16 @@ import { keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { glow } from './glow';
-import { spread } from './ToolCallsFold.css';
 
 // The Worked for row is the reasoning header's (Reasoning.css.ts), with a clock for the bulb.
 // Under the pointer or the keyboard's focus the clock lights up as the tool-call cog's gear does,
 // its hands sweep one lap back and a light runs through the label: a time-lapse of the work.
 
+// The tool-call cog's ripple (ToolCallsFold.css.ts).
+const spread = keyframes({
+  from: { opacity: 0.9, transform: 'scale(1)' },
+  to: { opacity: 0, transform: 'scale(2.4)' },
+});
 const sweep = keyframes({ to: { transform: 'rotate(-360deg)' } });
 const shine = keyframes({
   from: { backgroundPosition: '100% 0' },
