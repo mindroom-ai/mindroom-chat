@@ -4,7 +4,7 @@ import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ResizablePanel } from './ResizablePanel';
+import { ResizablePanel, SIDE_PANEL_MAX_WIDTH } from './ResizablePanel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -90,6 +90,34 @@ describe('ResizablePanel width bounds', () => {
     });
     expect(firstWidths).toEqual(['400px']);
     expect(panel().style.width).toBe('400px');
+  });
+
+  it('with no ceiling, stays finite before it measures the row', () => {
+    localStorage.setItem('test.width', JSON.stringify(400));
+    const firstMax: (string | null | undefined)[] = [];
+    function Probe() {
+      React.useLayoutEffect(() => {
+        firstMax.push(container.querySelector('[role="separator"]')?.getAttribute('aria-valuemax'));
+      }, []);
+      return null;
+    }
+    act(() => {
+      root.render(
+        <ResizablePanel
+          storageKey="test.width"
+          resizeLabel="Resize"
+          testId="panel"
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
+        >
+          <Probe />
+        </ResizablePanel>
+      );
+    });
+    expect(firstMax).toEqual(['400']);
+    expect(panel().style.width).toBe('400px');
+    expect(container.querySelector('[role="separator"]')?.getAttribute('aria-valuemax')).toBe(
+      '2680'
+    );
   });
 
   it('renders no box and no handle in passthrough mode', () => {

@@ -6,6 +6,7 @@ import { shouldUseLongTextSearchResultBody } from '../messages/content/searchRes
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
 import { matchesEnum } from '../lib/matchesEnum';
+import { findFirstHighlight } from './highlightRegex';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 export const SEARCH_RESULT_BODY_CHAR_LIMIT = 1600;
@@ -20,21 +21,6 @@ const withBody = (label: string, body?: string): string => {
   return normalizedBody ? `${label}: ${normalizedBody}` : label;
 };
 
-const findFirstHighlightIndex = (body: string, highlights: string[]): number => {
-  const loweredBody = body.toLocaleLowerCase();
-  let firstMatchIndex = -1;
-
-  for (const highlight of highlights) {
-    if (!highlight) continue;
-    const index = loweredBody.indexOf(highlight.toLocaleLowerCase());
-    if (index >= 0 && (firstMatchIndex === -1 || index < firstMatchIndex)) {
-      firstMatchIndex = index;
-    }
-  }
-
-  return firstMatchIndex;
-};
-
 export const getSearchResultBodySnippet = (
   body: string,
   highlights: string[] = [],
@@ -42,7 +28,7 @@ export const getSearchResultBodySnippet = (
 ): string => {
   if (body.length <= maxChars) return body;
 
-  const targetIndex = findFirstHighlightIndex(body, highlights);
+  const targetIndex = findFirstHighlight(body, highlights);
   const windowSize = Math.max(maxChars - 2, 0);
   const start =
     targetIndex >= 0
