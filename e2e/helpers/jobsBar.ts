@@ -10,11 +10,13 @@ declare global {
 }
 
 /**
- * Records every change of the jobs bar that names `run_shell_command` from now on, as the client
- * commits it to the DOM (a frame loop can starve in a WebKit page and miss a short state).
+ * Records every change of the jobs bar that names the shell call from now on, as the client
+ * commits it to the DOM (a frame loop can starve in a WebKit page and miss a short state). Without
+ * the usage details (the default) the bar names `run_shell_command` in words, "Running a command";
+ * with them, by its tool: pass `run_shell_command` as `name`.
  */
-export const watchJobsBar = (page: Page) =>
-  page.evaluate(() => {
+export const watchJobsBar = (page: Page, name = 'Running a command') =>
+  page.evaluate((shown) => {
     const changes: JobsBarChange[] = [];
     window.jobsBarChanges = changes;
     let last: string | null | undefined;
@@ -22,7 +24,7 @@ export const watchJobsBar = (page: Page) =>
       const label =
         [...document.querySelectorAll('[role="region"]')]
           .map((region) => region.getAttribute('aria-label') ?? '')
-          .find((name) => name.includes('run_shell_command')) ?? null;
+          .find((label) => label.includes(shown)) ?? null;
       if (label === last) return;
       changes.push({ at: Date.now(), label });
       last = label;
@@ -33,7 +35,7 @@ export const watchJobsBar = (page: Page) =>
       attributeFilter: ['aria-label'],
     });
     read();
-  });
+  }, name);
 
 export const jobsBarChanges = (page: Page): Promise<JobsBarChange[]> =>
   page.evaluate(() => window.jobsBarChanges ?? []);
