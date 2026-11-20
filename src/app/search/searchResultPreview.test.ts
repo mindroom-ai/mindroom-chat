@@ -198,6 +198,20 @@ describe('getSearchResultBodySnippet', () => {
     expect(snippet).not.toContain('alpha_beta');
     expect(snippet.startsWith('…')).toBe(true);
   });
+  it('drops the part of a word cut at either edge of the window', () => {
+    const body = `gammaal delta delta delta delta xy al ${'omega '.repeat(40)}`;
+
+    expect(getSearchResultBodySnippet(body, ['al'], 102)).toBe(
+      `…delta delta delta delta xy al ${'omega '.repeat(11).trim()}…`
+    );
+    expect(getSearchResultBodySnippet('gamma delta epsilonzeta omega', [], 20)).toBe(
+      'gamma delta…'
+    );
+  });
+
+  it('keeps a window that lies inside one word', () => {
+    expect(getSearchResultBodySnippet('x'.repeat(50), [], 12)).toBe(`${'x'.repeat(10)}…`);
+  });
 });
 
 describe('shouldUseLightweightSearchResultBody', () => {

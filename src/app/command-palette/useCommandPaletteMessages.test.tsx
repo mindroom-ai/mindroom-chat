@@ -182,6 +182,20 @@ describe('useCommandPaletteMessages', () => {
     expect(result.current.items[0]?.snippet).toBe('…then the plain walrus here.');
   });
 
+  it('reads no word cut at the edge of a long message as a match', async () => {
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    // The first pass keeps 2,000 characters from 599 before the real match, which falls inside
+    // "subwalrus"; its cut-off tail must not become the match the second pass centers on.
+    const head = `${'gamma '.repeat(400)}sub`;
+    const body = `${head}${'walrus helpers'.padEnd(599)}walrus here. ${'omega '.repeat(400)}`;
+    expect(body.indexOf(' walrus ') + 1 - 599).toBe(head.length);
+    await act(async () => pending[0]?.resolve(responseWith('$cut', body)));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.snippet).toMatch(/^…helpers walrus here\. omega/);
+  });
+
   it('lists a retitled thread once, by its current title, beside what was said in it', async () => {
     const key = getCrossRoomThreadIndexKey('!ops:example.org', '$root');
     const entry = { key, summaryText: 'Walrus launch plan', rootPreviewText: '' };
