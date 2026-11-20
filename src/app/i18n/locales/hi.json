@@ -955,7 +955,9 @@
   },
   "messageTable": {
     "label": "स्क्रॉल करने योग्य तालिका",
-    "scrollHint": "क्षैतिज रूप से स्क्रॉल करें"
+    "scrollHint": "क्षैतिज रूप से स्क्रॉल करें",
+    "readByRow": "पंक्ति के अनुसार पढ़ें",
+    "showTable": "तालिका दिखाएँ"
   },
   "messageCodeBlock": {
     "actions": "कोड ब्लॉक क्रियाएँ",
@@ -1693,7 +1695,9 @@
       "computerUnavailable": "इस एजेंट का कंप्यूटर उपलब्ध नहीं है।",
       "releaseControl": "दूसरा दृश्य खोलने से पहले कंप्यूटर का नियंत्रण छोड़ें।",
       "openConversation": "यह अनुरोध कमरे की बातचीत से खोलें।",
-      "settingsUnavailable": "सेटिंग का यह अनुभाग खोलने के लिए सरल मोड बंद करें।"
+      "settingsUnavailable": "सेटिंग का यह अनुभाग खोलने के लिए सरल मोड बंद करें।",
+      "canvasCard": "इंटरैक्टिव पैनल",
+      "reminderCard": "रिमाइंडर · {{when}}"
     },
     "canvas": {
       "panelLabel": "इंटरैक्टिव पैनल",
@@ -2680,7 +2684,6 @@
       "invite": "आमंत्रित करें",
       "joinNewSpace": "नई स्पेस से जुड़ें",
       "leaveSpace": "स्पेस छोड़ें",
-      "lobby": "लॉबी",
       "messageSearch": "संदेश खोज",
       "openNewSpace": "नया स्पेस खोलें",
       "pickedUpRoomValue1UseArrowKeysToReorderPressSpaceTo": "रूम {{value1}} उठाया। पुन: व्यवस्थित करने के लिए तीर कुंजियों का उपयोग करें. ड्रॉप करने के लिए स्पेस दबाएँ.",

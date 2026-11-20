@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "Tabella scorrevole",
-    "scrollHint": "Scorri orizzontalmente"
+    "scrollHint": "Scorri orizzontalmente",
+    "readByRow": "Leggi per riga",
+    "showTable": "Mostra tabella"
   },
   "messageCodeBlock": {
     "actions": "Azioni del blocco di codice",
@@ -1161,7 +1163,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "Questo spazio è stato sostituito e non è più attivo.",
       "openNewSpace": "Apri nuovo spazio",
       "joinNewSpace": "Entra nel nuovo spazio",
-      "lobby": "Atrio",
       "messageSearch": "Cerca messaggi",
       "failedToJoinReplacementSpace": "Impossibile entrare nello spazio sostitutivo!",
       "rooms": "Stanze",
@@ -2995,7 +2996,9 @@
       "computerUnavailable": "Il computer di questo agente non è disponibile.",
       "releaseControl": "Rilascia il controllo del computer prima di aprire un’altra vista.",
       "openConversation": "Apri questa richiesta dalla conversazione della stanza.",
-      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni."
+      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni.",
+      "canvasCard": "Pannello interattivo",
+      "reminderCard": "Promemoria · {{when}}"
     },
     "canvas": {
       "panelLabel": "Pannello interattivo",

@@ -36,6 +36,11 @@ export type CommandPaletteSearchField<T> = {
    * that matches one of the row's other fields, so typing it alone does not list every such row.
    */
   context?: boolean;
+  /**
+   * A field matched only by its start, of at least this many letters or all of it: "spa" is
+   * Space, "sp" and "pace" are not.
+   */
+  shortest?: number;
 };
 
 export type CommandPaletteSearchConfig<T> = {
@@ -97,6 +102,9 @@ export const commandPaletteSearchConfig = {
       { key: 'canonicalAlias', get: (item) => item.canonicalAlias, weight: 0.7 },
       { key: 'topic', get: (item) => item.topic, weight: 0.5 },
       { key: 'parentNames', get: (item) => item.parentNames, weight: 0.5 },
+      // "spa garden" finds the space named Garden, not the room of that name. Under every other
+      // field, and only by its start, so the words a row holds win over its kind.
+      { key: 'tag', get: (item) => item.tag, weight: 0.4, context: true, shortest: 3 },
     ],
     limit: 8,
     // The sign of an alias, so "#general" finds the room named General too.
@@ -143,6 +151,7 @@ type RowText = {
   weight: number;
   name: boolean;
   context: boolean;
+  shortest: number;
   prepared: PreparedText;
   /** The text as written, for a field that is one text; a list's entries are not marked. */
   written?: string;
@@ -167,6 +176,7 @@ const prepareRows = <T>(
         weight: field.weight,
         name: !!field.name,
         context: !!field.context,
+        shortest: field.shortest ?? 0,
         prepared: prepareText(written),
         written: single ? written : undefined,
       });
@@ -201,7 +211,9 @@ type Found = { text: RowText; score: number; detail: number; ranges: readonly Te
 const findBest = (word: string, texts: readonly RowText[], own = false): Found | undefined => {
   let best: Found | undefined;
   for (const text of texts) {
-    if (!own || !text.context) {
+    const { text: held } = text.prepared;
+    const start = held.startsWith(word) && (word.length >= text.shortest || word === held);
+    if ((!own || !text.context) && (!text.shortest || start)) {
       const match = matchWord(word, text.prepared, text.name);
       if (match) {
         const score = match.score * text.weight;

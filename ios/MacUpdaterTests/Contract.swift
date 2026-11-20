@@ -20,6 +20,8 @@ struct Contract {
         }
         // start() is not called: it would check a feed with this process's defaults.
         require(!updater.install(), "nothing staged, nothing to install")
-        print("PASS: updater bundle loading and an install with nothing staged")
+        require(!updater.canCheckForUpdates, "an updater that never started cannot check")
+        updater.checkForUpdates()
+        print("PASS: updater bundle loading, an install with nothing staged, no check before start")
     }
 }

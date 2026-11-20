@@ -67,7 +67,8 @@ const matchSection = (
       });
     case 'rooms':
       return matchCommandPaletteSection({
-        // All's starter list is for switching rooms; spaces match by name, and Rooms lists them.
+        // All's starter list is for switching rooms; spaces match by name or beside the word
+        // Space, and Rooms lists them.
         items:
           tab === 'all' && !typed
             ? source.rooms.filter((item) => item.kind === 'room')

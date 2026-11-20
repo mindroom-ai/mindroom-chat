@@ -11,6 +11,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import { COMPOSER_NAME } from '../helpers/composerName';
 
 // Regression: a reader at the bottom sends a message, and right away an agent starts typing and
 // streams its reply as a run of edits. The view must go to the sent message and stay at the
@@ -455,7 +456,7 @@ for (const scenario of SCENARIOS) {
     }
 
     const ownText = `Own message ${Date.now()}`;
-    const composer = page.getByRole('textbox', { name: 'Send a message...' });
+    const composer = page.getByRole('textbox', { name: COMPOSER_NAME });
     await composer.click();
     await page.keyboard.type(ownText);
     await page.keyboard.press('Enter');

@@ -34,6 +34,7 @@ type ScheduledTaskDetails = {
   silent?: boolean;
   isConditional?: boolean;
   historyLimit?: number | null;
+  sourceEventId?: string;
 };
 
 type ParsedWorkflow = ScheduledTaskDetails & {
@@ -91,6 +92,7 @@ const parseDetails = (value: Record<string, unknown>): ScheduledTaskDetails => {
     createdBy: 'created_by',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    sourceEventId: 'source_event_id',
   } as const;
   (Object.keys(strings) as (keyof typeof strings)[]).forEach((key) => {
     const field = value[strings[key]];

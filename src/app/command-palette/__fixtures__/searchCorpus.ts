@@ -812,6 +812,25 @@ const fields: CorpusCase[] = [
   { group: 'fields', tab: 'users', query: 'mindroom_code', first: 'user:code' },
   // Every agent's user name starts with "mindroom_", so that start finds none of them.
   { group: 'fields', tab: 'users', query: 'mind', absent: ['user:code', 'user:research'] },
+  // The word for a row's kind, in the app's language, tells a space from a room.
+  { group: 'fields', tab: 'rooms', query: 'spa mindroom', first: 'room:space-mindroom' },
+  { group: 'fields', tab: 'all', query: 'space mindroom', first: 'room:space-mindroom' },
+  {
+    group: 'fields',
+    tab: 'rooms',
+    language: 'de',
+    query: 'raum mindroom',
+    first: 'room:mindroom-dev',
+    absent: ['room:space-mindroom'],
+  },
+  {
+    group: 'fields',
+    tab: 'rooms',
+    language: 'ja',
+    query: 'スペース mindroom',
+    first: 'room:space-mindroom',
+  },
+  { group: 'fields', tab: 'rooms', query: 'space', absent: ['room:space-mindroom'] },
 ];
 
 /** Every case, in the order the report lists its groups. */

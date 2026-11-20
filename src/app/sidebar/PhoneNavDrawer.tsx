@@ -93,7 +93,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   useInert(panelRef, !open);
   // Gone with the phone layout (a phone turned sideways), the drawer is away: nothing else would
   // put it away, and edge swipes rest while it is out. After an opening that still waits for the
-  // page slide's picture, which would otherwise leave it out with no drawer there.
+  // page slide's frame, which would otherwise leave it out with no drawer there.
   useEffect(() => () => afterWaitingSlide(() => setOpenNow(false)), [setOpenNow]);
 
   // Put away, the drawer drops the rail and the list once it has slid out, as a phone's page had

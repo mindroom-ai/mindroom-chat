@@ -388,8 +388,8 @@ export function Space() {
           <NavCategory>
             {!phone && <CommandPaletteSearchField className={searchFieldCss.NavSearchField} />}
             <SpacePageLink
-              icon={Icons.Flag}
-              label={t('sharedUi.space.lobby')}
+              icon={Icons.Category}
+              label={t('sharedUi.space.overview')}
               to={getSpaceLobbyPath(spaceIdOrAlias)}
               selected={lobbySelected}
             />

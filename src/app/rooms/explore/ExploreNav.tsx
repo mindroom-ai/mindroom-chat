@@ -59,7 +59,7 @@ export function ExploreNav() {
           {servers.length > 0 && (
             <NavCategory>
               <NavCategoryHeader>
-                <Text size="O400" priority="300" truncate>
+                <Text size="L400" priority="300" truncate>
                   {t('sharedUi.explore.servers')}
                 </Text>
               </NavCategoryHeader>

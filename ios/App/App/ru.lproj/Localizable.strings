@@ -11,3 +11,5 @@
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ приглашает вас в %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ приглашает вас в чат";
 "QUICK_CAPTURE" = "Быстрая запись";
+"CHECK_FOR_UPDATES" = "Проверить обновления…";
+"RESTART_TO_UPDATE" = "Перезапустить для обновления";

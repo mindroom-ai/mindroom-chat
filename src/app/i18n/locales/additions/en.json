@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Some images can't load in this window: the browser runs no service worker for MindRoom here."
+    },
+    "space": {
+      "overview": "Space overview"
     }
   },
   "featureUi": {
@@ -543,7 +546,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
+        "unknown": "{{command}} is not a command. To send it as text, start the message with /plain.",
+        "thisApp": "This app",
+        "mindroomAgents": "MindRoom agents"
       },
       "jumpToTime": {
         "unsupported": "This server cannot look up messages by time.",
@@ -772,6 +777,19 @@
         "unavailableHint": "To enter keys here, save your MindRoom server in Settings → {{page}}.",
         "replaces": "Replaces the key saved now.",
         "replaceKey": "Replace key",
+        "newService": {
+          "title": "New service: {{name}}",
+          "hint": "Saving adds this service to your own, with the key.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Commands get {{names}}",
+          "auth": {
+            "bearer": "bearer token",
+            "basic": "basic auth as {{username}}",
+            "header": "header {{name}}",
+            "query": "query parameter {{name}}"
+          },
+          "unreadable": "This card adds a service this version of MindRoom Chat cannot show, so it cannot be saved here. Update MindRoom Chat to answer it."
+        },
         "temporary": {
           "label": "Secret request",
           "title": "Secret for {{agent}}",
@@ -807,7 +825,8 @@
           "nothingSent": "Nothing was sent or kept.",
           "noAnswer": "No answer in time, so nothing was sent.",
           "askedAs": "Asked for {{agent}}'s commands in this conversation as {{variable}}.",
-          "replaced": "Replaced the key saved before."
+          "replaced": "Replaced the key saved before.",
+          "addedService": "Added the service {{name}}."
         }
       },
       "skillReviewMarker": {
@@ -822,6 +841,14 @@
         "removed": "removed",
         "diffTruncated": "Diff truncated",
         "diffLabel": "Diff of {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Model set",
+        "reset": "Model reset",
+        "inherited": "Back to inherited models",
+        "changedBy": "Changed by {{name}}",
+        "scopeOwn": "Applies to future replies in this thread from the agents and teams you may address.",
+        "scopeOther": "Applies to future replies in this thread from the agents and teams {{name}} may address."
       },
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
@@ -841,7 +868,10 @@
         "nameChose": "{{name}} chose"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sub-agents"
+        "subagents": "Sub-agents",
+        "writtenToCache": "Written to cache",
+        "notCached": "Not cached",
+        "conversation": "Conversation"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}",
@@ -927,7 +957,8 @@
       "messageSearch": {
         "searchFailed": "Search failed. Try again.",
         "resultCountFor_one": "{{count}} result for “{{term}}”",
-        "resultCountFor_other": "{{count}} results for “{{term}}”"
+        "resultCountFor_other": "{{count}} results for “{{term}}”",
+        "retry": "Retry"
       }
     },
     "notifications": {
@@ -1036,6 +1067,7 @@
       "failed": "Failed",
       "cancelled": "Stopped",
       "denied": "Denied",
+      "interrupted": "Interrupted",
       "count_one": "{{count}} active",
       "count_other": "{{count}} active",
       "show": "Show sub-agents",
@@ -1076,6 +1108,18 @@
       "pageUpdated": "{{agent}} updated this page.",
       "shownInPanel": "Shown in the panel",
       "inlineDisclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this page."
+    },
+    "uiActions": {
+      "canvasOff": "Canvas shared · panels are off in this app",
+      "askForText": "Ask for a text version",
+      "copyRequest": "Copy request",
+      "textVersionRequest": "Please send “{{title}}” here as text instead. Interactive panels are off in my app.",
+      "askForTextStatus": {
+        "hint": "Puts a request in the composer. Nothing is sent until you press Send.",
+        "added": "Request added to the composer. Nothing is sent until you press Send.",
+        "kept": "Your draft was kept as it is. Copy the request to add it yourself.",
+        "copied": "Request copied. Paste it into your draft."
+      }
     }
   },
   "composer": {
@@ -1100,7 +1144,10 @@
       "autoHint": "Let the agent decide",
       "settingTitle": "When an agent is replying, Send",
       "settingDescription": "Hold Send to choose for one message."
-    }
+    },
+    "replyInThread": "Reply in thread…",
+    "newThreadIn": "New thread in {{room}}…",
+    "newThreadWith": "New thread with {{name}}…"
   },
   "commandPalette": {
     "state": {
@@ -1111,6 +1158,7 @@
     "tabsLabel": "Result types",
     "switchTabs": "Switch tabs",
     "space": "Space",
+    "room": "Room",
     "findAnything": "Find anything",
     "messageSearch": {
       "searching": "Searching messages…",

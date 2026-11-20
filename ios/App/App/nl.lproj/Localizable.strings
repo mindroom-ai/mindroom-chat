@@ -11,3 +11,5 @@
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ heeft je uitgenodigd voor %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ heeft je uitgenodigd voor een chat";
 "QUICK_CAPTURE" = "Snelle invoer";
+"CHECK_FOR_UPDATES" = "Controleer op updates…";
+"RESTART_TO_UPDATE" = "Herstart om bij te werken";

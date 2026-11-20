@@ -17,6 +17,11 @@ export type CompactFocusRequest = {
   eventId: string;
   entryKey: string | undefined;
   pushed?: boolean;
+  /**
+   * The entry is a return to the room (`RETURN_TO_ROOM_STATE`): the request was the room entry's,
+   * and the place the reader left there stays. With no saved place (after a reload), it is taken.
+   */
+  returned?: boolean;
 };
 
 // The requests a list has met, as `<history entry> <event>`, kept as long as its saved places.
@@ -38,7 +43,8 @@ export const takeCompactFocusRequest = (
   request: CompactFocusRequest
 ): void => {
   const key = metKey(request);
-  if (key && metRequests.get(memory)?.has(key)) return;
+  if ((request.returned && memory.has(roomId)) || (key && metRequests.get(memory)?.has(key)))
+    return;
   if (!memory.get(roomId)?.anchors.some((anchor) => anchor.key === request.eventId)) {
     memory.set(roomId, focusedPlace(request.eventId));
   }

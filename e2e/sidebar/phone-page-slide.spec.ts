@@ -1,5 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   createPrivateRoom,
   matrixFetch,
@@ -17,49 +18,104 @@ import {
 // stays. The menu button brings the list out over the page, which stays put while the drawer
 // slides in from the left on its own. Where the list goes away (a room tapped in it, the menu
 // button again), the page stays put too and the drawer slides away to the left over it. Nothing
-// slides between two pages of the same depth, or for someone who asked for reduced motion. 390 by
-// 844 with touch.
-// Set PAGE_SLIDE_SHOTS=<directory> to save a frame of each slide with the motion slowed to a tenth.
+// slides between two pages of the same depth, or for someone who asked for reduced motion. The
+// slide is the page's own (a still copy of the layout as it was, and the layout, moved past each
+// other), never a view transition of the browser, and the copy is gone when it ends. 390 by 844
+// with touch, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
+// WebKit.
+// Set PAGE_SLIDE_SHOTS=<directory> to save a frame of each slide: a page slide held half-way,
+// and in Chromium the drawer's with the motion slowed to a tenth.
 const PASSWORD = 'phone-page-slide-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.PAGE_SLIDE_SHOTS;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
+const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+/** How far into its 280 ms a slide is held for its frame: half its way. */
+const HELD_AT_MS = 60;
+/** A picture of one pixel. */
+const PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64'
+);
 
-test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+test.use(PHONE);
 
-/** A slide: its direction, and what the browser played on which picture. */
-type Slide = { direction: string; plays: string[] };
+/**
+ * A slide: its direction, what played on the layout (`page`) and on the copy of the layout as it
+ * was, how many copies showed, what a tap in the middle of the screen would land on, and where
+ * the layout was when its slide started, in hundredths of the screen's width: at the slide's
+ * start, where it is held until the page that slides in has been drawn.
+ */
+type Slide = {
+  direction: string;
+  plays: string[];
+  copies?: number;
+  tapLandsOn?: string;
+  startsAt?: number;
+};
+type Recorded = { pageSlides: Slide[]; viewTransitions: number; drawerSlides: string[] };
 
 const FORWARD: Slide = {
   direction: 'forward',
-  plays: [
-    '::view-transition-new(phone-stage) phone-page-over-in',
-    '::view-transition-old(phone-stage) phone-page-under-out',
-  ],
+  plays: ['copy phone-page-under-out', 'page phone-page-over-in'],
+  copies: 1,
+  tapLandsOn: 'the layout',
+  startsAt: 100,
 };
 const BACK: Slide = {
   direction: 'back',
-  plays: [
-    '::view-transition-new(phone-stage) phone-page-under-in',
-    '::view-transition-old(phone-stage) phone-page-over-out',
-  ],
+  plays: ['copy phone-page-over-out', 'page phone-page-under-in'],
+  copies: 1,
+  tapLandsOn: 'the layout',
+  startsAt: -30,
 };
 
-const recordSlides = (page: Page) =>
-  page.addInitScript(() => {
+const recordSlides = (page: Page, heldAt?: number) =>
+  page.addInitScript((held) => {
     const slides: Slide[] = [];
-    (window as unknown as { pageSlides: Slide[] }).pageSlides = slides;
+    const recorded = window as unknown as Recorded;
+    recorded.pageSlides = slides;
+    recorded.viewTransitions = 0;
+    // Every view transition the page asks the browser for: none.
+    const browser = Document.prototype as unknown as {
+      startViewTransition?: (...args: unknown[]) => unknown;
+    };
+    const start = browser.startViewTransition;
+    if (start) {
+      browser.startViewTransition = function counted(...args) {
+        recorded.viewTransitions += 1;
+        return start.apply(this, args);
+      };
+    }
     // The document has no root element yet: both listen on the document.
     new MutationObserver(() => {
       const direction = document.documentElement.getAttribute('data-page-slide');
       if (direction) slides.push({ direction, plays: [] });
     }).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-page-slide'] });
     document.addEventListener('animationstart', (event) => {
-      if (!event.pseudoElement.startsWith('::view-transition')) return;
-      slides.at(-1)?.plays.push(`${event.pseudoElement} ${event.animationName}`);
+      const slide = slides.at(-1);
+      if (!slide || !event.animationName.startsWith('phone-page-')) return;
+      const copy = (event.target as Element).closest('[data-page-slide-copy]');
+      const play = `${copy ? 'copy' : 'page'} ${event.animationName}`;
+      if (!slide.plays.includes(play)) slide.plays.push(play);
+      slide.copies = document.querySelectorAll('[data-page-slide-copy]').length;
+      // On the layout itself, not on a part of it: on the shield the layout lays over its parts.
+      const hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+      slide.tapLandsOn = hit?.hasAttribute('data-phone-stage') ? 'the layout' : hit?.tagName;
+      if (!copy && slide.startsAt === undefined) {
+        const moved = parseFloat(getComputedStyle(event.target as Element).translate);
+        slide.startsAt = Math.round((moved / innerWidth) * 100);
+      }
+      if (held === undefined) return;
+      document.getAnimations().forEach((animation) => {
+        if (!(animation as CSSAnimation).animationName?.startsWith('phone-page-')) return;
+        animation.pause();
+        animation.currentTime = held;
+      });
     });
     // What the drawer's own slide does: it starts, and plays to its end or is cut short.
     const drawerSlides: string[] = [];
-    (window as unknown as { drawerSlides: string[] }).drawerSlides = drawerSlides;
+    recorded.drawerSlides = drawerSlides;
     for (const type of ['transitionrun', 'transitionend', 'transitioncancel'] as const) {
       document.addEventListener(
         type,
@@ -71,7 +127,7 @@ const recordSlides = (page: Page) =>
         true
       );
     }
-  });
+  }, heldAt);
 
 /** What the drawer's own slide did since the last call, which forgets it. */
 const spliceDrawerSlides = (page: Page): Promise<string[]> =>
@@ -100,10 +156,11 @@ const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
       message: `${step}: the slide ends`,
     })
     .toBe(false);
+  await expect(page.locator('[data-page-slide-copy]'), `${step}: the copy is gone`).toHaveCount(0);
   const slides = await page.evaluate(() =>
     (window as unknown as { pageSlides: Slide[] }).pageSlides.splice(0)
   );
-  return slides.map(({ direction, plays }) => ({ direction, plays: [...plays].sort() }));
+  return slides.map((slide) => ({ ...slide, plays: [...slide.plays].sort() }));
 };
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
@@ -151,18 +208,184 @@ const threadColumn = (page: Page) => page.getByTestId('thread-column');
 const threadBack = (page: Page) => threadColumn(page).getByRole('button', { name: 'Back' }).last();
 const card = (page: Page, root: string) => page.locator(`[data-thread-root-id="${root}"]`).first();
 
-test.describe('a phone slides its pages', () => {
-  test.beforeEach(async () => {
-    test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
-  });
+/** Runs `check` on a phone's page in `engine`, signed in as `username`. */
+const onPhone = async (
+  engine: (typeof ENGINES)[number],
+  browser: Browser,
+  username: string,
+  options: { reducedMotion?: 'reduce'; heldAt?: number },
+  check: (page: Page) => Promise<void>
+) => {
+  const own = engine === 'webkit' ? await launchWebKit() : browser;
+  try {
+    const context = await own.newContext({ ...PHONE, reducedMotion: options.reducedMotion });
+    try {
+      const page = await context.newPage();
+      await recordSlides(page, options.heldAt);
+      await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+      await check(page);
+      expect(
+        await page.evaluate(() => (window as unknown as Recorded).viewTransitions),
+        'the page asks the browser for no view transition'
+      ).toBe(0);
+    } finally {
+      await context.close();
+    }
+  } finally {
+    if (engine === 'webkit') await own.close();
+  }
+};
 
-  test('the list slides away over a room, and a thread comes in from the right', async ({
-    page,
+test.beforeEach(async () => {
+  test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
+});
+
+for (const engine of ENGINES) {
+  test(`${engine}: the list slides away over a room, and a thread comes in from the right`, async ({
+    browser,
   }) => {
     test.setTimeout(180_000);
-    const { username, root } = await seed('slides');
-    await recordSlides(page);
-    await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+    const { username, root } = await seed(`slides${engine}`);
+    await onPhone(engine, browser, username, { heldAt: SHOTS ? HELD_AT_MS : undefined }, (page) =>
+      slidesItsPages(page, root, engine)
+    );
+  });
+
+  test(`${engine}: a slide leaves the page's own fields as they are`, async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { username, root } = await seed(`fields${engine}`);
+    // Held: the copy stays in the page until the slide gives up on its end.
+    await onPhone(engine, browser, username, { heldAt: HELD_AT_MS }, async (page) => {
+      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+      // Fields as a card in the page has them: radio buttons outside a form, and a typed secret.
+      await page.locator('[data-phone-stage] > [data-phone-page]').evaluate((phonePage) => {
+        phonePage.insertAdjacentHTML(
+          'beforeend',
+          '<div data-pps-fields style="position: absolute; pointer-events: none">' +
+            '<input type="radio" name="pps-keep" value="once">' +
+            '<input type="radio" name="pps-keep" value="day">' +
+            '<input type="text" name="pps-secret"></div>'
+        );
+        const [, day, secret] = Array.from(phonePage.querySelectorAll('[data-pps-fields] input'));
+        (day as HTMLInputElement).checked = true;
+        (secret as HTMLInputElement).value = 'typed-secret';
+      });
+      const fields = () =>
+        page.evaluate(() => {
+          const values = (within: Element | null) =>
+            Array.from(within?.querySelectorAll('input') ?? [], (field) =>
+              field.type === 'radio' ? field.checked : field.value
+            );
+          const live = '[data-phone-stage] > [data-phone-page] > [data-pps-fields]';
+          const still = document.querySelector('[data-page-slide-copy] [data-pps-fields]');
+          return {
+            page: values(document.querySelector(live)),
+            copy: values(still),
+            named: still?.querySelectorAll('[name]').length,
+          };
+        });
+
+      await card(page, root).tap();
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
+      // The copy looks as the page did but for what was typed, and is no part of its radio group.
+      expect(await fields(), 'while the copy shows').toEqual({
+        page: [false, true, 'typed-secret'],
+        copy: [false, true, ''],
+        named: 0,
+      });
+      await expect(threadColumn(page)).toBeVisible();
+      await takeSlides(page, 'a thread from its room');
+      expect((await fields()).page, 'after the slide').toEqual([false, true, 'typed-secret']);
+    });
+  });
+
+  test(`${engine}: the copy a slide shows asks the network for nothing`, async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { username, root } = await seed(`media${engine}`);
+    // Held: the copy stays in the page until the slide gives up on its end.
+    await onPhone(engine, browser, username, { heldAt: HELD_AT_MS }, async (page) => {
+      // Pictures the browser may not keep: every showing of one from the network is a request.
+      const requests: string[] = [];
+      await page.route('**/pps-media/*', (route) => {
+        requests.push(new URL(route.request().url()).pathname);
+        return route.fulfill({
+          contentType: 'image/png',
+          headers: { 'Cache-Control': 'no-store' },
+          body: PIXEL,
+        });
+      });
+      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+      // In the page: a picture from the network, a `picture` whose source picks another, and one
+      // the page holds in memory, as the app's avatars and message pictures are.
+      await page.locator('[data-phone-stage] > [data-phone-page]').evaluate(async (phonePage) => {
+        const held = URL.createObjectURL(await (await fetch('/pps-media/held.png')).blob());
+        phonePage.insertAdjacentHTML(
+          'beforeend',
+          '<div data-pps-media style="position: absolute; pointer-events: none">' +
+            '<img src="/pps-media/network.png">' +
+            '<picture><source srcset="/pps-media/source.png"><img src="/pps-media/fallback.png">' +
+            `</picture><img src="${held}"></div>`
+        );
+        const pictures = Array.from(phonePage.querySelectorAll('[data-pps-media] img'));
+        await Promise.all(pictures.map((picture) => (picture as HTMLImageElement).decode()));
+      });
+      const before = [...requests].sort();
+      expect(before, 'the page loads each picture once').toEqual(
+        ['held', 'network', 'source'].map((name) => `/pps-media/${name}.png`)
+      );
+
+      await card(page, root).tap();
+      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
+      const copied = await page
+        .locator('[data-page-slide-copy] [data-pps-media] img')
+        .evaluateAll((pictures) =>
+          pictures.map((picture) => {
+            const { complete, naturalWidth } = picture as HTMLImageElement;
+            const from = picture.getAttribute('src')?.split(':')[0] ?? null;
+            return { from, shows: complete && naturalWidth > 0 };
+          })
+        );
+      // Only the picture held in memory shows in the copy; the others are blank boxes.
+      expect.soft(copied, 'the pictures of the copy').toEqual([
+        { from: null, shows: false },
+        { from: null, shows: false },
+        { from: 'blob', shows: true },
+      ]);
+      expect
+        .soft(
+          await page.locator('[data-page-slide-copy] :is([srcset], source[src])').count(),
+          'the copy names no source to pick from'
+        )
+        .toBe(0);
+      await expect(threadColumn(page)).toBeVisible();
+      await takeSlides(page, 'a thread from its room');
+      // Time for a request that started with the copy to reach the network.
+      await page.waitForTimeout(1_000);
+      expect([...requests].sort(), 'the slide asked the network for no picture').toEqual(before);
+    });
+  });
+
+  test(`${engine}: nothing slides for someone who asked for reduced motion`, async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const { username, root } = await seed(`still${engine}`);
+    await onPhone(engine, browser, username, { reducedMotion: 'reduce' }, async (page) => {
+      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+      await card(page, root).tap();
+      await expect(threadColumn(page)).toBeVisible();
+      await threadBack(page).tap();
+      await expect(threadColumn(page)).toBeHidden();
+      expect(await takeSlides(page, 'reduced motion')).toEqual([]);
+    });
+  });
+}
+
+const slidesItsPages = async (page: Page, root: string, engine: (typeof ENGINES)[number]) => {
+  {
     // Home's own page: the list is out.
     await expect(drawer(page)).toBeVisible();
     await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible();
@@ -174,14 +397,23 @@ test.describe('a phone slides its pages', () => {
     });
     expect(await takeSlides(page, 'loaded again'), 'a fresh load').toEqual([]);
 
-    // The slides slowed to a tenth, for a frame of each mid-way.
-    const slow = SHOTS ? await page.context().newCDPSession(page) : undefined;
+    // A frame of each slide mid-way: a page slide is held there (`recordSlides`) until its copy
+    // goes, and Chromium slows the drawer's to a tenth.
+    const slow =
+      SHOTS && engine === 'chromium' ? await page.context().newCDPSession(page) : undefined;
     await slow?.send('Animation.enable');
     await slow?.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
-    const shot = async (name: string) => {
-      if (!SHOTS) return;
-      await page.waitForTimeout(900);
-      await page.screenshot({ path: `${SHOTS}/${name}.png` });
+    const shot = async (name: string, pageSlide = false) => {
+      if (!SHOTS || !(pageSlide || slow)) return;
+      if (pageSlide) await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
+      await page.waitForTimeout(pageSlide ? 300 : 900);
+      // WebKit draws a slide held while it played where it is held only once its style is read.
+      if (pageSlide) {
+        await page
+          .locator('[data-page-slide-copy] > *')
+          .evaluateAll((parts) => parts.map((part) => getComputedStyle(part).translate));
+      }
+      await page.screenshot({ path: `${SHOTS}/${engine}-${name}.png` });
     };
 
     // Whatever the drawer did on the way in is no part of what follows.
@@ -198,20 +430,20 @@ test.describe('a phone slides its pages', () => {
     ]);
 
     await card(page, root).tap();
-    await shot('2-thread-comes-in');
+    await shot('2-thread-comes-in', true);
     await expect(threadColumn(page)).toBeVisible();
     expect(await takeSlides(page, 'a thread from its room'), 'a thread from its room').toEqual([
       FORWARD,
     ]);
 
     await threadBack(page).tap();
-    await shot('3-thread-leaves');
+    await shot('3-thread-leaves', true);
     await expect(threadColumn(page)).toBeHidden();
     expect(await takeSlides(page, 'back to the room'), 'back to the room').toEqual([BACK]);
 
     // The browser's back (Android's back button) leaves the room for the list.
     await page.goBack();
-    await shot('4-room-leaves');
+    await shot('4-room-leaves', true);
     await expect(drawer(page)).toBeVisible();
     expect(await takeSlides(page, 'back to the list'), 'back to the list').toEqual([BACK]);
 
@@ -238,20 +470,5 @@ test.describe('a phone slides its pages', () => {
       'transitionrun',
       'transitionend',
     ]);
-  });
-
-  test('nothing slides for someone who asked for reduced motion', async ({ page }) => {
-    test.setTimeout(180_000);
-    const { username, root } = await seed('still');
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await recordSlides(page);
-    await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-    await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-    await card(page, root).tap();
-    await expect(threadColumn(page)).toBeVisible();
-    await threadBack(page).tap();
-    await expect(threadColumn(page)).toBeHidden();
-    expect(await takeSlides(page, 'reduced motion')).toEqual([]);
-  });
-});
+  }
+};

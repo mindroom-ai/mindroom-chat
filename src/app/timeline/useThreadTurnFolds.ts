@@ -4,7 +4,10 @@ import type { Virtualizer } from '@tanstack/react-virtual';
 import { useThreadApprovals } from '../approvals/ThreadApprovalProvider';
 import { isEventStreaming } from '../event-store/threads/useThreadStreamingState';
 import type { ThreadBackgroundState } from '../matrix/protocol/threadBackgroundJobs';
-import { getEventReactions } from '../matrix/room';
+import { getEventReactions, reactionOrEditEvent } from '../matrix/room';
+import { CHAT_UI_ACTION_KEY } from '../matrix/protocol/chatUiProtocol';
+import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
+import { pickRenderer } from '../plugins/messageRenderers';
 import { getAiRunInfo } from '../matrix/protocol/aiRun';
 import {
   readInteractiveQuestion,
@@ -22,6 +25,7 @@ import {
   type ThreadTurnFold,
   type ThreadTurnFoldView,
 } from './threadTurnFolds';
+import { isRowlessTimelineEvent } from './timelineRowFold';
 
 type TurnRowContext = {
   room: Room;
@@ -90,6 +94,50 @@ export const turnAnswerRank = (
   return ATTACHMENT_MSGTYPES.includes(content.msgtype) ? 2 : 1;
 };
 
+/** How MindRoom marks a message that wakes an agent from outside the thread. */
+const WAKE_UP_KINDS = /^(scheduled|silent_scheduled|external_trigger|hook_dispatch)$/;
+
+/**
+ * Whether a row starts its turn (`ThreadTurnRules.startsTurn`): a person's message, or MindRoom's
+ * wake-up, rowless or hidden too: a schedule, an external trigger, a hook's dispatch, a plugin's
+ * relay for a person (a comment on a document). A job's follow-up posts nothing: it stays in turn.
+ */
+export const startsTurn = (event: MatrixEvent): boolean => {
+  // As sent: an edit does not move a turn's start, nor start one.
+  if (reactionOrEditEvent(event)) return false;
+  const content = event.getOriginalContent();
+  const kind = content['com.mindroom.source_kind'];
+  if (typeof kind === 'string') {
+    const relay = kind === 'hook' && 'com.mindroom.original_sender' in content;
+    if (relay || WAKE_UP_KINDS.test(kind)) return true;
+  }
+  return !isRowlessTimelineEvent(event) && threadRowAuthor(event) === 'person';
+};
+
+/**
+ * Whether a row is a card the reader opens (`ThreadTurnRules.keepsRow`): one a plugin draws, such
+ * as an artifact's, or an agent's notice with a button, such as a canvas's.
+ */
+export const isTurnCard = (
+  event: MatrixEvent,
+  content: Record<string, unknown>,
+  config: ClientConfig | undefined,
+  viewerId: string | undefined
+): boolean => {
+  // As RenderMessageContent hands the row to its renderers.
+  const row = {
+    eventId: event.getId(),
+    roomId: event.getRoomId(),
+    type: event.getType(),
+    sender: event.getSender() ?? '',
+    content,
+  };
+  // As renderAgentMessageContent draws a notice's action as a button. It keeps an edited one too,
+  // whose action may no longer draw: a row in view that need not be beats a card folded away.
+  const action = content.msgtype === 'm.notice' && !!content[CHAT_UI_ACTION_KEY];
+  return action || !!pickRenderer(config, row, viewerId);
+};
+
 type UseThreadTurnFoldsOptions = {
   room: Room;
   /** Only an open thread folds its turns. */
@@ -130,6 +178,7 @@ export const useThreadTurnFolds = ({
   toggle: (fold: ThreadTurnFold) => void;
 } => {
   const pendingApprovalIds = useThreadApprovals()?.pendingEventIds;
+  const config = useOptionalClientConfig();
   // A reply streaming in the newest turn holds it from its own row (`holdsTurn`).
   const lastTurnBusy =
     !!backgroundState?.hasBackgroundJob || !!backgroundState?.hasBackgroundApproval;
@@ -137,7 +186,8 @@ export const useThreadTurnFolds = ({
     if (!threadId) return [];
     const now = Date.now();
     return planThreadTurnFolds(events, {
-      isPersonMessage: (event) => threadRowAuthor(event) === 'person',
+      startsTurn,
+      keepsRow: (event) => isTurnCard(event, getContent(event), config, viewerId),
       isSkipped,
       isAnswer: (event) => isTurnAnswer(event, getContent, isQuietMarker),
       answerRank: (event) => turnAnswerRank(event, getContent),
@@ -148,6 +198,7 @@ export const useThreadTurnFolds = ({
       lastTurnBusy,
     });
   }, [
+    config,
     events,
     getContent,
     isQuietMarker,

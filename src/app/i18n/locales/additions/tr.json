@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Bu pencerede bazı görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
+    },
+    "space": {
+      "overview": "Alana genel bakış"
     }
   },
   "featureUi": {
@@ -543,7 +546,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
+        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın.",
+        "thisApp": "Bu uygulama",
+        "mindroomAgents": "MindRoom ajanları"
       },
       "jumpToTime": {
         "unsupported": "Bu sunucu mesajları zamana göre arayamıyor.",
@@ -772,6 +777,19 @@
         "unavailableHint": "Burada anahtar girmek için MindRoom sunucunuzu Ayarlar → {{page}} bölümünde kaydedin.",
         "replaces": "Şu an kayıtlı anahtarın yerini alır.",
         "replaceKey": "Anahtarı değiştir",
+        "newService": {
+          "title": "Yeni hizmet: {{name}}",
+          "hint": "Kaydetmek bu hizmeti anahtarla birlikte kendi hizmetlerinize ekler.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Komutlar şunları alır: {{names}}",
+          "auth": {
+            "bearer": "bearer belirteci",
+            "basic": "{{username}} olarak temel kimlik doğrulama",
+            "header": "başlık {{name}}",
+            "query": "sorgu parametresi {{name}}"
+          },
+          "unreadable": "Bu kart, MindRoom Chat'in bu sürümünün gösteremediği bir hizmet ekliyor, bu yüzden burada kaydedilemez. Yanıtlamak için MindRoom Chat'i güncelleyin."
+        },
         "temporary": {
           "label": "Gizli bilgi isteği",
           "title": "{{agent}} için gizli bilgi",
@@ -807,7 +825,8 @@
           "nothingSent": "Hiçbir şey gönderilmedi veya saklanmadı.",
           "noAnswer": "Zamanında yanıt gelmedi, bu yüzden hiçbir şey gönderilmedi.",
           "askedAs": "Bu konuşmada {{agent}} adlı ajanın komutları için {{variable}} olarak istendi.",
-          "replaced": "Önceden kayıtlı anahtarın yerini aldı."
+          "replaced": "Önceden kayıtlı anahtarın yerini aldı.",
+          "addedService": "{{name}} hizmetini ekledi."
         }
       },
       "skillReviewMarker": {
@@ -822,6 +841,14 @@
         "removed": "kaldırıldı",
         "diffTruncated": "Diff kısaltıldı",
         "diffLabel": "{{path}} için diff"
+      },
+      "modelChangeMarker": {
+        "set": "Model ayarlandı",
+        "reset": "Model sıfırlandı",
+        "inherited": "Devralınan modellere dönüldü",
+        "changedBy": "Değiştiren: {{name}}",
+        "scopeOwn": "Bu ileti dizisinde, hitap edebileceğiniz ajan ve ekiplerin gelecekteki yanıtları için geçerlidir.",
+        "scopeOther": "Bu ileti dizisinde, {{name}} adlı kişinin hitap edebileceği ajan ve ekiplerin gelecekteki yanıtları için geçerlidir."
       },
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
@@ -841,7 +868,10 @@
         "nameChose": "{{name}} seçti"
       },
       "mindroomReplyDetails": {
-        "subagents": "Alt ajanlar"
+        "subagents": "Alt ajanlar",
+        "writtenToCache": "Önbelleğe yazılan",
+        "notCached": "Önbellekte değil",
+        "conversation": "Konuşma"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor",
@@ -927,7 +957,8 @@
       "messageSearch": {
         "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
         "resultCountFor_one": "“{{term}}” için {{count}} sonuç",
-        "resultCountFor_other": "“{{term}}” için {{count}} sonuç"
+        "resultCountFor_other": "“{{term}}” için {{count}} sonuç",
+        "retry": "Tekrar dene"
       }
     },
     "notifications": {
@@ -1036,6 +1067,7 @@
       "failed": "Başarısız",
       "cancelled": "Durduruldu",
       "denied": "Reddedildi",
+      "interrupted": "Kesintiye uğradı",
       "count_one": "{{count}} etkin",
       "count_other": "{{count}} etkin",
       "show": "Alt ajanları göster",
@@ -1076,6 +1108,18 @@
       "pageUpdated": "{{agent}} bu sayfayı güncelledi.",
       "shownInPanel": "Panelde gösteriliyor",
       "inlineDisclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu sayfanın dışına çıkabilir."
+    },
+    "uiActions": {
+      "canvasOff": "Panel paylaşıldı · bu uygulamada paneller kapalı",
+      "askForText": "Metin sürümü iste",
+      "copyRequest": "İsteği kopyala",
+      "textVersionRequest": "Lütfen “{{title}}” içeriğini buraya metin olarak gönder. Uygulamamda etkileşimli paneller kapalı.",
+      "askForTextStatus": {
+        "hint": "Yazma alanına bir istek koyar. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "added": "İstek yazma alanına eklendi. Gönder'e basana kadar hiçbir şey gönderilmez.",
+        "kept": "Taslağın olduğu gibi bırakıldı. Kendin eklemek için isteği kopyala.",
+        "copied": "İstek kopyalandı. Taslağına yapıştır."
+      }
     }
   },
   "composer": {
@@ -1100,7 +1144,10 @@
       "autoHint": "Kararı ajana bırak",
       "settingTitle": "Bir ajan yanıt verirken gönder",
       "settingDescription": "Tek bir mesaj için seçmek üzere Gönder'e basılı tutun."
-    }
+    },
+    "replyInThread": "Konuda yanıtla…",
+    "newThreadIn": "{{room}} içinde yeni konu…",
+    "newThreadWith": "{{name}} ile yeni konu…"
   },
   "commandPalette": {
     "state": {
@@ -1111,6 +1158,7 @@
     "tabsLabel": "Sonuç türleri",
     "switchTabs": "Sekme değiştir",
     "space": "Alan",
+    "room": "Oda",
     "findAnything": "Her şeyi bul",
     "messageSearch": {
       "searching": "Mesajlar aranıyor…",

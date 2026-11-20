@@ -139,6 +139,7 @@ export const StatusDot = styleVariants({
   failed: [dot, { background: color.Critical.Main }],
   cancelled: [dot, { background: color.SurfaceVariant.OnContainer }],
   denied: [dot, { background: color.Critical.Main }],
+  interrupted: [dot, { background: color.SurfaceVariant.OnContainer }],
 });
 
 /** The open sub-agent's turns, each the caller's task, the cards of what it started, then its reply. */
@@ -150,6 +151,9 @@ export const Task = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'an
 export const Reply = style({ minWidth: 0, overflowWrap: 'anywhere' });
 
 export const Failure = style({ margin: 0, color: color.Critical.Main, overflowWrap: 'anywhere' });
+
+/** Why a turn a restart cut short ended, in the neutral tone: MindRoom may continue it. */
+export const Interruption = style({ margin: 0, overflowWrap: 'anywhere' });
 
 export const NestedRuns = style({ display: 'flex', flexDirection: 'column', gap: space.S200 });
 

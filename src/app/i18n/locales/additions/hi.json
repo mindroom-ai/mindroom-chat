@@ -278,6 +278,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "इस विंडो में कुछ चित्र लोड नहीं हो सकते: ब्राउज़र यहाँ MindRoom के लिए कोई सर्विस वर्कर नहीं चलाता।"
+    },
+    "space": {
+      "overview": "स्पेस का अवलोकन"
     }
   },
   "featureUi": {
@@ -543,7 +546,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} विफल रहा: {{reason}}",
         "usage": "{{command}} नहीं चल सका। {{usage}}",
-        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।"
+        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।",
+        "thisApp": "यह ऐप",
+        "mindroomAgents": "MindRoom एजेंट"
       },
       "jumpToTime": {
         "unsupported": "यह सर्वर समय के अनुसार संदेश नहीं खोज सकता।",
@@ -772,6 +777,19 @@
         "unavailableHint": "यहाँ कुंजियाँ दर्ज करने के लिए, सेटिंग्स → {{page}} में अपना MindRoom सर्वर सहेजें।",
         "replaces": "अभी सहेजी गई कुंजी को बदल देगा।",
         "replaceKey": "कुंजी बदलें",
+        "newService": {
+          "title": "नई सेवा: {{name}}",
+          "hint": "सहेजने पर यह सेवा कुंजी के साथ आपकी अपनी सेवाओं में जुड़ जाती है।",
+          "rule": "{{location}} · {{auth}}",
+          "env": "कमांड को {{names}} मिलते हैं",
+          "auth": {
+            "bearer": "बेयरर टोकन",
+            "basic": "{{username}} के रूप में बेसिक ऑथ",
+            "header": "हेडर {{name}}",
+            "query": "क्वेरी पैरामीटर {{name}}"
+          },
+          "unreadable": "यह कार्ड एक ऐसी सेवा जोड़ता है जिसे MindRoom Chat का यह संस्करण नहीं दिखा सकता, इसलिए इसे यहाँ सहेजा नहीं जा सकता। इसका उत्तर देने के लिए MindRoom Chat अपडेट करें।"
+        },
         "temporary": {
           "label": "गोपनीय जानकारी का अनुरोध",
           "title": "{{agent}} के लिए गोपनीय जानकारी",
@@ -807,7 +825,8 @@
           "nothingSent": "कुछ भी भेजा या रखा नहीं गया।",
           "noAnswer": "समय पर कोई जवाब नहीं मिला, इसलिए कुछ नहीं भेजा गया।",
           "askedAs": "इस बातचीत में {{agent}} के कमांड के लिए {{variable}} के रूप में मांगी गई थी।",
-          "replaced": "पहले सहेजी गई कुंजी को बदल दिया।"
+          "replaced": "पहले सहेजी गई कुंजी को बदल दिया।",
+          "addedService": "{{name}} सेवा जोड़ दी।"
         }
       },
       "skillReviewMarker": {
@@ -822,6 +841,14 @@
         "removed": "हटाया गया",
         "diffTruncated": "डिफ़ छोटा किया गया",
         "diffLabel": "{{path}} का डिफ़"
+      },
+      "modelChangeMarker": {
+        "set": "मॉडल सेट किया गया",
+        "reset": "मॉडल रीसेट किया गया",
+        "inherited": "इनहेरिट किए गए मॉडल पर वापस",
+        "changedBy": "{{name}} ने बदला",
+        "scopeOwn": "इस थ्रेड में उन एजेंट और टीमों के आगे के जवाबों पर लागू होता है जिन्हें आप संबोधित कर सकते हैं।",
+        "scopeOther": "इस थ्रेड में उन एजेंट और टीमों के आगे के जवाबों पर लागू होता है जिन्हें {{name}} संबोधित कर सकते हैं।"
       },
       "finishedWork": {
         "workedFor": "{{duration}} तक काम किया",
@@ -841,7 +868,10 @@
         "nameChose": "{{name}} ने चुना"
       },
       "mindroomReplyDetails": {
-        "subagents": "सब-एजेंट"
+        "subagents": "सब-एजेंट",
+        "writtenToCache": "कैश में लिखे गए",
+        "notCached": "कैश में नहीं",
+        "conversation": "बातचीत"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",
@@ -927,7 +957,8 @@
       "messageSearch": {
         "searchFailed": "खोज विफल रही। फिर से कोशिश करें।",
         "resultCountFor_one": "\"{{term}}\" के लिए {{count}} परिणाम",
-        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम"
+        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम",
+        "retry": "पुन: प्रयास करें"
       }
     },
     "notifications": {
@@ -1036,6 +1067,7 @@
       "failed": "विफल",
       "cancelled": "रोका गया",
       "denied": "अस्वीकृत",
+      "interrupted": "बाधित",
       "count_one": "{{count}} सक्रिय",
       "count_other": "{{count}} सक्रिय",
       "show": "सब-एजेंट दिखाएँ",
@@ -1076,6 +1108,18 @@
       "pageUpdated": "{{agent}} ने यह पेज अपडेट किया।",
       "shownInPanel": "पैनल में दिखाया गया",
       "inlineDisclosure": "{{agent}} ने बनाया। यह आपके खाते तक नहीं पहुँच सकता; यहाँ आप जो दर्ज करते हैं, वह इस पेज से बाहर जा सकता है।"
+    },
+    "uiActions": {
+      "canvasOff": "पैनल साझा किया गया · इस ऐप में पैनल बंद हैं",
+      "askForText": "टेक्स्ट संस्करण माँगें",
+      "copyRequest": "अनुरोध कॉपी करें",
+      "textVersionRequest": "कृपया “{{title}}” यहाँ टेक्स्ट के रूप में भेजें। मेरे ऐप में इंटरैक्टिव पैनल बंद हैं।",
+      "askForTextStatus": {
+        "hint": "कंपोज़र में एक अनुरोध रखता है। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "added": "अनुरोध कंपोज़र में जोड़ दिया गया। जब तक आप भेजें नहीं दबाते, कुछ नहीं भेजा जाता।",
+        "kept": "आपका ड्राफ़्ट जैसा था वैसा ही है। खुद जोड़ने के लिए अनुरोध कॉपी करें।",
+        "copied": "अनुरोध कॉपी हो गया। इसे अपने ड्राफ़्ट में पेस्ट करें।"
+      }
     }
   },
   "composer": {
@@ -1100,7 +1144,10 @@
       "autoHint": "एजेंट को तय करने दें",
       "settingTitle": "एजेंट के जवाब देते समय भेजें",
       "settingDescription": "किसी एक संदेश के लिए चुनने को भेजें दबाकर रखें।"
-    }
+    },
+    "replyInThread": "थ्रेड में जवाब दें…",
+    "newThreadIn": "{{room}} में नया थ्रेड…",
+    "newThreadWith": "{{name}} के साथ नया थ्रेड…"
   },
   "commandPalette": {
     "state": {
@@ -1111,6 +1158,7 @@
     "tabsLabel": "परिणाम के प्रकार",
     "switchTabs": "टैब बदलें",
     "space": "स्पेस",
+    "room": "रूम",
     "findAnything": "कुछ भी खोजें",
     "messageSearch": {
       "searching": "संदेश खोजे जा रहे हैं…",

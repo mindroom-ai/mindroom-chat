@@ -294,6 +294,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "تعذّر تحميل بعض الصور في هذه النافذة: المتصفح لا يشغّل عامل خدمة لـ MindRoom هنا."
+    },
+    "space": {
+      "overview": "نظرة عامة على المساحة"
     }
   },
   "featureUi": {
@@ -579,7 +582,9 @@
       "commandAutocomplete": {
         "failed": "فشل ⁨{{command}}⁩: ⁨{{reason}}⁩",
         "usage": "تعذّر تنفيذ ⁨{{command}}⁩. ⁨{{usage}}⁩",
-        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain."
+        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain.",
+        "thisApp": "هذا التطبيق",
+        "mindroomAgents": "وكلاء MindRoom"
       },
       "jumpToTime": {
         "unsupported": "لا يستطيع هذا الخادم البحث عن الرسائل حسب الوقت.",
@@ -808,6 +813,19 @@
         "unavailableHint": "لإدخال المفاتيح هنا، احفظ خادم MindRoom الخاص بك في الإعدادات → ⁨{{page}}⁩.",
         "replaces": "يستبدل المفتاح المحفوظ حاليًا.",
         "replaceKey": "استبدال المفتاح",
+        "newService": {
+          "title": "خدمة جديدة: ⁨{{name}}⁩",
+          "hint": "يضيف الحفظ هذه الخدمة إلى خدماتك مع المفتاح.",
+          "rule": "⁨{{location}}⁩ · ⁨{{auth}}⁩",
+          "env": "تحصل الأوامر على ⁨{{names}}⁩",
+          "auth": {
+            "bearer": "رمز حامل (bearer)",
+            "basic": "مصادقة أساسية باسم ⁨{{username}}⁩",
+            "header": "الترويسة ⁨{{name}}⁩",
+            "query": "معامل الاستعلام ⁨{{name}}⁩"
+          },
+          "unreadable": "تضيف هذه البطاقة خدمة لا يستطيع هذا الإصدار من MindRoom Chat عرضها، لذا لا يمكن حفظها هنا. حدِّث MindRoom Chat للرد عليها."
+        },
         "temporary": {
           "label": "طلب سر",
           "title": "سر لـ ⁨{{agent}}⁩",
@@ -843,7 +861,8 @@
           "nothingSent": "لم يُرسل أو يُحفظ أي شيء.",
           "noAnswer": "لم تصل إجابة في الوقت المحدد، لذا لم يُرسل أي شيء.",
           "askedAs": "طُلب لأوامر ⁨{{agent}}⁩ في هذه المحادثة باسم ⁨{{variable}}⁩.",
-          "replaced": "استبدل المفتاح المحفوظ سابقًا."
+          "replaced": "استبدل المفتاح المحفوظ سابقًا.",
+          "addedService": "أضاف الخدمة ⁨{{name}}⁩."
         }
       },
       "skillReviewMarker": {
@@ -866,6 +885,14 @@
         "removed": "أُزيل",
         "diffTruncated": "تم اقتطاع الفرق",
         "diffLabel": "الفرق في ⁨{{path}}⁩"
+      },
+      "modelChangeMarker": {
+        "set": "تم تعيين النموذج",
+        "reset": "تمت إعادة تعيين النموذج",
+        "inherited": "العودة إلى النماذج الموروثة",
+        "changedBy": "غيّره ⁨{{name}}⁩",
+        "scopeOwn": "ينطبق على الردود القادمة في هذه السلسلة من الوكلاء والفرق الذين يمكنك مخاطبتهم.",
+        "scopeOther": "ينطبق على الردود القادمة في هذه السلسلة من الوكلاء والفرق الذين يمكن لـ ⁨{{name}}⁩ مخاطبتهم."
       },
       "finishedWork": {
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",
@@ -893,7 +920,10 @@
         "nameChose": "اختار ⁨{{name}}⁩"
       },
       "mindroomReplyDetails": {
-        "subagents": "الوكلاء الفرعيون"
+        "subagents": "الوكلاء الفرعيون",
+        "writtenToCache": "مكتوبة في الذاكرة المؤقتة",
+        "notCached": "غير مخزنة مؤقتًا",
+        "conversation": "المحادثة"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
@@ -991,7 +1021,8 @@
         "resultCountFor_two": "نتيجتان (⁨{{count}}⁩) «⁨{{term}}⁩»",
         "resultCountFor_few": "⁨{{count}}⁩ نتائج «⁨{{term}}⁩»",
         "resultCountFor_many": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
-        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»"
+        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
+        "retry": "إعادة المحاولة"
       }
     },
     "notifications": {
@@ -1128,6 +1159,7 @@
       "failed": "فشل",
       "cancelled": "تم الإيقاف",
       "denied": "تم الرفض",
+      "interrupted": "تمت المقاطعة",
       "count_zero": "نشطة: ⁨{{count}}⁩",
       "count_one": "نشطة: ⁨{{count}}⁩",
       "count_two": "نشطة: ⁨{{count}}⁩",
@@ -1176,6 +1208,18 @@
       "pageUpdated": "حدّث ⁨{{agent}}⁩ هذه الصفحة.",
       "shownInPanel": "معروضة في اللوحة",
       "inlineDisclosure": "أنشأها ⁨{{agent}}⁩. لا يمكنها الوصول إلى حسابك، وقد يخرج ما تُدخله هنا من هذه الصفحة."
+    },
+    "uiActions": {
+      "canvasOff": "تمت مشاركة لوحة · اللوحات معطّلة في هذا التطبيق",
+      "askForText": "اطلب نسخة نصية",
+      "copyRequest": "انسخ الطلب",
+      "textVersionRequest": "من فضلك أرسل «⁨{{title}}⁩» هنا كنص بدلًا من ذلك. اللوحات التفاعلية معطّلة في تطبيقي.",
+      "askForTextStatus": {
+        "hint": "يضع طلبًا في مربع الكتابة. لا يُرسل شيء حتى تضغط إرسال.",
+        "added": "أُضيف الطلب إلى مربع الكتابة. لا يُرسل شيء حتى تضغط إرسال.",
+        "kept": "بقيت مسودتك كما هي. انسخ الطلب لتضيفه بنفسك.",
+        "copied": "نُسخ الطلب. الصقه في مسودتك."
+      }
     }
   },
   "composer": {
@@ -1200,7 +1244,10 @@
       "autoHint": "ترك القرار للوكيل",
       "settingTitle": "الإرسال أثناء رد وكيل",
       "settingDescription": "اضغط مطولًا على إرسال للاختيار لرسالة واحدة."
-    }
+    },
+    "replyInThread": "الرد في سلسلة المحادثة…",
+    "newThreadIn": "سلسلة محادثة جديدة في ⁨{{room}}⁩…",
+    "newThreadWith": "سلسلة محادثة جديدة مع ⁨{{name}}⁩…"
   },
   "commandPalette": {
     "state": {
@@ -1211,6 +1258,7 @@
     "tabsLabel": "أنواع النتائج",
     "switchTabs": "تبديل علامة التبويب",
     "space": "مساحة",
+    "room": "غرفة",
     "findAnything": "ابحث عن أي شيء",
     "messageSearch": {
       "searching": "جارٍ البحث في الرسائل…",

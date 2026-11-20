@@ -72,6 +72,7 @@ describe('commandPaletteSearchConfig', () => {
       ['canonicalAlias', 0.7, false],
       ['topic', 0.5, false],
       ['parentNames', 0.5, false],
+      ['tag', 0.4, false],
     ]);
     expect(shape(commandPaletteSearchConfig.users)).toEqual([
       ['displayName', 1, true],
@@ -228,6 +229,60 @@ describe('matchCommandPaletteSection rows', () => {
     expect(searchActions(items, 'settings')).toEqual([]);
     expect(searchActions(items, 'settings zoom')).toEqual(['setting:zoom']);
     expect(searchActions(items, 'theme settings')).toEqual([]);
+  });
+
+  it('tells a space from a room of the same name by the word for its kind', () => {
+    const items = [
+      room('!garden-room:example.org', 'Garden', { tag: 'Room' }),
+      room('!garden-space:example.org', 'Garden', { kind: 'space', tag: 'Space' }),
+      room('!gardening:example.org', 'Gardening', { tag: 'Room' }),
+    ];
+
+    expect(searchRooms(items, 'spa garden')).toEqual(['!garden-space:example.org']);
+    expect(searchRooms(items, 'space garden')).toEqual(['!garden-space:example.org']);
+    expect(searchRooms(items, 'room garden')).toEqual([
+      '!garden-room:example.org',
+      '!gardening:example.org',
+    ]);
+    expect(searchRooms(items, 'space')).toEqual([]);
+  });
+
+  it('puts a word a room holds above the word for its kind', () => {
+    const sprint = room('!sprint:example.org', 'Garden', {
+      tag: 'Room',
+      topic: 'Current sprint plans',
+    });
+    const space = room('!space:example.org', 'Garden', { kind: 'space', tag: 'Space' });
+    const progress = room('!progress:example.org', 'Garden Progress', { tag: 'Room' });
+    const plain = room('!plain:example.org', 'Garden', { tag: 'Room' });
+    const gardening = room('!gardening:example.org', 'Gardening', {
+      tag: 'Room',
+      topic: 'Current sprint plans',
+    });
+
+    // One or two letters of a kind are not the kind: the rows are the ones the words find.
+    expect(searchRooms([space, sprint, gardening], 'garden sp')).toEqual([
+      '!sprint:example.org',
+      '!gardening:example.org',
+    ]);
+    expect(searchRooms([plain, progress], 'garden ro')).toEqual(['!progress:example.org']);
+    // Nor is a word that is only inside it, or a typo of it.
+    expect(searchRooms([space], 'garden pace')).toEqual([]);
+    expect(searchRooms([space], 'garden spare')).toEqual([]);
+    // A kind word of one letter, such as Korean 룸, counts typed in full.
+    const korean = room('!korean:example.org', 'Garden', { tag: '룸' });
+    expect(searchRooms([korean, space], '룸 garden')).toEqual(['!korean:example.org']);
+
+    const weekly = room('!weekly:example.org', 'Garden', {
+      tag: 'Room',
+      topic: 'Weekly room schedule',
+    });
+    const [match] = matchCommandPaletteSection({
+      items: [weekly],
+      query: 'room garden',
+      config: commandPaletteSearchConfig.rooms,
+    });
+    expect(Object.keys(match?.marks ?? {}).sort()).toEqual(['name', 'topic']);
   });
 
   it('takes no initials of a thread title, which is a sentence', () => {

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { renderTimelineTiles } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 
 // A row whose render gives nothing (an event of a type the timeline draws no row for, kept in the
 // list by the developer setting `showHiddenEvents`, or one that decrypted to such a type) takes no
@@ -36,6 +37,7 @@ const messageData = {
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
   secretRequestTimeline: { hiddenEventIds: new Set<string>() },
   voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+  modelChanges: NO_MODEL_CHANGES,
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and the dividers above its row: `unread`, or the date. */

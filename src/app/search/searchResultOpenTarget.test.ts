@@ -32,6 +32,27 @@ describe('getSearchResultOpenTarget', () => {
     });
   });
 
+  it('marks a thread title notice, by its shape, as opening its thread', () => {
+    const notice = (content: Record<string, unknown>) =>
+      getSearchResultOpenTarget({
+        event_id: '$title',
+        content: {
+          msgtype: 'm.notice',
+          body: 'Launch roadmap',
+          'm.relates_to': { rel_type: RelationType.Thread, event_id: '$thread-root' },
+          ...content,
+        },
+      }).threadTitle;
+    expect(
+      notice({ 'io.mindroom.thread_summary': { version: 1, summary: 'Launch roadmap' } })
+    ).toBe(true);
+    // The same words as a plain notice or a message are no title.
+    expect(notice({})).toBeUndefined();
+    expect(
+      notice({ msgtype: 'm.text', 'io.mindroom.thread_summary': { version: 1 } })
+    ).toBeUndefined();
+  });
+
   it('keeps replacement targets and does not infer a thread root from edits', () => {
     expect(
       getSearchResultOpenTarget({

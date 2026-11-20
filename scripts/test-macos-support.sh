@@ -30,8 +30,8 @@ xcrun swiftc \
   -o "$test_directory/contract"
 "$test_directory/contract" "$bundle"
 
-# The updater bundle against the pinned Sparkle: it loads through its protocol, and an install with
-# nothing staged does nothing. Sparkle is never started.
+# The updater bundle against the pinned Sparkle: it loads through its protocol, an install with
+# nothing staged does nothing, and it cannot check before it starts. Sparkle is never started.
 "$repo_root/scripts/fetch-sparkle.sh"
 sparkle="$repo_root/ios/MacUpdater/Sparkle"
 updater="$test_directory/MindRoomMacUpdater.bundle"

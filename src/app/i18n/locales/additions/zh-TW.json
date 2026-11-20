@@ -274,6 +274,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "此視窗無法載入部分圖片：瀏覽器在此處沒有為 MindRoom 執行 Service Worker。"
+    },
+    "space": {
+      "overview": "空間概覽"
     }
   },
   "featureUi": {
@@ -534,7 +537,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失敗：{{reason}}",
         "usage": "無法執行 {{command}}。{{usage}}",
-        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。"
+        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。",
+        "thisApp": "此應用程式",
+        "mindroomAgents": "MindRoom AI 代理"
       },
       "jumpToTime": {
         "unsupported": "此伺服器無法依時間尋找訊息。",
@@ -763,6 +768,19 @@
         "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} 中儲存您的 MindRoom 伺服器。",
         "replaces": "將取代目前儲存的金鑰。",
         "replaceKey": "取代金鑰",
+        "newService": {
+          "title": "新服務：{{name}}",
+          "hint": "儲存後，此服務會連同金鑰新增到您自己的服務中。",
+          "rule": "{{location}} · {{auth}}",
+          "env": "指令取得 {{names}}",
+          "auth": {
+            "bearer": "Bearer 權杖",
+            "basic": "以 {{username}} 進行基本驗證",
+            "header": "標頭 {{name}}",
+            "query": "查詢參數 {{name}}"
+          },
+          "unreadable": "此卡片新增的服務無法在此版本的 MindRoom Chat 中顯示，因此無法在此儲存。請更新 MindRoom Chat 後再回答。"
+        },
         "temporary": {
           "label": "機密要求",
           "title": "給 {{agent}} 的機密",
@@ -798,7 +816,8 @@
           "nothingSent": "沒有傳送或保留任何內容。",
           "noAnswer": "未及時回答，因此沒有傳送任何內容。",
           "askedAs": "在此對話中為 {{agent}} 的指令以 {{variable}} 請求。",
-          "replaced": "已取代先前儲存的金鑰。"
+          "replaced": "已取代先前儲存的金鑰。",
+          "addedService": "已新增服務 {{name}}。"
         }
       },
       "skillReviewMarker": {
@@ -811,6 +830,14 @@
         "removed": "已刪除",
         "diffTruncated": "差異已截斷",
         "diffLabel": "{{path}} 的差異"
+      },
+      "modelChangeMarker": {
+        "set": "已設定模型",
+        "reset": "已重設模型",
+        "inherited": "已恢復為繼承的模型",
+        "changedBy": "變更者：{{name}}",
+        "scopeOwn": "適用於此討論串中你可以對話的代理程式和團隊日後的回覆。",
+        "scopeOther": "適用於此討論串中 {{name}} 可以對話的代理程式和團隊日後的回覆。"
       },
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
@@ -828,7 +855,10 @@
         "nameChose": "{{name}} 已選擇"
       },
       "mindroomReplyDetails": {
-        "subagents": "子代理"
+        "subagents": "子代理",
+        "writtenToCache": "寫入快取",
+        "notCached": "未快取",
+        "conversation": "對話"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}",
@@ -911,7 +941,8 @@
     "message-search": {
       "messageSearch": {
         "searchFailed": "搜尋失敗，請再試一次。",
-        "resultCountFor_other": "「{{term}}」的 {{count}} 筆結果"
+        "resultCountFor_other": "「{{term}}」的 {{count}} 筆結果",
+        "retry": "重試"
       }
     },
     "notifications": {
@@ -1013,6 +1044,7 @@
       "failed": "失敗",
       "cancelled": "已停止",
       "denied": "已拒絕",
+      "interrupted": "已中斷",
       "count_other": "{{count}} 個活躍",
       "show": "顯示子代理",
       "hide": "隱藏子代理",
@@ -1051,6 +1083,18 @@
       "pageUpdated": "{{agent}} 更新了此頁面。",
       "shownInPanel": "已在面板中顯示",
       "inlineDisclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此頁面。"
+    },
+    "uiActions": {
+      "canvasOff": "已分享面板 · 此應用程式已關閉面板",
+      "askForText": "請求文字版本",
+      "copyRequest": "複製請求",
+      "textVersionRequest": "請改為在這裡以文字形式傳送「{{title}}」。我的應用程式已關閉互動式面板。",
+      "askForTextStatus": {
+        "hint": "在輸入框中放入一則請求。按下傳送之前不會傳送任何內容。",
+        "added": "請求已放入輸入框。按下傳送之前不會傳送任何內容。",
+        "kept": "您的草稿保持原樣。複製請求後自行加入。",
+        "copied": "請求已複製。請貼到您的草稿中。"
+      }
     }
   },
   "composer": {
@@ -1075,7 +1119,10 @@
       "autoHint": "讓代理程式決定",
       "settingTitle": "代理程式正在回覆時傳送",
       "settingDescription": "長按傳送可為單則訊息另選方式。"
-    }
+    },
+    "replyInThread": "在討論串中回覆…",
+    "newThreadIn": "在 {{room}} 中建立新討論串…",
+    "newThreadWith": "與 {{name}} 建立新討論串…"
   },
   "commandPalette": {
     "state": {
@@ -1086,6 +1133,7 @@
     "tabsLabel": "結果類型",
     "switchTabs": "切換分頁",
     "space": "空間",
+    "room": "聊天室",
     "findAnything": "尋找任何內容",
     "messageSearch": {
       "searching": "正在搜尋訊息…",

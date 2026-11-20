@@ -287,12 +287,10 @@ describe('QuestionCard', () => {
   });
 
   it('shows one card where the real question is when the reply folds its work', () => {
-    const example = `<p>For example:</p>\n${QUESTION_HTML}\n<p>Step one.</p>\n<p>Step two.</p>`;
+    const example = `<p>For example:</p>\n${QUESTION_HTML}`;
     const html = `${example}\n<p>🔧 <code>read_file</code> [1]</p>\n<p>Now:</p>\n${QUESTION_HTML}`;
     render({
       ...questionContent(html),
-      // Enough work to fold (`foldFinishedWork`): 7 lines and the cog of its hidden call.
-      body: `Which color?${'\nPlaceholder line.'.repeat(8)}`,
       'io.mindroom.tool_trace': {
         version: 2,
         events: [{ type: 'tool_call_completed', tool_name: 'read_file' }],

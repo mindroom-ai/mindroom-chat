@@ -1,7 +1,9 @@
 {
   "messageTable": {
     "label": "스크롤 가능한 표",
-    "scrollHint": "가로로 스크롤"
+    "scrollHint": "가로로 스크롤",
+    "readByRow": "행별로 읽기",
+    "showTable": "표 보기"
   },
   "messageCodeBlock": {
     "actions": "코드 블록 작업",
@@ -1155,7 +1157,6 @@
       "thisSpaceHasBeenReplacedAndIsNoLongerActive": "이 스페이스는 교체되어 더 이상 활성 상태가 아닙니다.",
       "openNewSpace": "새 스페이스 열기",
       "joinNewSpace": "새 스페이스 참여",
-      "lobby": "로비",
       "messageSearch": "메시지 검색",
       "failedToJoinReplacementSpace": "대체 스페이스에 참여하지 못했습니다!",
       "rooms": "방",
@@ -2917,7 +2918,9 @@
       "computerUnavailable": "이 에이전트의 컴퓨터를 사용할 수 없습니다.",
       "releaseControl": "다른 화면을 열기 전에 컴퓨터 제어를 해제하세요.",
       "openConversation": "방 대화에서 이 요청을 여세요.",
-      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요."
+      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요.",
+      "canvasCard": "대화형 패널",
+      "reminderCard": "리마인더 · {{when}}"
     },
     "canvas": {
       "panelLabel": "대화형 패널",

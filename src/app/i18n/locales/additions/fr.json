@@ -282,6 +282,9 @@
     },
     "syncStatus": {
       "mediaUnavailable": "Certaines images ne peuvent pas se charger dans cette fenêtre : le navigateur n'exécute ici aucun service worker pour MindRoom."
+    },
+    "space": {
+      "overview": "Vue d'ensemble de l'espace"
     }
   },
   "featureUi": {
@@ -552,7 +555,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} a échoué : {{reason}}",
         "usage": "Impossible d’exécuter {{command}}. {{usage}}",
-        "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain."
+        "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain.",
+        "thisApp": "Cette app",
+        "mindroomAgents": "Agents MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Ce serveur ne peut pas rechercher les messages par date.",
@@ -781,6 +786,19 @@
         "unavailableHint": "Pour saisir des clés ici, enregistrez votre serveur MindRoom dans Paramètres → {{page}}.",
         "replaces": "Remplace la clé enregistrée actuellement.",
         "replaceKey": "Remplacer la clé",
+        "newService": {
+          "title": "Nouveau service : {{name}}",
+          "hint": "L’enregistrement ajoute ce service aux vôtres, avec la clé.",
+          "rule": "{{location}} · {{auth}}",
+          "env": "Les commandes reçoivent {{names}}",
+          "auth": {
+            "bearer": "jeton bearer",
+            "basic": "authentification basique en tant que {{username}}",
+            "header": "en-tête {{name}}",
+            "query": "paramètre de requête {{name}}"
+          },
+          "unreadable": "Cette carte ajoute un service que cette version de MindRoom Chat ne peut pas afficher, elle ne peut donc pas être enregistrée ici. Mettez à jour MindRoom Chat pour y répondre."
+        },
         "temporary": {
           "label": "Demande de secret",
           "title": "Secret pour {{agent}}",
@@ -816,7 +834,8 @@
           "nothingSent": "Rien n'a été envoyé ni conservé.",
           "noAnswer": "Pas de réponse à temps, donc rien n'a été envoyé.",
           "askedAs": "Demandé pour les commandes de {{agent}} dans cette conversation sous le nom {{variable}}.",
-          "replaced": "A remplacé la clé enregistrée auparavant."
+          "replaced": "A remplacé la clé enregistrée auparavant.",
+          "addedService": "A ajouté le service {{name}}."
         }
       },
       "skillReviewMarker": {
@@ -833,6 +852,14 @@
         "removed": "supprimé",
         "diffTruncated": "Diff tronqué",
         "diffLabel": "Diff de {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Modèle défini",
+        "reset": "Modèle réinitialisé",
+        "inherited": "Retour aux modèles hérités",
+        "changedBy": "Modifié par {{name}}",
+        "scopeOwn": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels vous pouvez vous adresser.",
+        "scopeOther": "S’applique aux prochaines réponses dans ce fil des agents et équipes auxquels {{name}} peut s’adresser."
       },
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
@@ -854,7 +881,10 @@
         "nameChose": "Choix de {{name}}"
       },
       "mindroomReplyDetails": {
-        "subagents": "Sous-agents"
+        "subagents": "Sous-agents",
+        "writtenToCache": "Écrits dans le cache",
+        "notCached": "Hors cache",
+        "conversation": "Conversation"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En cours depuis {{duration}}",
@@ -943,7 +973,8 @@
         "searchFailed": "La recherche a échoué. Réessayez.",
         "resultCountFor_one": "{{count}} résultat pour « {{term}} »",
         "resultCountFor_many": "{{count}} de résultats pour « {{term}} »",
-        "resultCountFor_other": "{{count}} résultats pour « {{term}} »"
+        "resultCountFor_other": "{{count}} résultats pour « {{term}} »",
+        "retry": "Réessayer"
       }
     },
     "notifications": {
@@ -1059,6 +1090,7 @@
       "failed": "Échec",
       "cancelled": "Arrêté",
       "denied": "Refusé",
+      "interrupted": "Interrompu",
       "count_one": "{{count}} actif",
       "count_many": "{{count}} actifs",
       "count_other": "{{count}} actifs",
@@ -1101,6 +1133,18 @@
       "pageUpdated": "{{agent}} a mis à jour cette page.",
       "shownInPanel": "Affichée dans le panneau",
       "inlineDisclosure": "Créée par {{agent}}. Elle n’a pas accès à votre compte ; ce que vous saisissez ici peut quitter cette page."
+    },
+    "uiActions": {
+      "canvasOff": "Panneau partagé · les panneaux sont désactivés dans cette app",
+      "askForText": "Demander une version texte",
+      "copyRequest": "Copier la demande",
+      "textVersionRequest": "Merci d’envoyer « {{title}} » ici sous forme de texte. Les panneaux interactifs sont désactivés dans mon app.",
+      "askForTextStatus": {
+        "hint": "Place une demande dans la zone de saisie. Rien n’est envoyé tant que vous n’appuyez pas sur Envoyer.",
+        "added": "Demande ajoutée à la zone de saisie. Rien n’est envoyé tant que vous n’appuyez pas sur Envoyer.",
+        "kept": "Votre brouillon reste tel quel. Copiez la demande pour l’ajouter vous-même.",
+        "copied": "Demande copiée. Collez-la dans votre brouillon."
+      }
     }
   },
   "composer": {
@@ -1125,7 +1169,10 @@
       "autoHint": "Laisser l'agent décider",
       "settingTitle": "Envoyer pendant la réponse d'un agent",
       "settingDescription": "Maintenez Envoyer pour choisir pour un seul message."
-    }
+    },
+    "replyInThread": "Répondre dans le fil…",
+    "newThreadIn": "Nouveau fil dans {{room}}…",
+    "newThreadWith": "Nouveau fil avec {{name}}…"
   },
   "commandPalette": {
     "state": {
@@ -1136,6 +1183,7 @@
     "tabsLabel": "Types de résultats",
     "switchTabs": "Changer d'onglet",
     "space": "Espace",
+    "room": "Salon",
     "findAnything": "Tout rechercher",
     "messageSearch": {
       "searching": "Recherche des messages…",

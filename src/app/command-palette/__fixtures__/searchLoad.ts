@@ -131,6 +131,7 @@ export const makeLoadRooms = (count: number): CommandPaletteRoomItem[] => {
       canonicalAlias: `#${words.join('-')}-${index}:example.org`,
       topic: Array.from({ length: 6 }, () => pick(WORDS, next)).join(' '),
       parentNames: [capitalize(pick(WORDS, next))],
+      tag: 'Room',
       sortRank: count - index,
       boost: next(4) === 0 ? 15 : 0,
     };

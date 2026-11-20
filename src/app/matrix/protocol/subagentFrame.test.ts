@@ -92,6 +92,16 @@ describe('sub-agent frames', () => {
     expect(parseSubagentFrame(frame({}))?.meta).not.toHaveProperty('model');
   });
 
+  it("keeps the run's title, and has none for a missing, empty or malformed one", () => {
+    const titled = frame({ meta: { ...meta, title: 'Measure cold start' } });
+    expect(parseSubagentFrame(titled)?.meta.title).toBe('Measure cold start');
+    [undefined, '', 3].forEach((title) =>
+      expect(parseSubagentFrame(frame({ meta: { ...meta, title } }))?.meta).not.toHaveProperty(
+        'title'
+      )
+    );
+  });
+
   it.each([
     ['a string', 'opus'],
     ['a number', 3],
@@ -137,6 +147,17 @@ describe('sub-agent frames', () => {
       'first'
     );
     expect(parseSubagentFrame(frame({ meta: { ...meta, subagent: 7 } }))).toBeNull();
+  });
+
+  it('marks only a turn MindRoom says a restart cut short', () => {
+    const ended = { ...meta, status: 'failed', ended_at: 1762790005 };
+    expect(
+      parseSubagentFrame(frame({ meta: { ...ended, interrupted_by_restart: true } }))?.meta
+        .interruptedByRestart
+    ).toBe(true);
+    expect(parseSubagentFrame(frame({ meta: ended }))?.meta).not.toHaveProperty(
+      'interruptedByRestart'
+    );
   });
 
   it('treats a null result as absent and keeps a text result', () => {
