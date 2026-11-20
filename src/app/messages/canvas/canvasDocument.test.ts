@@ -845,13 +845,11 @@ describe('inline canvas sizing', () => {
     }
   );
 
-  it('reports the size of inline pages only, on resize, DOM changes, transitions, loads and control changes', () => {
+  it('reports the size of inline pages only, on resize, DOM changes, transitions and loads', () => {
     const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, { inline: true });
     expect(page).toContain('new ResizeObserver(queueSize).observe(document.body)');
     expect(page).toContain('new MutationObserver(queueSize).observe(document.body');
-    expect(page).toContain(
-      "['transitionend', 'animationend', 'load', 'change', 'input', 'toggle']"
-    );
+    expect(page).toContain("['transitionend', 'animationend', 'load']");
     expect(page).toContain("addEventListener('load', reportSize)");
     expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
     expect(buildCanvasPage('<p>hi</p>', 'light')).not.toContain(CANVAS_SIZE_MESSAGE);
@@ -867,18 +865,14 @@ describe('inline canvas sizing', () => {
     );
   });
 
-  it('hides the root overflow of fitted inline pages only, letting wide ones scroll sideways', () => {
-    const page = (display?: CanvasDisplay) =>
-      buildCanvasPage('', 'light', undefined, false, {}, display);
-    const fitted = [
-      '@layer{body{overflow:hidden}',
-      "root.toggleAttribute('data-mr-wide'",
-      "addEventListener('resize', queueSize)",
-    ];
-    for (const part of fitted) expect(page({ inline: true })).toContain(part);
+  it('stops only fitted inline frames from scrolling, so the wheel reaches the thread', () => {
+    const noScroll = "frame.setAttribute('scrolling', 'no');";
+    const doc = (display: CanvasDisplay) =>
+      buildCanvasDocument('', 'light', undefined, '', false, {}, display);
+    expect(doc({ inline: true })).toContain(noScroll);
     // Previews scroll inside their window, and the panel scrolls its page.
     for (const display of [{ inline: true, width: 1280 }, { inline: true, raw: true }, {}])
-      for (const part of fitted) expect(page(display)).not.toContain(part);
+      expect(doc(display)).not.toContain(noScroll);
   });
 
   it('shows raw pages exactly as written: no theme, base style, or color scheme from Chat', () => {
