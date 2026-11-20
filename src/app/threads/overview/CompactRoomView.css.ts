@@ -300,9 +300,10 @@ export const TimeTextUnread = style({
 });
 
 // On a tinted card MainActive can fall under 4.5:1 (4.4:1 on the orange theme's amber, 4.2:1 on
-// its green); MainLine, a step further from the tints, keeps it in every theme.
+// its green), and MainLine under it once the card is hovered (4.1:1 there); MainLine with a
+// quarter of OnContainer keeps 4.7:1 or more on the tints, hovered too, in every theme.
 globalStyle(`${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}`, {
-  color: color.Primary.MainLine,
+  color: `color-mix(in srgb, ${color.Primary.MainLine} 75%, ${color.Primary.OnContainer})`,
 });
 
 export const MessagePreview = style({
