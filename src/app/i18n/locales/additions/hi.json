@@ -1148,7 +1148,7 @@
       "costNested": "+{{cost}} नेस्टेड",
       "costOwn": "यह रन",
       "showUsageDetails": "उपयोग का विवरण दिखाएँ",
-      "showUsageDetailsDescription": "सहायकों और बैकग्राउंड जॉब पर टूल कॉल, टोकन, लागत और मॉडल दिखाता है।",
+      "showUsageDetailsDescription": "सहायकों और बैकग्राउंड जॉब पर टूल कॉल, टोकन और लागत दिखाता है, और हर एक अभी क्या कर रहा है।",
       "usage": "उपयोग"
     },
     "models": {

@@ -1148,7 +1148,7 @@
       "costNested": "+{{cost}} নেস্টেড",
       "costOwn": "এই রান",
       "showUsageDetails": "ব্যবহারের বিস্তারিত দেখান",
-      "showUsageDetailsDescription": "সহকারী ও ব্যাকগ্রাউন্ড কাজে টুল কল, টোকেন, খরচ এবং মডেল দেখায়।",
+      "showUsageDetailsDescription": "সহকারী ও ব্যাকগ্রাউন্ড কাজে টুল কল, টোকেন ও খরচ দেখায়, আর প্রত্যেকটি এখন কী করছে।",
       "usage": "ব্যবহার"
     },
     "models": {

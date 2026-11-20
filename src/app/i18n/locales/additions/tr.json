@@ -1148,7 +1148,7 @@
       "costNested": "+{{cost}} iç içe",
       "costOwn": "bu çalıştırma",
       "showUsageDetails": "Kullanım ayrıntılarını göster",
-      "showUsageDetailsDescription": "Yardımcılarda ve arka plan işlerinde araç çağrılarını, tokenleri, maliyeti ve modeli gösterir.",
+      "showUsageDetailsDescription": "Yardımcılarda ve arka plan işlerinde araç çağrılarını, tokenleri ve maliyeti, ayrıca her birinin şu an ne yaptığını gösterir.",
       "usage": "Kullanım"
     },
     "models": {

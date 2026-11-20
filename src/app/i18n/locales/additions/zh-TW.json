@@ -1117,7 +1117,7 @@
       "costNested": "+{{cost}} 巢狀",
       "costOwn": "本次執行",
       "showUsageDetails": "顯示用量詳情",
-      "showUsageDetailsDescription": "在助手和背景工作上顯示工具呼叫、權杖、費用和模型。",
+      "showUsageDetailsDescription": "在助手和背景工作上顯示工具呼叫、權杖和費用，以及每個工作目前在做什麼。",
       "usage": "用量"
     },
     "models": {

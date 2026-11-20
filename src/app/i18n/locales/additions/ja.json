@@ -1117,7 +1117,7 @@
       "costNested": "+{{cost}} (ネスト)",
       "costOwn": "この実行",
       "showUsageDetails": "使用量の詳細を表示",
-      "showUsageDetailsDescription": "ヘルパーとバックグラウンドジョブに、ツール呼び出し、トークン、コスト、モデルを表示します。",
+      "showUsageDetailsDescription": "ヘルパーとバックグラウンドジョブに、ツール呼び出し、トークン、コストと、それぞれが今していることを表示します。",
       "usage": "使用量"
     },
     "models": {

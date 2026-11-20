@@ -1117,7 +1117,7 @@
       "costNested": "+{{cost}} 중첩",
       "costOwn": "이 실행",
       "showUsageDetails": "사용량 세부 정보 표시",
-      "showUsageDetailsDescription": "도우미와 백그라운드 작업에 도구 호출, 토큰, 비용, 모델을 표시합니다.",
+      "showUsageDetailsDescription": "도우미와 백그라운드 작업에 도구 호출, 토큰, 비용과 각각 지금 하는 일을 표시합니다.",
       "usage": "사용량"
     },
     "models": {

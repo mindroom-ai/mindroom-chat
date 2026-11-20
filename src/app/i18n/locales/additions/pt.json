@@ -1179,7 +1179,7 @@
       "costNested": "+{{cost}} aninhados",
       "costOwn": "esta execução",
       "showUsageDetails": "Mostrar detalhes de utilização",
-      "showUsageDetailsDescription": "Mostra as chamadas de ferramentas, os tokens, o custo e o modelo dos assistentes e das tarefas em segundo plano.",
+      "showUsageDetailsDescription": "Mostra as chamadas de ferramentas, os tokens e o custo dos assistentes e das tarefas em segundo plano, e o que cada um faz agora.",
       "usage": "Utilização"
     },
     "models": {

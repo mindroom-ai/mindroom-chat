@@ -1148,7 +1148,7 @@
       "costNested": "+{{cost}} verschachtelt",
       "costOwn": "dieser Lauf",
       "showUsageDetails": "Nutzungsdetails anzeigen",
-      "showUsageDetailsDescription": "Zeigt Tool-Aufrufe, Tokens, Kosten und das Modell bei Helfern und Hintergrundaufgaben.",
+      "showUsageDetailsDescription": "Zeigt Tool-Aufrufe, Tokens und Kosten bei Helfern und Hintergrundaufgaben und was jeweils gerade passiert.",
       "usage": "Nutzung"
     },
     "models": {

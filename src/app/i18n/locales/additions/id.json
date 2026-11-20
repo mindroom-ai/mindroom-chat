@@ -1117,7 +1117,7 @@
       "costNested": "+{{cost}} bertingkat",
       "costOwn": "proses ini",
       "showUsageDetails": "Tampilkan detail penggunaan",
-      "showUsageDetailsDescription": "Menampilkan panggilan alat, token, biaya, dan model pada asisten dan tugas latar belakang.",
+      "showUsageDetailsDescription": "Menampilkan panggilan alat, token, dan biaya pada asisten dan tugas latar belakang, serta apa yang sedang dikerjakan masing-masing.",
       "usage": "Penggunaan"
     },
     "models": {

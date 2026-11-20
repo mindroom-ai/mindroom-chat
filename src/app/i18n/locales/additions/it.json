@@ -1179,7 +1179,7 @@
       "costNested": "+{{cost}} annidati",
       "costOwn": "questa esecuzione",
       "showUsageDetails": "Mostra dettagli di utilizzo",
-      "showUsageDetailsDescription": "Mostra chiamate a strumenti, token, costo e modello di assistenti e attività in background.",
+      "showUsageDetailsDescription": "Mostra chiamate a strumenti, token e costo di assistenti e attività in background, e cosa sta facendo ognuno ora.",
       "usage": "Utilizzo"
     },
     "models": {

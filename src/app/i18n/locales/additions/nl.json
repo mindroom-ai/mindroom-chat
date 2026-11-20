@@ -1148,7 +1148,7 @@
       "costNested": "+{{cost}} genest",
       "costOwn": "deze run",
       "showUsageDetails": "Gebruiksdetails tonen",
-      "showUsageDetailsDescription": "Toont toolaanroepen, tokens, kosten en het model bij helpers en achtergrondtaken.",
+      "showUsageDetailsDescription": "Toont toolaanroepen, tokens en kosten bij helpers en achtergrondtaken, en wat elk nu doet.",
       "usage": "Gebruik"
     },
     "models": {

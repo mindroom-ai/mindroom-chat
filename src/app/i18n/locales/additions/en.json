@@ -1148,7 +1148,7 @@
       "costNested": "+{{cost}} nested",
       "costOwn": "this run",
       "showUsageDetails": "Show usage details",
-      "showUsageDetailsDescription": "Show tool calls, tokens, cost and the model on helpers and background jobs.",
+      "showUsageDetailsDescription": "Show tool calls, tokens and cost on helpers and background jobs, and what each is doing now.",
       "usage": "Usage"
     },
     "models": {
