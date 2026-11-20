@@ -279,8 +279,9 @@ export function ThreadActionsMenu({
   }, [anchor, dialog, details, tagsInMenu]);
 
   const tagSectionRef = useRef<HTMLDivElement>(null);
-  // The tag whose focused ✕ was pressed, and its place among the tags.
-  const removedFocusRef = useRef<{ tag: string; index: number }>();
+  // The tag whose focused ✕ was pressed, its place among the tags, and where the focus went once
+  // the tag was gone, until its save is done.
+  const removedFocusRef = useRef<{ tag: string; index: number; fallback?: HTMLElement }>();
   const writeTag = (write: () => Promise<void>) => {
     setTagWrite(true);
     void write().finally(() => setTagWrite(false));
@@ -298,18 +299,30 @@ export function ThreadActionsMenu({
     writeTag(() => mutations.removeTag(rootId, tagName));
   };
 
-  // Once a tag removed with its focused ✕ is gone, the focus goes to the next tag's ✕, else the
-  // previous one's, else the tag picker (once it takes it again), else the menu's first row. A
-  // removal that fails leaves the tag, whose ✕ keeps the focus.
+  // Once a tag removed with its focused ✕ is gone (shown at once, before its save is done), the
+  // focus goes to the next tag's ✕, else the previous one's, else the tag picker, else (the picker
+  // waits for the save) the menu's first row. A removal that fails brings the tag back, and its ✕
+  // the focus, unless the user has moved it on.
   useLayoutEffect(() => {
     const removed = removedFocusRef.current;
     const section = tagSectionRef.current;
     if (!removed || !section) return;
+    const focused = section.ownerDocument.activeElement;
     if (tags.displayTags.includes(removed.tag)) {
+      if (removed.fallback && focused === removed.fallback) {
+        Array.from(section.querySelectorAll<HTMLElement>('.thread-tag-pill'))
+          .find((pill) => pill.getAttribute('title') === removed.tag)
+          ?.querySelector<HTMLElement>('.thread-tag-pill-remove')
+          ?.focus();
+        removed.fallback = undefined;
+      }
       if (!tagsUpdating) removedFocusRef.current = undefined;
       return;
     }
-    const focused = section.ownerDocument.activeElement;
+    if (removed.fallback) {
+      if (!tagsUpdating) removedFocusRef.current = undefined;
+      return;
+    }
     if (focused && focused !== section.ownerDocument.body && !section.contains(focused)) {
       // The focus has moved on in the meantime.
       removedFocusRef.current = undefined;
@@ -318,12 +331,13 @@ export function ThreadActionsMenu({
     const removes = Array.from(section.querySelectorAll<HTMLElement>('.thread-tag-pill-remove'));
     const picker = section.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]');
     const target =
-      removes[removed.index] ?? removes[removed.index - 1] ?? (picker?.disabled ? null : picker);
-    if (!target && picker?.disabled) return;
-    removedFocusRef.current = undefined;
-    (
-      target ?? surfaceRef.current?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')
-    )?.focus();
+      removes[removed.index] ??
+      removes[removed.index - 1] ??
+      (picker && !picker.disabled ? picker : null) ??
+      surfaceRef.current?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)');
+    target?.focus();
+    if (tagsUpdating && target) removed.fallback = target;
+    else removedFocusRef.current = undefined;
   }, [tags.displayTags, tagsUpdating]);
 
   // The thread's tags, removable and with the tag picker for an editor; a save shows its failure
