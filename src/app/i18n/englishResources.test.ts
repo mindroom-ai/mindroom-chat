@@ -55,6 +55,7 @@ describe('English overlay (locales/additions/en.json)', () => {
     expect(copyFiles.targets).toContainEqual({
       src: 'src/app/i18n/locales/*.json',
       dest: 'public/locales',
+      rename: { stripBase: true },
     });
   });
 

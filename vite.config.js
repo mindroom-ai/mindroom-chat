@@ -68,20 +68,25 @@ const speechModelFiles = () => ({
 /**
  * Files copied verbatim into the build output (and served by the dev server).
  * Tests import this object to assert what ships, so keep it a plain
- * `{ targets }` value rather than a plugin instance.
+ * `{ targets }` value rather than a plugin instance. vite-plugin-static-copy keeps a file's
+ * directories under `dest` unless `stripBase` drops them.
  */
 export const copyFiles = {
   targets: [
     // The MindRoom defaults are served as the runtime client config.
-    { src: 'config/mindroom.json', dest: '', rename: 'config.json' },
+    { src: 'config/mindroom.json', dest: '', rename: { stripBase: true, name: 'config.json' } },
     // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n/i18n.ts).
     // English ships in the bundle, with its overlay in src/app/i18n/locales/additions/en.json; the other
     // languages' overlays in that directory load as chunks (src/app/i18n/localeAdditions.ts).
-    { src: 'src/app/i18n/locales/*.json', dest: 'public/locales' },
+    { src: 'src/app/i18n/locales/*.json', dest: 'public/locales', rename: { stripBase: true } },
     // License texts and notices for the bundled code (NOTICE: noVNC source, fonts, native templates,
     // earlier MindRoom work); thirdPartyNoticesPlugin adds the npm dependencies' THIRD_PARTY_NOTICES.txt.
     // Under public/, so the service worker never answers them with the app shell.
-    { src: ['LICENSE', 'NOTICE', 'licenses/*'], dest: 'public/licenses' },
+    {
+      src: ['LICENSE', 'NOTICE', 'licenses/*'],
+      dest: 'public/licenses',
+      rename: { stripBase: true },
+    },
   ],
 };
 
