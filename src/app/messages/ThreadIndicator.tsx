@@ -30,6 +30,7 @@ type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'>
   threadReplyCount?: number;
   threadParticipantIds?: string[];
   isResolved?: boolean;
+  threadTitle?: string;
   /** Set while the thread is unread: the chip takes the accent and reads "New". */
   unread?: ThreadIndicatorUnread;
 };
@@ -84,6 +85,7 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
       timelineSet,
       isResolved,
       unread,
+      threadTitle,
       room,
       className,
       as: tag = 'div',
@@ -115,43 +117,63 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
       ref,
       className: classNames(
         css.ThreadIndicator,
+        threadTitle && css.ThreadIndicatorTitled,
         isResolved ? css.ThreadIndicatorResolved : undefined,
         unread ? css.ThreadIndicatorUnread : undefined,
         className
       ),
     };
 
+    const metadata = (
+      <>
+        <Text as="span" className={css.ThreadIndicatorLabel} size="L400">
+          {label}
+        </Text>
+        {participants.length > 0 && (
+          <span className={css.ThreadParticipants} aria-hidden="true">
+            {participants.map((userId) => (
+              <ParticipantAvatar key={userId} room={room} userId={userId} />
+            ))}
+          </span>
+        )}
+        {unread?.mentionsMe && (
+          <Badge
+            className={css.ThreadMentionPill}
+            variant="Primary"
+            fill="Solid"
+            radii="Pill"
+            size="200"
+            role="img"
+            aria-label={t('thread.mentionsYou')}
+          >
+            <Text as="span" size="L400" aria-hidden="true">
+              @
+            </Text>
+          </Badge>
+        )}
+        {isResolved && (
+          <Icon
+            size="50"
+            src={Icons.Check}
+            aria-label={t('thread.aria.resolvedThread')}
+            role="img"
+          />
+        )}
+      </>
+    );
     return React.createElement(
       tag,
       ownProps,
       <Icon size="50" src={Icons.Thread} {...iconLabel} />,
-      <Text as="span" className={css.ThreadIndicatorLabel} size="L400">
-        {label}
-      </Text>,
-      participants.length > 0 && (
-        <span className={css.ThreadParticipants} aria-hidden="true">
-          {participants.map((userId) => (
-            <ParticipantAvatar key={userId} room={room} userId={userId} />
-          ))}
+      threadTitle ? (
+        <span className={css.ThreadIndicatorBody}>
+          <span className={css.ThreadIndicatorTitle} dir="auto">
+            {threadTitle}
+          </span>{' '}
+          <span className={css.ThreadIndicatorMetadata}>{metadata}</span>
         </span>
-      ),
-      unread?.mentionsMe && (
-        <Badge
-          className={css.ThreadMentionPill}
-          variant="Primary"
-          fill="Solid"
-          radii="Pill"
-          size="200"
-          role="img"
-          aria-label={t('thread.mentionsYou')}
-        >
-          <Text as="span" size="L400" aria-hidden="true">
-            @
-          </Text>
-        </Badge>
-      ),
-      isResolved && (
-        <Icon size="50" src={Icons.Check} aria-label={t('thread.aria.resolvedThread')} role="img" />
+      ) : (
+        metadata
       )
     );
   }

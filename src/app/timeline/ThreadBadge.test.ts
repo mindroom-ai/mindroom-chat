@@ -9,10 +9,6 @@ vi.mock('../messages/ThreadIndicator', () => ({
   ThreadIndicator: 'thread-indicator',
 }));
 
-vi.mock('../messages/thread-summary/ThreadSummaryCard', () => ({
-  ThreadSummaryCard: 'mindroom-thread-summary-card',
-}));
-
 const findElementInNode = (
   node: ReactNode,
   predicate: (element: ReactElement) => boolean
@@ -77,7 +73,7 @@ describe('ThreadBadge', () => {
     ).toBeNull();
   });
 
-  it('renders the summary card and thread indicator from the badge model', () => {
+  it('passes the summary to the thread indicator seam', () => {
     const model: ThreadBadgeViewModel = {
       id: {
         roomId: '!room:example.org',
@@ -101,16 +97,12 @@ describe('ThreadBadge', () => {
       onClick: vi.fn(),
       includeRecentSummaryData: true,
     });
-    const summaryCard = findElementInNode(
-      rendered,
-      (element) => element.props.summaryInfo === model.summaryInfo
-    );
     const threadIndicator = findElementInNode(
       rendered,
       (element) => element.props.threadRootId === '$root'
     );
 
-    expect(summaryCard).toBeDefined();
+    expect(threadIndicator?.props.summaryInfo).toBe(model.summaryInfo);
     expect(threadIndicator).toBeDefined();
     expect(threadIndicator?.props.threadReplyCount).toBe(4);
     expect(threadIndicator?.props.threadParticipantIds).toEqual(['@alice:example.org']);

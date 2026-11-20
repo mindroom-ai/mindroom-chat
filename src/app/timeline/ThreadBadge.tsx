@@ -1,10 +1,16 @@
-import React, { useMemo, type ComponentPropsWithoutRef, type MouseEventHandler } from 'react';
+import React, {
+  useId,
+  useMemo,
+  type ComponentPropsWithoutRef,
+  type MouseEventHandler,
+} from 'react';
+import { useTranslation } from 'react-i18next';
 import { atom, useAtomValue } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { Box, config } from 'folds';
+import { config, Text, Tooltip, TooltipProvider } from 'folds';
 import { ThreadIndicator, type ThreadIndicatorUnread } from '../messages/ThreadIndicator';
-import { ThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { buildThreadBadgeViewModelFromRecord } from '../threads/threadBadgeViewModel';
 import {
   crossRoomThreadIndexAtom,
@@ -51,12 +57,53 @@ type TimelineThreadIndicatorProps = Omit<
   threadRootId: string;
   /** The record's unread state, as the sidebar reads it; the signals only add a mention. */
   isUnread: boolean;
+  summaryInfo?: ThreadSummaryInfo;
 };
 
 /** The timeline's thread chip, which reads "New" while the thread is unread. */
-function TimelineThreadIndicator({ isUnread, ...props }: TimelineThreadIndicatorProps) {
+function TimelineThreadIndicator({
+  isUnread,
+  summaryInfo,
+  ...props
+}: TimelineThreadIndicatorProps) {
   const unread = useThreadUnread(props.room, props.threadRootId, isUnread);
-  return <ThreadIndicator {...props} unread={unread} />;
+  const { t } = useTranslation();
+  const descriptionId = useId();
+  if (!summaryInfo?.summaryText?.trim()) return <ThreadIndicator {...props} unread={unread} />;
+
+  const { isManual, messageCount, summaryText } = summaryInfo;
+  let description = t('sharedUi.threadSummary.provenance');
+  if (isManual) description = t('sharedUi.threadSummary.manual');
+  else if (typeof messageCount === 'number' && messageCount > 0) {
+    description = t('sharedUi.threadSummary.provenanceCount', { count: messageCount });
+  }
+
+  return (
+    <>
+      <span id={descriptionId} hidden>
+        {description}
+      </span>
+      <TooltipProvider
+        position="Top"
+        offset={4}
+        tooltip={
+          <Tooltip>
+            <Text size="T300">{description}</Text>
+          </Tooltip>
+        }
+      >
+        {(triggerRef) => (
+          <ThreadIndicator
+            {...props}
+            ref={triggerRef}
+            unread={unread}
+            threadTitle={revealDirectionControls(summaryText)}
+            aria-describedby={descriptionId}
+          />
+        )}
+      </TooltipProvider>
+    </>
+  );
 }
 
 type ThreadBadgeProps = {
@@ -77,31 +124,21 @@ export const ThreadBadge = ({
   const { threadRootId } = model.id;
 
   return (
-    <>
-      {model.summaryInfo && (
-        <Box style={{ marginTop: config.space.S200 }}>
-          <ThreadSummaryCard
-            compact
-            summaryInfo={model.summaryInfo}
-            renderBody={({ body }) => <>{revealDirectionControls(body)}</>}
-          />
-        </Box>
-      )}
-      <TimelineThreadIndicator
-        as="button"
-        style={{ marginTop: model.summaryInfo ? config.space.S100 : config.space.S200 }}
-        data-thread-root-id={threadRootId}
-        data-event-id={threadRootId}
-        data-thread-summary={includeRecentSummaryData ? model.recentThreadSummaryText : undefined}
-        threadReplyCount={model.replyCount}
-        threadParticipantIds={model.participantIds}
-        isResolved={model.isResolved}
-        isUnread={model.isUnread}
-        threadRootId={threadRootId}
-        room={room}
-        onClick={onClick}
-      />
-    </>
+    <TimelineThreadIndicator
+      as="button"
+      style={{ marginTop: config.space.S200 }}
+      summaryInfo={model.summaryInfo}
+      data-thread-root-id={threadRootId}
+      data-event-id={threadRootId}
+      data-thread-summary={includeRecentSummaryData ? model.recentThreadSummaryText : undefined}
+      threadReplyCount={model.replyCount}
+      threadParticipantIds={model.participantIds}
+      isResolved={model.isResolved}
+      isUnread={model.isUnread}
+      threadRootId={threadRootId}
+      room={room}
+      onClick={onClick}
+    />
   );
 };
 
