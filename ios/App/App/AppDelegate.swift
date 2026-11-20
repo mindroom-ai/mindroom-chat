@@ -1,8 +1,26 @@
 import UIKit
 import Capacitor
 
-@UIApplicationMain
+@main
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    static func main() {
+#if targetEnvironment(macCatalyst)
+        // With a mouse attached (or "Show scroll bars: Always"), Catalyst draws a scroll bar on
+        // every web scroller and ignores the page's `scrollbar-width: none`, which keeps one
+        // beside the sidebar and the timeline. Overlay scroll bars, as with a trackpad, honour it.
+        // AppKit reads the setting while the app starts, so this runs before UIApplicationMain;
+        // the argument domain beats the user's and is never saved. An explicit "Always" in
+        // System Settings stays.
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: "AppleShowScrollBars") != "Always" {
+            var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+            arguments["AppleShowScrollBars"] = "WhenScrolling"
+            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        }
+#endif
+        UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         MindRoomDiagnosticsRecorder.shared.start(application: application)
 #if targetEnvironment(macCatalyst) && !MINDROOM_MAC_APP_STORE
