@@ -42,6 +42,8 @@ const actionSlots = createVar();
 // point.
 const actionGap = createVar();
 const actions = `calc(${actionSlots} * ${button} + (${actionSlots} - 1) * ${actionGap})`;
+const narrowRows = `${logoSize} minmax(0, 1fr) ${time} ${actions}`;
+const narrowFolded = `${logoSize} minmax(0, 1fr) ${time} auto`;
 
 // The typing bar's size and material; the rows inside take no surface of their own. Listed jobs
 // sit above the title line, though they follow the title in reading and focus order.
@@ -94,7 +96,7 @@ const grid = {
   columnGap: gap,
   gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${calls} ${tokens} ${cost} ${time} ${actions}`,
   '@container': {
-    [phone]: { gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} ${actions}` },
+    [phone]: { gridTemplateColumns: narrowRows },
   },
 } as const;
 
@@ -560,7 +562,7 @@ export const Folded = style({
   gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${calls} ${tokens} ${cost} ${time} auto`,
   vars: { [logoSize]: smallLogo },
   '@container': {
-    [phone]: { gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} auto` },
+    [phone]: { gridTemplateColumns: narrowFolded },
   },
 });
 
@@ -568,10 +570,10 @@ export const Folded = style({
 // grid has no columns for them, as on a phone: the time and the buttons keep their places.
 export const Quiet = style({});
 globalStyle(`${Quiet} ${GroupHeading}, ${Quiet} ${Job}`, {
-  gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} ${actions}`,
+  gridTemplateColumns: narrowRows,
 });
 globalStyle(`${Quiet} ${Folded}`, {
-  gridTemplateColumns: `${logoSize} minmax(0, 1fr) ${time} auto`,
+  gridTemplateColumns: narrowFolded,
 });
 
 // Its headline, then who and what it does on the same line, in the room the headline leaves, so it

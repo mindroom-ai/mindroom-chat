@@ -23,11 +23,7 @@ import { useUsageCells } from '../subagents/runUsage';
 import { useAgentProfile } from '../subagents/AgentAvatar';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
 import * as css from './BackgroundJobsBar.css';
-import {
-  type BackgroundJobsBarItem,
-  type BackgroundJobsBarModel,
-  shownJobName,
-} from './backgroundJobsPresentation';
+import type { BackgroundJobsBarItem, BackgroundJobsBarModel } from './backgroundJobsPresentation';
 
 /**
  * A job's logo: its run's model, else a sub-agent's agent or a tool's terminal, on a tile with a
@@ -204,7 +200,7 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
  * buttons: the thread it runs in when that is not the view's, and Stop. A sub-agent job's title
  * opens its run, from anywhere on the row.
  * Without the usage details (`showUsageDetails`) it shows neither the line under the headline nor
- * the numbers, and a tool job's headline is its tool in plain words (`shownJobName`).
+ * the numbers, and a tool job's headline is its tool in plain words.
  * Folded, the bar's one job is this row on its title line: the headline and the rest on one line,
  * the title listing it, and Open beside Stop.
  * A job without its run's frames shows its name alone, as before.
@@ -228,7 +224,7 @@ export function BackgroundJobRow({
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  const headline = item.subagent ? described || name : shownJobName(item, details, t);
+  const headline = item.subagent ? described || name : item.plainName ?? name;
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;

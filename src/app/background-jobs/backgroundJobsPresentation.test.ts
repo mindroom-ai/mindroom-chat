@@ -1,3 +1,4 @@
+import { mockAdapter, removeAdapter, setAdapter } from '@vanilla-extract/css/adapter';
 import { createInstance, type TFunction } from 'i18next';
 import { beforeAll, describe, expect, it } from 'vitest';
 import en from '../i18n/englishResources';
@@ -5,6 +6,34 @@ import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { FINISHED_JOB_STATUS, presentBackgroundJobs } from './backgroundJobsPresentation';
+
+it('keeps the quiet and phone grids at logo, headline, elapsed time and actions', async () => {
+  const rules = new Map<string, Record<string, unknown>>();
+  setAdapter({
+    ...mockAdapter,
+    appendCss: (css) => {
+      if (css.type === 'local' || css.type === 'global') rules.set(css.selector, css.rule);
+    },
+  });
+  try {
+    const { Job, GroupHeading, Folded, Quiet } = await import('./BackgroundJobsBar.css');
+    for (const [classes, quietSelector] of [
+      [Job, `${Quiet} ${GroupHeading}, ${Quiet} ${Job}`],
+      [Folded, `${Quiet} ${Folded}`],
+    ]) {
+      const rule = rules.get(classes.split(' ')[0]!);
+      const wide = rule?.gridTemplateColumns as string;
+      const narrow = wide.replace(/(minmax\(0, 1fr\) )(?:var\([^)]+\) ){3}/, '$1');
+      expect(narrow).not.toBe(wide);
+      expect(rule?.['@container']).toMatchObject({
+        '(max-width: 30rem)': { gridTemplateColumns: narrow },
+      });
+      expect(rules.get(quietSelector!)?.gridTemplateColumns).toBe(narrow);
+    }
+  } finally {
+    removeAdapter();
+  }
+});
 
 let t: TFunction;
 const none = () => false;
@@ -244,6 +273,15 @@ describe('presentBackgroundJobs, rich rows', () => {
       tool: 'run_shell_command',
       preview: 'just test',
     });
+    const quiet = presentBackgroundJobs(
+      [subagentJob('job_1', 's1')],
+      none,
+      t,
+      1,
+      lookups([subagentRun('s1', { tools })]),
+      false
+    );
+    expect(quiet?.items[0]).not.toHaveProperty('activity');
     const ended = present(
       [subagentJob('job_1', 's1')],
       lookups([subagentRun('s1', { tools, status: 'completed' })])

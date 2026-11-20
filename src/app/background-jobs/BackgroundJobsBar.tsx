@@ -20,11 +20,7 @@ import { useSettingValue } from '../preferences/useSettingValue';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
-import {
-  type BackgroundJobsBarItem,
-  shownJobName,
-  presentBackgroundJobs,
-} from './backgroundJobsPresentation';
+import { presentBackgroundJobs, type BackgroundJobsBarItem } from './backgroundJobsPresentation';
 import { BackgroundJobRow, BackgroundJobsSummary } from './BackgroundJobRow';
 import {
   type BackgroundJobCancelRequest,
@@ -91,7 +87,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   // Only rows on show follow the jobs' calls (a tool job's in its reply, a sub-agent's current one):
   // the listed ones, or the folded bar's one job, and only with the usage details, as only they show
   // a call.
-  const lookups = useJobLookups(room, jobs, details && (expanded || !several), details);
+  const lookups = useJobLookups(room, jobs, details && (expanded || !several));
   // When the bar first showed each job ended, so a held job's time stays as its rows fold and open.
   const ended = useRef(new Map<string, number>()).current;
   const endedAt = ({ finished, run, jobId }: BackgroundJobsBarItem) => {
@@ -196,8 +192,8 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     focusNextCancel(pressed);
     // A tool job named in words is quoted, as a phrase within the sentence.
     const failure =
-      !details && !item.subagent
-        ? t('mindroomUi.backgroundJobs.stopStepFailed', { step: shownJobName(item, details, t) })
+      item.plainName !== undefined
+        ? t('mindroomUi.backgroundJobs.stopStepFailed', { step: item.plainName })
         : t('mindroomUi.backgroundJobs.stopFailed', { tool: item.name });
     void cancel({ jobId: item.jobId }, [item.jobId], failure);
   };
@@ -226,7 +222,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     // A task runs on apart from the reply, whose own Stop stops only the reply. It names the job as
     // its row does.
     const label = t('mindroomUi.backgroundJobs.stopTaskFor', {
-      tool: shownJobName(item, details, t),
+      tool: item.plainName ?? item.name,
     });
     return (
       <button

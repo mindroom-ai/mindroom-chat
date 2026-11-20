@@ -258,10 +258,14 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
     },
   ];
   let renders = 0;
-  function Probe({ listed = true, details = true }: { listed?: boolean; details?: boolean }) {
+  function Probe({ listed = true }: { listed?: boolean }) {
     renders += 1;
-    const { runs } = useJobLookups(roomOf({}), jobs, listed, details);
-    return <span>{runs.map((run) => run.meta.task).join()}</span>;
+    const { runs } = useJobLookups(roomOf({}), jobs, listed);
+    return (
+      <span data-calls={listed ? runs[0]?.meta.usage?.toolCalls : undefined}>
+        {runs.map((run) => run.meta.task).join()}
+      </span>
+    );
   }
   act(() => root.render(<Probe />));
   ingest('mine', 'Hi');
@@ -285,18 +289,8 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
   ingest('mine', 'Hi there', 'New task\nwith tests');
   expect(renders).toBeGreaterThan(before);
 
-  // A folded list with the usage details on renders for a new call's count, not for the call.
+  // A folded list or quiet bar renders neither the current call nor its count.
   act(() => root.render(<Probe listed={false} />));
-  const folded = renders;
-  ingest('mine', 'Hi there', 'New task\nwith tests', [
-    { type: 'tool_call_started', tool_name: 'grep' },
-  ]);
-  expect(renders).toBe(folded);
-  ingest('mine', 'Hi there', 'New task\nwith tests', [], 1);
-  expect(renders).toBeGreaterThan(folded);
-
-  // Without the usage details, a new call renders nothing: not the call, not its count.
-  act(() => root.render(<Probe listed={false} details={false} />));
   const quiet = renders;
   ingest(
     'mine',
@@ -316,6 +310,9 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
     3
   );
   expect(renders).toBe(quiet);
+  act(() => root.render(<Probe listed />));
+  expect(container.querySelector('span')?.dataset.calls).toBe('3');
+  act(() => root.render(<Probe listed={false} />));
   // What they do show still renders.
   ingest('mine', 'Hi there', 'Newer task');
   expect(container.textContent).toBe('Newer task');
