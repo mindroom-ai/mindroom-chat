@@ -59,8 +59,7 @@ const makeFakeEvent = (raw: Partial<IEvent>): MatrixEvent =>
     isRedacted: () => false,
     isSending: () => false,
     getAssociatedId: () => undefined,
-    getRelation: () =>
-      (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] ?? null,
+    getRelation: () => raw.content?.['m.relates_to'] ?? null,
     getUnsigned: () => raw.unsigned ?? {},
     setUnsigned: (unsigned: IEvent['unsigned']) => {
       raw.unsigned = unsigned;
@@ -81,24 +80,23 @@ const makeReplyRaw = (id: string, ts: number): Partial<IEvent> => ({
   origin_server_ts: ts,
   content: {
     'm.relates_to': { rel_type: 'm.thread', event_id: THREAD_ID },
-  } as never,
+  },
 });
 
 const makeCachedPage = (
   replyRaws: Partial<IEvent>[],
   overrides: Partial<HydratedThreadCachePage> = {}
-): HydratedThreadCachePage =>
-  ({
-    beforeToken: undefined,
-    cacheCoverage: {} as never,
-    events: replyRaws,
-    hasMoreBefore: false,
-    relationSnapshotComplete: false,
-    rootEvent: undefined,
-    snapshotComplete: false,
-    tailLoaded: true,
-    ...overrides,
-  } as HydratedThreadCachePage);
+): HydratedThreadCachePage => ({
+  beforeToken: undefined,
+  cacheCoverage: {} as never,
+  events: replyRaws,
+  hasMoreBefore: false,
+  relationSnapshotComplete: false,
+  rootEvent: undefined,
+  snapshotComplete: false,
+  tailLoaded: true,
+  ...overrides,
+});
 
 const makeFakeRoom = (rootEvent?: MatrixEvent): Room =>
   ({
@@ -208,7 +206,7 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
     const rootEvent = makeFakeEvent({
       event_id: THREAD_ID,
       type: 'm.room.message',
-      unsigned: { 'm.relations': { 'm.thread': { count: 5 } } } as never,
+      unsigned: { 'm.relations': { 'm.thread': { count: 5 } } },
     });
     const room = makeFakeRoom(rootEvent);
     const { mx, fetchRelations } = makeMockClient(room, [

@@ -42,7 +42,7 @@ describe('createMatrixFetchFn', () => {
         origin: 'https://example.com',
       } as Location;
 
-      const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+      const fetchFn = createMatrixFetchFn(baseFetch);
       await fetchFn('/_matrix/client', { method: 'GET' });
     } finally {
       (globalThis as { location?: Location }).location = originalLocation;
@@ -63,7 +63,7 @@ describe('createMatrixFetchFn', () => {
         origin: 'https://example.com',
       } as Location;
 
-      const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+      const fetchFn = createMatrixFetchFn(baseFetch);
       await fetchFn('https://other.example.com/_matrix/client', { method: 'GET' });
     } finally {
       (globalThis as { location?: Location }).location = originalLocation;
@@ -79,7 +79,7 @@ describe('createMatrixFetchFn', () => {
       new URL(url).origin === 'https://hs.example' ? 'access-token' : undefined
     );
     const baseFetch = vi.fn().mockResolvedValue({ ok: true });
-    const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+    const fetchFn = createMatrixFetchFn(baseFetch);
 
     await fetchFn('https://hs.example/_matrix/client/v3/sync', {
       headers: { Authorization: 'Bearer matrix-token' },
@@ -96,7 +96,7 @@ describe('createMatrixFetchFn', () => {
     // Fetch keeps custom headers across a cross-origin redirect.
     mocks.getCloudflareAccessToken.mockReturnValue('access-token');
     const baseFetch = vi.fn().mockResolvedValue({ ok: true });
-    const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+    const fetchFn = createMatrixFetchFn(baseFetch);
 
     await fetchFn('https://hs.example/_matrix/client/v3/sync');
 
@@ -106,7 +106,7 @@ describe('createMatrixFetchFn', () => {
 
   it('keeps a captured Matrix delegate routed through dynamic tracing', async () => {
     const baseFetch = vi.fn().mockResolvedValue({ ok: true });
-    const fetchFn = createMatrixFetchFn(baseFetch as unknown as typeof fetch);
+    const fetchFn = createMatrixFetchFn(baseFetch);
 
     await fetchFn('https://matrix.example/_matrix/client/v3/sync');
     await fetchFn('https://matrix.example/_matrix/client/v3/sync');
@@ -380,7 +380,7 @@ describe('createMatrixClient', () => {
       baseUrl: 'https://matrix.example',
       accessToken: 'token',
       userId: '@alice:matrix.example',
-      fetchFn: baseFetch as unknown as typeof fetch,
+      fetchFn: baseFetch,
     });
 
     const seen = { unreachable: false };

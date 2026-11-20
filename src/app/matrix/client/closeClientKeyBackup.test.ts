@@ -7,7 +7,6 @@ import {
   UserId,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { createClient, MemoryStore, type MatrixClient } from 'matrix-js-sdk';
-import type { Logger } from 'matrix-js-sdk/lib/logger';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeClient } from './closeClient';
 
@@ -106,7 +105,7 @@ const startWithServerBackup = async ({ keyInInbox = false } = {}) => {
     accessToken: 'token',
     store: new MemoryStore(),
     fetchFn,
-    logger: logger as unknown as Logger,
+    logger: logger,
   });
   await client.initRustCrypto({ useIndexedDB: false });
   await vi.waitFor(() => expect(checks).toBeGreaterThan(0));

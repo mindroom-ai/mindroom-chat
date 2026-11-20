@@ -29,7 +29,7 @@ const state = vi.hoisted(() => ({
   editorProps: undefined as EditorProps | undefined,
   mentionHasSuggestions: true,
   startSendSession: vi.fn(async () => undefined),
-  commands: {} as Record<string, SlashCommand>,
+  commands: {},
   /** The thread the composer last asked for its commands in. */
   commandThread: undefined as string | undefined,
   resetEditor: vi.fn(),
@@ -349,7 +349,7 @@ describe('composer', () => {
       state.mentionHasSuggestions = false;
       state.commands = {
         invite: { name: 'invite', description: 'Invite user to room.', run },
-      } as Record<string, SlashCommand>;
+      };
     };
     const alerts = () =>
       renderer?.root.findAll((node) => node.props.role === 'alert').map((node) => node.props);
@@ -382,7 +382,7 @@ describe('composer', () => {
       state.commands = {
         schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
         list_schedules: { name: 'list_schedules', description: 'List all scheduled tasks.' },
-      } as Record<string, SlashCommand>;
+      };
       const schedule = [{ type: 'paragraph', children: [{ text: '/schedule in 5 min do x' }] }];
       expect(await pressEnterAfterMention(schedule)).toBe(true);
       expect(alerts()).toEqual([]);
@@ -395,7 +395,7 @@ describe('composer', () => {
       state.mentionHasSuggestions = false;
       state.commands = {
         schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
-      } as Record<string, SlashCommand>;
+      };
       const typedSchedule = [{ type: 'paragraph', children: [{ text: '/Schedule in 5 min x' }] }];
       expect(await pressEnterAfterMention(typedSchedule)).toBe(true);
       expect(alerts()).toEqual([]);
@@ -405,7 +405,7 @@ describe('composer', () => {
       state.mentionHasSuggestions = false;
       state.commands = {
         auto_approve: { name: 'auto_approve', description: 'Auto-approve tool calls.' },
-      } as Record<string, SlashCommand>;
+      };
       const autoApprove = [{ type: 'paragraph', children: [{ text: '/auto-approve off' }] }];
       expect(await pressEnterAfterMention(autoApprove)).toBe(true);
       expect(alerts()).toEqual([]);

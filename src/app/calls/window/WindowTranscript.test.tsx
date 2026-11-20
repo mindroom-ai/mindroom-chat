@@ -65,7 +65,7 @@ const speech = (id: string, userId: string, text: string): TranscriptLine => ({
 });
 const LINES: TranscriptLine[] = [
   speech('l1', USER, 'Shall we start?'),
-  { ...speech('l2', BOB, ''), kind: 'gap', reason: 'paused' } as TranscriptLine,
+  { ...speech('l2', BOB, ''), kind: 'gap', reason: 'paused' },
   speech('l3', BOB, 'I will write the notes.'),
 ];
 
@@ -143,7 +143,7 @@ class TestResizeObserver {
 
   observe(target: Element) {
     const entry = { target } as ResizeObserverEntry;
-    observed.set(target, () => this.callback([entry], this as unknown as ResizeObserver));
+    observed.set(target, () => this.callback([entry], this));
   }
 
   unobserve(target: Element) {

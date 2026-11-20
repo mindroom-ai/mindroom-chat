@@ -500,10 +500,10 @@ export const useRoomInputAttachments = ({
       if (!item) return;
       const node: Descendant | { text: string } = item.prepError
         ? { text }
-        : (createRoomInputPasteMarkerElement({
+        : createRoomInputPasteMarkerElement({
             ...marker,
             raw: createPasteMarker(marker),
-          }) as Descendant);
+          });
 
       // The text is kept with the draft too, so a reload does not lose it.
       if (!item.prepError && userId) {
@@ -516,7 +516,7 @@ export const useRoomInputAttachments = ({
         const activeEditor = current.current.editor;
         if (item.prepError) activeEditor.insertText(text);
         else {
-          activeEditor.insertNode(node as Descendant);
+          activeEditor.insertNode(node);
           moveCursor(activeEditor);
         }
         return;

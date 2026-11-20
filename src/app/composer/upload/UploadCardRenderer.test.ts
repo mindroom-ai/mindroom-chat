@@ -6,11 +6,12 @@ import { UploadCardRenderer } from './UploadCardRenderer';
 import { TUploadContent, toMatrixUploadError } from '../../matrix/matrix';
 
 const uploadMock = vi.hoisted(() => ({
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   upload: undefined as unknown,
   startUpload: vi.fn(),
   cancelUpload: vi.fn(),
   roomUploadAtomFamily: vi.fn(() => 'room-upload-atom'),
-  mediaConfig: {} as Record<string, number>,
+  mediaConfig: {},
   useBindUploadAtom: vi.fn(),
 }));
 

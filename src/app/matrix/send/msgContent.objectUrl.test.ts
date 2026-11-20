@@ -76,7 +76,7 @@ describe('upload metadata object URL ownership', () => {
     mocks.loadImageElement.mockResolvedValue({
       height: 1,
       width: 1,
-    } as HTMLImageElement);
+    });
 
     await getImageMsgContent(
       {} as MatrixClient,

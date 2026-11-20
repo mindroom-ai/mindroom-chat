@@ -133,7 +133,7 @@ export const createMatrixClient = (options: CreateClientOpts) => {
     ...options,
     fetchFn: reachability.fetchFn,
     scheduler: options.scheduler ?? new MessageSendScheduler(),
-  } as ICreateClientOpts);
+  });
   bindHomeserverReachability(mx, reachability);
   bindSyncStallWatch(mx, syncStall);
   return mx;

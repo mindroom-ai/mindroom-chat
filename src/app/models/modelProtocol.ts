@@ -158,7 +158,7 @@ export const parseModelCatalogResponse = (value: unknown): ModelCatalogResponse 
       id: m.id,
       ...(m.icon_url === undefined ? {} : { icon_url: m.icon_url }),
       ...reasoningOf(m),
-    } as ModelCatalogEntry);
+    });
   }
   const { override } = selection;
   if (override !== null && !keys.has(override)) return undefined;

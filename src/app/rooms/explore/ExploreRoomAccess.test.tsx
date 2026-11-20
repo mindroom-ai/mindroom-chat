@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     chunk: [
       {
         room_id: '!server-room:example.org',
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
         canonical_alias: '#server-room:example.org' as string | undefined,
         name: 'Server room',
         topic: 'Server discussion',

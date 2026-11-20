@@ -21,16 +21,15 @@ const ROOM = '!lists:example.org';
 const ME = '@me:example.org';
 const ROOTS = 4;
 
-const roomEvent = (id: string, ts: number, content: Record<string, unknown> = {}): IEvent =>
-  ({
-    event_id: id,
-    room_id: ROOM,
-    sender: ME,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', body: id, ...content },
-  } as IEvent);
+const roomEvent = (id: string, ts: number, content: Record<string, unknown> = {}): IEvent => ({
+  event_id: id,
+  room_id: ROOM,
+  sender: ME,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', body: id, ...content },
+});
 
 const threadReply = (rootId: string, id: string, ts: number): IEvent =>
   roomEvent(id, ts, { 'm.relates_to': { rel_type: 'm.thread', event_id: rootId } });

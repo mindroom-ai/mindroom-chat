@@ -73,7 +73,7 @@ describe('getActiveThreadSummaryInfo', () => {
         thread: {
           events: [older],
           timeline: [],
-        } as never,
+        },
         threadEvents: [newer],
         threadId: '$thread',
       })

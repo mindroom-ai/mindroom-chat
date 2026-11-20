@@ -196,10 +196,10 @@ const installViewportTestEnv = ({
   vi.mocked(Capacitor.getPlatform).mockReturnValue(platform);
   vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(keyboardAvailable);
   vi.mocked(Keyboard.addListener).mockImplementation((eventName, listener) => {
-    addListener(keyboardListeners, eventName, listener as Listener);
+    addListener(keyboardListeners, eventName, listener);
     return Promise.resolve({
       remove: vi.fn(() => {
-        removeListener(keyboardListeners, eventName, listener as Listener);
+        removeListener(keyboardListeners, eventName, listener);
         return Promise.resolve();
       }),
     });

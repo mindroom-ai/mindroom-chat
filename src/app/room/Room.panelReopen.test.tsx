@@ -2,7 +2,6 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
 import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window/callWindowState';
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
@@ -20,7 +19,7 @@ import { importBeforeTests } from '../../test/utils/importBeforeTests';
 const { mx, room, state } = vi.hoisted(() => ({
   state: {
     members: [],
-    config: {} as ClientConfig,
+    config: {},
     view: undefined as RoomViewProps | undefined,
     roomId: '!room:example.org',
     /** Whether the room is too narrow for the members beside the conversation. */

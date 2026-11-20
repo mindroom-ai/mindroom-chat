@@ -69,8 +69,7 @@ const hasVisibleContent = (nodes: ChildNode[]): boolean =>
   });
 
 /** Whether the sanitized HTML shows anything. */
-const rendersVisibleContent = (html: string): boolean =>
-  hasVisibleContent(htmlToDOM(html) as ChildNode[]);
+const rendersVisibleContent = (html: string): boolean => hasVisibleContent(htmlToDOM(html));
 
 // A marker the renderer draws from the start of a paragraph, after line breaks or the markers
 // before it (`takeLeadingToolRefs`), and the breaks that follow the last one.
@@ -219,7 +218,6 @@ export const foldFinishedWork = (
   // The whole plain body bounds the work's rows, so most replies skip the split.
   if (!foldsWork(countRows(body.split('\n'), toolCallsShown) + seamRows, 0)) return undefined;
   const split = splitFinishedWork(html, baseOpts, sanitizeOptions);
-  const rows = (part: string) =>
-    countRows(readLines(htmlToDOM(part) as ChildNode[]), toolCallsShown);
+  const rows = (part: string) => countRows(readLines(htmlToDOM(part)), toolCallsShown);
   return split && foldsWork(rows(split.head) + seamRows, rows(split.tail)) ? split : undefined;
 };

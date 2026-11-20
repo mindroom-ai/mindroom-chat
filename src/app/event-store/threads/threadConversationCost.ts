@@ -111,6 +111,6 @@ export const summarizeLoadedThreadCost = (
       getLatestMessageContent(
         event,
         getEditedEvent(event.getId() ?? '', event, thread.timelineSet)
-      ) as Record<string, unknown>,
+      ),
   });
 };

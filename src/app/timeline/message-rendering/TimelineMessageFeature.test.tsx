@@ -19,11 +19,10 @@ import {
   navigateRoomThreadMock,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
-import { MessageLayout, MessageSpacing } from '../../preferences/settings';
+import { MessageLayout } from '../../preferences/settings';
 import { MessageEvent } from '../../matrix/types/room';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
-import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
@@ -191,7 +190,7 @@ const mountFeature = async (
       scrollRef,
       showThreadRepliesInRoom: false,
       messageLayout: MessageLayout.Compact,
-      messageSpacing: '400' as MessageSpacing,
+      messageSpacing: '400',
       hideActivity: false,
     });
     return feature.wrapExpansion(<>{rows.map((row) => feature.renderEvent(row, data))}</>);
@@ -231,7 +230,7 @@ describe('timeline message feature', () => {
         threadRootId: event.getId(),
         status: { isKnownThreadRoot: true, replyCount: 1, isResolved: false },
         presentation: { replyParticipantIds: [] },
-      } as unknown as ThreadRecord)
+      })
     );
     update();
     const messages = events.map((event) =>

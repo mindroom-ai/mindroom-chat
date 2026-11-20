@@ -13,6 +13,7 @@ it('inserts an escaped value that contains its own placeholder once', async () =
   // placeholder, the scan resumed inside the inserted value and inserted it again,
   // up to 1000 times.
   expect(
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
     i18n.t('joined' as ParseKeys, {
       userName: 'Maya////$&{{userName}}',
       interpolation: { escapeValue: true },

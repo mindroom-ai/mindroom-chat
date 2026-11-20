@@ -35,10 +35,12 @@ const state = vi.hoisted(() => ({
   thread: undefined as string | undefined,
   main: undefined as RoomTimelineProps | undefined,
   focused: [] as (string | undefined)[],
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   approvalThread: 'unset' as string | undefined,
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
-  rootDeleted: () => undefined as void,
+  rootDeleted: () => undefined,
   threadNotFound: false,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   threadLoadError: (() => undefined) as (threadId: string) => void,
   resized: [] as (() => void)[],
   canMessage: true,

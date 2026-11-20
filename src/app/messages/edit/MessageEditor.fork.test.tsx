@@ -10,7 +10,7 @@ import { MessageEditor } from './MessageEditor';
 // The editor's text is set by the test; nothing is typed.
 const state = vi.hoisted(() => ({
   editor: undefined as Editor | undefined,
-  content: {} as Record<string, unknown>,
+  content: {},
   sendMessage: vi.fn(async () => ({ event_id: '$edit' })),
 }));
 vi.mock('../../editor/Editor', () => ({

@@ -149,9 +149,7 @@ export const createGapFillExecutor = (options: GapFillExecutorOptions): GapFillE
         return 'continuation-deferred';
       }
       if (signal.aborted) return 'policy-deferred';
-      const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
-        ? (response.chunk as Partial<IEvent>[])
-        : [];
+      const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk) ? response.chunk : [];
       const overlapsCachedTail = chunk.some(
         (event) => typeof event.event_id === 'string' && overlapEventIdSet.has(event.event_id)
       );

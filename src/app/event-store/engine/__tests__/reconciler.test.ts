@@ -73,18 +73,18 @@ const makeFakeEvent = ({
         }
       : undefined,
     content: reactionTargetId
-      ? ({
+      ? {
           'm.relates_to': {
             rel_type: 'm.annotation',
             event_id: reactionTargetId,
             key: '👍',
           },
-        } as never)
+        }
       : replaceTargetId
-      ? ({
+      ? {
           'm.new_content': { body: 'new body', msgtype: 'm.text' },
           'm.relates_to': { rel_type: 'm.replace', event_id: replaceTargetId },
-        } as never)
+        }
       : {},
   };
   return {
@@ -115,17 +115,16 @@ const makeFakeEvent = ({
   } as unknown as MatrixEvent;
 };
 
-const makeCachedPage = (ids: string[]): HydratedThreadCachePage =>
-  ({
-    beforeToken: null,
-    cacheCoverage: {} as never,
-    events: ids.map((id) => ({ event_id: id })) as Partial<IEvent>[],
-    hasMoreBefore: false,
-    relationSnapshotComplete: true,
-    rootEvent: undefined,
-    snapshotComplete: true,
-    tailLoaded: true,
-  } as HydratedThreadCachePage);
+const makeCachedPage = (ids: string[]): HydratedThreadCachePage => ({
+  beforeToken: null,
+  cacheCoverage: {} as never,
+  events: ids.map((id) => ({ event_id: id })),
+  hasMoreBefore: false,
+  relationSnapshotComplete: true,
+  rootEvent: undefined,
+  snapshotComplete: true,
+  tailLoaded: true,
+});
 
 type FetchRelationsCall = {
   from?: string;
@@ -148,7 +147,7 @@ const makeMockClient = ({
       ...(rawEvent.type === 'm.room.redaction'
         ? {
             redaction: {
-              targetId: (rawEvent.content as Record<string, string> | undefined)?.redacts ?? '',
+              targetId: rawEvent.content?.redacts ?? '',
             },
           }
         : {}),
@@ -733,7 +732,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       getRoom: () => room,
       getEventMapper: () => (raw: Partial<IEvent>) => {
         if (raw.type === 'm.room.redaction') {
-          const targetId = (raw.content as Record<string, string> | undefined)?.redacts;
+          const targetId = raw.content?.redacts;
           return makeFakeEvent({
             id: (raw.event_id as string) ?? '',
             redaction: { targetId: targetId ?? '' },
@@ -1388,7 +1387,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       getEventMapper: () => (raw: Partial<IEvent>) =>
         makeFakeEvent({
           id: (raw.event_id as string) ?? '',
-          ts: (raw.origin_server_ts as number) ?? 0,
+          ts: raw.origin_server_ts ?? 0,
         }),
       fetchRelations,
     } as unknown as MatrixClient;

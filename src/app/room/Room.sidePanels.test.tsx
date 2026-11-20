@@ -55,6 +55,7 @@ const { mx, room, state } = vi.hoisted(() => {
     state: {
       listeners,
       members,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       config: {} as ClientConfig,
       // The servers the room's agents publish, which count when the homeserver binds tokens.
       servers: [] as AgentServer[],

@@ -200,7 +200,7 @@ const buildUploadMessageContent = async (
   else if (type.startsWith('audio/') || item.metadata.voiceMessage) {
     content = getAudioMsgContent(item, mxc, getVoiceMessageContentOptions(signalBridgedRoom));
   } else content = getFileMsgContent(item, mxc);
-  return withPasteAttachmentMetadata(content, item.metadata.mindroomPasteAttachment) as IContent;
+  return withPasteAttachmentMetadata(content, item.metadata.mindroomPasteAttachment);
 };
 
 /**

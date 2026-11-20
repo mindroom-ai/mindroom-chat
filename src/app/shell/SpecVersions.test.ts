@@ -114,7 +114,7 @@ describe('SpecVersions', () => {
       setItem: vi.fn((key: string, value: string) => {
         storageState.set(key, value);
       }),
-    } as unknown as Storage);
+    });
   });
 
   afterEach(() => {
@@ -240,7 +240,7 @@ describe('SpecVersions', () => {
   );
 
   it('renders cached versions immediately and refreshes only the stored copy', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({} as Response);
+    const fetchMock = vi.fn().mockResolvedValue({});
     vi.stubGlobal('fetch', fetchMock);
     vi.mocked(useActiveSession).mockReturnValue({
       sessionId: 'session-a',

@@ -14,7 +14,7 @@ type ErrorFields = {
 };
 
 const fieldsOf = (error: unknown): ErrorFields | undefined =>
-  typeof error === 'object' && error !== null ? (error as ErrorFields) : undefined;
+  typeof error === 'object' && error !== null ? error : undefined;
 
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined;

@@ -145,10 +145,10 @@ const installHistoryBackProbe = async (page: Page) => {
     if (!historyWithProbe.__mindroomOriginalBack) {
       historyWithProbe.__mindroomOriginalBack = historyWithProbe.back.bind(historyWithProbe);
       historyWithProbe.__mindroomBackCount = 0;
-      historyWithProbe.back = (() => {
+      historyWithProbe.back = () => {
         historyWithProbe.__mindroomBackCount = (historyWithProbe.__mindroomBackCount ?? 0) + 1;
         return historyWithProbe.__mindroomOriginalBack?.();
-      }) as History['back'];
+      };
     } else {
       historyWithProbe.__mindroomBackCount = 0;
     }

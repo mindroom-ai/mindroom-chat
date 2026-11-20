@@ -13,7 +13,7 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createSessionId } from '../matrix/session/sessions';
 import {
   loadCanvasEvent,
@@ -53,8 +53,9 @@ const metadata = (title: string, extra: Record<string, unknown> = {}) => ({
 const request = ({
   id = '$canvas',
   ts = 1,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   thread = '$thread' as string | null,
-  extra = {} as Record<string, unknown>,
+  extra = {},
 } = {}) =>
   new MatrixEvent({
     event_id: id,
@@ -72,13 +73,7 @@ const request = ({
 
 const edit = (
   title: string,
-  {
-    id = '$edit',
-    of = '$canvas',
-    ts = 2,
-    sender = AGENT,
-    extra = {} as Record<string, unknown>,
-  } = {}
+  { id = '$edit', of = '$canvas', ts = 2, sender = AGENT, extra = {} } = {}
 ) =>
   new MatrixEvent({
     event_id: id,
@@ -100,9 +95,10 @@ const edit = (
 
 const computerNotice = ({
   id = '$computer',
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   thread = '$thread' as string | null,
   sender = AGENT,
-  extra = {} as Record<string, unknown>,
+  extra = {},
 } = {}) =>
   new MatrixEvent({
     event_id: id,
@@ -130,7 +126,7 @@ type Fixture = {
   mx: MatrixClient & EventEmitter;
   room: Room;
   timeline: MatrixEvent[];
-  relations: ReturnType<typeof vi.fn>;
+  relations: Mock;
 };
 
 const fixture = (): Fixture => {
@@ -696,7 +692,7 @@ describe('useOpenCanvasById', () => {
       unmount: () => act(() => root.unmount()),
     };
   };
-  const deferredRelations = (relations: ReturnType<typeof vi.fn>) => {
+  const deferredRelations = (relations: Mock) => {
     const pending: Array<(found: { originalEvent: MatrixEvent | null; events: [] }) => void> = [];
     relations.mockImplementation(
       () =>

@@ -60,7 +60,7 @@ const blockText = (node: ChildNode | undefined, name: string): string | undefine
 /** The ways a line of Markdown may read once rendered: as written, or as the app renders it. */
 const renderings = (markdown: string): string[] => {
   const html = formatMarkdownTextBodyAsHtml(markdown);
-  const rendered = html ? inlineText(htmlToDOM(html) as ChildNode[]) : undefined;
+  const rendered = html ? inlineText(htmlToDOM(html)) : undefined;
   return [normalize(markdown), ...(rendered === undefined ? [] : [normalize(rendered)])];
 };
 

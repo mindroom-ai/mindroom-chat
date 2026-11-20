@@ -568,7 +568,7 @@ export const instrumentScrolling = () => {
       if (typeof top === 'number')
         record(name, this, name === 'scrollBy' ? this.scrollTop + top : top);
       original.apply(this, args);
-    } as typeof Element.prototype.scrollTo;
+    };
   });
 
   const text = (element: Element) => (element.textContent ?? '').replace(/\s+/g, ' ').slice(0, 160);

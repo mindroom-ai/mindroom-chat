@@ -43,10 +43,7 @@ class FakeResizeObserver {
 
   observe(target: Element) {
     const contentRect = { width: stageSize.width, height: stageSize.height } as DOMRectReadOnly;
-    this.callback(
-      [{ target, contentRect } as ResizeObserverEntry],
-      this as unknown as ResizeObserver
-    );
+    this.callback([{ target, contentRect } as ResizeObserverEntry], this);
   }
 
   unobserve() {}

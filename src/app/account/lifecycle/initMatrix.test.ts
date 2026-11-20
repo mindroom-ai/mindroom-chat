@@ -925,7 +925,7 @@ describe('startClient', () => {
       baseUrl: 'https://example.com',
       accessToken: 'token',
       userId: '@user:example.com',
-      fetchFn: fetchFn as typeof fetch,
+      fetchFn: fetchFn,
     });
 
     try {
@@ -1207,7 +1207,7 @@ describe('clearAllCacheAndReload', () => {
         waiting: null,
         unregister: unregisterOther,
       },
-    ] as unknown as ServiceWorkerRegistration[]);
+    ] as unknown);
 
     const appRequest = { url: 'https://example.com/mindroom/assets/index.js' } as Request;
     const otherRequest = { url: 'https://example.com/other/assets/index.js' } as Request;
@@ -1556,7 +1556,7 @@ describe('clearAllCacheAndReload', () => {
 
     localStorageMock.removeItem = vi.fn(() => {
       throw new Error('localStorage failure');
-    }) as Storage['removeItem'];
+    });
 
     const deleteDatabase = createDeleteDatabaseMock({
       errorNames: new Map([['mindroom-room-event-cache', new Error('delete failure')]]),

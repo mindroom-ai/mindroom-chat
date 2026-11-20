@@ -43,6 +43,7 @@ vi.mock('../../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () =>
 vi.mock('../../../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ stateEvent: () => true }),
 }));
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
 const hooks = vi.hoisted(() => ({ tombstone: undefined as unknown }));
 vi.mock('../../../matrix/hooks/useStateEvent', () => ({
   useStateEvent: (_room: unknown, type: string) =>

@@ -48,7 +48,7 @@ describe('file renderers', () => {
 
     const file = renderText(
       React.createElement(MFile, {
-        content: { ...fields, msgtype: MsgType.File, info: { mimetype: 5 } } as never,
+        content: { ...fields, msgtype: MsgType.File, info: { mimetype: 5 } },
         renderFileContent: ({ body, mimeType }) =>
           React.createElement(FileContent, {
             body,
@@ -63,7 +63,7 @@ describe('file renderers', () => {
 
     const video = renderText(
       React.createElement(MVideo, {
-        content: { ...fields, msgtype: MsgType.Video, info: { mimetype: 'video/mp4' } } as never,
+        content: { ...fields, msgtype: MsgType.Video, info: { mimetype: 'video/mp4' } },
         renderAsFile: () => null,
         renderVideoContent: () => null,
       })
@@ -72,7 +72,7 @@ describe('file renderers', () => {
 
     const audio = renderText(
       React.createElement(MAudio, {
-        content: { ...fields, msgtype: MsgType.Audio, info: { mimetype: 'audio/ogg' } } as never,
+        content: { ...fields, msgtype: MsgType.Audio, info: { mimetype: 'audio/ogg' } },
         renderAsFile: () => null,
       })
     );
@@ -89,7 +89,7 @@ describe('MFile', () => {
           body: 'release-notes.txt',
           url: 'mxc://example.org/notes',
           info: { mimetype: 'text/plain', size: 2400 },
-        } as never,
+        },
         renderFileContent: ({ body, mimeType, url, encInfo }) =>
           React.createElement(
             FileContent,
@@ -131,7 +131,7 @@ describe('MFile', () => {
           body: fileName,
           url: 'mxc://example.org/invoice',
           info: { mimetype: 'application/octet-stream', size: 2400 },
-        } as never,
+        },
         renderFileContent: ({ body }) => {
           passedOn.push(body);
           return null;

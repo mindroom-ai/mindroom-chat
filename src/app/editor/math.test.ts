@@ -9,11 +9,10 @@ const markdownOutputOptions = {
   allowBlockMarkdown: true,
 };
 
-const paragraph = (text: string): Descendant =>
-  ({
-    type: BlockType.Paragraph,
-    children: [{ text }],
-  } as unknown as Descendant);
+const paragraph = (text: string): Descendant => ({
+  type: BlockType.Paragraph,
+  children: [{ text }],
+});
 
 describe('editor math markdown integration', () => {
   it('emits Matrix inline math html from markdown compose', () => {

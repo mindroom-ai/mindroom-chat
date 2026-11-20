@@ -177,7 +177,7 @@ describe('RoomItemCard room access', () => {
           <RoomItemCard
             item={item}
             loading={false}
-            summary={{ ...summary, join_rule: 'custom_access' as JoinRule }}
+            summary={{ ...summary, join_rule: 'custom_access' }}
             onOpen={vi.fn()}
             getRoom={() => undefined}
           />

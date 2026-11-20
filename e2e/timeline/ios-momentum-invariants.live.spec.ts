@@ -172,7 +172,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
               : (args[1] as number | undefined);
           if (typeof top === 'number') record(name, this, top);
           return (original as (...a: unknown[]) => unknown).apply(this, args);
-        } as typeof original;
+        };
       };
       wrapScrollMethod('scrollTo');
       wrapScrollMethod('scrollBy');
@@ -965,7 +965,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
               : (args[1] as number | undefined);
           if (typeof top === 'number') record(name, this, top);
           return (original as (...a: unknown[]) => unknown).apply(this, args);
-        } as typeof original;
+        };
       };
       wrapScrollMethod('scrollTo');
       wrapScrollMethod('scrollBy');

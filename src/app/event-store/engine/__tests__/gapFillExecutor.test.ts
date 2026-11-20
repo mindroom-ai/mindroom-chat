@@ -765,7 +765,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       // The first run always has another token and uses up its allowance.
       return {
         end: `tok-${call}`,
-        chunk: [{ event_id: `$e-${call}`, origin_server_ts: 1000 + call } as Partial<IEvent>],
+        chunk: [{ event_id: `$e-${call}`, origin_server_ts: 1000 + call }],
       };
     });
     mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
@@ -848,7 +848,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
           origin_server_ts: 600,
           content: { redacts: '$stale' } as never,
         } as never,
-      } as never,
+      },
     };
 
     // A trackable live instance that is currently NOT redacted; when

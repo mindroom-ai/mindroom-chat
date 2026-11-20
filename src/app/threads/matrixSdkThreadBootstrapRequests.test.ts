@@ -21,16 +21,15 @@ import { keepUnopenedThreadEditsShown } from '../matrix/client/unopenedThreadEdi
 const roomId = '!room:example.org';
 const userId = '@alice:example.org';
 
-const message = (eventId: string, ts: number, content: Record<string, unknown> = {}): IEvent =>
-  ({
-    event_id: eventId,
-    room_id: roomId,
-    sender: userId,
-    type: 'm.room.message',
-    origin_server_ts: ts,
-    unsigned: {},
-    content: { msgtype: 'm.text', body: eventId, ...content },
-  } as IEvent);
+const message = (eventId: string, ts: number, content: Record<string, unknown> = {}): IEvent => ({
+  event_id: eventId,
+  room_id: roomId,
+  sender: userId,
+  type: 'm.room.message',
+  origin_server_ts: ts,
+  unsigned: {},
+  content: { msgtype: 'm.text', body: eventId, ...content },
+});
 const reply = (rootId: string, index: number, ts = index + 1): IEvent =>
   message(`${rootId}-reply-${index}`, ts, {
     'm.relates_to': { rel_type: 'm.thread', event_id: rootId },

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CALL_NOTES_KEY,
@@ -23,7 +23,7 @@ const event = (sender: string, content: Record<string, unknown>): MatrixEvent =>
     sender,
     origin_server_ts: 1,
     content,
-  } as Partial<IEvent>);
+  });
 
 const row = (callId: unknown) => ({
   msgtype: 'm.notice',
@@ -137,10 +137,9 @@ describe('isCallRowEvent', () => {
 
   it('never counts a redacted row', () => {
     const redacted = event(ROUTER, row('call-1'));
-    redacted.makeRedacted(
-      new MatrixEvent({ type: 'm.room.redaction', redacts: '$row' } as Partial<IEvent>),
-      { getUnfilteredTimelineSet: () => undefined } as never
-    );
+    redacted.makeRedacted(new MatrixEvent({ type: 'm.room.redaction', redacts: '$row' }), {
+      getUnfilteredTimelineSet: () => undefined,
+    } as never);
     expect(isCallRowEvent(redacted)).toBe(false);
   });
 });

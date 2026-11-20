@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { MatrixEvent, type EventTimelineSet } from 'matrix-js-sdk';
-import type { VirtualItem } from '@tanstack/react-virtual';
 import { describe, expect, it } from 'vitest';
 import { renderTimelineTiles } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
@@ -48,17 +47,14 @@ const tileRows = (
   data: TimelineMessageData = messageData
 ) => {
   const tiles = renderTimelineTiles({
-    virtualItems: indexes.map(
-      (index) =>
-        ({
-          index,
-          key: index,
-          start: index * 40,
-          size: 40,
-          end: index * 40 + 40,
-          lane: 0,
-        } as VirtualItem)
-    ),
+    virtualItems: indexes.map((index) => ({
+      index,
+      key: index,
+      start: index * 40,
+      size: 40,
+      end: index * 40 + 40,
+      lane: 0,
+    })),
     threadId: undefined,
     threadEvents: [],
     roomWindowRows: events,

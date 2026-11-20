@@ -3335,7 +3335,7 @@ describe('RoomInput', () => {
         replyDraft: undefined,
         threadingEnabled: true,
         signalBridgedRoom: false,
-      } as never,
+      },
     });
 
     // Render in OTHER_ROOM_ID with a thread banner — exactly the scenario
@@ -3386,7 +3386,7 @@ describe('RoomInput', () => {
         replyDraft: undefined,
         threadingEnabled: true,
         signalBridgedRoom: false,
-      } as never,
+      },
     });
 
     // Simulate the source room being unreachable in the live client.
@@ -3426,7 +3426,7 @@ describe('RoomInput', () => {
         replyDraft: undefined,
         threadingEnabled: true,
         signalBridgedRoom: false,
-      } as never,
+      },
     });
 
     // The room is still resolvable, but membership is Leave. This is the
@@ -3582,7 +3582,7 @@ describe('RoomInput', () => {
         replyDraft: undefined,
         threadingEnabled: true,
         signalBridgedRoom: false,
-      } as never,
+      },
     });
 
     const { renderer } = await renderRoomInput(store);
@@ -3616,7 +3616,7 @@ describe('RoomInput', () => {
         replyDraft: undefined,
         threadingEnabled: true,
         signalBridgedRoom: false,
-      } as never,
+      },
     });
     const { renderer } = await renderRoomInput(store, {
       roomId: ROOM_ID,

@@ -115,7 +115,7 @@ const getAiRunMetadataFromCandidate = (
   const metadata = content[AI_RUN_METADATA_KEY];
   if (!isRecord(metadata)) return undefined;
   if (metadata.version !== 1) return undefined;
-  return metadata as AiRunMetadata;
+  return metadata;
 };
 
 const getAiRunMetadata = (content: Record<string, unknown>): AiRunMetadata | undefined => {

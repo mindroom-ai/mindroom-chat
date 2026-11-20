@@ -206,6 +206,7 @@ const transformAnchorTag: Transformer = (tagName, attribs) => {
   if (typeof href !== 'string' || !isSafeHref(href)) {
     return {
       tagName,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
       attribs: {} as Attributes,
     };
   }

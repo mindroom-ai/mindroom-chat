@@ -16,7 +16,7 @@ describe('MindRoom local settings storage', () => {
       clear: vi.fn(() => values.clear()),
       length: 0,
       key: vi.fn(),
-    } as unknown as Storage);
+    });
   });
 
   afterEach(() => {

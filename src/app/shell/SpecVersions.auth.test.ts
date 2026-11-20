@@ -54,7 +54,7 @@ describe('SpecVersions authenticated cold start', () => {
       getItem: vi.fn(() => null),
       removeItem: vi.fn(),
       setItem: vi.fn(),
-    } as unknown as Storage);
+    });
   });
 
   afterEach(() => {
@@ -66,7 +66,7 @@ describe('SpecVersions authenticated cold start', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       status: 200,
       json: vi.fn().mockResolvedValue({ versions: ['v1.11'] }),
-    } as unknown as Response);
+    });
     vi.stubGlobal('fetch', fetchMock);
     vi.mocked(useActiveSession).mockReturnValue({
       sessionId: 'session-a',

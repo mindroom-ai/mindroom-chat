@@ -113,7 +113,7 @@ const renderRow = (
   vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
     const style = computed(element);
     if ((element as HTMLElement).dataset?.testid !== 'scroller') return style;
-    return { ...style, overflowY: 'auto', scrollPaddingTop: '100px' } as CSSStyleDeclaration;
+    return { ...style, overflowY: 'auto', scrollPaddingTop: '100px' };
   });
   host = document.createElement('div');
   document.body.append(host);

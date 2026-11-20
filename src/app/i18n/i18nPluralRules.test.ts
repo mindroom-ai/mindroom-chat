@@ -15,14 +15,18 @@ it('builds the plural rule of a language once', async () => {
       en: { translation: { replies_one: '{{count}} reply', replies_other: '{{count}} replies' } },
     },
   });
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   expect(i18n.t('replies' as ParseKeys, { count: 1 })).toBe('1 reply');
 
   const IntlPluralRules = Intl.PluralRules;
   const build = vi.spyOn(Intl, 'PluralRules').mockImplementation(function buildRule(...args) {
     return new IntlPluralRules(...args);
   });
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   expect(i18n.t('replies' as ParseKeys, { count: 2 })).toBe('2 replies');
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   expect(i18n.t('replies' as ParseKeys, { count: 1 })).toBe('1 reply');
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
   expect(i18n.t('replies' as ParseKeys, { count: 5, ordinal: false })).toBe('5 replies');
   expect(build).not.toHaveBeenCalled();
 });

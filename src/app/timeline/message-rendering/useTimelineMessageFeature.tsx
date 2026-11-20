@@ -641,7 +641,7 @@ export const useTimelineMessageFeature = ({
       if (kind === 'approval' && historyRecords && historyRecords.length > 0) {
         return (
           <MessageAside key={eventId} data-message-id={eventId} data-message-item={row.index}>
-            <ApprovalHistory records={historyRecords as never} />
+            <ApprovalHistory records={historyRecords} />
           </MessageAside>
         );
       }
@@ -707,12 +707,10 @@ export const useTimelineMessageFeature = ({
       }
       const voiceTranscript = voiceEcho && (
         <VoiceTranscript
-          content={
-            getLatestMessageContent(
-              voiceEcho,
-              getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
-            ) as Record<string, unknown>
-          }
+          content={getLatestMessageContent(
+            voiceEcho,
+            getEditedEvent(voiceEchoId, voiceEcho, timelineSet)
+          )}
           senderName={
             room.getMember?.(voiceEcho.getSender() ?? '')?.name ?? voiceEcho.getSender() ?? ''
           }
@@ -867,7 +865,7 @@ export const useTimelineMessageFeature = ({
           </Message>
           {historyRecords && historyRecords.length > 0 && (
             <MessageAside>
-              <ApprovalHistory records={historyRecords as never} />
+              <ApprovalHistory records={historyRecords} />
             </MessageAside>
           )}
           {showFailedActions && (
