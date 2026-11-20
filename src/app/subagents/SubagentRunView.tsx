@@ -275,7 +275,14 @@ function RunStrip({ node, run, time }: { node: SubagentNode; run: SubagentRun; t
           <Text as="dd" size="T300" className={css.StripValue}>
             {cell.value}
           </Text>
-          <Text as="dd" size="T200" priority="300" className={css.StripNote} truncate>
+          <Text
+            as="dd"
+            size="T200"
+            priority="300"
+            className={css.StripNote}
+            title={cell.note}
+            truncate
+          >
             {cell.note}
           </Text>
         </div>
