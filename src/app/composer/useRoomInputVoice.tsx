@@ -3,12 +3,13 @@ import React, {
   useContext,
   useEffect,
   useLayoutEffect,
+  useReducer,
   useRef,
   useState,
 } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { IContent, MatrixClient } from 'matrix-js-sdk';
+import { IContent, MatrixClient, RoomEvent } from 'matrix-js-sdk';
 import type { Descendant } from 'slate';
 import { Icon, Icons } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
@@ -54,7 +55,6 @@ import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
-import { whenRootSettled } from './useUnconfirmedRootSends';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
@@ -113,8 +113,8 @@ type PendingVoiceComposerBundle = {
   composerReset: boolean;
   handedOff: boolean;
   releasePasteProtection: () => void;
-  /** What the send waits for once its audio is ready. A rejection parks the audio. */
-  wait: () => Promise<void>;
+  /** Why this press cannot send: the audio, taken alone, parks at once with this message. */
+  blocked?: string;
 };
 
 export const useRoomInputVoice = ({
@@ -152,15 +152,27 @@ export const useRoomInputVoice = ({
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
   // A recording made while its thread's root was still sending belongs to that thread after.
-  const draftKey = draftBelongsToCurrentSession
-    ? voiceComposerKey({
-        ...pendingVoiceSendDraft.context,
-        threadId: confirmedVoiceThreadId(
-          pendingVoiceSendDraft.context.room,
-          pendingVoiceSendDraft.context.threadId
-        ),
-      })
-    : undefined;
+  // A root deleted unsent leaves no thread to show it: the room's page offers it, to discard.
+  const draftContext = draftBelongsToCurrentSession ? pendingVoiceSendDraft.context : undefined;
+  const draftThreadId =
+    draftContext && confirmedVoiceThreadId(draftContext.room, draftContext.threadId);
+  const unsentRootRoom = isLocalEchoEventId(draftThreadId) ? draftContext?.room : undefined;
+  const draftThreadGone =
+    !!unsentRootRoom && !!draftThreadId && !unsentRootRoom.findEventById(draftThreadId);
+  const draftKey =
+    draftContext &&
+    (draftThreadGone
+      ? draftContext.roomId
+      : voiceComposerKey({ ...draftContext, threadId: draftThreadId }));
+  // Asked again as that root is confirmed or deleted.
+  const [, rootChanged] = useReducer((count: number) => count + 1, 0);
+  useEffect(() => {
+    if (!unsentRootRoom) return undefined;
+    unsentRootRoom.on(RoomEvent.LocalEchoUpdated, rootChanged);
+    return () => {
+      unsentRootRoom.off(RoomEvent.LocalEchoUpdated, rootChanged);
+    };
+  }, [unsentRootRoom]);
   // A thread view's composer, while mounted, is the one to offer its thread's recording.
   const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
   // Before the page paints: it would show the recording for a frame.
@@ -302,13 +314,13 @@ export const useRoomInputVoice = ({
         const pendingComposerBundle = pendingVoiceComposerBundleRef.current;
         const composerBundle =
           pendingComposerBundle?.roomId === context.roomId ? pendingComposerBundle : undefined;
-        await composerBundle?.wait();
+        if (composerBundle?.blocked) throw new Error(composerBundle.blocked);
         liveContext = refreshRoomInputVoiceSendContext(mx, context);
         if (!liveContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
         }
         // No reply can point at a root the server has not confirmed (still sending, or deleted
-        // unsent); a retry once it has can.
+        // unsent); a retry once it has can. A parked recording's retry comes here.
         if (isLocalEchoEventId(liveContext.threadId)) {
           throw new Error(t('composer.voiceThreadRootUnsent'));
         }
@@ -481,21 +493,23 @@ export const useRoomInputVoice = ({
   // A Send takes the recording at the press. Pressing Send (the button, Enter or the voice key)
   // claims the live recording in the same task: it leaves the account's hands, capture stops and
   // no more audio is recorded. This composer's destination and bundle (room, thread, reply, text,
-  // staged files) are taken in that task too. What makes the send wait after that (a thread root
-  // the server has not confirmed) waits with that audio and that snapshot, and never reads the
-  // composer or the recorder again. A send that cannot go to where it was pressed (the root was
-  // deleted unsent, the room was left) parks its audio there, as any failed send does.
+  // staged files) are taken in that task too, and nothing waits after it. A send that cannot go
+  // to where it was pressed parks its audio there at once, as any failed send does.
   const sendAtPress = useCallback(
     (takeText: () => IContent | undefined, pastesMissing: boolean): Promise<void> | undefined => {
       if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return undefined;
       const recorder = voiceRecorderRef.current;
-      // Text whose pasted files are not here goes nowhere: its restore reads the editor, which
-      // this Send would empty. The audio is taken and parks alone; the text and files stay.
-      const content = pastesMissing ? undefined : takeText();
-      const staged = pastesMissing ? [] : attachmentAccess.snapshot().staged;
+      const context = getContext();
+      // Two presses send nothing. Text whose pasted files are not here: its restore reads the
+      // editor, which this Send would empty. A thread whose root the server has not confirmed:
+      // no reply can point at it. The audio is taken and parks alone; the text and files stay.
+      let blocked: string | undefined;
+      if (pastesMissing) blocked = t('composer.voiceBundleBlocked');
+      else if (isLocalEchoEventId(context.threadId)) blocked = t('composer.voiceThreadRootUnsent');
+      const content = blocked ? undefined : takeText();
+      const staged = blocked ? [] : attachmentAccess.snapshot().staged;
       if (!recorder || hasFailedPasteMarkerInText(content, staged)) return Promise.resolve();
 
-      const context = getContext();
       pendingVoiceComposerBundleRef.current = {
         roomId: context.roomId,
         composerThreadId: context.threadId,
@@ -506,12 +520,7 @@ export const useRoomInputVoice = ({
         releasePasteProtection: attachmentAccess.protectPasteItems(staged),
         composerReset: false,
         handedOff: false,
-        wait: async () => {
-          if (pastesMissing) throw new Error(t('composer.voiceBundleBlocked'));
-          if (context.threadId && isLocalEchoEventId(context.threadId)) {
-            await whenRootSettled(context.room, context.threadId);
-          }
-        },
+        blocked,
       };
       setSendingHere(true);
       // Up to its first wait, in this task: the claim, the destination and the stop of capture.

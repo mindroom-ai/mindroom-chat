@@ -707,23 +707,17 @@ const createReplyDraft = (eventId: string, relation?: IReplyDraft['relation']): 
   relation,
 });
 
-/** A thread root the server has not confirmed, which tells its listeners how its send ends. */
+/** A thread root the server has not confirmed. */
 const createPendingRoot = (localId: string) => {
-  const listeners = new Set<() => void>();
   const root = {
     status: 'sending' as string | null,
     id: localId,
     getId: () => root.id,
-    on: (_event: string, listener: () => void) => listeners.add(listener),
-    off: (_event: string, listener: () => void) => listeners.delete(listener),
-    /** The server confirmed it under `id`, or its send ended as `status` (deleted unsent). */
-    settle: (change: { id: string } | { status: string }) => {
-      if ('id' in change) {
-        confirmedRootIds.set(localId, change.id);
-        root.id = change.id;
-        root.status = null;
-      } else root.status = change.status;
-      [...listeners].forEach((listener) => listener());
+    /** The server confirmed it under `id`. */
+    confirm: (id: string) => {
+      confirmedRootIds.set(localId, id);
+      root.id = id;
+      root.status = null;
     },
   };
   return root;
@@ -3040,7 +3034,7 @@ describe('RoomInput', () => {
     } as unknown as VoiceCaptureSession;
     await act(async () => store.set(liveVoiceRecordingAtom, recording));
 
-    root.settle({ id: '$root' });
+    root.confirm('$root');
     await updateRoomInput(renderer, store, { threadId: '$root' });
     await act(async () => {
       await Promise.resolve();
@@ -3064,76 +3058,72 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  /** Send pressed with a recording and a caption in a thread whose root is unconfirmed. */
-  const pressSendUnderPendingRoot = async () => {
+  it('takes the recording alone, and parks it at once, when Send is pressed under an unconfirmed thread root', async () => {
     const store = createStore();
-    const localRootId = `~${ROOM_ID}:txn-root`;
-    const root = pendingRoot(localRootId);
-    const { renderer } = await renderRoomInput(store, { threadId: localRootId });
+    const { renderer } = await renderRoomInput(store, { threadId: `~${ROOM_ID}:txn-root` });
     stageComposerText('Caption for thread A');
-    resetEditorOnNextSend();
     await openVoiceRecorder(renderer);
     queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 1100);
-    let sending!: Promise<void>;
-    await act(async () => {
-      sending = getPrimarySendButton(renderer).props.onClick();
-      await Promise.resolve();
-    });
-    // At the press: the recording is this Send's, the caption is taken, and nothing goes out.
-    expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
-    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
-    expect(getEditorText()).toBe('');
-    expect(store.get(voiceAutoSendPendingAtom)).toBe(true);
-    expect(mxState.uploadContent).not.toHaveBeenCalled();
-    expect(mxState.sendMessage).not.toHaveBeenCalled();
-    return { store, renderer, root, sending };
-  };
-
-  it('takes the recording as Send is pressed under an unconfirmed thread root, and sends it to that thread once it is confirmed', async () => {
-    const { store, renderer, root, sending } = await pressSendUnderPendingRoot();
-
-    // The thread column's composer moves on to thread B, and text is typed there, meanwhile.
-    await updateRoomInput(renderer, store, { threadId: '$thread-b' });
-    setEditorText('Typed in thread B');
-    await act(async () => {
-      root.settle({ id: '$root' });
-      await sending;
-    });
-
-    const sent = mxState.sendMessage.mock.calls.map((call) => {
-      const content = call[1] as { body: string; 'm.relates_to'?: { event_id?: string } };
-      return [call[0], content.body, content['m.relates_to']?.event_id];
-    });
-    expect(sent).toEqual([
-      [ROOM_ID, 'voice.m4a', '$root'],
-      [ROOM_ID, 'Caption for thread A', '$root'],
-    ]);
-    expect(getEditorText()).toBe('Typed in thread B');
-    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
-
-    renderer.unmount();
-  });
-
-  it('fails the send where it was pressed when the thread root is deleted unsent while it waits', async () => {
-    const { store, renderer, root, sending } = await pressSendUnderPendingRoot();
 
     await act(async () => {
-      root.settle({ status: 'cancelled' });
       // The recorder parks the audio with the destination of the press (useVoiceRecorder.test.ts).
-      await expect(sending).rejects.toThrow(
+      await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toThrow(
         "This voice message's thread has no sent first message."
       );
     });
 
+    // The recording is this Send's from the press on, and nothing waits for the root: the send
+    // lock is free again, and nothing was sent.
+    expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
     expect(mxState.uploadContent).not.toHaveBeenCalled();
     expect(mxState.sendMessage).not.toHaveBeenCalled();
-    // The caption comes back where it was typed.
-    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(customEditorState.editor, [
-      { type: 'paragraph', children: [{ text: 'Caption for thread A' }] },
-    ]);
-    expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
+    // The caption was never taken, so none is restored under the root's local ID.
+    expect(getEditorText()).toBe('Caption for thread A');
+    expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
 
     renderer.unmount();
+  });
+
+  it("offers a parked recording in the room's page once its thread's unsent root is deleted", async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+    // Parked by a Send in the thread column, under the local ID of a root that is still sending.
+    const echoListeners = new Set<() => void>();
+    const parkedRoom = {
+      name: ROOM_ID,
+      root: {} as object | undefined,
+      findEventById: () => parkedRoom.root,
+      on: (_event: string, listener: () => void) => echoListeners.add(listener),
+      off: (_event: string, listener: () => void) => echoListeners.delete(listener),
+    };
+    await act(async () => {
+      store.set(pendingVoiceSendDraftAtom, {
+        file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+        duration: 1100,
+        context: {
+          ownerSessionId: '@me:example.org',
+          roomId: ROOM_ID,
+          room: parkedRoom,
+          threadId: `~${ROOM_ID}:txn-root`,
+          threadView: true,
+        },
+      } as never);
+    });
+    // The thread's own view offers it while the thread is there.
+    expect(voiceRecorderState.byView.has(undefined)).toBe(false);
+
+    // The root is deleted unsent: its thread closes, and no view of it can open again.
+    await act(async () => {
+      parkedRoom.root = undefined;
+      echoListeners.forEach((listener) => listener());
+    });
+
+    // The room's page shows the recording, with its Discard, so the microphone is not lost.
+    expect(voiceRecorderState.byView.has(undefined)).toBe(true);
+    renderer.unmount();
+    expect(echoListeners.size).toBe(0);
   });
 
   it('takes the recording alone, and parks it in thread A, when Send is pressed while a paste is still being restored', async () => {
