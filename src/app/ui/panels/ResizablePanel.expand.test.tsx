@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
-import { ResizablePanel } from './ResizablePanel';
+import { ResizablePanel, SIDE_PANEL_MAX_WIDTH } from './ResizablePanel';
 
 // A side panel in its frame fills the room when its splitter is let go past its widest, as the
 // frame's Fill does, and still closes when dragged to nothing.
@@ -21,14 +21,19 @@ class TestPointerEvent extends MouseEvent {
 }
 
 /**
- * At the end of a 1000 px row that keeps 360 px for the conversation: the panel is at most 600 px
- * wide, and stays so as a drag goes on over the conversation. It starts 400 px wide.
+ * At the end of a 1000 px row (or `rowWidth`) that keeps 360 px for the conversation: the panel is
+ * at most 600 px wide (or `maxPanelWidth`), and stays so as a drag goes on over the conversation. It
+ * starts 400 px wide.
  */
-const renderPanel = ({ framed = true } = {}) => {
+const renderPanel = ({
+  framed = true,
+  maxPanelWidth,
+  rowWidth = 1000,
+}: { framed?: boolean; maxPanelWidth?: number; rowWidth?: number } = {}) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
   const onCollapse = vi.fn();
   const row = document.body.appendChild(document.createElement('div'));
-  Object.defineProperty(row, 'clientWidth', { value: 1000 });
+  Object.defineProperty(row, 'clientWidth', { value: rowWidth });
   render(
     <PanelFrameProvider
       value={framed ? { label: 'Notes', layout: 'beside', setLayout } : undefined}
@@ -40,6 +45,7 @@ const renderPanel = ({ framed = true } = {}) => {
         testId="panel"
         side="end"
         minContentWidth={360}
+        maxPanelWidth={maxPanelWidth}
         onCollapse={onCollapse}
       >
         <p>content</p>
@@ -147,6 +153,26 @@ describe('dragging a side panel past its widest', () => {
     expect(setLayout).not.toHaveBeenCalled();
     expect(stored()).toBe(400);
   });
+
+  it.each([2400, 4800])(
+    'on a %i px row, grows past the old caps until the conversation keeps 360 px, then fills',
+    (rowWidth) => {
+      const { setLayout } = renderPanel({ maxPanelWidth: SIDE_PANEL_MAX_WIDTH, rowWidth });
+      // It stops where the conversation keeps its minimum, and fills only 40 px past that.
+      const widest = rowWidth - 360;
+      dragTo(1800);
+      expect(screen.getByTestId('panel').style.width).toBe('1800px');
+      expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
+      fireEvent.pointerMove(separator(), { clientX: 500 - (widest + 39 - 400) });
+      expect(screen.getByTestId('panel').style.width).toBe(`${widest}px`);
+      expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
+      fireEvent.pointerMove(separator(), { clientX: 500 - (widest + 60 - 400) });
+      expect(screen.getByTestId('panel').style.width).toBe(`${widest}px`);
+      expect(screen.getByTestId('panel').dataset.expandPreview).toBe('true');
+      release();
+      expect(setLayout.mock.calls).toEqual([['filled']]);
+    }
+  );
 
   it('outside a frame, stops at its widest', () => {
     const { onCollapse } = renderPanel({ framed: false });

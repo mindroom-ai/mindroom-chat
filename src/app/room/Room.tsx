@@ -34,7 +34,11 @@ import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { PanelRow, useMembersOverlay } from '../members/PanelRow';
-import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
+import {
+  CONVERSATION_MIN_WIDTH,
+  ResizablePanel,
+  SIDE_PANEL_MAX_WIDTH,
+} from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
@@ -116,7 +120,6 @@ const MAIN_COMPOSERS = [THREAD_COLUMN_COMPOSER, ROOM_COMPOSER];
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
-const COMPUTER_MAX_WIDTH = 1600;
 // The live transcript loads on first use too, and says so as the call panel does when its chunk
 // does not load.
 const LiveTranscriptPanel = lazyPart(
@@ -133,9 +136,6 @@ const HeaderCallButtons = lazyPart(() =>
 
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
-const CALL_MAX_WIDTH = 1200;
-/** The live transcript is read like a conversation, no wider than a readable line or two. */
-const TRANSCRIPT_MAX_WIDTH = 800;
 
 const CONVERSATION_STYLE: CSSProperties = { minWidth: 0 };
 // Behind a side panel in its place, the conversation takes no room in the row but stays as it was
@@ -330,7 +330,7 @@ function RoomContent() {
         storageKey={callWidthStorageKey(ownUserId)}
         defaultWidth={CALL_DEFAULT_WIDTH}
         minContentWidth={CONVERSATION_MIN_WIDTH}
-        maxPanelWidth={CALL_MAX_WIDTH}
+        maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
         passthrough={mobile}
         resizeLabel={t('featureUi.calls.panel.resize')}
         collapseLabel={t('featureUi.calls.panel.close')}
@@ -362,7 +362,7 @@ function RoomContent() {
             storageKey={computerWidthStorageKey(ownUserId)}
             defaultWidth={COMPUTER_DEFAULT_WIDTH}
             minContentWidth={CONVERSATION_MIN_WIDTH}
-            maxPanelWidth={COMPUTER_MAX_WIDTH}
+            maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
             passthrough={mobile}
             resizeLabel={t('mindroomUi.computer.resize')}
             collapseLabel={t('mindroomUi.computer.close')}
@@ -422,7 +422,7 @@ function RoomContent() {
           storageKey={callTranscriptWidthStorageKey(ownUserId)}
           defaultWidth={CALL_DEFAULT_WIDTH}
           minContentWidth={CONVERSATION_MIN_WIDTH}
-          maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
           passthrough={mobile}
           resizeLabel={t('featureUi.calls.transcription.resize')}
           collapseLabel={t('featureUi.calls.transcription.close')}
@@ -451,7 +451,7 @@ function RoomContent() {
           storageKey={subagentsWidthStorageKey(ownUserId)}
           defaultWidth={CALL_DEFAULT_WIDTH}
           minContentWidth={CONVERSATION_MIN_WIDTH}
-          maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+          maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
           passthrough={mobile}
           resizeLabel={t('mindroomUi.subagents.resize')}
           collapseLabel={t('mindroomUi.subagents.hide')}
@@ -496,7 +496,7 @@ function RoomContent() {
               storageKey={pluginPanelWidthStorageKey(ownUserId, panel.id)}
               defaultWidth={CALL_DEFAULT_WIDTH}
               minContentWidth={CONVERSATION_MIN_WIDTH}
-              maxPanelWidth={CALL_MAX_WIDTH}
+              maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
               passthrough={mobile}
               resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
               collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
