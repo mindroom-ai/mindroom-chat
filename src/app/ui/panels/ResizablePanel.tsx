@@ -69,6 +69,7 @@ export function ResizablePanel({
   /**
    * Released this far past its widest (`EXPAND_PAST`), a drag that went over the content beside
    * the panel calls this instead of keeping a width, for the panel to take the content's place.
+   * In a frame (PanelFrame) it fills the room by default, as the frame's Fill does.
    */
   onExpand?: () => void;
   /** What the splitter says while a release would call `onExpand`. */
