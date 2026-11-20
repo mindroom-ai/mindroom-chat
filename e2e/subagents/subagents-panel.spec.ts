@@ -122,7 +122,8 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(3 * 60_000);
-  const room = await openPanelRoom(context, page);
+  // The calls show as sent with the usage details, which this reader turned on.
+  const room = await openPanelRoom(context, page, { showUsageDetails: true });
   await joinNamespacedAgent(room, 'researcher', 'Research Desk');
   const first = startRun(room, { name: 'researcher', task: 'Find when version 2 shipped.' });
   const second = startRun(room, { name: 'reviewer', task: 'Check the release notes.' });
@@ -207,4 +208,42 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(cards).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath('subagents-panel-phone.png') });
+});
+
+test('the Sub-agents panel says what a run does in plain words, as it starts', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(3 * 60_000);
+  // The reader keeps the app's default: no usage details.
+  const room = await openPanelRoom(context, page);
+  const run = startRun(room, { name: 'researcher', task: "Summarize this week's meeting notes" });
+  await run.snapshot('Reading the notes.');
+  const show = roomHeader(page).getByRole('button', {
+    name: 'Show sub-agents, 1 active',
+    exact: true,
+  });
+  await expect(show).toBeVisible({ timeout: 30_000 });
+  await show.click();
+  const panel = panelLocator(page, 'subagents');
+  const card = panel.locator('[data-subagent]');
+  await expect(card).toHaveCount(1);
+  await expect(panel.locator('[data-subagents-totals]')).toHaveText('1 active');
+  // Between calls, the last line the run wrote.
+  await expect(card.locator('[data-subagent-line="now"]')).toHaveText('NowReading the notes.');
+  await run.toolRow('Reading the notes.'.length, '\n\n🔧 `run_shell_command` [1] ⏳\n\n');
+  // Its call in plain words, the call as sent its tooltip; no model, numbers or raw call.
+  await expect(card.locator('[data-subagent-line="now"]')).toHaveText('NowRunning a command');
+  await expect(card.locator('[data-subagent-step]')).toHaveAttribute(
+    'title',
+    'run_shell_command command=git tag'
+  );
+  await expect(
+    card.locator('[data-subagent-model], [data-subagent-stat], [data-subagent-tool]')
+  ).toHaveCount(0);
+  await card.click();
+  await expect(panel.locator('[data-subagent-now]')).toContainText('Running a command…');
+  await expect(panel.locator('[data-subagent-strip], [data-subagent-model]')).toHaveCount(0);
+  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-plain-steps.png') });
 });

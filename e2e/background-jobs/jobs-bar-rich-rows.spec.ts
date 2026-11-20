@@ -118,7 +118,8 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(3 * 60_000);
-  const room = await openPanelRoom(context, page);
+  // The rows' model and usage show only with the usage details, which this reader turned on.
+  const room = await openPanelRoom(context, page, { showUsageDetails: true });
   // MindRoom lets its agents publish their jobs; this room's creator does the same.
   const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
   const powerLevels = await matrixFetch<Record<string, unknown>>(
