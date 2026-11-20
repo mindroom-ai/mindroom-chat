@@ -862,12 +862,17 @@ const expectTagTargets = async (section: Locator) => {
       for (const [px, py] of points) {
         if (owner(px, py) !== control) {
           const there = document.elementFromPoint(px, py);
+          const layer = getComputedStyle(control, '::after');
+          const facts = [
+            `box ${Math.round(box.top)}-${Math.round(box.bottom)}`,
+            `hits ${there?.tagName ?? 'nothing'}.${String(there?.className ?? '')}`,
+            `layer ${layer.content} ${layer.position} ${layer.top} ${layer.bottom}`,
+            `control ${getComputedStyle(control).position} ${control.className}`,
+          ];
           missed.push(
             `${control.getAttribute('aria-label')} at ${Math.round(px)},${Math.round(
               py
-            )} (box ${Math.round(box.top)}-${Math.round(box.bottom)}; hits ${
-              there?.tagName ?? 'nothing'
-            }.${String(there?.className ?? '')})`
+            )} (${facts.join('; ')})`
           );
         }
       }
