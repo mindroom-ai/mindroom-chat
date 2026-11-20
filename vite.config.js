@@ -70,6 +70,7 @@ const speechModelFiles = () => ({
  * Tests import this object to assert what ships, so keep it a plain
  * `{ targets }` value rather than a plugin instance. vite-plugin-static-copy keeps a file's
  * directories under `dest` unless `stripBase` drops them.
+ * @type {import('vite-plugin-static-copy').ViteStaticCopyOptions}
  */
 export const copyFiles = {
   targets: [
