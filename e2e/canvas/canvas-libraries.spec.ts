@@ -31,7 +31,7 @@ const sendCanvas = (room: PanelRoom, title: string, html: string, libraries: str
 
 // Each check writes its result into #result, with every policy violation the page saw.
 const LIBRARY_PAGE = `<canvas id="chart" width="300" height="150"></canvas>
-<div id="bars"></div><div id="diagram"></div>
+<div id="bars"></div><div id="diagram"></div><div id="usecase"></div>
 <p id="math">Euler: $e^{i\\pi} + 1 = 0$</p>
 <pre id="result">running</pre>
 <script>
@@ -61,6 +61,22 @@ const LIBRARY_PAGE = `<canvas id="chart" width="300" height="150"></canvas>
       document.getElementById('diagram').innerHTML = svg;
       return document.querySelectorAll('#diagram .node').length === 3;
     });
+    // WebKit before iOS 17.4 has no Object.groupBy, which use case diagrams need: Chat's copy of
+    // Mermaid, loaded again without it, brings its own.
+    await check('mermaid without Object.groupBy', async () => {
+      delete Object.groupBy;
+      const script = document.createElement('script');
+      script.src = document.querySelector('script[src$="/mermaid.min.js"]').src;
+      await new Promise((resolve, reject) => {
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.append(script);
+      });
+      mermaid.initialize({ startOnLoad: false });
+      const { svg } = await mermaid.render('usecase-diagram', 'usecase-beta\\n  actor Customer\\n  Customer --> Checkout');
+      document.getElementById('usecase').innerHTML = svg;
+      return !!document.querySelector('#usecase .usecaseDiagram') && !svg.includes('Syntax error');
+    });
     await check('katex', async () => {
       renderMathInElement(document.getElementById('math'), {
         delimiters: [{ left: '$', right: '$', display: false }],
@@ -77,6 +93,7 @@ const ALL_RIGHT = JSON.stringify({
   chartjs: 'ok',
   d3: 'ok',
   mermaid: 'ok',
+  'mermaid without Object.groupBy': 'ok',
   katex: 'ok',
   violations: [],
 });

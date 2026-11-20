@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CANVAS_LIBRARY_DIR,
   CANVAS_LIBRARY_FILES,
+  GROUP_BY_FALLBACK,
   inlineFonts,
 } from '../../../../scripts/canvas-libraries.mjs';
 import { CANVAS_LIBRARY_NAMES, canvasLibraries, canvasLibraryDirectory } from './canvasLibraries';
@@ -70,6 +72,26 @@ describe('canvasLibraries', () => {
     expect(css).toMatch(/@font-face/);
     expect(css).not.toMatch(/url\((?!data:font\/woff2;base64,)/);
     expect(css?.match(/src:/g)?.length).toBe(css?.match(/data:font\/woff2/g)?.length);
+  });
+
+  it("starts Mermaid with an Object.groupBy for WebKit before iOS 17.4, keeping Mermaid's strict mode", () => {
+    const mermaid = CANVAS_LIBRARY_FILES.find(({ name }) => name === 'mermaid.min.js');
+    const upstream = readFileSync(
+      new URL('../../../../node_modules/mermaid/dist/mermaid.min.js', import.meta.url),
+      'utf8'
+    );
+    expect(upstream.startsWith('"use strict";')).toBe(true);
+    expect(mermaid?.source.toString()).toBe(GROUP_BY_FALLBACK + upstream);
+    // A context whose Object lacks groupBy, as old WebKit's does, gets one that groups as it should.
+    const groups: unknown = runInNewContext(
+      `delete Object.groupBy;${GROUP_BY_FALLBACK}` +
+        `JSON.stringify(Object.groupBy([1, 2, 3, 4], (n, i) => (n % 2 ? 'odd' : 'even') + (i > 1)))`
+    );
+    expect(groups).toBe('{"oddfalse":[1],"evenfalse":[2],"oddtrue":[3],"eventrue":[4]}');
+    // Where groupBy exists, it is left alone.
+    expect(
+      runInNewContext(`const own = Object.groupBy;${GROUP_BY_FALLBACK}Object.groupBy === own`)
+    ).toBe(true);
   });
 
   it('keeps only the woff2 face of each font, and fails on a font without one', () => {

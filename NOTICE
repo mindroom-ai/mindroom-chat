@@ -98,12 +98,13 @@ KaTeX fonts
 
 ELK in Mermaid
   Mermaid 12, which Chat serves to canvas pages (scripts/canvas-libraries.mjs),
-  builds in elkjs 0.12.1, the Eclipse Layout Kernel compiled to JavaScript,
-  Copyright (c) Kiel University and others, offered under the Eclipse Public
-  License 2.0 or GPL-3.0-or-later. Chat takes it under EPL-2.0 and ships it
-  unmodified inside mermaid.min.js. Its source is at
-  https://github.com/kieler/elkjs (tag 0.12.1); the license text is in
-  THIRD_PARTY_NOTICES.txt.
+  builds elkjs 0.12.0 into its mermaid.min.js (as its source map records), the
+  Eclipse Layout Kernel compiled to JavaScript, Copyright (c) Kiel University
+  and others, offered under the Eclipse Public License 2.0 or
+  GPL-3.0-or-later. Chat takes it under EPL-2.0 and ships it unmodified inside
+  mermaid.min.js. Its source is at https://github.com/kieler/elkjs (tag
+  0.12.0). The license text is in THIRD_PARTY_NOTICES.txt, under the elkjs
+  0.12.1 that npm installs beside Mermaid, whose license is the same.
 
 Voice-activity detector
   Call transcription finds speech with @ricky0123/vad-web 0.0.31
