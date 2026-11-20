@@ -61,6 +61,7 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     .importNode(stage, true) as HTMLElement;
   const copies = copy.querySelectorAll<HTMLElement>('*');
   const scrolled: [Element, number, number][] = [];
+  const bounds = stage.getBoundingClientRect();
   // A canvas is copied empty: each of these is drawn from what shows in the page.
   const drawn: [HTMLCanvasElement, HTMLCanvasElement | HTMLImageElement][] = [];
   stage.querySelectorAll<HTMLElement>('*').forEach((element, index) => {
@@ -87,16 +88,31 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     twin.style.cssText += `;box-sizing:border-box;width:${offsetWidth}px;height:${offsetHeight}px`;
     if (!(element instanceof HTMLImageElement)) return;
     const { complete, naturalWidth, naturalHeight } = element;
-    if (!complete || !naturalWidth || !naturalHeight) return;
+    // Only a picture the copy shows: not one of no size, nor one scrolled out of the layout.
+    const shows = element.getBoundingClientRect();
+    if (
+      !complete ||
+      !naturalWidth ||
+      !naturalHeight ||
+      !shows.width ||
+      !shows.height ||
+      shows.right <= bounds.left ||
+      shows.left >= bounds.right ||
+      shows.bottom <= bounds.top ||
+      shows.top >= bounds.bottom
+    ) {
+      return;
+    }
     const picture = twin.ownerDocument.createElement('canvas');
     Array.from(twin.attributes).forEach(({ name, value }) => picture.setAttribute(name, value));
-    // As sharp as the picture shows on the screen and no sharper, which keeps a large picture
-    // from taking the memory of its full size: the picture's own shape, so it fills or fits its
-    // box as it did.
+    // In the picture's own shape, so it fills or fits its box as it did, and neither side sharper
+    // than its box shows on the screen: a large picture takes no memory of its full size.
+    // One far wider or taller than its box shows a little soft where it fills it, for the slide.
+    const pixels = window.devicePixelRatio || 1;
     const scale = Math.min(
       1,
-      Math.max(offsetWidth / naturalWidth, offsetHeight / naturalHeight) *
-        (window.devicePixelRatio || 1)
+      (offsetWidth / naturalWidth) * pixels,
+      (offsetHeight / naturalHeight) * pixels
     );
     picture.width = Math.max(1, Math.round(naturalWidth * scale));
     picture.height = Math.max(1, Math.round(naturalHeight * scale));
