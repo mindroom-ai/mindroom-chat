@@ -724,6 +724,44 @@ it("opens one sub-agent job's run from beside its title, whose title stays the s
   expect(container.querySelector('[data-job-logo]')?.getAttribute('data-job-logo')).toBe('tool');
 });
 
+it('folds one sub-agent job into its row: title, agent, model, its call and numbers, Open', () => {
+  ingestRun(
+    's1',
+    {
+      title: 'Rework the export queue retry policy',
+      model: { modelConfig: 'fable', modelProvider: 'anthropic', modelId: 'claude-fable-5.2' },
+      usage: { inputTokens: 1_300_000, outputTokens: 100_000, toolCalls: 34, costUsd: 1.3 },
+    },
+    [{ type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'uv run pytest' }]
+  );
+  state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
+  render('$thread');
+  const row = container.querySelector('[data-job-folded]')!;
+  expect(row.querySelector('.Task')?.textContent).toBe('Rework the export queue retry policy');
+  // Its title lists it; Open beside it shows its run.
+  expect(row.querySelector('.Task')?.getAttribute('aria-expanded')).toBe('false');
+  expect(row.querySelector('[data-job-model]')?.textContent).toBe('Fable');
+  expect(row.querySelector('[data-job-activity]')?.textContent).toBe(
+    'run_shell_command uv run pytest'
+  );
+  const cells = [...row.querySelectorAll('[data-job-stat]')].map((cell) => cell.textContent);
+  expect(cells).toEqual(['34', '1.4M', '$1.30']);
+  expect(row.querySelector('[data-job-open]')?.getAttribute('aria-label')).toBe(
+    tr('mindroomUi.backgroundJobs.openFor', { name: 'Rework the export queue retry policy' })
+  );
+  // Its run's thread is the view's, so it names none.
+  expect(row.querySelector('[data-job-thread]')).toBeNull();
+  // Listed, its row is the same, its title opening its run.
+  expand();
+  const listed = container.querySelector('li[data-job-kind="subagent"]')!;
+  expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(
+    'run_shell_command uv run pytest'
+  );
+  expect(listed.querySelector('.RowOpen')?.textContent).toBe(
+    'Rework the export queue retry policy'
+  );
+});
+
 it("shows a sub-agent's title, with its task as the title's tooltip", () => {
   ingestRun('s1', { title: 'Refactor login form', task: 'Refactor the login form\nwith tests' }, [
     { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
