@@ -129,14 +129,27 @@ describe('ServerConfigsLoader', () => {
       code_challenge_methods_supported: ['S256'],
     };
 
-    /** Loads the configs of a homeserver that answers the paths in `routes` and knows no other. */
-    const authMetadataOf = async (routes: Record<string, unknown>) => {
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    /** What a homeserver answers a path it does not know, by the specification. */
+    const unrecognized = () =>
+      json({ errcode: 'M_UNRECOGNIZED', error: 'Unrecognized request' }, 404);
+    /** What a proxy, or a server from before that error code, answers one. */
+    const bareNotFound = () =>
+      new Response('<html><body>404 Not Found</body></html>', {
+        status: 404,
+        headers: { 'Content-Type': 'text/html' },
+      });
+
+    /**
+     * Loads the configs of a homeserver that answers the paths in `routes`, and any other path
+     * with `unknownPath`.
+     */
+    const authMetadataOf = async (routes: Record<string, unknown>, unknownPath = unrecognized) => {
       const requested: string[] = [];
-      const json = (body: unknown, status = 200) =>
-        new Response(JSON.stringify(body), {
-          status,
-          headers: { 'Content-Type': 'application/json' },
-        });
       const mx = createClient({
         baseUrl: 'https://example.org',
         accessToken: 'token',
@@ -144,9 +157,7 @@ describe('ServerConfigsLoader', () => {
           const url = new URL(String(input));
           const route = url.origin === 'https://example.org' ? url.pathname : url.href;
           requested.push(route);
-          return route in routes
-            ? json(routes[route])
-            : json({ errcode: 'M_UNRECOGNIZED', error: 'Unrecognized request' }, 404);
+          return route in routes ? json(routes[route]) : unknownPath();
         },
       });
       let latestConfigs: ServerConfigs | undefined;
@@ -197,6 +208,33 @@ describe('ServerConfigsLoader', () => {
         `${MSC2965}/auth_issuer`,
         `${ISSUER}.well-known/openid-configuration`,
       ]);
+    });
+
+    it('asks the older routes of a homeserver that answers an unknown path with a bare 404', async () => {
+      const unstable = await authMetadataOf(
+        { [`${MSC2965}/auth_metadata`]: metadata },
+        bareNotFound
+      );
+      const issuer = await authMetadataOf(
+        {
+          [`${MSC2965}/auth_issuer`]: { issuer: ISSUER },
+          [`${ISSUER}.well-known/openid-configuration`]: metadata,
+        },
+        bareNotFound
+      );
+
+      expect(unstable.authMetadata).toEqual(management);
+      expect(issuer.authMetadata).toEqual(management);
+    });
+
+    it('asks no older route when the stable one fails for another reason', async () => {
+      const { authMetadata, requested } = await authMetadataOf(
+        { [`${MSC2965}/auth_metadata`]: metadata },
+        () => json({ errcode: 'M_UNKNOWN', error: 'Internal server error' }, 500)
+      );
+
+      expect(authMetadata).toBeUndefined();
+      expect(requested.filter((route) => route.includes('auth'))).toEqual([STABLE]);
     });
 
     it('falls back to the issuer of a provider that names no management page', async () => {

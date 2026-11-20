@@ -854,20 +854,49 @@ index 18c3f45..e686185 100644
    }
  
    /**
+diff --git a/node_modules/matrix-js-sdk/lib/models/event.d.ts b/node_modules/matrix-js-sdk/lib/models/event.d.ts
+index 9097753..209d362 100644
+--- a/node_modules/matrix-js-sdk/lib/models/event.d.ts
++++ b/node_modules/matrix-js-sdk/lib/models/event.d.ts
+@@ -285,7 +285,6 @@ export declare class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEve
+      * Should be read-only
+      */
+     forwardLooking: boolean;
+-    private readonly reEmitter;
+     /**
+      * The timestamp for when this event should expire, in milliseconds.
+      * Prefers using the server-provided value, but will fall back to local calculation.
 diff --git a/node_modules/matrix-js-sdk/lib/models/event.js b/node_modules/matrix-js-sdk/lib/models/event.js
-index e22e2ee..4f27e50 100644
+index e22e2ee..4bde21a 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event.js
 +++ b/node_modules/matrix-js-sdk/lib/models/event.js
-@@ -24,7 +24,7 @@ import { ExtensibleEvents } from "matrix-events-sdk";
+@@ -24,8 +24,7 @@ import { ExtensibleEvents } from "matrix-events-sdk";
  import { logger } from "../logger.js";
  import { EVENT_VISIBILITY_CHANGE_TYPE, EventType, RelationType, ToDeviceMessageId, UNSIGNED_THREAD_ID_FIELD, UNSIGNED_MEMBERSHIP_FIELD } from "../@types/event.js";
  import { deepSortedObjectEntries, internaliseString } from "../utils.js";
 -import { THREAD_RELATION_TYPE, ThreadEvent } from "./thread.js";
+-import { TypedReEmitter } from "../ReEmitter.js";
 +import { THREAD_RELATION_TYPE } from "./thread.js";
- import { TypedReEmitter } from "../ReEmitter.js";
  import { TypedEventEmitter } from "./typed-event-emitter.js";
  import { DecryptionError } from "../common-crypto/CryptoBackend.js";
-@@ -1300,6 +1300,11 @@ export class MatrixEvent extends TypedEventEmitter {
+ import { EventTimeline } from "./event-timeline.js";
+@@ -251,7 +250,6 @@ export class MatrixEvent extends TypedEventEmitter {
+      * Should be read-only
+      */
+     _defineProperty(this, "forwardLooking", true);
+-    _defineProperty(this, "reEmitter", void 0);
+     /**
+      * The timestamp for when this event should expire, in milliseconds.
+      * Prefers using the server-provided value, but will fall back to local calculation.
+@@ -284,7 +282,6 @@ export class MatrixEvent extends TypedEventEmitter {
+     const age = this.getAge();
+     const now = Date.now();
+     this.localTimestamp = age !== undefined ? now - age : this.getTs() ?? now;
+-    this.reEmitter = new TypedReEmitter(this);
+     if (this.unstableStickyInfo) {
+       if (this.unstableStickyInfo.duration_ttl_ms !== undefined) {
+         this.unstableStickyExpiresAt = now + this.unstableStickyInfo.duration_ttl_ms;
+@@ -1300,6 +1297,11 @@ export class MatrixEvent extends TypedEventEmitter {
      if (this.isState()) {
        return;
      }
@@ -879,7 +908,7 @@ index e22e2ee..4f27e50 100644
      if (this._replacingEvent !== newEvent) {
        this._replacingEvent = newEvent ?? null;
        this.emit(MatrixEventEvent.Replaced, this);
-@@ -1321,7 +1326,13 @@ export class MatrixEvent extends TypedEventEmitter {
+@@ -1321,7 +1323,13 @@ export class MatrixEvent extends TypedEventEmitter {
      return this.status;
    }
    getServerAggregatedRelation(relType) {
@@ -894,7 +923,7 @@ index e22e2ee..4f27e50 100644
    }
  
    /**
-@@ -1372,13 +1383,13 @@ export class MatrixEvent extends TypedEventEmitter {
+@@ -1372,13 +1380,13 @@ export class MatrixEvent extends TypedEventEmitter {
     * For relations and redactions, returns the event_id this event is referring to.
     */
    getAssociatedId() {
@@ -910,7 +939,7 @@ index e22e2ee..4f27e50 100644
      }
    }
  
-@@ -1509,14 +1520,11 @@ export class MatrixEvent extends TypedEventEmitter {
+@@ -1509,14 +1517,11 @@ export class MatrixEvent extends TypedEventEmitter {
      if (this.isState()) {
        return;
      }
@@ -3722,10 +3751,35 @@ index 20b7016..4af2a1b 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
-index 850308a..48cdee6 100644
+index 850308a..d5ff596 100644
 --- a/node_modules/matrix-js-sdk/src/models/event.ts
 +++ b/node_modules/matrix-js-sdk/src/models/event.ts
-@@ -1544,6 +1544,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+@@ -35,7 +35,6 @@ import { deepSortedObjectEntries, internaliseString } from "../utils.ts";
+ import { type RoomMember } from "./room-member.ts";
+ import { type Thread, THREAD_RELATION_TYPE, ThreadEvent, type ThreadEventHandlerMap } from "./thread.ts";
+ import { type IActionsObject } from "../pushprocessor.ts";
+-import { TypedReEmitter } from "../ReEmitter.ts";
+ import { type MatrixError } from "../http-api/index.ts";
+ import { TypedEventEmitter } from "./typed-event-emitter.ts";
+ import { type EventStatus } from "./event-status.ts";
+@@ -428,8 +427,6 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+      */
+     public forwardLooking = true;
+ 
+-    private readonly reEmitter: TypedReEmitter<MatrixEventEmittedEvents, MatrixEventHandlerMap>;
+-
+     /**
+      * The timestamp for when this event should expire, in milliseconds.
+      * Prefers using the server-provided value, but will fall back to local calculation.
+@@ -482,7 +479,6 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+         const age = this.getAge();
+         const now = Date.now();
+         this.localTimestamp = age !== undefined ? now - age : (this.getTs() ?? now);
+-        this.reEmitter = new TypedReEmitter(this);
+         if (this.unstableStickyInfo) {
+             if (this.unstableStickyInfo.duration_ttl_ms !== undefined) {
+                 this.unstableStickyExpiresAt = now + this.unstableStickyInfo.duration_ttl_ms;
+@@ -1544,6 +1540,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
          if (this.isState()) {
              return;
          }
@@ -3737,7 +3791,7 @@ index 850308a..48cdee6 100644
          if (this._replacingEvent !== newEvent) {
              this._replacingEvent = newEvent ?? null;
              this.emit(MatrixEventEvent.Replaced, this);
-@@ -1566,7 +1571,13 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+@@ -1566,7 +1567,13 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
      }
  
      public getServerAggregatedRelation<T>(relType: RelationType | string): T | undefined {
@@ -3752,7 +3806,7 @@ index 850308a..48cdee6 100644
      }
  
      /**
-@@ -1617,13 +1628,13 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+@@ -1617,13 +1624,13 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
       * For relations and redactions, returns the event_id this event is referring to.
       */
      public getAssociatedId(): string | undefined {
@@ -3768,7 +3822,7 @@ index 850308a..48cdee6 100644
          }
      }
  
-@@ -1758,14 +1769,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+@@ -1758,14 +1765,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
          if (this.isState()) {
              return;
          }

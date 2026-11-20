@@ -1,5 +1,5 @@
 import { ReactNode, createContext, useContext, useEffect, useState } from 'react';
-import { ClientPrefix, MatrixError, Method, type MatrixClient } from 'matrix-js-sdk';
+import { ClientPrefix, HTTPError, MatrixError, Method, type MatrixClient } from 'matrix-js-sdk';
 import { parseHttpUrl } from '../lib/httpUrl';
 import { isRecord } from '../lib/isRecord';
 
@@ -46,8 +46,13 @@ const loadMediaConfig = (client: MatrixClient): Promise<MediaConfig> =>
 
 const MSC2965_PREFIX = `${ClientPrefix.Unstable}/org.matrix.msc2965`;
 
-const isUnrecognized = (error: unknown): boolean =>
-  error instanceof MatrixError && error.errcode === 'M_UNRECOGNIZED';
+/**
+ * Whether the homeserver does not have the route: `M_UNRECOGNIZED`, or a 404 of any kind, which is
+ * what a proxy or a server from before that error code answers.
+ */
+const isUnknownRoute = (error: unknown): boolean =>
+  (error instanceof MatrixError && error.errcode === 'M_UNRECOGNIZED') ||
+  (error instanceof HTTPError && error.httpStatus === 404);
 
 const requestAuthMetadata = (client: MatrixClient, prefix: string): Promise<unknown> =>
   client.http.request(Method.Get, '/auth_metadata', undefined, undefined, { prefix });
@@ -61,12 +66,12 @@ const fetchAuthMetadata = async (client: MatrixClient): Promise<unknown> => {
   try {
     return await requestAuthMetadata(client, ClientPrefix.V1);
   } catch (error) {
-    if (!isUnrecognized(error)) throw error;
+    if (!isUnknownRoute(error)) throw error;
   }
   try {
     return await requestAuthMetadata(client, MSC2965_PREFIX);
   } catch (error) {
-    if (!isUnrecognized(error)) throw error;
+    if (!isUnknownRoute(error)) throw error;
   }
   const { issuer } = await client.http.request<{ issuer: string }>(
     Method.Get,
