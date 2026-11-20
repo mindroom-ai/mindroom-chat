@@ -3,9 +3,17 @@
 
 const escapeForRegex = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** A regular expression that matches any of `words` literally. */
-export const createRegexFromWords = (words: string[], flags = 'g'): RegExp =>
-  new RegExp(words.map(escapeForRegex).join('|'), flags);
+// A letter or digit, as Rust's `char::is_alphanumeric` reads one. The homeserver's message search
+// splits text into words at every other character, so `_`, `-` and `.` end a word.
+const WORD_CHAR = '[\\p{Alphabetic}\\p{N}]';
+
+/**
+ * A case-insensitive pattern that matches any of `words` where it stands as a whole word, with no
+ * letter or digit right before or after it. Each lookaround reads one character, so it costs the
+ * same at every position.
+ */
+export const createWholeWordRegex = (words: string[]): RegExp =>
+  new RegExp(`(?<!${WORD_CHAR})(?:${words.map(escapeForRegex).join('|')})(?!${WORD_CHAR})`, 'giu');
 
 // One emoji, written with UTF-16 code units so it also works in a RegExp without the `u` flag:
 // a pictograph from the supplementary planes or the BMP symbol blocks, optionally followed by a
