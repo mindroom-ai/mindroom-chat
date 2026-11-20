@@ -1,18 +1,12 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Avatar, Text } from 'folds';
-import { agentMember } from '../approvals/approvalPeople';
-import { UserAvatar } from '../avatars/UserAvatar';
+import { Text } from 'folds';
 import { getLocalizedThreadMessagePreviewText } from '../event-store/threads/threadMessagePreview';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useRelativeTime } from '../i18n/useRelativeTime';
-import { nameInitials } from '../lib/common';
-import { formatCallDuration } from '../lib/time';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
-import { mxcUrlToHttp } from '../matrix/matrix';
+import { formatWorkDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import {
   isActiveSubagentStatus,
@@ -20,9 +14,13 @@ import {
   isRestartInterrupted,
   type SubagentMeta,
 } from '../matrix/protocol/subagentFrame';
-import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
+import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
+import { useAgentProfile } from './AgentAvatar';
+import { RunLogo, runLogoState } from './RunLogo';
+import { type RunLine, type ToolActivity, runLine } from './runActivity';
+import { formatTokens } from './runUsage';
 import * as css from './subagentsPanel.css';
 
 /** One turn of a sub-agent, a run of its own, and the sub-agents that turn started. */
@@ -42,58 +40,16 @@ export type SubagentNode = {
 export const latestTurn = ({ turns }: SubagentNode): SubagentRun =>
   (turns[turns.length - 1] ?? turns[0]).run;
 
-/** Pictures show at most 28 px wide; twice that keeps them sharp on dense screens. */
-const PICTURE_SIZE = 56;
-
-export type AgentProfile = { name: string; colorId: string; avatarSrc?: string };
-
-/**
- * The name and picture of the agent MindRoom calls `agent`: those of its account in the room
- * (`mindroom_<agent>`, or `mindroom_<agent>_<namespace>`), or the name itself.
- */
-export const useAgentProfile = (room: Room, agent: string): AgentProfile => {
-  const mx = useMatrixClient();
-  const useAuthentication = useMediaAuthentication();
-  const userId = agentMember(room, agent)?.userId;
-  if (!userId) return { name: agent, colorId: agent };
-  const picture = getMemberAvatarMxc(room, userId);
-  const src = picture
-    ? mxcUrlToHttp(mx, picture, useAuthentication, PICTURE_SIZE, PICTURE_SIZE, 'crop')
-    : null;
-  return {
-    name: getMemberDisplayName(room, userId) ?? agent,
-    colorId: userId,
-    avatarSrc: src ?? undefined,
-  };
-};
-
-/** The agent's picture, or its initials: small on a card, as a thread card's people; a message's size in a run. */
-export function AgentAvatar({ agent, size }: { agent: AgentProfile; size: '200' | '300' }) {
-  return (
-    <Avatar size={size} radii={size === '200' ? '400' : undefined} aria-hidden>
-      <UserAvatar
-        alt=""
-        userId={agent.colorId}
-        src={agent.avatarSrc}
-        renderFallback={() => (
-          <Text as="span" size={size === '200' ? 'L400' : 'H6'}>
-            {nameInitials(agent.name)}
-          </Text>
-        )}
-      />
-    </Avatar>
-  );
-}
-
 /**
  * How the run stands: a dot in the status's color, then its word. A turn a restart cut short reads
- * as interrupted, not failed, since MindRoom may continue it.
+ * as interrupted, not failed, since MindRoom may continue it. `loud` gives a run that waits for
+ * approval the word in the dot's color too, as the jobs bar's pill does.
  */
-export function RunStatus({ meta }: { meta: SubagentMeta }) {
+export function RunStatus({ meta, loud = false }: { meta: SubagentMeta; loud?: boolean }) {
   const { t } = useTranslation();
   const status = isRestartInterrupted(meta) ? 'interrupted' : meta.status;
   return (
-    <span className={css.Status}>
+    <span className={loud && status === 'awaiting_approval' ? css.StatusLoud : css.Status}>
       <span className={css.StatusDot[status]} />
       {t(`mindroomUi.subagents.${status}`)}
     </span>
@@ -107,16 +63,203 @@ export const elapsedSeconds = (meta: SubagentMeta, now: number): number | undefi
 };
 
 /**
+ * How long the run has been at it or took, as the jobs bar says it ("24m 12s"); an ended run
+ * without an end time says how long ago it ended.
+ */
+export const useRunTime = (meta: SubagentMeta, now: number): string => {
+  const language = useAppLanguageCode();
+  const elapsed = elapsedSeconds(meta, now);
+  const ago = useRelativeTime(elapsed === undefined ? meta.startedAt * 1000 : undefined, 'compact');
+  return elapsed === undefined ? ago : formatWorkDuration(elapsed * 1000, language);
+};
+
+const previewText = (text: string, t: TFunction): string | undefined =>
+  getLocalizedThreadMessagePreviewText({ msgtype: 'm.text', body: text }, t);
+
+/**
  * A run that ended badly, or that a restart cut short, says why; any other says what it wrote, as a thread card
  * previews it.
  */
 const runPreview = (meta: SubagentMeta, docs: LiveDocs, t: TFunction): string | undefined => {
   const failed = meta.status === 'failed' || meta.status === 'denied';
   const text = failed && meta.result ? meta.result : docs.md || meta.result;
-  return text
-    ? getLocalizedThreadMessagePreviewText({ msgtype: 'm.text', body: text }, t)
-    : undefined;
+  return text ? previewText(text, t) : undefined;
 };
+
+/** The line a card shows for its run (`runLine`), with the texts it needs. */
+const useRunLine = (run: SubagentRun): { line: RunLine; failed: boolean } => {
+  const { t } = useTranslation();
+  const { meta, docs } = run;
+  const reason = meta.result?.trim() ? previewText(meta.result, t) : undefined;
+  return { line: runLine(run, runPreview(meta, docs, t), reason), failed: isFailedRun(meta) };
+};
+
+/** A call as a card's line shows it: the tool in the code font, then its arguments, muted. */
+export function ToolCallText({ activity }: { activity: ToolActivity }) {
+  return (
+    <span className={css.ToolCall} data-subagent-tool="">
+      <span className={css.ToolName}>{activity.tool}</span>
+      {activity.preview && (
+        <>
+          {' '}
+          <span className={css.ToolArgs}>{activity.preview}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/**
+ * A card's third line, labelled by what it shows: Now and the call it makes, Needs approval and
+ * the call that waits, Result and the start of what it wrote, or how it ended and why. Without
+ * any (older MindRoom) it is the text line it was, unlabelled.
+ */
+function RunLineText({ run }: { run: SubagentRun }) {
+  const { t } = useTranslation();
+  const { line, failed } = useRunLine(run);
+  if (line.kind === 'plain') {
+    return (
+      <Text
+        as="span"
+        size="T200"
+        priority={failed ? undefined : '300'}
+        className={failed ? css.PreviewFailed : css.Line}
+        dir="auto"
+        truncate
+        data-subagent-line="plain"
+      >
+        {line.text ?? ' '}
+      </Text>
+    );
+  }
+  let label: string;
+  let mark: string;
+  let tone: keyof typeof css.LineLabel;
+  let rest: ReactNode = null;
+  if (line.kind === 'now' || line.kind === 'approval') {
+    const now = line.kind === 'now';
+    label = t(now ? 'mindroomUi.subagents.now' : 'mindroomUi.subagents.needsApproval');
+    mark = now ? '' : '!';
+    tone = now ? 'now' : 'approval';
+    rest = <ToolCallText activity={line.activity} />;
+  } else if (line.kind === 'result') {
+    label = t('mindroomUi.subagents.result');
+    mark = '✓';
+    tone = 'result';
+    rest = (
+      <span className={css.LineText} dir="auto">
+        {line.text}
+      </span>
+    );
+  } else {
+    label = t(`mindroomUi.subagents.${line.status}`);
+    mark = line.status === 'interrupted' ? '' : '✕';
+    tone = line.status === 'interrupted' ? 'result' : 'ended';
+    rest = line.reason ? (
+      <span className={css.LineText} dir="auto">
+        {line.reason}
+      </span>
+    ) : null;
+  }
+  return (
+    <Text as="span" size="T200" className={css.Line} data-subagent-line={line.kind}>
+      <span className={css.LineLabel[tone]}>
+        {line.kind === 'now' && <span className={css.Tick} aria-hidden />}
+        {mark && (
+          <span className={css.LineMark} aria-hidden>
+            {mark}
+          </span>
+        )}
+        {label}
+      </span>
+      {rest}
+    </Text>
+  );
+}
+
+/** The run's calls, tokens and cost, each left out while unknown, then its time. */
+function RunStats({ meta, now }: { meta: SubagentMeta; now: number }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const time = useRunTime(meta, now);
+  const { usage } = meta;
+  const tokens = usage ? usage.inputTokens + usage.outputTokens : 0;
+  const cells = [
+    usage && usage.toolCalls > 0
+      ? { key: 'calls', text: t('mindroomUi.subagents.calls', { count: usage.toolCalls }) }
+      : undefined,
+    tokens > 0
+      ? {
+          key: 'tokens',
+          text: t('mindroomUi.backgroundJobs.tokens', {
+            count: tokens,
+            tokens: formatTokens(tokens, language),
+          }),
+        }
+      : undefined,
+    tokens > 0 && usage?.costUsd !== undefined
+      ? { key: 'cost', text: formatCostUsd(usage.costUsd, language) }
+      : undefined,
+  ].flatMap((cell) => cell ?? []);
+  return (
+    <Text as="span" size="T200" priority="300" className={css.Stats}>
+      {cells.map((cell) => (
+        <span key={cell.key} data-subagent-stat={cell.key}>
+          {cell.text}
+        </span>
+      ))}
+      <span className={css.StatsTime} data-subagent-time="">
+        {time}
+      </span>
+    </Text>
+  );
+}
+
+/** A run's title: the one its first turn's call named, else that turn's task, else its agent. */
+const nodeTitle = (node: SubagentNode, agentName: string): string => {
+  const first = node.turns[0].run.meta;
+  return first.title || first.task?.split('\n', 1)[0] || agentName;
+};
+
+/**
+ * A sub-agent another one started, inside its card: on an elbow from it, its logo, title, and its
+ * time or that it waits for approval, then its labelled line.
+ */
+function NestedRun({ room, node, now }: { room: Room; node: SubagentNode; now: number }) {
+  const run = latestTurn(node);
+  const { meta } = run;
+  const agent = useAgentProfile(room, meta.agent);
+  const time = useRunTime(meta, now);
+  const first = node.turns[0].run.meta;
+  return (
+    <span className={css.NestedRun} data-subagent-nested={node.id}>
+      <RunLogo
+        model={meta.model}
+        agent={agent}
+        kind="agent"
+        state={runLogoState(meta)}
+        small
+        className={css.NestedLogo}
+      />
+      <Text
+        as="span"
+        size="T200"
+        className={css.NestedTitle}
+        title={first.task}
+        dir="auto"
+        truncate
+      >
+        {nodeTitle(node, agent.name)}
+      </Text>
+      <Text as="span" size="T200" priority="300" className={css.NestedTime}>
+        {meta.status === 'awaiting_approval' ? <RunStatus meta={meta} loud /> : time}
+      </Text>
+      <span className={css.NestedLine}>
+        <RunLineText run={run} />
+      </span>
+    </span>
+  );
+}
 
 type CardProps = {
   room: Room;
@@ -127,11 +270,11 @@ type CardProps = {
 };
 
 /**
- * One sub-agent as the room's compact view shows a thread: the title its first turn's call named,
- * else that turn's task, as the title, how long
- * its newest turn has been at it or how long ago it ended, a line of what that turn wrote, then the
- * agent, the model that turn ran on, how it stands, how many turns it took and how many
- * sub-agents it started. Pressing it opens the sub-agent.
+ * One sub-agent as the jobs bar shows a job: its model's logo with a dot for how it stands, the
+ * title its first turn's call named (else that turn's task) in bold, then the agent, the model its
+ * newest turn ran on, how it stands and how many turns it took, then a line labelled by what it
+ * shows (`RunLineText`). The sub-agents it started follow inside it, then what it used and its
+ * time. Pressing it opens the sub-agent.
  */
 export const SubagentRunCard = memo(function SubagentRunCard({
   room,
@@ -140,22 +283,12 @@ export const SubagentRunCard = memo(function SubagentRunCard({
   onOpen,
 }: CardProps) {
   const { t } = useTranslation();
-  const language = useAppLanguageCode();
   const run = latestTurn(node);
   const { meta } = run;
-  const nested = node.turns.reduce((count, turn) => count + turn.nested.length, 0);
+  const nested = node.turns.flatMap((turn) => turn.nested);
   const agent = useAgentProfile(room, meta.agent);
-  const active = isActiveSubagentStatus(meta.status);
   const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
-  const ago = useRelativeTime(
-    active ? undefined : (meta.endedAt ?? meta.startedAt) * 1000,
-    'compact'
-  );
-  const time = active ? formatCallDuration(now / 1000 - meta.startedAt, language) : ago;
   const first = node.turns[0].run.meta;
-  const title = first.title || first.task?.split('\n', 1)[0] || agent.name;
-  const preview = runPreview(meta, run.docs, t);
-  const failed = isFailedRun(meta);
 
   return (
     <button
@@ -164,54 +297,41 @@ export const SubagentRunCard = memo(function SubagentRunCard({
       data-subagent={node.id}
       onClick={() => onOpen(node.id)}
     >
-      <span className={css.TitleRow}>
-        <Text as="span" size="B300" className={css.Title} dir="auto" truncate>
-          {title}
+      <RunLogo
+        model={meta.model}
+        agent={agent}
+        kind="agent"
+        state={runLogoState(meta)}
+        className={css.CardLogo}
+      />
+      <span className={css.CardText}>
+        <Text as="span" size="T300" className={css.Title} title={first.task} dir="auto" truncate>
+          {nodeTitle(node, agent.name)}
         </Text>
-        <Text as="span" size="T200" priority="300" className={css.Time}>
-          {time}
+        <Text as="span" size="T200" className={css.Meta}>
+          <span className={css.AgentName}>{agent.name}</span>
+          {modelLabel && (
+            <span
+              className={css.Model}
+              title={meta.model && getAiRunModelLabel(meta.model)}
+              data-subagent-model=""
+            >
+              {modelLabel}
+            </span>
+          )}
+          <RunStatus meta={meta} loud />
+          {node.turns.length > 1 && (
+            <span className={css.Counts}>
+              {t('mindroomUi.subagents.turns', { count: node.turns.length })}
+            </span>
+          )}
         </Text>
+        <RunLineText run={run} />
       </span>
-      <Text
-        as="span"
-        size="T200"
-        priority={failed ? undefined : '300'}
-        className={failed ? css.PreviewFailed : undefined}
-        dir="auto"
-        truncate
-      >
-        {preview ?? ' '}
-      </Text>
-      <span className={css.Meta}>
-        <AgentAvatar agent={agent} size="200" />
-        <Text as="span" size="T200" className={css.AgentName} truncate>
-          {agent.name}
-        </Text>
-        {modelLabel && (
-          <Text
-            as="span"
-            size="T200"
-            priority="300"
-            className={css.Model}
-            title={meta.model && getAiRunModelLabel(meta.model)}
-            data-subagent-model=""
-            truncate
-          >
-            {modelLabel}
-          </Text>
-        )}
-        <Text as="span" size="T200" priority="300">
-          <RunStatus meta={meta} />
-        </Text>
-        {(node.turns.length > 1 || nested > 0) && (
-          <Text as="span" size="T200" priority="300" className={css.Counts}>
-            {node.turns.length > 1 && (
-              <span>{t('mindroomUi.subagents.turns', { count: node.turns.length })}</span>
-            )}
-            {nested > 0 && <span>{t('mindroomUi.subagents.nested', { count: nested })}</span>}
-          </Text>
-        )}
-      </span>
+      {nested.map((child) => (
+        <NestedRun key={child.id} room={room} node={child} now={now} />
+      ))}
+      <RunStats meta={meta} now={now} />
     </button>
   );
 });

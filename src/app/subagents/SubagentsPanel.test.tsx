@@ -14,6 +14,7 @@ import { loadLiveMarkdown } from '../messages/live/liveMarkdown';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { openSubagentsPanel, subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { SubagentsPanel } from './SubagentsPanel';
+import { keepCancelsOf } from '../matrix/state/sentCancels';
 import { showToolCalls } from '../../test/utils/showToolCalls';
 
 // These tests show how tool calls render, so they show them.
@@ -32,6 +33,19 @@ vi.mock('../navigation/useRoomNavigate', () => ({
 }));
 vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
+}));
+// The room's background jobs, which an open run's Stop cancels, and whether the viewer may.
+const jobsState = vi.hoisted(() => ({
+  jobs: [] as import('../matrix/protocol/backgroundJobsContract').BackgroundJob[],
+  canCancel: true,
+}));
+vi.mock('../matrix/hooks/useRoomBackgroundJobs', () => ({
+  useRoomBackgroundJobs: () => ({ jobs: jobsState.jobs, total: jobsState.jobs.length }),
+}));
+vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
+vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
+vi.mock('../matrix/hooks/useRoomPermissions', () => ({
+  useRoomPermissions: () => ({ event: () => jobsState.canCancel }),
 }));
 // The swipe from the screen's left edge the panel last asked for, and whether it is on.
 const edgeSwipe = vi.hoisted(() => ({ onBack: (): void => undefined, enabled: false }));
@@ -65,12 +79,16 @@ const room = {
   getMember: (userId: string) => (MEMBERS[userId] ? member(userId) : null),
   getJoinedMembers: () => Object.keys(MEMBERS).map(member),
   getMembers: () => [],
+  getEventForTxnId: () => undefined,
   membersLoaded: () => true,
   loadMembersIfNeeded: () => Promise.resolve(true),
   hasEncryptionStateEvent: () => false,
 } as unknown as Room;
 
+const sendEvent = vi.fn();
 const mx = {
+  sendEvent: (...args: unknown[]) => sendEvent(...args),
+  makeTxnId: () => 'txn',
   getUserId: () => VIEWER,
   getSafeUserId: () => VIEWER,
   getRoom: () => room,
@@ -169,6 +187,11 @@ beforeEach(() => {
   navigation.navigateRoomThread.mockReset();
   onClose.mockReset();
   edgeSwipe.enabled = false;
+  jobsState.jobs = [];
+  jobsState.canCancel = true;
+  sendEvent.mockReset();
+  sendEvent.mockResolvedValue({ event_id: '$sent' });
+  keepCancelsOf(ROOM_ID, new Set());
 });
 
 afterEach(() => {
@@ -227,7 +250,8 @@ describe('SubagentsPanel', () => {
     expect(card('early').textContent).toContain('Research Desk');
     expect(card('late').textContent).toContain('writer');
     expect(card('early').textContent).toContain('Running');
-    expect(card('early').textContent).toContain('45 sec');
+    // How long it has run, as the jobs bar says it.
+    expect(card('early').querySelector('[data-subagent-time]')?.textContent).toBe('45s');
   });
 
   it("names a namespaced MindRoom's agent by its account, with the agent's picture", () => {
@@ -283,9 +307,11 @@ describe('SubagentsPanel', () => {
     expect(card('old').querySelector('[data-subagent-model]')).toBeNull();
 
     open('modeled');
+    // The open run's header: its agent, then its model, its turn and, without usage, its status.
     const standing = container.querySelector('header [data-subagent-model]');
     expect(standing?.textContent).toBe('Opus 5.5');
-    expect(standing?.nextElementSibling?.textContent).toBe('Running');
+    expect(standing?.previousElementSibling?.textContent).toBe('Research Desk');
+    expect(standing?.parentElement?.textContent).toContain('Running');
   });
 
   it('lists finished runs after the running ones, the one that ended last first', () => {
@@ -340,21 +366,40 @@ describe('SubagentsPanel', () => {
     );
     render();
 
-    expect(card('tools').textContent).toContain('1 tool');
-    expect(card('tools').textContent).toContain('Checking the tags.');
-    expect(card('broke').textContent).toContain('Tool crashed.');
+    // A run at a call says so instead.
+    expect(card('tools').querySelector('[data-subagent-line]')?.textContent).toBe(
+      'Nowrun_shell_command'
+    );
+    expect(card('broke').querySelector('[data-subagent-line]')?.textContent).toBe(
+      '✕FailedTool crashed.'
+    );
     expect(card('broke').textContent).not.toContain('Trying.');
+    // Between calls it previews what it wrote, unlabelled, as before.
+    ingest(
+      'tools',
+      meta('running'),
+      docs('Checking **the tags**.\n\n🔧 `run_shell_command` [1]\n\n', [
+        { type: 'tool_call_completed', tool_name: 'run_shell_command' },
+      ])
+    );
+    const line = card('tools').querySelector('[data-subagent-line]');
+    expect(line?.getAttribute('data-subagent-line')).toBe('plain');
+    expect(line?.textContent).toContain('1 tool');
+    expect(line?.textContent).toContain('Checking the tags.');
   });
 
-  it('lists the runs a run started inside it, counted on its card, and an orphan on its own', () => {
+  it('lists the runs a run started inside its card, and an orphan on its own', () => {
     ingest('parent', meta('running'), docs('Splitting the work.'));
     ingest('child', meta('running', { agent: 'writer', parent: 'parent' }), docs('Writing.'));
     ingest('orphan', meta('running', { parent: 'gone', startedAt: NOW - 5 }), docs('Alone.'));
     render();
 
     expect(cards().map((element) => element.dataset.subagent)).toEqual(['parent', 'orphan']);
-    expect(card('parent').textContent).toContain('1 sub-agent');
-    expect(card('orphan').textContent).not.toContain('sub-agent');
+    const child = card('parent').querySelector('[data-subagent-nested]');
+    expect(child?.getAttribute('data-subagent-nested')).toBe('child');
+    expect(child?.textContent).toContain('writer');
+    expect(child?.querySelector('[data-subagent-line]')?.textContent).toBe('Writing.');
+    expect(card('orphan').querySelector('[data-subagent-nested]')).toBeNull();
   });
 
   it("shows a sub-agent's turns as one card and opens them as one thread, in order", () => {
@@ -409,7 +454,7 @@ describe('SubagentsPanel', () => {
 
     expect(cards().map((element) => element.dataset.subagent)).toEqual(['p']);
     expect(card('p').textContent).toContain('2 turns');
-    expect(card('p').textContent).toContain('1 sub-agent');
+    expect(card('p').querySelector('[data-subagent-nested]')?.textContent).toContain('Write it.');
     open('p');
     // The second turn's task, then the card of the sub-agent it started, then its reply.
     const parts = view()?.querySelectorAll<HTMLElement>(
@@ -421,7 +466,7 @@ describe('SubagentsPanel', () => {
     expect(order).toEqual(['Plan it.', 'Planned.', 'Do it.', 'c1', 'Doing.']);
 
     open('c1');
-    expect(heading()).toBe('writer');
+    expect(heading()).toBe('Write it.');
     act(() => button(container, 'Back').click());
     expect(view()?.dataset.subagentView).toBe('p');
     act(() => button(container, 'Back').click());
@@ -443,8 +488,16 @@ describe('SubagentsPanel', () => {
     render();
     open('run');
 
-    expect(heading()).toBe('Research Desk');
+    // Its task's first line heads it, its agent under it.
+    expect(heading()).toBe('Find the tags.');
+    expect(container.querySelector('header [data-subagent-agent]')?.textContent).toBe(
+      'Research Desk'
+    );
     expect(container.querySelector('header')?.textContent).toContain('Running');
+    // The call it makes now, under the header.
+    expect(container.querySelector('[data-subagent-now]')?.textContent).toContain(
+      'run_shell_command command=git tag'
+    );
     expect(view()?.querySelector('[data-subagent-task]')?.textContent).toBe('Find the tags.');
     // The caller's message, then the run's.
     const [asked, answer] = [...(view()?.querySelectorAll('[data-subagent-message]') ?? [])];
@@ -714,7 +767,7 @@ describe('SubagentsPanel', () => {
       Node.DOCUMENT_POSITION_FOLLOWING
     );
     open('child');
-    expect(heading()).toBe('writer');
+    expect(heading()).toBe('Write it.');
     expect(transcript()?.textContent).toContain('Written.');
     act(() => button(container, 'Back').click());
     expect(heading()).toBe('Research Desk');
@@ -927,5 +980,225 @@ describe('SubagentsPanel', () => {
     });
     grow('First line. Second line. Third line. Fourth line.');
     expect(box.scrollTop).toBe(970);
+  });
+  describe('what each run does and used', () => {
+    const usage = (
+      toolCalls: number,
+      inputTokens: number,
+      outputTokens: number,
+      costUsd?: number
+    ) => ({
+      toolCalls,
+      inputTokens,
+      outputTokens,
+      ...(costUsd === undefined ? {} : { costUsd }),
+    });
+    const fable = { modelConfig: 'fable', modelProvider: 'anthropic', modelId: 'claude-fable-5.2' };
+
+    it('totals the conversation in the header: active, calls, tokens and cost', () => {
+      ingest(
+        'retry',
+        meta('running', {
+          task: 'Rework the export queue retry policy',
+          usage: usage(34, 1_300_000, 124_000, 1.3),
+        }),
+        docs('Working.')
+      );
+      ingest(
+        'audit',
+        meta('completed', {
+          task: 'Add pagination to the audit log',
+          usage: usage(22, 800_000, 20_000, 0.62),
+        }),
+        docs('Paged.', [], false)
+      );
+      render();
+
+      expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe(
+        '1 active · 56 calls · 2.2M tokens · $1.92'
+      );
+    });
+
+    it('keeps the header to the active count while no run says what it used', () => {
+      ingest('old', meta('running'), docs('Working.'));
+      render();
+
+      expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe('1 active');
+    });
+
+    it("labels each card's third line by how its run stands", () => {
+      ingest(
+        'now',
+        meta('running', { task: 'Rework the export queue retry policy', startedAt: NOW - 50 }),
+        docs('Running the tests.', [
+          {
+            type: 'tool_call_started',
+            tool_name: 'run_shell_command',
+            args_preview: 'uv run pytest -x',
+          },
+        ])
+      );
+      ingest(
+        'wait',
+        meta('awaiting_approval', { task: 'List every caller', startedAt: NOW - 40 }),
+        docs('', [
+          { type: 'tool_call_started', tool_name: 'search_files', args_preview: 'schedule_retry' },
+        ])
+      );
+      ingest(
+        'done',
+        meta('completed', { task: 'Add pagination to the audit log', endedAt: NOW - 5 }),
+        docs('The audit log now loads 50 entries a page.', [], false)
+      );
+      ingest(
+        'stopped',
+        meta('cancelled', {
+          task: 'Compare three retry libraries',
+          result: 'Stopped by you.',
+          endedAt: NOW - 9,
+        }),
+        docs('Half way.', [], false)
+      );
+      ingest(
+        'bare',
+        meta('cancelled', { task: 'Draft the release note', endedAt: NOW - 20 }),
+        docs('', [], false)
+      );
+      render();
+
+      const line = (run: string) => card(run).querySelector('[data-subagent-line]');
+      expect(line('now')?.getAttribute('data-subagent-line')).toBe('now');
+      expect(line('now')?.textContent).toBe('Nowrun_shell_command uv run pytest -x');
+      expect(line('wait')?.textContent).toBe('!Needs approvalsearch_files schedule_retry');
+      expect(line('done')?.textContent).toBe('✓ResultThe audit log now loads 50 entries a page.');
+      expect(line('stopped')?.textContent).toBe('✕StoppedStopped by you.');
+      expect(line('bare')?.textContent).toBe('✕Stopped');
+      // A run waiting for approval says so on its second line, in words.
+      expect(card('wait').textContent).toContain('Waiting for approval');
+    });
+
+    it("shows a card's model logo, and what it used under a line, leaving out what is unknown", () => {
+      ingest(
+        'full',
+        meta('running', { model: fable, usage: usage(34, 1_300_000, 124_000, 1.3) }),
+        docs('Working.')
+      );
+      ingest('none', meta('running', { startedAt: NOW - 30 }), docs('Working.'));
+      ingest(
+        'free',
+        meta('running', { startedAt: NOW - 20, usage: usage(3, 1_000, 0) }),
+        docs('Working.')
+      );
+      render();
+
+      const stats = (run: string) =>
+        [...card(run).querySelectorAll('[data-subagent-stat]')].map((cell) => cell.textContent);
+      expect(
+        card('full').querySelector('[data-job-logo]')?.getAttribute('data-model-provider')
+      ).toBe('anthropic');
+      expect(stats('full')).toEqual(['34 calls', '1.4M tokens', '$1.30']);
+      expect(stats('none')).toEqual([]);
+      expect(stats('free')).toEqual(['3 calls', '1K tokens']);
+      expect(card('none').querySelector('[data-subagent-time]')?.textContent).toBe('30s');
+    });
+
+    it('heads an open run with its task, then its status, calls, tokens and cost, and its call', () => {
+      ingest(
+        'lead',
+        meta('running', {
+          subagent: 'lead',
+          task: 'Rework the export queue retry policy\nKeep the queue order.',
+          model: fable,
+          usage: usage(34, 1_300_000, 124_000, 1.3),
+          startedAt: NOW - 60,
+        }),
+        docs('Working.', [
+          {
+            type: 'tool_call_started',
+            tool_name: 'run_shell_command',
+            args_preview: 'uv run pytest tests/export',
+            started_at: NOW - 12,
+          },
+        ])
+      );
+      ingest(
+        'kid',
+        meta('awaiting_approval', {
+          agent: 'writer',
+          parent: 'lead',
+          usage: usage(7, 300_000, 14_000, 0.04),
+        }),
+        docs('')
+      );
+      render(ScreenSize.Desktop, '$thread:example.org');
+      open('lead');
+
+      expect(heading()).toBe('Rework the export queue retry policy');
+      expect(container.querySelector('header h2')?.getAttribute('title')).toBe(
+        'Rework the export queue retry policy\nKeep the queue order.'
+      );
+      const cell = (name: string) =>
+        container.querySelector(`[data-subagent-cell="${name}"]`)?.textContent;
+      expect(cell('status')).toBe('StatusRunning1m 0s');
+      expect(cell('calls')).toBe('Calls34tool calls');
+      expect(cell('tokens')).toBe('Tokens1.4M1.3M in · 124K out');
+      expect(cell('cost')).toBe('Cost$1.30+$0.04 nested');
+      expect(container.querySelector('[data-subagent-now]')?.textContent).toBe(
+        'run_shell_command uv run pytest tests/export12s'
+      );
+      // The run is in the thread on screen, so it has no button to that thread.
+      expect(container.querySelector('header [aria-label="Open thread"]')).toBeNull();
+    });
+
+    it("stops an open run's job, says Stopping until it leaves, and says so when it fails", async () => {
+      ingest(
+        'lead',
+        meta('running', { subagent: 'lead', task: 'Rework the export queue retry policy' }),
+        docs('Working.')
+      );
+      const job = {
+        jobId: 'job_lead',
+        agentId: SENDER,
+        threadId: '$thread:example.org',
+        kind: 'subagent' as const,
+        tool: 'run_subagent',
+        status: 'running',
+        startedAt: new Date((NOW - 60) * 1000).toISOString(),
+        subagent: 'lead',
+        run: 'lead',
+      };
+      // No job, no Stop; nor without leave to cancel.
+      render();
+      open('lead');
+      const stopLabel = 'Stop task: Rework the export queue retry policy';
+      expect(container.querySelector('[data-subagent-stop]')).toBeNull();
+      jobsState.jobs = [job];
+      jobsState.canCancel = false;
+      render();
+      expect(container.querySelector('[data-subagent-stop]')).toBeNull();
+
+      jobsState.canCancel = true;
+      sendEvent.mockRejectedValueOnce(new Error('offline'));
+      render();
+      await act(async () => button(container, stopLabel).click());
+      expect(sendEvent).toHaveBeenCalledWith(
+        ROOM_ID,
+        'io.mindroom.background_job_cancel',
+        {
+          job_id: 'job_lead',
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$thread:example.org' },
+        },
+        'txn'
+      );
+      expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+        'Could not stop Rework the export queue retry policy. Try again.'
+      );
+
+      sendEvent.mockReturnValueOnce(new Promise<never>(() => {}));
+      await act(async () => button(container, stopLabel).click());
+      expect(container.querySelector('[data-subagent-stop]')).toBeNull();
+      expect(container.querySelector('header [title="Stopping…"]')).not.toBeNull();
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+    });
   });
 });

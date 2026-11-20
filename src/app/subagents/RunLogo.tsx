@@ -5,7 +5,7 @@ import type { AiRunModelInfo } from '../matrix/protocol/aiRun';
 import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
 import { isRestartInterrupted } from '../matrix/protocol/subagentFrame';
 import { ProviderModelIcon } from '../models/ProviderModelIcon';
-import { AgentAvatar, type AgentProfile } from './SubagentRunCard';
+import { AgentAvatar, type AgentProfile } from './AgentAvatar';
 import * as css from './RunLogo.css';
 
 export type RunLogoState = keyof typeof css.Dot;

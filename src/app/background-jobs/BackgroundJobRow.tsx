@@ -18,7 +18,7 @@ import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protoco
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { RunLogo } from '../subagents/RunLogo';
 import { useUsageCells } from '../subagents/runUsage';
-import { useAgentProfile } from '../subagents/SubagentRunCard';
+import { useAgentProfile } from '../subagents/AgentAvatar';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
 import * as css from './BackgroundJobsBar.css';
 import type { BackgroundJobsBarItem, BackgroundJobsBarModel } from './backgroundJobsPresentation';

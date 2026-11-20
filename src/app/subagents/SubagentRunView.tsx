@@ -2,16 +2,20 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
-import { Box, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import { IconPlayerStopFilled } from '@tabler/icons-react';
 import { useAtomValue } from 'jotai';
+import classNames from 'classnames';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
-import { formatCallDuration } from '../lib/time';
+import { formatWorkDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
+import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { isActiveSubagentStatus, isRestartInterrupted } from '../matrix/protocol/subagentFrame';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
+import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
 import { ToolCallClockContext } from '../messages/agent-run/toolCallStatus';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
@@ -22,18 +26,21 @@ import { Time } from '../messages/Time';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useHour24Clock } from '../preferences/useHour24Clock';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
+import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
+import { RunLogo, runLogoState } from './RunLogo';
+import { runToolCall } from './runActivity';
+import { formatTokens } from './runUsage';
 import {
-  AgentAvatar,
   RunStatus,
   SubagentRunCard,
-  elapsedSeconds,
+  ToolCallText,
   latestTurn,
-  useAgentProfile,
-  type AgentProfile,
+  useRunTime,
   type SubagentNode,
   type SubagentTurn,
 } from './SubagentRunCard';
 import * as css from './subagentsPanel.css';
+import { useRunStop } from './useRunStop';
 
 /** A reader this close to the end still follows the newest text. */
 const FOLLOW_SLACK_PX = 24;
@@ -183,6 +190,88 @@ function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) 
   );
 }
 
+/** What every run below `node` cost, its own excluded; none while no run below says. */
+const nestedCost = (node: SubagentNode): number | undefined => {
+  let total: number | undefined;
+  const add = (child: SubagentNode) =>
+    child.turns.forEach(({ run, nested }) => {
+      const cost = run.meta.usage?.costUsd;
+      if (cost !== undefined) total = (total ?? 0) + cost;
+      nested.forEach(add);
+    });
+  node.turns.forEach(({ nested }) => nested.forEach(add));
+  return total;
+};
+
+/**
+ * Under the open run's header, four cells: how it stands and its time, its calls and turns, its
+ * tokens in and out, and its cost with what the runs it started cost. A count it does not send is
+ * left out.
+ */
+function RunStrip({ node, run, time }: { node: SubagentNode; run: SubagentRun; time: string }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const { meta } = run;
+  const usage = meta.usage!;
+  const below = nestedCost(node);
+  const cells = [
+    {
+      key: 'status',
+      name: t('mindroomUi.subagents.status'),
+      value: <RunStatus meta={meta} />,
+      note: time,
+    },
+    {
+      key: 'calls',
+      name: t('mindroomUi.backgroundJobs.column.calls'),
+      value: String(usage.toolCalls),
+      note:
+        node.turns.length > 1
+          ? t('mindroomUi.subagents.turns', { count: node.turns.length })
+          : t('mindroomUi.subagents.toolCallsNote'),
+    },
+    {
+      key: 'tokens',
+      name: t('mindroomUi.backgroundJobs.column.tokens'),
+      value: formatTokens(usage.inputTokens + usage.outputTokens, language),
+      note: t('mindroomUi.subagents.tokensSplit', {
+        input: formatTokens(usage.inputTokens, language),
+        output: formatTokens(usage.outputTokens, language),
+      }),
+    },
+    ...(usage.costUsd === undefined
+      ? []
+      : [
+          {
+            key: 'cost',
+            name: t('mindroomUi.backgroundJobs.column.cost'),
+            value: formatCostUsd(usage.costUsd, language),
+            note:
+              below === undefined
+                ? t('mindroomUi.subagents.costOwn')
+                : t('mindroomUi.subagents.costNested', { cost: formatCostUsd(below, language) }),
+          },
+        ]),
+  ];
+  return (
+    <dl className={css.Strip} data-subagent-strip="">
+      {cells.map((cell) => (
+        <div key={cell.key} className={css.StripCell} data-subagent-cell={cell.key}>
+          <Text as="dt" size="T200" priority="300" className={css.StripName}>
+            {cell.name}
+          </Text>
+          <Text as="dd" size="T300" className={css.StripValue}>
+            {cell.value}
+          </Text>
+          <Text as="dd" size="T200" priority="300" className={css.StripNote} truncate>
+            {cell.note}
+          </Text>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 type ViewProps = {
   room: Room;
   node: SubagentNode;
@@ -192,6 +281,8 @@ type ViewProps = {
   onBack: () => void;
   onOpen: (subagent: string) => void;
   onClose: () => void;
+  /** The conversation the panel lists runs of; a run in it needs no button to its thread. */
+  viewThreadId?: string | null;
 };
 
 /**
@@ -207,16 +298,23 @@ export function SubagentRunView({
   onBack,
   onOpen,
   onClose,
+  viewThreadId,
 }: ViewProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { navigateRoomThread } = useRoomNavigate();
-  const { run: newestRun, meta } = latestTurn(node);
+  const newest = latestTurn(node);
+  const { run: newestRun, meta } = newest;
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
-  const elapsed = elapsedSeconds(meta, now);
   const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
   const { threadId } = meta;
+  const first = node.turns[0].run.meta;
+  const title = first.title || first.task?.split('\n', 1)[0] || agent.name;
+  const time = useRunTime(meta, now);
+  const stop = useRunStop(room, newest, title);
+  const activity = runToolCall(newest);
+  const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: title });
 
   // A sub-agent at work opens at its newest text; an ended one at its first task.
   const box = useRef<HTMLDivElement>(null);
@@ -265,7 +363,7 @@ export function SubagentRunView({
 
   return (
     <>
-      <header className={SidePanelHeader}>
+      <header className={classNames(SidePanelHeader, css.RunHeader)}>
         <IconButton
           ref={backButton}
           size="300"
@@ -276,11 +374,21 @@ export function SubagentRunView({
         >
           <Icon size="200" src={Icons.ArrowLeft} />
         </IconButton>
+        <RunLogo
+          model={meta.model}
+          agent={agent}
+          kind="agent"
+          state={runLogoState(meta)}
+          className={css.HeaderLogo}
+        />
         <div className={css.Heading}>
-          <Text as="h2" size="H4" truncate>
-            {agent.name}
+          <Text as="h2" size="H4" className={css.RunTitle} title={first.task} dir="auto">
+            {title}
           </Text>
           <Text as="div" size="T200" priority="300" className={css.Standing}>
+            <span className={css.StandingModel} data-subagent-agent="">
+              {agent.name}
+            </span>
             {modelLabel && (
               <span
                 className={css.StandingModel}
@@ -290,11 +398,19 @@ export function SubagentRunView({
                 {modelLabel}
               </span>
             )}
-            <RunStatus meta={meta} />
-            {elapsed !== undefined && <span>{formatCallDuration(elapsed, language)}</span>}
+            {node.turns.length > 1 && (
+              <span>{t('mindroomUi.subagents.turnNumber', { number: node.turns.length })}</span>
+            )}
+            {/* Without what the run used (older MindRoom), how it stands stays up here. */}
+            {!meta.usage && (
+              <>
+                <RunStatus meta={meta} />
+                <span>{time}</span>
+              </>
+            )}
           </Text>
         </div>
-        {threadId && (
+        {threadId && threadId !== viewThreadId && (
           <IconButton
             size="300"
             radii="300"
@@ -304,6 +420,26 @@ export function SubagentRunView({
             onClick={() => navigateRoomThread(room.roomId, threadId)}
           >
             <Icon size="200" src={Icons.Thread} />
+          </IconButton>
+        )}
+        {active && stop.stopping && (
+          <span className={css.HeaderStopping} title={t('mindroomUi.backgroundJobs.stopping')}>
+            <Spinner size="100" variant="Secondary" aria-hidden />
+            <span className={css.VisuallyHidden}>{t('mindroomUi.backgroundJobs.stopping')}</span>
+          </span>
+        )}
+        {active && stop.stop && (
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Surface"
+            className={css.HeaderStop}
+            aria-label={stopLabel}
+            title={stopLabel}
+            onClick={stop.stop}
+            data-subagent-stop=""
+          >
+            <IconPlayerStopFilled size={16} aria-hidden />
           </IconButton>
         )}
         <IconButton
@@ -316,6 +452,32 @@ export function SubagentRunView({
           <Icon size="200" src={Icons.Cross} />
         </IconButton>
       </header>
+      {meta.usage && <RunStrip node={node} run={newest} time={time} />}
+      {activity && (
+        <Text as="div" size="T200" className={css.NowLine} data-subagent-now="">
+          {meta.status === 'running' ? (
+            <span className={css.Tick} aria-hidden />
+          ) : (
+            <span className={css.LineLabel.approval}>
+              <span className={css.LineMark} aria-hidden>
+                !
+              </span>
+              {t('mindroomUi.subagents.needsApproval')}
+            </span>
+          )}
+          <ToolCallText activity={activity} />
+          {meta.status === 'running' && activity.startedAt !== undefined && (
+            <span className={css.NowTime}>
+              {formatWorkDuration(Math.max(0, now - activity.startedAt * 1000), language)}
+            </span>
+          )}
+        </Text>
+      )}
+      {stop.failure && (
+        <Text as="div" size="T200" role="alert" className={css.StopFailure}>
+          {stop.failure}
+        </Text>
+      )}
       <div
         ref={box}
         className={css.Body}
