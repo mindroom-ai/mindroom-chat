@@ -1,10 +1,12 @@
 #if targetEnvironment(macCatalyst)
+import Accelerate
 import AVFoundation
 import Capacitor
 
 /// Records voice messages for the Mac app, whose WebKit has no media capture
 /// (`src/app/native/nativeVoiceRecorder.ts`). Each recording has an ID and a file of its own, so a
-/// late call for an earlier recording cannot touch the next one.
+/// late call for an earlier recording cannot touch the next one. Only `cancel` deletes a file: one
+/// the page never read (the app killed, the page reloaded, the window closed) stays for `orphans`.
 @objc(MindRoomVoiceRecorderPlugin)
 public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "MindRoomVoiceRecorderPlugin"
@@ -15,15 +17,15 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "pause", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "resume", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "orphans", returnType: CAPPluginReturnPromise)
     ]
 
+    /// Not the temp folder, which macOS may empty. Named as `MindRoomDiagnostics`: the Developer ID
+    /// build is not sandboxed and shares Application Support with other apps.
     private static var folder: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("voice-recorder")
-    }
-
-    private static func clearFolder() {
-        try? FileManager.default.removeItem(at: folder)
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MindRoomVoiceRecorder", isDirectory: true)
     }
 
     /// The file of a recording; nil for an ID that is not a UUID, so no ID names a path elsewhere.
@@ -31,15 +33,17 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         UUID(uuidString: id) == nil ? nil : folder.appendingPathComponent("\(id).m4a")
     }
 
-    private var live: (id: String, recorder: AVAudioRecorder)?
+    private var live: Recording?
+    /// The recordings whose file is still written, the live one and those ending.
+    private var writing: Set<String> = []
+    /// The recordings stopped for the loaded page, which reads each and then cancels it.
+    private var delivered: Set<String> = []
     /// Its window closed: it records nothing more.
     private var closed = false
     /// The page loads begun: a start asked before the newest one records nothing.
     private var generation = 0
 
     override public func load() {
-        // A recording left behind when the app quit.
-        Self.clearFolder()
         NotificationCenter.default.addObserver(
             self, selector: #selector(pageWillLoad), name: .capacitorWebViewNavigationStarted,
             object: bridge?.webView
@@ -72,30 +76,22 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
                         guard AVCaptureDevice.default(for: .audio) != nil else {
                             return call.reject("No microphone", "NO_MICROPHONE")
                         }
-                        self.discardLive()
+                        self.endLive()
                         let id = UUID().uuidString
                         guard let url = Self.file(of: id) else {
                             return call.reject("Could not start recording", "START_FAILED")
                         }
                         let session = AVAudioSession.sharedInstance()
-                        // `live` is set only once it records, so a failed attempt cleans up from here.
-                        var attempt: AVAudioRecorder?
                         do {
                             // Not `.record`: the session keeps its category afterwards, and the page
                             // must still play audio then.
                             try session.setCategory(.playAndRecord, mode: .default)
                             try session.setActive(true)
                             try FileManager.default.createDirectory(at: Self.folder, withIntermediateDirectories: true)
-                            let recorder = try AVAudioRecorder(url: url, settings: [
-                                AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
-                                AVEncoderBitRateKey: 32_000
-                            ])
-                            attempt = recorder
-                            recorder.isMeteringEnabled = true
-                            guard recorder.record() else { throw CocoaError(.fileWriteUnknown) }
-                            self.live = (id, recorder)
+                            // `live` is set only once it records, so a failed attempt cleans up here.
+                            self.live = try Recording(id: id, url: url)
+                            self.writing.insert(id)
                         } catch {
-                            attempt?.stop()
                             try? FileManager.default.removeItem(at: url)
                             try? session.setActive(false, options: .notifyOthersOnDeactivation)
                             return call.reject("Could not start recording", "START_FAILED")
@@ -114,8 +110,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let live = self.live, live.id == call.getString("id") else {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
-            live.recorder.updateMeters()
-            call.resolve(["level": pow(10, live.recorder.averagePower(forChannel: 0) / 20)])
+            call.resolve(["level": live.level])
         }
     }
 
@@ -124,7 +119,7 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let live = self.live, live.id == call.getString("id") else {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
-            live.recorder.pause()
+            live.pause()
             call.resolve()
         }
     }
@@ -134,8 +129,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let live = self.live, live.id == call.getString("id") else {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
-            guard live.recorder.record() else {
-                discardLive()
+            guard live.resume() else {
+                endLive()
                 return call.reject("Could not resume", "NOT_RECORDING")
             }
             call.resolve()
@@ -148,10 +143,8 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let live = self.live, live.id == call.getString("id") else {
                 return call.reject("No such recording", "NOT_RECORDING")
             }
-            live.recorder.stop()
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-            self.live = nil
-            call.resolve(["path": live.recorder.url.path])
+            delivered.insert(live.id)
+            endLive { call.resolve(["path": $0.url.path]) }
         }
     }
 
@@ -159,8 +152,9 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func cancel(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [self] in
             let id = call.getString("id") ?? ""
+            delivered.remove(id)
             if live?.id == id {
-                discardLive()
+                endLive { try? FileManager.default.removeItem(at: $0.url) }
             } else if let url = Self.file(of: id) {
                 try? FileManager.default.removeItem(at: url)
             }
@@ -168,26 +162,148 @@ public class MindRoomVoiceRecorderPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    private func discardLive() {
+    /// The recordings left behind, by an app that was killed, a page that reloaded or a window that
+    /// closed: the files no recorder writes and the loaded page was not handed.
+    @objc func orphans(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [self] in
+            let urls = (try? FileManager.default.contentsOfDirectory(
+                at: Self.folder, includingPropertiesForKeys: [.creationDateKey]
+            )) ?? []
+            let recordings: [[String: Any]] = urls.compactMap { url in
+                let id = url.deletingPathExtension().lastPathComponent
+                guard Self.file(of: id)?.lastPathComponent == url.lastPathComponent,
+                      !writing.contains(id), !delivered.contains(id) else { return nil }
+                let startedAt = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date()
+                return ["id": id, "path": url.path, "startedAt": Int(startedAt.timeIntervalSince1970 * 1_000)]
+            }
+            call.resolve(["recordings": recordings])
+        }
+    }
+
+    /// Ends the live recording: the microphone at once, then its file, after which `done` runs
+    /// (main queue).
+    private func endLive(then done: @escaping (Recording) -> Void = { _ in }) {
         guard let live else { return }
         self.live = nil
-        live.recorder.stop()
-        live.recorder.deleteRecording()
+        live.finish {
+            DispatchQueue.main.async { [self] in
+                writing.remove(live.id)
+                done(live)
+            }
+        }
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    /// The page is going, or its process ended (main queue): nothing of it records or stays on
-    /// disk, and a start that waits on the prompt ends.
+    /// The page is going, or its process ended (main queue): it records nothing more, its live
+    /// recording stays on disk for the next page, and a start that waits on the prompt ends.
     @objc private func pageWillLoad() {
         generation += 1
-        discardLive()
-        Self.clearFolder()
+        delivered.removeAll()
+        endLive()
     }
 
     /// The window closed (main queue), for good: a start still on its way records nothing.
     func close() {
         closed = true
         pageWillLoad()
+    }
+}
+
+/// One recording: the microphone through `AVAudioEngine` into an AAC `.m4a` that `AVAssetWriter`
+/// writes in fragments of a second, so a killed app leaves a file that plays up to its last fragment.
+private final class Recording {
+    let id: String
+    let url: URL
+    private let engine = AVAudioEngine()
+    private let writer: AVAssetWriter
+    private let input: AVAssetWriterInput
+    /// The appends, the level and the end, in turn.
+    private let queue = DispatchQueue(label: "chat.mindroom.voice-recorder")
+    /// The frames written, the next buffer's time: a pause leaves no gap.
+    private var frames: AVAudioFramePosition = 0
+    private var newestLevel: Float = 0
+    private var ended = false
+
+    init(id: String, url: URL) throws {
+        self.id = id
+        self.url = url
+        writer = try AVAssetWriter(outputURL: url, fileType: .m4a)
+        writer.movieFragmentInterval = CMTime(seconds: 1, preferredTimescale: 600)
+        input = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+            AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
+            AVEncoderBitRateKey: 32_000
+        ])
+        input.expectsMediaDataInRealTime = true
+        guard writer.canAdd(input) else { throw CocoaError(.fileWriteUnknown) }
+        writer.add(input)
+        guard writer.startWriting() else { throw writer.error ?? CocoaError(.fileWriteUnknown) }
+        writer.startSession(atSourceTime: .zero)
+        let node = engine.inputNode
+        node.installTap(onBus: 0, bufferSize: 4_096, format: node.outputFormat(forBus: 0)) { [weak self] buffer, _ in
+            self?.append(buffer)
+        }
+        do {
+            try engine.start()
+        } catch {
+            node.removeTap(onBus: 0)
+            writer.cancelWriting()
+            throw error
+        }
+    }
+
+    /// The level of the newest buffer, linear from 0 to 1.
+    var level: Float { queue.sync { newestLevel } }
+
+    func pause() {
+        engine.pause()
+    }
+
+    func resume() -> Bool {
+        (try? engine.start()) != nil
+    }
+
+    /// Releases the microphone at once and finishes the file, then calls `done`.
+    func finish(then done: @escaping () -> Void) {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        queue.async { [self] in
+            ended = true
+            guard writer.status == .writing else { return done() }
+            input.markAsFinished()
+            writer.finishWriting(completionHandler: done)
+        }
+    }
+
+    private func append(_ buffer: AVAudioPCMBuffer) {
+        queue.sync {
+            guard !ended else { return }
+            if let samples = buffer.floatChannelData?[0] {
+                var rms: Float = 0
+                vDSP_rmsqv(samples, 1, &rms, vDSP_Length(buffer.frameLength))
+                newestLevel = min(rms, 1)
+            }
+            // The engine reuses its buffer: the sample buffer holds a copy of the samples.
+            let rate = CMTimeScale(buffer.format.sampleRate)
+            var timing = CMSampleTimingInfo(
+                duration: CMTime(value: 1, timescale: rate),
+                presentationTimeStamp: CMTime(value: frames, timescale: rate), decodeTimeStamp: .invalid
+            )
+            var sample: CMSampleBuffer?
+            guard writer.status == .writing, input.isReadyForMoreMediaData,
+                  CMSampleBufferCreate(
+                      allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: false,
+                      makeDataReadyCallback: nil, refcon: nil, formatDescription: buffer.format.formatDescription,
+                      sampleCount: CMItemCount(buffer.frameLength), sampleTimingEntryCount: 1,
+                      sampleTimingArray: &timing, sampleSizeEntryCount: 0, sampleSizeArray: nil,
+                      sampleBufferOut: &sample
+                  ) == noErr, let sample,
+                  CMSampleBufferSetDataBufferFromAudioBufferList(
+                      sample, blockBufferAllocator: kCFAllocatorDefault,
+                      blockBufferMemoryAllocator: kCFAllocatorDefault, flags: 0, bufferList: buffer.audioBufferList
+                  ) == noErr,
+                  input.append(sample) else { return }
+            frames += AVAudioFramePosition(buffer.frameLength)
+        }
     }
 }
 #endif
