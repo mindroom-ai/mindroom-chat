@@ -422,9 +422,6 @@ const pill = {
   fontSize: config.fontSize.T200,
   lineHeight: config.lineHeight.T200,
   fontWeight: config.fontWeight.W400,
-  // Over the reach of a row's title, so its tooltip still says what an icon-only pill means.
-  position: 'relative',
-  zIndex: 2,
 } as const;
 
 export const Pill = styleVariants({
@@ -483,7 +480,8 @@ export const Actions = style({
 
 // Each button keeps its slot, so a row without Thread lines its Stop up with the rows that have
 // one: Stop (or its Stopping) last, Thread before it.
-globalStyle(`${Actions} > *`, { gridColumn: '-2 / -1', gridRow: 1, pointerEvents: 'auto' });
+globalStyle(`${Actions} > *`, { gridColumn: '-2 / -1', gridRow: 1 });
+globalStyle(`${Actions} > button`, { pointerEvents: 'auto' });
 globalStyle(`${Actions} > [data-job-thread]`, { gridColumn: '-3 / -2' });
 
 // Open, Stop and Stop all: one family of 28 px icon buttons on the bar's own material, Stop
