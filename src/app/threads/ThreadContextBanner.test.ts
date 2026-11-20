@@ -1049,11 +1049,45 @@ describe('ThreadContextBanner rendering', () => {
       );
     const title = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.findByProps({ 'data-thread-context-summary': 'true' });
-    // The banner's node, as wide as `width()` says when it is measured.
-    const bannerOf = (width: () => number) => (element: React.ReactElement) =>
-      (element.props as Record<string, unknown>)['data-thread-context-banner']
-        ? { focus: vi.fn(), getBoundingClientRect: () => ({ width: width() }) }
-        : null;
+    // The banner's node, in a slot as wide as `width()` says when it is measured (no padding or
+    // margins here), and what `others` gives for the other elements.
+    const bannerOf =
+      (width: () => number, others: (element: React.ReactElement) => unknown = () => null) =>
+      (element: React.ReactElement) =>
+        (element.props as Record<string, unknown>)['data-thread-context-banner']
+          ? {
+              focus: vi.fn(),
+              contains: () => true,
+              getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }),
+              parentElement: {
+                get clientWidth() {
+                  return width();
+                },
+              },
+            }
+          : others(element);
+    const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.find(
+        (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+      ).props.className as string;
+    // The menu the banner opens on a right click, as a collapsed pill offers it.
+    const contextMenuOf = (renderer: ReturnType<typeof renderBanner>) => {
+      const banner = renderer.root.findByProps({ 'data-thread-context-banner': 'true' });
+      const target = { contains: () => true };
+      act(() => {
+        banner.props.onContextMenu({
+          currentTarget: target,
+          target,
+          clientX: 0,
+          clientY: 0,
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn(),
+        });
+      });
+      return menuProps.mock.calls.at(-1)![0] as { tagsAtTop?: boolean; onClose: () => void };
+    };
+    const shortScreen = () =>
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('500px') }));
     const menuOf = async (renderer: ReturnType<typeof renderBanner>) => {
       const more = renderer.root
         .findAllByType('button')
@@ -1163,6 +1197,115 @@ describe('ThreadContextBanner rendering', () => {
       expect(buttons(phone)).toEqual(['Back', 'Thread options', 'Resolve']);
       expect(tagPills(phone)).toHaveLength(0);
       phone.unmount();
+    });
+
+    it('keeps one truncated row on a short screen, the tags and the pin still in More', async () => {
+      // A large phone held sideways with the room list open: a tablet's width, a short screen.
+      shortScreen();
+      const short = renderBanner(
+        TITLE,
+        bannerOf(() => 466)
+      );
+      expect(rowClass(short)).toBe('TitleRow');
+      expect(title(short).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect(title(short).props.tabIndex).toBeUndefined();
+      expect(buttons(short)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(tagPills(short)).toHaveLength(0);
+      expect((await menuOf(short)).tagsAtTop).toBe(true);
+      short.unmount();
+    });
+
+    it("keeps a phone's layout on a phone held sideways, as before", () => {
+      shortScreen();
+      screenSize = ScreenSize.Mobile;
+      const sideways = renderBanner(
+        TITLE,
+        bannerOf(() => 627)
+      );
+      expect(rowClass(sideways)).toBe('TitleRow PhoneTitleRow');
+      expect(title(sideways).props).toMatchObject({ className: 'PhoneTitle', truncate: false });
+      expect(tagPills(sideways)).toHaveLength(0);
+      sideways.unmount();
+    });
+
+    it('gives a collapsed pill the menu of its width, whether it was ever expanded or not', () => {
+      store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
+      // Opened collapsed in a narrow pane: More lists the tags at its top.
+      const narrow = renderBanner(
+        TITLE,
+        bannerOf(() => 330)
+      );
+      expect(contextMenuOf(narrow).tagsAtTop).toBe(true);
+      act(() => contextMenuOf(narrow).onClose());
+      // Expanded, it is compact; collapsed again, its menu is the same.
+      act(() => {
+        narrow.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick();
+      });
+      expect(tagPills(narrow)).toHaveLength(0);
+      expect(title(narrow).props.className).toBe('PhoneTitle');
+      act(() =>
+        store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true })
+      );
+      expect(contextMenuOf(narrow).tagsAtTop).toBe(true);
+      narrow.unmount();
+
+      // Opened collapsed in a wide one: the tags keep their own item.
+      const wide = renderBanner(
+        TITLE,
+        bannerOf(() => 646)
+      );
+      expect(contextMenuOf(wide).tagsAtTop).toBe(false);
+      wide.unmount();
+    });
+
+    it('hands the focus to More when the control that had it leaves as the banner narrows', () => {
+      let width = 646;
+      const resized: (() => void)[] = [];
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            resized.push(this.callback);
+          }
+
+          disconnect() {
+            resized.splice(resized.indexOf(this.callback), 1);
+          }
+        }
+      );
+      const pin = { isConnected: true, focus: vi.fn() };
+      const more = { focus: vi.fn(), disabled: false };
+      const nodes = (element: React.ReactElement) => {
+        const props = element.props as Record<string, unknown>;
+        if (props['aria-label'] === 'Pin thread') return pin;
+        if (props['aria-haspopup'] === 'menu') return more;
+        return null;
+      };
+      const page = { documentElement: {}, activeElement: pin as unknown };
+      vi.stubGlobal('document', page);
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width, nodes)
+      );
+      expect(buttons(banner)).toContain('Pin thread');
+      // Pin has the focus and leaves the row.
+      width = 330;
+      pin.isConnected = false;
+      act(() => resized.forEach((measure) => measure()));
+      expect(buttons(banner)).not.toContain('Pin thread');
+      expect(more.focus).toHaveBeenCalledWith({ preventScroll: true });
+
+      // Focus on a control that stays (More itself) stays where it is.
+      more.focus.mockClear();
+      width = 646;
+      act(() => resized.forEach((measure) => measure()));
+      page.activeElement = more;
+      width = 330;
+      act(() => resized.forEach((measure) => measure()));
+      expect(more.focus).not.toHaveBeenCalled();
+      banner.unmount();
     });
   });
 

@@ -47,7 +47,6 @@ import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
 import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
@@ -93,29 +92,43 @@ const COMPACT_BANNER_REM = 36;
 
 const rootFontSize = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
+const inlineSpace = (style: CSSStyleDeclaration, side: 'margin' | 'padding') =>
+  (parseFloat(style[`${side}Left`]) || 0) + (parseFloat(style[`${side}Right`]) || 0);
+
 /**
- * Whether the `banner` is narrower than COMPACT_BANNER_REM, measured as it lays out, resizes and
- * as Page Zoom changes the root's font size; undefined until it has been measured. A collapsed
- * banner fits its few buttons, and a hidden one has no width: both keep the last answer.
+ * How the banner fits: `wide`; `narrow`, under COMPACT_BANNER_REM; `short`, narrow on a short
+ * screen, which keeps one row. Measured from the banner's slot, the width the banner has expanded,
+ * so a collapsed pill gets the same answer; again as the slot resizes and as Page Zoom changes the
+ * root's font size. A hidden slot (no width) keeps the last answer. Not measured while `skip`.
  */
-const useNarrowBanner = (banner: RefObject<HTMLElement>, collapsed: boolean) => {
-  const [narrow, setNarrow] = useState<boolean>();
-  const measure = useCallback(() => {
-    const width = collapsed ? 0 : banner.current?.getBoundingClientRect().width ?? 0;
-    if (width > 0) setNarrow(width < COMPACT_BANNER_REM * rootFontSize());
-  }, [banner, collapsed]);
-  useLayoutEffect(measure, [measure]);
-  useResizeObserver(
-    measure,
-    useCallback(() => banner.current, [banner])
-  );
-  useEffect(() => {
-    if (typeof MutationObserver === 'undefined') return undefined;
-    const zoom = new MutationObserver(measure);
-    zoom.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
-    return () => zoom.disconnect();
-  }, [measure]);
-  return narrow;
+const useBannerFit = (banner: RefObject<HTMLElement>, skip: boolean) => {
+  const [fit, setFit] = useState<'wide' | 'narrow' | 'short'>('wide');
+  useLayoutEffect(() => {
+    const node = banner.current;
+    const slot = node?.parentElement;
+    if (skip || !node || !slot) return undefined;
+    const measure = () => {
+      const width =
+        slot.clientWidth -
+        inlineSpace(getComputedStyle(slot), 'padding') -
+        inlineSpace(getComputedStyle(node), 'margin');
+      if (width <= 0) return;
+      const short = typeof matchMedia === 'function' && matchMedia(shortViewport).matches;
+      if (width >= COMPACT_BANNER_REM * rootFontSize()) setFit('wide');
+      else setFit(short ? 'short' : 'narrow');
+    };
+    measure();
+    const zoom =
+      typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(measure);
+    zoom?.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    resize?.observe(slot);
+    return () => {
+      zoom?.disconnect();
+      resize?.disconnect();
+    };
+  }, [banner, skip]);
+  return fit;
 };
 
 // A phone's row narrower than this (a small phone, Page Zoom) gives the title the row under its
@@ -222,15 +235,17 @@ export function ThreadContextBanner({
   onClose,
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
-  // A phone gets its own back button; a phone's banner, and any narrow one, the compact layout.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const bannerRef = useRef<HTMLDivElement>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [titleRow, setTitleRow] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
-  // A phone's at any width and Page Zoom, so nothing changes there, also before the first measurement.
-  const narrowBanner = useNarrowBanner(bannerRef, collapsed);
-  const compact = phone || narrowBanner === true;
+  // A phone always gets the phone layout, so it looks as before whatever its width or zoom. Other
+  // screens get it when the banner is narrow: the tags and the pin move to More, and, unless the
+  // screen is short and keeps one row, the title shows whole and the buttons can stack.
+  const fit = useBannerFit(bannerRef, phone);
+  const compact = phone || fit !== 'wide';
+  const wholeTitle = phone || fit === 'narrow';
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -241,6 +256,17 @@ export function ThreadContextBanner({
   const [menu, setMenu] = useState<BannerMenuState>();
   const menuRef = useRef<BannerMenuState>();
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
+  // Turning compact removes the tags and Pin; the one that had the focus hands it to More.
+  const [compactFocus, setCompactFocus] = useState({ compact, focused: null as Element | null });
+  if (compactFocus.compact !== compact) {
+    const focused = compact && typeof document !== 'undefined' ? document.activeElement : null;
+    setCompactFocus({ compact, focused: focused ?? null });
+  }
+  useLayoutEffect(() => {
+    if (compactFocus.focused?.isConnected === false) {
+      moreButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [compactFocus]);
   const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
     if (!canOpenMenu) return;
     const nextMenu = { roomId: room.roomId, threadId, rootId: threadRootId, anchor, trigger };
@@ -402,7 +428,7 @@ export function ThreadContextBanner({
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
   const title = headerModel.summaryText || rootTitle;
-  const rowLayout = usePhoneRowLayout(compact ? titleRow : null, title);
+  const rowLayout = usePhoneRowLayout(wholeTitle ? titleRow : null, title);
   const narrowRow = rowLayout === 'narrow';
   const inRowOrder = (items: [title: React.ReactNode, actions: React.ReactNode]) =>
     narrowRow ? [items[1], items[0]] : items;
@@ -521,7 +547,7 @@ export function ThreadContextBanner({
             ref={setTitleRow}
             className={classNames(
               css.TitleRow,
-              compact && css.PhoneTitleRow,
+              wholeTitle && css.PhoneTitleRow,
               narrowRow && css.NarrowPhoneTitleRow,
               rowLayout === 'stacked' && css.StackedPhoneTitleRow
             )}
@@ -570,19 +596,19 @@ export function ThreadContextBanner({
                               as="span"
                               data-thread-context-summary="true"
                               className={classNames(
-                                compact ? css.PhoneTitle : css.SummaryText,
+                                wholeTitle ? css.PhoneTitle : css.SummaryText,
                                 summaryChanged && css.SummaryTextChanged
                               )}
                               // A title taller than its bound scrolls, also from the keyboard.
-                              tabIndex={compact ? 0 : undefined}
+                              tabIndex={wholeTitle ? 0 : undefined}
                               onAnimationEnd={() =>
                                 setShownSummary((shown) => ({ ...shown, changed: false }))
                               }
                               onDoubleClick={onDoubleClick}
                               size="T300"
-                              truncate={!compact}
+                              truncate={!wholeTitle}
                               title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
-                              {...(compact ? ownDirectionBlock : ownDirectionLine)}
+                              {...(wholeTitle ? ownDirectionBlock : ownDirectionLine)}
                             >
                               {revealDirectionControls(headerModel.summaryText)}
                             </Text>
@@ -591,7 +617,7 @@ export function ThreadContextBanner({
                               text={title}
                               hint={hint}
                               onDoubleClick={onDoubleClick}
-                              whole={compact}
+                              whole={wholeTitle}
                             />
                           )
                         }

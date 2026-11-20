@@ -92,12 +92,13 @@ globalStyle(
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
-  selectors: {
-    '&:empty': { display: 'none' },
-    // A compact banner shows no tags here, so only status chips take another line.
-    [`${PhoneTitleRow} &`]: { flexWrap: 'wrap' },
-  },
+  selectors: { '&:empty': { display: 'none' } },
   '@media': {
+    // A compact banner shows no tags here, so only status chips take another line; a short
+    // screen keeps them on the title's one row.
+    [`not all and ${shortViewport}`]: {
+      selectors: { [`${PhoneTitleRow} &`]: { flexWrap: 'wrap' } },
+    },
     [shortViewport]: {
       // Beside the title, the status chips keep to the room left of the thread actions.
       flexShrink: 1,
@@ -158,15 +159,20 @@ export const SubtitleRow = style({
   flexWrap: 'wrap',
   selectors: {
     [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
-    // A compact banner can leave the eyebrow row with nothing showing: neither the view label nor
-    // a status chip. (Asked as "no child but the tags", a :has() before a sibling combinator made
-    // WebKit restyle the whole page on every DOM change anywhere, on every screen size.)
-    [`${PhoneTitleRow} ${EyebrowRow}:not(:has(> ${ViewLabel}, > [data-thread-status-chip])) + &`]: {
-      marginTop: 0,
-    },
   },
   '@media': {
     [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0', minWidth: '4rem' },
+    // A compact banner can leave the eyebrow row with nothing showing: neither the view label nor
+    // a status chip. Only a compact row matches, and the :has() looks at the eyebrow row's own
+    // children by class and attribute. (Asked as "no child but the tags", a :has() before a
+    // sibling combinator made WebKit restyle the whole page on every DOM change anywhere, on
+    // every screen size.)
+    [`not all and ${shortViewport}`]: {
+      selectors: {
+        [`${PhoneTitleRow} ${EyebrowRow}:not(:has(> ${ViewLabel}, > [data-thread-status-chip])) + &`]:
+          { marginTop: 0 },
+      },
+    },
   },
 });
 

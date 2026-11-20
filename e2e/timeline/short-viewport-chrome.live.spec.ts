@@ -160,10 +160,12 @@ for (const viewport of [
           await expect(page.locator('[data-room-following]')).toBeHidden();
           expect(visibleMessages / viewport.height).toBeGreaterThan(0.55);
 
-          // Tags, pinning and resolving stay reachable from the actions menu.
+          // Tags, pinning and resolving stay reachable from the actions menu. The banner is
+          // narrow here too, so the menu lists the tags at its top instead of a Tags item.
           await more.click();
           const menu = page.getByRole('menu', { name: 'Thread options' });
-          await expect(menu.locator('[data-thread-action="tags"]')).toBeVisible();
+          await expect(menu.locator('[data-thread-menu-tags]')).toBeVisible();
+          await expect(menu.locator('[data-thread-action="tags"]')).toHaveCount(0);
           await expect(menu.locator('[data-thread-action="resolve"]')).toBeVisible();
           await expect(menu.locator('[data-thread-action="pin"]')).toBeVisible();
           await menu.locator('[data-thread-action="resolve"]').click();
