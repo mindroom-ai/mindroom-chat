@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildLongTextPreview,
   clearLongTextHydrationCache,
+  getCachedLongTextContent,
   getLongTextSource,
   hasLongTextMetadata,
   hydrateLongTextSource,
   parseLongTextJsonSidecar,
 } from './longText';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
+import { sanitizeContent } from './untrustedContent';
 
 beforeEach(() => {
   clearLongTextHydrationCache();
@@ -296,33 +298,36 @@ describe('parseLongTextJsonSidecar', () => {
 });
 
 describe('hydrateLongTextSource', () => {
-  it('hydrates a version-3 sidecar with its tool markers back in its text', async () => {
+  it('hydrates a version-3 sidecar as it was sent; only reading it as its sender puts markers back', async () => {
     const source = expectDefined(
       getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
-        url: 'mxc://server/preview',
+        url: 'mxc://server/preview-v3',
         'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
       })
     );
-    const call = { type: 'tool_call_completed', tool_name: 'shell', at: 1 };
-    const resolved = await hydrateLongTextSource(
-      source,
-      async () =>
-        JSON.stringify({
-          msgtype: 'm.text',
-          body: 'Checking.\n\nDone.',
-          formatted_body: '<p>Checking.</p>\n<p>Done.</p>\n',
-          'io.mindroom.tool_trace': { version: 3, events: [call] },
-        }),
-      {}
-    );
+    const call = { type: 'tool_call_completed', tool_name: 'shell', body_line: 2, at: 1 };
+    const sent = {
+      msgtype: 'm.text',
+      body: 'Checking.\n\nDone.',
+      formatted_body: '<p>Checking.</p>\n<p>Done.</p>\n',
+      'io.mindroom.tool_trace': { version: 3, events: [call] },
+    };
+    const owner = {};
+    const resolved = await hydrateLongTextSource(source, async () => JSON.stringify(sent), owner);
 
-    expect(resolved.body).toBe('Checking.\n\n🔧 `shell` [1]\n\nDone.');
-    expect(resolved.formatted_body).toBe(
-      '<p>Checking.</p>\n<p>🔧 <code>shell</code> [1]</p>\n<p>Done.</p>\n'
+    // The cache holds the sidecar for every event that names it, whoever sent the event.
+    expect(resolved).toEqual(sent);
+    expect(getCachedLongTextContent(source, owner)).toEqual(sent);
+    const byOther = sanitizeContent(resolved, false);
+    expect(byOther.body).toBe('Checking.\n\nDone.');
+    expect(byOther['io.mindroom.tool_trace']).toBeUndefined();
+    expect(sanitizeContent(resolved, true).body).toBe('Checking.\n\n🔧 `shell` [1]\n\nDone.');
+    expect(sanitizeContent(getCachedLongTextContent(source, owner), false).body).toBe(
+      'Checking.\n\nDone.'
     );
-    expect(resolved['io.mindroom.tool_trace']).toEqual({ version: 2, events: [call] });
+    expect(resolved).toEqual(sent);
   });
 
   it('hydrates v2 sidecar json and keeps tool-trace metadata', async () => {

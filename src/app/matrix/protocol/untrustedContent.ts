@@ -88,13 +88,10 @@ const withoutAgentKeys = (content: Record<string, unknown>): Record<string, unkn
   return rest;
 };
 
-/**
- * Content in the shapes the app reads: an object, a well-formed `m.relates_to` or none, an object
- * `m.new_content` or none, without the agent-only keys unless `fromAgent`, and an agent's tool
- * markers back in its text (`withToolMarkersRestored`). Returns `content` itself when nothing
- * changes.
- */
-export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent => {
+type Layer = (content: Record<string, unknown>) => Record<string, unknown>;
+
+/** `content` in the shapes the app reads, `read` applied to it and to its `m.new_content`. */
+const sanitizeLayers = (content: unknown, read: Layer): IContent => {
   if (!isRecord(content)) return {};
   let result = content;
   const edit = (key: string, value: unknown) => {
@@ -110,12 +107,21 @@ export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent 
     const newContent = content['m.new_content'];
     if (!isRecord(newContent)) edit('m.new_content', undefined);
     else {
-      const read = fromAgent ? withToolMarkersRestored(newContent) : withoutAgentKeys(newContent);
-      if (read !== newContent) edit('m.new_content', read);
+      const readContent = read(newContent);
+      if (readContent !== newContent) edit('m.new_content', readContent);
     }
   }
-  return fromAgent ? withToolMarkersRestored(result) : withoutAgentKeys(result);
+  return read(result);
 };
+
+/**
+ * Content in the shapes the app reads: an object, a well-formed `m.relates_to` or none, an object
+ * `m.new_content` or none, without the agent-only keys unless `fromAgent`, and an agent's tool
+ * markers back in its text (`withToolMarkersRestored`). Returns `content` itself when nothing
+ * changes.
+ */
+export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent =>
+  sanitizeLayers(content, fromAgent ? withToolMarkersRestored : withoutAgentKeys);
 
 /** Whether the content needs no change, checked without copying: the common case. */
 const isClean = (content: unknown, sender: string | undefined): boolean => {
@@ -199,7 +205,8 @@ export const installEventContentGuard = (): void => {
       const relation = content['m.relates_to'];
       if (relation === undefined || sanitizeRelation(relation) === relation) return content;
     }
-    return memo(wireCache, this, content, () => sanitizeContent(content, true));
+    // The SDK reads relations here, so the shapes are mended and the text stays as it was sent.
+    return memo(wireCache, this, content, () => sanitizeLayers(content, (layer) => layer));
   };
 
   proto.getOriginalContent = function getOriginalContent<T = IContent>(this: MatrixEvent): T {

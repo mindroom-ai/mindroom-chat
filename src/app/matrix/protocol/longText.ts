@@ -3,7 +3,6 @@ import { IEncryptedFile } from '../types/common';
 import { THREAD_FORK_KEY } from './threadFork';
 import { MID_TURN_MODE_KEY } from './midTurn';
 import { SUBMISSION_CONTENT_KEY } from './submission';
-import { withToolMarkersRestored } from './toolPositions';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -380,7 +379,7 @@ export const hydrateLongTextSource = async (
         const sidecarText = await Promise.resolve().then(() => loadSidecarText(source));
         const hydratedContent = parseLongTextJsonSidecar(sidecarText);
         if (!hydratedContent) return undefined;
-        return withToolMarkersRestored(normalizeHydratedContent(hydratedContent));
+        return normalizeHydratedContent(hydratedContent);
       } catch {
         return undefined;
       } finally {
