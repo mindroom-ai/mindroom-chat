@@ -2,8 +2,9 @@
 // src/app/routes/paths.ts exports. scripts/ios-routing-test-project.rb writes them to
 // web-routes.json, and ios/Tests/AssetRoutingTests.swift checks that the native asset handler
 // answers each one with index.html. The paths are built as the app builds its links (React
-// Router's generatePath with encodeURIComponent values), from Matrix IDs and server names whose
-// dots look like file extensions to that handler; an optional segment appears with and without.
+// Router's generatePath, which encodes each value with encodeURIComponent), from Matrix IDs and
+// server names whose dots look like file extensions to that handler; an optional segment appears
+// with and without.
 import { build } from 'esbuild';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -26,7 +27,7 @@ export const routeExamples = (patterns, samples = ROUTE_PARAM_SAMPLES) => {
   const paths = patterns.flatMap((pattern) => {
     const params = [...pattern.matchAll(/:(\w+)(\?)?/g)].map(([, name, optional]) => {
       if (!samples[name]) throw new Error(`No sample value for :${name} (${pattern})`);
-      const values = samples[name].map((value) => encodeURIComponent(value));
+      const values = samples[name];
       return { name, values: optional ? [...values, null] : values };
     });
     const fillings = params.reduce(

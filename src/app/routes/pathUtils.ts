@@ -32,9 +32,8 @@ import {
 /** Hash router settings from the client config; `true` means enabled without a basename. */
 type HashRouterOption = { enabled?: boolean; basename?: string } | boolean | undefined;
 
-const encodeSegment = (value: string): string => encodeURIComponent(value);
-const optionalSegment = (value: string | undefined): string | null =>
-  value ? encodeSegment(value) : null;
+// generatePath encodes each parameter with encodeURIComponent; an empty one drops its segment.
+const optionalSegment = (value: string | undefined): string | null => value || null;
 
 const trimSlashes = (value: string): string => value.replace(/^\/+/, '').replace(/\/+$/, '');
 
@@ -155,7 +154,7 @@ export const getConnectPath = (pairCode?: string): string => {
 const roomInSectionPath = (pattern: string, roomIdOrAlias: string, eventId?: string): string =>
   generatePath(pattern, {
     eventId: optionalSegment(eventId),
-    roomIdOrAlias: encodeSegment(roomIdOrAlias),
+    roomIdOrAlias,
   });
 
 /** A route without parameters, such as a section root. */
@@ -183,17 +182,17 @@ export const getActivityRoomPath = (roomIdOrAlias: string, eventId?: string): st
 export const getCanvasesPath = (): string => CANVASES_PATH;
 
 export const getSpacePath = (spaceIdOrAlias: string): string =>
-  generatePath(SPACE_PATH, { spaceIdOrAlias: encodeSegment(spaceIdOrAlias) });
+  generatePath(SPACE_PATH, { spaceIdOrAlias });
 export const getSpaceLobbyPath = (spaceIdOrAlias: string): string =>
-  generatePath(SPACE_LOBBY_PATH, { spaceIdOrAlias: encodeSegment(spaceIdOrAlias) });
+  generatePath(SPACE_LOBBY_PATH, { spaceIdOrAlias });
 export const getSpaceSearchPath = (spaceIdOrAlias: string): string =>
-  generatePath(SPACE_SEARCH_PATH, { spaceIdOrAlias: encodeSegment(spaceIdOrAlias) });
+  generatePath(SPACE_SEARCH_PATH, { spaceIdOrAlias });
 
 /** A room inside a space, optionally focused on one event. */
 export const getSpaceRoomPath = (space: string, room: string, event?: string): string =>
   generatePath(SPACE_ROOM_PATH, {
-    spaceIdOrAlias: encodeSegment(space),
-    roomIdOrAlias: encodeSegment(room),
+    spaceIdOrAlias: space,
+    roomIdOrAlias: room,
     eventId: optionalSegment(event),
   });
 
@@ -202,4 +201,3 @@ export const getExploreFeaturedPath = fixedPath(EXPLORE_FEATURED_PATH);
 /** The public room directory of another homeserver. */
 export const getExploreServerPath = (server: string): string =>
   getServerPath(EXPLORE_SERVER_PATH, server);
-

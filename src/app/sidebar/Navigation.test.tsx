@@ -108,10 +108,7 @@ function LocationProbe() {
 }
 
 const navigationAtWidth = (width: number, initialPath = '/home/') => (
-  <MemoryRouter
-    initialEntries={[initialPath]}
-    future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-  >
+  <MemoryRouter initialEntries={[initialPath]}>
     <NavToActivePathProvider value={makeNavToActivePathAtom('@alice:example.org')}>
       <ScreenSizeProvider value={getScreenSize(width)}>
         <NavigationProvider>
@@ -173,10 +170,7 @@ const renderPagePerPath = (initialPath: string): Renderer => {
   let renderer: Renderer;
   act(() => {
     renderer = create(
-      <MemoryRouter
-        initialEntries={[initialPath]}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
+      <MemoryRouter initialEntries={[initialPath]}>
         <NavToActivePathProvider value={makeNavToActivePathAtom('@alice:example.org')}>
           <ScreenSizeProvider value={getScreenSize(1280)}>
             <NavigationProvider>
