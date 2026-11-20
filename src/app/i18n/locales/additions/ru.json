@@ -1117,10 +1117,6 @@
       "needApproval_few": "Ждут одобрения: {{count}}",
       "needApproval_many": "Ждут одобрения: {{count}}",
       "needApproval_other": "Ждут одобрения: {{count}}",
-      "toolCalls_one": "{{count}} вызов инструмента",
-      "toolCalls_few": "{{count}} вызова инструментов",
-      "toolCalls_many": "{{count}} вызовов инструментов",
-      "toolCalls_other": "{{count}} вызова инструментов",
       "tokens_one": "Токенов: {{tokens}}",
       "tokens_few": "Токенов: {{tokens}}",
       "tokens_many": "Токенов: {{tokens}}",
@@ -1135,7 +1131,15 @@
         "time": "Время"
       },
       "stopTask": "Остановить задачу",
-      "stopTaskFor": "Остановить задачу: {{tool}}"
+      "stopTaskFor": "Остановить задачу: {{tool}}",
+      "jobTotal_one": "Фоновых задач: {{count}}",
+      "jobTotal_few": "Фоновых задач: {{count}}",
+      "jobTotal_many": "Фоновых задач: {{count}}",
+      "jobTotal_other": "Фоновых задач: {{count}}",
+      "jobTotalFinished_one": "Завершено фоновых задач: {{count}}",
+      "jobTotalFinished_few": "Завершено фоновых задач: {{count}}",
+      "jobTotalFinished_many": "Завершено фоновых задач: {{count}}",
+      "jobTotalFinished_other": "Завершено фоновых задач: {{count}}"
     },
     "subagents": {
       "title": "Субагенты",
@@ -1170,7 +1174,20 @@
       "withCount_few": "{{label}}, активно: {{count}}",
       "withCount_many": "{{label}}, активно: {{count}}",
       "withCount_other": "{{label}}, активно: {{count}}",
-      "resize": "Изменить размер панели субагентов"
+      "resize": "Изменить размер панели субагентов",
+      "calls_one": "{{count}} вызов",
+      "calls_few": "{{count}} вызова",
+      "calls_many": "{{count}} вызовов",
+      "calls_other": "{{count}} вызова",
+      "now": "Сейчас",
+      "needsApproval": "Нужно одобрение",
+      "result": "Результат",
+      "turnNumber": "ход {{number}}",
+      "status": "Статус",
+      "toolCallsNote": "вызовы инструментов",
+      "tokensSplit": "{{input}} вход · {{output}} выход",
+      "costNested": "+{{cost}} вложенные",
+      "costOwn": "этот запуск"
     },
     "models": {
       "modelPicker": {

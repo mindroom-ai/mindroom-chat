@@ -4,7 +4,7 @@ import en from '../i18n/englishResources';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
-import { presentBackgroundJobs } from './backgroundJobsPresentation';
+import { FINISHED_JOB_STATUS, presentBackgroundJobs } from './backgroundJobsPresentation';
 
 let t: TFunction;
 const none = () => false;
@@ -42,7 +42,8 @@ describe('presentBackgroundJobs', () => {
       t
     );
     expect(presented?.title).toBe('Waiting for approval: run_tests');
-    expect(presented?.items[0]).toMatchObject({ name: 'run_tests', waiting: false });
+    // Its row, folded or listed, says so too.
+    expect(presented?.items[0]).toMatchObject({ name: 'run_tests', waiting: true });
   });
 
   it('marks a job whose cancel was already requested as stopping', () => {
@@ -230,15 +231,37 @@ describe('presentBackgroundJobs, rich rows', () => {
     expect(item).not.toHaveProperty('activity');
   });
 
-  it('gives a sub-agent job no activity, whatever tool its run calls now', () => {
+  it("gives a sub-agent job its run's current call as its activity, none once it ended", () => {
     const tools = [
-      { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just test' },
+      { type: 'tool_call_completed', tool_name: 'read_file', args_preview: 'a.ts' },
+      { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'just\n  test' },
     ];
     const presented = present(
       [subagentJob('job_1', 's1')],
       lookups([subagentRun('s1', { tools })])
     );
-    expect(presented?.items[0]).not.toHaveProperty('activity');
+    expect(presented?.items[0]?.activity).toEqual({
+      tool: 'run_shell_command',
+      preview: 'just test',
+    });
+    const ended = present(
+      [subagentJob('job_1', 's1')],
+      lookups([subagentRun('s1', { tools, status: 'completed' })])
+    );
+    expect(ended?.items[0]).not.toHaveProperty('activity');
+  });
+
+  it('shows a held job that ended no current call while its run has not sent its last frame', () => {
+    // The job state let the sub-agent go before its terminal frame: the run still says running.
+    const tools = [
+      { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'ls' },
+    ];
+    const held = present(
+      [{ ...subagentJob('job_1', 's1'), status: FINISHED_JOB_STATUS }],
+      lookups([subagentRun('s1', { tools })])
+    )!.items[0];
+    expect(held).toMatchObject({ finished: true, run: { meta: { status: 'running' } } });
+    expect(held).not.toHaveProperty('activity');
   });
 
   it("takes a tool job's activity from its reply's call, and none without the call's ID", () => {
@@ -323,9 +346,11 @@ describe('presentBackgroundJobs, rich rows', () => {
     expect(stopped?.summary?.waiting).toBe(0);
   });
 
-  it('has one group and no summary for a single job', () => {
+  it('has one group, a summary and the count as the listed title for a single job', () => {
     const presented = present([job('job_1')], lookups([]));
     expect(presented?.groups.map(({ kind }) => kind)).toEqual(['tool']);
-    expect(presented).not.toHaveProperty('summary');
+    expect(presented?.summary).toEqual({ subagents: 0, tools: 1, waiting: 0 });
+    expect(presented?.title).toBe('Running: run_tests');
+    expect(presented?.heading).toBe('1 background job');
   });
 });

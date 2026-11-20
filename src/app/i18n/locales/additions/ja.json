@@ -1048,7 +1048,6 @@
       "groupTools": "ツール · {{number}}",
       "tools_other": "ツール {{count}} 件",
       "needApproval_other": "承認待ち {{count}} 件",
-      "toolCalls_other": "ツール呼び出し {{count}} 回",
       "tokens_other": "{{tokens}} トークン",
       "started": "{{time}}に開始",
       "open": "開く",
@@ -1060,7 +1059,9 @@
         "time": "時間"
       },
       "stopTask": "タスクを停止",
-      "stopTaskFor": "タスクを停止：{{tool}}"
+      "stopTaskFor": "タスクを停止：{{tool}}",
+      "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
+      "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
     },
     "subagents": {
       "title": "サブエージェント",
@@ -1083,7 +1084,17 @@
       "hide": "サブエージェントを隠す",
       "showFor": "サブエージェントを表示: {{name}}",
       "withCount_other": "{{label}}、{{count}} 件がアクティブ",
-      "resize": "サブエージェントパネルのサイズを変更"
+      "resize": "サブエージェントパネルのサイズを変更",
+      "calls_other": "{{count}} 回の呼び出し",
+      "now": "実行中",
+      "needsApproval": "承認が必要",
+      "result": "結果",
+      "turnNumber": "ターン {{number}}",
+      "status": "状態",
+      "toolCallsNote": "ツール呼び出し",
+      "tokensSplit": "入力 {{input}} · 出力 {{output}}",
+      "costNested": "+{{cost}} (ネスト)",
+      "costOwn": "この実行"
     },
     "models": {
       "modelPicker": {

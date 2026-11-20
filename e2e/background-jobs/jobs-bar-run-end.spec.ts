@@ -94,7 +94,8 @@ const barHoldsForTheReply = async (page: Page, label: string) => {
   const runningHeight = await height();
   await publish(agent, []);
   await expect(bar).toHaveAccessibleName('Finished: run_shell_command');
-  await expect(bar.getByRole('button')).toHaveCount(0);
+  // A finished job has no Stop; its title still lists it.
+  await expect(bar.locator('[data-cancel-job]')).toHaveCount(0);
   expect(await height(), 'the bar’s height once its call finished').toBe(runningHeight);
   await page.waitForTimeout(3_000);
   await expect(bar, 'the bar after a pause longer than 2 s').toBeVisible();

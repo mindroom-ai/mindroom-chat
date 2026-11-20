@@ -1071,8 +1071,6 @@
       "tools_other": "{{count}} टूल",
       "needApproval_one": "{{count}} को मंज़ूरी चाहिए",
       "needApproval_other": "{{count}} को मंज़ूरी चाहिए",
-      "toolCalls_one": "{{count}} टूल कॉल",
-      "toolCalls_other": "{{count}} टूल कॉल",
       "tokens_one": "{{tokens}} टोकन",
       "tokens_other": "{{tokens}} टोकन",
       "started": "{{time}} शुरू हुआ",
@@ -1085,7 +1083,11 @@
         "time": "समय"
       },
       "stopTask": "कार्य रोकें",
-      "stopTaskFor": "कार्य रोकें: {{tool}}"
+      "stopTaskFor": "कार्य रोकें: {{tool}}",
+      "jobTotal_one": "{{count}} बैकग्राउंड कार्य",
+      "jobTotal_other": "{{count}} बैकग्राउंड कार्य",
+      "jobTotalFinished_one": "{{count}} बैकग्राउंड कार्य पूरे हुए",
+      "jobTotalFinished_other": "{{count}} बैकग्राउंड कार्य पूरे हुए"
     },
     "subagents": {
       "title": "सब-एजेंट",
@@ -1112,7 +1114,18 @@
       "showFor": "सब-एजेंट दिखाएँ: {{name}}",
       "withCount_one": "{{label}}, {{count}} सक्रिय",
       "withCount_other": "{{label}}, {{count}} सक्रिय",
-      "resize": "सब-एजेंट पैनल का आकार बदलें"
+      "resize": "सब-एजेंट पैनल का आकार बदलें",
+      "calls_one": "{{count}} कॉल",
+      "calls_other": "{{count}} कॉल",
+      "now": "अभी",
+      "needsApproval": "अनुमोदन चाहिए",
+      "result": "परिणाम",
+      "turnNumber": "बारी {{number}}",
+      "status": "स्थिति",
+      "toolCallsNote": "टूल कॉल",
+      "tokensSplit": "{{input}} इन · {{output}} आउट",
+      "costNested": "+{{cost}} नेस्टेड",
+      "costOwn": "यह रन"
     },
     "models": {
       "modelPicker": {

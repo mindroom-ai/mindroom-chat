@@ -257,9 +257,15 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
   // Text the row does not show, and another sub-agent's frame, render nothing.
   ingest('mine', 'Hi there');
   ingest('other', 'Elsewhere');
-  // A sub-agent's row shows none of its calls.
-  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
+  // A sub-agent's row shows none of the calls it completed.
+  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
   expect(renders).toBe(shown);
+  // It shows the call it makes now, which renders once.
+  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
+  const calling = renders;
+  expect(calling).toBeGreaterThan(shown);
+  ingest('mine', 'More text', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
+  expect(renders).toBe(calling);
   ingest('mine', 'Hi there', 'New task');
   expect(container.textContent).toBe('New task');
   // The whole task is the headline's tooltip, so a change past its first line renders.
