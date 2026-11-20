@@ -91,6 +91,13 @@ describe('toolStep', () => {
     expect(step('grep', 'pattern=decisions about the shared calendar for the spring offsite')).toBe(
       'Searching files for “decisions about the shared calendar for…”'
     );
+    // The cut counts whole characters, so an emoji at the boundary stays whole.
+    expect(step('grep', `pattern=${'a'.repeat(38)}🎉🎉🎉`)).toBe(
+      `Searching files for “${'a'.repeat(38)}🎉…”`
+    );
+    expect(step('grep', `pattern=${'🎉'.repeat(40)}`)).toBe(
+      `Searching files for “${'🎉'.repeat(40)}”`
+    );
   });
 
   it('looks through files, runs a command, asks a helper and uses the browser', () => {
@@ -181,6 +188,8 @@ describe('lastWrittenLine', () => {
       'Reading __init__.py and my_notes_file'
     );
     expect(lastWrittenLine('> Quoted line')).toBe('Quoted line');
+    // A line past the bound is cut without the half of an emoji.
+    expect(lastWrittenLine(`${'a'.repeat(1999)}🎉 more`)).toBe('a'.repeat(1999));
   });
 
   it('passes over code blocks, rules, table dividers and tool markers', () => {

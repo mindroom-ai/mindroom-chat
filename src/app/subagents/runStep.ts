@@ -156,8 +156,16 @@ const hostName = (url: string): string | undefined => {
   }
 };
 
-const shortQuery = (query: string): string =>
-  query.length > QUERY_CHARS ? `${query.slice(0, QUERY_CHARS - 1).trimEnd()}…` : query;
+/** The query, cut by whole characters (code points) past `QUERY_CHARS`, so no emoji is split. */
+const shortQuery = (query: string): string => {
+  const chars = Array.from(query);
+  return chars.length > QUERY_CHARS
+    ? `${chars
+        .slice(0, QUERY_CHARS - 1)
+        .join('')
+        .trimEnd()}…`
+    : query;
+};
 
 /** The named thing of a phrase, from the call's arguments; none when the call sent none. */
 const stepValue = (arg: StepArg, preview: string | undefined): string | undefined => {
@@ -198,7 +206,10 @@ export const toolStep = (activity: ToolActivity, t: TFunction): string => {
   return t(`mindroomUi.subagents.step.${step.key}`, values);
 };
 
-/** How long a line may be for its Markdown to be read; a longer one is cut first. */
+/**
+ * How long a line may be, in UTF-16 units, for its Markdown to be read; a longer one is cut first,
+ * without the half of a character the cut would split.
+ */
 const LINE_CHARS = 2000;
 
 /**
