@@ -1289,7 +1289,6 @@
     "second": "第二个讨论串",
     "dropSecond": "松开以在第二栏打开",
     "newCount_other": "{{count}} 条新消息",
-    "newCountAtLeast_other": "{{count}}+ 条新消息",
     "newUnknown": "新消息",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "提及你"

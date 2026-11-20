@@ -31,8 +31,13 @@ vi.mock('../threads/cross-room/threadSignals', () => ({
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
 
-const signalsOf = (newCount: number, mentionedMe = false): ThreadSignals => ({
+const signalsOf = (
+  newCount: number,
+  mentionedMe = false,
+  newCountComplete = true
+): ThreadSignals => ({
   newCount,
+  newCountComplete,
   mentionedMe,
   newSenderIds: [],
   automation: false,
@@ -154,13 +159,17 @@ describe('ThreadBadge unread state', () => {
     expect(chip('$a').renders).toBe(1);
   });
 
-  it('counts the new replies of an unread thread, and tells a mention and a count cut short', () => {
-    const { mount, chip } = setup({ $a: signalsOf(4), $b: signalsOf(40, true) }, ['$a', '$b']);
+  it('counts the new replies of an unread thread only when the count is all of them', () => {
+    const { mount, chip } = setup({ $a: signalsOf(4), $b: signalsOf(39, true, false) }, [
+      '$a',
+      '$b',
+    ]);
 
     mount({ $a: true, $b: true });
 
-    expect(chip('$a').unread).toEqual({ newCount: 4, newCountAtLeast: false, mentionsMe: false });
-    expect(chip('$b').unread).toEqual({ newCount: 40, newCountAtLeast: true, mentionsMe: true });
+    expect(chip('$a').unread).toEqual({ newCount: 4, mentionsMe: false });
+    // A floor would read as exact: the chip says New, and still tells the mention.
+    expect(chip('$b').unread).toEqual({ newCount: 0, mentionsMe: true });
   });
 
   it('is unread with no count until the index holds the thread, then counts', () => {

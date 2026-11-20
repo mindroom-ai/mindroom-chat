@@ -11,7 +11,6 @@ import {
   getCrossRoomThreadIndexKey,
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
-import { SIGNAL_EVENT_LIMIT } from '../threads/cross-room/threadSignals';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
 import { revealDirectionControls } from '../ui/directional';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
@@ -42,9 +41,8 @@ const useThreadUnread = (
   if (!entry) return { newCount: 0, mentionsMe: false };
   const signals = getThreadSignalsReader(room.client).read(room, entry, room.myUserId, Date.now());
   return {
-    newCount: signals.newCount,
-    // The signals read the thread's newest replies only: all of them new may mean more.
-    newCountAtLeast: signals.newCount >= SIGNAL_EVENT_LIMIT,
+    // A count of only the replies held, which may begin after new ones, would read as exact.
+    newCount: signals.newCountComplete ? signals.newCount : 0,
     mentionsMe: signals.mentionedMe,
   };
 };

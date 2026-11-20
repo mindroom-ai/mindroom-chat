@@ -1321,8 +1321,6 @@
     "dropSecond": "Loslaten om in tweede kolom te openen",
     "newCount_one": "{{count}} nieuw",
     "newCount_other": "{{count}} nieuw",
-    "newCountAtLeast_one": "{{count}}+ nieuw",
-    "newCountAtLeast_other": "{{count}}+ nieuw",
     "newUnknown": "Nieuw",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Vermeldt jou"

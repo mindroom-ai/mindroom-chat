@@ -1289,7 +1289,6 @@
     "second": "두 번째 스레드",
     "dropSecond": "놓아서 두 번째 열에서 열기",
     "newCount_other": "새 항목 {{count}}개",
-    "newCountAtLeast_other": "새 항목 {{count}}+개",
     "newUnknown": "새 항목",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "나를 멘션함"

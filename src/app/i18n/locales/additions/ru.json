@@ -1385,10 +1385,6 @@
     "newCount_few": "{{count}} новых",
     "newCount_many": "{{count}} новых",
     "newCount_other": "{{count}} новых",
-    "newCountAtLeast_one": "{{count}}+ новое",
-    "newCountAtLeast_few": "{{count}}+ новых",
-    "newCountAtLeast_many": "{{count}}+ новых",
-    "newCountAtLeast_other": "{{count}}+ новых",
     "newUnknown": "Новое",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Упоминает вас"

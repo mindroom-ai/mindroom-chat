@@ -1321,8 +1321,6 @@
     "dropSecond": "दूसरे कॉलम में खोलने के लिए छोड़ें",
     "newCount_one": "{{count}} नया",
     "newCount_other": "{{count}} नए",
-    "newCountAtLeast_one": "{{count}}+ नया",
-    "newCountAtLeast_other": "{{count}}+ नए",
     "newUnknown": "नया",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "आपका उल्लेख"

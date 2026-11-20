@@ -47,12 +47,6 @@ describe('ThreadIndicator while its thread is unread', () => {
     renderChip('Thread New · 11 replies', { unread: { newCount: 0, mentionsMe: false } });
   });
 
-  it('marks a count that may be short as a floor', () => {
-    renderChip('Thread 40+ new · 11 replies', {
-      unread: { newCount: 40, newCountAtLeast: true, mentionsMe: false },
-    });
-  });
-
   it('adds an @ pill when a new reply names the user', () => {
     renderChip('Thread 2 new · 11 replies Mentions you', {
       unread: { newCount: 2, mentionsMe: true },

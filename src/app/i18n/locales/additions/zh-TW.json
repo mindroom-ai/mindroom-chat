@@ -1289,7 +1289,6 @@
     "second": "第二個討論串",
     "dropSecond": "放開以在第二欄開啟",
     "newCount_other": "{{count}} 則新訊息",
-    "newCountAtLeast_other": "{{count}}+ 則新訊息",
     "newUnknown": "新訊息",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "提及你"

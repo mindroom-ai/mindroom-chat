@@ -1449,12 +1449,6 @@
     "newCount_few": "جديدة: ⁨{{count}}⁩",
     "newCount_many": "جديدة: ⁨{{count}}⁩",
     "newCount_other": "جديدة: ⁨{{count}}⁩",
-    "newCountAtLeast_zero": "جديدة: ⁨{{count}}⁩+",
-    "newCountAtLeast_one": "جديدة: ⁨{{count}}⁩+",
-    "newCountAtLeast_two": "جديدة: ⁨{{count}}⁩+",
-    "newCountAtLeast_few": "جديدة: ⁨{{count}}⁩+",
-    "newCountAtLeast_many": "جديدة: ⁨{{count}}⁩+",
-    "newCountAtLeast_other": "جديدة: ⁨{{count}}⁩+",
     "newUnknown": "جديدة",
     "newAndReplies": "⁨{{news}}⁩ · ⁨{{replies}}⁩",
     "mentionsYou": "يشير إليك"

@@ -1321,8 +1321,6 @@
     "dropSecond": "İkinci sütunda açmak için bırakın",
     "newCount_one": "{{count}} yeni",
     "newCount_other": "{{count}} yeni",
-    "newCountAtLeast_one": "{{count}}+ yeni",
-    "newCountAtLeast_other": "{{count}}+ yeni",
     "newUnknown": "Yeni",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Sizden bahsediyor"

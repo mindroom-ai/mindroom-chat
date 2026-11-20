@@ -17,8 +17,6 @@ const MAX_PARTICIPANTS = 3;
 export type ThreadIndicatorUnread = {
   /** How many replies are new; 0 when that is not known. */
   newCount: number;
-  /** The count is a floor: the thread may hold more new replies than were read for it. */
-  newCountAtLeast?: boolean;
   /** A new reply (or the unread root) names the user. */
   mentionsMe: boolean;
 };
@@ -105,11 +103,9 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
     const replies = counted ? t('thread.replyCount', { count: replyCount }) : t('thread.chip');
     let label = replies;
     if (unread) {
-      const { newCount, newCountAtLeast } = unread;
+      const { newCount } = unread;
       const news =
-        newCount > 0
-          ? t(newCountAtLeast ? 'thread.newCountAtLeast' : 'thread.newCount', { count: newCount })
-          : t('thread.newUnknown');
+        newCount > 0 ? t('thread.newCount', { count: newCount }) : t('thread.newUnknown');
       label = t('thread.newAndReplies', { news, replies });
     }
     // With a count, the icon names what is counted, so a badge reads "Thread 2 replies".

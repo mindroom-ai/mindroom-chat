@@ -1321,8 +1321,6 @@
     "dropSecond": "Drop to open in second column",
     "newCount_one": "{{count}} new",
     "newCount_other": "{{count}} new",
-    "newCountAtLeast_one": "{{count}}+ new",
-    "newCountAtLeast_other": "{{count}}+ new",
     "newUnknown": "New",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Mentions you"

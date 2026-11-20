@@ -1353,9 +1353,6 @@
     "newCount_one": "{{count}} nuevo",
     "newCount_many": "{{count}} nuevos",
     "newCount_other": "{{count}} nuevos",
-    "newCountAtLeast_one": "{{count}}+ nuevo",
-    "newCountAtLeast_many": "{{count}}+ nuevos",
-    "newCountAtLeast_other": "{{count}}+ nuevos",
     "newUnknown": "Nuevo",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Te menciona"
