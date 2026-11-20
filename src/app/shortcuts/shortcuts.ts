@@ -12,7 +12,10 @@ export type FieldPolicy = 'always' | 'empty' | 'never';
 export type ShortcutGroup = 'general' | 'rooms' | 'composer' | 'settings';
 
 type ShortcutDefinition = {
-  /** `mod+shift+m`, `alt+up`, `escape`: `mod` is ⌘ on Apple platforms and Ctrl elsewhere. */
+  /**
+   * `mod+shift+m`, `alt+up`, `escape`: `mod` is ⌘ on Apple platforms and Ctrl elsewhere, `ctrl`
+   * is Control on every platform.
+   */
   keys: string;
   /** The action's name in the help dialog. */
   labelKey: ParseKeys;
@@ -210,10 +213,10 @@ const DEFINITIONS = {
     field: 'never',
     local: true,
   },
-  // Right Option (right Alt) on its own, which no app or system shortcut takes; the composers'
-  // own window listener (useVoiceHoldShortcut) handles it.
+  // Control (not ⌘, whose keyups macOS drops) with Shift and Space, which no app or system
+  // shortcut takes; the composers' own window listener (useVoiceHoldShortcut) handles it.
   voiceRecord: {
-    keys: 'altright',
+    keys: 'ctrl+shift+space',
     labelKey: 'shortcuts.actions.voiceRecord',
     group: 'composer',
     field: 'always',
@@ -280,12 +283,13 @@ export const SHORTCUT_IDS = Object.keys(SHORTCUTS) as ShortcutId[];
 /** ⌘ on macOS, iPhone and iPad (as is-hotkey reads `mod`), Ctrl elsewhere. */
 export const usesCommandKey = (): boolean => isMacOS() || isIOS();
 
-type ParsedKeys = { mod: boolean; alt: boolean; shift: boolean; key: string };
+type ParsedKeys = { ctrl: boolean; mod: boolean; alt: boolean; shift: boolean; key: string };
 
 const parseKeys = (keys: string): ParsedKeys => {
   const parts = keys.split('+');
   const key = parts[parts.length - 1] ?? '';
   return {
+    ctrl: parts.includes('ctrl'),
     mod: parts.includes('mod'),
     alt: parts.includes('alt'),
     shift: parts.includes('shift'),
@@ -301,6 +305,7 @@ const NAMED_KEYS: Record<string, string> = {
   right: 'ArrowRight',
   enter: 'Enter',
   escape: 'Escape',
+  space: ' ',
 };
 
 /**
@@ -337,9 +342,9 @@ export type KeyEventLike = Pick<
 /** Whether the key event is the chord `keys` on a platform that does (`apple`) or does not use ⌘. */
 export const matchesKeys = (event: KeyEventLike, keys: string, apple: boolean): boolean => {
   const spec = parseKeys(keys);
-  const mod = apple ? event.metaKey : event.ctrlKey;
-  const otherMod = apple ? event.ctrlKey : event.metaKey;
-  if (otherMod || mod !== spec.mod || event.altKey !== spec.alt) return false;
+  const ctrl = spec.ctrl || (!apple && spec.mod);
+  const meta = apple && spec.mod;
+  if (event.ctrlKey !== ctrl || event.metaKey !== meta || event.altKey !== spec.alt) return false;
   const named = NAMED_KEYS[spec.key];
   if (named) return event.shiftKey === spec.shift && event.key === named;
   const byCode = typesNonAscii(event.key);
@@ -468,6 +473,7 @@ export const findShortcut = (
 };
 
 const MAC_SYMBOLS: Record<string, string> = {
+  ctrl: KeySymbol.Control,
   mod: KeySymbol.Command,
   alt: KeySymbol.Option,
   shift: KeySymbol.Shift,
@@ -477,11 +483,12 @@ const MAC_SYMBOLS: Record<string, string> = {
   right: KeySymbol.ArrowRight,
   enter: KeySymbol.Enter,
   escape: 'Esc',
-  altright: `Right ${KeySymbol.Option}`,
+  space: 'Space',
   '=': '+',
 };
 
 const OTHER_NAMES: Record<string, string> = {
+  ctrl: 'Ctrl',
   mod: 'Ctrl',
   alt: 'Alt',
   shift: 'Shift',
@@ -491,11 +498,11 @@ const OTHER_NAMES: Record<string, string> = {
   right: KeySymbol.ArrowRight,
   enter: 'Enter',
   escape: 'Esc',
-  altright: 'Right Alt',
+  space: 'Space',
   '=': '+',
 };
 
-const ORDER = ['mod', 'alt', 'shift'] as const;
+const ORDER = ['ctrl', 'mod', 'alt', 'shift'] as const;
 
 /** The key caps of a chord, modifiers first: `['⌘', '⇧', 'M']` or `['Ctrl', 'Shift', 'M']`. */
 export const keyCapsOf = (keys: string, apple: boolean): string[] => {
@@ -524,14 +531,14 @@ const ARIA_NAMES: Record<string, string> = {
   right: 'ArrowRight',
   enter: 'Enter',
   escape: 'Escape',
-  // ARIA names keys by their `key` value, which has no right Alt of its own.
-  altright: 'Alt',
+  space: 'Space',
 };
 
 /** The `aria-keyshortcuts` value: `Meta+Shift+M` on Apple platforms, `Control+Shift+M` elsewhere. */
 export const ariaShortcut = (id: ShortcutId, apple: boolean = usesCommandKey()): string => {
   const spec = parseKeys(SHORTCUTS[id].keys);
   const parts: string[] = [];
+  if (spec.ctrl) parts.push('Control');
   if (spec.mod) parts.push(apple ? 'Meta' : 'Control');
   if (spec.alt) parts.push('Alt');
   if (spec.shift) parts.push('Shift');

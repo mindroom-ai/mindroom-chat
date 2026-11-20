@@ -446,7 +446,7 @@
         "profile": "fotografia de perfil, fotografia, nome, alcunha",
         "deactivate": "eliminar conta, encerrar conta",
         "localMindroom": "emparelhar, código de emparelhamento, local, computador",
-        "voiceKey": "mensagem de voz, microfone, gravar, pressionar para falar, Option, Alt, atalho de teclado",
+        "voiceKey": "mensagem de voz, microfone, gravar, pressionar para falar, Control, Ctrl, Shift, Espaço, atalho de teclado",
         "emoji": "emoji, autocolantes, pacotes, emoji personalizados",
         "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade",
         "midTurn": "redirecionar, fila, automático, agente, resposta, interromper"
@@ -1359,7 +1359,10 @@
     "close": "Fechar o tópico",
     "resizeSecond": "Redimensionar o segundo tópico",
     "second": "Segundo tópico",
-    "dropSecond": "Solte para abrir na segunda coluna"
+    "dropSecond": "Solte para abrir na segunda coluna",
+    "newUnknown": "Novo",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Menção a si"
   },
   "threadSnooze": {
     "title": "Adiar até",

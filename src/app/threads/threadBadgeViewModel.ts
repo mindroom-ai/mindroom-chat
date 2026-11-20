@@ -29,5 +29,6 @@ export const buildThreadBadgeViewModelFromRecord = ({
         ? record.presentation.replyParticipantIds
         : undefined,
     isResolved: record.status.isResolved,
+    isUnread: record.status.isUnread,
   };
 };

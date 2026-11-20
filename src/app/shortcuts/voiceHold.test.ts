@@ -141,7 +141,7 @@ describe('createVoiceHold', () => {
   });
 
   describe('arming', () => {
-    it.each(['another key (as in ⌥- for a dash)', 'a mouse button', 'the wheel', 'a blur'])(
+    it.each(['another key', 'a mouse button', 'the wheel', 'a blur'])(
       'is cancelled by %s before the threshold, and nothing happens',
       () => {
         const { hold, advance, calls } = setup();

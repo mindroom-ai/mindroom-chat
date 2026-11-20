@@ -226,13 +226,13 @@ test('a voice recording follows the person and is sent where Send is pressed', a
   await expect(indicator(page)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Record voice message' }).first()).toBeEnabled();
 
-  // The voice key (right Alt) records for the account too: a tap starts a recording, and a
+  // The voice key (Ctrl+Shift+Space) records for the account too: a tap starts a recording, and a
   // second tap sends it from the composer that has the focus.
   await thread.locator(composer(page)).click();
-  await page.keyboard.press('AltRight');
+  await page.keyboard.press('Control+Shift+Space');
   await expect(thread.locator(capsule(page))).toBeVisible({ timeout: 15_000 });
   await expect(thread.getByText(/^0:0[1-9]$/)).toBeVisible({ timeout: 30_000 });
-  await page.keyboard.press('AltRight');
+  await page.keyboard.press('Control+Shift+Space');
   await expect
     .poll(async () => (await voiceMessages(token, world.b.roomId)).length, { timeout: 45_000 })
     .toBe(2);

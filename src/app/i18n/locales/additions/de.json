@@ -437,7 +437,7 @@
         "profile": "Profilbild, Foto, Name, Spitzname",
         "deactivate": "Konto löschen, Konto schließen",
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
-        "voiceKey": "Sprachnachricht, Mikrofon, aufnehmen, Push-to-Talk, Option, Alt, Tastenkürzel",
+        "voiceKey": "Sprachnachricht, Mikrofon, aufnehmen, Push-to-Talk, Strg, Ctrl, Umschalt, Shift, Leertaste, Tastenkürzel",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
         "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen"
@@ -1328,7 +1328,10 @@
     "close": "Thread schließen",
     "resizeSecond": "Breite des zweiten Threads ändern",
     "second": "Zweiter Thread",
-    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen"
+    "dropSecond": "Ablegen, um in zweiter Spalte zu öffnen",
+    "newUnknown": "Neu",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Erwähnt dich"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",

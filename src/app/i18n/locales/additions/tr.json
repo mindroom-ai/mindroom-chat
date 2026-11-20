@@ -437,7 +437,7 @@
         "profile": "profil fotoğrafı, fotoğraf, ad, takma ad",
         "deactivate": "hesabı sil, hesabı kapat",
         "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
-        "voiceKey": "sesli mesaj, mikrofon, kayıt, bas konuş, Option, Alt, klavye kısayolu",
+        "voiceKey": "sesli mesaj, mikrofon, kayıt, bas konuş, Control, Ctrl, Shift, boşluk, klavye kısayolu",
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
         "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes"
@@ -1328,7 +1328,10 @@
     "close": "Konuyu kapat",
     "resizeSecond": "İkinci konuyu yeniden boyutlandır",
     "second": "İkinci konu",
-    "dropSecond": "İkinci sütunda açmak için bırakın"
+    "dropSecond": "İkinci sütunda açmak için bırakın",
+    "newUnknown": "Yeni",
+    "newAndReplies": "{{news}} · {{replies}}",
+    "mentionsYou": "Sizden bahsediyor"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",

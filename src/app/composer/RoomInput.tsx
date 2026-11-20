@@ -685,7 +685,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [ref, setRoot]
     );
-    // Right ⌥ (right Alt) records here (useVoiceHoldShortcut): a send takes the same path as Enter,
+    // The voice key records here (useVoiceHoldShortcut): a send takes the same path as Enter,
     // and only from a composer with nothing else in it. In a thread whose root is unconfirmed, the
     // key sends nothing (the recording keeps going), as Enter's send would wait for the root.
     useVoiceComposer(

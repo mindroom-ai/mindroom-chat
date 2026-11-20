@@ -58,6 +58,36 @@ export const ThreadIndicatorResolved = style({
   opacity: 0.9,
 });
 
+/** The accent over the timeline's surface, `share` of it, for the unread chip's tints. */
+const accentTint = (share: number) =>
+  `color-mix(in srgb, ${color.Primary.Main} ${share}%, ${color.Surface.Container})`;
+const unreadBackground = accentTint(16);
+
+/**
+ * An unread thread's chip takes the accent: a pale tint, an accent rim (80%, 3:1 or more on every
+ * palette) and the accent's container text (4.5:1 or more). Declared after the resolved chip, so
+ * while the thread is unread its tint wins over the success tint.
+ */
+export const ThreadIndicatorUnread = style({
+  borderColor: accentTint(80),
+  background: unreadBackground,
+  color: color.Primary.OnContainer,
+  opacity: 1,
+  selectors: {
+    'button&:hover, button&:focus-visible': { background: accentTint(24) },
+    'button&:active': { background: accentTint(30) },
+  },
+});
+
+/** The solid accent @ of an unread thread whose new replies name the user. */
+export const ThreadMentionPill = style({
+  flexShrink: 0,
+  minWidth: toRem(18),
+  height: toRem(18),
+  padding: `0 ${toRem(4)}`,
+  justifyContent: 'center',
+});
+
 export const ThreadIndicatorLabel = style({
   minWidth: 0,
   overflow: 'hidden',
@@ -83,6 +113,10 @@ export const ThreadParticipant = style({
   selectors: {
     '& + &': {
       marginInlineStart: participantOverlap,
+    },
+    // The ring that parts the faces takes the unread chip's tint.
+    [`${ThreadIndicatorUnread} &`]: {
+      boxShadow: `0 0 0 ${toRem(2)} ${unreadBackground}`,
     },
     // On a Compact thread bar the faces are a full 24 px tile whose outer pixel is a hairline
     // ring in the surface color, so the overlap reads as a cut-out rather than a shadow.

@@ -1,10 +1,10 @@
 /**
- * Right ⌥ (right Alt elsewhere) on its own records a voice message. A tap starts a hands-free
+ * The voice key (⌃⇧Space, Ctrl+Shift+Space) records a voice message. A tap starts a hands-free
  * recording; holding it past the threshold records while held and sends on release
  * (push-to-talk). With a recording already running, a press and release sends it. Anything that
- * makes the press part of something else (another key, as in ⌥- for a dash; a click; the wheel;
- * leaving the window) cancels it before the threshold, and during push-to-talk keeps the
- * recording running without sending it (it latches).
+ * makes the press part of something else (another key, a click, the wheel, leaving the window)
+ * cancels it before the threshold, and during push-to-talk keeps the recording running without
+ * sending it (it latches).
  */
 export const VOICE_HOLD_MS = 300;
 
@@ -39,11 +39,11 @@ export type VoiceHoldOptions = {
 
 export type VoiceHold = {
   readonly state: VoiceHoldState;
-  /** The key went down with no other key or modifier; `repeat` for the key's auto-repeat. */
+  /** The key went down; `repeat` for the key's auto-repeat. */
   keyDown: (repeat: boolean) => void;
   /** Any other key, a mouse button, the wheel, a blur or the page hiding. */
   interrupt: () => void;
-  /** The key came up. True when the press acted, so the event is the app's. */
+  /** The key or one of its modifiers came up. True when the press acted: the event is the app's. */
   keyUp: () => boolean;
 };
 
