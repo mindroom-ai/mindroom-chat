@@ -6,7 +6,7 @@ import {
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
 import { joinPathComponent } from '../routes/pathUtils';
-import { withReturnToRoom } from '../routes/historyStack';
+import { returnToRoomState } from '../routes/historyStack';
 
 export type NavigateRoomThreadDirect = (
   roomId: string,
@@ -68,11 +68,13 @@ export const navigateToRoomThread = ({
       }
     : opts;
 
-  // The page that is left stays the room on a step back to it (the browser's Back): its address
-  // may name an event of this thread, which would open the thread again. A page that asks for
-  // an event in the room (`focusEvent`) leads into no thread, and keeps its own return.
-  if (exitTarget && new URLSearchParams(location?.search).get('focusEvent') !== '1') {
-    replaceHistoryState(withReturnToRoom(getHistoryState()));
+  // A step back (the browser's Back) to the room at an event, when that is the page left here,
+  // stays the room: the event may be in this thread, and would open it again.
+  const marked = exitTarget && location && returnToRoomState(location, roomId, getHistoryState());
+  try {
+    if (marked) replaceHistoryState(marked);
+  } catch {
+    // A browser may refuse the write (WebKit limits them): the thread opens all the same.
   }
   navigateRoomThreadDirect(roomId, threadId, eventId, nextOpts);
 

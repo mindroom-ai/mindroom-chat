@@ -159,9 +159,16 @@ describe('navigateToRoomThread', () => {
     expect(schedule).not.toHaveBeenCalled();
   });
 
-  // A step back to the page a thread was opened from (the browser's Back) shows the room, also
-  // when its address names an event of that thread: `RETURN_TO_ROOM_STATE`.
-  const open = (search: string, opts?: NavigateOptions) => {
+  // A step back (the browser's Back) to the room at an event of the thread that is opened from it
+  // shows the room: `RETURN_TO_ROOM_STATE`.
+  const EVENT_PAGE = '/home/!room%3Aexample.org/%24reply';
+  const open = (
+    pathname = EVENT_PAGE,
+    search = '',
+    opts?: NavigateOptions,
+    usr: Record<string, unknown> = { openedFromOutside: true },
+    replaceHistoryState: (state: unknown) => void = () => undefined
+  ) => {
     const calls: string[] = [];
     const written: unknown[] = [];
     navigateToRoomThread({
@@ -169,31 +176,47 @@ describe('navigateToRoomThread', () => {
       threadId: '$thread',
       opts,
       navigateRoomThreadDirect: () => calls.push('navigate'),
-      location: { pathname: '/home/!room:example.org/$reply', search, hash: '' },
-      getHistoryState: () => ({ key: 'left', idx: 3, usr: { openedFromOutside: true } }),
+      location: { pathname, search, hash: '' },
+      getHistoryState: () => ({ key: 'left', idx: 3, usr }),
       replaceHistoryState: (state) => {
         calls.push('mark');
         written.push(state);
+        replaceHistoryState(state);
       },
       schedule: () => undefined,
     });
     return { calls, written };
   };
 
-  it('marks the page a thread is opened from as a return to the room, before it leaves it', () => {
-    const { calls, written } = open('');
+  it('marks the room at an event as a return to the room, before the thread leaves it', () => {
+    const { calls, written } = open();
 
     expect(calls).toEqual(['mark', 'navigate']);
     expect(written).toEqual([
       { key: 'left', idx: 3, usr: { openedFromOutside: true, returnedToRoom: true } },
     ]);
     expect(isReturnToRoom((written[0] as { usr: unknown }).usr)).toBe(true);
+    // The room at an event in a space.
+    const inSpace = '/!space%3Aexample.org/!room%3Aexample.org/%24reply';
+    expect(open(inSpace).calls).toEqual(['mark', 'navigate']);
   });
 
-  it.each([
-    ['a page that asks for its event in the room', '?focusEvent=1', undefined],
-    ['the page a thread takes the place of', '', { replace: true }],
-  ])('leaves %s as it is', (_page, search, opts) => {
-    expect(open(search, opts).calls).toEqual(['navigate']);
+  it('opens the thread all the same when the browser refuses the mark', () => {
+    const refuse = () => {
+      throw new DOMException('Too many calls to the History API', 'SecurityError');
+    };
+
+    expect(open(EVENT_PAGE, '', undefined, {}, refuse).calls).toEqual(['mark', 'navigate']);
+  });
+
+  it.each<[string, string, string, NavigateOptions?, Record<string, unknown>?]>([
+    ['the room without an event', '/home/!room%3Aexample.org/', ''],
+    ['an event of another room', '/home/!other%3Aexample.org/%24reply', ''],
+    ['an event in an open thread', EVENT_PAGE, '?threadId=%24other'],
+    ['a page that asks for its event in the room', EVENT_PAGE, '?focusEvent=1'],
+    ['the page the thread takes the place of', EVENT_PAGE, '', { replace: true }],
+    ['a page that has the mark', EVENT_PAGE, '', undefined, { returnedToRoom: true }],
+  ])('leaves %s as it is', (_page, pathname, search, opts, usr) => {
+    expect(open(pathname, search, opts, usr).calls).toEqual(['navigate']);
   });
 });

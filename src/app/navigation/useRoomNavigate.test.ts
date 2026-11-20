@@ -184,7 +184,7 @@ describe('useRoomNavigate', () => {
     mocks.location.hash = '';
   });
 
-  it('marks pushed thread opens for history back, and the entry they leave as the room', () => {
+  it('marks pushed thread opens for history back without rewriting the current entry', () => {
     const roomId = '!room:example.org';
     const threadId = '$thread';
     const eventId = '$reply';
@@ -210,11 +210,8 @@ describe('useRoomNavigate', () => {
         },
       }
     );
-    // The entry stays in its place: only its state says a step back to it returns to the room.
     expect(mocks.navigate).toHaveBeenCalledTimes(1);
-    expect(mocks.replaceState.mock.calls).toEqual([
-      [{ idx: 1, key: 'room-entry', usr: { returnedToRoom: true } }, ''],
-    ]);
+    expect(mocks.replaceState).not.toHaveBeenCalled();
 
     renderer.unmount();
   });

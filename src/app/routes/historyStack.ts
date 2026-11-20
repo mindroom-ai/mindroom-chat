@@ -32,16 +32,6 @@ export const RETURN_TO_ROOM_STATE = { returnedToRoom: true } as const;
 export const isReturnToRoom = (state: unknown): boolean =>
   isRecord(state) && state.returnedToRoom === true;
 
-/**
- * `historyState` (the browser's, which holds the router's navigation state as `usr`) of an entry
- * a thread is opened from in a new entry, marked as `RETURN_TO_ROOM_STATE`: a step back to it
- * returns to the room as it was left too.
- */
-export const withReturnToRoom = (historyState: unknown): Record<string, unknown> => {
-  const state = isRecord(historyState) ? historyState : {};
-  return { ...state, usr: { ...(isRecord(state.usr) ? state.usr : {}), ...RETURN_TO_ROOM_STATE } };
-};
-
 const isOpenedFromOutside = (state: unknown): boolean =>
   isRecord(state) && state.openedFromOutside === true;
 
@@ -156,6 +146,20 @@ const routeRooms = (pathname: string): string[] => {
 export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: string[]): boolean =>
   routeRooms(page.pathname).some((address) => addresses.includes(address)) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));
+
+/**
+ * `historyState` (the browser's, which holds the router's navigation state as `usr`) of the entry
+ * of `page`, marked as `RETURN_TO_ROOM_STATE`, when a step back to that page from a thread of the
+ * room could open the thread again: it shows the room (by its ID, which a shown address has in an
+ * alias's place) at an event, with no thread open and no `focusEvent`, and has no mark yet.
+ */
+export const returnToRoomState = (page: HistoryPage, roomId: string, historyState: unknown) => {
+  const state = isRecord(historyState) ? historyState : {};
+  const atEvent = showsRoom(page, [roomId], ['']) && !!page.pathname.split('/')[3];
+  const inRoom = new URLSearchParams(page.search).get('focusEvent') === '1';
+  if (!atEvent || inRoom || isReturnToRoom(state.usr)) return undefined;
+  return { ...state, usr: { ...(isRecord(state.usr) ? state.usr : {}), ...RETURN_TO_ROOM_STATE } };
+};
 
 /** The page an app path (`<pathname><search>`) opens, such as a path recorded earlier. */
 export const historyPageOf = (path: string): HistoryPage => {
