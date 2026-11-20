@@ -882,10 +882,6 @@
             "row": "Jadwalkan",
             "title_other": "menjadwalkan {{count}} tugas"
           },
-          "listFiles": {
-            "row": "Daftar file",
-            "title": "melihat daftar file"
-          },
           "attachments": {
             "row": "Periksa lampiran",
             "title": "memeriksa lampiran"

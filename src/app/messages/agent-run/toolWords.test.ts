@@ -13,21 +13,17 @@ const done = (...names: string[]) => names.map((name) => call(name));
 
 describe('describeToolRun', () => {
   it('says what a run did in words', () => {
-    expect(
-      describeToolRun(t, 'en', done('read_file', 'run_shell_command', 'list_files', 'web_search'))
-    ).toEqual({
-      title: 'Read 1 file, ran 1 command, listed files, and searched the web',
+    expect(describeToolRun(t, 'en', done('read_file', 'run_shell_command', 'web_search'))).toEqual({
+      title: 'Read 1 file, ran 1 command, and searched the web',
       detail: '',
       status: '',
     });
   });
 
-  it('counts the files a run read, not its reads', () => {
+  it('counts the reads, as a preview cannot tell two files apart', () => {
     const pages = ['path=notes.md, offset=1', 'path=notes.md, offset=200', 'path=plan.md'];
     const calls = pages.map((args) => call('read_file', 'done', args));
-    expect(describeToolRun(t, 'en', calls)?.title).toBe('Read 2 files');
-    // Without a path to tell them apart, each read counts.
-    expect(describeToolRun(t, 'en', done('read_file', 'read_file'))?.title).toBe('Read 2 files');
+    expect(describeToolRun(t, 'en', calls)?.title).toBe('Read 3 files');
   });
 
   it('counts the tools without words and names them as its detail', () => {
@@ -37,7 +33,7 @@ describe('describeToolRun', () => {
     });
   });
 
-  it('puts only the calls that ran in words, and names and counts the others', () => {
+  it('puts only the calls that ran in words, and names and counts the others together', () => {
     const calls = [
       call('read_file'),
       call('schedule', 'failed'),
@@ -47,7 +43,12 @@ describe('describeToolRun', () => {
     expect(describeToolRun(t, 'en', calls)).toEqual({
       title: 'Read 1 file',
       detail: 'schedule, send_email, write_file',
-      status: "· 1 didn't complete · 1 denied · 1 expired",
+      status: "· 3 didn't complete",
+    });
+    expect(describeToolRun(t, 'en', [call('read_file'), call('write_file', 'denied')])).toEqual({
+      title: 'Read 1 file',
+      detail: 'write_file',
+      status: '· 1 denied',
     });
   });
 
@@ -86,5 +87,8 @@ describe('toolRowWords', () => {
     expect(toolRowWords(t, 'send_email', 'to=alice@example.org')).toBeUndefined();
     expect(toolRowWords(t, 'matrix_room', 'action=threads, room_id=all')).toBeUndefined();
     expect(toolRowWords(t, 'read_file_chunk', 'file_name=notes.md')).toBeUndefined();
+    // These return errors as plain results, so a done call may not have listed anything.
+    expect(toolRowWords(t, 'ls', 'path=notes')).toBeUndefined();
+    expect(describeToolRun(t, 'en', done('list_files'))).toBeUndefined();
   });
 });

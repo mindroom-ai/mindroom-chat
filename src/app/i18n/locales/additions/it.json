@@ -922,10 +922,6 @@
             "title_many": "{{count}} attività pianificate",
             "title_other": "{{count}} attività pianificate"
           },
-          "listFiles": {
-            "row": "Elenca file",
-            "title": "file elencati"
-          },
           "attachments": {
             "row": "Controlla allegati",
             "title": "allegati controllati"

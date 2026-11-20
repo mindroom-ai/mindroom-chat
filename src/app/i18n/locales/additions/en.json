@@ -902,10 +902,6 @@
             "title_one": "scheduled {{count}} task",
             "title_other": "scheduled {{count}} tasks"
           },
-          "listFiles": {
-            "row": "List files",
-            "title": "listed files"
-          },
           "attachments": {
             "row": "Check attachments",
             "title": "checked attachments"

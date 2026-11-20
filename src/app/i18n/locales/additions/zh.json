@@ -882,10 +882,6 @@
             "row": "安排",
             "title_other": "安排了 {{count}} 个任务"
           },
-          "listFiles": {
-            "row": "列出文件",
-            "title": "列出了文件"
-          },
           "attachments": {
             "row": "查看附件",
             "title": "查看了附件"

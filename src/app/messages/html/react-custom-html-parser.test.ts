@@ -1311,23 +1311,23 @@ describe('useToolTraceMarkerParserOptions', () => {
   });
 
   it('names a running call in words without saying it ran, in the order the calls ran', () => {
-    const html = '<p>🔧 <code>list_files</code> [1]</p><p>🔧 <code>write_file</code> [2] ⏳</p>';
+    const html = '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>write_file</code> [2] ⏳</p>';
     const renderer = renderTreeWithToolTrace(html, {
       'io.mindroom.tool_trace': {
         version: 2,
         events: [
-          { type: 'tool_call_completed', tool_name: 'list_files' },
+          { type: 'tool_call_completed', tool_name: 'read_file' },
           { type: 'tool_call_started', tool_name: 'write_file', args_preview: 'path=plan.md' },
         ],
       },
     });
     expect(collectTextContent(renderer.toJSON())).toBe(
-      'Running 2 tool callslist_files, write_file'
+      'Running 2 tool callsread_file, write_file'
     );
     act(() => {
       renderer.root.findByType('button').props.onClick();
     });
-    expect(toolRowText(renderer, 1)).toContain('List files');
+    expect(toolRowText(renderer, 1)).toContain('Read file');
     expect(toolRowText(renderer, 2)).toContain('Write fileplan.md');
     expect(renderer.root.findAllByType('details')).toHaveLength(0);
   });

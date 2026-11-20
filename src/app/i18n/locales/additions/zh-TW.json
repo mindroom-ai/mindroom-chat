@@ -882,10 +882,6 @@
             "row": "排程",
             "title_other": "排程了 {{count}} 項工作"
           },
-          "listFiles": {
-            "row": "列出檔案",
-            "title": "列出了檔案"
-          },
           "attachments": {
             "row": "查看附件",
             "title": "查看了附件"

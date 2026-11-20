@@ -185,8 +185,9 @@ export const RowName = style({
 // A known tool's call in words ("Read file"), which its target follows as the line's detail.
 export const RowWords = style({ flexShrink: 0, fontWeight: config.fontWeight.W600 });
 
-// What a run's line says after its words for the calls that did not run; never cut short.
-export const Status = style({ flexShrink: 0, fontWeight: 600, whiteSpace: 'nowrap' });
+// What a run's line says after its words for the calls that did not run; the title gives way
+// first, and this only past most of the line, so the chevron stays in the button.
+export const Status = style([Title, { flexShrink: 0, maxWidth: '60%' }]);
 
 // A row's name and, while the call runs long, how long it has run.
 export const RowHead = style({

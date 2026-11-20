@@ -902,10 +902,6 @@
             "title_one": "{{count}} Aufgabe geplant",
             "title_other": "{{count}} Aufgaben geplant"
           },
-          "listFiles": {
-            "row": "Dateien auflisten",
-            "title": "Dateien aufgelistet"
-          },
           "attachments": {
             "row": "Anhänge prüfen",
             "title": "Anhänge geprüft"

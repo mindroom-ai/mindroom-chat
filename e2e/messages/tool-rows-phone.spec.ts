@@ -30,6 +30,8 @@ import {
 // - A tool with words (toolWords.ts) keeps its line's count of the calls that didn't complete in
 //   view, and its row shows a long mixed-direction query on one line in its own direction, and
 //   in full among its arguments.
+// - In German, a line whose calls didn't complete in more than one way counts them together,
+//   with its status and chevron inside its button.
 // Set TOOL_ROWS_SHOTS=<directory> to save each check's rows.
 const PASSWORD = 'tool-rows-phone-spec-password';
 const RUN = Date.now().toString(36);
@@ -135,40 +137,81 @@ const seed = async (engine: string) => {
     'm.relates_to': { rel_type: 'm.thread', event_id: searchId },
   });
   const now = Date.now();
-  await matrixFetch(
-    HOMESERVER,
-    `/rooms/${encodeURIComponent(roomId)}/send/io.mindroom.tool_approval/approval-${RUN}-${engine}`,
-    {
-      method: 'PUT',
-      accessToken: agent.accessToken,
-      body: JSON.stringify({
-        msgtype: 'io.mindroom.tool_approval',
-        body: 'Approval required: run_shell_command',
-        approval_id: `approval-${RUN}-${engine}`,
-        tool_name: 'run_shell_command',
-        agent_name: 'research',
-        status: 'approved',
-        approvable: true,
-        approver_user_id: reader.userId,
-        requester_id: reader.userId,
-        approval_scope: {
-          id: 'shell',
-          entity_name: 'research',
-          invoking_agent: 'research',
-          operation: { tool_name: 'run_shell_command' },
-        },
-        arguments: { command: COMMAND },
-        requested_at: new Date(now - 60_000).toISOString(),
-        expires_at: new Date(now + 3_600_000).toISOString(),
-        resolved_at: new Date(now - 30_000).toISOString(),
-        resolved_by: reader.userId,
-        response_event_id: exported,
-        thread_id: rootId,
-        ...inThread(exported),
-      }),
-    }
-  );
-  return { reader, roomId, rootId, searchId };
+  const approve = (
+    id: string,
+    toolName: string,
+    status: 'approved' | 'denied' | 'expired',
+    replyId: string,
+    threadId: string,
+    relation: Record<string, unknown>
+  ) =>
+    matrixFetch(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(
+        roomId
+      )}/send/io.mindroom.tool_approval/approval-${RUN}-${engine}${id}`,
+      {
+        method: 'PUT',
+        accessToken: agent.accessToken,
+        body: JSON.stringify({
+          msgtype: 'io.mindroom.tool_approval',
+          body: `Approval required: ${toolName}`,
+          approval_id: `approval-${RUN}-${engine}${id}`,
+          tool_name: toolName,
+          agent_name: 'research',
+          status,
+          approvable: true,
+          approver_user_id: reader.userId,
+          requester_id: reader.userId,
+          approval_scope: {
+            id: 'shell',
+            entity_name: 'research',
+            invoking_agent: 'research',
+            operation: { tool_name: toolName },
+          },
+          arguments: { command: COMMAND },
+          requested_at: new Date(now - 60_000).toISOString(),
+          expires_at: new Date(now + (status === 'expired' ? -1 : 1) * 3_600_000).toISOString(),
+          resolved_at: new Date(now - 30_000).toISOString(),
+          resolved_by: reader.userId,
+          response_event_id: replyId,
+          thread_id: threadId,
+          ...relation,
+        }),
+      }
+    );
+  await approve('', 'run_shell_command', 'approved', exported, rootId, inThread(exported));
+  // One call ran, and one each didn't complete, was denied and expired.
+  const mixedId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Update the board deck with the churn benchmarks.',
+  });
+  const inMixed = { 'm.relates_to': { rel_type: 'm.thread', event_id: mixedId } };
+  const mixedTools = ['web_search', 'run_shell_command', 'write_file', 'schedule'];
+  const mixed = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: `${mixedTools
+      .map((tool, index) => `🔧 \`${tool}\` [${index + 1}]`)
+      .join('\n\n')}\n\nThe deck is not updated.`,
+    format: 'org.matrix.custom.html',
+    formatted_body: `${mixedTools
+      .map((tool, index) => `<p>🔧 <code>${tool}</code> [${index + 1}]</p>`)
+      .join('')}<p>The deck is not updated.</p>`,
+    'io.mindroom.stream_status': 'completed',
+    'io.mindroom.tool_trace': {
+      version: 2,
+      events: traceOf(
+        ['web_search', `query=${QUERY}`, RESULT],
+        ['run_shell_command', `command=${COMMAND}`, 'chart: no such file'],
+        ['write_file', 'path=deck/slide6.md', 'denied'],
+        ['schedule', 'request=Remind me on Friday', 'expired']
+      ).events.map((event, index) => (index > 0 ? { ...event, is_error: true } : event)),
+    },
+    ...inMixed,
+  });
+  await approve('-denied', 'write_file', 'denied', mixed, mixedId, inMixed);
+  await approve('-expired', 'schedule', 'expired', mixed, mixedId, inMixed);
+  return { reader, roomId, rootId, searchId, mixedId };
 };
 
 type World = Awaited<ReturnType<typeof seed>>;
@@ -430,6 +473,36 @@ const checkMappedRow = async (page: Page, world: World, engine: string, language
   await expect.soft(row.locator('dd').getByText(MIXED_QUERY, { exact: true })).toBeVisible();
 };
 
+/**
+ * A German line whose calls didn't complete in more than one way counts them together, and its
+ * status and chevron both stay inside its button.
+ */
+const checkMixedStatus = async (page: Page, world: World, engine: string) => {
+  await openIn(page, 'de', threadRoute(world, world.mixedId));
+  const line = disclosures(page).filter({ hasText: /nicht abgeschlossen/ });
+  await expect(line).toHaveCount(1, { timeout: 60_000 });
+  const status = line.locator(':scope > span').filter({ hasText: /^·/ });
+  await expect(status).toHaveText('· 3 nicht abgeschlossen');
+  const fit = await line.evaluate((button) => {
+    const box = button.getBoundingClientRect();
+    const inside = (element: Element) => {
+      const { left, right } = element.getBoundingClientRect();
+      return left >= box.left - 0.5 && right <= box.right + 0.5;
+    };
+    const status = [...button.children].find((child) => child.textContent?.startsWith('·'))!;
+    return {
+      status: inside(status) && status.scrollWidth <= status.clientWidth + 1,
+      chevron: inside(button.lastElementChild!),
+    };
+  });
+  console.log(`${engine}, de mixed status: ${JSON.stringify(fit)}`);
+  await shot(page, line.locator('xpath=..'), `tool-mixed-status-de-${engine}-phone`);
+  expect.soft(fit, `the status and chevron in the button (${engine}, de)`).toEqual({
+    status: true,
+    chevron: true,
+  });
+};
+
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
   const world = await seed(engine);
   const context = await browser.newContext({ ...PHONE, baseURL });
@@ -444,6 +517,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     await checkOutputDirection(page, world, engine, 'ar');
     await checkMappedRow(page, world, engine, 'en');
     await checkMappedRow(page, world, engine, 'ar');
+    await checkMixedStatus(page, world, engine);
     await checkReceiptArrow(page, world, engine, 'en');
     await checkReceiptArrow(page, world, engine, 'ar');
   } finally {

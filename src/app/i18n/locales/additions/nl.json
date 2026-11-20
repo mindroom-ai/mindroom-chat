@@ -902,10 +902,6 @@
             "title_one": "{{count}} taak ingepland",
             "title_other": "{{count}} taken ingepland"
           },
-          "listFiles": {
-            "row": "Bestanden weergeven",
-            "title": "bestandenlijst opgevraagd"
-          },
           "attachments": {
             "row": "Bijlagen bekijken",
             "title": "bijlagen bekeken"

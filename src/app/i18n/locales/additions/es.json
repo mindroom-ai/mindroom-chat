@@ -922,10 +922,6 @@
             "title_many": "programó {{count}} tareas",
             "title_other": "programó {{count}} tareas"
           },
-          "listFiles": {
-            "row": "Listar archivos",
-            "title": "listó archivos"
-          },
           "attachments": {
             "row": "Revisar adjuntos",
             "title": "revisó adjuntos"

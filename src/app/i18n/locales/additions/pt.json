@@ -922,10 +922,6 @@
             "title_many": "{{count}} tarefas agendadas",
             "title_other": "{{count}} tarefas agendadas"
           },
-          "listFiles": {
-            "row": "Listar arquivos",
-            "title": "arquivos listados"
-          },
           "attachments": {
             "row": "Verificar anexos",
             "title": "anexos verificados"

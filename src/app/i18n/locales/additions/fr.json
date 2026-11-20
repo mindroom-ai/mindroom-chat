@@ -922,10 +922,6 @@
             "title_many": "{{count}} tâches planifiées",
             "title_other": "{{count}} tâches planifiées"
           },
-          "listFiles": {
-            "row": "Lister les fichiers",
-            "title": "fichiers listés"
-          },
           "attachments": {
             "row": "Vérifier les pièces jointes",
             "title": "pièces jointes vérifiées"

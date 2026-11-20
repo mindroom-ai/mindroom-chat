@@ -882,10 +882,6 @@
             "row": "スケジュール設定",
             "title_other": "{{count}} 件のタスクをスケジュール"
           },
-          "listFiles": {
-            "row": "ファイル一覧",
-            "title": "ファイル一覧を取得"
-          },
           "attachments": {
             "row": "添付ファイルの確認",
             "title": "添付ファイルを確認"

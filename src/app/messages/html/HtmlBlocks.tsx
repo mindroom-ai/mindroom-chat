@@ -550,7 +550,7 @@ function ToolRefGroupBlock({
       }
       detail={words ? words.detail : summary.names}
       aside={
-        // Never cut short, so the line keeps saying which calls did not run.
+        // Kept whole before the title, so the line keeps saying which calls did not run.
         words?.status ? (
           <span className={activityCss.Status}>{words.status}</span>
         ) : (

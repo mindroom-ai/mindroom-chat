@@ -902,10 +902,6 @@
             "title_one": "{{count}} görev zamanlandı",
             "title_other": "{{count}} görev zamanlandı"
           },
-          "listFiles": {
-            "row": "Dosyaları listeleme",
-            "title": "dosyalar listelendi"
-          },
           "attachments": {
             "row": "Ekleri kontrol etme",
             "title": "ekler kontrol edildi"
