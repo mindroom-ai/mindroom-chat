@@ -8,7 +8,11 @@ import { ResizablePanel } from './ResizablePanel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock('./ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
+vi.mock('./ResizablePanel.css', () => ({
+  Panel: 'panel',
+  Handle: 'handle',
+  RESIZING: 'data-panel-resizing',
+}));
 
 let container: HTMLDivElement;
 let root: Root;
