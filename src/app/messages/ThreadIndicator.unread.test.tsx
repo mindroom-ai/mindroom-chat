@@ -3,6 +3,7 @@ import type { Room } from 'matrix-js-sdk';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ThreadIndicator, type ThreadIndicatorUnread } from './ThreadIndicator';
+import { ThreadBadge } from '../timeline/ThreadBadge';
 import * as css from './ThreadIndicator.css';
 
 const room = {} as Room;
@@ -33,6 +34,37 @@ describe('ThreadIndicator while its thread is unread', () => {
     expect(classes).toEqual([css.ThreadIndicator]);
     expect(screen.queryByRole('img', { name: 'Mentions you' })).toBeNull();
   });
+
+  it.each(['Nightly backup check', '', undefined])(
+    'renders a title only when present (%s)',
+    (summaryText) => {
+      render(
+        <ThreadBadge
+          room={room}
+          onClick={() => {}}
+          model={{
+            id: { roomId: '!room:example.org', threadRootId: '$root' },
+            summaryInfo: summaryText === undefined ? undefined : { summaryText, messageCount: 3 },
+            recentThreadSummaryText: '',
+            replyCount: 11,
+            participantIds: [],
+            isResolved: false,
+            isUnread: true,
+          }}
+        />
+      );
+      const button = screen.getByRole('button', {
+        name: summaryText
+          ? 'Thread Nightly backup check New · 11 replies'
+          : 'Thread New · 11 replies',
+        description: summaryText ? 'AI summary of last 3 messages' : '',
+      });
+      expect(button.textContent).toBe(
+        summaryText ? 'Nightly backup check New · 11 replies' : 'New · 11 replies'
+      );
+      expect(button.hasAttribute('aria-describedby')).toBe(Boolean(summaryText));
+    }
+  );
 
   it('reads New and takes the accent', () => {
     const classes = renderChip('Thread New · 11 replies', { unread: { mentionsMe: false } });
