@@ -2,6 +2,7 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { isTimelineRowHidden } from './roomTimelineRows';
 import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
+import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 
 const NONE = new Set<string>();
 const hidden = (id: string, replyCardIds?: Set<string>) =>
@@ -11,6 +12,7 @@ const hidden = (id: string, replyCardIds?: Set<string>) =>
       threadSummaryTimeline: { hiddenEventIds: NONE } as never,
       secretRequestTimeline: { hiddenEventIds: NONE },
       voiceTranscripts: NO_VOICE_TRANSCRIPTS,
+      modelChanges: NO_MODEL_CHANGES,
       replyCards: replyCardIds && { hiddenEventIds: replyCardIds, byReply: new Map() },
     },
     ignoredUsersSet: NONE,

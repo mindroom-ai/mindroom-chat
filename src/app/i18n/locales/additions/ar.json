@@ -579,7 +579,9 @@
       "commandAutocomplete": {
         "failed": "فشل ⁨{{command}}⁩: ⁨{{reason}}⁩",
         "usage": "تعذّر تنفيذ ⁨{{command}}⁩. ⁨{{usage}}⁩",
-        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain."
+        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain.",
+        "thisApp": "هذا التطبيق",
+        "mindroomAgents": "وكلاء MindRoom"
       },
       "jumpToTime": {
         "unsupported": "لا يستطيع هذا الخادم البحث عن الرسائل حسب الوقت.",
@@ -880,6 +882,14 @@
         "removed": "أُزيل",
         "diffTruncated": "تم اقتطاع الفرق",
         "diffLabel": "الفرق في ⁨{{path}}⁩"
+      },
+      "modelChangeMarker": {
+        "set": "تم تعيين النموذج",
+        "reset": "تمت إعادة تعيين النموذج",
+        "inherited": "العودة إلى النماذج الموروثة",
+        "changedBy": "غيّره ⁨{{name}}⁩",
+        "scopeOwn": "ينطبق على الردود القادمة في هذه السلسلة من الوكلاء والفرق الذين يمكنك مخاطبتهم.",
+        "scopeOther": "ينطبق على الردود القادمة في هذه السلسلة من الوكلاء والفرق الذين يمكن لـ ⁨{{name}}⁩ مخاطبتهم."
       },
       "finishedWork": {
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",

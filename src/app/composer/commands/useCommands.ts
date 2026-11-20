@@ -14,6 +14,7 @@ import { usePluginSlashCommands } from '../../plugins/slashCommands';
 import { MINDROOM_COMMAND_PREFIX } from './agentCommandQuery';
 import { MINDROOM_COMMANDS } from './agentCommands';
 import { usage } from './commandRefusal';
+import type { CommandSource } from './CommandAutocomplete';
 
 /**
  * The composer's slash commands, by the name typed after the `/`. The first group changes the
@@ -55,6 +56,8 @@ export type SlashCommand = {
    */
   name: string;
   description: string;
+  /** `mindroom` for MindRoom's commands; built-in and plugin commands are this app's. */
+  source: CommandSource;
   /** How to call it, with its arguments, for the menu; MindRoom's commands have one. */
   syntax?: string;
   /** For commands that act instead of sending a message; message commands have none. */
@@ -217,7 +220,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
         const run = isActingCommand(name)
           ? (args: string) => runCommandAction(name, context, args)
           : undefined;
-        return [name, { name, description, run }];
+        return [name, { name, source: 'app', description, run }];
       }
     );
     const commands: Record<string, SlashCommand> = Object.fromEntries(entries);
@@ -225,6 +228,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
       if (Object.hasOwn(commands, name)) return;
       commands[name] = {
         name,
+        source: 'mindroom',
         syntax: `/${syntax.slice(MINDROOM_COMMAND_PREFIX.length)}`,
         // Keys built at runtime are untyped, so t returns unknown.
         description: String(
@@ -236,6 +240,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
       if (!Object.hasOwn(commands, name)) {
         commands[name] = {
           name,
+          source: 'app',
           description,
           run: (args) => run({ room, args, threadId }),
           inThread: true,

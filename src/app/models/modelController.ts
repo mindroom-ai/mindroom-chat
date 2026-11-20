@@ -62,6 +62,8 @@ type Scope = {
   threadId?: string;
   snapshot: ModelPickerSnapshot;
   listeners: Set<() => void>;
+  /** Readers of the snapshot that ask for nothing (`watch`): they start and keep no discovery. */
+  watchers: Set<() => void>;
   catalogs: Map<string, Catalog>;
   generation: number;
   needsRefresh: boolean;
@@ -102,6 +104,7 @@ type Command = {
   acknowledged?: boolean;
   timer: ReturnType<typeof setTimeout>;
 };
+const NO_MODELS: ModelCatalogEntry[] = [];
 const emptySnapshot = (): ModelPickerSnapshot => ({
   eligible: false,
   runtimes: [],
@@ -201,7 +204,7 @@ export class ModelController {
       // Keep inactive scope caches bounded without evicting subscriptions or pending commands.
       if (this.scopes.size >= 64) {
         const stale = [...this.scopes.entries()].find(
-          ([, s]) => !s.listeners.size && !s.command && !s.send
+          ([, s]) => !s.listeners.size && !s.watchers.size && !s.command && !s.send
         );
         if (stale) {
           this.cancelQuery(stale[1]);
@@ -224,6 +227,7 @@ export class ModelController {
           inherited: cached.length === 1 ? cached[0]!.inherited : [],
         },
         listeners: new Set(),
+        watchers: new Set(),
         catalogs: new Map(),
         generation: 0,
         needsRefresh: false,
@@ -238,11 +242,45 @@ export class ModelController {
   getSnapshot = (room: Room, threadId?: string): ModelPickerSnapshot =>
     this.scope(room, threadId).snapshot;
 
+  /**
+   * The models of the runtime `userId` runs on `deviceId`, while the catalog the scope shows is
+   * that runtime's: its chosen runtime's, or its one runtime's from the room's cache. None for
+   * any other runtime, whose models may carry the same keys under other names.
+   */
+  runtimeModels = (
+    room: Room,
+    threadId: string | undefined,
+    userId: string,
+    deviceId: string
+  ): ModelCatalogEntry[] => {
+    const { runtime, runtimes, models } = this.scope(room, threadId).snapshot;
+    const shown = runtime ?? (runtimes.length === 1 ? runtimes[0] : undefined);
+    return shown?.userId === userId && shown.deviceId === deviceId ? models : NO_MODELS;
+  };
+
   private publish(scope: Scope, patch: Partial<ModelPickerSnapshot>): void {
     scope.snapshot = { ...scope.snapshot, ...patch };
     scope.snapshot.canMutate = this.canMutate(scope);
-    scope.listeners.forEach((listener) => listener());
+    this.notify(scope);
   }
+
+  private notify(scope: Scope): void {
+    scope.listeners.forEach((listener) => listener());
+    scope.watchers.forEach((watcher) => watcher());
+  }
+
+  /**
+   * Hears a scope's snapshot change without asking for it: what a composer's subscription
+   * discovered shows elsewhere too, such as a model's name on a thread's model change line, and
+   * a scope with watchers alone sends nothing.
+   */
+  watch = (room: Room, threadId: string | undefined, watcher: () => void): (() => void) => {
+    const scope = this.scope(room, threadId);
+    scope.watchers.add(watcher);
+    return () => {
+      scope.watchers.delete(watcher);
+    };
+  };
 
   subscribe = (room: Room, threadId: string | undefined, listener: () => void): (() => void) => {
     if (!this.started && !this.disposed) this.start();
@@ -744,7 +782,7 @@ export class ModelController {
       ...(shown && { ...shown, loading: true, error: undefined, canMutate: false }),
       pending: !!scope.send,
     };
-    scope.listeners.forEach((listener) => listener());
+    this.notify(scope);
   }
 
   private onMembership = (_event: MatrixEvent, member: RoomMember): void => {

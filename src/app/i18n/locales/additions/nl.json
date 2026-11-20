@@ -543,7 +543,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} mislukt: {{reason}}",
         "usage": "Kon {{command}} niet uitvoeren. {{usage}}",
-        "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen."
+        "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen.",
+        "thisApp": "Deze app",
+        "mindroomAgents": "MindRoom-agenten"
       },
       "jumpToTime": {
         "unsupported": "Deze server kan berichten niet op tijd opzoeken.",
@@ -836,6 +838,14 @@
         "removed": "verwijderd",
         "diffTruncated": "Diff ingekort",
         "diffLabel": "Diff van {{path}}"
+      },
+      "modelChangeMarker": {
+        "set": "Model ingesteld",
+        "reset": "Model teruggezet",
+        "inherited": "Terug naar overgenomen modellen",
+        "changedBy": "Gewijzigd door {{name}}",
+        "scopeOwn": "Geldt voor toekomstige antwoorden in deze thread van de agents en teams die je mag aanspreken.",
+        "scopeOther": "Geldt voor toekomstige antwoorden in deze thread van de agents en teams die {{name}} mag aanspreken."
       },
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",

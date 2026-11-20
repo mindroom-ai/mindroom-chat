@@ -72,6 +72,7 @@ import {
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from '../threads/useRoomThreadRouteGuards';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
+import { isReturnToRoom } from '../routes/historyStack';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
@@ -164,17 +165,19 @@ type PanelEntry = RoomPanel & {
 /**
  * What the room's URL asks for: an event, a thread, whether to show the event in place, and the
  * fork point of a fork draft of the thread; and the router's key of the history entry that asks,
- * and whether the router pushed that entry.
+ * whether the router pushed that entry, and whether the app's Back put it in a thread's place.
  */
 const useRoomRoute = () => {
   const params = useParams();
   const [search] = useSearchParams();
+  const location = useLocation();
   return {
     eventId: params.eventId,
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
-    entryKey: useLocation().key,
+    entryKey: location.key,
     entryPushed: useNavigationType() === NavigationType.Push,
+    entryReturned: isReturnToRoom(location.state),
     forkAt: search.get('forkAt') ?? undefined,
   };
 };
@@ -194,8 +197,15 @@ export function Room() {
 
 function RoomContent() {
   const room = useRoom();
-  const { eventId, routedThreadId, focusEventInRoom, entryKey, entryPushed, forkAt } =
-    useRoomRoute();
+  const {
+    eventId,
+    routedThreadId,
+    focusEventInRoom,
+    entryKey,
+    entryPushed,
+    entryReturned,
+    forkAt,
+  } = useRoomRoute();
   const { roomId } = room;
   // Every room address, a thread's included, opens here: the palette lists this room among the
   // ones visited last. Messages arriving in it do not count.
@@ -931,6 +941,7 @@ function RoomContent() {
                   focusEventInRoom={focusEventInRoom}
                   entryKey={entryKey}
                   entryPushed={entryPushed}
+                  entryReturned={entryReturned}
                   hasMindroomAgents={hasMindroomAgents}
                   joinRequestCount={joinRequestCount}
                   onThreadLoadError={onThreadLoadError}

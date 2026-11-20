@@ -5,6 +5,7 @@ import type { useThreadApprovalTimeline } from '../../approvals/useThreadApprova
 import type { ThreadSummaryTimelinePlan } from '../../event-store/threads/threadSummaryTimeline';
 import type { VoiceTranscriptPlan } from '../../messages/voiceTranscripts';
 import type { ReplyCardPlan } from '../replyCards';
+import type { ModelChangePlan } from '../../messages/modelChanges';
 
 export type TimelineMessageRow = Readonly<{
   eventId: string;
@@ -28,6 +29,8 @@ export type TimelineMessageData = {
   voiceTranscripts: VoiceTranscriptPlan;
   /** The open thread's canvases and reminders drawn as cards under their replies; rows hide. */
   replyCards?: ReplyCardPlan;
+  /** The thread's applied model changes: one line at the router's reply, the command's row hidden. */
+  modelChanges: ModelChangePlan;
   handleOpenReply: MouseEventHandler;
   /** In a fork, the IDs of its parent's messages shown before its own: rows read-only here. */
   forkPrefixEventIds?: ReadonlySet<string>;
@@ -36,7 +39,7 @@ export type TimelineMessageData = {
 /** What reading a row as a quiet marker needs of the timeline's data. */
 export type QuietMarkerData = Pick<
   TimelineMessageData,
-  'threadSummaryTimeline' | 'forkPrefixEventIds'
+  'threadSummaryTimeline' | 'modelChanges' | 'forkPrefixEventIds'
 >;
 
 export type { TimelineMessageKind } from '../../event-store/timeline/timelineRowTypes';
