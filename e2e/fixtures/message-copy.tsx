@@ -51,7 +51,7 @@ createRoot(document.getElementById('root')!).render(
   <div style={{ padding: 16 }}>
     <Menu style={{ width: 'min(100%, 16rem)' }}>
       <Box direction="Column" gap="100" className={MessageMenuGroup}>
-        <MessageCopyTextItem content={content} />
+        <MessageCopyTextItem content={content} toolRows />
       </Box>
     </Menu>
   </div>
