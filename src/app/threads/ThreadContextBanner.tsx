@@ -92,10 +92,12 @@ type RowLayout = 'row' | 'stacked' | 'narrow';
  *   Each is measured in its own layout, whichever the row shows, so the answer does not depend on
  *   the layout it picks and cannot flip back and forth.
  * - `row`: the buttons side by side, beside a short title.
- * Measured again when the row, the title or the buttons resize, and when the root's style changes:
- * Page Zoom sets the root font size, which moves 19rem while the row can keep its width.
+ * Measured again when the row, the title or the buttons resize, when the root's style changes
+ * (Page Zoom sets the root font size, which moves 19rem while the row can keep its width), and
+ * when the title's `text` changes: a new title can need more lines beside the row while every box
+ * shown keeps its size.
  */
-const usePhoneRowLayout = (row: HTMLElement | null): RowLayout => {
+const usePhoneRowLayout = (row: HTMLElement | null, text: string | undefined): RowLayout => {
   const [layout, setLayout] = useState<RowLayout>('row');
   useLayoutEffect(() => {
     if (!row) return undefined;
@@ -133,7 +135,7 @@ const usePhoneRowLayout = (row: HTMLElement | null): RowLayout => {
       zoom?.disconnect();
       resize?.disconnect();
     };
-  }, [row]);
+  }, [row, text]);
   return row ? layout : 'row';
 };
 
@@ -181,10 +183,6 @@ export function ThreadContextBanner({
   const bannerRef = useRef<HTMLDivElement>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [titleRow, setTitleRow] = useState<HTMLDivElement | null>(null);
-  const rowLayout = usePhoneRowLayout(phone ? titleRow : null);
-  const narrowRow = rowLayout === 'narrow';
-  const inRowOrder = (items: [title: React.ReactNode, actions: React.ReactNode]) =>
-    narrowRow ? [items[1], items[0]] : items;
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
@@ -357,6 +355,10 @@ export function ThreadContextBanner({
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
   const title = headerModel.summaryText || rootTitle;
+  const rowLayout = usePhoneRowLayout(phone ? titleRow : null, title);
+  const narrowRow = rowLayout === 'narrow';
+  const inRowOrder = (items: [title: React.ReactNode, actions: React.ReactNode]) =>
+    narrowRow ? [items[1], items[0]] : items;
   const snoozedText = useSnoozedUntilText(headerModel.snoozedUntilTs);
   const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled || !!snoozedText;
   // A pinned thread shows the pin instead of the resolve chip and its byline.

@@ -816,6 +816,36 @@ describe('ThreadContextBanner rendering', () => {
       }
     });
 
+    it('decides again when the title changes in place, though no box it shows resizes', () => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      const rowClass = (renderer: ReturnType<typeof renderBanner>) =>
+        renderer.root.find(
+          (node) => typeof node.type === 'string' && /^TitleRow/.test(node.props.className ?? '')
+        ).props.className;
+      // The title's height beside the buttons in a row follows its text: a line, or six.
+      let lines = 1;
+      try {
+        screenSize = ScreenSize.Mobile;
+        const renderer = renderBanner(
+          'A short summary',
+          rowOf(360, () => ({ title: lines * 20, actions: 96 }))
+        );
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow');
+        // The summary arrives: six lines beside the row; stacked, the buttons hold beside it.
+        lines = 6;
+        act(() => renderer.update(bannerElement('A summary that takes six lines beside the row')));
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow StackedPhoneTitleRow');
+        // Renamed to a line again: back in a row.
+        lines = 1;
+        act(() => renderer.update(bannerElement('Short again')));
+        expect(rowClass(renderer)).toBe('TitleRow PhoneTitleRow');
+        renderer.unmount();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('stacks the buttons beside a title as tall as them, keeps them in a row beside a short one', () => {
       vi.stubGlobal('document', { documentElement: {} });
       vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
