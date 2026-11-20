@@ -35,6 +35,9 @@ const HOVER_CARD_STYLE = { maxWidth: toRem(320), padding: config.space.S300 };
 
 type Shown = { link: HTMLAnchorElement; href: string; card: MessageLinkCard };
 
+// One preview at a time over every host of the page, such as a thread's inside the room's.
+let hideActive: (() => void) | undefined;
+
 /** Adds or removes `id` among the ids that describe `link`, keeping the others. */
 const describe = (link: Element, id: string, on: boolean) => {
   const ids = (link.getAttribute('aria-describedby') ?? '').split(' ').filter((o) => o && o !== id);
@@ -127,8 +130,13 @@ export function MessageLinkCards({
       return card?.hoverCard ? { link: found, href: at, card } : undefined;
     };
     // An edit can change the link's address or make its text mislead; a removal takes it away.
-    const changes = new MutationObserver(() => {
-      if (link && cardOf(link)?.href !== href) hide();
+    const changes = new MutationObserver((records) => {
+      const shownLink = link;
+      if (!shownLink) return;
+      if (shownLink.isConnected && !records.some(({ target }) => shownLink.contains(target))) {
+        return;
+      }
+      if (cardOf(shownLink)?.href !== href) hide();
     });
     const press = () => {
       dismissed = link;
@@ -143,21 +151,26 @@ export function MessageLinkCards({
       timer = undefined;
       changes.disconnect();
       document.removeEventListener('pointerdown', press, true);
+      document.removeEventListener('click', press, true);
       document.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('scroll', hide, true);
       if (title !== null && !link.hasAttribute('title')) link.setAttribute('title', title);
       link = undefined;
+      if (hideActive === hide) hideActive = undefined;
       setHovered(undefined);
     };
     const arm = (found: NonNullable<ReturnType<typeof cardOf>>, still: () => boolean) => {
       if (found.link !== link) {
-        hide();
+        hideActive?.();
+        hideActive = hide;
         ({ link, href } = found);
         title = link.getAttribute('title');
         link.removeAttribute('title');
         changes.observe(document.body, { subtree: true, childList: true, characterData: true });
         changes.observe(link, { attributes: true, attributeFilter: ['href'] });
+        // Any press or click hides it, also Enter on a link.
         document.addEventListener('pointerdown', press, true);
+        document.addEventListener('click', press, true);
         document.addEventListener('keydown', onKeyDown);
         window.addEventListener('scroll', hide, { capture: true, passive: true });
       } else if (!timer) return;
@@ -182,9 +195,13 @@ export function MessageLinkCards({
       if (!found) return hide();
       return arm(found, () => byMouse() && underPointer(found.link));
     };
-    // The pointer left the window.
+    // The pointer left the link, for something outside it or another window (an iframe too).
     const onOut = (event: PointerEvent) => {
-      if (event.relatedTarget) return;
+      const left = link ?? dismissed;
+      const to = event.relatedTarget;
+      if (to instanceof Node && !(left?.contains(event.target as Node) && !left.contains(to))) {
+        return;
+      }
       dismissed = undefined;
       hide();
     };
@@ -216,6 +233,7 @@ export function MessageLinkCards({
     (link: HTMLAnchorElement, href: string) => {
       const card = match(href);
       if (!card) return false;
+      hideActive?.();
       const { controls, phone } = panels.current;
       const panel = card.sidePanel;
       // On a phone the panel would cover the room, so the card shows there.

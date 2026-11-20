@@ -329,9 +329,15 @@ function HoverCard(props: MessageLinkHoverCardProps) {
 const hoverPlugin = {
   id: 'hover',
   tag: 'hover@1.0.0',
-  sidePanels: [],
+  sidePanels: [{ id: 'q', label: 'Q', Component: () => null }],
   messageLinks: [
     { match: (url: URL) => url.host === 'hover.example', Component: Card, hoverCard: HoverCard },
+    {
+      match: (url: URL) => url.host === 'hover-panel.example',
+      Component: Card,
+      hoverCard: HoverCard,
+      sidePanel: { id: 'q', request: () => ({}) },
+    },
   ],
 } as unknown as RegisteredPlugin;
 const HOVER_PLUGINS = [plugin, hoverPlugin];
@@ -351,6 +357,7 @@ const links = (
     <CheckedMessageLink href="https://hover.example/slow">Slow</CheckedMessageLink>
     <CheckedMessageLink href="https://hover.example/3">https://bank.example</CheckedMessageLink>
     <CheckedMessageLink href="https://github.com/o/r/pull/1">Plain</CheckedMessageLink>
+    <CheckedMessageLink href="https://hover-panel.example/4">Paneled</CheckedMessageLink>
     <span>Text</span>
   </>
 );
@@ -383,8 +390,8 @@ describe('MessageLinkCards hover cards', () => {
   const settle = () => act(async () => undefined);
   const card = () => screen.queryByRole('tooltip');
   // jsdom has no PointerEvent.
-  const pointer = (element: Element, type: string, pointerType = 'mouse') => {
-    const event = new MouseEvent(type, { bubbles: true });
+  const pointer = (element: Element, type: string, pointerType = 'mouse', init = {}) => {
+    const event = new MouseEvent(type, { bubbles: true, ...init });
     Object.assign(event, { pointerType });
     fireEvent(element, event);
   };
@@ -445,6 +452,72 @@ describe('MessageLinkCards hover cards', () => {
     pointer(element, 'pointerout');
     expect(card()).toBeNull();
     expect(element.getAttribute('aria-describedby')).toBe('note');
+  });
+
+  it('leaving the link hides it at once, also for an iframe, and not for its own parts', () => {
+    renderHover();
+    const element = shown();
+    const part = document.createElement('b');
+    element.append(part);
+    pointer(element, 'pointerout', 'mouse', { relatedTarget: part });
+    expect(card()).not.toBeNull();
+    // An iframe beside it takes the pointer: no pointermove follows here.
+    const frame = document.createElement('iframe');
+    document.body.append(frame);
+    pointer(part, 'pointerout', 'mouse', { relatedTarget: frame });
+    expect(card()).toBeNull();
+    // A press hid it, and leaving the link lets the next rest show it again.
+    shown();
+    pointer(document.body, 'pointerdown');
+    pointer(element, 'pointerout', 'mouse', { relatedTarget: frame });
+    shown();
+    frame.remove();
+  });
+
+  it('a click anywhere hides it, also Enter on a link whose panel already shows', () => {
+    renderHover(panelControls(true));
+    const element = link('Paneled');
+    vi.spyOn(element, 'matches').mockReturnValue(true);
+    act(() => element.focus());
+    wait();
+    expect(card()).not.toBeNull();
+    // The link is followed, as a link the panel shows; the test keeps jsdom from following it.
+    document.addEventListener('click', (event) => event.preventDefault(), { once: true });
+    fireEvent.click(element, { detail: 0 });
+    expect(card()).toBeNull();
+    // A click no link card takes, such as on the message's text.
+    act(() => element.blur());
+    act(() => element.focus());
+    wait();
+    expect(card()).not.toBeNull();
+    fireEvent.click(screen.getByText('Text'), { detail: 0 });
+    expect(card()).toBeNull();
+  });
+
+  it('shows one preview over nested hosts, and a click card in one hides the other', () => {
+    render(
+      <MessageLinkCards roomId="!a:x" plugins={HOVER_PLUGINS}>
+        {LINKS}
+        <MessageLinkCards roomId="!a:x" plugins={HOVER_PLUGINS}>
+          <CheckedMessageLink href="https://hover.example/7">Inner</CheckedMessageLink>
+          <CheckedMessageLink href="https://github.com/o/r/pull/7">Inner plain</CheckedMessageLink>
+        </MessageLinkCards>
+      </MessageLinkCards>
+    );
+    shown();
+    const inner = link('Inner');
+    vi.spyOn(inner, 'matches').mockReturnValue(true);
+    act(() => inner.focus());
+    wait();
+    expect(screen.getAllByRole('tooltip').map((shownCard) => shownCard.textContent)).toEqual([
+      'hover https://hover.example/7 in !a:x',
+    ]);
+    act(() => inner.blur());
+    pointer(screen.getByText('Text'), 'pointermove');
+    shown();
+    fireEvent.click(link('Inner plain'));
+    expect(card()).toBeNull();
+    expect(screen.getByText('card https://github.com/o/r/pull/7 in !a:x')).toBeTruthy();
   });
 
   it('keeps the title off while the card shows, also when the link renders again', () => {
