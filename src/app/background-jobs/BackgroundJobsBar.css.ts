@@ -371,12 +371,21 @@ const truncate = {
 export const Task = style({ ...truncate, flex: '1 1 0', fontWeight: config.fontWeight.W600 });
 
 // A sub-agent job's title opens its run, and reaches over its whole row: a press anywhere on the
-// row but its buttons is one on the title. Under the pointer its title is underlined; to the
-// keyboard the row is ringed.
+// row but its buttons is one on the title. It lies over the row's muted text, whose opacity
+// stacks it as a positioned box would. Under the pointer its title is underlined; to the keyboard
+// the row is ringed.
 export const RowOpen = style({
   ...textButton,
+  // The button's inherited font would undo the title's weight.
+  fontWeight: config.fontWeight.W600,
   selectors: {
-    '&::before': { content: '""', position: 'absolute', inset: 0, borderRadius: 'inherit' },
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      inset: 0,
+      zIndex: 1,
+      borderRadius: 'inherit',
+    },
     [`${Job}:hover &`]: { textDecoration: 'underline' },
     '&:focus-visible': { outline: 'none' },
     '&:focus-visible::before': { ...keyboardRing, outlineOffset: -2 },
@@ -452,6 +461,7 @@ export const Actions = style({
   gap: actionGap,
   // Over the reach of the row's title, so its buttons keep their own presses.
   position: 'relative',
+  zIndex: 2,
 });
 
 // Each button keeps its slot, so a row without Thread lines its Stop up with the rows that have
