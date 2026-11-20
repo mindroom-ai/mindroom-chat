@@ -24,10 +24,13 @@ const panel = (props: Partial<React.ComponentProps<typeof ResizablePanel>> = {})
   </ResizablePanel>
 );
 
-/** Whether a press on the page would start a selection now. */
-const selects = () =>
-  !document.documentElement.hasAttribute(RESIZING) &&
-  document.body.dispatchEvent(new Event('selectstart', { cancelable: true }));
+/** Both halves of the block, each on its own: the root's attribute and the selectstart listener. */
+const blocked = () => ({
+  attribute: document.documentElement.hasAttribute(RESIZING),
+  selectstart: !document.body.dispatchEvent(new Event('selectstart', { cancelable: true })),
+});
+const ON = { attribute: true, selectstart: true };
+const OFF = { attribute: false, selectstart: false };
 
 beforeEach(() => {
   vi.stubGlobal('PointerEvent', TestPointerEvent);
@@ -52,25 +55,44 @@ afterEach(() => {
 
 describe('a splitter drag', () => {
   it('keeps the page from selecting until the drag ends, however it ends', () => {
-    const view = render(panel());
+    const view = render(panel(), { wrapper: React.StrictMode });
     const handle = () => view.getByRole('separator');
-    fireEvent.pointerDown(handle(), { clientX: 500, button: 0 });
-    expect(selects()).toBe(false);
-    fireEvent.pointerUp(handle(), { clientX: 400 });
-    expect(selects()).toBe(true);
-
-    fireEvent.pointerDown(handle(), { clientX: 500, button: 0 });
-    fireEvent.lostPointerCapture(handle());
-    expect(selects()).toBe(true);
-
-    // The panel stops being resizable mid-drag (it fills the room), and then goes away mid-drag.
-    fireEvent.pointerDown(handle(), { clientX: 500, button: 0 });
-    view.rerender(panel({ fullWidth: true }));
-    expect(selects()).toBe(true);
+    expect(blocked()).toEqual(OFF);
+    const end = (finish: () => void) => {
+      fireEvent.pointerDown(handle(), { clientX: 500, button: 0 });
+      expect(blocked()).toEqual(ON);
+      finish();
+      expect(blocked()).toEqual(OFF);
+    };
+    end(() => fireEvent.pointerUp(handle(), { clientX: 400 }));
+    end(() => fireEvent.pointerCancel(handle()));
+    end(() => fireEvent.lostPointerCapture(handle()));
+    // The panel stops being resizable mid-drag (it fills the room), and goes away mid-drag.
+    end(() => view.rerender(panel({ fullWidth: true })));
     view.rerender(panel());
-    fireEvent.pointerDown(handle(), { clientX: 500, button: 0 });
-    expect(selects()).toBe(false);
+    end(() => view.unmount());
+  });
+
+  it('keeps the page from selecting until the last of two drags ends', () => {
+    const view = render(
+      <>
+        {panel({ testId: 'first' })}
+        {panel({ testId: 'second', storageKey: 'test.second' })}
+      </>,
+      { wrapper: React.StrictMode }
+    );
+    const [first, second] = view.getAllByRole('separator');
+    // A mouse and a pen are each primary for their own kind of pointer.
+    fireEvent.pointerDown(first, { clientX: 500, button: 0, pointerId: 1 });
+    fireEvent.pointerDown(second, { clientX: 500, button: 0, pointerId: 2 });
+    fireEvent.pointerUp(first, { pointerId: 1 });
+    // A second end of the drag that ended changes nothing.
+    fireEvent.lostPointerCapture(first, { pointerId: 1 });
+    expect(blocked()).toEqual(ON);
+    fireEvent.pointerUp(second, { pointerId: 2 });
+    expect(blocked()).toEqual(OFF);
+    fireEvent.pointerDown(first, { clientX: 500, button: 0, pointerId: 1 });
     view.unmount();
-    expect(selects()).toBe(true);
+    expect(blocked()).toEqual(OFF);
   });
 });

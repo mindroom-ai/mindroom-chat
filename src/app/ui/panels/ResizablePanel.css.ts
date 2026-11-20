@@ -64,10 +64,7 @@ export const Handle = style({
   },
 });
 
-/**
- * On the root while a splitter drag runs: nothing on the page selects, messages included (two
- * selectors' weight, over the one class that makes them selectable).
- */
+// On the root while a splitter drag runs: nothing selects, `.selectable` messages included.
 export const RESIZING = 'data-panel-resizing';
 globalStyle(`:root[${RESIZING}] *`, { userSelect: 'none', WebkitUserSelect: 'none' });
 

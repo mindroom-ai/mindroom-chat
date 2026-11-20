@@ -1,12 +1,4 @@
-import React, {
-  CSSProperties,
-  ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { CSSProperties, ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import {
   atomWithLocalStorage,
@@ -49,25 +41,39 @@ type Drag = {
   startWidth: number;
   width: number;
   direction: number;
-  /** Lets the page select text again. */
   unblock: () => void;
 };
 
+/** The drags on any panel's splitter that keep the page from selecting text now. */
+let selectionHolds = 0;
+const preventSelection = (event: Event) => event.preventDefault();
+const setSelectionBlocked = (blocked: boolean) => {
+  if (blocked) document.addEventListener('selectstart', preventSelection, true);
+  else document.removeEventListener('selectstart', preventSelection, true);
+  document.documentElement.toggleAttribute(css.RESIZING, blocked);
+};
+
 /**
- * Keeps every text on the page from being selected until the returned function runs, which drops
- * what got selected anyway. A held mouse that leaves the splitter (a panel at its widest stays
- * put) goes over the conversation, and the Mac app's web view selects there although the press's
- * pointerdown was cancelled.
+ * Keeps the page from selecting text until every drag holding it lets go, once each: a held mouse
+ * off the splitter (a panel at its widest stays put) selected messages in the Mac app's web view.
  */
 const blockSelection = (): (() => void) => {
-  const prevent = (event: Event) => event.preventDefault();
-  document.addEventListener('selectstart', prevent, true);
-  document.documentElement.toggleAttribute(css.RESIZING, true);
+  selectionHolds += 1;
+  if (selectionHolds === 1) setSelectionBlocked(true);
+  let held = true;
   return () => {
-    document.removeEventListener('selectstart', prevent, true);
-    document.documentElement.toggleAttribute(css.RESIZING, false);
-    window.getSelection()?.removeAllRanges();
+    if (!held) return;
+    held = false;
+    selectionHolds -= 1;
+    if (selectionHolds === 0) setSelectionBlocked(false);
   };
+};
+
+/** Ends the drag a panel holds, if any, without committing it. */
+const dropDrag = (ref: React.MutableRefObject<Drag | undefined>) => {
+  const drag = ref.current;
+  ref.current = undefined;
+  drag?.unblock();
 };
 
 export function ResizablePanel({
@@ -239,8 +245,7 @@ export function ResizablePanel({
   // Without the splitter (full width, folded, or no box of its own) a drag on it ends.
   useLayoutEffect(() => {
     if (!resizable) {
-      dragRef.current?.unblock();
-      dragRef.current = undefined;
+      dropDrag(dragRef);
       setPreviewWidth(undefined);
       return undefined;
     }
@@ -260,7 +265,7 @@ export function ResizablePanel({
     observer.observe(parent);
     return () => observer.disconnect();
   }, [resizable, maxPanelWidth, minContentWidth]);
-  useEffect(() => () => dragRef.current?.unblock(), []);
+  useLayoutEffect(() => () => dropDrag(dragRef), []);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
