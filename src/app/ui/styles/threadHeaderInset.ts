@@ -2,41 +2,30 @@
 export const THREAD_HEADER_SCROLLER_ATTRIBUTE = 'data-thread-header-scroller';
 /** Marks that sticky header. */
 export const THREAD_HEADER_ATTRIBUTE = 'data-thread-header';
-/** The fields a key types into, whose caret the browser reveals. */
-export const TEXT_FIELD = 'input, textarea, [contenteditable]:not([contenteditable="false"])';
-
 /**
- * The scroller while a text field of its thread header has the focus. Its scroll padding then
- * leaves the header out (`ThreadTimelineHeader.css.ts`), so the caret a key reveals is in view
- * and the thread does not scroll; the header still covers the rows beneath it. A browser without
- * `:has()` ignores the rule.
+ * Set on the scroller by the rule that takes the thread header out of its scroll padding while a
+ * text field of the header has the focus (ThreadTimelineHeader.css.ts). The rule sets both, so a
+ * browser that does not apply it (one without `:has()`) leaves the padding whole and the flag
+ * unset alike.
  */
-export const typingInThreadHeader = `[${THREAD_HEADER_SCROLLER_ATTRIBUTE}]:has([${THREAD_HEADER_ATTRIBUTE}] :is(${TEXT_FIELD}):focus)`;
-
-/**
- * Whether `typingInThreadHeader` holds for the scroller, read from the focused element: matching
- * `:has()` in script throws where the browser cannot parse it.
- */
-const typingInHeaderOf = (scroller: Element): boolean => {
-  // Some tests hand in a stand-in for the scroller, without a document.
-  const active = (scroller.ownerDocument as Document | undefined)?.activeElement;
-  if (!active?.matches(TEXT_FIELD) || !scroller.hasAttribute(THREAD_HEADER_SCROLLER_ATTRIBUTE)) {
-    return false;
-  }
-  const header = active.closest(`[${THREAD_HEADER_ATTRIBUTE}]`);
-  return !!header && scroller.contains(header);
-};
+export const HEADER_OUT_OF_PADDING = '--thread-header-out-of-padding';
 
 /**
  * How far down from a scroller's top the bars over its rows reach (the room header and a thread's
  * banner): its `scroll-padding-top` in px, plus the banner's height (which ThreadTimelineHeader
- * writes in px as `--room-thread-header-height` on the scroller's parent) while typing in the
- * banner takes it out of the padding.
+ * writes in px as `--room-thread-header-height` on the scroller's parent) while the rule above
+ * leaves the banner out of the padding.
  */
 export const readTopInset = (scroller: Element): number => {
-  const padding = Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop);
+  const style = getComputedStyle(scroller);
+  const padding = Number.parseFloat(style.scrollPaddingTop);
   const top = Number.isFinite(padding) ? padding : 0;
-  if (!typingInHeaderOf(scroller)) return top;
+  // Some tests stand in a computed style with the padding alone.
+  const flag =
+    typeof style.getPropertyValue === 'function'
+      ? style.getPropertyValue(HEADER_OUT_OF_PADDING)
+      : '';
+  if (!flag.trim()) return top;
   const banner = Number.parseFloat(
     scroller.parentElement?.style.getPropertyValue('--room-thread-header-height') ?? ''
   );

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
+  HEADER_OUT_OF_PADDING,
   readTopInset,
   THREAD_HEADER_ATTRIBUTE,
   THREAD_HEADER_SCROLLER_ATTRIBUTE,
@@ -10,7 +11,7 @@ import {
  * A thread's scroller as ThreadTimelineHeader leaves it: padding for a 54 px room header and an
  * 88 px banner, and the banner's height on the scroller's parent. jsdom's styles do not apply the
  * rule that takes the banner out of the padding while a field of it has the focus
- * (ThreadTimelineHeader.css.ts), so `typeInTitle` writes the padding a browser computes then.
+ * (ThreadTimelineHeader.css.ts), so `applyRule` writes what a browser computes then.
  */
 const mountThread = () => {
   const column = document.createElement('div');
@@ -21,90 +22,49 @@ const mountThread = () => {
   const header = document.createElement('div');
   header.setAttribute(THREAD_HEADER_ATTRIBUTE, '');
   const title = document.createElement('input');
-  const button = document.createElement('button');
-  header.append(title, button);
+  header.append(title);
   scroller.append(header);
   column.append(scroller);
   document.body.append(column);
-  const typeInTitle = () => {
-    title.focus();
+  const applyRule = () => {
     scroller.style.scrollPaddingTop = '54px';
+    scroller.style.setProperty(HEADER_OUT_OF_PADDING, '1');
   };
-  return { scroller, title, button, typeInTitle };
+  return { scroller, title, applyRule };
 };
 
 describe('readTopInset', () => {
   afterEach(() => {
     document.body.innerHTML = '';
-    vi.restoreAllMocks();
   });
 
-  it('is the scroll padding while no text field of the header has the focus', () => {
-    const { scroller, button } = mountThread();
+  it('is the scroll padding while the rule does not apply', () => {
+    const { scroller } = mountThread();
     expect(readTopInset(scroller)).toBe(142);
-    button.focus();
-    expect(readTopInset(scroller)).toBe(142);
-    // The banner is added only while the rule applies.
-    scroller.style.scrollPaddingTop = '54px';
-    expect(readTopInset(scroller)).toBe(54);
   });
 
-  it('adds the banner back while typing in it takes the banner out of the padding', () => {
-    const { scroller, title, typeInTitle } = mountThread();
-    typeInTitle();
+  it('adds the banner back while the rule leaves it out of the padding', () => {
+    const { scroller, title, applyRule } = mountThread();
+    title.focus();
+    applyRule();
     expect(getComputedStyle(scroller).scrollPaddingTop).toBe('54px');
     expect(readTopInset(scroller)).toBe(142);
-    title.blur();
-    scroller.style.scrollPaddingTop = '142px';
+  });
+
+  it('adds nothing for a focused title where the browser cannot apply the rule', () => {
+    // Without :has(), the padding keeps the banner and the flag stays unset.
+    const { scroller, title } = mountThread();
+    title.focus();
+    expect(document.activeElement).toBe(title);
     expect(readTopInset(scroller)).toBe(142);
   });
 
   it('reads any other scroller by its padding alone', () => {
     const scroller = document.createElement('div');
     scroller.style.scrollPaddingTop = '30px';
-    const field = document.createElement('input');
-    scroller.append(field);
     document.body.append(scroller);
-    expect(readTopInset(scroller)).toBe(30);
-    // A focused field without a thread header around it adds nothing.
-    field.focus();
     expect(readTopInset(scroller)).toBe(30);
     scroller.style.scrollPaddingTop = '';
     expect(readTopInset(scroller)).toBe(0);
-  });
-
-  it('does not add the banner for a header field focused in another scroller', () => {
-    const { scroller } = mountThread();
-    const other = mountThread();
-    other.typeInTitle();
-    expect(readTopInset(scroller)).toBe(142);
-  });
-
-  it('counts a region that is not editable as no text field', () => {
-    const { scroller, title } = mountThread();
-    const region = document.createElement('div');
-    region.setAttribute('contenteditable', 'false');
-    region.tabIndex = 0;
-    title.after(region);
-    region.focus();
-    expect(document.activeElement).toBe(region);
-    scroller.style.scrollPaddingTop = '54px';
-    expect(readTopInset(scroller)).toBe(54);
-  });
-
-  it('never matches :has() in script, which a browser without it cannot parse', () => {
-    const { matches } = Element.prototype;
-    vi.spyOn(Element.prototype, 'matches').mockImplementation(function matchesWithoutHas(
-      this: Element,
-      selector: string
-    ) {
-      if (selector.includes(':has('))
-        throw new SyntaxError(`'${selector}' is not a valid selector`);
-      return matches.call(this, selector);
-    });
-    const { scroller, typeInTitle } = mountThread();
-    expect(readTopInset(scroller)).toBe(142);
-    typeInTitle();
-    expect(readTopInset(scroller)).toBe(142);
   });
 });

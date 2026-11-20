@@ -2,6 +2,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { readScrollPadding } from './useVirtualPaginator';
 import {
+  HEADER_OUT_OF_PADDING,
   THREAD_HEADER_ATTRIBUTE,
   THREAD_HEADER_SCROLLER_ATTRIBUTE,
 } from '../ui/styles/threadHeaderInset';
@@ -31,5 +32,6 @@ it('reads the banner as covering the rows while its title field has the focus', 
   title.focus();
   // What a browser computes then; jsdom's styles do not apply the rule.
   scroller.style.scrollPaddingTop = '54px';
+  scroller.style.setProperty(HEADER_OUT_OF_PADDING, '1');
   expect(readScrollPadding(scroller)).toEqual({ top: 142, bottom: 96 });
 });

@@ -67,11 +67,19 @@ const seed = async (key: string) => {
   return { reader, roomId, rootId, replyIds, reply, edit };
 };
 
-type Timeline = { top: number; height: number; below: number; padding: number; edge: number };
+type Timeline = {
+  top: number;
+  height: number;
+  below: number;
+  padding: number;
+  edge: number;
+  outOfPadding: string;
+};
 
 /**
  * The thread's timeline, the banner's nearest scrolling ancestor: its offset, its content's
- * height, the rest below, its computed top scroll padding and where that padding ends on the page.
+ * height, the rest below, its computed top scroll padding, where that padding ends on the page, and
+ * the flag the rule that leaves the banner out of the padding sets.
  */
 const timeline = (banner: Locator): Promise<Timeline> =>
   banner.evaluate((element) => {
@@ -88,6 +96,9 @@ const timeline = (banner: Locator): Promise<Timeline> =>
       edge:
         node.getBoundingClientRect().top +
         Number.parseFloat(getComputedStyle(node).scrollPaddingTop),
+      outOfPadding: getComputedStyle(node)
+        .getPropertyValue('--thread-header-out-of-padding')
+        .trim(),
     };
   });
 const timelineScrollTop = async (banner: Locator): Promise<number> => (await timeline(banner)).top;
@@ -159,6 +170,7 @@ const checkTyping = async (browser: Browser, engine: string, baseURL?: string) =
   await editTitle();
   // While the field has the focus, the scroll padding leaves the banner out.
   expect((await timeline(banner)).padding).toBeLessThan(padding);
+  expect((await timeline(banner)).outOfPadding, 'the rule flags the scroller').toBe('1');
   await page.keyboard.press('End');
   const offsets: number[] = [];
   for (const character of TYPED) {
@@ -179,6 +191,7 @@ const checkTyping = async (browser: Browser, engine: string, baseURL?: string) =
   await page.keyboard.press('Escape');
   await expect(field).toHaveCount(0);
   await expect.poll(async () => (await timeline(banner)).padding).toBe(padding);
+  expect((await timeline(banner)).outOfPadding).toBe('');
   await context.close();
 };
 
@@ -193,6 +206,8 @@ const checkAnchoring = async (browser: Browser, engine: string, baseURL?: string
   const behind = page.locator(`[data-message-id="${world.replyIds[4]}"]`).first();
   const reading = page.locator(`[data-message-id="${world.replyIds[5]}"]`).first();
   const top = (row: Locator) => row.evaluate((element) => element.getBoundingClientRect().top);
+  const bottom = (row: Locator) =>
+    row.evaluate((element) => element.getBoundingClientRect().bottom);
   // Rows measured after the jump can still move it, so it is repeated until it holds.
   await expect
     .poll(
@@ -200,7 +215,7 @@ const checkAnchoring = async (browser: Browser, engine: string, baseURL?: string
         await reading.evaluate((element) => element.scrollIntoView({ block: 'start' }));
         await settle(banner);
         const { edge } = await timeline(banner);
-        return (await top(reading)) >= edge - 1 && (await top(behind)) < edge;
+        return (await top(reading)) >= edge - 1 && (await bottom(behind)) <= edge + 1;
       },
       { message: 'step 6 starts at the top of the view, step 5 above it', timeout: 60_000 }
     )
