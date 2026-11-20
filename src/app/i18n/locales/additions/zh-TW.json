@@ -1060,7 +1060,9 @@
         "time": "時間"
       },
       "stopTask": "停止任務",
-      "stopTaskFor": "停止任務：{{tool}}"
+      "stopTaskFor": "停止任務：{{tool}}",
+      "jobTotal_other": "{{count}} 個背景工作",
+      "jobTotalFinished_other": "{{count}} 個背景工作已完成"
     },
     "subagents": {
       "title": "子代理",
@@ -1083,7 +1085,17 @@
       "hide": "隱藏子代理",
       "showFor": "顯示子代理：{{name}}",
       "withCount_other": "{{label}}，{{count}} 個活躍",
-      "resize": "調整子代理面板大小"
+      "resize": "調整子代理面板大小",
+      "calls_other": "{{count}} 次呼叫",
+      "now": "進行中",
+      "needsApproval": "需要批准",
+      "result": "結果",
+      "turnNumber": "第 {{number}} 輪",
+      "status": "狀態",
+      "toolCallsNote": "工具呼叫",
+      "tokensSplit": "輸入 {{input}} · 輸出 {{output}}",
+      "costNested": "+{{cost}} 巢狀",
+      "costOwn": "本次執行"
     },
     "models": {
       "modelPicker": {

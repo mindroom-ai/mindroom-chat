@@ -1060,7 +1060,9 @@
         "time": "시간"
       },
       "stopTask": "작업 중지",
-      "stopTaskFor": "작업 중지: {{tool}}"
+      "stopTaskFor": "작업 중지: {{tool}}",
+      "jobTotal_other": "백그라운드 작업 {{count}}개",
+      "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
     },
     "subagents": {
       "title": "하위 에이전트",
@@ -1083,7 +1085,17 @@
       "hide": "하위 에이전트 숨기기",
       "showFor": "하위 에이전트 표시: {{name}}",
       "withCount_other": "{{label}}, {{count}}개 활성",
-      "resize": "하위 에이전트 패널 크기 조정"
+      "resize": "하위 에이전트 패널 크기 조정",
+      "calls_other": "호출 {{count}}회",
+      "now": "지금",
+      "needsApproval": "승인 필요",
+      "result": "결과",
+      "turnNumber": "{{number}}턴",
+      "status": "상태",
+      "toolCallsNote": "도구 호출",
+      "tokensSplit": "입력 {{input}} · 출력 {{output}}",
+      "costNested": "+{{cost}} 중첩",
+      "costOwn": "이 실행"
     },
     "models": {
       "modelPicker": {

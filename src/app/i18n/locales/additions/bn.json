@@ -1085,7 +1085,11 @@
         "time": "সময়"
       },
       "stopTask": "কাজ থামান",
-      "stopTaskFor": "কাজ থামান: {{tool}}"
+      "stopTaskFor": "কাজ থামান: {{tool}}",
+      "jobTotal_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
+      "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
+      "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
     },
     "subagents": {
       "title": "সাব-এজেন্ট",
@@ -1112,7 +1116,18 @@
       "showFor": "সাব-এজেন্ট দেখান: {{name}}",
       "withCount_one": "{{label}}, {{count}}টি সক্রিয়",
       "withCount_other": "{{label}}, {{count}}টি সক্রিয়",
-      "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান"
+      "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান",
+      "calls_one": "{{count}}টি কল",
+      "calls_other": "{{count}}টি কল",
+      "now": "এখন",
+      "needsApproval": "অনুমোদন দরকার",
+      "result": "ফলাফল",
+      "turnNumber": "পালা {{number}}",
+      "status": "অবস্থা",
+      "toolCallsNote": "টুল কল",
+      "tokensSplit": "{{input}} ইন · {{output}} আউট",
+      "costNested": "+{{cost}} নেস্টেড",
+      "costOwn": "এই রান"
     },
     "models": {
       "modelPicker": {

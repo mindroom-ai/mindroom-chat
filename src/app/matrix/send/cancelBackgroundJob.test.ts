@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../matrix/protocol/backgroundJobsContract';
+import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../protocol/backgroundJobsContract';
 import { cancelBackgroundJob } from './cancelBackgroundJob';
 
 const failedEcho = { status: EventStatus.NOT_SENT } as MatrixEvent;

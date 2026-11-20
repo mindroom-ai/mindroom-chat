@@ -1060,7 +1060,9 @@
         "time": "Waktu"
       },
       "stopTask": "Hentikan tugas",
-      "stopTaskFor": "Hentikan tugas: {{tool}}"
+      "stopTaskFor": "Hentikan tugas: {{tool}}",
+      "jobTotal_other": "{{count}} tugas latar belakang",
+      "jobTotalFinished_other": "{{count}} tugas latar belakang selesai"
     },
     "subagents": {
       "title": "Subagen",
@@ -1083,7 +1085,17 @@
       "hide": "Sembunyikan subagen",
       "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
-      "resize": "Ubah ukuran panel subagen"
+      "resize": "Ubah ukuran panel subagen",
+      "calls_other": "{{count}} panggilan",
+      "now": "Sekarang",
+      "needsApproval": "Perlu persetujuan",
+      "result": "Hasil",
+      "turnNumber": "giliran {{number}}",
+      "status": "Status",
+      "toolCallsNote": "panggilan alat",
+      "tokensSplit": "{{input}} masuk · {{output}} keluar",
+      "costNested": "+{{cost}} bertingkat",
+      "costOwn": "proses ini"
     },
     "models": {
       "modelPicker": {

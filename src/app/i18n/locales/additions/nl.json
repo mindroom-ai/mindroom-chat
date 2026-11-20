@@ -1085,7 +1085,11 @@
         "time": "Tijd"
       },
       "stopTask": "Taak stoppen",
-      "stopTaskFor": "Taak stoppen: {{tool}}"
+      "stopTaskFor": "Taak stoppen: {{tool}}",
+      "jobTotal_one": "{{count}} achtergrondtaak",
+      "jobTotal_other": "{{count}} achtergrondtaken",
+      "jobTotalFinished_one": "{{count}} achtergrondtaak voltooid",
+      "jobTotalFinished_other": "{{count}} achtergrondtaken voltooid"
     },
     "subagents": {
       "title": "Subagenten",
@@ -1112,7 +1116,18 @@
       "showFor": "Subagenten tonen: {{name}}",
       "withCount_one": "{{label}}, {{count}} actief",
       "withCount_other": "{{label}}, {{count}} actief",
-      "resize": "Formaat van het subagentenpaneel wijzigen"
+      "resize": "Formaat van het subagentenpaneel wijzigen",
+      "calls_one": "{{count}} aanroep",
+      "calls_other": "{{count}} aanroepen",
+      "now": "Nu",
+      "needsApproval": "Goedkeuring nodig",
+      "result": "Resultaat",
+      "turnNumber": "beurt {{number}}",
+      "status": "Status",
+      "toolCallsNote": "toolaanroepen",
+      "tokensSplit": "{{input}} in · {{output}} uit",
+      "costNested": "+{{cost}} genest",
+      "costOwn": "deze run"
     },
     "models": {
       "modelPicker": {

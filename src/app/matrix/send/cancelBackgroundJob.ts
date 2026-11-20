@@ -1,6 +1,6 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
-import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../matrix/protocol/backgroundJobsContract';
+import { discardFailedLocalEcho } from '../protocol/pendingLocalEcho';
+import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../protocol/backgroundJobsContract';
 
 export type BackgroundJobCancelRequest = { jobId: string } | { all: true };
 

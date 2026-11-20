@@ -1085,7 +1085,11 @@
         "time": "Zeit"
       },
       "stopTask": "Aufgabe stoppen",
-      "stopTaskFor": "Aufgabe stoppen: {{tool}}"
+      "stopTaskFor": "Aufgabe stoppen: {{tool}}",
+      "jobTotal_one": "{{count}} Hintergrundaufgabe",
+      "jobTotal_other": "{{count}} Hintergrundaufgaben",
+      "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
+      "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
     },
     "subagents": {
       "title": "Sub-Agenten",
@@ -1112,7 +1116,18 @@
       "showFor": "Sub-Agenten anzeigen: {{name}}",
       "withCount_one": "{{label}}, {{count}} aktiv",
       "withCount_other": "{{label}}, {{count}} aktiv",
-      "resize": "Größe des Sub-Agenten-Bereichs ändern"
+      "resize": "Größe des Sub-Agenten-Bereichs ändern",
+      "calls_one": "{{count}} Aufruf",
+      "calls_other": "{{count}} Aufrufe",
+      "now": "Jetzt",
+      "needsApproval": "Braucht Genehmigung",
+      "result": "Ergebnis",
+      "turnNumber": "Runde {{number}}",
+      "status": "Status",
+      "toolCallsNote": "Werkzeugaufrufe",
+      "tokensSplit": "{{input}} ein · {{output}} aus",
+      "costNested": "+{{cost}} verschachtelt",
+      "costOwn": "dieser Lauf"
     },
     "models": {
       "modelPicker": {

@@ -1060,7 +1060,9 @@
         "time": "时间"
       },
       "stopTask": "停止任务",
-      "stopTaskFor": "停止任务：{{tool}}"
+      "stopTaskFor": "停止任务：{{tool}}",
+      "jobTotal_other": "{{count}} 个后台任务",
+      "jobTotalFinished_other": "{{count}} 个后台任务已完成"
     },
     "subagents": {
       "title": "子智能体",
@@ -1083,7 +1085,17 @@
       "hide": "隐藏子智能体",
       "showFor": "显示子智能体：{{name}}",
       "withCount_other": "{{label}}，{{count}} 个活跃",
-      "resize": "调整子智能体面板大小"
+      "resize": "调整子智能体面板大小",
+      "calls_other": "{{count}} 次调用",
+      "now": "进行中",
+      "needsApproval": "需要批准",
+      "result": "结果",
+      "turnNumber": "第 {{number}} 轮",
+      "status": "状态",
+      "toolCallsNote": "工具调用",
+      "tokensSplit": "输入 {{input}} · 输出 {{output}}",
+      "costNested": "+{{cost}} 嵌套",
+      "costOwn": "本次运行"
     },
     "models": {
       "modelPicker": {

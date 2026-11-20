@@ -1110,7 +1110,13 @@
         "time": "Tiempo"
       },
       "stopTask": "Detener tarea",
-      "stopTaskFor": "Detener tarea: {{tool}}"
+      "stopTaskFor": "Detener tarea: {{tool}}",
+      "jobTotal_one": "{{count}} tarea en segundo plano",
+      "jobTotal_many": "{{count}} tareas en segundo plano",
+      "jobTotal_other": "{{count}} tareas en segundo plano",
+      "jobTotalFinished_one": "{{count}} tarea en segundo plano terminada",
+      "jobTotalFinished_many": "{{count}} tareas en segundo plano terminadas",
+      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas"
     },
     "subagents": {
       "title": "Subagentes",
@@ -1141,7 +1147,19 @@
       "withCount_one": "{{label}}, {{count}} activo",
       "withCount_many": "{{label}}, {{count}} activos",
       "withCount_other": "{{label}}, {{count}} activos",
-      "resize": "Cambiar el tamaño del panel de subagentes"
+      "resize": "Cambiar el tamaño del panel de subagentes",
+      "calls_one": "{{count}} llamada",
+      "calls_many": "{{count}} llamadas",
+      "calls_other": "{{count}} llamadas",
+      "now": "Ahora",
+      "needsApproval": "Necesita aprobación",
+      "result": "Resultado",
+      "turnNumber": "turno {{number}}",
+      "status": "Estado",
+      "toolCallsNote": "llamadas a herramientas",
+      "tokensSplit": "{{input}} entrada · {{output}} salida",
+      "costNested": "+{{cost}} anidados",
+      "costOwn": "esta ejecución"
     },
     "models": {
       "modelPicker": {
