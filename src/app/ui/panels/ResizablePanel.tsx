@@ -29,12 +29,11 @@ const EXPAND_PAST = 40;
 /** The conversation column keeps at least this much room beside a resizable side panel. */
 export const CONVERSATION_MIN_WIDTH = 360;
 /**
- * The widest a room's side panel may be, a ceiling only very wide rows reach: below it, the panel
- * grows until the conversation beside it keeps CONVERSATION_MIN_WIDTH, and a release further than
- * EXPAND_PAST past that edge fills the room. On a row wider than this plus CONVERSATION_MIN_WIDTH
- * (4456 px), the panel stops at 4096 px instead, and the fill threshold is measured from there.
+ * A room's side panel has no ceiling of its own: it grows until the conversation beside it keeps
+ * CONVERSATION_MIN_WIDTH, however wide the row, and a release further than EXPAND_PAST past that
+ * edge fills the room.
  */
-export const SIDE_PANEL_MAX_WIDTH = 4096;
+export const SIDE_PANEL_MAX_WIDTH = Number.POSITIVE_INFINITY;
 const clamp = (width: number, max: number, min = MIN_WIDTH) =>
   Math.min(Math.max(Math.min(min, max), width), max);
 const readWidth = (key: string, max: number): number | undefined => {
@@ -121,9 +120,14 @@ export function ResizablePanel({
   );
   const [preferredWidth, setPreferredWidth] = useAtom(widthAtom);
   const [previewWidth, setPreviewWidth] = useState<number>();
-  // Until the row is measured, as much room as the panel can use: its first layout is the width it
-  // settles on, which what lies beside it (PanelRow) measures.
-  const [availableWidth, setAvailableWidth] = useState(maxPanelWidth + minContentWidth);
+  // Until the row is measured, as much room as the panel can use (one with no ceiling, its own width,
+  // so it stays finite): its first layout is the width it settles on, which what lies beside it
+  // (PanelRow) measures.
+  const [availableWidth, setAvailableWidth] = useState(
+    () =>
+      (Number.isFinite(maxPanelWidth) ? maxPanelWidth : preferredWidth ?? defaultWidth) +
+      minContentWidth
+  );
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const presence = usePanelPresence();

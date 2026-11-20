@@ -154,21 +154,25 @@ describe('dragging a side panel past its widest', () => {
     expect(stored()).toBe(400);
   });
 
-  it('on a wide row, grows past the old 1600 px caps until the conversation keeps 360 px, then fills', () => {
-    const { setLayout } = renderPanel({ maxPanelWidth: SIDE_PANEL_MAX_WIDTH, rowWidth: 2400 });
-    dragTo(1800);
-    expect(screen.getByTestId('panel').style.width).toBe('1800px');
-    expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
-    // 2400 - 360: it stops where the conversation keeps its minimum, and fills only 40 px past that.
-    fireEvent.pointerMove(separator(), { clientX: 500 - (2040 + 39 - 400) });
-    expect(screen.getByTestId('panel').style.width).toBe('2040px');
-    expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
-    fireEvent.pointerMove(separator(), { clientX: 500 - (2040 + 60 - 400) });
-    expect(screen.getByTestId('panel').style.width).toBe('2040px');
-    expect(screen.getByTestId('panel').dataset.expandPreview).toBe('true');
-    release();
-    expect(setLayout.mock.calls).toEqual([['filled']]);
-  });
+  it.each([2400, 4800])(
+    'on a %i px row, grows past the old caps until the conversation keeps 360 px, then fills',
+    (rowWidth) => {
+      const { setLayout } = renderPanel({ maxPanelWidth: SIDE_PANEL_MAX_WIDTH, rowWidth });
+      // It stops where the conversation keeps its minimum, and fills only 40 px past that.
+      const widest = rowWidth - 360;
+      dragTo(1800);
+      expect(screen.getByTestId('panel').style.width).toBe('1800px');
+      expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
+      fireEvent.pointerMove(separator(), { clientX: 500 - (widest + 39 - 400) });
+      expect(screen.getByTestId('panel').style.width).toBe(`${widest}px`);
+      expect(screen.getByTestId('panel').dataset.expandPreview).toBeUndefined();
+      fireEvent.pointerMove(separator(), { clientX: 500 - (widest + 60 - 400) });
+      expect(screen.getByTestId('panel').style.width).toBe(`${widest}px`);
+      expect(screen.getByTestId('panel').dataset.expandPreview).toBe('true');
+      release();
+      expect(setLayout.mock.calls).toEqual([['filled']]);
+    }
+  );
 
   it('outside a frame, stops at its widest', () => {
     const { onCollapse } = renderPanel({ framed: false });
