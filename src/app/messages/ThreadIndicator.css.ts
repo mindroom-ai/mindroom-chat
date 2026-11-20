@@ -65,9 +65,7 @@ export const ThreadIndicatorMetadata = style({
   ...inlineRow,
   gap: config.space.S100,
   verticalAlign: 'middle',
-  marginInlineStart: config.space.S100,
   whiteSpace: 'nowrap',
-  opacity: 0.8,
 });
 
 /** A resolved thread's chip takes the success tint and steps back a little. */

@@ -102,8 +102,8 @@ describe('ThreadBadge', () => {
       (element) => element.props.threadRootId === '$root'
     );
 
-    expect(threadIndicator?.props.summaryInfo).toBe(model.summaryInfo);
     expect(threadIndicator).toBeDefined();
+    expect(threadIndicator?.props.summaryInfo).toBe(model.summaryInfo);
     expect(threadIndicator?.props.threadReplyCount).toBe(4);
     expect(threadIndicator?.props.threadParticipantIds).toEqual(['@alice:example.org']);
     expect(threadIndicator?.props.isResolved).toBe(true);

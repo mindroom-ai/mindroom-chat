@@ -18,7 +18,9 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
-import { revealDirectionControls, TooltipProvider } from '../ui/directional';
+import { PopOut, revealDirectionControls } from '../ui/directional';
+import { useAnchoredCard } from '../ui/useAnchoredCard';
+import { threadSummaryProvenance } from '../messages/thread-summary/threadSummaryProvenance';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 
 // Read-only, so it holds nothing an account could leave behind.
@@ -69,39 +71,49 @@ function TimelineThreadIndicator({
   const unread = useThreadUnread(props.room, props.threadRootId, isUnread);
   const { t } = useTranslation();
   const descriptionId = useId();
-  if (!summaryInfo?.summaryText?.trim()) return <ThreadIndicator {...props} unread={unread} />;
-
-  const { isManual, messageCount, summaryText } = summaryInfo;
-  let description = t('sharedUi.threadSummary.provenance');
-  if (isManual) description = t('sharedUi.threadSummary.manual');
-  else if (typeof messageCount === 'number' && messageCount > 0) {
-    description = t('sharedUi.threadSummary.provenanceCount', { count: messageCount });
-  }
+  const { open, triggerRef, show, close, hover, onFocusLeave } = useAnchoredCard();
+  const title = summaryInfo?.summaryText?.trim()
+    ? revealDirectionControls(summaryInfo.summaryText)
+    : undefined;
+  const description = title && summaryInfo ? threadSummaryProvenance(t, summaryInfo) : undefined;
 
   return (
     <>
-      <span id={descriptionId} hidden>
-        {description}
-      </span>
-      <TooltipProvider
-        position="Top"
-        offset={4}
-        tooltip={
-          <Tooltip>
-            <Text size="T300">{description}</Text>
-          </Tooltip>
-        }
-      >
-        {(triggerRef) => (
-          <ThreadIndicator
-            {...props}
-            ref={triggerRef}
-            unread={unread}
-            threadTitle={revealDirectionControls(summaryText)}
-            aria-describedby={descriptionId}
+      <ThreadIndicator
+        {...props}
+        {...(description && hover)}
+        ref={triggerRef}
+        unread={unread}
+        threadTitle={title}
+        aria-describedby={description ? descriptionId : undefined}
+        onFocus={(event) => {
+          // Track keyboard focus even before an asynchronously delivered title arrives.
+          if (event.currentTarget.matches(':focus-visible')) show('focus');
+        }}
+        onBlur={onFocusLeave}
+        onClick={(event) => {
+          close();
+          props.onClick?.(event);
+        }}
+      />
+      {description && (
+        <>
+          <span id={descriptionId} hidden>
+            {description}
+          </span>
+          <PopOut
+            style={{ pointerEvents: 'none' }}
+            anchor={open?.anchor}
+            position="Top"
+            offset={4}
+            content={
+              <Tooltip role="tooltip">
+                <Text size="T300">{description}</Text>
+              </Tooltip>
+            }
           />
-        )}
-      </TooltipProvider>
+        </>
+      )}
     </>
   );
 }
