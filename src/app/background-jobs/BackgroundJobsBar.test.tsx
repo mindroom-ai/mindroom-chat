@@ -70,8 +70,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Pill: { waiting: 'Pill', stopping: 'Pill', done: 'Pill' },
   PillText: 'PillText',
   PillIcon: 'PillIcon',
-  ThreadChip: 'ThreadChip',
-  ThreadTitle: 'ThreadTitle',
+  WithThreads: 'WithThreads',
   Num: 'Num',
   Stat: 'Stat',
   Actions: 'Actions',
@@ -755,7 +754,12 @@ it("names the thread of a job that runs outside the view's, and shows it when pr
   render(null);
   expand();
   const chips = [...container.querySelectorAll<HTMLButtonElement>('[data-job-thread]')];
-  expect(chips.map((chip) => chip.textContent)).toEqual(['Title of $other', 'Title of $thread']);
+  expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
+    'Title of $other',
+    'Title of $thread',
+  ]);
+  // Each one sits with its row's buttons, before its Stop.
+  expect(chips[0]?.nextElementSibling?.matches('[data-cancel-job]')).toBe(true);
   await act(async () => chips[0]?.click());
   expect(navigation.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$other');
 

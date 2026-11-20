@@ -258,7 +258,7 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await child.locator('[data-job-open]').click();
   const panel = panelLocator(page, 'subagents');
   await expect(panel.locator('[data-subagent-view="sub-child"]')).toBeVisible();
-  // Beside the panel the bar is narrower: the columns stay, and a thread chip is its icon.
+  // Beside the panel the bar is narrower: the columns stay.
   await bar.getByRole('button', { name: /^3 background jobs/ }).click();
   await expect(lead.locator('[data-job-stat="calls"]')).toBeVisible();
   await bar.screenshot({ path: testInfo.outputPath('jobs-bar-c-panel.png') });
