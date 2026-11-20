@@ -7,20 +7,25 @@ import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import {
   ACTIVITY_INVITES_PATH,
   ACTIVITY_ROOM_PATH,
+  EXPLORE_SERVER_PATH,
   HOME_CREATE_PATH,
   HOME_ROOM_PATH,
+  LOGIN_PATH,
   SPACE_LOBBY_PATH,
   SPACE_PATH,
   SPACE_ROOM_PATH,
 } from '../routes/paths';
+import * as paths from '../routes/paths';
 import {
   getActivityRoomPath,
+  getExploreServerPath,
   getHomeRoomPath,
+  getLoginPath,
   getSpaceLobbyPath,
   getSpaceRoomPath,
 } from '../routes/pathUtils';
 import { useRoomNavigate } from './useRoomNavigate';
-import { useRoomRouteParams } from './useRoomRouteParams';
+import { ROUTE_PARAM_SEGMENT, useRoomRouteParams, useRouteParam } from './useRoomRouteParams';
 import { useSelectedRoom } from './useSelectedRoom';
 import { useSelectedSpace } from './useSelectedSpace';
 
@@ -48,8 +53,15 @@ function Shown() {
   );
 }
 
+/** The server a sign-in or Explore route names. */
+function ShownServer() {
+  return <output>{JSON.stringify({ server: useRouteParam('server') ?? null })}</output>;
+}
+
 const ROUTES = (
   <Routes>
+    <Route path={LOGIN_PATH} element={<ShownServer />} />
+    <Route path={EXPLORE_SERVER_PATH} element={<ShownServer />} />
     <Route path={HOME_CREATE_PATH} element={<Shown />} />
     <Route path={HOME_ROOM_PATH} element={<Shown />} />
     <Route path={ACTIVITY_INVITES_PATH} element={<Shown />} />
@@ -63,11 +75,13 @@ const ROUTES = (
 
 const shown = () => JSON.parse(screen.getByRole('status').textContent ?? '{}');
 
-const open = (path: string) => {
+const open = (path: string, basename = '/') => {
   cleanup();
   render(
     <MatrixClientProvider value={client}>
-      <MemoryRouter initialEntries={[path]}>{ROUTES}</MemoryRouter>
+      <MemoryRouter basename={basename} initialEntries={[path]}>
+        {ROUTES}
+      </MemoryRouter>
     </MatrixClientProvider>
   );
   return shown();
@@ -125,6 +139,54 @@ describe('the room, space and event a route names', () => {
 
   it('keeps a segment that is not valid percent-encoding as it is', () => {
     expect(open('/home/!a%zz/')).toMatchObject({ roomIdOrAlias: '!a%zz' });
+    expect(open('/home/!bad%zz%2F/')).toMatchObject({ roomIdOrAlias: '!bad%zz%2F' });
+    expect(open('/!bad%zz%2F/!a%2541/')).toMatchObject({
+      spaceIdOrAlias: '!bad%zz%2F',
+      roomIdOrAlias: '!a%41',
+    });
+  });
+
+  it('reads the address under the base path', () => {
+    expect(
+      open(`/app${getSpaceRoomPath(PERCENT_SPACE, SLASH_ALIAS, SLASH_EVENT)}`, '/app')
+    ).toMatchObject({
+      spaceIdOrAlias: PERCENT_SPACE,
+      roomIdOrAlias: SLASH_ALIAS,
+      eventId: SLASH_EVENT,
+    });
+    expect(open(`/app${getHomeRoomPath(PERCENT_ROOM)}`, '/app')).toMatchObject({
+      roomIdOrAlias: PERCENT_ROOM,
+      selectedRoom: PERCENT_ROOM,
+    });
+  });
+
+  // A sign-in server may be a full URL, with an escaped `/` or a `%` in its path.
+  it.each([
+    'example.org',
+    'https://example.org/team/eu',
+    'https://example.org/team%2Feu',
+    'https://example.org/a%41',
+  ])('reads the server %s of sign-in and Explore as written', (server) => {
+    expect(open(getLoginPath(server))).toEqual({ server });
+    expect(open(getExploreServerPath(server))).toEqual({ server });
+  });
+
+  it('names no server on a sign-in page without one', () => {
+    expect(open(getLoginPath())).toEqual({ server: null });
+  });
+
+  it('finds each parameter of every route where the readers look for it', () => {
+    Object.values(paths).forEach((pattern) => {
+      pattern.split('/').forEach((segment, index) => {
+        const name = segment.replace(/^:/, '').replace(/\?$/, '');
+        if (segment.startsWith(':') && name in ROUTE_PARAM_SEGMENT) {
+          expect([pattern, index]).toEqual([
+            pattern,
+            ROUTE_PARAM_SEGMENT[name as keyof typeof ROUTE_PARAM_SEGMENT],
+          ]);
+        }
+      });
+    });
   });
 
   it.each(ROOMS.filter((room) => room.startsWith('!')))(

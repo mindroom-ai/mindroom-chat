@@ -14,7 +14,7 @@ import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../../ui/particle-background/PersistentParticleBackground';
-import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { AutoDiscoveryAction, autoDiscovery, type AutoDiscoveryInfo } from '../../matrix/cs-api';
@@ -27,6 +27,7 @@ import { BrandLogo } from './BrandLogo';
 import { createMatrixFetchFn } from '../../matrix/client/matrixClientFactory';
 import { resolveAuthRouteRedirect } from '../../navigation/routeSessionGuards';
 import { resolveAddAccountReturnPath } from '../../navigation/addAccount';
+import { useRouteParam } from '../../navigation/useRoomRouteParams';
 import { buildAuthRoutePath, isServerChoiceLocked, resolveAuthServer } from './authRouteUtils';
 import { AuthFooter } from './AuthFooter';
 import { deploymentDefaultServer } from './unlistedServer';
@@ -230,7 +231,8 @@ export function AuthLayout() {
   const { t } = useTranslation();
   const { pathname, search, hash } = useLocation();
   const navigate = useNavigate();
-  const { server: requestedServer } = useParams();
+  // A full URL may hold an escaped `/`; useParams would read a literal `%2F` as one.
+  const requestedServer = useRouteParam('server');
   const defaultServer = useDefaultServer();
   const locked = useServerLocked();
   const { auth, homeserverList } = useClientConfig();
