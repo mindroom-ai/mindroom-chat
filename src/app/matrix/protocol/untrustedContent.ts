@@ -1,5 +1,5 @@
 import { MatrixEvent, type IContent } from 'matrix-js-sdk';
-import { isMindroomAgentUserIdForViewer } from './agentIdentity';
+import { isMindroomAgentUserId, isMindroomAgentUserIdForViewer } from './agentIdentity';
 import { isRecord } from '../../lib/isRecord';
 import { hasToolPositions, withToolMarkersRestored } from './toolPositions';
 
@@ -119,11 +119,20 @@ const sanitizeLayers = (content: unknown, read: Layer): IContent => {
  * `m.new_content` or none, without the agent-only keys unless `fromAgent`, and an agent's tool
  * markers back in its text (`withToolMarkersRestored`). Returns `content` itself when nothing
  * changes.
+ *
+ * MindRoom takes the markers out of the text of every account `namedAsAgent` (a `mindroom_`
+ * localpart on any homeserver), so the text of one whose keys do not count gets them back before
+ * its keys go: a guest on another homeserver reads the text that was written.
  */
-export const sanitizeContent = (content: unknown, fromAgent: boolean): IContent =>
-  fromAgent
-    ? withToolMarkersRestored(sanitizeLayers(content, (layer) => layer))
-    : sanitizeLayers(content, withoutAgentKeys);
+export const sanitizeContent = (
+  content: unknown,
+  fromAgent: boolean,
+  namedAsAgent = fromAgent
+): IContent => {
+  if (!namedAsAgent) return sanitizeLayers(content, withoutAgentKeys);
+  const restored = withToolMarkersRestored(sanitizeLayers(content, (layer) => layer));
+  return fromAgent ? restored : sanitizeLayers(restored, withoutAgentKeys);
+};
 
 /** Whether the content needs no change, checked without copying: the common case. */
 const isClean = (content: unknown, sender: string | undefined): boolean => {
@@ -216,7 +225,7 @@ export const installEventContentGuard = (): void => {
     const sender = this.getSender();
     if (isClean(content, sender)) return content as T;
     return memo(originalCache, this, content, () =>
-      sanitizeContent(content, isTrustedAgentSender(sender))
+      sanitizeContent(content, isTrustedAgentSender(sender), isMindroomAgentUserId(sender))
     ) as T;
   };
 

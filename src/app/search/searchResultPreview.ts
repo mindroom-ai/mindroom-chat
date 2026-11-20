@@ -1,6 +1,7 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { getSameSenderBundledEdit } from '../matrix/editEvent';
+import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
 import { MessageEvent } from '../matrix/types/room';
 import { shouldUseLongTextSearchResultBody } from '../messages/content/searchResultPolicy';
@@ -96,7 +97,11 @@ const getLatestContent = (event: IEventWithRoomId): IEventWithRoomId['content'] 
 export const getSearchResultEffectiveContent = (
   event: IEventWithRoomId
 ): IEventWithRoomId['content'] =>
-  sanitizeContent(getLatestContent(event), isTrustedAgentSender(event.sender));
+  sanitizeContent(
+    getLatestContent(event),
+    isTrustedAgentSender(event.sender),
+    isMindroomAgentUserId(event.sender)
+  );
 
 export const isSearchResultEdited = (event: IEventWithRoomId): boolean =>
   event.content?.['m.relates_to']?.rel_type === RelationType.Replace ||

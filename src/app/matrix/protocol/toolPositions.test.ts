@@ -171,6 +171,8 @@ describe('tool positions', () => {
 describe('tool positions on read', () => {
   const VIEWER = '@reader:example.org';
   const AGENT = '@mindroom_helper:example.org';
+  // An agent of another homeserver, whose trace this viewer does not trust.
+  const ELSEWHERE = '@mindroom_helper:elsewhere.org';
   const event = (sender: string, content: Record<string, unknown>) =>
     new MatrixEvent({
       type: 'm.room.message',
@@ -259,13 +261,37 @@ describe('tool positions on read', () => {
     expect((read['m.new_content'] as Record<string, unknown>).body).toBe(between.sent.body);
   });
 
-  it('puts back no markers for a sender that is no agent', () => {
+  // The backend takes the markers out for every account named `mindroom_`, and a guest who signed
+  // in on another homeserver reads the room too. Whose trace counts is another question: theirs
+  // goes, as it did when the text still had its markers.
+  it.each(sentCases.map((testCase) => [testCase.name, testCase] as const))(
+    'gives a viewer on another homeserver the text it always got, without the trace: %s',
+    (_name, { sent, wire }) => {
+      const held = wireContent({ sent, wire: wire as Wire });
+      const built = { ...held, body: sent.body, formatted_body: sent.formatted_body };
+      const { [TRACE]: _trace, ...text } = built;
+      expect(event(ELSEWHERE, held).getContent()).toEqual(text);
+      for (const fallbackTrace of [true, false]) {
+        const read = event(ELSEWHERE, editOf(held, fallbackTrace)).getContent();
+        const { [TRACE]: _outer, ...fallback } = editOf(built, fallbackTrace);
+        expect(read).toEqual({ ...fallback, 'm.new_content': text });
+      }
+    }
+  );
+
+  it('puts back no markers for a sender that is no agent, on any homeserver', () => {
     const content = sanitizeContent(wireContent(between), false);
     expect(content.body).toBe(between.wire.body);
     expect(content[TRACE]).toBeUndefined();
-    expect(event('@someone:example.org', wireContent(between)).getContent().body).toBe(
-      between.wire.body
-    );
+    for (const person of ['@someone:example.org', '@someone:elsewhere.org']) {
+      const { [TRACE]: _trace, ...sent } = wireContent(between);
+      expect(event(person, wireContent(between)).getContent()).toEqual(sent);
+      const { [TRACE]: _outer, ...fallback } = editOf(wireContent(between));
+      expect(event(person, editOf(wireContent(between))).getContent()).toEqual({
+        ...fallback,
+        'm.new_content': sent,
+      });
+    }
   });
 
   it('mends a broken relation without putting markers in the wire content, whoever sent it', () => {
