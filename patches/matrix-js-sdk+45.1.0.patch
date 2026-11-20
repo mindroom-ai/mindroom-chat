@@ -14,10 +14,31 @@ index f59bbd4..7040f7a 100644
      to?: string;
      limit?: number;
 diff --git a/node_modules/matrix-js-sdk/lib/client.d.ts b/node_modules/matrix-js-sdk/lib/client.d.ts
-index 78cd885..6b1ebe0 100644
+index 78cd885..2be28bb 100644
 --- a/node_modules/matrix-js-sdk/lib/client.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/client.d.ts
-@@ -874,6 +874,8 @@ export declare class MatrixClient extends TypedEventEmitter<EmittedEvents, Clien
+@@ -15,7 +15,7 @@ import { type AutoDiscoveryAction } from "./autodiscovery.ts";
+ import { TypedReEmitter } from "./ReEmitter.ts";
+ import { type Logger } from "./logger.ts";
+ import { SERVICE_TYPES } from "./service-types.ts";
+-import { type FileType, type HttpApiEvent, type HttpApiEventHandlerMap, type IHttpOpts, type IRequestOpts, MatrixError, MatrixHttpApi, type TokenRefreshCallback, type Upload, type UploadOpts, type UploadResponse } from "./http-api/index.ts";
++import { type FileType, type HttpApiEvent, type HttpApiEventHandlerMap, type IHttpOpts, type IRequestOpts, MatrixError, MatrixHttpApi, type TokenRefreshCallback, type TokenRefreshFunction, type Upload, type UploadOpts, type UploadResponse } from "./http-api/index.ts";
+ import { User, UserEvent, type UserEventHandlerMap } from "./models/user.ts";
+ import { type IIdentityServerProvider } from "./@types/IIdentityServerProvider.ts";
+ import { type MatrixScheduler } from "./scheduler.ts";
+@@ -134,6 +134,11 @@ export interface ICreateClientOpts {
+      * Required if a {@link refreshToken} is provided.
+      */
+     onTokenRefresh?: TokenRefreshCallback;
++    /**
++     * MindRoom: refreshes the tokens in place of the SDK's OAuth 2.0 refresh, for a session whose
++     * {@link refreshToken} the homeserver's `/refresh` endpoint takes (see {@link TokenRefreshFunction}).
++     */
++    tokenRefreshFunction?: TokenRefreshFunction;
+     /**
+      * If this is an OAuth2-native session (as per MSC2965/MSC3861), the OAuth client ID this
+      * application is registered with the delegated auth server under.
+@@ -874,6 +879,8 @@ export declare class MatrixClient extends TypedEventEmitter<EmittedEvents, Clien
      private readonly legacyPickleKey?;
      scheduler?: MatrixScheduler;
      clientRunning: boolean;
@@ -27,7 +48,7 @@ index 78cd885..6b1ebe0 100644
      urlPreviewCache: {
          [key: string]: Promise<IPreviewUrlResponse>;
 diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
-index 61c8e57..a971024 100644
+index 61c8e57..b5f30b5 100644
 --- a/node_modules/matrix-js-sdk/lib/client.js
 +++ b/node_modules/matrix-js-sdk/lib/client.js
 @@ -2,7 +2,8 @@ import _objectWithoutProperties from "@babel/runtime/helpers/objectWithoutProper
@@ -49,7 +70,15 @@ index 61c8e57..a971024 100644
      _defineProperty(this, "timelineSupport", false);
      _defineProperty(this, "urlPreviewCache", {});
      _defineProperty(this, "identityServer", void 0);
-@@ -633,29 +636,37 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -511,6 +514,7 @@ export class MatrixClient extends TypedEventEmitter {
+       accessToken: opts.accessToken,
+       refreshToken: opts.refreshToken,
+       onTokenRefresh: opts.onTokenRefresh,
++      tokenRefreshFunction: opts.tokenRefreshFunction,
+       oauth2ClientConfig: opts.oauthClientId ? {
+         clientId: opts.oauthClientId,
+         deviceId: this.deviceId ?? undefined
+@@ -633,29 +637,37 @@ export class MatrixClient extends TypedEventEmitter {
        this.logger.error("Still have sync object whilst not running: stopping old one");
        this.syncApi.stop();
      }
@@ -109,7 +138,7 @@ index 61c8e57..a971024 100644
  
      // Only poll the client well-known when a poll period was configured: leaving
      // `clientWellKnownPollPeriod` undefined disables the lookups entirely.
-@@ -3745,6 +3756,13 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -3745,6 +3757,13 @@ export class MatrixClient extends TypedEventEmitter {
      const room = this.getRoom(eventTimeline.getRoomId());
      const threadListType = eventTimeline.getTimelineSet().threadListType;
      const thread = eventTimeline.getTimelineSet().thread;
@@ -123,7 +152,7 @@ index 61c8e57..a971024 100644
  
      // TODO: we should implement a backoff (as per scrollback()) to deal more
      // nicely with HTTP errors.
-@@ -3823,8 +3841,11 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -3823,8 +3842,11 @@ export class MatrixClient extends TypedEventEmitter {
          const matrixEvents = res.chunk.filter(noUnsafeEventProps).map(this.getEventMapper());
          const timelineSet = eventTimeline.getTimelineSet();
          timelineSet.addEventsToTimeline(matrixEvents, backwards, false, eventTimeline, token);
@@ -136,7 +165,7 @@ index 61c8e57..a971024 100644
  
          // if we've hit the end of the timeline, we need to stop trying to
          // paginate. We need to keep the 'forwards' token though, to make sure
-@@ -3861,11 +3882,14 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -3861,11 +3883,14 @@ export class MatrixClient extends TypedEventEmitter {
            }
          }
          const newToken = res.next_batch;
@@ -154,7 +183,7 @@ index 61c8e57..a971024 100644
          }
          this.processAggregatedTimelineEvents(timelineSet.room, matrixEvents);
  
-@@ -3873,7 +3897,7 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -3873,7 +3898,7 @@ export class MatrixClient extends TypedEventEmitter {
          // paginate. We need to keep the 'forwards' token though, to make sure
          // we can recover from gappy syncs.
          if (backwards && !newToken) {
@@ -163,7 +192,7 @@ index 61c8e57..a971024 100644
          }
          return Boolean(newToken);
        }).finally(() => {
-@@ -5445,7 +5469,12 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -5445,7 +5470,12 @@ export class MatrixClient extends TypedEventEmitter {
    fetchRelations(roomId, eventId, relationType, eventType, opts = {
      dir: Direction.Backward
    }) {
@@ -177,7 +206,7 @@ index 61c8e57..a971024 100644
      if (Thread.hasServerSideFwdPaginationSupport === FeatureSupport.Experimental) {
        params = replaceParam("dir", "org.matrix.msc3715.dir", params);
      }
-@@ -5471,7 +5500,9 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -5471,7 +5501,9 @@ export class MatrixClient extends TypedEventEmitter {
        $eventType: eventType
      });
      return this.http.authedRequest(Method.Get, path, undefined, undefined, {
@@ -188,7 +217,7 @@ index 61c8e57..a971024 100644
      });
    }
  
-@@ -5705,7 +5736,7 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -5705,7 +5737,7 @@ export class MatrixClient extends TypedEventEmitter {
          limit,
          since
        } = _ref2,
@@ -310,6 +339,150 @@ index 0beec80..bed4c38 100644
    }
  
    /**
+diff --git a/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts b/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts
+index 4deeb94..3b76463 100644
+--- a/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts
++++ b/node_modules/matrix-js-sdk/lib/http-api/interface.d.ts
+@@ -25,6 +25,13 @@ export type AccessTokens = {
+  * the refreshed ones.
+  */
+ export type TokenRefreshCallback = (newTokens: AccessTokens) => void;
++/**
++ * MindRoom: a function that takes the current refresh token and returns the new tokens, as upstream had until 43.0
++ * (#5520) made the SDK refresh OAuth 2.0 sessions itself. MindRoom Chat refreshes a session with the homeserver's
++ * `/refresh` endpoint, and adopts the tokens another tab stored, through this function.
++ * Can be passed to HttpApi instance as {@link IHttpOpts.tokenRefreshFunction} during client creation {@link ICreateClientOpts}
++ */
++export type TokenRefreshFunction = (refreshToken: string) => Promise<AccessTokens>;
+ /**
+  * Configuration required for {@link IHttpOpts} to allow the SDK to manage the full lifecycle of tokens for an
+  * OAuth2-native session (as per MSC2965/MSC3861): discovering the delegated auth server's metadata, refreshing
+@@ -59,6 +66,11 @@ export interface IHttpOpts {
+      * Callback called when tokens are refreshed. Must be supplied if refreshToken is supplied.
+      */
+     onTokenRefresh?: TokenRefreshCallback;
++    /**
++     * MindRoom: refreshes the tokens in place of the SDK's OAuth 2.0 refresh (see {@link TokenRefreshFunction}).
++     * It stores the new tokens itself; {@link onTokenRefresh} is not called for them.
++     */
++    tokenRefreshFunction?: TokenRefreshFunction;
+     /**
+      * Configuration needed to refresh (given refreshToken) and revoke (e.g. on logout) tokens for an
+      * OAuth2-native session. Optional; if omitted, tokens will not be refreshed or revoked by the SDK.
+diff --git a/node_modules/matrix-js-sdk/lib/http-api/interface.js b/node_modules/matrix-js-sdk/lib/http-api/interface.js
+index 2ef1058..0fe5b59 100644
+--- a/node_modules/matrix-js-sdk/lib/http-api/interface.js
++++ b/node_modules/matrix-js-sdk/lib/http-api/interface.js
+@@ -23,6 +23,13 @@ limitations under the License.
+  * the refreshed ones.
+  */
+ 
++/**
++ * MindRoom: a function that takes the current refresh token and returns the new tokens, as upstream had until 43.0
++ * (#5520) made the SDK refresh OAuth 2.0 sessions itself. MindRoom Chat refreshes a session with the homeserver's
++ * `/refresh` endpoint, and adopts the tokens another tab stored, through this function.
++ * Can be passed to HttpApi instance as {@link IHttpOpts.tokenRefreshFunction} during client creation {@link ICreateClientOpts}
++ */
++
+ /**
+  * Configuration required for {@link IHttpOpts} to allow the SDK to manage the full lifecycle of tokens for an
+  * OAuth2-native session (as per MSC2965/MSC3861): discovering the delegated auth server's metadata, refreshing
+diff --git a/node_modules/matrix-js-sdk/lib/http-api/refresh.d.ts b/node_modules/matrix-js-sdk/lib/http-api/refresh.d.ts
+index 7561cea..08a9f41 100644
+--- a/node_modules/matrix-js-sdk/lib/http-api/refresh.d.ts
++++ b/node_modules/matrix-js-sdk/lib/http-api/refresh.d.ts
+@@ -7,7 +7,7 @@ export declare const enum TokenRefreshOutcome {
+     Failure = "failure",
+     Logout = "logout"
+ }
+-type Opts = Pick<IHttpOpts, "onTokenRefresh" | "logger" | "refreshToken" | "accessToken" | "oauth2ClientConfig" | "authMetadataCallback" | "fetchFn">;
++type Opts = Pick<IHttpOpts, "onTokenRefresh" | "logger" | "refreshToken" | "accessToken" | "oauth2ClientConfig" | "authMetadataCallback" | "fetchFn" | "tokenRefreshFunction">;
+ /**
+  * This class is responsible for managing the access token and refresh token for authenticated requests.
+  * It will automatically refresh the tokens when the access token is about to expire and can handle
+@@ -54,6 +54,12 @@ export declare class TokenManager {
+      * @returns Promise that resolves to a boolean - true when token was refreshed successfully
+      */
+     private doTokenRefresh;
++    /**
++     * MindRoom: the new tokens from the app's refresh function when the client was given one
++     * ({@link IHttpOpts.tokenRefreshFunction}), else from the OAuth2 authorization server as upstream does.
++     * @returns the tokens, or undefined if there is neither a refresh function nor an OAuth2 token refresher
++     */
++    private refreshTokens;
+     /**
+      * Attempt to revoke the current access and refresh tokens with the OAuth2 authorization server, e.g. as
+      * part of logging out. Does nothing if this is not an OAuth2-native session (ie. no `oauth2ClientConfig`
+diff --git a/node_modules/matrix-js-sdk/lib/http-api/refresh.js b/node_modules/matrix-js-sdk/lib/http-api/refresh.js
+index 33663e1..5d0c847 100644
+--- a/node_modules/matrix-js-sdk/lib/http-api/refresh.js
++++ b/node_modules/matrix-js-sdk/lib/http-api/refresh.js
+@@ -110,7 +110,12 @@ export class TokenManager {
+       // If it still has plenty of time left on the clock, we assume something else must be wrong and
+       // do not refresh. Otherwise if it's expired, or will soon, we try refreshing.
+       if (expiresIn >= REFRESH_ON_ERROR_IF_TOKEN_EXPIRES_WITHIN_MS) {
+-        return TokenRefreshOutcome.Logout;
++        // MindRoom: another tab or a device pairing may have rotated the tokens, which ends this access
++        // token before its time. The app's refresh function adopts the tokens stored for that rotation,
++        // so a request's first rejection asks it; the tokens it returns being rejected too is a logout.
++        if (!this.opts.tokenRefreshFunction || (attempt ?? 1) > 1) {
++          return TokenRefreshOutcome.Logout;
++        }
+       }
+     }
+     if (!snapshot || snapshot?.accessToken === this.opts.accessToken) {
+@@ -134,7 +139,8 @@ export class TokenManager {
+    * @returns Promise that resolves to a boolean - true when token was refreshed successfully
+    */
+   async doTokenRefresh(attempt) {
+-    if (!this.opts.refreshToken || !this.opts.oauth2ClientConfig) {
++    // MindRoom: the app's refresh function stands in for the OAuth2 client config (see `refreshTokens`).
++    if (!this.opts.refreshToken || !this.opts.tokenRefreshFunction && !this.opts.oauth2ClientConfig) {
+       this.opts.logger?.error("Unable to refresh token - no refresh token or OAuth2 client config");
+       return TokenRefreshOutcome.Logout;
+     }
+@@ -144,8 +150,8 @@ export class TokenManager {
+     }
+     try {
+       this.opts.logger?.debug("Attempting to refresh token");
+-      const tokenRefresher = await this.ensureTokenRefresher();
+-      if (!tokenRefresher) {
++      const tokens = await this.refreshTokens(this.opts.refreshToken);
++      if (!tokens) {
+         // We already checked `oauth2ClientConfig` is set above, so this should be unreachable.
+         return TokenRefreshOutcome.Logout;
+       }
+@@ -153,9 +159,7 @@ export class TokenManager {
+         accessToken,
+         refreshToken,
+         expiry
+-      } = await tokenRefresher.refreshTokens(this.opts.refreshToken, {
+-        abortSignal: this.getAbortSignal?.()
+-      });
++      } = tokens;
+       this.opts.accessToken = accessToken;
+       this.opts.refreshToken = refreshToken;
+       this.latestTokenRefreshExpiry = expiry;
+@@ -174,6 +178,19 @@ export class TokenManager {
+     }
+   }
+ 
++  /**
++   * MindRoom: the new tokens from the app's refresh function when the client was given one
++   * ({@link IHttpOpts.tokenRefreshFunction}), else from the OAuth2 authorization server as upstream does.
++   * @returns the tokens, or undefined if there is neither a refresh function nor an OAuth2 token refresher
++   */
++  async refreshTokens(refreshToken) {
++    if (this.opts.tokenRefreshFunction) return this.opts.tokenRefreshFunction(refreshToken);
++    const tokenRefresher = await this.ensureTokenRefresher();
++    return tokenRefresher?.refreshTokens(refreshToken, {
++      abortSignal: this.getAbortSignal?.()
++    });
++  }
++
+   /**
+    * Attempt to revoke the current access and refresh tokens with the OAuth2 authorization server, e.g. as
+    * part of logging out. Does nothing if this is not an OAuth2-native session (ie. no `oauth2ClientConfig`
 diff --git a/node_modules/matrix-js-sdk/lib/models/event-timeline-set.d.ts b/node_modules/matrix-js-sdk/lib/models/event-timeline-set.d.ts
 index 2f975f7..01b4228 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event-timeline-set.d.ts
@@ -2767,10 +2940,31 @@ index aa04137..f403bb1 100644
      to?: string;
      limit?: number;
 diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
-index 646a155..a15ea26 100644
+index 646a155..dc51201 100644
 --- a/node_modules/matrix-js-sdk/src/client.ts
 +++ b/node_modules/matrix-js-sdk/src/client.ts
-@@ -1268,6 +1268,9 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -75,6 +75,7 @@ import {
+     Method,
+     retryNetworkOperation,
+     type TokenRefreshCallback,
++    type TokenRefreshFunction,
+     type Upload,
+     type UploadOpts,
+     type UploadResponse,
+@@ -349,6 +350,12 @@ export interface ICreateClientOpts {
+      */
+     onTokenRefresh?: TokenRefreshCallback;
+ 
++    /**
++     * MindRoom: refreshes the tokens in place of the SDK's OAuth 2.0 refresh, for a session whose
++     * {@link refreshToken} the homeserver's `/refresh` endpoint takes (see {@link TokenRefreshFunction}).
++     */
++    tokenRefreshFunction?: TokenRefreshFunction;
++
+     /**
+      * If this is an OAuth2-native session (as per MSC2965/MSC3861), the OAuth client ID this
+      * application is registered with the delegated auth server under.
+@@ -1268,6 +1275,9 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
  
      public scheduler?: MatrixScheduler;
      public clientRunning = false;
@@ -2780,7 +2974,15 @@ index 646a155..a15ea26 100644
      public timelineSupport = false;
      public urlPreviewCache: { [key: string]: Promise<IPreviewUrlResponse> } = {};
      public identityServer?: IIdentityServerProvider;
-@@ -1550,35 +1553,37 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -1405,6 +1415,7 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+             accessToken: opts.accessToken,
+             refreshToken: opts.refreshToken,
+             onTokenRefresh: opts.onTokenRefresh,
++            tokenRefreshFunction: opts.tokenRefreshFunction,
+             oauth2ClientConfig: opts.oauthClientId
+                 ? {
+                       clientId: opts.oauthClientId,
+@@ -1550,35 +1561,37 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
              this.syncApi.stop();
          }
  
@@ -2816,7 +3018,8 @@ index 646a155..a15ea26 100644
 +            : new SyncApi(this, this.clientOpts, this.buildSyncApiOptions());
 +        this.syncApi = syncApi;
 +        const isCurrent = (): boolean => this.clientRunning && this.syncApi === syncApi;
-+
+ 
+-        this.syncApi.sync().catch((e) => this.logger.info("Sync startup aborted with an error:", e));
 +        const discoverThreadSupport = async (): Promise<void> => {
 +            try {
 +                await this.getVersions();
@@ -2839,13 +3042,12 @@ index 646a155..a15ea26 100644
 +        if (syncApi instanceof SyncApi) await syncApi.restoreFromCache();
 +        await threadSupportPending;
 +        if (!isCurrent()) return;
- 
--        this.syncApi.sync().catch((e) => this.logger.info("Sync startup aborted with an error:", e));
++
 +        syncApi.sync().catch((e) => this.logger.info("Sync startup aborted with an error:", e));
  
          // Only poll the client well-known when a poll period was configured: leaving
          // `clientWellKnownPollPeriod` undefined disables the lookups entirely.
-@@ -5283,6 +5288,14 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5283,6 +5296,14 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          const room = this.getRoom(eventTimeline.getRoomId()!);
          const threadListType = eventTimeline.getTimelineSet().threadListType;
          const thread = eventTimeline.getTimelineSet().thread;
@@ -2860,7 +3062,7 @@ index 646a155..a15ea26 100644
  
          // TODO: we should implement a backoff (as per scrollback()) to deal more
          // nicely with HTTP errors.
-@@ -5387,8 +5400,11 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5387,8 +5408,11 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
  
                      const timelineSet = eventTimeline.getTimelineSet();
                      timelineSet.addEventsToTimeline(matrixEvents, backwards, false, eventTimeline, token);
@@ -2873,7 +3075,7 @@ index 646a155..a15ea26 100644
  
                      // if we've hit the end of the timeline, we need to stop trying to
                      // paginate. We need to keep the 'forwards' token though, to make sure
-@@ -5433,13 +5449,15 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5433,13 +5457,15 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
  
                      const newToken = res.next_batch;
  
@@ -2892,7 +3094,7 @@ index 646a155..a15ea26 100644
                      }
                      this.processAggregatedTimelineEvents(timelineSet.room, matrixEvents);
  
-@@ -5447,7 +5465,7 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5447,7 +5473,7 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
                      // paginate. We need to keep the 'forwards' token though, to make sure
                      // we can recover from gappy syncs.
                      if (backwards && !newToken) {
@@ -2901,7 +3103,7 @@ index 646a155..a15ea26 100644
                      }
                      return Boolean(newToken);
                  })
-@@ -7266,7 +7284,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -7266,7 +7292,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          eventType?: EventType | string | null,
          opts: IRelationsRequestOpts = { dir: Direction.Backward },
      ): Promise<IRelationsResponse> {
@@ -2911,7 +3113,7 @@ index 646a155..a15ea26 100644
          if (Thread.hasServerSideFwdPaginationSupport === FeatureSupport.Experimental) {
              params = replaceParam("dir", "org.matrix.msc3715.dir", params);
          }
-@@ -7295,6 +7314,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -7295,6 +7322,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          });
          return this.http.authedRequest(Method.Get, path, undefined, undefined, {
              prefix: ClientPrefix.V1,
@@ -3041,6 +3243,110 @@ index f52b7d4..ec80f47 100644
          }
      }
  
+diff --git a/node_modules/matrix-js-sdk/src/http-api/interface.ts b/node_modules/matrix-js-sdk/src/http-api/interface.ts
+index bc71d86..e4ec5ab 100644
+--- a/node_modules/matrix-js-sdk/src/http-api/interface.ts
++++ b/node_modules/matrix-js-sdk/src/http-api/interface.ts
+@@ -45,6 +45,14 @@ export type AccessTokens = {
+  */
+ export type TokenRefreshCallback = (newTokens: AccessTokens) => void;
+ 
++/**
++ * MindRoom: a function that takes the current refresh token and returns the new tokens, as upstream had until 43.0
++ * (#5520) made the SDK refresh OAuth 2.0 sessions itself. MindRoom Chat refreshes a session with the homeserver's
++ * `/refresh` endpoint, and adopts the tokens another tab stored, through this function.
++ * Can be passed to HttpApi instance as {@link IHttpOpts.tokenRefreshFunction} during client creation {@link ICreateClientOpts}
++ */
++export type TokenRefreshFunction = (refreshToken: string) => Promise<AccessTokens>;
++
+ /**
+  * Configuration required for {@link IHttpOpts} to allow the SDK to manage the full lifecycle of tokens for an
+  * OAuth2-native session (as per MSC2965/MSC3861): discovering the delegated auth server's metadata, refreshing
+@@ -82,6 +90,11 @@ export interface IHttpOpts {
+      * Callback called when tokens are refreshed. Must be supplied if refreshToken is supplied.
+      */
+     onTokenRefresh?: TokenRefreshCallback;
++    /**
++     * MindRoom: refreshes the tokens in place of the SDK's OAuth 2.0 refresh (see {@link TokenRefreshFunction}).
++     * It stores the new tokens itself; {@link onTokenRefresh} is not called for them.
++     */
++    tokenRefreshFunction?: TokenRefreshFunction;
+     /**
+      * Configuration needed to refresh (given refreshToken) and revoke (e.g. on logout) tokens for an
+      * OAuth2-native session. Optional; if omitted, tokens will not be refreshed or revoked by the SDK.
+diff --git a/node_modules/matrix-js-sdk/src/http-api/refresh.ts b/node_modules/matrix-js-sdk/src/http-api/refresh.ts
+index 04cc1c4..ffdb589 100644
+--- a/node_modules/matrix-js-sdk/src/http-api/refresh.ts
++++ b/node_modules/matrix-js-sdk/src/http-api/refresh.ts
+@@ -45,6 +45,7 @@ type Opts = Pick<
+     | "oauth2ClientConfig"
+     | "authMetadataCallback"
+     | "fetchFn"
++    | "tokenRefreshFunction"
+ >;
+ 
+ /**
+@@ -132,7 +133,12 @@ export class TokenManager {
+             // If it still has plenty of time left on the clock, we assume something else must be wrong and
+             // do not refresh. Otherwise if it's expired, or will soon, we try refreshing.
+             if (expiresIn >= REFRESH_ON_ERROR_IF_TOKEN_EXPIRES_WITHIN_MS) {
+-                return TokenRefreshOutcome.Logout;
++                // MindRoom: another tab or a device pairing may have rotated the tokens, which ends this access
++                // token before its time. The app's refresh function adopts the tokens stored for that rotation,
++                // so a request's first rejection asks it; the tokens it returns being rejected too is a logout.
++                if (!this.opts.tokenRefreshFunction || (attempt ?? 1) > 1) {
++                    return TokenRefreshOutcome.Logout;
++                }
+             }
+         }
+ 
+@@ -158,7 +164,8 @@ export class TokenManager {
+      * @returns Promise that resolves to a boolean - true when token was refreshed successfully
+      */
+     private async doTokenRefresh(attempt?: number): Promise<TokenRefreshOutcome> {
+-        if (!this.opts.refreshToken || !this.opts.oauth2ClientConfig) {
++        // MindRoom: the app's refresh function stands in for the OAuth2 client config (see `refreshTokens`).
++        if (!this.opts.refreshToken || (!this.opts.tokenRefreshFunction && !this.opts.oauth2ClientConfig)) {
+             this.opts.logger?.error("Unable to refresh token - no refresh token or OAuth2 client config");
+             return TokenRefreshOutcome.Logout;
+         }
+@@ -170,15 +177,13 @@ export class TokenManager {
+ 
+         try {
+             this.opts.logger?.debug("Attempting to refresh token");
+-            const tokenRefresher = await this.ensureTokenRefresher();
+-            if (!tokenRefresher) {
++            const tokens = await this.refreshTokens(this.opts.refreshToken);
++            if (!tokens) {
+                 // We already checked `oauth2ClientConfig` is set above, so this should be unreachable.
+                 return TokenRefreshOutcome.Logout;
+             }
+ 
+-            const { accessToken, refreshToken, expiry } = await tokenRefresher.refreshTokens(this.opts.refreshToken, {
+-                abortSignal: this.getAbortSignal?.(),
+-            });
++            const { accessToken, refreshToken, expiry } = tokens;
+             this.opts.accessToken = accessToken;
+             this.opts.refreshToken = refreshToken;
+             this.latestTokenRefreshExpiry = expiry;
+@@ -198,6 +203,17 @@ export class TokenManager {
+         }
+     }
+ 
++    /**
++     * MindRoom: the new tokens from the app's refresh function when the client was given one
++     * ({@link IHttpOpts.tokenRefreshFunction}), else from the OAuth2 authorization server as upstream does.
++     * @returns the tokens, or undefined if there is neither a refresh function nor an OAuth2 token refresher
++     */
++    private async refreshTokens(refreshToken: string): Promise<AccessTokens | undefined> {
++        if (this.opts.tokenRefreshFunction) return this.opts.tokenRefreshFunction(refreshToken);
++        const tokenRefresher = await this.ensureTokenRefresher();
++        return tokenRefresher?.refreshTokens(refreshToken, { abortSignal: this.getAbortSignal?.() });
++    }
++
+     /**
+      * Attempt to revoke the current access and refresh tokens with the OAuth2 authorization server, e.g. as
+      * part of logging out. Does nothing if this is not an OAuth2-native session (ie. no `oauth2ClientConfig`
 diff --git a/node_modules/matrix-js-sdk/src/models/event-timeline-set.ts b/node_modules/matrix-js-sdk/src/models/event-timeline-set.ts
 index 8d802ae..fb51f26 100644
 --- a/node_modules/matrix-js-sdk/src/models/event-timeline-set.ts

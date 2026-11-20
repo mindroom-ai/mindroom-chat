@@ -188,6 +188,91 @@ describe('cross-tab refresh-token rotation', () => {
     expect(tokens).toEqual({ accessToken: 'access-b', refreshToken: 'refresh-b' });
   });
 
+  /** A homeserver that answers `whoami` for the access tokens in `accepted` and rejects the rest. */
+  const serverAccepting = (accepted: Set<string>) =>
+    vi.fn<typeof fetch>(async (_input, init) => {
+      const token = new Headers(init?.headers).get('Authorization')?.replace('Bearer ', '');
+      const known = token !== undefined && accepted.has(token);
+      return new Response(
+        JSON.stringify(
+          known
+            ? { user_id: '@alice:example.com' }
+            : { errcode: 'M_UNKNOWN_TOKEN', error: 'Unknown access token.' }
+        ),
+        { status: known ? 200 : 401, headers: { 'Content-Type': 'application/json' } }
+      );
+    });
+
+  /** A client of the stored session whose first request refreshed, so it knows its token lasts an hour. */
+  const clientAfterFirstRefresh = async (refresh: () => Promise<IRefreshTokenResponse>) => {
+    const session = storeSession({ accessToken: 'access-a', refreshToken: 'refresh-a' });
+    const accepted = new Set(['access-b']);
+    const mx = createClient({
+      baseUrl: 'https://example.com',
+      accessToken: 'access-a',
+      refreshToken: 'refresh-a',
+      tokenRefreshFunction: createSessionTokenRefresh({
+        sessionId: session.sessionId,
+        deviceId: 'DEVICE',
+        refresh,
+      }),
+      fetchFn: serverAccepting(accepted),
+    });
+    const onLogout = vi.fn();
+    mx.on(HttpApiEvent.SessionLoggedOut, onLogout);
+    await expect(mx.whoami()).resolves.toEqual({ user_id: '@alice:example.com' });
+    expect(mx.getAccessToken()).toBe('access-b');
+    return { session, accepted, mx, onLogout };
+  };
+
+  it('adopts a rotation another tab stored when the server rejects an access token before its expiry', async () => {
+    const refresh = vi.fn(async () => ({
+      access_token: 'access-b',
+      refresh_token: 'refresh-b',
+      expires_in_ms: 3_600_000,
+    }));
+    const { session, accepted, mx, onLogout } = await clientAfterFirstRefresh(refresh);
+
+    // Another tab rotates the tokens, which ends this tab's access token with most of its hour left.
+    updateSessionCredentials(session.sessionId, {
+      accessToken: 'access-c',
+      refreshToken: 'refresh-c',
+    });
+    accepted.clear();
+    accepted.add('access-c');
+
+    await expect(mx.whoami()).resolves.toEqual({ user_id: '@alice:example.com' });
+    expect(mx.getAccessToken()).toBe('access-c');
+    expect(mx.getRefreshToken()).toBe('refresh-c');
+    // The rotation was adopted, not spent, and the account stays.
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(onLogout).not.toHaveBeenCalled();
+  });
+
+  it('logs out once when the tokens it got for a rejected access token are rejected too', async () => {
+    const refresh = vi
+      .fn<() => Promise<IRefreshTokenResponse>>()
+      .mockResolvedValueOnce({
+        access_token: 'access-b',
+        refresh_token: 'refresh-b',
+        expires_in_ms: 3_600_000,
+      })
+      .mockResolvedValue({
+        access_token: 'access-c',
+        refresh_token: 'refresh-c',
+        expires_in_ms: 3_600_000,
+      });
+    const { accepted, mx, onLogout } = await clientAfterFirstRefresh(refresh);
+
+    // The server ends the session: it takes no access token of it any more.
+    accepted.clear();
+
+    await expect(mx.whoami()).rejects.toBeInstanceOf(MatrixError);
+    // One refresh for the rejected token, none for the one that refresh returned.
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
   it('does not adopt credentials stored for a different device of the same account', async () => {
     const session = storeSession({
       accessToken: 'access-new-device',
