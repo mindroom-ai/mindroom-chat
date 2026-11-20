@@ -92,7 +92,6 @@ vi.mock('../../threads/cross-room/threadSignalsReader', () => ({
   getThreadSignalsReader: () => ({ read: readSignals }),
 }));
 vi.mock('../../lib/hooks/useMinuteClock', () => ({ useMinuteClock: () => MINUTE_NOW }));
-vi.mock('../../threads/page/ThreadsNav.css', () => ({ Scopes: 'Scopes', Scope: 'Scope' }));
 
 const USER_ID = '@me:example.org';
 const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number) =>

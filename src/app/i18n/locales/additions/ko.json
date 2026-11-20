@@ -852,7 +852,10 @@
         "nameChose": "{{name}} 님이 선택함"
       },
       "mindroomReplyDetails": {
-        "subagents": "하위 에이전트"
+        "subagents": "하위 에이전트",
+        "writtenToCache": "캐시에 기록",
+        "notCached": "캐시 안 됨",
+        "conversation": "대화"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중",

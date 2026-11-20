@@ -35,6 +35,7 @@ import { useJoinedRoomThreadLists } from './useJoinedRoomThreadLists';
 import { useThreadListItems } from './useThreadListItems';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 import { useSnoozedUntilText } from '../tags/useSnoozedUntilText';
+import * as segmented from '../../ui/styles/Segmented.css';
 import * as css from './ThreadsNav.css';
 
 const SCOPES: ThreadsScope[] = ['mine', 'following', 'all'];
@@ -240,14 +241,18 @@ export function ThreadsNav() {
             {t('threadsPage.title')}
           </Text>
           <div className={css.TitleRow}>
-            <div className={css.Scopes} role="radiogroup" aria-label={t('threadsPage.scopeLabel')}>
+            <div
+              className={segmented.Segments}
+              role="radiogroup"
+              aria-label={t('threadsPage.scopeLabel')}
+            >
               {SCOPES.map((id) => (
                 <button
                   key={id}
                   type="button"
                   role="radio"
                   aria-checked={scope === id}
-                  className={css.Scope}
+                  className={segmented.Segment}
                   onClick={() => setScope(id)}
                 >
                   {t(`threadsPage.scope.${id}`)}

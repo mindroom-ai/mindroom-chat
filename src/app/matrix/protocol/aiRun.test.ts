@@ -45,6 +45,7 @@ describe('getAiRunInfo', () => {
       inputTokens: 100,
       outputTokens: 25,
       cacheReadTokens: 20,
+      cacheWriteTokens: 5,
       timeToFirstToken: 0.42,
       contextInputTokens: 125,
       contextWindowTokens: 4000,

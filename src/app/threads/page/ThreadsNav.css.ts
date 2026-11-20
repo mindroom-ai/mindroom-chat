@@ -10,35 +10,6 @@ export const Top = style({ ...stack, rowGap: space.S200, padding: `${space.S200}
 
 export const TitleRow = style({ ...strip, columnGap: space.S200 });
 
-/** The Mine / Following / All switch, a segmented control. */
-export const Scopes = style({
-  display: 'inline-flex',
-  flexShrink: 0,
-  padding: toRem(2),
-  columnGap: toRem(2),
-  borderRadius: radii.R400,
-  backgroundColor: color.SurfaceVariant.Container,
-});
-
-export const Scope = style({
-  padding: `${toRem(4)} ${space.S200}`,
-  border: 0,
-  borderRadius: radii.R300,
-  background: 'transparent',
-  color: color.SurfaceVariant.OnContainer,
-  font: 'inherit',
-  fontSize: toRem(13),
-  cursor: 'pointer',
-  selectors: {
-    '&[aria-checked=true]': {
-      backgroundColor: color.Surface.Container,
-      color: color.Surface.OnContainer,
-      fontWeight: 600,
-    },
-    '&:focus-visible': { outline: focusRing },
-  },
-});
-
 // The groups: positioned, so a row that left fades at its old place among them (`useListMotion`).
 export const Groups = style({ ...stack, position: 'relative' });
 
