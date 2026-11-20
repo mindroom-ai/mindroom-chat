@@ -641,11 +641,13 @@ it('leaves focus where the person moved it when the jobs change later', async ()
 // The mocked t, for a sub-agent job's strings.
 const subagentName = 'mindroomUi.backgroundJobs.subagent{"tool":"run_subagent"}';
 
-// A frame of sub-agent `subagent`'s run `run-<subagent>`, as the room's Sub-agents panel gets it.
+// A frame of sub-agent `subagent`'s run `run-<subagent>`, as the room's Sub-agents panel gets it:
+// the first, unless `seq` says which.
 const ingestRun = (
   subagent: string,
   extra: Partial<SubagentMeta> = {},
-  tools: ToolTraceEvent[] = []
+  tools: ToolTraceEvent[] = [],
+  { md = '', seq = 0 }: { md?: string; seq?: number } = {}
 ) =>
   act(() =>
     getSubagentRunStore(mx as never).ingest(
@@ -654,7 +656,7 @@ const ingestRun = (
       {
         run: `run-${subagent}`,
         sid: 'sid',
-        seq: 0,
+        seq,
         meta: {
           agent: 'mindroom_dev',
           subagent,
@@ -668,7 +670,7 @@ const ingestRun = (
           endedAt: null,
           ...extra,
         },
-        snapshot: { md: '', reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
+        snapshot: { md, reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
       },
       Date.now()
     )
@@ -796,7 +798,10 @@ it("shows a sub-agent's title, with its task as the title's tooltip", () => {
   expand();
   const task = container.querySelector('li[data-job-kind="subagent"] .Task');
   expect(task?.textContent).toBe('Refactor login form');
-  expect(task?.getAttribute('title')).toBe('Refactor the login form\nwith tests');
+  // Without the usage details, the call it makes follows, as sent.
+  expect(task?.getAttribute('title')).toBe(
+    'Refactor the login form\nwith tests\nrun_shell_command just test'
+  );
 });
 
 it("shows an untitled sub-agent's agent, model, task, the call it makes now and what it used", () => {
@@ -867,6 +872,7 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
     's1',
     {
       title: "Summarize this week's meeting notes",
+      task: 'Summarize the notes of this week\nKeep it short.',
       model: { modelConfig: 'fable', modelProvider: 'anthropic', modelId: 'claude-fable-5.2' },
       usage: { inputTokens: 1_300_000, outputTokens: 100_000, toolCalls: 34, costUsd: 1.3 },
     },
@@ -878,6 +884,7 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
       },
     ]
   );
+  const task = 'Summarize the notes of this week\nKeep it short.';
   state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
   render('$thread');
   const reading = tr('mindroomUi.subagents.step.doing', {
@@ -885,10 +892,16 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
   });
   const folded = container.querySelector('[data-job-folded]')!;
   expect(folded.querySelector('.Task')?.textContent).toBe("Summarize this week's meeting notes");
-  // Its call in words, the call as sent its tooltip.
+  // Its call in words; the call as sent follows the task in the title's tooltip, which the row's
+  // pointer reaches, not in one of the line's own.
   const activity = folded.querySelector('[data-job-activity]');
   expect(activity?.textContent).toBe(reading);
-  expect(activity?.getAttribute('title')).toBe('read_file path=notes/2026-11-16.md');
+  expect(
+    folded.querySelector('[data-job-activity] [title], [data-job-activity][title]')
+  ).toBeNull();
+  expect(folded.querySelector('.Task')?.getAttribute('title')).toBe(
+    `${task}\nread_file path=notes/2026-11-16.md`
+  );
   expect(folded.querySelector('.ToolName')).toBeNull();
   expect(folded.querySelector('[data-job-model]')).toBeNull();
   expect(folded.querySelector('.Name')).toBeNull();
@@ -901,6 +914,9 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
   expand();
   const listed = container.querySelector('li[data-job-kind="subagent"]')!;
   expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(reading);
+  expect(listed.querySelector('.RowOpen')?.getAttribute('title')).toBe(
+    `${task}\nread_file path=notes/2026-11-16.md`
+  );
   expect(listed.querySelector('[data-job-stat]')).toBeNull();
   expect(container.querySelector('.StatColumn')).toBeNull();
   expect(container.querySelector('.ColumnName')?.textContent).toBe(
@@ -911,6 +927,7 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
   act(() => showUsageDetails());
   render('$thread');
   expect(container.querySelector('.Bar')?.classList.contains('Quiet')).toBe(false);
+  expect(listed.querySelector('.RowOpen')?.getAttribute('title')).toBe(task);
   expect(listed.querySelector('[data-job-model]')?.textContent).toBe('Fable');
   expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(
     'read_file path=notes/2026-11-16.md'
@@ -923,30 +940,47 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
   expect(container.querySelectorAll('.StatColumn')).toHaveLength(3);
 });
 
-it('says a sub-agent job waits for your OK for its call, and thinks between calls', () => {
+it('says a sub-agent job waits for your OK for its call, and between calls what it last wrote', () => {
   ingestRun('s1', { status: 'awaiting_approval' }, [
     { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'args=rm old.md' },
   ]);
   ingestRun('s2', { startedAt: 2 }, [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
   ingestRun('s3', { status: 'completed', endedAt: 9 });
+  ingestRun('s4', { startedAt: 3 }, [], { md: 'Reading the notes.' });
+  // Held after it ended, before its run's last frame came: nothing it does now.
+  ingestRun('s5', { startedAt: 4 }, [
+    { type: 'tool_call_started', tool_name: 'read_file', args_preview: 'path=a.md' },
+  ]);
   state.jobs = [
     subagentJob('a', { subagent: 's1', run: 'run-s1', status: 'awaiting_approval' }),
     subagentJob('b', { subagent: 's2', run: 'run-s2' }),
     subagentJob('c', { subagent: 's3', run: 'run-s3' }),
+    subagentJob('d', { subagent: 's4', run: 'run-s4' }),
+    subagentJob('e', { subagent: 's5', run: 'run-s5', status: 'finished' }),
   ];
   render('$thread');
   expand();
-  const lines = [...container.querySelectorAll('li')].map(
-    (row) => row.querySelector('[data-job-activity]')?.textContent ?? null
-  );
-  expect(lines).toEqual([
+  const lines = () =>
+    [...container.querySelectorAll('li')].map(
+      (row) => row.querySelector('[data-job-activity]')?.textContent ?? null
+    );
+  expect(lines()).toEqual([
     tr('mindroomUi.subagents.step.waitingForOk', {
       step: 'mindroomUi.subagents.step.runningCommand',
     }),
     'mindroomUi.messages.mindroomThinkingPlaceholder.thinking',
     // A run that ended says nothing it does.
     null,
+    'Reading the notes.',
+    null,
   ]);
+
+  // The row follows its last line as it grows, without a render from outside.
+  ingestRun('s4', { startedAt: 3 }, [], {
+    md: 'Reading the notes.\n\nNow the *decisions*.',
+    seq: 1,
+  });
+  expect(lines()[3]).toBe('Now the decisions.');
 });
 
 it("names the thread of a job that runs outside the view's, and shows it when pressed", async () => {

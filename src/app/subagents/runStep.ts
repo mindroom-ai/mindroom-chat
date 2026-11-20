@@ -1,7 +1,13 @@
 import type { TFunction } from 'i18next';
+import { stripPreviewMath } from '../event-store/threads/previewMath';
+import {
+  getPreviewProseLines,
+  stripPreviewMarkdown,
+} from '../event-store/threads/threadMessagePreview';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
-import { runLine, type ToolActivity } from './runActivity';
+import { revealDirectionControls } from '../ui/directional';
+import { runLine, runToolCall, type ToolActivity } from './runActivity';
 
 /**
  * A tool call in plain words ("Reading notes.md"), for readers who leave the usage details off:
@@ -30,6 +36,10 @@ type StepKey =
   | 'checkingMemory'
   | 'updatingMemory'
   | 'sendingMessage'
+  | 'readingMessages'
+  | 'editingMessage'
+  | 'reactingToMessage'
+  | 'usingMessages'
   | 'scheduling'
   | 'checkingSchedule'
   | 'updatingSchedule';
@@ -73,7 +83,6 @@ const STEP_TABLE: readonly (readonly [Step, readonly string[]])[] = [
   [{ key: 'askingHelper' }, ['run_subagent', 'continue_subagent']],
   [{ key: 'checkingMemory' }, ['search_memories', 'list_memories', 'get_memory']],
   [{ key: 'updatingMemory' }, ['add_memory', 'update_memory', 'delete_memory']],
-  [{ key: 'sendingMessage' }, ['matrix_message']],
   [{ key: 'scheduling' }, ['schedule', 'schedule_tool_call']],
   [{ key: 'checkingSchedule' }, ['list_schedules']],
   [{ key: 'updatingSchedule' }, ['edit_schedule', 'cancel_schedule']],
@@ -82,6 +91,26 @@ const STEP_TABLE: readonly (readonly [Step, readonly string[]])[] = [
 const STEPS: ReadonlyMap<string, Step> = new Map(
   STEP_TABLE.flatMap(([step, tools]) => tools.map((tool) => [tool, step] as const))
 );
+
+/**
+ * Tools whose `action` argument says what they do: each action's phrase, and a neutral one for
+ * any other or none (a long preview may be cut before it).
+ */
+const ACTION_STEPS: ReadonlyMap<string, { actions: ReadonlyMap<string, StepKey>; other: StepKey }> =
+  new Map([
+    [
+      'matrix_message',
+      {
+        actions: new Map<string, StepKey>([
+          ['send', 'sendingMessage'],
+          ['read', 'readingMessages'],
+          ['edit', 'editingMessage'],
+          ['react', 'reactingToMessage'],
+        ]),
+        other: 'usingMessages',
+      },
+    ],
+  ]);
 
 /** Every browser tool (`browser`, `browser_control`, …) uses the browser. */
 const BROWSER: Step = { key: 'usingBrowser' };
@@ -134,16 +163,34 @@ const shortQuery = (query: string): string =>
 const stepValue = (arg: StepArg, preview: string | undefined): string | undefined => {
   const value = ARG_KEYS[arg].map((key) => toolArg(preview, key)).find(Boolean);
   if (!value) return undefined;
-  if (arg === 'file') return baseName(value);
-  if (arg === 'site') return hostName(value);
-  return shortQuery(value);
+  let shown: string | undefined = shortQuery(value);
+  if (arg === 'file') shown = baseName(value);
+  if (arg === 'site') shown = hostName(value);
+  // A name the call sent shows its direction controls, so none can reorder the phrase.
+  return shown && revealDirectionControls(shown);
 };
+
+/**
+ * The call as sent, its tool then its arguments, for the tooltip of its plain words; its direction
+ * controls written out, so the tooltip reads in the order the call holds.
+ */
+export const toolCallTitle = ({ tool, preview }: ToolActivity): string =>
+  revealDirectionControls(preview ? `${tool} ${preview}` : tool);
 
 /** A tool call in plain words: its row of the table, else "Using" its name in words. */
 export const toolStep = (activity: ToolActivity, t: TFunction): string => {
   const { tool, preview } = activity;
+  const byAction = ACTION_STEPS.get(tool);
+  if (byAction) {
+    const action = toolArg(preview, 'action');
+    const key = (action && byAction.actions.get(action)) || byAction.other;
+    return t(`mindroomUi.subagents.step.${key}`);
+  }
   const step = STEPS.get(tool) ?? (tool.startsWith('browser') ? BROWSER : undefined);
-  if (!step) return t('mindroomUi.subagents.step.using', { tool: tool.replace(/_+/g, ' ').trim() });
+  if (!step) {
+    const name = revealDirectionControls(tool.replace(/_+/g, ' ').trim());
+    return t('mindroomUi.subagents.step.using', { tool: name });
+  }
   if (!step.arg) return t(`mindroomUi.subagents.step.${step.key}`);
   const value = stepValue(step.arg, preview);
   if (value === undefined) return t(`mindroomUi.subagents.step.${step.bare}`);
@@ -151,50 +198,55 @@ export const toolStep = (activity: ToolActivity, t: TFunction): string => {
   return t(`mindroomUi.subagents.step.${step.key}`, values);
 };
 
-/** A Markdown line as plain text: no marks of headings, lists, quotes, emphasis, code or links. */
-const plainLine = (line: string): string =>
-  line
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/<[^>]+>/g, '')
-    .replace(/^(?:\s*(?:>|#{1,6}\s|[-*+]\s+(?:\[[ xX]\]\s)?|\d+[.)]\s))+/, '')
-    .replace(/\|/g, ' ')
-    .replace(/(\*\*|__|~~|`)/g, '')
-    .replace(/(^|[\s(])[*_]([^*_\s][^*_]*?)[*_](?=$|[\s).,;:!?])/g, '$1$2')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-/** A line that says nothing in words: a fence, a rule, a table's divider, a tool call's marker. */
-const WORDLESS = /^(?:\s*(?:`{3,}|~{3,}).*|\s*(?:[-*_]\s*){3,}|[\s|:-]+|\s*🔧.*)$/u;
+/** How long a line may be for its Markdown to be read; a longer one is cut first. */
+const LINE_CHARS = 2000;
 
 /**
  * The last line of what a run wrote, as plain text, for a run that thinks between calls; nothing
- * before it wrote a word. Lines inside code blocks are passed over.
+ * before it wrote a word. The lines are told apart from code blocks and tool markers as a thread
+ * preview tells them (`getPreviewProseLines`); only the last ones, from the end, are cleaned of
+ * their Markdown as a preview is, until one says something.
  */
 export const lastWrittenLine = (md: string): string | undefined => {
-  let fenced = false;
-  let last: string | undefined;
-  md.split(/\r?\n/).forEach((line) => {
-    if (/^\s*(?:`{3,}|~{3,})/.test(line)) {
-      fenced = !fenced;
-      return;
+  const lines = getPreviewProseLines(md);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index] ?? '';
+    if (line.trim()) {
+      const bounded =
+        line.length > LINE_CHARS ? line.slice(0, LINE_CHARS).replace(/[\uD800-\uDBFF]$/, '') : line;
+      const text = stripPreviewMath(bounded, stripPreviewMarkdown).replace(/\s+/g, ' ').trim();
+      if (/[\p{L}\p{N}]/u.test(text)) return text;
     }
-    if (fenced || WORDLESS.test(line)) return;
-    const text = plainLine(line);
-    if (text) last = text;
-  });
-  return last;
+  }
+  return undefined;
+};
+
+/** Each documents' last written line, read once however often a clock or a selector asks. */
+const writtenLines = new WeakMap<LiveDocs, string | null>();
+
+/**
+ * The line a running run between calls shows (`lastWrittenLine`), its direction controls written
+ * out; nothing for a run that makes a call, waits or ended. The jobs bar redraws when it changes.
+ */
+export const runWrittenLine = (run: { meta: SubagentMeta; docs: LiveDocs }): string | undefined => {
+  if (run.meta.status !== 'running' || runToolCall(run)) return undefined;
+  let line = writtenLines.get(run.docs);
+  if (line === undefined) {
+    const text = lastWrittenLine(run.docs.md);
+    line = text === undefined ? null : revealDirectionControls(text);
+    writtenLines.set(run.docs, line);
+  }
+  return line ?? undefined;
 };
 
 /**
  * What a run at work does now, in plain words: the call that waits for the reader's OK, the call
  * it makes, else the last line it wrote, else that it thinks. Nothing for a run that is not at it
- * (paused or ended), whose line stays as it was. Without `written` it never says what it wrote,
- * for a view that is not drawn again as the text grows (the jobs bar).
+ * (paused or ended), whose line stays as it was.
  */
 export const runStepText = (
   run: { meta: SubagentMeta; docs: LiveDocs },
-  t: TFunction,
-  written = true
+  t: TFunction
 ): string | undefined => {
   const line = runLine(run, undefined, undefined);
   if (line.kind === 'approval')
@@ -202,8 +254,5 @@ export const runStepText = (
   if (line.kind === 'now')
     return t('mindroomUi.subagents.step.doing', { step: toolStep(line.activity, t) });
   if (run.meta.status !== 'running') return undefined;
-  return (
-    (written ? lastWrittenLine(run.docs.md) : undefined) ??
-    t('mindroomUi.messages.mindroomThinkingPlaceholder.thinking')
-  );
+  return runWrittenLine(run) ?? t('mindroomUi.messages.mindroomThinkingPlaceholder.thinking');
 };

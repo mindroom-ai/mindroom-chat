@@ -20,7 +20,7 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { RunLogo } from '../subagents/RunLogo';
-import { runStepText, toolStep } from '../subagents/runStep';
+import { runStepText, toolCallTitle, toolStep } from '../subagents/runStep';
 import { useUsageCells } from '../subagents/runUsage';
 import { useAgentProfile } from '../subagents/AgentAvatar';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
@@ -197,21 +197,21 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 
 /**
  * What a job does now in plain words, for a reader who leaves the usage details off: a sub-agent's
- * run at work as `runStepText` says it, a tool job's call as its step. Its call as sent is the
- * tooltip. The bar is drawn again only when a run's call or state changes, so a run between calls
- * says it thinks, not the last line it wrote.
+ * run at work as `runStepText` says it, a tool job's call as its step; nothing once it finished.
+ * `call` is the call as sent (`toolCallTitle`), for the headline's tooltip: the row's title reaches
+ * over the line, so a tooltip of its own would never show.
  */
 const plainStep = (
   item: BackgroundJobsBarItem,
   t: TFunction
-): { text: string; title?: string } | undefined => {
+): { text: string; call?: string } | undefined => {
   const { activity } = item;
-  const title = activity && [activity.tool, activity.preview].filter(Boolean).join(' ');
-  let text: string | undefined;
-  if (item.subagent)
-    text = item.run && !item.finished ? runStepText(item.run, t, false) : undefined;
-  else text = activity && toolStep(activity, t);
-  return text ? { text, ...(title ? { title } : {}) } : undefined;
+  if (item.finished) return undefined;
+  const text = item.subagent
+    ? item.run && runStepText(item.run, t)
+    : activity && toolStep(activity, t);
+  if (!text) return undefined;
+  return activity ? { text, call: toolCallTitle(activity) } : { text };
 };
 
 /**
@@ -253,7 +253,8 @@ export function BackgroundJobRow({
   const waiting = item.waiting && !item.stopping;
   const step = details ? undefined : plainStep(item, t);
   const detail = (described && meta) || tool || doing;
-  const headlineTitle = meta?.task || item.name;
+  // Without the usage details, the call as sent follows on its own line.
+  const headlineTitle = [meta?.task || item.name, step?.call].filter(Boolean).join('\n');
   let title: ReactNode = (
     <span className={css.Task} title={headlineTitle} dir="auto">
       {headline}
@@ -324,7 +325,7 @@ export function BackgroundJobRow({
         </span>
         {step && (
           <span className={css.Detail}>
-            <span className={css.Activity} title={step.title} dir="auto" data-job-activity>
+            <span className={css.Activity} dir="auto" data-job-activity>
               <span className={css.Step}>{step.text}</span>
             </span>
           </span>

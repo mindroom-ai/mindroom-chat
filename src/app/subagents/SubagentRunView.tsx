@@ -34,14 +34,13 @@ import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { runToolCall } from './runActivity';
-import { runStepText } from './runStep';
+import { runStepText, toolCallTitle } from './runStep';
 import { formatTokens, runTotals, usageTexts, type RunTotals } from './runUsage';
 import {
   RunStatus,
   SubagentRunCard,
   ToolCallText,
   latestTurn,
-  toolCallTitle,
   nodeTitle,
   turnTitle,
   useRunTime,

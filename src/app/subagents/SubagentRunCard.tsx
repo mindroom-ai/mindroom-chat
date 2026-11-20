@@ -21,7 +21,7 @@ import { useSettingValue } from '../preferences/useSettingValue';
 import { useAgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { type RunLine, type ToolActivity, runLine } from './runActivity';
-import { toolStep } from './runStep';
+import { runStepText, toolCallTitle, toolStep } from './runStep';
 import { runTotals, usageTexts } from './runUsage';
 import * as css from './subagentsPanel.css';
 
@@ -111,10 +111,6 @@ export function ToolCallText({ activity }: { activity: ToolActivity }) {
   );
 }
 
-/** The call as sent, for the tooltip of its plain words. */
-export const toolCallTitle = ({ tool, preview }: ToolActivity): string =>
-  preview ? `${tool} ${preview}` : tool;
-
 /**
  * A call in plain words (`toolStep`), as a reader who leaves the usage details off sees it, the
  * call as sent its tooltip.
@@ -170,12 +166,28 @@ function LineRest({
 /**
  * A card's third line, labelled by what it shows: Now and the call it makes, Needs approval and
  * the call that waits, Result and the start of what it wrote, or how it ended and why. Without
- * any (older MindRoom) it is the text line it was, unlabelled.
+ * any (older MindRoom) it is the text line it was, unlabelled. Without the usage details, a run at
+ * work between calls says Now and what the jobs bar and its open run say (`runStepText`): the last
+ * line it wrote, else that it thinks.
  */
 function RunLineText({ run }: { run: SubagentRun }) {
   const { t } = useTranslation();
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const { line, failed } = useRunLine(run);
+  const between = !details && line.kind === 'plain' ? runStepText(run, t) : undefined;
+  if (between) {
+    return (
+      <Text as="span" size="T200" className={css.Line} data-subagent-line="now">
+        <span className={css.LineLabel.now}>
+          <span className={css.Tick} aria-hidden />
+          {t('mindroomUi.subagents.now')}
+        </span>
+        <span className={css.LineText} dir="auto" data-subagent-step="">
+          {between}
+        </span>
+      </Text>
+    );
+  }
   if (line.kind === 'plain') {
     return (
       <Text

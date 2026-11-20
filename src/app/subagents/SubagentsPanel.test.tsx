@@ -1401,9 +1401,19 @@ describe('SubagentsPanel', () => {
             },
           ])
         );
+        ingest(
+          'between',
+          meta('running', { task: 'Draft the agenda', startedAt: NOW - 30 }),
+          docs('Read the notes.\n\nNow the **decisions**.')
+        );
+        ingest(
+          'fresh',
+          meta('running', { task: 'List the attendees', startedAt: NOW - 20 }),
+          docs('')
+        );
         render();
 
-        expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe('2 active');
+        expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe('4 active');
         expect(card('notes').querySelector('[data-subagent-model]')).toBeNull();
         expect(card('notes').querySelector('[data-subagent-stat]')).toBeNull();
         expect(card('notes').querySelector('[data-subagent-time]')?.textContent).toBe('50s');
@@ -1414,12 +1424,17 @@ describe('SubagentsPanel', () => {
         );
         expect(line('notes')?.querySelector('[data-subagent-tool]')).toBeNull();
         expect(line('wait')?.textContent).toBe('!Needs approvalSearching files for “TODO”');
+        // Between calls, the last line it wrote, else that it thinks, as the jobs bar says it.
+        expect(line('between')?.textContent).toBe('NowNow the decisions.');
+        expect(line('fresh')?.textContent).toBe('NowThinking…');
 
         // Shown, the cards are as they were.
         act(() => showUsageDetails());
         expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe(
-          '2 active · 12 calls · 320K tokens'
+          '4 active · 12 calls · 320K tokens'
         );
+        // Shown, a run between calls previews its text as before.
+        expect(line('between')?.getAttribute('data-subagent-line')).toBe('plain');
         expect(card('notes').querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
         expect(line('notes')?.textContent).toBe('Nowread_file path=notes/2026-11-16.md');
       });

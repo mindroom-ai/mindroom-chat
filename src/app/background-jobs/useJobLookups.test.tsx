@@ -254,16 +254,21 @@ it("renders again for a frame of a listed job's run that changes its row, not fo
   act(() => root.render(<Probe />));
   ingest('mine', 'Hi');
   const shown = renders;
-  // Text the row does not show, and another sub-agent's frame, render nothing.
-  ingest('mine', 'Hi there');
+  // Text the row does not show (any but its last line), and another sub-agent's frame, render
+  // nothing.
+  ingest('mine', 'First.\n\nHi');
   ingest('other', 'Elsewhere');
   // A sub-agent's row shows none of the calls it completed.
-  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
+  ingest('mine', 'First.\n\nHi', 'Task', [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
   expect(renders).toBe(shown);
+  // Between calls it shows its last line, which renders as it changes.
+  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
+  expect(renders).toBeGreaterThan(shown);
+  const grown = renders;
   // It shows the call it makes now, which renders once.
   ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
   const calling = renders;
-  expect(calling).toBeGreaterThan(shown);
+  expect(calling).toBeGreaterThan(grown);
   ingest('mine', 'More text', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
   expect(renders).toBe(calling);
   ingest('mine', 'Hi there', 'New task');

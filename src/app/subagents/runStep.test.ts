@@ -140,6 +140,17 @@ describe('toolStep', () => {
     expect(step('add_memory', 'memory=prefers mornings')).toBe('Updating memory');
     expect(step('delete_memory')).toBe('Updating memory');
     expect(step('matrix_message', 'action=send, message=Done')).toBe('Sending a message');
+    expect(step('matrix_message', 'action=read, limit=20')).toBe('Reading messages');
+    expect(step('matrix_message', 'action=edit, event_id=$e, message=Fixed')).toBe(
+      'Editing a message'
+    );
+    expect(step('matrix_message', 'action=react, event_id=$e, message=👍')).toBe(
+      'Reacting to a message'
+    );
+    // Another action, or none in a preview that may be cut before it, says no action.
+    expect(step('matrix_message', 'message=Done')).toBe('Using Matrix messages');
+    expect(step('matrix_message', 'action=forward')).toBe('Using Matrix messages');
+    expect(step('matrix_message', 'action=constructor')).toBe('Using Matrix messages');
     expect(step('schedule', 'when=tomorrow 9am')).toBe('Scheduling a task');
     expect(step('list_schedules')).toBe('Checking the schedule');
     expect(step('cancel_schedule', 'task_id=t1')).toBe('Updating the schedule');
@@ -149,6 +160,12 @@ describe('toolStep', () => {
     expect(step('set_thread_summary', 'summary=Week 47')).toBe('Using set thread summary');
     expect(step('calculator')).toBe('Using calculator');
   });
+
+  it('writes out the direction controls of the names a call sent', () => {
+    expect(step('read_file', 'path=notes/report\u202Edm.exe')).toBe('Reading report<U+202E>dm.exe');
+    expect(step('grep', 'pattern=a\u2066b')).toBe('Searching files for “a<U+2066>b”');
+    expect(step('my\u202Etool')).toBe('Using my<U+202E>tool');
+  });
 });
 
 describe('lastWrittenLine', () => {
@@ -156,8 +173,12 @@ describe('lastWrittenLine', () => {
     expect(
       lastWrittenLine('First I read the notes.\n\n## **Next:** the [agenda](https://x.y)\n')
     ).toBe('Next: the agenda');
-    expect(lastWrittenLine('- [x] _Done_ with `notes/2026-11-16.md`')).toBe(
+    expect(lastWrittenLine('- *Done* with `notes/2026-11-16.md`')).toBe(
       'Done with notes/2026-11-16.md'
+    );
+    // Underscores are names far more often than emphasis.
+    expect(lastWrittenLine('Reading `__init__.py` and my_notes_file')).toBe(
+      'Reading __init__.py and my_notes_file'
     );
     expect(lastWrittenLine('> Quoted line')).toBe('Quoted line');
   });
@@ -167,8 +188,17 @@ describe('lastWrittenLine', () => {
       'Comparing the weeks.'
     );
     expect(lastWrittenLine('| Week | Notes |\n| --- | --- |\n🔧 `read_file` [1] ⏳')).toBe(
-      'Week Notes'
+      'Week · Notes'
     );
+  });
+
+  it('closes a code block only on a fence of its own kind and length', () => {
+    // A shorter fence inside a longer one is code; so is a tilde fence inside backticks.
+    expect(lastWrittenLine('Before.\n````md\n```\nInside.\n```\n````\nAfter the example.\n')).toBe(
+      'After the example.'
+    );
+    expect(lastWrittenLine('Before.\n````\n```\nStill code.\n')).toBe('Before.');
+    expect(lastWrittenLine('Before.\n```\n~~~\nStill code.\n')).toBe('Before.');
   });
 
   it('is nothing before the run wrote a word', () => {
@@ -200,7 +230,10 @@ describe('runStepText', () => {
       docs: docs('I read the notes.\n\nNow the **summary**.'),
     };
     expect(runStepText(wrote, t)).toBe('Now the summary.');
-    expect(runStepText(wrote, t, false)).toBe('Thinking…');
+    // What it wrote shows its direction controls.
+    expect(runStepText({ meta: meta('running'), docs: docs('Saved \u202Eagenda') }, t)).toBe(
+      'Saved <U+202E>agenda'
+    );
     // A completed call is no call it makes now.
     const thinking = {
       meta: meta('running'),

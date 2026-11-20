@@ -10,6 +10,7 @@ import { getShownToolCalls } from '../messages/live/useLiveReplyContent';
 import { getSubagentRunStore, type SubagentRun } from '../messages/live/subagentRunStore';
 import { runToolCall, toolActivity } from '../subagents/runActivity';
 import { runOfJob } from '../subagents/runJob';
+import { runWrittenLine } from '../subagents/runStep';
 import { subscribeRoomSignals } from '../threads/cross-room/threadSignalsReader';
 import type { BackgroundJobLookups, JobActivity } from './backgroundJobsPresentation';
 
@@ -59,12 +60,18 @@ export const indexJobToolCalls = (
 
 /**
  * What a row shows of a run, so frames that change nothing shown render nothing: its meta, title
- * and whole task (the headline's tooltip) included, and the call it makes now, but not its result
- * or its other tool calls.
+ * and whole task (the headline's tooltip) included, the call it makes now, and between calls the
+ * last line it wrote (`runWrittenLine`), but not its result, its other tool calls or the rest of
+ * its text.
  */
 const shownOfRun = (subagentRun: SubagentRun) => {
   const { result: _result, ...shown } = subagentRun.meta;
-  return [subagentRun.run, shown, runToolCall(subagentRun) ?? null];
+  return [
+    subagentRun.run,
+    shown,
+    runToolCall(subagentRun) ?? null,
+    runWrittenLine(subagentRun) ?? null,
+  ];
 };
 
 /** The runs of the listed sub-agent jobs, rendered again only when what their rows show changes. */
