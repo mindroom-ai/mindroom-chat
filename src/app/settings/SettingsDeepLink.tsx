@@ -16,7 +16,7 @@ export function SettingsDeepLink() {
 
   useEffect(() => {
     setSettingsModal({ initialPage: isSettingsPageRequest(page) ? page : undefined });
-    navigate(HOME_PATH, { replace: true });
+    void navigate(HOME_PATH, { replace: true });
   }, [navigate, page, setSettingsModal]);
 
   return null;

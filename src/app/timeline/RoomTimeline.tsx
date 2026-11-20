@@ -1283,6 +1283,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   });
   useRoomEventRouteOpenController({
     effectiveViewMode: viewMode,
+    entryReturned,
     eventId,
     focusEventInRoom,
     openRoomEventRoute,

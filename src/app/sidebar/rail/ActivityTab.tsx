@@ -50,7 +50,7 @@ export function ActivityTab({ onSelect }: ActivityTabProps) {
     setAnchor(undefined);
     // The page's list is the navigation panel, so a hidden panel shows again.
     onSelect?.(false);
-    navigate(getActivityPath());
+    void navigate(getActivityPath());
   };
   const onClick = (event: MouseEvent<HTMLElement>) => {
     // While Activity shows, the bell toggles its list as the other section buttons do.

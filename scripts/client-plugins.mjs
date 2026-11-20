@@ -68,7 +68,6 @@ export const SHARED_PACKAGES = [
   '@tanstack/query-core',
   'react-router',
   'react-router-dom',
-  '@remix-run/router',
   'i18next',
   'react-i18next',
   'folds',

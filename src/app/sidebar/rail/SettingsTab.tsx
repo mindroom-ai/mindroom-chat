@@ -192,14 +192,14 @@ export function SettingsTab({
     setError(undefined);
     setSwitcherOpen(false);
     // The stored path of the account chosen; the store's copy may already point elsewhere.
-    navigate(resolveSessionRestorePath(session.lastKnownPath));
+    void navigate(resolveSessionRestorePath(session.lastKnownPath));
   };
 
   const closeLeaving = useCallback(() => setLeaving(undefined), []);
 
   const handleAddAccount = () => {
     setSwitcherOpen(false);
-    navigate(withAddAccountSearch(getLoginPath(activeSession?.baseUrl)));
+    void navigate(withAddAccountSearch(getLoginPath(activeSession?.baseUrl)));
   };
 
   const openSettings = () => {

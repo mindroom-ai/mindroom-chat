@@ -100,8 +100,8 @@ function NavigateBack({ to, openedFrom = [], label }: NavigateBackProps) {
     const previous = previousHistoryPathname();
     const cameFrom =
       previous !== undefined && [to, ...openedFrom].some((path) => samePath(previous, path));
-    if (cameFrom) navigate(-1);
-    else navigate(to, { replace: true });
+    if (cameFrom) void navigate(-1);
+    else void navigate(to, { replace: true });
   };
   return <BackChevron label={label} onBack={onBack} />;
 }

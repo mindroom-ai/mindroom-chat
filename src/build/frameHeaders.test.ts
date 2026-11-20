@@ -2,7 +2,11 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { frameHeaders, framingHeaders, isPairingPagePath } from '../../scripts/frame-headers.mjs';
+import {
+  frameHeaders,
+  framingHeaders,
+  isUnframeablePagePath,
+} from '../../scripts/frame-headers.mjs';
 import policy from '../../scripts/frame-headers.json';
 import { withServePy } from './test-utils/servePy';
 
@@ -28,7 +32,7 @@ const previewHeaders = (url: string) => {
   return headers;
 };
 
-const UNFRAMEABLE = policy.pairingPageHeaders;
+const UNFRAMEABLE = policy.unframeablePageHeaders;
 const SAME_ORIGIN = policy.otherPageHeaders;
 
 // Every spelling that renders the pairing page: the router ignores letter case and decodes
@@ -48,6 +52,15 @@ const PAIRING_PAGE_SPELLINGS = [
   '/chat/connect',
   '/connect%2F',
 ];
+// The invite page a mailed link opens (invites/InvitePage.tsx), in the same spellings.
+const INVITE_PAGE_SPELLINGS = [
+  '/invite/',
+  '/INVITE',
+  '/%69nvite/',
+  '/%49NVITE',
+  '//invite//',
+  '/chat/invite/',
+];
 // Paths the router shows as something else (a space, a room) or that are files.
 const OTHER_PATHS = [
   '/',
@@ -60,6 +73,8 @@ const OTHER_PATHS = [
   '/connect.',
   '/connect;x',
   '/connectx',
+  '/invites',
+  '/invite/ABC',
   '/%zz',
   '/runtime-config.js',
 ];
@@ -69,9 +84,9 @@ describe('framingHeaders', () => {
     for (const path of OTHER_PATHS) expect(framingHeaders(path), path).toEqual(SAME_ORIGIN);
   });
 
-  it('lets nothing frame the pairing page, in every spelling that renders it', () => {
-    for (const path of PAIRING_PAGE_SPELLINGS) {
-      expect(isPairingPagePath(path), path).toBe(true);
+  it('lets nothing frame the pairing or the invite page, in every spelling that renders it', () => {
+    for (const path of [...PAIRING_PAGE_SPELLINGS, ...INVITE_PAGE_SPELLINGS]) {
+      expect(isUnframeablePagePath(path), path).toBe(true);
       expect(framingHeaders(path), path).toEqual(UNFRAMEABLE);
     }
   });
@@ -100,7 +115,13 @@ describe('frameHeaders', () => {
 
 describe('scripts/frame_headers.py (serve.py)', () => {
   it('answers every path the way the JavaScript rule does', () => {
-    const paths = [...PAIRING_PAGE_SPELLINGS, ...OTHER_PATHS, '/connect/?code=AB', '/?x=/connect'];
+    const paths = [
+      ...PAIRING_PAGE_SPELLINGS,
+      ...INVITE_PAGE_SPELLINGS,
+      ...OTHER_PATHS,
+      '/connect/?code=AB',
+      '/?x=/connect',
+    ];
     const lines = execFileSync('python3', [repoFile('scripts/frame_headers.py'), ...paths], {
       encoding: 'utf8',
     })
@@ -118,7 +139,14 @@ describe('scripts/frame_headers.py (serve.py)', () => {
       'pdf-frame.html': '<!doctype html><title>pdf</title>',
     };
     await withServePy(files, async (request) => {
-      for (const path of ['/', '/pdf-frame.html', '/home/', '/connect/?code=AB', '/CONNECT']) {
+      for (const path of [
+        '/',
+        '/pdf-frame.html',
+        '/home/',
+        '/connect/?code=AB',
+        '/CONNECT',
+        '/invite/',
+      ]) {
         const { headers } = await request(path);
         const sent = {
           'Content-Security-Policy': headers.get('content-security-policy'),
@@ -147,7 +175,12 @@ describe('docker/entrypoint.d/40-frame-headers.sh (nginx)', () => {
   it('sends the same headers as the JavaScript rule, for the address the browser asked for', () => {
     const csp = nginxMap('mindroom_frame_ancestors');
     const xfo = nginxMap('mindroom_frame_options');
-    const requests = [...PAIRING_PAGE_SPELLINGS, ...OTHER_PATHS, '/connect/?code=AB'];
+    const requests = [
+      ...PAIRING_PAGE_SPELLINGS,
+      ...INVITE_PAGE_SPELLINGS,
+      ...OTHER_PATHS,
+      '/connect/?code=AB',
+    ];
     for (const request of [...requests, '/?x=/connect', '/home/?next=%2Fconnect']) {
       const expected = framingHeaders(request.split('?')[0] ?? request);
       expect({ 'Content-Security-Policy': csp(request), 'X-Frame-Options': xfo(request) }).toEqual(

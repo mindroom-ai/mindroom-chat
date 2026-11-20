@@ -45,6 +45,7 @@ import {
   getStoredSessionCleanupContexts,
   mergeSessionCleanupContexts,
 } from './browserStorageCleanup';
+import { leavePage } from '../../../boot/inviteFragment';
 
 const getMatrixClientSessionIdentity = (
   mx: Pick<MatrixClient, 'getHomeserverUrl' | 'getSafeUserId'>
@@ -209,7 +210,7 @@ export const removeCurrentClientSessionAndReload = async (
   // them alone; reloading boots the newer device.
   const stored = listSessions().find((item) => item.sessionId === session?.sessionId);
   if (session && stored && stored.deviceId !== session.deviceId) {
-    window.location.reload();
+    leavePage();
     return;
   }
 

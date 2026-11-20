@@ -53,6 +53,7 @@ export { ActivityNav } from '../activity/ActivityNav';
 export { ActivityEmpty } from '../activity/ActivityEmpty';
 export { ExploreNav } from '../rooms/explore/ExploreNav';
 export { PluginPageRoute } from '../plugins/PluginPageRoute';
+export { InvitePage } from '../invites/InvitePage';
 
 /**
  * The rail beside the page, but none beside a plugin page that fills the window. It reads the
@@ -160,7 +161,7 @@ export function CreateRoomPage() {
             {t('nav.createRoom')}
           </Text>
         )}
-        <CreateRoomForm onCreate={(roomId) => navigate(getHomeRoomPath(roomId))} />
+        <CreateRoomForm onCreate={(roomId) => void navigate(getHomeRoomPath(roomId))} />
       </div>
     </Page>
   );
@@ -184,7 +185,7 @@ export function JoinAddressPage() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const title = t('sharedUi.joinAddressPrompt.joinARoom');
   const openRoom = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) =>
-    navigate(
+    void navigate(
       withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
         viaServers: viaServers && viaServers.length > 0 ? viaServers.join(',') : undefined,
       })

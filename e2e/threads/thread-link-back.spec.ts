@@ -105,12 +105,14 @@ function fakeIOS(key: string) {
   };
 }
 
-const banner = (page: Page) => page.locator('[data-thread-context-banner]');
+// The page on screen, not the copy of the last one that slides away under it on a phone.
+const LIVE = ':not([data-page-slide-copy] *)';
+const banner = (page: Page) => page.locator(`[data-thread-context-banner]${LIVE}`);
 const back = (page: Page) => banner(page).getByRole('button', { name: 'Back', exact: true });
 const openThread = (page: Page) => new URL(page.url()).searchParams.get('threadId');
-const compactRoom = (page: Page) => page.locator('[data-compact-room-view="true"]');
+const compactRoom = (page: Page) => page.locator(`[data-compact-room-view="true"]${LIVE}`);
 const card = (page: Page, rootId: string) =>
-  page.locator(`button[data-thread-root-id="${rootId}"]`);
+  page.locator(`button[data-thread-root-id="${rootId}"]${LIVE}`);
 
 /** Waits until the open thread is the one of `rootId`, its reply shown. */
 const expectThread = async (page: Page, rootId: string, index: number, what: string) => {
@@ -118,7 +120,8 @@ const expectThread = async (page: Page, rootId: string, index: number, what: str
     .poll(() => openThread(page), { message: `${what}: the address`, timeout: 30_000 })
     .toBe(rootId);
   await expect(banner(page), what).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(reply(index)).first(), what).toBeVisible({ timeout: 30_000 });
+  const shown = page.getByText(reply(index)).and(page.locator(LIVE));
+  await expect(shown.first(), what).toBeVisible({ timeout: 30_000 });
 };
 
 /** Waits until no thread is open and the room shows its cards, and checks it stays that way. */
@@ -155,7 +158,7 @@ const followLinkAndBack = async (
   await press(touch, card(page, sourceRootId));
   await expectThread(page, sourceRootId, TOPICS, 'the card opens its thread');
 
-  const link = page.locator(`a[data-mention-event-id="${linkedRootId}"]`).first();
+  const link = page.locator(`a[data-mention-event-id="${linkedRootId}"]${LIVE}`).first();
   await expect(link).toBeVisible({ timeout: 30_000 });
   await press(touch, link);
   await expectThread(page, linkedRootId, LINKED, 'the link opens the linked thread');

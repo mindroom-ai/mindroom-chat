@@ -163,7 +163,7 @@ export function ConnectPage() {
   const handleSignIn = (server?: string) => {
     setAfterLoginRedirectPath(getConnectPath(pairCode));
     const loginPath = getLoginPath(server);
-    navigate(activeSession ? withAddAccountSearch(loginPath) : loginPath);
+    void navigate(activeSession ? withAddAccountSearch(loginPath) : loginPath);
   };
 
   const device = 'device' in pairState ? pairState.device : undefined;
@@ -197,7 +197,7 @@ export function ConnectPage() {
         <Text size="T300">{t('mindroomUi.local-mindroom.connect.enterCode')}</Text>
         <PairCodeForm
           defaultValue={rawCode}
-          onSubmit={(code) => navigate(getConnectPath(code), { replace: true })}
+          onSubmit={(code) => void navigate(getConnectPath(code), { replace: true })}
         />
       </>
     );
@@ -310,7 +310,7 @@ export function ConnectPage() {
                       {t('mindroomUi.local-mindroom.connect.enterNewCode')}
                     </Text>
                     <PairCodeForm
-                      onSubmit={(code) => navigate(getConnectPath(code), { replace: true })}
+                      onSubmit={(code) => void navigate(getConnectPath(code), { replace: true })}
                     />
                   </>
                 )}
@@ -365,7 +365,7 @@ export function ConnectPage() {
           fill="Soft"
           size="400"
           radii="300"
-          onClick={() => navigate(getRootPath())}
+          onClick={() => void navigate(getRootPath())}
           outlined
         >
           <Text size="B400">{t('mindroomUi.local-mindroom.connect.backToChat')}</Text>

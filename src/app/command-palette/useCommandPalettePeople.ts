@@ -56,7 +56,7 @@ export const useStartDirectChat = (): ((userId: string) => Promise<void>) => {
     async (userId: string) => {
       const roomId =
         findDirectRoom(client, userId) ?? (await createDirectRoom(client, userId, { version }));
-      navigate(getDirectRoomPath(roomId));
+      void navigate(getDirectRoomPath(roomId));
     },
     [client, navigate, version]
   );

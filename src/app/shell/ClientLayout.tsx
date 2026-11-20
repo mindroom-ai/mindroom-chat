@@ -58,7 +58,7 @@ export function ClientLayout({
 }: ClientLayoutProps) {
   const mx = useMatrixClient();
   const activeSession = useActiveSession();
-  const { hash, key, pathname, search } = useLocation();
+  const { hash, key, pathname, search, state } = useLocation();
   const navigate = useNavigate();
   // The router's own location, which leads the one rendered while an update waits.
   const router = useContext(UNSAFE_DataRouterContext)?.router;
@@ -81,7 +81,9 @@ export function ClientLayout({
   useEffect(() => {
     if (!sessionId || isRuntimeHandOffPath(pathname)) return;
     if (routeOpener && routeOpener.key === key && routeOpener.sessionId !== sessionId) {
-      navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), { replace: true });
+      void navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), {
+        replace: true,
+      });
       return;
     }
     routeOpener = { key, sessionId };
@@ -99,7 +101,10 @@ export function ClientLayout({
         // A navigation since, which the page may not show yet, keeps its own address: a link's
         // redirect into its thread, or a step back to the entry the page load started on.
         if (router && router.state.location.key !== key) return;
-        if (resolved !== pathname) navigate(`${resolved}${search}${hash}`, { replace: true });
+        // The same visit under the room's own address: what the entry says of it stays.
+        if (resolved !== pathname) {
+          void navigate(`${resolved}${search}${hash}`, { replace: true, state });
+        }
       })
       .catch(() => {
         if (!cancelled) setResolvedAliasPath(pathname);
@@ -107,7 +112,7 @@ export function ClientLayout({
     return () => {
       cancelled = true;
     };
-  }, [mx, sessionId, hasAlias, pathname, search, hash, key, navigate, router]);
+  }, [mx, sessionId, hasAlias, pathname, search, hash, key, state, navigate, router]);
 
   // One tree on every screen size, so a phone turned sideways keeps the page mounted: the page's
   // wrapper draws no box beside the rail, and on phones holds the page below the top bar.

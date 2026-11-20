@@ -1128,6 +1128,19 @@
       "shownInPanel": "已在面板中显示",
       "inlineDisclosure": "由 {{agent}} 创建。它无法访问您的帐户；您在此输入的内容可能会离开此页面。"
     },
+    "invites": {
+      "invalid": "此邀请链接不完整。请重新打开邮件中的链接。",
+      "reopen": "你已登录。请重新打开邮件中的邀请链接。",
+      "framed": "请在单独的标签页中打开此页面以使用邀请。",
+      "ready": "通过 {{router}} 以 {{user}} 身份加入房间",
+      "claiming": "正在领取邀请…",
+      "offline": "此 MindRoom 没有响应。你的请求已保存；恢复后，邀请会出现在你的房间列表中。",
+      "rejected": "此邀请已失效。请索取新的邀请。",
+      "retry": "没有成功。请稍后再试。",
+      "joining": "正在加入房间…",
+      "join": "加入",
+      "tryAgain": "重试"
+    },
     "uiActions": {
       "canvasOff": "已分享面板 · 此应用已关闭面板",
       "askForText": "请求文本版本",

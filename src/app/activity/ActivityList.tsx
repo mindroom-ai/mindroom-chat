@@ -95,7 +95,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const open = useCallback(
     (row: ActivityRow) => {
       const roomId = row.type === 'thread' ? row.entry.roomId : row.roomId;
-      navigate(rowPath(getCanonicalAliasOrRoomId(mx, roomId), row));
+      void navigate(rowPath(getCanonicalAliasOrRoomId(mx, roomId), row));
       onNavigate?.();
     },
     [mx, navigate, onNavigate]
@@ -117,7 +117,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     `${waiting.length}|${gathered}|${shown.map((row) => row.key).join(',')}`
   );
   const openInvites = () => {
-    navigate(getActivityInvitesPath());
+    void navigate(getActivityInvitesPath());
     onNavigate?.();
   };
   const tooltip = (label: string) => (

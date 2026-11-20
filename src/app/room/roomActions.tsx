@@ -235,7 +235,7 @@ function SearchEntry({ room, spaceId, close }: RoomActionProps) {
     const searchPath = spaceId
       ? getSpaceSearchPath(getCanonicalAliasOrRoomId(client, spaceId))
       : getHomeSearchPath();
-    navigate(withSearchParam(searchPath, { rooms: room.roomId }));
+    void navigate(withSearchParam(searchPath, { rooms: room.roomId }));
   };
   return (
     <MenuEntry

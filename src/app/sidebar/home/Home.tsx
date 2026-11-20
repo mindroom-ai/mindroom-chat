@@ -27,10 +27,7 @@ import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useHomeCreateSelected } from '../../routes/useHomeSelected';
 import { useCategoryHandler } from '../../ui/nav/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';
-import {
-  makeNavScrollMemoryKey,
-  useNavVirtualizer,
-} from '../../ui/nav/navScrollMemory';
+import { makeNavScrollMemoryKey, useNavVirtualizer } from '../../ui/nav/navScrollMemory';
 import {
   getRoomNotificationMode,
   useRoomsNotificationPreferencesContext,
@@ -194,7 +191,7 @@ export function Home() {
 
   const handleJoinOpen = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) => {
     setJoinOpen(false);
-    navigate(
+    void navigate(
       withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
         viaServers: viaServers && viaServers.length > 0 ? viaServers.join(',') : undefined,
       })
@@ -209,7 +206,7 @@ export function Home() {
         icon={Icons.Plus}
         label={t('nav.createRoom')}
         selected={createSelected}
-        onSelect={() => navigate(getHomeCreatePath())}
+        onSelect={() => void navigate(getHomeCreatePath())}
       />
       <RoomAction
         action="join"

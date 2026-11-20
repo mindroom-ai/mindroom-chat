@@ -46,6 +46,7 @@ import {
 } from './appVersion';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { ensureBasePathTrailingSlash, getAppBasePath } from '../lib/basePath';
+import { leavePage } from '../../boot/inviteFragment';
 
 /** How long a reload waits for the new worker to install and take over before it goes ahead. */
 export const TAKE_OVER_TIMEOUT_MS = 10_000;
@@ -336,7 +337,7 @@ const prepareWorkerForReload = async (timeoutMs: number): Promise<void> => {
  */
 export const reloadForNewVersion = async ({
   timeoutMs = TAKE_OVER_TIMEOUT_MS,
-  reload = () => window.location.reload(),
+  reload = leavePage,
 }: { timeoutMs?: number; reload?: () => void } = {}): Promise<void> => {
   if (appUpdate) {
     installing ??= installAppUpdate(appUpdate, timeoutMs).finally(() => {

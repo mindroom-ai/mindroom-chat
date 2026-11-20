@@ -100,6 +100,7 @@ src/
     timeline/            the room and thread timeline: RoomTimeline, rows, scrolling, pagination, minimap, collapsing,
                          room intro, thread badge; typing/, jump-to-time/, message-rendering/
     command-palette/     the command palette
+    invites/             the page a mailed invitation link opens: claim the code from the router, join the room
     local-mindroom/      pairing a Local MindRoom backend (Connect page, settings page, provisioning)
     room/                the open room screen: Room, RoomView, RoomViewHeader, header actions and menu, route, topic viewer,
                          tombstone; the second thread a card menu's Open beside shows in a side panel (SecondThreadPanel),
@@ -171,7 +172,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 8 | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents` |
 | 9 | `rooms`, `threads` |
 | 10 | `account`, `activity`, `background-jobs`, `quick-capture`, `spaces`, `timeline` |
-| 11 | `local-mindroom`, `room` |
+| 11 | `invites`, `local-mindroom`, `room` |
 | 12 | `settings`, `tour` |
 | 13 | `command-palette` |
 | 14 | `sidebar` |
