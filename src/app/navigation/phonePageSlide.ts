@@ -50,8 +50,8 @@ const depth = (): number => {
 /**
  * A still copy of the phone layout as it is, scrolled as it is, to show in `stage` while the
  * layout itself shows the next page: it takes no input, no name a lookup by id or test id would
- * find twice, and loads and plays nothing. Its fields are no part of the page's forms or groups of
- * radio buttons, and hold nothing typed.
+ * find twice, and loads and plays nothing: its pictures are drawn from the page's own. Its fields
+ * are no part of the page's forms or groups of radio buttons, and hold nothing typed.
  */
 const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
   // Made in a document of its own, which loads nothing, and brought into the page's once what
@@ -61,37 +61,52 @@ const copyOf = (stage: Element): ((over: Element) => HTMLElement) => {
     .importNode(stage, true) as HTMLElement;
   const copies = copy.querySelectorAll<HTMLElement>('*');
   const scrolled: [Element, number, number][] = [];
+  // A canvas is copied empty: each of these is drawn from what shows in the page.
+  const drawn: [HTMLCanvasElement, HTMLCanvasElement | HTMLImageElement][] = [];
   stage.querySelectorAll<HTMLElement>('*').forEach((element, index) => {
     const twin = copies[index];
     if (!twin) return;
     if (element.scrollTop || element.scrollLeft) {
       scrolled.push([twin, element.scrollTop, element.scrollLeft]);
     }
-    if (!element.matches(MEDIA)) return;
-    ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'loading'].forEach((name) =>
-      twin.removeAttribute(name)
-    );
-    // A picture the page has loaded from its own memory (the app's avatars and message pictures
-    // are `blob:` addresses) shows in the copy with no request. Anything else that would load or
-    // play (a picture from the network, a frame, a video) is a blank box of its size: a frame's
-    // page cannot be copied, and loading it again would outlast the slide.
-    const { complete, naturalWidth, currentSrc = '' } = element as Partial<HTMLImageElement>;
-    if (complete && naturalWidth && /^(blob|data):/.test(currentSrc)) {
-      twin.setAttribute('src', currentSrc);
+    if (element instanceof HTMLCanvasElement) {
+      if (element.width && element.height) drawn.push([twin as HTMLCanvasElement, element]);
       return;
     }
-    twin.removeAttribute('alt');
+    if (!element.matches(MEDIA)) return;
+    ['src', 'srcset', 'srcdoc', 'poster', 'autoplay', 'loading', 'alt'].forEach((name) =>
+      twin.removeAttribute(name)
+    );
+    // Anything that would load or play is a box of its size, and a picture the page has loaded
+    // shows in it as a canvas drawn from the page's own. A picture given its address again would
+    // load and decode anew: the copy would show empty boxes for its first frames, or for good
+    // where the address is gone (the app lets go of avatars it has not shown for a while, which
+    // the page still shows). A frame's page cannot be copied, and loading it or a video again
+    // would outlast the slide.
     const { offsetWidth, offsetHeight } = element;
     twin.style.cssText += `;box-sizing:border-box;width:${offsetWidth}px;height:${offsetHeight}px`;
+    if (!(element instanceof HTMLImageElement)) return;
+    const { complete, naturalWidth, naturalHeight } = element;
+    if (!complete || !naturalWidth || !naturalHeight) return;
+    const picture = twin.ownerDocument.createElement('canvas');
+    Array.from(twin.attributes).forEach(({ name, value }) => picture.setAttribute(name, value));
+    // As sharp as the picture shows on the screen and no sharper, which keeps a large picture
+    // from taking the memory of its full size: the picture's own shape, so it fills or fits its
+    // box as it did.
+    const scale = Math.min(
+      1,
+      Math.max(offsetWidth / naturalWidth, offsetHeight / naturalHeight) *
+        (window.devicePixelRatio || 1)
+    );
+    picture.width = Math.max(1, Math.round(naturalWidth * scale));
+    picture.height = Math.max(1, Math.round(naturalHeight * scale));
+    twin.replaceWith(picture);
+    drawn.push([picture, element]);
   });
   document.adoptNode(copy);
-  // A canvas is copied empty: it shows what its original does.
-  const canvases = copy.querySelectorAll('canvas');
-  stage.querySelectorAll('canvas').forEach((canvas, index) => {
-    if (canvas.width && canvas.height) {
-      canvases[index]?.getContext('2d')?.drawImage(canvas, 0, 0);
-    }
-  });
+  drawn.forEach(([canvas, from]) =>
+    canvas.getContext('2d')?.drawImage(from, 0, 0, canvas.width, canvas.height)
+  );
   copy.removeAttribute(PHONE_STAGE);
   copy.removeAttribute('id');
   copy.setAttribute(COPY, '');

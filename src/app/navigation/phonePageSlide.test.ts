@@ -157,28 +157,46 @@ describe('slidePhonePage', () => {
     expect(root.dataset.pageSlide).toBeUndefined();
   });
 
-  it('keeps in the copy only the pictures the page holds in memory, and loads no other', async () => {
+  it('draws in the copy the pictures the page has loaded, and loads none', async () => {
     const page = browser();
     const stage = document.querySelector(`[${PHONE_STAGE}]`)!;
     stage.innerHTML =
-      '<img src="blob:held" srcset="blob:held 2x" loading="lazy" alt="Held"><img src="blob:loading" alt="Loading">' +
-      '<img src="loaded.png" srcset="loaded-2x.png 2x" alt="Loaded">' +
+      '<img class="avatar" src="blob:held" srcset="blob:held 2x" loading="lazy" alt="Held" width="80">' +
+      '<img src="blob:loading" alt="Loading"><img src="loaded.png" srcset="loaded-2x.png 2x" alt="Loaded">' +
       '<iframe srcdoc="<p>preview</p>" sandbox=""></iframe><video poster="poster.png"><source src="clip.mp4"></video>' +
       '<picture><source srcset="loaded.webp"><img src="loaded.png"></picture>';
+    const shown = Array.from(stage.querySelectorAll('img'));
+    // As a browser lays them out: 40 by 20 on the screen, of twice its pixels.
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(40);
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(20);
+    vi.stubGlobal('devicePixelRatio', 2);
+    // jsdom draws nothing on a canvas: what each would draw.
+    const draws: [HTMLCanvasElement, unknown, unknown[]][] = [];
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function context(
+      this: HTMLCanvasElement
+    ) {
+      return {
+        drawImage: (from: unknown, ...at: unknown[]) => draws.push([this, from, at]),
+      } as unknown as CanvasRenderingContext2D;
+    });
     // As a browser has it: the page has loaded all its pictures but one.
     const loaded = function loaded(this: HTMLImageElement) {
       return this.getAttribute('src') !== 'blob:loading';
     };
     vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockImplementation(loaded);
+    // Their own sizes: the avatar 400 by 400, the one from the network 1000 by 200.
+    const sizes: Record<string, [number, number]> = { Held: [400, 400], Loaded: [1000, 200] };
+    const size = (picture: HTMLImageElement) =>
+      loaded.call(picture) ? sizes[picture.alt] ?? [40, 40] : [0, 0];
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockImplementation(function width(
       this: HTMLImageElement
     ) {
-      return loaded.call(this) ? 40 : 0;
+      return size(this)[0];
     });
-    vi.spyOn(HTMLImageElement.prototype, 'currentSrc', 'get').mockImplementation(function src(
+    vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockImplementation(function height(
       this: HTMLImageElement
     ) {
-      return this.getAttribute('src') ?? '';
+      return size(this)[1];
     });
     try {
       slidePhonePage(() => showThread(true));
@@ -186,13 +204,38 @@ describe('slidePhonePage', () => {
       const still = copy()!;
       // In the page's own document, as the layout is.
       expect(still.ownerDocument).toBe(document);
-      const [kept, loading, network, inPicture] = still.querySelectorAll('img');
-      expect(kept!.outerHTML).toBe('<img alt="Held" src="blob:held">');
-      // One still loading, and one that came from the network, which would be asked again.
-      for (const blank of [loading!, network!, inPicture!]) {
-        expect(blank.getAttributeNames()).toEqual(['style']);
-        expect(blank.style.height).toBe('0px');
+      // Each picture the page has loaded is a canvas of its size, its styles kept, drawn from the
+      // page's own picture: nothing to load or decode, and nothing lost where its address is.
+      const pictures = Array.from(still.querySelectorAll('canvas'));
+      expect(pictures.map((picture) => picture.getAttribute('class'))).toEqual([
+        'avatar',
+        null,
+        null,
+      ]);
+      expect(pictures[2]!.parentElement!.tagName).toBe('PICTURE');
+      for (const picture of pictures) {
+        expect([picture.style.width, picture.style.height]).toEqual(['40px', '20px']);
+        const names = picture.getAttributeNames().filter((name) => name !== 'class');
+        expect(names.sort()).toEqual(['height', 'style', 'width']);
       }
+      // As sharp as the screen shows them, in their own shape, and never sharper than their own.
+      expect(pictures.map(({ width, height }) => [width, height])).toEqual([
+        [80, 80],
+        [200, 40],
+        [40, 40],
+      ]);
+      expect(draws).toEqual(
+        pictures.map((picture, index) => [
+          picture,
+          shown[[0, 2, 3][index]!],
+          [0, 0, picture.width, picture.height],
+        ])
+      );
+      // The one still loading is a blank box of its size.
+      const [loading] = still.querySelectorAll('img');
+      expect(still.querySelectorAll('img')).toHaveLength(1);
+      expect(loading!.getAttributeNames()).toEqual(['style']);
+      expect(loading!.style.height).toBe('20px');
       expect(still.querySelector('iframe')!.getAttributeNames()).toEqual(['sandbox', 'style']);
       expect(still.querySelector('video')!.getAttributeNames()).toEqual(['style']);
       expect(still.querySelectorAll('source[src], source[srcset]')).toHaveLength(0);
