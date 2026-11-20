@@ -431,10 +431,9 @@ const expectEndButtons = async (page: Page, titleSelector: string, stacked: bool
 
 /**
  * A finger at the edge of a button's hit area gets that button (More and Resolve, which have such
- * an area) or none, never the next one. The area is 44 px each way, except toward a neighbour
- * right beside, above or below it, where it ends halfway across the gap between them: there the two
- * areas meet, 1 px either side of the middle of the gap going to each. Stacked buttons, with no
- * neighbour beside them, so get the full 44 px across (21 px out from the middle is theirs).
+ * an area) or none, never the next one. The area is 44 px each way, except toward a button stacked
+ * right above or below, where it ends halfway across the gap between them: there the two areas
+ * meet, 1 px either side of the middle of the gap going to each.
  */
 const expectHitAreasApart = async (page: Page) => {
   const hits = await banner(page).evaluate((card) => {
@@ -457,16 +456,12 @@ const expectHitAreasApart = async (page: Page) => {
         .sort((a, b) => a.top - b.top)[0];
       const reachUp = above ? box.height / 2 + (box.top - above.bottom) / 2 : full;
       const reachDown = below ? box.height / 2 + (below.top - box.bottom) / 2 : full;
-      // In a row the buttons are 4 px apart and each reaches 2 px into the gap on both sides
-      // (toolbar touch target); stacked, alone on their line, they reach out to 44 px across.
-      const stacked = !!above || !!below;
-      const reachX = stacked ? Math.max(22, box.width / 2) : box.width / 2 + 2;
-      const [reachLeft, reachRight] = [reachX, reachX];
+      const reachX = Math.max(18, box.width / 2) - 1;
       const points = [
         [x, y - reachUp + 1],
         [x, y + reachDown - 1],
-        [x - reachLeft + 1, y],
-        [x + reachRight - 1, y],
+        [x - reachX, y],
+        [x + reachX, y],
       ];
       const name = button.getAttribute('aria-label') ?? button.textContent ?? '';
       return points.map(([px, py]) => {

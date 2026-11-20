@@ -71,16 +71,12 @@ export const RowActions = style({
 
 // Stacked, a button's hit area (44 px, touchTarget) stops halfway across the gap to the next one,
 // so neighbours meet and never share a point; the first and the last still reach out to 44 px
-// above and below the column. Each is 44 px wide: no neighbour beside it, it reaches out its full
-// way sideways, past the 2 px a row of them leaves (toolbar touch target).
+// above and below the column. Each stays 44 px wide.
 const stackedButtons = `[data-thread-context-banner] ${StackedPhoneTitleRow} > ${RowActions}`;
 const halfGap = `calc(-0.5 * ${config.space.S100})`;
 const outward = 'min(0px, calc((100% - 44px) / 2))';
 const coarse = (rule: CSSProperties) => ({ '@media': { '(pointer: coarse)': rule } });
-globalStyle(
-  `${stackedButtons} button::after`,
-  coarse({ insetBlock: halfGap, insetInline: outward })
-);
+globalStyle(`${stackedButtons} button::after`, coarse({ insetBlock: halfGap }));
 globalStyle(
   `${stackedButtons} > button:first-child::after, ${stackedButtons} > :first-child button::after`,
   coarse({ insetBlockStart: outward })
