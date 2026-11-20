@@ -428,10 +428,13 @@ export const ThreadChip = style({
   marginInlineStart: config.space.S200,
   ...textButton,
   color: color.Primary.Main,
-  selectors: { '&:focus-visible': keyboardRing, '& > svg': { flexShrink: 0 } },
+  selectors: { '&:focus-visible': keyboardRing },
   // Its icon alone never gives way.
   '@container': { [panel]: { flex: 'none', minWidth: 0 } },
 });
+
+// The chip's icon keeps its size; its title gives way.
+globalStyle(`${ThreadChip} > svg`, { flexShrink: 0 });
 
 export const ThreadTitle = style({
   ...truncate,
