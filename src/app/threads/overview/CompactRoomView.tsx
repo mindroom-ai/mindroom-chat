@@ -33,7 +33,7 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import { useHeldThreadOrder, usePointerOverCards, useRowKeys } from './useHeldThreadOrder';
 import {
   type CompactFocusRequest,
   compactFocusPlace,
@@ -467,6 +467,12 @@ export function CompactRoomView({
   const sectionRows = threadSections
     ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
+  // A row that moved up past others takes a new key where the browser anchors the scroll, so the
+  // rows it passed, the cards in view among them, stay in the page and in place.
+  const keyOf = useRowKeys(
+    threadSections ? sectionRows : ordinaryCards.map((model) => model.id.threadRootId),
+    viewRef
+  );
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
   // where the browser does not anchor it.
@@ -593,7 +599,7 @@ export function CompactRoomView({
     const showPinAction = pinning.canPin && isConfirmedMatrixEventId(rootId);
     return (
       <CompactThreadCardRow
-        key={rootId}
+        key={keyOf(rootId)}
         room={room}
         scrollRootRef={viewRef}
         viewModel={viewModel}
@@ -624,7 +630,12 @@ export function CompactRoomView({
     const count = sectionCounts.get(id) ?? 0;
     const label = <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>;
     return (
-      <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
+      <div
+        key={keyOf(key)}
+        className={css.SectionHeader}
+        data-motion-row={key}
+        data-compact-section={id}
+      >
         {soleSection ? (
           <Button as="div" size="300" variant="Secondary" fill="None" radii="300">
             {label}

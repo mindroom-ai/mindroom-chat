@@ -130,6 +130,34 @@ describe('the compact thread list in motion', () => {
     expect(readsOfCards()).toBeGreaterThan(0);
   });
 
+  it('takes only the card that moved up out of the page while the list is scrolled', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const ids = Array.from({ length: 10 }, (_, index) => `$${index}`);
+    const { rerender, container } = render(list(ids));
+    const view = container.querySelector<HTMLElement>('[data-compact-room-view]');
+    const cards = [...container.querySelectorAll('[data-scroll-anchor]')];
+    if (view) view.scrollTop = 700;
+    const observer = new MutationObserver(() => undefined);
+    observer.observe(container, { childList: true, subtree: true });
+
+    rerender(list(['$9', ...ids.slice(0, 9)]));
+    const taken = observer.takeRecords().flatMap((record) => [...record.removedNodes]);
+    observer.disconnect();
+    vi.unstubAllGlobals();
+
+    // The scroll anchor of the browser is one of the cards it passed: those stay in the page.
+    expect(taken).toEqual([cards[9]]);
+    expect(
+      [...container.querySelectorAll('[data-scroll-anchor]')].map((card) =>
+        card.getAttribute('data-scroll-anchor')
+      )
+    ).toEqual(['$9', ...ids.slice(0, 9)]);
+    // The card that moved is a new one, which the list's motion still finds by its row.
+    expect(container.querySelector('[data-scroll-anchor="$9"]')).not.toBe(cards[9]);
+    expect(glided()).toContain('$9');
+    expect(motion.left()).toEqual([]);
+  });
+
   it('glides a card into the Pinned section', () => {
     const { rerender } = render(list(['$a', '$b', '$c']));
     state.pinned = ['$c'];

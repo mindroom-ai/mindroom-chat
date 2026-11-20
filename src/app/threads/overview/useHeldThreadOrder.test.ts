@@ -2,7 +2,88 @@
 import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MOUSE_REST_HOLD_MS, useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
+import {
+  MOUSE_REST_HOLD_MS,
+  rowsMovedUp,
+  useHeldThreadOrder,
+  usePointerOverCards,
+  useRowKeys,
+} from './useHeldThreadOrder';
+
+describe('rowsMovedUp', () => {
+  it('names the row that moved up past others', () => {
+    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$d', '$a', '$b', '$c'])).toEqual(['$d']);
+    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$a', '$d', '$b', '$c'])).toEqual(['$d']);
+  });
+
+  it('names none for a row that moved down, which React moves alone', () => {
+    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$b', '$c', '$d', '$a'])).toEqual([]);
+    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$a', '$c', '$d', '$b'])).toEqual([]);
+  });
+
+  it('names the one that went up of two rows that swap', () => {
+    expect(rowsMovedUp(['$a', '$b'], ['$b', '$a'])).toEqual(['$b']);
+    expect(rowsMovedUp(['$a', '$b', '$c', '$d'], ['$a', '$c', '$b', '$d'])).toEqual(['$c']);
+  });
+
+  it('names each of two rows that moved up, in their new order', () => {
+    expect(
+      rowsMovedUp(['$a', '$b', '$c', '$d', '$e', '$f'], ['$f', '$d', '$a', '$b', '$c', '$e'])
+    ).toEqual(['$f', '$d']);
+  });
+
+  it('counts neither new rows nor rows that left', () => {
+    expect(rowsMovedUp(['$a', '$b', '$c'], ['$new', '$a', '$b', '$c'])).toEqual([]);
+    expect(rowsMovedUp(['$a', '$b', '$c'], ['$a', '$c'])).toEqual([]);
+    expect(
+      rowsMovedUp(['$a', '$gone', '$b', '$c', '$d'], ['$d', '$new', '$a', '$b', '$c'])
+    ).toEqual(['$d']);
+    expect(rowsMovedUp(['$a', '$b', '$c'], ['$a', '$b', '$c'])).toEqual([]);
+  });
+});
+
+describe('useRowKeys', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const keysOf = (scrollTop: number) => {
+    const view = { current: { scrollTop } as HTMLElement };
+    const { result, rerender } = renderHook(({ rows }) => useRowKeys(rows, view), {
+      initialProps: { rows: ['$a', '$b', '$c', '$d'] },
+    });
+    const keys = (rows: string[]) => {
+      rerender({ rows });
+      return rows.map(result.current);
+    };
+    return { keys, view };
+  };
+
+  it('gives a row that moved up a new key while the list is scrolled, and its first key the next time', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const { keys } = keysOf(700);
+    expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d#', '$a', '$b', '$c']);
+    // The same order again, and a card that joins: every row keeps its key.
+    expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d#', '$a', '$b', '$c']);
+    expect(keys(['$e', '$d', '$a', '$b', '$c'])).toEqual(['$e', '$d#', '$a', '$b', '$c']);
+    expect(keys(['$c', '$e', '$d', '$a', '$b'])).toEqual(['$c#', '$e', '$d#', '$a', '$b']);
+    expect(keys(['$d', '$c', '$e', '$a', '$b'])).toEqual(['$d', '$c#', '$e', '$a', '$b']);
+  });
+
+  it('keeps every key at the top of the list', () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const { keys, view } = keysOf(0);
+    expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d', '$a', '$b', '$c']);
+    // Scrolled since: only a row that moves from now on takes a new key.
+    view.current.scrollTop = 300;
+    expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d', '$a', '$b', '$c']);
+    expect(keys(['$c', '$d', '$a', '$b'])).toEqual(['$c#', '$d', '$a', '$b']);
+  });
+
+  it('keeps every key in a browser without scroll anchoring, where the list scrolls itself', () => {
+    vi.stubGlobal('CSS', { supports: (property: string) => property !== 'overflow-anchor' });
+    const { keys } = keysOf(700);
+    expect(keys(['$d', '$a', '$b', '$c'])).toEqual(['$d', '$a', '$b', '$c']);
+  });
+});
 
 describe('useHeldThreadOrder', () => {
   it('follows the live order while nothing holds it', () => {

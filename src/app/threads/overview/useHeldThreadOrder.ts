@@ -33,6 +33,39 @@ export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[
   return [...leading, ...kept, ...trailing];
 };
 
+/**
+ * The rows that moved up past others from `before` to `after`, in their order in `after`. Rows
+ * that only one of the lists holds neither move nor are passed. Without the rows it names, the
+ * others keep their order.
+ *
+ * It names none when they are more than the rows React moves by itself: React keeps a row that
+ * moved up in the page and takes out and puts back, after it, each row that row passed, so for a
+ * row that moved down it already moves that one row. Of two rows that swap, it names the one
+ * that went up.
+ */
+export const rowsMovedUp = (before: readonly string[], after: readonly string[]): string[] => {
+  const placeBefore = new Map(before.map((id, index) => [id, index]));
+  // From the end: a row that stood after one that now follows it moved up past that one.
+  const up: string[] = [];
+  let lowest = Infinity;
+  for (let index = after.length - 1; index >= 0; index -= 1) {
+    const id = after[index] ?? '';
+    const was = placeBefore.get(id);
+    if (was !== undefined && was > lowest) up.push(id);
+    else if (was !== undefined) lowest = was;
+  }
+  // React's own count, from the start: every row that follows one that stood after it.
+  let highest = -1;
+  let passed = 0;
+  after.forEach((id) => {
+    const was = placeBefore.get(id);
+    if (was === undefined) return;
+    if (was < highest) passed += 1;
+    else highest = was;
+  });
+  return up.length <= passed ? up.reverse() : [];
+};
+
 /** The topmost cards in view, their tops on screen, the scroll offset and the order then. */
 type CardsInView = {
   cards: { rootId: string; top: number }[];
@@ -143,6 +176,57 @@ export const useHeldThreadOrder = (
     return () => view.removeEventListener('scroll', record);
   }, [viewRef]);
   return shown;
+};
+
+/**
+ * The React key of each of the list's rendered `rows` (cards, and in sections their headers): the
+ * row's own, or, for a row that moved up past others while the list was scrolled down
+ * (`rowsMovedUp`), a new one. React then takes that one row out and puts a new one in at its
+ * place, as for a card that joins, and the rows it passed stay in the page.
+ *
+ * With the same key, React keeps the row that moved up in the page and takes out and puts back
+ * every row it passed, the cards in view among them. The browser's scroll anchoring (Chromium)
+ * holds on to one of those and loses a card that leaves the page, even within one commit. So
+ * the cards in view showed lower by the height of the card that moved, and a reply in a thread
+ * whose card was itself in view took the list to its top: the browser followed the one row that
+ * had stayed in the page.
+ *
+ * Only where the browser anchors the scroll, and only while the list is scrolled down: without
+ * scroll anchoring the list scrolls itself (`useHeldThreadOrder`), and at its top nothing is
+ * kept in place.
+ *
+ * The row with a new key mounts again. Its card still shows the reply that moved it and keeps
+ * the focus a click left on it (`CompactThreadCard`), and its `data-motion-row` stays, so it
+ * glides or fades in as before. No press, swipe or menu is under way on it: each holds the order.
+ */
+export const useRowKeys = (
+  rows: readonly string[],
+  viewRef: RefObject<HTMLElement>
+): ((row: string) => string) => {
+  // The rows of the last commit, and those among them that show under their second key.
+  const shownRef = useRef<{ rows: readonly string[]; renewed: ReadonlySet<string> }>({
+    rows,
+    renewed: new Set(),
+  });
+  const order = rows.join('\n');
+  const renewed = useMemo(() => {
+    const shown = shownRef.current;
+    const listed = new Set(rows);
+    const next = new Set([...shown.renewed].filter((row) => listed.has(row)));
+    const view = viewRef.current;
+    if (view && view.scrollTop > 0 && browserAnchorsScroll()) {
+      // Back to its first key the next time: a row only ever has one of two.
+      rowsMovedUp(shown.rows, rows).forEach((row) => {
+        if (!next.delete(row)) next.add(row);
+      });
+    }
+    return next;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `order` stands for the rows
+  }, [order, viewRef]);
+  useLayoutEffect(() => {
+    shownRef.current = { rows, renewed };
+  });
+  return useCallback((row: string) => (renewed.has(row) ? `${row}#` : row), [renewed]);
 };
 
 /** How long a mouse resting on the cards still holds them: a click is almost always aimed by a move. */

@@ -1,4 +1,4 @@
-import { memo, type ReactNode, type RefObject, useEffect, useRef } from 'react';
+import { memo, type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent, IconClock } from '@tabler/icons-react';
@@ -44,17 +44,30 @@ const JUST_NOW_MS = 60_000;
 type Shown = Pick<CompactThreadCardViewModel, 'lastActivityTs' | 'isStreaming' | 'messageCount'>;
 
 /**
+ * What the card of each thread on screen showed last, by room and thread. The card that takes the
+ * place of a thread's card within one render starts from it, and so shows the reply that moved
+ * it: the Compact list gives a card that moved up a new key (`useRowKeys`).
+ */
+const lastShown = new Map<string, Shown>();
+
+/**
  * Shows that a thread changed while its card was up: a reply that just came, or an agent's run
  * that ended, tints the card once, brings in the new preview and pops a reply count that grew.
  * Activity that only loads (older than a minute) plays nothing, and neither does each part of an
  * answer still being written: the card would glow for as long as the agent writes.
  */
-const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
+const useShowChange = (cardRef: RefObject<HTMLElement>, thread: string, now: Shown): void => {
   const { lastActivityTs, isStreaming, messageCount } = now;
-  const shownRef = useRef<Shown>(now);
+  const shownRef = useRef<Shown>(lastShown.get(thread) ?? now);
   useEffect(() => {
     const before = shownRef.current;
-    shownRef.current = { lastActivityTs, isStreaming, messageCount };
+    const shown = { lastActivityTs, isStreaming, messageCount };
+    shownRef.current = shown;
+    lastShown.set(thread, shown);
+    // Its own entry only: the card that takes this one's place may have written already.
+    const forget = () => {
+      if (lastShown.get(thread) === shown) lastShown.delete(thread);
+    };
     const card = cardRef.current;
     const justReplied =
       !isStreaming &&
@@ -62,7 +75,7 @@ const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
       lastActivityTs > (before.lastActivityTs ?? 0) &&
       Date.now() - lastActivityTs < JUST_NOW_MS;
     const runEnded = before.isStreaming && !isStreaming;
-    if (!card || !(justReplied || runEnded) || !playsMotion(card)) return;
+    if (!card || !(justReplied || runEnded) || !playsMotion(card)) return forget;
     // The card's own overlay (`Card` in CompactRoomView.css.ts), so nothing repaints the card.
     card.animate([{ opacity: 0.16 }, { opacity: 0 }], {
       duration: 1500,
@@ -80,7 +93,32 @@ const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
         .querySelector('[data-compact-card-reply-count]')
         ?.animate([{ scale: 1 }, { scale: 1.25 }, { scale: 1 }], { duration: 240 });
     }
-  }, [cardRef, lastActivityTs, isStreaming, messageCount]);
+    return forget;
+  }, [cardRef, thread, lastActivityTs, isStreaming, messageCount]);
+};
+
+/** The thread whose card held the focus as it left the page, until that commit has ended. */
+let focusLeftWith: string | undefined;
+
+/**
+ * Hands the focus on: a card that leaves the page with the focus on it (a mouse click left it
+ * there) gives it to the card that takes its thread's place in the same commit (`useRowKeys`).
+ */
+const useFocusHandedOn = (cardRef: RefObject<HTMLElement>, thread: string): void => {
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    // The card is the button that opens the thread, or the box around it.
+    const button = card?.matches('button') ? card : card?.querySelector<HTMLElement>('button');
+    if (focusLeftWith === thread) button?.focus({ preventScroll: true });
+    return () => {
+      // React runs this with the card still in the page, so still focused.
+      if (!button || document.activeElement !== button) return;
+      focusLeftWith = thread;
+      queueMicrotask(() => {
+        if (focusLeftWith === thread) focusLeftWith = undefined;
+      });
+    };
+  }, [cardRef, thread]);
 };
 
 // As many whole tags as the thread banner shows, then a count of the rest.
@@ -126,7 +164,9 @@ function CompactThreadCardBase({
   } = viewModel;
   // The card is a button, or a box around one: the same node either way for what plays on it.
   const cardRef = useRef<HTMLButtonElement & HTMLDivElement>(null);
-  useShowChange(cardRef, { lastActivityTs, isStreaming, messageCount });
+  const thread = `${id.roomId} ${id.threadRootId}`;
+  useShowChange(cardRef, thread, { lastActivityTs, isStreaming, messageCount });
+  useFocusHandedOn(cardRef, thread);
   const relativeTime = useRelativeTime(lastActivityTs, 'compact');
   const snoozedText = useSnoozedUntilText(snoozedUntilTs);
   // A thread nobody has replied to shows no count, as the Threads view shows no chip under it.

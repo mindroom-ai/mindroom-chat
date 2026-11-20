@@ -111,18 +111,30 @@ describe('a card whose thread changes while it shows', () => {
   /** What tinted: the plays on a card's own overlay. */
   const tints = (motion: ReturnType<typeof standInForListMotion>) =>
     motion.plays.filter(({ options }) => options.pseudoElement === '::after');
-  /** Renders a card, then the same card as `after`, and returns what played. */
+  /**
+   * Renders a card, then the same card as `after`, and returns what played. With `how`, `after`
+   * shows in a new card: one that takes the first one's place in the same render (`replaced`), or
+   * one that mounts once the first is gone (`later`).
+   */
   const change = (
     before: Partial<CompactThreadCardViewModel>,
-    after: Partial<CompactThreadCardViewModel>
+    after: Partial<CompactThreadCardViewModel>,
+    how?: 'replaced' | 'later'
   ) => {
     const motion = standInForListMotion();
     try {
       const { rerender } = render(
-        <CompactThreadCard viewModel={makeViewModel(before)} onClick={vi.fn()} />
+        <CompactThreadCard key="first" viewModel={makeViewModel(before)} onClick={vi.fn()} />
       );
       expect(motion.plays).toEqual([]);
-      rerender(<CompactThreadCard viewModel={makeViewModel(after)} onClick={vi.fn()} />);
+      if (how === 'later') rerender(<div />);
+      rerender(
+        <CompactThreadCard
+          key={how ? 'second' : 'first'}
+          viewModel={makeViewModel(after)}
+          onClick={vi.fn()}
+        />
+      );
       return motion;
     } finally {
       motion.restore();
@@ -146,6 +158,37 @@ describe('a card whose thread changes while it shows', () => {
     expect(moved).toContain('Mara: second');
     // The reply count, which went up, pops.
     expect(moved).toContain('2');
+  });
+
+  it('shows the reply in the card that takes its place in the list, and in none that mounts later', () => {
+    const before = { lastActivityTs: Date.now() - 10 * MINUTE, messageCount: 1 };
+    const after = { lastActivityTs: Date.now(), previewText: 'Mara: second', messageCount: 2 };
+    // The Compact list gives a card that moved up past others a new key.
+    const replaced = change(before, after, 'replaced');
+    expect(tints(replaced)).toHaveLength(1);
+    expect(replaced.plays.map(({ element }) => element.textContent)).toContain('Mara: second');
+
+    expect(change(before, after, 'later').plays).toEqual([]);
+  });
+
+  it('hands the focus a click left on it to the card that takes its place, and to none later', async () => {
+    const card = (key: string) => (
+      <CompactThreadCard key={key} viewModel={makeViewModel({})} onClick={vi.fn()} />
+    );
+    const { rerender, container } = render(card('first'));
+    const first = container.querySelector('button');
+    first?.focus();
+    rerender(card('second'));
+    const second = container.querySelector('button');
+    expect(second).not.toBe(first);
+    expect(document.activeElement).toBe(second);
+
+    // A card that leaves, and its thread's card that comes back in a later render.
+    rerender(<div />);
+    await Promise.resolve();
+    rerender(card('third'));
+    expect(document.activeElement).toBe(document.body);
+    cleanup();
   });
 
   it('stays as it is when what loads is older activity, not something that just happened', () => {
