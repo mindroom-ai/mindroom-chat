@@ -47,6 +47,8 @@ export const TitleRow = style({
   minHeight: '1.5rem',
 });
 
+// The compact layout's row: a phone's, or any banner narrower than the one of a desktop's
+// conversation (the banner measures it).
 export const PhoneTitleRow = style({ rowGap: config.space.S100 });
 
 // A phone's row too narrow to hold the whole title beside its buttons (a small phone, Page Zoom;
@@ -90,7 +92,11 @@ globalStyle(
 // Holds the eyebrow, the approvals chip and the tags; often none of them.
 export const EyebrowRow = style({
   flexShrink: 0,
-  selectors: { '&:empty': { display: 'none' } },
+  selectors: {
+    '&:empty': { display: 'none' },
+    // A compact banner shows no tags here, so only status chips take another line.
+    [`${PhoneTitleRow} &`]: { flexWrap: 'wrap' },
+  },
   '@media': {
     [shortViewport]: {
       // Beside the title, the status chips keep to the room left of the thread actions.
@@ -98,8 +104,6 @@ export const EyebrowRow = style({
       minWidth: 0,
       selectors: { [`&:not(:has(> :not(${CompactHidden})))`]: { display: 'none' } },
     },
-    // Phones show no tags here, so only status chips take another line.
-    '(max-width: 480px)': { flexWrap: 'wrap' },
   },
 });
 
@@ -154,19 +158,15 @@ export const SubtitleRow = style({
   flexWrap: 'wrap',
   selectors: {
     [`${EyebrowRow}:empty + &`]: { marginTop: 0 },
+    // A compact banner can leave the eyebrow row with nothing showing: neither the view label nor
+    // a status chip. (Asked as "no child but the tags", a :has() before a sibling combinator made
+    // WebKit restyle the whole page on every DOM change anywhere, on every screen size.)
+    [`${PhoneTitleRow} ${EyebrowRow}:not(:has(> ${ViewLabel}, > [data-thread-status-chip])) + &`]: {
+      marginTop: 0,
+    },
   },
   '@media': {
     [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0', minWidth: '4rem' },
-    // Narrow screens can leave the eyebrow row with nothing showing: neither the view label nor
-    // a status chip. (Asked as "no child but the tags", a :has() before a sibling combinator made
-    // WebKit restyle the whole page on every DOM change anywhere, on every screen size.)
-    '(max-width: 480px)': {
-      selectors: {
-        [`${EyebrowRow}:not(:has(> ${ViewLabel}, > [data-thread-status-chip])) + &`]: {
-          marginTop: 0,
-        },
-      },
-    },
   },
 });
 

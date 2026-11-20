@@ -8,6 +8,7 @@ import React, {
   useReducer,
   useRef,
   useState,
+  type RefObject,
 } from 'react';
 import classNames from 'classnames';
 import { shortViewport } from '../ui/styles/shortViewport';
@@ -46,6 +47,7 @@ import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
 import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
@@ -78,6 +80,41 @@ export interface ThreadContextBannerProps {
 
 const DESKTOP_MAX_PILLS = 3;
 
+// A banner narrower than this takes a phone's layout: the tags and the pin in More, the whole
+// title, the buttons beside it stacked. A phone's banner is (up to 750 px wide, its banner is
+// 726 px inside its margins), and so is a thread column or a second thread beside the messages
+// (480 px until resized). A desktop's conversation is wider, as is a tablet's with the room list
+// open (one of 1024 px by 768 has 790 px); with the members panel open as well it is narrower.
+// In rem, as the row's, since Page Zoom scales what the banner holds.
+const COMPACT_BANNER_REM = 46;
+
+const rootFontSize = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+
+/**
+ * Whether the `banner` is narrower than COMPACT_BANNER_REM, measured as it lays out, resizes and
+ * as Page Zoom changes the root's font size; undefined until it has been measured. A collapsed
+ * banner fits its few buttons, and a hidden one has no width: both keep the last answer.
+ */
+const useNarrowBanner = (banner: RefObject<HTMLElement>, collapsed: boolean) => {
+  const [narrow, setNarrow] = useState<boolean>();
+  const measure = useCallback(() => {
+    const width = collapsed ? 0 : banner.current?.getBoundingClientRect().width ?? 0;
+    if (width > 0) setNarrow(width < COMPACT_BANNER_REM * rootFontSize());
+  }, [banner, collapsed]);
+  useLayoutEffect(measure, [measure]);
+  useResizeObserver(
+    measure,
+    useCallback(() => banner.current, [banner])
+  );
+  useEffect(() => {
+    if (typeof MutationObserver === 'undefined') return undefined;
+    const zoom = new MutationObserver(measure);
+    zoom.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    return () => zoom.disconnect();
+  }, [measure]);
+  return narrow;
+};
+
 // A phone's row narrower than this (a small phone, Page Zoom) gives the title the row under its
 // buttons, after them in the tab order too. In rem, since Page Zoom scales the root font size and
 // so the buttons, while the banner keeps its px width.
@@ -107,8 +144,7 @@ const usePhoneRowLayout = (row: HTMLElement | null, text: string | undefined): R
     const title = row.querySelector<HTMLElement>(`:scope > .${css.TitleColumn}`);
     const actions = row.querySelector<HTMLElement>(`:scope > .${css.RowActions}`);
     const measure = () => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      if (row.getBoundingClientRect().width <= NARROW_PHONE_ROW_REM * rem) {
+      if (row.getBoundingClientRect().width <= NARROW_PHONE_ROW_REM * rootFontSize()) {
         setLayout('narrow');
         return;
       }
@@ -183,11 +219,15 @@ export function ThreadContextBanner({
   onClose,
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
+  // A phone gets its own back button; a phone's banner, and any narrow one, the compact layout.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const bannerRef = useRef<HTMLDivElement>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [titleRow, setTitleRow] = useState<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
+  // On a phone whatever its Page Zoom, so it never changes there, and before the first measurement.
+  const narrowBanner = useNarrowBanner(bannerRef, collapsed);
+  const compact = phone || narrowBanner === true;
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -353,13 +393,13 @@ export function ThreadContextBanner({
     return true;
   });
 
-  // A phone's banner leaves the tags and the pin to More, so the whole title has the room.
-  const hasTags = !phone && headerModel.displayTags.length > 0;
+  // A compact banner leaves the tags and the pin to More, so the whole title has the room.
+  const hasTags = !compact && headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
   const title = headerModel.summaryText || rootTitle;
-  const rowLayout = usePhoneRowLayout(phone ? titleRow : null, title);
+  const rowLayout = usePhoneRowLayout(compact ? titleRow : null, title);
   const narrowRow = rowLayout === 'narrow';
   const inRowOrder = (items: [title: React.ReactNode, actions: React.ReactNode]) =>
     narrowRow ? [items[1], items[0]] : items;
@@ -478,7 +518,7 @@ export function ThreadContextBanner({
             ref={setTitleRow}
             className={classNames(
               css.TitleRow,
-              phone && css.PhoneTitleRow,
+              compact && css.PhoneTitleRow,
               narrowRow && css.NarrowPhoneTitleRow,
               rowLayout === 'stacked' && css.StackedPhoneTitleRow
             )}
@@ -527,19 +567,19 @@ export function ThreadContextBanner({
                               as="span"
                               data-thread-context-summary="true"
                               className={classNames(
-                                phone ? css.PhoneTitle : css.SummaryText,
+                                compact ? css.PhoneTitle : css.SummaryText,
                                 summaryChanged && css.SummaryTextChanged
                               )}
                               // A title taller than its bound scrolls, also from the keyboard.
-                              tabIndex={phone ? 0 : undefined}
+                              tabIndex={compact ? 0 : undefined}
                               onAnimationEnd={() =>
                                 setShownSummary((shown) => ({ ...shown, changed: false }))
                               }
                               onDoubleClick={onDoubleClick}
                               size="T300"
-                              truncate={!phone}
+                              truncate={!compact}
                               title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
-                              {...(phone ? ownDirectionBlock : ownDirectionLine)}
+                              {...(compact ? ownDirectionBlock : ownDirectionLine)}
                             >
                               {revealDirectionControls(headerModel.summaryText)}
                             </Text>
@@ -548,7 +588,7 @@ export function ThreadContextBanner({
                               text={title}
                               hint={hint}
                               onDoubleClick={onDoubleClick}
-                              whole={phone}
+                              whole={compact}
                             />
                           )
                         }
@@ -699,8 +739,8 @@ export function ThreadContextBanner({
                     </IconButton>
                   )}
                 </IconTooltip>
-                {/* A phone pins from More; its row still says a thread is pinned. */}
-                {!phone && pinning.canPin && mutableThreadRootId ? (
+                {/* A compact banner pins from More; its row still says a thread is pinned. */}
+                {!compact && pinning.canPin && mutableThreadRootId ? (
                   <IconTooltip label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}>
                     {(triggerRef) => (
                       <IconButton
@@ -790,7 +830,7 @@ export function ThreadContextBanner({
             onShowBeside={onShowBeside}
             onShowFull={onShowFull}
             shortcutless={!!onClose}
-            tagsAtTop={phone}
+            tagsAtTop={compact}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />

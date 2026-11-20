@@ -1256,7 +1256,8 @@ describe('ThreadContextBanner rendering', () => {
   it('focuses the banner on expanding while More waits for a confirmed root', async () => {
     store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
     bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
-    const banner = { focus: vi.fn() };
+    // Unlaid out, with no width to measure.
+    const banner = { focus: vi.fn(), getBoundingClientRect: () => ({ width: 0 }) };
     const more = { focus: vi.fn(), disabled: true };
     let renderer: ReturnType<typeof renderBanner> | undefined;
     act(() => {
