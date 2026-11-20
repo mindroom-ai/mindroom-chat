@@ -54,15 +54,19 @@ export const useVoiceComposer = (composer: VoiceComposer | undefined): void => {
   }, [enabled, entry]);
 };
 
+/** Rendered and not inert (under a side panel, behind the phone's navigation drawer). */
+const shown = (root: HTMLElement | null | undefined): boolean =>
+  !!root?.isConnected && !root.closest('[inert]') && root.getClientRects().length > 0;
+
 /**
- * The composer a press of the voice key acts in. One whose recorder is open, or that offers a
- * failed recording, is the only one that may (opening a recorder elsewhere would end its
- * recording); else the focused composer, else the open thread's, else the room's.
+ * The composer a press of the voice key acts in, among those shown. One whose recorder is open, or
+ * that offers a failed recording, is the only one that may (opening a recorder elsewhere would
+ * end its recording); else the focused composer, else the open thread's, else the room's.
  */
 export const resolveVoiceComposer = (
   focused: Element | null = document.activeElement
 ): VoiceHoldTarget | undefined => {
-  const live = [...entries].reverse().filter((entry) => entry.current);
+  const live = [...entries].reverse().filter((entry) => shown(entry.current?.root()));
   return (
     live.find((entry) => entry.current?.active()) ??
     live.find((entry) => !!focused && !!entry.current?.root()?.contains(focused)) ??

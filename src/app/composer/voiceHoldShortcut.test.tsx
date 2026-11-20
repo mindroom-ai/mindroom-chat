@@ -8,11 +8,20 @@ import { resolveVoiceComposer, useVoiceComposer, useVoiceHoldShortcut } from './
 
 type Log = string[];
 
+/** A composer root on the page; jsdom lays nothing out, so it gets a box of its own. */
+const shownRoot = (parent: HTMLElement = document.body): HTMLElement => {
+  const root = document.createElement('div');
+  root.getClientRects = () => [new DOMRect(0, 0, 100, 40)] as unknown as DOMRectList;
+  parent.append(root);
+  return root;
+};
+
 /** A composer whose actions close over its render, as RoomInput's do. */
 function Composer({ log, thread = false }: { log: Log; thread?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [root] = useState(() => shownRoot());
   useVoiceComposer({
-    root: () => null,
+    root: () => root,
     thread,
     active: () => open,
     phase: () => (open ? 'recording' : 'none'),
@@ -72,12 +81,11 @@ const setup = (children: (log: Log) => React.ReactNode, enabled = true) => {
 
 describe('resolveVoiceComposer', () => {
   it('takes the open recorder, else the focused composer, else the thread, else the room', () => {
-    const roomRoot = document.createElement('textarea');
-    document.body.append(roomRoot);
-    const composer = (thread: boolean, active: boolean, root?: HTMLElement) =>
+    const roomRoot = shownRoot();
+    const composer = (thread: boolean, active: boolean, root = shownRoot()) =>
       renderHook(() =>
         useVoiceComposer({
-          root: () => root ?? null,
+          root: () => root,
           thread,
           active: () => active,
           phase: () => 'none',
@@ -101,6 +109,30 @@ describe('resolveVoiceComposer', () => {
     room.unmount();
     expect(resolveVoiceComposer(document.body)).toBeUndefined();
     fork.unmount();
+  });
+
+  it('skips a composer under an inert page or side panel, and one not rendered', () => {
+    const inert = document.createElement('div');
+    inert.setAttribute('inert', '');
+    document.body.append(inert);
+    const unrendered = document.createElement('div');
+    document.body.append(unrendered);
+    const views = [shownRoot(inert), unrendered].map((root) =>
+      renderHook(() =>
+        useVoiceComposer({
+          root: () => root,
+          thread: false,
+          active: () => true,
+          phase: () => 'recording',
+          hasContent: () => false,
+          start: () => false,
+          send: () => undefined,
+          focus: () => undefined,
+        })
+      )
+    );
+    expect(resolveVoiceComposer(document.body)).toBeUndefined();
+    views.forEach((view) => view.unmount());
   });
 });
 
