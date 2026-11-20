@@ -35,12 +35,14 @@ const mocks = vi.hoisted(() => ({
     getRoom: (roomId: string) => ({ isSpaceRoom: () => mocks.spaces.has(roomId) }),
   },
   historyState: { idx: 1, key: 'room-entry' },
+  replaceState: vi.fn(),
   location: { pathname: '/home/!room:example.org', search: '', hash: '' },
 }));
 
 vi.stubGlobal('window', {
   history: {
     state: mocks.historyState,
+    replaceState: mocks.replaceState,
   },
 } as unknown as Window & typeof globalThis);
 
@@ -53,7 +55,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
   };
 });
 
-vi.mock('../routes/historyStack', () => ({
+vi.mock('../routes/historyStack', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../routes/historyStack')>()),
   currentHistoryLocation: () => mocks.location,
 }));
 
@@ -163,6 +166,7 @@ describe('useRoomNavigate', () => {
     mocks.isNativeIOS.mockReset();
     mocks.isNativeIOS.mockReturnValue(false);
     mocks.navigate.mockReset();
+    mocks.replaceState.mockReset();
     mocks.roomToParents.clear();
     mocks.mDirects.clear();
     mocks.spaces.clear();
@@ -180,7 +184,7 @@ describe('useRoomNavigate', () => {
     mocks.location.hash = '';
   });
 
-  it('marks pushed thread opens for history back without rewriting the current entry', () => {
+  it('marks pushed thread opens for history back, and the entry they leave as the room', () => {
     const roomId = '!room:example.org';
     const threadId = '$thread';
     const eventId = '$reply';
@@ -206,6 +210,11 @@ describe('useRoomNavigate', () => {
         },
       }
     );
+    // The entry stays in its place: only its state says a step back to it returns to the room.
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    expect(mocks.replaceState.mock.calls).toEqual([
+      [{ idx: 1, key: 'room-entry', usr: { returnedToRoom: true } }, ''],
+    ]);
 
     renderer.unmount();
   });

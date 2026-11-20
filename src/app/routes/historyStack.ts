@@ -32,6 +32,16 @@ export const RETURN_TO_ROOM_STATE = { returnedToRoom: true } as const;
 export const isReturnToRoom = (state: unknown): boolean =>
   isRecord(state) && state.returnedToRoom === true;
 
+/**
+ * `historyState` (the browser's, which holds the router's navigation state as `usr`) of an entry
+ * a thread is opened from in a new entry, marked as `RETURN_TO_ROOM_STATE`: a step back to it
+ * returns to the room as it was left too.
+ */
+export const withReturnToRoom = (historyState: unknown): Record<string, unknown> => {
+  const state = isRecord(historyState) ? historyState : {};
+  return { ...state, usr: { ...(isRecord(state.usr) ? state.usr : {}), ...RETURN_TO_ROOM_STATE } };
+};
+
 const isOpenedFromOutside = (state: unknown): boolean =>
   isRecord(state) && state.openedFromOutside === true;
 

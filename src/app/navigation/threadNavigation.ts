@@ -6,6 +6,7 @@ import {
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
 import { joinPathComponent } from '../routes/pathUtils';
+import { withReturnToRoom } from '../routes/historyStack';
 
 export type NavigateRoomThreadDirect = (
   roomId: string,
@@ -22,6 +23,7 @@ export type RoomThreadNavigationOptions = {
   navigateRoomThreadDirect: NavigateRoomThreadDirect;
   location?: Path;
   getHistoryState?: () => unknown;
+  replaceHistoryState?: (state: unknown) => void;
   schedule?: (callback: () => void) => void;
   isNativeIOSDevice?: () => boolean;
   /** The active account, which the exit target records as the one that opened the thread. */
@@ -44,6 +46,7 @@ export const navigateToRoomThread = ({
   navigateRoomThreadDirect,
   location,
   getHistoryState = () => window.history.state,
+  replaceHistoryState = (state) => window.history.replaceState(state, ''),
   schedule = afterNextPaint,
   isNativeIOSDevice = isNativeIOS,
   getSessionId = () => getActiveSession()?.sessionId,
@@ -65,6 +68,12 @@ export const navigateToRoomThread = ({
       }
     : opts;
 
+  // The page that is left stays the room on a step back to it (the browser's Back): its address
+  // may name an event of this thread, which would open the thread again. A page that asks for
+  // an event in the room (`focusEvent`) leads into no thread, and keeps its own return.
+  if (exitTarget && new URLSearchParams(location?.search).get('focusEvent') !== '1') {
+    replaceHistoryState(withReturnToRoom(getHistoryState()));
+  }
   navigateRoomThreadDirect(roomId, threadId, eventId, nextOpts);
 
   if (!exitTarget) return;

@@ -12,6 +12,8 @@ import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matr
 // was opened from in the thread's place. When that page was the room at an event of the thread (a
 // link or a tapped push whose lookup of the event failed), the address led into the thread once
 // the thread was loaded: on every Back. The room Back returns to stays the room.
+// A browser's Back steps back to that page, which led into the thread once more; it stays the
+// room there too.
 // A link or a push to an edit of a reply is no such page: it opens the reply's thread.
 const PASSWORD = 'thread-back-event-route-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -142,41 +144,41 @@ const lookupOf = (url: URL, eventId: string): 'event' | 'context' | undefined =>
   return kind === 'event' ? 'event' : 'context';
 };
 
-/** The reader's room, signed in as the iOS app, not yet on the room's page. */
-const signIn = async (page: Page, label: string) => {
+/** The reader's room, signed in as the iOS app or a browser, not yet on the room's page. */
+const signIn = async (page: Page, label: string, ios = true) => {
   const seeded = await seed(label);
   await loginWithPassword(page, { homeserver: HOMESERVER, ...seeded.reader });
-  await page.context().addInitScript(fakeIOS, FAKE_IOS_KEY);
-  await page.evaluate((key) => localStorage.setItem(key, '1'), FAKE_IOS_KEY);
+  if (ios) {
+    await page.context().addInitScript(fakeIOS, FAKE_IOS_KEY);
+    await page.evaluate((key) => localStorage.setItem(key, '1'), FAKE_IOS_KEY);
+  }
   return seeded;
 };
-const expectIOS = async (page: Page) => {
+const expectPlatform = async (page: Page, ios = true) => {
   const platform = await page.evaluate(() =>
     (window as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.()
   );
-  expect(platform, 'the platform the app runs on').toBe('ios');
+  expect(platform, 'the platform the app runs on').toBe(ios ? 'ios' : 'web');
 };
 
-test('Back leaves a thread opened on the page of a reply whose lookup failed', async ({ page }) => {
-  const { roomId, rootId, replyId } = await signIn(page, 'reply');
+const backFromReplyPage = async (page: Page, ios: boolean) => {
+  const { roomId, rootId, replyId } = await signIn(page, ios ? 'reply' : 'web', ios);
   const eventPage = { roomId, eventId: replyId };
 
   // The link's own visit: the server has no answer about the reply, so the room shows its cards.
   const failed: string[] = [];
-  await page.route(
-    (url) => lookupOf(url, replyId) !== undefined,
-    (route) => {
-      failed.push(lookupOf(new URL(route.request().url()), replyId) ?? '');
-      return route.fulfill({ status: 404, json: { errcode: 'M_NOT_FOUND', error: 'Not found.' } });
-    }
-  );
+  const aboutReply = (url: URL) => lookupOf(url, replyId) !== undefined;
+  await page.route(aboutReply, (route) => {
+    failed.push(lookupOf(new URL(route.request().url()), replyId) ?? '');
+    return route.fulfill({ status: 404, json: { errcode: 'M_NOT_FOUND', error: 'Not found.' } });
+  });
   await page.goto(`/home/${encodeURIComponent(roomId)}/${encodeURIComponent(replyId)}`);
   await expect
     .poll(() => failed, { message: 'the app asked about the reply', timeout: 60_000 })
     .toEqual(expect.arrayContaining(['event', 'context']));
-  await expectIOS(page);
+  await expectPlatform(page, ios);
   await expectRoom(page, eventPage, rootId, 'the page of the reply shows the room');
-  await page.unroute((url) => lookupOf(url, replyId) !== undefined);
+  await page.unroute(aboutReply);
 
   await card(page, rootId).tap();
   await expectThread(page, { roomId, threadId: rootId }, 'the card opens its thread');
@@ -189,9 +191,20 @@ test('Back leaves a thread opened on the page of a reply whose lookup failed', a
     { timeout: 30_000 }
   );
   await back(page).tap();
-  await shown;
+  expect((await shown).ok(), 'the server answers about the reply').toBe(true);
   await expectRoom(page, eventPage, rootId, 'Back from the thread shows the room');
-});
+};
+
+for (const [form, ios] of [
+  ['the iOS app', true],
+  ['a browser', false],
+] as const) {
+  test(`Back leaves a thread opened on the page of a reply whose lookup failed (${form})`, async ({
+    page,
+  }) => {
+    await backFromReplyPage(page, ios);
+  });
+}
 
 test('a link to an edit of a thread reply opens the thread, and Back leaves it', async ({
   page,
@@ -205,7 +218,7 @@ test('a link to an edit of a thread reply opens the thread, and Back leaves it',
     { roomId, eventId: replyId, threadId: rootId },
     'the link opens the thread of the reply'
   );
-  await expectIOS(page);
+  await expectPlatform(page);
 
   // No page of the room is behind the thread, so Back puts the room at the thread's root there.
   await back(page).tap();
