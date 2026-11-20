@@ -2,19 +2,18 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { randomUuid } from '../lib/randomUuid';
 
 /** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture):
- *  start({ nonce }) resolving { id }; level, pause, resume, stop, cancel and keep({ id }) act on
- *  that recording only; level resolves { level } from 0 to 1 and rejects once the recording ended,
- *  also by itself; stop resolves { path } of its `.m4a` once it is whole; cancel deletes it, keep
- *  lets go of it without deleting; orphans resolves the files no window or process holds;
- *  rejections carry `code`. */
+ *  start({ nonce }) resolving { id }; level, pause, resume, stop and forget({ id }) act on that
+ *  recording only; level resolves { level } from 0 to 1; level, pause, resume and stop reject
+ *  `NOT_RECORDING` once the recording ended, also by itself; stop resolves { path } of its `.m4a`
+ *  once it is whole; only forget deletes a file; orphans resolves the files no window or process
+ *  is writing; rejections carry `code`. */
 type MindRoomVoiceRecorderPlugin = {
   start(options: { nonce: string }): Promise<{ id: string }>;
   level(options: { id: string }): Promise<{ level: number }>;
   pause(options: { id: string }): Promise<void>;
   resume(options: { id: string }): Promise<void>;
   stop(options: { id: string }): Promise<{ path: string }>;
-  cancel(options: { id: string }): Promise<void>;
-  keep(options: { id: string }): Promise<void>;
+  forget(options: { id: string }): Promise<void>;
   orphans(): Promise<{ recordings: { id: string; path: string; startedAt: number }[] }>;
 };
 
@@ -49,7 +48,8 @@ export const isNativeVoiceRecorderAvailable = (): boolean =>
   Capacitor.getPlatform() === 'ios' &&
   Capacitor.isPluginAvailable('MindRoomVoiceRecorder');
 
-/** The part of `MediaRecorder` the voice capture session drives, over the native recorder. */
+/** The part of `MediaRecorder` the voice capture session drives, over the native recorder. Its
+ *  file stays on disk, for `listNativeVoiceOrphans`, until `forget`. */
 export class NativeVoiceRecorder extends EventTarget {
   state: 'inactive' | 'recording' | 'paused' = 'recording';
 
@@ -57,29 +57,8 @@ export class NativeVoiceRecorder extends EventTarget {
 
   private newestLevel = 0;
 
-  /** The `dataavailable` listeners attached now: audio no one takes stays on disk. */
-  private readonly takers = new Set<EventListenerOrEventListenerObject>();
-
   constructor(private readonly id: string) {
     super();
-  }
-
-  override addEventListener(
-    type: string,
-    listener: EventListenerOrEventListenerObject | null,
-    options?: AddEventListenerOptions | boolean
-  ): void {
-    if (type === 'dataavailable' && listener) this.takers.add(listener);
-    super.addEventListener(type, listener, options);
-  }
-
-  override removeEventListener(
-    type: string,
-    listener: EventListenerOrEventListenerObject | null,
-    options?: EventListenerOptions | boolean
-  ): void {
-    if (type === 'dataavailable' && listener) this.takers.delete(listener);
-    super.removeEventListener(type, listener, options);
   }
 
   /** The level the native recorder answered last, 0 before the first; asks it for the next. */
@@ -91,8 +70,11 @@ export class NativeVoiceRecorder extends EventTarget {
           ({ level }) => {
             this.newestLevel = level;
           },
-          // It ended by itself (its device changed, or its file could not be written).
-          () => this.endBySelf()
+          // It ended by itself (its device changed, or its file could not be written); any other
+          // failure keeps the last level.
+          (error?: { code?: string }) => {
+            if (error?.code === 'NOT_RECORDING') this.stop();
+          }
         );
     }
     return this.newestLevel;
@@ -110,10 +92,16 @@ export class NativeVoiceRecorder extends EventTarget {
   stop(): void {
     if (this.state === 'inactive') return;
     this.state = 'inactive';
-    this.deliver().then(
-      (taken) => this.end(taken),
-      () => this.end(false)
-    );
+    this.deliver()
+      .catch(() => undefined)
+      .finally(() => this.dispatchEvent(new Event('stop')));
+  }
+
+  /** Deletes the recording's file, ending the recording first, without an event, when it still
+   *  records. Rejects when the file could not be deleted. */
+  forget(): Promise<void> {
+    this.state = 'inactive';
+    return getVoiceRecorderPlugin().forget({ id: this.id });
   }
 
   private transition(
@@ -123,30 +111,13 @@ export class NativeVoiceRecorder extends EventTarget {
     if (this.state === 'inactive') return;
     this.state = state;
     // A transition the native recorder refuses would leave a wrong duration: end the recording.
-    call(getVoiceRecorderPlugin()).catch(() => this.endBySelf());
+    call(getVoiceRecorderPlugin()).catch(() => this.stop());
   }
 
-  private endBySelf(): void {
-    if (this.state === 'inactive') return;
-    this.state = 'inactive';
-    this.end(false);
-  }
-
-  /** True once a listener took the audio. */
-  private async deliver(): Promise<boolean> {
+  private async deliver(): Promise<void> {
     const { path } = await getVoiceRecorderPlugin().stop({ id: this.id });
     const data = await readNativeFile(path);
-    if (!data || this.takers.size === 0) return false;
-    this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
-    return true;
-  }
-
-  /** Every way out, once (`state` is `inactive` by then): the native side deletes a file a
-   *  listener took, and keeps any other for `listNativeVoiceOrphans`. */
-  private end(taken: boolean): void {
-    const plugin = getVoiceRecorderPlugin();
-    (taken ? plugin.cancel({ id: this.id }) : plugin.keep({ id: this.id })).catch(() => undefined);
-    this.dispatchEvent(new Event('stop'));
+    if (data) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
   }
 }
 
@@ -170,9 +141,9 @@ export const startNativeVoiceRecorder = async (): Promise<NativeVoiceRecorder> =
 
 export type NativeVoiceOrphan = { id: string; file: File; startedAt: number };
 
-/** The recordings a killed app, a reloaded page or a closed window left on disk, oldest first;
- *  none off the Mac app. One that cannot be read is left out. Each stays on disk until
- *  `forgetNativeVoiceRecording`. */
+/** The recordings on disk that nothing is writing, oldest first: those a killed app, a reloaded
+ *  page or a closed window left, and every stopped one not forgotten yet. None off the Mac app.
+ *  One that cannot be read is left out. Each stays on disk until `forgetNativeVoiceRecording`. */
 export const listNativeVoiceOrphans = async (): Promise<NativeVoiceOrphan[]> => {
   if (!isNativeVoiceRecorderAvailable()) return [];
   const { recordings } = await getVoiceRecorderPlugin().orphans();
@@ -187,8 +158,8 @@ export const listNativeVoiceOrphans = async (): Promise<NativeVoiceOrphan[]> => 
     .sort((a, b) => a.startedAt - b.startedAt);
 };
 
-/** Deletes the file of a recording `listNativeVoiceOrphans` listed. Rejects while another window
- *  holds it, or when it could not be deleted. */
+/** Deletes the file of a recording `listNativeVoiceOrphans` listed. Rejects while a window still
+ *  writes it, or when it could not be deleted. */
 export const forgetNativeVoiceRecording = async (id: string): Promise<void> => {
-  await getVoiceRecorderPlugin().cancel({ id });
+  await getVoiceRecorderPlugin().forget({ id });
 };

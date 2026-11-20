@@ -87,9 +87,10 @@ export type VoiceCaptureSession = {
   releaseOwner: () => void;
 };
 
-/** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
+/** What the session drives: a MediaRecorder, or the Mac app's native recorder, whose audio stays
+ *  on disk until `forget`. */
 type VoiceRecorder = Pick<MediaRecorder, 'state' | 'mimeType' | 'pause' | 'resume' | 'stop'> &
-  Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
+  Pick<EventTarget, 'addEventListener' | 'removeEventListener'> & { forget?: () => Promise<void> };
 
 type Generation = {
   acceptsEvents: boolean;
@@ -305,6 +306,8 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       'voice-message-' + timestamp + '.' + getAudioFileExtension(outputMimeType),
       { type: outputMimeType }
     );
+    // The audio is in `file` now.
+    void recorder.forget?.().catch(() => undefined);
     const waveform =
       generation.samples.length > 0 ? normalizeMatrixWaveform(generation.samples) : undefined;
     generation.chunks = [];
@@ -346,7 +349,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       if (native) {
         const nativeRecorder = await startNativeVoiceRecorder();
         if (!owns(generation)) {
-          nativeRecorder.stop();
+          void nativeRecorder.forget().catch(() => undefined);
           return false;
         }
         recorder = nativeRecorder;
@@ -430,15 +433,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       generation.resolve = resolve;
       publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
       if (!generation.acceptsEvents) return;
-      try {
-        generation.recorder!.stop();
-        generation.stopTimer = setTimeout(() => {
-          recordDeepTraceEvent('voice.capture.stop_timeout', {
-            chunk_count: generation.chunks.length,
-          });
-          generation.finishStop?.();
-        }, VOICE_RECORDER_STOP_TIMEOUT_MS);
-      } catch (err) {
+      const fail = (err: unknown) => {
         generation.resolve = undefined;
         retire(generation);
         if (current === generation) {
@@ -446,6 +441,21 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
           publish({ phase: 'idle', errorMessage: getVoiceRecorderErrorMessage(err) });
         }
         resolve({ status: 'failed' });
+      };
+      try {
+        const recorder = generation.recorder!;
+        // A discarded native recording is deleted unread.
+        if (action === 'discard' && recorder.forget)
+          void recorder.forget().then(() => generation.finishStop?.(), fail);
+        else recorder.stop();
+        generation.stopTimer = setTimeout(() => {
+          recordDeepTraceEvent('voice.capture.stop_timeout', {
+            chunk_count: generation.chunks.length,
+          });
+          generation.finishStop?.();
+        }, VOICE_RECORDER_STOP_TIMEOUT_MS);
+      } catch (err) {
+        fail(err);
       }
     });
   };

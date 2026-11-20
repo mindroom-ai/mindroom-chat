@@ -138,6 +138,9 @@ class NativeRecorder extends EventTarget {
   stop = vi.fn(() => {
     this.state = 'inactive';
   });
+  forget = vi.fn(async () => {
+    this.state = 'inactive';
+  });
   deliver(body = 'voice') {
     this.dispatchEvent(Object.assign(new Event('dataavailable'), { data: new Blob([body]) }));
     this.dispatchEvent(new Event('stop'));
@@ -687,9 +690,12 @@ describe('voice capture session on the native recorder', () => {
     vi.advanceTimersByTime(5000);
     const finished = session.finish();
     expect(recorder.stop).toHaveBeenCalledOnce();
+    // Its file stays on disk until the audio is in the file to send.
+    expect(recorder.forget).not.toHaveBeenCalled();
     recorder.deliver();
     const result = await finished;
     if (result.status !== 'captured') throw new Error('missing recording');
+    expect(recorder.forget).toHaveBeenCalledOnce();
     expect(result.recording.duration).toBe(250);
     expect(result.recording.file.type).toBe('audio/mp4');
     expect(result.recording.file.name).toMatch(/^voice-message-.*\.m4a$/);
@@ -698,7 +704,7 @@ describe('voice capture session on the native recorder', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('stops a native recorder whose start outlived the recording', async () => {
+  it('forgets a native recorder whose start outlived the recording', async () => {
     const recorder = withoutWebCapture();
     const gate = deferred<NativeRecorder>();
     native.start.mockReturnValue(gate.promise);
@@ -708,18 +714,71 @@ describe('voice capture session on the native recorder', () => {
     session.reset();
     gate.resolve(recorder);
     expect(await started).toBe(false);
-    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(recorder.forget).toHaveBeenCalledOnce();
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it('discards a native recording', async () => {
+  it('discards a native recording by forgetting it, without reading it', async () => {
     const recorder = withoutWebCapture();
     const session = capture();
     await session.start();
+    const forgetting = deferred<void>();
+    recorder.forget.mockReturnValue(forgetting.promise);
     const discarded = session.discard();
-    recorder.deliver();
+    expect(recorder.forget).toHaveBeenCalledOnce();
+    expect(recorder.stop).not.toHaveBeenCalled();
+    expect(session.getSnapshot().phase).toBe('processing');
+    forgetting.resolve();
     expect(await discarded).toBe(false);
     expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('reports a native discard that could not delete the file', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    recorder.forget.mockRejectedValue({ code: 'DELETE_FAILED', message: 'Could not delete' });
+    expect(await session.discard()).toBe(false);
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'idle',
+      errorMessage: 'Could not delete',
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('ends a native discard that is never answered', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    recorder.forget.mockReturnValue(new Promise<void>(() => undefined));
+    const discarded = session.discard();
+    vi.advanceTimersByTime(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    expect(await discarded).toBe(false);
+    expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
+  });
+
+  it.each([
+    ['is reset', (session: VoiceCaptureSession) => session.reset()],
+    ['loses its owner', (session: VoiceCaptureSession) => session.releaseOwner()],
+  ])('stops a native recording that %s and keeps its file', async (_name, leave) => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    leave(session);
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    recorder.deliver();
+    expect(recorder.forget).not.toHaveBeenCalled();
+  });
+
+  it('keeps the file of a native recording that sends no audio', async () => {
+    const recorder = withoutWebCapture();
+    const session = capture();
+    await session.start();
+    const failed = session.finish();
+    recorder.dispatchEvent(new Event('stop'));
+    expect((await failed).status).toBe('failed');
+    expect(recorder.forget).not.toHaveBeenCalled();
   });
 
   it('keeps the next recording when a timed-out native stop answers late', async () => {
@@ -733,6 +792,8 @@ describe('voice capture session on the native recorder', () => {
     const second = withoutWebCapture();
     expect(await session.start()).toBe(true);
     first.deliver('old');
+    // What timed out stays on disk.
+    expect(first.forget).not.toHaveBeenCalled();
     expect(session.getSnapshot().phase).toBe('recording');
     const finished = session.finish();
     second.deliver('new');
@@ -751,6 +812,7 @@ describe('voice capture session on the native recorder', () => {
       phase: 'idle',
       errorMessage: 'Voice recording stopped unexpectedly. Please record again.',
     });
+    expect(recorder.forget).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
 
