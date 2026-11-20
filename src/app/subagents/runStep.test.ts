@@ -66,6 +66,10 @@ describe('toolStep', () => {
   it('names the file a call reads, writes or edits, without its folders', () => {
     expect(step('read_file', 'path=notes/2026-11-16.md, offset=1')).toBe('Reading 2026-11-16.md');
     expect(step('read_file_chunk', 'file_name=agenda.md')).toBe('Reading agenda.md');
+    expect(step('read_file', 'filename=agenda.md, directory=notes')).toBe('Reading agenda.md');
+    // Only a query is cut short; a file keeps its whole name.
+    const long = 'meeting-notes-for-the-spring-offsite-planning-week.md';
+    expect(step('read_file', `path=notes/${long}`)).toBe(`Reading ${long}`);
     expect(step('write_file', 'path=notes/summary.md, content=# Week 47, done')).toBe(
       'Writing summary.md'
     );

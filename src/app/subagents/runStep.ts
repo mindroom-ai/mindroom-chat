@@ -117,7 +117,7 @@ const BROWSER: Step = { key: 'usingBrowser' };
 
 /** The arguments each named thing is read from, the first one sent winning. */
 const ARG_KEYS: Record<StepArg, readonly string[]> = {
-  file: ['path', 'file_path', 'file_name'],
+  file: ['path', 'file_path', 'file_name', 'filename'],
   query: ['pattern', 'query'],
   site: ['url'],
 };
@@ -171,7 +171,8 @@ const shortQuery = (query: string): string => {
 const stepValue = (arg: StepArg, preview: string | undefined): string | undefined => {
   const value = ARG_KEYS[arg].map((key) => toolArg(preview, key)).find(Boolean);
   if (!value) return undefined;
-  let shown: string | undefined = shortQuery(value);
+  let shown: string | undefined;
+  if (arg === 'query') shown = shortQuery(value);
   if (arg === 'file') shown = baseName(value);
   if (arg === 'site') shown = hostName(value);
   // A name the call sent shows its direction controls, so none can reorder the phrase.
