@@ -16,7 +16,6 @@ import { EXPLORE_PATH } from '../../routes/paths';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
-import { decodeRouteParam } from '../../routes/pathUtils';
 import { renderTopicText } from './exploreRoomCard';
 import * as css from './style.css';
 
@@ -31,8 +30,7 @@ export function PublicRooms() {
   const { t } = useTranslation();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const { navigateSpace, navigateRoom } = useRoomNavigate();
-  const { server: encodedServer } = useParams();
-  const server = encodedServer ? decodeRouteParam(encodedServer) : undefined;
+  const { server } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const term = searchParams.get('term') ?? undefined;
   // Phones lead with the way back to the Explore list, so the title starts beside it.

@@ -1,11 +1,12 @@
-import { useMatch } from 'react-router-dom';
+import { useMemo } from 'react';
+import { matchPath, useLocation } from 'react-router-dom';
 import { SPACE_PATH } from '../routes/paths';
 import { decodeRouteParam } from '../routes/pathUtils';
 import { getCanonicalAliasRoomId, isRoomAlias, isRoomId } from '../matrix/matrix';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 
-// One pattern object for every call: useMatch memoizes on it, and a new object each render would
-// compile the path again in every row that navigates to rooms.
+// One pattern object for every call; the match is memoized on the address, so the path does not
+// compile again in every row that navigates to rooms.
 const SPACE_ROUTE_PATTERN = { path: SPACE_PATH, caseSensitive: true, end: false };
 
 /**
@@ -14,8 +15,13 @@ const SPACE_ROUTE_PATTERN = { path: SPACE_PATH, caseSensitive: true, end: false 
  */
 export const useSelectedSpace = (): string | undefined => {
   const mx = useMatrixClient();
-  const match = useMatch(SPACE_ROUTE_PATTERN);
-  const encoded = match?.params.spaceIdOrAlias;
+  // Matched on the address as written and decoded once: useMatch decodes it already, and reads a
+  // literal `%2F` in an ID as `/`.
+  const { pathname } = useLocation();
+  const encoded = useMemo(
+    () => matchPath(SPACE_ROUTE_PATTERN, pathname)?.params.spaceIdOrAlias,
+    [pathname]
+  );
   const spaceIdOrAlias = encoded ? decodeRouteParam(encoded) : undefined;
   if (!spaceIdOrAlias) return undefined;
   if (isRoomAlias(spaceIdOrAlias)) return getCanonicalAliasRoomId(mx, spaceIdOrAlias);
