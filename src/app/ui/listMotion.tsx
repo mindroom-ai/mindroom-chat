@@ -189,21 +189,22 @@ const play = (list: HTMLElement, before: Before): Animation[] => {
 const holdNow = (animation: Animation): void => {
   const effect = animation.effect as KeyframeEffect | null;
   const [first] = effect?.getKeyframes() ?? [];
-  let time = animation.currentTime;
-  // A glide, or the play that raises its row over the others: not a row that comes or leaves.
-  if (effect?.target && first && !('opacity' in first)) {
-    const shown = 'translate' in first && getComputedStyle(effect.target).translate;
-    if (shown) effect.setKeyframes([{ translate: shown }, { translate: 'none' }]);
-    time = 0;
-  }
+  // A glide: the play that raises its row over the others has no place.
+  const shown =
+    effect?.target && first && 'translate' in first && getComputedStyle(effect.target).translate;
+  if (shown) effect.setKeyframes([{ translate: shown }, { translate: 'none' }]);
   animation.pause();
   // eslint-disable-next-line no-param-reassign -- the one way to end a pause that is pending
-  animation.currentTime = time;
+  animation.currentTime = 0;
 };
 
-/** Whether a play that runs holds a row: the fade of the copy of a row that left holds none. */
+/**
+ * Whether a play that runs holds a row: a glide, or the play that raises its row. Not a fade:
+ * the copy of a row that left holds none, and a row that comes in would stay unseen.
+ */
 const holdsRow = ({ effect, playState }: Animation): boolean =>
-  playState === 'running' && !(effect as KeyframeEffect | null)?.target?.hasAttribute('inert');
+  playState === 'running' &&
+  !('opacity' in ((effect as KeyframeEffect | null)?.getKeyframes()[0] ?? {}));
 
 type BeforeChangeProps = {
   order: string;
@@ -264,10 +265,12 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * to the element that holds both, here the list (a Compact card pressed while the list sorted
  * itself anew opened nothing). A finger's click is aimed after its pointerup, so the release
  * alone does not let go; a change of `order` after it plays at once (a swipe resolves a card at
- * its release, also one that comes as a touchend alone, and no click follows). Before it, and less than `LONGEST_PLAY_MS` into the press,
- * a change starts its plays held at their first frame. A held glide starts again from where its
+ * its release, also one that comes as a touchend alone, and no click follows), and what the
+ * press held plays on with it. Before it, and less than `LONGEST_PLAY_MS` into the press, a
+ * change starts its plays held at their first frame. A held glide starts again from where its
  * row stood. A press that ends in neither click nor cancel (a drag, a long press) leaves the
- * plays held until `LONGEST_PLAY_MS` ends them. The copy of a row that left always fades on.
+ * plays held until `LONGEST_PLAY_MS` ends them. A row that comes in, and the copy of one that
+ * left, always fade on.
  */
 export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
   const beforeRef = useRef<Before>();
@@ -278,6 +281,13 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     () => (listRef.current ? readBefore(listRef.current) : undefined),
     [listRef]
   );
+  const letGo = useCallback(() => {
+    pressRef.current?.held.forEach((animation) => {
+      // Not one that ended or was started again meanwhile.
+      if (animation.playState === 'paused') animation.play();
+    });
+    pressRef.current = undefined;
+  }, []);
   const keep = useCallback((before: Before | undefined) => {
     beforeRef.current = before;
   }, []);
@@ -314,23 +324,18 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       const held = started.filter(holdsRow);
       held.forEach((animation) => animation.pause());
       press.held.push(...held);
-    }
+      // The release brought this change (a swipe, which no click follows): the rows that kept
+      // their place play on with it.
+    } else if (press?.up && started.length > 0) letGo();
     // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
     if (started.length > 0) {
       setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
     }
-  }, [listRef, order]);
+  }, [letGo, listRef, order]);
 
   useEffect(() => {
     // Rendered outside a page (a unit test in node), there is no press to listen for.
     if (typeof window === 'undefined') return undefined;
-    const letGo = () => {
-      pressRef.current?.held.forEach((animation) => {
-        // Not one that ended or was started again meanwhile.
-        if (animation.playState === 'paused') animation.play();
-      });
-      pressRef.current = undefined;
-    };
     // Only the pointer that pressed ends its press: by its cancel, or by its click after its
     // release (a click names its pointer in some browsers only, and one that does must name
     // this one). The last finger's lift is a release too: a touch can end with no pointerup,
@@ -354,7 +359,7 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       if (underWay && last.id !== id) return;
       const pressed = ({ effect }: Animation) =>
         Number(!!(effect as KeyframeEffect | null)?.target?.contains(target));
-      // The pressed row first: WebKit takes a millisecond a play, and a row glides on until its turn.
+      // The pressed row first: WebKit takes a millisecond a play, and a row glides on meanwhile.
       const running = runningRef.current.filter(holdsRow).sort((a, b) => pressed(b) - pressed(a));
       running.forEach(holdNow);
       // With the plays of a press that ended in neither a click nor a cancel.
@@ -369,7 +374,7 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
       ends.forEach((type) => window.removeEventListener(type, end, true));
       letGo();
     };
-  }, [listRef]);
+  }, [letGo, listRef]);
 
   return <BeforeChange order={order} read={read} keep={keep} />;
 };

@@ -16,9 +16,10 @@ export type MotionPlay = {
  * The rows (`data-motion-row`) stack in one column, `ROW_HEIGHT` apart; an element stands where
  * the row it is, is inside of, or holds first stands. `plays` holds every animation started, none
  * of which ends before `finish()`, and each can be paused and played on; `cancel` counts the
- * animations cancelled, `paused` holds the element of each one paused, in order. As in a browser, a play runs on after `pause()` until the next frame
- * (`frame()`, which moves every play that runs on by `FRAME_MS`), unless its `currentTime` is set
- * meanwhile. Call `restore()` after each test.
+ * animations cancelled, `paused` holds the element of each one paused, in order. As in a
+ * browser, a play runs on after `pause()` until the next frame (`frame()`, which moves every
+ * play that runs on by `FRAME_MS`), unless its `currentTime` is set meanwhile. Call `restore()`
+ * after each test.
  */
 export const standInForListMotion = () => {
   const plays: MotionPlay[] = [];

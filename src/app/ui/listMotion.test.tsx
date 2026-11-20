@@ -277,10 +277,23 @@ describe('useListMotion', () => {
     const row = (key: string) =>
       screen.getByTestId('list').querySelector(`[data-motion-row="${key}"]`) as HTMLElement;
     const states = () => [...new Set(motion.plays.map(({ animation }) => animation.playState))];
+    /** The states of the plays that fade a row in or out, and of the others, but for the ended. */
+    const fadesAndGlides = () => {
+      const of = (fades: boolean) => [
+        ...new Set(
+          motion.plays
+            .filter(({ keyframes }) => 'opacity' in (keyframes[0] ?? {}) === fades)
+            .map(({ animation }) => animation.playState)
+            .filter((state) => state !== 'idle')
+        ),
+      ];
+      return { fades: of(true), glides: of(false) };
+    };
     const reorder = () => {
       const { rerender } = render(<List order={['a', 'b', 'c']} />);
       rerender(<List order={['c', 'a', 'b']} />);
       expect(states()).toEqual(['running']);
+      return rerender;
     };
 
     it('holds every play where it shows until the click, so the pressed row gets it', () => {
@@ -333,7 +346,18 @@ describe('useListMotion', () => {
       expect(new Set(motion.paused)).toEqual(new Set([row('a'), row('b'), row('c')]));
     });
 
-    it('lets the copy of a row that left fade on, under a press and at one', () => {
+    it('lets a row that comes in fade on, at a press and under one', () => {
+      const { rerender } = render(<List order={['a', 'b']} />);
+      rerender(<List order={['new', 'a', 'b']} />);
+
+      pointer('pointerdown', row('a'));
+      expect(fadesAndGlides()).toEqual({ fades: ['running'], glides: ['paused'] });
+
+      rerender(<List order={['newer', 'new', 'a', 'b']} />);
+      expect(fadesAndGlides()).toEqual({ fades: ['running'], glides: ['paused'] });
+    });
+
+    it('lets the copy of a row that left fade on, under a press and at the next press', () => {
       const { rerender } = render(<List order={['a', 'b', 'c']} />);
 
       pointer('pointerdown', row('a'));
@@ -346,14 +370,29 @@ describe('useListMotion', () => {
       expect(statesByKind()).toEqual({ left: ['running'], rows: ['paused'] });
     });
 
-    it('plays a change that the release brings at once: a swipe resolves and no click comes', () => {
-      const { rerender } = render(<List order={['a', 'b', 'c']} />);
+    it('plays on what a press held when its release brings a change: a swipe, no click', () => {
+      const rerender = reorder();
 
-      pointer('pointerdown', row('b'));
-      pointer('pointerup', row('b'));
-      rerender(<List order={['a', 'c']} />);
+      pointer('pointerdown', row('a'));
+      pointer('pointerup', row('a'));
+      expect(states()).toEqual(['paused']);
 
-      expect(statesByKind()).toEqual({ left: ['running'], rows: ['running'] });
+      // The swiped row leaves: the first row keeps its place and its held glide, the last moves.
+      rerender(<List order={['c', 'b']} />);
+      expect(fadesAndGlides()).toEqual({ fades: ['running'], glides: ['running'] });
+    });
+
+    it('keeps the hold after the release through a change that starts no play', () => {
+      const rerender = reorder();
+
+      pointer('pointerdown', row('a'));
+      pointer('pointerup', row('a'));
+      // The first row goes under another parent, where it shows at the same place.
+      rerender(<List order={['c', 'a', 'b']} pinned={['c']} />);
+      expect(fadesAndGlides().glides).toEqual(['paused']);
+
+      pointer('click', row('a'));
+      expect(fadesAndGlides().glides).toEqual(['running']);
     });
 
     /** A finger lifts, and `touches` are still down: no pointer event tells of it. */
@@ -373,7 +412,7 @@ describe('useListMotion', () => {
       }
     );
 
-    it('holds through the lift of a touch until its click, and while another finger is down', () => {
+    it('holds through the lift of a touch until its click, and while another finger is on', () => {
       const { rerender } = render(<List order={['a', 'b', 'c']} />);
 
       pointer('pointerdown', row('b'));
@@ -388,7 +427,7 @@ describe('useListMotion', () => {
       expect(states()).toEqual(['running']);
     });
 
-    it('lets go at the click of the pointer that pressed, not at another one after its lift', () => {
+    it('lets go at the click of the pointer that pressed, not at another after its lift', () => {
       reorder();
 
       pointer('pointerdown', row('c'));
