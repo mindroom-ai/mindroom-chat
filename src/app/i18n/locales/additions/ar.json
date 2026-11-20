@@ -1443,12 +1443,6 @@
     "resizeSecond": "تغيير حجم السلسلة الثانية",
     "second": "السلسلة الثانية",
     "dropSecond": "أفلِت للفتح في العمود الثاني",
-    "newCount_zero": "جديدة: ⁨{{count}}⁩",
-    "newCount_one": "جديدة: ⁨{{count}}⁩",
-    "newCount_two": "جديدة: ⁨{{count}}⁩",
-    "newCount_few": "جديدة: ⁨{{count}}⁩",
-    "newCount_many": "جديدة: ⁨{{count}}⁩",
-    "newCount_other": "جديدة: ⁨{{count}}⁩",
     "newUnknown": "جديدة",
     "newAndReplies": "⁨{{news}}⁩ · ⁨{{replies}}⁩",
     "mentionsYou": "يشير إليك"

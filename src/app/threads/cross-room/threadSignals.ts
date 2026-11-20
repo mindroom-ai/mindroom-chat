@@ -61,11 +61,6 @@ export type ThreadSignals = {
   /** Who sent the newest unread reply that names the person. */
   mentionedBy?: string;
   newCount: number;
-  /**
-   * Whether `newCount` is every new reply. Before a thread is opened, or past the newest replies
-   * read, the replies it holds may begin after new ones: then the count is a floor.
-   */
-  newCountComplete?: boolean;
   /** The senders of the new replies, newest first. */
   newSenderIds: string[];
   lastReply?: ThreadReply;
@@ -198,7 +193,7 @@ const previewOf = (content: Record<string, unknown>): ThreadPreview => {
 /**
  * The thread's events: everything loaded (edits included, which the approvals read), and its own
  * messages, the newest `SIGNAL_EVENT_LIMIT` of them, from the loaded timeline and the summary's
- * latest reply. `holdsAll` tells whether those are all the replies the thread counts.
+ * latest reply.
  */
 const threadEvents = (room: Room, rootId: string) => {
   const thread = room.getThread(rootId);
@@ -207,10 +202,10 @@ const threadEvents = (room: Room, rootId: string) => {
   if (latest && !all.some((event) => event.getId() === latest.getId())) all.push(latest);
   all.sort((a, b) => a.getTs() - b.getTs());
   const root = thread?.rootEvent ?? room.findEventById(rootId);
-  const own = all.filter((event) => event.getId() !== rootId && isFirstOrder(event));
-  const replies = own.slice(-SIGNAL_EVENT_LIMIT);
-  const holdsAll = !!thread && replies.length === own.length && own.length >= thread.length;
-  return { thread, all, root, replies, holdsAll };
+  const replies = all
+    .filter((event) => event.getId() !== rootId && isFirstOrder(event))
+    .slice(-SIGNAL_EVENT_LIMIT);
+  return { thread, all, root, replies };
 };
 
 const readQuestion = ({ event, content }: Shown): ThreadQuestion | undefined => {
@@ -261,7 +256,7 @@ export const readThreadSignals = (
   now = Date.now(),
   resolvedTs?: number
 ): ThreadSignals => {
-  const { thread, all, root, replies, holdsAll } = threadEvents(room, rootId);
+  const { thread, all, root, replies } = threadEvents(room, rootId);
   const isAgent = (senderId: string | undefined) =>
     isMindroomAgentUserIdForViewer(senderId, userId);
   // An agent's relay of someone's message (the router's handoff) echoes words already counted.
@@ -294,10 +289,6 @@ export const readThreadSignals = (
         })
       : event.getSender() !== userId;
   const unread = counted.filter(isUnread);
-  // The replies read reach the thread's start or what the user read: no older one is new.
-  const oldestTs = replies[0]?.getTs();
-  const newCountComplete =
-    holdsAll || (readUpToTs !== undefined && oldestTs !== undefined && oldestTs <= readUpToTs);
   const newest = counted.at(-1);
   const answeredByResolve = (askedTs: number | undefined) =>
     resolvedTs !== undefined && (askedTs ?? 0) <= resolvedTs;
@@ -393,7 +384,6 @@ export const readThreadSignals = (
     mentionedMe,
     ...(mentionedBy ? { mentionedBy } : {}),
     newCount: unread.length,
-    newCountComplete,
     newSenderIds: [...new Set(unread.map(({ event }) => event.getSender() ?? '').reverse())],
     ...(newest
       ? {

@@ -31,13 +31,8 @@ vi.mock('../threads/cross-room/threadSignals', () => ({
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
 
-const signalsOf = (
-  newCount: number,
-  mentionedMe = false,
-  newCountComplete = true
-): ThreadSignals => ({
-  newCount,
-  newCountComplete,
+const signalsOf = (mentionedMe: boolean): ThreadSignals => ({
+  newCount: 1,
   mentionedMe,
   newSenderIds: [],
   automation: false,
@@ -64,7 +59,7 @@ const receiptOf = (threadId: string) =>
  */
 const setup = (signals: Record<string, ThreadSignals>, indexed: string[]) => {
   mocks.readThreadSignals.mockImplementation(
-    (_room: Room, threadRootId: string) => signals[threadRootId] ?? signalsOf(0)
+    (_room: Room, threadRootId: string) => signals[threadRootId] ?? signalsOf(false)
   );
   const room = {
     roomId: ROOM_ID,
@@ -147,8 +142,8 @@ describe('ThreadBadge unread state', () => {
     mocks.readThreadSignals.mockReset();
   });
 
-  it('reads no signals for a read thread, even when they count new replies', () => {
-    const { mount, chip, readsOf, setIndex } = setup({ $a: signalsOf(4) }, ['$a']);
+  it('reads no signals for a read thread, even when they tell a mention', () => {
+    const { mount, chip, readsOf, setIndex } = setup({ $a: signalsOf(true) }, ['$a']);
 
     mount({ $a: false });
 
@@ -159,72 +154,68 @@ describe('ThreadBadge unread state', () => {
     expect(chip('$a').renders).toBe(1);
   });
 
-  it('counts the new replies of an unread thread only when the count is all of them', () => {
-    const { mount, chip } = setup({ $a: signalsOf(4), $b: signalsOf(39, true, false) }, [
-      '$a',
-      '$b',
-    ]);
+  it("marks an unread thread, with the signals' mention", () => {
+    const { mount, chip } = setup({ $a: signalsOf(false), $b: signalsOf(true) }, ['$a', '$b']);
 
     mount({ $a: true, $b: true });
 
-    expect(chip('$a').unread).toEqual({ newCount: 4, mentionsMe: false });
-    // A floor would read as exact: the chip says New, and still tells the mention.
-    expect(chip('$b').unread).toEqual({ newCount: 0, mentionsMe: true });
+    expect(chip('$a').unread).toEqual({ mentionsMe: false });
+    expect(chip('$b').unread).toEqual({ mentionsMe: true });
   });
 
-  it('is unread with no count until the index holds the thread, then counts', () => {
-    const { mount, chip, readsOf, setIndex } = setup({ $a: signalsOf(4) }, []);
+  it('is unread with no mention until the index holds the thread, then tells it', () => {
+    const { mount, chip, readsOf, setIndex } = setup({ $a: signalsOf(true) }, []);
 
     mount({ $a: true });
-    expect(chip('$a').unread).toEqual({ newCount: 0, mentionsMe: false });
+    expect(chip('$a').unread).toEqual({ mentionsMe: false });
     expect(readsOf('$a')).toBe(0);
 
     setIndex([entryOf('$a')]);
-    expect(chip('$a').unread?.newCount).toBe(4);
+    expect(chip('$a').unread).toEqual({ mentionsMe: true });
   });
 
   it("draws one chip again for its own thread's index entry, not for another thread's", () => {
     const { mount, chip, readsOf, setIndex, entries, signals, clear } = setup(
-      { $a: signalsOf(4), $b: signalsOf(1) },
+      { $a: signalsOf(false), $b: signalsOf(false) },
       ['$a', '$b']
     );
     mount({ $a: true, $b: true });
     clear();
 
-    signals.$b = signalsOf(3);
+    signals.$b = signalsOf(true);
     setIndex([entries[0]!, entryOf('$b', 2)]);
 
     expect(chip('$a').renders).toBe(0);
     expect(readsOf('$a')).toBe(0);
     expect(chip('$b').renders).toBe(1);
-    expect(chip('$b').unread?.newCount).toBe(3);
+    expect(chip('$b').unread).toEqual({ mentionsMe: true });
   });
 
-  it("lowers the count once the user's receipt reads part of the thread", () => {
-    const { mx, room, mount, show, chip, signals } = setup({ $a: signalsOf(4) }, ['$a']);
+  it("drops the mention once the user's receipt reads it, the thread still unread", () => {
+    const { mx, room, mount, show, chip, signals } = setup({ $a: signalsOf(true) }, ['$a']);
     mount({ $a: true });
-    signals.$a = signalsOf(2);
+    signals.$a = signalsOf(false);
 
-    // A render with nothing heard keeps the cached count.
+    // A render with nothing heard keeps the cached signals.
     show({ $a: true });
-    expect(chip('$a').unread?.newCount).toBe(4);
+    expect(chip('$a').unread).toEqual({ mentionsMe: true });
 
     // The receipt counts for the thread in the cache, and the timeline renders the chip again
     // for it (`useThreadOverviewRefresh`'s receipt listener).
     mx.emit(RoomEvent.Receipt, receiptOf('$a'), room);
     show({ $a: true });
-    expect(chip('$a').unread?.newCount).toBe(2);
+    expect(chip('$a').unread).toEqual({ mentionsMe: false });
   });
 
   it('follows the record: unread once a reply comes, plain once the thread is read', () => {
-    const { mount, show, chip } = setup({ $a: signalsOf(4) }, ['$a']);
+    const { mount, show, chip } = setup({ $a: signalsOf(true) }, ['$a']);
     mount({ $a: false });
     expect(chip('$a').unread).toBeUndefined();
 
     show({ $a: true });
-    expect(chip('$a').unread?.newCount).toBe(4);
+    expect(chip('$a').unread).toEqual({ mentionsMe: true });
 
-    // The signals still count the replies; the record says the thread is read.
+    // The signals still tell the mention; the record says the thread is read.
     show({ $a: false });
     expect(chip('$a').unread).toBeUndefined();
   });

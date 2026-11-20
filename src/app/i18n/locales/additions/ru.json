@@ -1381,10 +1381,6 @@
     "resizeSecond": "Изменить ширину второй ветки",
     "second": "Вторая ветка",
     "dropSecond": "Отпустите, чтобы открыть во второй колонке",
-    "newCount_one": "{{count}} новое",
-    "newCount_few": "{{count}} новых",
-    "newCount_many": "{{count}} новых",
-    "newCount_other": "{{count}} новых",
     "newUnknown": "Новое",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Упоминает вас"

@@ -13,10 +13,8 @@ import * as css from './ThreadIndicator.css';
 
 const MAX_PARTICIPANTS = 3;
 
-/** What is new in an unread thread, for its chip. */
+/** What an unread thread's chip tells. */
 export type ThreadIndicatorUnread = {
-  /** How many replies are new; 0 when that is not known. */
-  newCount: number;
   /** A new reply (or the unread root) names the user. */
   mentionsMe: boolean;
 };
@@ -32,7 +30,7 @@ type ThreadIndicatorProps = Omit<ComponentPropsWithoutRef<'button'>, 'children'>
   threadReplyCount?: number;
   threadParticipantIds?: string[];
   isResolved?: boolean;
-  /** Set while the thread is unread: the chip takes the accent and says how much is new. */
+  /** Set while the thread is unread: the chip takes the accent and reads "New". */
   unread?: ThreadIndicatorUnread;
 };
 
@@ -75,7 +73,7 @@ function ParticipantAvatar({ room, userId }: { room: Room; userId: string }) {
 /**
  * A chip with a thread's reply count, its first participants and a resolved mark. With
  * `as="button"` it opens the thread; without a `threadRootId` it only reads "Thread". While
- * `unread` is set it reads "4 new · 11 replies" in the accent, with an @ pill for a mention.
+ * `unread` is set it reads "New · 11 replies" in the accent, with an @ pill for a mention.
  */
 export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
   function ThreadIndicator(
@@ -101,13 +99,9 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
     }
     const counted = replyCount !== undefined;
     const replies = counted ? t('thread.replyCount', { count: replyCount }) : t('thread.chip');
-    let label = replies;
-    if (unread) {
-      const { newCount } = unread;
-      const news =
-        newCount > 0 ? t('thread.newCount', { count: newCount }) : t('thread.newUnknown');
-      label = t('thread.newAndReplies', { news, replies });
-    }
+    const label = unread
+      ? t('thread.newAndReplies', { news: t('thread.newUnknown'), replies })
+      : replies;
     // With a count, the icon names what is counted, so a badge reads "Thread 2 replies".
     const iconLabel = counted
       ? { role: 'img', 'aria-label': t('thread.chip') }

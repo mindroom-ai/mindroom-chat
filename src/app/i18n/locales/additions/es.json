@@ -1350,9 +1350,6 @@
     "resizeSecond": "Cambiar el tamaño del segundo hilo",
     "second": "Segundo hilo",
     "dropSecond": "Suelta para abrir en la segunda columna",
-    "newCount_one": "{{count}} nuevo",
-    "newCount_many": "{{count}} nuevos",
-    "newCount_other": "{{count}} nuevos",
     "newUnknown": "Nuevo",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Te menciona"

@@ -155,57 +155,6 @@ describe('readThreadSignals', () => {
     });
   });
 
-  describe('tells whether the count of new replies is all of them', () => {
-    /** Text replies from Bob, ten milliseconds apart from 2000 on. */
-    const texts = (count: number) =>
-      Array.from({ length: count }, (_, i) => event({ id: `$r${i}`, ts: 2000 + i * 10 }));
-
-    it('is every new reply when the thread holds all of its replies', async () => {
-      const { room } = await setup(ME, texts(3));
-
-      expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
-        newCount: 3,
-        newCountComplete: true,
-      });
-    });
-
-    it('is every new reply when the newest replies read reach what the user read', async () => {
-      const { room } = await setup(ME, texts(50));
-      readUpTo(room, '$r44', 2440);
-
-      expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
-        newCount: 5,
-        newCountComplete: true,
-      });
-    });
-
-    it('is a floor for a thread not opened, which holds only its latest reply', async () => {
-      // After a reload the server counts 11 replies; the summary brings the latest one.
-      const { room } = await setup(ME, texts(1));
-      vi.spyOn(Thread.prototype, 'length', 'get').mockReturnValue(11);
-
-      expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
-        newCount: 1,
-        newCountComplete: false,
-      });
-    });
-
-    it('is a floor when every reply read is new, a notice among them', async () => {
-      const notice = event({
-        id: '$notice',
-        ts: 2405,
-        sender: AGENT,
-        content: { msgtype: 'm.notice', body: 'Placeholder notice' },
-      });
-      const { room } = await setup(ME, [...texts(50), notice]);
-
-      expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
-        newCount: 39,
-        newCountComplete: false,
-      });
-    });
-  });
-
   it('never counts title notices, agent notices, undecryptable or redacted events', async () => {
     const redacted = event({ id: '$gone', ts: 3500 });
     redacted.setUnsigned({ redacted_because: { type: 'm.room.redaction' } as never });

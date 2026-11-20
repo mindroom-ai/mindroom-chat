@@ -1319,8 +1319,6 @@
     "resizeSecond": "দ্বিতীয় থ্রেডের আকার বদলান",
     "second": "দ্বিতীয় থ্রেড",
     "dropSecond": "দ্বিতীয় কলামে খুলতে ছেড়ে দিন",
-    "newCount_one": "{{count}}টি নতুন",
-    "newCount_other": "{{count}}টি নতুন",
     "newUnknown": "নতুন",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "আপনাকে উল্লেখ"

@@ -30,35 +30,27 @@ describe('ThreadIndicator while its thread is unread', () => {
   it('is the plain reply chip while the thread is read', () => {
     const classes = renderChip('Thread 11 replies', {});
 
-    expect(classes).not.toContain(css.ThreadIndicatorUnread);
+    expect(classes).toEqual([css.ThreadIndicator]);
     expect(screen.queryByRole('img', { name: 'Mentions you' })).toBeNull();
   });
 
-  it('says how many replies are new and takes the accent', () => {
-    const classes = renderChip('Thread 4 new · 11 replies', {
-      unread: { newCount: 4, mentionsMe: false },
-    });
+  it('reads New and takes the accent', () => {
+    const classes = renderChip('Thread New · 11 replies', { unread: { mentionsMe: false } });
 
     expect(classes).toEqual([css.ThreadIndicator, css.ThreadIndicatorUnread]);
     expect(screen.queryByRole('img', { name: 'Mentions you' })).toBeNull();
   });
 
-  it('reads New while the count of new replies is unknown', () => {
-    renderChip('Thread New · 11 replies', { unread: { newCount: 0, mentionsMe: false } });
-  });
-
   it('adds an @ pill when a new reply names the user', () => {
-    renderChip('Thread 2 new · 11 replies Mentions you', {
-      unread: { newCount: 2, mentionsMe: true },
-    });
+    renderChip('Thread New · 11 replies Mentions you', { unread: { mentionsMe: true } });
 
     expect(screen.getByRole('img', { name: 'Mentions you' }).textContent).toBe('@');
   });
 
   it('keeps the resolved check, under the unread tint, while a resolved thread is unread', () => {
-    const classes = renderChip('Thread 1 new · 11 replies Resolved thread', {
+    const classes = renderChip('Thread New · 11 replies Resolved thread', {
       isResolved: true,
-      unread: { newCount: 1, mentionsMe: false },
+      unread: { mentionsMe: false },
     });
 
     expect(classes).toEqual([

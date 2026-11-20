@@ -1350,9 +1350,6 @@
     "resizeSecond": "Redimensionner le second fil",
     "second": "Second fil",
     "dropSecond": "Déposer pour ouvrir dans la seconde colonne",
-    "newCount_one": "{{count}} nouveau",
-    "newCount_many": "{{count}} nouveaux",
-    "newCount_other": "{{count}} nouveaux",
     "newUnknown": "Nouveau",
     "newAndReplies": "{{news}} · {{replies}}",
     "mentionsYou": "Vous mentionne"
