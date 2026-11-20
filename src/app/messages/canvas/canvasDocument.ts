@@ -265,7 +265,7 @@ const inputsScript = (inputs: string | undefined): string => `
   }));`;
 
 /** Only inline pages report their height: their host fits the frame to it. */
-const sizeScript = `
+const sizeScript = (fitted: boolean): string => `
   let lastHeight;
   let sizeQueued = false;
   // The body's own extent: it follows the content down and up, and the frame's height never enters it,
@@ -276,11 +276,14 @@ const sizeScript = `
     sizeQueued = false;
     const body = document.body;
     if (!body) return;
+    const root = document.documentElement;
+    // A fitted page scrolls sideways only while it is wider than its frame; see FITTED_STYLE.
+    ${fitted ? "root.style.overflowX = root.scrollWidth > root.clientWidth ? 'auto' : '';" : ''}
     const box = body.getBoundingClientRect();
     const height = Math.ceil(Math.max(
       box.top + scrollY + Math.max(body.scrollHeight, box.height)
         + (parseFloat(getComputedStyle(body).marginBottom) || 0),
-      document.documentElement.getBoundingClientRect().height
+      root.getBoundingClientRect().height
     ));
     if (height === lastHeight) return;
     lastHeight = height;
@@ -299,6 +302,8 @@ const sizeScript = `
     });
     reportSize();
   });
+  // A narrower frame can make a fixed-width page wider than it without resizing the body.
+  addEventListener('resize', queueSize);
   // A transition, an animation or an image can change positioned content after the change that started it.
   ['transitionend', 'animationend', 'load'].forEach((type) => document.addEventListener(type, queueSize, true));
   addEventListener('load', reportSize);
@@ -314,6 +319,7 @@ const bridgeScript = (
   lineOffset: number,
   saved: CanvasSaved,
   inline: boolean,
+  fitted: boolean,
   unknownLibraries: string[]
 ): string => `(() => {
   // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
@@ -322,7 +328,7 @@ const bridgeScript = (
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
   });
-${inline ? sizeScript : ''}  const post = (data, options) => {
+${inline ? sizeScript(fitted) : ''}  const post = (data, options) => {
     const label = options && typeof options.label === 'string' ? options.label : undefined;
     parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
   };
@@ -429,10 +435,11 @@ export type CanvasDisplay = {
 /** A frame with both schemes uses the browser's preferred one, whatever Chat's theme is. */
 export const RAW_COLOR_SCHEME = 'light dark';
 
-// A fitted page's root never scrolls, and wide content scrolls sideways in the body: the Mac app's
-// WebKit gives the whole wheel to a frame whose root can scroll even a pixel, so a size report a few
-// pixels short would stop the thread from scrolling under the pointer.
-const FITTED_STYLE = 'html{overflow:hidden}body{overflow:auto hidden}';
+// The wheel never scrolls a fitted page's root up or down: the Mac app's WebKit gives the whole wheel
+// to a frame whose root can scroll even a pixel, so a size report a few pixels short would stop the
+// thread from scrolling under the pointer. The size script lets a page wider than its frame scroll
+// sideways.
+const FITTED_STYLE = 'html{overflow:hidden}';
 
 const pageStyle = (theme: CanvasTheme, inline: boolean, fitted: boolean): string =>
   `<style>${canvasThemeCss(theme)}${
@@ -454,6 +461,8 @@ export const buildCanvasPage = (
   { inline = false, raw = false, remote = false, pinned, width }: CanvasDisplay = {}
 ): string => {
   const served = canvasLibraries(pinned);
+  // Raw pages take no style from Chat, so their root keeps the browser's overflow.
+  const fitted = inline && !raw && width === undefined;
   const head = (lineOffset: number) =>
     [
       '<!doctype html><html><head><meta charset="utf-8">',
@@ -464,8 +473,15 @@ export const buildCanvasPage = (
       )}">`,
       raw ? '' : `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
-      raw ? '' : pageStyle(theme, inline, inline && width === undefined),
-      `<script>${bridgeScript(colorScheme, lineOffset, saved, inline, served.unknown)}</script>`,
+      raw ? '' : pageStyle(theme, inline, fitted),
+      `<script>${bridgeScript(
+        colorScheme,
+        lineOffset,
+        saved,
+        inline,
+        fitted,
+        served.unknown
+      )}</script>`,
       // After the bridge, so a library that fails to load is reported.
       served.tags,
       '</head><body>',

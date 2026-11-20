@@ -19,6 +19,7 @@ import {
   CANVAS_WRAPPER_SANDBOX,
   canvasFrameWindow,
   canvasPolicy,
+  type CanvasDisplay,
 } from './canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 
@@ -864,14 +865,17 @@ describe('inline canvas sizing', () => {
     );
   });
 
-  it('never lets a fitted inline page scroll its root, so the wheel reaches the thread', () => {
-    const fitted = 'html{overflow:hidden}body{overflow:auto hidden}';
-    expect(buildCanvasPage('', 'light', undefined, false, {}, { inline: true })).toContain(fitted);
-    // A preview with its own width scrolls inside its window, and the panel scrolls its page.
-    expect(
-      buildCanvasPage('', 'light', undefined, false, {}, { inline: true, width: 1280 })
-    ).not.toContain(fitted);
-    expect(buildCanvasPage('', 'light')).not.toContain(fitted);
+  it('hides the root overflow of fitted inline pages only, letting wide ones scroll sideways', () => {
+    const page = (display?: CanvasDisplay) =>
+      buildCanvasPage('', 'light', undefined, false, {}, display);
+    const sideways = 'root.style.overflowX =';
+    expect(page({ inline: true })).toContain('html{overflow:hidden}');
+    expect(page({ inline: true })).toContain(sideways);
+    // Previews scroll inside their window, and the panel scrolls its page.
+    for (const display of [{ inline: true, width: 1280 }, { inline: true, raw: true }, {}]) {
+      expect(page(display)).not.toContain('html{overflow:hidden}');
+      expect(page(display)).not.toContain(sideways);
+    }
   });
 
   it('shows raw pages exactly as written: no theme, base style, or color scheme from Chat', () => {
