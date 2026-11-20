@@ -237,12 +237,8 @@ describe('voiceSendDraftController', () => {
         context: createContext,
       })
     ).toBe(false);
-    expect(store.read()).toEqual({
-      ...draft,
-      txnId: expect.any(String),
-      errorMessage: 'retry failed',
-      inFlight: undefined,
-    });
+    // Nothing of this attempt was written or sent: it is the draft it was, with the new error.
+    expect(store.read()).toEqual({ ...draft, errorMessage: 'retry failed', inFlight: undefined });
     expect(onFailure).toHaveBeenCalledOnce();
   });
 
@@ -671,6 +667,20 @@ describe('voiceSendDraftController and the journal', () => {
       onFailure: vi.fn(),
       context: () => pressed,
     };
+
+    // The disk cannot take where the copy goes: it stays what the disk says it is.
+    journal.outcome = 'failed';
+    const attempted = store.read()!;
+    expect(await controller.retry(attempt)).toBe(false);
+    expect(dispatched).not.toHaveBeenCalled();
+    expect(store.read()).toEqual({
+      ...attempted,
+      unprotected: true,
+      inFlight: undefined,
+      errorMessage: 'Could not save this change to your recording. Try again.',
+    });
+    journal.outcome = 'committed';
+    sendRecording.mockClear();
 
     expect(await controller.retry(attempt)).toBe(false);
     // The ID the first room knows is not the second room's: the copy is its own event.

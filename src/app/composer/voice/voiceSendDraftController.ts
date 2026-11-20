@@ -118,10 +118,13 @@ export const createVoiceSendDraftController = (
    */
   const send = async (
     draft: PlacedVoiceDraft,
-    sendRecording: SendRecordingCallback
+    sendRecording: SendRecordingCallback,
+    /** The draft as it was, which it stays while where it goes now is not written. */
+    before: PendingVoiceSendDraft = draft
   ): Promise<PendingVoiceSendDraft | undefined> => {
     const { recordingId, file, duration, waveform, context, txnId } = draft;
     let { unprotected } = draft;
+    let kept = before;
     try {
       const eventId = await sendRecording(file, duration, waveform, context, {
         txnId,
@@ -133,6 +136,7 @@ export const createVoiceSendDraftController = (
           }));
           unprotected = outcome !== 'committed';
           if (outcome === 'failed') throw new Error(VOICE_NOT_SAVED_MESSAGE);
+          kept = draft;
         },
       });
       if (!eventId) throw new Error(SEND_FAILED_MESSAGE);
@@ -143,7 +147,7 @@ export const createVoiceSendDraftController = (
       return undefined;
     } catch (error) {
       return {
-        ...draft,
+        ...kept,
         unprotected,
         inFlight: undefined,
         errorMessage: getVoiceSendErrorMessage(error),
@@ -194,7 +198,7 @@ export const createVoiceSendDraftController = (
         attempt.onFailure();
         return false;
       }
-      const failed = await send(placed, attempt.sendRecording);
+      const failed = await send(placed, attempt.sendRecording, draft);
       if (drafts.settle(draft.recordingId, inFlight.token, failed) && failed) attempt.onFailure();
       return !failed;
     } finally {

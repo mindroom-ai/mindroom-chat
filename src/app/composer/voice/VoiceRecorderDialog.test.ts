@@ -601,7 +601,7 @@ describe('VoiceRecorderComposer', () => {
         )
       );
     });
-    expect(JSON.stringify(renderer.toJSON())).toContain('May already be sent to Harbour office ·');
+    expect(JSON.stringify(renderer.toJSON())).toContain('May already be sent to Harbour office');
 
     // The composer's Send does not send it a second time.
     await act(async () => {
@@ -634,7 +634,7 @@ describe('VoiceRecorderComposer', () => {
       txnId: 'txn-unknown',
     });
     await act(async () => undefined);
-    expect(JSON.stringify(renderer.toJSON())).toContain('May already be sent to another room ·');
+    expect(JSON.stringify(renderer.toJSON())).toContain('May already be sent to another room');
 
     renderer.unmount();
   });

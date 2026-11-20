@@ -188,16 +188,12 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   };
 
   // What the capsule says beside the time: a recording the disk does not hold would be lost by
-  // a crash, one whose send was attempted in a room that is not there may have arrived, and one
-  // that has no destination was recovered (after a crash or a reload, or from a recorder that
-  // stopped by itself).
+  // a crash, and one that has no destination was recovered (after a crash or a reload, or from a
+  // recorder that stopped by itself). One whose send was attempted in a room that is not there
+  // says so on a line of its own instead, since it may have arrived.
   let capsuleLabel: string | undefined;
   if (unprotected) capsuleLabel = t('composer.voiceUnprotected');
-  else if (pendingAttempted) {
-    capsuleLabel = t('composer.voiceMayBeSent', {
-      room: pendingAttemptedRoom ?? t('composer.voiceAnotherRoom'),
-    });
-  } else if (pendingUnplaced) capsuleLabel = t('composer.voiceRecovered');
+  else if (pendingUnplaced && !pendingAttempted) capsuleLabel = t('composer.voiceRecovered');
 
   return (
     <>
@@ -255,12 +251,14 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                     </Button>
                     <Button
                       variant="Primary"
-                      onClick={onRetryRequest}
+                      onClick={pendingAttempted ? () => void submit(true) : onRetryRequest}
                       fill="Soft"
                       outlined
                       radii="300"
                     >
-                      {t('mindroomUi.voice.voiceRecorderDialog.retry')}
+                      {pendingAttempted
+                        ? t('composer.voiceSendCopy')
+                        : t('mindroomUi.voice.voiceRecorderDialog.retry')}
                     </Button>
                   </Box>
                 </Box>
@@ -289,7 +287,18 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
       {(active || hasPendingSend) && (
         <div>
           <Line variant="SurfaceVariant" size="300" />
-          <Box style={{ padding: `${config.space.S200} ${config.space.S300}` }}>
+          <Box
+            direction="Column"
+            gap="100"
+            style={{ padding: `${config.space.S200} ${config.space.S300}` }}
+          >
+            {pendingAttempted && (
+              <Text size="T200">
+                {t('composer.voiceMayBeSent', {
+                  room: pendingAttemptedRoom ?? t('composer.voiceAnotherRoom'),
+                })}
+              </Text>
+            )}
             <VoiceRecordingCapsule
               phase={phase}
               elapsedMs={hasPendingSend ? pendingDuration : elapsedMs}

@@ -103,6 +103,7 @@ export function VoiceRecordingCapsule({
           variant="Primary"
           fill="Soft"
           radii="Pill"
+          style={{ flex: 'none' }}
           onClick={onSendCopy}
           disabled={busy}
         >
