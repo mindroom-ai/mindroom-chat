@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from 'jotai';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
+import { useComposingCheck } from '../lib/hooks/useComposingCheck';
 import { openOverlay } from '../shortcuts/shortcutDom';
 import { isComposingKey, matchesShortcut } from '../shortcuts/shortcuts';
 import {
@@ -75,9 +76,6 @@ export const resolveVoiceComposer = (
   )?.target;
 };
 
-/** The keys whose release ends a press of the voice key: Space or either modifier. */
-const RELEASE_KEYS = new Set([' ', 'Control', 'Shift']);
-
 /**
  * The voice key: Space pressed with Control and Shift (⌃⇧Space, Ctrl+Shift+Space) records a voice
  * message in the composer `resolveVoiceComposer` finds (`createVoiceHold`); the first of the
@@ -88,6 +86,7 @@ const RELEASE_KEYS = new Set([' ', 'Control', 'Shift']);
  */
 export const useVoiceHoldShortcut = (enabled: boolean): void => {
   const store = useStore();
+  const composing = useComposingCheck();
   // Read live: switched off, the key arms nothing, and a press under way ends as interrupted.
   const enabledRef = useRef(enabled);
   const holdRef = useRef<VoiceHold>();
@@ -109,18 +108,20 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     holdRef.current = hold;
     // Mouse buttons down, as a press then is part of a drag or a click.
     const pointers = new Set<number>();
-    // The Space down is a press the key acts on: its repeats and keyup are the app's too, even
-    // after Control or Shift came up first. A new Space keydown decides afresh, so a keyup that
-    // macOS dropped under ⌘ never outlives the press.
+    // The Space key (by place: ⌥ turns its character into another) is down for a press the key
+    // acts on: its repeats and keyup are the app's too, even after a modifier came up, the press
+    // was interrupted or the window lost the focus. A new Space keydown decides afresh, so a
+    // keyup that macOS dropped under ⌘ never outlives the press.
     let ownsSpace = false;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      const space = event.key === ' ';
+      const space = event.code === 'Space';
       const voiceKey =
         enabledRef.current &&
         pointers.size === 0 &&
         matchesShortcut(event, 'voiceRecord') &&
         !isComposingKey(event) &&
+        !composing(event) &&
         !computerOwnsKeyboardEvent(event) &&
         !computerOwnsKeyboardFocus() &&
         openOverlay() === 'none';
@@ -130,8 +131,9 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       if (space && ownsSpace) event.preventDefault();
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      const space = event.key === ' ';
-      const acted = RELEASE_KEYS.has(event.key) && hold.keyUp();
+      // The first of the three keys to come up ends the press.
+      const space = event.code === 'Space';
+      const acted = (space || event.key === 'Control' || event.key === 'Shift') && hold.keyUp();
       if (acted || (space && ownsSpace)) event.preventDefault();
       if (space) ownsSpace = false;
     };
@@ -143,7 +145,6 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
     const onPointerUp = (event: PointerEvent) => pointers.delete(event.pointerId);
     const onBlur = () => {
       pointers.clear();
-      ownsSpace = false;
       hold.interrupt();
     };
     const onVisibility = () => {
@@ -170,5 +171,5 @@ export const useVoiceHoldShortcut = (enabled: boolean): void => {
       document.removeEventListener('visibilitychange', onVisibility);
       hold.interrupt();
     };
-  }, [store]);
+  }, [composing, store]);
 };

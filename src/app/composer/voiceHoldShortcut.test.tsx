@@ -6,6 +6,9 @@ import React, { useState } from 'react';
 import { voiceAutoSendPendingAtom } from './roomInputDrafts';
 import { resolveVoiceComposer, useVoiceComposer, useVoiceHoldShortcut } from './voiceHoldShortcut';
 
+const overlay = vi.hoisted((): { open: 'none' | 'help' | 'other' } => ({ open: 'none' }));
+vi.mock('../shortcuts/shortcutDom', () => ({ openOverlay: () => overlay.open }));
+
 type Log = string[];
 
 /** A composer root on the page; jsdom lays nothing out, so it gets a box of its own. */
@@ -72,6 +75,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  overlay.open = 'none';
   vi.useRealTimers();
   document.body.innerHTML = '';
 });
@@ -200,12 +204,13 @@ describe('useVoiceHoldShortcut', () => {
 
   it('starts nothing for held modifiers, other chords with Space, or a pending send', () => {
     const { store, log } = setup((l) => <Composer log={l} />);
-    // Option or Control and Shift held a while, then an arrow: the app's navigation.
-    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true });
-    press('keydown', { key: 'Alt', code: 'AltLeft', altKey: true, repeat: true });
-    wait(1000);
+    // Right Option, or Control and Shift, held past 300 ms, then an arrow: the app's navigation.
+    press('keydown', { key: 'Alt', code: 'AltRight', altKey: true });
+    press('keydown', { key: 'Alt', code: 'AltRight', altKey: true, repeat: true });
+    wait(400);
     press('keydown', { key: 'ArrowUp', code: 'ArrowUp', altKey: true });
-    press('keyup', { key: 'Alt', code: 'AltLeft' });
+    press('keyup', { key: 'ArrowUp', code: 'ArrowUp', altKey: true });
+    press('keyup', { key: 'Alt', code: 'AltRight' });
     press('keydown', { key: 'Control', code: 'ControlLeft', ctrlKey: true });
     press('keydown', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true, shiftKey: true });
     wait(1000);
@@ -279,11 +284,64 @@ describe('useVoiceHoldShortcut', () => {
     expect(press('keyup', space).defaultPrevented).toBe(true);
     pointer('pointerup');
     expect(log).toEqual(['start']);
+    // A blur sends nothing, but the Space still down stays the app's.
     hold();
     act(() => {
       window.dispatchEvent(new Event('blur'));
     });
+    expect(press('keydown', { ...voiceKey, repeat: true }).defaultPrevented).toBe(true);
+    expect(press('keyup', space).defaultPrevented).toBe(true);
+    expect(log).toEqual(['start']);
+    expect(press('keydown', space).defaultPrevented).toBe(false);
+  });
+
+  it('keeps the Space key when ⌥ changes its character, and lets a plain Space through after', () => {
+    const { log } = setup((l) => <Composer log={l} />);
+    hold();
+    press('keydown', { key: 'Alt', code: 'AltLeft', ctrlKey: true, shiftKey: true, altKey: true });
+    const nbsp = { key: '\u00a0', code: 'Space', altKey: true };
+    expect(press('keydown', { ...nbsp, repeat: true }).defaultPrevented).toBe(true);
+    expect(press('keyup', nbsp).defaultPrevented).toBe(true);
+    expect(log).toEqual([]);
+    expect(press('keydown', space).defaultPrevented).toBe(false);
     expect(press('keyup', space).defaultPrevented).toBe(false);
+  });
+
+  it('sends nothing when ⌘ comes mid-press and eats the Space keyup, and a later Space types', () => {
+    const { log } = setup((l) => <Composer log={l} />);
+    hold();
+    const meta = { key: 'Meta', code: 'MetaLeft', ctrlKey: true, shiftKey: true };
+    press('keydown', { ...meta, metaKey: true });
+    wait(300);
+    // macOS sends no keyup for Space under ⌘.
+    press('keyup', meta);
+    press('keyup', { key: 'Shift', code: 'ShiftLeft', ctrlKey: true });
+    press('keyup', { key: 'Control', code: 'ControlLeft' });
+    expect(log).toEqual([]);
+    expect(press('keydown', space).defaultPrevented).toBe(false);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
+  });
+
+  it('leaves the keys to an input method composing, and to an open dialog', () => {
+    const { log } = setup((l) => <Composer log={l} />);
+    act(() => {
+      window.dispatchEvent(new CompositionEvent('compositionstart'));
+    });
+    expect(press('keydown', voiceKey).defaultPrevented).toBe(false);
+    wait(300);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
+    act(() => {
+      window.dispatchEvent(new CompositionEvent('compositionend'));
+    });
+    wait(100);
+    overlay.open = 'other';
+    expect(press('keydown', voiceKey).defaultPrevented).toBe(false);
+    wait(300);
+    expect(press('keyup', space).defaultPrevented).toBe(false);
+    expect(log).toEqual([]);
+    overlay.open = 'none';
+    hold();
+    press('keyup', space);
     expect(log).toEqual(['start']);
   });
 });
