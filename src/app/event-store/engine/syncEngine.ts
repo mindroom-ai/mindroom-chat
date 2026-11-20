@@ -16,7 +16,7 @@
  *   - Live events (and redactions) are dispatched to the write-through,
  *     which persists them.
  *
- * Verified against SDK 41.7.0: `ClientNonUIFeatures.tsx` (mx.on
+ * Verified against SDK 45.1.0: `ClientNonUIFeatures.tsx` (mx.on
  * RoomEvent.Timeline at client scope) is the reference precedent for
  * client-level event handling; the Room class re-emits Room events
  * to the client, so the room-scoped `useLiveEventArrive` we're
