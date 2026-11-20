@@ -130,6 +130,10 @@ export const withToolMarkersRestored = (
   if (MINDROOM_TOOL_TRACE_KEY in content) {
     edit[MINDROOM_TOOL_TRACE_KEY] = restored[MINDROOM_TOOL_TRACE_KEY];
   }
-  const fallback = layerWithMarkers({ ...replacement, body: body.slice(2) });
+  // The HTML is the replacement's, which has its markers back: only the text differs.
+  const fallback = layerWithMarkers({
+    body: body.slice(2),
+    [MINDROOM_TOOL_TRACE_KEY]: replacement[MINDROOM_TOOL_TRACE_KEY],
+  });
   return { ...edit, body: `* ${String(fallback.body)}`, formatted_body: restored.formatted_body };
 };
