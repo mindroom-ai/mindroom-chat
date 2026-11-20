@@ -44,15 +44,25 @@ const seed = async (key: string) => {
   return { reader, roomId, rootId };
 };
 
-/** The thread's timeline, the banner's nearest scrolling ancestor: its offset and the rest below. */
-const timeline = (banner: Locator): Promise<{ top: number; below: number }> =>
+type Timeline = { top: number; height: number; below: number; padding: number };
+
+/**
+ * The thread's timeline, the banner's nearest scrolling ancestor: its offset, its content's
+ * height, the rest below and its computed top scroll padding.
+ */
+const timeline = (banner: Locator): Promise<Timeline> =>
   banner.evaluate((element) => {
     let node = element.parentElement;
     while (node && !/(auto|scroll)/.test(getComputedStyle(node).overflowY)) {
       node = node.parentElement;
     }
     if (!node) throw new Error('no scrolling ancestor');
-    return { top: node.scrollTop, below: node.scrollHeight - node.scrollTop - node.clientHeight };
+    return {
+      top: node.scrollTop,
+      height: node.scrollHeight,
+      below: node.scrollHeight - node.scrollTop - node.clientHeight,
+      padding: Number.parseFloat(getComputedStyle(node).scrollPaddingTop),
+    };
   });
 const timelineScrollTop = async (banner: Locator): Promise<number> => (await timeline(banner)).top;
 
@@ -81,18 +91,27 @@ const check = async (browser: Browser, engine: string, baseURL?: string) => {
     .poll(async () => (await timeline(banner)).below, { timeout: 15_000 })
     .toBeLessThan(2);
   await expect.poll(() => timelineScrollTop(banner)).toBeGreaterThan(200);
-  let start = await timelineScrollTop(banner);
-  await expect
-    .poll(async () => {
-      const previous = start;
-      start = await timelineScrollTop(banner);
-      return Math.abs(start - previous);
-    })
-    .toBe(0);
+  // Still for half a second: three samples 250 ms apart with the same offset and height.
+  const stillFor500Ms = async () => {
+    const samples: Timeline[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      if (index > 0) await new Promise((resolve) => setTimeout(resolve, 250));
+      // eslint-disable-next-line no-await-in-loop
+      samples.push(await timeline(banner));
+    }
+    return samples.every(
+      ({ top, height }) => top === samples[0]?.top && height === samples[0]?.height
+    );
+  };
+  await expect.poll(stillFor500Ms, { timeout: 20_000 }).toBe(true);
+  const { top: start, padding } = await timeline(banner);
 
   await banner.locator('[data-thread-context-root-title]').dblclick();
   const field = banner.getByRole('textbox', { name: 'Summary', exact: true });
   await expect(field).toBeFocused();
+  // While the field has the focus, the scroll padding leaves the banner out.
+  expect((await timeline(banner)).padding).toBeLessThan(padding);
   await page.keyboard.press('End');
   const offsets: number[] = [];
   for (const character of TYPED) {
@@ -112,6 +131,7 @@ const check = async (browser: Browser, engine: string, baseURL?: string) => {
   ).toEqual(offsets.map(() => true));
   await page.keyboard.press('Escape');
   await expect(field).toHaveCount(0);
+  await expect.poll(async () => (await timeline(banner)).padding).toBe(padding);
   await context.close();
 };
 
