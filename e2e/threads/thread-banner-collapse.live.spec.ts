@@ -200,7 +200,15 @@ for (const viewport of [
           // Right after the title, not at the far end of the row.
           expect(by.x - (title.x + title.width)).toBeLessThan(16);
         }
-        expect(Math.abs(centerY(await box(resolved)) - centerY(await box(more)))).toBeLessThan(2);
+        // Beside More; on a phone, under it when the title and byline are as tall as both.
+        const centerX = ({ x, width }: { x: number; width: number }) => x + width / 2;
+        const [resolvedAt, moreAt] = [await box(resolved), await box(more)];
+        const besideMore = Math.abs(centerY(resolvedAt) - centerY(moreAt)) < 2;
+        const underMore =
+          viewport.name === 'phone' &&
+          Math.abs(centerX(resolvedAt) - centerX(moreAt)) < 2 &&
+          resolvedAt.y >= moreAt.y + moreAt.height - 0.5;
+        expect(besideMore || underMore, JSON.stringify({ resolvedAt, moreAt })).toBe(true);
         // Resolve is an icon the size of More, named by a tooltip.
         const resolvedBox = await box(resolved);
         const moreBox = await box(more);
