@@ -223,6 +223,8 @@ describe('tool positions on read', () => {
 
   it.each([
     ['has other HTML', { formatted_body: '<p>Something else.</p>\n' }],
+    // The backend sends such an edit with its markers; this is one somebody else wrote.
+    ['has no HTML', { formatted_body: undefined }],
     ['does not open with "* "', { body: 'Something else.' }],
   ])('leaves a fallback that %s as it was sent', (_name, fallback) => {
     const edit: Record<string, unknown> = { ...editOf(wireContent(between), false), ...fallback };

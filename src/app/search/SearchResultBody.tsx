@@ -24,7 +24,6 @@ import {
 import type { ResultItem } from './useMessageSearch';
 import * as css from './SearchResultBody.css';
 import { matchesEnum } from '../lib/matchesEnum';
-import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
 import { readCallTranscript } from '../matrix/protocol/callTranscript';
 import { revealDirectionControls } from '../ui/directional';
 import { ThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
@@ -129,13 +128,8 @@ export function SearchResultBody({
   const authenticated = useMediaAuthentication();
   const mediaAutoLoad = useSettingValue(settingsAtom, 'mediaAutoLoad');
   const { event } = item;
-  // Search hits are raw events: the same shape and agent-key checks as the timeline's events.
   const content = useMemo(
-    () =>
-      sanitizeContent(
-        getSearchResultEffectiveContent(event),
-        isTrustedAgentSender(event.sender)
-      ) as Record<string, unknown>,
+    () => getSearchResultEffectiveContent(event) as Record<string, unknown>,
     [event]
   );
   const preview = useMemo(

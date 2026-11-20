@@ -1,6 +1,7 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { getSameSenderBundledEdit } from '../matrix/editEvent';
+import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
 import { MessageEvent } from '../matrix/types/room';
 import { shouldUseLongTextSearchResultBody } from '../messages/content/searchResultPolicy';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
@@ -69,9 +70,7 @@ const getSerializedReplacementContent = (
   return replacement.content;
 };
 
-export const getSearchResultEffectiveContent = (
-  event: IEventWithRoomId
-): IEventWithRoomId['content'] => {
+const getLatestContent = (event: IEventWithRoomId): IEventWithRoomId['content'] => {
   const relation = event.content?.['m.relates_to'];
   const inlineNewContent = event.content?.['m.new_content'];
   if (relation?.rel_type === RelationType.Replace && isRecord(inlineNewContent)) {
@@ -89,6 +88,15 @@ export const getSearchResultEffectiveContent = (
 
   return event.content;
 };
+
+/**
+ * A hit's latest content as the timeline reads its event: the same shape and agent-key checks,
+ * and an agent's tool markers back in its text. Every preview of a hit starts from this.
+ */
+export const getSearchResultEffectiveContent = (
+  event: IEventWithRoomId
+): IEventWithRoomId['content'] =>
+  sanitizeContent(getLatestContent(event), isTrustedAgentSender(event.sender));
 
 export const isSearchResultEdited = (event: IEventWithRoomId): boolean =>
   event.content?.['m.relates_to']?.rel_type === RelationType.Replace ||

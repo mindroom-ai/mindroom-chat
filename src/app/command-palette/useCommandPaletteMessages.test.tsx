@@ -11,6 +11,7 @@ import {
   getCrossRoomThreadIndexKey,
   type CrossRoomThreadIndexEntry,
 } from '../threads/cross-room/crossRoomThreadIndex';
+import { trustAgentsOfViewer } from '../matrix/protocol/untrustedContent';
 import { hasEncryptedRooms, useCommandPaletteMessages } from './useCommandPaletteMessages';
 
 type PendingSearch = {
@@ -157,6 +158,28 @@ describe('useCommandPaletteMessages', () => {
     await waitFor(() => expect(result.current.status).toBe('done'));
 
     expect(result.current.items[0]?.snippet).toBe('The walrus plan: see the list and run it.');
+  });
+
+  it("shows the tool calls of an agent's reply, which Matrix holds without them", async () => {
+    trustAgentsOfViewer('@me:example.org');
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const response = responseWith('$reply', 'The walrus plan.\n\nDone.');
+    const hit = response.search_categories.room_events.results?.[0];
+    if (!hit) throw new Error('no hit');
+    hit.result.sender = '@mindroom_helper:example.org';
+    Object.assign(hit.result.content, {
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>The walrus plan.</p>\n<p>Done.</p>\n',
+      'io.mindroom.tool_trace': {
+        version: 3,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 2, at: 1 }],
+      },
+    });
+    await act(async () => pending[0]?.resolve(response));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.snippet).toBe('The walrus plan. 🔧 shell [1] Done.');
   });
 
   it('starts a snippet a few words before a late match, in right-to-left text too', async () => {
