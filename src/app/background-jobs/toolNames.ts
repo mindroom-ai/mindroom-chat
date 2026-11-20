@@ -2,55 +2,38 @@ import type { TFunction } from 'i18next';
 import { revealDirectionControls } from '../ui/directional';
 
 /** A tool job's name in plain words, under `mindroomUi.backgroundJobs.toolNames`. */
-type ToolNameKey =
-  | 'readingFile'
-  | 'writingFile'
-  | 'editingFile'
-  | 'searchingFiles'
-  | 'lookingThroughFiles'
-  | 'runningCommand'
-  | 'openingPage'
-  | 'searchingWeb'
-  | 'askingHelper'
-  | 'usingBrowser'
-  | 'checkingMemory'
-  | 'updatingMemory'
-  | 'usingMessages'
-  | 'scheduling'
-  | 'checkingSchedule'
-  | 'updatingSchedule';
+type ToolNameKey = keyof typeof TOOL_NAME_TABLE | 'usingBrowser';
 
 /** Each name and the tools (MindRoom's own and its bundled toolkits') that it stands for. */
-const TOOL_NAME_TABLE: readonly (readonly [ToolNameKey, readonly string[]])[] = [
-  ['readingFile', ['read_file', 'read_file_chunk']],
-  ['writingFile', ['write_file', 'save_file']],
-  ['editingFile', ['edit_file', 'replace_file_chunk']],
-  ['searchingFiles', ['grep', 'search_content', 'search_files']],
-  ['lookingThroughFiles', ['find_files', 'ls', 'list_files']],
-  ['runningCommand', ['run_shell_command', 'shell', 'run_shell']],
-  ['openingPage', ['read_url', 'read', 'crawl', 'scrape_webpage']],
-  [
-    'searchingWeb',
-    [
-      'search_google',
-      'search_news',
-      'google_search',
-      'web_search',
-      'duckduckgo_search',
-      'search_web',
-    ],
+const TOOL_NAME_TABLE = {
+  readingFile: ['read_file', 'read_file_chunk'],
+  writingFile: ['write_file', 'save_file'],
+  editingFile: ['edit_file', 'replace_file_chunk'],
+  searchingFiles: ['grep', 'search_content', 'search_files'],
+  lookingThroughFiles: ['find_files', 'ls', 'list_files'],
+  runningCommand: ['run_shell_command', 'shell', 'run_shell'],
+  openingPage: ['read_url', 'read', 'crawl', 'scrape_webpage'],
+  searchingWeb: [
+    'search_google',
+    'search_news',
+    'google_search',
+    'web_search',
+    'duckduckgo_search',
+    'search_web',
   ],
-  ['askingHelper', ['run_subagent', 'continue_subagent']],
-  ['checkingMemory', ['search_memories', 'list_memories', 'get_memory']],
-  ['updatingMemory', ['add_memory', 'update_memory', 'delete_memory']],
-  ['usingMessages', ['matrix_message']],
-  ['scheduling', ['schedule', 'schedule_tool_call']],
-  ['checkingSchedule', ['list_schedules']],
-  ['updatingSchedule', ['edit_schedule', 'cancel_schedule']],
-];
+  askingHelper: ['run_subagent', 'continue_subagent'],
+  checkingMemory: ['search_memories', 'list_memories', 'get_memory'],
+  updatingMemory: ['add_memory', 'update_memory', 'delete_memory'],
+  usingMessages: ['matrix_message'],
+  scheduling: ['schedule', 'schedule_tool_call'],
+  checkingSchedule: ['list_schedules'],
+  updatingSchedule: ['edit_schedule', 'cancel_schedule'],
+} as const;
 
 const TOOL_NAMES: ReadonlyMap<string, ToolNameKey> = new Map(
-  TOOL_NAME_TABLE.flatMap(([key, tools]) => tools.map((tool) => [tool, key] as const))
+  Object.entries(TOOL_NAME_TABLE).flatMap(([key, tools]) =>
+    tools.map((tool) => [tool, key as keyof typeof TOOL_NAME_TABLE] as const)
+  )
 );
 
 /**
