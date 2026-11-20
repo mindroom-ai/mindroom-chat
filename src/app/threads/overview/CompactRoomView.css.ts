@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { footerInset, topInset, Scroll } from '../../ui/styles/RoomOverlay.css';
 import { transition } from '../../ui/styles/transition';
@@ -37,7 +37,11 @@ export const Cards = style({
   position: 'relative',
 });
 
+// What a hovered or keyboard-focused card and its buttons turn: a tinted card's tint, a step darker.
+const hoverTint = createVar();
+
 export const CardShell = style({
+  vars: { [hoverTint]: color.SurfaceVariant.ContainerHover },
   position: 'relative',
   width: '100%',
   minWidth: 0,
@@ -121,20 +125,22 @@ export const CardButton = style([
 // The keyboard's focus on the card or its buttons tints it; a menu that hands focus back to its
 // button after a tap or a click does not.
 globalStyle(`${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${Card}`, {
-  backgroundColor: color.SurfaceVariant.ContainerHover,
+  backgroundColor: hoverTint,
 });
 
 // A touch screen keeps :hover on the card tapped last; only a pointer that can hover tints it.
 globalStyle(`${CardShell}:hover ${Card}, ${Card}:hover`, {
   '@media': {
-    '(hover: hover)': { backgroundColor: color.SurfaceVariant.ContainerHover },
+    '(hover: hover)': {
+      backgroundColor: fallbackVar(hoverTint, color.SurfaceVariant.ContainerHover),
+    },
   },
 });
 
 export const CardAction = style({
   display: 'flex',
   gap: config.space.S100,
-  backgroundColor: color.SurfaceVariant.ContainerHover,
+  backgroundColor: hoverTint,
   position: 'absolute',
   insetInlineEnd: config.space.S300,
   top: '50%',
@@ -169,7 +175,7 @@ export const CardAction = style({
       insetInlineStart: `calc(-1 * ${config.space.S500})`,
       width: config.space.S500,
       pointerEvents: 'none',
-      background: `linear-gradient(to right, transparent, ${color.SurfaceVariant.ContainerHover})`,
+      background: `linear-gradient(to right, transparent, ${hoverTint})`,
     },
   },
 });
@@ -199,7 +205,7 @@ export const CardMenuButton = style({
 });
 
 globalStyle(`[dir='rtl'] ${CardAction}::before`, {
-  background: `linear-gradient(to left, transparent, ${color.SurfaceVariant.ContainerHover})`,
+  background: `linear-gradient(to left, transparent, ${hoverTint})`,
 });
 
 globalStyle(`${CardShell}:hover ${CardAction}, ${CardShell}:focus-within ${CardAction}`, {
@@ -227,6 +233,13 @@ export const CardSnoozed = style({
   borderColor: color.Warning.ContainerLine,
   backgroundColor: color.Warning.Container,
   color: color.Warning.OnContainer,
+});
+
+globalStyle(`${CardShell}:has(${CardResolved})`, {
+  vars: { [hoverTint]: color.Success.ContainerHover },
+});
+globalStyle(`${CardShell}:has(${CardSnoozed})`, {
+  vars: { [hoverTint]: color.Warning.ContainerHover },
 });
 
 // A filled disc at the start of a resolved or snoozed card's title. The card's tint alone can sit
@@ -337,12 +350,12 @@ export const Chips = style({
   },
 });
 
-// Room for the menu button that sits at the end of this row on touch; only
-// the compact view's card shell has that button.
+// Room for the menu button that sits at the end of this row on touch (2.5rem, 4px from the card's
+// edge, past its 12px padding), and 4px clear of it; only the compact view's card shell has it.
 globalStyle(`${CardShell} ${MetadataRow}`, {
   '@media': {
     [touchActions]: {
-      paddingInlineEnd: toRem(32),
+      paddingInlineEnd: toRem(36),
     },
   },
 });
@@ -422,15 +435,11 @@ export const ReplyCount = style({
 });
 
 // Secondary text on a resolved card's green or a snoozed card's amber keeps 4.5:1 at the lighter
-// of the two quiet levels (the quieter one has 3.8:1 and 4.2:1 on the light palette).
+// of the two quiet levels (the quieter one has 3.8:1 and 4.2:1 on the light palette). The time and
+// the reply count take that level on every card (4.9:1 or more on all palettes, hovered too).
 globalStyle(
   [CardResolved, CardSnoozed]
-    .flatMap((tint) => [
-      `${tint} ${MessageText}`,
-      `${tint} ${TimeText}:not(${TimeTextUnread})`,
-      `${tint} ${StreamingStatus}`,
-      `${tint} ${ReplyCount}`,
-    ])
+    .flatMap((tint) => [`${tint} ${MessageText}`, `${tint} ${StreamingStatus}`])
     .join(', '),
   { opacity: config.opacity.P400 }
 );
