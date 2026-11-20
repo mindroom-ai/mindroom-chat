@@ -8,11 +8,8 @@ import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { subscribeRelativeTimeClock, useRelativeTime } from '../i18n/useRelativeTime';
 import { formatWorkDuration } from '../lib/time';
 import type { SubagentUsage } from '../matrix/protocol/subagentFrame';
-import {
-  formatCostUsd,
-  getAiRunCompactModelLabel,
-  getAiRunModelLabel,
-} from '../messages/agent-run/aiRunDisplay';
+import { formatCostUsd } from '../messages/agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import { ProviderModelIcon } from '../models/ProviderModelIcon';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { AgentAvatar, useAgentProfile } from '../subagents/SubagentRunCard';
@@ -134,21 +131,25 @@ export function JobElapsed({ startedAt, endedAt }: { startedAt: number; endedAt?
   );
 }
 
-/** A thread's title, which shows that thread: for a job of another conversation than the view's. */
-function ThreadChip({ room, threadId }: { room: Room; threadId: string }) {
+/**
+ * An icon button, beside Open and Stop, that shows the thread of a job of another conversation
+ * than the view's, named for that thread.
+ */
+function ThreadButton({ room, threadId }: { room: Room; threadId: string }) {
+  const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const title = useThreadTitle(room, threadId, undefined, undefined);
+  const label = t('thread.aria.openThread', { title });
   return (
     <button
       type="button"
-      className={css.ThreadChip}
-      title={title}
-      aria-label={title}
+      className={css.IconButton}
+      title={label}
+      aria-label={label}
       onClick={() => navigateRoomThread(room.roomId, threadId)}
       data-job-thread={threadId}
     >
-      <IconMessage size={14} stroke={1.8} aria-hidden />
-      <span className={css.ThreadTitle}>{title}</span>
+      <IconMessage size={16} stroke={1.8} aria-hidden />
     </button>
   );
 }
@@ -189,7 +190,7 @@ const useUsageCells = (usage: SubagentUsage | undefined): [UsageCell, UsageCell,
 type RowProps = {
   room: Room;
   item: BackgroundJobsBarItem;
-  // The view's conversation; a job of another one links to its thread.
+  // The view's conversation; a job of another one has a button to its thread.
   viewThreadId: string | null;
   // When an ended job ended, which its time stops at.
   endedAt?: number;
@@ -219,8 +220,8 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 
 /**
  * One listed job on the bar's grid: its title, else its task, as the headline, with at most one
- * pill; under it who, on what model, a tool job's arguments, and the thread it runs in when that
- * is not the view's. Then its calls, tokens and cost, its time, Open and Stop, each in its column.
+ * pill; under it who, on what model, and a tool job's arguments. Then its calls, tokens and cost,
+ * its time, and its buttons: the thread it runs in when that is not the view's, Open and Stop.
  * A job without its run's frames shows its name alone, as before.
  */
 export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, stop }: RowProps) {
@@ -238,7 +239,7 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
   // A tool job's headline is its tool already: its line 2 is the call's arguments.
   const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
-  const detail = (described && meta) || doing || elsewhere;
+  const detail = (described && meta) || doing;
   return (
     <li
       className={classNames(css.Job, nested && css.Nested)}
@@ -293,7 +294,6 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
                 <span className={css.Preview}>{doing}</span>
               </span>
             )}
-            {elsewhere && <ThreadChip room={room} threadId={item.threadId!} />}
           </span>
         )}
       </span>
@@ -311,6 +311,7 @@ export function BackgroundJobRow({ room, item, viewThreadId, endedAt, onOpen, st
       ))}
       <JobElapsed startedAt={item.startedAt} endedAt={endedAt} />
       <span className={css.Actions}>
+        {elsewhere && <ThreadButton room={room} threadId={item.threadId!} />}
         {onOpen && <OpenButton name={name} onOpen={onOpen} />}
         {stop}
       </span>

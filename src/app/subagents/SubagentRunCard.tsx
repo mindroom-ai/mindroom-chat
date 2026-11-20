@@ -21,7 +21,7 @@ import {
   type SubagentMeta,
 } from '../matrix/protocol/subagentFrame';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
-import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../matrix/protocol/aiRunModelLabel';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import * as css from './subagentsPanel.css';
 

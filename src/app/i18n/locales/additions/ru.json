@@ -287,6 +287,51 @@
     "syncStatus": {
       "mediaUnavailable": "Некоторые изображения не загружаются в этом окне: браузер не запускает здесь сервис-воркер MindRoom."
     },
+    "agentCard": {
+      "agent": "Агент",
+      "close": "Закрыть",
+      "configuredTools": "Настроенные инструменты",
+      "toolCount_one": "{{count}} инструмент",
+      "toolCount_few": "{{count}} инструмента",
+      "toolCount_many": "{{count}} инструментов",
+      "toolCount_other": "{{count}} инструмента",
+      "groupCount_one": "{{count}} группа",
+      "groupCount_few": "{{count}} группы",
+      "groupCount_many": "{{count}} групп",
+      "groupCount_other": "{{count}} группы",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ещё: {{groups}}",
+      "viewAll_one": "Все инструменты ({{count}})",
+      "viewAll_few": "Все инструменты ({{count}})",
+      "viewAll_many": "Все инструменты ({{count}})",
+      "viewAll_other": "Все инструменты ({{count}})",
+      "toolsTitle": "Инструменты: {{name}}",
+      "filter": "Фильтр инструментов",
+      "noMatch": "Нет подходящих инструментов.",
+      "back": "Назад",
+      "more": "Ещё",
+      "worksIn": "Работает в",
+      "loading": "Загрузка настроенных инструментов",
+      "availability": "Доступность может зависеть от запроса и прав доступа.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_few": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Код и файлы",
+        "research": "Веб",
+        "productivity": "Расписание и память",
+        "email": "Почта",
+        "mcp": "Подключённые приложения",
+        "integrations": "Интеграции",
+        "communication": "Чаты и сообщения",
+        "entertainment": "Медиа",
+        "information": "Справки",
+        "smart_home": "Умный дом",
+        "social": "Соцсети",
+        "other": "Другое"
+      }
+    },
     "space": {
       "overview": "Обзор пространства"
     }

@@ -279,6 +279,43 @@
     "syncStatus": {
       "mediaUnavailable": "Some images can't load in this window: the browser runs no service worker for MindRoom here."
     },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Close",
+      "configuredTools": "Configured tools",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} group",
+      "groupCount_other": "{{count}} groups",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Also {{groups}}",
+      "viewAll_one": "View all {{count}} tool",
+      "viewAll_other": "View all {{count}} tools",
+      "toolsTitle": "{{name}}’s tools",
+      "filter": "Filter tools",
+      "noMatch": "No tools match.",
+      "back": "Back",
+      "more": "More",
+      "worksIn": "Works in",
+      "loading": "Loading configured tools",
+      "availability": "Availability can vary by request and permissions.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & files",
+        "research": "Web",
+        "productivity": "Scheduling & memory",
+        "email": "Email",
+        "mcp": "Connected apps",
+        "integrations": "Integrations",
+        "communication": "Chat & messages",
+        "entertainment": "Media",
+        "information": "Information",
+        "smart_home": "Smart home",
+        "social": "Social",
+        "other": "Other"
+      }
+    },
     "space": {
       "overview": "Space overview"
     }

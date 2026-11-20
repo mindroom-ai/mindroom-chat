@@ -201,6 +201,81 @@ describe('InsetScrollbar', () => {
     expect(document.activeElement).toBe(tabIndex === -1 ? input : bar);
   });
 
+  it.each(['pointerup', 'pointercancel', 'lostpointercapture', 'unmount'])(
+    'keeps the page from selecting text while a drag runs, until %s',
+    (end) => {
+      track.setPointerCapture = vi.fn();
+      track.hasPointerCapture = vi.fn(() => false);
+      const pointer = (type: string) => {
+        const event = new MouseEvent(type, { button: 0, bubbles: true, cancelable: true });
+        Object.defineProperties(event, { isPrimary: { value: true }, pointerId: { value: 1 } });
+        track.dispatchEvent(event);
+        return event;
+      };
+      const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+      expect(pointer('pointerdown').defaultPrevented).toBe(true);
+      expect(blocked()).toBe(true);
+      const selectStart = new Event('selectstart', { bubbles: true, cancelable: true });
+      scroll.dispatchEvent(selectStart);
+      expect(selectStart.defaultPrevented).toBe(true);
+      if (end === 'unmount') act(() => root.render(null));
+      else pointer(end);
+      expect(blocked()).toBe(false);
+      const after = new Event('selectstart', { bubbles: true, cancelable: true });
+      document.body.dispatchEvent(after);
+      expect(after.defaultPrevented).toBe(false);
+    }
+  );
+
+  it('ends a drag when the page is left mid-drag, and takes the next press', () => {
+    const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+    const pointer = (type: string) => {
+      const event = new MouseEvent(type, { button: 0, bubbles: true, cancelable: true });
+      Object.defineProperties(event, { isPrimary: { value: true }, pointerId: { value: 1 } });
+      track.dispatchEvent(event);
+    };
+    track.setPointerCapture = vi.fn();
+    track.hasPointerCapture = vi.fn(() => false);
+    pointer('pointerdown');
+    // Back with the mouse held: the page comes back from the cache without the drag's end.
+    window.dispatchEvent(new Event('pagehide'));
+    expect(blocked()).toBe(false);
+    pointer('pointerdown');
+    expect(blocked()).toBe(true);
+    pointer('pointerup');
+    expect(blocked()).toBe(false);
+  });
+
+  it('takes one drag at a time, and no hold without the pointer capture', () => {
+    const blocked = () => document.documentElement.hasAttribute('data-drag-no-select');
+    const pointer = (type: string, pointerId: number) => {
+      const event = new MouseEvent(type, { button: 0, bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        isPrimary: { value: true },
+        pointerId: { value: pointerId },
+      });
+      track.dispatchEvent(event);
+    };
+    track.setPointerCapture = vi.fn(() => {
+      throw new DOMException('No active pointer', 'NotFoundError');
+    });
+    const thrown = vi.fn((event: ErrorEvent) => event.preventDefault());
+    window.addEventListener('error', thrown);
+    pointer('pointerdown', 1);
+    window.removeEventListener('error', thrown);
+    expect(thrown).toHaveBeenCalledOnce();
+    expect(blocked()).toBe(false);
+    track.setPointerCapture = vi.fn();
+    track.hasPointerCapture = vi.fn(() => false);
+    // A mouse and a pen are each primary for their own kind of pointer.
+    pointer('pointerdown', 1);
+    pointer('pointerdown', 2);
+    pointer('pointerup', 2);
+    expect(blocked()).toBe(true);
+    pointer('pointerup', 1);
+    expect(blocked()).toBe(false);
+  });
+
   it('cleans up observers, scheduled work, and event listeners when unmounted', () => {
     scroll.dispatchEvent(new Event('scroll'));
     expect(frame).toBeDefined();

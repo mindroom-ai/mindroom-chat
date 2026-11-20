@@ -279,6 +279,43 @@
     "syncStatus": {
       "mediaUnavailable": "Sommige afbeeldingen kunnen in dit venster niet laden: de browser draait hier geen service worker voor MindRoom."
     },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Sluiten",
+      "configuredTools": "Ingestelde tools",
+      "toolCount_one": "{{count}} tool",
+      "toolCount_other": "{{count}} tools",
+      "groupCount_one": "{{count}} groep",
+      "groupCount_other": "{{count}} groepen",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Ook {{groups}}",
+      "viewAll_one": "Alle {{count}} tools bekijken",
+      "viewAll_other": "Alle {{count}} tools bekijken",
+      "toolsTitle": "Tools van {{name}}",
+      "filter": "Tools filteren",
+      "noMatch": "Geen tool past.",
+      "back": "Terug",
+      "more": "Meer",
+      "worksIn": "Werkt in",
+      "loading": "Ingestelde tools laden",
+      "availability": "Beschikbaarheid kan per verzoek en rechten verschillen.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & bestanden",
+        "research": "Web",
+        "productivity": "Planning & geheugen",
+        "email": "E-mail",
+        "mcp": "Gekoppelde apps",
+        "integrations": "Integraties",
+        "communication": "Chat & berichten",
+        "entertainment": "Media",
+        "information": "Informatie",
+        "smart_home": "Slim huis",
+        "social": "Sociaal",
+        "other": "Overig"
+      }
+    },
     "space": {
       "overview": "Space-overzicht"
     }

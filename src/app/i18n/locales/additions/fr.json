@@ -283,6 +283,47 @@
     "syncStatus": {
       "mediaUnavailable": "Certaines images ne peuvent pas se charger dans cette fenêtre : le navigateur n'exécute ici aucun service worker pour MindRoom."
     },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Fermer",
+      "configuredTools": "Outils configurés",
+      "toolCount_one": "{{count}} outil",
+      "toolCount_many": "{{count}} d’outils",
+      "toolCount_other": "{{count}} outils",
+      "groupCount_one": "{{count}} groupe",
+      "groupCount_many": "{{count}} de groupes",
+      "groupCount_other": "{{count}} groupes",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Aussi : {{groups}}",
+      "viewAll_one": "Voir les {{count}} outils",
+      "viewAll_many": "Voir les {{count}} d’outils",
+      "viewAll_other": "Voir les {{count}} outils",
+      "toolsTitle": "Outils de {{name}}",
+      "filter": "Filtrer les outils",
+      "noMatch": "Aucun outil ne correspond.",
+      "back": "Retour",
+      "more": "Plus",
+      "worksIn": "Travaille dans",
+      "loading": "Chargement des outils configurés",
+      "availability": "La disponibilité peut varier selon la demande et les autorisations.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_many": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code et fichiers",
+        "research": "Web",
+        "productivity": "Planification et mémoire",
+        "email": "E-mail",
+        "mcp": "Applis connectées",
+        "integrations": "Intégrations",
+        "communication": "Discussions et messages",
+        "entertainment": "Médias",
+        "information": "Informations",
+        "smart_home": "Maison connectée",
+        "social": "Réseaux sociaux",
+        "other": "Autres"
+      }
+    },
     "space": {
       "overview": "Vue d'ensemble de l'espace"
     }

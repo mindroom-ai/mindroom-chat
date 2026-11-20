@@ -279,6 +279,43 @@
     "syncStatus": {
       "mediaUnavailable": "Einige Bilder können in diesem Fenster nicht geladen werden: Der Browser führt hier keinen Service Worker für MindRoom aus."
     },
+    "agentCard": {
+      "agent": "Agent",
+      "close": "Schließen",
+      "configuredTools": "Eingerichtete Werkzeuge",
+      "toolCount_one": "{{count}} Werkzeug",
+      "toolCount_other": "{{count}} Werkzeuge",
+      "groupCount_one": "{{count}} Gruppe",
+      "groupCount_other": "{{count}} Gruppen",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Außerdem {{groups}}",
+      "viewAll_one": "Alle {{count}} Werkzeuge ansehen",
+      "viewAll_other": "Alle {{count}} Werkzeuge ansehen",
+      "toolsTitle": "Werkzeuge von {{name}}",
+      "filter": "Werkzeuge filtern",
+      "noMatch": "Kein Werkzeug passt.",
+      "back": "Zurück",
+      "more": "Mehr",
+      "worksIn": "Arbeitet in",
+      "loading": "Eingerichtete Werkzeuge werden geladen",
+      "availability": "Die Verfügbarkeit kann je nach Anfrage und Berechtigungen variieren.",
+      "moreRooms_one": "+{{count}}",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Code & Dateien",
+        "research": "Web",
+        "productivity": "Planung & Gedächtnis",
+        "email": "E-Mail",
+        "mcp": "Verbundene Apps",
+        "integrations": "Integrationen",
+        "communication": "Chat & Nachrichten",
+        "entertainment": "Medien",
+        "information": "Informationen",
+        "smart_home": "Smart Home",
+        "social": "Soziales",
+        "other": "Sonstiges"
+      }
+    },
     "space": {
       "overview": "Space-Übersicht"
     }

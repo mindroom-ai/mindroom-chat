@@ -295,6 +295,59 @@
     "syncStatus": {
       "mediaUnavailable": "تعذّر تحميل بعض الصور في هذه النافذة: المتصفح لا يشغّل عامل خدمة لـ MindRoom هنا."
     },
+    "agentCard": {
+      "agent": "وكيل",
+      "close": "إغلاق",
+      "configuredTools": "الأدوات المُعدّة",
+      "toolCount_zero": "⁨{{count}}⁩ أداة",
+      "toolCount_one": "أداة واحدة (⁨{{count}}⁩)",
+      "toolCount_two": "أداتان (⁨{{count}}⁩)",
+      "toolCount_few": "⁨{{count}}⁩ أدوات",
+      "toolCount_many": "⁨{{count}}⁩ أداةً",
+      "toolCount_other": "⁨{{count}}⁩ أداة",
+      "groupCount_zero": "⁨{{count}}⁩ مجموعة",
+      "groupCount_one": "مجموعة واحدة (⁨{{count}}⁩)",
+      "groupCount_two": "مجموعتان (⁨{{count}}⁩)",
+      "groupCount_few": "⁨{{count}}⁩ مجموعات",
+      "groupCount_many": "⁨{{count}}⁩ مجموعةً",
+      "groupCount_other": "⁨{{count}}⁩ مجموعة",
+      "counts": "⁨{{tools}}⁩ · ⁨{{groups}}⁩",
+      "also": "وأيضًا ⁨{{groups}}⁩",
+      "viewAll_zero": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_one": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_two": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_few": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_many": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "viewAll_other": "عرض كل الأدوات (⁨{{count}}⁩)",
+      "toolsTitle": "أدوات ⁨{{name}}⁩",
+      "filter": "تصفية الأدوات",
+      "noMatch": "لا توجد أداة مطابقة.",
+      "back": "رجوع",
+      "more": "المزيد",
+      "worksIn": "يعمل في",
+      "loading": "جارٍ تحميل الأدوات المُعدّة",
+      "availability": "قد يختلف التوفر حسب الطلب والأذونات.",
+      "moreRooms_zero": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_one": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_two": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_few": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_many": "⁨+⁨{{count}}⁩⁩",
+      "moreRooms_other": "⁨+⁨{{count}}⁩⁩",
+      "groups": {
+        "development": "الشيفرة والملفات",
+        "research": "الويب",
+        "productivity": "الجدولة والذاكرة",
+        "email": "البريد الإلكتروني",
+        "mcp": "التطبيقات المتصلة",
+        "integrations": "التكاملات",
+        "communication": "الدردشة والرسائل",
+        "entertainment": "الوسائط",
+        "information": "المعلومات",
+        "smart_home": "المنزل الذكي",
+        "social": "التواصل الاجتماعي",
+        "other": "أخرى"
+      }
+    },
     "space": {
       "overview": "نظرة عامة على المساحة"
     }
@@ -561,7 +614,7 @@
         "listening": "يستمع",
         "muted": "أنت مكتوم الصوت",
         "waiting": "في انتظار انضمام الآخرين",
-        "more": "+⁨{{count}}⁩",
+        "more": "⁨+⁨{{count}}⁩⁩",
         "moreLabel": "⁨{{count}}⁩ آخرون"
       },
       "window": {

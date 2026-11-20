@@ -275,6 +275,39 @@
     "syncStatus": {
       "mediaUnavailable": "Beberapa gambar tidak dapat dimuat di jendela ini: browser tidak menjalankan service worker untuk MindRoom di sini."
     },
+    "agentCard": {
+      "agent": "Agen",
+      "close": "Tutup",
+      "configuredTools": "Alat yang dikonfigurasi",
+      "toolCount_other": "{{count}} alat",
+      "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
+      "also": "Juga {{groups}}",
+      "viewAll_other": "Lihat semua {{count}} alat",
+      "toolsTitle": "Alat {{name}}",
+      "filter": "Saring alat",
+      "noMatch": "Tidak ada alat yang cocok.",
+      "back": "Kembali",
+      "more": "Lainnya",
+      "worksIn": "Bekerja di",
+      "loading": "Memuat alat yang dikonfigurasi",
+      "availability": "Ketersediaan dapat berbeda menurut permintaan dan izin.",
+      "moreRooms_other": "+{{count}}",
+      "groups": {
+        "development": "Kode & file",
+        "research": "Web",
+        "productivity": "Penjadwalan & memori",
+        "email": "Email",
+        "mcp": "Aplikasi terhubung",
+        "integrations": "Integrasi",
+        "communication": "Obrolan & pesan",
+        "entertainment": "Media",
+        "information": "Informasi",
+        "smart_home": "Rumah pintar",
+        "social": "Sosial",
+        "other": "Lainnya"
+      }
+    },
     "space": {
       "overview": "Ikhtisar space"
     }

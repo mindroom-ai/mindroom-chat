@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useId, useRef } from 'react';
 import classNames from 'classnames';
 import * as css from './InsetScrollbar.css';
+import { blockSelection } from './dragSelection';
 
 type InsetScrollbarProps = {
   scrollRef: RefObject<HTMLElement>;
@@ -35,7 +36,7 @@ export function InsetScrollbar({
     track.setAttribute('aria-controls', scroll.id);
     let frame = 0;
     let hideTimer: ReturnType<typeof setTimeout> | undefined;
-    let drag: { pointerId: number; grabOffset: number } | undefined;
+    let drag: { pointerId: number; grabOffset: number; unblock: () => void } | undefined;
 
     const geometry = () => {
       const height = track.clientHeight;
@@ -83,16 +84,31 @@ export function InsetScrollbar({
       );
     };
     const onPointerDown = (event: PointerEvent) => {
-      if (!event.isPrimary || event.button !== 0) return;
+      if (drag || !event.isPrimary || event.button !== 0) return;
       event.preventDefault();
-      if (tabIndex === 0) track.focus({ preventScroll: true });
+      if (tabIndex === 0) {
+        // WebKit drops the page's selection when the track takes focus; it stays, as a drag's does,
+        // but not a draft's: restoring that would pull the focus back into its editor.
+        const sel = window.getSelection();
+        const { anchorNode, anchorOffset, focusNode, focusOffset } = sel ?? ({} as Selection);
+        const draft = [focusNode, focusNode?.parentElement].some(
+          (node) => node instanceof HTMLElement && node.isContentEditable
+        );
+        track.focus({ preventScroll: true });
+        if (sel?.rangeCount === 0 && anchorNode && focusNode && !draft) {
+          sel.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset);
+        }
+      }
       const { thumbHeight } = geometry();
       const grabOffset =
         event.target === thumb
           ? event.clientY - thumb.getBoundingClientRect().top
           : thumbHeight / 2;
-      drag = { pointerId: event.pointerId, grabOffset };
       track.setPointerCapture(event.pointerId);
+      const unblock = blockSelection(() => {
+        drag = undefined;
+      });
+      drag = { pointerId: event.pointerId, grabOffset, unblock };
       moveTo(event.clientY, grabOffset);
       reveal();
     };
@@ -101,6 +117,7 @@ export function InsetScrollbar({
     };
     const onPointerEnd = (event: PointerEvent) => {
       if (drag?.pointerId !== event.pointerId) return;
+      drag.unblock();
       drag = undefined;
       if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
       reveal();
@@ -134,6 +151,7 @@ export function InsetScrollbar({
     track.addEventListener('keydown', onKeyDown);
     update();
     return () => {
+      drag?.unblock();
       observer.disconnect();
       cancelAnimationFrame(frame);
       clearTimeout(hideTimer);

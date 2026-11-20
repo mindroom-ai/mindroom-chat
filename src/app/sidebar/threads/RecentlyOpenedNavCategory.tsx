@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Scroll, Text } from 'folds';
@@ -12,6 +12,7 @@ import { useCategoryHandler } from '../../ui/nav/useCategoryHandler';
 import { useClosedNavCategoriesAtom } from '../../ui/nav/useClosedNavCategories';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import { blockSelection } from '../../ui/dragSelection';
 import { makeRecentThreadsAtom, type RecentThreadItem } from '../../event-store/threads/recentThreads';
 import { RecentThreadEntry } from './RecentThreadEntry';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
@@ -34,6 +35,7 @@ type DragState = {
   startY: number;
   lastHeight: number;
   maxHeight: number;
+  unblock: () => void;
 };
 
 type VisibleRecentThreadItem = RecentThreadItem & {
@@ -145,6 +147,15 @@ export function RecentlyOpenedNavCategory({
   const dragStateRef = useRef<DragState>();
   const panelHeight = previewPanelHeight ?? preferredPanelHeight;
   const closed = closedCategories.has(RECENTLY_OPENED_NAV_CATEGORY_ID);
+  // A drag ends, unsaved, with the handle (the category folded, or the panel gone).
+  useEffect(
+    () => () => {
+      dragStateRef.current?.unblock();
+      dragStateRef.current = undefined;
+      setPreviewPanelHeight(undefined);
+    },
+    [closed]
+  );
   const handleCategoryClick = useCategoryHandler(setClosedCategories, (categoryId: string) =>
     closedCategories.has(categoryId)
   );
@@ -177,19 +188,23 @@ export function RecentlyOpenedNavCategory({
 
   const handleResizePointerDown = (evt: React.PointerEvent<HTMLDivElement>) => {
     const panel = evt.currentTarget.parentElement;
-    if (!panel) return;
+    if (!panel || dragStateRef.current) return;
 
     evt.preventDefault();
     const maxHeight = getPanelMaxHeight(panel);
     const startHeight = clampPanelHeight(preferredPanelHeight, maxHeight);
+    evt.currentTarget.setPointerCapture(evt.pointerId);
     dragStateRef.current = {
       pointerId: evt.pointerId,
       startHeight,
       startY: evt.clientY,
       lastHeight: startHeight,
       maxHeight,
+      unblock: blockSelection(() => {
+        dragStateRef.current = undefined;
+        setPreviewPanelHeight(undefined);
+      }),
     };
-    evt.currentTarget.setPointerCapture(evt.pointerId);
   };
 
   const handleResizePointerMove = (evt: React.PointerEvent<HTMLDivElement>) => {
@@ -209,6 +224,7 @@ export function RecentlyOpenedNavCategory({
     if (!dragState || dragState.pointerId !== evt.pointerId) return;
 
     dragStateRef.current = undefined;
+    dragState.unblock();
     if (evt.currentTarget.hasPointerCapture(evt.pointerId)) {
       evt.currentTarget.releasePointerCapture(evt.pointerId);
     }
@@ -273,6 +289,7 @@ export function RecentlyOpenedNavCategory({
             data-testid="recently-opened-resize-handle"
             onDoubleClick={handleResizeDoubleClick}
             onKeyDown={handleResizeKeyDown}
+            onLostPointerCapture={(evt) => finishResize(evt, false)}
             onPointerCancel={(evt) => finishResize(evt, false)}
             onPointerDown={handleResizePointerDown}
             onPointerMove={handleResizePointerMove}
