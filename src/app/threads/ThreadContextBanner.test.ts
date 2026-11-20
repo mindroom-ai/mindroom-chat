@@ -1027,6 +1027,145 @@ describe('ThreadContextBanner rendering', () => {
     });
   });
 
+  describe('in a narrow pane on a desktop', () => {
+    const TITLE = '🧪 Example thread with a long title that wraps';
+    const tagged = {
+      tags: {
+        alpha: { set_by: '@a:b', set_at: ISO_1 },
+        beta: { set_by: '@a:b', set_at: ISO_2 },
+      },
+      displayTags: ['alpha', 'beta'],
+      isResolved: false,
+      canEdit: true,
+      availableTags: ['gamma'],
+    };
+    const buttons = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAllByType('button')
+        .map((button) => button.props['aria-label'] ?? text(button));
+    const tagPills = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAll(
+        (node) => typeof node.type === 'string' && /^(alpha|beta)$/.test(text(node))
+      );
+    const title = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findByProps({ 'data-thread-context-summary': 'true' });
+    // The banner's node, as wide as `width()` says when it is measured.
+    const bannerOf = (width: () => number) => (element: React.ReactElement) =>
+      (element.props as Record<string, unknown>)['data-thread-context-banner']
+        ? { focus: vi.fn(), getBoundingClientRect: () => ({ width: width() }) }
+        : null;
+    const menuOf = async (renderer: ReturnType<typeof renderBanner>) => {
+      const more = renderer.root
+        .findAllByType('button')
+        .find((button) => button.props['aria-haspopup'] === 'menu')!;
+      const trigger = {
+        focus: vi.fn(),
+        isConnected: true,
+        getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }),
+      };
+      await act(async () => more.props.onClick({ currentTarget: trigger }));
+      return menuProps.mock.calls.at(-1)![0] as { tagsAtTop?: boolean };
+    };
+
+    beforeEach(() => {
+      vi.stubGlobal('document', { documentElement: {} });
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '16px' }));
+      pinningMocks.canPin = true;
+      bannerMocks.useThreadTags.mockReturnValue(tagged);
+      screenSize = ScreenSize.Desktop;
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('lays a banner narrower than 46rem out as a phone does, tags and pin in More', async () => {
+      // A thread column beside the room's messages: 330 px of banner.
+      const narrow = renderBanner(
+        TITLE,
+        bannerOf(() => 330)
+      );
+      expect(buttons(narrow)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(tagPills(narrow)).toHaveLength(0);
+      expect(narrow.root.findAllByProps({ className: 'TagsRow CompactHidden' })).toHaveLength(0);
+      expect(narrow.root.findByProps({ className: 'TitleRow PhoneTitleRow' })).toBeDefined();
+      expect(title(narrow).props).toMatchObject({
+        className: 'PhoneTitle',
+        tabIndex: 0,
+        truncate: false,
+      });
+      expect((await menuOf(narrow)).tagsAtTop).toBe(true);
+      narrow.unmount();
+    });
+
+    it('keeps the desktop layout in a banner as wide as a conversation', async () => {
+      const wide = renderBanner(
+        TITLE,
+        bannerOf(() => 900)
+      );
+      expect(buttons(wide)).toEqual(['Back', '+ tag', 'Thread options', 'Pin thread', 'Resolve']);
+      expect(tagPills(wide)).toHaveLength(2);
+      expect(wide.root.findByProps({ className: 'TagsRow CompactHidden' })).toBeDefined();
+      expect(wide.root.findByProps({ className: 'TitleRow' })).toBeDefined();
+      expect(title(wide).props).toMatchObject({ className: 'SummaryText', truncate: true });
+      expect((await menuOf(wide)).tagsAtTop).toBe(false);
+      wide.unmount();
+    });
+
+    it('follows the banner as its pane resizes, and as Page Zoom moves 46rem', () => {
+      let width = 900;
+      let fontSize = '16px';
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize }));
+      const resized: (() => void)[] = [];
+      const rootStyleChanged: (() => void)[] = [];
+      const observer = (callbacks: (() => void)[]) =>
+        class {
+          constructor(private readonly callback: () => void) {}
+
+          observe() {
+            callbacks.push(this.callback);
+          }
+
+          disconnect() {
+            callbacks.splice(callbacks.indexOf(this.callback), 1);
+          }
+        };
+      vi.stubGlobal('ResizeObserver', observer(resized));
+      vi.stubGlobal('MutationObserver', observer(rootStyleChanged));
+      const banner = renderBanner(
+        TITLE,
+        bannerOf(() => width)
+      );
+      expect(tagPills(banner)).toHaveLength(2);
+      width = 330;
+      act(() => resized.forEach((measure) => measure()));
+      expect(tagPills(banner)).toHaveLength(0);
+      expect(buttons(banner)).toEqual(['Back', 'Thread options', 'Resolve']);
+      width = 900;
+      act(() => resized.forEach((measure) => measure()));
+      expect(tagPills(banner)).toHaveLength(2);
+      // At 125% 46rem is 920 px, more than the banner has.
+      fontSize = '20px';
+      act(() => rootStyleChanged.forEach((changed) => changed()));
+      expect(tagPills(banner)).toHaveLength(0);
+      banner.unmount();
+      expect(resized).toHaveLength(0);
+      expect(rootStyleChanged).toHaveLength(0);
+    });
+
+    it('keeps a phone compact even where Page Zoom makes its banner wider than 46rem', () => {
+      // A 750 px phone at 50%: 46rem is 368 px, under its 726 px banner.
+      vi.stubGlobal('getComputedStyle', () => ({ fontSize: '8px' }));
+      screenSize = ScreenSize.Mobile;
+      const phone = renderBanner(
+        TITLE,
+        bannerOf(() => 726)
+      );
+      expect(buttons(phone)).toEqual(['Back', 'Thread options', 'Resolve']);
+      expect(tagPills(phone)).toHaveLength(0);
+      phone.unmount();
+    });
+  });
+
   it('leaves Show beside and Show in full to its More menu, with no button of their own', async () => {
     const onShowBeside = vi.fn();
     const onShowFull = vi.fn();
