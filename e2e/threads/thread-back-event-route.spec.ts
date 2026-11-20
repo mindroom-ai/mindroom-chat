@@ -8,11 +8,11 @@ import {
 } from '../helpers/disposableAccounts';
 import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 
-// In the iOS app, Back from a thread shows the room's cards and stays there when the thread was
-// opened from its card on the room's page at an event of that thread: the address of a link or a
-// tapped push that did not lead into the thread, because it names an edit of a reply, or because
-// the lookup of the reply failed. The app's Back there puts that page's address in the thread's
-// place, and the address led into the thread once the thread was loaded: on every Back.
+// The iOS app's Back does not step back in history: it puts the address of the page the thread
+// was opened from in the thread's place. When that page was the room at an event of the thread (a
+// link or a tapped push whose lookup of the event failed), the address led into the thread once
+// the thread was loaded: on every Back. The room Back returns to stays the room.
+// A link or a push to an edit of a reply is no such page: it opens the reply's thread.
 const PASSWORD = 'thread-back-event-route-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const TOPICS = 20;
@@ -68,6 +68,18 @@ const seed = async (label: string) => {
         'm.new_content': { msgtype: 'm.text', body: reply(index) },
         'm.relates_to': { rel_type: 'm.replace', event_id: answer },
       });
+      // The reply is not its thread's latest, which the server sends along with the root.
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: 'A later sample reply.',
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: root,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: answer },
+        },
+      });
     }
   }
   return { reader, roomId, rootId, replyId, editId };
@@ -85,63 +97,122 @@ function fakeIOS(key: string) {
   };
 }
 
-const banner = (page: Page) => page.locator('[data-thread-context-banner]');
+// The page on screen, not the copy of the last one that slides away under it.
+const LIVE = ':not([data-page-slide-copy] *)';
+const banner = (page: Page) => page.locator(`[data-thread-context-banner]${LIVE}`);
 const back = (page: Page) => banner(page).getByRole('button', { name: 'Back', exact: true });
-const openThread = (page: Page) => new URL(page.url()).searchParams.get('threadId');
-const compactRoom = (page: Page) => page.locator('[data-compact-room-view="true"]');
+const compactRoom = (page: Page) => page.locator(`[data-compact-room-view="true"]${LIVE}`);
 const card = (page: Page, rootId: string) =>
-  page.locator(`button[data-thread-root-id="${rootId}"]`);
+  page.locator(`button[data-thread-root-id="${rootId}"]${LIVE}`);
 
-/** Waits until no thread is open and the room shows its cards, and checks it stays that way. */
-const expectRoom = async (page: Page, what: string) => {
+type Address = { roomId: string; eventId?: string; threadId?: string };
+
+/** The room, the event and the open thread the address names. */
+const addressOf = (url: URL): Address => {
+  const [, , roomId = '', eventId] = url.pathname.split('/').map(decodeURIComponent);
+  const threadId = url.searchParams.get('threadId');
+  return { roomId, ...(eventId ? { eventId } : {}), ...(threadId ? { threadId } : {}) };
+};
+const expectAddress = (page: Page, address: Address, what: string) =>
+  expect
+    .poll(() => addressOf(new URL(page.url())), { message: what, timeout: 30_000 })
+    .toEqual(address);
+
+/** The room on screen with its cards and no thread, at `address`. */
+const expectRoom = async (page: Page, address: Address, rootId: string, what: string) => {
+  await expectAddress(page, address, `${what}: the address`);
   await expect(banner(page), what).toHaveCount(0, { timeout: 20_000 });
   await expect(compactRoom(page), what).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(1_500);
-  await expect(banner(page), `${what}: no thread comes back`).toHaveCount(0);
-  expect(openThread(page), `${what}: the address`).toBeNull();
+  await expect(card(page, rootId), `${what}: the thread has its card`).toBeVisible();
 };
 
-// The server's answers about one event: the event itself and the timeline around it.
-const EVENT_LOOKUPS = /\/_matrix\/client\/[^/]+\/rooms\/[^/]+\/(event|context)\//;
+/** The thread on screen, with the reply that was edited. */
+const expectThread = async (page: Page, address: Address, what: string) => {
+  await expectAddress(page, address, `${what}: the address`);
+  await expect(banner(page), what).toBeVisible({ timeout: 30_000 });
+  const shown = page.getByText(reply(OPENED)).and(page.locator(LIVE));
+  await expect(shown.first(), what).toBeVisible({ timeout: 30_000 });
+};
 
-/**
- * Opens the room at an event of a thread as the iOS app, where the room's cards show; then the
- * thread from its card, and leaves it.
- */
-const openFromEventPageAndBack = async (page: Page, event: 'edit' | 'reply') => {
-  const { reader, roomId, rootId, replyId, editId } = await seed(event);
-  await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
+/** What the app asks the server about `eventId`: the event itself, or the timeline around it. */
+const lookupOf = (url: URL, eventId: string): 'event' | 'context' | undefined => {
+  const [, kind, id] =
+    /\/_matrix\/client\/[^/]+\/rooms\/[^/]+\/(event|context)\/([^/]+)$/.exec(url.pathname) ?? [];
+  if (id === undefined || decodeURIComponent(id) !== eventId) return undefined;
+  return kind === 'event' ? 'event' : 'context';
+};
+
+/** The reader's room, signed in as the iOS app, not yet on the room's page. */
+const signIn = async (page: Page, label: string) => {
+  const seeded = await seed(label);
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...seeded.reader });
   await page.context().addInitScript(fakeIOS, FAKE_IOS_KEY);
   await page.evaluate((key) => localStorage.setItem(key, '1'), FAKE_IOS_KEY);
-  // The page of an edit never leads into the thread; the page of the reply does not while the
-  // server cannot be asked about it.
-  if (event === 'reply') await page.route(EVENT_LOOKUPS, (route) => route.abort());
-  const eventId = event === 'edit' ? editId : replyId;
-  await page.goto(`/home/${encodeURIComponent(roomId)}/${encodeURIComponent(eventId)}`);
-  await expect(card(page, rootId)).toBeVisible({ timeout: 60_000 });
+  return seeded;
+};
+const expectIOS = async (page: Page) => {
   const platform = await page.evaluate(() =>
     (window as { Capacitor?: { getPlatform?: () => string } }).Capacitor?.getPlatform?.()
   );
   expect(platform, 'the platform the app runs on').toBe('ios');
-  await expectRoom(page, 'the page of the event shows the room');
-  await page.unroute(EVENT_LOOKUPS);
-
-  await card(page, rootId).tap();
-  await expect.poll(() => openThread(page), { timeout: 30_000 }).toBe(rootId);
-  await expect(page.getByText(reply(OPENED)).first()).toBeVisible({ timeout: 30_000 });
-
-  // Leaving a thread leads to its room, whichever page opened it (room/useRoomViewThreadState.ts).
-  await back(page).tap();
-  await expectRoom(page, 'Back from the thread shows the room');
-  await expect(card(page, rootId), 'the thread has its card').toBeVisible();
 };
 
-test('Back leaves a thread opened on the page of an edit of one of its replies', async ({
-  page,
-}) => {
-  await openFromEventPageAndBack(page, 'edit');
+test('Back leaves a thread opened on the page of a reply whose lookup failed', async ({ page }) => {
+  const { roomId, rootId, replyId } = await signIn(page, 'reply');
+  const eventPage = { roomId, eventId: replyId };
+
+  // The link's own visit: the server has no answer about the reply, so the room shows its cards.
+  const failed: string[] = [];
+  await page.route(
+    (url) => lookupOf(url, replyId) !== undefined,
+    (route) => {
+      failed.push(lookupOf(new URL(route.request().url()), replyId) ?? '');
+      return route.fulfill({ status: 404, json: { errcode: 'M_NOT_FOUND', error: 'Not found.' } });
+    }
+  );
+  await page.goto(`/home/${encodeURIComponent(roomId)}/${encodeURIComponent(replyId)}`);
+  await expect
+    .poll(() => failed, { message: 'the app asked about the reply', timeout: 60_000 })
+    .toEqual(expect.arrayContaining(['event', 'context']));
+  await expectIOS(page);
+  await expectRoom(page, eventPage, rootId, 'the page of the reply shows the room');
+  await page.unroute((url) => lookupOf(url, replyId) !== undefined);
+
+  await card(page, rootId).tap();
+  await expectThread(page, { roomId, threadId: rootId }, 'the card opens its thread');
+
+  // Leaving a thread leads to its room, whichever page opened it (room/useRoomViewThreadState.ts):
+  // here the page of the reply, which the thread has loaded by now. The room shows the reply,
+  // for which it asks the server for the timeline around it; with that answered, it is the room.
+  const shown = page.waitForResponse(
+    (response) => lookupOf(new URL(response.url()), replyId) === 'context',
+    { timeout: 30_000 }
+  );
+  await back(page).tap();
+  await shown;
+  await expectRoom(page, eventPage, rootId, 'Back from the thread shows the room');
 });
 
-test('Back leaves a thread opened on the page of a reply whose lookup failed', async ({ page }) => {
-  await openFromEventPageAndBack(page, 'reply');
+test('a link to an edit of a thread reply opens the thread, and Back leaves it', async ({
+  page,
+}) => {
+  const { roomId, rootId, replyId, editId } = await signIn(page, 'edit');
+
+  // The thread opens at the reply the edit replaces.
+  await page.goto(`/home/${encodeURIComponent(roomId)}/${encodeURIComponent(editId)}`);
+  await expectThread(
+    page,
+    { roomId, eventId: replyId, threadId: rootId },
+    'the link opens the thread of the reply'
+  );
+  await expectIOS(page);
+
+  // No page of the room is behind the thread, so Back puts the room at the thread's root there.
+  await back(page).tap();
+  await expectRoom(
+    page,
+    { roomId, eventId: rootId },
+    rootId,
+    'Back from the thread shows the room'
+  );
 });
