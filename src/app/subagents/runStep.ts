@@ -156,9 +156,22 @@ const hostName = (url: string): string | undefined => {
   }
 };
 
-/** The query, cut by whole characters (code points) past `QUERY_CHARS`, so no emoji is split. */
+/** Splits text into graphemes: a flag or an emoji with its skin tone counts as one. */
+let graphemes: Intl.Segmenter | undefined;
+
+/**
+ * The text's characters as a reader counts them (graphemes), so a flag, a skin tone or a joined
+ * emoji stays whole; by code points where the browser has no `Intl.Segmenter`.
+ */
+const characters = (text: string): string[] => {
+  if (typeof Intl.Segmenter !== 'function') return Array.from(text);
+  graphemes ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  return Array.from(graphemes.segment(text), ({ segment }) => segment);
+};
+
+/** The query, cut by whole characters (`characters`) past `QUERY_CHARS`. */
 const shortQuery = (query: string): string => {
-  const chars = Array.from(query);
+  const chars = characters(query);
   return chars.length > QUERY_CHARS
     ? `${chars
         .slice(0, QUERY_CHARS - 1)

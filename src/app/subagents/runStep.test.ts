@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import type { SubagentMeta, SubagentStatus } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
@@ -95,13 +95,29 @@ describe('toolStep', () => {
     expect(step('grep', 'pattern=decisions about the shared calendar for the spring offsite')).toBe(
       'Searching files for “decisions about the shared calendar for…”'
     );
-    // The cut counts whole characters, so an emoji at the boundary stays whole.
-    expect(step('grep', `pattern=${'a'.repeat(38)}🎉🎉🎉`)).toBe(
-      `Searching files for “${'a'.repeat(38)}🎉…”`
-    );
-    expect(step('grep', `pattern=${'🎉'.repeat(40)}`)).toBe(
-      `Searching files for “${'🎉'.repeat(40)}”`
-    );
+    // The cut counts characters as a reader does, so an emoji at the boundary stays whole: one of
+    // two code units, a flag of two code points, a thumbs-up with its skin tone.
+    const head = 'a'.repeat(38);
+    ['🎉', '🇳🇱', '👍🏽'].forEach((emoji) => {
+      expect(step('grep', `pattern=${head}${emoji.repeat(3)}`)).toBe(
+        `Searching files for “${head}${emoji}…”`
+      );
+      expect(step('grep', `pattern=${emoji.repeat(40)}`)).toBe(
+        `Searching files for “${emoji.repeat(40)}”`
+      );
+    });
+  });
+
+  it('cuts a query by code points where the browser cannot split graphemes', () => {
+    vi.stubGlobal('Intl', Object.assign(Object.create(Intl), { Segmenter: undefined }));
+    try {
+      const head = 'a'.repeat(38);
+      expect(step('grep', `pattern=${head}🎉🎉🎉`)).toBe(`Searching files for “${head}🎉…”`);
+      // A flag's two code points may come apart there, but never a code point's two code units.
+      expect(step('grep', `pattern=${head}🇳🇱🇳🇱`)).toBe(`Searching files for “${head}\u{1F1F3}…”`);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('looks through files, runs a command, asks a helper and uses the browser', () => {
