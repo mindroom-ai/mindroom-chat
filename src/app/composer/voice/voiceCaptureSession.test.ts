@@ -715,7 +715,8 @@ describe('voice capture session with a journal', () => {
     expect(result.recording.recordingId).toBe(recordingId);
     expect(await result.recording.file.text()).toBe('onetwothree');
     expect(journal.append).toHaveBeenCalledTimes(3);
-    // Its record stays for the send.
+    // Its record stays for the send, also once the session is reset for the next recording.
+    session.reset();
     expect(journal.abandon).not.toHaveBeenCalled();
     expect(session.getSnapshot().unprotected).toBe(false);
   });

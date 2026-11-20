@@ -280,6 +280,8 @@ export const createVoiceCaptureSession = ({
         /* What it has is kept below. */
       }
     }
+    // Ended before, its audio was taken then: its recording is not this call's to keep or drop.
+    const ended = !generation.acceptsEvents;
     generation.acceptsEvents = false;
     clearStopTimer(generation);
     generation.detach?.();
@@ -292,7 +294,7 @@ export const createVoiceCaptureSession = ({
       }
     }
     releaseResources(generation);
-    const recording = take(generation, recorder);
+    const recording = ended ? undefined : take(generation, recorder);
     generation.recorder = undefined;
     if (recording) keep?.(recording, generation.action === 'discard');
     generation.resolve?.({ status: 'ignored' });
