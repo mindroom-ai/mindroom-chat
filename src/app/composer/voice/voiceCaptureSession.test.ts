@@ -177,7 +177,7 @@ beforeEach(() => {
   vi.stubGlobal('MediaRecorder', Recorder);
 });
 afterEach(() => {
-  sessions.forEach((session) => session.releaseOwner());
+  sessions.forEach((session) => session.reset());
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -245,62 +245,38 @@ describe('voice capture session', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('retains accepted finish after release while suppressing observers and diagnostics', async () => {
-    const session = capture();
-    const send = vi.fn();
-    await session.start();
-    vi.advanceTimersByTime(250);
-    const recorder = latest();
-    const result = session.finish();
-    expect(session.canStop()).toBe(false);
-    expect(await session.discard()).toBe(false);
-    session.releaseOwner();
-    const listener = vi.fn();
-    session.subscribe(listener);
-    const publicationCount = diagnostics.publish.mock.calls.length;
-    recorder.emitData(new Blob(['voice'], { type: 'audio/webm' }));
-    recorder.emitStop();
-    const finished = await result;
-    expect(finished.status).toBe('captured');
-    if (finished.status === 'captured') {
-      expect(await finished.recording.file.text()).toBe('voice');
-      expect(finished.recording.duration).toBe(250);
-    }
-    expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(listener).not.toHaveBeenCalled();
-    expect(diagnostics.publish).toHaveBeenCalledTimes(publicationCount);
-    expect(send).not.toHaveBeenCalled();
-  });
-
-  it('retains finish when a processing subscriber synchronously releases ownership', async () => {
+  it('ignores finish when a processing subscriber synchronously resets the session', async () => {
     const session = capture();
     await session.start();
     const recorder = latest();
     session.subscribe(() => {
-      if (session.getSnapshot().phase === 'processing') session.releaseOwner();
+      if (session.getSnapshot().phase === 'processing') session.reset();
     });
     const result = session.finish();
-    recorder.emitData(new Blob(['accepted']));
+    recorder.emitData(new Blob(['dropped']));
     recorder.emitStop();
-    const completed = await result;
-    expect(completed.status).toBe('captured');
-    if (completed.status === 'captured')
-      expect(await completed.recording.file.text()).toBe('accepted');
+    expect(await result).toEqual({ status: 'ignored' });
+    expect(session.getSnapshot().phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it.each(['permission', 'sample'] as const)(
     'releases resources when a %s subscriber tears down during start',
     async (releaseAt) => {
       const session = capture();
+      let tornDown = false;
       session.subscribe(() => {
         const snapshot = session.getSnapshot();
         if (
-          releaseAt === 'permission'
+          !tornDown &&
+          (releaseAt === 'permission'
             ? Recorder.instances.length > 0
-            : snapshot.waveform.length === 1
-        )
-          session.releaseOwner();
+            : snapshot.waveform.length === 1)
+        ) {
+          tornDown = true;
+          session.reset();
+        }
       });
       expect(await session.start()).toBe(false);
       expect(stream.track.stop).toHaveBeenCalledOnce();
@@ -310,14 +286,9 @@ describe('voice capture session', () => {
     }
   );
 
-  it.each([
-    ['initial', 'releaseOwner'],
-    ['initial', 'reset'],
-    ['requesting', 'releaseOwner'],
-    ['requesting', 'reset'],
-  ] as const)(
-    'cancels start on %s notification %s before permission acquisition',
-    async (notification, operation) => {
+  it.each(['initial', 'requesting'] as const)(
+    'cancels start on %s notification reset before permission acquisition',
+    async (notification) => {
       const session = capture();
       let canceled = false;
       session.subscribe(() => {
@@ -326,7 +297,7 @@ describe('voice capture session', () => {
           (notification === 'initial' || session.getSnapshot().phase === 'requesting')
         ) {
           canceled = true;
-          session[operation]();
+          session.reset();
         }
       });
       const started = await session.start();
@@ -335,8 +306,6 @@ describe('voice capture session', () => {
       expect(vi.getTimerCount()).toBe(0);
       expect(session.getSnapshot().phase).toBe('idle');
       expect(started).toBe(false);
-      session.releaseOwner();
-      expect(vi.getTimerCount()).toBe(0);
     }
   );
 
@@ -419,21 +388,16 @@ describe('voice capture session', () => {
     }
   );
 
-  it.each([
-    ['start', 'releaseOwner'],
-    ['start', 'reset'],
-    ['resume', 'releaseOwner'],
-    ['resume', 'reset'],
-  ] as const)(
-    'reports false when final %s recording notification invokes %s',
-    async (operation, teardown) => {
+  it.each(['start', 'resume'] as const)(
+    'reports false when final %s recording notification invokes reset',
+    async (operation) => {
       const session = capture();
       if (operation === 'resume') {
         await session.start();
         session.pause();
       }
       session.subscribe(() => {
-        if (session.getSnapshot().phase === 'recording') session[teardown]();
+        if (session.getSnapshot().phase === 'recording') session.reset();
       });
       const started = await session[operation]();
       expect(session.getSnapshot().phase).toBe('idle');
@@ -445,13 +409,13 @@ describe('voice capture session', () => {
   );
 
   it.each(['resolve', 'reject', 'overconstrained'] as const)(
-    'ignores permission %s after release',
+    'ignores permission %s after reset',
     async (outcome) => {
       const permission = deferred<ReturnType<typeof newStream>>();
       getUserMedia.mockReturnValue(permission.promise);
       const session = capture();
       const started = session.start();
-      session.releaseOwner();
+      session.reset();
       if (outcome === 'resolve') permission.resolve(stream);
       else
         permission.reject(
@@ -511,8 +475,6 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(Audio.instances[0]!.close).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
-    session.clearError();
-    expect(session.getSnapshot().errorMessage).toBeUndefined();
   });
 
   it('records in timeslices so audio reaches the app before native stop', async () => {
@@ -563,18 +525,6 @@ describe('voice capture session', () => {
     expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
-  it('keeps the stop deadline for an accepted send after release', async () => {
-    const session = capture();
-    await session.start();
-    latest().emitData(new Blob(['kept']));
-    const result = session.finish();
-    session.releaseOwner();
-    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
-    const finished = await result;
-    expect(finished.status).toBe('captured');
-    if (finished.status === 'captured') expect(await finished.recording.file.text()).toBe('kept');
-  });
-
   it('discards when native stop never arrives', async () => {
     const session = capture();
     await session.start();
@@ -609,7 +559,7 @@ describe('voice capture session', () => {
     expect(await session.finish()).toEqual({ status: 'ignored' });
   });
 
-  it('discards with false and releases ordinary ownership before native stop arrives', async () => {
+  it('discards with false, and a reset stops a running recorder at once', async () => {
     const session = capture();
     await session.start();
     const result = session.discard();
@@ -618,47 +568,36 @@ describe('voice capture session', () => {
     expect(await result).toBe(false);
     expect(session.getSnapshot().phase).toBe('idle');
     await session.start();
-    session.releaseOwner();
+    session.reset();
     expect(latest().stop).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
     expect(session.getSnapshot().phase).toBe('idle');
   });
 
-  it.each([false, true])(
-    'isolates old data/stop from new capture after release; accepted=%s',
-    async (accepted) => {
-      const session = capture();
-      await session.start();
-      vi.advanceTimersByTime(250);
-      const old = latest();
-      const oldResult = accepted ? session.finish() : undefined;
-      session.releaseOwner();
-      session.releaseOwner();
-      const freshStream = newStream();
-      getUserMedia.mockResolvedValue(freshStream);
-      await session.start();
-      Audio.instances.at(-1)!.analyser.getByteTimeDomainData = (buffer) => buffer.fill(144);
-      vi.advanceTimersByTime(80);
-      const snapshot = session.getSnapshot();
-      old.emitData(new Blob(['old']));
-      old.emitStop();
-      expect(session.getSnapshot()).toBe(snapshot);
-      expect(freshStream.track.stop).not.toHaveBeenCalled();
-      vi.advanceTimersByTime(160);
-      const result = await finish(session, 'fresh');
-      if (result.status !== 'captured') throw new Error('missing fresh recording');
-      expect(await result.recording.file.text()).toBe('fresh');
-      expect(result.recording.duration).toBe(240);
-      expect(result.recording.waveform!.at(-1)).toBe(362);
-      expect(snapshot.waveform).toEqual([512, 362]);
-      if (oldResult) {
-        const completed = await oldResult;
-        if (completed.status !== 'captured') throw new Error('missing accepted recording');
-        expect(await completed.recording.file.text()).toBe('old');
-        expect(completed.recording.duration).toBe(250);
-      }
-    }
-  );
+  it('isolates old data/stop from a new capture after reset', async () => {
+    const session = capture();
+    await session.start();
+    vi.advanceTimersByTime(250);
+    const old = latest();
+    session.reset();
+    const freshStream = newStream();
+    getUserMedia.mockResolvedValue(freshStream);
+    await session.start();
+    Audio.instances.at(-1)!.analyser.getByteTimeDomainData = (buffer) => buffer.fill(144);
+    vi.advanceTimersByTime(80);
+    const snapshot = session.getSnapshot();
+    old.emitData(new Blob(['old']));
+    old.emitStop();
+    expect(session.getSnapshot()).toBe(snapshot);
+    expect(freshStream.track.stop).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(160);
+    const result = await finish(session, 'fresh');
+    if (result.status !== 'captured') throw new Error('missing fresh recording');
+    expect(await result.recording.file.text()).toBe('fresh');
+    expect(result.recording.duration).toBe(240);
+    expect(result.recording.waveform!.at(-1)).toBe(362);
+    expect(snapshot.waveform).toEqual([512, 362]);
+  });
 
   it('bounds raw live samples without normalizing display data', async () => {
     const session = capture();

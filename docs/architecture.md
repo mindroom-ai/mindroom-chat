@@ -79,7 +79,8 @@ src/
                          agent-run/, question/, reactions/, reply/, edit/, pins/, thread-summary/, canvas/, live/,
                          viewers/ (image, PDF, text), url-preview/, layout/
     canvas/              agent canvases: panel, room canvas panel, index, state; page/ (the Canvases route)
-    composer/            the room input: drafts, send session, extensions; commands/, upload/, voice/
+    composer/            the room input: drafts, send session, extensions; commands/, upload/, voice/ (the account
+                         owns a live voice recording; the composer whose Send is pressed owns its delivery)
     notifications/       unread title, chimes, read receipts and mark-read items; inbox/ (invites), notices/, push/ (iOS),
                          settings/
     schedules/           the scheduled tasks dialog and button

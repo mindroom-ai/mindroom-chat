@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import { createFallbackWaveform } from '../../lib/audioWaveform';
+import { pendingVoiceSendDraftAtom, type PendingVoiceSendContext } from '../roomInputDrafts';
 import {
-  pendingVoiceSendDraftAtom,
-  type PendingVoiceSendContext,
-} from '../roomInputDrafts';
-import { createVoiceCaptureSession, type VoiceCapturePhase } from './voiceCaptureSession';
+  claimLiveVoiceRecording,
+  discardLiveVoiceRecording,
+  liveVoiceRecordingAtom,
+  liveVoiceRecordingErrorAtom,
+} from './liveVoiceRecording';
+import type {
+  VoiceCapturePhase,
+  VoiceCaptureSession,
+  VoiceCaptureSnapshot,
+} from './voiceCaptureSession';
 import {
   createVoiceSendDraftController,
   type SendRecordingCallback,
@@ -18,61 +25,74 @@ export {
 } from './voiceCaptureSession';
 export type VoiceRecorderPhase = VoiceCapturePhase | 'sending';
 
+const NO_RECORDING: VoiceCaptureSnapshot = {
+  phase: 'idle',
+  elapsedMs: 0,
+  waveform: createFallbackWaveform(),
+  sampleCount: 0,
+  canPause: true,
+  errorMessage: undefined,
+};
+const getNoRecording = () => NO_RECORDING;
+const subscribeToNothing = () => () => undefined;
+
+/** What a recording shows now: the one timer, waveform and pause state of every surface. */
+export const useVoiceCaptureSnapshot = (
+  session: VoiceCaptureSession | undefined
+): VoiceCaptureSnapshot =>
+  useSyncExternalStore(
+    session?.subscribe ?? subscribeToNothing,
+    session?.getSnapshot ?? getNoRecording,
+    session?.getSnapshot ?? getNoRecording
+  );
+
 type UseVoiceRecorderOptions = {
-  onRecordingStart?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
   onSendRecording?: SendRecordingCallback;
   /**
-   * Supplies the room/thread/reply context for the next send.
-   * The room is captured at start() and remains authoritative across navigation.
-   * A same-room relation is refreshed when Send is claimed and becomes the durable retry context.
+   * This composer's room, thread and reply. It is read once, when Send is pressed here: a
+   * recording goes where its Send is pressed, wherever it was started. A failed send parks the
+   * audio with that context, which a retry keeps.
    */
   getSendContext: () => PendingVoiceSendContext;
 };
 
+/**
+ * One composer's view of the account's live recording (`liveVoiceRecording.ts`) and of the parked
+ * draft of a failed send. Mounting or unmounting it never starts or ends a recording.
+ */
 export function useVoiceRecorder({
-  onRecordingStart,
   onSendStopRequest,
   onSendStopFailure,
   onSendRecording,
   getSendContext,
 }: UseVoiceRecorderOptions) {
   const store = useStore();
-  const [capture] = useState(createVoiceCaptureSession);
   const [draftController] = useState(() =>
     createVoiceSendDraftController({
       read: () => store.get(pendingVoiceSendDraftAtom),
       write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
     })
   );
-  const captureSnapshot = useSyncExternalStore(
-    capture.subscribe,
-    capture.getSnapshot,
-    capture.getSnapshot
-  );
-  const [sending, setSending] = useState(false);
+  const live = useAtomValue(liveVoiceRecordingAtom);
+  // The recording this composer's Send claimed. No other composer shows it any more; this one
+  // shows it as sending until it is delivered or parked.
+  const [claimed, setClaimed] = useState<VoiceCaptureSession>();
+  const captureSnapshot = useVoiceCaptureSnapshot(claimed ?? live);
   const pendingDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const phase: VoiceRecorderPhase =
-    pendingDraft?.inFlight || sending ? 'sending' : captureSnapshot.phase;
+    pendingDraft?.inFlight || claimed ? 'sending' : captureSnapshot.phase;
   const { elapsedMs, waveform, sampleCount, canPause } = captureSnapshot;
   const hasPendingSend = !!pendingDraft;
   const pendingDuration = pendingDraft?.duration ?? 0;
   const pendingWaveform = pendingDraft?.waveform ?? createFallbackWaveform();
-  const errorMessage = pendingDraft?.errorMessage ?? captureSnapshot.errorMessage;
+  const errorMessage = pendingDraft?.errorMessage;
   const mountedRef = useRef(true);
-  const latestOnRecordingStartRef = useRef(onRecordingStart);
   const latestOnSendStopRequestRef = useRef(onSendStopRequest);
   const latestOnSendStopFailureRef = useRef(onSendStopFailure);
   const latestOnSendRecordingRef = useRef(onSendRecording);
   const latestGetSendContextRef = useRef(getSendContext);
-  const sendBindingAtStartRef = useRef<{
-    sendRecording: SendRecordingCallback | undefined;
-    context: PendingVoiceSendContext;
-  }>();
-  useEffect(() => {
-    latestOnRecordingStartRef.current = onRecordingStart;
-  }, [onRecordingStart]);
   useEffect(() => {
     latestOnSendStopRequestRef.current = onSendStopRequest;
   }, [onSendStopRequest]);
@@ -85,129 +105,69 @@ export function useVoiceRecorder({
   useEffect(() => {
     latestGetSendContextRef.current = getSendContext;
   }, [getSendContext]);
-
-  const safeSetPhase = useCallback((next: 'idle' | 'sending') => {
-    if (mountedRef.current) setSending(next === 'sending');
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
+
   const claimSendStop = useCallback(() => {
     return latestOnSendStopRequestRef.current?.();
   }, []);
   const notifySendStopFailure = useCallback(() => {
     latestOnSendStopFailureRef.current?.();
   }, []);
-  const resetLocalRecorderState = useCallback(() => {
-    capture.reset();
-    sendBindingAtStartRef.current = undefined;
-    safeSetPhase('idle');
-  }, [capture, safeSetPhase]);
-  // Full reset is only for callers that already own the durable draft.
-  const reset = useCallback(() => {
-    resetLocalRecorderState();
-    draftController.discardPending();
-  }, [draftController, resetLocalRecorderState]);
-
-  const start = useCallback(async () => {
-    if (phase !== 'idle' || capture.getSnapshot().phase !== 'idle' || hasPendingSend) return false;
-    latestOnRecordingStartRef.current?.();
-    sendBindingAtStartRef.current = {
-      sendRecording: latestOnSendRecordingRef.current,
-      context: latestGetSendContextRef.current(),
-    };
-    return capture.start();
-  }, [capture, hasPendingSend, phase]);
 
   const send = useCallback(async (): Promise<boolean> => {
-    if (!capture.canStop()) return false;
+    // Synchronous up to the claim: of two Sends, in any composers, the first takes the recording
+    // and the second finds none, before it touches its composer.
+    if (!store.get(liveVoiceRecordingAtom)?.canStop()) return false;
     if (claimSendStop() === false) return false;
-    const startBinding = sendBindingAtStartRef.current;
-    const recordingContext = startBinding?.context;
-    const currentContext = latestGetSendContextRef.current();
-    if (
-      startBinding &&
-      recordingContext &&
-      currentContext.ownerSessionId === recordingContext.ownerSessionId &&
-      currentContext.roomId === recordingContext.roomId
-    ) {
-      sendBindingAtStartRef.current = {
-        ...startBinding,
-        context: {
-          ...recordingContext,
-          threadId: currentContext.threadId,
-          replyDraft: currentContext.replyDraft,
-          threadingEnabled: currentContext.threadingEnabled,
-        },
-      };
-    }
-    // Bind accepted work before native stop or any await can outlive this facade.
-    const acceptedBinding = sendBindingAtStartRef.current;
-    const sendRecording = acceptedBinding?.sendRecording;
-    const sendContext = acceptedBinding?.context;
-    const result = await capture.finish();
-    if (result.status !== 'captured' || !sendRecording || !sendContext) {
-      if (result.status === 'captured') capture.reset();
+    const session = claimLiveVoiceRecording(store);
+    if (!session) {
       notifySendStopFailure();
       return false;
     }
-    safeSetPhase('sending');
+    // The destination is this composer's, read once, now. The send outlives the composer.
+    const sendRecording = latestOnSendRecordingRef.current;
+    const sendContext = latestGetSendContextRef.current();
+    setClaimed(session);
+    const settle = () => {
+      session.reset();
+      if (mountedRef.current) setClaimed(undefined);
+    };
+    const result = await session.finish();
+    if (result.status !== 'captured' || !sendRecording) {
+      const { errorMessage: captureError } = session.getSnapshot();
+      if (captureError) store.set(liveVoiceRecordingErrorAtom, captureError);
+      settle();
+      notifySendStopFailure();
+      return false;
+    }
     const delivered = await draftController.sendInitial(result.recording, sendContext, {
       sendRecording,
       onFailure: notifySendStopFailure,
     });
-    if (sendBindingAtStartRef.current === acceptedBinding) {
-      capture.reset();
-      safeSetPhase('idle');
-      if (delivered) sendBindingAtStartRef.current = undefined;
-    }
+    settle();
     return delivered;
-  }, [capture, claimSendStop, draftController, notifySendStopFailure, safeSetPhase]);
+  }, [claimSendStop, draftController, notifySendStopFailure, store]);
 
-  const discard = useCallback(async () => {
-    const result = await capture.discard();
-    if (capture.getSnapshot().phase === 'idle') {
-      sendBindingAtStartRef.current = undefined;
-    }
-    return result;
-  }, [capture]);
-  const { pause, resume, clearError } = capture;
+  const pause = useCallback(() => store.get(liveVoiceRecordingAtom)?.pause() ?? false, [store]);
+  const resume = useCallback(() => store.get(liveVoiceRecordingAtom)?.resume() ?? false, [store]);
+  const discard = useCallback(() => discardLiveVoiceRecording(store), [store]);
 
   const retry = useCallback(async (): Promise<boolean> => {
-    if (sending || capture.getSnapshot().phase === 'processing') return false;
-    const activeBinding = sendBindingAtStartRef.current;
-    const sendRecording = activeBinding?.sendRecording ?? latestOnSendRecordingRef.current;
-    if (!sendRecording) return false;
-
-    const delivered = await draftController.retry({
+    const sendRecording = latestOnSendRecordingRef.current;
+    if (claimed || !sendRecording) return false;
+    return draftController.retry({
       claim: claimSendStop,
       sendRecording,
       onFailure: notifySendStopFailure,
     });
-    if (delivered && sendBindingAtStartRef.current === activeBinding) {
-      resetLocalRecorderState();
-    }
-    return delivered;
-  }, [
-    capture,
-    claimSendStop,
-    draftController,
-    notifySendStopFailure,
-    resetLocalRecorderState,
-    sending,
-  ]);
+  }, [claimSendStop, claimed, draftController, notifySendStopFailure]);
 
-  const discardPending = useCallback(() => {
-    sendBindingAtStartRef.current = undefined;
-    draftController.discardPending();
-    capture.reset();
-    safeSetPhase('idle');
-  }, [capture, draftController, safeSetPhase]);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      capture.releaseOwner();
-    };
-  }, [capture]);
+  const { discardPending } = draftController;
 
   return {
     phase,
@@ -219,14 +179,11 @@ export function useVoiceRecorder({
     hasPendingSend,
     pendingDuration,
     pendingWaveform,
-    start,
     pause,
     resume,
     send,
     discard,
     retry,
     discardPending,
-    reset,
-    clearError,
   };
 }

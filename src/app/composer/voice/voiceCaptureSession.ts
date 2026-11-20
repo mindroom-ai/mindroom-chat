@@ -83,8 +83,6 @@ export type VoiceCaptureSession = {
   finish: () => Promise<VoiceCaptureResult>;
   discard: () => Promise<boolean>;
   reset: () => void;
-  clearError: () => void;
-  releaseOwner: () => void;
 };
 
 /** What the session drives: a MediaRecorder, or the Mac app's native recorder. */
@@ -129,16 +127,13 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   const listeners = new Set<() => void>();
   let snapshot = idleSnapshot();
   let current: Generation | undefined;
-  let released = false;
 
-  const owns = (generation: Generation) =>
-    !released && current === generation && generation.acceptsEvents;
+  const owns = (generation: Generation) => current === generation && generation.acceptsEvents;
   // A subscriber can accept a stop without replacing the generation.
   const isRecording = (generation: Generation) =>
     owns(generation) && !generation.action && generation.recorder?.state === 'recording';
 
   const publish = (changes: Partial<VoiceCaptureSnapshot>) => {
-    if (released) return;
     snapshot = freezeSnapshot({ ...snapshot, ...changes });
     if (changes.phase)
       publishVoiceCaptureState(source, changes.phase === 'idle' ? 'inactive' : changes.phase);
@@ -185,7 +180,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     });
     generation.startedAt = undefined;
   };
-  // An accepted stop keeps its deadline through releaseOwner; only the end of the generation clears it.
+  // An accepted stop keeps its deadline until the generation ends.
   const clearStopTimer = (generation: Generation) => {
     if (generation.stopTimer !== undefined) clearTimeout(generation.stopTimer);
     generation.stopTimer = undefined;
@@ -310,12 +305,11 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     generation.chunks = [];
     generation.samples = [];
     // The facade retains processing until delivery begins; capture diagnostics end here.
-    if (isCurrent && !released) releaseVoiceCaptureState(source);
+    if (isCurrent) releaseVoiceCaptureState(source);
     resolve?.({ status: 'captured', recording: { file, duration, waveform } });
   };
   const start = async () => {
-    if (!released && (snapshot.phase !== 'idle' || current?.acceptsEvents)) return false;
-    released = false;
+    if (snapshot.phase !== 'idle' || current?.acceptsEvents) return false;
     if (current) retire(current);
     const generation: Generation = { acceptsEvents: true, chunks: [], samples: [], elapsedMs: 0 };
     current = generation;
@@ -426,7 +420,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     generation.action = action;
     clearTimers(generation);
     return new Promise((resolve) => {
-      // A processing subscriber can release ownership synchronously.
+      // A processing subscriber can reset the session synchronously.
       generation.resolve = resolve;
       publish({ elapsedMs: generation.elapsedMs, phase: 'processing' });
       if (!generation.acceptsEvents) return;
@@ -496,18 +490,5 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       return false;
     },
     reset,
-    clearError: () => {
-      if (snapshot.errorMessage !== undefined) publish({ errorMessage: undefined });
-    },
-    releaseOwner: () => {
-      if (released) return;
-      released = true;
-      const generation = current;
-      current = undefined;
-      if (generation?.action === 'send' && generation.resolve) releaseResources(generation);
-      else if (generation) retire(generation);
-      snapshot = idleSnapshot();
-      releaseVoiceCaptureState(source);
-    },
   };
 };

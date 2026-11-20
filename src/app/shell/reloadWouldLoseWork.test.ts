@@ -11,6 +11,8 @@ import {
   roomIdToUploadItemsAtomFamily,
   type TUploadItem,
 } from '../composer/roomInputDrafts';
+import { liveVoiceRecordingAtom } from '../composer/voice/liveVoiceRecording';
+import type { VoiceCaptureSession } from '../composer/voice/voiceCaptureSession';
 import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 
 const event = (status: EventStatus | null) => ({ status } as MatrixEvent);
@@ -69,6 +71,12 @@ describe('reloadWouldLoseWork', () => {
   it('loses a recorded voice message that waits for a resend', () => {
     const store = createStore();
     store.set(pendingVoiceSendDraftAtom, {} as PendingVoiceSendDraft);
+    expect(reloadWouldLoseWork(store, undefined)).toBe(true);
+  });
+
+  it('loses a voice message that is being recorded, whichever page shows', () => {
+    const store = createStore();
+    store.set(liveVoiceRecordingAtom, {} as VoiceCaptureSession);
     expect(reloadWouldLoseWork(store, undefined)).toBe(true);
   });
 

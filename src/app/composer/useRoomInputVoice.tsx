@@ -18,7 +18,6 @@ import {
   type PendingVoiceSendContext,
   type StagedList,
   composerUploadItemsAtom,
-  openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
   threadViewVoiceComposersAtom,
@@ -41,6 +40,7 @@ import {
   VoiceRecorderComposer,
   type VoiceRecorderComposerHandle,
 } from './voice/VoiceRecorderDialog';
+import { liveVoiceRecordingAtom, startLiveVoiceRecording } from './voice/liveVoiceRecording';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -87,7 +87,6 @@ type VoiceFeature = {
 type PendingVoiceComposerBundle = {
   roomId: string;
   composerThreadId?: string;
-  relationContext?: Pick<PendingVoiceSendContext, 'threadId' | 'replyDraft' | 'threadingEnabled'>;
   textContent?: IContent;
   composerFallback?: Descendant[];
   companionItems: TUploadItem[];
@@ -111,7 +110,11 @@ export const useRoomInputVoice = ({
   const view = useContext(ConversationViewContext);
   const mediaConfig = useMediaConfig();
   const allowUploadSize = mediaConfig['m.upload.size'] ?? Infinity;
-  const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
+  // The account's recording, which this composer shows while it runs and sends when its Send is
+  // pressed (voice/liveVoiceRecording.ts). It is not this composer's until then.
+  const liveRecording = useAtomValue(liveVoiceRecordingAtom) !== undefined;
+  // This composer's Send took the recording: its capsule stays, as sending, until that settles.
+  const [sendingHere, setSendingHere] = useState(false);
   const voiceAutoSendPending = useAtomValue(voiceAutoSendPendingAtom);
   const pendingVoiceSendDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const setPendingVoiceSendDraft = useSetAtom(pendingVoiceSendDraftAtom);
@@ -158,45 +161,6 @@ export const useRoomInputVoice = ({
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
   const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
 
-  // While this composer owns a pending failed-send draft (e.g. it survived a
-  // RoomProvider key remount on real navigation), surface the recorder so
-  // the user can see the retry/discard controls. Close it while a parked draft
-  // is another composer's, and once its own goes away. Closing covers cases the
-  // hook can't observe locally:
-  //   1. A previous mount started a retry, the user navigated away, the
-  //      retry settled remotely, and we're now back in the source room
-  //      with phase synced to 'sending' from the atom.
-  //   2. Some other surface discarded the draft (e.g. a future global
-  //      discard action).
-  //   3. A thread's own view moved to another thread, before or after its send failed: that
-  //      thread's Send must not retry the draft.
-  // Without this effect, voiceRecorderOpen stays true and the capsule
-  // would render with stale local state.
-  const ownedPendingDraftRef = useRef(ownsPendingVoiceDraft);
-  useEffect(() => {
-    const ownedBefore = ownedPendingDraftRef.current;
-    ownedPendingDraftRef.current = ownsPendingVoiceDraft;
-    if (ownsPendingVoiceDraft) setVoiceRecorderOpen(true);
-    else if (ownedBefore || otherComposerOwnsPendingVoiceDraft) setVoiceRecorderOpen(false);
-  }, [ownsPendingVoiceDraft, otherComposerOwnsPendingVoiceDraft]);
-
-  // One recorder is open at a time: opening one in another composer closes this one, which ends
-  // its recording as leaving the room does.
-  const [recorderToken] = useState(() => Symbol('voice recorder'));
-  const openRecorder = useAtomValue(openVoiceRecorderAtom);
-  useEffect(() => {
-    if (!voiceRecorderOpen) return undefined;
-    store.set(openVoiceRecorderAtom, recorderToken);
-    return () => {
-      if (store.get(openVoiceRecorderAtom) === recorderToken) {
-        store.set(openVoiceRecorderAtom, undefined);
-      }
-    };
-  }, [recorderToken, store, voiceRecorderOpen]);
-  useEffect(() => {
-    if (openRecorder !== undefined && openRecorder !== recorderToken) setVoiceRecorderOpen(false);
-  }, [openRecorder, recorderToken]);
-
   // Discard any orphaned draft. Three cases:
   //   1. Account-switch leak: the atom is module-level and survives
   //      logout/login since the router store is shared across sessions.
@@ -222,10 +186,9 @@ export const useRoomInputVoice = ({
     }
   }, [draftBelongsToCurrentSession, mx, pendingVoiceSendDraft, setPendingVoiceSendDraft]);
 
-  // Provide the recording room at start and the latest relation again when Send is claimed.
-  // The hook preserves the recording room, refreshes only a same-room thread/reply relation,
-  // and persists that effective send context so failure retries keep the attempted destination.
-  // The session id prevents a parked draft from leaking audio across account switches.
+  // Where a recording goes when Send is pressed in this composer: its room, thread and reply as
+  // they are then. A failed send parks the audio with this context, so a retry keeps the
+  // attempted destination. The session id keeps a parked draft from another account's hands.
   const getVoiceSendContext = useCallback(
     (): PendingVoiceSendContext =>
       getRoomInputVoiceSendContext({
@@ -234,15 +197,6 @@ export const useRoomInputVoice = ({
       }),
     [mx, getContext]
   );
-
-  // The draft controller behind the hook owns pendingVoiceSendDraftAtom.
-  // It writes the draft on failure and clears it on successful send or explicit
-  // discard. onClose must NOT clear the draft, or any future caller (a
-  // backdrop/Escape dismissal, a click-outside, etc.) would silently lose
-  // the parked recording the rest of this PR exists to preserve.
-  const handleCloseVoiceRecorder = useCallback(() => {
-    setVoiceRecorderOpen(false);
-  }, []);
 
   const claimVoiceAutoSend = useCallback(() => {
     if (store.get(voiceAutoSendPendingAtom)) return false;
@@ -308,7 +262,7 @@ export const useRoomInputVoice = ({
 
       try {
         // Re-resolve the live Room from the matrix client at send/retry
-        // time. context.room is a snapshot from start(); it may be stale
+        // time. context.room is a snapshot from Send; it may be stale
         // by retry time (encryption upgrade, membership change,
         // signal-bridge member added/removed). Using the live room also
         // closes a plaintext-leak window: a room that gained encryption
@@ -318,10 +272,7 @@ export const useRoomInputVoice = ({
         const pendingComposerBundle = pendingVoiceComposerBundleRef.current;
         const composerBundle =
           pendingComposerBundle?.roomId === context.roomId ? pendingComposerBundle : undefined;
-        const sendContext = composerBundle?.relationContext
-          ? { ...context, ...composerBundle.relationContext }
-          : context;
-        liveContext = refreshRoomInputVoiceSendContext(mx, sendContext);
+        liveContext = refreshRoomInputVoiceSendContext(mx, context);
         if (!liveContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
         }
@@ -495,7 +446,8 @@ export const useRoomInputVoice = ({
   const blocksSubmit = useCallback(() => store.get(voiceAutoSendPendingAtom), [store]);
   const submitIfActive = useCallback(
     async (content?: IContent): Promise<boolean> => {
-      if (!voiceRecorderOpen && !ownsPendingVoiceDraft) return false;
+      // Send here sends the account's recording here, with this composer's text and files.
+      if (!store.get(liveVoiceRecordingAtom) && !ownsPendingVoiceDraft) return false;
       if (hasFailedPasteMarkerInText(content, attachmentAccess.snapshot().staged)) return true;
 
       const recorder = voiceRecorderRef.current;
@@ -506,15 +458,6 @@ export const useRoomInputVoice = ({
       pendingVoiceComposerBundleRef.current = {
         roomId: context.roomId,
         composerThreadId: context.threadId,
-        // A live recording follows the reply/thread visible when primary Send is pressed.
-        // A parked retry keeps the durable context captured with the failed recording.
-        relationContext: ownsPendingVoiceDraft
-          ? undefined
-          : {
-              threadId: context.threadId,
-              replyDraft: context.replyDraft,
-              threadingEnabled: context.threadingEnabled,
-            },
         textContent: content,
         composerFallback: content ? snapshotText() : undefined,
         companionItems,
@@ -523,9 +466,11 @@ export const useRoomInputVoice = ({
         composerReset: false,
         handedOff: false,
       };
+      setSendingHere(true);
       try {
         await recorder.send();
       } finally {
+        setSendingHere(false);
         // A request rejected before onSendStopRequest never owns editor state.
         // Drop only that untouched snapshot; claimed requests clear through
         // releaseVoiceAutoSend after send, failure, or retry settlement.
@@ -537,16 +482,14 @@ export const useRoomInputVoice = ({
 
       return true;
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, view, voiceRecorderOpen]
+    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, store, view]
   );
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>
-    voiceRecorderOpen || ownsPendingVoiceDraft ? (
+    liveRecording || sendingHere || ownsPendingVoiceDraft ? (
       <VoiceRecorderComposer
         ref={voiceRecorderRef}
-        active={voiceRecorderOpen}
         sendDisabled={voiceAutoSendPending}
-        onClose={handleCloseVoiceRecorder}
         onSendStopRequest={claimVoiceAutoSend}
         onSendStopFailure={releaseVoiceAutoSend}
         onRetryRequest={onRetryRequest}
@@ -565,6 +508,9 @@ export const useRoomInputVoice = ({
             roomName: revealDirectionControls(draftRoom.name ?? draftRoomId),
           });
   }
+  // One recording at a time, for the whole account: none starts while one runs, is being sent,
+  // or waits parked for a retry, in this composer or another.
+  const microphoneDisabled = liveRecording || voiceAutoSendPending || draftBelongsToCurrentSession;
   const microphone = (
     // The label says why the button is disabled while another composer holds a draft;
     // the tooltip shows it too where the browser reports hovering a disabled button.
@@ -573,15 +519,14 @@ export const useRoomInputVoice = ({
         <IconButton
           ref={triggerRef}
           onClick={() => {
-            if (voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft)
-              return;
+            if (microphoneDisabled) return;
             pauseAllMediaElements();
-            setVoiceRecorderOpen(true);
+            void startLiveVoiceRecording(store);
           }}
           variant="SurfaceVariant"
           size="300"
           radii="300"
-          disabled={voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft}
+          disabled={microphoneDisabled}
           aria-label={microphoneLabel}
           className={ComposerIconButton}
         >

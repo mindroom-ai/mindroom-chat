@@ -475,7 +475,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [composer, roomId, sendTypingStatus, t, threadId]
     );
 
-    // A recording begun in the thread stays the thread's: a fork draft neither shows nor sends it.
+    // A fork draft neither shows nor sends a recording: one would start a thread, not the fork.
     const voiceActive = !forkFrom;
     const submit = useCallback(
       async (mode: MidTurnMode) => {
