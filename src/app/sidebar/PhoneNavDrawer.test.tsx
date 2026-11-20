@@ -6,6 +6,7 @@ import { act, create } from 'react-test-renderer';
 import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  PHONE_SLIDE_OUT_MS,
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
   useMarkPhoneSectionRoot,
@@ -68,7 +69,8 @@ describe('PhoneNavDrawer', () => {
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
   });
 
-  it('offers a notice place of its own while it is out, where it covers the one of the page', () => {
+  it('offers a notice place of its own from when it comes out until it has slid away', () => {
+    vi.useFakeTimers();
     const store = createStore();
     let renderer: ReturnType<typeof create> | undefined;
     act(() => {
@@ -84,9 +86,15 @@ describe('PhoneNavDrawer', () => {
     expect(places()).toEqual([]);
     act(() => store.set(phoneNavDrawerOpenAtom, true));
     expect(places()).toEqual(['drawer']);
+    // Put away, it keeps the place while it slides: a notice there does not jump to the page.
     act(() => store.set(phoneNavDrawerOpenAtom, false));
+    expect(places()).toEqual(['drawer']);
+    act(() => {
+      vi.advanceTimersByTime(PHONE_SLIDE_OUT_MS);
+    });
     expect(places()).toEqual([]);
     act(() => renderer?.unmount());
+    vi.useRealTimers();
   });
 
   it('comes out over the page with no page slide, not even a moment of one', () => {

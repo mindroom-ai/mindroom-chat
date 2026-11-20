@@ -154,9 +154,9 @@ const focusTrapState: {
   // Always reflects the options of the most recently mounted trap.
   latest?: FocusTrapOptionsCapture;
 } = {};
-// The places notices show in bring their styles; only whether a dialog covers the page is read.
+// The places notices show in bring their styles; only whether something covers the page is read.
 vi.mock('../../ui/noticeSlots', async () => ({
-  pageBehindDialogAtom: (await import('jotai')).atom(false),
+  coverNoticeSlotAtom: (await import('jotai')).atom(null),
 }));
 vi.mock('focus-trap-react', () => {
   const FocusTrapMock: React.FC<{

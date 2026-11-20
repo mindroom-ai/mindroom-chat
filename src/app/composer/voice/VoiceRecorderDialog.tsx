@@ -18,7 +18,7 @@ import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
 import { useConversationOutOfSightAtom } from '../../navigation/conversationView';
-import { pageBehindDialogAtom } from '../../ui/noticeSlots';
+import { coverNoticeSlotAtom } from '../../ui/noticeSlots';
 import { liveVoiceCapsulesShownAtom } from './liveVoiceRecording';
 
 type VoiceRecorderComposerProps = {
@@ -104,11 +104,11 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   }, [errorMessage]);
 
   // The shell's indicator stands in while no composer shows the recording. This one counts while
-  // it is in sight: its conversation is (not behind a side panel, a phone's drawer or a folded
-  // column), and no large dialog, such as Settings, covers the page.
+  // it is in sight: its conversation is (not behind a side panel or a folded column), and
+  // nothing covers the page (a large dialog such as Settings, a phone's drawer or members sheet).
   const conversationOutOfSight = useAtomValue(useConversationOutOfSightAtom());
-  const behindDialog = useAtomValue(pageBehindDialogAtom);
-  const outOfSight = conversationOutOfSight || behindDialog;
+  const pageCovered = useAtomValue(coverNoticeSlotAtom) !== null;
+  const outOfSight = conversationOutOfSight || pageCovered;
   const setCapsulesShown = useSetAtom(liveVoiceCapsulesShownAtom);
   useEffect(() => {
     if (outOfSight) return undefined;

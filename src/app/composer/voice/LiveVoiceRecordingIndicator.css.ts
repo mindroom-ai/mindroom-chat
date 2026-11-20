@@ -25,8 +25,7 @@ export const Pill = style([
   },
 ]);
 
-// Read out by the place, a live region, when the pill comes and when the recording pauses or
-// goes on; not shown, and out of the place's flow.
+// The status region that says the recording's state; read out, not shown.
 export const Announcement = style({
   position: 'absolute',
   inlineSize: 1,

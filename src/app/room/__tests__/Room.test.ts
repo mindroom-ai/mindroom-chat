@@ -158,7 +158,10 @@ vi.mock('../../members/PhoneMembersSheet.css', () => ({
   Layer: 'layer',
   Scrim: 'scrim',
   Panel: 'panel',
+  Members: 'sheet-members',
 }));
+// The sheet's notice place brings its styles; it is tested in ui/noticeSlots.test.tsx.
+vi.mock('../../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
 vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
 vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
 // The call panel's failure view draws the window chrome with folds, which this test mocks.

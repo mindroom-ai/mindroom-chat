@@ -44,6 +44,7 @@ import {
   drawerNoticeSlotAtom,
   listNoticeSlotAtom,
   pageNoticeSlotAtom,
+  sheetNoticeSlotAtom,
 } from '../ui/noticeSlots';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom } from '../matrix/state/inviteList';
@@ -137,6 +138,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(listNoticeSlotAtom),
   toInitial(pageNoticeSlotAtom),
   toInitial(drawerNoticeSlotAtom),
+  toInitial(sheetNoticeSlotAtom),
   toInitial(dialogNoticeSlotsAtom),
 ];
 

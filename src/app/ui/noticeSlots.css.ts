@@ -63,8 +63,8 @@ export const PageSlot = recipe({
   },
 });
 
-// Inside what covers the page, a large dialog (at its foot) or a phone's drawer (above its list):
-// a row of its own in their column, so a notice there covers none of their controls.
+// Inside what covers the page, a large dialog (at its foot) or a phone's drawer or members sheet
+// (above its list): a row of its own in their column, so a notice there covers no control.
 export const CoverSlot = style({
   flexShrink: 0,
   display: 'flex',

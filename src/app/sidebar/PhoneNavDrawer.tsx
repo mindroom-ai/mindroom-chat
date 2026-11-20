@@ -211,8 +211,9 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       >
         {filled && nav}
         <div className={css.ListColumn}>
-          {/* Out, the drawer covers the page's notice place: what must stay in reach shows here. */}
-          {open && <NoticeSlot place="drawer" />}
+          {/* The drawer covers the page's notice place: what must stay in reach shows here, until
+              the drawer has slid away, so a notice does not jump to the page mid-slide. */}
+          {filled && <NoticeSlot place="drawer" />}
           <div ref={slotRef} className={css.Slot} data-nav-slot />
         </div>
       </div>

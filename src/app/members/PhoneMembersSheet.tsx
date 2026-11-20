@@ -12,6 +12,7 @@ import { useSwipeAway } from '../navigation/useSwipeAway';
 import { useInert } from '../lib/hooks/useInert';
 import { hasOpenOverlay } from '../lib/openOverlay';
 import { usePanelPresence } from '../ui/panels/panelPresence';
+import { NoticeSlot } from '../ui/noticeSlots';
 import * as css from './PhoneMembersSheet.css';
 
 /** The layer below a phone's top bar that the members slide into; null without the phone layout. */
@@ -106,7 +107,9 @@ export function PhoneMembersSheet({
         role="dialog"
         aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.members')}
       >
-        {children}
+        {/* Out, the sheet covers the page's notice place: what must stay in reach shows here. */}
+        {out && <NoticeSlot place="sheet" />}
+        <div className={css.Members}>{children}</div>
       </div>
     </div>,
     slot

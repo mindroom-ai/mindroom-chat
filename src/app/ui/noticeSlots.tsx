@@ -7,8 +7,8 @@ import * as css from './noticeSlots.css';
 // version notice (shell/NewVersionNotice.tsx) and the tour's offer (tour/TourOffer.tsx) take the
 // room list's while there is one, else the page's (useNoticePresence); how the connection is
 // (shell/SyncStatus.tsx) always shows in the page's. A voice recording no composer shows
-// (composer/voice/LiveVoiceRecordingIndicator.tsx) shows in the page's too, or in what covers the
-// page: a large dialog's place, or the one of a phone's drawer.
+// (composer/voice/LiveVoiceRecordingIndicator.tsx) shows in the page's too, or in the place of
+// what covers the page (`coverNoticeSlotAtom`).
 
 /** At the foot of the room list beside the page (ResizablePageNav); phones have none. */
 export const listNoticeSlotAtom = atom<HTMLElement | null>(null);
@@ -16,26 +16,33 @@ export const listNoticeSlotAtom = atom<HTMLElement | null>(null);
 /** At the top of the signed-in page, under a phone's top bar (ClientLayout). */
 export const pageNoticeSlotAtom = atom<HTMLElement | null>(null);
 
-/** In a phone's navigation drawer while it is out, above the section's list (PhoneNavDrawer). */
+/** In a phone's navigation drawer while it holds its list, above that list (PhoneNavDrawer). */
 export const drawerNoticeSlotAtom = atom<HTMLElement | null>(null);
+
+/** In a phone's members sheet while it is out, above the members (PhoneMembersSheet). */
+export const sheetNoticeSlotAtom = atom<HTMLElement | null>(null);
 
 const slotAtoms = {
   list: listNoticeSlotAtom,
   page: pageNoticeSlotAtom,
   drawer: drawerNoticeSlotAtom,
+  sheet: sheetNoticeSlotAtom,
 };
 
 /** The places of the large dialogs open over the page (ui/Modal500.tsx), the topmost one last. */
 export const dialogNoticeSlotsAtom = atom<readonly HTMLElement[]>([]);
 
-/** At the foot of the topmost large dialog, inside it, so that the focus it holds reaches it. */
-export const dialogNoticeSlotAtom = atom((get) => {
-  const slots = get(dialogNoticeSlotsAtom);
-  return slots[slots.length - 1] ?? null;
+/**
+ * The place inside the topmost thing that covers the page, from one ordered list: a large dialog
+ * (at its foot, where the focus it holds reaches), a phone's members sheet, its drawer. Null
+ * while nothing covers the page. Each offers its place only while it is there to use, so what
+ * must stay in reach goes here before the page's place, and what the page shows is out of sight
+ * for as long as this is set.
+ */
+export const coverNoticeSlotAtom = atom((get) => {
+  const dialogs = get(dialogNoticeSlotsAtom);
+  return dialogs[dialogs.length - 1] ?? get(sheetNoticeSlotAtom) ?? get(drawerNoticeSlotAtom);
 });
-
-/** Whether a large dialog covers the page: what the page shows is out of sight under it. */
-export const pageBehindDialogAtom = atom((get) => get(dialogNoticeSlotsAtom).length > 0);
 
 /** How long a notice takes to leave: the Normal motion token (ui/noticeMotion.css.ts) and a frame. */
 export const NOTICE_LEAVE_MS = 180;
@@ -44,7 +51,7 @@ export const NOTICE_LEAVE_MS = 180;
 export type NoticePlacement = 'list' | 'page';
 
 type NoticeSlotProps = {
-  place: NoticePlacement | 'drawer';
+  place: NoticePlacement | 'drawer' | 'sheet';
   /** Whether the page has the phone layout, which a notice shown here follows. */
   phone?: boolean;
   /** Whether something covers the place, as a phone's drawer does: its notice is inert then. */
@@ -68,7 +75,7 @@ export function NoticeSlot({ place, phone = false, covered = false }: NoticeSlot
   }, [setSlot]);
   let className = css.PageSlot({ phone });
   if (place === 'list') className = css.ListSlot;
-  if (place === 'drawer') className = css.CoverSlot;
+  if (place === 'drawer' || place === 'sheet') className = css.CoverSlot;
   return <div ref={ref} className={className} data-phone={phone || undefined} aria-live="polite" />;
 }
 

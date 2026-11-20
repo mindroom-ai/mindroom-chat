@@ -4,13 +4,11 @@ import { createPortal } from 'react-dom';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  dialogNoticeSlotAtom,
+  coverNoticeSlotAtom,
   DialogNoticeSlot,
-  drawerNoticeSlotAtom,
   listNoticeSlotAtom,
   NOTICE_LEAVE_MS,
   NoticeSlot,
-  pageBehindDialogAtom,
   pageNoticeSlotAtom,
   useNoticePresence,
 } from './noticeSlots';
@@ -64,45 +62,48 @@ describe('NoticeSlot', () => {
     expect(store.get(listNoticeSlotAtom)).toBeNull();
   });
 
-  it("offers a phone drawer's place while the drawer shows it", () => {
-    const { unmount } = render(<NoticeSlot place="drawer" />);
-    const drawer = store.get(drawerNoticeSlotAtom);
-    expect(drawer?.getAttribute('aria-live')).toBe('polite');
-    expect(store.get(pageNoticeSlotAtom)).toBeNull();
-    unmount();
-    expect(store.get(drawerNoticeSlotAtom)).toBeNull();
-  });
-
-  it('offers the place of the topmost large dialog, and says the page is behind one while any is open', () => {
-    const dialogs = (count: number) => (
+  it('offers the place of the topmost thing that covers the page: a dialog, a sheet, a drawer', () => {
+    const covers = (dialogs: number, sheet: boolean, drawer: boolean) => (
       <>
-        {Array.from({ length: count }, (_, index) => (
-          <section key={index} data-dialog={index}>
+        {drawer && (
+          <section data-cover="drawer">
+            <NoticeSlot place="drawer" />
+          </section>
+        )}
+        {sheet && (
+          <section data-cover="sheet">
+            <NoticeSlot place="sheet" />
+          </section>
+        )}
+        {Array.from({ length: dialogs }, (_, index) => (
+          <section key={index} data-cover={`dialog ${index}`}>
             <DialogNoticeSlot />
           </section>
         ))}
       </>
     );
-    const dialogOf = () => store.get(dialogNoticeSlotAtom)?.parentElement?.dataset.dialog;
-    const { rerender } = render(dialogs(0));
-    expect(store.get(dialogNoticeSlotAtom)).toBeNull();
-    expect(store.get(pageBehindDialogAtom)).toBe(false);
+    const cover = () => store.get(coverNoticeSlotAtom)?.parentElement?.dataset.cover;
+    const { rerender } = render(covers(0, false, false));
+    // Nothing covers the page: what must stay in reach shows in the page's place.
+    expect(store.get(coverNoticeSlotAtom)).toBeNull();
 
-    rerender(dialogs(1));
-    expect(dialogOf()).toBe('0');
-    expect(store.get(dialogNoticeSlotAtom)?.getAttribute('aria-live')).toBe('polite');
-    expect(store.get(pageBehindDialogAtom)).toBe(true);
-
-    // A second one opens over the first, then closes: the first one's place is offered again.
-    rerender(dialogs(2));
-    expect(dialogOf()).toBe('1');
-    rerender(dialogs(1));
-    expect(dialogOf()).toBe('0');
-    expect(store.get(pageBehindDialogAtom)).toBe(true);
-
-    rerender(dialogs(0));
-    expect(store.get(dialogNoticeSlotAtom)).toBeNull();
-    expect(store.get(pageBehindDialogAtom)).toBe(false);
+    rerender(covers(0, false, true));
+    expect(cover()).toBe('drawer');
+    expect(store.get(coverNoticeSlotAtom)?.getAttribute('aria-live')).toBe('polite');
+    rerender(covers(0, true, true));
+    expect(cover()).toBe('sheet');
+    rerender(covers(1, true, true));
+    expect(cover()).toBe('dialog 0');
+    // A second dialog opens over the first, then closes: the first one's place is offered again.
+    rerender(covers(2, true, true));
+    expect(cover()).toBe('dialog 1');
+    rerender(covers(1, true, true));
+    expect(cover()).toBe('dialog 0');
+    rerender(covers(0, true, false));
+    expect(cover()).toBe('sheet');
+    rerender(covers(0, false, false));
+    expect(store.get(coverNoticeSlotAtom)).toBeNull();
+    expect(store.get(pageNoticeSlotAtom)).toBeNull();
   });
 
   it('leaves the place to a newer slot that took it over', () => {
