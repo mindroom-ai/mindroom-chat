@@ -415,16 +415,16 @@ export const PillText = style(hiddenOnPhone);
 
 export const PillIcon = style({ display: 'none', '@container': { [phone]: { display: 'grid' } } });
 
-// A job of another thread names it; pressing it shows that thread. Beside the Sub-agents panel
-// it is its icon, and its title names the thread.
+// A job of another thread names it right after who runs it, in the line's free room, a little
+// apart; pressing it shows that thread. Beside the Sub-agents panel it is its icon, and its title
+// names the thread.
 export const ThreadChip = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S100,
   flex: '0 1 auto',
   minWidth: '3rem',
-  maxWidth: '11rem',
-  marginInlineStart: 'auto',
+  marginInlineStart: config.space.S200,
   ...textButton,
   color: color.Primary.Main,
   selectors: { '&:focus-visible': keyboardRing },
