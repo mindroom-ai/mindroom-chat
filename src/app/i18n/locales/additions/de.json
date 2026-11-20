@@ -287,6 +287,7 @@
       "toolCount_other": "{{count}} Werkzeuge",
       "groupCount_one": "{{count}} Gruppe",
       "groupCount_other": "{{count}} Gruppen",
+      "counts": "{{tools}} · {{groups}}",
       "also": "Außerdem {{groups}}",
       "viewAll_one": "Alle {{count}} Werkzeuge ansehen",
       "viewAll_other": "Alle {{count}} Werkzeuge ansehen",

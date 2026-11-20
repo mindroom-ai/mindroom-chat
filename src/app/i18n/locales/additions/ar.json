@@ -311,6 +311,7 @@
       "groupCount_few": "⁨{{count}}⁩ مجموعات",
       "groupCount_many": "⁨{{count}}⁩ مجموعةً",
       "groupCount_other": "⁨{{count}}⁩ مجموعة",
+      "counts": "⁨{{tools}}⁩ · ⁨{{groups}}⁩",
       "also": "وأيضًا ⁨{{groups}}⁩",
       "viewAll_zero": "عرض كل الأدوات (⁨{{count}}⁩)",
       "viewAll_one": "عرض كل الأدوات (⁨{{count}}⁩)",

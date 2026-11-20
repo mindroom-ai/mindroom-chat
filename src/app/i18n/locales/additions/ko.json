@@ -281,6 +281,7 @@
       "configuredTools": "설정된 도구",
       "toolCount_other": "도구 {{count}}개",
       "groupCount_other": "그룹 {{count}}개",
+      "counts": "{{tools}} · {{groups}}",
       "also": "그 밖에 {{groups}}",
       "viewAll_other": "도구 {{count}}개 모두 보기",
       "toolsTitle": "{{name}}의 도구",

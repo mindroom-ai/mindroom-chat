@@ -15,8 +15,12 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { ProfileCard, useProfileName } from './UserRoomProfile';
 
-// Escape (which goes no further than the card) and clicks outside end the trap and the card.
-const ENDS_ON = { escapeDeactivates: stopPropagation, clickOutsideDeactivates: true };
+// Escape (which goes no further than the card) and clicks outside end the trap and the card; a
+// trap that unmounts because another card replaced its card closes nothing.
+const endsOn = (close: () => void) => ({
+  escapeDeactivates: (event: KeyboardEvent) => stopPropagation(event) && (close(), true),
+  clickOutsideDeactivates: () => (close(), true),
+});
 
 /**
  * The card beside what opened it, or an agent's as a sheet on a phone, titled with its name. An
@@ -60,7 +64,7 @@ function OpenProfile({
       align="Start"
       offset={8}
       content={
-        <FocusTrap focusTrapOptions={{ ...ENDS_ON, initialFocus: false, onDeactivate: close }}>
+        <FocusTrap focusTrapOptions={{ ...endsOn(close), initialFocus: false }}>
           <Menu role="dialog" aria-label={agent ? name : open.userId}>
             {card(false)}
           </Menu>

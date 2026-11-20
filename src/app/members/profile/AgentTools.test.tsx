@@ -65,7 +65,7 @@ describe('AgentCapabilities', () => {
 
   it('shows five groups by their registry category, names the rest, and offers View all', () => {
     capabilities({ status: 'ready', profile: { tools: MANY } });
-    expect(screen.getByText('9 tools').parentElement!.textContent).toBe('9 tools · 8 groups');
+    expect(screen.getByText('9 tools · 8 groups')).toBeTruthy();
     expect(screen.getAllByRole('listitem').map((row) => row.textContent)).toEqual([
       'Code & filestool0, shell2',
       'Webtool11',

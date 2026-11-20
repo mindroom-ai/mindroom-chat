@@ -18,6 +18,7 @@ import {
   Text,
 } from 'folds';
 import { FocusScope, mergeProps, useDialog, useModalOverlay } from 'react-aria';
+import { observeLayerHost } from '../lib/overlayFocus';
 import { holdModalSheet } from '../lib/portalOverlay';
 import { PageScroll } from './page/PageScroll';
 import { Header, Modal } from './glass/GlassPrimitives';
@@ -73,6 +74,10 @@ export function BottomSheet({
   const { dialogProps } = useDialog({ 'aria-label': title }, dialogRef);
   // Global shortcuts wait while it is open: a layer they opened over it would be inert.
   useEffect(() => holdModalSheet(), []);
+  // Its menus are layers to the app's focus: one opened with Enter takes the focus.
+  useEffect(() => {
+    if (menus) observeLayerHost(menus);
+  }, [menus]);
 
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>

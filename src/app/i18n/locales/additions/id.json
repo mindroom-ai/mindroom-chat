@@ -281,6 +281,7 @@
       "configuredTools": "Alat yang dikonfigurasi",
       "toolCount_other": "{{count}} alat",
       "groupCount_other": "{{count}} grup",
+      "counts": "{{tools}} · {{groups}}",
       "also": "Juga {{groups}}",
       "viewAll_other": "Lihat semua {{count}} alat",
       "toolsTitle": "Alat {{name}}",

@@ -138,6 +138,25 @@ describe('useAgentProfile', () => {
     expect(result.current.status).toBe('none');
   });
 
+  it('gives none while the server lookup is still open after the same wait', async () => {
+    vi.useFakeTimers();
+    server.pending = true;
+    const { result, rerender } = open();
+    expect(result.current.status).toBe('loading');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(8000);
+    });
+    expect(result.current.status).toBe('none');
+    expect(send).not.toHaveBeenCalled();
+    send.mockImplementation(() => Promise.resolve(new Response(JSON.stringify(PROFILE))));
+    server.pending = false;
+    rerender();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.status).toBe('ready');
+  });
+
   it('asks nothing while Chat may ask no server', () => {
     server.apiUrl = undefined;
     expect(open().result.current.status).toBe('none');

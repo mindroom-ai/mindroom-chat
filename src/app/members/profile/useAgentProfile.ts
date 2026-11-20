@@ -32,6 +32,13 @@ export const useAgentProfile = (room: Room, agentUserId: string): AgentProfileSt
   // The answer belongs to the server, room and agent asked; any other shows none of it.
   const key = joined && !pending && apiUrl ? `${apiUrl}${path}` : undefined;
   const [answer, setAnswer] = useState<{ key: string; profile?: AgentProfile }>();
+  // A server lookup still open after `TIMEOUT_MS` shows none too, until it ends.
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!pending) return undefined;
+    const timer = setTimeout(() => setLate(true), TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [pending]);
   // Once the key changes, even back to what was asked, only a fresh answer shows.
   if (answer && answer.key !== key) setAnswer(undefined);
 
@@ -56,7 +63,7 @@ export const useAgentProfile = (room: Room, agentUserId: string): AgentProfileSt
     };
   }, [mx, apiUrl, path, key]);
 
-  if (!joined || (!pending && !apiUrl)) return { status: 'none' };
+  if (!joined || (pending ? late : !apiUrl)) return { status: 'none' };
   if (!key || !answer || answer.key !== key) return { status: 'loading' };
   return answer.profile ? { status: 'ready', profile: answer.profile } : { status: 'none' };
 };

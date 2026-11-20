@@ -281,6 +281,7 @@
       "configuredTools": "設定済みのツール",
       "toolCount_other": "{{count}} 個のツール",
       "groupCount_other": "{{count}} グループ",
+      "counts": "{{tools}} · {{groups}}",
       "also": "ほかに {{groups}}",
       "viewAll_other": "{{count}} 個のツールをすべて表示",
       "toolsTitle": "{{name}} のツール",

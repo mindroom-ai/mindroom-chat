@@ -101,6 +101,7 @@ export function AgentCapabilities({ state, onViewAll, viewAllRef }: Capabilities
   if (tools.length === 0) return null;
   const groups = groupAgentTools(tools);
   const few = tools.length <= FEW_TOOLS;
+  const toolCount = t(`${KEY}.toolCount`, { count: tools.length });
   const groupName = (key: string) => t(`${KEY}.groups.${key}` as never);
   const list = (names: string[], type: 'unit' | 'conjunction') =>
     new Intl.ListFormat(language, { type }).format(names);
@@ -111,13 +112,14 @@ export function AgentCapabilities({ state, onViewAll, viewAllRef }: Capabilities
           {t(`${KEY}.configuredTools`)}
         </Text>
         <Text size="T200" priority="300">
-          <bdi>{t(`${KEY}.toolCount`, { count: tools.length })}</bdi>
-          {!few && (
-            <>
-              {' · '}
-              <bdi>{t(`${KEY}.groupCount`, { count: groups.length })}</bdi>
-            </>
-          )}
+          <bdi>
+            {few
+              ? toolCount
+              : t(`${KEY}.counts`, {
+                  tools: toolCount,
+                  groups: t(`${KEY}.groupCount`, { count: groups.length }),
+                })}
+          </bdi>
         </Text>
       </Box>
       <Box as="ul" direction="Column" gap="300" style={{ margin: 0, padding: 0 }}>

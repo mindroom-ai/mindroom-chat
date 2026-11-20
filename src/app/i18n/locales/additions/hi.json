@@ -287,6 +287,7 @@
       "toolCount_other": "{{count}} टूल",
       "groupCount_one": "{{count}} समूह",
       "groupCount_other": "{{count}} समूह",
+      "counts": "{{tools}} · {{groups}}",
       "also": "इसके अलावा {{groups}}",
       "viewAll_one": "सभी {{count}} टूल देखें",
       "viewAll_other": "सभी {{count}} टूल देखें",

@@ -110,6 +110,21 @@ describe('UserRoomProfile role', () => {
     expect(roleText.props['data-own-direction']).toBe('block');
   });
 
+  it('points More at the section it opens', async () => {
+    cardText(await roomWith({ [HELPER]: { role: ROLE } }), HELPER);
+    const more = renderer!.root.find(
+      (node) => typeof node.type === 'string' && node.props['aria-label'] === 'More'
+    );
+    expect(more.props['aria-expanded']).toBe(false);
+    act(() => {
+      more.props.onClick();
+    });
+    const section = renderer!.root.find(
+      (node) => typeof node.type === 'string' && node.props.id === more.props['aria-controls']
+    );
+    expect(section.findAll((node) => node.children.includes(HELPER)).length).toBeGreaterThan(0);
+  });
+
   it('shows no role line for an agent of an older runtime, which publishes none', async () => {
     const room = await roomWith({ [HELPER]: { api_origin: 'http://localhost:8765' } });
     const withRole = cardText(await roomWith({ [HELPER]: { role: ROLE } }), HELPER);

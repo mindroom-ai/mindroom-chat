@@ -293,6 +293,7 @@
       "groupCount_one": "{{count}} gruppo",
       "groupCount_many": "{{count}} di gruppi",
       "groupCount_other": "{{count}} gruppi",
+      "counts": "{{tools}} · {{groups}}",
       "also": "Inoltre {{groups}}",
       "viewAll_one": "Vedi tutti i {{count}} strumenti",
       "viewAll_many": "Vedi tutti i {{count}} di strumenti",

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -174,6 +174,7 @@ export function ProfileCard({
   const [moreOpen, setMoreOpen] = useState(false);
   const viewAll = useRef<HTMLButtonElement>(null);
   const more = useRef<HTMLDivElement>(null);
+  const moreId = useId();
   // "More" opens at the card's end, which may be out of the card's view.
   useEffect(() => {
     // Newer browsers return a promise from scrolling, which no effect may return.
@@ -331,6 +332,7 @@ export function ProfileCard({
                 outlined
                 aria-label={t('sharedUi.agentCard.more')}
                 aria-expanded={moreOpen}
+                aria-controls={moreId}
                 onClick={() => setMoreOpen((open) => !open)}
               >
                 <Icon size="100" src={Icons.HorizontalDots} />
@@ -364,7 +366,7 @@ export function ProfileCard({
         )}
         {agent
           ? moreOpen && (
-              <Box ref={more} className={toolsCss.Section} direction="Column" gap="300">
+              <Box ref={more} id={moreId} className={toolsCss.Section} direction="Column" gap="300">
                 {userIdLine}
                 {chips}
                 {moderation}

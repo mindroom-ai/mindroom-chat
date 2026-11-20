@@ -281,6 +281,7 @@
       "configuredTools": "已配置的工具",
       "toolCount_other": "{{count}} 个工具",
       "groupCount_other": "{{count}} 个分组",
+      "counts": "{{tools}} · {{groups}}",
       "also": "另有{{groups}}",
       "viewAll_other": "查看全部 {{count}} 个工具",
       "toolsTitle": "{{name}} 的工具",
