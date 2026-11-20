@@ -9,11 +9,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // every web scroller and ignores the page's `scrollbar-width: none`, which keeps one
         // beside the sidebar and the timeline. Overlay scroll bars, as with a trackpad, honour it.
         // AppKit reads the setting while the app starts, so this runs before UIApplicationMain;
-        // the argument domain beats the user's and is never saved.
+        // the argument domain beats the user's and is never saved. An explicit "Always" in
+        // System Settings stays.
         let defaults = UserDefaults.standard
-        var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-        arguments["AppleShowScrollBars"] = "WhenScrolling"
-        defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        if defaults.string(forKey: "AppleShowScrollBars") != "Always" {
+            var arguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+            arguments["AppleShowScrollBars"] = "WhenScrolling"
+            defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+        }
 #endif
         UIApplicationMain(CommandLine.argc, CommandLine.unsafeArgv, nil, NSStringFromClass(AppDelegate.self))
     }
