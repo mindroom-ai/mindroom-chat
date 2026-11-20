@@ -868,14 +868,15 @@ describe('inline canvas sizing', () => {
   it('hides the root overflow of fitted inline pages only, letting wide ones scroll sideways', () => {
     const page = (display?: CanvasDisplay) =>
       buildCanvasPage('', 'light', undefined, false, {}, display);
-    const sideways = 'root.style.overflowX =';
-    expect(page({ inline: true })).toContain('html{overflow:hidden}');
-    expect(page({ inline: true })).toContain(sideways);
+    const fitted = [
+      'html{overflow:hidden}',
+      'root.style.overflowX =',
+      "addEventListener('resize', queueSize)",
+    ];
+    for (const part of fitted) expect(page({ inline: true })).toContain(part);
     // Previews scroll inside their window, and the panel scrolls its page.
-    for (const display of [{ inline: true, width: 1280 }, { inline: true, raw: true }, {}]) {
-      expect(page(display)).not.toContain('html{overflow:hidden}');
-      expect(page(display)).not.toContain(sideways);
-    }
+    for (const display of [{ inline: true, width: 1280 }, { inline: true, raw: true }, {}])
+      for (const part of fitted) expect(page(display)).not.toContain(part);
   });
 
   it('shows raw pages exactly as written: no theme, base style, or color scheme from Chat', () => {

@@ -303,7 +303,7 @@ const sizeScript = (fitted: boolean): string => `
     reportSize();
   });
   // A narrower frame can make a fixed-width page wider than it without resizing the body.
-  addEventListener('resize', queueSize);
+  ${fitted ? "addEventListener('resize', queueSize);" : ''}
   // A transition, an animation or an image can change positioned content after the change that started it.
   ['transitionend', 'animationend', 'load'].forEach((type) => document.addEventListener(type, queueSize, true));
   addEventListener('load', reportSize);
