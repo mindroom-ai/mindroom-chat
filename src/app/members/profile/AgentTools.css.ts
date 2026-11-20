@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 const ICON = toRem(20);
@@ -10,8 +10,6 @@ export const AgentCard = style({
   maxBlockSize: `calc(100dvh - ${toRem(32)})`,
   overflowY: 'auto',
   padding: config.space.S400,
-  // It scrolls instead of squeezing what it holds.
-  selectors: { '& > *': { flexShrink: 0 } },
   '@media': { '(max-width: 750px)': { inlineSize: 'auto', paddingBlockStart: 0 } },
 });
 
@@ -40,8 +38,10 @@ export const ViewAll = style({ color: color.Primary.MainActive, paddingInline: 0
 export const ToolList = style({
   maxBlockSize: `min(${toRem(360)}, 50dvh)`,
   overflowY: 'auto',
-  selectors: { '& > *': { flexShrink: 0 } },
 });
+
+// Both scroll instead of squeezing what they hold.
+globalStyle(`${AgentCard} > *, ${ToolList} > *`, { flexShrink: 0 });
 
 /** A group's icon, beside the first line of what it heads. */
 export const GroupIcon = style({ flexShrink: 0, marginBlockStart: toRem(2) });
