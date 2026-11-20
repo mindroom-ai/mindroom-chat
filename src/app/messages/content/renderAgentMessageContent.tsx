@@ -165,8 +165,8 @@ type AgentWorkBodyProps = {
 /**
  * An agent reply, in the same tree from its first streamed frame on, with or without tool calls,
  * so the state inside it, such as collapsed reasoning, stays as they come; its work folded once it
- * finished with an answer after its last tool call (`splitFinishedWork`), as T3 Code folds every
- * finished turn with work before its answer.
+ * finished with an answer after its last tool call and text or media before it
+ * (`splitFinishedWork`).
  */
 function AgentWorkBody({
   html,

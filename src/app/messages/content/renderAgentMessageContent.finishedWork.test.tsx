@@ -291,6 +291,27 @@ describe('finished agent work', () => {
     expect(text()).toContain('Let me look.');
   });
 
+  it('does not fold a reply whose work is only reasoning and tool calls', () => {
+    render({
+      ...reply(
+        'completed',
+        `${marker('web_search', 1)}${marker('read_file', 2)}<p>The answer.</p>`
+      ),
+      body: '🔧 `web_search` [1]\n\n🔧 `read_file` [2]\n\nThe answer.',
+      'io.mindroom.reasoning': {
+        text: 'Which source is newest?',
+        duration_ms: 4000,
+        segments: [{ start: 0, after_tool: 0, duration_ms: 4000 }],
+      },
+    });
+
+    expect(text()).not.toContain('Worked');
+    expect(text()).toContain('Thought for 4 s');
+    // Calls in a row draw as one group.
+    expect(toolCalls()).toEqual(['web_search, read_file']);
+    expect(text()).toContain('The answer.');
+  });
+
   it('does not fold a message from someone other than a MindRoom agent', () => {
     render(reply('completed'), false);
 
