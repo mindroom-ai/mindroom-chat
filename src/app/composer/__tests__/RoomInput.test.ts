@@ -1,10 +1,11 @@
 import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
-import { act, create, ReactTestRenderer } from 'react-test-renderer';
+import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
+import { resolveVoiceComposer } from '../voiceHoldShortcut';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
@@ -666,6 +667,7 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
             claimLiveVoiceRecording(store);
             return voiceRecorderState.send(view);
           },
+          phase: () => 'recording',
         }));
         return React.createElement('div');
       }
@@ -684,6 +686,8 @@ vi.mock('../../messages/ThreadIndicator', () => ({
 
 vi.mock('../../lib/user-agent', () => ({
   mobileOrTablet: () => false,
+  isMacOS: () => false,
+  isIOS: () => false,
 }));
 
 vi.stubGlobal('document', {
@@ -699,14 +703,16 @@ const createReplyDraft = (eventId: string, relation?: IReplyDraft['relation']): 
   relation,
 });
 
-// Thread roots the server has not confirmed, by the local ID their thread is open under.
+// Thread roots the server has not confirmed, by the local ID their thread is open under. A thread
+// with a local ID and no root here has one that is still sending.
 const pendingRoots = new Map<string, { status: string | null; getId: () => string }>();
 
 const createRoom = (roomId = ROOM_ID, encrypted = false) =>
   ({
     roomId,
     name: roomId,
-    findEventById: (eventId: string) => pendingRoots.get(eventId),
+    findEventById: (eventId: string) =>
+      pendingRoots.get(eventId) ?? { status: 'sending', getId: () => eventId },
     getEventForTxnId: (txnId: string) => ({
       getId: () => `~${roomId}:${txnId}`,
     }),
@@ -864,6 +870,16 @@ const createRoomInputTree = (
     })
   );
 
+/** Every host node as a rendered element, so the voice key takes the composer. */
+const shownComposer: TestRendererOptions = {
+  createNodeMock: () => ({
+    isConnected: true,
+    closest: () => null,
+    contains: () => false,
+    getClientRects: () => [{}],
+  }),
+};
+
 const renderRoomInput = async (
   store = createStore(),
   props?: {
@@ -874,12 +890,13 @@ const renderRoomInput = async (
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
-  }
+  },
+  options?: TestRendererOptions
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
   let renderer!: ReactTestRenderer;
 
   await act(async () => {
-    renderer = create(createRoomInputTree(store, props));
+    renderer = create(createRoomInputTree(store, props), options);
   });
 
   return { renderer, store };
@@ -2814,6 +2831,73 @@ describe('RoomInput', () => {
     expect(micButton.props['aria-label']).toContain(ROOM_ID);
 
     consoleError.mockRestore();
+    renderer.unmount();
+  });
+
+  it('sends nothing from the voice key while the thread root is unconfirmed', async () => {
+    const { renderer } = await renderRoomInput(
+      createStore(),
+      { threadId: '~!room:root' },
+      shownComposer
+    );
+    await openVoiceRecorder(renderer);
+    await act(async () => {
+      resolveVoiceComposer()?.send();
+    });
+    // Nothing is queued for the root: the recording keeps going for Enter or a later press.
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
+    expect(voiceRecorderState.send).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('gives the voice key a target that reads the composer as it is now', async () => {
+    const { renderer } = await renderRoomInput(createStore(), undefined, shownComposer);
+    const target = resolveVoiceComposer();
+    expect(target?.phase()).toBe('none');
+    await act(async () => {
+      expect(target?.start()).toBe(true);
+    });
+    // The target pinned before the recorder opened sees it open, and sends through Enter's path.
+    expect(target?.active()).toBe(true);
+    expect(target?.phase()).toBe('recording');
+    expect(target?.hasContent()).toBe(false);
+    await act(async () => {
+      target?.send();
+    });
+    expect(voiceRecorderState.send).toHaveBeenCalledTimes(1);
+    renderer.unmount();
+    expect(target?.start()).toBe(false);
+    expect(resolveVoiceComposer()).toBeUndefined();
+  });
+
+  it('refuses a voice key start once a recording runs, a failed recording waits or a voice message sends', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, undefined, shownComposer);
+    const target = resolveVoiceComposer();
+    // Changes after the press pinned the composer, before its delayed start runs.
+    const running = {
+      canStop: () => true,
+      discard: async () => false,
+    } as unknown as VoiceCaptureSession;
+    await act(async () => store.set(liveVoiceRecordingAtom, running));
+    expect(target?.start()).toBe(false);
+    expect(store.get(liveVoiceRecordingAtom)).toBe(running);
+    await act(async () => store.set(liveVoiceRecordingAtom, undefined));
+    store.set(voiceAutoSendPendingAtom, true);
+    expect(target?.start()).toBe(false);
+    store.set(voiceAutoSendPendingAtom, false);
+    store.set(pendingVoiceSendDraftAtom, {
+      file: new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+      duration: 1000,
+      context: {
+        ownerSessionId: '@me:example.org',
+        roomId: OTHER_ROOM_ID,
+        room: { name: 'Other' },
+      },
+    } as never);
+    expect(target?.start()).toBe(false);
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
     renderer.unmount();
   });
 

@@ -10,6 +10,7 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ReactEditor } from 'slate-react';
 import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, type Room } from 'matrix-js-sdk';
@@ -100,11 +101,13 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { useVoiceComposer } from './voiceHoldShortcut';
 import { isComposerExpanded, useComposerFocus } from './composerExpansion';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
+import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 
@@ -672,13 +675,33 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Only a phone's composer follows focus; elsewhere it always shows two rows.
     const focus = useComposerFocus(phone);
     const { setRoot } = focus;
+    const rootRef = useRef<HTMLDivElement | null>(null);
     const setComposerRef = useCallback(
       (node: HTMLDivElement | null) => {
+        rootRef.current = node;
         setRoot(node);
         if (typeof ref === 'function') ref(node);
         else if (ref) ref.current = node;
       },
       [ref, setRoot]
+    );
+    // Right ⌥ (right Alt) records here (useVoiceHoldShortcut): a send takes the same path as Enter,
+    // and only from a composer with nothing else in it. In a thread whose root is unconfirmed, the
+    // key sends nothing (the recording keeps going), as Enter's send would wait for the root.
+    useVoiceComposer(
+      voiceActive
+        ? {
+            ...voice.voiceKey,
+            root: () => rootRef.current,
+            thread: threadId !== undefined,
+            hasContent: () =>
+              !isEmptyEditor(editor) || attachments.access.snapshot().staged.length > 0,
+            send: () => {
+              if (!isLocalEchoEventId(threadId)) void handleSend();
+            },
+            focus: () => ReactEditor.focus(editor),
+          }
+        : undefined
     );
     const expanded = isComposerExpanded({
       phone,
