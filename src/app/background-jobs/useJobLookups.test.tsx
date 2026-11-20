@@ -199,134 +199,39 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// `written`: plain rows on show, which say what a run between calls last wrote; else the rows say
-// nothing of it (the usage details, or several jobs summed up in the title), so it renders nothing.
-it.each([true, false])(
-  "renders again for a frame of a listed job's run that changes its row, not for others (written: %s)",
-  (written) => {
-    const seqs = new Map<string, number>();
-    const frame = (
-      run: string,
-      md: string,
-      task = 'Task',
-      tools: { type: string; tool_name: string }[] = []
-    ) => ({
-      run,
-      sid: SID,
-      seq: seqs.set(run, (seqs.get(run) ?? -1) + 1).get(run)!,
-      meta: {
-        agent: 'dev',
-        subagent: run,
-        caller: 'code',
-        root: 'code',
-        parent: null,
-        threadId: '$a',
-        source: 'delegate' as const,
-        status: 'running' as const,
-        startedAt: 1,
-        endedAt: null,
-        task,
-      },
-      snapshot: { md, reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
-    });
-    const ingest = (
-      run: string,
-      md: string,
-      task?: string,
-      tools?: { type: string; tool_name: string }[]
-    ) =>
-      act(() =>
-        getSubagentRunStore(mx as never).ingest(ROOM, AGENT, frame(run, md, task, tools), 0)
-      );
-    const jobs: BackgroundJob[] = [
-      {
-        jobId: 'job_1',
-        agentId: AGENT,
-        threadId: '$a',
-        kind: 'subagent',
-        tool: 'dev',
-        status: 'running',
-        startedAt: '2026-10-11T00:00:00+00:00',
-        subagent: 'mine',
-        run: 'mine',
-      },
-    ];
-    let renders = 0;
-    function Probe() {
-      renders += 1;
-      const { runs } = useJobLookups(roomOf({}), jobs, false, written);
-      return <span>{runs.map((run) => run.meta.task).join()}</span>;
-    }
-    act(() => root.render(<Probe />));
-    ingest('mine', 'Hi');
-    const shown = renders;
-    // Text the row does not show (any but its last line), and another sub-agent's frame, render
-    // nothing.
-    ingest('mine', 'First.\n\nHi');
-    ingest('other', 'Elsewhere');
-    // A sub-agent's row shows none of the calls it completed.
-    ingest('mine', 'First.\n\nHi', 'Task', [
-      { type: 'tool_call_completed', tool_name: 'read_file' },
-    ]);
-    expect(renders).toBe(shown);
-    // Between calls a plain row shows its last line, which renders as it changes; no other does.
-    ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
-    if (written) expect(renders).toBeGreaterThan(shown);
-    else expect(renders).toBe(shown);
-    const grown = renders;
-    // It shows the call it makes now, which renders once.
-    ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
-    const calling = renders;
-    expect(calling).toBeGreaterThan(grown);
-    ingest('mine', 'More text', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
-    expect(renders).toBe(calling);
-    ingest('mine', 'Hi there', 'New task');
-    expect(container.textContent).toBe('New task');
-    // The whole task is the headline's tooltip, so a change past its first line renders.
-    const before = renders;
-    ingest('mine', 'Hi there', 'New task\nwith tests');
-    expect(renders).toBeGreaterThan(before);
-  }
-);
-
-it('takes the runs anew when its rows start to say the last line, not an older one held', () => {
-  let seq = -1;
-  const ingest = (md: string) => {
-    seq += 1;
-    act(() =>
-      getSubagentRunStore(mx as never).ingest(
-        ROOM,
-        AGENT,
-        {
-          run: 'mine',
-          sid: SID,
-          seq,
-          meta: {
-            agent: 'dev',
-            subagent: 'mine',
-            caller: 'code',
-            root: 'code',
-            parent: null,
-            threadId: '$a',
-            source: 'delegate',
-            status: 'running',
-            startedAt: 1,
-            endedAt: null,
-            task: 'Summarize the notes',
-          },
-          snapshot: {
-            md,
-            reasoning: '',
-            tools: [],
-            status: 'streaming',
-            activity: '',
-            segments: [],
-          },
-        },
-        0
-      )
-    );
-  };
+it("renders again for a frame of a listed job's run that changes its row, not for others", () => {
+  const seqs = new Map<string, number>();
+  const frame = (
+    run: string,
+    md: string,
+    task = 'Task',
+    tools: { type: string; tool_name: string }[] = []
+  ) => ({
+    run,
+    sid: SID,
+    seq: seqs.set(run, (seqs.get(run) ?? -1) + 1).get(run)!,
+    meta: {
+      agent: 'dev',
+      subagent: run,
+      caller: 'code',
+      root: 'code',
+      parent: null,
+      threadId: '$a',
+      source: 'delegate' as const,
+      status: 'running' as const,
+      startedAt: 1,
+      endedAt: null,
+      task,
+    },
+    snapshot: { md, reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
+  });
+  const ingest = (
+    run: string,
+    md: string,
+    task?: string,
+    tools?: { type: string; tool_name: string }[]
+  ) =>
+    act(() => getSubagentRunStore(mx as never).ingest(ROOM, AGENT, frame(run, md, task, tools), 0));
   const jobs: BackgroundJob[] = [
     {
       jobId: 'job_1',
@@ -340,18 +245,33 @@ it('takes the runs anew when its rows start to say the last line, not an older o
       run: 'mine',
     },
   ];
-  function Probe({ written }: { written: boolean }) {
-    const { runs } = useJobLookups(roomOf({}), jobs, false, written);
-    return <span>{runs.map((run) => run.docs.md || 'nothing').join()}</span>;
+  let renders = 0;
+  function Probe() {
+    renders += 1;
+    const { runs } = useJobLookups(roomOf({}), jobs, false);
+    return <span>{runs.map((run) => run.meta.task).join()}</span>;
   }
-  // With the usage details the rows say no last line, so a frame that clears it renders nothing.
-  act(() => root.render(<Probe written={false} />));
-  ingest('Reading the notes.');
-  expect(container.textContent).toBe('Reading the notes.');
-  ingest('');
-  // Without them, the rows read the run as it is now.
-  act(() => root.render(<Probe written />));
-  expect(container.textContent).toBe('nothing');
+  act(() => root.render(<Probe />));
+  ingest('mine', 'Hi');
+  const shown = renders;
+  // Text the row does not show, and another sub-agent's frame, render nothing.
+  ingest('mine', 'Hi there');
+  ingest('other', 'Elsewhere');
+  // A sub-agent's row shows none of the calls it completed.
+  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
+  expect(renders).toBe(shown);
+  // It shows the call it makes now, which renders once.
+  ingest('mine', 'Hi there', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
+  const calling = renders;
+  expect(calling).toBeGreaterThan(shown);
+  ingest('mine', 'More text', 'Task', [{ type: 'tool_call_started', tool_name: 'read_file' }]);
+  expect(renders).toBe(calling);
+  ingest('mine', 'Hi there', 'New task');
+  expect(container.textContent).toBe('New task');
+  // The whole task is the headline's tooltip, so a change past its first line renders.
+  const before = renders;
+  ingest('mine', 'Hi there', 'New task\nwith tests');
+  expect(renders).toBeGreaterThan(before);
 });
 
 it("follows a reply's frames while the list shows, beside another subscriber of that reply", () => {

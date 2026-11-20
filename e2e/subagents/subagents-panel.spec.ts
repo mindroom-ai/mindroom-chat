@@ -217,7 +217,7 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
   await page.screenshot({ path: testInfo.outputPath('subagents-panel-phone.png') });
 });
 
-test('the Sub-agents panel says what a run does in plain words, as it starts', async ({
+test('the Sub-agents panel shows no live activity, as it starts', async ({
   context,
   page,
 }, testInfo) => {
@@ -250,29 +250,26 @@ test('the Sub-agents panel says what a run does in plain words, as it starts', a
   const card = panel.locator('[data-subagent]');
   await expect(card).toHaveCount(1);
   await expect(panel.locator('[data-subagents-totals]')).toHaveText('1 active');
-  // Between calls, the last line the run wrote.
-  await expect(card.locator('[data-subagent-line="now"]')).toHaveText('NowReading the notes.');
   await run.toolRow('Reading the notes.'.length, '\n\n🔧 `run_shell_command` [1] ⏳\n\n');
-  // Its call in plain words, the call as sent its tooltip; no model, numbers or raw call.
-  await expect(card.locator('[data-subagent-line="now"]')).toHaveText('NowRunning a command');
-  await expect(card.locator('[data-subagent-step]')).toHaveAttribute(
-    'title',
-    'run_shell_command command=git tag'
-  );
+  // Its status says it runs; no line says what it does now, and no model, numbers or call show.
+  await expect(card).toContainText('Running');
+  await expect(card.locator('[data-subagent-line]')).toHaveCount(0);
   await expect(
     card.locator('[data-subagent-model], [data-subagent-stat], [data-subagent-tool]')
   ).toHaveCount(0);
+  await expect(card).not.toContainText('run_shell_command');
   await expect(card).not.toContainText('Fable');
   await expect(card).not.toContainText('12 calls');
   await expect(card.locator('[data-subagent-time]')).toBeVisible();
   await card.click();
-  await expect(panel.locator('[data-subagent-now]')).toContainText('Running a command…');
+  await expect(panel.locator('details[data-subagent-usage]')).toBeVisible();
+  await expect(panel.locator('[data-subagent-now]')).toHaveCount(0);
   // The open run's header has no model, and what it used waits in the closed Usage.
   await expect(panel.locator('header [data-subagent-model]')).toHaveCount(0);
   const usage = panel.locator('details[data-subagent-usage]');
   await expect(usage).not.toHaveAttribute('open');
   await expect(usage.locator('[data-subagent-cell="calls"]')).toBeHidden();
-  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-plain-steps.png') });
+  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-quiet.png') });
   await usage.locator('summary').click();
   await expect(usage).toHaveAttribute('open');
   const cell = (name: string) => usage.locator(`[data-subagent-cell="${name}"]`);

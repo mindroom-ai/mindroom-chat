@@ -34,7 +34,6 @@ import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { AgentAvatar, useAgentProfile, type AgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { runToolCall } from './runActivity';
-import { runStepText, toolCallTitle } from './runStep';
 import { formatTokens, runTotals, usageTexts, type RunTotals } from './runUsage';
 import {
   RunStatus,
@@ -327,8 +326,8 @@ type ViewProps = {
 /**
  * One sub-agent, as a thread shows a conversation: each turn the caller's task, cards for the
  * sub-agents that turn started, then its reply. A reader at the end follows new text until they
- * scroll up. Without the usage details (`showUsageDetails`) the line under the header says what it
- * does in plain words (`runStepText`), and what it used and its model fold into a closed Usage.
+ * scroll up. Without the usage details (`showUsageDetails`) no line says what it does now, and what
+ * it used and its model fold into a closed Usage.
  */
 export function SubagentRunView({
   room,
@@ -361,8 +360,7 @@ export function SubagentRunView({
   const turnName = turnTitle(meta, agent.name);
   const stop = useRunStop(room, newest, turnName, readOnly);
   const activity = runToolCall(newest);
-  // Without the usage details, what it does now in plain words, and its numbers folded away.
-  const step = details ? undefined : runStepText(newest, t);
+  // Without the usage details, its numbers folded away.
   const usageFolded = !details && (used || !!modelLabel);
   const stopLabel = t('mindroomUi.backgroundJobs.stopTaskFor', { tool: turnName });
   // A pressed Stop turns into "Stopping…", so focus moves to the run's title.
@@ -530,36 +528,6 @@ export function SubagentRunView({
             }}
           />
         </details>
-      )}
-      {step && (
-        <Text
-          as="div"
-          size="T200"
-          className={css.NowLine}
-          data-subagent-now=""
-          title={activity && toolCallTitle(activity)}
-        >
-          {meta.status === 'running' ? (
-            <>
-              <span className={css.Tick} aria-hidden />
-              <span className={css.VisuallyHidden}>{t('mindroomUi.subagents.now')}</span>
-            </>
-          ) : (
-            <span className={css.LineLabel.approval}>
-              <span className={css.LineMark} aria-hidden>
-                !
-              </span>
-            </span>
-          )}
-          <span className={css.NowStep} dir="auto" data-subagent-step="">
-            {step}
-          </span>
-          {meta.status === 'running' && activity?.startedAt !== undefined && (
-            <span className={css.NowTime}>
-              {formatWorkDuration(Math.max(0, now - activity.startedAt * 1000), language)}
-            </span>
-          )}
-        </Text>
       )}
       {details && activity && (
         <Text as="div" size="T200" className={css.NowLine} data-subagent-now="">

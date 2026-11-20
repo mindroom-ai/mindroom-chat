@@ -236,7 +236,13 @@ export const NestedTitle = style({ minWidth: 0, fontWeight: config.fontWeight.W6
 
 export const NestedTime = style({ whiteSpace: 'nowrap' });
 
-export const NestedLine = style({ gridColumn: '2 / -1', display: 'grid', minWidth: 0 });
+// Without the usage details a nested run at work has no line, and takes no row.
+export const NestedLine = style({
+  gridColumn: '2 / -1',
+  display: 'grid',
+  minWidth: 0,
+  selectors: { '&:empty': { display: 'none' } },
+});
 
 // A small round mark in the status's color, before its word.
 const dot = style({
@@ -385,9 +391,6 @@ export const NowLine = style({
 });
 
 export const NowTime = style({ flex: 'none', opacity: config.opacity.P300 });
-
-/** What the run does now in plain words, without the usage details: the line's text, cut short. */
-export const NowStep = style({ ...truncate, flex: '1 1 auto' });
 
 /**
  * Without the usage details, the strip folds away under the header, a quiet line that opens it.

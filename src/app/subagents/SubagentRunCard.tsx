@@ -21,7 +21,6 @@ import { useSettingValue } from '../preferences/useSettingValue';
 import { useAgentProfile } from './AgentAvatar';
 import { RunLogo, runLogoState } from './RunLogo';
 import { type RunLine, type ToolActivity, runLine } from './runActivity';
-import { runStepText, toolCallTitle, toolStep } from './runStep';
 import { runTotals, usageTexts } from './runUsage';
 import * as css from './subagentsPanel.css';
 
@@ -111,19 +110,6 @@ export function ToolCallText({ activity }: { activity: ToolActivity }) {
   );
 }
 
-/**
- * A call in plain words (`toolStep`), as a reader who leaves the usage details off sees it, the
- * call as sent its tooltip.
- */
-export function ToolStepText({ activity }: { activity: ToolActivity }) {
-  const { t } = useTranslation();
-  return (
-    <span className={css.LineText} title={toolCallTitle(activity)} dir="auto" data-subagent-step="">
-      {toolStep(activity, t)}
-    </span>
-  );
-}
-
 /** How each kind of third line is labelled: its words, the mark before them, and their tone. */
 const LINE_LOOKS = {
   now: { label: 'mindroomUi.subagents.now', mark: '', tone: 'now' },
@@ -138,23 +124,10 @@ const LINE_LOOKS = {
   { label: string; mark: string; tone: keyof typeof css.LineLabel }
 >;
 
-/**
- * What follows a line's label: the call (in plain words without the usage details), the start of
- * what the run wrote, or why it ended.
- */
-function LineRest({
-  line,
-  details,
-}: {
-  line: Exclude<RunLine, { kind: 'plain' }>;
-  details: boolean;
-}) {
+/** What follows a line's label: the call, the start of what the run wrote, or why it ended. */
+function LineRest({ line }: { line: Exclude<RunLine, { kind: 'plain' }> }) {
   if (line.kind === 'now' || line.kind === 'approval')
-    return details ? (
-      <ToolCallText activity={line.activity} />
-    ) : (
-      <ToolStepText activity={line.activity} />
-    );
+    return <ToolCallText activity={line.activity} />;
   const text = line.kind === 'result' ? line.text : line.reason;
   return text ? (
     <span className={css.LineText} dir="auto">
@@ -166,28 +139,19 @@ function LineRest({
 /**
  * A card's third line, labelled by what it shows: Now and the call it makes, Needs approval and
  * the call that waits, Result and the start of what it wrote, or how it ended and why. Without
- * any (older MindRoom) it is the text line it was, unlabelled. Without the usage details, a run at
- * work between calls says Now and what the jobs bar and its open run say (`runStepText`): the last
- * line it wrote, else that it thinks.
+ * any (older MindRoom) it is the text line it was, unlabelled. Without the usage details
+ * (`showUsageDetails`) a run at work has none: its status says how it stands, and only how a run
+ * ended (its result, or why it failed or stopped) is shown.
  */
 function RunLineText({ run }: { run: SubagentRun }) {
   const { t } = useTranslation();
   const details = useSettingValue(settingsAtom, 'showUsageDetails');
   const { line, failed } = useRunLine(run);
-  const between = !details && line.kind === 'plain' ? runStepText(run, t) : undefined;
-  if (between) {
-    return (
-      <Text as="span" size="T200" className={css.Line} data-subagent-line="now">
-        <span className={css.LineLabel.now}>
-          <span className={css.Tick} aria-hidden />
-          {t('mindroomUi.subagents.now')}
-        </span>
-        <span className={css.LineText} dir="auto" data-subagent-step="">
-          {between}
-        </span>
-      </Text>
-    );
-  }
+  const atWork =
+    line.kind === 'now' ||
+    line.kind === 'approval' ||
+    (line.kind === 'plain' && isActiveSubagentStatus(run.meta.status));
+  if (!details && atWork) return null;
   if (line.kind === 'plain') {
     return (
       <Text
@@ -215,7 +179,7 @@ function RunLineText({ run }: { run: SubagentRun }) {
         )}
         {t(label)}
       </span>
-      <LineRest line={line} details={details} />
+      <LineRest line={line} />
     </Text>
   );
 }
@@ -324,8 +288,8 @@ type CardProps = {
  * title its first turn's call named (else that turn's task) in bold, then the agent, the model its
  * newest turn ran on, how it stands and how many turns it took, then a line labelled by what it
  * shows (`RunLineText`). The sub-agents it started follow inside it, then what it used and its
- * time. Without the usage details (`showUsageDetails`) it shows no model and nothing it used, and
- * its line says the call in plain words. Pressing it opens the sub-agent.
+ * time. Without the usage details (`showUsageDetails`) it shows no model and nothing it used.
+ * Pressing it opens the sub-agent.
  */
 export const SubagentRunCard = memo(function SubagentRunCard({
   room,

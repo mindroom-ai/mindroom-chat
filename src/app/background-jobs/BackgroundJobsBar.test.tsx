@@ -90,7 +90,6 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   FoldedText: 'FoldedText',
   FoldedToggle: 'FoldedToggle',
   FoldedActions: 'FoldedActions',
-  Step: 'Step',
   Quiet: 'Quiet',
 }));
 vi.mock('../subagents/RunLogo.css', () => ({
@@ -136,7 +135,7 @@ const render = (threadId: string | null = '$thread', canCancel = true) =>
   });
 const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
 // Without the usage details, a tool job's Stop names it as its row does: what it does, in words.
-const using = (tool: string) => tr('mindroomUi.subagents.step.using', { tool });
+const using = (tool: string) => tr('mindroomUi.backgroundJobs.toolNames.using', { tool });
 const cancelA = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool a') });
 const cancelB = tr('mindroomUi.backgroundJobs.stopTaskFor', { tool: using('tool b') });
 const stoppingA = tr('mindroomUi.backgroundJobs.stoppingJob', { tool: using('tool a') });
@@ -207,7 +206,7 @@ it('shows one job folded as its row on the title line, which lists it as several
   const folded = container.querySelector('[data-job-folded]');
   expect(folded?.querySelector('.Logo')).not.toBeNull();
   // Without the usage details, its headline says what the tool does, in words.
-  const usingA = tr('mindroomUi.subagents.step.using', { tool: 'tool a' });
+  const usingA = tr('mindroomUi.backgroundJobs.toolNames.using', { tool: 'tool a' });
   expect(folded?.querySelector('.Task')?.textContent).toBe(usingA);
   // Its Stop names the task it stops, with its icon only, as a listed row's.
   expect(button(cancelA)?.getAttribute('title')).toBe(cancelA);
@@ -494,7 +493,7 @@ it('lists jobs without cancel controls for a viewer who may not cancel', () => {
   render('$thread', false);
   expand();
   expect(container.textContent).toContain(
-    tr('mindroomUi.subagents.step.using', { tool: 'tool a' })
+    tr('mindroomUi.backgroundJobs.toolNames.using', { tool: 'tool a' })
   );
   // Only the title, which lists the jobs, is a button.
   expect([...container.querySelectorAll('button')]).toEqual([toggle()]);
@@ -656,13 +655,11 @@ it('leaves focus where the person moved it when the jobs change later', async ()
 // The mocked t, for a sub-agent job's strings.
 const subagentName = 'mindroomUi.backgroundJobs.subagent{"tool":"run_subagent"}';
 
-// A frame of sub-agent `subagent`'s run `run-<subagent>`, as the room's Sub-agents panel gets it:
-// the first, unless `seq` says which.
+// A frame of sub-agent `subagent`'s run `run-<subagent>`, as the room's Sub-agents panel gets it.
 const ingestRun = (
   subagent: string,
   extra: Partial<SubagentMeta> = {},
-  tools: ToolTraceEvent[] = [],
-  { md = '', seq = 0 }: { md?: string; seq?: number } = {}
+  tools: ToolTraceEvent[] = []
 ) =>
   act(() =>
     getSubagentRunStore(mx as never).ingest(
@@ -671,7 +668,7 @@ const ingestRun = (
       {
         run: `run-${subagent}`,
         sid: 'sid',
-        seq,
+        seq: 0,
         meta: {
           agent: 'mindroom_dev',
           subagent,
@@ -685,7 +682,7 @@ const ingestRun = (
           endedAt: null,
           ...extra,
         },
-        snapshot: { md, reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
+        snapshot: { md: '', reasoning: '', tools, status: 'streaming', activity: '', segments: [] },
       },
       Date.now()
     )
@@ -813,10 +810,7 @@ it("shows a sub-agent's title, with its task as the title's tooltip", () => {
   expand();
   const task = container.querySelector('li[data-job-kind="subagent"] .Task');
   expect(task?.textContent).toBe('Refactor login form');
-  // Without the usage details, the call it makes follows, as sent.
-  expect(task?.getAttribute('title')).toBe(
-    'Refactor the login form\nwith tests\nrun_shell_command just test'
-  );
+  expect(task?.getAttribute('title')).toBe('Refactor the login form\nwith tests');
 });
 
 it("shows an untitled sub-agent's agent, model, task, the call it makes now and what it used", () => {
@@ -882,7 +876,7 @@ it('shows no cost before any token, and counts one token as one', () => {
   ]);
 });
 
-it('says what a sub-agent job does in plain words, without its numbers, agent or model, until the usage details are shown', () => {
+it('shows a sub-agent job without what it does now, its numbers, agent or model, until the usage details are shown', () => {
   ingestRun(
     's1',
     {
@@ -902,36 +896,23 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
   const task = 'Summarize the notes of this week\nKeep it short.';
   state.jobs = [subagentJob('a', { subagent: 's1', run: 'run-s1' })];
   render('$thread');
-  const reading = tr('mindroomUi.subagents.step.doing', {
-    step: tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }),
-  });
   const folded = container.querySelector('[data-job-folded]')!;
   expect(folded.querySelector('.Task')?.textContent).toBe("Summarize this week's meeting notes");
-  // Its call in words; the call as sent follows the task in the title's tooltip, which the row's
-  // pointer reaches, not in one of the line's own.
-  const activity = folded.querySelector('[data-job-activity]');
-  expect(activity?.textContent).toBe(reading);
-  expect(
-    folded.querySelector('[data-job-activity] [title], [data-job-activity][title]')
-  ).toBeNull();
-  expect(folded.querySelector('.Task')?.getAttribute('title')).toBe(
-    `${task}\nread_file path=notes/2026-11-16.md`
-  );
-  expect(folded.querySelector('.ToolName')).toBeNull();
+  expect(folded.querySelector('.Task')?.getAttribute('title')).toBe(task);
+  // No line under the title: not who, nor on what model, nor what it does now.
+  expect(folded.querySelector('.Detail')).toBeNull();
+  expect(folded.querySelector('[data-job-activity]')).toBeNull();
   expect(folded.querySelector('[data-job-model]')).toBeNull();
-  expect(folded.querySelector('.Name')).toBeNull();
   expect(folded.querySelector('[data-job-stat]')).toBeNull();
   // The time and the buttons stay; the grid has no number columns.
   expect(folded.querySelector('[data-job-elapsed]')).not.toBeNull();
   expect(folded.querySelector('[data-job-open]')).not.toBeNull();
   expect(container.querySelector('.Bar')?.classList.contains('Quiet')).toBe(true);
-  // Listed, its row and its group's heading have no numbers either.
+  // Listed, its row and its group's heading have none either.
   expand();
   const listed = container.querySelector('li[data-job-kind="subagent"]')!;
-  expect(listed.querySelector('[data-job-activity]')?.textContent).toBe(reading);
-  expect(listed.querySelector('.RowOpen')?.getAttribute('title')).toBe(
-    `${task}\nread_file path=notes/2026-11-16.md`
-  );
+  expect(listed.querySelector('.Detail')).toBeNull();
+  expect(listed.querySelector('.RowOpen')?.getAttribute('title')).toBe(task);
   expect(listed.querySelector('[data-job-stat]')).toBeNull();
   expect(container.querySelector('.StatColumn')).toBeNull();
   expect(container.querySelector('.ColumnName')?.textContent).toBe(
@@ -955,7 +936,7 @@ it('says what a sub-agent job does in plain words, without its numbers, agent or
   expect(container.querySelectorAll('.StatColumn')).toHaveLength(3);
 });
 
-it('heads a tool job with what it does, from its tool until its call is loaded, then from its call', () => {
+it('heads a tool job with its tool in plain words, without its call, until the usage details are shown', () => {
   const item = (extra: Partial<BackgroundJobsBarItem> = {}): BackgroundJobsBarItem => ({
     jobId: 'a',
     name: 'read_file',
@@ -977,88 +958,25 @@ it('heads a tool job with what it does, from its tool until its call is loaded, 
         </ul>
       );
     });
-  const activity = () => container.querySelector('[data-job-activity]')?.textContent ?? null;
   const headline = () => container.querySelector('.Task')?.textContent;
   const tooltip = () => container.querySelector('.Task')?.getAttribute('title');
-  // No call ID, or its reply not loaded yet: the tool it runs, its raw name in the tooltip, and
-  // no line under it to say the same again.
-  row(item());
-  expect(headline()).toBe('mindroomUi.subagents.step.readingAny');
-  expect(activity()).toBeNull();
-  expect(tooltip()).toBe('read_file');
-  // Its call comes in: what it reads, the call as sent after its name in the tooltip.
-  row(item({ activity: { tool: 'read_file', preview: 'path=notes/2026-11-16.md' } }));
-  expect(headline()).toBe(tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }));
-  expect(activity()).toBeNull();
-  expect(tooltip()).toBe('read_file\nread_file path=notes/2026-11-16.md');
-  row(item({ activity: { tool: 'run_shell_command', preview: 'args=just test' } }));
-  expect(headline()).toBe('mindroomUi.subagents.step.runningCommand');
-  // Held after it finished, its headline is the same words, the call as sent in its tooltip.
-  row(item({ finished: true, state: 'finished', activity: { tool: 'read_file' } }));
-  expect(headline()).toBe('mindroomUi.subagents.step.readingAny');
-  expect(activity()).toBeNull();
+  const activity = () => container.querySelector('[data-job-activity]')?.textContent ?? null;
   const read = { tool: 'read_file', preview: 'path=notes/2026-11-16.md' };
+  // Its name in words, from its tool alone, whether its call is loaded or not; its tool the tooltip.
+  row(item());
+  expect(headline()).toBe('mindroomUi.backgroundJobs.toolNames.readingFile');
+  expect(tooltip()).toBe('read_file');
+  row(item({ activity: read }));
+  expect(headline()).toBe('mindroomUi.backgroundJobs.toolNames.readingFile');
+  expect(tooltip()).toBe('read_file');
+  expect(activity()).toBeNull();
   row(item({ finished: true, state: 'finished', activity: read }));
-  expect(headline()).toBe(tr('mindroomUi.subagents.step.reading', { file: '2026-11-16.md' }));
-  expect(tooltip()).toBe('read_file\nread_file path=notes/2026-11-16.md');
+  expect(headline()).toBe('mindroomUi.backgroundJobs.toolNames.readingFile');
   // With the usage details, its headline is its tool, its call on the line under it.
   act(() => showUsageDetails());
-  row(item({ activity: { tool: 'read_file', preview: 'path=notes/2026-11-16.md' } }));
+  row(item({ activity: read }));
   expect(headline()).toBe('read_file');
   expect(activity()).toBe('path=notes/2026-11-16.md');
-});
-
-it('says the call a sub-agent job waits to make beside its pill, and between calls what it last wrote', () => {
-  ingestRun('s1', { status: 'awaiting_approval' }, [
-    { type: 'tool_call_started', tool_name: 'run_shell_command', args_preview: 'args=rm old.md' },
-  ]);
-  // Its Stop was pressed: no pill says it waits, so its step does.
-  ingestRun('s6', { status: 'awaiting_approval', startedAt: 5 }, [
-    { type: 'tool_call_started', tool_name: 'write_file', args_preview: 'path=notes/summary.md' },
-  ]);
-  ingestRun('s2', { startedAt: 2 }, [{ type: 'tool_call_completed', tool_name: 'read_file' }]);
-  ingestRun('s3', { status: 'completed', endedAt: 9 });
-  ingestRun('s4', { startedAt: 3 }, [], { md: 'Reading the notes.' });
-  // Held after it ended, before its run's last frame came: nothing it does now.
-  ingestRun('s5', { startedAt: 4 }, [
-    { type: 'tool_call_started', tool_name: 'read_file', args_preview: 'path=a.md' },
-  ]);
-  state.jobs = [
-    subagentJob('a', { subagent: 's1', run: 'run-s1', status: 'awaiting_approval' }),
-    subagentJob('b', { subagent: 's2', run: 'run-s2' }),
-    subagentJob('c', { subagent: 's3', run: 'run-s3' }),
-    subagentJob('d', { subagent: 's4', run: 'run-s4' }),
-    subagentJob('e', { subagent: 's5', run: 'run-s5', status: 'finished' }),
-    subagentJob('f', { subagent: 's6', run: 'run-s6', status: 'cancel_requested' }),
-  ];
-  render('$thread');
-  expand();
-  // The pill says it waits for approval, so the step is the call alone.
-  const rows = [...container.querySelectorAll('li')];
-  expect(rows[0]?.querySelector('[title="mindroomUi.backgroundJobs.waiting"]')).not.toBeNull();
-  expect(rows[5]?.querySelector('[title="mindroomUi.backgroundJobs.waiting"]')).toBeNull();
-  const lines = () =>
-    [...container.querySelectorAll('li')].map(
-      (row) => row.querySelector('[data-job-activity]')?.textContent ?? null
-    );
-  expect(lines()).toEqual([
-    'mindroomUi.subagents.step.runningCommand',
-    'mindroomUi.messages.mindroomThinkingPlaceholder.thinking',
-    // A run that ended says nothing it does.
-    null,
-    'Reading the notes.',
-    null,
-    tr('mindroomUi.subagents.step.waitingForOk', {
-      step: tr('mindroomUi.subagents.step.writing', { file: 'summary.md' }),
-    }),
-  ]);
-
-  // The row follows its last line as it grows, without a render from outside.
-  ingestRun('s4', { startedAt: 3 }, [], {
-    md: 'Reading the notes.\n\nNow the *decisions*.',
-    seq: 1,
-  });
-  expect(lines()[3]).toBe('Now the decisions.');
 });
 
 it("names the thread of a job that runs outside the view's, and shows it when pressed", async () => {

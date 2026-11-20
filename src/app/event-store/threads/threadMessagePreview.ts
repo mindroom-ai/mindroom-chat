@@ -51,19 +51,6 @@ const mapPreviewLines = (
   return lines.join('\n');
 };
 
-/**
- * The body's lines as a preview reads them: a line in or around a code block, or a tool call's
- * marker, is blank, so only prose is left. Each stays at its own index.
- */
-export const getPreviewProseLines = (body: string): string[] => {
-  const lines: string[] = [];
-  mapPreviewLines(body, (line, context) => {
-    lines.push(context === 'prose' && !TOOL_CALL_MARKER_REGEX.test(line) ? line : '');
-    return line;
-  });
-  return lines;
-};
-
 const extractPreviewTools = (body: string): { body: string; toolCallCount: number } => {
   let toolCallCount = 0;
   const text = mapPreviewLines(body, (line, context) => {

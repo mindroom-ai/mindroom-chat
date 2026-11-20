@@ -1373,26 +1373,7 @@ describe('SubagentsPanel', () => {
     describe('without the usage details, as they start', () => {
       beforeEach(() => showUsageDetails(false));
 
-      it("says in an open run's line that the call waits for your OK, which no pill says there", () => {
-        ingest(
-          'wait',
-          meta('awaiting_approval', { task: 'Write the summary', startedAt: NOW - 40 }),
-          docs('', [
-            {
-              type: 'tool_call_started',
-              tool_name: 'write_file',
-              args_preview: 'path=notes/summary.md',
-            },
-          ])
-        );
-        render();
-        open('wait');
-        expect(container.querySelector('[data-subagent-now]')?.textContent).toBe(
-          '!Waiting for your OK: Writing summary.md'
-        );
-      });
-
-      it('leaves out what the runs used and their models, and says each call in plain words', () => {
+      it('leaves out what the runs used, their models and what a run at work does now', () => {
         ingest(
           'notes',
           meta('running', {
@@ -1426,9 +1407,19 @@ describe('SubagentsPanel', () => {
           docs('Read the notes.\n\nNow the **decisions**.')
         );
         ingest(
-          'fresh',
-          meta('running', { task: 'List the attendees', startedAt: NOW - 20 }),
-          docs('')
+          'child',
+          meta('running', { agent: 'writer', parent: 'between', startedAt: NOW - 10 }),
+          docs('Writing.')
+        );
+        ingest(
+          'done',
+          meta('completed', { result: 'Version 2 shipped in **March**.', endedAt: NOW - 5 }),
+          docs('', [], false)
+        );
+        ingest(
+          'broke',
+          meta('failed', { result: 'Tool crashed.', endedAt: NOW - 5 }),
+          docs('Trying.', [], false)
         );
         render();
 
@@ -1436,29 +1427,30 @@ describe('SubagentsPanel', () => {
         expect(card('notes').querySelector('[data-subagent-model]')).toBeNull();
         expect(card('notes').querySelector('[data-subagent-stat]')).toBeNull();
         expect(card('notes').querySelector('[data-subagent-time]')?.textContent).toBe('50s');
+        // A run at work, nested or not, has no line under its status, which says how it stands.
         const line = (run: string) => card(run).querySelector('[data-subagent-line]');
-        expect(line('notes')?.textContent).toBe('NowReading 2026-11-16.md');
-        expect(line('notes')?.querySelector('[data-subagent-step]')?.getAttribute('title')).toBe(
-          'read_file path=notes/2026-11-16.md'
-        );
-        expect(line('notes')?.querySelector('[data-subagent-tool]')).toBeNull();
-        expect(line('wait')?.textContent).toBe('!Needs approvalSearching files for “TODO”');
-        // Between calls, the last line it wrote, else that it thinks, as the jobs bar says it.
-        expect(line('between')?.textContent).toBe('NowNow the decisions.');
-        expect(line('fresh')?.textContent).toBe('NowThinking…');
+        expect(line('notes')).toBeNull();
+        expect(line('wait')).toBeNull();
+        expect(card('wait').textContent).toContain('Waiting for approval');
+        expect(
+          card('between').querySelector('[data-subagent-nested] [data-subagent-line]')
+        ).toBeNull();
+        expect(line('between')).toBeNull();
+        // How a run ended stays: its result, or why it failed.
+        expect(line('done')?.textContent).toContain('Version 2 shipped in March.');
+        expect(line('broke')?.textContent).toContain('Tool crashed.');
 
         // Shown, the cards are as they were.
         act(() => showUsageDetails());
         expect(container.querySelector('[data-subagents-totals]')?.textContent).toBe(
           '4 active · 12 calls · 320K tokens'
         );
-        // Shown, a run between calls previews its text as before.
-        expect(line('between')?.getAttribute('data-subagent-line')).toBe('plain');
         expect(card('notes').querySelector('[data-subagent-model]')?.textContent).toBe('Fable');
         expect(line('notes')?.textContent).toBe('Nowread_file path=notes/2026-11-16.md');
+        expect(line('between')?.getAttribute('data-subagent-line')).toBe('plain');
       });
 
-      it("folds an open run's numbers and model into a closed Usage, under a plain line of what it does", () => {
+      it("folds an open run's numbers and model into a closed Usage, with no line of what it does", () => {
         ingest(
           'lead',
           meta('running', {
@@ -1496,11 +1488,10 @@ describe('SubagentsPanel', () => {
         expect(cell('model')).toBe('ModelFablefable (anthropic / claude-fable-5.2)');
         expect(container.querySelector('[data-subagent-cell="status"]')).toBeNull();
         const now = () => container.querySelector('[data-subagent-now]');
-        expect(now()?.textContent).toBe('NowReading 2026-11-16.md…12s');
-        expect(now()?.getAttribute('title')).toBe('read_file path=notes/2026-11-16.md');
+        expect(now()).toBeNull();
 
         // Shown, the strip is open under the header again, with how the run stands, and the call
-        // is as sent.
+        // it makes now.
         act(() => showUsageDetails());
         expect(container.querySelector('[data-subagent-usage]')).toBeNull();
         expect(container.querySelector('[data-subagent-cell="status"]')?.textContent).toBe(
@@ -1510,7 +1501,7 @@ describe('SubagentsPanel', () => {
         expect(now()?.textContent).toBe('Nowread_file path=notes/2026-11-16.md12s');
         act(() => showUsageDetails(false));
 
-        // Between calls it says the last line it wrote.
+        // A run that sends neither what it used nor its model (older MindRoom) has no Usage.
         ingest(
           'lead',
           meta('running', {
@@ -1518,11 +1509,8 @@ describe('SubagentsPanel', () => {
             task: "Summarize this week's meeting notes",
             startedAt: NOW - 60,
           }),
-          docs('Reading the notes.\n\nNow the **decisions**.')
+          docs('Reading the notes.')
         );
-        expect(now()?.textContent).toBe('NowNow the decisions.');
-        expect(now()?.hasAttribute('title')).toBe(false);
-        // A run that sends neither what it used nor its model (older MindRoom) has no Usage.
         expect(container.querySelector('[data-subagent-usage]')).toBeNull();
       });
     });

@@ -7,7 +7,6 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { Icon, Icons } from 'folds';
@@ -20,7 +19,6 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { settingsAtom } from '../preferences/settings';
 import { useSettingValue } from '../preferences/useSettingValue';
 import { RunLogo } from '../subagents/RunLogo';
-import { runStepText, toolCallTitle, toolStep } from '../subagents/runStep';
 import { useUsageCells } from '../subagents/runUsage';
 import { useAgentProfile } from '../subagents/AgentAvatar';
 import { useThreadTitle } from '../threads/fork/ThreadForkDivider';
@@ -200,32 +198,13 @@ export function OpenButton({ name, onOpen }: { name: string; onOpen: () => void 
 }
 
 /**
- * What a sub-agent job does now in plain words, for a reader who leaves the usage details off: its
- * run at work as `runStepText` says it; nothing once it finished. While its pill says it waits for
- * approval (`waiting`), the step is the call alone, without "Waiting for your OK".
- */
-const plainStep = (
-  item: BackgroundJobsBarItem,
-  waiting: boolean,
-  t: TFunction
-): string | undefined => {
-  if (item.finished) return undefined;
-  if (waiting && item.activity) return toolStep(item.activity, t);
-  return item.run && runStepText(item.run, t);
-};
-
-/**
  * One listed job on the bar's grid: its title, else its task, as the headline, with at most one
  * pill; under it who, on what model, and what it does now (the tool it calls, then its arguments;
  * a tool job's headline is its tool already). Then its calls, tokens and cost, its time, and its
  * buttons: the thread it runs in when that is not the view's, and Stop. A sub-agent job's title
  * opens its run, from anywhere on the row.
- * Without the usage details (`showUsageDetails`), the numbers are left out. A sub-agent's line
- * under the headline says only what it does now, in plain words (`plainStep`); a tool job's
- * headline is its call in plain words (`toolStep`), or its tool's while its call is not loaded (no
- * call ID, or its reply not in yet), with no line under it. The call as sent (`toolCallTitle`)
- * follows the headline's tooltip: the row's title reaches over the line, so a tooltip of its own
- * would never show.
+ * Without the usage details (`showUsageDetails`) it shows neither the line under the headline nor
+ * the numbers, and a tool job's headline is its tool in plain words (`shownJobName`).
  * Folded, the bar's one job is this row on its title line: the headline and the rest on one line,
  * the title listing it, and Open beside Stop.
  * A job without its run's frames shows its name alone, as before.
@@ -249,18 +228,14 @@ export function BackgroundJobRow({
   const elsewhere = item.threadId !== null && item.threadId !== viewThreadId;
   const name = meta ? agent.name : item.name;
   const described = meta?.title || task;
-  // A tool job's headline is its name as the bar says it: without the usage details, in words.
   const headline = item.subagent ? described || name : shownJobName(item, details, t);
   const nested = item.depth > 0;
   // A sub-agent names the tool it calls; a tool job's headline is its tool already.
   const tool = item.subagent ? item.activity?.tool : undefined;
   const doing = item.activity?.preview;
   const waiting = item.waiting && !item.stopping;
-  const step = details || !item.subagent ? undefined : plainStep(item, waiting, t);
-  const detail = (described && meta) || tool || doing;
-  // Without the usage details, the call as sent follows on its own line.
-  const call = !details && item.activity && toolCallTitle(item.activity);
-  const headlineTitle = [meta?.task || item.name, call].filter(Boolean).join('\n');
+  const detail = details && ((described && meta) || tool || doing);
+  const headlineTitle = meta?.task || item.name;
   let title: ReactNode = (
     <span className={css.Task} title={headlineTitle} dir="auto">
       {headline}
@@ -329,14 +304,7 @@ export function BackgroundJobRow({
             </span>
           )}
         </span>
-        {step && (
-          <span className={css.Detail}>
-            <span className={css.Activity} dir="auto" data-job-activity>
-              <span className={css.Step}>{step}</span>
-            </span>
-          </span>
-        )}
-        {details && detail && (
+        {detail && (
           <span className={css.Detail}>
             {described && meta && (
               <span className={css.Name} title={agent.name}>

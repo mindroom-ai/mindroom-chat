@@ -3,7 +3,7 @@ import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { runToolCall, type ToolActivity } from '../subagents/runActivity';
 import { runOfJob } from '../subagents/runJob';
-import { toolStep } from '../subagents/runStep';
+import { plainToolName } from './toolNames';
 
 export type BackgroundJobsBarItem = {
   jobId: string;
@@ -121,11 +121,11 @@ const nest = (items: BackgroundJobsBarItem[], runs: Map<string, string | undefin
 
 /**
  * A job's name as the bar says it: without the usage details (`details` false), a tool job's is
- * what it does in plain words (`toolStep`), from its tool while its call is not loaded; else its
- * name. Its row's headline, its Stop's label and the bar's title for it say the same.
+ * its tool in plain words (`plainToolName`); else its name. Its row's headline, its Stop's label
+ * and the bar's title for it say the same.
  */
 export const shownJobName = (item: BackgroundJobsBarItem, details: boolean, t: TFunction): string =>
-  !details && !item.subagent ? toolStep(item.activity ?? { tool: item.name }, t) : item.name;
+  !details && !item.subagent ? plainToolName(item.name, t) : item.name;
 
 /** The jobs bar for a view's background jobs, or nothing when it has none. */
 export const presentBackgroundJobs = (

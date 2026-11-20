@@ -307,13 +307,13 @@ test('the jobs bar shows each job with its model, task, what it does now, time a
   await phoneBar.screenshot({ path: testInfo.outputPath('jobs-bar-c-phone.png') });
 });
 
-test("a phone's folded quiet bar keeps its step and title out of the time, with Open, Thread and Stop", async ({
+test('a folded quiet bar cuts its title short before the time, with Open, Thread and Stop', async ({
   context,
   page,
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(3 * 60_000);
-  // The app's default: no usage details, so the folded row says its step in plain words.
+  // The app's default: no usage details, so the folded row has its title and no line of what it does.
   const room = await openPanelRoom(context, page);
   const powerLevelsPath = `/rooms/${encodeURIComponent(room.roomId)}/state/m.room.power_levels`;
   const powerLevels = await matrixFetch<Record<string, unknown>>(
@@ -379,34 +379,33 @@ test("a phone's folded quiet bar keeps its step and title out of the time, with 
   const folded = page.locator('[data-job-folded]');
   await expect(folded).toBeVisible({ timeout: 30_000 });
   await run();
-  await expect(folded.locator('[data-job-activity]')).toHaveText(
-    'Reading 2026-11-16-weekly-planning-meeting.md…'
-  );
+  const title = "Summarize this week's meeting notes and draft the follow-up email";
+  await expect(folded.locator('button[aria-expanded]')).toHaveText(title);
+  await expect(folded.locator('[data-job-activity]')).toHaveCount(0);
   await expect(folded.locator('[data-job-open]')).toBeVisible();
   await expect(folded.locator('[data-job-thread]')).toBeVisible();
   await expect(folded.locator('[data-cancel-job]')).toBeVisible();
   await expect(folded.locator('[data-job-elapsed]')).toBeVisible();
-  // Each part of the text column (the headline, the step's line, the chevron) ends before the time
-  // begins, and the title and the step are cut short within it.
-  const layout = await folded.evaluate((row) => {
-    const activity = row.querySelector('[data-job-activity]')!;
-    const text = activity.parentElement!.parentElement!;
-    const time = row.querySelector('[data-job-elapsed]')!.getBoundingClientRect();
-    const task = row.querySelector('button[aria-expanded]')!;
-    return {
-      timeStart: time.left,
-      ends: [...text.children].map((part) => part.getBoundingClientRect().right),
-      textEnd: text.getBoundingClientRect().right,
-      stepCut: activity.scrollWidth > activity.clientWidth,
-      stepWidth: activity.getBoundingClientRect().width,
-      titleCut: task.scrollWidth > task.clientWidth,
-    };
-  });
-  testInfo.annotations.push({ type: 'layout', description: JSON.stringify(layout) });
-  for (const end of [...layout.ends, layout.textEnd])
-    expect(end).toBeLessThanOrEqual(layout.timeStart + 0.5);
-  expect(layout.stepWidth).toBeGreaterThan(0);
-  expect(layout.stepCut).toBe(true);
-  expect(layout.titleCut).toBe(true);
+  // Each part of the text column (the headline and the chevron) ends before the time begins, on a
+  // phone, beside the Sub-agents panel's width and on a desktop; on the phone the title is cut short.
+  for (const width of [390, 800, 1100]) {
+    await page.setViewportSize({ width, height: 844 });
+    const layout = await folded.evaluate((row) => {
+      const task = row.querySelector('button[aria-expanded]')!;
+      const text = task.parentElement!.parentElement!;
+      const time = row.querySelector('[data-job-elapsed]')!.getBoundingClientRect();
+      return {
+        timeStart: time.left,
+        ends: [...text.children].map((part) => part.getBoundingClientRect().right),
+        textEnd: text.getBoundingClientRect().right,
+        titleCut: task.scrollWidth > task.clientWidth,
+      };
+    });
+    testInfo.annotations.push({ type: `layout ${width}`, description: JSON.stringify(layout) });
+    for (const end of [...layout.ends, layout.textEnd])
+      expect(end, `${width} px`).toBeLessThanOrEqual(layout.timeStart + 0.5);
+    if (width === 390) expect(layout.titleCut).toBe(true);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   await folded.screenshot({ path: testInfo.outputPath('jobs-bar-quiet-phone-folded.png') });
 });

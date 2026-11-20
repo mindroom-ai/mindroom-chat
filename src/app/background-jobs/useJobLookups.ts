@@ -10,7 +10,6 @@ import { getShownToolCalls } from '../messages/live/useLiveReplyContent';
 import { getSubagentRunStore, type SubagentRun } from '../messages/live/subagentRunStore';
 import { runToolCall, toolActivity } from '../subagents/runActivity';
 import { runOfJob } from '../subagents/runJob';
-import { runWrittenLine } from '../subagents/runStep';
 import { subscribeRoomSignals } from '../threads/cross-room/threadSignalsReader';
 import type { BackgroundJobLookups, JobActivity } from './backgroundJobsPresentation';
 
@@ -60,26 +59,16 @@ export const indexJobToolCalls = (
 
 /**
  * What a row shows of a run, so frames that change nothing shown render nothing: its meta, title
- * and whole task (the headline's tooltip) included, the call it makes now, and between calls the
- * last line it wrote (`runWrittenLine`) while a row on show says it (`written`), but not its
- * result, its other tool calls or the rest of its text.
+ * and whole task (the headline's tooltip) included, and the call it makes now, but not its result
+ * or its other tool calls.
  */
-const shownOfRun = (subagentRun: SubagentRun, written: boolean) => {
+const shownOfRun = (subagentRun: SubagentRun) => {
   const { result: _result, ...shown } = subagentRun.meta;
-  return [
-    subagentRun.run,
-    shown,
-    runToolCall(subagentRun) ?? null,
-    (written && runWrittenLine(subagentRun)) || null,
-  ];
+  return [subagentRun.run, shown, runToolCall(subagentRun) ?? null];
 };
 
 /** The runs of the listed sub-agent jobs, rendered again only when what their rows show changes. */
-const useJobRuns = (
-  roomId: string,
-  jobs: readonly BackgroundJob[],
-  written: boolean
-): readonly SubagentRun[] => {
+const useJobRuns = (roomId: string, jobs: readonly BackgroundJob[]): readonly SubagentRun[] => {
   const store = getSubagentRunStore(useMatrixClient());
   const subscribe = useCallback(
     (onChange: () => void) => store.subscribe(roomId, onChange),
@@ -89,13 +78,9 @@ const useJobRuns = (
     const runs = store.runs(roomId);
     return [...new Set(jobs.flatMap((job) => runOfJob(runs, job) ?? []))];
   }, [jobs, roomId, store]);
-  const shown = useSyncExternalStore(subscribe, () =>
-    JSON.stringify(pick().map((run) => shownOfRun(run, written)))
-  );
-  // A row that starts to say the last line takes the runs anew: while it said none, a frame that
-  // changed only that line rendered nothing, and the runs held may say an older one.
+  const shown = useSyncExternalStore(subscribe, () => JSON.stringify(pick().map(shownOfRun)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(pick, [pick, shown, written]);
+  return useMemo(pick, [pick, shown]);
 };
 
 /**
@@ -124,18 +109,13 @@ const useJobToolCalls = (room: Room, jobs: readonly BackgroundJob[], listed: boo
   }, [changed, jobs, listed, room, store]);
 };
 
-/**
- * What the jobs bar joins its jobs to (`presentBackgroundJobs`). `written`: rows on show say what a
- * run between calls last wrote (the plain rows, without the usage details), so a change of that
- * line renders; otherwise it renders nothing.
- */
+/** What the jobs bar joins its jobs to (`presentBackgroundJobs`). */
 export const useJobLookups = (
   room: Room,
   jobs: readonly BackgroundJob[],
-  listed: boolean,
-  written = false
+  listed: boolean
 ): BackgroundJobLookups => {
-  const runs = useJobRuns(room.roomId, jobs, written);
+  const runs = useJobRuns(room.roomId, jobs);
   const toolCallFor = useJobToolCalls(room, jobs, listed);
   return useMemo(() => ({ runs, toolCallFor }), [runs, toolCallFor]);
 };
