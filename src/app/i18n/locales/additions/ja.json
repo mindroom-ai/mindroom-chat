@@ -566,7 +566,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} に失敗しました: {{reason}}",
         "usage": "{{command}} を実行できませんでした。{{usage}}",
-        "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。"
+        "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。",
+        "thisApp": "このアプリ",
+        "mindroomAgents": "MindRoom エージェント"
       },
       "jumpToTime": {
         "unsupported": "このサーバーは時刻でメッセージを検索できません。",
@@ -882,7 +884,10 @@
         "nameChose": "{{name}} が選択"
       },
       "mindroomReplyDetails": {
-        "subagents": "サブエージェント"
+        "subagents": "サブエージェント",
+        "writtenToCache": "キャッシュに書き込み",
+        "notCached": "キャッシュなし",
+        "conversation": "会話"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中",

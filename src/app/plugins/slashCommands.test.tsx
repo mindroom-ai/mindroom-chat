@@ -150,7 +150,11 @@ describe('usePluginSlashCommands', () => {
       // The command as the composer holds it (useCommands).
       const { name, description } = enabled;
       const run = (args: string) => enabled.run({ room, args });
-      const acting = { command: { name, description, run }, run, args: ' ' };
+      const acting = {
+        command: { name, source: 'app' as const, description, run },
+        run,
+        args: ' ',
+      };
       const error = await acting.run(acting.args).catch((reason: unknown) => reason);
       return describeCommandFailure(i18n.t, acting, error);
     };

@@ -592,7 +592,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} falhou: {{reason}}",
         "usage": "Não foi possível executar {{command}}. {{usage}}",
-        "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain."
+        "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain.",
+        "thisApp": "Este app",
+        "mindroomAgents": "Agentes do MindRoom"
       },
       "jumpToTime": {
         "unsupported": "Este servidor não consegue procurar mensagens por hora.",
@@ -916,7 +918,10 @@
         "nameChose": "{{name}} escolheu"
       },
       "mindroomReplyDetails": {
-        "subagents": "Subagentes"
+        "subagents": "Subagentes",
+        "writtenToCache": "Gravados na cache",
+        "notCached": "Fora da cache",
+        "conversation": "Conversa"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Em execução há {{duration}}",

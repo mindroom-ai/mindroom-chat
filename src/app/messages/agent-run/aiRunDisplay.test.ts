@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatAiRunCompactNumber,
   formatAiRunNumber,
   formatAiRunPercentage,
   formatCostUsd,
@@ -58,9 +59,7 @@ describe('getAiRunCompactModelLabel', () => {
         modelId: 'claude-opus-4-6',
       })
     ).toBe('Opus');
-    expect(getAiRunCompactModelLabel({ modelConfig: 'bedtime_fable' })).toBe(
-      'Bedtime Fable'
-    );
+    expect(getAiRunCompactModelLabel({ modelConfig: 'bedtime_fable' })).toBe('Bedtime Fable');
   });
 
   it('uses a concise model id when the config name is generic', () => {
@@ -104,11 +103,7 @@ describe('getAiRunContextLabel', () => {
 
   it('formats the percentage as the context bar tooltips do', () => {
     expect(
-      getAiRunContextLabel(
-        { contextInputTokens: 500, contextWindowTokens: 2000 },
-        undefined,
-        'ru'
-      )
+      getAiRunContextLabel({ contextInputTokens: 500, contextWindowTokens: 2000 }, undefined, 'ru')
     ).toBe(`500 of 2\u00a0000 · ${formatAiRunPercentage(25, 'ru')}`);
   });
 
@@ -224,6 +219,14 @@ describe('formatAiRunNumber', () => {
   });
 });
 
+describe('formatAiRunCompactNumber', () => {
+  it('shortens large counts in the style of each locale', () => {
+    expect(formatAiRunCompactNumber(61_400_000, 'en')).toBe('61.4M');
+    expect(formatAiRunCompactNumber(1_494_700, 'en')).toBe('1.5M');
+    expect(formatAiRunCompactNumber(950, 'en')).toBe('950');
+  });
+});
+
 describe('formatCostUsd', () => {
   it.each([
     [0, '$0.00'],
@@ -258,6 +261,38 @@ describe('getAiRunTokenParts', () => {
       ['output', 'Output', 31],
     ]);
     expect(tokens?.parts[0]!.percentage).toBeCloseTo((1408 / 1705) * 100);
+  });
+
+  it('splits new input into cache writes and the rest when the backend counts the writes', () => {
+    const tokens = getAiRunTokenParts({
+      cacheReadTokens: 1_250_000,
+      cacheWriteTokens: 240_600,
+      uncachedInputTokens: 242_000,
+      outputTokens: 2_700,
+    });
+
+    expect(tokens?.total).toBe(1_494_700);
+    expect(tokens?.parts.map(({ key, label, tokens: count }) => [key, label, count])).toEqual([
+      ['cacheRead', 'From cache', 1_250_000],
+      ['cacheWrite', 'Written to cache', 240_600],
+      ['notCached', 'Not cached', 1_400],
+      ['output', 'Output', 2_700],
+    ]);
+  });
+
+  it('keeps the total when a write count exceeds the uncached input', () => {
+    expect(
+      getAiRunTokenParts({
+        cacheReadTokens: 100,
+        cacheWriteTokens: 80,
+        uncachedInputTokens: 50,
+        outputTokens: 10,
+      })?.parts.map(({ key, tokens }) => [key, tokens])
+    ).toEqual([
+      ['cacheRead', 100],
+      ['cacheWrite', 50],
+      ['output', 10],
+    ]);
   });
 
   it('keeps input whole for replies recorded before the split was sent', () => {

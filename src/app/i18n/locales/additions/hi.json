@@ -579,7 +579,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} विफल रहा: {{reason}}",
         "usage": "{{command}} नहीं चल सका। {{usage}}",
-        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।"
+        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।",
+        "thisApp": "यह ऐप",
+        "mindroomAgents": "MindRoom एजेंट"
       },
       "jumpToTime": {
         "unsupported": "यह सर्वर समय के अनुसार संदेश नहीं खोज सकता।",
@@ -899,7 +901,10 @@
         "nameChose": "{{name}} ने चुना"
       },
       "mindroomReplyDetails": {
-        "subagents": "सब-एजेंट"
+        "subagents": "सब-एजेंट",
+        "writtenToCache": "कैश में लिखे गए",
+        "notCached": "कैश में नहीं",
+        "conversation": "बातचीत"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है",

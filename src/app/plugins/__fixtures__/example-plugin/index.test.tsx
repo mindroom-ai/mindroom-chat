@@ -930,6 +930,16 @@ describe('example plugin', () => {
     expect(view.getByText('Example item 7')).toBeTruthy();
   });
 
+  it('previews the item in its link hover card', async () => {
+    const [link] = plugin.messageLinks ?? [];
+    if (!link?.hoverCard) throw new Error('the example plugin has no link hover card');
+    const view = await renderPluginComponent(
+      <link.hoverCard href="https://example.org/items/7" roomId="!lobby:example.org" />,
+      { id: 'example', plugin }
+    );
+    expect(view.getByText('Example item preview 7')).toBeTruthy();
+  });
+
   it('marks the card of a thread a greeting begins, and no other thread', async () => {
     const [badge] = plugin.threadCardBadges ?? [];
     if (!badge) throw new Error('the example plugin has no thread card badge');

@@ -579,7 +579,9 @@
       "commandAutocomplete": {
         "failed": "{{command}} ব্যর্থ হয়েছে: {{reason}}",
         "usage": "{{command}} চালানো যায়নি। {{usage}}",
-        "unknown": "{{command}} কোনো কমান্ড নয়। এটি টেক্সট হিসেবে পাঠাতে বার্তাটি /plain দিয়ে শুরু করুন।"
+        "unknown": "{{command}} কোনো কমান্ড নয়। এটি টেক্সট হিসেবে পাঠাতে বার্তাটি /plain দিয়ে শুরু করুন।",
+        "thisApp": "এই অ্যাপ",
+        "mindroomAgents": "MindRoom এজেন্ট"
       },
       "jumpToTime": {
         "unsupported": "এই সার্ভার সময় অনুযায়ী বার্তা খুঁজতে পারে না।",
@@ -899,7 +901,10 @@
         "nameChose": "{{name}} বেছে নিয়েছেন"
       },
       "mindroomReplyDetails": {
-        "subagents": "সাব-এজেন্ট"
+        "subagents": "সাব-এজেন্ট",
+        "writtenToCache": "ক্যাশে লেখা",
+        "notCached": "ক্যাশে নেই",
+        "conversation": "কথোপকথন"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} ধরে চলছে",

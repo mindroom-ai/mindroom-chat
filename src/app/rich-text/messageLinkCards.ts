@@ -7,3 +7,6 @@ import { createContext } from 'react';
 export const MessageLinkCardContext = createContext<
   ((link: HTMLAnchorElement, href: string) => boolean) | undefined
 >(undefined);
+
+/** The id a room's page gives its message links while a plugin's link has a hover card. */
+export const MessageLinkHostContext = createContext<string | undefined>(undefined);

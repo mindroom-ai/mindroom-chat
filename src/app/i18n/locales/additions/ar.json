@@ -631,7 +631,9 @@
       "commandAutocomplete": {
         "failed": "فشل ⁨{{command}}⁩: ⁨{{reason}}⁩",
         "usage": "تعذّر تنفيذ ⁨{{command}}⁩. ⁨{{usage}}⁩",
-        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain."
+        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain.",
+        "thisApp": "هذا التطبيق",
+        "mindroomAgents": "وكلاء MindRoom"
       },
       "jumpToTime": {
         "unsupported": "لا يستطيع هذا الخادم البحث عن الرسائل حسب الوقت.",
@@ -967,7 +969,10 @@
         "nameChose": "اختار ⁨{{name}}⁩"
       },
       "mindroomReplyDetails": {
-        "subagents": "الوكلاء الفرعيون"
+        "subagents": "الوكلاء الفرعيون",
+        "writtenToCache": "مكتوبة في الذاكرة المؤقتة",
+        "notCached": "غير مخزنة مؤقتًا",
+        "conversation": "المحادثة"
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩",
