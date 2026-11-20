@@ -1,25 +1,27 @@
-import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { normalizeMatrixWaveform } from '../../lib/audioWaveform';
-import type { IReplyDraft } from '../roomInputDrafts';
 import { getVoiceFileName } from './voiceRecorderMime';
 
 /**
- * Every voice recording on disk, from its first second until the server accepted its voice event
- * or the person let a Discard stand. The recorder appends each chunk as it arrives, so a crash,
+ * Every voice recording on disk, from its first second until the server gave its voice event an
+ * ID or the person let a Discard stand. The recorder appends each chunk as it arrives, so a crash,
  * a reload or an app update loses at most the last second; what sends it writes where it goes and
- * its Matrix transaction ID before the upload starts, so a retry after a crash posts it once.
+ * its Matrix transaction ID before anything is sent, so a retry after a crash posts it once.
  *
  * The tab that owns a recording holds the Web Lock named after it, from before its first write
  * until it deletes the record. A record nobody holds is an orphan, which the next page adopts.
+ * A browser without Web Locks cannot tell whose a recording is, so there nothing is kept or
+ * adopted: recordings live in memory and say so.
  */
 
-/** Where a recording goes, as it is kept on disk: no live `Room`. */
+/** Where a recording goes, as it is kept on disk: IDs only, none of the text it relates to. */
 export type VoiceJournalDestination = {
   roomId: string;
   threadId?: string;
-  replyDraft?: IReplyDraft;
+  /** The message it replies to, and the thread that message is in. */
+  replyEventId?: string;
+  replyThreadId?: string;
   threadingEnabled: boolean;
-  signalBridgedRoom: boolean;
   threadView?: boolean;
 };
 
@@ -28,13 +30,11 @@ export type VoiceJournalRecord = {
   recordingId: string;
   startedAt: number;
   mimeType: string;
-  stoppedAt?: number;
+  /** Where its send was attempted, with the Matrix transaction ID of that send. */
   destination?: VoiceJournalDestination;
-  /** The Matrix transaction ID of its send. */
   txnId?: string;
   /** Discarded: deleted once this time has passed, unless the discard is undone. */
   discardUntil?: number;
-  errorMessage?: string;
 };
 
 type VoiceJournalChunk = {
@@ -42,11 +42,12 @@ type VoiceJournalChunk = {
   seq: number;
   // The bytes, not the Blob: WebKit refuses to store a Blob in IndexedDB in a private window.
   bytes: ArrayBuffer;
+  /** The chunk's own type; the first that has one is the recording's. */
+  type: string;
   /** How long the recording was when this chunk arrived. */
   elapsedMs: number;
   /** The waveform samples since the chunk before. */
   samples: number[];
-  writtenAt: number;
 };
 
 /** A recording read back from disk. */
@@ -85,17 +86,13 @@ const chunksOf = (recordingId: string) =>
 
 // Ownership.
 
-const locks: LockManager | undefined = globalThis.navigator?.locks;
 /** The recordings this tab owns, each with what gives its lock back. */
 const held = new Map<string, () => void>();
 
-/** Takes a recording for this tab, until `release`; false when it is taken already. */
+/** Takes a recording for this tab, until `release`; false when it cannot be this tab's alone. */
 const take = (recordingId: string): Promise<boolean> => {
-  if (held.has(recordingId)) return Promise.resolve(false);
-  if (!locks) {
-    held.set(recordingId, () => undefined);
-    return Promise.resolve(true);
-  }
+  const locks: LockManager | undefined = globalThis.navigator?.locks;
+  if (!locks || held.has(recordingId)) return Promise.resolve(false);
   return new Promise((resolve) => {
     locks
       .request(`mindroom-voice-recording:${recordingId}`, { ifAvailable: true }, (lock) => {
@@ -129,49 +126,70 @@ const inOrder = <T>(recordingId: string, write: () => Promise<T>): Promise<T> =>
   return next;
 };
 
-/** Recordings with a failed audio write: no later chunk is written, so the disk keeps a clean prefix. */
-const broken = new Set<string>();
-const writeAudio = (
-  recordingId: string,
-  write: (db: IDBPDatabase<VoiceJournalDb>) => Promise<unknown>
-): Promise<boolean> =>
-  inOrder(recordingId, async () => {
-    if (broken.has(recordingId)) return false;
+type Row = VoiceJournalRecord | VoiceJournalChunk;
+/** What each recording still owes the disk, in order: a write that failed is made again first. */
+const owed = new Map<string, Promise<Row>[]>();
+
+/** Writes a recording's next row after all it still owes; true once the disk holds all of it. */
+const writeAudio = (recordingId: string, row: Promise<Row>): Promise<boolean> => {
+  row.catch(() => undefined);
+  owed.set(recordingId, [...(owed.get(recordingId) ?? []), row]);
+  return inOrder(recordingId, async () => {
     try {
-      await write(await database());
+      if (!held.has(recordingId) && !(await take(recordingId))) return false;
+      const rows = owed.get(recordingId) ?? [];
+      const values = await Promise.all(rows);
+      const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
+      await Promise.all([
+        ...values.map((value) =>
+          'seq' in value
+            ? tx.objectStore('chunks').put(value)
+            : tx.objectStore('recordings').put(value)
+        ),
+        tx.done,
+      ]);
+      owed.set(recordingId, (owed.get(recordingId) ?? []).slice(rows.length));
       return true;
     } catch {
-      broken.add(recordingId);
       return false;
     }
   });
+};
 
-/** Writes later changes to a recording's record: where it goes, its transaction ID, a discard. */
+/**
+ * Writes later changes to a recording this tab owns: where it goes and its transaction ID, or a
+ * discard. False when they did not reach the disk, also because the disk has no such recording.
+ */
 export const updateVoiceRecording = (
   recordingId: string,
-  changes: Partial<
-    Pick<
-      VoiceJournalRecord,
-      'stoppedAt' | 'destination' | 'txnId' | 'discardUntil' | 'errorMessage'
-    >
-  >
-): Promise<void> =>
+  changes: Partial<Pick<VoiceJournalRecord, 'destination' | 'txnId' | 'discardUntil'>>
+): Promise<boolean> =>
   inOrder(recordingId, async () => {
+    if (!held.has(recordingId)) return false;
     const tx = (await database()).transaction('recordings', 'readwrite');
     const record = await tx.store.get(recordingId);
-    if (record) await tx.store.put({ ...record, ...changes });
-    await tx.done;
-  }).catch(() => undefined);
+    await Promise.all([record && tx.store.put({ ...record, ...changes }), tx.done]);
+    return !!record;
+  }).catch(() => false);
 
-/** Deletes a recording that was sent or discarded, and gives up its lock. */
-export const deleteVoiceRecording = (recordingId: string): Promise<void> =>
+/**
+ * Deletes a recording and gives up its lock: it was sent, it has no audio, or its discard stood.
+ * With `expiredBy`, only if the disk says its discard stood until then.
+ */
+export const deleteVoiceRecording = (recordingId: string, expiredBy?: number): Promise<void> =>
   inOrder(recordingId, async () => {
     const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
-    await tx.objectStore('recordings').delete(recordingId);
-    await tx.objectStore('chunks').delete(chunksOf(recordingId));
-    await tx.done;
+    if (expiredBy !== undefined) {
+      const until = (await tx.objectStore('recordings').get(recordingId))?.discardUntil;
+      if (until === undefined || until > expiredBy) return;
+    }
+    await Promise.all([
+      tx.objectStore('recordings').delete(recordingId),
+      tx.objectStore('chunks').delete(chunksOf(recordingId)),
+      tx.done,
+    ]);
     release(recordingId);
-    broken.delete(recordingId);
+    owed.delete(recordingId);
     lastWrite.delete(recordingId);
   }).catch(() => undefined);
 
@@ -179,7 +197,7 @@ let persistenceAsked = false;
 
 /**
  * What the capture session writes a recording through, for `userId`'s account. `begin` and
- * `append` resolve false when the recording is not protected against a crash.
+ * `append` resolve true while the disk holds all of the recording so far.
  */
 export const voiceCaptureJournal = (userId: () => string) => ({
   begin: (meta: { recordingId: string; startedAt: number; mimeType: string }): Promise<boolean> => {
@@ -188,165 +206,172 @@ export const voiceCaptureJournal = (userId: () => string) => ({
       // Best effort: persistent storage is not evicted when the disk runs short.
       globalThis.navigator?.storage?.persist?.().catch(() => undefined);
     }
-    const record = { userId: userId(), ...meta };
-    return writeAudio(meta.recordingId, async (db) => {
-      if (!(await take(meta.recordingId))) throw new Error('Recording is owned elsewhere.');
-      await db.put('recordings', record);
-    });
+    return writeAudio(meta.recordingId, Promise.resolve({ userId: userId(), ...meta }));
   },
   /** `seq` is the chunk's place, which the caller assigns as the chunk arrives. */
   append: (
     recordingId: string,
     seq: number,
-    chunk: { data: Blob; elapsedMs: number; samples: number[] }
-  ): Promise<boolean> => {
+    { data, elapsedMs, samples }: { data: Blob; elapsedMs: number; samples: number[] }
+  ): Promise<boolean> =>
     // Read now, written in turn: the reads of two chunks may finish in either order.
-    const bytes = chunk.data.arrayBuffer().catch(() => undefined);
-    const { elapsedMs, samples } = chunk;
-    return writeAudio(recordingId, async (db) => {
-      const read = await bytes;
-      if (!read) throw new Error('Chunk could not be read.');
-      await db.put('chunks', {
-        recordingId,
-        seq,
-        bytes: read,
-        elapsedMs,
-        samples,
-        writtenAt: Date.now(),
-      });
-    });
-  },
-  /** The recorder stopped: with audio the record stays for its send or discard. */
-  stop: (recordingId: string, hasAudio: boolean): void => {
-    if (hasAudio) void updateVoiceRecording(recordingId, { stoppedAt: Date.now() });
-    else void deleteVoiceRecording(recordingId);
+    writeAudio(
+      recordingId,
+      data
+        .arrayBuffer()
+        .then((bytes) => ({ recordingId, seq, bytes, type: data.type, elapsedMs, samples }))
+    ),
+  /** The recorder stopped without audio: nothing to keep. */
+  abandon: (recordingId: string): void => {
+    void deleteVoiceRecording(recordingId);
   },
 });
 
 // The copy of a failed send an older version kept, one per account.
 
-type LegacyVoiceDraft = VoiceJournalDestination & {
+type LegacyVoiceDraft = {
   userId: string;
   audio: ArrayBuffer;
   fileType: string;
   duration: number;
   waveform?: number[];
-  errorMessage?: string;
+  roomId: string;
+  threadId?: string;
+  replyDraft?: { eventId: string; relation?: { rel_type?: string; event_id?: string } };
+  threadingEnabled: boolean;
+  threadView?: boolean;
+};
+
+const sameBytes = (a: ArrayBuffer, b: ArrayBuffer): boolean => {
+  const [left, right] = [new Uint8Array(a), new Uint8Array(b)];
+  return left.length === right.length && left.every((byte, at) => byte === right[at]);
 };
 
 const LEGACY_DATABASE = 'mindroom-voice-drafts';
-let legacyImport: Promise<void> | undefined;
-/** Moves the old database's recordings into the journal and deletes it, once a page. */
-const importLegacyDrafts = (): Promise<void> => {
-  legacyImport ??= (async () => {
-    const known = await indexedDB.databases?.();
-    if (known && !known.some((entry) => entry.name === LEGACY_DATABASE)) return;
-    const legacy = await openDB(LEGACY_DATABASE);
-    const drafts: LegacyVoiceDraft[] = legacy.objectStoreNames.contains('drafts')
-      ? await legacy.getAll('drafts')
-      : [];
+/**
+ * Copies the old database's recordings into the journal, where each is an orphan like any other.
+ * A copy is named after its account and its audio, so copying again changes nothing. The old
+ * database stays, since a tab of the older version may still write to it; of its entries only one
+ * that still is what was copied is deleted.
+ */
+const importLegacyDrafts = async (): Promise<void> => {
+  const known = await indexedDB.databases?.();
+  if (known && !known.some((entry) => entry.name === LEGACY_DATABASE)) return;
+  // Opened the way the older version does, so a browser that cannot list databases creates it right.
+  const legacy = await openDB(LEGACY_DATABASE, 1, {
+    upgrade: (db) => void db.createObjectStore('drafts', { keyPath: 'userId' }),
+  });
+  try {
+    const drafts: LegacyVoiceDraft[] = await legacy.getAll('drafts');
+    /* eslint-disable no-await-in-loop */
+    for (const { userId, audio, fileType, duration, waveform, replyDraft, ...to } of drafts) {
+      const recordingId = `imported:${userId}:${audio.byteLength}:${duration}`;
+      const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
+      const copied = await tx.objectStore('recordings').get(recordingId);
+      await Promise.all([
+        !copied &&
+          tx.objectStore('recordings').put({
+            userId,
+            recordingId,
+            startedAt: Date.now(),
+            mimeType: fileType,
+            destination: {
+              roomId: to.roomId,
+              threadId: to.threadId,
+              replyEventId: replyDraft?.eventId,
+              replyThreadId:
+                replyDraft?.relation?.rel_type === 'm.thread'
+                  ? replyDraft.relation.event_id
+                  : undefined,
+              threadingEnabled: to.threadingEnabled,
+              threadView: to.threadView,
+            },
+          }),
+        !copied &&
+          tx.objectStore('chunks').put({
+            recordingId,
+            seq: 0,
+            bytes: audio,
+            type: fileType,
+            elapsedMs: duration,
+            samples: waveform ?? [],
+          }),
+        tx.done,
+      ]);
+      const old = legacy.transaction('drafts', 'readwrite');
+      const current: LegacyVoiceDraft | undefined = await old.store.get(userId);
+      await Promise.all([
+        current && sameBytes(current.audio, audio) && old.store.delete(userId),
+        old.done,
+      ]);
+    }
+    /* eslint-enable no-await-in-loop */
+  } finally {
     legacy.close();
-    const tx = (await database()).transaction(['recordings', 'chunks'], 'readwrite');
-    const now = Date.now();
-    drafts.forEach(
-      ({ userId, audio, fileType, duration, waveform, errorMessage, ...destination }) => {
-        // Named after its account, so an import that is cut short and runs again writes it once.
-        const recordingId = `imported:${userId}`;
-        void tx.objectStore('recordings').put({
-          userId,
-          recordingId,
-          startedAt: now,
-          stoppedAt: now,
-          mimeType: fileType,
-          destination,
-          errorMessage,
-        });
-        void tx.objectStore('chunks').put({
-          recordingId,
-          seq: 0,
-          bytes: audio,
-          elapsedMs: duration,
-          samples: waveform ?? [],
-          writtenAt: 0,
-        });
-      }
-    );
-    await tx.done;
-    await deleteDB(LEGACY_DATABASE);
-  })().catch(() => undefined);
-  return legacyImport;
+  }
 };
 
 // Recovery.
 
-/** Without Web Locks, a recording counts as abandoned only after this long without a write. */
-const ORPHAN_QUIET_MS = 10 * 60_000;
-
 /**
  * The account's recordings no tab owns, oldest first, which this tab owns from now on: left by a
- * crash, a reload or an app update while recording, parked, or sending. A recording whose discard
- * stood is deleted instead.
+ * crash, a reload or an app update while recording, parked, or sending. One with `discardUntil`
+ * was discarded and can still be brought back; one whose discard stood is deleted instead. A
+ * recording another tab holds, or that could not be read, is left for a later call.
  */
 export const adoptVoiceOrphans = async (
   userId: string,
-  { now = Date.now(), loadedAt = performance.timeOrigin } = {}
+  now = Date.now()
 ): Promise<JournaledVoiceRecording[]> => {
+  const adopted: JournaledVoiceRecording[] = [];
+  if (!globalThis.navigator?.locks) return adopted;
   try {
-    await importLegacyDrafts();
+    // Storage that fails here is asked again by the next call.
+    await importLegacyDrafts().catch(() => undefined);
     const db = await database();
     const records = await db.getAllFromIndex('recordings', 'userId', userId);
     records.sort((a, b) => a.startedAt - b.startedAt);
-    const adopted: JournaledVoiceRecording[] = [];
     // One at a time: each is taken before it is read.
-    for (const { recordingId, startedAt } of records) {
+    for (const { recordingId } of records) {
       /* eslint-disable no-await-in-loop, no-continue */
-      if (held.has(recordingId)) continue;
-      if (!locks) {
-        // A tab that is only suspended writes nothing either, so a live recording must look dead
-        // for a long time, and from before this page existed, to count as abandoned.
-        const last = (await db.getAll('chunks', chunksOf(recordingId))).at(-1);
-        const quietSince = last?.writtenAt ?? startedAt;
-        if (quietSince > now - ORPHAN_QUIET_MS || quietSince > loadedAt) continue;
-      }
       if (!(await take(recordingId))) continue;
-      const record = await db.get('recordings', recordingId);
-      const chunks = await db.getAll('chunks', chunksOf(recordingId));
-      const lastChunk = chunks.at(-1);
-      const { discardUntil } = record ?? {};
-      if (!record || !lastChunk || (discardUntil !== undefined && discardUntil <= now)) {
-        await deleteVoiceRecording(recordingId);
-        continue;
-      }
-      if (discardUntil !== undefined) {
-        setTimeout(() => void deleteVoiceRecording(recordingId), discardUntil - now);
-        continue;
+      try {
+        const record = await db.get('recordings', recordingId);
+        const chunks = await db.getAll('chunks', chunksOf(recordingId));
+        const lastChunk = chunks.at(-1);
+        if (!record || !lastChunk || (record.discardUntil ?? Infinity) <= now) {
+          await deleteVoiceRecording(recordingId);
+          continue;
+        }
+        const type = chunks.find((chunk) => chunk.type)?.type || record.mimeType;
+        const samples = chunks.flatMap((chunk) => chunk.samples);
+        adopted.push({
+          record,
+          file: new File(
+            chunks.map((chunk) => chunk.bytes),
+            getVoiceFileName(type, new Date(record.startedAt)),
+            { type }
+          ),
+          duration: Math.max(1, Math.round(lastChunk.elapsedMs)),
+          waveform: samples.length > 0 ? normalizeMatrixWaveform(samples) : undefined,
+        });
+      } catch {
+        release(recordingId);
       }
       /* eslint-enable no-await-in-loop, no-continue */
-      const samples = chunks.flatMap((chunk) => chunk.samples);
-      adopted.push({
-        record,
-        file: new File(
-          chunks.map((chunk) => chunk.bytes),
-          getVoiceFileName(record.mimeType, new Date(record.startedAt)),
-          { type: record.mimeType }
-        ),
-        duration: Math.max(1, Math.round(lastChunk.elapsedMs)),
-        waveform: samples.length > 0 ? normalizeMatrixWaveform(samples) : undefined,
-      });
     }
-    return adopted;
   } catch {
-    // Storage that fails (private mode, full disk) has nothing to recover.
-    return [];
+    // The recordings read so far are this tab's; the rest wait for the next call.
   }
+  return adopted;
 };
 
 /** Forgets the account's recordings, as signing out does. */
 export const clearVoiceRecordings = async (userId: string): Promise<void> => {
   try {
-    await importLegacyDrafts();
+    await importLegacyDrafts().catch(() => undefined);
     const ids = await (await database()).getAllKeysFromIndex('recordings', 'userId', userId);
-    await Promise.all(ids.map(deleteVoiceRecording));
+    await Promise.all(ids.map((recordingId) => deleteVoiceRecording(recordingId)));
   } catch {
     // Nothing was kept.
   }

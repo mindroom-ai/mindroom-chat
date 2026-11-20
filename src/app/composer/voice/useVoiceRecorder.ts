@@ -7,7 +7,7 @@ import {
   type PendingVoiceSendContext,
 } from '../roomInputDrafts';
 import { createVoiceCaptureSession, type VoiceCapturePhase } from './voiceCaptureSession';
-import { discardVoiceDraft, parkVoiceDraft } from './voiceDrafts';
+import { discardVoiceDraft, parkVoiceDraft, settleVoiceDraft } from './voiceDrafts';
 import {
   createVoiceSendDraftController,
   type SendRecordingCallback,
@@ -54,6 +54,7 @@ export function useVoiceRecorder({
       {
         read: () => store.get(pendingVoiceSendDraftAtom),
         write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
+        settle: (recordingId, token, failed) => settleVoiceDraft(store, recordingId, token, failed),
       },
       { update: updateVoiceRecording, remove: deleteVoiceRecording }
     )
@@ -98,8 +99,10 @@ export function useVoiceRecorder({
   const pendingDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const phase: VoiceRecorderPhase =
     pendingDraft?.inFlight || sending ? 'sending' : captureSnapshot.phase;
-  const { elapsedMs, waveform, sampleCount, canPause, unprotected } = captureSnapshot;
+  const { elapsedMs, waveform, sampleCount, canPause } = captureSnapshot;
   const hasPendingSend = !!pendingDraft;
+  // Of the parked recording, or of the one being recorded.
+  const unprotected = pendingDraft ? !!pendingDraft.unprotected : captureSnapshot.unprotected;
   const pendingUnplaced = !!pendingDraft && !hasVoiceDestination(pendingDraft.context);
   const pendingDuration = pendingDraft?.duration ?? 0;
   const pendingWaveform = pendingDraft?.waveform ?? createFallbackWaveform();

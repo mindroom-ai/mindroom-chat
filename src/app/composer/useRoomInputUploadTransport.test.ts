@@ -63,20 +63,27 @@ describe('useRoomInputUploadTransport voice sends', () => {
     expect(mx.cancelPendingEvent).toHaveBeenCalledWith(localEvents.get('txn-voice'));
   });
 
-  it("sends under the recording's transaction ID until the room has had an echo under it", async () => {
+  it("sends every attempt under the recording's transaction ID, and takes only an event ID for sent", async () => {
     const localEvents = new Map<string, { status: EventStatus }>();
-    let made = 0;
-    const mx = {
-      makeTxnId: () => {
-        made += 1;
-        return `txn-fresh-${made}`;
+    const responses: Array<() => { event_id?: string }> = [
+      () => {
+        throw new Error('offline');
       },
+      // What the SDK resolves with when the echo was cancelled while it was encrypted.
+      () => ({}),
+      () => ({ event_id: '$voice' }),
+    ];
+    const mx = {
+      makeTxnId: () => 'txn-fresh',
       sendMessage: vi.fn(async (_roomId: string, _content: unknown, txnId: string) => {
         localEvents.set(txnId, { status: EventStatus.NOT_SENT });
-        if (localEvents.size === 1) throw new Error('offline');
-        return { event_id: '$voice' };
+        return responses.shift()!();
       }),
-      cancelPendingEvent: vi.fn(),
+      cancelPendingEvent: vi.fn((echo: unknown) => {
+        localEvents.forEach((event, txnId) => {
+          if (event === echo) localEvents.delete(txnId);
+        });
+      }),
     };
     const room = {
       roomId: '!room:example.org',
@@ -113,13 +120,22 @@ describe('useRoomInputUploadTransport voice sends', () => {
       signalBridgedRoom: false,
     };
 
-    // After a crash this is the first attempt of its page: the server sees the same event again.
     await expect(
       transport.sendVoiceItem(context, item!, 'mxc://example.org/voice')
     ).rejects.toThrow('offline');
-    // The room never forgets an ID it gave an echo, so the next attempt of this page gets a new one.
+    // The failed echo is gone, and with it the room's hold on the ID.
+    expect(localEvents.size).toBe(0);
+    // Not acknowledged: the recording is not sent.
+    await expect(
+      transport.sendVoiceItem(context, item!, 'mxc://example.org/voice')
+    ).rejects.toThrow('Failed to send voice message.');
     expect(await transport.sendVoiceItem(context, item!, 'mxc://example.org/voice')).toBe('$voice');
-    expect(mx.sendMessage.mock.calls.map((call) => call[2])).toEqual(['txn-kept', 'txn-fresh-1']);
+    // To the server every attempt is the same event, so it posts it once.
+    expect(mx.sendMessage.mock.calls.map((call) => call[2])).toEqual([
+      'txn-kept',
+      'txn-kept',
+      'txn-kept',
+    ]);
     // The transaction ID is not part of the message.
     expect(JSON.stringify(mx.sendMessage.mock.calls[0]![1])).not.toContain('txn-kept');
   });

@@ -11,7 +11,6 @@ import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError, uploadContent } from '../matrix/matrix';
 import { getRoomInputVoiceUploadRelation } from './RoomInputExtensions';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
-import { txnIdToSendUnder } from '../matrix/protocol/pendingLocalEcho';
 
 type Store = ReturnType<typeof createStore>;
 
@@ -126,12 +125,16 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       );
       const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
-      const txnId = txnIdToSendUnder(mx, context.room, item.metadata.voiceMessage?.txnId);
+      // The one ID its recording keeps: to the server every attempt is the same event.
+      const txnId = item.metadata.voiceMessage?.txnId ?? mx.makeTxnId();
       try {
         const { event_id: eventId } = await mx.sendMessage(context.roomId, content as never, txnId);
+        // The SDK resolves without one when the echo was cancelled before it went.
+        if (!eventId) throw new Error('Failed to send voice message.');
         return eventId;
       } catch (error) {
-        // The recorder keeps the recording for a retry; its failed echo must not stay behind.
+        // The recorder keeps the recording for a retry; its failed echo must not stay behind,
+        // and gives the ID back for that retry.
         const echo = context.room.getEventForTxnId(txnId);
         if (echo) mx.cancelPendingEvent(echo);
         throw error;

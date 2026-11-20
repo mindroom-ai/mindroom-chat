@@ -1,24 +1,40 @@
+import { createStore } from 'jotai';
 import { MatrixError } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  PendingVoiceSendContext,
-  PendingVoiceSendDraft,
+import {
+  pendingVoiceSendDraftAtom,
+  queuedVoiceDraftsAtom,
+  type PendingVoiceSendContext,
+  type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
+import { settleVoiceDraft } from './voiceDrafts';
 import type { CapturedVoiceRecording } from './voiceCaptureSession';
 import {
   createVoiceSendDraftController as createController,
+  type SendRecordingCallback,
   type VoiceDraftJournal,
   type VoiceDraftStore,
 } from './voiceSendDraftController';
 
 const createJournal = () => ({
-  update: vi.fn<VoiceDraftJournal['update']>(async () => undefined),
+  update: vi.fn<VoiceDraftJournal['update']>(async () => true),
   remove: vi.fn<VoiceDraftJournal['remove']>(async () => undefined),
 });
 const createVoiceSendDraftController = (store: VoiceDraftStore, journal = createJournal()) =>
   createController(store, journal);
-/** Lets the journal write that precedes a send finish. */
+/** Lets a journal write, or a send that waits for one, finish. */
 const journalWritten = () => Promise.resolve();
+/** A send the server acknowledged. */
+const sent = () => vi.fn<SendRecordingCallback>(async () => '$voice');
+/** A send as the composer does it: where it really goes is committed, then it is dispatched. */
+const committedSend = (resolve = (context: PendingVoiceSendContext) => context) => {
+  const dispatched = vi.fn<() => Promise<string | undefined>>(async () => '$voice');
+  const sendRecording = vi.fn<SendRecordingCallback>(async (_f, _d, _w, context, attempt) => {
+    await attempt.commit(resolve(context));
+    return dispatched();
+  });
+  return { sendRecording, dispatched };
+};
 
 const createContext = (roomId = '!voice:example.org'): PendingVoiceSendContext => ({
   ownerSessionId: '@voice:example.org',
@@ -43,21 +59,25 @@ const createDraft = (label = 'voice'): PendingVoiceSendDraft => ({
   errorMessage: 'previous failure',
 });
 
+/** The slot and the queue as the app keeps them. */
 const createDraftStore = (initial?: PendingVoiceSendDraft) => {
-  let current = initial;
-  const store: VoiceDraftStore = {
-    read: () => current,
-    write: (draft) => {
-      current = draft;
-    },
+  const atoms = createStore();
+  atoms.set(pendingVoiceSendDraftAtom, initial);
+  return {
+    read: () => atoms.get(pendingVoiceSendDraftAtom),
+    write: (draft: PendingVoiceSendDraft | undefined) =>
+      atoms.set(pendingVoiceSendDraftAtom, draft),
+    settle: (...attempt: Parameters<VoiceDraftStore['settle']>) =>
+      settleVoiceDraft(atoms, ...attempt),
+    queued: () => atoms.get(queuedVoiceDraftsAtom),
+    setQueued: (drafts: PendingVoiceSendDraft[]) => atoms.set(queuedVoiceDraftsAtom, drafts),
   };
-  return store;
 };
 
-const deferred = () => {
-  let resolve!: () => void;
+const deferred = <T = void>() => {
+  let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
-  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
     reject = rejectPromise;
   });
@@ -65,12 +85,13 @@ const deferred = () => {
 };
 
 describe('voiceSendDraftController', () => {
-  it('sends an initial recording with exact identity and clears durable state on success', async () => {
-    const store = createDraftStore(createDraft('older'));
+  it('sends an initial recording with exact identity, and leaves the slot to the recording in it', async () => {
+    const older = createDraft('older');
+    const store = createDraftStore(older);
     const controller = createVoiceSendDraftController(store);
     const recording = createRecording();
     const context = createContext();
-    const sendRecording = vi.fn();
+    const sendRecording = sent();
     const onFailure = vi.fn();
 
     expect(await controller.sendInitial(recording, context, { sendRecording, onFailure })).toBe(
@@ -81,9 +102,9 @@ describe('voiceSendDraftController', () => {
       recording.duration,
       recording.waveform,
       context,
-      expect.any(String)
+      { txnId: expect.any(String), commit: expect.any(Function) }
     );
-    expect(store.read()).toBeUndefined();
+    expect(store.read()).toBe(older);
     expect(onFailure).not.toHaveBeenCalled();
   });
 
@@ -140,9 +161,9 @@ describe('voiceSendDraftController', () => {
     const draft = createDraft();
     const store = createDraftStore(draft);
     const controller = createVoiceSendDraftController(store);
-    const gate = deferred();
+    const gate = deferred<string>();
     const claim = vi.fn(() => true);
-    const sendRecording = vi.fn(() => gate.promise);
+    const sendRecording = vi.fn<SendRecordingCallback>(() => gate.promise);
     const onFailure = vi.fn();
 
     const retry = controller.retry({ claim, sendRecording, onFailure, context: createContext });
@@ -157,11 +178,11 @@ describe('voiceSendDraftController', () => {
       draft.duration,
       draft.waveform,
       draft.context,
-      claimedDraft.txnId
+      { txnId: claimedDraft.txnId, commit: expect.any(Function) }
     );
 
     const otherClaim = vi.fn(() => true);
-    const otherSend = vi.fn();
+    const otherSend = sent();
     const remounted = createVoiceSendDraftController(store);
     expect(
       await remounted.retry({
@@ -174,7 +195,7 @@ describe('voiceSendDraftController', () => {
     expect(otherClaim).not.toHaveBeenCalled();
     expect(otherSend).not.toHaveBeenCalled();
 
-    gate.resolve();
+    gate.resolve('$voice');
     expect(await retry).toBe(true);
     expect(store.read()).toBeUndefined();
     expect(onFailure).not.toHaveBeenCalled();
@@ -207,7 +228,7 @@ describe('voiceSendDraftController', () => {
     const draft = createDraft();
     const store = createDraftStore(draft);
     const controller = createVoiceSendDraftController(store);
-    const sendRecording = vi.fn();
+    const sendRecording = sent();
     const onFailure = vi.fn();
 
     expect(
@@ -229,8 +250,8 @@ describe('voiceSendDraftController', () => {
   it('prevents retry reentry from its synchronous claim callback', async () => {
     const store = createDraftStore(createDraft());
     const controller = createVoiceSendDraftController(store);
-    const sendRecording = vi.fn();
-    const nestedSend = vi.fn();
+    const sendRecording = sent();
+    const nestedSend = sent();
     const nestedClaim = vi.fn(() => true);
     let nestedRetry!: Promise<boolean>;
     const claim = vi.fn(() => {
@@ -256,7 +277,7 @@ describe('voiceSendDraftController', () => {
   it('does not resurrect a draft discarded synchronously by an accepted claim', async () => {
     const store = createDraftStore(createDraft());
     const controller = createVoiceSendDraftController(store);
-    const sendRecording = vi.fn();
+    const sendRecording = sent();
     const onFailure = vi.fn();
 
     expect(
@@ -278,20 +299,20 @@ describe('voiceSendDraftController', () => {
   it('does not send after a synchronous store observer replaces its stamped draft', async () => {
     const original = createDraft();
     const replacement = createDraft('replacement');
-    let current: PendingVoiceSendDraft | undefined = original;
+    const slot = createDraftStore(original);
     let replaceOnStamp = true;
     const store: VoiceDraftStore = {
-      read: () => current,
+      ...slot,
       write: (draft) => {
-        current = draft;
+        slot.write(draft);
         if (replaceOnStamp && draft?.inFlight) {
           replaceOnStamp = false;
-          current = replacement;
+          slot.write(replacement);
         }
       },
     };
     const controller = createVoiceSendDraftController(store);
-    const sendRecording = vi.fn();
+    const sendRecording = sent();
     const onFailure = vi.fn();
 
     expect(
@@ -315,8 +336,9 @@ describe('voiceSendDraftController', () => {
     expect(
       await controller.retry({
         claim: () => true,
-        sendRecording: () => {
+        sendRecording: async () => {
           store.write(replacement);
+          return '$voice';
         },
         onFailure: vi.fn(),
         context: createContext,
@@ -334,7 +356,7 @@ describe('voiceSendDraftController', () => {
     expect(
       await controller.retry({
         claim: () => true,
-        sendRecording: () => {
+        sendRecording: async () => {
           store.write(replacement);
           throw new Error('stale failure');
         },
@@ -349,7 +371,7 @@ describe('voiceSendDraftController', () => {
   it('keeps explicit discard authoritative while deferred retry rejects', async () => {
     const store = createDraftStore(createDraft());
     const controller = createVoiceSendDraftController(store);
-    const gate = deferred();
+    const gate = deferred<string>();
     const onFailure = vi.fn();
     const retry = controller.retry({
       claim: () => true,
@@ -371,79 +393,160 @@ describe('voiceSendDraftController and the journal', () => {
   const destination = {
     roomId: '!voice:example.org',
     threadId: '$thread',
-    replyDraft: undefined,
+    replyEventId: undefined,
+    replyThreadId: undefined,
     threadingEnabled: true,
-    signalBridgedRoom: false,
     threadView: undefined,
   };
 
-  it('writes the destination and txnId before the send starts', async () => {
+  it('writes where it really goes, in IDs, and its txnId before anything is sent', async () => {
     const journal = createJournal();
-    const written = deferred();
+    const written = deferred<boolean>();
     journal.update.mockReturnValueOnce(written.promise);
     const controller = createVoiceSendDraftController(createDraftStore(), journal);
-    const sendRecording = vi.fn();
-    const recording = createRecording();
+    // The composer resolves the thread's root to the ID the server gave it, and the reply.
+    const { sendRecording, dispatched } = committedSend((context) => ({
+      ...context,
+      threadId: '$root-on-server',
+      replyDraft: {
+        userId: '@bob:example.org',
+        eventId: '$reply',
+        body: 'the quoted secret',
+        formattedBody: '<b>the quoted secret</b>',
+        previewText: 'the quoted secret',
+        relation: { rel_type: 'm.thread', event_id: '$reply-thread' },
+      },
+    }));
 
-    const sent = controller.sendInitial(recording, createContext(), {
+    const delivery = controller.sendInitial(createRecording(), createContext(), {
       sendRecording,
       onFailure: vi.fn(),
     });
     await journalWritten();
     expect(journal.update).toHaveBeenCalledExactlyOnceWith('rec-voice', {
-      destination,
+      destination: {
+        ...destination,
+        threadId: '$root-on-server',
+        replyEventId: '$reply',
+        replyThreadId: '$reply-thread',
+      },
       txnId: expect.stringMatching(/^mindroom-voice-/),
-      errorMessage: undefined,
     });
-    expect(sendRecording).not.toHaveBeenCalled();
-    written.resolve();
-    expect(await sent).toBe(true);
-    expect(sendRecording.mock.calls[0]![4]).toBe(journal.update.mock.calls[0]![1].txnId);
+    expect(JSON.stringify(journal.update.mock.calls)).not.toContain('secret');
+    expect(dispatched).not.toHaveBeenCalled();
+    written.resolve(true);
+    expect(await delivery).toBe(true);
+    expect(dispatched).toHaveBeenCalledOnce();
+    expect(sendRecording.mock.calls[0]![4].txnId).toBe(journal.update.mock.calls[0]![1].txnId);
   });
 
-  it('deletes the record only after the event is acknowledged', async () => {
+  it('sends nothing and keeps the recording when the journal could not take where it goes', async () => {
     const journal = createJournal();
-    const controller = createVoiceSendDraftController(createDraftStore(), journal);
-    const acknowledged = deferred();
+    journal.update.mockResolvedValue(false);
+    const store = createDraftStore();
+    const controller = createVoiceSendDraftController(store, journal);
+    const { sendRecording, dispatched } = committedSend();
+    const onFailure = vi.fn();
+    const recording = createRecording();
 
-    const sent = controller.sendInitial(createRecording(), createContext(), {
-      sendRecording: () => acknowledged.promise,
-      onFailure: vi.fn(),
-    });
-    await journalWritten();
-    await journalWritten();
+    expect(
+      await controller.sendInitial(recording, createContext(), { sendRecording, onFailure })
+    ).toBe(false);
+    expect(dispatched).not.toHaveBeenCalled();
     expect(journal.remove).not.toHaveBeenCalled();
-    acknowledged.resolve();
-    expect(await sent).toBe(true);
-    expect(journal.remove).toHaveBeenCalledExactlyOnceWith('rec-voice');
+    expect(onFailure).toHaveBeenCalledOnce();
+    // It is kept in memory, with its error, and no longer claims to be on disk.
+    expect(store.read()).toMatchObject({
+      file: recording.file,
+      errorMessage: 'Failed to send voice message.',
+      unprotected: true,
+    });
+
+    // The disk still refuses: it goes from memory, under the ID it had.
+    const { txnId } = store.read()!;
+    expect(
+      await controller.retry({
+        sendRecording,
+        onFailure,
+        claim: () => true,
+        context: createContext,
+      })
+    ).toBe(true);
+    expect(dispatched).toHaveBeenCalledOnce();
+    expect(sendRecording.mock.calls.map((call) => call[4].txnId)).toEqual([txnId, txnId]);
   });
 
-  it('keeps the record and the error of a failed send, and retries with the same txnId', async () => {
+  it('sends a recording the disk never held from memory', async () => {
+    const journal = createJournal();
+    journal.update.mockResolvedValue(false);
+    const controller = createVoiceSendDraftController(createDraftStore(), journal);
+    const { sendRecording, dispatched } = committedSend();
+    expect(
+      await controller.sendInitial({ ...createRecording(), unprotected: true }, createContext(), {
+        sendRecording,
+        onFailure: vi.fn(),
+      })
+    ).toBe(true);
+    expect(dispatched).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['a send that resolved without an event ID', async () => undefined],
+    [
+      'a send that failed',
+      async () => {
+        throw new Error('upload failed');
+      },
+    ],
+  ])('keeps the record after %s', async (_case, sendRecording) => {
     const journal = createJournal();
     const store = createDraftStore();
     const controller = createVoiceSendDraftController(store, journal);
-    const sendRecording = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('upload failed'))
-      .mockResolvedValueOnce(undefined);
+
+    expect(
+      await controller.sendInitial(createRecording(), createContext(), {
+        sendRecording,
+        onFailure: vi.fn(),
+      })
+    ).toBe(false);
+    expect(journal.remove).not.toHaveBeenCalled();
+    expect(store.read()?.errorMessage).toEqual(expect.any(String));
+
+    // Sending but not acknowledged yet, it is still there.
+    const acknowledged = deferred<string>();
+    const retry = controller.retry({
+      sendRecording: () => acknowledged.promise,
+      onFailure: vi.fn(),
+      claim: () => true,
+      context: createContext,
+    });
+    await journalWritten();
+    await journalWritten();
+    expect(journal.remove).not.toHaveBeenCalled();
+    acknowledged.resolve('$voice');
+    expect(await retry).toBe(true);
+    expect(journal.remove).toHaveBeenCalledExactlyOnceWith('rec-voice');
+  });
+
+  it('retries a failed send under the same txnId', async () => {
+    const journal = createJournal();
+    const store = createDraftStore();
+    const controller = createVoiceSendDraftController(store, journal);
+    const { sendRecording, dispatched } = committedSend();
+    dispatched.mockRejectedValueOnce(new Error('upload failed'));
     const attempt = { sendRecording, onFailure: vi.fn() };
 
     expect(await controller.sendInitial(createRecording(), createContext(), attempt)).toBe(false);
-    expect(journal.remove).not.toHaveBeenCalled();
-    expect(journal.update).toHaveBeenLastCalledWith('rec-voice', { errorMessage: 'upload failed' });
     const { txnId } = store.read()!;
     expect(txnId).toEqual(expect.any(String));
-
     expect(await controller.retry({ ...attempt, claim: () => true, context: createContext })).toBe(
       true
     );
-    expect(sendRecording.mock.calls.map((call) => call[4])).toEqual([txnId, txnId]);
-    expect(journal.update).toHaveBeenLastCalledWith('rec-voice', {
-      destination,
-      txnId,
-      errorMessage: undefined,
-    });
-    expect(journal.remove).toHaveBeenCalledExactlyOnceWith('rec-voice');
+    expect(sendRecording.mock.calls.map((call) => call[4].txnId)).toEqual([txnId, txnId]);
+    expect(journal.update.mock.calls.map((call) => call[1])).toEqual([
+      { destination, txnId },
+      { destination, txnId },
+    ]);
   });
 
   it('retries a crash mid-send with the same txnId', async () => {
@@ -451,7 +554,7 @@ describe('voiceSendDraftController and the journal', () => {
     // As recovery parks it: where it was going, and the transaction ID written before the crash.
     const store = createDraftStore({ ...createDraft(), txnId: 'txn-before-crash' });
     const controller = createVoiceSendDraftController(store, journal);
-    const sendRecording = vi.fn();
+    const sendRecording = sent();
 
     expect(
       await controller.retry({
@@ -466,7 +569,7 @@ describe('voiceSendDraftController and the journal', () => {
       640,
       [3, 17, 42],
       expect.objectContaining({ roomId: '!voice:example.org' }),
-      'txn-before-crash'
+      { txnId: 'txn-before-crash', commit: expect.any(Function) }
     );
     expect(journal.remove).toHaveBeenCalledExactlyOnceWith('rec-voice');
   });
@@ -479,7 +582,8 @@ describe('voiceSendDraftController and the journal', () => {
     });
     const controller = createVoiceSendDraftController(store, journal);
     const pressed = createContext('!pressed:example.org');
-    const sendRecording = vi.fn().mockRejectedValueOnce(new Error('offline'));
+    const { sendRecording, dispatched } = committedSend();
+    dispatched.mockRejectedValueOnce(new Error('offline'));
 
     expect(
       await controller.retry({
@@ -493,9 +597,68 @@ describe('voiceSendDraftController and the journal', () => {
     expect(journal.update).toHaveBeenCalledWith('rec-voice', {
       destination: { ...destination, roomId: '!pressed:example.org' },
       txnId: expect.any(String),
-      errorMessage: undefined,
     });
     expect(store.read()).toMatchObject({ context: pressed, errorMessage: 'offline' });
     expect(journal.remove).not.toHaveBeenCalled();
   });
+});
+
+describe('a send that ends after the person moved on', () => {
+  const recovered: PendingVoiceSendDraft = {
+    ...createRecording('recovered'),
+    context: { ownerSessionId: '@voice:example.org' },
+  };
+
+  it.each([
+    ['sent', '$voice', []],
+    ['failed', undefined, ['rec-voice']],
+  ] as const)(
+    'a first attempt that is %s leaves the recording that took the slot after navigation',
+    async (_outcome, eventId, waiting) => {
+      const store = createDraftStore();
+      const controller = createVoiceSendDraftController(store);
+      const gate = deferred<string | undefined>();
+      const delivery = controller.sendInitial(createRecording(), createContext(), {
+        sendRecording: () => gate.promise,
+        onFailure: vi.fn(),
+      });
+      // The recorder's composer goes, and a recording that waited is shown.
+      store.write(recovered);
+      gate.resolve(eventId);
+      expect(await delivery).toBe(eventId !== undefined);
+      expect(store.read()).toBe(recovered);
+      expect(store.queued().map((draft) => draft.recordingId)).toEqual(waiting);
+    }
+  );
+
+  it.each([
+    ['sent', '$voice'],
+    ['failed', undefined],
+  ] as const)(
+    'a retry that is %s ends in the queue its draft moved to on an account switch',
+    async (_outcome, eventId) => {
+      const store = createDraftStore(createDraft());
+      const controller = createVoiceSendDraftController(store);
+      const gate = deferred<string | undefined>();
+      const onFailure = vi.fn();
+      const retry = controller.retry({
+        claim: () => true,
+        sendRecording: () => gate.promise,
+        onFailure,
+        context: createContext,
+      });
+      // Another account takes the page: this one's draft waits, and that one's is shown.
+      store.setQueued([store.read()!]);
+      store.write(recovered);
+      gate.resolve(eventId);
+      expect(await retry).toBe(eventId !== undefined);
+      expect(store.read()).toBe(recovered);
+      // Sent, it is gone; failed, it waits with its error and can be retried, not "sending" forever.
+      expect(store.queued()).toMatchObject(
+        eventId ? [] : [{ recordingId: 'rec-voice', errorMessage: 'Failed to send voice message.' }]
+      );
+      expect(store.queued()[0]?.inFlight).toBeUndefined();
+      expect(onFailure).toHaveBeenCalledTimes(eventId ? 0 : 1);
+    }
+  );
 });

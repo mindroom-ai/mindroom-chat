@@ -35,7 +35,7 @@ import {
 } from '../matrix/protocol/longText';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
-import { discardFailedLocalEcho, txnIdToSendUnder } from '../matrix/protocol/pendingLocalEcho';
+import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
   createRoomInputSendSessionState,
   getSubmissionMarker,
@@ -70,7 +70,8 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
-  onUploadSent?: (file: TUploadContent) => void;
+  /** With the ID of the file's event, when the server gave one. */
+  onUploadSent?: (file: TUploadContent, eventId: string | undefined) => void;
   /** What the session uses of the composer that started it, taken at Send. */
   composer: SessionComposer;
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
@@ -198,7 +199,7 @@ export type StartRoomInputSendSessionOptions = {
   composerFallback?: Descendant[];
   composerContext?: ComposerContext;
   composerAlreadyReset?: boolean;
-  onUploadSent?: (file: TUploadContent) => void;
+  onUploadSent?: (file: TUploadContent, eventId: string | undefined) => void;
 };
 
 export type RoomInputReplyDraftContext = Pick<RoomInputSendContext, 'roomId' | 'replyDraft'>;
@@ -585,7 +586,7 @@ export const useRoomInputSendSessionController = ({
         return;
       }
       // A voice message goes under the ID its recording keeps.
-      const txnId = txnIdToSendUnder(mx, session.room, fileItem.metadata.voiceMessage?.txnId);
+      const txnId = fileItem.metadata.voiceMessage?.txnId ?? mx.makeTxnId();
       const response = await mx
         .sendMessage(
           session.roomId,
@@ -615,7 +616,7 @@ export const useRoomInputSendSessionController = ({
             ? relation.event_id
             : response.event_id;
       }
-      session.onUploadSent?.(file);
+      session.onUploadSent?.(file, response.event_id);
       clearReplyDraftForSession(session);
       // The composer that took the send over meanwhile holds the file now.
       session.composer.attachments.remove(session.roomId, [file]);

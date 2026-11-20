@@ -20,13 +20,19 @@ export const isFailedLocalEchoEvent = (event?: Pick<MatrixEvent, 'status'> | nul
   isFailedLocalEchoStatus(event?.status);
 
 /**
- * The transaction ID to send an event under: `kept` when the caller keeps one for the event, so
- * that sending it again after a crash is the same event to the server. A room never forgets an ID
- * that had a local echo, also a cancelled one, and refuses a second echo under it, so an attempt
- * that follows a failed one in the same page gets a fresh ID.
+ * The ID of the event the server holds for a transaction ID of this device: its send got through,
+ * also when the response did not.
  */
-export const txnIdToSendUnder = (mx: MatrixClient, room: Room, kept: string | undefined): string =>
-  kept && !room.getEventForTxnId(kept) ? kept : mx.makeTxnId();
+export const eventIdOfTransaction = (room: Room, txnId: string): string | undefined => {
+  const sentHere = (event: MatrixEvent) => event.getUnsigned().transaction_id === txnId;
+  return (
+    room.getLiveTimeline().getEvents().find(sentHere) ??
+    room
+      .getThreads()
+      .flatMap((thread) => thread.liveTimeline.getEvents())
+      .find(sentHere)
+  )?.getId();
+};
 
 /** Removes a local echo that failed to send, so it can no longer be resent. */
 export const discardFailedLocalEcho = (mx: MatrixClient, event: MatrixEvent | undefined): void => {

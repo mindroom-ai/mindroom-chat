@@ -136,8 +136,8 @@ const keptAtoms = (): Map<object, string> =>
       'each names the account that recorded it and is offered to no other',
     ],
     [
-      loaded.drafts.discardedVoiceDraftAtom,
-      'the discard of the last ten seconds, whose Undo outlives the composer it was made in',
+      loaded.drafts.discardedVoiceDraftsAtom,
+      'the discards of the last ten seconds, each offered for Undo to the account that made it',
     ],
     [
       loaded.drafts.threadViewVoiceComposersAtom,

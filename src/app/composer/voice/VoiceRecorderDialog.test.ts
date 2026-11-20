@@ -4,13 +4,29 @@ import { Room } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecorderDialog';
+import type { SendRecordingCallback } from './voiceSendDraftController';
 import {
   pendingVoiceSendDraftAtom,
   queuedVoiceDraftsAtom,
   type PendingVoiceSendContext,
 } from '../roomInputDrafts';
 
+// Whether the disk takes the recorder's writes: what the journal does with them is in
+// voiceRecordingJournal.test.ts.
+const disk = vi.hoisted(() => ({ writes: true }));
+vi.mock('./voiceRecordingJournal', () => ({
+  voiceCaptureJournal: () => ({
+    begin: async () => disk.writes,
+    append: async () => disk.writes,
+    abandon: () => undefined,
+  }),
+  updateVoiceRecording: async () => disk.writes,
+  deleteVoiceRecording: async () => undefined,
+}));
+
 const TEST_ROOM_ID = '!room:example.org';
+/** A send the server acknowledged with an event ID. */
+const acknowledged = () => vi.fn<SendRecordingCallback>(async () => '$voice');
 
 const createTestSendContext = (): PendingVoiceSendContext => ({
   ownerSessionId: '@me:example.org',
@@ -214,13 +230,14 @@ function OverviewHarness({ onClose }: { onClose: () => void }) {
       setOpen(false);
     },
     onRetryRequest: vi.fn(),
-    onSendRecording: vi.fn(),
+    onSendRecording: acknowledged(),
     getSendContext: createTestSendContext,
   });
 }
 
 describe('VoiceRecorderComposer', () => {
   beforeEach(() => {
+    disk.writes = true;
     vi.stubGlobal('window', {
       isSecureContext: true,
     });
@@ -265,7 +282,7 @@ describe('VoiceRecorderComposer', () => {
     setupSupportedRecorder();
     const onClose = vi.fn();
     const onRetryRequest = vi.fn();
-    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const onSendRecording = acknowledged().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
@@ -311,10 +328,44 @@ describe('VoiceRecorderComposer', () => {
     renderer.unmount();
   });
 
+  it('does not call a recording saved that the disk does not hold', async () => {
+    setupSupportedRecorder();
+    disk.writes = false;
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        renderInProvider(
+          React.createElement(VoiceRecorderComposer, {
+            ref: recorderRef,
+            active: true,
+            onClose: vi.fn(),
+            onRetryRequest: vi.fn(),
+            onSendRecording: acknowledged().mockRejectedValueOnce(new Error('upload failed')),
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+    // While it records, the capsule says so.
+    expect(JSON.stringify(renderer.toJSON())).toContain('Not protected against a crash ·');
+
+    await act(async () => {
+      await recorderRef.current?.send();
+    });
+    // And so do the failure dialog and the capsule of the parked recording.
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('Voice send failed');
+    expect(rendered).not.toContain('Your recording is still saved.');
+    expect(rendered.split('Not protected against a crash')).toHaveLength(3);
+
+    renderer.unmount();
+  });
+
   it('confirms before discarding a pending failed recording', async () => {
     setupSupportedRecorder();
     const onClose = vi.fn();
-    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const onSendRecording = acknowledged().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
@@ -383,7 +434,7 @@ describe('VoiceRecorderComposer', () => {
     // onDeactivate (which fires on every teardown including Retry/Discard).
     setupSupportedRecorder();
     const onClose = vi.fn();
-    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const onSendRecording = acknowledged().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
@@ -441,7 +492,7 @@ describe('VoiceRecorderComposer', () => {
     // exact bug scenario: Discard click → trap unmounts → fires (snapshot)
     // onDeactivate → Cancel from confirmation → overlay must re-show.
     setupSupportedRecorder();
-    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
+    const onSendRecording = acknowledged().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
 
@@ -497,8 +548,7 @@ describe('VoiceRecorderComposer', () => {
     // calling retry().
     setupSupportedRecorder();
     const message = 'upload failed';
-    const onSendRecording = vi
-      .fn()
+    const onSendRecording = acknowledged()
       .mockRejectedValueOnce(new Error(message))
       .mockRejectedValueOnce(new Error(message));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
@@ -554,7 +604,7 @@ describe('VoiceRecorderComposer', () => {
       context: { ownerSessionId: '@me:example.org' },
     });
     const onClose = vi.fn();
-    const onSendRecording = vi.fn();
+    const onSendRecording = acknowledged();
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
     await act(async () => {
@@ -588,7 +638,7 @@ describe('VoiceRecorderComposer', () => {
       272_000,
       undefined,
       expect.objectContaining({ roomId: TEST_ROOM_ID, ownerSessionId: '@me:example.org' }),
-      expect.any(String)
+      { txnId: expect.any(String), commit: expect.any(Function) }
     );
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
     expect(onClose).toHaveBeenCalledOnce();
@@ -610,20 +660,12 @@ describe('VoiceRecorderComposer', () => {
             active: true,
             onClose,
             onRetryRequest: vi.fn(),
-            onSendRecording: vi.fn(),
+            onSendRecording: acknowledged(),
             getSendContext: createTestSendContext,
           })
         )
       );
     });
-    // Without a database here, the capsule says the live recording is not on disk.
-    await act(async () => {
-      await new Promise((resolve) => {
-        setTimeout(resolve, 0);
-      });
-    });
-    expect(JSON.stringify(renderer.toJSON())).toContain('Not protected against a crash ·');
-
     await act(async () => {
       MockMediaRecorder.latest!.stop();
     });

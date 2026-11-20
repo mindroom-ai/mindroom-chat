@@ -130,7 +130,7 @@ const capture = (options?: Parameters<typeof createVoiceCaptureSession>[0]) => {
 const newJournal = () => ({
   begin: vi.fn(async () => true),
   append: vi.fn(async () => true),
-  stop: vi.fn(),
+  abandon: vi.fn(),
 });
 class NativeRecorder extends EventTarget {
   state: RecordingState = 'recording';
@@ -311,6 +311,8 @@ describe('voice capture session', () => {
       });
       expect(await session.start()).toBe(false);
       expect(stream.track.stop).toHaveBeenCalledOnce();
+      // A recorder that had started is waited for: its last audio comes with its stop.
+      latest().emitStop();
       expect(vi.getTimerCount()).toBe(0);
       expect(session.getSnapshot().phase).toBe('idle');
       expect(latest().state).toBe('inactive');
@@ -363,6 +365,7 @@ describe('voice capture session', () => {
     const resumed = session.resume();
     expect(session.getSnapshot().phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
+    latest().emitStop();
     expect(vi.getTimerCount()).toBe(0);
     expect(resumed).toBe(false);
     unsubscribe();
@@ -446,6 +449,7 @@ describe('voice capture session', () => {
       expect(session.getSnapshot().phase).toBe('idle');
       expect(stream.track.stop).toHaveBeenCalledOnce();
       expect(Audio.instances[0]!.close).toHaveBeenCalledOnce();
+      latest().emitStop();
       expect(vi.getTimerCount()).toBe(0);
       expect(started).toBe(false);
     }
@@ -627,6 +631,7 @@ describe('voice capture session', () => {
     await session.start();
     session.releaseOwner();
     expect(latest().stop).toHaveBeenCalledOnce();
+    latest().emitStop();
     expect(vi.getTimerCount()).toBe(0);
     expect(session.getSnapshot().phase).toBe('idle');
   });
@@ -710,14 +715,57 @@ describe('voice capture session with a journal', () => {
     ).flatMap(([, , chunk]) => chunk.samples);
     // Each sample is journaled once, with the chunk that followed it.
     expect(samples).toHaveLength(session.getSnapshot().sampleCount);
-    expect(journal.stop).not.toHaveBeenCalled();
     const result = await finish(session, 'three');
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.recordingId).toBe(recordingId);
     expect(await result.recording.file.text()).toBe('onetwothree');
     expect(journal.append).toHaveBeenCalledTimes(3);
-    expect(journal.stop).toHaveBeenCalledExactlyOnceWith(recordingId, true);
+    // On disk in full: it does not say otherwise, and its record stays for the send.
+    expect(result.recording.unprotected).toBeUndefined();
+    expect(journal.abandon).not.toHaveBeenCalled();
     expect(session.getSnapshot().unprotected).toBe(false);
+  });
+
+  it('says so while the journal does not hold all of it, and no longer once it does', async () => {
+    const journal = newJournal();
+    const session = capture({ journal });
+    await session.start();
+    const warnings = vi.fn();
+    session.subscribe(() => {
+      const { unprotected } = session.getSnapshot();
+      if (unprotected !== (warnings.mock.lastCall?.[0] ?? false)) warnings(unprotected);
+    });
+    journal.append.mockResolvedValueOnce(false);
+    latest().emitData(new Blob(['one']));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.getSnapshot()).toMatchObject({ phase: 'recording', unprotected: true });
+    // The journal made the failed write again with this one.
+    latest().emitData(new Blob(['two']));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(warnings.mock.calls).toEqual([[true], [false]]);
+    const result = await finish(session, 'three');
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(result.recording.unprotected).toBeUndefined();
+  });
+
+  it('hands over a recording whose last write failed as not protected', async () => {
+    const journal = newJournal();
+    const session = capture({ journal });
+    await session.start();
+    latest().emitData(new Blob(['one']));
+    // The write of the recorder's last audio decides, and is waited for.
+    const lastWrite = deferred<boolean>();
+    journal.append.mockReturnValueOnce(lastWrite.promise);
+    const finished = finish(session, 'two');
+    const settled = vi.fn();
+    void finished.then(settled);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).not.toHaveBeenCalled();
+    lastWrite.resolve(false);
+    const result = await finished;
+    if (result.status !== 'captured') throw new Error('missing recording');
+    expect(result.recording.unprotected).toBe(true);
+    expect(await result.recording.file.text()).toBe('onetwo');
   });
 
   it('keeps recording and warns once when a journal write fails', async () => {
@@ -764,7 +812,7 @@ describe('voice capture session with a journal', () => {
     const result = session.finish();
     latest().emitStop();
     expect(await result).toEqual({ status: 'failed' });
-    expect(journal.stop).toHaveBeenCalledExactlyOnceWith(recordingId, false);
+    expect(journal.abandon).toHaveBeenCalledExactlyOnceWith(recordingId);
   });
 
   it('asks the recorder for its data when the page is hidden', async () => {
@@ -799,6 +847,7 @@ describe('voice capture session that keeps unsent audio', () => {
     vi.advanceTimersByTime(300);
     latest().emitData(new Blob(['unclaimed'], { type: 'audio/webm' }));
     latest().emitStop();
+    await vi.advanceTimersByTimeAsync(0);
     expect(keep).toHaveBeenCalledExactlyOnceWith(
       {
         recordingId: expect.any(String),
@@ -825,31 +874,57 @@ describe('voice capture session that keeps unsent audio', () => {
     );
   });
 
-  it('keeps the audio it has when retired or released', async () => {
+  it('keeps all it recorded when retired or released, the audio that comes with the stop too', async () => {
     const keep = vi.fn();
     const session = capture({ keep });
     await session.start();
     vi.advanceTimersByTime(200);
     latest().emitData(new Blob(['reset']));
+    const reset = latest();
     session.reset();
+    // The microphone is free at once; the recorder still owes what it had not handed over.
+    expect(reset.stop).toHaveBeenCalledOnce();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(keep).not.toHaveBeenCalled();
     await session.start();
     vi.advanceTimersByTime(400);
-    latest().emitData(new Blob(['released']));
+    const released = latest();
     session.releaseOwner();
+    // Left before the recorder's first second was up: all of it comes with the stop.
+    released.emitData(new Blob(['released']));
+    released.emitStop();
+    reset.emitData(new Blob([' and its tail']));
+    reset.emitStop();
+    await vi.advanceTimersByTimeAsync(0);
     const kept = keep.mock.calls as [{ file: File; duration: number }, boolean][];
     expect(kept.map(([recording, discarded]) => [recording.duration, discarded])).toEqual([
-      [200, false],
       [400, false],
+      [200, false],
     ]);
     expect(await Promise.all(kept.map(([recording]) => recording.file.text()))).toEqual([
-      'reset',
       'released',
+      'reset and its tail',
     ]);
+    expect(vi.getTimerCount()).toBe(0);
     // A recording that was sent is not kept as well.
     await session.start();
     await finish(session);
     session.reset();
     expect(keep).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps what it has when a recorder it let go of never reports its stop', async () => {
+    const keep = vi.fn();
+    const session = capture({ keep });
+    await session.start();
+    latest().emitData(new Blob(['so far']));
+    session.releaseOwner();
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(keep).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    const [[recording]] = keep.mock.calls as [[{ file: File }]];
+    expect(await recording.file.text()).toBe('so far');
   });
 
   it('keeps a discarded recording for its Undo', async () => {
@@ -861,6 +936,7 @@ describe('voice capture session that keeps unsent audio', () => {
     latest().emitData(new Blob(['discarded']));
     latest().emitStop();
     expect(await discarded).toBe(false);
+    await vi.advanceTimersByTimeAsync(0);
     expect(keep).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ duration: 500 }), true);
     expect(session.getSnapshot()).toMatchObject({ phase: 'idle', errorMessage: undefined });
   });

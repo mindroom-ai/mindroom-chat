@@ -25,6 +25,7 @@ import {
   voiceCaptureJournal,
 } from '../../composer/voice/voiceRecordingJournal';
 import { createVoiceSendDraftController } from '../../composer/voice/voiceSendDraftController';
+import { settleVoiceDraft } from '../../composer/voice/voiceDrafts';
 
 // P2-e2ee-F011: the offline cache keeps encrypted rooms as ciphertext, but the account's other
 // stores kept text read out of their decrypted events in the clear: the preview of a recently
@@ -143,62 +144,72 @@ describe('text read out of encrypted rooms stays off disk', () => {
     });
   });
 
-  it('parks a voice message replying in an encrypted room without the text it quotes', async () => {
-    const mx = createClient();
-    stopKeeping = keepEncryptedRoomTextOffDisk(mx, []);
-    const store = createStore();
-    // The recording is on disk from its first second; its failed send parks it there.
-    const file = new File(['voice bytes'], 'voice.ogg', { type: 'audio/ogg' });
-    const capture = voiceCaptureJournal(() => USER);
-    await capture.begin({ recordingId: 'rec-1', startedAt: 1, mimeType: file.type });
-    await capture.append('rec-1', 0, { data: file, elapsedMs: 1_000, samples: [] });
-    const controller = createVoiceSendDraftController(
-      {
-        read: () => store.get(pendingVoiceSendDraftAtom),
-        write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
-      },
-      { update: updateVoiceRecording, remove: deleteVoiceRecording }
-    );
-    await controller.sendInitial(
-      { recordingId: 'rec-1', file, duration: 1_000, waveform: undefined },
-      {
-        ownerSessionId: USER,
-        roomId: SECRET,
-        room: rooms.get(SECRET)!,
-        threadId: undefined,
-        replyDraft: quoted(SECRET),
-        threadingEnabled: true,
-        signalBridgedRoom: false,
-      },
-      {
-        sendRecording: () => Promise.reject(new Error('offline')),
-        onFailure: () => undefined,
-      }
-    );
-    // In memory the parked draft keeps the text its reply bar shows.
-    expect(store.get(pendingVoiceSendDraftAtom)?.context).toMatchObject({
-      replyDraft: quoted(SECRET),
-    });
-    const readSaved = async () => {
+  it.each([SECRET, PLAIN])(
+    'parks a voice message that replies with the IDs of what it quotes, none of the text (%s)',
+    async (roomId) => {
+      // Before the rooms are known, as when a send ends after its client went: no room looks
+      // encrypted then, so nothing here may depend on that.
+      vi.stubGlobal('navigator', {
+        locks: {
+          request: (_name: string, _options: object, held: (lock: object) => unknown) => held({}),
+        },
+      });
+      const store = createStore();
+      // The recording is on disk from its first second; its failed send parks it there.
+      const file = new File(['voice bytes'], 'voice.ogg', { type: 'audio/ogg' });
+      const recordingId = `rec-${roomId}`;
+      const capture = voiceCaptureJournal(() => USER);
+      await capture.begin({ recordingId, startedAt: 1, mimeType: file.type });
+      await capture.append(recordingId, 0, { data: file, elapsedMs: 1_000, samples: [] });
+      const controller = createVoiceSendDraftController(
+        {
+          read: () => store.get(pendingVoiceSendDraftAtom),
+          write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
+          settle: (...attempt) => settleVoiceDraft(store, ...attempt),
+        },
+        { update: updateVoiceRecording, remove: deleteVoiceRecording }
+      );
+      await controller.sendInitial(
+        { recordingId, file, duration: 1_000, waveform: undefined },
+        {
+          ownerSessionId: USER,
+          roomId,
+          room: rooms.get(roomId)!,
+          threadId: undefined,
+          replyDraft: quoted(roomId),
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+        {
+          sendRecording: async (_file, _duration, _waveform, context, attempt) => {
+            await attempt.commit(context);
+            throw new Error('offline');
+          },
+          onFailure: () => undefined,
+        }
+      );
+      // In memory the parked draft keeps the text its reply bar shows.
+      expect(store.get(pendingVoiceSendDraftAtom)?.context).toMatchObject({
+        replyDraft: quoted(roomId),
+      });
       const db = await openDB('mindroom-voice-journal', 1);
-      try {
-        return (
-          (await db.get('recordings', 'rec-1')) as
-            | { destination?: { replyDraft?: IReplyDraft } }
-            | undefined
-        )?.destination;
-      } finally {
-        db.close();
-      }
-    };
-    await vi.waitFor(async () => expect(await readSaved()).toBeDefined());
-    expect((await readSaved())?.replyDraft).toEqual({
-      userId: '@helper:example.org',
-      eventId: `$answer-${SECRET}`,
-      body: '',
-      relation: { rel_type: 'm.thread', event_id: `$root-${SECRET}` },
-    });
-  });
+      const saved = await db.get('recordings', recordingId);
+      db.close();
+      expect(saved.destination).toEqual({
+        roomId,
+        threadId: undefined,
+        replyEventId: `$answer-${roomId}`,
+        replyThreadId: `$root-${roomId}`,
+        threadingEnabled: true,
+        threadView: undefined,
+      });
+      const { body, formattedBody, previewText } = quoted(roomId);
+      [body, formattedBody, previewText].forEach((text) => {
+        if (text) expect(JSON.stringify(saved)).not.toContain(text);
+      });
+      vi.unstubAllGlobals();
+    }
+  );
 
   it("deletes what an older version stored once the rooms are known, and keeps the person's own draft", () => {
     const ownDraft = JSON.stringify([{ type: 'paragraph', children: [{ text: 'My own words' }] }]);

@@ -76,6 +76,8 @@ export type PendingVoiceSendDraft = {
   context: PendingVoiceSendContext | UnplacedVoiceContext;
   /** The Matrix transaction ID of its send, written to the journal before the first attempt. */
   txnId?: string;
+  /** The disk does not hold all of it: a crash would lose it. */
+  unprotected?: boolean;
   errorMessage?: string;
   inFlight?: PendingVoiceSendInFlight;
 };
@@ -394,10 +396,8 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** Recordings that wait for that slot, the next one first (voice/voiceDrafts.ts). */
 export const queuedVoiceDraftsAtom = atom<PendingVoiceSendDraft[]>([]);
 
-/** The recording that was discarded last, while its Undo is offered, and until when. */
-export const discardedVoiceDraftAtom = atom<
-  { draft: PendingVoiceSendDraft; until: number } | undefined
->(undefined);
+/** Recordings that were discarded, each while its Undo is offered, and until when. */
+export const discardedVoiceDraftsAtom = atom<{ draft: PendingVoiceSendDraft; until: number }[]>([]);
 
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);

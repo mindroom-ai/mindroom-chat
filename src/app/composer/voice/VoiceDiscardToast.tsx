@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAtomValue, useStore } from 'jotai';
 import { Button, Text } from 'folds';
@@ -6,29 +5,25 @@ import { useTranslation } from 'react-i18next';
 import { pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { PageSlot } from '../../ui/noticeSlots.css';
 import { Surface } from '../../ui/glass/GlassPrimitives';
-import { discardedVoiceDraftAtom } from '../roomInputDrafts';
-import { confirmVoiceDiscard, undoVoiceDiscard } from './voiceDrafts';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { discardedVoiceDraftsAtom } from '../roomInputDrafts';
+import { undoVoiceDiscard } from './voiceDrafts';
 import * as css from './VoiceDiscardToast.css';
 
 /**
- * Says that a voice recording was discarded and offers Undo, in the page's notice place, until
- * the discard stands (`VOICE_DISCARD_UNDO_MS`). Mounted once for the signed-in app, so it
- * outlives the composer the recording was discarded in.
+ * Says that a voice recording of this account was discarded and offers Undo, in the page's notice
+ * place, until the discard stands (`VOICE_DISCARD_UNDO_MS`). Mounted once for the signed-in app,
+ * so it outlives the composer the recording was discarded in.
  */
 export function VoiceDiscardToast() {
   const { t } = useTranslation();
   const store = useStore();
-  const discarded = useAtomValue(discardedVoiceDraftAtom);
+  const userId = useMatrixClient().getUserId();
+  // The last one of several: Undo brings that back, and then offers the one before.
+  const discarded = useAtomValue(discardedVoiceDraftsAtom).findLast(
+    (entry) => entry.draft.context.ownerSessionId === userId
+  );
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
-
-  useEffect(() => {
-    if (!discarded) return undefined;
-    const timer = setTimeout(
-      () => confirmVoiceDiscard(store),
-      Math.max(0, discarded.until - Date.now())
-    );
-    return () => clearTimeout(timer);
-  }, [discarded, store]);
 
   if (!discarded) return null;
   const toast = (
@@ -41,7 +36,7 @@ export function VoiceDiscardToast() {
         variant="Secondary"
         fill="Soft"
         radii="Pill"
-        onClick={() => undoVoiceDiscard(store)}
+        onClick={() => void undoVoiceDiscard(store, discarded.draft.recordingId)}
       >
         <Text as="span" size="B300">
           {t('composer.voiceUndoDiscard')}

@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  discardedVoiceDraftAtom,
+  discardedVoiceDraftsAtom,
   pendingVoiceSendDraftAtom,
   queuedVoiceDraftsAtom,
   type PendingVoiceSendDraft,
@@ -12,10 +12,14 @@ import { discardVoiceDraft, offerQueuedVoiceDraft } from './voiceDrafts';
 import { VoiceDiscardToast } from './VoiceDiscardToast';
 
 const journal = vi.hoisted(() => ({
-  updateVoiceRecording: vi.fn(async () => undefined),
+  updateVoiceRecording: vi.fn(async () => true),
   deleteVoiceRecording: vi.fn(async () => undefined),
 }));
 vi.mock('./voiceRecordingJournal', () => journal);
+const account = vi.hoisted(() => ({ userId: '@alice:example.org' }));
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ getUserId: () => account.userId }),
+}));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -46,11 +50,10 @@ const draft: PendingVoiceSendDraft = {
 };
 
 let renderer: ReactTestRenderer;
+const toast = () => React.createElement(VoiceDiscardToast);
 const mount = (store: ReturnType<typeof createStore>) =>
   act(() => {
-    renderer = create(
-      React.createElement(Provider, { store }, React.createElement(VoiceDiscardToast))
-    );
+    renderer = create(React.createElement(Provider, { store }, toast()));
   });
 const shown = () => JSON.stringify(renderer.toJSON());
 
@@ -65,7 +68,7 @@ afterEach(() => {
 });
 
 describe('VoiceDiscardToast', () => {
-  it('offers Undo, which brings the recording back as a parked draft', () => {
+  it('offers Undo, which brings the recording back as a parked draft', async () => {
     const store = createStore();
     mount(store);
     expect(renderer.toJSON()).toBeNull();
@@ -75,20 +78,42 @@ describe('VoiceDiscardToast', () => {
     act(() => {
       vi.advanceTimersByTime(9_000);
     });
-    act(() => {
+    await act(async () => {
       (renderer.root.findByType('button').props as { onClick: () => void }).onClick();
     });
 
     expect(renderer.toJSON()).toBeNull();
-    expect(store.get(discardedVoiceDraftAtom)).toBeUndefined();
+    expect(store.get(discardedVoiceDraftsAtom)).toEqual([]);
     expect(store.get(queuedVoiceDraftsAtom)).toEqual([draft]);
     offerQueuedVoiceDraft(store, USER);
     expect(store.get(pendingVoiceSendDraftAtom)).toBe(draft);
-    // Nothing is deleted later either.
+  });
+
+  it('offers the last discard first, then the one before, and none of another account', async () => {
+    const store = createStore();
+    mount(store);
+    const press = () =>
+      act(async () => {
+        (renderer.root.findByType('button').props as { onClick: () => void }).onClick();
+      });
     act(() => {
-      vi.advanceTimersByTime(60_000);
+      discardVoiceDraft(store, draft);
+      discardVoiceDraft(store, { ...draft, recordingId: 'rec-2' });
     });
-    expect(journal.deleteVoiceRecording).not.toHaveBeenCalled();
+    await press();
+    expect(store.get(queuedVoiceDraftsAtom).map((d) => d.recordingId)).toEqual(['rec-2']);
+    // The first one's Undo is still there.
+    expect(shown()).toContain('Undo');
+
+    // Another account is signed in on this page now: this recording is not its to bring back.
+    account.userId = '@bob:example.org';
+    act(() => renderer.update(React.createElement(Provider, { store }, toast())));
+    expect(renderer.toJSON()).toBeNull();
+    account.userId = USER;
+    act(() => renderer.update(React.createElement(Provider, { store }, toast())));
+    await press();
+    expect(store.get(queuedVoiceDraftsAtom).map((d) => d.recordingId)).toEqual(['rec-1', 'rec-2']);
+    expect(renderer.toJSON()).toBeNull();
   });
 
   it('deletes the recording once its ten seconds ran out', () => {
@@ -104,7 +129,8 @@ describe('VoiceDiscardToast', () => {
       vi.advanceTimersByTime(1);
     });
     expect(renderer.toJSON()).toBeNull();
-    expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith('rec-1');
+    // The journal deletes it if the disk, too, says its discard stood until now.
+    expect(journal.deleteVoiceRecording).toHaveBeenCalledExactlyOnceWith('rec-1', Date.now());
     expect(store.get(queuedVoiceDraftsAtom)).toEqual([]);
   });
 });

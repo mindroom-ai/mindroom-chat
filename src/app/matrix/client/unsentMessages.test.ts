@@ -57,6 +57,19 @@ beforeEach(() => localStorage.clear());
 afterEach(() => localStorage.clear());
 
 describe('keepUnsentMessages', () => {
+  it('leaves a voice message to its recording, which comes back as a recording', () => {
+    const { room, stop } = setup();
+    const voice = sendEcho(room, 'txn-voice', {
+      msgtype: 'm.audio',
+      body: 'Voice message',
+      url: 'mxc://example.org/voice',
+      'org.matrix.msc3245.voice': {},
+    });
+    room.updatePendingEvent(voice, EventStatus.NOT_SENT);
+    expect(stored()).toEqual([]);
+    stop();
+  });
+
   it('keeps a typed message in storage until the server has it, or it is deleted', () => {
     const { room, stop } = setup();
     const first = sendEcho(room, 'txn-1', text('first'));

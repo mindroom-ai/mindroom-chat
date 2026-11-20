@@ -16,8 +16,9 @@ import {
   VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
 } from './useVoiceRecorder';
+import type { SendRecordingCallback } from './voiceSendDraftController';
 import {
-  discardedVoiceDraftAtom,
+  discardedVoiceDraftsAtom,
   pendingVoiceSendDraftAtom,
   queuedVoiceDraftsAtom,
   type PendingVoiceSendContext,
@@ -30,6 +31,17 @@ const flightRecorderMocks = vi.hoisted(() => ({
 
 vi.mock('../../diagnostics/flightRecorder', () => ({
   setFlightRecorderVoiceCaptureState: flightRecorderMocks.setVoiceCaptureState,
+}));
+
+// The disk takes every write: what the journal itself does is in voiceRecordingJournal.test.ts.
+vi.mock('./voiceRecordingJournal', () => ({
+  voiceCaptureJournal: () => ({
+    begin: async () => true,
+    append: async () => true,
+    abandon: () => undefined,
+  }),
+  updateVoiceRecording: async () => true,
+  deleteVoiceRecording: async () => undefined,
 }));
 
 vi.mock('@capacitor/core', () => ({
@@ -170,12 +182,8 @@ type HarnessProps = {
   onRecordingParked?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
-  onSendRecording?: (
-    file: File,
-    duration: number,
-    waveform: number[] | undefined,
-    context: PendingVoiceSendContext
-  ) => Promise<void> | void;
+  /** What sends the recording; the server acknowledges whatever it lets through. */
+  onSendRecording?: (...args: Parameters<SendRecordingCallback>) => unknown;
   getSendContext?: () => PendingVoiceSendContext;
   state?: {
     current: ReturnType<typeof useVoiceRecorder> | undefined;
@@ -201,7 +209,12 @@ function Harness({
     onRecordingParked,
     onSendStopRequest,
     onSendStopFailure,
-    onSendRecording,
+    onSendRecording:
+      onSendRecording &&
+      (async (...args) => {
+        await onSendRecording(...args);
+        return '$voice';
+      }),
     getSendContext: getSendContext ?? (() => createTestSendContext()),
   });
   return null;
@@ -1616,10 +1629,17 @@ describe('useVoiceRecorder', () => {
       } as BlobEvent);
     });
     act(() => renderer.unmount());
+    // What the recorder had not handed over yet comes with its stop.
+    await act(async () => {
+      MockMediaRecorder.instances[0]!.dispatch('dataavailable', {
+        data: new Blob([' and the rest'], { type: 'audio/ogg' }),
+      } as BlobEvent);
+      MockMediaRecorder.instances[0]!.dispatch('stop', new Event('stop'));
+    });
 
     const [parked] = store.get(queuedVoiceDraftsAtom);
     expect(parked).toMatchObject({ duration: 1_000, context: { ownerSessionId: TEST_USER_ID } });
-    expect(await parked!.file.text()).toBe('first second');
+    expect(await parked!.file.text()).toBe('first second and the rest');
   });
 
   it('offers Undo for a discarded recording instead of deleting it at once', async () => {
@@ -1633,7 +1653,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.discard();
     });
 
-    const discarded = store.get(discardedVoiceDraftAtom);
+    const [discarded] = store.get(discardedVoiceDraftsAtom);
     expect(discarded?.draft).toMatchObject({
       duration: 300,
       context: { ownerSessionId: TEST_USER_ID },
@@ -1662,7 +1682,7 @@ describe('useVoiceRecorder', () => {
 
     act(() => recorderState.current?.discardPending());
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
-    expect(store.get(discardedVoiceDraftAtom)?.draft).toBe(parked);
+    expect(store.get(discardedVoiceDraftsAtom)[0]?.draft).toBe(parked);
 
     renderer.unmount();
   });

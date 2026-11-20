@@ -12,6 +12,8 @@ import {
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
+import { eventIdOfTransaction } from '../protocol/pendingLocalEcho';
+import { MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME } from '../types/common';
 import {
   getSafeLocalStorage,
   getStorageItemSafe,
@@ -76,21 +78,15 @@ export const clearUnsentMessages = (userId: string): void => {
 /**
  * A message worth keeping: text, a long text sent as its file, or an attachment already uploaded.
  * Not an edit, and not an encrypted attachment, whose content holds the key to its file (a long
- * text's file holds only the text, which the drafts keep in the clear too).
+ * text's file holds only the text, which the drafts keep in the clear too). Not a voice message
+ * either: its recording is kept until it is sent, and comes back as a recording.
  */
 const isKeptMessage = (event: MatrixEvent): boolean => {
   if (event.getType() !== 'm.room.message') return false;
   const content = event.getContent();
   if (content['m.relates_to']?.rel_type === RelationType.Replace) return false;
+  if (content[MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME]) return false;
   return content.file === undefined || isRecord(content['io.mindroom.long_text']);
-};
-
-const isOnServer = (room: Room, txnId: string): boolean => {
-  const sentHere = (event: MatrixEvent) => event.getUnsigned().transaction_id === txnId;
-  return (
-    room.getLiveTimeline().getEvents().some(sentHere) ||
-    room.getThreads().some((thread) => thread.liveTimeline.getEvents().some(sentHere))
-  );
 };
 
 /** Puts an unsent message back as an unsent local echo, the way the SDK adds one when sending. */
@@ -164,7 +160,7 @@ export const keepUnsentMessages = (mx: MatrixClient): (() => void) => {
       // A room this start does not know yet keeps its messages for a later one.
       if (!room) return true;
       if (room.getEventForTxnId(message.txnId)) return true;
-      if (isOnServer(room, message.txnId)) return false;
+      if (eventIdOfTransaction(room, message.txnId)) return false;
       restoreUnsent(room, message, userId);
       return true;
     });

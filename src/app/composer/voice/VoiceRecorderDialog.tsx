@@ -187,12 +187,12 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     return true;
   };
 
-  // What the capsule says beside the time: a recording that has no destination was recovered
-  // (after a crash or a reload, or from a recorder that stopped by itself), and a live one whose
-  // write to disk failed would be lost by a crash.
+  // What the capsule says beside the time: a recording the disk does not hold would be lost by
+  // a crash, and one that has no destination was recovered (after a crash or a reload, or from a
+  // recorder that stopped by itself).
   let capsuleLabel: string | undefined;
-  if (hasPendingSend) capsuleLabel = pendingUnplaced ? t('composer.voiceRecovered') : undefined;
-  else if (unprotected) capsuleLabel = t('composer.voiceUnprotected');
+  if (unprotected) capsuleLabel = t('composer.voiceUnprotected');
+  else if (pendingUnplaced) capsuleLabel = t('composer.voiceRecovered');
 
   return (
     <>
@@ -233,7 +233,9 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                   <Box direction="Column" gap="100">
                     <Text size="T300">{displayErrorMessage}</Text>
                     <Text size="T300">
-                      {t('mindroomUi.voice.voiceRecorderDialog.yourRecordingIsStillSaved')}
+                      {unprotected
+                        ? t('composer.voiceUnprotected')
+                        : t('mindroomUi.voice.voiceRecorderDialog.yourRecordingIsStillSaved')}
                     </Text>
                   </Box>
                   <Box justifyContent="End" gap="200">

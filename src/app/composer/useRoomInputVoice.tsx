@@ -52,7 +52,13 @@ import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isJoined } from '../matrix/state/roomList';
-import { offerQueuedVoiceDraft, parkVoiceDraft, recoverVoiceDrafts } from './voice/voiceDrafts';
+import { eventIdOfTransaction } from '../matrix/protocol/pendingLocalEcho';
+import type { VoiceSendAttemptKeys } from './voice/voiceSendDraftController';
+import {
+  keepRecoveringVoiceDrafts,
+  offerQueuedVoiceDraft,
+  parkVoiceDraft,
+} from './voice/voiceDrafts';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -248,9 +254,7 @@ export const useRoomInputVoice = ({
   // Recordings that a crash, a reload or an app update left on disk come back, and take the slot
   // one at a time with the others that wait for it (voice/voiceDrafts.ts).
   const queuedVoiceDrafts = useAtomValue(queuedVoiceDraftsAtom);
-  useEffect(() => {
-    void recoverVoiceDrafts(mx, store);
-  }, [mx, store]);
+  useEffect(() => keepRecoveringVoiceDrafts(mx, store), [mx, store]);
   useEffect(() => {
     offerQueuedVoiceDraft(store, currentSessionId);
   }, [currentSessionId, openRecorder, pendingVoiceSendDraft, queuedVoiceDrafts, store]);
@@ -310,8 +314,8 @@ export const useRoomInputVoice = ({
       duration: number,
       waveform: number[] | undefined,
       context: PendingVoiceSendContext,
-      txnId: string
-    ) => {
+      { txnId, commit }: VoiceSendAttemptKeys
+    ): Promise<string | undefined> => {
       // Wrap the ENTIRE body in try/finally. The voice auto-send slot is
       // claimed by claimVoiceAutoSend() in onSendStopRequest BEFORE this
       // function is invoked, so any early throw here (live-room refresh
@@ -323,7 +327,8 @@ export const useRoomInputVoice = ({
       let fileItems: TUploadItem[] = [];
       let liveContext: PendingVoiceSendContext | null = null;
       let sentEventIdToNotify: string | undefined;
-      let voiceSent = false;
+      // The ID the server gave the voice event: only that says the recording is sent.
+      let voiceEventId: string | undefined;
       const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
         const originalName =
           getMatrixUploadOriginalName(err) ?? (err instanceof Error ? err.name : typeof err);
@@ -364,6 +369,9 @@ export const useRoomInputVoice = ({
         if (isLocalEchoEventId(liveContext.threadId)) {
           throw new Error(t('composer.voiceThreadRootUnsent'));
         }
+        // An earlier attempt reached the server and only its answer was lost: nothing to send.
+        const sentBefore = eventIdOfTransaction(liveContext.room, txnId);
+        if (sentBefore) return sentBefore;
 
         if (
           store.get(voiceAutoSendPendingAtom) &&
@@ -376,6 +384,8 @@ export const useRoomInputVoice = ({
           store.set(voiceAutoSendPendingAtom, true);
         }
         voiceAutoSendInFlightRef.current = true;
+        // Where it really goes is on disk before anything leaves.
+        await commit(liveContext);
 
         try {
           fileItems = await createVoiceUploadItems(
@@ -470,20 +480,17 @@ export const useRoomInputVoice = ({
                 ? { roomId: composerBundle.roomId, threadId: composerBundle.composerThreadId }
                 : undefined,
               composerAlreadyReset: composerBundle?.composerReset,
-              onUploadSent: (sentFile) => {
-                if (sentFile === fileItem.file) {
-                  voiceSent = true;
-                }
+              onUploadSent: (sentFile, eventId) => {
+                if (sentFile === fileItem.file) voiceEventId = eventId;
               },
             });
-            return;
+            // Without an ID the session ended before the voice message went: it is not sent.
+            return voiceEventId;
           } catch (err) {
-            if (voiceSent) {
-              // Uploads and voice already reached Matrix; lifecycle-complete sending restores
-              // the failed trailing text. Treat voice as consumed so recorder retry cannot
-              // duplicate an event that the homeserver accepted.
-              return;
-            }
+            // Uploads and voice already reached Matrix; lifecycle-complete sending restores
+            // the failed trailing text. Treat voice as consumed so recorder retry cannot
+            // duplicate an event that the homeserver accepted.
+            if (voiceEventId) return voiceEventId;
             return logAndThrowUploadError(err, 'send');
           }
         }
@@ -513,6 +520,7 @@ export const useRoomInputVoice = ({
       if (sentEventIdToNotify) {
         onRoomMessageSent?.(sentEventIdToNotify);
       }
+      return sentEventIdToNotify;
     },
     [
       attachmentAccess,
