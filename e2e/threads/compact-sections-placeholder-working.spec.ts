@@ -46,15 +46,14 @@ const sectionOf = (page: Page, rootId: string) =>
     return found;
   }, rootId);
 
-// Measure settled card positions, not the animation when a fixture card first arrives.
-test.use({ reducedMotion: 'reduce' });
-
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a thread whose agent posted its Thinking placeholder is Working', async ({ page }) => {
   test.setTimeout(180_000);
+  // Measure settled card positions, not the animation when a fixture card first arrives.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const reader = await registerDisposableUser(`tpw_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `thinker_${RUN}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
