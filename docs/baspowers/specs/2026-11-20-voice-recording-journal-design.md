@@ -90,15 +90,22 @@ second or so before a crash can be gone.
 - No folder wipe at startup. **A native file is deleted only by an explicit `forget({id})` from
   JS.** Nothing native infers it: not a stop (failed or not), a reload, a closed window, a changed
   device or a timeout. Each recording holds an exclusive `flock` (`<id>.lock`) from its start until
-  its writer is done, finished or failed, and never lets go earlier; a stop whose writer does not
-  take the last buffers within 2 s drops them, still finishes what was taken, and rejects.
-  `orphans()` resolves `{recordings: [{id, path, startedAt}]}` for the files whose lock it can take
-  (the lock first, then the file is read under it), so a stopped recording that was not forgotten
-  is listed too. JS decides: `NativeVoiceRecorder.forget()`, which the capture session calls on
-  Discard (without reading the audio) and once it has built the file for Send, and
-  `listNativeVoiceOrphans()` with `forgetNativeVoiceRecording(id)` for the rest. Every other way out
-  leaves the file for `orphans()`. The journal imports each orphan once, by its native ID, and then
-  forgets it; it moves the forget of a sent recording to after its journal write.
+  its writer is done, finished or failed, and never lets go earlier. `stop` answers
+  `{path, incomplete}` for every recording of the page, also one that ended by itself (an
+  interruption, a file that cannot be written), so what was recorded can still be sent;
+  `incomplete` when the writer did not take the last buffers within 2 s (they are dropped, the rest
+  is finished) or is not done 3 s after the stop. The lock file holds the account that recorded,
+  written before the capture starts. `orphans()` resolves
+  `{recordings: [{id, path, startedAt, owner}]}` for the files whose existing lock it can take (the
+  lock first, then the file is read under it; it makes no lock file), so a stopped recording that
+  was not forgotten is listed too. JS decides: the capture session calls
+  `NativeVoiceRecorder.forget()` on Discard (without reading the audio), and hands the recording on
+  with a `forgetSource` that is called only once the audio is safe elsewhere: the server accepted
+  the send, or the failed send's copy is stored in IndexedDB (and never for an `incomplete` file).
+  `listNativeVoiceOrphans()`, which gives each orphan's `userId`, and
+  `forgetNativeVoiceRecording(id)` are for the rest. Every other way out leaves the file for
+  `orphans()`. The journal imports each orphan of the signed-in account once, by its native ID, and
+  then forgets it; it moves the forget of a sent recording to after its journal write.
 
 ## Tests (the gate is a forced kill, not a clean stop)
 
