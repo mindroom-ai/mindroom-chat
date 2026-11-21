@@ -1,8 +1,9 @@
-import { ClientEvent, RelationType, SyncState } from 'matrix-js-sdk';
+import { ClientEvent, KnownMembership, RelationType, SyncState } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   ACTIVE_STREAM_STATUSES,
   TERMINAL_STREAM_STATUSES,
+  getAiRunInfo,
   hasTerminalStreamMetadata,
   isAiRunStreaming,
   readStreamStatus,
@@ -10,7 +11,17 @@ import {
 import { getSameSenderBundledEdit } from '../editEvent';
 import { isRecord } from '../../lib/isRecord';
 import { watchRoomThreads } from '../watchRoomThreads';
-import { isMindroomAgentUserId } from '../protocol/agentIdentity';
+import { isMindroomResponderForViewer } from '../protocol/agentIdentity';
+import {
+  boundRoomRoster,
+  MINDROOM_ACCOUNTS_STATE_EVENT,
+  MINDROOM_ROUTER_STATE_EVENT,
+  trustedRoomAccountIds,
+  trustedRouterUserId,
+} from '../protocol/routerBinding';
+import { getPowersLevelFromMatrixEvent } from '../hooks/usePowerLevels';
+import { getRoomCreators } from '../hooks/useRoomCreators';
+import { isEventOrderedAfter } from '../room';
 import { STREAM_IDLE_LIMIT_MS } from './streamingReplies';
 import { findReply } from './unopenedThreadEdits';
 
@@ -26,10 +37,14 @@ import { findReply } from './unopenedThreadEdits';
 /** Where MindRoom's homeserver bundles a thread's newest reply that is not its title. */
 const LATEST_REPLY_KEY = 'io.mindroom.latest_reply';
 
-const streams = (content: Record<string, unknown>): boolean => {
+const streams = (content: Record<string, unknown>, source: 'bundle' | 'live'): boolean => {
   const status = readStreamStatus(content);
+  const runStreams =
+    source === 'live'
+      ? getAiRunInfo(content)?.status?.toLowerCase() === 'streaming'
+      : isAiRunStreaming(content);
   return (
-    (isAiRunStreaming(content) || (!!status && ACTIVE_STREAM_STATUSES.has(status))) &&
+    (runStreams || (!!status && ACTIVE_STREAM_STATUSES.has(status))) &&
     !hasTerminalStreamMetadata(content) &&
     !(status && TERMINAL_STREAM_STATUSES.has(status))
   );
@@ -60,12 +75,42 @@ const hiddenStreamingReply = (room: Room, thread: Thread): string | undefined =>
   if (edit && !isRecord(newContent)) return undefined;
   // The card's rule, on the reply's newest content.
   const content = isRecord(newContent) ? newContent : reply.content;
-  if (!streams(content)) return undefined;
+  if (!streams(content, 'bundle')) return undefined;
   const ts = Math.max(
     typeof reply.origin_server_ts === 'number' ? reply.origin_server_ts : 0,
     typeof edit?.origin_server_ts === 'number' ? edit.origin_server_ts : 0
   );
   return Date.now() - ts <= STREAM_IDLE_LIMIT_MS ? reply.event_id : undefined;
+};
+
+const noAccounts: ReadonlySet<string> = new Set();
+
+const isTrustedResponder = (room: Room, sender: string | undefined): boolean => {
+  const { client, currentState } = room;
+  if (!sender || client.isUserIgnored(sender)) return false;
+  const viewer = client.getUserId() ?? undefined;
+  if (isMindroomResponderForViewer(sender, viewer, noAccounts)) return true;
+  const binding = currentState.getStateEvents(MINDROOM_ROUTER_STATE_EVENT, '');
+  if (!binding || binding.isRedacted()) return false;
+  const power = currentState.getStateEvents('m.room.power_levels', '');
+  const create = currentState.getStateEvents('m.room.create', '');
+  const bound = trustedRouterUserId(
+    binding,
+    getPowersLevelFromMatrixEvent(power),
+    create ? getRoomCreators(create) : noAccounts,
+    power?.getContent()
+  );
+  if (!bound) return false;
+  const roster = currentState.getStateEvents(MINDROOM_ACCOUNTS_STATE_EVENT, bound);
+  const joined =
+    room.getMember(sender)?.membership === KnownMembership.Join ? new Set([sender]) : noAccounts;
+  const trusted = trustedRoomAccountIds(
+    bound,
+    boundRoomRoster(bound, roster?.isRedacted() ? undefined : roster ?? undefined),
+    joined,
+    new Set(client.getIgnoredUsers())
+  );
+  return isMindroomResponderForViewer(sender, viewer, trusted);
 };
 
 /**
@@ -75,7 +120,6 @@ const hiddenStreamingReply = (room: Room, thread: Thread): string | undefined =>
 export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
   const queue: Array<[Room, Thread]> = [];
   const queued = new WeakSet<Thread>();
-  /** The bundled-reply path still retries after a sync error. */
   const tried = new WeakMap<Thread, string>();
   const triedTargets = new WeakMap<Thread, Set<string>>();
   const syncEdits: MatrixEvent[] = [];
@@ -94,18 +138,20 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     for (const edit of edits) {
       if (!liveEdits.has(edit) || Date.now() - edit.getTs() > STREAM_IDLE_LIMIT_MS) continue;
       const target = edit.getAssociatedId();
-      const content: unknown = edit.getOriginalContent()['m.new_content'];
+      // The roster can authorize a background load, not expose otherwise untrusted content.
+      const content: unknown = edit.getWireContent()['m.new_content'];
       if (
         !target ||
         triedTargets.get(thread)?.has(target) ||
         !isRecord(content) ||
-        !streams(content)
+        !streams(content, 'live') ||
+        !isTrustedResponder(room, edit.getSender())
       )
         continue;
       // SDK replay drops older revisions on arrival, but keeps newer ones on out-of-order sync.
       const superseded = edits.some(
         (other) =>
-          other.getTs() > edit.getTs() &&
+          isEventOrderedAfter(other, edit) &&
           other.getAssociatedId() === target &&
           other.getSender() === edit.getSender() &&
           other.isRelation(RelationType.Replace)
@@ -150,7 +196,6 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     if (
       event.isRelation(RelationType.Replace) &&
       !event.isState() &&
-      isMindroomAgentUserId(event.getSender()) &&
       event.getThread()?.initialEventsFetched === false
     )
       syncEdits.push(event);
@@ -173,18 +218,22 @@ export const keepStreamingThreadsLoaded = (mx: MatrixClient): (() => void) => {
     const recovered = interrupted;
     interrupted = false;
     live = true;
-    edits.forEach((edit) => liveEdits.add(edit));
+    const affected = new Set<Thread>();
     if (recovered)
       mx.getRooms().forEach((room) =>
         room.getThreads().forEach((thread) => {
           tried.delete(thread);
-          consider(room, thread);
+          triedTargets.delete(thread);
+          affected.add(thread);
         })
       );
     for (const edit of edits) {
       const thread = edit.getThread();
-      if (thread) consider(thread.room, thread);
+      if (!thread) continue;
+      liveEdits.add(edit);
+      affected.add(thread);
     }
+    for (const thread of affected) consider(thread.room, thread);
     drain();
   };
 

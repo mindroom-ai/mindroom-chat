@@ -1583,7 +1583,7 @@ index b02b81f..f8b44d4 100644
 +        var _this$replayEvents$fi, _this$replayEvents2;
 +        // MindRoom: an unopened thread can buffer a long stream; its replay needs only each newest edit.
 +        var target = event.getAssociatedId();
-+        this.replayEvents = (_this$replayEvents$fi = (_this$replayEvents2 = this.replayEvents) === null || _this$replayEvents2 === void 0 ? void 0 : _this$replayEvents2.filter(buffered => !buffered.isRelation(RelationType.Replace) || buffered.getAssociatedId() !== target || buffered.getSender() !== event.getSender() || buffered.getTs() > event.getTs())) !== null && _this$replayEvents$fi !== void 0 ? _this$replayEvents$fi : null;
++        this.replayEvents = (_this$replayEvents$fi = (_this$replayEvents2 = this.replayEvents) === null || _this$replayEvents2 === void 0 ? void 0 : _this$replayEvents2.filter(buffered => !buffered.isRelation(RelationType.Replace) || buffered.getAssociatedId() !== target || buffered.getSender() !== event.getSender() || buffered.getTs() > event.getTs() || buffered.getTs() === event.getTs() && (buffered.getId() ?? "") > (event.getId() ?? ""))) !== null && _this$replayEvents$fi !== void 0 ? _this$replayEvents$fi : null;
 +      }
        (_this$replayEvents = this.replayEvents) === null || _this$replayEvents === void 0 || _this$replayEvents.push(event);
  
@@ -2125,7 +2125,7 @@ index 871875d..d9e74a6 100644
          this.timelineSet.insertEventIntoTimeline(event, this.liveTimeline, this.roomState, false);
      }
  
-@@ -436,6 +527,18 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -436,6 +527,20 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
               * This fix keeps a reference to those events and replay them once the thread
               * has been initialised properly.
               */
@@ -2138,13 +2138,15 @@ index 871875d..d9e74a6 100644
 +                            !buffered.isRelation(RelationType.Replace) ||
 +                            buffered.getAssociatedId() !== target ||
 +                            buffered.getSender() !== event.getSender() ||
-+                            buffered.getTs() > event.getTs(),
++                            buffered.getTs() > event.getTs() ||
++                            (buffered.getTs() === event.getTs() &&
++                                (buffered.getId() ?? "") > (event.getId() ?? "")),
 +                    ) ?? null;
 +            }
              this.replayEvents?.push(event);
  
              // For annotations (reactions), aggregate immediately (pre-init) to keep
-@@ -499,8 +602,13 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -499,8 +604,13 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
  
      private async processRootEvent(): Promise<void> {
          const bundledRelationship = this.getRootEventBundledRelationship();
@@ -2159,7 +2161,7 @@ index 871875d..d9e74a6 100644
              this._currentUserParticipated = !!bundledRelationship.current_user_participated;
  
              const mapper = this.client.getEventMapper();
-@@ -517,17 +625,71 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -517,17 +627,71 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
      private updatePendingReplyCount(): void {
          const unfilteredPendingEvents =
              this.pendingEventOrdering === PendingEventOrdering.Detached ? this.room.getPendingEvents() : this.events;
@@ -2232,7 +2234,7 @@ index 871875d..d9e74a6 100644
      /**
       * Reset the live timeline of all timelineSets, and start new ones.
       *
-@@ -542,47 +704,40 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -542,47 +706,40 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
       * timeline which would otherwise be unable to paginate forwards without this token).
       * Removing just the old live timeline whilst preserving previous ones is not supported.
       */
@@ -2310,7 +2312,7 @@ index 871875d..d9e74a6 100644
      }
  
      private async updateThreadFromRootEvent(): Promise<void> {
-@@ -597,9 +752,56 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -597,9 +754,56 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          await this.processRootEvent();
      }
  
@@ -2367,7 +2369,7 @@ index 871875d..d9e74a6 100644
          if (!this.processRootEventPromise) {
              // We only want to do this once otherwise we end up rolling back to the last unsigned summary we have for the thread
              this.processRootEventPromise = this.updateThreadFromRootEvent();
-@@ -608,28 +810,33 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -608,28 +812,33 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
  
          if (!this.initialEventsFetched) {
              if (this.initalEventFetchProm) {
@@ -2414,7 +2416,7 @@ index 871875d..d9e74a6 100644
                      }
                      // We have now fetched the initial events, so set the flag. We need to do this before
                      // we actually add the events, so `this.addEvents` knows that it can now safely add
-@@ -638,16 +845,17 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -638,16 +847,17 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
                      // the pagination has finished. The important thing is that we're not await-ing anything
                      // else between setting this and adding events, so no races.
                      this.initialEventsFetched = true;
@@ -2436,7 +2438,7 @@ index 871875d..d9e74a6 100644
                  }
              }
          }
-@@ -655,8 +863,69 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
+@@ -655,8 +865,69 @@ export class Thread extends ReadReceipt<ThreadEmittedEvents, ThreadEventHandlerM
          this.emit(ThreadEvent.Update, this);
      }
  

@@ -23,10 +23,11 @@ follow by latest activity. Pins still lead the section, and its cap and tie orde
 Pending sends alone do not constitute Working. Resolved and snoozed now precede streaming there too.
 
 After live sync, the client loads unopened threads serially when the summary bundles a hidden
-stream, or when a live MindRoom agent edit reveals a reply the thread does not hold. For the edit
-to qualify, its newest revision from that sender must still be streaming and no more than 30 minutes
-old. Saved sync edits do not trigger loads. Loading alone does not count as Working: the card must
-confirm the stream. Encrypted rooms are excluded. Without a qualifying bundle, a stream silent
+stream, or when a live edit from a trusted MindRoom responder reveals a reply the thread does not
+hold. Its newest revision from that sender must explicitly say it is still streaming and be no more
+than 30 minutes old. Saved sync edits do not trigger loads. Failed loads are not retried on every
+edit; recovery after a sync error allows another try. Loading alone does not count as Working:
+the card must confirm the stream. Encrypted rooms are excluded. Without a qualifying bundle, a stream silent
 since relaunch (for example, in a long tool call) stays in Needs you until its next live edit;
 activity goes idle after 30 minutes without an edit. As before, older text held locally can still
 hide a newer placeholder known only to the thread list.

@@ -16,11 +16,12 @@ import {
 } from 'matrix-js-sdk/lib/models/thread';
 import { UNSIGNED_THREAD_ID_FIELD } from 'matrix-js-sdk/lib/@types/event';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
+import { installEventContentGuard, trustAgentsOfViewer } from '../protocol/untrustedContent';
 import { startClient } from './clientSyncPolicy';
 import { CHECK_DELAY_MS, isStreamingReplyCurrent } from './streamingReplies';
 import { defined } from '../../../test/utils/defined';
@@ -166,10 +167,14 @@ const fixture = () => {
         return json({ chunk: url.searchParams.get('include') === 'all' ? listedRoots : [] });
       }
       if (serverThread && path.endsWith(`/event/${rootId}`)) return json(serverThread.root);
-      if (serverThread && path.includes(`/relations/${rootId}`))
-        return serverThread.fail
-          ? json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500)
-          : json({ chunk: [...serverThread.replies].reverse() });
+      if (serverThread && path.includes(`/relations/${rootId}`)) {
+        if (serverThread.fail) {
+          // Fail just once so a broken retry guard cannot spin against the fixture.
+          serverThread.fail = false;
+          return json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500);
+        }
+        return json({ chunk: [...serverThread.replies].reverse() });
+      }
       if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
           ? json({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, serverReply)
@@ -245,6 +250,10 @@ const threadNamespaces = [
 ];
 
 describe('streaming replies on thread cards', () => {
+  beforeAll(() => {
+    installEventContentGuard();
+    trustAgentsOfViewer(readerId);
+  });
   let support: [FeatureSupport, FeatureSupport, FeatureSupport];
   let namespaces: boolean[];
   beforeEach(() => {
@@ -291,9 +300,24 @@ describe('streaming replies on thread cards', () => {
     return thread;
   };
 
-  it.each(['live', 'cached', 'superseded'])('loads on live evidence (%s)', async (kind) => {
+  it.each([
+    'live',
+    'cached',
+    'superseded',
+    'tied',
+    'other sender',
+    'idle',
+    'human',
+    'held',
+    'encrypted',
+    'no status',
+    'run status',
+    'custom agent',
+    'recovery',
+  ])('loads on live evidence (%s)', async (kind) => {
     const now = Date.now();
     const f = fixture();
+    const sender = kind === 'custom agent' ? '@helper:example.org' : agentId;
     const rel = { rel_type: 'm.thread', event_id: rootId };
     const text = message('$text', now - 20_000, { body: 'Results', 'm.relates_to': rel });
     const file = message('$file', now - 19_000, {
@@ -301,15 +325,61 @@ describe('streaming replies on thread cards', () => {
       body: 'results.txt',
       'm.relates_to': rel,
     });
-    const listed = withSummary(root(now - 50 * MINUTE), file, 3);
+    const placeholder = { ...reply(now - 49 * MINUTE), sender };
+    const latest = kind === 'held' ? placeholder : file;
+    const listed = withSummary(root(now - 50 * MINUTE), latest, kind === 'held' ? 1 : 3);
     const summary = listed.unsigned['m.relations']?.['m.thread'] as Record<string, unknown>;
-    summary['io.mindroom.latest_reply'] = file;
-    const active = edit('Checking the results', now - 1_000, 'streaming');
-    const newest = kind === 'superseded' ? edit(finished, now, 'completed') : active;
-    const target = withEdit(reply(now - 49 * MINUTE), newest);
-    const tail = [listed, text, file];
-    f.setServerReply(target);
-    f.setServerThread({ root: listed, replies: [target, text, file] });
+    summary['io.mindroom.latest_reply'] = latest;
+    const ts = kind === 'idle' ? now - 31 * MINUTE : now - 1_000;
+    const active =
+      kind === 'human'
+        ? othersEdit('Checking the results', ts, 'streaming')
+        : {
+            ...edit('Checking the results', ts, 'streaming'),
+            event_id: '$a-active',
+            sender,
+          };
+    if (kind === 'no status' || kind === 'run status') {
+      active.content['m.new_content'] = {
+        body: 'Results',
+        'io.mindroom.ai_run':
+          kind === 'run status' ? { version: 1, status: 'streaming' } : { version: 1 },
+      };
+      delete active.content['io.mindroom.stream_status'];
+    }
+    const terminal = {
+      ...edit(finished, kind === 'tied' ? ts : now, 'completed'),
+      event_id: '$z-completed',
+    };
+    if (kind === 'other sender') terminal.sender = '@mindroom_other:example.org';
+    const finishes = kind === 'superseded' || kind === 'tied';
+    const answer = (revision: IEvent, fail = false) => {
+      const target = withEdit(placeholder, revision);
+      f.setServerReply(target);
+      f.setServerThread({ root: listed, replies: [target, text, file], fail });
+    };
+    answer(finishes ? terminal : active, kind === 'recovery');
+    const tail = kind === 'held' ? [listed] : [listed, text, file];
+    if (kind === 'encrypted')
+      tail.unshift({
+        ...message('$encrypted', now - MINUTE, { algorithm: 'm.megolm.v1.aes-sha2' }),
+        type: 'm.room.encryption',
+        state_key: '',
+      });
+    if (kind === 'custom agent') {
+      const bound = '@mindroom_router:example.org';
+      const state = (type: string, key: string, content: Record<string, unknown>): IEvent => ({
+        ...message(`$state-${type}`, now - MINUTE, content, bound),
+        type,
+        state_key: key,
+      });
+      tail.unshift(
+        { ...membership(sender), unsigned: {} },
+        state('m.room.power_levels', '', { users: { [bound]: 100 }, state_default: 50 }),
+        state('io.mindroom.router', '', { user_id: bound }),
+        state('io.mindroom.accounts', bound, { accounts: [sender] })
+      );
+    }
     if (kind === 'cached') {
       // Saved sync keeps the thread ID the SDK inferred when the edit first arrived.
       active.unsigned[UNSIGNED_THREAD_ID_FIELD.name] = rootId;
@@ -331,25 +401,47 @@ describe('streaming replies on thread cards', () => {
     expect(loads()).toBe(0);
     expect(thread.initialEventsFetched).toBe(false);
     expect(thread.findEventById(replyId)).toBeUndefined();
-    const workflow = () =>
-      classifyThreadWorkflow(
-        buildThreadRecord({ room: f.room(), threadRootId: rootId }).status,
-        now
-      );
+    if (kind === 'held') expect(thread.replyToEvent?.getId()).toBe(replyId);
+    if (kind === 'encrypted') expect(f.room().hasEncryptionStateEvent()).toBe(true);
+    const workflow = () => {
+      const { status } = buildThreadRecord({ room: f.room(), threadRootId: rootId });
+      return classifyThreadWorkflow(status, now);
+    };
     expect(workflow()).toBe('needsYou');
 
     const buffered = new Set(thread.replayEvents?.map((event) => event.getId()));
     f.room().on(ThreadEvent.Update, (updated) => {
       if (updated === thread) updated.replayEvents?.forEach((event) => buffered.add(event.getId()));
     });
-    // An out-of-order batch can leave both the newer terminal edit and older active edit buffered.
-    await f.deliver(kind === 'cached' ? [] : kind === 'superseded' ? [newest, active] : [active]);
+    // Receive the newer revision first so a stale edit cannot hide it in a real SDK buffer.
+    const edits = finishes || kind === 'other sender' ? [terminal, active] : [active];
+    await f.deliver(kind === 'cached' ? [] : edits);
+    const loadsThread = ['live', 'other sender', 'run status', 'custom agent', 'recovery'].includes(
+      kind
+    );
+    expect(loads()).toBe(loadsThread ? 1 : 0);
     expect(buffered).toContain(active.event_id);
-    expect(buffered).toContain(newest.event_id);
-    expect(loads()).toBe(kind === 'live' ? 1 : 0);
-    workflow(); // Let the card check the loaded reply, as usual.
-    await afterCheckDelay();
-    expect(workflow()).toBe(kind === 'live' ? 'working' : 'needsYou');
+    if (edits.length > 1) expect(buffered).toContain(terminal.event_id);
+    if (kind === 'recovery') {
+      expect(thread.initialEventsFetched).toBe(false);
+      await f.deliver([edit('Still checking', now, 'streaming')]);
+      expect(loads()).toBe(1);
+      f.mx.emit(ClientEvent.Sync, SyncState.Error, SyncState.Syncing);
+      f.mx.emit(ClientEvent.Sync, SyncState.Catchup, SyncState.Error);
+      const recovered = edit('Checking again', now + 1, 'streaming');
+      answer(recovered);
+      await f.deliver([recovered]);
+      expect(loads()).toBe(2);
+    }
+    if (kind === 'custom agent') {
+      expect(thread.initialEventsFetched).toBe(true);
+      // The roster allows a load, not bypassing the card's content guard.
+      expect(f.card().streaming).toBe(false);
+    } else if (loadsThread) {
+      workflow(); // Let the card check the loaded reply, as usual.
+      await afterCheckDelay();
+      expect(workflow()).toBe('working');
+    }
   });
 
   it.each([agentId, readerId])(
