@@ -160,10 +160,6 @@ describe('feature ownership architecture', () => {
       },
       // The client's fixes for unopened threads (matrix/client/) read this state and never write it.
       {
-        file: 'matrix/client/streamingThreadLoads.ts',
-        accesses: [{ name: 'replayEvents', kind: 'read' }],
-      },
-      {
         file: 'matrix/client/threadListGaps.ts',
         accesses: [{ name: 'initialEventsFetched', kind: 'read' }],
       },

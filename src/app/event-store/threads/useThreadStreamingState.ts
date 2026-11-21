@@ -18,7 +18,7 @@ import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../.
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
-import { revealedReplies } from '../../matrix/client/streamingThreadLoads';
+import { hasStreamHint } from '../../matrix/client/streamingThreadLoads';
 import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
 
 type ThreadStreamingSnapshot = {
@@ -68,13 +68,7 @@ export const getThreadStreamingEvents = (
   if (!room || !threadRootId) return [];
 
   const thread = room.getThread(threadRootId);
-  const tail = getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
-  // A reply that streams behind the tail, or behind the pages the thread holds: by the thread's
-  // own copy once a page brought one.
-  const revealed = thread && revealedReplies.get(thread);
-  const revealedId = revealed?.getId();
-  if (!revealed || !revealedId || tail.some((event) => event.getId() === revealedId)) return tail;
-  return [thread.findEventById(revealedId) ?? revealed, ...tail];
+  return getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
 };
 
 export const isEventStreaming = (
@@ -138,10 +132,13 @@ const getThreadStreamingSnapshot = (
   return { isStreaming: replies.length > 0, replies, trackedEvents, trackedRelations };
 };
 
+/** Whether a reply of the thread's tail streams, or one the thread lacks does by a live edit. */
 export const getThreadStreamingState = (
   room: Room | undefined,
   threadRootId: string | undefined
-): boolean => getThreadStreamingSnapshot(room, threadRootId).isStreaming;
+): boolean =>
+  getThreadStreamingSnapshot(room, threadRootId).isStreaming ||
+  (!!room && !!threadRootId && hasStreamHint(room, room.getThread(threadRootId)));
 
 /** The replies of the thread's tail that stream now, whose tool traces say what they run. */
 export const getThreadStreamingReplies = (

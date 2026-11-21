@@ -1,6 +1,7 @@
 import {
   ClientEvent,
   createClient,
+  RoomEvent,
   SyncState,
   ThreadEvent,
   type IEvent,
@@ -18,14 +19,13 @@ import { UNSIGNED_THREAD_ID_FIELD } from 'matrix-js-sdk/lib/@types/event';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
-import { getThreadStreamingReplies } from '../../event-store/threads/useThreadStreamingState';
 import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
 import { installEventContentGuard, trustAgentsOfViewer } from '../protocol/untrustedContent';
 import { startClient } from './clientSyncPolicy';
 import { CHECK_DELAY_MS, isStreamingReplyCurrent } from './streamingReplies';
-import { revealedReplies } from './streamingThreadLoads';
+import { hasStreamHint, STREAM_HINT_MS } from './streamingThreadLoads';
 import { defined } from '../../../test/utils/defined';
 
 // A streamed reply shows as streaming on its thread's card only while the client can trust that it
@@ -137,6 +137,8 @@ const fixture = () => {
   let batch = 0;
   /** What GET /event/$reply answers: the reply with its newest edit, or an error status. */
   let serverReply: IEvent | number = 404;
+  /** Other events GET /event answers with. */
+  const otherEvents: IEvent[] = [];
   /** The roots the room's thread list holds, and a gate its pages wait for. */
   let listedRoots: IEvent[] = [];
   let listGate: Promise<void> = Promise.resolve();
@@ -173,6 +175,8 @@ const fixture = () => {
         return serverThread.fail
           ? json({ errcode: 'M_UNKNOWN', error: 'Try later' }, 500)
           : json({ chunk: [...serverThread.replies].reverse() });
+      const other = otherEvents.find((event) => path.endsWith(`/event/${event.event_id}`));
+      if (other) return json(other);
       if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
           ? json({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, serverReply)
@@ -185,11 +189,11 @@ const fixture = () => {
     Promise.resolve({ versions: ['v1.4'], unstable_features: {} });
 
   /** Answers the client's next /sync with these room events; `limited` makes it a gap. */
-  const deliver = async (events: IEvent[], limited = false) => {
+  const deliver = async (events: IEvent[], limited = false, toRoomId = roomId) => {
     batch += 1;
     const response = {
       next_batch: `batch-${batch}`,
-      rooms: { join: { [roomId]: joined(events, `before-${batch}`, limited) } },
+      rooms: { join: { [toRoomId]: joined(events, `before-${batch}`, limited) } },
     };
     const waiting = waitingSyncs.shift();
     if (waiting) waiting(json(response));
@@ -211,6 +215,7 @@ const fixture = () => {
     };
   };
   const replyRequests = () => requests.filter((path) => path.endsWith(`/event/${replyId}`)).length;
+  const serveEvent = (event: IEvent) => otherEvents.push(event);
   const setServerReply = (value: IEvent | number) => {
     serverReply = value;
   };
@@ -236,6 +241,7 @@ const fixture = () => {
     replyRequests,
     requested,
     setServerReply,
+    serveEvent,
     setServerThread,
     holdThreadList,
   };
@@ -410,21 +416,8 @@ describe('streaming replies on thread cards', () => {
     else s.serve(newest);
     for (const batch of live) await s.f.deliver(batch);
   };
-  const redaction = (eventId: string, ts: number, sender = agentId): IEvent => ({
-    ...message(`$redaction-${eventId}`, ts, { redacts: eventId }, sender),
-    type: 'm.room.redaction',
-    redacts: eventId,
-  });
-  /** The reply as the server holds it once it is redacted. */
-  const redacted = (event: IEvent, ts: number): IEvent => ({
-    ...event,
-    content: {},
-    unsigned: { redacted_because: redaction(event.event_id, ts) },
-  });
-  const loaderWarnings = () =>
-    vi
-      .mocked(console.warn)
-      .mock.calls.filter(([text]) => String(text).includes('[streamingThreadLoads]'));
+  /** Whether a live edit says that the reply the thread lacks streams. */
+  const hinted = (s: MidStream) => hasStreamHint(s.f.room(), s.thread);
 
   const oneLiveEdit: Arrival = (s, now) => {
     const active = s.streaming(now - 1_000);
@@ -454,6 +447,13 @@ describe('streaming replies on thread cards', () => {
     type: 'm.room.encryption',
     state_key: '',
   });
+  const stopReaction = (now: number): IEvent => ({
+    ...message('$stop', now, {
+      'm.relates_to': { rel_type: 'm.annotation', event_id: replyId, key: '🛑' },
+    }),
+    type: 'm.reaction',
+  });
+
   it.each<[string, Arrival, MidStreamOptions?]>([
     ['a live streaming edit', oneLiveEdit],
     [
@@ -499,13 +499,7 @@ describe('streaming replies on thread cards', () => {
       'a newer reaction of the agent',
       (s, now) => {
         const active = s.streaming(now - 1_000);
-        const stop = {
-          ...message('$stop', now, {
-            'm.relates_to': { rel_type: 'm.annotation', event_id: replyId, key: '🛑' },
-          }),
-          type: 'm.reaction',
-        };
-        return { newest: active, live: [[active, stop]] };
+        return { newest: active, live: [[active, stopReaction(now)]] };
       },
     ],
     // The SDK fetches the reply for the first edit of a batch only.
@@ -517,43 +511,43 @@ describe('streaming replies on thread cards', () => {
       'two edits in one sync, the older one last',
       (s, now) => ({ live: [[s.streaming(now - 1_000), s.streaming(now - 2_000, '$a-first')]] }),
     ],
-  ])('reveals the hidden reply by a live edit: %s', async (_name, arrival, options) => {
-    const now = Date.now();
-    const s = await relaunchMidStream(now, options?.(now));
-    const { f, thread, workflow } = s;
-    const shown = { preview: f.card().preview, replies: thread.length };
-    let announced = false;
-    f.room().on(ThreadEvent.Update, (updated) => {
-      announced ||= !!revealedReplies.get(updated);
-    });
-    await arrive(s, arrival(s, now));
+  ])(
+    'shows the thread Working by a live edit of the reply it lacks: %s',
+    async (_name, arrival, options) => {
+      const now = Date.now();
+      const s = await relaunchMidStream(now, options?.(now));
+      const { f, thread, workflow } = s;
+      const shown = { preview: f.card().preview, replies: thread.length };
+      let announced = false;
+      f.room().on(ThreadEvent.Update, (updated) => {
+        announced ||= hasStreamHint(f.room(), updated);
+      });
+      await arrive(s, arrival(s, now));
 
-    // The SDK fetched the reply to place the edit; the thread itself stays as it was.
-    const revealed = revealedReplies.get(thread);
-    expect(revealed?.replacingEvent()?.getId()).toBe('$a-active');
-    expect(announced).toBe(true);
-    expect(thread.findEventById(replyId)).toBeUndefined();
-    expect(thread.initialEventsFetched).toBe(false);
-    // The card checks the reply as it checks any other: the live edit vouches for it, by the
-    // sender of the copy the SDK fetched, so the check asks the server nothing.
-    expect(workflow()).toBe('working');
-    await afterCheckDelay();
-    expect(workflow()).toBe('working');
-    expect(f.replyRequests()).toBe(1);
-    expect({ preview: f.card().preview, replies: thread.length }).toEqual(shown);
+      // The SDK fetched the reply to place the edit; the thread stays as it was, and its card asks
+      // the server nothing.
+      expect(hinted(s)).toBe(true);
+      expect(announced).toBe(true);
+      expect(thread.findEventById(replyId)).toBeUndefined();
+      expect(thread.initialEventsFetched).toBe(false);
+      expect(workflow()).toBe('working');
+      await afterCheckDelay();
+      expect(workflow()).toBe('working');
+      expect(f.replyRequests()).toBe(1);
+      expect({ preview: f.card().preview, replies: thread.length }).toEqual(shown);
 
-    // The same copy takes the reply's further edits, to the one that ends the stream.
-    await f.deliver([s.streaming(now, '$b-later')]);
-    expect(revealedReplies.get(thread)).toBe(revealed);
-    expect(revealed?.replacingEvent()?.getId()).toBe('$b-later');
-    expect(workflow()).toBe('working');
-    await f.deliver([s.ending(now + 1)]);
-    expect(workflow()).toBe('needsYou');
-    await afterCheckDelay();
-    // One request per live edit, each the SDK's to place it.
-    expect(f.replyRequests()).toBe(3);
-    expect(f.requested('/relations/')).toBe(0);
-  });
+      // Each further edit says so again, until the one that ends the stream.
+      await f.deliver([s.streaming(now, '$b-later')]);
+      expect(workflow()).toBe('working');
+      await f.deliver([s.ending(now + 1)]);
+      expect(hinted(s)).toBe(false);
+      expect(workflow()).toBe('needsYou');
+      await afterCheckDelay();
+      // One request per live batch, each the SDK's to place its edit.
+      expect(f.replyRequests()).toBe(3);
+      expect(f.requested('/relations/')).toBe(0);
+    }
+  );
 
   it.each<[string, Arrival, MidStreamOptions?]>([
     [
@@ -573,8 +567,18 @@ describe('streaming replies on thread cards', () => {
       },
     ],
     [
-      'a stale edit sent at the same time as the finishing one',
+      // The SDK fetches the reply for the first edit of a batch only.
+      'a streaming edit and the finishing one in one sync, of a reply the server bundles no edit with',
+      (s, now) => ({ live: [[s.streaming(now - 1_000), s.completed(now)]] }),
+    ],
+    [
+      'a stale edit sent at the same time as the finishing one the server bundles',
       (s, now) => ({ newest: s.completed(now), live: [[s.streaming(now)]] }),
+    ],
+    [
+      // The unopened thread keeps the later arrival of the two, and the server bundles none.
+      'a stale edit synced after one that finished the reply at the same time',
+      (s, now) => ({ live: [[s.completed(now)], [s.streaming(now)]] }),
     ],
     [
       'a newer finishing edit from the saved sync that no thread took',
@@ -585,6 +589,10 @@ describe('streaming replies on thread cards', () => {
       'a newer streaming edit from the saved sync',
       (s, now) => ({ live: [[s.completed(now - 2_000)]] }),
       (now) => ({ saved: [inThread(edit('Checking the results', now - 1_000, 'streaming'))] }),
+    ],
+    [
+      'a reaction to a reply the server bundles a streaming edit with',
+      (s, now) => ({ newest: s.streaming(now - 1_000), live: [[stopReaction(now)]] }),
     ],
     [
       'an idle edit',
@@ -629,219 +637,189 @@ describe('streaming replies on thread cards', () => {
     ],
     [
       'an edit of another type than the reply',
-      (s, now) => {
-        const active = { ...s.streaming(now - 1_000), type: 'm.room.notice' };
-        return { live: [[active]] };
-      },
+      (s, now) => ({ live: [[{ ...s.streaming(now - 1_000), type: 'm.room.notice' }]] }),
     ],
     [
       'an edit that came redacted',
       (s, now) => {
         const active = s.streaming(now - 1_000);
-        active.unsigned = { redacted_because: redaction(active.event_id, now) };
+        active.unsigned = { redacted_because: message('$redaction', now, {}) };
         return { live: [[active]] };
       },
     ],
-    [
-      'a reply the server holds redacted',
-      (s, now) => ({ served: redacted(s.placeholder, now), live: [[s.streaming(now - 1_000)]] }),
-    ],
-  ])('leaves the hidden reply unrevealed: %s', async (_name, arrival, options) => {
+  ])('leaves the thread in Needs you: %s', async (_name, arrival, options) => {
     const now = Date.now();
     const s = await relaunchMidStream(now, options?.(now));
-    const { f, thread, workflow } = s;
-    vi.spyOn(console, 'warn');
+    const unexpected = vi.fn();
+    s.f.mx.on(ClientEvent.SyncUnexpectedError, unexpected);
     await arrive(s, arrival(s, now));
 
-    expect(revealedReplies.get(thread)).toBeUndefined();
-    expect(loaderWarnings()).toEqual([]);
-    expect(workflow()).toBe('needsYou');
-    expect(f.requested('/relations/')).toBe(0);
+    expect(hinted(s)).toBe(false);
+    expect(unexpected).not.toHaveBeenCalled();
+    expect(s.workflow()).toBe('needsYou');
+    expect(s.f.requested('/relations/')).toBe(0);
   });
 
-  it('does not stream a reply by a stale edit synced after one that finished it at the same time', async () => {
+  it('shows the thread Working once the SDK could fetch the reply', async () => {
     const now = Date.now();
     const s = await relaunchMidStream(now);
-    // The server bundles no edit, and the unopened thread keeps the later arrival of the two.
-    await arrive(s, { live: [[s.completed(now)], [s.streaming(now)]] });
-    expect(s.workflow()).toBe('needsYou');
-    await afterCheckDelay();
-    expect(s.workflow()).toBe('needsYou');
-  });
+    s.f.setServerReply(500);
+    await s.f.deliver([s.streaming(now - 2_000, '$a-first')]);
+    expect(hinted(s)).toBe(false);
 
-  it('reveals the hidden reply once the SDK could fetch it', async () => {
-    const now = Date.now();
-    const s = await relaunchMidStream(now);
-    const { f, thread, workflow } = s;
-    f.setServerReply(500);
-    await f.deliver([s.streaming(now - 2_000, '$a-first')]);
-    expect(revealedReplies.get(thread)).toBeUndefined();
-
-    const { newest, live } = oneLiveEdit(s, now);
-    s.serve(newest);
-    await f.deliver(defined(live[0], 'the live batch'));
-    expect(revealedReplies.get(thread)).toBeDefined();
-    expect(workflow()).toBe('working');
-  });
-
-  /** The hidden reply once a live edit revealed it: its card says Working. */
-  const revealMidStream = async (
-    now: number,
-    options?: Parameters<typeof relaunchMidStream>[1]
-  ) => {
-    const s = await relaunchMidStream(now, options);
     await arrive(s, oneLiveEdit(s, now));
-    expect(revealedReplies.get(s.thread)?.replacingEvent()?.getId()).toBe('$a-active');
+    expect(s.workflow()).toBe('working');
+  });
+
+  /** The thread once a live edit said that the reply it lacks streams: its card says Working. */
+  const hintMidStream = async (now: number) => {
+    const s = await relaunchMidStream(now);
+    await arrive(s, oneLiveEdit(s, now));
     expect(s.workflow()).toBe('working');
     return s;
   };
-  const moderatorId = '@moderator:example.com';
-  const guestId = '@guest:example.com';
-  /** A room of two servers: only the moderator of the other one may redact for others. */
-  const moderated = (now: number): IEvent[] => {
-    const state = (type: string, content: Record<string, unknown>): IEvent => ({
-      ...message(`$state-${type}`, now - MINUTE, content, readerId),
-      type,
-      state_key: '',
-    });
-    return [
-      state('m.room.create', { room_version: '10' }),
-      { ...membership(moderatorId), unsigned: {} },
-      { ...membership(guestId), unsigned: {} },
-      state('m.room.power_levels', { users: { [moderatorId]: 50 }, redact: 50 }),
-    ];
-  };
 
-  // No redaction reaches the revealed copy through the room, which holds it in no timeline.
-  it.each<[string, (s: MidStream, now: number) => Promise<unknown>]>([
-    [
-      'a member of its sender’s server redacts it',
-      (s, now) => s.f.deliver([redaction(replyId, now, readerId)]),
-    ],
-    [
-      'a moderator of another server redacts it',
-      (s, now) => s.f.deliver([redaction(replyId, now, moderatorId)]),
-    ],
-    ['the edit it shows is redacted', (s, now) => s.f.deliver([redaction('$a-active', now)])],
-    [
-      'the server holds it redacted at its next edit',
-      (s, now) => {
-        s.f.setServerReply(redacted(s.placeholder, now));
-        return s.f.deliver([s.streaming(now, '$b-later')]);
-      },
-    ],
-  ])('forgets the revealed reply once %s', async (_name, redact) => {
+  it('ends Working when the server bundles a newer finishing edit with the reply', async () => {
     const now = Date.now();
-    const s = await revealMidStream(now, { state: moderated(now) });
-    let announced = false;
-    s.thread.on(ThreadEvent.Update, () => {
-      announced ||= !revealedReplies.get(s.thread);
-    });
-    await redact(s, now);
-
-    expect(revealedReplies.get(s.thread)).toBeUndefined();
-    expect(announced).toBe(true);
-    expect(s.workflow()).toBe('needsYou');
-    await afterCheckDelay();
-    expect(s.workflow()).toBe('needsYou');
-  });
-
-  it('reveals the reply again by the edit that follows a redacted one', async () => {
-    const now = Date.now();
-    const s = await revealMidStream(now);
-    await s.f.deliver([redaction('$a-active', now)]);
-    expect(s.workflow()).toBe('needsYou');
-
-    const later = s.streaming(now + 1, '$b-later');
-    await arrive(s, { newest: later, live: [[later]] });
-    expect(revealedReplies.get(s.thread)?.replacingEvent()?.getId()).toBe('$b-later');
-    expect(s.workflow()).toBe('working');
-  });
-
-  it('keeps the revealed reply that a member who may not redact it tries to redact', async () => {
-    const now = Date.now();
-    const s = await revealMidStream(now, { state: moderated(now) });
-    await s.f.deliver([redaction(replyId, now, guestId)]);
-    expect(revealedReplies.get(s.thread)?.replacingEvent()?.getId()).toBe('$a-active');
-    expect(s.workflow()).toBe('working');
-  });
-
-  it('ends the stream of a revealed reply that the server bundles a newer finishing edit with', async () => {
-    const now = Date.now();
-    const s = await revealMidStream(now);
-    const revealed = revealedReplies.get(s.thread);
-    // The finishing edit itself has not come, or never comes: the copy fetched for an older one
-    // brings it.
+    const s = await hintMidStream(now);
+    // The finishing edit itself has not come: the reply fetched for an older edit brings it.
     s.serve(s.ending(now + 1));
     await s.f.deliver([s.streaming(now, '$b-later')]);
-    expect(revealedReplies.get(s.thread)).toBe(revealed);
-    expect(revealed?.replacingEvent()?.getId()).toBe('$c-ending');
-    expect(s.workflow()).toBe('needsYou');
-    await afterCheckDelay();
-    expect(s.workflow()).toBe('needsYou');
-
-    // Nor does an older edit start it again when the server bundles none with a later copy.
-    s.serve();
-    await s.f.deliver([s.streaming(now, '$b-stale')]);
-    expect(revealed?.replacingEvent()?.getId()).toBe('$c-ending');
+    expect(hinted(s)).toBe(false);
     expect(s.workflow()).toBe('needsYou');
   });
 
-  it('keeps the sync going when revealing the reply fails', async () => {
+  it('leaves the thread in Needs you by a stale edit when a page brought the finishing one', async () => {
     const now = Date.now();
     const s = await relaunchMidStream(now);
-    let failed = false;
-    s.thread.on(ThreadEvent.Update, () => {
-      if (failed || !revealedReplies.get(s.thread)) return;
-      failed = true;
-      throw new Error('A listener of the thread failed');
-    });
-    const unexpected = vi.fn();
-    s.f.mx.on(ClientEvent.SyncUnexpectedError, unexpected);
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    await arrive(s, oneLiveEdit(s, now));
+    // The thread's newest page holds the reply's edits, the finishing one too, but not the reply.
+    s.f.setServerThread({ root: s.listed, replies: [s.completed(now), s.text, s.file] });
+    await s.thread.initialize();
+    expect(s.thread.findEventById(replyId)).toBeUndefined();
 
-    expect(failed).toBe(true);
-    expect(loaderWarnings()).toHaveLength(1);
-    expect(unexpected).not.toHaveBeenCalled();
+    await arrive(s, { live: [[s.streaming(now - 1_000)]] });
+    expect(hinted(s)).toBe(false);
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  it('keeps Working when another reply the thread lacks ends', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    const other = { ...s.placeholder, event_id: '$other-reply' };
+    const done = { ...s.completed(now), event_id: '$other-done' };
+    done.content = {
+      ...done.content,
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$other-reply' },
+    };
+    s.f.serveEvent(withEdit(other, done));
+    await s.f.deliver([done]);
+    expect(s.f.requested('/event/$other-reply')).toBe(1);
     expect(s.workflow()).toBe('working');
   });
 
-  it.each([
-    ['before', 'ends before the reply'],
-    ['after', 'ends before the reply'],
-    ['before', 'reaches the reply'],
-  ])(
-    'keeps the revealed reply streaming, revealed %s a first page that %s',
-    async (order, page) => {
+  it('ends Working five minutes after the last live edit, and says so', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      await vi.advanceTimersByTimeAsync(3 * MINUTE);
+      await s.f.deliver([s.streaming(now + 3 * MINUTE, '$b-later')]);
+      // Past the first edit's five minutes, within the second's.
+      await vi.advanceTimersByTimeAsync(3 * MINUTE);
+      expect(s.workflow()).toBe('working');
+      const updates = vi.fn();
+      s.thread.on(ThreadEvent.Update, updates);
+
+      await vi.advanceTimersByTimeAsync(STREAM_HINT_MS - 3 * MINUTE + 1_000);
+      expect(updates).toHaveBeenCalled();
+      expect(hinted(s)).toBe(false);
+      expect(s.workflow()).toBe('needsYou');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ends Working at a sync gap of the room, until the next live edit', async () => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    const otherRoomId = '!other:example.org';
+    const resets = vi.fn();
+    s.f.mx.on(RoomEvent.TimelineReset, (room) => resets(room?.roomId));
+    await s.f.deliver([chat('$other-1', now)], false, otherRoomId);
+    await s.f.deliver([chat('$other-2', now)], true, otherRoomId);
+    expect(resets).toHaveBeenCalledWith(otherRoomId);
+    expect(s.workflow()).toBe('working');
+
+    // The edit that ended the stream may have come in the gap.
+    await s.f.deliver([chat('$chat-after-gap', now)], true);
+    expect(resets).toHaveBeenCalledWith(roomId);
+    expect(hinted(s)).toBe(false);
+    expect(s.workflow()).toBe('needsYou');
+
+    const later = s.streaming(now, '$b-later');
+    await arrive(s, { newest: later, live: [[later]] });
+    expect(s.workflow()).toBe('working');
+  });
+
+  it.each<[string, (s: MidStream, now: number) => unknown]>([
+    [
+      'the reader ignores its sender',
+      (s) => vi.spyOn(s.f.mx, 'isUserIgnored').mockImplementation((userId) => userId === agentId),
+    ],
+    ['the room turns encryption on', (s, now) => s.f.deliver([encryption(now)])],
+  ])('ends Working once %s', async (_name, change) => {
+    const now = Date.now();
+    const s = await hintMidStream(now);
+    await change(s, now);
+    expect(s.workflow()).toBe('needsYou');
+  });
+
+  it.each(['before', 'after'])(
+    'keeps Working by a live edit that comes %s a first page that ends before the reply',
+    async (order) => {
       const now = Date.now();
       const s = await relaunchMidStream(now);
       const { f, thread, workflow } = s;
-      const { newest, live } = oneLiveEdit(s, now);
-      s.serve(newest);
-      if (page === 'reaches the reply')
-        f.setServerThread({
-          root: s.listed,
-          replies: [withEdit(s.placeholder, defined(newest, 'the edit')), s.text, s.file],
-        });
-      if (order === 'before') await f.deliver(defined(live[0], 'the live batch'));
+      const arrival = oneLiveEdit(s, now);
+      if (order === 'before') await arrive(s, arrival);
       await thread.initialize();
       expect(thread.initialEventsFetched).toBe(true);
-      if (order === 'after') await f.deliver(defined(live[0], 'the live batch'));
+      if (order === 'after') await arrive(s, arrival);
 
-      expect(!!thread.findEventById(replyId)).toBe(page === 'reaches the reply');
-      workflow();
-      await afterCheckDelay();
+      expect(thread.findEventById(replyId)).toBeUndefined();
       expect(workflow()).toBe('working');
-      const streaming = () => getThreadStreamingReplies(f.room(), rootId).map((e) => e.getId());
-      expect(streaming()).toEqual([replyId]);
-      // The SDK fetches the reply for the first edit of a batch only.
       await f.deliver([s.streaming(now, '$b-later'), s.streaming(now + 1, '$b-latest')]);
-      const shown = thread.findEventById(replyId) ?? revealedReplies.get(thread);
-      expect(shown?.replacingEvent()?.getId()).toBe('$b-latest');
-      expect(streaming()).toEqual([replyId]);
+      expect(workflow()).toBe('working');
       await f.deliver([s.ending(now + 2)]);
       expect(workflow()).toBe('needsYou');
+    }
+  );
+
+  // The hidden edits never vouched for the reply: its copy on the page is checked as any other.
+  it.each([
+    ['still streams', 'working'],
+    ['finished', 'needsYou'],
+  ])(
+    'judges the reply by the thread’s own copy once a page brings it: the server says it %s',
+    async (answer, expected) => {
+      const now = Date.now();
+      const s = await hintMidStream(now);
+      const { f, thread, workflow } = s;
+      const active = s.streaming(now - 1_000);
+      // The page's copy of the reply is from before it finished.
+      f.setServerThread({
+        root: s.listed,
+        replies: [withEdit(s.placeholder, active), s.text, s.file],
+      });
+      s.serve(answer === 'finished' ? s.ending(now) : active);
+      await thread.initialize();
+
+      expect(thread.findEventById(replyId)).toBeDefined();
+      expect(hinted(s)).toBe(false);
+      expect(workflow()).toBe('needsYou');
+      await afterCheckDelay();
+      expect(workflow()).toBe(expected);
+      expect(f.replyRequests()).toBe(2);
     }
   );
 

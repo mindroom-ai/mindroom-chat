@@ -6,12 +6,10 @@ import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  getThreadStreamingEvents,
   getThreadStreamingReplies,
   getThreadStreamingState,
   useThreadStreamingState,
 } from './useThreadStreamingState';
-import { revealedReplies } from '../../matrix/client/streamingThreadLoads';
 
 const THREAD_ROOT_ID = '$root';
 
@@ -212,32 +210,6 @@ const renderHookHarness = (
     renderer: renderer as ReactTestRenderer,
   };
 };
-
-describe('getThreadStreamingEvents', () => {
-  it('reads a revealed reply before the tail, and once when the tail holds a copy of it', () => {
-    const relationMap = new Map<string, MockRelations>();
-    const streaming = { 'io.mindroom.stream_status': 'streaming' };
-    const later = makeThreadReplyEvent('$later', 300);
-    const thread = Object.assign(makeThread({ relationMap, timelineEvents: [later] }), {
-      findEventById: () => undefined,
-    });
-    const room = makeRoom({
-      rootEventId: '$root',
-      thread,
-      roomTimelineSet: makeTimelineSet(relationMap, () => []),
-    });
-    const revealed = makeThreadReplyEvent('$hidden', 200, streaming);
-    revealedReplies.set(thread, revealed);
-    expect(getThreadStreamingEvents(room, '$root')).toEqual([revealed, later]);
-
-    // The thread's summary names the reply: another copy, in no timeline either.
-    const summarized = makeThreadReplyEvent('$hidden', 200, streaming);
-    thread.setTimelineEvents([]);
-    thread.setLastReply(summarized);
-    expect(getThreadStreamingEvents(room, '$root')).toEqual([summarized]);
-    expect(getThreadStreamingEvents(room, '$root')[0]).toBe(summarized);
-  });
-});
 
 describe('getThreadStreamingReplies', () => {
   it('finds every reply that streams, and none once they finished', () => {

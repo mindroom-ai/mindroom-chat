@@ -151,21 +151,14 @@ export const holdStreamingChecks = (room: Room): (() => void) =>
 const threadOf = (event: MatrixEvent): string | undefined =>
   event.threadRootId ?? event.getRelation()?.event_id;
 
-/**
- * The reply an edit replaces, as the client holds it: in a timeline or as its thread's summary, or
- * as the server's copy that the SDK fetched to place the edit.
- */
+/** The reply an edit replaces, as the client holds it: in a timeline or as its thread's summary. */
 const heldReply = (
   room: Room | null,
   edit: MatrixEvent,
   replyId: string
 ): MatrixEvent | undefined => {
   const thread = edit.threadRootId ? room?.getThread(edit.threadRootId) : undefined;
-  return (
-    (thread && findReply(thread, replyId)) ??
-    room?.findEventById(replyId) ??
-    room?.fetchedRelationParents.get(edit)
-  );
+  return (thread && findReply(thread, replyId)) ?? room?.findEventById(replyId);
 };
 
 /**

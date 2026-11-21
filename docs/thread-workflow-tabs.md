@@ -25,20 +25,19 @@ Pending sends alone do not constitute Working. Resolved and snoozed now precede 
 After live sync, the client loads the first page of each unopened thread whose summary bundles a
 hidden stream, one thread at a time. A reply that streams behind newer messages (an agent posts
 text and files mid-turn) is in no summary, and the edits of a long stream can fill a thread's
-newest page. So when a live edit arrives for a reply that its thread does not hold, the client keeps
-the copy of the reply that the SDK fetched to place the edit, beside the thread and without another
-request, and the card checks it together with the thread's newest replies. For that, the newest
-revision the server sent (the edit bundled with that copy, or the live edit) must say explicitly
-that it still streams and be at most 30 minutes old, and the client must know no newer revision;
-edits from the saved sync never count as such evidence. Keeping the reply does not make the thread
-Working: the card must confirm the stream, as for any reply, and the live edit by the sender of the
-fetched copy vouches for it, so the card asks the server nothing. Each further live edit brings the
-server's copy again, and the kept reply takes the newest revision known, so a finishing edit that
-only the server's copy bundles ends Working. A redaction of the kept reply or of the edit it shows,
-by someone who may redact it, drops the copy, as does a copy the server returns redacted; the next
-live edit keeps the reply again as the server then holds it. Encrypted rooms are excluded. A stream
-silent since relaunch (for example, in a long tool call) stays in Needs you until its next live
-edit; activity goes idle after 30 minutes without an edit.
+newest page. So a live edit of a reply that its thread does not hold makes the thread Working for
+5 minutes from when the client received it, and each further live edit starts the 5 minutes again.
+The edit must be by the reply's sender (the SDK fetches the reply to place the edit, without a
+request from the app), say explicitly that the reply still streams, be at most 30 minutes old, and
+be the newest revision of the reply the client knows; a reaction, an edit bundled with the fetched
+reply, or an edit from the saved sync never counts. The client keeps no copy of the reply for this.
+Working ends when a newer revision that the client learns of (also one bundled with the fetched
+reply) ends the stream, at a sync gap of the room, when the reader ignores the sender, or after the
+5 minutes. Once the thread holds the reply, as after a page that reaches it, only the usual checks
+of that reply count. Encrypted rooms are excluded. Known costs: a tool call silent for more than 5
+minutes shows Needs you until its next edit, as does a stream silent since relaunch; a redaction or
+a finishing edit that never arrives can leave Working for up to 5 minutes; and the thread's details
+show no tool trace for a reply the thread does not hold.
 
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups
