@@ -173,8 +173,7 @@ export const ThreadIndicator = forwardRef<HTMLElement, ThreadIndicatorProps>(
         <span className={css.ThreadIndicatorBody} dir="auto">
           <span className={css.ThreadIndicatorTitle}>{threadTitle}</span>
           {/* A dot parts the title from the count; the no-break space keeps it on the title's line. */}
-          {'\u00a0'}
-          <span aria-hidden="true">·</span>{' '}
+          <span aria-hidden="true">{'\u00a0'}·</span>{' '}
           <bdi
             className={css.ThreadIndicatorMetadata}
             dir={documentIsRightToLeft() ? 'rtl' : 'ltr'}
