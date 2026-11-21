@@ -171,7 +171,6 @@ test('a thread whose agent posted its Thinking placeholder is Working', async ({
     });
     await expect(workingHeader).toHaveText(/· 1$/, { timeout: 15_000 });
     expect(await sectionOf(page, rootB)).toBe('working');
-    expect(await orderHeld()).toBe(1);
   });
   await expect.poll(() => sectionOf(page, rootB), { timeout: 10_000 }).toBe('needsYou');
   expect(await orderHeld()).toBe(0);

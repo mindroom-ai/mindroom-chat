@@ -29,8 +29,8 @@ const watchMouseOrderHold = (page: Page) =>
     const attribute = 'data-order-held';
     const held = document.querySelector(`[data-compact-room-view] [${attribute}]`);
     if (!held) throw new Error('Compact order was no longer held when the observer started');
-    const win = window as Window & { compactMouseOrderDropped?: boolean };
-    win.compactMouseOrderDropped = false;
+    let dropped = false;
+    const chain = new Set<Node>();
     const recordDrops = (records: MutationRecord[]) => {
       if (
         !held.hasAttribute(attribute) ||
@@ -38,24 +38,26 @@ const watchMouseOrderHold = (page: Page) =>
         records.some((record) =>
           record.type === 'attributes'
             ? record.oldValue === null // The attribute was added back before delivery.
-            : Array.from(record.removedNodes).some((node) => node.contains(held))
+            : Array.from(record.removedNodes).some((node) => chain.has(node))
         )
       ) {
-        win.compactMouseOrderDropped = true;
+        dropped = true;
       }
     };
     const observer = new MutationObserver(recordDrops);
     observer.observe(held, { attributeFilter: [attribute], attributeOldValue: true });
-    // The cards or an ancestor can be replaced even if the new element also holds the order.
-    observer.observe(document, { childList: true, subtree: true });
-    return (disconnect: boolean) => {
-      recordDrops(observer.takeRecords());
-      const dropped = win.compactMouseOrderDropped;
-      if (disconnect) {
+    // Watch the held element's removal or replacement, including via an ancestor.
+    for (let node: Node = held; node.parentNode; node = node.parentNode) {
+      chain.add(node);
+      observer.observe(node.parentNode, { childList: true });
+    }
+    return {
+      finish: () => {
+        recordDrops(observer.takeRecords());
         observer.disconnect();
-        delete win.compactMouseOrderDropped;
-      }
-      return dropped;
+        return dropped;
+      },
+      disconnect: () => observer.disconnect(),
     };
   });
 
@@ -68,16 +70,6 @@ export const withMovingMouseOverCard = async <T>(
   const box = await card.boundingBox();
   if (!box) throw new Error('No card to point at');
   const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  await page.mouse.move(point.x, point.y);
-  await expect(page.locator('[data-compact-room-view] [data-order-held]')).toHaveCount(1);
-  const watch = await watchMouseOrderHold(page);
-  const expectUnbrokenHold = async (disconnect = false) => {
-    expect(
-      await watch.evaluate((read, stop) => read(stop), disconnect),
-      'the Compact order hold never dropped while the mouse was moving'
-    ).toBe(false);
-  };
-
   const controller = new AbortController();
   const { signal } = controller;
   const tick = async (dx: number) => {
@@ -99,33 +91,34 @@ export const withMovingMouseOverCard = async <T>(
     }
   };
   const update = async () => {
+    await expect(page.locator('[data-compact-room-view] [data-order-held]')).toHaveCount(1);
+    const watch = await watchMouseOrderHold(page);
+    let finished = false;
     try {
       const result = await run(point);
-      await expectUnbrokenHold();
+      const dropped = await watch.evaluate((observer) => observer.finish());
+      finished = true;
+      expect(dropped, 'the Compact order hold never dropped while the mouse was moving').toBe(
+        false
+      );
       return result;
     } finally {
-      controller.abort();
+      if (!finished) await watch.evaluate((observer) => observer.disconnect()).catch(() => {});
+      await watch.dispose().catch(() => {});
     }
   };
 
-  const nudging = nudge();
-  const updating = update();
-  let failed = false;
+  let nudging: Promise<void> | undefined;
+  let updating: Promise<T> | undefined;
   try {
+    await page.mouse.move(point.x, point.y);
+    nudging = nudge();
+    updating = update().finally(() => controller.abort());
     const [result] = await Promise.all([updating, nudging]);
     return result;
-  } catch (error) {
-    failed = true;
-    throw error;
   } finally {
     controller.abort();
     // A failed move must not leave the test's update running after this helper has exited.
     await Promise.allSettled([updating, nudging]);
-    await expectUnbrokenHold(true)
-      .finally(() => watch.dispose())
-      .catch((error: unknown) => {
-        // Keep the original failure if the final check or cleanup also fails.
-        if (!failed) throw error;
-      });
   }
 };
