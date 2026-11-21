@@ -1,4 +1,6 @@
+// @vitest-environment jsdom
 import React from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
@@ -32,7 +34,8 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
-vi.mock('folds', () => ({
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
   Button: ({
     before: _before,
     children,
@@ -55,8 +58,8 @@ vi.mock('../../ui/nav/NavItem', () => ({
     React.createElement('section', props, children),
 }));
 vi.mock('../../ui/nav/NavCategoryHeader', () => ({
-  NavCategoryHeader: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('header', null, children),
+  NavCategoryHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+    React.createElement('header', props, children),
 }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
   RoomNavCategoryButton: ({
@@ -88,8 +91,13 @@ vi.mock('./ThreadNavItem', () => ({
     ),
 }));
 vi.mock('./threadNav.css', () => ({
+  CategoryHeader: 'CategoryHeader',
+  CategoryToggle: 'CategoryToggle',
+  HeaderControls: 'HeaderControls',
   CategoryState: 'CategoryState',
   LayoutSegments: 'LayoutSegments',
+  ForMeToggle: 'ForMeToggle',
+  ForMeTooltip: 'ForMeTooltip',
 }));
 vi.mock('../../threads/cross-room/threadSignalsReader', () => ({
   getThreadSignalsReader: () => ({ read: readSignals }),
@@ -105,6 +113,7 @@ const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number)
     threadRootId,
     lastActivityTs,
     isInvolved: true,
+    hasAgentPostForUser: false,
     isUnread: false,
     isResolved: false,
     summaryText: threadRootId,
@@ -124,7 +133,6 @@ describe('ThreadNavCategory', () => {
       setItem: vi.fn(),
       removeItem: vi.fn(),
     });
-    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
     clearThreadSidebarPreferencesStore(USER_ID);
     store = createStore();
     store.set(crossRoomThreadIndexAtom, {
@@ -139,6 +147,7 @@ describe('ThreadNavCategory', () => {
   });
 
   afterEach(() => {
+    cleanup();
     if (renderer) act(() => renderer?.unmount());
     renderer = undefined;
     clearThreadSidebarPreferencesStore(USER_ID);
@@ -146,24 +155,28 @@ describe('ThreadNavCategory', () => {
     vi.clearAllMocks();
   });
 
+  const categoryTree = (
+    closedCategoriesAtom = makeClosedNavCategoriesAtom(USER_ID),
+    spaceId?: string
+  ) =>
+    React.createElement(
+      Provider,
+      { store },
+      React.createElement(
+        ClosedNavCategoriesProvider,
+        { value: closedCategoriesAtom },
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/'] },
+          React.createElement(ThreadNavCategory, { spaceId })
+        )
+      )
+    );
+
   const renderCategory = ({ spaceId }: { spaceId?: string } = {}) => {
     const closedCategoriesAtom = makeClosedNavCategoriesAtom(USER_ID);
     act(() => {
-      renderer = create(
-        React.createElement(
-          Provider,
-          { store },
-          React.createElement(
-            ClosedNavCategoriesProvider,
-            { value: closedCategoriesAtom },
-            React.createElement(
-              MemoryRouter,
-              { initialEntries: ['/'] },
-              React.createElement(ThreadNavCategory, { spaceId })
-            )
-          )
-        )
-      );
+      renderer = create(categoryTree(closedCategoriesAtom, spaceId));
     });
     return closedCategoriesAtom;
   };
@@ -345,6 +358,41 @@ describe('ThreadNavCategory', () => {
       forMe().props.onClick();
     });
     expect(threadKeys()).toEqual([newer.key, older.key]);
+  });
+
+  it('keeps a pinned uninvolved thread visible with For me on', () => {
+    store.set(crossRoomThreadIndexAtom, {
+      ...store.get(crossRoomThreadIndexAtom),
+      entries: new Map([
+        [older.key, { ...older, isInvolved: false }],
+        [newer.key, { ...newer, isInvolved: false }],
+      ]),
+    });
+    store.set(makeThreadSidebarPreferencesAtom(USER_ID), {
+      type: 'TOGGLE_PIN',
+      threadKey: older.key,
+    });
+    renderCategory();
+
+    act(() => {
+      renderer!.root.findByProps({ 'aria-label': 'For me' }).props.onClick();
+    });
+    expect(
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key'])
+    ).toEqual([older.key]);
+  });
+
+  it('shows the For me hint, including pins, when reached by keyboard', () => {
+    render(categoryTree());
+    const forMe = screen.getByRole('button', { name: 'For me' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    forMe.focus();
+    fireEvent.keyUp(forMe, { key: 'Tab' });
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      'Only threads you take part in, that an agent posted for you, or that you pinned'
+    );
   });
 
   it('shows a distinct empty state when For me hides every thread', () => {

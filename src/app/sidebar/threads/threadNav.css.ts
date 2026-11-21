@@ -1,13 +1,28 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { transition } from '../../ui/styles/transition';
+import { Segment, Segments } from '../../ui/styles/Segmented.css';
+
+export const CategoryHeader = style({ flexWrap: 'wrap' });
+export const CategoryToggle = style({ flexShrink: 0 });
+export const HeaderControls = style([Segments, { maxInlineSize: '100%' }]);
 
 export const LayoutSegments = style({
   display: 'flex',
   columnGap: toRem(2),
   minInlineSize: 0,
-  overflowWrap: 'anywhere',
 });
+
+export const ForMeToggle = style([
+  Segment,
+  {
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+  },
+]);
+
+export const ForMeTooltip = style({ maxInlineSize: toRem(260) });
 
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,

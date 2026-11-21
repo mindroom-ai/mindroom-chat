@@ -2,7 +2,8 @@ import { useCallback, useMemo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, Icons, Text } from 'folds';
+import { Button, Icon, Icons, Text, Tooltip } from 'folds';
+import { TooltipProvider } from '../../ui/directional';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -137,7 +138,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
       data-category-id={THREAD_NAV_CATEGORY_ID}
       closed={closed}
       onClick={handleCategoryClick}
-      style={{ flexShrink: 0 }}
+      className={css.CategoryToggle}
     >
       {t('threadNav.title')}
     </RoomNavCategoryButton>
@@ -147,10 +148,10 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
 
   return (
     <NavCategory data-testid="thread-nav-category">
-      <NavCategoryHeader style={{ flexWrap: 'wrap' }}>
+      <NavCategoryHeader className={css.CategoryHeader}>
         {toggle}
         {!closed && (
-          <div className={segmented.Segments} style={{ maxInlineSize: '100%' }}>
+          <div className={css.HeaderControls}>
             <div
               className={css.LayoutSegments}
               role="radiogroup"
@@ -169,19 +170,31 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              className={segmented.Segment}
-              style={{ display: 'grid', placeItems: 'center', flexShrink: 0 }}
-              aria-label={t('threadNav.forMe')}
-              aria-pressed={involvedOnly}
-              title={t('threadNav.forMeHint')}
-              onClick={() =>
-                updatePreferences({ type: 'SET_INVOLVED_ONLY', involvedOnly: !involvedOnly })
+            <TooltipProvider
+              position="Bottom"
+              align="End"
+              offset={6}
+              tooltip={
+                <Tooltip className={css.ForMeTooltip}>
+                  <Text size="T200">{t('threadNav.forMeHint')}</Text>
+                </Tooltip>
               }
             >
-              <Icon size="50" src={Icons.User} aria-hidden />
-            </button>
+              {(triggerRef) => (
+                <button
+                  ref={triggerRef}
+                  type="button"
+                  className={css.ForMeToggle}
+                  aria-label={t('threadNav.forMe')}
+                  aria-pressed={involvedOnly}
+                  onClick={() =>
+                    updatePreferences({ type: 'SET_INVOLVED_ONLY', involvedOnly: !involvedOnly })
+                  }
+                >
+                  <Icon size="50" src={Icons.User} aria-hidden />
+                </button>
+              )}
+            </TooltipProvider>
           </div>
         )}
       </NavCategoryHeader>

@@ -1719,7 +1719,7 @@
     "layoutRecent": "Recientes",
     "layoutSections": "Secciones",
     "forMe": "Para mí",
-    "forMeHint": "Solo los hilos en los que participas o en los que un agente publicó por ti",
+    "forMeHint": "Solo los hilos en los que participas, en los que un agente publicó por ti o que has fijado",
     "emptyForMe": "Aún no hay hilos para ti",
     "group": "Agrupar",
     "groupHint": "Agrupar por estado",
