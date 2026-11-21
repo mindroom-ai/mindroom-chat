@@ -54,7 +54,7 @@ const result = (changes: Record<string, unknown> = {}) => ({
 });
 const RESET = { operation: 'reset', model: undefined, override: null };
 
-/** The router's reply with `resultContent`, in the thread. */
+/** The agent's reply with `resultContent`, in the thread. */
 const ack = (
   resultContent: Record<string, unknown> = result(),
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
@@ -94,7 +94,7 @@ const plan = (
     ignored?: ReadonlySet<string>;
     /** Rows that must stay as they are. */
     kept?: string[];
-    routerUserId?: string | undefined;
+    trustedAccountIds?: ReadonlySet<string>;
   } = {}
 ) =>
   planModelChanges({
@@ -102,14 +102,30 @@ const plan = (
     // As the timeline reads a row: the latest replacement by the event's own sender.
     getContent: (event) =>
       getLatestMessageContent(event, getEditedEvent(event.getId() ?? '', event, undefined)),
-    // The room's router, unless a test names another or none (an explicit undefined).
-    routerUserId: ROUTER,
+    trustedAccountIds: new Set([ROUTER]),
     ignored: new Set<string>(),
     keeps: (eventId) => !!options.kept?.includes(eventId),
     ...options,
   });
 
 describe('planModelChanges', () => {
+  it('pairs a trusted answering agent acknowledgement in its own name', () => {
+    const sender = '@mindroom_helper:example.org';
+    const made = plan([typed('!model fast'), ack(result({ runtime_user_id: sender }), { sender })], {
+      trustedAccountIds: new Set([ROUTER, sender]),
+    });
+    expect([...made.hiddenEventIds]).toEqual(['$command']);
+    expect(made.byAckId.get('$ack')?.runtimeUserId).toBe(sender);
+  });
+
+  it("keeps a trusted agent acknowledgement in another trusted account's name", () => {
+    const sender = '@mindroom_helper:example.org';
+    expect(
+      plan([typed('!model fast'), ack(result(), { sender })], {
+        trustedAccountIds: new Set([ROUTER, sender]),
+      })
+    ).toBe(NO_MODEL_CHANGES);
+  });
   it('pairs a typed change with its acknowledgement and hides the command', () => {
     const command = typed('!model fast');
     const made = plan([command, ack()]);
@@ -220,14 +236,14 @@ describe('planModelChanges', () => {
     ['another agent', '@mindroom_helper:example.org'],
     ["another installation's router", '@mindroom_router_lab1:example.org'],
     ['a person', PERSON],
-  ])('keeps both rows when %s sent the result, the room naming another router', (_case, sender) => {
+  ])('keeps both rows when %s is not trusted to send the result', (_case, sender) => {
     const forged = ack(result({ runtime_user_id: sender }), { sender });
     expect(plan([typed('!model fast'), forged])).toBe(NO_MODEL_CHANGES);
   });
 
-  it('keeps both rows while the room names no router it trusts, or one the viewer ignores', () => {
+  it('keeps both rows when the sender is not trusted or the viewer ignores it', () => {
     const events = [typed('!model fast'), ack()];
-    expect(plan(events, { routerUserId: undefined })).toBe(NO_MODEL_CHANGES);
+    expect(plan(events, { trustedAccountIds: new Set() })).toBe(NO_MODEL_CHANGES);
     expect(plan(events, { ignored: new Set([ROUTER]) })).toBe(NO_MODEL_CHANGES);
   });
 

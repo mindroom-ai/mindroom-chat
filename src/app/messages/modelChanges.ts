@@ -73,12 +73,11 @@ const isAppliedCommand = (content: Record<string, unknown>, result: ModelSelecti
  * Which model changes of `events` (an open thread's rows) show as one line. A change counts when
  * every part of it is proven by the events themselves, never by what a reply's text says:
  *
- * - the room's router sent the acknowledgement (`routerUserId`, which the room's state names and
- *   `trustedRouterUserId` trusts; none while it names none or the viewer ignores it), and it is
- *   not redacted;
+ * - a trusted account sent the acknowledgement (the room's binding or a joined account from
+ *   its roster, excluding ignored accounts), and it is not redacted;
  * - its content, as its row shows it (`getContent`, which counts only the sender's own edits),
  *   holds an applied result (`parseModelSelectionResult`) for this room, for the thread the event
- *   itself was sent in, in the router's own name;
+ *   itself was sent in, in the sender's own name;
  * - the command the result names is among `events`: a message in that thread (not its root), not
  *   redacted, from a sender who is neither ignored nor a MindRoom agent (one may send the command
  *   for somebody, whom the line could not name), and answered encrypted when it was encrypted;
@@ -93,24 +92,28 @@ const isAppliedCommand = (content: Record<string, unknown>, result: ModelSelecti
 export const planModelChanges = ({
   events,
   getContent,
-  routerUserId,
+  trustedAccountIds,
   ignored,
   keeps,
 }: {
   events: readonly MatrixEvent[];
   getContent: (event: MatrixEvent) => Record<string, unknown>;
-  routerUserId: string | undefined;
+  trustedAccountIds: ReadonlySet<string>;
   ignored: ReadonlySet<string>;
   keeps: (eventId: string) => boolean;
 }): ModelChangePlan => {
-  if (!routerUserId || ignored.has(routerUserId)) return NO_MODEL_CHANGES;
+  if (trustedAccountIds.size === 0) return NO_MODEL_CHANGES;
   // Every version of an acknowledgement carries the result, so the cheap read of the first finds them.
-  const acks = events.filter(
-    (event) =>
+  const acks = events.filter((event) => {
+    const sender = event.getSender();
+    return (
       MODEL_RESULT in event.getOriginalContent() &&
       !event.isRedacted() &&
-      event.getSender() === routerUserId
-  );
+      !!sender &&
+      trustedAccountIds.has(sender) &&
+      !ignored.has(sender)
+    );
+  });
   if (acks.length === 0) return NO_MODEL_CHANGES;
   const byId = new Map(events.map((event) => [event.getId(), event]));
   const hiddenEventIds = new Set<string>();
@@ -126,7 +129,7 @@ export const planModelChanges = ({
       !result.thread_id ||
       result.room_id !== ack.getRoomId() ||
       result.thread_id !== threadRootOf(ack) ||
-      result.runtime_user_id !== routerUserId ||
+      result.runtime_user_id !== ack.getSender() ||
       result.command_event_id === ackId ||
       keeps(ackId) ||
       keeps(result.command_event_id) ||

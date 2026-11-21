@@ -932,7 +932,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
     ignored: ignoredUsersSet,
     revealed: pluginRevealedRef.current,
   });
-  // The open thread's model changes the same router applied: one line each at its reply, the
+  // The open thread's model changes these accounts applied: one line each at its reply, the
   // command's row hidden. The room's own timeline has no thread rows, so it keeps both messages,
   // as does a change with a row the route or a jump opened, a reply a plugin hides (its command
   // shows without it; asked of the row as it reads now, as one that decrypts in place brings no
@@ -941,7 +941,7 @@ function RoomTimelineRows(props: RoomTimelineProps & { listenedOverview?: Thread
   const modelChanges = useModelChangePlan({
     events: threadEvents,
     getContent: getRowContent,
-    routerUserId: boundUserId,
+    trustedAccountIds: trustedAccountsRef.current,
     ignored: ignoredUsersSet,
     keeps: (id) =>
       pluginRevealedRef.current.has(id) || isHiddenByPluginId(id) || forksByPoint.has(id),
