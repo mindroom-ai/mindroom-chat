@@ -16,9 +16,9 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
-// Typing "@Min" and Tab picks Mind by display name, not another agent by the shared ID prefix.
-// The owner, MindRoom, is not offered even though its name also matches. The message goes out
-// as "@Mind ..." with Mind in `m.mentions`. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
+// Typing "@Min" and Tab picks Mind by display name. MindRoom also matches: a namespaced
+// router ID can belong to an agent, so it is still offered. The message goes out as "@Mind ..."
+// with Mind in `m.mentions`. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
 // names Playwright's WebKit, in WebKit, against the disposable homeserver of `just hs-up` or of
 // a slot of scripts/e2e-slot.sh.
 const PASSWORD = 'mention-ranking-spec-password';
@@ -60,12 +60,12 @@ type RoomMessage = {
   };
 };
 
-/** A launch room: the owner and four agents, Mind joining last, so it is listed last. */
+/** A launch room: four agents and a possible namespaced owner, with Mind joining last. */
 const launchRoom = async (tag: string) => {
   const reader = await registerPerson(`mar_reader_${tag}`, 'Robin Reader');
   const accounts = {
     scout: await registerAgent('scout', 'Scout'),
-    owner: await registerAgent('router', 'MindRoom'),
+    possibleOwner: await registerAgent('router', 'MindRoom'),
     quill: await registerAgent('quill', 'Quill'),
     forge: await registerAgent('forge', 'Forge'),
     mind: await registerAgent('mind', 'Mind'),
@@ -86,8 +86,8 @@ const launchRoom = async (tag: string) => {
     msgtype: 'm.text',
     body: 'The launch checklist is up to date: pricing page, release notes and the status page are ready for review.',
   });
-  // A historical post makes the owner known even before all members load.
-  await sendRoomMessage(HOMESERVER, accounts.owner.accessToken, roomId, {
+  // A historical post makes MindRoom known even before all members load.
+  await sendRoomMessage(HOMESERVER, accounts.possibleOwner.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'The launch room is ready.',
   });
@@ -121,10 +121,10 @@ const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
   await composer.click();
   await page.keyboard.type('@Min');
 
-  // Mind is offered, but MindRoom is not, even though "Min" starts both names.
   const rows = page.getByRole('option', { name: /^(Scout|Mind|MindRoom|Quill|Forge)\s*@/ });
-  await expect(rows).toHaveCount(1, { timeout: 20_000 });
+  await expect(rows).toHaveCount(2, { timeout: 20_000 });
   await expect(rows.first()).toHaveAccessibleName(/^Mind\s*@/);
+  await expect(rows.last()).toHaveAccessibleName(/^MindRoom\s*@/);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/picker-${tag}.png` });
   // Tab (or a tap on the top row) right away, as a person who sees the picker open does.
   if (pick === 'tab') await page.keyboard.press('Tab');
@@ -154,7 +154,7 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-const TITLE = '"@Min" mentions Mind, not the agent listed first, and sends "@Mind"';
+const TITLE = '"@Min" ranks Mind above MindRoom and sends "@Mind"';
 
 const inContext = async (
   browser: Browser,
