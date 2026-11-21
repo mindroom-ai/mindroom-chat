@@ -32,22 +32,21 @@ const metRequests = new WeakMap<ScrollAnchorMemory, Set<string>>();
 const metKey = ({ eventId, entryKey }: CompactFocusRequest): string | undefined =>
   entryKey && entryKey !== 'default' ? `${entryKey} ${eventId}` : undefined;
 
-/**
- * A request is its history entry's once: it gives the card a place in the list's `memory`, unless
- * the place saved there has the card in view, until the list has shown the card. Returning to
- * that entry later (a back or forward step) keeps the place the reader left.
- */
-export const takeCompactFocusRequest = (
+/** On mount an unmet link takes its card's place unless the saved place already shows it. */
+export const compactMountPlace = (
   memory: ScrollAnchorMemory,
   roomId: string,
-  request: CompactFocusRequest
-): void => {
-  const key = metKey(request);
-  if ((request.returned && memory.has(roomId)) || (key && metRequests.get(memory)?.has(key)))
-    return;
-  if (!memory.get(roomId)?.anchors.some((anchor) => anchor.key === request.eventId)) {
-    memory.set(roomId, focusedPlace(request.eventId));
-  }
+  request?: CompactFocusRequest
+): ScrollAnchorSnapshot | undefined => {
+  const saved = memory.get(roomId);
+  const place =
+    request &&
+    !(request.returned && saved) &&
+    !metRequests.get(memory)?.has(metKey(request) ?? '') &&
+    !saved?.anchors.some((anchor) => anchor.key === request.eventId)
+      ? focusedPlace(request.eventId)
+      : saved;
+  return place && place.scrollTop > 0 ? place : undefined;
 };
 
 /** Whether the list has still to show the card `request` asks for. */
@@ -59,22 +58,21 @@ export const isCompactFocusRequestOpen = (
   return !!key && !metRequests.get(memory)?.has(key);
 };
 
-/** A request that comes to the mounted list `view`: its card's place, unless it shows whole. */
+/** A mounted link's place. Null waits for the card; undefined means it already shows whole. */
 export const compactFocusPlace = (
   request: CompactFocusRequest,
   view: HTMLElement
-): ScrollAnchorSnapshot | undefined => {
+): ScrollAnchorSnapshot | null | undefined => {
   const card = Array.from(view.querySelectorAll('[data-scroll-anchor]')).find(
     (row) => row.getAttribute('data-scroll-anchor') === request.eventId
   );
+  if (!card) return null;
   const style = getComputedStyle(view);
   const shown = view.getBoundingClientRect();
   const top = shown.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
   const bottom = shown.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
-  const rect = card?.getBoundingClientRect();
-  return rect && rect.top >= top && rect.bottom <= bottom
-    ? undefined
-    : focusedPlace(request.eventId);
+  const rect = card.getBoundingClientRect();
+  return rect.top >= top && rect.bottom <= bottom ? undefined : focusedPlace(request.eventId);
 };
 
 /** The list shows the card `request` asks for. For an effect: a render can be abandoned. */

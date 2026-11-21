@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScrollAnchorMemory, ScrollAnchorSnapshot } from '../../ui/scrollAnchorMemory';
-import { meetCompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
+import { meetCompactFocusRequest, compactMountPlace } from './compactFocusRequest';
 
 const ROOM_ID = '!room:example.org';
 const CARD = '$card';
@@ -14,27 +14,27 @@ const leftAtTop: ScrollAnchorSnapshot = { scrollTop: 0, anchors: [{ key: '$top',
 // comes back to the entry `entryKey`, whose address asks for `eventId`.
 const returnTo = (memory: ScrollAnchorMemory, entryKey: string | undefined, eventId = CARD) => {
   memory.set(ROOM_ID, leftAtTop);
-  takeCompactFocusRequest(memory, ROOM_ID, { eventId, entryKey });
-  return memory.get(ROOM_ID);
+  return compactMountPlace(memory, ROOM_ID, { eventId, entryKey }) ?? leftAtTop;
 };
 
 describe('a compact focus request', () => {
   it('gives the card a place in a list that saved none', () => {
     const memory: ScrollAnchorMemory = new Map();
-    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
-    expect(memory.get(ROOM_ID)).toEqual(focusedPlace(CARD));
+    expect(compactMountPlace(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' })).toEqual(
+      focusedPlace(CARD)
+    );
+    expect(memory.size).toBe(0);
   });
 
   it('keeps a saved place that has the card in view', () => {
     const saved = { scrollTop: 900, anchors: [{ key: CARD, offset: 320 }] };
     const memory: ScrollAnchorMemory = new Map([[ROOM_ID, saved]]);
-    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
-    expect(memory.get(ROOM_ID)).toBe(saved);
+    expect(compactMountPlace(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' })).toBe(saved);
   });
 
   it('keeps the place the reader left on a return to an entry whose request was met', () => {
     const memory: ScrollAnchorMemory = new Map();
-    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
+    compactMountPlace(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
     meetCompactFocusRequest(memory, { eventId: CARD, entryKey: 'a' });
     expect(returnTo(memory, 'a')).toBe(leftAtTop);
   });
@@ -45,20 +45,22 @@ describe('a compact focus request', () => {
     const memory: ScrollAnchorMemory = new Map();
     meetCompactFocusRequest(memory, { eventId: CARD, entryKey: 'a' });
     memory.set(ROOM_ID, leftAtTop);
-    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'b', returned: true });
-    expect(memory.get(ROOM_ID)).toBe(leftAtTop);
+    expect(
+      compactMountPlace(memory, ROOM_ID, { eventId: CARD, entryKey: 'b', returned: true })
+    ).toBeUndefined();
   });
 
   it('is taken on a return with no saved place, as after a reload', () => {
     const memory: ScrollAnchorMemory = new Map();
-    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'b', returned: true });
-    expect(memory.get(ROOM_ID)?.anchors.map((anchor) => anchor.key)).toEqual([CARD]);
+    expect(
+      compactMountPlace(memory, ROOM_ID, { eventId: CARD, entryKey: 'b', returned: true })
+    ).toEqual(focusedPlace(CARD));
   });
 
   it('is taken again until it is met: taking it, as a render does, does not meet it', () => {
     const memory: ScrollAnchorMemory = new Map();
-    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
-    takeCompactFocusRequest(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
+    compactMountPlace(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
+    compactMountPlace(memory, ROOM_ID, { eventId: CARD, entryKey: 'a' });
     expect(returnTo(memory, 'a')).toEqual(focusedPlace(CARD));
   });
 

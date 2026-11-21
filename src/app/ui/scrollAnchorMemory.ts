@@ -21,7 +21,7 @@ export type ScrollAnchorMemory = Map<string, ScrollAnchorSnapshot>;
 const getAnchorKey = (row: Element): string | null => row.getAttribute(SCROLL_ANCHOR_ATTRIBUTE);
 
 // Rows render top to bottom, so the rows in view end at the first one below it.
-const captureScrollAnchors = (view: HTMLElement): ScrollAnchorSnapshot => {
+export const captureScrollAnchors = (view: HTMLElement): ScrollAnchorSnapshot => {
   const { top, bottom } = view.getBoundingClientRect();
   const anchors: ScrollAnchor[] = [];
   for (const row of view.querySelectorAll(SCROLL_ANCHOR_SELECTOR)) {
@@ -44,7 +44,7 @@ type RowPlacement = {
 // take the position most rows agree on, and on a tie the nearer one. Once a
 // write has placed rows, later steps keep those rows, or none if they no
 // longer agree; until then (no saved row rendered yet), each step votes.
-const placeRows = (
+export const placeRows = (
   view: HTMLElement,
   snapshot: ScrollAnchorSnapshot,
   placedRows: string[]
