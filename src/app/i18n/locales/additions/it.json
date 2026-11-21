@@ -1762,5 +1762,9 @@
   },
   "threadActions": {
     "openBeside": "Apri nella seconda colonna"
+  },
+  "roomSchedules": {
+    "thisThread": "Questo thread",
+    "elsewhereInRoom": "Altrove in questa stanza"
   }
 }

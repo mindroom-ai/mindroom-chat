@@ -29,7 +29,7 @@ import * as css from './RoomPinMenu.css';
 
 export type RoomPinMenuProps = {
   room: Room;
-  requestClose: () => void;
+  requestClose: (reason: 'dismiss' | 'navigate') => void;
 };
 
 /** Controls inside an entry that do something of their own, so a click on them opens nothing. */
@@ -326,7 +326,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     // it. A message of the room is focused in the room, also in the thread views (as leaving a
     // thread focuses its root); a thread reply opens in its thread, as a search hit does.
     const openMessage = (eventId: string, threadRootId?: string) => {
-      requestClose();
+      requestClose('navigate');
       const open = () => {
         if (threadRootId && threadRootId !== eventId) {
           navigateRoomThread(room.roomId, threadRootId, eventId);
@@ -377,7 +377,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
               size="300"
               radii="300"
               aria-label={t('mindroomUi.messages.mindroomMessageControls.close')}
-              onClick={requestClose}
+              onClick={() => requestClose('dismiss')}
             >
               <Icon size="100" src={Icons.Cross} />
             </IconButton>

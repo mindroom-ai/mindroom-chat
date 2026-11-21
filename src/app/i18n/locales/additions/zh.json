@@ -1674,5 +1674,9 @@
   },
   "threadActions": {
     "openBeside": "在第二栏打开"
+  },
+  "roomSchedules": {
+    "thisThread": "此讨论串",
+    "elsewhereInRoom": "此房间中的其他位置"
   }
 }

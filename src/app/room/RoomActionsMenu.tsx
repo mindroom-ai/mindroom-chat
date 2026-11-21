@@ -13,9 +13,8 @@ import * as css from './RoomActionsMenu.css';
 
 type RoomActionsMenuProps = RoomActionProps & {
   /**
-   * What only works inside the open room (the room header's menu): the header's actions that its
-   * row leaves to the menu (src/app/room/roomHeaderActions.tsx). A section of its own, before the
-   * room's actions.
+   * Actions specific to the open room's header, including those with row shortcuts on phones.
+   * A section of its own, before the room's actions.
    */
   roomEntries?: ReactNode;
 };

@@ -1,9 +1,10 @@
-import { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Overlay, OverlayBackdrop } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { markOverlayDismissed } from '../lib/overlayFocus';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
 import { DialogFrame } from '../ui/noticeSlots';
 import { usePanelForm } from '../ui/panels/panelPresence';
@@ -26,6 +27,7 @@ export function ResizableMembersPanel({
   // A closing panel keeps its form: one that closes as the window narrows never opens over the room.
   const mobile = usePanelForm(useScreenSizeContext() === ScreenSize.Mobile || overlay);
   const phoneSheetSlot = usePhoneSheetSlot();
+  const overlayRef = useRef<HTMLDivElement>(null);
   const panel = (
     <ResizablePanel
       side="end"
@@ -59,12 +61,14 @@ export function ResizableMembersPanel({
           escapeDeactivates: (event) => {
             event.preventDefault();
             event.stopPropagation();
+            markOverlayDismissed(overlayRef.current);
             onClose();
             return false;
           },
         }}
       >
         <DialogFrame
+          ref={overlayRef}
           className={css.MobileOverlay}
           aria-modal="true"
           aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.members')}

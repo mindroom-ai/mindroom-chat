@@ -1674,5 +1674,9 @@
   },
   "threadActions": {
     "openBeside": "두 번째 열에서 열기"
+  },
+  "roomSchedules": {
+    "thisThread": "이 스레드",
+    "elsewhereInRoom": "이 방의 다른 위치"
   }
 }
