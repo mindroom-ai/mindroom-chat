@@ -276,7 +276,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
             </Button>
           ) : (
             <>
-              <Text size="T200" className={css.Grow}>
+              <Text size="T200" className={css.FooterText}>
                 {t('activity.automationsHidden', { count: hiddenAutomations })}
               </Text>
               <Button

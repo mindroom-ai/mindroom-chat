@@ -159,13 +159,15 @@ export const Actions = style({
   flexWrap: 'wrap',
   gap: space.S100,
   paddingBlockStart: space.S100,
+  // The answer that replaces the buttons repeats the label: it wraps the same way.
+  overflowWrap: 'anywhere',
 });
 
 /**
- * A row's answer button, or a footer button, grows with a label that wraps in a narrow list (a
- * long option, a long translation) instead of keeping its fixed height and spilling the label's
- * lines over the button above and the one below. A long word, such as a path, wraps too rather
- * than run past the button's sides.
+ * An Activity button (a row's answer, a footer link) grows with a label that wraps in a narrow
+ * list (a long option, a long translation) instead of keeping its fixed height and spilling the
+ * label's lines over the button above and the one below. A long word, such as a path, wraps too
+ * rather than run past the button's sides.
  */
 export const ActionButton = style({
   selectors: {
@@ -178,6 +180,12 @@ export const ActionButton = style({
     },
   },
 });
+
+/**
+ * The footer's count of hidden runs: it takes the room its button leaves, so the button keeps
+ * its one word whole instead of shrinking with the count.
+ */
+export const FooterText = style({ flex: '1 1 0', minInlineSize: 0 });
 
 export const Footer = style({
   ...strip,
