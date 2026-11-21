@@ -235,18 +235,19 @@ export const useRoomInputVoice = ({
   }, [resetText, store]);
 
   const releaseVoiceAutoSend = useCallback(() => {
-    const sameAccount = voiceAutoSendClaimedRef.current;
-    if (!sameAccount) return;
+    const accountGuard = voiceAutoSendClaimedRef.current;
+    if (!accountGuard) return;
+    const sameAccount = accountGuard();
 
     const bundle = pendingVoiceComposerBundleRef.current;
-    if (bundle?.composerReset && !bundle.handedOff && bundle.composerFallback) {
+    if (sameAccount && bundle?.composerReset && !bundle.handedOff && bundle.composerFallback) {
       restoreText(bundle.roomId, bundle.composerFallback, bundle.composerThreadId);
     }
     bundle?.releasePasteProtection();
     pendingVoiceComposerBundleRef.current = undefined;
     voiceAutoSendInFlightRef.current = false;
     voiceAutoSendClaimedRef.current = undefined;
-    if (sameAccount()) store.set(voiceAutoSendPendingAtom, false);
+    if (sameAccount) store.set(voiceAutoSendPendingAtom, false);
   }, [restoreText, store]);
 
   const handleVoiceSend = useCallback(
@@ -360,6 +361,7 @@ export const useRoomInputVoice = ({
           // Give a previously failed attachment session one chance to finish after its
           // upload cards were retried or removed before parking this new voice bundle.
           await startSendSession();
+          ensureSameAccount();
           eligibleCompanionItems = getEligibleCompanionItems();
         }
         const activeSendSession = hasActiveSendSession();
@@ -444,9 +446,9 @@ export const useRoomInputVoice = ({
         } catch (err) {
           return logAndThrowUploadError(err, 'send');
         }
-        clearConsumedReply(liveContext);
+        if (sameAccount()) clearConsumedReply(liveContext);
       } finally {
-        if (liveContext && fileItems.length > 0) {
+        if (sameAccount() && liveContext && fileItems.length > 0) {
           attachmentAccess.remove(
             liveContext.roomId,
             fileItems.map((fileItem) => fileItem.file)

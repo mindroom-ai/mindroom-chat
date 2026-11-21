@@ -3244,6 +3244,77 @@ describe('RoomInput', () => {
     }
   );
 
+  it('does not stage a voice recording after leaving the account during an attachment retry', async () => {
+    const store = createStore();
+    const companion = new File(['attachment'], 'example.txt', { type: 'text/plain' });
+    const item = createUploadItem(companion);
+    stageUploadItems(store, [item], [companion]);
+    mxState.sendMessage.mockRejectedValueOnce(new Error('initial attachment send failed'));
+    const { renderer } = await renderRoomInput(store);
+    await submitComposer();
+    await openVoiceRecorder(renderer);
+
+    const retry = createDeferred<{ event_id: string }>();
+    mxState.sendMessage.mockReturnValueOnce(retry.promise);
+    const voice = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    queuePrimaryVoiceSend(voice, 900);
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = getPrimarySendButton(renderer).props.onClick();
+      await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(2));
+    });
+
+    await act(async () => {
+      // The file is removed while its retry is in flight, so only the recording remains.
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'DELETE', item });
+      forgetComposerStateOfSession(store);
+    });
+    const nextBoard = roomIdToUploadItemsAtomFamily(ROOM_ID);
+    const stagedAfterExit: File[] = [];
+    const unsubscribe = store.sub(nextBoard, () => {
+      stagedAfterExit.push(...store.get(nextBoard).map(({ file }) => file));
+    });
+    await act(async () => {
+      retry.resolve({ event_id: '$sent' });
+      await sending.catch(() => undefined);
+    });
+    unsubscribe();
+    renderer.unmount();
+
+    expect(stagedAfterExit).toEqual([]);
+    expect(mxState.uploadContent).not.toHaveBeenCalled();
+  });
+
+  it('does not restore a voice caption after leaving the account during upload', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store);
+    stageComposerText('Example caption');
+    resetEditorOnNextSend();
+    await openVoiceRecorder(renderer);
+
+    const upload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(upload.promise);
+    queuePrimaryVoiceSend(new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }), 900);
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = getPrimarySendButton(renderer).props.onClick();
+      await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+    });
+    expect(getEditorText()).toBe('');
+
+    await act(async () => {
+      forgetComposerStateOfSession(store);
+      renderer.unmount();
+    });
+    await act(async () => {
+      upload.resolve({ content_uri: 'mxc://mindroom/voice' });
+      await sending.catch(() => undefined);
+    });
+
+    const draft = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID));
+    expect(store.get(draft)).toEqual([]);
+  });
+
   it('sends a recording to the room and thread its composer shows when Send is pressed', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { roomId: ROOM_ID, threadId: '$thread-a' });
