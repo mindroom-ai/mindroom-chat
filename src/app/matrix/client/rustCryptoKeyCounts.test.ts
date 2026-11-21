@@ -6,13 +6,14 @@ import {
   UserId,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { createClient, MemoryStore, type MatrixClient } from 'matrix-js-sdk';
+import type { SyncCryptoChanges } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { RustCrypto } from 'matrix-js-sdk/lib/rust-crypto/rust-crypto';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-// The SDK hands each /sync to the Rust crypto machine in up to three calls: the to-device
-// messages, the device list changes and the one-time key counts. These tests drive the real
-// machine through the SDK's own methods against a homeserver kept in memory, and count the
-// one-time keys the device uploads.
+// The SDK hands each /sync to the Rust crypto machine in one call (matrix-js-sdk #5503): the
+// to-device messages, the device list changes and the one-time key counts together. These tests
+// drive the real machine through the SDK's own method against a homeserver kept in memory, and
+// count the one-time keys the device uploads.
 
 const OWNER = '@owner:example.org';
 const PEER = '@peer:example.org';
@@ -72,9 +73,17 @@ const deviceWithKeysOnServer = async () => {
   const server = makeServer(machine);
   const crypto = sdkBackend(machine);
   await server.flush();
-  await crypto.processKeyCounts({ signed_curve25519: server.keysHeld() }, ['signed_curve25519']);
+  await crypto.processSyncChanges({
+    toDeviceEvents: [],
+    oneTimeKeysCounts: { signed_curve25519: server.keysHeld() },
+    unusedFallbackKeys: ['signed_curve25519'],
+  });
   await server.flush();
-  await crypto.processKeyCounts({ signed_curve25519: server.keysHeld() }, ['signed_curve25519']);
+  await crypto.processSyncChanges({
+    toDeviceEvents: [],
+    oneTimeKeysCounts: { signed_curve25519: server.keysHeld() },
+    unusedFallbackKeys: ['signed_curve25519'],
+  });
   await server.flush();
   return { machine, server, crypto, uploadsAtStart: server.uploads.length };
 };
@@ -89,24 +98,27 @@ describe('one-time key counts in the SDK hand-over to the Rust crypto machine', 
     expect(server.keysHeld()).toBe(50);
 
     for (let index = 0; index < 3; index += 1) {
+      // A sync's to-device messages come with its counts, which the server reports unchanged.
       // eslint-disable-next-line no-await-in-loop
-      await crypto.preprocessToDeviceMessages([
-        { sender: PEER, type: 'org.example.ping', content: { index } },
-      ]);
-      // eslint-disable-next-line no-await-in-loop
-      await server.flush();
-      // The same sync's counts, which the server reports unchanged.
-      // eslint-disable-next-line no-await-in-loop
-      await crypto.processKeyCounts({ signed_curve25519: server.keysHeld() }, [
-        'signed_curve25519',
-      ]);
+      await crypto.processSyncChanges({
+        toDeviceEvents: [{ sender: PEER, type: 'org.example.ping', content: { index } }],
+        oneTimeKeysCounts: { signed_curve25519: server.keysHeld() },
+        unusedFallbackKeys: ['signed_curve25519'],
+      });
       // eslint-disable-next-line no-await-in-loop
       await server.flush();
     }
-    await crypto.processDeviceLists({ changed: [PEER] });
-    await server.flush();
-    await crypto.processDeviceLists({ left: [PEER] });
-    await server.flush();
+    for (const deviceLists of [{ changed: [PEER] }, { left: [PEER] }]) {
+      // eslint-disable-next-line no-await-in-loop
+      await crypto.processSyncChanges({
+        toDeviceEvents: [],
+        deviceLists,
+        oneTimeKeysCounts: { signed_curve25519: server.keysHeld() },
+        unusedFallbackKeys: ['signed_curve25519'],
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await server.flush();
+    }
 
     expect(server.uploads.slice(uploadsAtStart)).toEqual([]);
     expect(server.keysHeld()).toBe(50);
@@ -117,7 +129,10 @@ describe('one-time key counts in the SDK hand-over to the Rust crypto machine', 
     const { machine, server, crypto, uploadsAtStart } = await deviceWithKeysOnServer();
 
     // Every key was claimed; the server then sends no `device_one_time_keys_count` at all.
-    await crypto.processKeyCounts(undefined, ['signed_curve25519']);
+    await crypto.processSyncChanges({
+      toDeviceEvents: [],
+      unusedFallbackKeys: ['signed_curve25519'],
+    });
     await server.flush();
 
     expect(server.uploads.slice(uploadsAtStart)).toEqual([50]);
@@ -167,29 +182,29 @@ describe('one-time key counts of a sync that reports neither counts nor fallback
       fetchFn,
     });
     clients.push(client);
-    const processKeyCounts = vi.fn(async (_counts?: object, _fallbackKeys?: string[]) => undefined);
+    const processSyncChanges = vi.fn(async (_changes: SyncCryptoChanges) => []);
     // Only the sync callbacks of the crypto backend matter here.
     (client as unknown as { cryptoBackend: unknown }).cryptoBackend = {
-      preprocessToDeviceMessages: vi.fn(async () => []),
-      processKeyCounts,
-      processDeviceLists: vi.fn(async () => undefined),
+      processSyncChanges,
       onCryptoEvent: vi.fn(async () => undefined),
       onSyncCompleted: vi.fn(),
       stop: vi.fn(),
     };
 
     await client.startClient();
-    await vi.waitFor(() => expect(processKeyCounts).toHaveBeenCalledTimes(2), { timeout: 5_000 });
+    await vi.waitFor(() => expect(processSyncChanges).toHaveBeenCalled(), { timeout: 5_000 });
 
-    // The replay brings no counts and so changes nothing; the live sync says none are left.
-    expect(processKeyCounts.mock.calls).toContainEqual([undefined, undefined]);
-    expect(processKeyCounts.mock.calls).toContainEqual([{}, undefined]);
+    // The replay, which the live sync waits for, brings no counts and never reaches the crypto
+    // layer; the live sync says none are left.
+    expect(processSyncChanges.mock.calls).toEqual([
+      [expect.objectContaining({ oneTimeKeysCounts: {}, unusedFallbackKeys: undefined })],
+    ]);
   });
 
   it('makes the crypto machine refill the server', async () => {
     const { machine, server, crypto, uploadsAtStart } = await deviceWithKeysOnServer();
 
-    await crypto.processKeyCounts({}, undefined);
+    await crypto.processSyncChanges({ toDeviceEvents: [], oneTimeKeysCounts: {} });
     await server.flush();
 
     expect(server.uploads.slice(uploadsAtStart)).toEqual([50]);

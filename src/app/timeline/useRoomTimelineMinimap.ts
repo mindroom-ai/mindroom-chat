@@ -6,15 +6,13 @@ import { TimelineMinimapItem, deriveTimelineMinimapItems } from './timelineMinim
 import type { OpenRoomEventHandler } from './roomEventOpenController';
 
 type RoomTimelineMinimapOptions = {
-  minimapEvents: readonly MatrixEvent[];
-  showCompactRoomView: boolean;
+  threadEvents: readonly MatrixEvent[];
   scrollRef: RefObject<HTMLElement>;
   handleOpenEvent: OpenRoomEventHandler;
 };
 
 export const useRoomTimelineMinimap = ({
-  minimapEvents,
-  showCompactRoomView,
+  threadEvents,
   scrollRef,
   handleOpenEvent,
 }: RoomTimelineMinimapOptions) => {
@@ -33,10 +31,11 @@ export const useRoomTimelineMinimap = ({
     queryList.addEventListener('change', handleChange);
     return () => queryList.removeEventListener('change', handleChange);
   }, []);
-  const minimapEnabled = minimapPointerFine && !showCompactRoomView;
+  // Only a thread shows the minimap: a room timeline passes no thread events.
+  const minimapEnabled = minimapPointerFine && threadEvents.length > 0;
   const minimapItems = useMemo(
-    () => (minimapEnabled ? deriveTimelineMinimapItems(minimapEvents, t) : []),
-    [minimapEnabled, minimapEvents, t]
+    () => (minimapEnabled ? deriveTimelineMinimapItems(threadEvents, t) : []),
+    [minimapEnabled, threadEvents, t]
   );
   useTimelineMinimapInView(scrollRef, minimapItems, minimapStripMap, minimapEnabled);
   const handleMinimapSelect = useCallback(

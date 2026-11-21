@@ -2230,8 +2230,8 @@
       "resumeRecording": "Spraakopname hervatten",
       "statusActive": "Spraakopname actief",
       "statusPaused": "Spraakopname gepauzeerd",
-      "statusProcessing": "Spraakopname wordt verwerkt",
       "statusReadyToRetry": "Spraakopname kan opnieuw worden geprobeerd",
+      "recoveredRecording": "Herstelde opname · {{time}}",
       "statusSending": "Spraakopname wordt verstuurd",
       "statusStarting": "Spraakopname wordt gestart",
       "voiceRecorderDialog": {

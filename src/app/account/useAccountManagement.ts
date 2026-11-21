@@ -1,4 +1,4 @@
-import type { ValidatedAuthMetadata } from 'matrix-js-sdk';
+import type { AccountManagementMetadata } from '../matrix/ServerConfigsLoader';
 import { parseHttpUrl } from '../lib/httpUrl';
 
 /** Account management actions from MSC4191. */
@@ -20,7 +20,7 @@ type AccountManagementParams = {
  * Only http(s) URLs are returned, since the result is opened in a browser.
  */
 export const getAccountManagementUrl = (
-  authMetadata: ValidatedAuthMetadata,
+  authMetadata: AccountManagementMetadata,
   params: AccountManagementParams
 ): string | undefined => {
   const url = parseHttpUrl(authMetadata.account_management_uri ?? authMetadata.issuer);

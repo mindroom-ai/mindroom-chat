@@ -1,6 +1,84 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
+import { Segment, Segments } from '../../ui/styles/Segmented.css';
+
+const compactHeader = '(max-width: 13rem)';
+const hoverCapable = '(hover: hover)';
+const reducedMotion = '(prefers-reduced-motion: reduce)';
+
+export const CategoryHeader = style({ containerType: 'inline-size' });
+// The title's button grows into spare space; on reveal the controls can shrink, not the title.
+export const CategoryToggle = style({ flexShrink: 0, whiteSpace: 'nowrap' });
+export const HeaderControls = style([
+  Segments,
+  {
+    flexShrink: 1,
+    '@media': {
+      [hoverCapable]: {
+        '@container': {
+          [compactHeader]: {
+            // Use the spare space after the rows but stop before the scrollbar track.
+            marginInlineEnd: toRem(-8),
+            paddingInline: 0,
+          },
+        },
+      },
+    },
+  },
+]);
+
+// Pointer hover takes priority so the header never tries to fit two expanded labels.
+const keyboardReveal = `${HeaderControls}:not(:hover)`;
+const revealToggle = `&:hover, ${keyboardReveal} &:focus-visible`;
+
+export const HeaderToggle = style([
+  Segment,
+  {
+    display: 'grid',
+    alignItems: 'center',
+    gridTemplateColumns: 'auto minmax(0, 0fr)',
+    columnGap: 0,
+    transition: transition(['grid-template-columns', 'column-gap'], motion.duration.Slow),
+    '@media': {
+      [hoverCapable]: {
+        selectors: {
+          [revealToggle]: {
+            gridTemplateColumns: 'auto minmax(0, 1fr)',
+            columnGap: config.space.S200,
+          },
+        },
+        '@container': {
+          [compactHeader]: {
+            paddingInline: toRem(2),
+            fontSize: config.fontSize.T200,
+            selectors: { [revealToggle]: { columnGap: toRem(2) } },
+          },
+        },
+      },
+      [reducedMotion]: { transition: 'none' },
+    },
+  },
+]);
+
+export const HeaderToggleLabel = style({
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+  textOverflow: 'ellipsis',
+  opacity: 0,
+  transition: transition(['opacity'], motion.duration.Slow),
+  '@media': {
+    [hoverCapable]: {
+      selectors: {
+        [`${HeaderToggle}:hover &, ${keyboardReveal} ${HeaderToggle}:focus-visible &`]: {
+          opacity: 1,
+        },
+      },
+    },
+    [reducedMotion]: { transition: 'none' },
+  },
+});
 
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,

@@ -45,7 +45,7 @@ hold.
 In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
 bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups
 the cards the filters show by the same classifier, at the same snooze clock as the tab filter
-(`useThreadIndex`'s `snoozeNow`), Working first, then Needs you, Later and Done, each under a
+(`useThreadIndex`'s `snoozeNow`), Needs you first, then Working, Later and Done, each under a
 header with its count; a tab that shows one bucket shows one section. It owns no filter, but drops
 the hidden default that keeps snoozed threads out of the flat cards, since Later holds them. Working
 goes by when each thread started, Needs you by when its last run finished or its newest message
@@ -54,11 +54,10 @@ sidebar (`threadReturnTs`), and Done by when it was resolved; pins lead each sec
 The switch and the folded sections are stored per account (`compactRoomSections:<userId>`), Done
 folded at first. A section that shows alone, as under its tab, is open and folds nothing: its stored
 fold is kept for when the other sections come back. While the pointer, focus or a card menu is on
-the cards (a mouse with no button down only until it rests for 3 s; its next move, or the release of
-a press, starts that again), each card keeps its section and place, so none moves under the pointer,
-except a thread the classifier now puts under Working (for example once its agent's "Thinking..."
-placeholder, which already counts as streaming, arrives): it moves there at once. A section that
-showed alone stays open meanwhile, even when that move brings a second section.
+the cards (a mouse with no button down only until it rests for 0.7 s; its next move, or the release of
+a press, starts that again), shown cards keep their sections and order until the hold ends, even
+when a run starts. New cards still join their live sections. A section that showed alone stays
+open while held, even if a new card brings a second section.
 
 ## Saved filters and search
 

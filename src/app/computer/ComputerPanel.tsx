@@ -37,6 +37,9 @@ type PanelPhase =
   | 'error';
 type PanelOperation = 'take' | 'resume' | 'stop' | 'reconnect';
 
+// Starts at capture, not at connect. A release slower than this falls back to a blank screen.
+const HELD_FRAME_TIMEOUT_MS = 3_000;
+
 // After a connected stream closes unexpectedly, retry for about 15 seconds before offering Reconnect.
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000];
 // A stream that stayed connected this long earns a full set of attempts again. It outlasts the
@@ -145,6 +148,7 @@ export function ComputerPanel({
   const [operation, setOperation] = useState<PanelOperation>();
   const [status, setStatus] = useState<ComputerStatus>();
   const [stream, setStream] = useState<ComputerStreamConnection>();
+  const [heldFrame, setHeldFrame] = useState<HTMLCanvasElement>();
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const [sendError, setSendError] = useState<string>();
@@ -185,6 +189,24 @@ export function ComputerPanel({
   const agentServerUrl = selectedAgent?.serverUrl;
   const sessionApiUrl = agentServerUrl ?? apiUrl;
 
+  const attachHeldFrame = useCallback(
+    (layer: HTMLDivElement | null) => {
+      if (layer && heldFrame) layer.replaceChildren(heldFrame);
+    },
+    [heldFrame]
+  );
+
+  useEffect(() => {
+    if (!heldFrame) return undefined;
+    const timeout = setTimeout(() => setHeldFrame(undefined), HELD_FRAME_TIMEOUT_MS);
+    return () => {
+      clearTimeout(timeout);
+      // Release the bitmap even if React still holds a previous prop or state value.
+      heldFrame.width = 0;
+      heldFrame.height = 0;
+    };
+  }, [heldFrame]);
+
   useEffect(() => {
     onInteractionChange?.({
       agentUserId: selectedAgentUserId,
@@ -208,6 +230,11 @@ export function ComputerPanel({
     void session.dispose().catch(() => undefined);
   }, []);
 
+  const clearStream = useCallback(() => {
+    setStream(undefined);
+    setHeldFrame(undefined);
+  }, []);
+
   const connectStream = useCallback(
     async (
       session: ComputerSessionClient,
@@ -221,7 +248,7 @@ export function ComputerPanel({
         disposedSessionsRef.current.add(session);
         sessionRef.current = undefined;
         setStatus(nextStatus);
-        setStream(undefined);
+        clearStream();
         setConnected(false);
         setError(undefined);
         setPhase('stopped');
@@ -235,7 +262,7 @@ export function ComputerPanel({
       setStream(nextStream);
       setPhase('ready');
     },
-    []
+    [clearStream]
   );
 
   useEffect(() => {
@@ -253,7 +280,7 @@ export function ComputerPanel({
     setStatus(undefined);
     activeStreamTicketRef.current = undefined;
     connectedStreamRef.current = undefined;
-    setStream(undefined);
+    clearStream();
     setConnected(false);
     setError(undefined);
     setSendError(undefined);
@@ -342,6 +369,7 @@ export function ComputerPanel({
     };
   }, [
     agentServerUrl,
+    clearStream,
     connectStream,
     disposeSession,
     mx,
@@ -363,6 +391,7 @@ export function ComputerPanel({
       const nextStatus = await session.control('take');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       setStatus(nextStatus);
+      setHeldFrame(undefined);
       setReleaseNotice(undefined);
       setSendError(undefined);
     } catch (controlError) {
@@ -387,6 +416,7 @@ export function ComputerPanel({
     const releasingTicket = activeStreamTicketRef.current;
     releasingStreamTicketRef.current = releasingTicket;
     try {
+      setHeldFrame(screenRef.current?.captureFrame());
       const nextStatus = await session.control('release');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       setStatus(nextStatus);
@@ -399,7 +429,7 @@ export function ComputerPanel({
       // A failed watch reconnect shows at once, without waiting for the continuation to send.
       const reconnect = connectStream(session, lifecycle, false).catch((reconnectError) => {
         if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
-        setStream(undefined);
+        clearStream();
         setError(getErrorMessage(reconnectError));
         setPhase('disconnected');
       });
@@ -414,9 +444,10 @@ export function ComputerPanel({
       if (lifecycleRef.current === lifecycle) {
         setError(`Control was not released. ${getErrorMessage(releaseError)}`);
         if (activeStreamTicketRef.current) {
+          setHeldFrame(undefined);
           setPhase('ready');
         } else {
-          setStream(undefined);
+          clearStream();
           setPhase('disconnected');
         }
       }
@@ -433,6 +464,7 @@ export function ComputerPanel({
     if (!session || operation) return;
     const lifecycle = lifecycleRef.current;
     setOperation('stop');
+    setHeldFrame(undefined);
     setError(undefined);
     try {
       const nextStatus = await session.control('stop');
@@ -441,7 +473,7 @@ export function ComputerPanel({
       sessionRef.current = undefined;
       setStatus(nextStatus);
       activeStreamTicketRef.current = undefined;
-      setStream(undefined);
+      clearStream();
       setConnected(false);
       setError(undefined);
       setPhase('stopped');
@@ -535,6 +567,7 @@ export function ComputerPanel({
       disposeSession(session);
     }
     activeStreamTicketRef.current = undefined;
+    setHeldFrame(undefined);
     onClose();
   };
 
@@ -548,7 +581,7 @@ export function ComputerPanel({
     setConnected(false);
     // Resume agent owns this close: it reconnects on success or reports the disconnect on failure.
     if (releasingStreamTicketRef.current === streamTicket) return;
-    setStream(undefined);
+    clearStream();
     // A pending operation reports its own outcome; otherwise a stream that had connected, or one
     // opened by an automatic reconnect, is retried before the panel shows the disconnect.
     const connectedSince =
@@ -636,14 +669,21 @@ export function ComputerPanel({
 
           {stream && (
             <div className={css.ScreenFrame}>
+              {heldFrame && (
+                <div aria-hidden="true" className={css.HeldFrame} ref={attachHeldFrame} />
+              )}
               <Suspense fallback={<Spinner variant="Secondary" size="300" />}>
                 <ScreenComponent
                   key={`${stream.url}:${stream.protocols[1]}`}
                   ref={screenRef}
                   mode={status?.mode ?? 'view'}
+                  holdingFrame={!!heldFrame}
                   onKeyboardChange={setKeyboardOpen}
-                  onConnected={() => {
+                  onConnected={(width, height) => {
                     if (activeStreamTicketRef.current !== stream.protocols[1]) return;
+                    if (heldFrame && (heldFrame.width !== width || heldFrame.height !== height)) {
+                      setHeldFrame(undefined);
+                    }
                     connectedStreamRef.current = { ticket: stream.protocols[1], since: Date.now() };
                     setConnected(true);
                     setPhase('ready');

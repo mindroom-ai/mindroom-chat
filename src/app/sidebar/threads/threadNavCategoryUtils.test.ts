@@ -4,6 +4,7 @@ import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
 import {
   buildSidebarThreadEntries,
   buildSidebarThreadSections,
+  matchesSidebarThreadInvolvement,
   MAX_SIDEBAR_RESOLVED_THREADS,
   MAX_SIDEBAR_LATER_THREADS,
   MAX_SIDEBAR_THREADS,
@@ -14,12 +15,14 @@ const makeEntry = ({
   key,
   lastActivityTs,
   isInvolved = true,
+  isForUser = isInvolved,
   isResolved = false,
   roomId = key,
 }: {
   key: string;
   lastActivityTs: number;
   isInvolved?: boolean;
+  isForUser?: boolean;
   isResolved?: boolean;
   roomId?: string;
 }): CrossRoomThreadIndexEntry =>
@@ -28,12 +31,40 @@ const makeEntry = ({
     roomId,
     lastActivityTs,
     isInvolved,
+    isForUser,
     isUnread: false,
     hasAttention: false,
     isResolved,
     roomName: key,
     threadRootId: key,
   } as CrossRoomThreadIndexEntry);
+
+describe('matchesSidebarThreadInvolvement', () => {
+  const entries = [
+    makeEntry({ key: 'involved', lastActivityTs: 1 }),
+    makeEntry({ key: 'unrelated', lastActivityTs: 2, isInvolved: false }),
+    makeEntry({ key: 'pinned', lastActivityTs: 3, isInvolved: false }),
+    makeEntry({
+      key: 'attributed',
+      lastActivityTs: 4,
+      isInvolved: false,
+      isForUser: true,
+    }),
+  ];
+  const pinned = new Set(['pinned']);
+
+  it('keeps only involved threads, pins, and attributed agent posts when For me is on', () => {
+    expect(entries.filter((entry) => matchesSidebarThreadInvolvement(entry, true, pinned))).toEqual(
+      [entries[0], entries[2], entries[3]]
+    );
+  });
+
+  it('leaves all threads unchanged when For me is off', () => {
+    expect(
+      entries.filter((entry) => matchesSidebarThreadInvolvement(entry, false, pinned))
+    ).toEqual(entries);
+  });
+});
 
 describe('buildSidebarThreadEntries', () => {
   it('keeps pins first in saved order and sorts the rest by last activity', () => {
@@ -150,6 +181,26 @@ const sectionKeys = (sections: SidebarThreadSection[]) =>
   sections.map(({ id, entries }) => [id, entries.map((entry) => entry.key)]);
 
 describe('buildSidebarThreadSections', () => {
+  it('shows Needs you first while giving Working first claim on the shared limit', () => {
+    const entries = [
+      makeSectionEntry({ key: 'done', isResolved: true }),
+      makeSectionEntry({ key: 'idle-old', lastActivityTs: 1 }),
+      makeSectionEntry({ key: 'later', snoozedUntilTs: 1000 }),
+      makeSectionEntry({ key: 'working', isStreaming: true }),
+      makeSectionEntry({ key: 'idle-new', lastActivityTs: 3 }),
+      makeSectionEntry({ key: 'idle-middle', lastActivityTs: 2 }),
+    ];
+
+    expect(
+      sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS, 2))
+    ).toEqual([
+      ['idle', ['idle-new']],
+      ['working', ['working']],
+      ['later', ['later']],
+      ['resolved', ['done']],
+    ]);
+  });
+
   it('puts each thread in the first section that fits, and leaves out empty ones', () => {
     const entries = [
       makeSectionEntry({
@@ -167,8 +218,8 @@ describe('buildSidebarThreadSections', () => {
     expect(
       sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS))
     ).toEqual([
-      ['later', ['sending', 'snoozed']],
       ['idle', ['idle']],
+      ['later', ['sending', 'snoozed']],
       ['resolved', ['resolved-snoozed', 'streaming-resolved']],
     ]);
     expect(
@@ -257,8 +308,8 @@ describe('buildSidebarThreadSections', () => {
         )
       )
     ).toEqual([
-      ['working', ['pinned-working', 'working']],
       ['idle', ['pinned-a', 'pinned-b', 'new']],
+      ['working', ['pinned-working', 'working']],
     ]);
   });
 
@@ -345,8 +396,8 @@ describe('buildSidebarThreadSections', () => {
     );
 
     expect(sectionKeys(sections).slice(0, 2)).toEqual([
-      ['working', ['working']],
       ['idle', ['idle-2', 'idle-1']],
+      ['working', ['working']],
     ]);
     const resolvedKeys = sections.find(({ id }) => id === 'resolved')?.entries.map((e) => e.key);
     expect(resolvedKeys).toHaveLength(MAX_SIDEBAR_RESOLVED_THREADS);
@@ -370,8 +421,8 @@ describe('buildSidebarThreadSections', () => {
     );
 
     expect(sections.map(({ id, entries }) => [id, entries.length])).toEqual([
-      ['later', MAX_SIDEBAR_LATER_THREADS],
       ['idle', MAX_SIDEBAR_THREADS],
+      ['later', MAX_SIDEBAR_LATER_THREADS],
     ]);
   });
 
@@ -436,8 +487,8 @@ describe('shared workflow precedence', () => {
     expect(
       sectionKeys(buildSidebarThreadSections([job, approval], [], new Set(), 100, NO_SIGNALS))
     ).toEqual([
-      ['working', ['job']],
       ['idle', ['approval']],
+      ['working', ['job']],
     ]);
   });
 });

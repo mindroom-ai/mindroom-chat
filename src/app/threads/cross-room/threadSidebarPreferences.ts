@@ -12,12 +12,13 @@ const THREAD_SIDEBAR_PREFERENCES = 'threadSidebarPreferences';
 const THREAD_SIDEBAR_PREFERENCES_VERSION = 1;
 const MAX_PINNED_SIDEBAR_THREADS = 50;
 
-/** Recent: one list by latest activity. Sections: Working, Snoozed, Idle and Resolved. */
+/** Recent: one list by latest activity. Sections: Idle (Needs you), Working, Later and Resolved (Done). */
 export type ThreadSidebarLayout = 'recent' | 'sections';
 
 export type ThreadSidebarPreferences = {
   pinnedThreadKeys: string[];
   layout: ThreadSidebarLayout;
+  involvedOnly: boolean;
 };
 
 type ThreadSidebarPreferencesStore = ThreadSidebarPreferences & {
@@ -26,7 +27,8 @@ type ThreadSidebarPreferencesStore = ThreadSidebarPreferences & {
 
 export type ThreadSidebarPreferencesAction =
   | { type: 'TOGGLE_PIN'; threadKey: string }
-  | { type: 'SET_LAYOUT'; layout: ThreadSidebarLayout };
+  | { type: 'SET_LAYOUT'; layout: ThreadSidebarLayout }
+  | { type: 'SET_INVOLVED_ONLY'; involvedOnly: boolean };
 
 type ThreadSidebarPreferencesAtom = WritableAtom<
   ThreadSidebarPreferences,
@@ -37,6 +39,7 @@ type ThreadSidebarPreferencesAtom = WritableAtom<
 export const DEFAULT_THREAD_SIDEBAR_PREFERENCES: ThreadSidebarPreferences = {
   pinnedThreadKeys: [],
   layout: 'recent',
+  involvedOnly: true,
 };
 
 const isValidThreadKey = (value: unknown): value is string =>
@@ -58,6 +61,7 @@ export const sanitizeThreadSidebarPreferences = (value: unknown): ThreadSidebarP
     pinnedThreadKeys,
     // Preferences stored before the layout existed read as Recent, the list they showed.
     layout: value.layout === 'sections' ? 'sections' : 'recent',
+    involvedOnly: value.involvedOnly !== false,
   };
 };
 
@@ -85,6 +89,11 @@ const createThreadSidebarPreferencesAtom = (userId: string): ThreadSidebarPrefer
       const current = get(persistedAtom);
       if (action.type === 'SET_LAYOUT') {
         set(persistedAtom, { ...current, layout: action.layout });
+        return;
+      }
+
+      if (action.type === 'SET_INVOLVED_ONLY') {
+        set(persistedAtom, { ...current, involvedOnly: action.involvedOnly });
         return;
       }
 

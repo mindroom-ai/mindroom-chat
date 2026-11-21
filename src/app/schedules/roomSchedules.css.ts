@@ -27,7 +27,7 @@ export const Count = style({
   pointerEvents: 'none',
 });
 
-/** The horizontal center of the room view, in viewport pixels; RoomSchedulesButton sets it. */
+/** The horizontal center of the room view, in viewport pixels; RoomSchedulesOverlay sets it. */
 export const ROOM_VIEW_CENTER = '--mr-room-view-center';
 
 // Dense text: the glass is tinted nearly opaque so the room behind does not show through.

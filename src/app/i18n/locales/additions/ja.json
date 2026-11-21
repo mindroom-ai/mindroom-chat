@@ -992,7 +992,10 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター"
+        "advancedFilters": "詳細フィルター",
+        "includeResolvedThreads": "解決済みのスレッドを含める",
+        "hideResolvedThreads": "解決済みのスレッドを非表示にする",
+        "forMeSummary": "{{summary}}。「自分向け」フィルターはオンです。"
       },
       "threadPeopleFilter": {
         "label": "参加者",
@@ -1017,7 +1020,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "長いメッセージをすべて展開",
-        "collapseAllLong": "長いメッセージをすべて折りたたむ"
+        "collapseAllLong": "長いメッセージをすべて折りたたむ",
+        "showFullMessage": "メッセージ全体を表示"
       }
     },
     "computer": {
@@ -1184,6 +1188,10 @@
   "composer": {
     "voicePausedInThisRoom": "音声録音が一時停止されました — このルームの別の場所にある未送信の録音を終了するか破棄してください",
     "voiceThreadRootUnsent": "この音声メッセージのスレッドには送信済みの最初のメッセージがありません。そのメッセージが送信されてから再試行するか、録音を破棄してください。",
+    "voiceIndicator": {
+      "recording": "録音中 {{time}}",
+      "paused": "一時停止中 {{time}}"
+    },
     "emoji": "絵文字",
     "cancelReply": "返信をキャンセル",
     "moreActions": "その他の操作",
@@ -1635,9 +1643,10 @@
     }
   },
   "threadNav": {
-    "layout": "スレッドの表示方法",
-    "layoutRecent": "最近",
-    "layoutSections": "セクション",
+    "forMe": "自分向け",
+    "forMeHint": "自分が参加しているスレッド、エージェントが自分の代わりに投稿したスレッド、または自分がピン留めしたスレッドのみ",
+    "roomForMeHint": "自分が参加しているスレッド、またはエージェントが自分の代わりに投稿したスレッドのみ",
+    "emptyForMe": "自分向けのスレッドはまだありません",
     "group": "グループ",
     "groupHint": "状態ごとにグループ化",
     "sections": {
@@ -1665,5 +1674,9 @@
   },
   "threadActions": {
     "openBeside": "2列目で開く"
+  },
+  "roomSchedules": {
+    "thisThread": "このスレッド",
+    "elsewhereInRoom": "このルーム内の別の場所"
   }
 }

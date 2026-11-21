@@ -10,18 +10,21 @@ import {
 } from 'react';
 import { Box, Button, Line, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { Dialog } from '../../ui/glass/GlassPrimitives';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
+import { DiscardVoiceRecordingDialog } from './DiscardVoiceRecordingDialog';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
+import { useConversationOutOfSightAtom } from '../../navigation/conversationView';
+import { coverNoticeSlotAtom } from '../../ui/noticeSlots';
+import { liveVoiceCapsulesShownAtom } from './liveVoiceRecording';
 
 type VoiceRecorderComposerProps = {
-  active: boolean;
+  ownsPendingVoiceDraft: boolean;
   sendDisabled?: boolean;
-  onClose: () => void;
-  onRecordingStart?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
   onRetryRequest: () => void;
@@ -40,15 +43,18 @@ export type VoiceRecorderComposerHandle = {
   phase: () => VoiceRecorderPhase;
 };
 
+/**
+ * A composer's recorder: the capsule of the account's live recording, which every composer on
+ * screen shows alike, or of this composer's parked draft with its failure and discard dialogs.
+ * It mounts while there is one to show and starts or ends nothing by mounting.
+ */
 const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   VoiceRecorderComposerHandle,
   VoiceRecorderComposerProps
 > = (
   {
-    active,
+    ownsPendingVoiceDraft,
     sendDisabled,
-    onClose,
-    onRecordingStart,
     onSendStopRequest,
     onSendStopFailure,
     onRetryRequest,
@@ -58,7 +64,6 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   ref
 ) => {
   const { t } = useTranslation();
-  const autoStartTriggeredRef = useRef(false);
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
   // capsule + parked draft remain visible; the user can re-open the overlay
@@ -80,19 +85,17 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessage,
     canPause,
     hasPendingSend,
+    recovered,
     pendingDuration,
     pendingWaveform,
-    start,
     pause,
     resume,
     send,
     discard,
     retry,
     discardPending,
-    reset,
-    clearError,
   } = useVoiceRecorder({
-    onRecordingStart,
+    ownsPendingVoiceDraft,
     onSendStopRequest,
     onSendStopFailure,
     onSendRecording,
@@ -105,17 +108,18 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     errorMessageRef.current = errorMessage;
   }, [errorMessage]);
 
-  const discardAndClose = () => {
-    if (hasPendingSend) {
-      setDiscardConfirmationOpen(true);
-      return;
-    }
-
-    void (async () => {
-      await discard();
-      onClose();
-    })();
-  };
+  // The shell's indicator stands in while no composer shows the recording. This one counts while
+  // it is in sight: its conversation is (not behind a side panel or a folded column), and
+  // nothing covers the page (a large dialog such as Settings, a phone's drawer or members sheet).
+  const conversationOutOfSight = useAtomValue(useConversationOutOfSightAtom());
+  const pageCovered = useAtomValue(coverNoticeSlotAtom) !== null;
+  const outOfSight = conversationOutOfSight || pageCovered;
+  const setCapsulesShown = useSetAtom(liveVoiceCapsulesShownAtom);
+  useEffect(() => {
+    if (outOfSight) return undefined;
+    setCapsulesShown((count) => count + 1);
+    return () => setCapsulesShown((count) => count - 1);
+  }, [outOfSight, setCapsulesShown]);
 
   // Any user-initiated retry must clear an existing defer so a follow-up
   // failure with the same canonical message (very common: connection-dropped)
@@ -126,14 +130,9 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   }, [retry]);
 
   const submitRecording = useCallback(async (): Promise<boolean> => {
-    if (sendDisabled) return false;
-
-    const sent = hasPendingSend ? await beginRetry() : await send();
-    if (sent) {
-      onClose();
-    }
-    return sent;
-  }, [beginRetry, hasPendingSend, onClose, send, sendDisabled]);
+    if (sendDisabled || discardConfirmationOpen) return false;
+    return hasPendingSend ? beginRetry() : send();
+  }, [beginRetry, discardConfirmationOpen, hasPendingSend, send, sendDisabled]);
 
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -141,47 +140,16 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     submitRecording,
   ]);
 
-  const confirmDiscardAndClose = () => {
-    discardPending();
+  const confirmDiscard = () => {
     setDiscardConfirmationOpen(false);
-    onClose();
+    return hasPendingSend ? discardPending() : discard();
   };
-
-  const dismissError = () => {
-    clearError();
-    onClose();
-  };
-
-  useEffect(() => {
-    if (!active) {
-      autoStartTriggeredRef.current = false;
-      if (!hasPendingSend) {
-        reset();
-        // The component returns null below in this state but useState is
-        // preserved across null renders, so deferredErrorMessage would
-        // outlive a recording session. Reset it here so a brand-new
-        // recording that fails with the same canonical message still
-        // surfaces the failure overlay.
-        setDeferredErrorMessage(undefined);
-      }
-      return;
-    }
-
-    if (autoStartTriggeredRef.current) return;
-    autoStartTriggeredRef.current = true;
-    void start();
-  }, [active, hasPendingSend, reset, start]);
-
-  if (!active && !errorMessage && !hasPendingSend) {
-    return null;
-  }
 
   const showPendingSendError =
     !!errorMessage &&
     hasPendingSend &&
     !discardConfirmationOpen &&
     errorMessage !== deferredErrorMessage;
-  const showNoBlobError = !!errorMessage && !hasPendingSend;
 
   // captureDeferDismiss reads errorMessage via errorMessageRef declared
   // below so the per-event predicate (captured by focus-trap-react at first
@@ -262,77 +230,29 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         </OverlayCenter>
       </Overlay>
 
-      <Overlay open={discardConfirmationOpen} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <Dialog variant="Surface">
-            <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-              <Text size="H5">
-                {t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording')}
-              </Text>
-              <Text size="T300">
-                {t(
-                  'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
-                )}
-              </Text>
-              <Box justifyContent="End" gap="200">
-                <Button
-                  variant="Secondary"
-                  onClick={() => setDiscardConfirmationOpen(false)}
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                >
-                  {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
-                </Button>
-                <Button
-                  variant="Critical"
-                  onClick={confirmDiscardAndClose}
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                >
-                  {t('mindroomUi.voice.voiceRecorderDialog.discard')}
-                </Button>
-              </Box>
-            </Box>
-          </Dialog>
-        </OverlayCenter>
-      </Overlay>
+      <DiscardVoiceRecordingDialog
+        open={discardConfirmationOpen}
+        onCancel={() => setDiscardConfirmationOpen(false)}
+        onDiscard={confirmDiscard}
+      />
 
-      <Overlay open={showNoBlobError} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <Dialog variant="Surface">
-            <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-              <Text size="H5">{t('mindroomUi.voice.voiceRecorderDialog.voiceRecordingError')}</Text>
-              <Text size="T300">{displayErrorMessage}</Text>
-              <Box justifyContent="End" gap="200">
-                <Button variant="Primary" onClick={dismissError} fill="Soft" outlined radii="300">
-                  {t('mindroomUi.voice.voiceRecorderDialog.ok')}
-                </Button>
-              </Box>
-            </Box>
-          </Dialog>
-        </OverlayCenter>
-      </Overlay>
-
-      {(active || hasPendingSend) && (
-        <div>
-          <Line variant="SurfaceVariant" size="300" />
-          <Box style={{ padding: `${config.space.S200} ${config.space.S300}` }}>
-            <VoiceRecordingCapsule
-              phase={phase}
-              elapsedMs={hasPendingSend ? pendingDuration : elapsedMs}
-              waveform={hasPendingSend ? pendingWaveform : waveform}
-              sampleCount={hasPendingSend ? undefined : sampleCount}
-              canPause={canPause}
-              hasPendingSend={hasPendingSend}
-              onDiscard={discardAndClose}
-              onPause={pause}
-              onResume={resume}
-            />
-          </Box>
-        </div>
-      )}
+      <div>
+        <Line variant="SurfaceVariant" size="300" />
+        <Box style={{ padding: `${config.space.S200} ${config.space.S300}` }}>
+          <VoiceRecordingCapsule
+            phase={phase}
+            elapsedMs={hasPendingSend ? pendingDuration : elapsedMs}
+            waveform={hasPendingSend ? pendingWaveform : waveform}
+            sampleCount={hasPendingSend ? undefined : sampleCount}
+            canPause={canPause}
+            hasPendingSend={hasPendingSend}
+            recovered={recovered}
+            onDiscard={() => setDiscardConfirmationOpen(true)}
+            onPause={pause}
+            onResume={resume}
+          />
+        </Box>
+      </div>
     </>
   );
 };

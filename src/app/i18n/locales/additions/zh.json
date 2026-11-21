@@ -992,7 +992,10 @@
         "threadFiltersActive": "讨论串过滤器（已启用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "高级过滤器"
+        "advancedFilters": "高级过滤器",
+        "includeResolvedThreads": "包含已解决的讨论串",
+        "hideResolvedThreads": "隐藏已解决的讨论串",
+        "forMeSummary": "{{summary}}。与我相关筛选已开启。"
       },
       "threadPeopleFilter": {
         "label": "参与者",
@@ -1017,7 +1020,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "展开所有长消息",
-        "collapseAllLong": "折叠所有长消息"
+        "collapseAllLong": "折叠所有长消息",
+        "showFullMessage": "显示完整消息"
       }
     },
     "computer": {
@@ -1184,6 +1188,10 @@
   "composer": {
     "voicePausedInThisRoom": "录音已暂停 — 完成或放弃在此房间其他位置未发送的录音",
     "voiceThreadRootUnsent": "此语音消息所在的话题没有已发送的第一条消息。请在该消息发送后重试，或放弃此录音。",
+    "voiceIndicator": {
+      "recording": "正在录音 {{time}}",
+      "paused": "已暂停 {{time}}"
+    },
     "emoji": "表情符号",
     "cancelReply": "取消回复",
     "moreActions": "更多操作",
@@ -1635,9 +1643,10 @@
     }
   },
   "threadNav": {
-    "layout": "讨论串布局",
-    "layoutRecent": "最近",
-    "layoutSections": "分区",
+    "forMe": "与我相关",
+    "forMeHint": "只显示你参与过、代理代你发过消息或你已置顶的讨论串",
+    "roomForMeHint": "只显示你参与过或代理代你发过消息的讨论串",
+    "emptyForMe": "暂无与你相关的讨论串",
     "group": "分组",
     "groupHint": "按状态分组",
     "sections": {
@@ -1665,5 +1674,9 @@
   },
   "threadActions": {
     "openBeside": "在第二栏打开"
+  },
+  "roomSchedules": {
+    "thisThread": "此讨论串",
+    "elsewhereInRoom": "此房间中的其他位置"
   }
 }

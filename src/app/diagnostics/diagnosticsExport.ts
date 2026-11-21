@@ -1,4 +1,5 @@
 import { APP_BUILD_VERSION } from '../config/appVersion';
+import { readStartupTimeline } from '../lib/startupTimeline';
 import {
   buildFlightRecorderPayload,
   FLIGHT_RECORDER_SCHEMA_VERSION,
@@ -87,6 +88,7 @@ export const buildDiagnosticsPayload = async (exportedAt: number) => {
   // Freeze the incident tail before a slow collector can let newer activity
   // evict it. This collector does not touch persistent storage.
   const deepTraceMemory = readDeepTraceMemorySnapshot();
+  const startupTimeline = readStartupTimeline();
   const [deepTrace, nativeDiagnostics] = await Promise.all([
     collectDeepTrace(),
     collectNativeDiagnostics(),
@@ -108,6 +110,7 @@ export const buildDiagnosticsPayload = async (exportedAt: number) => {
     deepTraceMemory,
     deepTraceHealth,
     nativeDiagnostics,
+    startupTimeline,
   };
 };
 

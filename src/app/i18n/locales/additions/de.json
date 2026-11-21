@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter"
+        "advancedFilters": "Erweiterte Filter",
+        "includeResolvedThreads": "Erledigte Threads einblenden",
+        "hideResolvedThreads": "Erledigte Threads ausblenden",
+        "forMeSummary": "{{summary}}. Filter „Für mich“ aktiv."
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -1038,7 +1041,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Alle langen Nachrichten aufklappen",
-        "collapseAllLong": "Alle langen Nachrichten zuklappen"
+        "collapseAllLong": "Alle langen Nachrichten zuklappen",
+        "showFullMessage": "Ganze Nachricht anzeigen"
       }
     },
     "computer": {
@@ -1215,6 +1219,10 @@
   "composer": {
     "voicePausedInThisRoom": "Sprachaufnahme pausiert — schließe deine nicht gesendete Aufnahme an anderer Stelle in diesem Raum ab oder verwirf sie",
     "voiceThreadRootUnsent": "Der Thread dieser Sprachnachricht hat keine gesendete erste Nachricht. Versuche es erneut, sobald diese Nachricht gesendet ist, oder verwirf die Aufnahme.",
+    "voiceIndicator": {
+      "recording": "Aufnahme {{time}}",
+      "paused": "Pausiert {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Antwort abbrechen",
     "moreActions": "Weitere Aktionen",
@@ -1675,9 +1683,10 @@
     }
   },
   "threadNav": {
-    "layout": "Anordnung der Threads",
-    "layoutRecent": "Zuletzt",
-    "layoutSections": "Abschnitte",
+    "forMe": "Für mich",
+    "forMeHint": "Nur Threads, an denen du teilnimmst, in denen ein Agent für dich gepostet hat oder die du angepinnt hast",
+    "roomForMeHint": "Nur Threads, an denen du teilnimmst oder in denen ein Agent für dich gepostet hat",
+    "emptyForMe": "Noch keine Threads für dich",
     "group": "Gruppieren",
     "groupHint": "Nach Status gruppieren",
     "sections": {
@@ -1709,5 +1718,9 @@
   },
   "threadActions": {
     "openBeside": "In zweiter Spalte öffnen"
+  },
+  "roomSchedules": {
+    "thisThread": "Dieser Thread",
+    "elsewhereInRoom": "An anderer Stelle in diesem Raum"
   }
 }

@@ -2342,8 +2342,8 @@
       "resumeRecording": "استئناف التسجيل الصوتي",
       "statusActive": "التسجيل الصوتي نشط",
       "statusPaused": "التسجيل الصوتي متوقف مؤقتًا",
-      "statusProcessing": "جارٍ معالجة التسجيل الصوتي",
       "statusReadyToRetry": "التسجيل الصوتي جاهز لإعادة المحاولة",
+      "recoveredRecording": "تسجيل مستعاد · ⁨{{time}}⁩",
       "statusSending": "جارٍ إرسال التسجيل الصوتي",
       "statusStarting": "جارٍ بدء التسجيل الصوتي",
       "voiceRecorderDialog": {

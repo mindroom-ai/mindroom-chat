@@ -1,17 +1,23 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { randomUuid } from '../lib/randomUuid';
 
-/** Plugin `MindRoomVoiceRecorder` (Mac Catalyst, whose WebKit has no media capture):
- *  start({ nonce }) resolving { id }; level, pause, resume, stop and cancel({ id }) act on that
- *  recording only; level resolves { level } from 0 to 1, stop { path } of its `.m4a`; rejections
- *  carry `code`. */
+type NativeVoiceLeftover = {
+  id: string;
+  path: string;
+  startedAt: number;
+  duration: number;
+  userId: string;
+};
+type RecordingId = { id: string };
 type MindRoomVoiceRecorderPlugin = {
-  start(options: { nonce: string }): Promise<{ id: string }>;
-  level(options: { id: string }): Promise<{ level: number }>;
-  pause(options: { id: string }): Promise<void>;
-  resume(options: { id: string }): Promise<void>;
-  stop(options: { id: string }): Promise<{ path: string }>;
-  cancel(options: { id: string }): Promise<void>;
+  start(options: { nonce: string; userId: string }): Promise<RecordingId>;
+  level(options: RecordingId): Promise<{ level: number }>;
+  pause(options: RecordingId): Promise<void>;
+  resume(options: RecordingId): Promise<void>;
+  stop(options: RecordingId): Promise<{ path: string }>;
+  cancel(options: RecordingId): Promise<void>;
+  clear(options: { userId: string }): Promise<void>;
+  listLeftovers(): Promise<{ recordings: NativeVoiceLeftover[] }>;
 };
 
 const START_ERROR_NAMES: Record<string, string> = {
@@ -20,18 +26,30 @@ const START_ERROR_NAMES: Record<string, string> = {
 };
 
 let voiceRecorderPlugin: MindRoomVoiceRecorderPlugin | undefined;
-
-const getVoiceRecorderPlugin = (): MindRoomVoiceRecorderPlugin => {
-  if (!voiceRecorderPlugin) {
-    voiceRecorderPlugin = registerPlugin<MindRoomVoiceRecorderPlugin>('MindRoomVoiceRecorder');
-  }
-  return voiceRecorderPlugin;
-};
+const getVoiceRecorderPlugin = () =>
+  (voiceRecorderPlugin ??= registerPlugin<MindRoomVoiceRecorderPlugin>('MindRoomVoiceRecorder'));
 
 export const isNativeVoiceRecorderAvailable = (): boolean =>
   Capacitor.isNativePlatform() &&
   Capacitor.getPlatform() === 'ios' &&
   Capacitor.isPluginAvailable('MindRoomVoiceRecorder');
+
+export const clearNativeVoiceRecordings = async (userId: string): Promise<void> => {
+  if (isNativeVoiceRecorderAvailable()) await getVoiceRecorderPlugin().clear({ userId });
+};
+
+export const listNativeVoiceLeftovers = () => getVoiceRecorderPlugin().listLeftovers();
+export const cancelNativeVoiceRecording = (id: string) => getVoiceRecorderPlugin().cancel({ id });
+
+export const readNativeVoiceFile = async (path: string): Promise<Blob | undefined> => {
+  const response = await fetch(Capacitor.convertFileSrc(path), {
+    signal: AbortSignal.timeout(5_000),
+  });
+  // Capacitor answers a local media file without an HTTP status, which WebKit reports as 0.
+  if (!response.ok && response.status !== 0) return undefined;
+  const data = await response.blob();
+  return data.size > 0 ? data : undefined;
+};
 
 /** The part of `MediaRecorder` the voice capture session drives, over the native recorder. */
 export class NativeVoiceRecorder extends EventTarget {
@@ -72,9 +90,10 @@ export class NativeVoiceRecorder extends EventTarget {
   stop(): void {
     if (this.state === 'inactive') return;
     this.state = 'inactive';
-    this.deliver()
-      .catch(() => undefined)
-      .finally(() => this.end());
+    this.deliver().then(
+      () => this.end(),
+      (error: { code?: string }) => this.end(error)
+    );
   }
 
   private transition(
@@ -83,43 +102,35 @@ export class NativeVoiceRecorder extends EventTarget {
   ): void {
     if (this.state === 'inactive') return;
     this.state = state;
-    // A transition the native recorder refuses would leave a wrong duration: end the recording.
-    call(getVoiceRecorderPlugin()).catch(() => {
+    call(getVoiceRecorderPlugin()).catch((error: { code?: string }) => {
       if (this.state === 'inactive') return;
       this.state = 'inactive';
-      this.end();
+      this.end(error);
     });
   }
 
   private async deliver(): Promise<void> {
     const { path } = await getVoiceRecorderPlugin().stop({ id: this.id });
-    const response = await fetch(Capacitor.convertFileSrc(path), {
-      signal: AbortSignal.timeout(5_000),
-    });
-    // Capacitor answers a local media file without an HTTP status, which WebKit reports as 0.
-    if (!response.ok && response.status !== 0) return;
-    const data = await response.blob();
-    if (data.size > 0) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
+    const data = await readNativeVoiceFile(path);
+    if (data) this.dispatchEvent(Object.assign(new Event('dataavailable'), { data }));
   }
 
-  /** Every way out, once (`state` is `inactive` by then): the native side deletes the file. */
-  private end(): void {
-    getVoiceRecorderPlugin()
-      .cancel({ id: this.id })
-      .catch(() => undefined);
+  private end(error?: { code?: string }): void {
+    // A reload may already have finalized the file. Leave it for recovery.
+    if (error?.code !== 'NOT_RECORDING') cancelNativeVoiceRecording(this.id).catch(() => undefined);
     this.dispatchEvent(new Event('stop'));
   }
 }
 
 /** Asks for the microphone and starts recording. Rejects with an Error named as getUserMedia
  *  names it. */
-export const startNativeVoiceRecorder = async (): Promise<NativeVoiceRecorder> => {
+export const startNativeVoiceRecorder = async (userId: string): Promise<NativeVoiceRecorder> => {
   // The plugin reads this name back from the page after the microphone prompt, and records only
   // for the newest start of the page that is still loaded.
   const nonce = randomUuid();
   Object.assign(globalThis, { mindroomVoiceStart: nonce });
   try {
-    const { id } = await getVoiceRecorderPlugin().start({ nonce });
+    const { id } = await getVoiceRecorderPlugin().start({ nonce, userId });
     return new NativeVoiceRecorder(id);
   } catch (error) {
     const { code, message } = error as { code?: string; message?: string };

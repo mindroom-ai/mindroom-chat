@@ -1034,7 +1034,10 @@
         "threadFiltersActive": "Filtri dei thread (attivi)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtri avanzati"
+        "advancedFilters": "Filtri avanzati",
+        "includeResolvedThreads": "Includi i thread risolti",
+        "hideResolvedThreads": "Nascondi i thread risolti",
+        "forMeSummary": "{{summary}}. Filtro Per me attivo."
       },
       "threadPeopleFilter": {
         "label": "Persone",
@@ -1059,7 +1062,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Espandi tutti i messaggi lunghi",
-        "collapseAllLong": "Comprimi tutti i messaggi lunghi"
+        "collapseAllLong": "Comprimi tutti i messaggi lunghi",
+        "showFullMessage": "Mostra messaggio completo"
       }
     },
     "computer": {
@@ -1246,6 +1250,10 @@
   "composer": {
     "voicePausedInThisRoom": "Registrazione vocale in pausa — completa o elimina la registrazione non inviata altrove in questa stanza",
     "voiceThreadRootUnsent": "Il thread di questo messaggio vocale non ha un primo messaggio inviato. Riprova quando quel messaggio sarà inviato, oppure elimina la registrazione.",
+    "voiceIndicator": {
+      "recording": "Registrazione {{time}}",
+      "paused": "In pausa {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",
@@ -1715,9 +1723,10 @@
     }
   },
   "threadNav": {
-    "layout": "Disposizione dei thread",
-    "layoutRecent": "Recenti",
-    "layoutSections": "Sezioni",
+    "forMe": "Per me",
+    "forMeHint": "Solo i thread a cui partecipi, in cui un agente ha scritto per te o che hai fissato",
+    "roomForMeHint": "Solo i thread a cui partecipi o in cui un agente ha scritto per te",
+    "emptyForMe": "Non ci sono ancora thread per te",
     "group": "Raggruppa",
     "groupHint": "Raggruppa per stato",
     "sections": {
@@ -1753,5 +1762,9 @@
   },
   "threadActions": {
     "openBeside": "Apri nella seconda colonna"
+  },
+  "roomSchedules": {
+    "thisThread": "Questo thread",
+    "elsewhereInRoom": "Altrove in questa stanza"
   }
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MatrixError, Room } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
-import { createStore, Provider } from 'jotai';
+import { createStore, Provider, useStore } from 'jotai';
 import { readFileSync } from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
@@ -17,10 +17,19 @@ import {
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
 } from './useVoiceRecorder';
 import {
+  forgetComposerStateOfSession,
   pendingVoiceSendDraftAtom,
   type PendingVoiceSendContext,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
+import {
+  discardLiveVoiceRecording,
+  liveVoiceRecordingAtom,
+  liveVoiceRecordingErrorAtom,
+} from './liveVoiceRecording';
+import { startLiveVoiceRecording } from './startLiveVoiceRecording';
+import { VOICE_RECORDER_STOP_TIMEOUT_MS } from './voiceCaptureSession';
+import * as journal from './voiceRecordingJournal';
 
 const flightRecorderMocks = vi.hoisted(() => ({
   setVoiceCaptureState: vi.fn(),
@@ -100,9 +109,9 @@ class MockMediaRecorder {
     }
   });
 
-  flushStop() {
+  flushStop(audio = 'voice') {
     this.dispatch('dataavailable', {
-      data: new Blob(['voice'], { type: this.mimeType }),
+      data: new Blob([audio], { type: this.mimeType }),
     } as BlobEvent);
     this.dispatch('stop', new Event('stop'));
   }
@@ -164,7 +173,6 @@ const createTestSendContext = (
 });
 
 type HarnessProps = {
-  onRecordingStart?: () => void;
   onSendStopRequest?: () => boolean | void;
   onSendStopFailure?: () => void;
   onSendRecording?: (
@@ -175,30 +183,37 @@ type HarnessProps = {
   ) => Promise<void> | void;
   getSendContext?: () => PendingVoiceSendContext;
   state?: {
-    current: ReturnType<typeof useVoiceRecorder> | undefined;
+    current: HarnessRecorder | undefined;
   };
 };
 
+/** A composer's recorder, with the mic button's start beside it. */
+type HarnessRecorder = ReturnType<typeof useVoiceRecorder> & { start: () => Promise<boolean> };
+
 const recorderState = {
-  current: undefined as ReturnType<typeof useVoiceRecorder> | undefined,
+  current: undefined as HarnessRecorder | undefined,
 };
 const mountedRenderers = new Set<ReactTestRenderer>();
+const stores = new Set<ReturnType<typeof createStore>>();
 
 function Harness({
-  onRecordingStart,
   onSendStopRequest,
   onSendStopFailure,
   onSendRecording,
   getSendContext,
   state = recorderState,
 }: HarnessProps) {
-  state.current = useVoiceRecorder({
-    onRecordingStart,
+  const store = useStore();
+  const recorder = useVoiceRecorder({
+    ownsPendingVoiceDraft: true,
     onSendStopRequest,
     onSendStopFailure,
     onSendRecording,
     getSendContext: getSendContext ?? (() => createTestSendContext()),
   });
+  // The mic button hands its composer's context over, which names the account for the journal.
+  const start = () => startLiveVoiceRecording(store, createTestSendContext());
+  state.current = { ...recorder, start };
   return null;
 }
 
@@ -213,6 +228,7 @@ const renderHarness = async (
     );
   });
   mountedRenderers.add(renderer);
+  stores.add(store);
   return { renderer, store };
 };
 
@@ -255,10 +271,14 @@ describe('useVoiceRecorder', () => {
   });
 
   afterEach(async () => {
+    // No unmount ends a recording, so each test's is ended here, and a stop left waiting runs out.
     await act(async () => {
+      stores.forEach((store) => void discardLiveVoiceRecording(store));
+      await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
       mountedRenderers.forEach((renderer) => renderer.unmount());
     });
     mountedRenderers.clear();
+    stores.clear();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     recorderState.current = undefined;
@@ -305,7 +325,7 @@ describe('useVoiceRecorder', () => {
 
   it('releases mic resources after native stop throws', async () => {
     const failed = vi.fn();
-    await renderHarness({ onSendStopFailure: failed });
+    const { store } = await renderHarness({ onSendStopFailure: failed });
     await act(async () => {
       await recorderState.current!.start();
     });
@@ -316,12 +336,13 @@ describe('useVoiceRecorder', () => {
       expect(await recorderState.current!.send()).toBe(false);
     });
     expect(failed).toHaveBeenCalledOnce();
-    expect(recorderState.current!.errorMessage).toBe('stop failed');
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBe('stop failed');
+    expect(recorderState.current!.phase).toBe('idle');
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('ignores delayed old data and stop after reset starts a fresh recording', async () => {
+  it('ignores delayed old data and stop after a discard starts a fresh recording', async () => {
     MockMediaRecorder.autoStop = false;
     const send = vi.fn();
     await renderHarness({ onSendRecording: send });
@@ -330,7 +351,7 @@ describe('useVoiceRecorder', () => {
     });
     const old = MockMediaRecorder.instances[0]!;
     await act(async () => {
-      recorderState.current!.reset();
+      void recorderState.current!.discard();
     });
     const freshStream = new MockMediaStream();
     getUserMedia.mockResolvedValue(freshStream);
@@ -368,14 +389,9 @@ describe('useVoiceRecorder', () => {
   });
 
   it('starts mic capture and emits file, active duration, waveform, and effective context on send', async () => {
-    const onRecordingStart = vi.fn();
     const onSendRecording = vi.fn();
     const getSendContext = vi.fn(() => createTestSendContext(ROOM_ID, '$thread-a'));
-    const { renderer } = await renderHarness({
-      onRecordingStart,
-      onSendRecording,
-      getSendContext,
-    });
+    const { renderer } = await renderHarness({ onSendRecording, getSendContext });
 
     await act(async () => {
       await recorderState.current?.start();
@@ -387,8 +403,8 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.send();
     });
 
-    expect(onRecordingStart).toHaveBeenCalledOnce();
-    expect(getSendContext).toHaveBeenCalledTimes(2);
+    // Read once, when Send is pressed.
+    expect(getSendContext).toHaveBeenCalledOnce();
     expect(getUserMedia).toHaveBeenCalledWith({
       audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
     });
@@ -409,9 +425,9 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('reports every capture phase in order and maps sending, idle, and unmount to inactive', async () => {
+  it('reports every capture phase in order, and inactive after a send or a discard, not an unmount', async () => {
     const onSendRecording = vi.fn();
-    const { renderer } = await renderHarness({ onSendRecording });
+    const { renderer, store } = await renderHarness({ onSendRecording });
 
     await act(async () => {
       await recorderState.current?.start();
@@ -440,14 +456,15 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
     act(() => renderer.unmount());
-
+    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
+    act(() => void discardLiveVoiceRecording(store));
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
 
-  it('does not let a stale delayed stop overwrite a replacement hook recording', async () => {
+  it('does not let the delayed stop of a claimed recording touch the one started after it', async () => {
     MockMediaRecorder.autoStop = false;
     const staleSend = vi.fn();
-    const { renderer: firstRenderer } = await renderHarness({ onSendRecording: staleSend });
+    const { renderer: firstRenderer, store } = await renderHarness({ onSendRecording: staleSend });
 
     await act(async () => {
       await recorderState.current?.start();
@@ -461,11 +478,10 @@ describe('useVoiceRecorder', () => {
       firstRenderer.unmount();
     });
 
-    const { renderer: secondRenderer } = await renderHarness();
+    const { renderer: secondRenderer } = await renderHarness({}, store);
     await act(async () => {
       await recorderState.current?.start();
     });
-    const callsAfterReplacementStarted = flightRecorderMocks.setVoiceCaptureState.mock.calls.length;
     expect(recorderState.current?.phase).toBe('recording');
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
 
@@ -476,9 +492,6 @@ describe('useVoiceRecorder', () => {
 
     expect(staleSend).toHaveBeenCalledOnce();
     expect(recorderState.current?.phase).toBe('recording');
-    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenCalledTimes(
-      callsAfterReplacementStarted
-    );
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
 
     await act(async () => {
@@ -486,57 +499,250 @@ describe('useVoiceRecorder', () => {
     });
   });
 
-  it('does not let a concurrently mounted idle hook overwrite an active recording on unmount', async () => {
-    const { renderer: idleRenderer } = await renderHarness();
-    const { renderer: activeRenderer } = await renderHarness();
-
-    await act(async () => {
-      await recorderState.current?.start();
-    });
-    const callsAfterRecordingStarted = flightRecorderMocks.setVoiceCaptureState.mock.calls.length;
-    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
-
-    await act(async () => {
-      idleRenderer.unmount();
-    });
-
-    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenCalledTimes(
-      callsAfterRecordingStarted
+  it('shares one recording between two composers, and Send in one takes it from both', async () => {
+    MockMediaRecorder.autoStop = false;
+    const first = { current: undefined as HarnessRecorder | undefined };
+    const second = { current: undefined as HarnessRecorder | undefined };
+    const firstSend = vi.fn();
+    const secondSend = vi.fn();
+    const secondClaim = vi.fn();
+    const { store } = await renderHarness({ state: first, onSendRecording: firstSend });
+    await renderHarness(
+      { state: second, onSendRecording: secondSend, onSendStopRequest: secondClaim },
+      store
     );
-    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
 
     await act(async () => {
-      activeRenderer.unmount();
+      await first.current!.start();
+      // The second composer's mic does nothing while the first one's recording runs.
+      expect(await second.current!.start()).toBe(false);
     });
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+    expect(MockMediaRecorder.instances).toHaveLength(1);
+    expect(first.current!.phase).toBe('recording');
+    expect(second.current!.phase).toBe('recording');
+    expect(second.current!.elapsedMs).toBe(first.current!.elapsedMs);
+    expect(second.current!.waveform).toBe(first.current!.waveform);
+
+    // Paused in one composer, it is paused in both.
+    act(() => {
+      second.current!.pause();
+    });
+    expect(first.current!.phase).toBe('paused');
+    act(() => {
+      first.current!.resume();
+    });
+    expect(second.current!.phase).toBe('recording');
+
+    // Two Sends in one tick: the first takes the recording, the second finds none and leaves
+    // its composer alone (onSendStopRequest is what empties the editor).
+    let sending!: Promise<boolean>;
+    await act(async () => {
+      sending = first.current!.send();
+      expect(await second.current!.send()).toBe(false);
+    });
+    expect(first.current!.phase).toBe('sending');
+    expect(first.current!.elapsedMs).toBe(600);
+    expect(second.current!.phase).toBe('idle');
+    expect(second.current!.elapsedMs).toBe(0);
+    await act(async () => {
+      MockMediaRecorder.instances[0]!.flushStop();
+      expect(await sending).toBe(true);
+    });
+    expect(firstSend).toHaveBeenCalledOnce();
+    expect(secondSend).not.toHaveBeenCalled();
+    expect(secondClaim).not.toHaveBeenCalled();
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(first.current!.phase).toBe('idle');
+    expect(second.current!.phase).toBe('idle');
+    expect(stream.track.stop).toHaveBeenCalledOnce();
   });
 
-  it('keeps another active hook published when one active hook unmounts', async () => {
-    const firstState = {
-      current: undefined as ReturnType<typeof useVoiceRecorder> | undefined,
-    };
-    const secondState = {
-      current: undefined as ReturnType<typeof useVoiceRecorder> | undefined,
-    };
-    const { renderer: firstRenderer } = await renderHarness({ state: firstState });
-    const { renderer: secondRenderer } = await renderHarness({ state: secondState });
-
+  it('discards the recording for every composer at once', async () => {
+    const first = { current: undefined as HarnessRecorder | undefined };
+    const second = { current: undefined as HarnessRecorder | undefined };
+    const firstSend = vi.fn();
+    const { store } = await renderHarness({ state: first, onSendRecording: firstSend });
+    await renderHarness({ state: second }, store);
     await act(async () => {
-      await firstState.current?.start();
-      await secondState.current?.start();
-    });
-    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
-
-    await act(async () => {
-      firstRenderer.unmount();
+      await first.current!.start();
     });
 
-    expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('recording');
-
+    // Discard pressed in the composer that did not start it.
     await act(async () => {
-      secondRenderer.unmount();
+      void second.current!.discard();
     });
+
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(first.current!.phase).toBe('idle');
+    expect(second.current!.phase).toBe('idle');
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    await act(async () => {
+      expect(await first.current!.send()).toBe(false);
+    });
+    expect(firstSend).not.toHaveBeenCalled();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+  });
+
+  it('stops the microphone and forgets the recording when the account leaves', async () => {
+    const onSendRecording = vi.fn();
+    const { store } = await renderHarness({ onSendRecording });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    const recorder = MockMediaRecorder.instances[0]!;
+
+    act(() => forgetComposerStateOfSession(store));
+
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(onSendRecording).not.toHaveBeenCalled();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
     expect(flightRecorderMocks.setVoiceCaptureState).toHaveBeenLastCalledWith('inactive');
   });
+
+  it('stops capture in the task Send is pressed in, with the destination the composer shows then', async () => {
+    MockMediaRecorder.autoStop = false;
+    const onSendRecording = vi.fn();
+    let destination = createTestSendContext(ROOM_ID, '$thread-a');
+    const { store } = await renderHarness({ onSendRecording, getSendContext: () => destination });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    const recorder = MockMediaRecorder.instances[0]!;
+    let sendPromise!: Promise<boolean>;
+
+    act(() => {
+      sendPromise = recorderState.current!.send();
+      // Before anything is awaited: the recording left the account, and the recorder was stopped.
+      expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+      expect(recorder.stop).toHaveBeenCalledOnce();
+    });
+
+    // The composer shows another thread by the time the recorder hands over the audio.
+    destination = createTestSendContext(ROOM_ID, '$thread-b');
+    await act(async () => {
+      recorder.flushStop();
+      await sendPromise;
+    });
+
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    expect(onSendRecording.mock.calls[0]?.[3]).toMatchObject({ threadId: '$thread-a' });
+  });
+
+  it('releases the microphone as a recording is discarded, so leaving the account after it has nothing left to stop', async () => {
+    MockMediaRecorder.autoStop = false;
+    const { store } = await renderHarness();
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    const recorder = MockMediaRecorder.instances[0]!;
+
+    act(() => void recorderState.current!.discard());
+
+    // In the same call, without the recorder saying it stopped.
+    expect(recorder.stop).toHaveBeenCalledOnce();
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+
+    act(() => forgetComposerStateOfSession(store));
+    await act(async () => {
+      recorder.flushStop();
+      await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    });
+
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+  });
+
+  it('releases the microphone at once and says nothing more when the account leaves while a claimed recording stops', async () => {
+    MockMediaRecorder.autoStop = false;
+    const onSendRecording = vi.fn();
+    const { store } = await renderHarness({ onSendRecording });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    let sendPromise!: Promise<boolean>;
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      sendPromise = recorderState.current!.send();
+      await Promise.resolve();
+    });
+    // The Send took the recording out of the account's hands; its recorder has yet to stop.
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(stream.track.stop).not.toHaveBeenCalled();
+
+    act(() => forgetComposerStateOfSession(store));
+
+    // Now, not when the recorder says it stopped or the time it is given for that runs out.
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+
+    // The recorder stops late, with no audio: under the account, that was an error to show.
+    let sent: boolean | undefined;
+    await act(async () => {
+      MockMediaRecorder.instances[0]!.dispatch('stop', new Event('stop'));
+      sent = await sendPromise;
+    });
+
+    expect(sent).toBe(false);
+    expect(onSendRecording).not.toHaveBeenCalled();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+  });
+
+  it.each([
+    ['is delivered', (settle: { resolve: () => void }) => settle.resolve()],
+    [
+      'fails',
+      (settle: { reject: (error: Error) => void }) => settle.reject(new Error('voice send failed')),
+    ],
+  ])(
+    "leaves the next account's parked recording alone when a send begun before the switch %s",
+    async (_outcome, settleSend) => {
+      const settle = {} as { resolve: () => void; reject: (error: Error) => void };
+      const onSendRecording = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            settle.resolve = resolve;
+            settle.reject = reject;
+          })
+      );
+      const { store } = await renderHarness({ onSendRecording });
+      await act(async () => {
+        await recorderState.current!.start();
+      });
+      let sendPromise!: Promise<boolean>;
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+        sendPromise = recorderState.current!.send();
+        await Promise.resolve();
+      });
+      expect(onSendRecording).toHaveBeenCalledOnce();
+
+      // The account is left during the upload, and the next one parks a recording of its own.
+      const nextAccountsDraft: PendingVoiceSendDraft = {
+        file: new File(['voice'], 'voice.ogg', { type: 'audio/ogg' }),
+        duration: 1200,
+        waveform: undefined,
+        context: { ...createTestSendContext(), ownerSessionId: '@next:example.org' },
+        errorMessage: 'offline',
+      };
+      act(() => {
+        forgetComposerStateOfSession(store);
+        store.set(pendingVoiceSendDraftAtom, nextAccountsDraft);
+      });
+      await act(async () => {
+        settleSend(settle);
+        await sendPromise;
+      });
+
+      expect(store.get(pendingVoiceSendDraftAtom)).toBe(nextAccountsDraft);
+      expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    }
+  );
 
   it('passes the audio bitrate even when no preferred MIME type is supported', async () => {
     MockMediaRecorder.isTypeSupported.mockReturnValue(false);
@@ -574,7 +780,7 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('does not start unconstrained fallback mic capture after unmount', async () => {
+  it('does not start unconstrained fallback mic capture after a discard', async () => {
     let rejectGetUserMedia!: (error: DOMException) => void;
     getUserMedia.mockImplementationOnce(
       () =>
@@ -582,7 +788,7 @@ describe('useVoiceRecorder', () => {
           rejectGetUserMedia = reject;
         })
     );
-    const { renderer } = await renderHarness();
+    const { store } = await renderHarness();
 
     let startPromise!: Promise<unknown>;
     await act(async () => {
@@ -590,9 +796,7 @@ describe('useVoiceRecorder', () => {
       await Promise.resolve();
     });
 
-    act(() => {
-      renderer.unmount();
-    });
+    act(() => void recorderState.current!.discard());
 
     await act(async () => {
       rejectGetUserMedia(new DOMException('msg', 'OverconstrainedError'));
@@ -604,11 +808,12 @@ describe('useVoiceRecorder', () => {
       audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
     });
     expect(MockMediaRecorder.instances).toHaveLength(0);
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
   });
 
   it('does not fall back to unconstrained mic capture on NotAllowedError', async () => {
     getUserMedia.mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'));
-    const { renderer } = await renderHarness();
+    const { renderer, store } = await renderHarness();
 
     await act(async () => {
       await recorderState.current?.start();
@@ -616,7 +821,9 @@ describe('useVoiceRecorder', () => {
 
     expect(getUserMedia).toHaveBeenCalledTimes(1);
     expect(recorderState.current?.phase).toBe('idle');
-    expect(recorderState.current?.errorMessage).toBe(
+    // A recording that could not start leaves, with its reason for the shell's one dialog.
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBe(
       'Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.'
     );
     expect(flightRecorderMocks.setVoiceCaptureState.mock.calls.map(([state]) => state)).toEqual([
@@ -733,7 +940,7 @@ describe('useVoiceRecorder', () => {
     });
     await act(async () => {
       vi.advanceTimersByTime(300);
-      await recorderState.current?.discard();
+      void recorderState.current?.discard();
     });
 
     expect(onSendRecording).not.toHaveBeenCalled();
@@ -743,7 +950,7 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('ignores discard while a send stop is still processing', async () => {
+  it('leaves a claimed recording alone when Discard follows its Send', async () => {
     MockMediaRecorder.autoStop = false;
     const onSendRecording = vi.fn();
     const { renderer } = await renderHarness({ onSendRecording });
@@ -758,16 +965,14 @@ describe('useVoiceRecorder', () => {
       vi.advanceTimersByTime(500);
       sendPromise = recorderState.current!.send();
     });
-    let discardResult: boolean | undefined;
     await act(async () => {
-      discardResult = await recorderState.current?.discard();
+      void recorderState.current?.discard();
     });
     await act(async () => {
       recorder.flushStop();
       await sendPromise;
     });
 
-    expect(discardResult).toBe(false);
     expect(onSendRecording).toHaveBeenCalledOnce();
     expect(onSendRecording.mock.calls[0]![1]).toBe(500);
 
@@ -913,25 +1118,66 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('stops an active recorder on unmount cleanup', async () => {
-    const onSendRecording = vi.fn();
-    const { renderer } = await renderHarness({ onSendRecording });
-
+  it('sends to the composer whose Send is pressed, in another room than where it started', async () => {
+    const startedIn = { current: undefined as HarnessRecorder | undefined };
+    const sentFrom = { current: undefined as HarnessRecorder | undefined };
+    const startRoomSend = vi.fn();
+    const sendRoomSend = vi.fn();
+    const replyDraft = { userId: '@agent:example.org', eventId: '$question', body: 'Question' };
+    // The composer of a room's main view, where the mic is pressed.
+    const { renderer: startRenderer, store } = await renderHarness({
+      state: startedIn,
+      onSendRecording: startRoomSend,
+      getSendContext: () => createTestSendContext(ROOM_ID),
+    });
     await act(async () => {
-      await recorderState.current?.start();
+      await startedIn.current!.start();
+      vi.advanceTimersByTime(700);
     });
 
-    const recorder = MockMediaRecorder.instances[0]!;
-    act(() => {
-      renderer.unmount();
+    // On to a thread of another room: the first composer goes, another one comes.
+    await act(async () => {
+      startRenderer.unmount();
+    });
+    expect(stream.track.stop).not.toHaveBeenCalled();
+    // Time passes on a page with no composer (the Threads page): the recording keeps counting.
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    const getSendContext = () => ({
+      ...createTestSendContext(OTHER_ROOM_ID, '$thread-b'),
+      replyDraft,
+      threadView: true,
+    });
+    await renderHarness(
+      {
+        state: sentFrom,
+        onSendRecording: sendRoomSend,
+        getSendContext,
+      },
+      store
+    );
+    expect(sentFrom.current!.elapsedMs).toBe(1200);
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    await act(async () => {
+      expect(await sentFrom.current!.send()).toBe(true);
     });
 
-    expect(recorder.stop).toHaveBeenCalledOnce();
-    expect(onSendRecording).not.toHaveBeenCalled();
-    expect(stream.track.stop).toHaveBeenCalled();
+    expect(startRoomSend).not.toHaveBeenCalled();
+    expect(sendRoomSend).toHaveBeenCalledOnce();
+    expect(sendRoomSend.mock.calls[0]![1]).toBe(1500);
+    expect(sendRoomSend.mock.calls[0]![3]).toMatchObject({
+      roomId: OTHER_ROOM_ID,
+      threadId: '$thread-b',
+      replyDraft,
+      threadView: true,
+    });
+    expect(MockMediaRecorder.instances).toHaveLength(1);
   });
 
-  it('uses the send callback captured when recording started', async () => {
+  it('sends with the callback and context the composer has when Send is pressed', async () => {
     const initialSend = vi.fn();
     const laterSend = vi.fn();
     const { renderer, store } = await renderHarness({ onSendRecording: initialSend });
@@ -944,7 +1190,10 @@ describe('useVoiceRecorder', () => {
         React.createElement(
           Provider,
           { store },
-          React.createElement(Harness, { onSendRecording: laterSend })
+          React.createElement(Harness, {
+            onSendRecording: laterSend,
+            getSendContext: () => createTestSendContext(ROOM_ID, '$thread-at-send'),
+          })
         )
       );
     });
@@ -953,8 +1202,9 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.send();
     });
 
-    expect(initialSend).toHaveBeenCalledOnce();
-    expect(laterSend).not.toHaveBeenCalled();
+    expect(initialSend).not.toHaveBeenCalled();
+    expect(laterSend).toHaveBeenCalledOnce();
+    expect(laterSend.mock.calls[0]![3]).toMatchObject({ threadId: '$thread-at-send' });
 
     renderer.unmount();
   });
@@ -1022,71 +1272,43 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('parks and retries the same-room relation visible when Send is pressed', async () => {
+  it('parks and retries the room and thread the composer shows when Send is pressed', async () => {
     const uploadError = new Error('voice send failed');
     const onSendRecording = vi
       .fn()
       .mockRejectedValueOnce(uploadError)
       .mockResolvedValueOnce(undefined);
-    let currentThreadId = '$thread-at-start';
-    const getSendContext = () => createTestSendContext(ROOM_ID, currentThreadId);
+    let destination = createTestSendContext(ROOM_ID, '$thread-at-start');
+    const getSendContext = () => destination;
     const { renderer, store } = await renderHarness({ onSendRecording, getSendContext });
 
     await act(async () => {
       await recorderState.current?.start();
     });
-    currentThreadId = '$thread-at-send';
+    destination = createTestSendContext(OTHER_ROOM_ID, '$thread-at-send');
     await act(async () => {
       vi.advanceTimersByTime(100);
       await recorderState.current?.send();
     });
 
     expect(onSendRecording.mock.calls[0]![3]).toMatchObject({
-      roomId: ROOM_ID,
+      roomId: OTHER_ROOM_ID,
       threadId: '$thread-at-send',
     });
     expect(store.get(pendingVoiceSendDraftAtom)?.context).toMatchObject({
-      roomId: ROOM_ID,
+      roomId: OTHER_ROOM_ID,
       threadId: '$thread-at-send',
     });
 
-    currentThreadId = '$thread-after-failure';
+    destination = createTestSendContext(ROOM_ID, '$thread-after-failure');
     await act(async () => {
       await recorderState.current?.retry();
     });
 
     expect(onSendRecording.mock.calls[1]![3]).toMatchObject({
-      roomId: ROOM_ID,
+      roomId: OTHER_ROOM_ID,
       threadId: '$thread-at-send',
     });
-
-    renderer.unmount();
-  });
-
-  it('retries against the originally-captured room even after the parent reports a different room', async () => {
-    const uploadError = new MatrixError({ errcode: 'M_UNKNOWN', error: '' });
-    const onSendRecording = vi
-      .fn()
-      .mockRejectedValueOnce(uploadError)
-      .mockResolvedValueOnce(undefined);
-    let currentRoomId = ROOM_ID;
-    const getSendContext = () => createTestSendContext(currentRoomId, '$thread-a');
-    const { renderer } = await renderHarness({ onSendRecording, getSendContext });
-
-    await act(async () => {
-      await recorderState.current?.start();
-    });
-    currentRoomId = OTHER_ROOM_ID;
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-      await recorderState.current?.send();
-    });
-    expect(onSendRecording.mock.calls[0]![3]).toMatchObject({ roomId: ROOM_ID });
-
-    await act(async () => {
-      await recorderState.current?.retry();
-    });
-    expect(onSendRecording.mock.calls[1]![3]).toMatchObject({ roomId: ROOM_ID });
 
     renderer.unmount();
   });
@@ -1112,38 +1334,6 @@ describe('useVoiceRecorder', () => {
     expect(manifestSource).toContain(
       '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />'
     );
-  });
-
-  it('does not start a new capture while a failed recording draft is pending', async () => {
-    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
-    const { renderer } = await renderHarness({ onSendRecording });
-
-    await act(async () => {
-      await recorderState.current?.start();
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-      await recorderState.current?.send();
-    });
-
-    const pendingFile = onSendRecording.mock.calls[0]![0];
-    getUserMedia.mockClear();
-
-    let started: boolean | undefined;
-    await act(async () => {
-      started = await recorderState.current?.start();
-    });
-
-    expect(started).toBe(false);
-    expect(getUserMedia).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await recorderState.current?.retry();
-    });
-
-    expect(onSendRecording.mock.calls[1]![0]).toBe(pendingFile);
-
-    renderer.unmount();
   });
 
   it('claims retry ownership and releases it when retry sending fails', async () => {
@@ -1177,6 +1367,42 @@ describe('useVoiceRecorder', () => {
     expect(onSendStopFailure).toHaveBeenCalledTimes(2);
     expect(recorderState.current?.hasPendingSend).toBe(true);
     expect(recorderState.current?.errorMessage).toBe('upload failed');
+
+    renderer.unmount();
+  });
+
+  it('parks nothing under the next account when a retry fails after the account left', async () => {
+    let failRetry!: (error: Error) => void;
+    const onSendRecording = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('upload failed'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            failRetry = reject;
+          })
+      );
+    const { renderer, store } = await renderHarness({ onSendRecording });
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+    });
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeDefined();
+
+    let retry!: Promise<boolean | undefined>;
+    await act(async () => {
+      retry = Promise.resolve(recorderState.current?.retry());
+      await Promise.resolve();
+    });
+    act(() => forgetComposerStateOfSession(store));
+    await act(async () => {
+      failRetry(new Error('offline'));
+      expect(await retry).toBe(false);
+    });
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
 
     renderer.unmount();
   });
@@ -1268,7 +1494,7 @@ describe('useVoiceRecorder', () => {
     const store = createStore();
     const onSendRecording = vi.fn(async () => {
       // Discard mid-retry via the production hook entry point.
-      recorderState.current?.discardPending();
+      await recorderState.current?.discardPending();
       throw new Error('upload failed twice');
     });
     onSendRecording.mockImplementationOnce(async () => {
@@ -1334,12 +1560,9 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
-  it('cancels an in-flight getUserMedia after unmount so no recorder/timers start', async () => {
-    // CLUSTER 2 (rev-C Issue 1, rev-E Issue 1): without a sessionIdRef bump
-    // on unmount, a permission prompt resolved after unmount would pass the
-    // post-await session check, build a MediaRecorder, start capture/timers,
-    // and leak the mic stream. The unmount cleanup must invalidate the
-    // session id even though the parked draft must outlive the unmount.
+  it('starts no recorder when microphone permission arrives after the account left', async () => {
+    // A permission prompt answered after the account's pages went must not build a
+    // MediaRecorder, start capture or timers, or keep the mic stream for the next account.
     const onSendRecording = vi.fn();
     let resolveGetUserMedia!: (stream: MockMediaStream) => void;
     getUserMedia.mockImplementationOnce(
@@ -1348,7 +1571,7 @@ describe('useVoiceRecorder', () => {
           resolveGetUserMedia = resolve;
         })
     );
-    const { renderer } = await renderHarness({ onSendRecording });
+    const { renderer, store } = await renderHarness({ onSendRecording });
 
     let startPromise!: Promise<unknown>;
     await act(async () => {
@@ -1356,10 +1579,10 @@ describe('useVoiceRecorder', () => {
       await Promise.resolve();
     });
 
-    // Unmount BEFORE getUserMedia resolves (simulates the user navigating
-    // away while the OS permission dialog is still open).
+    // The account leaves while the OS permission dialog is still open.
     act(() => {
       renderer.unmount();
+      forgetComposerStateOfSession(store);
     });
 
     // The permission prompt now resolves with a real stream.
@@ -1369,11 +1592,12 @@ describe('useVoiceRecorder', () => {
       await startPromise;
     });
 
-    // The post-await session check must reject the resolved stream and stop
-    // its tracks. No MediaRecorder may have been constructed.
     expect(lateStream.track.stop).toHaveBeenCalledOnce();
     expect(MockMediaRecorder.instances).toHaveLength(0);
     expect(onSendRecording).not.toHaveBeenCalled();
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('persists the failed-send draft to the global atom even when no atom is forwarded by the caller', async () => {
@@ -1474,7 +1698,7 @@ describe('useVoiceRecorder', () => {
   it('does not reset a replacement capture started from delivery failure settlement', async () => {
     let replacementStart: boolean | undefined;
     const onSendStopFailure = vi.fn(async () => {
-      recorderState.current?.discardPending();
+      await recorderState.current?.discardPending();
       await Promise.resolve();
       replacementStart = await recorderState.current?.start();
     });
@@ -1532,7 +1756,7 @@ describe('useVoiceRecorder', () => {
     }
     vi.stubGlobal('MediaRecorder', ThrowingMediaRecorder);
     const onSendRecording = vi.fn();
-    const { renderer } = await renderHarness({ onSendRecording });
+    const { renderer, store } = await renderHarness({ onSendRecording });
 
     await act(async () => {
       await recorderState.current?.start();
@@ -1540,41 +1764,124 @@ describe('useVoiceRecorder', () => {
 
     expect(stream.track.stop).toHaveBeenCalledOnce();
     expect(onSendRecording).not.toHaveBeenCalled();
-    expect(recorderState.current?.errorMessage).toBe('constructor failed');
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBe('constructor failed');
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
 
     renderer.unmount();
   });
 
-  it('does not send when recording stops without an explicit send action', async () => {
+  /** The recording's disk copy, as `startLiveVoiceRecording` hands it to the capture session. */
+  const journalRecording = () => {
+    const disk = {
+      id: crypto.randomUUID(),
+      append: vi.fn(async () => undefined),
+      release: vi.fn<() => void>(),
+      remove: vi.fn(async () => undefined),
+    };
+    const begin = vi.spyOn(journal, 'beginVoiceRecording').mockReturnValueOnce(disk);
+    return { disk, begin };
+  };
+
+  it('parks the audio of a recorder that stops on its own as a recovered recording', async () => {
+    const { disk, begin } = journalRecording();
     const onSendRecording = vi.fn();
-    const { renderer } = await renderHarness({ onSendRecording });
+    const { renderer, store } = await renderHarness({ onSendRecording });
 
     await act(async () => {
       await recorderState.current?.start();
     });
+    expect(begin).toHaveBeenCalledExactlyOnceWith(
+      TEST_USER_ID,
+      expect.any(Number),
+      expect.any(String)
+    );
 
     const recorder = MockMediaRecorder.instances[0]!;
     await act(async () => {
+      vi.advanceTimersByTime(5_000);
       recorder.state = 'inactive';
       recorder.flushStop();
-      await Promise.resolve();
     });
 
     expect(onSendRecording).not.toHaveBeenCalled();
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(recorderState.current?.phase).toBe('idle');
-    expect(recorderState.current?.errorMessage).toBe(
-      'Voice recording stopped unexpectedly. Please record again.'
-    );
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBeUndefined();
+    const parked = store.get(pendingVoiceSendDraftAtom);
+    expect(parked).toMatchObject({ duration: 5_000, recovered: true, recordingId: disk.id });
+    expect(await parked?.file.text()).toBe('voice');
+    expect(recorderState.current).toMatchObject({ hasPendingSend: true, recovered: true });
+    // Parked, it is still this tab's: its disk copy goes once it is sent or discarded.
+    expect(disk.release).not.toHaveBeenCalled();
+    expect(disk.remove).not.toHaveBeenCalled();
 
     renderer.unmount();
+    begin.mockRestore();
+  });
+
+  it('leaves a self-stopped recording on disk, unlocked, while the draft slot is taken', async () => {
+    const { disk, begin } = journalRecording();
+    const { store } = await renderHarness();
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    const older: PendingVoiceSendDraft = {
+      file: new File(['older'], 'older.ogg', { type: 'audio/ogg' }),
+      duration: 900,
+      context: createTestSendContext(),
+    };
+    const recorder = MockMediaRecorder.instances[0]!;
+    await act(async () => {
+      store.set(pendingVoiceSendDraftAtom, older);
+      recorder.state = 'inactive';
+      recorder.flushStop();
+    });
+
+    expect(store.get(pendingVoiceSendDraftAtom)).toBe(older);
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(disk.release).toHaveBeenCalledOnce();
+    expect(disk.remove).not.toHaveBeenCalled();
+    begin.mockRestore();
+  });
+
+  it('keeps the disk copy, unlocked, when the account leaves, and deletes it on Discard', async () => {
+    MockMediaRecorder.autoStop = false;
+    const left = journalRecording();
+    const { store } = await renderHarness();
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    const emitChunk = (recorder: MockMediaRecorder) =>
+      recorder.dispatch('dataavailable', { data: new Blob(['voice']) } as BlobEvent);
+    emitChunk(MockMediaRecorder.instances[0]!);
+    // A change of account without signing out: the microphone stops, the audio waits on disk.
+    act(() => forgetComposerStateOfSession(store));
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(left.disk.release).not.toHaveBeenCalled();
+    // The stopped recorder's last audio reaches the disk copy before its lock goes.
+    MockMediaRecorder.instances[0]!.flushStop();
+    expect(left.disk.append).toHaveBeenCalledTimes(2);
+    expect(left.disk.release).toHaveBeenCalledOnce();
+    expect(left.disk.remove).not.toHaveBeenCalled();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    left.begin.mockRestore();
+
+    const discarded = journalRecording();
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    emitChunk(MockMediaRecorder.instances[1]!);
+    act(() => void recorderState.current!.discard());
+    expect(discarded.disk.remove).toHaveBeenCalledOnce();
+    expect(discarded.disk.release).not.toHaveBeenCalled();
+    discarded.begin.mockRestore();
   });
 
   it('does not retain a pending send draft when no audio chunks were captured', async () => {
     MockMediaRecorder.autoStop = false;
     const onSendRecording = vi.fn();
     const onSendStopFailure = vi.fn();
-    const { renderer } = await renderHarness({ onSendRecording, onSendStopFailure });
+    const { renderer, store } = await renderHarness({ onSendRecording, onSendStopFailure });
 
     await act(async () => {
       await recorderState.current?.start();
@@ -1593,8 +1900,9 @@ describe('useVoiceRecorder', () => {
 
     expect(onSendRecording).not.toHaveBeenCalled();
     expect(onSendStopFailure).toHaveBeenCalledOnce();
-    expect(recorderState.current?.errorMessage).toBe('No audio data was captured.');
+    expect(store.get(liveVoiceRecordingErrorAtom)).toBe('No audio data was captured.');
     expect(recorderState.current?.hasPendingSend).toBe(false);
+    expect(recorderState.current?.phase).toBe('idle');
 
     renderer.unmount();
   });

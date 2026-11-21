@@ -23,19 +23,19 @@ describe('Rust crypto to-device preprocessing', () => {
     // Only the members the method reads; the store is gone after receiveSyncChanges succeeded.
     const crypto = {
       logger,
-      receiveSyncChanges: vi.fn(async () => [decrypted]),
       onIncomingKeyVerificationRequest: vi.fn(),
       maybeAcceptKeyBundle: vi.fn(),
       olmMachine: {
+        receiveSyncChanges: vi.fn(async () => [decrypted]),
         getPendingKeyBundleDetailsForRoom: vi.fn(async () => {
           throw new DOMException('Connection to Indexed Database server lost.', 'UnknownError');
         }),
       },
     };
 
-    const received = await RustCrypto.prototype.preprocessToDeviceMessages.call(
+    const received = await RustCrypto.prototype.processSyncChanges.call(
       crypto as unknown as RustCrypto,
-      [bundle]
+      { toDeviceEvents: [bundle] }
     );
 
     // Failing here would make /sync feed the consumed messages to the crypto layer again.

@@ -68,7 +68,8 @@ const centerClass = (phone: boolean, fillPhoneScreen: boolean): string => {
 /**
  * The large centered dialog that settings and the account switcher open in. On phones it keeps a
  * margin around it, or fills the screen with `fillPhoneScreen`. Keyboard focus is held inside
- * while it is open and goes back to where it was once it closes.
+ * while it is open and goes back to where it was once it closes. What must stay in reach while
+ * it covers the page (a voice recording in progress) shows in its notice place, at its foot.
  */
 export function Modal500({
   requestClose,

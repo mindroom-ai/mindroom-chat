@@ -992,7 +992,10 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan"
+        "advancedFilters": "Filter lanjutan",
+        "includeResolvedThreads": "Sertakan utas yang telah diselesaikan",
+        "hideResolvedThreads": "Sembunyikan utas yang telah diselesaikan",
+        "forMeSummary": "{{summary}}. Filter Untuk saya aktif."
       },
       "threadPeopleFilter": {
         "label": "Orang",
@@ -1017,7 +1020,8 @@
       },
       "mindroomRoomTimeline": {
         "expandAllLong": "Bentangkan semua pesan panjang",
-        "collapseAllLong": "Ciutkan semua pesan panjang"
+        "collapseAllLong": "Ciutkan semua pesan panjang",
+        "showFullMessage": "Tampilkan pesan lengkap"
       }
     },
     "computer": {
@@ -1184,6 +1188,10 @@
   "composer": {
     "voicePausedInThisRoom": "Rekaman suara dijeda — selesaikan atau buang rekaman yang belum terkirim di tempat lain di ruangan ini",
     "voiceThreadRootUnsent": "Utas pesan suara ini tidak memiliki pesan pertama yang terkirim. Coba lagi setelah pesan itu terkirim, atau buang rekamannya.",
+    "voiceIndicator": {
+      "recording": "Merekam {{time}}",
+      "paused": "Dijeda {{time}}"
+    },
     "emoji": "Emoji",
     "cancelReply": "Batalkan balasan",
     "moreActions": "Tindakan lainnya",
@@ -1635,9 +1643,10 @@
     }
   },
   "threadNav": {
-    "layout": "Tata letak utas",
-    "layoutRecent": "Terbaru",
-    "layoutSections": "Bagian",
+    "forMe": "Untuk saya",
+    "forMeHint": "Hanya utas yang Anda ikuti, yang berisi pesan dari agen atas nama Anda, atau yang Anda sematkan",
+    "roomForMeHint": "Hanya utas yang Anda ikuti atau yang berisi pesan dari agen atas nama Anda",
+    "emptyForMe": "Belum ada utas untuk Anda",
     "group": "Kelompokkan",
     "groupHint": "Kelompokkan menurut status",
     "sections": {
@@ -1665,5 +1674,9 @@
   },
   "threadActions": {
     "openBeside": "Buka di kolom kedua"
+  },
+  "roomSchedules": {
+    "thisThread": "Utas ini",
+    "elsewhereInRoom": "Di bagian lain ruang ini"
   }
 }

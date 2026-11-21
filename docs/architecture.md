@@ -4,7 +4,7 @@ MindRoom Chat is a single-page React app that talks to a Matrix homeserver throu
 
 ## Stack
 
-React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`) and the folds component library; jotai for UI state, TanStack Query for server reads, React Router 6, Slate for the composer, i18next for translations; `matrix-js-sdk` 41.7 with its Rust crypto (`@matrix-org/matrix-sdk-crypto-wasm`); `livekit-client` for calls; Workbox for the service worker; Capacitor 8 for the iOS and Android shells. Versions are pinned in `package.json`, and `patches/` holds patch-package fixes to some of them (`matrix-js-sdk`, `folds`, `i18next` and others), applied by `npm ci`.
+React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`) and the folds component library; jotai for UI state, TanStack Query for server reads, React Router 6, Slate for the composer, i18next for translations; `matrix-js-sdk` 45.1 with its Rust crypto (`@matrix-org/matrix-sdk-crypto-wasm`); `livekit-client` for calls; Workbox for the service worker; Capacitor 8 for the iOS and Android shells. Versions are pinned in `package.json`, and `patches/` holds patch-package fixes to some of them (`matrix-js-sdk`, `folds`, `i18next` and others), applied by `npm ci`.
 
 ## How the app starts
 
@@ -13,6 +13,13 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 3. `src/app/shell/App.tsx` sets up jotai, the theme and TanStack Query, loads `config.json` (`src/app/config/ClientConfigLoader.tsx`; see `docs/configuration.md`), and creates the router (`src/app/shell/Router.tsx`).
 4. Sign-in pages live under `src/app/account/auth/`. Every signed-in route renders `ClientRoot` (`src/app/shell/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/app/account/lifecycle/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
 5. Accounts are kept in a session registry (`src/app/matrix/session/sessions.ts`), each with its own stores, so several accounts can be signed in and switched.
+
+### Startup in the diagnostics export
+
+Settings → About → Export diagnostics includes `startupTimeline` for the first startup attempt, even
+without deep tracing. Add a mark's `atMs` to `timeOrigin` for epoch milliseconds. See the
+[`readStartupTimeline` documentation](../src/app/lib/startupTimeline.ts) for navigation timing
+and the meaning of individual marks.
 
 ## Layout
 
@@ -79,7 +86,8 @@ src/
                          agent-run/, question/, reactions/, reply/, edit/, pins/, thread-summary/, canvas/, live/,
                          viewers/ (image, PDF, text), url-preview/, layout/
     canvas/              agent canvases: panel, room canvas panel, index, state; page/ (the Canvases route)
-    composer/            the room input: drafts, send session, extensions; commands/, upload/, voice/
+    composer/            the room input: drafts, send session, extensions; commands/, upload/, voice/ (the account
+                         owns a live voice recording; the composer whose Send is pressed owns its delivery)
     notifications/       unread title, chimes, read receipts and mark-read items; inbox/ (invites), notices/, push/ (iOS),
                          settings/
     schedules/           the scheduled tasks dialog and button

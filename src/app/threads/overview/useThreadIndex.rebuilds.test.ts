@@ -28,13 +28,13 @@ const state = vi.hoisted(() => ({
   pinnedEvents: [] as unknown[],
   noWriters: new Map(),
   noEvents: [] as unknown[],
-  noIds: [] as string[],
+  pinnedIds: [] as string[],
 }));
 
 vi.mock('./useRoomThreadList', () => ({ useRoomThreadList: () => state.list }));
 vi.mock('../usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => state.pinnedEvents }));
 vi.mock('../../event-store/threads/useThreadPinning', () => ({
-  usePinnedEventIds: () => state.noIds,
+  usePinnedEventIds: () => state.pinnedIds,
 }));
 vi.mock('../../schedules/useScheduledTaskEvents', () => ({
   useScheduledTaskEvents: () => state.noEvents,
@@ -62,12 +62,12 @@ import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter'
 let mx: MatrixClient;
 let room: Room;
 
-const root = (eventId: string) =>
+const root = (eventId: string, sender = '@alice:server') =>
   new MatrixEvent({
     type: 'm.room.message',
     room_id: room.roomId,
     event_id: eventId,
-    sender: '@alice:server',
+    sender,
     origin_server_ts: 1000,
     content: { msgtype: 'm.text', body: 'Anyone?' },
   });
@@ -80,6 +80,7 @@ beforeEach(() => {
   Object.assign(room, { threadsTimelineSets: [{ getLiveTimeline: () => ({}) }] });
   // A pinned root nobody answered: a zero-reply root of the Compact list.
   state.pinnedEvents = [root('$root')];
+  state.pinnedIds = [];
   state.list = { ...state.list, loading: true };
 });
 
@@ -109,6 +110,23 @@ const options = (): UseThreadIndexOptions => ({
 });
 
 describe('useThreadIndex record builds', () => {
+  it('keeps only your own detached pinned root with For me on', () => {
+    state.pinnedEvents = [root('$mine', room.myUserId), root('$other')];
+    state.pinnedIds = ['$mine', '$other'];
+    expect(state.pinnedIds.map((id) => room.findEventById(id))).toEqual([undefined, undefined]);
+    expect(state.pinnedIds.map((id) => room.getThread(id))).toEqual([null, null]);
+
+    const fixed = options();
+    const { result, rerender } = renderHook(useThreadIndex, { initialProps: fixed });
+    expect(result.current.compactOverviewOrdering.displayOrderedIds).toEqual(['$other', '$mine']);
+
+    rerender({
+      ...fixed,
+      requestedThreadFilterState: { ...fixed.requestedThreadFilterState, forMe: true },
+    });
+    expect(result.current.compactOverviewOrdering.displayOrderedIds).toEqual(['$mine']);
+  });
+
   it('builds no record again when only the thread list stops loading', () => {
     const fixed = options();
     const { result, rerender } = renderHook(useThreadIndex, { initialProps: fixed });

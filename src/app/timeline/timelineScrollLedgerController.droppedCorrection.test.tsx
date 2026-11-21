@@ -125,11 +125,12 @@ it('reads no shrink in a thread whose row above the reader grew and moved into t
   });
 });
 
-it('still reads the correction as shrink in the room view', () => {
+it('reads no shrink in the room view either', () => {
+  // The room's list rendered the grown row as well: a reader at its newest row stays there.
   expect(afterDroppedCorrection(undefined)).toMatchObject({
-    painted: { marginTop: '-62px', rowFoldPx: 0 },
+    painted: { marginTop: '-62px', rowFoldPx: 62 },
     marginTop: '-62px',
-    shrink: 62,
+    shrink: 0,
   });
 });
 

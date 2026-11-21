@@ -2258,8 +2258,8 @@
       "resumeRecording": "Retomar gravação de voz",
       "statusActive": "Gravação de voz ativa",
       "statusPaused": "Gravação de voz em pausa",
-      "statusProcessing": "A processar gravação de voz",
       "statusReadyToRetry": "Gravação de voz pronta para nova tentativa",
+      "recoveredRecording": "Gravação recuperada · {{time}}",
       "statusSending": "A enviar gravação de voz",
       "statusStarting": "A iniciar gravação de voz",
       "voiceRecorderDialog": {

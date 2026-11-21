@@ -1,10 +1,12 @@
-import React, { createRef, useState } from 'react';
+import React, { createRef } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { Room } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecorderDialog';
-import type { PendingVoiceSendContext } from '../roomInputDrafts';
+import { pendingVoiceSendDraftAtom, type PendingVoiceSendContext } from '../roomInputDrafts';
+import { discardLiveVoiceRecording, liveVoiceRecordingAtom } from './liveVoiceRecording';
+import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 
 const TEST_ROOM_ID = '!room:example.org';
 
@@ -18,8 +20,15 @@ const createTestSendContext = (): PendingVoiceSendContext => ({
   signalBridgedRoom: false,
 });
 
+// One store for each test: the account's recording lives in it, not in a composer.
+let store: ReturnType<typeof createStore>;
 const renderInProvider = (element: React.ReactElement) =>
-  React.createElement(Provider, { store: createStore() }, element);
+  React.createElement(Provider, { store }, element);
+/** Presses the mic: the recorder mounts for the recording, it does not start one. */
+const startRecording = () =>
+  act(async () => {
+    await startLiveVoiceRecording(store, createTestSendContext());
+  });
 
 type Listener = (event: Event) => void;
 
@@ -54,6 +63,13 @@ class MockMediaRecorder {
   }
 
   start() {
+    this.state = 'recording';
+  }
+
+  pause() {
+    this.state = 'paused';
+  }
+  resume() {
     this.state = 'recording';
   }
 
@@ -141,6 +157,10 @@ const focusTrapState: {
   // Always reflects the options of the most recently mounted trap.
   latest?: FocusTrapOptionsCapture;
 } = {};
+// The places notices show in bring their styles; only whether something covers the page is read.
+vi.mock('../../ui/noticeSlots', async () => ({
+  coverNoticeSlotAtom: (await import('jotai')).atom(null),
+}));
 vi.mock('focus-trap-react', () => {
   const FocusTrapMock: React.FC<{
     children: React.ReactNode;
@@ -188,25 +208,6 @@ vi.mock('../../lib/dom', () => ({
   pauseAllMediaElements: vi.fn(),
 }));
 
-function OverviewHarness({ onClose }: { onClose: () => void }) {
-  const [open, setOpen] = useState(true);
-
-  if (!open) {
-    return React.createElement('div', null, 'closed');
-  }
-
-  return React.createElement(VoiceRecorderComposer, {
-    active: open,
-    onClose: () => {
-      onClose();
-      setOpen(false);
-    },
-    onRetryRequest: vi.fn(),
-    onSendRecording: vi.fn(),
-    getSendContext: createTestSendContext,
-  });
-}
-
 describe('VoiceRecorderComposer', () => {
   beforeEach(() => {
     vi.stubGlobal('window', {
@@ -214,44 +215,57 @@ describe('VoiceRecorderComposer', () => {
     });
     vi.stubGlobal('navigator', {});
     vi.stubGlobal('MediaRecorder', undefined);
+    store = createStore();
   });
 
   afterEach(() => {
+    void discardLiveVoiceRecording(store);
     vi.unstubAllGlobals();
   });
 
-  it('keeps an overview recorder error visible until the user dismisses it', async () => {
-    const onClose = vi.fn();
+  it('sends the live recording when a draft for another thread is restored', async () => {
+    setupSupportedRecorder();
+    const recorderRef = createRef<VoiceRecorderComposerHandle>();
+    const destination = { ...createTestSendContext(), threadId: '$thread-b' };
+    const onSendRecording = vi.fn();
+    const props = {
+      ref: recorderRef,
+      ownsPendingVoiceDraft: false,
+      onRetryRequest: vi.fn(),
+      onSendRecording,
+      getSendContext: () => destination,
+    };
     let renderer!: ReactTestRenderer;
-
     await act(async () => {
-      renderer = create(renderInProvider(React.createElement(OverviewHarness, { onClose })));
+      renderer = create(renderInProvider(React.createElement(VoiceRecorderComposer, props)));
+    });
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    await startRecording();
+
+    const restoredDraft = {
+      file: new File(['older'], 'older.ogg', { type: 'audio/ogg' }),
+      duration: 900,
+      errorMessage: 'Upload failed',
+      context: { ...destination, threadId: '$thread-a' },
+    };
+    await act(async () => store.set(pendingVoiceSendDraftAtom, restoredDraft));
+    await act(async () => {
+      expect(await recorderRef.current?.send()).toBe(true);
     });
 
-    expect(onClose).not.toHaveBeenCalled();
-    expect(JSON.stringify(renderer.toJSON())).toContain('Voice Recording Error');
-    expect(JSON.stringify(renderer.toJSON())).toContain(
-      'Voice recording is not supported in this browser.'
+    expect(onSendRecording).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ type: 'audio/ogg;codecs=opus' }),
+      expect.any(Number),
+      undefined,
+      destination
     );
-
-    const okButton = renderer.root
-      .findAllByType('button')
-      .find((button) => button.props.children === 'OK');
-    expect(okButton).toBeTruthy();
-
-    await act(async () => {
-      okButton?.props.onClick();
-    });
-
-    expect(onClose).toHaveBeenCalledOnce();
-    expect(JSON.stringify(renderer.toJSON())).toContain('closed');
-
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBe(restoredDraft);
     renderer.unmount();
   });
 
   it('shows retry-first upload failure controls and keeps the capsule mounted', async () => {
     setupSupportedRecorder();
-    const onClose = vi.fn();
     const onRetryRequest = vi.fn();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
@@ -262,16 +276,16 @@ describe('VoiceRecorderComposer', () => {
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
             ref: recorderRef,
-            active: true,
-            onClose,
             onRetryRequest,
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
     });
 
+    await startRecording();
     await act(async () => {
       await recorderRef.current?.send();
     });
@@ -285,7 +299,6 @@ describe('VoiceRecorderComposer', () => {
     expect(
       renderer.root.findAllByProps({ 'aria-label': 'Retry sending voice recording' })
     ).toHaveLength(0);
-    expect(onClose).not.toHaveBeenCalled();
 
     const retryButton = renderer.root
       .findAllByType('button')
@@ -299,9 +312,53 @@ describe('VoiceRecorderComposer', () => {
     renderer.unmount();
   });
 
+  it.each(['recording', 'paused'])('confirms discard without stopping a %s', async (phase) => {
+    setupSupportedRecorder();
+    const ref = createRef<VoiceRecorderComposerHandle>();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        renderInProvider(
+          React.createElement(VoiceRecorderComposer, {
+            ref,
+            ownsPendingVoiceDraft: true,
+            onRetryRequest: vi.fn(),
+            onSendRecording: vi.fn(),
+            getSendContext: createTestSendContext,
+          })
+        )
+      );
+    });
+    await startRecording();
+    const click = async (name: string) => {
+      await act(async () => {
+        renderer.root
+          .findByType(VoiceRecorderComposer)
+          .findAllByType('button')
+          .find((button) => button.props['aria-label'] === name || button.props.children === name)!
+          .props.onClick();
+      });
+    };
+    if (phase === 'paused') await click('Pause voice recording');
+    await click('Discard voice recording');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Discard voice recording?');
+    expect(ref.current?.phase()).toBe(phase);
+    // Send does nothing behind the question.
+    await act(async () => {
+      expect(await ref.current?.send()).toBe(false);
+    });
+    await click('Cancel');
+    expect(ref.current?.phase()).toBe(phase);
+    expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+    await click('Discard voice recording');
+    await click('Discard');
+    expect(ref.current?.phase()).toBe('idle');
+    expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+    renderer.unmount();
+  });
+
   it('confirms before discarding a pending failed recording', async () => {
     setupSupportedRecorder();
-    const onClose = vi.fn();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
@@ -311,16 +368,16 @@ describe('VoiceRecorderComposer', () => {
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
             ref: recorderRef,
-            active: true,
-            onClose,
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
     });
 
+    await startRecording();
     await act(async () => {
       await recorderRef.current?.send();
     });
@@ -331,7 +388,7 @@ describe('VoiceRecorderComposer', () => {
       findRetryDialogDiscard()?.props.onClick();
     });
 
-    expect(onClose).not.toHaveBeenCalled();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeDefined();
     const afterFirstDiscard = JSON.stringify(renderer.toJSON());
     // The retry overlay must hide while the discard confirmation is open so
     // the dialogs do not visually stack.
@@ -360,7 +417,8 @@ describe('VoiceRecorderComposer', () => {
       confirmDiscard?.props.onClick();
     });
 
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Discard voice recording?');
 
     renderer.unmount();
   });
@@ -370,7 +428,6 @@ describe('VoiceRecorderComposer', () => {
     // per-event clickOutsideDeactivates predicate, not from the trap's
     // onDeactivate (which fires on every teardown including Retry/Discard).
     setupSupportedRecorder();
-    const onClose = vi.fn();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
     const recorderRef = createRef<VoiceRecorderComposerHandle>();
     let renderer!: ReactTestRenderer;
@@ -380,16 +437,16 @@ describe('VoiceRecorderComposer', () => {
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
             ref: recorderRef,
-            active: true,
-            onClose,
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
     });
 
+    await startRecording();
     await act(async () => {
       await recorderRef.current?.send();
     });
@@ -412,7 +469,7 @@ describe('VoiceRecorderComposer', () => {
     // Overlay hidden but capsule still visible — draft is preserved.
     expect(afterDefer).not.toContain('Voice send failed');
     expect(afterDefer).toContain('Capsule');
-    expect(onClose).not.toHaveBeenCalled();
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeDefined();
 
     renderer.unmount();
   });
@@ -438,16 +495,16 @@ describe('VoiceRecorderComposer', () => {
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
             ref: recorderRef,
-            active: true,
-            onClose: vi.fn(),
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
     });
 
+    await startRecording();
     await act(async () => {
       await recorderRef.current?.send();
     });
@@ -497,16 +554,16 @@ describe('VoiceRecorderComposer', () => {
         renderInProvider(
           React.createElement(VoiceRecorderComposer, {
             ref: recorderRef,
-            active: true,
-            onClose: vi.fn(),
             onRetryRequest: vi.fn(),
             onSendRecording,
             getSendContext: createTestSendContext,
+            ownsPendingVoiceDraft: true,
           })
         )
       );
     });
 
+    await startRecording();
     await act(async () => {
       await recorderRef.current?.send();
     });

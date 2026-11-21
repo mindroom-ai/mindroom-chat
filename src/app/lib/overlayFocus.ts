@@ -107,6 +107,26 @@ export const layerOf = (doc: Document, node: Node | null | undefined): Element |
   return element;
 };
 
+const openerFallbacks = new WeakMap<HTMLElement, () => HTMLElement | false>();
+const dismissedLayers = new WeakSet<Element>();
+
+/** A control that can disappear while its overlay is open may name a fallback. */
+export const setOverlayOpenerFallback = (
+  opener: HTMLElement,
+  fallback: () => HTMLElement | false
+): void => {
+  openerFallbacks.set(opener, fallback);
+};
+
+/** Opt into the fallback on an explicit dismissal, not on a navigation. */
+export const markOverlayDismissed = (from: HTMLElement | null, dismissed = true): void => {
+  if (!from) return;
+  const layer = layerOf(from.ownerDocument, from);
+  if (!layer) return;
+  if (dismissed) dismissedLayers.add(layer);
+  else dismissedLayers.delete(layer);
+};
+
 const isPassiveLayer = (layer: Element): boolean =>
   layer.getAttribute('aria-hidden') === 'true' ||
   PASSIVE_ROLES.has(layer.getAttribute('role') ?? '') ||
@@ -324,13 +344,18 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   };
 
   const returnFocusFrom = (layer: Element) => {
-    if (!openers.has(layer)) return;
+    const dismissed = dismissedLayers.delete(layer);
+    const opener = openers.get(layer);
+    if (!opener) return;
     // Focus traps give focus back in a timeout of their own; run after them.
     win.setTimeout(() => {
       if (lastInput !== 'keyboard' && !dialogLayers.has(layer)) return;
       const active = doc.activeElement;
       if (active && active !== doc.body && active.isConnected) return;
-      reachableOpener(layer)?.focus({ preventScroll: true });
+      const fallback = dismissed && openerFallbacks.get(opener)?.();
+      const target =
+        reachableOpener(layer) ?? (fallback && canTakeFocus(fallback) ? fallback : undefined);
+      target?.focus({ preventScroll: true });
     }, 0);
   };
 
