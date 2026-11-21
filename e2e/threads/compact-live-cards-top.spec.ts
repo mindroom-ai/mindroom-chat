@@ -551,6 +551,29 @@ const openScrolled = async (
   await page.waitForTimeout(400);
 };
 
+const watchGlide = async (page: Page, rootId: string) => {
+  const formerFirstRow = listView(page).locator(`[data-motion-row="${rootId}"]`);
+  const glide = await formerFirstRow.evaluateHandle((row) => {
+    let glided = false;
+    let frame = 0;
+    const sample = () => {
+      const { translate } = getComputedStyle(row);
+      glided ||= !!translate && translate !== 'none';
+      frame = requestAnimationFrame(sample);
+    };
+    sample();
+    return {
+      read: () => glided,
+      stop: () => cancelAnimationFrame(frame),
+    };
+  });
+  return async () => {
+    await expect.poll(() => glide.evaluate(({ read }) => read())).toBe(true);
+    await glide.evaluate(({ stop }) => stop());
+    await glide.dispose();
+  };
+};
+
 const checkLiveInBand = async (page: Page, seeded: Seeded) => {
   await openScrolled(page, seeded, { top: IN_BAND });
   await page.mouse.move(5, 795);
@@ -558,6 +581,7 @@ const checkLiveInBand = async (page: Page, seeded: Seeded) => {
   const before = await cardOrder(page);
   const leader = listView(page).locator(`[data-scroll-anchor="${before[0] ?? ''}"]`);
   const leadingTop = (await leader.boundingBox())!.y;
+  const glided = await watchGlide(page, before[0] ?? '');
   const watch = await listView(page).evaluateHandle((view) => {
     const origin = view.scrollTop;
     let maxDelta = 0;
@@ -594,6 +618,7 @@ const checkLiveInBand = async (page: Page, seeded: Seeded) => {
     1
   );
   await watch.dispose();
+  await glided();
   await expect.poll(() => listScrollTop(page)).toBe(IN_BAND);
 
   // Leaving the band holds the order that was applied live there, not its earlier order.
@@ -637,20 +662,7 @@ const checkRelease = async (
   expect(gap, 'gap below the floating filter bar').toBeGreaterThanOrEqual(0);
   expect(gap, 'gap below the floating filter bar').toBeLessThanOrEqual(16);
   await shot(page, shotName);
-  const formerFirstRow = listView(page).locator(`[data-motion-row="${before[0] ?? ''}"]`);
-  const glide = await formerFirstRow.evaluateHandle((row) => {
-    let glided = false;
-    let frame = 0;
-    const sample = () => {
-      glided ||= getComputedStyle(row).translate !== 'none';
-      frame = requestAnimationFrame(sample);
-    };
-    sample();
-    return {
-      read: () => glided,
-      stop: () => cancelAnimationFrame(frame),
-    };
-  });
+  const glided = await watchGlide(page, before[0] ?? '');
   if (action === 'tap') await pill.tap();
   else if (action === 'click') await pill.click();
   else if (action === 'Enter') {
@@ -673,9 +685,7 @@ const checkRelease = async (
   await expect.poll(async () => (await cardOrder(page))[0]).toBe(rootId);
   await expect(pill).toHaveCount(0);
   if (action !== 'scroll' && action !== 'band') await expect(listView(page)).toBeFocused();
-  await expect.poll(() => glide.evaluate(({ read }) => read())).toBe(true);
-  await glide.evaluate(({ stop }) => stop());
-  await glide.dispose();
+  await glided();
 };
 
 test.beforeEach(async () => {
