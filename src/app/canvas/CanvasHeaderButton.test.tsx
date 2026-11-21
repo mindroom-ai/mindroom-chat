@@ -77,7 +77,7 @@ const renderMenu = (props: Partial<MenuProps> = {}) => {
     anchor,
     canvases: [budget, roadmap],
     onChoose,
-    requestClose: vi.fn(),
+    focusTrapOptions: { initialFocus: false },
     ...props,
   };
   let renderer!: ReactTestRenderer;

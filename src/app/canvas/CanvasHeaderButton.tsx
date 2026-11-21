@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
+import type { Options as FocusTrapOptions } from 'focus-trap';
 import { Box, Icon, IconButton, Icons, RectCords, Scroll, Text, Tooltip, config } from 'folds';
 import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';
 import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
@@ -17,8 +18,7 @@ type CanvasMenuProps = {
   openCanvasId?: string;
   /** A canvas was chosen: the shown one closes its panel, another opens it. */
   onChoose: (canvasId: string) => void;
-  requestClose: () => void;
-  onEscape?: (event: KeyboardEvent) => void;
+  focusTrapOptions: FocusTrapOptions;
 };
 
 /** A menu of the conversation's canvases by title, with the update time to tell same-named ones apart. */
@@ -27,26 +27,11 @@ export function CanvasMenu({
   canvases,
   openCanvasId,
   onChoose,
-  requestClose,
-  onEscape,
+  focusTrapOptions,
 }: CanvasMenuProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const time = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' });
-  // Outside clicks keep their own focus; the header restores it on Escape.
-  const dismiss = () => {
-    requestClose();
-    return true;
-  };
-  const trap = {
-    initialFocus: false as const,
-    returnFocusOnDeactivate: false,
-    escapeDeactivates: (event: KeyboardEvent) => {
-      onEscape?.(event);
-      return dismiss();
-    },
-    clickOutsideDeactivates: dismiss,
-  };
   return (
     <PopOut
       anchor={anchor}
@@ -54,7 +39,7 @@ export function CanvasMenu({
       align="End"
       offset={4}
       content={
-        <FocusTrap focusTrapOptions={trap}>
+        <FocusTrap focusTrapOptions={focusTrapOptions}>
           <Menu
             style={{
               display: 'flex',

@@ -95,7 +95,9 @@ const openMenu = () => {
     (node) => node.type === 'button' && node.props['aria-label'] === 'More Options'
   );
   act(() => {
-    more?.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+    more?.props.onClick({
+      currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+    });
   });
 };
 

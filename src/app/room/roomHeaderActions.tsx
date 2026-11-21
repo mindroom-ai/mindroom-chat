@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react';
-import { Icon, IconButton, Icons, Tooltip, type IconSrc, type RectCords } from 'folds';
+import { Icon, IconButton, Icons, Tooltip, type IconSrc } from 'folds';
 import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
@@ -20,13 +20,6 @@ export const showsInRow = (
   promoted: boolean
 ): boolean => placement === 'row' || (placement === 'auto' && (!phone || promoted));
 
-export type HeaderPopupAnchor = { rect: RectCords; opener: HTMLButtonElement };
-
-export const headerPopupAnchor = (opener: HTMLButtonElement): HeaderPopupAnchor => ({
-  rect: opener.getBoundingClientRect(),
-  opener,
-});
-
 /**
  * An action of the open room's header, which the header draws: an icon button in its row, or an
  * entry of its room menu, as its placement and the screen decide (`showsInRow`).
@@ -42,10 +35,10 @@ export type RoomHeaderAction = {
   /** For a toggle: its button is pressed and its menu entry checked while it is on. */
   pressed?: boolean;
   /**
-   * Runs it. An action with a `popup` gets where its control was, for what it opens: its button,
+   * Runs it. An action with a `popup` gets its opener: its button,
    * or the room menu's button.
    */
-  run: (anchor: HeaderPopupAnchor | undefined) => void;
+  run: (opener: HTMLButtonElement | undefined) => void;
   /** Drawn over its button's corner, such as a count; on phones a dot on the menu's button. */
   badge?: ReactNode;
   /** What it opens, which its button and its menu entry announce. */
@@ -121,7 +114,7 @@ export function HeaderActionButton({
           aria-expanded={expanded}
           onClick={(event: MouseEvent<HTMLButtonElement>) => {
             if (focusFallback) setOverlayOpenerFallback(event.currentTarget, focusFallback);
-            run(popup ? headerPopupAnchor(event.currentTarget) : undefined);
+            run(popup ? event.currentTarget : undefined);
           }}
           className={headerActionButton}
           style={badge ? { position: 'relative' } : undefined}

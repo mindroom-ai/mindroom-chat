@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
@@ -75,8 +76,9 @@ vi.mock('folds', async (importOriginal) => {
       VerticalDots: 'VerticalDots',
     },
     Line: () => reactModule.createElement('hr'),
-    Menu: ({ children }: { children: React.ReactNode }) =>
-      reactModule.createElement('div', null, children),
+    Menu: reactModule.forwardRef<HTMLDivElement, React.PropsWithChildren>(({ children }, ref) =>
+      reactModule.createElement('div', { ref }, children)
+    ),
     MenuItem: ({
       children,
       after,
@@ -367,12 +369,14 @@ const renderHeader = async (
 const textOf = (node: ReactTestInstance): string =>
   node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
 
+const moreOptionsClick = {
+  currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+};
+
 /** Opens the room menu from the header's More Options button. */
 const openRoomMenu = (renderer: ReturnType<typeof create>) =>
   act(async () =>
-    renderer.root
-      .findByProps({ 'aria-label': 'More Options' })
-      .props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } })
+    renderer.root.findByProps({ 'aria-label': 'More Options' }).props.onClick(moreOptionsClick)
   );
 
 /** The room menu's entries (buttons without a label of their own) whose text is `text`. */
@@ -562,10 +566,7 @@ describe('RoomViewHeader', () => {
         );
 
       expect(findIcons('Search')).toHaveLength(0);
-      const moreOptions = renderer.root.findByProps({ 'aria-label': 'More Options' });
-      await act(async () =>
-        moreOptions.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } })
-      );
+      await openRoomMenu(renderer);
 
       expect(
         renderer.root.findAll((node) => node.type === 'button' && textOf(node) === 'Leave Room')
@@ -698,13 +699,6 @@ describe('RoomViewHeader', () => {
         (node) =>
           node.type === 'button' && !node.props['aria-label'] && textOf(node) === 'Show Computer'
       );
-    const openMoreMenu = (renderer: ReturnType<typeof create>) =>
-      act(async () =>
-        renderer.root
-          .findByProps({ 'aria-label': 'More Options' })
-          .props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } })
-      );
-
     const base = { available: true, open: false, shown: false, toggle: true };
     it.each([
       { name: 'was never shown', ...base, entry: 'menu' },
@@ -729,7 +723,7 @@ describe('RoomViewHeader', () => {
           computerShown: shown,
           onComputerToggle: toggle ? vi.fn() : undefined,
         });
-        await openMoreMenu(renderer);
+        await openRoomMenu(renderer);
 
         const button = [
           ...findButton(renderer, 'Show Computer'),
@@ -777,7 +771,7 @@ describe('RoomViewHeader', () => {
         computerOpen: state.open,
         onComputerToggle: vi.fn(),
       });
-      await openMoreMenu(renderer);
+      await openRoomMenu(renderer);
 
       expect(findButton(renderer, 'Show Computer')).toHaveLength(0);
       expect(findButton(renderer, 'Hide Computer')).toHaveLength(0);
@@ -794,7 +788,7 @@ describe('RoomViewHeader', () => {
         computerShown: true,
         onComputerToggle: vi.fn(),
       });
-      await openMoreMenu(renderer);
+      await openRoomMenu(renderer);
 
       expect(findButton(renderer, 'Show Computer')).toHaveLength(0);
       expect(findMenuItem(renderer)).toHaveLength(0);
@@ -807,7 +801,7 @@ describe('RoomViewHeader', () => {
         computerAvailable: true,
         onComputerToggle,
       });
-      await openMoreMenu(renderer);
+      await openRoomMenu(renderer);
       const leaveRoom = () =>
         renderer.root.findAll((node) => node.type === 'button' && textOf(node) === 'Leave Room');
       expect(leaveRoom()).toHaveLength(1);

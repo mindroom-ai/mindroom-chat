@@ -301,7 +301,9 @@ const openMenu = () => {
   const [more] = buttons((node) => node.props['aria-label'] === 'More Options');
   if (!more) throw new Error('no More Options button');
   act(() => {
-    more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+    more.props.onClick({
+      currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+    });
   });
 };
 
@@ -587,7 +589,9 @@ describe("the room header's actions", () => {
     const [pinsButton] = buttons((node) => node.props['aria-label'] === 'Pinned Messages');
     expect(pinsButton?.props['aria-expanded']).toBe(false);
     act(() => {
-      pinsButton?.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+      pinsButton?.props.onClick({
+        currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+      });
     });
     expect(byData('data-pin-list')).toHaveLength(1);
     expect(

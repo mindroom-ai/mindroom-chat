@@ -5,7 +5,6 @@ import {
   useCallback,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +22,7 @@ import {
 } from 'folds';
 import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
+import { headerDismissTrap } from '../ui/useHeaderPopup';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import type { ParsedScheduledTask } from '../matrix/protocol/scheduledTaskContract';
@@ -62,8 +62,7 @@ type RoomSchedulesOverlayProps = {
   openThreadId?: string;
   /** The room header spans the room view, which the list sits over. */
   headerRef?: RefObject<HTMLElement>;
-  returnFocusTo?: () => HTMLElement | false;
-  onClose: () => void;
+  onClose: (dismissed?: boolean) => void;
   onOpenThread: (threadId: string) => void;
 };
 
@@ -73,12 +72,10 @@ export function RoomSchedulesOverlay({
   tasks,
   openThreadId,
   headerRef,
-  returnFocusTo,
   onClose,
   onOpenThread,
 }: RoomSchedulesOverlayProps) {
   const centerX = useCenterX(headerRef);
-  const dismissed = useRef(false);
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter
@@ -88,29 +85,12 @@ export function RoomSchedulesOverlay({
             : ({ [css.ROOM_VIEW_CENTER]: `${centerX}px` } as CSSProperties)
         }
       >
-        <FocusTrap
-          focusTrapOptions={{
-            initialFocus: false,
-            returnFocusOnDeactivate: true,
-            setReturnFocus: returnFocusTo ? () => dismissed.current && returnFocusTo() : undefined,
-            clickOutsideDeactivates: true,
-            onDeactivate: onClose,
-            // Escape closes the list only; the room's own Escape (mark as read) must not see it.
-            escapeDeactivates: (event: KeyboardEvent) => {
-              event.stopPropagation();
-              dismissed.current = true;
-              return true;
-            },
-          }}
-        >
+        <FocusTrap focusTrapOptions={headerDismissTrap(onClose)}>
           <RoomSchedulesDialog
             roomId={roomId}
             tasks={tasks}
             openThreadId={openThreadId}
-            onClose={() => {
-              dismissed.current = true;
-              onClose();
-            }}
+            onClose={() => onClose(true)}
             onOpenThread={(threadId) => {
               onClose();
               onOpenThread(threadId);

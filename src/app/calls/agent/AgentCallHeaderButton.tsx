@@ -1,9 +1,10 @@
-import { forwardRef, useState, type MouseEvent } from 'react';
+import { forwardRef, useContext, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem, type RectCords } from 'folds';
+import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem } from 'folds';
 import { PopOut, TooltipProvider } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { RestoreHeaderFocus, useHeaderPopup } from '../../ui/useHeaderPopup';
 import { useRoom } from '../../matrix/hooks/useRoom';
 import type { AgentCallCandidate } from './agentCallCandidates';
 import { useAgentCaller } from './agentCaller';
@@ -68,16 +69,18 @@ export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderB
   const room = useRoom();
   // The header has no room for the reason a call did not start; the call notices show it.
   const { call, pending } = useAgentCaller({ announce: true });
-  const [anchor, setAnchor] = useState<RectCords>();
+  const callRoom = room.isCallRoom();
+  const restoreFocus = useContext(RestoreHeaderFocus);
+  const chooser = useHeaderPopup(restoreFocus, !callRoom && candidates.length > 1);
 
-  if (candidates.length === 0 || room.isCallRoom()) return null;
+  if (candidates.length === 0 || callRoom) return null;
   const single = candidates.length === 1 ? candidates[0] : undefined;
   const label = single
     ? t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: single.displayName })
     : t('mindroomUi.calls.agentCallHeaderButton.call');
 
   const start = (candidate: AgentCallCandidate) => {
-    setAnchor(undefined);
+    chooser.close();
     void call({
       agentUserId: candidate.userId,
       displayName: candidate.displayName,
@@ -103,10 +106,10 @@ export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderB
             size="400"
             radii="300"
             variant="Surface"
-            fill={anchor ? 'Soft' : 'None'}
+            fill={chooser.opener ? 'Soft' : 'None'}
             aria-label={label}
             aria-haspopup={single ? undefined : 'menu'}
-            aria-expanded={single ? undefined : !!anchor}
+            aria-expanded={single ? undefined : !!chooser.opener}
             aria-busy={pending}
             disabled={pending}
             data-agent-call-button=""
@@ -115,8 +118,7 @@ export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderB
                 start(single);
                 return;
               }
-              const { x, y, width, height } = event.currentTarget.getBoundingClientRect();
-              setAnchor({ x, y, width, height });
+              chooser.open(event.currentTarget);
             }}
           >
             {pending ? (
@@ -128,25 +130,12 @@ export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderB
         )}
       </TooltipProvider>
       <PopOut
-        anchor={anchor}
+        anchor={chooser.anchor}
         position="Bottom"
         align="End"
         offset={4}
         content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              returnFocusOnDeactivate: false,
-              clickOutsideDeactivates: () => {
-                setAnchor(undefined);
-                return true;
-              },
-              escapeDeactivates: () => {
-                setAnchor(undefined);
-                return true;
-              },
-            }}
-          >
+          <FocusTrap focusTrapOptions={chooser.trap}>
             <AgentChooser candidates={candidates} onChoose={start} />
           </FocusTrap>
         }

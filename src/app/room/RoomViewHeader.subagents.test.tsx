@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createStore, Provider } from 'jotai';
 import { createRoot } from 'react-dom/client';
 import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { Badge, Icon, IconButton, Icons, Text } from 'folds';
+import {
+  Badge,
+  Icon,
+  IconButton,
+  Icons,
+  PopOutContainerProvider,
+  Text,
+  type PopOutProps,
+} from 'folds';
+import { AgentCallHeaderButton } from '../calls/agent/AgentCallHeaderButton';
 import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../matrix/protocol/scheduledTaskContract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -29,7 +38,7 @@ const THREAD = '$thread:example.org';
 
 const { screen, view, mx, schedules, pins, currentRoom } = vi.hoisted(() => ({
   screen: { size: 'Desktop' },
-  currentRoom: { id: '!room:example.org' },
+  currentRoom: { id: '!room:example.org', topic: undefined as string | undefined },
   view: { mode: 'compact' },
   schedules: { events: [] as MatrixEvent[] },
   pins: { ids: [] as string[] },
@@ -42,11 +51,17 @@ const { screen, view, mx, schedules, pins, currentRoom } = vi.hoisted(() => ({
 }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
-// The room menu renders in place of folds' portal while it has an anchor.
-vi.mock('folds', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('folds')>()),
-  PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
-    anchor ? content : null,
+// TestRenderer cannot render portals. DOM tests use folds' real PopOut and positioning.
+vi.mock('folds', async (importOriginal) => {
+  const folds = await importOriginal<typeof import('folds')>();
+  return {
+    ...folds,
+    PopOut: (props: PopOutProps) =>
+      folds.usePopOutContainer() ? <folds.PopOut {...props} /> : props.anchor && props.content,
+  };
+});
+vi.mock('../calls/agent/agentCaller', () => ({
+  useAgentCaller: () => ({ pending: false, call: vi.fn() }),
 }));
 // The room menu's own rows, which need the app's providers, stay out of it.
 vi.mock('../notifications/RoomNotificationSwitcher', () => ({
@@ -65,13 +80,14 @@ vi.mock('../matrix/hooks/useRoom', () => ({
     myUserId: '@me:example.org',
     getJoinRule: () => undefined,
     isSpaceRoom: () => false,
+    isCallRoom: () => false,
   }),
   useIsDirectRoom: () => false,
 }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomAvatar: () => undefined,
   useRoomName: () => 'General',
-  useRoomTopic: () => undefined,
+  useRoomTopic: () => currentRoom.topic,
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
 vi.mock('../matrix/hooks/useStateEvents', () => ({ useStateEvents: () => schedules.events }));
@@ -123,6 +139,7 @@ afterEach(() => {
   screen.size = 'Desktop';
   view.mode = 'compact';
   currentRoom.id = ROOM_ID;
+  currentRoom.topic = undefined;
   schedules.events = [];
   pins.ids = [];
   vi.unstubAllGlobals();
@@ -208,6 +225,7 @@ const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390, extra?: () 
   );
   const box = new DOMRect(0, 0, 40, 40);
   const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(viewport);
+  const height = vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(800);
   const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box);
   const rects = vi
     .spyOn(HTMLElement.prototype, 'getClientRects')
@@ -220,8 +238,10 @@ const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390, extra?: () 
     actInDom(() =>
       root.render(
         <Provider>
-          <RoomViewHeader openThreadId={THREAD} {...props} />
-          {extra?.()}
+          <PopOutContainerProvider value={host}>
+            <RoomViewHeader openThreadId={THREAD} {...props} />
+            {extra?.()}
+          </PopOutContainerProvider>
         </Provider>
       )
     );
@@ -239,6 +259,7 @@ const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390, extra?: () 
       rects.mockRestore();
       bounds.mockRestore();
       width.mockRestore();
+      height.mockRestore();
     },
   };
 };
@@ -246,6 +267,11 @@ const renderDomHeader = (props: RoomViewHeaderProps, viewport = 390, extra?: () 
 const pressEscape = (from: HTMLElement) =>
   actInDom(() => {
     from.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+
+const nextFrame = () =>
+  actInDom(async () => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   });
 
 const schedule = (taskId: string, threadId: string | null, newThread = false, status = 'pending') =>
@@ -270,6 +296,11 @@ const canvases = ['Orchard map', 'Garden map'].map((title, index) => ({
   updatedTs: 1,
   shared: false,
 }));
+
+const agents = [
+  { userId: '@orchard:example.org', displayName: 'Orchard' },
+  { userId: '@garden:example.org', displayName: 'Garden' },
+];
 
 const rowLabels = () =>
   renderer?.root.findAllByType('button').map((node) => node.props['aria-label']);
@@ -309,7 +340,9 @@ const openMenu = () => {
     (node) => node.type === 'button' && node.props['aria-label'] === 'More Options'
   );
   act(() => {
-    more?.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+    more?.props.onClick({
+      currentTarget: { isConnected: true, getBoundingClientRect: () => new DOMRect() },
+    });
   });
 };
 
@@ -492,10 +525,12 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     );
   });
 
-  it('keeps the focused schedules menu entry until the menu closes', async () => {
+  it('moves focus to a surviving menu entry when the first thread schedule takes a row slot', async () => {
     screen.size = 'Mobile';
-    const { host, rerender, unmount } = renderDomHeader({ hasMindroomAgents: true });
-    const clock = () => host.querySelector('button[aria-label="Scheduled tasks (1)"]');
+    const { host, rerender, unmount } = renderDomHeader({
+      hasMindroomAgents: true,
+      threadId: THREAD,
+    });
     const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
     try {
       actInDom(() => more.click());
@@ -506,13 +541,12 @@ describe("the Sub-agents panel's toggle in the room header", () => {
       expect(document.activeElement).toBe(entry);
       schedules.events = [schedule('orchard', THREAD)];
       rerender();
-      expect(entry.textContent).toBe('Scheduled tasks (1)');
-      expect(document.activeElement).toBe(entry);
-      expect(clock()).toBeNull();
-      pressEscape(entry);
       expect(entry.isConnected).toBe(false);
-      expect(clock()).not.toBeNull();
-      await vi.waitFor(() => expect(document.activeElement).toBe(more));
+      expect(host.querySelector('button[aria-label="Scheduled tasks (1)"]')).not.toBeNull();
+      expect(more.getAttribute('aria-expanded')).toBe('true');
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(host.querySelector('[data-tool-calls-toggle]'))
+      );
     } finally {
       unmount();
     }
@@ -558,6 +592,33 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
+  it('keeps the topic dialog open when its opener disappears and restores focus on dismissal', async () => {
+    currentRoom.topic = 'Example room topic';
+    const { host, rerender, unmount } = renderDomHeader({});
+    try {
+      const opener = Array.from(host.querySelectorAll('button')).find(
+        (button) => button.textContent === currentRoom.topic
+      )!;
+      opener.focus();
+      actInDom(() => opener.click());
+      const close = document.querySelector<HTMLButtonElement>(
+        '[role="dialog"] button[aria-label="Close"]'
+      )!;
+      close.focus();
+      screen.size = 'Mobile';
+      rerender();
+      expect(opener.isConnected).toBe(false);
+      expect(close.isConnected).toBe(true);
+      pressEscape(close);
+      expect(close.isConnected).toBe(false);
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
+      );
+    } finally {
+      unmount();
+    }
+  });
+
   it('closes the schedules dialog when the same header switches rooms', () => {
     schedules.events = [schedule('orchard', THREAD)];
     const { host, rerender, unmount } = renderDomHeader({ hasMindroomAgents: true });
@@ -581,56 +642,54 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it.each([true, false])('freezes Pins promotion only for a call popup (%s)', async (popup) => {
-    screen.size = 'Mobile';
-    function CallControl() {
-      const [open, setOpen] = useState(false);
-      return (
-        <IconButton
-          aria-label="Call"
-          aria-haspopup={popup ? 'menu' : undefined}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        />
-      );
+  it.each(['Desktop', 'Mobile'])(
+    'keeps the call chooser anchored when a pin arrives on %s',
+    async (size) => {
+      screen.size = size;
+      const { host, rerender, unmount } = renderDomHeader({
+        calls: <AgentCallHeaderButton candidates={agents} />,
+      });
+      try {
+        const opener = host.querySelector<HTMLButtonElement>('[data-agent-call-button]')!;
+        const bounds = vi
+          .spyOn(opener, 'getBoundingClientRect')
+          .mockReturnValue(new DOMRect(250, 10, 40, 40));
+        actInDom(() => opener.click());
+        const chooser = host.querySelector('[aria-label="Choose an agent to call"]')!;
+        const positioner = chooser.parentElement!;
+        expect(positioner.style.right).toBe('100px');
+        pins.ids = ['$pinned:example.org'];
+        bounds.mockReturnValue(new DOMRect(206, 10, 40, 40));
+        rerender();
+        await nextFrame();
+        expect(positioner.style.right).toBe('144px');
+        expect(host.querySelector('[aria-label="Choose an agent to call"]')).toBe(chooser);
+        expect(host.querySelector('button[aria-label="Pinned Messages"]')).not.toBeNull();
+      } finally {
+        unmount();
+      }
     }
-    const { host, rerender, unmount } = renderDomHeader({ calls: <CallControl /> });
-    const call = host.querySelector<HTMLButtonElement>('button[aria-label="Call"]')!;
-    const pinsButton = () => host.querySelector('button[aria-label="Pinned Messages"]');
-    try {
-      await actInDom(async () => call.click());
-      expect(call.getAttribute('aria-expanded')).toBe('true');
-      pins.ids = ['$pinned:example.org'];
-      rerender();
-      expect(pinsButton() !== null).toBe(!popup);
-      await actInDom(async () => call.click());
-      expect(call.getAttribute('aria-expanded')).toBe('false');
-      expect(pinsButton()).not.toBeNull();
-    } finally {
-      unmount();
-    }
-  });
+  );
 
-  it('reduces the frozen promotion set when fewer buttons fit with the room menu open', () => {
-    screen.size = 'Mobile';
-    run('running');
-    schedules.events = [schedule('orchard', THREAD)];
-    const { host, resize, unmount } = renderDomHeader({ hasMindroomAgents: true });
-    const clock = () => host.querySelector('button[aria-label="Scheduled tasks (1)"]');
-    const members = () => host.querySelector('button[aria-label="Show Members"]');
-    const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+  it('focuses More Options when the open call chooser and its control unmount', async () => {
+    const props: RoomViewHeaderProps = {
+      calls: <AgentCallHeaderButton candidates={agents} />,
+    };
+    const { host, rerender, unmount } = renderDomHeader(props);
     try {
-      expect(clock()).not.toBeNull();
-      expect(members()).not.toBeNull();
-      actInDom(() => more.click());
-      resize(250);
-      expect(more.getAttribute('aria-expanded')).toBe('true');
-      expect(host.querySelector('button[data-subagents-toggle]')).not.toBeNull();
-      expect(clock()).toBeNull();
-      expect(members()).toBeNull();
-      resize(390);
-      expect(clock()).toBeNull();
-      expect(members()).toBeNull();
+      const opener = host.querySelector<HTMLButtonElement>('[data-agent-call-button]')!;
+      actInDom(() => opener.click());
+      const item = host.querySelector<HTMLButtonElement>(
+        '[aria-label="Choose an agent to call"] button'
+      )!;
+      item.focus();
+      expect(document.activeElement).toBe(item);
+      props.calls = undefined;
+      rerender();
+      expect(item.isConnected).toBe(false);
+      await vi.waitFor(() =>
+        expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
+      );
     } finally {
       unmount();
     }
@@ -762,8 +821,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
           schedule('seeds', null),
         ];
         rerender();
-        expect(clock.isConnected).toBe(true);
-        expect(clock.getAttribute('aria-label')).toBe('Scheduled tasks (0)');
+        expect(clock.isConnected).toBe(false);
         expect(close.isConnected).toBe(true);
       }
       if (dismiss === 'Escape') pressEscape(close);
@@ -777,86 +835,56 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it.each([
-    { demote: false, dismiss: 'Escape' },
-    { demote: true, dismiss: 'Escape' },
-    { demote: true, dismiss: 'choosing a canvas' },
-  ])(
-    'holds chooser placement until $dismiss (canvas demotes afterward: $demote)',
-    async ({ demote, dismiss }) => {
-      screen.size = 'Mobile';
-      const onCanvasOpen = vi.fn();
-      const { host, unmount } = renderDomHeader(
-        { canvases, onCanvasOpen, onCanvasClose: vi.fn() },
-        280
-      );
-      const subagents = () => host.querySelector('button[data-subagents-toggle]');
-      const members = host.querySelector('button[aria-label="Show Members"]')!;
-      try {
-        const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
-        opener.focus();
-        actInDom(() => opener.click());
-        const item = Array.from(host.querySelectorAll('button')).find((button) =>
-          button.textContent?.includes('Garden map')
-        )!;
-        item.focus();
-        if (demote) actInDom(() => run('running'));
-        expect(opener.isConnected).toBe(true);
-        expect(members.isConnected).toBe(true);
-        expect(subagents()).toBeNull();
-        expect(document.activeElement).toBe(item);
-        if (dismiss === 'Escape') pressEscape(item);
-        else {
-          actInDom(() => item.click());
-          expect(onCanvasOpen).toHaveBeenCalledWith(canvases[1]!.canvasId);
-        }
-        expect(item.isConnected).toBe(false);
-        expect(opener.isConnected).toBe(!demote);
-        expect(!!subagents()).toBe(demote);
-        const target = demote ? host.querySelector('[data-room-more-options]') : opener;
-        await vi.waitFor(() => expect(document.activeElement).toBe(target));
-      } finally {
-        unmount();
-      }
+  it('closes the canvas chooser when a sub-agent takes the opener’s slot', async () => {
+    screen.size = 'Mobile';
+    const { host, unmount } = renderDomHeader(
+      { canvases, onCanvasOpen: vi.fn(), onCanvasClose: vi.fn() },
+      280
+    );
+    try {
+      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
+      actInDom(() => opener.click());
+      const item = Array.from(host.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Garden map')
+      )!;
+      item.focus();
+      expect(document.activeElement).toBe(item);
+      actInDom(() => run('running'));
+      expect(opener.isConnected).toBe(false);
+      expect(host.querySelector('button[data-subagents-toggle]')).not.toBeNull();
+      await nextFrame();
+      expect(item.isConnected).toBe(false);
+      await nextFrame();
+      expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'));
+    } finally {
+      unmount();
     }
-  );
+  });
 
-  it.each(['Escape', 'Close'])(
-    'returns focus to More Options on %s after unpinning the last message',
-    async (dismiss) => {
-      screen.size = 'Mobile';
-      pins.ids = ['$pinned:example.org'];
-      const { host, rerender, unmount } = renderDomHeader({});
-      try {
-        const opener = host.querySelector<HTMLButtonElement>(
-          'button[aria-label="Pinned Messages"]'
-        )!;
-        opener.focus();
-        actInDom(() => opener.click());
-        const unpin = host.querySelector<HTMLButtonElement>(
-          '[role="dialog"] button[aria-label="Unpin Message"]'
-        )!;
-        unpin.focus();
-        await actInDom(async () => {
-          unpin.click();
-        });
-        rerender();
-        expect(opener.isConnected).toBe(false);
-        const close = host.querySelector<HTMLButtonElement>(
-          '[role="dialog"] button[aria-label="Close"]'
-        )!;
-        expect(document.activeElement).toBe(close);
-        if (dismiss === 'Escape') pressEscape(close);
-        else actInDom(() => close.click());
-        expect(close.isConnected).toBe(false);
-        await vi.waitFor(() =>
-          expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'))
-        );
-      } finally {
-        unmount();
-      }
+  it('closes Pins and focuses More Options when the last pin is removed', async () => {
+    screen.size = 'Mobile';
+    pins.ids = ['$pinned:example.org'];
+    const { host, rerender, unmount } = renderDomHeader({});
+    try {
+      const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Pinned Messages"]')!;
+      actInDom(() => opener.click());
+      const unpin = host.querySelector<HTMLButtonElement>(
+        '[role="dialog"] button[aria-label="Unpin Message"]'
+      )!;
+      unpin.focus();
+      await actInDom(async () => {
+        unpin.click();
+      });
+      rerender();
+      expect(opener.isConnected).toBe(false);
+      await vi.waitFor(() => {
+        expect(host.querySelector('[role="dialog"]')).toBeNull();
+        expect(document.activeElement).toBe(host.querySelector('[data-room-more-options]'));
+      });
+    } finally {
+      unmount();
     }
-  );
+  });
 
   it.each(['Escape', 'scrim click'])(
     'only restores sheet focus on explicit dismissal (%s) after the Members opener is lost',
@@ -950,42 +978,6 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it.each(['Desktop', 'Mobile'])(
-    'closes the %s canvas chooser on rotation without reopening it',
-    async (start) => {
-      screen.size = start;
-      const { host, rerender, unmount } = renderDomHeader({
-        canvases,
-        onCanvasOpen: vi.fn(),
-        onCanvasClose: vi.fn(),
-      });
-      const menuItem = () =>
-        Array.from(host.querySelectorAll('button')).find((button) =>
-          button.textContent?.includes('Garden map')
-        );
-      try {
-        const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
-        actInDom(() => opener.click());
-        const item = menuItem();
-        expect(item).toBeDefined();
-        item!.focus();
-        screen.size = start === 'Mobile' ? 'Desktop' : 'Mobile';
-        rerender();
-        expect(menuItem()).toBeUndefined();
-        const target = opener.isConnected ? opener : host.querySelector('[data-room-more-options]');
-        await vi.waitFor(() => expect(document.activeElement).toBe(target));
-        screen.size = start;
-        rerender();
-        expect(menuItem()).toBeUndefined();
-        expect(
-          host.querySelector('button[aria-label="Canvases"]')?.getAttribute('aria-expanded')
-        ).toBe('false');
-      } finally {
-        unmount();
-      }
-    }
-  );
-
   it('focuses More Options when a focused Members button loses its slot', async () => {
     screen.size = 'Mobile';
     const { host, unmount } = renderDomHeader({}, 250);
@@ -1003,31 +995,28 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it('closes the canvas chooser when the measured width changes within Mobile', async () => {
+  it('keeps the canvas chooser open while its opener stays in the row on resize', async () => {
     screen.size = 'Mobile';
-    const { host, resize, unmount } = renderDomHeader(
-      {
-        canvases,
-        onCanvasOpen: vi.fn(),
-        onCanvasClose: vi.fn(),
-      },
-      375
-    );
-    const menuItem = () =>
-      Array.from(host.querySelectorAll('button')).find((button) =>
-        button.textContent?.includes('Garden map')
-      );
+    const { host, resize, unmount } = renderDomHeader({
+      canvases,
+      onCanvasOpen: vi.fn(),
+      onCanvasClose: vi.fn(),
+    });
     try {
       const opener = host.querySelector<HTMLButtonElement>('button[aria-label="Canvases"]')!;
       actInDom(() => opener.click());
-      expect(menuItem()).toBeDefined();
-      resize(375);
-      const item = menuItem();
-      expect(item).toBeDefined();
-      item!.focus();
-      resize(667);
-      expect(menuItem()).toBeUndefined();
-      await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+      const item = Array.from(host.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Garden map')
+      )!;
+      item.focus();
+      resize(430);
+      expect(opener.isConnected).toBe(true);
+      expect(item.isConnected).toBe(true);
+      expect(document.activeElement).toBe(item);
+      pressEscape(item);
+      expect(item.isConnected).toBe(false);
+      await nextFrame();
+      expect(document.activeElement).toBe(opener);
     } finally {
       unmount();
     }
