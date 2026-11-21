@@ -410,6 +410,55 @@ describe('deep diagnostic trace storage failure', () => {
     }
   );
 
+  // WebKit fails the write in flight when it suspends the app, and reports that when the app
+  // runs again: every return to the app then left an unhandled rejection in the trace.
+  it('leaves no unhandled rejection when a write of a batch fails', async () => {
+    const storage = window.localStorage;
+    storage.clear();
+    const dispose = trace.initializeDeepTraceRecorder(storage);
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+      await trace.clearDeepTrace();
+      // Hold the delayed retry so it cannot write during the checks.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      vi.spyOn(IDBObjectStore.prototype, 'add').mockImplementationOnce(function failRequest(
+        this: IDBObjectStore
+      ) {
+        const fail = () => {
+          throw new DOMException('private failure detail', 'UnknownError');
+        };
+        // fake-indexeddb's own way to run a request, here one that fails.
+        type Internals = { _execRequestAsync: (work: object) => IDBRequest<IDBValidKey> };
+        return (this.transaction as unknown as Internals)._execRequestAsync({
+          source: this,
+          operation: fail,
+        });
+      });
+
+      trace.recordDeepTraceEvent('test.failed_batch', undefined, { flush: true });
+      await vi.waitFor(() =>
+        expect(trace.getDeepTraceHealthSnapshot().lastFailure).toMatchObject({
+          stage: 'flush',
+          errorName: 'UnknownError',
+        })
+      );
+      // Node reports a rejection nothing handled after the turn that rejected it.
+      await new Promise((resolve) => {
+        setImmediate(resolve);
+      });
+
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+      await trace.setDeepTraceEnabled(false, storage);
+      dispose();
+    }
+  });
+
   it('writes a failed batch at once for an export that waited on it', async () => {
     const actual = await vi.importActual<typeof import('idb')>('idb');
     let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;
