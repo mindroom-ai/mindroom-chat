@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { fireEvent } from '@testing-library/react';
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { createStore, Provider } from 'jotai';
 import { createRoot } from 'react-dom/client';
@@ -976,6 +977,28 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
+  it('keeps menu-opened Pins open when the last pin is removed', async () => {
+    screen.size = 'Mobile';
+    pins.ids = ['$pinned:example.org'];
+    const { host, rerender, unmount } = renderDomHeader({}, 250);
+    try {
+      const more = host.querySelector<HTMLButtonElement>('[data-room-more-options]')!;
+      actInDom(() => more.click());
+      const entry = Array.from(host.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Pinned Messages'
+      )!;
+      actInDom(() => entry.click());
+      const dialog = host.querySelector('[role="dialog"][aria-label="Pinned Messages"]')!;
+      const unpin = dialog.querySelector<HTMLButtonElement>('button[aria-label="Unpin Message"]')!;
+      await actInDom(async () => unpin.click());
+      rerender();
+      expect(dialog.isConnected).toBe(true);
+      expect(dialog.textContent).toContain('No Pinned Messages');
+    } finally {
+      unmount();
+    }
+  });
+
   it('closes Pins and focuses More Options when the last pin is removed', async () => {
     screen.size = 'Mobile';
     pins.ids = ['$pinned:example.org'];
@@ -1001,7 +1024,7 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     }
   });
 
-  it.each(['Escape', 'scrim click'])(
+  it.each(['Escape', 'scrim click', 'swipe'])(
     'only restores sheet focus on explicit dismissal (%s) after the Members opener is lost',
     async (dismiss) => {
       screen.size = 'Mobile';
@@ -1047,14 +1070,22 @@ describe("the Sub-agents panel's toggle in the room header", () => {
         const outside = document.createElement('button');
         header.host.append(outside);
         if (dismiss === 'Escape') pressEscape(member);
-        else {
+        else if (dismiss === 'scrim click') {
           outside.focus();
           const scrim = slot.querySelector<HTMLElement>('[aria-hidden="true"]')!;
           actInDom(() => scrim.click());
+        } else {
+          actInDom(() => {
+            fireEvent.touchStart(member, { touches: [{ clientX: 100, clientY: 50 }] });
+            fireEvent.touchMove(member, { touches: [{ clientX: 170, clientY: 50 }] });
+            fireEvent.touchEnd(member);
+          });
         }
         expect(member.isConnected).toBe(false);
         const target =
-          dismiss === 'Escape' ? header.host.querySelector('[data-room-more-options]') : outside;
+          dismiss === 'scrim click'
+            ? outside
+            : header.host.querySelector('[data-room-more-options]');
         await vi.waitFor(() => expect(document.activeElement).toBe(target));
       } finally {
         stopFocus();

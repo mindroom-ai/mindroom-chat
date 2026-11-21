@@ -118,7 +118,7 @@ export const setOverlayOpenerFallback = (
   openerFallbacks.set(opener, fallback);
 };
 
-/** Opt into the fallback on an explicit dismissal, not on a scrim click or a navigation. */
+/** Opt into the fallback on an explicit dismissal, not on a navigation. */
 export const markOverlayDismissed = (from: HTMLElement | null, dismissed = true): void => {
   if (!from) return;
   const layer = layerOf(from.ownerDocument, from);

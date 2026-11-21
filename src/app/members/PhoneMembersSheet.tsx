@@ -89,7 +89,11 @@ export function PhoneMembersSheet({
     if (navDrawerOpen) onClose();
   }, [navDrawerOpen, onClose]);
 
-  useSwipeAway(panelRef, 'end', onClose);
+  const dismiss = () => {
+    markOverlayDismissed(panelRef.current);
+    onClose();
+  };
+  useSwipeAway(panelRef, 'end', dismiss);
   useInert(panelRef, leaving);
 
   // One layer for the focus (`overlayFocus`, the slot is a layer host): it takes the focus as a
@@ -100,7 +104,7 @@ export function PhoneMembersSheet({
         className={css.Scrim}
         data-open={out || undefined}
         aria-hidden="true"
-        onClick={onClose}
+        onClick={dismiss}
       />
       <div
         ref={panelRef}

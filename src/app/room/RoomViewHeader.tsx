@@ -351,7 +351,7 @@ export function RoomViewHeader({
   const canvasesHere = showCanvases && canvases ? canvases : [];
   const needsCanvasChooser = canvasesHere.length > 1;
   const menu = useHeaderPopup(restoreFocusAfterDismiss);
-  const pins = useHeaderPopup(restoreFocusAfterDismiss, pinnedCount > 0);
+  const pins = useHeaderPopup(restoreFocusAfterDismiss);
   const canvasMenu = useHeaderPopup(restoreFocusAfterDismiss, needsCanvasChooser);
 
   const forgetActionFocus = ({ target, relatedTarget }: FocusEvent<HTMLElement>) => {
