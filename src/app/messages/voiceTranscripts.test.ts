@@ -297,20 +297,38 @@ describe('pending voice transcription', () => {
     expect(pending([old, transcript]).byVoiceId.get('$voice')).toBe(transcript);
   });
 
-  it('ends on a later undecryptable agent event', () => {
-    const encrypted = new MatrixEvent({
+  it('keeps pending when an agent edits its earlier reply after the voice message', () => {
+    const reply = echo('$reply', {}, { sender: AGENT });
+    reply.event.origin_server_ts = now - 1;
+    const edit = new MatrixEvent({
+      event_id: '$edit',
+      type: 'm.room.message',
+      sender: AGENT,
+      origin_server_ts: now + 1,
+      content: { 'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' } },
+    });
+    expect([...pending([reply, voice(), edit]).pendingVoiceIds]).toEqual(['$voice']);
+  });
+
+  it.each(['m.room.message', 'm.room.encrypted'])('ends on a later drawn %s event', (type) => {
+    const reply = new MatrixEvent({
       event_id: '$agent',
-      type: 'm.room.encrypted',
+      type,
       sender: AGENT,
       origin_server_ts: now + 1,
     });
-    expect(pending([voice(), encrypted])).toBe(NO_VOICE_TRANSCRIPTS);
+    expect(pending([voice(), reply])).toBe(NO_VOICE_TRANSCRIPTS);
   });
 
   it('ends when a later agent event is drawn, regardless of the order of the rows', () => {
     const earlier = voice('$earlier', PERSON, VOICE_CONTENT, now - 10);
     const later = voice('$later', PERSON, VOICE_CONTENT, now + 10, 0);
-    const reply = new MatrixEvent({ sender: AGENT, origin_server_ts: now });
+    const reply = new MatrixEvent({
+      event_id: '$agent',
+      type: 'm.room.message',
+      sender: AGENT,
+      origin_server_ts: now,
+    });
     expect([...pending([earlier, reply, later]).pendingVoiceIds]).toEqual(['$later']);
     expect([...pending([later, reply, earlier]).pendingVoiceIds]).toEqual(['$later']);
   });

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { EventStatus, MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { isMindroomResponderForViewer } from '../matrix/protocol/agentIdentity';
 import { isVoiceMessageContent } from './content/voiceMessageContent';
@@ -102,6 +103,7 @@ export const planVoiceTranscripts = ({
         !sender ||
         ignored.has(sender) ||
         !isMindroomResponderForViewer(sender, viewerId, trustedAccountIds) ||
+        isRowlessTimelineEvent(event) ||
         isHidden(event)
       )
         continue;
