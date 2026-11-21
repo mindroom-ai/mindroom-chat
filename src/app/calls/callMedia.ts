@@ -1,6 +1,26 @@
 import type { SfuGrant } from './rtcFocus';
 import type { CallDeviceKind, CallDevices, CallVideoTrack } from './RoomCall';
 
+/** Media frame key ring size shared with MindRoom agents and the native Mac call plugin. */
+export const CALL_KEY_RING_SIZE = 256;
+
+/** True when two ordered participant lists carry the same speaking, microphone and extra fields. */
+export const sameParticipants = <T extends { speaking: boolean; microphone: boolean }>(
+  a: readonly T[],
+  b: readonly T[],
+  sameExtra: (left: T, right: T) => boolean
+): boolean =>
+  a.length === b.length &&
+  a.every((item, index) => {
+    const other = b[index];
+    return (
+      other !== undefined &&
+      item.speaking === other.speaking &&
+      item.microphone === other.microphone &&
+      sameExtra(item, other)
+    );
+  });
+
 /** One device on the media server, as a tile reads it. */
 export type CallMediaParticipant = {
   speaking: boolean;

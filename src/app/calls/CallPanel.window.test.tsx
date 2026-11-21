@@ -1225,6 +1225,8 @@ describe('CallPanel in the Mac app', () => {
     renderPanel();
     expect(button('Start Camera')).toBeNull();
     expect(button('Stop Camera')).toBeNull();
+    expect(button('Start Screenshare')).toBeNull();
+    expect(button('Stop Screenshare')).toBeNull();
     expect(button('Settings')).toBeNull();
     expect(button('Turn Off Microphone')).not.toBeNull();
     expect(button('Turn Off Sound')).not.toBeNull();
@@ -1254,5 +1256,16 @@ describe('CallPanel in the Mac app', () => {
       )
     ).toBeTruthy();
     expect(button('Join')).toBeNull();
+  });
+
+  it('shows a generic start failure instead of unreachable call service for start problem', () => {
+    media.kind = 'native';
+    roomCall([me]);
+    calls.state = { ...calls.state!, phase: 'failed', problem: 'start' };
+    renderPanel();
+    expect(screen.getByText('Failed to start the call.')).toBeTruthy();
+    expect(
+      screen.queryByText('The call service could not be reached. Try again later.')
+    ).toBeNull();
   });
 });

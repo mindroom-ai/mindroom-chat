@@ -142,6 +142,7 @@ const PROBLEM_KEYS = {
   homeserver: 'featureUi.call.callView.yourHomeserverDoesNotSupportCalling',
   untrustedService: 'featureUi.calls.problems.untrustedService',
   service: 'featureUi.calls.problems.service',
+  start: 'mindroomUi.calls.agentCallButton.failedToStart',
   connection: 'featureUi.calls.problems.connection',
   device: 'featureUi.calls.problems.device',
 } as const satisfies Record<CallProblem, string>;
@@ -269,7 +270,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
             onClick={() => void call.setCamera(!state.camera)}
           />
         )}
-        {browserSharesScreens() && (
+        {!audioOnly && browserSharesScreens() && (
           <CallControl
             label={
               state.screenShare

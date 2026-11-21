@@ -8,6 +8,8 @@ const capacitorConfig: CapacitorConfig = {
   ios: {
     // iPhone and iPad get the mobile layout; Mac Catalyst asks for the desktop one natively.
     preferredContentMode: 'mobile',
+    // Keep Capacitor's bridge logger from dumping call tokens and media keys in Debug builds.
+    loggingBehavior: 'none',
   },
   plugins: {
     StatusBar: {

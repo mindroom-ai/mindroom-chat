@@ -1,8 +1,9 @@
 import type { LocalVideoTrack, RemoteVideoTrack } from 'livekit-client';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { nativeCallErrorCode } from '../native/nativeCall';
 import { sendCallKey } from './callKeyProvider';
-import type { CallMedia, CallMediaHost } from './callMedia';
+import { sameParticipants, type CallMedia, type CallMediaHost } from './callMedia';
 import { callMediaKind, callUnsupportedProblem } from './callSupport';
 import { NativeCallMedia } from './nativeCallMedia';
 import { WebCallMedia, webCallMediaSupported } from './webCallMedia';
@@ -23,7 +24,7 @@ export type CallPhase = 'connecting' | 'connected' | 'reconnecting' | 'ended' | 
 export type CallProblem =
   /** No WebRTC, or no frame encryption for an encrypted room. */
   | 'browser'
-  /** The Mac app without its call plugin (a window that has none, a failed start). */
+  /** The Mac app without its call plugin (a window that has none). */
   | 'macApp'
   /** The deployment announces no LiveKit backend. */
   | 'homeserver'
@@ -31,6 +32,8 @@ export type CallProblem =
   | 'untrustedService'
   /** The backend refused this account or could not be reached. */
   | 'service'
+  /** The call could not be started locally. */
+  | 'start'
   /** The media connection failed or dropped. */
   | 'connection'
   /** The microphone or camera could not be opened; the call goes on without it. */
@@ -108,21 +111,6 @@ const LEAVE_TIMEOUT_MS = 5000;
 const LEFTOVER_TIMEOUT_MS = 10_000;
 /** When sending this device's media key to one device again fails, the waits before the next tries. */
 const KEY_RESEND_RETRY_MS = [1_000, 3_000];
-
-const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
-  a.length === b.length &&
-  a.every((item, index) => {
-    const other = b[index];
-    return (
-      other !== undefined &&
-      item.key === other.key &&
-      item.connected === other.connected &&
-      item.speaking === other.speaking &&
-      item.microphone === other.microphone &&
-      item.video === other.video &&
-      item.screen === other.screen
-    );
-  });
 
 /**
  * One call this device takes part in: its MatrixRTC membership in the Matrix room (state
@@ -231,7 +219,15 @@ export class RoomCall {
     const screenShare = !!this.media?.screenShare();
     const microphoneTrack = this.media?.microphoneTrack();
     if (
-      sameParticipants(participants, this.state.participants) &&
+      sameParticipants(
+        participants,
+        this.state.participants,
+        (a, b) =>
+          a.key === b.key &&
+          a.connected === b.connected &&
+          a.video === b.video &&
+          a.screen === b.screen
+      ) &&
       audioBlocked === this.state.audioBlocked &&
       screenShare === this.state.screenShare &&
       microphoneTrack === this.state.microphoneTrack
@@ -452,6 +448,7 @@ export class RoomCall {
           host: this.mediaHost,
         });
     this.media = media;
+    media.setSound(this.state.sound);
     try {
       // Announce the membership; the session shares this device's media key with the others.
       this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
@@ -478,8 +475,8 @@ export class RoomCall {
       });
       // The teardown of a call left meanwhile disconnected this media already; it stays so.
       if (!connected) return;
-    } catch {
-      this.fail('service');
+    } catch (error) {
+      this.fail(nativeCallErrorCode(error) === 'START_FAILED' ? 'start' : 'service');
       return;
     }
     if (this.stopped) {

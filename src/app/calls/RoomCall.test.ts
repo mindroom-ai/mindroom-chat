@@ -1087,4 +1087,40 @@ describe('RoomCall in the Mac app', () => {
     expect(call.getState().phase).toBe('failed');
     expect(call.getState().problem).toBe('macApp');
   });
+
+  it('maps native START_FAILED to start instead of service', async () => {
+    nativeFakes.plugin.connect.mockRejectedValue({ code: 'START_FAILED' });
+    const { call } = setup();
+    await call.join();
+    expect(call.getState().phase).toBe('failed');
+    expect(call.getState().problem).toBe('start');
+  });
+
+  it('keeps sound turned off while the grant is pending on both native and web backends', async () => {
+    const nativeGrant = pending<{ url: string; jwt: string }>();
+    vi.mocked(requestSfuGrant).mockReturnValueOnce(nativeGrant.promise);
+    const { call: nativeCall } = setup();
+    const nativeJoining = nativeCall.join();
+    await settle();
+    nativeCall.setSound(false);
+    nativeGrant.resolve({ url: 'wss://sfu.calls.test', jwt: 'jwt' });
+    await nativeJoining;
+    expect(nativeFakes.plugin.setSound).toHaveBeenLastCalledWith({ id: 'ns1', on: false });
+    await nativeCall.leave();
+
+    nativeFakes.kind = 'web';
+    const webGrant = pending<{ url: string; jwt: string }>();
+    vi.mocked(requestSfuGrant).mockReturnValueOnce(webGrant.promise);
+    const { call: webCall, session: webSession } = setup();
+    webSession.memberships = [membership(OTHER, OTHER_DEVICE)];
+    const webJoining = webCall.join();
+    await settle();
+    webCall.setSound(false);
+    webGrant.resolve({ url: 'wss://sfu.calls.test', jwt: 'jwt' });
+    await webJoining;
+    remoteDevice(onlyMediaRoom(), OTHER_IDENTITY).subscribe();
+    const audio = document.querySelector<HTMLAudioElement>('[data-call-audio] audio');
+    expect(audio?.muted).toBe(true);
+    await webCall.leave();
+  });
 });

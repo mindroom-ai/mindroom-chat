@@ -6,26 +6,17 @@ import {
   type MindRoomCallPlugin,
   type NativeCallSnapshot,
 } from '../native/nativeCall';
-import type { CallMedia, CallMediaHost, CallMediaParticipant } from './callMedia';
+import {
+  CALL_KEY_RING_SIZE,
+  sameParticipants,
+  type CallMedia,
+  type CallMediaHost,
+  type CallMediaParticipant,
+} from './callMedia';
 import type { SfuGrant } from './rtcFocus';
 import type { CallDeviceKind, CallDevices } from './RoomCall';
 
 export const NATIVE_CALL_POLL_MS = 250;
-
-const sameParticipants = (
-  a: NativeCallSnapshot['participants'],
-  b: NativeCallSnapshot['participants']
-): boolean =>
-  a.length === b.length &&
-  a.every((item, index) => {
-    const other = b[index];
-    return (
-      other !== undefined &&
-      item.identity === other.identity &&
-      item.speaking === other.speaking &&
-      item.microphone === other.microphone
-    );
-  });
 
 /** Native LiveKit media connection (`MindRoomCall` Capacitor plugin) for `RoomCall` in the Mac app. */
 export class NativeCallMedia implements CallMedia {
@@ -39,7 +30,11 @@ export class NativeCallMedia implements CallMedia {
 
   private last?: NativeCallSnapshot;
 
-  private pending: Array<(id: string) => Promise<void>> = [];
+  private pendingKeys: Array<{ identity: string; index: number; key: string; own: boolean }> = [];
+
+  private pendingMembers?: string[];
+
+  private pendingSound?: boolean;
 
   private pollTimer?: number;
 
@@ -55,15 +50,18 @@ export class NativeCallMedia implements CallMedia {
     this.plugin = options.plugin ?? getNativeCallPlugin();
   }
 
-  private send(operation: (id: string) => Promise<void>): Promise<void> {
-    if (this.id !== undefined) return operation(this.id);
-    this.pending.push(operation);
-    return Promise.resolve();
-  }
-
   setKey(key: Uint8Array, index: number, identity: string, own: boolean): Promise<void> {
+    if (!Number.isInteger(index) || index < 0 || index >= CALL_KEY_RING_SIZE) {
+      return Promise.reject(
+        Object.assign(new Error('Invalid call key index'), { code: 'BAD_KEY' })
+      );
+    }
     const encoded = encodeBase64(key);
-    return this.send((id) => this.plugin.setKey({ id, identity, index, key: encoded, own }));
+    if (this.id !== undefined) {
+      return this.plugin.setKey({ id: this.id, identity, index, key: encoded, own });
+    }
+    this.pendingKeys.push({ identity, index, key: encoded, own });
+    return Promise.resolve();
   }
 
   async connect(
@@ -85,11 +83,21 @@ export class NativeCallMedia implements CallMedia {
       local: { speaking: false, microphone: false },
       participants: [],
     };
-    const queued = this.pending;
-    this.pending = [];
-    for (const operation of queued) {
+    const keys = this.pendingKeys;
+    this.pendingKeys = [];
+    const members = this.pendingMembers;
+    this.pendingMembers = undefined;
+    const sound = this.pendingSound;
+    this.pendingSound = undefined;
+    for (const entry of keys) {
       // eslint-disable-next-line no-await-in-loop
-      await operation(id).catch(() => undefined);
+      await this.plugin.setKey({ id, ...entry }).catch(() => undefined);
+    }
+    if (members !== undefined) {
+      await this.plugin.setMembers({ id, identities: members }).catch(() => undefined);
+    }
+    if (sound !== undefined) {
+      await this.plugin.setSound({ id, on: sound }).catch(() => undefined);
     }
     if (!this.silenced) {
       this.pollTimer = window.setInterval(() => {
@@ -118,7 +126,11 @@ export class NativeCallMedia implements CallMedia {
 
   setMembers(identities: ReadonlySet<string>): void {
     const list = [...identities];
-    void this.send((id) => this.plugin.setMembers({ id, identities: list }).catch(() => undefined));
+    if (this.id !== undefined) {
+      void this.plugin.setMembers({ id: this.id, identities: list }).catch(() => undefined);
+    } else {
+      this.pendingMembers = list;
+    }
   }
 
   async setMicrophone(on: boolean): Promise<void> {
@@ -139,7 +151,11 @@ export class NativeCallMedia implements CallMedia {
   }
 
   setSound(on: boolean): void {
-    void this.send((id) => this.plugin.setSound({ id, on }).catch(() => undefined));
+    if (this.id !== undefined) {
+      void this.plugin.setSound({ id: this.id, on }).catch(() => undefined);
+    } else {
+      this.pendingSound = on;
+    }
   }
 
   async setDevice(_kind: CallDeviceKind, _deviceId: string): Promise<void> {
@@ -216,7 +232,11 @@ export class NativeCallMedia implements CallMedia {
       const localChanged =
         prev.local.speaking !== next.local.speaking ||
         prev.local.microphone !== next.local.microphone;
-      const participantsChanged = !sameParticipants(prev.participants, next.participants);
+      const participantsChanged = !sameParticipants(
+        prev.participants,
+        next.participants,
+        (a, b) => a.identity === b.identity
+      );
       if (localChanged || participantsChanged) {
         this.host.onChange();
       }

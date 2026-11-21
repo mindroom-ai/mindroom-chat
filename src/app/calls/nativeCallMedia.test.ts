@@ -351,4 +351,59 @@ describe('NativeCallMedia', () => {
     await media.disconnect();
     expect(plugin.disconnect).toHaveBeenCalledWith({ id: 's1' });
   });
+
+  it('rejects key indices outside 0..255 before reaching the plugin', async () => {
+    const plugin = makePlugin();
+    const media = new NativeCallMedia({
+      encrypted: true,
+      host: makeHost(),
+      plugin,
+    });
+    await media.connect(grant, go);
+
+    for (const bad of [-1, 256, 2_147_483_648, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(
+        media.setKey(new Uint8Array([1]), bad, '@a:calls.test:A', false)
+      ).rejects.toMatchObject({
+        code: 'BAD_KEY',
+      });
+    }
+    expect(plugin.setKey).not.toHaveBeenCalled();
+
+    await expect(
+      media.setKey(new Uint8Array([1]), 0, '@a:calls.test:A', false)
+    ).resolves.toBeUndefined();
+    await expect(
+      media.setKey(new Uint8Array([2]), 255, '@a:calls.test:A', true)
+    ).resolves.toBeUndefined();
+    expect(plugin.setKey).toHaveBeenCalledTimes(2);
+    media.silence();
+  });
+
+  it('coalesces queued members and sound to the latest value while keeping keys in order', async () => {
+    const plugin = makePlugin();
+    const media = new NativeCallMedia({
+      encrypted: true,
+      host: makeHost(),
+      plugin,
+    });
+
+    await media.setKey(new Uint8Array([1]), 0, '@a:calls.test:A', false);
+    media.setMembers(new Set(['@a:calls.test:A']));
+    media.setSound(false);
+    await media.setKey(new Uint8Array([2]), 1, '@a:calls.test:A', false);
+    media.setMembers(new Set(['@b:calls.test:B']));
+    media.setSound(true);
+
+    await media.connect(grant, go);
+
+    expect(plugin.setKey).toHaveBeenCalledTimes(2);
+    expect(plugin.setKey.mock.calls[0]?.[0]).toMatchObject({ index: 0, key: 'AQ==' });
+    expect(plugin.setKey.mock.calls[1]?.[0]).toMatchObject({ index: 1, key: 'Ag==' });
+    expect(plugin.setMembers).toHaveBeenCalledTimes(1);
+    expect(plugin.setMembers).toHaveBeenCalledWith({ id: 's1', identities: ['@b:calls.test:B'] });
+    expect(plugin.setSound).toHaveBeenCalledTimes(1);
+    expect(plugin.setSound).toHaveBeenCalledWith({ id: 's1', on: true });
+    media.silence();
+  });
 });

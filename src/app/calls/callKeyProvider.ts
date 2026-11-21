@@ -1,6 +1,7 @@
 import { BaseKeyProvider, createKeyMaterialFromBuffer } from 'livekit-client';
 import { EventType, type MatrixClient } from 'matrix-js-sdk';
 import { encodeBase64 } from 'matrix-js-sdk/lib/base64';
+import { CALL_KEY_RING_SIZE } from './callMedia';
 
 /**
  * Media frame keys of a MatrixRTC call. Every participant encrypts its media with its own key and
@@ -13,7 +14,7 @@ import { encodeBase64 } from 'matrix-js-sdk/lib/base64';
  */
 export class MatrixRtcKeyProvider extends BaseKeyProvider {
   constructor() {
-    super({ ratchetWindowSize: 10, keyringSize: 256 });
+    super({ ratchetWindowSize: 10, keyringSize: CALL_KEY_RING_SIZE });
   }
 
   async setParticipantKey(key: Uint8Array, keyIndex: number, participantIdentity: string) {
