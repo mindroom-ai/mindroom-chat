@@ -1097,7 +1097,10 @@
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "عوامل تصفية متقدمة"
+        "advancedFilters": "عوامل تصفية متقدمة",
+        "includeResolvedThreads": "تضمين سلاسل المحادثات التي تم حلها",
+        "hideResolvedThreads": "إخفاء سلاسل المحادثات التي تم حلها",
+        "forMeSummary": "⁨{{summary}}⁩. فلتر «لي» مفعّل."
       },
       "threadPeopleFilter": {
         "label": "الأشخاص",

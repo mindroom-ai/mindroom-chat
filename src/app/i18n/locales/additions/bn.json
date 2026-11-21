@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "উন্নত ফিল্টার"
+        "advancedFilters": "উন্নত ফিল্টার",
+        "includeResolvedThreads": "সমাধান হওয়া থ্রেড অন্তর্ভুক্ত করুন",
+        "hideResolvedThreads": "সমাধান হওয়া থ্রেড লুকান",
+        "forMeSummary": "{{summary}}। আমার জন্য ফিল্টারটি চালু আছে।"
       },
       "threadPeopleFilter": {
         "label": "লোকজন",

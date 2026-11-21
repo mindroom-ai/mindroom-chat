@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "उन्नत फ़िल्टर"
+        "advancedFilters": "उन्नत फ़िल्टर",
+        "includeResolvedThreads": "सुलझाए गए थ्रेड शामिल करें",
+        "hideResolvedThreads": "सुलझाए गए थ्रेड छिपाएँ",
+        "forMeSummary": "{{summary}}। मेरे लिए फ़िल्टर चालू है।"
       },
       "threadPeopleFilter": {
         "label": "लोग",

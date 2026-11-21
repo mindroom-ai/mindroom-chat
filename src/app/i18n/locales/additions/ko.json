@@ -992,7 +992,10 @@
         "threadFiltersActive": "스레드 필터 (사용 중)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "고급 필터"
+        "advancedFilters": "고급 필터",
+        "includeResolvedThreads": "해결된 스레드 포함",
+        "hideResolvedThreads": "해결된 스레드 숨기기",
+        "forMeSummary": "{{summary}}. 나를 위한 스레드 필터가 켜져 있습니다."
       },
       "threadPeopleFilter": {
         "label": "참여자",

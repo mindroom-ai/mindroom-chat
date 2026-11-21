@@ -992,7 +992,10 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan"
+        "advancedFilters": "Filter lanjutan",
+        "includeResolvedThreads": "Sertakan utas yang telah diselesaikan",
+        "hideResolvedThreads": "Sembunyikan utas yang telah diselesaikan",
+        "forMeSummary": "{{summary}}. Filter Untuk saya aktif."
       },
       "threadPeopleFilter": {
         "label": "Orang",

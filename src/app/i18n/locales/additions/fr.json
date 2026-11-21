@@ -1034,7 +1034,10 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés"
+        "advancedFilters": "Filtres avancés",
+        "includeResolvedThreads": "Inclure les fils résolus",
+        "hideResolvedThreads": "Masquer les fils résolus",
+        "forMeSummary": "{{summary}}. Filtre « Pour moi » activé."
       },
       "threadPeopleFilter": {
         "label": "Personnes",

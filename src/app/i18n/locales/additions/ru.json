@@ -1055,7 +1055,10 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры"
+        "advancedFilters": "Расширенные фильтры",
+        "includeResolvedThreads": "Показывать решённые ветки",
+        "hideResolvedThreads": "Скрывать решённые ветки",
+        "forMeSummary": "{{summary}}. Фильтр «Для меня» включён."
       },
       "threadPeopleFilter": {
         "label": "Участники",

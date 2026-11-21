@@ -1034,7 +1034,10 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados"
+        "advancedFilters": "Filtros avançados",
+        "includeResolvedThreads": "Incluir tópicos resolvidos",
+        "hideResolvedThreads": "Ocultar tópicos resolvidos",
+        "forMeSummary": "{{summary}}. Filtro «Para mim» ativado."
       },
       "threadPeopleFilter": {
         "label": "Pessoas",

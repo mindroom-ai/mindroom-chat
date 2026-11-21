@@ -3,6 +3,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../../preferences/settings';
 import { RoomThreadOverview, type RoomThreadOverviewProps } from './RoomThreadOverview';
+import { TooltipProvider } from '../../ui/directional';
 import * as css from './RoomThreadOverview.css';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 
@@ -112,6 +113,17 @@ describe('thread filter bar modes', () => {
     expect(onToggleUnresolvedOnly).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['exclude', 'Include resolved threads'],
+    ['any', 'Hide resolved threads'],
+  ] as const)('describes only what clicking Unresolved changes (%s)', (resolved, hint) => {
+    renderBar(true, { state: { ...createDefaultThreadFilterState(), resolved, forMe: true } });
+    const hints = renderer?.root
+      .findAllByType(TooltipProvider)
+      .map((node) => node.props.tooltip.props.children.props.children);
+    expect(hints).toContain(hint);
+  });
+
   it('says no thread matches only when a filter hides threads, not in a room with none', () => {
     const unresolved = { ...createDefaultThreadFilterState(), resolved: 'exclude' as const };
     const emptyStates = () =>
@@ -189,6 +201,6 @@ describe('thread filter bar modes', () => {
     expect(live()).toBe(summary());
     expect(live()).toContain('2');
     rerender({ threadCount: 2, totalThreadCount: 4, state: { ...unresolved, forMe: true } });
-    expect(live()).toContain('For me');
+    expect(live()).toBe('Showing 2 of 4 threads. For me filter on.');
   });
 });

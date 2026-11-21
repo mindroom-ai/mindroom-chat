@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "Konu filtreleri (etkin)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Gelişmiş filtreler"
+        "advancedFilters": "Gelişmiş filtreler",
+        "includeResolvedThreads": "Çözümlenen konuları dahil et",
+        "hideResolvedThreads": "Çözümlenen konuları gizle",
+        "forMeSummary": "{{summary}}. Benim için filtresi açık."
       },
       "threadPeopleFilter": {
         "label": "Kişiler",

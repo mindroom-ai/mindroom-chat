@@ -992,7 +992,10 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター"
+        "advancedFilters": "詳細フィルター",
+        "includeResolvedThreads": "解決済みのスレッドを含める",
+        "hideResolvedThreads": "解決済みのスレッドを非表示にする",
+        "forMeSummary": "{{summary}}。「自分向け」フィルターはオンです。"
       },
       "threadPeopleFilter": {
         "label": "参加者",

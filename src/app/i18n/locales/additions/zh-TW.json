@@ -992,7 +992,10 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器"
+        "advancedFilters": "進階篩選器",
+        "includeResolvedThreads": "包含已解決的討論串",
+        "hideResolvedThreads": "隱藏已解決的討論串",
+        "forMeSummary": "{{summary}}。與我相關篩選已開啟。"
       },
       "threadPeopleFilter": {
         "label": "參與者",

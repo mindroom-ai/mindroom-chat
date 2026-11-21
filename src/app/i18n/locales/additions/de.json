@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter"
+        "advancedFilters": "Erweiterte Filter",
+        "includeResolvedThreads": "Erledigte Threads einblenden",
+        "hideResolvedThreads": "Erledigte Threads ausblenden",
+        "forMeSummary": "{{summary}}. Filter „Für mich“ aktiv."
       },
       "threadPeopleFilter": {
         "label": "Personen",

@@ -460,7 +460,9 @@ export function RoomThreadOverview({
     : t('mindroomUi.threads.roomThreadOverview.showingAllThreads', {
         count: threadCount,
       });
-  const filterSummary = state.forMe ? `${countSummary} · ${t('threadNav.forMe')}` : countSummary;
+  const filterSummary = state.forMe
+    ? t('mindroomUi.threads.roomThreadOverview.forMeSummary', { summary: countSummary })
+    : countSummary;
   const liveSummary = isThreadSortFrozen
     ? t('mindroomUi.threads.roomThreadOverview.sortLockedSummary', {
         summary: filterSummary,
@@ -625,8 +627,8 @@ export function RoomThreadOverview({
                   <Tooltip style={{ maxWidth: toRem(220) }}>
                     <Text size="T200">
                       {unresolvedOnly
-                        ? t('thread.simpleFilter.showingUnresolved')
-                        : t('thread.simpleFilter.showingAll')}
+                        ? t('mindroomUi.threads.roomThreadOverview.includeResolvedThreads')
+                        : t('mindroomUi.threads.roomThreadOverview.hideResolvedThreads')}
                     </Text>
                   </Tooltip>
                 }

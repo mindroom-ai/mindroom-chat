@@ -1013,7 +1013,10 @@
         "threadFiltersActive": "Threadfilters (actief)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Geavanceerde filters"
+        "advancedFilters": "Geavanceerde filters",
+        "includeResolvedThreads": "Opgeloste threads opnemen",
+        "hideResolvedThreads": "Opgeloste threads verbergen",
+        "forMeSummary": "{{summary}}. Filter ‘Voor mij’ staat aan."
       },
       "threadPeopleFilter": {
         "label": "Personen",
