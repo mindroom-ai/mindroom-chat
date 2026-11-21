@@ -59,7 +59,7 @@ export const planVoiceTranscripts = ({
   ignored: ReadonlySet<string>;
   revealed: ReadonlySet<string>;
   viewerId: string | undefined;
-  expectsAnswer: boolean;
+  expectsAnswer: ((event: MatrixEvent) => boolean) | undefined;
   hasThreadReplies: (event: MatrixEvent) => boolean;
   isHidden: (event: MatrixEvent) => boolean;
 }): VoiceTranscriptPlan => {
@@ -126,7 +126,8 @@ export const planVoiceTranscripts = ({
         if (
           content.msgtype === MsgType.Audio &&
           isVoiceMessageContent(content) &&
-          !hasThreadReplies(event)
+          !hasThreadReplies(event) &&
+          expectsAnswer(event)
         ) {
           pendingVoiceIds.add(id);
         }
