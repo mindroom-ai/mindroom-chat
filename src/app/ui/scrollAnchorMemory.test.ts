@@ -19,16 +19,18 @@ const createLayout = (keys: string[], viewportHeight = VIEWPORT_HEIGHT) => {
   const content = document.createElement('div');
   view.append(content);
   let scrollTop = 0;
+  let height = viewportHeight;
   let inset = 0;
   const rowTop = (row: Element) => inset + Array.from(content.children).indexOf(row) * ROW_HEIGHT;
-  const maxScrollTop = () => Math.max(0, content.children.length * ROW_HEIGHT - viewportHeight);
+  const maxScrollTop = () => Math.max(0, content.children.length * ROW_HEIGHT - height);
+  Object.defineProperty(view, 'clientHeight', { get: () => height });
   Object.defineProperty(view, 'scrollTop', {
     get: () => scrollTop,
     set: (value: number) => {
       scrollTop = Math.min(Math.max(0, value), maxScrollTop());
     },
   });
-  view.getBoundingClientRect = () => toRect(0, viewportHeight);
+  view.getBoundingClientRect = () => toRect(0, height);
   const setRows = (nextKeys: string[]) => {
     content.replaceChildren(
       ...nextKeys.map((key) => {
@@ -45,7 +47,10 @@ const createLayout = (keys: string[], viewportHeight = VIEWPORT_HEIGHT) => {
   const setInset = (value: number) => {
     inset = value;
   };
-  return { view, content, setRows, offsetOf, setInset };
+  const setViewportHeight = (value: number) => {
+    height = value;
+  };
+  return { view, content, setRows, offsetOf, setInset, setViewportHeight };
 };
 
 type Layout = ReturnType<typeof createLayout>;
@@ -55,13 +60,13 @@ function AnchoredList({
   memoryKey,
   layout,
   ready,
-  stopFollowingOnJoinAt,
+  stopOnRowChangesAt,
 }: {
   memory: ScrollAnchorMemory;
   memoryKey: string;
   layout: { scrollRef: { current: HTMLElement }; contentRef: { current: HTMLElement } };
   ready: boolean;
-  stopFollowingOnJoinAt?: (view: HTMLElement) => boolean;
+  stopOnRowChangesAt?: (view: HTMLElement) => boolean;
 }) {
   useScrollAnchorMemory({
     memory,
@@ -69,7 +74,7 @@ function AnchoredList({
     scrollRef: layout.scrollRef,
     contentRef: layout.contentRef,
     ready,
-    stopFollowingOnJoinAt,
+    stopOnRowChangesAt,
   });
   return null;
 }
@@ -113,7 +118,7 @@ describe('useScrollAnchorMemory', () => {
     layout: Layout,
     ready = true,
     memoryKey = 'list',
-    stopFollowingOnJoinAt?: (view: HTMLElement) => boolean
+    stopOnRowChangesAt?: (view: HTMLElement) => boolean
   ) => {
     const refs = refsOf(layout);
     const render = (nextReady: boolean) =>
@@ -122,7 +127,7 @@ describe('useScrollAnchorMemory', () => {
         memoryKey,
         layout: refs,
         ready: nextReady,
-        stopFollowingOnJoinAt,
+        stopOnRowChangesAt,
       });
     act(() => {
       renderer = create(render(ready));
@@ -185,6 +190,42 @@ describe('useScrollAnchorMemory', () => {
     layout.setRows(['new-row', ...keys]);
     resize(layout.content);
     expect(layout.view.scrollTop).toBe(expected);
+  });
+
+  it.each([
+    [400, 540, 240, 240],
+    [200, 320, 120, 120],
+    [200, 140, 80, 120],
+  ])(
+    'uses the current band after a resize from %i to %i before a prepend',
+    (before, after, saved, expected) => {
+      const keys = rowKeys(20);
+      const memory: ScrollAnchorMemory = new Map();
+      leaveAt(memory, keys, saved);
+      const layout = createLayout(keys, before);
+      mount(memory, layout, true, 'list', (view) => view.scrollTop <= view.clientHeight / 2);
+      expect(layout.view.scrollTop).toBe(saved);
+
+      layout.setViewportHeight(after);
+      resize(layout.view);
+      expect(layout.view.scrollTop).toBe(saved);
+      layout.setRows(['new-row', ...keys]);
+      resize(layout.content);
+      expect(layout.view.scrollTop).toBe(expected);
+    }
+  );
+
+  it('keeps the restored offset when a card above the live band view leaves', () => {
+    const keys = rowKeys(20);
+    const memory: ScrollAnchorMemory = new Map();
+    leaveAt(memory, keys, 80);
+    const layout = createLayout(keys);
+    mount(memory, layout, true, 'list', (view) => view.scrollTop <= view.clientHeight / 2);
+    expect(layout.view.scrollTop).toBe(80);
+
+    layout.setRows(keys.slice(1));
+    resize(layout.content);
+    expect(layout.view.scrollTop).toBe(80);
   });
 
   it('places a linked card that arrives after the first fallback write', () => {

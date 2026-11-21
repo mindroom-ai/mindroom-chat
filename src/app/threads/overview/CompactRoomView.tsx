@@ -644,7 +644,7 @@ export function CompactRoomView({
     scrollRef: viewRef,
     contentRef,
     ready: cardViewModels.length > 0,
-    stopFollowingOnJoinAt: nearTop,
+    stopOnRowChangesAt: nearTop,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount

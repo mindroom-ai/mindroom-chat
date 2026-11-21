@@ -87,11 +87,11 @@ const getRowKeys = (view: HTMLElement): string[] =>
 
 // Rows rendering late or added and removed around the others keep the others'
 // order; a row sorting past them changes it.
-const keepsRowOrder = (before: string[], after: string[], followJoins = true): boolean => {
+const keepsRowOrder = (before: string[], after: string[], sameRows = false): boolean => {
   const beforeKeys = new Set(before);
   const afterKeys = new Set(after);
   const kept = after.filter((key) => beforeKeys.has(key));
-  if (!followJoins && kept.length !== after.length) return false;
+  if (sameRows && (before.length !== after.length || kept.length !== after.length)) return false;
   return before.filter((key) => afterKeys.has(key)).every((key, index) => key === kept[index]);
 };
 
@@ -99,8 +99,7 @@ type RestoreState = {
   memoryKey: string;
   /** Cleared once the restore is done following late layout. */
   snapshot?: ScrollAnchorSnapshot;
-  fromMemory?: boolean;
-  followJoins?: boolean;
+  savedPlacement?: 'pending' | 'placed';
   /** The rows the last write put back in place. */
   placedRows: string[];
   /** Every row's key, in order, at the last write. */
@@ -118,8 +117,8 @@ type ScrollAnchorMemoryOptions = {
   contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
-  /** Stop following on a join after the first unclamped saved placement at this offset. */
-  stopFollowingOnJoinAt?: (view: HTMLElement) => boolean;
+  /** After placing a saved position, stop on joins or leaves here, but follow late layout. */
+  stopOnRowChangesAt?: (view: HTMLElement) => boolean;
 };
 
 /**
@@ -137,7 +136,7 @@ export function useScrollAnchorMemory({
   scrollRef,
   contentRef,
   ready,
-  stopFollowingOnJoinAt,
+  stopOnRowChangesAt,
 }: ScrollAnchorMemoryOptions): (place: ScrollAnchorSnapshot) => void {
   const restoreRef = useRef<RestoreState>();
   const [restarts, setRestarts] = useState(0);
@@ -153,7 +152,7 @@ export function useScrollAnchorMemory({
       restoreRef.current = {
         memoryKey,
         snapshot: memory.get(memoryKey),
-        fromMemory: true,
+        savedPlacement: 'pending',
         placedRows: [],
         rowOrder: [],
         lastAppliedScrollTop: view.scrollTop,
@@ -175,6 +174,7 @@ export function useScrollAnchorMemory({
       if (!snapshot) return;
       const placement = placeRows(view, snapshot, state.placedRows);
       const rowOrder = getRowKeys(view);
+      const sameRows = state.savedPlacement === 'placed' && stopOnRowChangesAt?.(view);
       // A reader who left at the top stays at the top, where rows that moved
       // up show; one who scrolled since the last write keeps their place.
       // Late layout moves the placed rows together (the header padding
@@ -185,7 +185,7 @@ export function useScrollAnchorMemory({
         snapshot.scrollTop <= 0 ||
         view.scrollTop !== state.lastAppliedScrollTop ||
         !placement ||
-        !keepsRowOrder(state.rowOrder, rowOrder, state.followJoins)
+        !keepsRowOrder(state.rowOrder, rowOrder, sameRows)
       ) {
         stopFollowing();
         return;
@@ -196,12 +196,11 @@ export function useScrollAnchorMemory({
       state.lastAppliedScrollTop = view.scrollTop;
       // A fallback offset does not place a linked card that has yet to render.
       if (
-        state.fromMemory &&
+        state.savedPlacement === 'pending' &&
         (!snapshot.anchors.length || placement.rows.length > 0) &&
         Math.abs(state.lastAppliedScrollTop - placement.scrollTop) < 1
       ) {
-        state.fromMemory = false;
-        state.followJoins = !stopFollowingOnJoinAt?.(view);
+        state.savedPlacement = 'placed';
       }
     };
     restore();
@@ -215,7 +214,7 @@ export function useScrollAnchorMemory({
       observer?.disconnect();
       view.removeEventListener('scroll', handleScroll);
     };
-  }, [contentRef, stopFollowingOnJoinAt, memory, memoryKey, ready, restarts, scrollRef]);
+  }, [contentRef, memory, memoryKey, ready, restarts, scrollRef, stopOnRowChangesAt]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
