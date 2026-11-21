@@ -946,6 +946,7 @@ function RoomContent() {
           <SecondThreadContext.Provider value={secondThread}>
             <Box
               ref={conversationRef}
+              data-plugin-panel-open={shown && shown.id === pluginPanel?.id ? '' : undefined}
               grow="Yes"
               direction="Column"
               style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}

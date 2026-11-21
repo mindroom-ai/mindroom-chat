@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { APP_BUILD_VERSION } from '../config/appVersion';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
@@ -41,7 +42,7 @@ const MAX_FLUSH_RETRIES = 3;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
 
-export type DeepTraceData = Record<string, number | boolean | null>;
+export type DeepTraceData = Record<string, number | boolean | string | null>;
 
 export type DeepTraceEvent = {
   schemaVersion: typeof DEEP_TRACE_SCHEMA_VERSION;
@@ -261,7 +262,16 @@ const STATIC_EVENT_NAMES = new Set([
   'voice.capture.stop_timeout',
 ]);
 
+// Exact values only: DOM attributes, including test IDs, can come from message or plugin HTML.
+const SURFACE_HIT_STRINGS: Record<string, RegExp> = {
+  hit_tag:
+    /^(a|article|aside|body|button|canvas|div|em|footer|g|header|html|i|iframe|img|input|label|li|main|nav|ol|p|path|pre|section|small|span|strong|svg|table|tbody|td|tr|ul|video)$/,
+  hit_test_id:
+    /^(resizable-(plugin|call|computer|transcript|subagents|canvas|members)-panel|resizable-page-nav|second-thread-panel|thread-column|room-virtual-inner|phone-members-sheet|timeline-minimap|call-panel|call-window|subagents-panel)$/,
+};
+
 const SAFE_EVENT_PATTERNS = [
+  /^navigation\.phone_slide\.(forward|back)\.(start|end)$/,
   /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,
   /^network\.(app|external|matrix\.(client|media|messages|relations|sync))\.(delete|get|head|other|patch|post|put)\.(complete|error|start)$/,
@@ -278,12 +288,19 @@ const safeEventName = (value: string): string | undefined => {
   return undefined;
 };
 
-const safeData = (value: DeepTraceData | undefined): DeepTraceData | undefined => {
+const safeData = (name: string, value: DeepTraceData | undefined): DeepTraceData | undefined => {
   if (!value) return undefined;
 
   const entries = Object.entries(value)
     .filter(([key, item]) => {
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(key)) return false;
+      if (typeof item === 'string') {
+        return (
+          name.startsWith('interaction.pointer.surface.') &&
+          Object.hasOwn(SURFACE_HIT_STRINGS, key) &&
+          !!SURFACE_HIT_STRINGS[key]?.test(item)
+        );
+      }
       if (item === null || typeof item === 'boolean') return true;
       return typeof item === 'number' && Number.isFinite(item);
     })
@@ -473,7 +490,7 @@ export const recordDeepTraceEvent = (
   }
 
   target.sequence += 1;
-  const normalizedData = safeData(data);
+  const normalizedData = safeData(normalizedName, data);
   const event: DeepTraceEvent = {
     schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
     sessionId: target.sessionId,
@@ -692,6 +709,17 @@ const startGlobalCapture = (target: Runtime): void => {
         : undefined;
     recordDeepTraceEvent(`interaction.pointer.${action.kind}.${action.surface}`, {
       ...slideDetails,
+      ...(action.kind === 'surface' && event.target instanceof Element
+        ? {
+            hit_tag: event.target.localName,
+            hit_test_id: event.target.closest('[data-testid]')?.getAttribute('data-testid') ?? null,
+            hit_inert: !!event.target.closest('[inert]'),
+            blocking_portal: hasBlockingPortalOverlay(),
+            plugin_panel_open: !!document.querySelector(
+              '[data-plugin-panel-open]:not([data-page-slide-copy] *)'
+            ),
+          }
+        : undefined),
       primary: event.isPrimary,
       pointer_count: event.pointerType === 'touch' ? 1 : 0,
     });

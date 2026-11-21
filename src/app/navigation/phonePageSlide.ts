@@ -1,3 +1,4 @@
+import { recordDeepTraceEvent } from '../diagnostics/deepTrace';
 import { flushSync } from 'react-dom';
 import { NavigationType, type createBrowserRouter } from 'react-router-dom';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
@@ -211,6 +212,7 @@ export const slidePhonePage = (change: Change): void => {
   let copy: HTMLElement | undefined;
   let watch: MutationObserver | undefined;
   let ended = false;
+  let trace: { direction: string; startedAt: number } | undefined;
   let finish: () => void = () => undefined;
   const finished = new Promise<void>((resolve) => {
     finish = resolve;
@@ -228,6 +230,11 @@ export const slidePhonePage = (change: Change): void => {
     delete root.dataset.pageSlide;
     delete root.dataset.pageSlideHeld;
     finish();
+    if (trace) {
+      recordDeepTraceEvent(`navigation.phone_slide.${trace.direction}.end`, {
+        duration_ms: Math.round(performance.now() - trace.startedAt),
+      });
+    }
   };
   const run = (sliding: boolean) => {
     if (waiting !== changes) return;
@@ -260,7 +267,10 @@ export const slidePhonePage = (change: Change): void => {
       end();
       return;
     }
-    root.dataset.pageSlide = to > from ? 'forward' : 'back';
+    const direction = to > from ? 'forward' : 'back';
+    root.dataset.pageSlide = direction;
+    trace = { direction, startedAt: performance.now() };
+    recordDeepTraceEvent(`navigation.phone_slide.${direction}.start`);
     copy = show(stage);
     // The slide is over at once where the phone layout goes while it plays (signed out, turned
     // sideways), which takes the copy or its slide with it, and where the page is hidden.
