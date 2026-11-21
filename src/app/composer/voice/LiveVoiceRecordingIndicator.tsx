@@ -80,10 +80,9 @@ export function LiveVoiceRecordingIndicator() {
           </Dialog>
         </OverlayCenter>
       </Overlay>
-      {/* What is read out: the state alone, when the pill comes and when it changes. The pill
-          keeps out of its place's live region, since its time changes every second. */}
+      {/* Announce state once even when several capsules show it. Timers are never live. */}
       <span className={css.Announcement} role="status">
-        {shown && status}
+        {recording !== undefined && status}
       </span>
       {shown &&
         createPortal(

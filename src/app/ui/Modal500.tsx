@@ -6,7 +6,6 @@ import { Modal } from './glass/GlassPrimitives';
 import { glassDenseOverBackdrop } from './styles/Glass.css';
 import { stopPropagation } from '../lib/keyboard';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { DialogNoticeSlot } from './noticeSlots';
 import * as css from './Modal500.css';
 
 interface Modal500Props {
@@ -104,8 +103,6 @@ export function Modal500({
             )}
           >
             {children}
-            {/* After its content, so the dialog's first control stays the one that opens focused. */}
-            <DialogNoticeSlot />
           </Modal>
         </FocusTrap>
       </OverlayCenter>

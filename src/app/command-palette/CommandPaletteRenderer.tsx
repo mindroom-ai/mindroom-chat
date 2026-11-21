@@ -5,7 +5,6 @@ import FocusTrap from 'focus-trap-react';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { Overlay, OverlayBackdrop, OverlayCenter, config } from 'folds';
 import { Modal } from '../ui/glass/GlassPrimitives';
-import { DialogNoticeSlot } from '../ui/noticeSlots';
 import { LogoutDialog } from '../account/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CommandPalette } from './CommandPalette';
@@ -57,14 +56,6 @@ const desktopFrameStyle = {
   paddingInline: config.space.S400,
 } as const;
 
-// The dialog fills its glass shell, so the results scroll inside the shell's corners.
-const dialogStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  flex: '1 1 auto',
-  minHeight: 0,
-} as const;
-
 type PaletteDialogProps = {
   mobile: boolean;
   initialTab: CommandPaletteTab;
@@ -83,20 +74,23 @@ function PaletteDialog({ mobile, initialTab, requestClose, onLogout }: PaletteDi
   const { dialogProps } = useDialog({ 'aria-label': t('commandPalette.inputAria') }, ref);
   usePreventScroll();
 
-  // The glass shell holds the dialog, so the dialog's parent carries the palette's corners.
   const shell = (
-    <Modal size="500" flexHeight variant="Surface" style={mobile ? mobileSheetStyle : undefined}>
-      <div ref={ref} style={dialogStyle} {...mergeProps(overlayProps, dialogProps)}>
-        <CommandPalette
-          requestClose={requestClose}
-          source={source}
-          useMessages={useCommandPaletteMessages}
-          usePeople={useCommandPalettePeople}
-          initialTab={initialTab}
-          mobileSheet={mobile}
-        />
-        <DialogNoticeSlot />
-      </div>
+    <Modal
+      {...mergeProps(overlayProps, dialogProps)}
+      ref={ref}
+      size="500"
+      flexHeight
+      variant="Surface"
+      style={mobile ? mobileSheetStyle : undefined}
+    >
+      <CommandPalette
+        requestClose={requestClose}
+        source={source}
+        useMessages={useCommandPaletteMessages}
+        usePeople={useCommandPalettePeople}
+        initialTab={initialTab}
+        mobileSheet={mobile}
+      />
     </Modal>
   );
 

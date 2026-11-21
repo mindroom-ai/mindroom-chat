@@ -78,7 +78,7 @@ export function VoiceRecordingCapsule({
         dimmed={paused || busy}
         compact
       />
-      <Text className={css.Timer} size="B300" aria-live="polite">
+      <Text className={css.Timer} size="B300">
         {millisecondsToMinutesAndSeconds(elapsedMs)}
       </Text>
       <IconTooltip
@@ -108,9 +108,7 @@ export function VoiceRecordingCapsule({
           </IconButton>
         )}
       </IconTooltip>
-      <span className={css.HiddenStatus} aria-live="polite">
-        {statusText}
-      </span>
+      <span className={css.HiddenStatus}>{statusText}</span>
     </Box>
   );
 }

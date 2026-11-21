@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
+import FocusTrap from 'focus-trap-react';
+import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +9,8 @@ import type { Room } from 'matrix-js-sdk';
 import { phoneNavDrawerOpenAtom } from '../../navigation/phoneNavDrawer';
 import { DialogNoticeSlot, NoticeSlot } from '../../ui/noticeSlots';
 import { BottomSheet } from '../../ui/BottomSheet';
+import { Modal500 } from '../../ui/Modal500';
+import { LogoutDialog } from '../../account/LogoutDialog';
 import { CommandPaletteRenderer } from '../../command-palette/CommandPaletteRenderer';
 import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
 import type { PendingVoiceSendContext } from '../roomInputDrafts';
@@ -13,6 +18,15 @@ import { LiveVoiceRecordingIndicator } from './LiveVoiceRecordingIndicator';
 import { liveVoiceRecordingAtom, liveVoiceRecordingErrorAtom } from './liveVoiceRecording';
 import { VoiceRecorderComposer } from './VoiceRecorderDialog';
 import type { VoiceCaptureSession, VoiceCaptureSnapshot } from './voiceCaptureSession';
+
+vi.unmock('../../ui/glass/GlassPrimitives');
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({
+    getCrypto: () => undefined,
+    getUserId: () => '@me:example.org',
+    getDeviceId: () => 'EXAMPLE',
+  }),
+}));
 
 vi.mock('../../command-palette/commandPaletteItems', () => ({
   useCommandPaletteSource: () => ({
@@ -72,11 +86,35 @@ const composer = () => (
 );
 const pill = () => screen.queryByTestId('live-voice-recording-indicator');
 
+// As in Settings: the shared large dialog opens a separate, focus-trapped log-out prompt.
+function SettingsWithLogout() {
+  const [confirming, setConfirming] = useState(false);
+  const dismiss = () => setConfirming(false);
+  return (
+    <Modal500 requestClose={vi.fn()}>
+      <h2>Settings</h2>
+      <button type="button" onClick={() => setConfirming(true)}>
+        Logout
+      </button>
+      {confirming && (
+        <Overlay open backdrop={<OverlayBackdrop />}>
+          <OverlayCenter>
+            <FocusTrap focusTrapOptions={{ initialFocus: false, onDeactivate: dismiss }}>
+              <LogoutDialog handleClose={dismiss} />
+            </FocusTrap>
+          </OverlayCenter>
+        </Overlay>
+      )}
+    </Modal500>
+  );
+}
+
 describe('LiveVoiceRecordingIndicator', () => {
   afterEach(() => {
     cleanup();
     document.body.innerHTML = '';
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('shows nothing while no recording runs', () => {
@@ -162,6 +200,72 @@ describe('LiveVoiceRecordingIndicator', () => {
     expect(status.textContent).toBe('Voice recording paused');
     act(() => store.set(liveVoiceRecordingAtom, undefined));
     expect(status.textContent).toBe('');
+  });
+
+  it('announces recording state once for two capsules without announcing their timer ticks', () => {
+    const store = createStore();
+    store.set(liveVoiceRecordingAtom, recordingSession().session);
+    const { container } = render(
+      <Provider store={store}>
+        {composer()}
+        {composer()}
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('Voice recording active');
+    expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(0);
+    expect(screen.getAllByText('0:32')).toHaveLength(2);
+
+    act(() => store.set(liveVoiceRecordingAtom, recordingSession({ elapsedMs: 33_000 }).session));
+    expect(screen.getAllByText('0:33')).toHaveLength(2);
+    expect(status.textContent).toBe('Voice recording active');
+    act(() => store.set(liveVoiceRecordingAtom, recordingSession({ phase: 'paused' }).session));
+    expect(screen.getByRole('status')).toBe(status);
+    expect(status.textContent).toBe('Voice recording paused');
+    act(() => store.set(liveVoiceRecordingAtom, recordingSession().session));
+    expect(status.textContent).toBe('Voice recording active');
+  });
+
+  it('moves Discard into the log-out confirmation and back to Settings when it closes', async () => {
+    // Treat attached elements as laid out so the real focus trap can find its controls in jsdom.
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
+      this: HTMLElement
+    ) {
+      return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+    });
+    const store = createStore();
+    const { session, discard } = recordingSession();
+    store.set(liveVoiceRecordingAtom, session);
+    render(
+      <Provider store={store}>
+        <NoticeSlot place="page" />
+        {composer()}
+        <SettingsWithLogout />
+        <LiveVoiceRecordingIndicator />
+      </Provider>
+    );
+    const settings = screen.getByRole('dialog', { name: 'Settings' });
+    const openLogout = async () => {
+      await act(async () => {
+        fireEvent.click(within(settings).getByRole('button', { name: 'Logout' }));
+      });
+    };
+    const discardLabel = 'Discard voice recording';
+    expect(settings.contains(pill())).toBe(true);
+
+    await openLogout();
+    const confirmation = screen.getByRole('dialog', { name: 'Logout' });
+    expect(confirmation.contains(pill())).toBe(true);
+    fireEvent.click(within(confirmation).getByText('Cancel'));
+    expect(screen.queryByRole('dialog', { name: 'Logout' })).toBeNull();
+    expect(settings.contains(pill())).toBe(true);
+
+    await openLogout();
+    const reopened = screen.getByRole('dialog', { name: 'Logout' });
+    fireEvent.click(within(reopened).getByRole('button', { name: discardLabel }));
+    expect(discard).toHaveBeenCalledOnce();
+    expect(pill()).toBeNull();
   });
 
   it('shows inside what covers the page, where the focus held there reaches it', () => {

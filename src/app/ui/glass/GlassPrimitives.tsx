@@ -28,6 +28,7 @@ import {
   useSurfaceContext,
 } from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
+import { DialogNoticeSlot } from '../noticeSlots';
 import { MenuRoleProvider, useMenuBehaviour, useMenuItemRole } from './menuBehaviour';
 import { useScrolledBeneath } from './useScrolledBeneath';
 
@@ -165,7 +166,7 @@ export const Menu = as<'div', MenuProps>(
 type ModalProps = Pick<ComponentProps<typeof FoldsModal>, 'variant' | 'size' | 'flexHeight'> &
   AppearanceProps;
 export const Modal = as<'div', ModalProps>(
-  ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
+  ({ className, children, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
       <ScrollHeaderProvider value={false}>
@@ -179,7 +180,10 @@ export const Modal = as<'div', ModalProps>(
               appearance === 'glass' && glassScrollPanel,
               className
             )}
-          />
+          >
+            {children}
+            <DialogNoticeSlot />
+          </FoldsModal>
         </SurfaceProvider>
       </ScrollHeaderProvider>
     );
@@ -188,7 +192,7 @@ export const Modal = as<'div', ModalProps>(
 
 type DialogProps = Pick<ComponentProps<typeof FoldsDialog>, 'variant'> & AppearanceProps;
 export const Dialog = as<'div', DialogProps>(
-  ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
+  ({ className, children, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
       <ScrollHeaderProvider value={false}>
@@ -202,7 +206,10 @@ export const Dialog = as<'div', DialogProps>(
               appearance === 'glass' && glassScrollPanel,
               className
             )}
-          />
+          >
+            {children}
+            <DialogNoticeSlot />
+          </FoldsDialog>
         </SurfaceProvider>
       </ScrollHeaderProvider>
     );

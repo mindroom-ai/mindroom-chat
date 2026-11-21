@@ -18,11 +18,11 @@ and spaces, and send it wherever they press Send.
   `liveVoiceRecordingAtom` in `src/app/composer/voice/liveVoiceRecording.ts`.
 - The mic button starts it. Only Send, Discard, or account exit ends it. No unmount, navigation
   or layout change ends it.
-- Every mounted composer shows the live capsule while it exists, with the same timer, waveform
-  and pause state. Pause, resume and Discard act on the shared recording. Mic buttons stay
-  disabled.
-- **A Send takes the recording at the press.** The Send button or Enter claims the recording
-  in the same task: it leaves the atom, capture stops, and no more audio is recorded. The same
+- Every mounted voice-capable composer shows the live capsule while it exists, with the same
+  timer, waveform and pause state. Pause, resume and Discard act on the shared recording. Mic
+  buttons stay disabled. A fork draft neither shows nor sends the recording.
+- **A Send takes the recording at the press.** In a voice-capable composer, the Send button or
+  Enter claims the recording in the same task: it leaves the atom, capture stops, and no more audio is recorded. The same
   task takes that composer's destination and bundle: room, thread, reply, typed text and staged
   files. A second Send in another composer finds nothing to claim. The voice key sends only
   from a composer without text or staged files; a tap with either present focuses the editor.

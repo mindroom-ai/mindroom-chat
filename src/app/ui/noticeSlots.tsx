@@ -1,6 +1,15 @@
-import { type AnimationEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type AnimationEvent,
+  type ComponentPropsWithoutRef,
+  forwardRef,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { useInert } from '../lib/hooks/useInert';
+import { layerOf } from '../lib/overlayFocus';
 import * as css from './noticeSlots.css';
 
 // Places a floating notice can be shown in, offered by the layout while it shows them. The new
@@ -29,7 +38,7 @@ const slotAtoms = {
   sheet: sheetNoticeSlotAtom,
 };
 
-/** The places of open dialogs (Modal500 and BottomSheet), the topmost one last. */
+/** The places of portaled dialog surfaces, in opening order. */
 export const dialogNoticeSlotsAtom = atom<readonly HTMLElement[]>([]);
 
 /**
@@ -80,20 +89,32 @@ export function NoticeSlot({ place, phone = false, covered = false }: NoticeSlot
 }
 
 /**
- * The notice place of a dialog, for as long as the dialog is open: of several open over
- * each other, the topmost one's is offered. A live region, as the other places are.
+ * Appended inside a shared dialog surface, after its controls to preserve initial focus.
+ * Only a portaled dialog covers the page; an inline surface does not take a stack entry.
  */
 export function DialogNoticeSlot() {
   const setSlots = useSetAtom(dialogNoticeSlotsAtom);
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = ref.current;
-    if (!element) return undefined;
+    if (!element || !layerOf(element.ownerDocument, element)) return undefined;
     setSlots((slots) => [...slots, element]);
     return () => setSlots((slots) => slots.filter((slot) => slot !== element));
   }, [setSlots]);
-  return <div ref={ref} className={css.CoverSlot} aria-live="polite" />;
+  return <div ref={ref} className={css.CoverSlot} aria-live="polite" data-dialog-notice-slot />;
 }
+
+/** A dialog with its own layout rather than a glass Modal or Dialog. */
+export const DialogFrame = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'>>(
+  function DialogFrame({ children, ...props }, ref) {
+    return (
+      <div ref={ref} role="dialog" {...props}>
+        {children}
+        <DialogNoticeSlot />
+      </div>
+    );
+  }
+);
 
 /**
  * The layer that can cover a phone's page, the drawer or a sheet: whether it is out
