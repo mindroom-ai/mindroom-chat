@@ -630,9 +630,9 @@ const getErrorCode = (value: unknown): number => {
 /**
  * What a failure did to the Matrix sync store's saved data. 'failed': a save failed, the data is
  * kept and the save is tried again (of the saves that fail in a row, only the first is recorded).
- * 'stopped': a sync batch could not be taken or a room's stored members not cleared, the data
- * is kept and nothing more is saved. 'degraded': the data is deleted, because the saved sync
- * could not be read or the disk was full (code 12). `error_code` is `getErrorCode`'s.
+ * 'stopped': a sync batch could not be taken, the data is kept and nothing more is saved.
+ * 'degraded': the data is deleted, because the saved sync could not be read, a clear of a
+ * room's stored members failed, or the disk was full (code 12). `error_code` is `getErrorCode`'s.
  */
 export const recordSyncStoreFailure = (
   outcome: 'failed' | 'stopped' | 'degraded',
