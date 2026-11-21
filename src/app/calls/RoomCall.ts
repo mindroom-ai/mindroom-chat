@@ -151,6 +151,9 @@ export class RoomCall {
 
   private state: CallState;
 
+  // Opening an input and selecting a device are separate: selecting a muted input does not open it.
+  private readonly failedDevices = new Set<'microphone' | 'camera' | CallDeviceKind>();
+
   private readonly listeners = new Set<() => void>();
 
   private media?: MediaRoom;
@@ -600,40 +603,44 @@ export class RoomCall {
       this.keyProvider?.setParticipantKey(own.key, own.index, this.identity).catch(() => undefined);
     }
 
-    let problem: CallProblem | undefined;
-    await media.localParticipant.setMicrophoneEnabled(this.state.microphone).catch(() => {
-      problem = 'device';
-      this.update({ microphone: false });
-    });
-    if (this.state.camera) {
-      await media.localParticipant.setCameraEnabled(true).catch(() => {
-        problem = 'device';
-        this.update({ camera: false });
-      });
+    await this.setMicrophone(this.state.microphone);
+    if (!this.stopped && this.state.camera) await this.setCamera(true);
+  }
+
+  private clearDeviceFailure(kind: 'microphone' | 'camera' | CallDeviceKind) {
+    if (
+      this.failedDevices.delete(kind) &&
+      this.failedDevices.size === 0 &&
+      this.state.problem === 'device'
+    ) {
+      this.update({ problem: undefined });
     }
+  }
+
+  private async setInputEnabled(kind: 'microphone' | 'camera', on: boolean) {
+    this.update({ [kind]: on });
+    const participant = this.media?.localParticipant;
+    if (!participant || this.state.phase === 'connecting') return;
+    const publication = await (kind === 'microphone'
+      ? participant.setMicrophoneEnabled(on)
+      : participant.setCameraEnabled(on)
+    ).catch(() => {
+      if (this.stopped) return undefined;
+      this.failedDevices.add(kind);
+      this.update({ [kind]: false, problem: 'device' });
+      return undefined;
+    });
     if (this.stopped) return;
-    this.update({ problem });
+    if (on && publication) this.clearDeviceFailure(kind);
     this.refresh();
   }
 
-  async setMicrophone(on: boolean) {
-    this.update({ microphone: on });
-    const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
-    await participant.setMicrophoneEnabled(on).catch(() => {
-      this.update({ microphone: false, problem: 'device' });
-    });
-    this.refresh();
+  setMicrophone(on: boolean) {
+    return this.setInputEnabled('microphone', on);
   }
 
-  async setCamera(on: boolean) {
-    this.update({ camera: on });
-    const participant = this.media?.localParticipant;
-    if (!participant || this.state.phase === 'connecting') return;
-    await participant.setCameraEnabled(on).catch(() => {
-      this.update({ camera: false, problem: 'device' });
-    });
-    this.refresh();
+  setCamera(on: boolean) {
+    return this.setInputEnabled('camera', on);
   }
 
   /**
@@ -666,9 +673,14 @@ export class RoomCall {
 
   async setDevice(kind: CallDeviceKind, deviceId: string) {
     this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
-    await this.media?.switchActiveDevice(kind, deviceId).catch(() => {
+    const switched = await this.media?.switchActiveDevice(kind, deviceId).catch(() => false);
+    if (this.stopped) return;
+    if (switched) {
+      this.clearDeviceFailure(kind);
+    } else if (switched === false) {
+      this.failedDevices.add(kind);
       this.update({ problem: 'device' });
-    });
+    }
     this.refresh();
   }
 

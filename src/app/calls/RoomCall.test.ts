@@ -39,8 +39,10 @@ vi.mock('livekit-client', async () => {
       isMicrophoneEnabled: false,
       getTrackPublication: vi.fn((_source: string): unknown => undefined),
       trackPublications: new Map<string, unknown>(),
-      setMicrophoneEnabled: vi.fn(async () => undefined),
-      setCameraEnabled: vi.fn(async () => undefined),
+      setMicrophoneEnabled: vi.fn(async (on: boolean) =>
+        on ? { source: 'microphone' } : undefined
+      ),
+      setCameraEnabled: vi.fn(async (on: boolean) => (on ? { source: 'camera' } : undefined)),
       setScreenShareEnabled: vi.fn(async () => undefined),
       setTrackSubscriptionPermissions: vi.fn(),
     };
@@ -360,7 +362,8 @@ describe('RoomCall join', () => {
     expect(media.options.encryption).toBeUndefined();
     // The device lock stays held while the call runs.
     expect(fakes.releases[0]).not.toHaveBeenCalled();
-    expect(call.getState()).toMatchObject({ phase: 'connected', problem: undefined });
+    expect(call.getState().phase).toBe('connected');
+    expect(call.getState().problem).toBeUndefined();
   });
 
   it('encrypts the media of an encrypted room and shares its keys over the session', async () => {
@@ -415,7 +418,7 @@ describe('RoomCall join', () => {
     expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
   });
 
-  it('goes on without a microphone it cannot open', async () => {
+  it('goes on without a microphone it cannot open and clears the warning after retrying it', async () => {
     fakes.connect = async (room) => {
       (room as FakeMediaRoom).localParticipant.setMicrophoneEnabled.mockRejectedValueOnce(
         new Error('NotAllowedError')
@@ -430,6 +433,84 @@ describe('RoomCall join', () => {
       problem: 'device',
       microphone: false,
     });
+
+    const media = onlyMediaRoom();
+    // Staying muted does not resolve a failure to open the microphone.
+    await call.setMicrophone(false);
+    expect(call.getState().problem).toBe('device');
+
+    const opened = pending<{ source: string }>();
+    media.localParticipant.setMicrophoneEnabled.mockReturnValueOnce(opened.promise);
+    const retry = call.setMicrophone(true);
+    expect(call.getState()).toMatchObject({ microphone: true, problem: 'device' });
+    media.emit('LocalTrackPublished', { source: 'screen_share' });
+    expect(call.getState().problem).toBe('device');
+
+    opened.resolve({ source: 'microphone' });
+    await retry;
+    expect(call.getState().problem).toBeUndefined();
+  });
+
+  it('keeps the warning until both the microphone and camera have recovered', async () => {
+    const { call } = setup();
+    await call.join();
+    const { localParticipant } = onlyMediaRoom();
+    localParticipant.setMicrophoneEnabled.mockRejectedValueOnce(new Error('NotReadableError'));
+    localParticipant.setCameraEnabled.mockRejectedValueOnce(new Error('NotReadableError'));
+
+    await call.setMicrophone(true);
+    await call.setCamera(true);
+    expect(call.getState()).toMatchObject({ microphone: false, camera: false, problem: 'device' });
+
+    await call.setCamera(true);
+    expect(call.getState()).toMatchObject({ camera: true, problem: 'device' });
+
+    // LiveKit may finish waiting for a publication without getting one.
+    localParticipant.setMicrophoneEnabled.mockResolvedValueOnce(undefined);
+    await call.setMicrophone(true);
+    expect(call.getState().problem).toBe('device');
+
+    await call.setMicrophone(true);
+    expect(call.getState().problem).toBeUndefined();
+  });
+
+  it('clears a failed switch only after successfully selecting a device of the same kind', async () => {
+    const { call } = setup();
+    await call.join();
+    const { switchActiveDevice } = onlyMediaRoom();
+    switchActiveDevice.mockRejectedValueOnce(new Error('NotReadableError'));
+    await call.setDevice('audioinput', 'mic-b');
+    expect(call.getState().problem).toBe('device');
+
+    await call.setDevice('videoinput', 'camera-b');
+    await call.setMicrophone(true);
+    expect(call.getState().problem).toBe('device');
+
+    switchActiveDevice.mockResolvedValueOnce(false);
+    await call.setDevice('audioinput', 'mic-b');
+    expect(call.getState().problem).toBe('device');
+
+    await call.setDevice('audioinput', 'mic-b');
+    expect(call.getState().problem).toBeUndefined();
+  });
+
+  it('preserves a connection problem if a device retry finishes after the call fails', async () => {
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    media.localParticipant.setMicrophoneEnabled.mockRejectedValueOnce(
+      new Error('NotReadableError')
+    );
+    await call.setMicrophone(true);
+
+    const opened = pending<{ source: string }>();
+    media.localParticipant.setMicrophoneEnabled.mockReturnValueOnce(opened.promise);
+    const retry = call.setMicrophone(true);
+    media.emit('Disconnected');
+    opened.resolve({ source: 'microphone' });
+    await retry;
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
   });
 
   it('fails with the connection problem, and withdraws the membership, when the media drops while connecting', async () => {
