@@ -27,6 +27,8 @@ const withDb = async <T>(work: (db: IDBPDatabase<JournalDb>) => Promise<T>) => {
 };
 
 const held = new Map<string, () => void>();
+/** The writes still queued for a recording this tab is making. */
+const tails = new Map<string, () => Promise<unknown>>();
 export const holdVoiceRecording = (id: string): Promise<boolean> =>
   new Promise<boolean>((resolve) => {
     const locks = globalThis.navigator?.locks;
@@ -45,9 +47,14 @@ export const holdVoiceRecording = (id: string): Promise<boolean> =>
       .catch(() => resolve(false));
   }).catch(() => false);
 
-export const releaseVoiceRecording = (id: string): void => {
+const unlock = (id: string): void => {
   held.get(id)?.();
   held.delete(id);
+  tails.delete(id);
+};
+/** Gives the recording's lock up, once the writes queued for it are on disk. */
+export const releaseVoiceRecording = (id: string): void => {
+  void Promise.resolve(tails.get(id)?.()).then(() => unlock(id));
 };
 
 const chunksOf = (id: string) => IDBKeyRange.bound([id, 0], [id, Infinity]);
@@ -69,7 +76,7 @@ export const deleteVoiceRecording = async (id?: string): Promise<void> => {
   if (!id) return;
   await starts.get(id);
   const deleted = await withDb((db) => change(db, (tx) => deleteRows(tx, id)));
-  if (deleted) releaseVoiceRecording(id);
+  if (deleted) unlock(id);
 };
 
 export const beginVoiceRecording = (userId: string, startedAt: number, mimeType: string) => {
@@ -78,18 +85,17 @@ export const beginVoiceRecording = (userId: string, startedAt: number, mimeType:
   const start = holdVoiceRecording(id).then(async (locked) => {
     if (!locked) return false;
     const stored = await withDb((db) => db.add('recordings', { id, userId, startedAt, mimeType }));
-    if (!stored) releaseVoiceRecording(id);
+    if (!stored) unlock(id);
     return !!stored;
   });
   starts.set(id, start);
   void start.then(() => starts.delete(id));
   let tail: Promise<unknown> = start;
+  tails.set(id, () => tail);
   return {
     id,
     remove: () => deleteVoiceRecording(id),
-    release: () => {
-      void tail.then(() => releaseVoiceRecording(id));
-    },
+    release: () => releaseVoiceRecording(id),
     append: async (seq: number, data: Blob, elapsedMs: number) => {
       const bytes = data.arrayBuffer().catch(() => undefined);
       const next = tail.then(async () => {
@@ -146,7 +152,7 @@ export const recoverVoiceRecording = async (
         });
         return;
       } finally {
-        if (!accepted) releaseVoiceRecording(id);
+        if (!accepted) unlock(id);
       }
     }
     /* eslint-enable no-await-in-loop, no-continue */
@@ -162,5 +168,5 @@ export const clearVoiceRecordings = async (userId: string): Promise<void> => {
       return ids;
     })
   );
-  deleted?.forEach(releaseVoiceRecording);
+  deleted?.forEach(unlock);
 };
