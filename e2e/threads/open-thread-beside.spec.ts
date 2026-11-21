@@ -75,6 +75,10 @@ test('Open in second column shows a second thread in its own column at each widt
   // The stored layout stays the default, full, so a thread alone fills the page.
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   await expect(card(page, beta)).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.locator('[data-compact-room-view]'),
+    'The Compact list forms its own stacking context so WebKit does not composite every card'
+  ).toHaveCSS('isolation', 'isolate');
 
   // Wide: messages | B.
   await (await openCardMenu(page, beta))
