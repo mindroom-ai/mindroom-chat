@@ -6,9 +6,13 @@
  *
  * This module knows capture and jotai only: no room, thread, draft or Matrix type belongs here
  * (`__tests__/voiceOwnership.architecture.test.ts`). Delivery is `useVoiceRecorder.ts`.
+ *
+ * The shell loads this module on its first download, to see a recording and to end it with the
+ * account, so it knows capture by its types alone; `startLiveVoiceRecording.ts`, loaded with the
+ * composer, brings the capture code.
  */
 import { atom, type createStore } from 'jotai';
-import { createVoiceCaptureSession, type VoiceCaptureSession } from './voiceCaptureSession';
+import type { VoiceCaptureSession } from './voiceCaptureSession';
 
 type JotaiStore = ReturnType<typeof createStore>;
 
@@ -41,13 +45,17 @@ const takeLiveVoiceRecording = (store: JotaiStore): VoiceCaptureSession | undefi
 };
 
 /**
- * Starts the account's one recording; false when one runs already or the microphone did not
- * start. A recording that ends on its own (no microphone, a recorder that stops) leaves the atom
- * with its reason in `liveVoiceRecordingErrorAtom`.
+ * Starts the account's one recording in a session from `createSession`; false when one runs
+ * already or the microphone did not start. A recording that ends on its own (no microphone, a
+ * recorder that stops) leaves the atom with its reason in `liveVoiceRecordingErrorAtom`.
+ * Only `startLiveVoiceRecording.ts` calls this, with the capture module's session.
  */
-export const startLiveVoiceRecording = async (store: JotaiStore): Promise<boolean> => {
+export const beginLiveVoiceRecording = async (
+  store: JotaiStore,
+  createSession: () => VoiceCaptureSession
+): Promise<boolean> => {
   if (store.get(liveVoiceRecordingAtom)) return false;
-  const session = createVoiceCaptureSession();
+  const session = createSession();
   store.set(liveVoiceRecordingAtom, session);
   store.set(liveVoiceRecordingErrorAtom, undefined);
   // Only the recording the account still holds reports here: one that was claimed is its

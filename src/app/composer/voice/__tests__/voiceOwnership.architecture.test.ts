@@ -73,12 +73,28 @@ describe('voice recorder ownership architecture', () => {
         .filter((path) => readSource(path).includes('createVoiceCaptureSession'))
         .map(appRelativePath)
         .sort()
-    ).toEqual(['composer/voice/liveVoiceRecording.ts', 'composer/voice/voiceCaptureSession.ts']);
+    ).toEqual([
+      'composer/voice/startLiveVoiceRecording.ts',
+      'composer/voice/voiceCaptureSession.ts',
+    ]);
+    // The owner makes the session it is handed by that one start module.
+    expect(
+      walkProductionSources(APP_ROOT)
+        .filter((path) => readSource(path).includes('beginLiveVoiceRecording'))
+        .map(appRelativePath)
+        .sort()
+    ).toEqual([
+      'composer/voice/liveVoiceRecording.ts',
+      'composer/voice/startLiveVoiceRecording.ts',
+    ]);
 
-    // Capture and jotai only: no room, thread, draft, Matrix type or React.
-    expect(moduleDependencies(LIVE_OWNER).map((dependency) => dependency.specifier)).toEqual([
-      'jotai',
-      './voiceCaptureSession',
+    // Capture and jotai only: no room, thread, draft, Matrix type or React. Capture by its types
+    // alone, so the shell, which loads the owner at once, loads no capture code.
+    expect(
+      moduleDependencies(LIVE_OWNER).map(({ specifier, typeOnly }) => ({ specifier, typeOnly }))
+    ).toEqual([
+      { specifier: 'jotai', typeOnly: false },
+      { specifier: './voiceCaptureSession', typeOnly: true },
     ]);
     expect([...resolvedDependencies(LIVE_OWNER)].map(appRelativePath)).toEqual([
       'composer/voice/voiceCaptureSession.ts',

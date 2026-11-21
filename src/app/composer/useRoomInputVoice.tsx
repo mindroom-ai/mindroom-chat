@@ -40,11 +40,8 @@ import {
   VoiceRecorderComposer,
   type VoiceRecorderComposerHandle,
 } from './voice/VoiceRecorderDialog';
-import {
-  liveVoiceRecordingAtom,
-  startLiveVoiceRecording,
-  voiceAccountGuard,
-} from './voice/liveVoiceRecording';
+import { liveVoiceRecordingAtom, voiceAccountGuard } from './voice/liveVoiceRecording';
+import { startLiveVoiceRecording } from './voice/startLiveVoiceRecording';
 import { voiceDraftRestoresAtom } from './voice/savedVoiceDraft';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';

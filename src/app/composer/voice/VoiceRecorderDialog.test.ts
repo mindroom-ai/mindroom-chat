@@ -5,11 +5,8 @@ import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoiceRecorderComposer, VoiceRecorderComposerHandle } from './VoiceRecorderDialog';
 import { pendingVoiceSendDraftAtom, type PendingVoiceSendContext } from '../roomInputDrafts';
-import {
-  discardLiveVoiceRecording,
-  liveVoiceRecordingAtom,
-  startLiveVoiceRecording,
-} from './liveVoiceRecording';
+import { discardLiveVoiceRecording, liveVoiceRecordingAtom } from './liveVoiceRecording';
+import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 
 const TEST_ROOM_ID = '!room:example.org';
 

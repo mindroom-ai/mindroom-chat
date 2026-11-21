@@ -615,13 +615,12 @@ vi.mock('../RoomInputExtensions', async () => {
 
 // The microphone is voiceCaptureSession's to test, and the shared recording useVoiceRecorder's:
 // here the mic button starts a recording at once, which the mocked recorder below shows.
-vi.mock('../voice/liveVoiceRecording', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../voice/liveVoiceRecording')>();
+vi.mock('../voice/startLiveVoiceRecording', async () => {
+  const { liveVoiceRecordingAtom } = await import('../voice/liveVoiceRecording');
   return {
-    ...actual,
     startLiveVoiceRecording: async (store: ReturnType<typeof createStore>) => {
-      if (store.get(actual.liveVoiceRecordingAtom)) return false;
-      store.set(actual.liveVoiceRecordingAtom, {
+      if (store.get(liveVoiceRecordingAtom)) return false;
+      store.set(liveVoiceRecordingAtom, {
         canStop: () => true,
         discard: async () => false,
         reset: () => undefined,
@@ -2895,9 +2894,11 @@ describe('RoomInput', () => {
         put: async () => undefined,
       } as unknown as idb.IDBPDatabase;
       const { openDB } = await vi.importActual<typeof idb>('idb');
-      const open = vi.mocked(idb.openDB).mockImplementation((name, version, callbacks) =>
-        name === 'mindroom-voice-drafts' ? Promise.resolve(db) : openDB(name, version, callbacks)
-      );
+      const open = vi
+        .mocked(idb.openDB)
+        .mockImplementation((name, version, callbacks) =>
+          name === 'mindroom-voice-drafts' ? Promise.resolve(db) : openDB(name, version, callbacks)
+        );
       const { renderer, store } = await renderRoomInput(createStore(), undefined, shownComposer);
       const mic = () =>
         renderer.root.find(

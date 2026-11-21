@@ -26,8 +26,8 @@ import {
   discardLiveVoiceRecording,
   liveVoiceRecordingAtom,
   liveVoiceRecordingErrorAtom,
-  startLiveVoiceRecording,
 } from './liveVoiceRecording';
+import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 import { VOICE_RECORDER_STOP_TIMEOUT_MS } from './voiceCaptureSession';
 
 const flightRecorderMocks = vi.hoisted(() => ({
