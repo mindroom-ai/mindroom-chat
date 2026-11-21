@@ -4172,7 +4172,7 @@ index 7b41057..2a51149 100644
      isNewlyCreated(): Promise<boolean>;
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-index 6ce0bac..b933ffb 100644
+index 6ce0bac..9d170c2 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 @@ -96,8 +96,16 @@ function txnAsPromise(txn) {
@@ -4233,7 +4233,50 @@ index 6ce0bac..b933ffb 100644
    /** @returns whether or not the database was newly created in this session. */
    isNewlyCreated() {
      return Promise.resolve(this._isNewlyCreated);
-@@ -314,17 +340,21 @@ export class LocalIndexedDBStoreBackend {
+@@ -283,20 +309,28 @@ export class LocalIndexedDBStoreBackend {
+       logger.log("LL: backend about to store ".concat(membershipEvents.length) + " members for ".concat(roomId));
+       var tx = _this2.db.transaction(["oob_membership_events"], "readwrite");
+       var store = tx.objectStore("oob_membership_events");
+-      membershipEvents.forEach(e => {
+-        store.put(e);
+-      });
+-      // aside from all the events, we also write a marker object to the store
+-      // to mark the fact that OOB members have been written for this room.
+-      // It's possible that 0 members need to be written as all where previously know
+-      // but we still need to know whether to return null or [] from getOutOfBandMembers
+-      // where null means out of band members haven't been stored yet for this room
+-      var markerObject = {
+-        room_id: roomId,
+-        oob_written: true,
+-        state_key: 0
+-      };
+-      store.put(markerObject);
++      try {
++        membershipEvents.forEach(e => {
++          store.put(e);
++        });
++        // aside from all the events, we also write a marker object to the store
++        // to mark the fact that OOB members have been written for this room.
++        // It's possible that 0 members need to be written as all where previously know
++        // but we still need to know whether to return null or [] from getOutOfBandMembers
++        // where null means out of band members haven't been stored yet for this room
++        var markerObject = {
++          room_id: roomId,
++          oob_written: true,
++          state_key: 0
++        };
++        store.put(markerObject);
++      } catch (e) {
++        // A write that throws leaves the earlier ones queued, and they would commit.
++        try {
++          tx.abort();
++        } catch (_unused) {}
++        throw e;
++      }
+       yield txnAsPromise(tx);
+       logger.log("LL: backend done storing for ".concat(roomId, "!"));
+     })();
+@@ -314,17 +348,21 @@ export class LocalIndexedDBStoreBackend {
        var store = readTx.objectStore("oob_membership_events");
        var roomIndex = store.index("room");
        var roomRange = IDBKeyRange.only(roomId);
@@ -4258,7 +4301,7 @@ index 6ce0bac..b933ffb 100644
      })();
    }
  
-@@ -405,60 +435,66 @@ export class LocalIndexedDBStoreBackend {
+@@ -405,60 +443,66 @@ export class LocalIndexedDBStoreBackend {
          return _this4.syncToDatabasePromise;
        }
        userTuples.unshift(..._this4.pendingUserPresenceData);
@@ -4355,7 +4398,7 @@ index 6ce0bac..b933ffb 100644
    }
  
    /**
-@@ -466,21 +502,17 @@ export class LocalIndexedDBStoreBackend {
+@@ -466,21 +510,17 @@ export class LocalIndexedDBStoreBackend {
     * Users with the same 'userId' will be replaced.
     * Presence events should be the event in its raw form (not the Event
     * object)
@@ -4387,20 +4430,21 @@ index 6ce0bac..b933ffb 100644
  
    /**
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
-index 26f6aa9..8413c70 100644
+index 26f6aa9..793e861 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.d.ts
-@@ -24,6 +24,9 @@ export declare class IndexedDBStore extends MemoryStore {
+@@ -24,6 +24,10 @@ export declare class IndexedDBStore extends MemoryStore {
       */
      readonly backend: IIndexedDBBackend;
      private startedUp;
 +    private degraded;
 +    private savesStopped;
 +    private failedSaves;
++    private saving?;
      private syncTs;
      private userModifiedMap;
      private emitter;
-@@ -56,7 +59,7 @@ export declare class IndexedDBStore extends MemoryStore {
+@@ -56,7 +60,7 @@ export declare class IndexedDBStore extends MemoryStore {
       */
      constructor(opts: IOpts);
      /** Re-exports `TypedEventEmitter.on` */
@@ -4409,18 +4453,19 @@ index 26f6aa9..8413c70 100644
      /**
       * @returns Resolved when loaded from indexed db.
       */
-@@ -129,6 +132,9 @@ export declare class IndexedDBStore extends MemoryStore {
+@@ -129,6 +133,10 @@ export declare class IndexedDBStore extends MemoryStore {
       *
       * @param func - The degradable work to do.
       * @param fallback - The method name for fallback.
 +     * @param onFailure - What a failure other than a full storage does. "degrade": as above.
-+     *     "keep", for the save and for reads: the saved data is kept and the one operation
-+     *     uses the fallback. "stopSaving": the same, and nothing more is saved.
++     *     "keep", for reads and for writes of one transaction, which an abort undoes: the
++     *     saved data is kept and the one operation uses the fallback. "stopSaving": the same,
++     *     and nothing more is saved.
       * @returns A wrapped member function.
       */
      private degradable;
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..ab62009 100644
+index 8320c66..82e75a9 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 @@ -35,6 +35,9 @@ import { TypedEventEmitter } from "../models/typed-event-emitter.js";
@@ -4433,7 +4478,7 @@ index 8320c66..ab62009 100644
  
  export class IndexedDBStore extends MemoryStore {
    static exists(indexedDB, dbName) {
-@@ -77,6 +80,10 @@ export class IndexedDBStore extends MemoryStore {
+@@ -77,6 +80,12 @@ export class IndexedDBStore extends MemoryStore {
      super(opts);
      _defineProperty(this, "backend", void 0);
      _defineProperty(this, "startedUp", false);
@@ -4441,18 +4486,12 @@ index 8320c66..ab62009 100644
 +    // No more saves: the store is degraded, or the saved sync would no longer match what follows it.
 +    _defineProperty(this, "savesStopped", false);
 +    _defineProperty(this, "failedSaves", 0);
++    // The save in flight. Callers that overlap share it, so its failure counts once.
++    _defineProperty(this, "saving", void 0);
      _defineProperty(this, "syncTs", 0);
      // Records the last-modified-time of each user at the last point we saved
      // the database, such that we can derive the set if users that have been
-@@ -93,19 +100,21 @@ export class IndexedDBStore extends MemoryStore {
-      * is no saved sync data.
-      */
-     _defineProperty(this, "getSavedSync", this.degradable(() => {
-+      // On failure the backend still holds the snapshot that could not be read. The full
-+      // sync that follows is merged into it, and must not be saved.
-       return this.backend.getSavedSync();
--    }, "getSavedSync"));
-+    }, "getSavedSync", "stopSaving"));
+@@ -98,14 +107,14 @@ export class IndexedDBStore extends MemoryStore {
      /** @returns whether or not the database was newly created in this session. */
      _defineProperty(this, "isNewlyCreated", this.degradable(() => {
        return this.backend.isNewlyCreated();
@@ -4469,17 +4508,26 @@ index 8320c66..ab62009 100644
      /**
       * Delete all data from this store.
       * @returns Promise which resolves if the data was deleted from the database.
-@@ -133,11 +142,26 @@ export class IndexedDBStore extends MemoryStore {
+@@ -120,6 +129,7 @@ export class IndexedDBStore extends MemoryStore {
+       });
+     }, null));
+     _defineProperty(this, "reallySave", this.degradable(() => {
++      if (this.saving) return this.saving;
+       this.syncTs = Date.now(); // set now to guard against multi-writes
+ 
+       // work out changed users (this doesn't handle deletions but you
+@@ -133,11 +143,31 @@ export class IndexedDBStore extends MemoryStore {
          // note that we've saved this version of the user
          this.userModifiedMap[u.userId] = u.getLastModifiedTime();
        }
 -      return this.backend.syncToDatabase(userTuples);
 -    }, null));
-+      return this.backend.syncToDatabase(userTuples).then(() => {
++      var saving = this.backend.syncToDatabase(userTuples).then(() => {
 +        this.failedSaves = 0;
 +      }, e => {
 +        // These users were not saved after all.
 +        for (var [userId] of userTuples) delete this.userModifiedMap[userId];
++        // Not a failed save to count: the wrapper returns, or degrades the store.
 +        if (this.degraded || (e === null || e === void 0 ? void 0 : e.name) === "QuotaExceededError") throw e;
 +        // What was saved before is intact: a save is one transaction, which an abort
 +        // undoes. WebKit aborts the transactions in flight when it suspends the app.
@@ -4489,6 +4537,10 @@ index 8320c66..ab62009 100644
 +        this.syncTs = Date.now() - WRITE_DELAY_MS + retryMs;
 +        if (this.failedSaves === 1) this.emitter.emit("failed", e);
 +      });
++      this.saving = saving.finally(() => {
++        this.saving = undefined;
++      });
++      return this.saving;
 +    }, null, "keep"));
      _defineProperty(this, "setSyncData", this.degradable(syncData => {
 +      // On failure the accumulator missed this batch, or holds part of it, so a later save
@@ -4499,7 +4551,7 @@ index 8320c66..ab62009 100644
      /**
       * Returns the out-of-band membership events for this room that
       * were previously loaded.
-@@ -146,7 +170,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -146,7 +176,7 @@ export class IndexedDBStore extends MemoryStore {
       */
      _defineProperty(this, "getOutOfBandMembers", this.degradable(roomId => {
        return this.backend.getOutOfBandMembers(roomId);
@@ -4508,7 +4560,15 @@ index 8320c66..ab62009 100644
      /**
       * Stores the out-of-band membership events for this room. Note that
       * it still makes sense to store an empty array as the OOB status for the room is
-@@ -164,7 +188,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -157,18 +187,18 @@ export class IndexedDBStore extends MemoryStore {
+     _defineProperty(this, "setOutOfBandMembers", this.degradable((roomId, membershipEvents) => {
+       super.setOutOfBandMembers(roomId, membershipEvents);
+       return this.backend.setOutOfBandMembers(roomId, membershipEvents);
+-    }, "setOutOfBandMembers"));
++    }, "setOutOfBandMembers", "keep"));
+     _defineProperty(this, "clearOutOfBandMembers", this.degradable(roomId => {
+       super.clearOutOfBandMembers(roomId);
+       return this.backend.clearOutOfBandMembers(roomId);
      }, "clearOutOfBandMembers"));
      _defineProperty(this, "getClientOptions", this.degradable(() => {
        return this.backend.getClientOptions();
@@ -4517,7 +4577,12 @@ index 8320c66..ab62009 100644
      _defineProperty(this, "storeClientOptions", this.degradable(options => {
        super.storeClientOptions(options);
        return this.backend.storeClientOptions(options);
-@@ -233,7 +257,7 @@ export class IndexedDBStore extends MemoryStore {
+-    }, "storeClientOptions"));
++    }, "storeClientOptions", "keep"));
+     if (!opts.indexedDB) {
+       throw new Error("Missing required option: indexedDB");
+     }
+@@ -233,7 +263,7 @@ export class IndexedDBStore extends MemoryStore {
     */
    wantsSave() {
      var now = Date.now();
@@ -4526,7 +4591,7 @@ index 8320c66..ab62009 100644
    }
  
    /**
-@@ -245,7 +269,8 @@ export class IndexedDBStore extends MemoryStore {
+@@ -245,7 +275,8 @@ export class IndexedDBStore extends MemoryStore {
     */
    save() {
      var force = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
@@ -4536,13 +4601,14 @@ index 8320c66..ab62009 100644
        return this.reallySave();
      }
      return Promise.resolve();
-@@ -260,18 +285,39 @@ export class IndexedDBStore extends MemoryStore {
+@@ -260,18 +291,40 @@ export class IndexedDBStore extends MemoryStore {
     *
     * @param func - The degradable work to do.
     * @param fallback - The method name for fallback.
 +   * @param onFailure - What a failure other than a full storage does. "degrade": as above.
-+   *     "keep", for the save and for reads: the saved data is kept and the one operation
-+   *     uses the fallback. "stopSaving": the same, and nothing more is saved.
++   *     "keep", for reads and for writes of one transaction, which an abort undoes: the
++   *     saved data is kept and the one operation uses the fallback. "stopSaving": the same,
++   *     and nothing more is saved.
     * @returns A wrapped member function.
     */
    degradable(func, fallback) {
@@ -4561,9 +4627,9 @@ index 8320c66..ab62009 100644
 +        var _this$backend$isConne, _this$backend;
 +        // Another operation degraded the store while this one ran.
 +        if (_this.degraded) return fallbackFn === null || fallbackFn === void 0 ? void 0 : fallbackFn.call(_this, ...args);
-+        if (onFailure !== "degrade" && (e === null || e === void 0 ? void 0 : e.name) !== "QuotaExceededError" ||
-+        // Only the connection failed; the data is intact.
-+        ((_this$backend$isConne = (_this$backend = _this.backend).isConnectionLost) === null || _this$backend$isConne === void 0 ? void 0 : _this$backend$isConne.call(_this$backend)) === true) {
++        if ((e === null || e === void 0 ? void 0 : e.name) !== "QuotaExceededError" && (
++        // On a lost connection only the connection failed; the data is intact.
++        onFailure !== "degrade" || ((_this$backend$isConne = (_this$backend = _this.backend).isConnectionLost) === null || _this$backend$isConne === void 0 ? void 0 : _this$backend$isConne.call(_this$backend)) === true)) {
 +          logger.warn("IndexedDBStore operation failed; keeping its data", e);
 +          if (onFailure === "stopSaving" && !_this.savesStopped) {
 +            _this.savesStopped = true;
@@ -4590,7 +4656,7 @@ index 4cd5e8c..1b058f8 100644
      setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
      clearOutOfBandMembers(roomId: string): Promise<void>;
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-index 5f58e7c..fed3a94 100644
+index 5f58e7c..fbeba0c 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 @@ -95,8 +95,14 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
@@ -4648,7 +4714,50 @@ index 5f58e7c..fed3a94 100644
      /** @returns whether or not the database was newly created in this session. */
      public isNewlyCreated(): Promise<boolean> {
          return Promise.resolve(this._isNewlyCreated);
-@@ -323,12 +346,14 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -292,20 +315,28 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+         logger.log(`LL: backend about to store ${membershipEvents.length}` + ` members for ${roomId}`);
+         const tx = this.db!.transaction(["oob_membership_events"], "readwrite");
+         const store = tx.objectStore("oob_membership_events");
+-        membershipEvents.forEach((e) => {
+-            store.put(e);
+-        });
+-        // aside from all the events, we also write a marker object to the store
+-        // to mark the fact that OOB members have been written for this room.
+-        // It's possible that 0 members need to be written as all where previously know
+-        // but we still need to know whether to return null or [] from getOutOfBandMembers
+-        // where null means out of band members haven't been stored yet for this room
+-        const markerObject = {
+-            room_id: roomId,
+-            oob_written: true,
+-            state_key: 0,
+-        };
+-        store.put(markerObject);
++        try {
++            membershipEvents.forEach((e) => {
++                store.put(e);
++            });
++            // aside from all the events, we also write a marker object to the store
++            // to mark the fact that OOB members have been written for this room.
++            // It's possible that 0 members need to be written as all where previously know
++            // but we still need to know whether to return null or [] from getOutOfBandMembers
++            // where null means out of band members haven't been stored yet for this room
++            const markerObject = {
++                room_id: roomId,
++                oob_written: true,
++                state_key: 0,
++            };
++            store.put(markerObject);
++        } catch (e) {
++            // A write that throws leaves the earlier ones queued, and they would commit.
++            try {
++                tx.abort();
++            } catch {}
++            throw e;
++        }
+         await txnAsPromise(tx);
+         logger.log(`LL: backend done storing for ${roomId}!`);
+     }
+@@ -323,12 +354,14 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
          const roomRange = IDBKeyRange.only(roomId);
  
          const minStateKeyProm = reqAsCursorPromise(roomIndex.openKeyCursor(roomRange, "next")).then(
@@ -4665,7 +4774,7 @@ index 5f58e7c..fed3a94 100644
  
          const writeTx = this.db!.transaction(["oob_membership_events"], "readwrite");
          const writeStore = writeTx.objectStore("oob_membership_events");
-@@ -339,7 +364,9 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -339,7 +372,9 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
              [roomId, minStateKey],
              [roomId, maxStateKey],
          );
@@ -4676,7 +4785,7 @@ index 5f58e7c..fed3a94 100644
      }
  
      /**
-@@ -420,60 +447,62 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -420,60 +455,62 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
              return this.syncToDatabasePromise;
          }
          userTuples.unshift(...this.pendingUserPresenceData);
@@ -4772,7 +4881,7 @@ index 5f58e7c..fed3a94 100644
      }
  
      /**
-@@ -481,21 +510,17 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -481,21 +518,17 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
       * Users with the same 'userId' will be replaced.
       * Presence events should be the event in its raw form (not the Event
       * object)
@@ -4804,7 +4913,7 @@ index 5f58e7c..fed3a94 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..afda486 100644
+index 25be506..4190713 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 @@ -40,6 +40,9 @@ import { type SyncUserProfile } from "../models/user.ts";
@@ -4824,13 +4933,13 @@ index 25be506..afda486 100644
 +    // Fired when a save fails: the store keeps its data and tries again soon. Of the saves
 +    // that fail in a row, only the first is reported.
 +    failed: (e: Error) => void;
-+    // Fired when the store could not read its saved sync or take a sync batch: it keeps its
-+    // saved data and saves nothing more.
++    // Fired when the store could not take a sync batch: it keeps its saved data and saves
++    // nothing more.
 +    stopped: (e: Error) => void;
      // Fired when the IndexedDB gets closed unexpectedly, for example, if the underlying storage is removed or
      // if the user clears the database in the browser's history preferences.
      closed: () => void;
-@@ -71,6 +80,10 @@ export class IndexedDBStore extends MemoryStore {
+@@ -71,6 +80,12 @@ export class IndexedDBStore extends MemoryStore {
      public readonly backend: IIndexedDBBackend;
  
      private startedUp = false;
@@ -4838,10 +4947,12 @@ index 25be506..afda486 100644
 +    // No more saves: the store is degraded, or the saved sync would no longer match what follows it.
 +    private savesStopped = false;
 +    private failedSaves = 0;
++    // The save in flight. Callers that overlap share it, so its failure counts once.
++    private saving?: Promise<void>;
      private syncTs = 0;
      // Records the last-modified-time of each user at the last point we saved
      // the database, such that we can derive the set if users that have been
-@@ -120,7 +133,10 @@ export class IndexedDBStore extends MemoryStore {
+@@ -120,7 +135,10 @@ export class IndexedDBStore extends MemoryStore {
      }
  
      /** Re-exports `TypedEventEmitter.on` */
@@ -4853,16 +4964,7 @@ index 25be506..afda486 100644
          this.emitter.on(event, handler);
      }
  
-@@ -176,13 +192,15 @@ export class IndexedDBStore extends MemoryStore {
-      * is no saved sync data.
-      */
-     public getSavedSync = this.degradable((): Promise<ISavedSync | null> => {
-+        // On failure the backend still holds the snapshot that could not be read. The full
-+        // sync that follows is merged into it, and must not be saved.
-         return this.backend.getSavedSync();
--    }, "getSavedSync");
-+    }, "getSavedSync", "stopSaving");
- 
+@@ -182,7 +200,7 @@ export class IndexedDBStore extends MemoryStore {
      /** @returns whether or not the database was newly created in this session. */
      public isNewlyCreated = this.degradable((): Promise<boolean> => {
          return this.backend.isNewlyCreated();
@@ -4889,7 +4991,7 @@ index 25be506..afda486 100644
      }
  
      /**
-@@ -231,7 +249,8 @@ export class IndexedDBStore extends MemoryStore {
+@@ -231,13 +249,15 @@ export class IndexedDBStore extends MemoryStore {
       *     (or immediately if no write is performed)
       */
      public save(force = false): Promise<void> {
@@ -4899,19 +5001,27 @@ index 25be506..afda486 100644
              return this.reallySave();
          }
          return Promise.resolve();
-@@ -253,12 +272,30 @@ export class IndexedDBStore extends MemoryStore {
+     }
+ 
+     private reallySave = this.degradable((): Promise<void> => {
++        if (this.saving) return this.saving;
+         this.syncTs = Date.now(); // set now to guard against multi-writes
+ 
+         // work out changed users (this doesn't handle deletions but you
+@@ -253,12 +273,35 @@ export class IndexedDBStore extends MemoryStore {
              this.userModifiedMap[u.userId] = u.getLastModifiedTime();
          }
  
 -        return this.backend.syncToDatabase(userTuples);
 -    }, null);
-+        return this.backend.syncToDatabase(userTuples).then(
++        const saving = this.backend.syncToDatabase(userTuples).then(
 +            () => {
 +                this.failedSaves = 0;
 +            },
 +            (e) => {
 +                // These users were not saved after all.
 +                for (const [userId] of userTuples) delete this.userModifiedMap[userId];
++                // Not a failed save to count: the wrapper returns, or degrades the store.
 +                if (this.degraded || (e as Error | null)?.name === "QuotaExceededError") throw e;
 +                // What was saved before is intact: a save is one transaction, which an abort
 +                // undoes. WebKit aborts the transactions in flight when it suspends the app.
@@ -4922,6 +5032,10 @@ index 25be506..afda486 100644
 +                if (this.failedSaves === 1) this.emitter.emit("failed", e as Error);
 +            },
 +        );
++        this.saving = saving.finally(() => {
++            this.saving = undefined;
++        });
++        return this.saving;
 +    }, null, "keep");
  
      public setSyncData = this.degradable((syncData: ISyncResponse): Promise<void> => {
@@ -4933,7 +5047,7 @@ index 25be506..afda486 100644
  
      /**
       * Returns the out-of-band membership events for this room that
-@@ -268,7 +305,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -268,7 +311,7 @@ export class IndexedDBStore extends MemoryStore {
       */
      public getOutOfBandMembers = this.degradable((roomId: string): Promise<IStateEventWithRoomId[] | null> => {
          return this.backend.getOutOfBandMembers(roomId);
@@ -4942,7 +5056,15 @@ index 25be506..afda486 100644
  
      /**
       * Stores the out-of-band membership events for this room. Note that
-@@ -292,7 +329,7 @@ export class IndexedDBStore extends MemoryStore {
+@@ -283,6 +326,7 @@ export class IndexedDBStore extends MemoryStore {
+             return this.backend.setOutOfBandMembers(roomId, membershipEvents);
+         },
+         "setOutOfBandMembers",
++        "keep",
+     );
+ 
+     public clearOutOfBandMembers = this.degradable((roomId: string) => {
+@@ -292,12 +336,12 @@ export class IndexedDBStore extends MemoryStore {
  
      public getClientOptions = this.degradable((): Promise<IStoredClientOpts | undefined> => {
          return this.backend.getClientOptions();
@@ -4951,13 +5073,20 @@ index 25be506..afda486 100644
  
      public storeClientOptions = this.degradable((options: IStoredClientOpts): Promise<void> => {
          super.storeClientOptions(options);
-@@ -309,18 +346,40 @@ export class IndexedDBStore extends MemoryStore {
+         return this.backend.storeClientOptions(options);
+-    }, "storeClientOptions");
++    }, "storeClientOptions", "keep");
+ 
+     /**
+      * All member functions of `IndexedDBStore` that access the backend use this wrapper to
+@@ -309,18 +353,41 @@ export class IndexedDBStore extends MemoryStore {
       *
       * @param func - The degradable work to do.
       * @param fallback - The method name for fallback.
 +     * @param onFailure - What a failure other than a full storage does. "degrade": as above.
-+     *     "keep", for the save and for reads: the saved data is kept and the one operation
-+     *     uses the fallback. "stopSaving": the same, and nothing more is saved.
++     *     "keep", for reads and for writes of one transaction, which an abort undoes: the
++     *     saved data is kept and the one operation uses the fallback. "stopSaving": the same,
++     *     and nothing more is saved.
       * @returns A wrapped member function.
       */
      private degradable<A extends Array<any>, F extends keyof MemoryStore | null, R = void>(
@@ -4976,9 +5105,9 @@ index 25be506..afda486 100644
 +                // Another operation degraded the store while this one ran.
 +                if (this.degraded) return fallbackFn?.call(this, ...args);
 +                if (
-+                    (onFailure !== "degrade" && (e as Error | null)?.name !== "QuotaExceededError") ||
-+                    // Only the connection failed; the data is intact.
-+                    this.backend.isConnectionLost?.() === true
++                    (e as Error | null)?.name !== "QuotaExceededError" &&
++                    // On a lost connection only the connection failed; the data is intact.
++                    (onFailure !== "degrade" || this.backend.isConnectionLost?.() === true)
 +                ) {
 +                    logger.warn("IndexedDBStore operation failed; keeping its data", e);
 +                    if (onFailure === "stopSaving" && !this.savesStopped) {

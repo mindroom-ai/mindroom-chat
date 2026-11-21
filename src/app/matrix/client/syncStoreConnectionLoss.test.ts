@@ -22,8 +22,9 @@ const forceCloseDatabase = forceCloseFakeDatabase as unknown as (db: IDBDatabase
  *
  * WebKit also aborts the transactions in flight when iOS suspends the app, on
  * a connection that stays open. A save that fails so keeps the persisted sync,
- * and is tried again soon. A full disk deletes it, and so does another write
- * that fails on a working connection.
+ * and is tried again soon; any write of one transaction keeps it. A full disk
+ * deletes it, and so do an unreadable saved sync and a failed clear of stored
+ * members on a working connection.
  */
 describe('Matrix sync store after an IndexedDB failure', () => {
   let indexedDB: IDBFactory;
@@ -163,8 +164,8 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     await store.save(true);
     // Reads fall back to memory instead of failing.
     expect(await store.getOutOfBandMembers('!room:example')).toBeNull();
-    // A write that is not a save does not delete the data either: only the connection failed.
-    await storeMembers(store);
+    // A clear of stored members, which deletes the data when it fails on a working connection.
+    await store.clearOutOfBandMembers(roomId);
 
     expect(degraded).not.toHaveBeenCalled();
     expect(await persistedToken()).toBe('saved');
@@ -316,9 +317,9 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     });
   });
 
-  // A write that is not a save and fails on a working connection deletes the saved data, as it
-  // always has: kept, the members of a room that was left would stay stored beside a saved
-  // token from after the leave, which the server never sends again.
+  // A clear of stored members is two transactions. One that fails on a working connection
+  // deletes the saved data, as it always has: kept, the members of a room that was left would
+  // stay stored beside a saved token from after the leave, which the server never sends again.
   it('clears the store when a clear of stored members fails after a save has started', async () => {
     const store = await savedStore();
     const degraded = vi.fn();
@@ -343,7 +344,7 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     await expectDatabaseCleared();
   });
 
-  it('clears the store when storing members fails part-way', async () => {
+  it('keeps the persisted sync and no part of the members when storing them fails part-way', async () => {
     const store = await savedStore();
     const failed = vi.fn();
     const degraded = vi.fn();
@@ -358,9 +359,38 @@ describe('Matrix sync store after an IndexedDB failure', () => {
       });
     await storeMembers(store);
 
-    expect(degraded).toHaveBeenCalledTimes(1);
+    expect(degraded).not.toHaveBeenCalled();
     expect(failed).not.toHaveBeenCalled();
-    await expectDatabaseCleared();
+    const reader = await startStore();
+    expect(await reader.getSavedSyncToken()).toBe('saved');
+    expect(await reader.getOutOfBandMembers(roomId)).toBeNull();
+    const rows = backendDatabase(reader)
+      .transaction('oob_membership_events')
+      .objectStore('oob_membership_events')
+      .count();
+    await new Promise((resolve) => {
+      rows.onsuccess = resolve;
+    });
+    expect(rows.result).toBe(0);
+  });
+
+  // Each is one transaction, so an abort (as when iOS suspends the app) stores no part of it.
+  it.each([
+    ['members', storeMembers],
+    ['client options', (store: IndexedDBStore) => store.storeClientOptions({})],
+  ])('keeps the persisted sync when a write of %s is aborted', async (_what, write) => {
+    const store = await savedStore();
+    const degraded = vi.fn();
+    store.on('degraded', degraded);
+
+    abortNextSave('UnknownError');
+    await write(store);
+
+    expect(degraded).not.toHaveBeenCalled();
+    const reader = await startStore();
+    expect(await reader.getSavedSyncToken()).toBe('saved');
+    expect(await reader.getOutOfBandMembers(roomId)).toBeNull();
+    expect(await reader.getClientOptions()).toBeUndefined();
   });
 
   it('clears the store when the storage is full during a clear of stored members', async () => {
@@ -397,6 +427,21 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     expect(await persistedToken()).toBe('after-leave');
     expect(degraded).not.toHaveBeenCalled();
     expect(failed).not.toHaveBeenCalled();
+  });
+
+  it('counts one failure for the callers that share a save', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const store = await savedStore();
+    const failed = vi.fn();
+    store.on('failed', failed);
+
+    abortNextSave('UnknownError');
+    await Promise.all([store.save(true), store.save(true)]);
+
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(store.wantsSave()).toBe(false);
+    vi.setSystemTime(Date.now() + 10_001);
+    expect(store.wantsSave()).toBe(true);
   });
 
   it('saves again soon after a failed save, not after the usual five minutes', async () => {
@@ -538,6 +583,13 @@ describe('Matrix sync store after an IndexedDB failure', () => {
     ],
     ['reported on the request', failRequest],
     ['reported as the transaction commits', undefined],
+    [
+      'thrown by the write on a connection that is closing',
+      function closeAndThrow(this: IDBObjectStore) {
+        this.transaction.db.close();
+        throw new DOMException('Storage is full.', 'QuotaExceededError');
+      },
+    ],
   ])('clears the store when the storage is full (%s), and stops saving', async (_how, put) => {
     const store = await savedStore();
     const failed = vi.fn();
@@ -587,18 +639,13 @@ describe('Matrix sync store after an IndexedDB failure', () => {
 
   // The first sync request asks for the changes since the saved sync that is replayed.
   describe('the first sync request', () => {
-    const startSyncing = async (
-      store: IndexedDBStore,
-      replayFailure?: Error,
-      firstAnswer?: object
-    ) => {
+    const startSyncing = async (store: IndexedDBStore, replayFailure?: Error) => {
       const syncRequests: URL[] = [];
       const answer = (body: object) => Promise.resolve(new Response(JSON.stringify(body)));
       const fetchFn = vi.fn<typeof fetch>((input) => {
         const url = new URL(input instanceof Request ? input.url : input);
         if (url.pathname.endsWith('/sync')) {
           syncRequests.push(url);
-          if (firstAnswer && syncRequests.length === 1) return answer(firstAnswer);
           return new Promise(() => {
             // The server holds the request.
           });
@@ -624,10 +671,9 @@ describe('Matrix sync store after an IndexedDB failure', () => {
       }
       await store.startup();
       await client.startClient();
-      // The client asks again once it has taken an answer and saved, if it saves.
-      await vi.waitFor(() => expect(syncRequests).toHaveLength(firstAnswer ? 2 : 1));
+      await vi.waitFor(() => expect(syncRequests).toHaveLength(1));
       if (replayFailure) await vi.waitFor(() => expect(unexpected).toHaveBeenCalled());
-      // Time for one more request, which must not come.
+      // Time for a second request, which must not come.
       await new Promise((resolve) => {
         setTimeout(resolve, 20);
       });
@@ -647,39 +693,21 @@ describe('Matrix sync store after an IndexedDB failure', () => {
       expect(await startSyncing(unstartedStore())).toEqual({ since: ['saved'], unexpected: [] });
     });
 
-    it('asks for everything when the saved sync could not be read', async () => {
-      await savedStore();
+    // The read copies what the store holds in memory, so it would fail on every start. Kept,
+    // the stored members would also pass for the members of rooms the full sync brings anew.
+    it('asks for everything, and deletes a saved sync that could not be read', async () => {
+      await storeMembers(await savedStore());
       const store = unstartedStore();
-      vi.spyOn(store.backend, 'getSavedSync').mockRejectedValueOnce(new Error('unreadable'));
-
-      expect(await startSyncing(store)).toEqual({ since: [null], unexpected: [] });
-    });
-
-    // The backend still holds the saved sync that could not be read, and the answer with
-    // everything is merged into it: a room that the answer no longer has would stay saved.
-    it('saves nothing after a saved sync that could not be read', async () => {
-      const invited = '!invited:example';
-      const saved = await startStore();
-      await saved.setSyncData({
-        next_batch: 'saved',
-        rooms: { invite: { [invited]: { invite_state: { events: [] } } } },
-      } as unknown as Parameters<IndexedDBStore['setSyncData']>[0]);
-      await saved.save(true);
-      const store = unstartedStore();
-      const stopped = vi.fn();
-      store.on('stopped', stopped);
+      const degraded = vi.fn();
+      store.on('degraded', degraded);
       const unreadable = new Error('unreadable');
       vi.spyOn(store.backend, 'getSavedSync').mockRejectedValueOnce(unreadable);
 
-      expect(await startSyncing(store, undefined, { next_batch: 'full' })).toEqual({
-        since: [null, 'full'],
-        unexpected: [],
-      });
+      expect(await startSyncing(store)).toEqual({ since: [null], unexpected: [] });
 
-      const reader = await startStore();
-      expect(await reader.getSavedSyncToken()).toBe('saved');
-      expect(Object.keys((await reader.getSavedSync())?.roomsData.invite ?? {})).toEqual([invited]);
-      expect(stopped.mock.calls).toEqual([[unreadable]]);
+      expect(degraded.mock.calls).toEqual([[unreadable]]);
+      expect(await store.getOutOfBandMembers(roomId)).toBeNull();
+      await expectDatabaseCleared();
     });
 
     it('goes on from a saved sync whose replay threw, and reports the error', async () => {
