@@ -33,7 +33,12 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useHeldThreadOrder, usePointerOverCards, useScrolledAway } from './useHeldThreadOrder';
+import {
+  holdOrder,
+  useHeldThreadOrder,
+  usePointerOverCards,
+  useScrolledAway,
+} from './useHeldThreadOrder';
 import { applyFrozenThreadOrder } from '../../event-store/threads/roomThreadOverviewModel';
 import { FloatingAction } from '../../ui/FloatingAction';
 import { useFlickStop } from '../../ui/useFlickStop';
@@ -433,16 +438,28 @@ export function CompactRoomView({
     }
     return livePage;
   }, [away, folded, heldSections, livePage, pageLimit, scope, threadRootIds]);
-  const shownRows = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
   const livePins = useMemo(() => new Set(pinnedRootIds), [pinnedRootIds]);
   const shownPins = useMemo(() => {
     const previous = committed.current;
     if (!away || previous?.scope !== scope || heldSections) return livePins;
     const incumbents = new Set(previous.rows);
     return new Set(
-      shownRows.filter((id) => (incumbents.has(id) ? previous.pins : livePins).has(id))
+      listedRows.filter((id) => (incumbents.has(id) ? previous.pins : livePins).has(id))
     );
-  }, [away, heldSections, livePins, scope, shownRows]);
+  }, [away, heldSections, listedRows, livePins, scope]);
+  const calmRows = useMemo(() => {
+    const shown = committed.current;
+    if (!away || !orderHeld || heldSections || !shown) return listedRows;
+    // A pending pin stays in its old parent, but can't anchor a join in either group.
+    return [true, false].flatMap((pinned) =>
+      holdOrder(
+        shown.rows.filter((id) => shown.pins.has(id) === pinned),
+        listedRows.filter((id) => shownPins.has(id) === pinned),
+        (id) => livePins.has(id) === pinned
+      )
+    );
+  }, [away, heldSections, listedRows, livePins, orderHeld, shownPins]);
+  const shownRows = useHeldThreadOrder(calmRows, orderHeld && !heldSections && !away, viewRef);
   useLayoutEffect(() => {
     committed.current = { scope, sections: heldSections, rows: shownRows, pins: shownPins };
     // Consume the explicit override only after the target layout has committed at the top.

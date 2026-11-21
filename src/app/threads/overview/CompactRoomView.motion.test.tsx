@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
@@ -181,6 +181,25 @@ describe('the calm compact list', () => {
     rerender(list(['$a', '$b', '$c']));
     expect(pill()).toBeNull();
   });
+
+  it.each([false, true])(
+    'joins at the live edge despite a pending pin (keyboard focus: %s)',
+    (focused) => {
+      const { rerender } = render(list(['$a', '$b', '$c']));
+      scroll(30);
+      const card = row('$c')!.querySelector<HTMLButtonElement>('[data-thread-root-id]')!;
+      if (focused) act(() => card.focus());
+      state.pinned = ['$c'];
+      rerender(list(['$c', '$a', '$b']));
+      expect(order()).toEqual(['$a', '$b', '$c']);
+
+      rerender(list(['$c', '$new', '$a', '$b']));
+      expect(order()).toEqual(['$new', '$a', '$b', '$c']);
+      expect(row('$c')?.contains(card)).toBe(true);
+      expect(row('$c')?.closest('[data-pinned-threads]')).toBeNull();
+      if (focused) expect(document.activeElement).toBe(card);
+    }
+  );
 
   it('releases scroll and pointer holds independently, but resets both on a control change', () => {
     const { rerender } = render(list(['$a', '$b']));
