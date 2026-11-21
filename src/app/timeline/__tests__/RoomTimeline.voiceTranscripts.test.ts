@@ -1,7 +1,7 @@
 import React from 'react';
-import { MatrixEvent, RoomMember, RoomMemberEvent } from 'matrix-js-sdk';
+import { MatrixEvent, RoomMember, RoomMemberEvent, RoomState } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   create,
@@ -14,7 +14,6 @@ import {
   matrixClientMock,
   roomTimelineVirtualizerState,
   powerLevelsContextMock,
-  stateEventsByTypeMock,
   threadRenderStateMock,
   wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -26,15 +25,50 @@ const ROUTER = '@mindroom_router:example.org';
 const CUSTOM_AGENT = '@helper:example.org';
 const VIEWER = '@alice:example.org';
 
-const setRoster = (accounts: string[]) =>
-  stateEventsByTypeMock.set('io.mindroom.accounts', [
-    makeEvent('$accounts', {
+let roomState: RoomState;
+beforeEach(() => {
+  roomState = new RoomState('!room:example.org');
+});
+afterEach(() => {
+  powerLevelsContextMock.levels = {};
+});
+
+const setRouterBinding = (router: string) => {
+  powerLevelsContextMock.levels = { users: { [router]: 50 } };
+  roomState.setStateEvents([
+    new MatrixEvent({
+      type: 'io.mindroom.router',
+      room_id: roomState.roomId,
+      state_key: '',
+      sender: router,
+      content: { user_id: router },
+    }),
+  ]);
+};
+
+const setRoster = (accounts: string[]) => {
+  roomState.setStateEvents([
+    new MatrixEvent({
       type: 'io.mindroom.accounts',
-      stateKey: ROUTER,
+      room_id: roomState.roomId,
+      state_key: ROUTER,
       sender: ROUTER,
       content: { accounts },
     }),
-  ] as never);
+  ]);
+};
+
+// Exercise the real keyed state hook against the SDK's room state and event emitter.
+vi.doUnmock('../../matrix/hooks/useStateEvent');
+const makeRoomWithState = (...args: Parameters<typeof makeRoom>) => {
+  const room = makeRoom(...args);
+  Object.assign(room.getLiveTimeline(), { getState: () => roomState });
+  Object.assign(room.client, {
+    on: roomState.on.bind(roomState),
+    removeListener: roomState.removeListener.bind(roomState),
+  });
+  return room;
+};
 
 // Its own test draws it; here only that the voice row shows it counts.
 vi.mock('../../messages/content/VoiceTranscript', async (importOriginal) => ({
@@ -57,13 +91,7 @@ const openThread = async (
     joinedMembers = [VIEWER, AGENT],
   } = {}
 ) => {
-  if (router) {
-    // The router bound itself and holds the level the binding takes.
-    powerLevelsContextMock.levels = { users: { [router]: 50 } };
-    stateEventsByTypeMock.set('io.mindroom.router', [
-      makeEvent('$binding', { sender: router, content: { user_id: router } }),
-    ] as never);
-  }
+  if (router) setRouterBinding(router);
   const { RoomTimeline } = await import('../RoomTimeline');
   const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
   const events = [
@@ -94,7 +122,7 @@ const openThread = async (
   if (!showEcho) events.pop();
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
-  const room = makeRoom({ liveEvents: [rootEvent], joinedMembers });
+  const room = makeRoomWithState({ liveEvents: [rootEvent], joinedMembers });
   room.getThread = () =>
     ({
       rootEvent,
@@ -144,11 +172,6 @@ const transcribingStatuses = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAllByProps({ role: 'status', 'aria-label': 'Transcribing…' });
 
 describe('a voice echo in an open thread', () => {
-  afterEach(() => {
-    stateEventsByTypeMock.clear();
-    powerLevelsContextMock.levels = {};
-  });
-
   it('folds under its voice message when the room names its sender as the router', async () => {
     const { renderer } = await openThread(ROUTER);
     try {
@@ -211,16 +234,14 @@ describe('a voice echo in an open thread', () => {
   });
 
   it('updates the fold when the bound roster changes without a membership change', async () => {
-    const { renderer, update } = await openThread(ROUTER, CUSTOM_AGENT, {
+    const { renderer } = await openThread(ROUTER, CUSTOM_AGENT, {
       joinedMembers: [VIEWER, CUSTOM_AGENT],
     });
     try {
       expect(getRenderedEventIds(renderer)).toContain('$echo');
-      setRoster([CUSTOM_AGENT]);
-      act(update);
+      act(() => setRoster([CUSTOM_AGENT]));
       expect(getRenderedEventIds(renderer)).not.toContain('$echo');
-      setRoster([]);
-      act(update);
+      act(() => setRoster([]));
       expect(getRenderedEventIds(renderer)).toContain('$echo');
     } finally {
       act(() => renderer.unmount());
@@ -232,7 +253,10 @@ describe('a voice echo in an open thread', () => {
     ['a roster-backed responder with a custom ID', [CUSTOM_AGENT], true],
   ] as const)('shows pending with %s only if somebody answers', async (_case, joined, pending) => {
     setRoster([CUSTOM_AGENT]);
-    const { renderer } = await openThread(ROUTER, ROUTER, { showEcho: false, joinedMembers: [VIEWER, ...joined] });
+    const { renderer } = await openThread(ROUTER, ROUTER, {
+      showEcho: false,
+      joinedMembers: [VIEWER, ...joined],
+    });
     try {
       expect(transcribingStatuses(renderer)).toHaveLength(pending ? 1 : 0);
     } finally {
@@ -314,7 +338,7 @@ it('does not show pending for a voice root whose unloaded replies are bundled', 
     unsigned: { age: 0, 'm.relations': { 'm.thread': { count: 1 } } },
     content: { msgtype: 'm.audio', body: 'voice.ogg', 'org.matrix.msc3245.voice': {} },
   });
-  const room = makeRoom({ liveEvents: [voice], joinedMembers: [VIEWER, AGENT] });
+  const room = makeRoomWithState({ liveEvents: [voice], joinedMembers: [VIEWER, AGENT] });
   const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
   roomTimelineVirtualizerState.virtualIndexes = [0];
@@ -332,16 +356,8 @@ it('does not show pending for a voice root whose unloaded replies are bundled', 
 });
 
 describe("the router's voice echo in the room's timeline", () => {
-  afterEach(() => {
-    stateEventsByTypeMock.clear();
-    powerLevelsContextMock.levels = {};
-  });
-
   it('keeps its own row while its voice message is loaded but outside the rendered window', async () => {
-    powerLevelsContextMock.levels = { users: { [ROUTER]: 50 } };
-    stateEventsByTypeMock.set('io.mindroom.router', [
-      makeEvent('$binding', { sender: ROUTER, content: { user_id: ROUTER } }),
-    ] as never);
+    setRouterBinding(ROUTER);
     const voice = makeEvent('$voice', {
       ts: 1,
       content: {
@@ -371,7 +387,7 @@ describe("the router's voice echo in the room's timeline", () => {
       renderer = create(
         wrapWithSyncEngine(
           React.createElement(RoomTimeline as never, {
-            room: makeRoom({ liveEvents: [voice, ...filler, echo] }),
+            room: makeRoomWithState({ liveEvents: [voice, ...filler, echo] }),
             hasMindroomAgents: false,
             summaryMap: new Map(),
             onStoreThreadSummary: vi.fn(),
