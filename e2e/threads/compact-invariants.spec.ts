@@ -2,40 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import { loginWithPassword } from '../helpers/auth';
-import { createRoom } from '../helpers/createRoom';
-import {
-  disposableHomeserverIsUp,
-  registerDisposableUser,
-  DISPOSABLE_HOMESERVER as hs,
-} from '../helpers/disposableAccounts';
-import { fingersOn } from '../helpers/fingers';
-import {
-  BOARD,
-  COMPACT,
-  LIVE,
-  installListRecorder,
-  takeFrames,
-  type ListFrame,
-} from '../helpers/listRecorder';
-import {
-  createDefaultThreadFilterState,
-  joinRoom,
-  registerAgentAccount,
-  seedRoomOverviewState,
-  sendRoomMessage,
-  sendStateEvent,
-} from '../helpers/matrix';
-import { roomMoreOptions } from '../helpers/roomMenu';
-const invariants = ['I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7'] as const;
-type Invariant = (typeof invariants)[number];
-const cards = (frame: ListFrame) => frame.order.filter(([key]) => !key.startsWith('header:'));
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const away = (frame: ListFrame) => frame.y > frame.height / 2;
-const difference = (a: number, b: number) => Math.abs(a - b) > 1;
-const positionWrites = (f: ListFrame) => f.writes.filter((w) => w.before !== w.after);
-const restore = (stack: string) => stack.includes('scrollAnchorMemory');
-const passiveOps = ['reply', 'new', 'resolve', 'pin', 'start', 'finish', 'title'];
+import { compactOracle, fullyVisible, const passiveOps = ['reply', 'new', 'resolve', 'pin', 'start', 'finish', 'title'];
 const bag = `${passiveOps.join(
   ' '
 )} filter sections fold sort wheel flick hover leave arrow back link resize pill`.split(' ');
@@ -44,65 +11,65 @@ const prefix =
     ' '
   );
 const boardOps = 'wheel reply start finish resolve pin new wheel reply resize'.split(' ');
-function inspect(
-  a: ListFrame,
-  b: ListFrame,
-  op: string,
-  direction: number,
-  report: (id: Invariant, reason: string) => void
-) {
-  const keys = new Set(b.order.map(([key]) => key));
-  if (keys.size !== b.order.length) report('I4', 'duplicate displayed key');
-  const writes = positionWrites(b);
-  if (writes.length > 1) report('I3', 'multiple effective JS calls in one frame');
-  if (op === 'wheel' && writes.some((w) => (w.after - w.before) * direction < -1))
-    report('I3', 'JS write reversed the wheel direction');
-  if (op === 'wheel' && writes.some((w) => restore(w.stack)))
-    report('I6', 'placement wrote after reader scroll');
-  if (a.view !== b.view || !a.order.length || !b.order.length) return;
-  const before = cards(a).filter(([key]) => keys.has(key));
-  const oldKeys = new Set(before.map(([key]) => key));
-  const after = cards(b).filter(([key]) => oldKeys.has(key));
-  const reordered = !same(before, after);
-  if (!passiveOps.includes(op) || b.input.length) return;
-  if (away(a)) {
-    if (reordered) report('I1', 'calm survivor order/group changed');
-    if (b.reattached.some((key) => oldKeys.has(key)))
-      report('I1', 'calm survivor detached and reattached');
-    const anchor = a.visible.find(
-      (row) => oldKeys.has(row.key) && row.bottom > a.start && row.top < a.end
-    );
-    const next = b.visible.find((row) => row.key === anchor?.key);
-    if (anchor && b.y > 1 && b.y < b.max - 1 && (!next || difference(anchor.painted, next.painted)))
-      report('I1', 'calm visible witness drifted');
-  } else {
-    if (difference(b.y, Math.min(a.y, b.max))) report('I2', 'live offset changed');
-    if (reordered) {
-      for (const next of b.visible) {
-        const old = a.visible.find((row) => row.key === next.key);
-        if (!old || difference(old.top, old.painted) || !difference(old.top, next.top)) continue;
-        if (difference(old.painted, next.origin ?? next.painted))
-          report('I2', 'live survivor teleported instead of gliding');
+test('Compact oracle catches injected jumps, remounts and drift @webkit', async ({ page }) => {
+  await installListRecorder(page);
+  await page.route('**/compact-oracle-probe', (route) => route.fulfill({
+    contentType: 'text/html',
+    body: `<main data-compact-room-view style="height: 130px; overflow:auto; overflow-anchor:none">${
+      Array.from({ length: 12 }, (_, i) => `<div data-scroll-anchor="card-${i}" style="height:50px"><div data-motion-row>Card ${i}</div></div>`).join('')
+    }</main>`,
+  }));
+  for (const defect of ['bottom jump', 'lower jump', 'remount', 'slow drift', 'reset to top']) {
+    await test.step(defect, async () => {
+      await page.goto('/compact-oracle-probe');
+      const view = page.locator(COMPACT);
+      await view.evaluate((element, bottom) => { element.scrollTop = bottom ? element.scrollHeight : 200; }, defect === 'bottom jump');
+      await page.evaluate(settleView);
+      let before = (await takeFrames(page)).at(-1)!;
+      const catches: string[] = [];
+      const oracle = compactOracle((id, reason) => catches.push(`${id}: ${reason}`));
+      oracle.scope();
+      oracle.sample(before, before);
+      await view.evaluate(async (element, { defect: kind, key }) => {
+        const row = element.querySelector<HTMLElement>(`[data-scroll-anchor="${key}"]`)!;
+        const paint = row.firstElementChild as HTMLElement;
+        if (kind === 'remount') row.replaceWith(row.cloneNode(true));
+        else if (kind === 'reset to top') element.scrollTop = 0;
+        else if (kind === 'slow drift') {
+          for (let i = 1; i <= 6; i += 1) {
+            paint.style.translate = `0px ${i * 0.5}px`;
+            await new Promise(requestAnimationFrame);
+          }
+        } else paint.style.translate = '0px 30px';
+      }, { defect, key: before.visible[defect === 'lower jump' ? 1 : 0]!.key });
+      await page.evaluate(settleView);
+      for (const next of await takeFrames(page)) {
+        oracle.sample(before, next);
+        before = next;
       }
-    }
+      expect(catches, defect).toContain(defect === 'remount'
+        ? 'I1: calm survivor detached and reattached' : 'I1: calm visible survivor drifted');
+    });
   }
-  // Geometry may move during a correction; a change of the actual hold is the contract breach.
-  if (a.held !== b.held && away(a) !== away(b) && a.height === b.height && b.y < b.max - 1)
-    report('I5', 'hold followed a passive half-screen crossing');
-  if (writes.some((w) => restore(w.stack)))
-    report('I6', 'settled placement wrote during a later update');
-  if (away(a) && b.held && !b.pill && a.pill && same(a.order, b.order))
-    report('I7', 'pending-order affordance disappeared before catch-up');
-}
+});
+
 const password = 'compact-harness-test-only';
-const framesPass = (count: number) =>
-  new Promise<void>((done) => {
-    const tick = () => {
-      if (--count === 0) done();
-      else requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
+const settleView = () => new Promise<void>((resolve, reject) => {
+  let previous: ListFrame | undefined;
+  let stable = 0;
+  const deadline = performance.now() + 5000;
+  const tick = () => {
+    const sample = window.compactRecorder.last;
+    if (sample && sample !== previous) {
+      stable = previous && previous.view === sample.view && Math.abs(previous.y - sample.y) < 0.1 && !sample.moving && !sample.pending ? stable + 1 : 0;
+      previous = sample;
+    }
+    if (stable >= 5) resolve();
+    else if (performance.now() > deadline) reject(Error('Compact scroller did not settle'));
+    else requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+});
 for (const phone of [false, true]) {
   const form = phone ? 'phone' : 'desktop';
   const size = { width: phone ? 390 : 1440, height: phone ? 780 : 900 };
@@ -139,9 +106,10 @@ for (const phone of [false, true]) {
       );
       const enforced: Invariant[] = ['I3', 'I4'];
       const log: string[] = [];
-      const incidents: { id: Invariant; op: number; reason: string; frame?: ListFrame }[] = [];
+      const incidents: { id: Invariant; op: number; reason: string; before?: ListFrame; after?: ListFrame; dy?: number }[] = [];
       const started = Date.now();
       let sampleCount = 0;
+      let before: ListFrame | undefined;
       let frame: ListFrame | undefined;
       let sequence = 0;
       const seen = new Set<string>();
@@ -152,9 +120,10 @@ for (const phone of [false, true]) {
         if (seen.has(key)) return;
         seen.add(key);
         counts[id] += 1;
-        incidents.push({ id, op: sequence, reason, frame });
+        incidents.push({ id, op: sequence, reason, before, after: frame, dy: frame && before ? frame.y - before.y : undefined });
         console.log(`${id}: ${reason}; ${replay()}`);
       };
+      const oracle = compactOracle(report);
       try {
         const suffix = randomUUID().slice(0, 8);
         const reader = await registerDisposableUser(`inv_${suffix}`, password);
@@ -169,24 +138,35 @@ for (const phone of [false, true]) {
         const pinned = new Set<string>();
         const resolved = new Set<string>();
         const runs = new Map<string, string>();
-        const sendState = (type: string, key: string, content: Record<string, unknown>) =>
-          sendStateEvent(hs, reader.accessToken, roomId, type, key, content);
-        const send = (body: string, root?: string, pending = false) =>
-          sendRoomMessage(hs, root ? agent.accessToken : reader.accessToken, roomId, {
-            msgtype: 'm.text',
-            body,
-            ...(root
-              ? {
-                  'm.relates_to': {
-                    rel_type: 'm.thread',
-                    event_id: root,
-                    is_falling_back: true,
-                    'm.in_reply_to': { event_id: root },
-                  },
-                }
-              : {}),
+        let delivery: string | undefined;
+        const bodies: string[] = [];
+        page.on('response', (response) => {
+          if (!response.url().includes('/sync?') || !response.ok()) return;
+          void response.text().then((body) => {
+            bodies.push(body);
+            if (bodies.length > 8) bodies.shift();
+          }).catch(() => {});
+        });
+        const synced = async () => {
+          if (delivery) await expect.poll(() => bodies.some((body) => body.includes(JSON.stringify(delivery))),
+            { message: 'the browser received the Matrix change', timeout: 10_000 }).toBe(true);
+        };
+        const sendState = async (type: string, key: string, content: Record<string, unknown>) => {
+          const path = `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(type)}/${encodeURIComponent(key)}`;
+          const response = await matrixFetch<{ event_id: string }>(hs, path, {
+            method: 'PUT', accessToken: reader.accessToken, body: JSON.stringify(content),
+          });
+          delivery = response.event_id;
+        };
+        const send = async (body: string, root?: string, pending = false) => {
+          delivery = await sendRoomMessage(hs, root ? agent.accessToken : reader.accessToken, roomId, {
+            msgtype: 'm.text', body,
+            ...(root ? { 'm.relates_to': { rel_type: 'm.thread', event_id: root, is_falling_back: true,
+              'm.in_reply_to': { event_id: root } } } : {}),
             ...(pending ? { 'io.mindroom.stream_status': 'pending' } : {}),
           });
+          return delivery;
+        };
         const add = async (label: string) => {
           const root = await send(label);
           await send(`Answer to ${label}`, root);
@@ -224,7 +204,7 @@ for (const phone of [false, true]) {
             timeout: 30_000,
           });
           await expect(page.locator('html[data-page-slide]')).toHaveCount(0);
-          await page.evaluate(framesPass, 3);
+          await page.evaluate(settleView);
         };
         const touch = phone && browserName === 'chromium' ? await fingersOn(page) : undefined;
         const sort = page.locator(`[data-sort-direction]${LIVE}`).first();
@@ -243,6 +223,8 @@ for (const phone of [false, true]) {
         await ready();
         frame = (await takeFrames(page)).at(-1);
         expect(frame?.visible.length, 'initial visible witnesses').toBeGreaterThan(0);
+        oracle.scope();
+        oracle.sample(frame!, frame!);
         let pool: string[] = [];
         const boardAt = 27;
         let knownWinner: string | undefined;
@@ -266,11 +248,12 @@ for (const phone of [false, true]) {
           const control = op === 'sections' ? sections : op === 'sort' ? sort : undefined;
           if (control && !(await control.isVisible())) op = 'filter';
           const previous = frame!;
+          delivery = undefined;
           let target = roots[pick(roots.length)]!;
           const roll = pick(1800);
           const label = `Sample ${op} ${sequence}`;
           if (op === 'reply' && sequence <= 3) knownWinner = target = roots[sequence - 1]!;
-          if (op === 'link') target = roots.at(-5)!;
+          if (op === 'link') target = previous.order.filter(([key]) => roots.includes(key) && !resolved.has(key)).at(-5)?.[0] ?? target;
           if (op === 'pin' && pinned.size && board) target = pinned.values().next().value!;
           if (op === 'finish') target = runs.keys().next().value ?? target;
           let delta = op === 'wheel' ? roll - 900 || 400 : 0;
@@ -284,6 +267,7 @@ for (const phone of [false, true]) {
           );
           switch (op) {
             case 'reply':
+              if (sequence <= 3) await page.evaluate((proof) => { window.compactRecorder.evidence = proof; }, [target, label] as [string, string]);
               await send(label, target);
               break;
             case 'new':
@@ -316,7 +300,7 @@ for (const phone of [false, true]) {
                 body: label,
                 'io.mindroom.stream_status': 'completed',
               };
-              await sendRoomMessage(hs, agent.accessToken, roomId, {
+              delivery = await sendRoomMessage(hs, agent.accessToken, roomId, {
                 ...content,
                 'm.new_content': content,
                 'm.relates_to': { rel_type: 'm.replace', event_id: event },
@@ -372,34 +356,36 @@ for (const phone of [false, true]) {
               await page.mouse.move(8, 8);
               break;
             case 'arrow': {
-              const key = previous.visible.find(({ key }) => !key.startsWith('header:'))?.key;
-              if (key) {
-                await card(key).focus();
+              const row = fullyVisible(previous)[0];
+              if (row) {
+                await card(row.key).evaluate((element: HTMLElement) => element.focus({ preventScroll: true }));
                 await page.keyboard.press(roll % 2 ? 'ArrowUp' : 'ArrowDown');
               }
               break;
             }
             case 'back': {
-              const row = previous.visible.find(
-                (r) =>
-                  !r.key.startsWith('header:') &&
-                  r.painted > previous.start &&
-                  r.bottom < previous.end
-              );
+              const row = fullyVisible(previous)[0];
               if (!row) break;
               await card(row.key).click();
               await page.mouse.move(8, 8);
               await expect(page).toHaveURL(/threadId=/);
               await takeFrames(page);
+              const mover = roots.find((key) => !previous.visible.some((old) => old.key === key))!;
+              await send(label, mover);
+              await synced();
+              oracle.start(previous, undefined, mover);
               await page.goBack();
               await ready();
               break;
             }
             case 'link':
+              if (!previous.order.some(([key]) => key === target) || resolved.has(target)) break;
+              oracle.start(previous, target);
               await page.goto(`${rootPath}/${encodeURIComponent(target)}?focusEvent=1`);
               await ready();
               break;
             case 'resize':
+              oracle.scope();
               await page.setViewportSize({ ...size, height: size.height - (roll % 200) });
               break;
             case 'pill': {
@@ -412,56 +398,21 @@ for (const phone of [false, true]) {
               await openBoard();
               break;
           }
-          await page.evaluate(
-            framesPass,
-            op === 'wheel' || op === 'flick' || passiveOps.includes(op) ? 24 : 8
-          );
+          await synced();
+          if (op === 'reply' && sequence <= 3) await expect.poll(async () => {
+            const texts = await card(target).allTextContents();
+            return !texts.length || texts.some((text) => text.includes(label));
+          }, { message: 'mounted reply preview reflects the sync' }).toBe(true);
+          await page.evaluate(settleView);
           const samples = await takeFrames(page);
           expect(samples.length, `no frames after ${op}`).toBeGreaterThan(0);
           sampleCount += samples.length;
-          let prior = previous;
           for (const next of samples) {
+            before = frame;
             frame = next;
-            inspect(prior, next, op, Math.sign(delta), report);
-            prior = next;
+            oracle.sample(before!, frame);
           }
-          if (
-            op === 'link' &&
-            !prior.visible.some(
-              (r) => r.key === target && r.painted >= prior.start - 1 && r.bottom <= prior.end + 1
-            )
-          )
-            report('I6', 'linked card not in readable viewport');
-          if (
-            op === 'back' &&
-            !prior.visible.some((r) =>
-              previous.visible.some((p) => p.key === r.key && !difference(p.painted, r.painted))
-            )
-          )
-            report('I6', 'Back did not restore a visible witness');
-          if (op === 'wheel' && !away(previous) && away(prior) && !prior.held)
-            report('I5', 'reader crossed half a screen without entering hold');
-          if (
-            sequence === 4 &&
-            knownWinner &&
-            !away(prior) &&
-            !prior.held &&
-            prior.order.some(([key]) => key === knownWinner) &&
-            prior.order[0]?.[0] !== knownWinner
-          )
-            report('I7', 'catch-up did not apply the known live winner');
-          // Check a known live winner in the seeded newest-first flat list.
-          if (
-            op === 'reply' &&
-            sequence <= 3 &&
-            !prior.pending &&
-            (await card(target).allTextContents()).some((text) => text.includes(label))
-          ) {
-            if (away(previous) && previous.order[0]?.[0] !== target && !prior.pill)
-              report('I7', 'known stale order without pill');
-            if (!away(previous) && !prior.held && prior.order[0]?.[0] !== target)
-              report('I2', 'live reply did not lead newest-first list');
-          }
+          oracle.settle(frame!, sequence <= 4 ? knownWinner : undefined);
         }
       } catch (error) {
         console.log(`Harness error: ${replay()}`);
@@ -481,9 +432,10 @@ for (const phone of [false, true]) {
           counts,
           enforced,
           log,
+          mode: 'oracle: reader latch; baseline products may recompute from geometry',
           incidents,
         };
-        await writeFile(`${dir}/${project}.json`, JSON.stringify(summary, null, 2));
+        await writeFile(`${dir}/${project}-retry-${info.retry}.json`, JSON.stringify(summary, null, 2));
         for (const id of invariants)
           if (counts[id])
             info.annotations.push({
@@ -491,11 +443,8 @@ for (const phone of [false, true]) {
               description: `${counts[id]} incidents; SEED=${seed} OPS=${ops}`,
             });
       }
-      const failures = invariants.filter(
-        (id) =>
-          counts[id] && (enforced.includes(id) || strict.includes(id) || strict.includes('all'))
-      );
-      expect(failures, `SEED=${seed} OPS=${ops}; see test-results/compact-invariants`).toEqual([]);
+      const first = incidents.find(({ id }) => enforced.includes(id) || strict.includes(id) || strict.includes('all'));
+      expect(first, `SEED=${seed} OPS=${first ? first.op + 1 : ops}; first failure: ${JSON.stringify(first)}`).toBeUndefined();
     });
   });
 }

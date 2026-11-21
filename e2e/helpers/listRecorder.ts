@@ -93,10 +93,11 @@ export const installListRecorder = (page: Page) =>
         )
           return call();
         const before = view.scrollTop;
+        const stamp = ++seq;
         const result = call();
         writes.push({
           view,
-          seq: ++seq,
+          seq: stamp,
           method,
           before,
           after: view.scrollTop,
@@ -134,8 +135,8 @@ export const installListRecorder = (page: Page) =>
             let direction = 0;
             if (event instanceof WheelEvent && findView(event.target))
               direction = Math.sign(event.deltaY);
-            if (event instanceof TouchEvent) {
-              const current = event.touches[0]?.clientY ?? touchY;
+            if (type.startsWith('touch')) {
+              const current = (event as TouchEvent).touches[0]?.clientY ?? touchY;
               if (event.type === 'touchmove') direction = Math.sign(touchY - current);
               touchY = current;
             }
