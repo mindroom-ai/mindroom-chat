@@ -448,7 +448,8 @@ describe('renderAgentMessageContent', () => {
           '<p>After</p>',
         ].join(''),
       }),
-      undefined
+      undefined,
+      true
     );
 
     renderer.unmount();
@@ -478,7 +479,8 @@ describe('renderAgentMessageContent', () => {
           ' after</p>',
         ].join(''),
       }),
-      undefined
+      undefined,
+      true
     );
 
     renderer.unmount();

@@ -59,6 +59,7 @@ import { canEditEvent, getMemberAvatarMxc, getMemberDisplayName } from '../matri
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
 import { copyToClipboard, selectableTextNear } from '../lib/dom';
 import { getMatrixToRoomEvent } from '../matrix/matrix-to';
+import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { getViaServers } from '../matrix/via-servers';
 import { MessageEditor } from './edit/MessageEditor';
 import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
@@ -226,12 +227,15 @@ export function MessageCopyTextItem({
   content,
   originalContent,
   resolvedContent,
+  toolRows,
   loading = false,
   onClose,
 }: {
   content: Record<string, unknown>;
   originalContent?: Record<string, unknown>;
   resolvedContent?: Record<string, unknown>;
+  /** Whether the message's tool markers draw tool rows: their lines then stay out of the copy. */
+  toolRows: boolean;
   loading?: boolean;
   onClose?: () => void;
 }) {
@@ -241,9 +245,14 @@ export function MessageCopyTextItem({
     if (loading) return undefined;
     const source = getMessageCopyTextSource(content, originalContent ?? content, resolvedContent);
     if (!source) return undefined;
-    const scan = scanToolMarkerLines(source.body, source.formattedBody, source.plainBodyFallback);
+    const scan = scanToolMarkerLines(
+      source.body,
+      source.formattedBody,
+      source.plainBodyFallback,
+      toolRows
+    );
     return getMessageCopyTexts(source, scan);
-  }, [content, loading, originalContent, resolvedContent]);
+  }, [content, loading, originalContent, resolvedContent, toolRows]);
   const handleCopy = async (text: string | undefined) => {
     if (text === undefined) return;
     const copied = await copyToClipboard(text);
@@ -1003,6 +1012,11 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                     content={content}
                     originalContent={mEvent.getContent()}
                     resolvedContent={resolvedLongTextContent}
+                    // As the message is drawn (RenderMessageContent): only an agent's markers are rows.
+                    toolRows={isMindroomAgentUserIdForViewer(
+                      senderId,
+                      client.getUserId() ?? undefined
+                    )}
                     loading={longTextLoading}
                     onClose={dismissMenu}
                   />

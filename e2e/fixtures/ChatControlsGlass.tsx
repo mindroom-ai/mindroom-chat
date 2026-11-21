@@ -159,6 +159,7 @@ export function ChatControlsGlass() {
             }}
             htmlReactParserOptions={{}}
             markerContent={{}}
+            toolRows
           />
         </section>
       </div>

@@ -1,6 +1,8 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { getSameSenderBundledEdit } from '../matrix/editEvent';
+import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
 import { MessageEvent } from '../matrix/types/room';
 import { shouldUseLongTextSearchResultBody } from '../messages/content/searchResultPolicy';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
@@ -55,9 +57,7 @@ const getSerializedReplacementContent = (
   return replacement.content;
 };
 
-export const getSearchResultEffectiveContent = (
-  event: IEventWithRoomId
-): IEventWithRoomId['content'] => {
+const getLatestContent = (event: IEventWithRoomId): IEventWithRoomId['content'] => {
   const relation = event.content?.['m.relates_to'];
   const inlineNewContent = event.content?.['m.new_content'];
   if (relation?.rel_type === RelationType.Replace && isRecord(inlineNewContent)) {
@@ -75,6 +75,19 @@ export const getSearchResultEffectiveContent = (
 
   return event.content;
 };
+
+/**
+ * A hit's latest content as the timeline reads its event: the same shape and agent-key checks,
+ * and an agent's tool markers back in its text. Every preview of a hit starts from this.
+ */
+export const getSearchResultEffectiveContent = (
+  event: IEventWithRoomId
+): IEventWithRoomId['content'] =>
+  sanitizeContent(
+    getLatestContent(event),
+    isTrustedAgentSender(event.sender),
+    isMindroomAgentUserId(event.sender)
+  );
 
 export const isSearchResultEdited = (event: IEventWithRoomId): boolean =>
   event.content?.['m.relates_to']?.rel_type === RelationType.Replace ||
@@ -130,13 +143,14 @@ export const getSearchResultLightweightCustomBody = (
 export const getSearchResultPreviewText = (
   event: IEventWithRoomId,
   highlights: string[] = [],
-  t?: TFunction
+  t?: TFunction,
+  // The hit's effective content, from a caller that has read it already.
+  content = getSearchResultEffectiveContent(event)
 ): string => {
   if (event.unsigned?.redacted_because) {
     return t?.('mindroomUi.message-search.searchResultPreview.redacted') ?? 'Message was redacted.';
   }
 
-  const content = getSearchResultEffectiveContent(event);
   const body = typeof content?.body === 'string' ? content.body : undefined;
   const previewBody =
     typeof body === 'string'
