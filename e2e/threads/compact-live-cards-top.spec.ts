@@ -233,6 +233,21 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   // under the pointer stays where it is.
   await page.mouse.move(5, 795);
   await scrollList(page, 700);
+  // Start the hold on a settled card, not one still gliding from the previous arrival.
+  await expect
+    .poll(() =>
+      view.evaluate((element) =>
+        element
+          .getAnimations({ subtree: true })
+          .some(
+            (animation) =>
+              (animation.effect as KeyframeEffect | null)?.target?.hasAttribute(
+                'data-motion-row'
+              ) && animation.playState !== 'finished'
+          )
+      )
+    )
+    .toBe(false);
   let middle: string | undefined;
   await expect
     .poll(
