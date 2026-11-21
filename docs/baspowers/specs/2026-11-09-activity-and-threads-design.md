@@ -34,7 +34,7 @@ Measured on the `mindroom` LXC event journal over 30 days (5,272 messages, 15 ro
 | Signal | Rule |
 |---|---|
 | `pendingApproval` | the newest `io.mindroom.tool_approval` record of the thread (`collectThreadApprovals`) from an agent that `canSubmitApprovalDecision` allows the user to answer |
-| `pendingQuestion` | the newest agent message carries `io.mindroom.interactive` with emoji option keys, the user has not reacted to it with one of them, and has not written in the thread since |
+| `pendingQuestion` | the thread is unresolved, the newest counted agent reply carries `io.mindroom.interactive` with emoji option keys, no one has answered with an option, and no counted message was sent after the question was asked (at the last edit for a streamed reply) |
 | `mentionedMe` | an unread counted reply names the user in `m.mentions.user_ids`, or the SDK's highlight count for the thread is above 0 |
 | `newCount` | counted replies from others the user has not read (`room.hasUserReadEvent`) |
 | `lastReply` | the newest counted reply: sender, preview text, time |

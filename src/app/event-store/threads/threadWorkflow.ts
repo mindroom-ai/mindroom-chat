@@ -22,8 +22,8 @@ export type ThreadWorkflowStatus = {
 
 /**
  * A foreground request or background job waiting for the person, independent of workflow buckets.
- * The signals already leave out requests a resolve answered; resolving answers a background
- * approval too.
+ * Resolving answers every question, approvals asked at or before the resolve, and background
+ * approvals. A foreground approval asked after the resolve still waits.
  */
 export const isWaitingOnYou = (
   signals: { pendingApproval?: unknown; pendingQuestion?: unknown },
@@ -34,7 +34,7 @@ export const isWaitingOnYou = (
 ): boolean =>
   !!(
     signals.pendingApproval ||
-    signals.pendingQuestion ||
+    (!thread.isResolved && signals.pendingQuestion) ||
     (!thread.isResolved && thread.threadRecord.status.hasBackgroundApproval)
   );
 
