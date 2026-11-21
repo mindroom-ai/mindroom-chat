@@ -562,8 +562,12 @@ export const createVoiceCaptureSession = (
       return isRecording(generation);
     },
     finish: () => stop(true),
-    // A recorder that has not started has no audio to park: it ends.
-    park: () => void (canStop() ? stop(false) : end(false)),
+    // A session with no recorder yet has no audio to park: it ends. One whose recorder is
+    // already stopping is left to finish, or its audio would be lost.
+    park: () => {
+      if (canStop()) void stop(false);
+      else if (!current?.recorder) void end(false);
+    },
     reset: () => void end(false),
     discard: async () => end(true),
   };

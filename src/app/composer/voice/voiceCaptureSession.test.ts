@@ -587,6 +587,9 @@ describe('voice capture session', () => {
     session.park();
     expect(latest().stop).toHaveBeenCalledOnce();
     expect(park).not.toHaveBeenCalled();
+    // Asked again while the recorder is still stopping (Back and Forward): the first one stands.
+    session.park();
+    expect(session.getSnapshot().phase).toBe('processing');
     latest().emitData(new Blob(['last']));
     latest().emitStop();
     expect(disk.append).toHaveBeenCalledExactlyOnceWith(0, expect.any(Blob), 700);

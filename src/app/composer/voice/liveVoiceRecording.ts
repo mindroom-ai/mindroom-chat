@@ -113,7 +113,10 @@ export const discardLiveVoiceRecording = async (store: JotaiStore): Promise<void
  * and the audio waits as a recovered recording (`startLiveVoiceRecording.ts`).
  */
 export const parkLiveVoiceRecording = (store: JotaiStore): void => {
-  store.get(liveVoiceRecordingAtom)?.park();
+  const session = store.get(liveVoiceRecordingAtom);
+  session?.park();
+  // One still asking for the microphone ended in that call, before anything watches for its end.
+  if (session?.getSnapshot().phase === 'idle') takeLiveVoiceRecording(store);
 };
 
 /**

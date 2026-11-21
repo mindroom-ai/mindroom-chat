@@ -8,6 +8,7 @@ import {
   discardLiveVoiceRecording,
   endVoiceRecordingsOfAccount,
   liveVoiceRecordingAtom,
+  parkLiveVoiceRecording,
 } from './liveVoiceRecording';
 import { startLiveVoiceRecording } from './startLiveVoiceRecording';
 import { clearVoiceRecordings, recoverVoiceRecording } from './voiceRecordingJournal';
@@ -191,5 +192,18 @@ it("names the account to the Mac app's recorder, which an account switch stops",
 
   endVoiceRecordingsOfAccount(store);
   expect(recorder.stop).toHaveBeenCalledOnce();
+  expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
+});
+
+it('leaves no recording behind when one still asking for the microphone is parked', () => {
+  vi.stubGlobal('navigator', {
+    mediaDevices: { getUserMedia: () => new Promise(() => undefined) },
+  });
+  const store = createStore();
+  void startLiveVoiceRecording(store, context);
+  expect(store.get(liveVoiceRecordingAtom)).toBeDefined();
+
+  // The sign-in pages park it (Add account): no composer is left a capsule of nothing.
+  parkLiveVoiceRecording(store);
   expect(store.get(liveVoiceRecordingAtom)).toBeUndefined();
 });
