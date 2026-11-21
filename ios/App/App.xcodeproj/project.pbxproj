@@ -76,6 +76,8 @@
 		BDACE7C7D158832EA988828D /* MindRoomMacUpdaterProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8979C82BE1FD040AAD5E98 /* MindRoomMacUpdaterProtocol.swift */; platformFilter = maccatalyst; };
 		FBFB57312EB4954DF040540E /* MacUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4600BB1AF8CAD4797974A2E1 /* MacUpdater.swift */; };
 		B6F1F10D5715F6EFB23542D9 /* MindRoomUpdatePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6B453DDDB4CB0D4785ECAC /* MindRoomUpdatePlugin.swift */; };
+		5B0000000000000000000007 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; platformFilter = maccatalyst; productRef = 5B0000000000000000000005 /* LiveKit */; };
+		5B0000000000000000000008 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; platformFilter = maccatalyst; productRef = 5B0000000000000000000006 /* LiveKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -294,6 +296,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */,
+				5B0000000000000000000007 /* LiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -322,6 +325,7 @@
 			files = (
 				A69E05E1A38204028A89636C /* Foundation.framework in Frameworks */,
 				802FA907131E7013397E92B4 /* Pods_AppStoreMac.framework in Frameworks */,
+				5B0000000000000000000008 /* LiveKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -508,6 +512,9 @@
 				F37D490DFA7E030205D77EEB /* PBXTargetDependency */,
 			);
 			name = App;
+			packageProductDependencies = (
+				5B0000000000000000000005 /* LiveKit */,
+			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* MindRoom.chat.app */;
 			productType = "com.apple.product-type.application";
@@ -595,6 +602,9 @@
 				3020E115B7C64D46801D614C /* PBXTargetDependency */,
 			);
 			name = AppStoreMac;
+			packageProductDependencies = (
+				5B0000000000000000000006 /* LiveKit */,
+			);
 			productName = AppStoreMac;
 			productReference = F97337D6BB32E68C80643DAF /* AppStoreMac.app */;
 			productType = "com.apple.product-type.application";
@@ -678,6 +688,7 @@
 			packageReferences = (
 				F28409DC59EB2A009449E2CA /* XCLocalSwiftPackageReference "MatrixRustSDK" */,
 				8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */,
+				5B0000000000000000000004 /* XCRemoteSwiftPackageReference "client-sdk-swift" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -1594,7 +1605,28 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		5B0000000000000000000004 /* XCRemoteSwiftPackageReference "client-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/livekit/client-sdk-swift";
+			requirement = {
+				kind = exactVersion;
+				version = 2.19.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		5B0000000000000000000005 /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5B0000000000000000000004 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
+		5B0000000000000000000006 /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5B0000000000000000000004 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
 		B3F1E4DD43D478CE24DDADAC /* MindRoomWatchKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */;
