@@ -8,6 +8,7 @@ import {
   type RefObject,
   type TouchEvent,
 } from 'react';
+import { type SectionOfRow, stationaryRows } from './compactShownOrder';
 
 /** The topmost cards in view, their tops on screen, the scroll offset and the order then. */
 type CardsInView = {
@@ -39,45 +40,6 @@ const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView |
     if (card && rootId) cards.push({ rootId, top: card.getBoundingClientRect().top });
   }
   return cards.length > 0 ? { cards, scrollTop: view.scrollTop, order } : undefined;
-};
-
-type OrderLink = { id: string; index: number; previous: OrderLink | undefined };
-
-type SectionOfRow = (key: string) => string | undefined;
-
-/** Find a longest increasing subsequence, excluding cards that switched between sections. */
-const stationaryRows = (
-  before: readonly string[],
-  after: readonly string[],
-  sectionOfRow?: SectionOfRow
-) => {
-  let section: string | undefined;
-  const oldRows = new Map(
-    before.map((id, index) => {
-      section = sectionOfRow?.(id) ?? section;
-      return [id, { index, section }] as const;
-    })
-  );
-  section = undefined;
-  const tails: OrderLink[] = [];
-  for (const id of after) {
-    section = sectionOfRow?.(id) ?? section;
-    const old = oldRows.get(id);
-    // With grouping turned on or off, there is no section on one side to compare.
-    if (!old || (old.section && section && old.section !== section)) continue;
-    const { index } = old;
-    let low = 0;
-    let high = tails.length;
-    while (low < high) {
-      const mid = Math.floor((low + high) / 2);
-      if (tails[mid]!.index < index) low = mid + 1;
-      else high = mid;
-    }
-    tails[low] = { id, index, previous: tails[low - 1] };
-  }
-  const stationary = new Set<string>();
-  for (let row = tails.at(-1); row; row = row.previous) stationary.add(row.id);
-  return stationary;
 };
 
 /** CSS scroll anchoring (Chromium, Firefox) keeps the cards in view in place by itself. */

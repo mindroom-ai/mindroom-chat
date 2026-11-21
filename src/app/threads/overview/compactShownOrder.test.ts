@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSection } from './compactThreadSections';
-import { step } from './compactShownOrder';
+import { stationaryRows, step } from './compactShownOrder';
 
 const FLAT = 'flat';
 const flat = (rootIds: string[]) => [{ id: FLAT, rootIds }];
@@ -129,3 +129,15 @@ const properties = <Id extends string>(groupOrder: readonly Id[], keepEmpty = fa
 
 describe('flat order properties', () => properties([FLAT], true));
 describe('section order properties', () => properties(COMPACT_THREAD_SECTION_ORDER));
+
+describe('stationaryRows', () => {
+  it('breaks a tie in favor of the lower old index', () => {
+    expect(stationaryRows(['$a', '$b'], ['$b', '$a'])).toEqual(new Set(['$a']));
+  });
+
+  it('excludes a transfer even if the card stays in the same relative order', () => {
+    const sectionOf = (id: string) => (id.startsWith('#') ? id : undefined);
+    const rows = stationaryRows(['#open', '$a', '#done'], ['#open', '#done', '$a'], sectionOf);
+    expect(rows).toEqual(new Set(['#open', '#done']));
+  });
+});
