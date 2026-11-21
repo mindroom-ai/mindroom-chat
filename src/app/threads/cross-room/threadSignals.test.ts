@@ -352,6 +352,14 @@ describe('readThreadSignals', () => {
     expect(readThreadSignals(written, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
   });
 
+  it('drops a question when someone else writes a newer message', async () => {
+    const { room } = await setup(ME, [
+      question('$q', 2000),
+      event({ id: '$bob', ts: 2600, sender: BOB }),
+    ]);
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
+  });
+
   it('notices an unread reply that mentions the user', async () => {
     const { room } = await setup(BOB, [
       event({ id: '$hi', ts: 2000, content: { 'm.mentions': { user_ids: [ME] } } }),
@@ -594,22 +602,23 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     expect(threadRootPluginEvent(room, { ...entry(), threadRootId: '$gone' })).toBeUndefined();
   });
 
-  it('takes what a thread asked before it was resolved for answered, not what it asked after', async () => {
+  it('drops questions from resolved threads but keeps approvals asked after the resolve', async () => {
     const { room } = await setup(ME, [approval('$ask', 2000, null), question('$q', 3000)]);
-    expect(readThreadSignals(room, ROOT, ME, NOW, 3000)).toMatchObject({ newsTs: 3000 });
-    expect(readThreadSignals(room, ROOT, ME, NOW, 3000).pendingApproval).toBeUndefined();
-    expect(readThreadSignals(room, ROOT, ME, NOW, 3000).pendingQuestion).toBeUndefined();
-    expect(readThreadSignals(room, ROOT, ME, NOW, 2500)).toMatchObject({
-      pendingQuestion: { eventId: '$q' },
-    });
-    expect(readThreadSignals(room, ROOT, ME, NOW, 2500).pendingApproval).toBeUndefined();
-    expect(readThreadSignals(room, ROOT, ME, NOW, 1500)).toMatchObject({
-      pendingApproval: { eventId: '$ask' },
-      pendingQuestion: { eventId: '$q' },
-    });
+    const afterBoth = readThreadSignals(room, ROOT, ME, NOW, 3000);
+    expect(afterBoth.newsTs).toBe(3000);
+    expect(afterBoth.pendingApproval).toBeUndefined();
+    expect(afterBoth.pendingQuestion).toBeUndefined();
+
+    const between = readThreadSignals(room, ROOT, ME, NOW, 2500);
+    expect(between.pendingApproval).toBeUndefined();
+    expect(between.pendingQuestion).toBeUndefined();
+
+    const beforeBoth = readThreadSignals(room, ROOT, ME, NOW, 1500);
+    expect(beforeBoth.pendingApproval?.eventId).toBe('$ask');
+    expect(beforeBoth.pendingQuestion).toBeUndefined();
   });
 
-  it('asks after a resolve when the edit that finishes the stream adds the question then', async () => {
+  it('drops a streamed question added by an edit after the resolve', async () => {
     const { 'io.mindroom.interactive': prompt } = question('$q', 2000).getContent();
     const { room } = await setup(
       ME,
@@ -623,8 +632,10 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       ],
       { opened: true }
     );
-    expect(readThreadSignals(room, ROOT, ME, NOW, 2500).pendingQuestion?.eventId).toBe('$q');
-    expect(readThreadSignals(room, ROOT, ME, NOW, 3000).pendingQuestion).toBeUndefined();
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+    const resolved = readThreadSignals(room, ROOT, ME, NOW, 2500);
+    expect(resolved.newsTs).toBe(3000);
+    expect(resolved.pendingQuestion).toBeUndefined();
   });
 
   it('asks from the edit that finished the stream, so a message written meanwhile is no answer', async () => {
