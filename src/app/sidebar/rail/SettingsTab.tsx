@@ -316,7 +316,11 @@ export function SettingsTab({
                 onDeactivate: closeLeaving,
               }}
             >
-              <LogoutDialog session={leaving} handleClose={closeLeaving} />
+              <LogoutDialog
+                session={leaving}
+                handleClose={closeLeaving}
+                onShowRecording={() => setSwitcherOpen(false)}
+              />
             </FocusTrap>
           </OverlayCenter>
         </Overlay>

@@ -504,6 +504,10 @@
       "remove": "إزالة"
     },
     "logoutDialog": {
+      "unsentVoiceTitle": "تسجيل صوتي غير مُرسَل",
+      "unsentVoiceBody": "لديك تسجيل صوتي لم يُرسَل بعد.",
+      "sendUnsentVoice": "إرساله",
+      "discardVoiceAndSignOut": "تجاهل التسجيل وتسجيل الخروج",
       "logout": "تسجيل الخروج",
       "unverifiedDevice": "جهاز لم يتم التحقق منه",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "تحقق من جهازك قبل تسجيل الخروج للحفاظ على رسائلك المشفرة.",

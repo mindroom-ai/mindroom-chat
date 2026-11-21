@@ -145,7 +145,7 @@ export function CommandPaletteRenderer() {
                 onDeactivate: closeLogout,
               }}
             >
-              <LogoutDialog handleClose={closeLogout} />
+              <LogoutDialog handleClose={closeLogout} onShowRecording={close} />
             </FocusTrap>
           </OverlayCenter>
         </Overlay>

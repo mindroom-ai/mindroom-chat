@@ -492,6 +492,10 @@
       "remove": "Remove"
     },
     "logoutDialog": {
+      "unsentVoiceTitle": "Unsent voice recording",
+      "unsentVoiceBody": "You have a voice recording that hasn't been sent.",
+      "sendUnsentVoice": "Send it",
+      "discardVoiceAndSignOut": "Discard and sign out",
       "logout": "Logout",
       "unverifiedDevice": "Unverified Device",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Verify your device before logging out to save your encrypted messages.",

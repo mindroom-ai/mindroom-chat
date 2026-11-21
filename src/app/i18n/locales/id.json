@@ -492,6 +492,10 @@
       "remove": "Hapus"
     },
     "logoutDialog": {
+      "unsentVoiceTitle": "Rekaman suara belum terkirim",
+      "unsentVoiceBody": "Ada rekaman suara Anda yang belum dikirim.",
+      "sendUnsentVoice": "Kirim rekaman",
+      "discardVoiceAndSignOut": "Buang dan keluar",
       "logout": "Keluar",
       "unverifiedDevice": "Perangkat belum terverifikasi",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "Verifikasi perangkat sebelum keluar untuk menyimpan pesan terenkripsi Anda.",

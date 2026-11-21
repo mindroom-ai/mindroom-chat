@@ -492,6 +492,10 @@
       "remove": "削除"
     },
     "logoutDialog": {
+      "unsentVoiceTitle": "未送信の録音",
+      "unsentVoiceBody": "まだ送信されていない音声録音があります。",
+      "sendUnsentVoice": "送信する",
+      "discardVoiceAndSignOut": "破棄してログアウト",
       "logout": "ログアウト",
       "unverifiedDevice": "未検証のデバイス",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "暗号化されたメッセージを保存するには、ログアウト前にデバイスを検証してください。",

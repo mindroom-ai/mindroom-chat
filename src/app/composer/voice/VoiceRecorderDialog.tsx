@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'jotai';
 import {
   type ForwardRefRenderFunction,
   forwardRef,
@@ -15,7 +16,11 @@ import { localizeVoiceErrorMessage } from './voiceErrorMessage';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder, type VoiceRecorderPhase } from './useVoiceRecorder';
 import { stopPropagation } from '../../lib/keyboard';
-import type { PendingVoiceSendContext } from '../roomInputDrafts';
+import {
+  liveVoiceRecordingAtom,
+  openVoiceRecorderAtom,
+  type PendingVoiceSendContext,
+} from '../roomInputDrafts';
 
 type VoiceRecorderComposerProps = {
   active: boolean;
@@ -103,6 +108,26 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     getSendContext,
   });
   const displayErrorMessage = localizeVoiceErrorMessage(t, errorMessage);
+  const store = useStore();
+  useEffect(() => {
+    if (
+      !recorderToken ||
+      store.get(openVoiceRecorderAtom) !== recorderToken ||
+      (phase !== 'recording' && phase !== 'paused')
+    )
+      return undefined;
+    const live = {
+      context: getSendContext(),
+      discard: async () => {
+        await discard();
+        onClose();
+      },
+    };
+    store.set(liveVoiceRecordingAtom, live);
+    return () => {
+      if (store.get(liveVoiceRecordingAtom) === live) store.set(liveVoiceRecordingAtom, undefined);
+    };
+  }, [discard, getSendContext, onClose, phase, recorderToken, store]);
 
   const errorMessageRef = useRef(errorMessage);
   useEffect(() => {

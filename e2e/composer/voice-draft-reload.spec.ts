@@ -7,6 +7,7 @@ import {
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { createRoom } from '../helpers/createRoom';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
@@ -300,6 +301,39 @@ test('a live recording keeps going until Discard is confirmed', async ({ browser
     await page.reload();
     await expect(mic).toBeEnabled({ timeout: 60_000 });
     await expect(page.getByText(/Recovered recording/)).toHaveCount(0);
+    expect(await voiceMessages(world)).toBe(0);
+  } finally {
+    await context.close();
+  }
+});
+
+test('sign-out warns before losing a live voice recording', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const world = await seed('sign_out');
+  const context = await browser.newContext({ ...desktop.options, serviceWorkers: 'block' });
+  await context.addInitScript(toneMicrophone);
+  await context.grantPermissions(['microphone']);
+  try {
+    const page = await openVoiceRoom(context, world);
+    await press(page, desktop, 'Record voice message');
+    const pause = page.getByRole('button', { name: 'Pause voice recording' });
+    await expect(pause).toBeEnabled({ timeout: 30_000 });
+    const logout = page.getByRole('button', { name: 'Logout', exact: true }).first();
+    const warning = page.getByRole('dialog', { name: 'Unsent voice recording' });
+    await openSettingsFromAccountRail(page);
+    await logout.click();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Cancel', exact: true }).last().click();
+    await expect(warning).toHaveCount(0);
+    await logout.click();
+    await warning.getByRole('button', { name: 'Send it', exact: true }).click();
+    await expect(logout).toHaveCount(0);
+    await expect(pause).toBeEnabled();
+
+    await openSettingsFromAccountRail(page);
+    await logout.click();
+    await warning.getByRole('button', { name: 'Discard and sign out', exact: true }).click();
+    await expect(page).toHaveURL(/\/login(?:[/?#]|$)/, { timeout: 60_000 });
     expect(await voiceMessages(world)).toBe(0);
   } finally {
     await context.close();
